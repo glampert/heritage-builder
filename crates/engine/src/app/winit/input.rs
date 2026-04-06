@@ -1,11 +1,8 @@
+use common::{Vec2, mem::RcMut};
 use strum::EnumCount;
 use winit::keyboard::{KeyCode, PhysicalKey};
 
-use common::{Vec2, mem::RcMut};
-use crate::app::input::{
-    InputSystemBackend,
-    InputAction, InputKey, InputModifiers, MouseButton,
-};
+use crate::app::input::{InputAction, InputKey, InputModifiers, InputSystemBackend, MouseButton};
 
 // ----------------------------------------------
 // WinitInputState
@@ -88,7 +85,8 @@ impl WinitInputSystemBackend {
 
     // Direct access to the underlying input state for platform-specific mutation (WebRunner).
     #[cfg(feature = "web")]
-    #[inline] pub(crate) fn input_state_mut(&mut self) -> &mut WinitInputState {
+    #[inline]
+    pub(crate) fn input_state_mut(&mut self) -> &mut WinitInputState {
         &mut self.state
     }
 }
@@ -101,20 +99,12 @@ impl InputSystemBackend for WinitInputSystemBackend {
 
     #[inline]
     fn mouse_button_state(&self, button: MouseButton) -> InputAction {
-        if self.state.is_mouse_button_pressed(button) {
-            InputAction::Press
-        } else {
-            InputAction::Release
-        }
+        if self.state.is_mouse_button_pressed(button) { InputAction::Press } else { InputAction::Release }
     }
 
     #[inline]
     fn key_state(&self, key: InputKey) -> InputAction {
-        if self.state.is_key_pressed(key) {
-            InputAction::Press
-        } else {
-            InputAction::Release
-        }
+        if self.state.is_key_pressed(key) { InputAction::Press } else { InputAction::Release }
     }
 }
 

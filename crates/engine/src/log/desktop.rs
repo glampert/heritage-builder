@@ -1,13 +1,11 @@
 use std::{
-    fmt, io,
+    fmt,
+    io,
     sync::{LazyLock, RwLock, atomic::Ordering},
 };
 
+use super::{Channel, ENABLE_SRC_LOCATION, ENABLE_TTY_COLORS, Level, Location, REDIRECT_TO_FILE};
 use crate::file_sys;
-use super::{
-    Level, Channel, Location,
-    REDIRECT_TO_FILE, ENABLE_SRC_LOCATION, ENABLE_TTY_COLORS,
-};
 
 // ----------------------------------------------
 // Log Output Selection
@@ -59,19 +57,13 @@ fn init_log_output() -> LogOutput {
     }
 }
 
-static LOG_OUTPUT: LazyLock<RwLock<LogOutput>> = LazyLock::new(|| {
-    RwLock::new(init_log_output())
-});
+static LOG_OUTPUT: LazyLock<RwLock<LogOutput>> = LazyLock::new(|| RwLock::new(init_log_output()));
 
 // ----------------------------------------------
 // Desktop Log Output
 // ----------------------------------------------
 
-pub fn output_log(level: Level,
-                  channel: Option<Channel>,
-                  location: &Location,
-                  args: fmt::Arguments)
-{
+pub fn output_log(level: Level, channel: Option<Channel>, location: &Location, args: fmt::Arguments) {
     use io::Write;
     let mut output = LOG_OUTPUT.write().unwrap();
 
@@ -86,25 +78,13 @@ pub fn output_log(level: Level,
     };
 
     if ENABLE_SRC_LOCATION.load(Ordering::Relaxed) {
-        writeln!(output,
-                 "{}[{:?}]{}{} {}:{} {} - {}",
-                 color_start,
-                 level,
-                 chan_str,
-                 color_end,
-                 location.file,
-                 location.line,
-                 location.module,
-                 args)
-                 .unwrap();
+        writeln!(
+            output,
+            "{}[{:?}]{}{} {}:{} {} - {}",
+            color_start, level, chan_str, color_end, location.file, location.line, location.module, args
+        )
+        .unwrap();
     } else {
-        writeln!(output,
-                 "{}[{:?}]{}{} {}",
-                 color_start,
-                 level,
-                 chan_str,
-                 color_end,
-                 args)
-                 .unwrap();
+        writeln!(output, "{}[{:?}]{}{} {}", color_start, level, chan_str, color_end, args).unwrap();
     }
 }

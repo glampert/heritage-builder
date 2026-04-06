@@ -1,14 +1,9 @@
 use arrayvec::ArrayVec;
+use common::hash::{self, NULL_HASH, PreHashedKeyMap, StringHash};
+use serde::{Deserialize, Serialize};
 use strum::EnumCount;
-use serde::{Serialize, Deserialize};
 
-use common::hash::{self, StringHash, PreHashedKeyMap, NULL_HASH};
-use crate::{
-    log,
-    configurations,
-    ui::UiSystem,
-    config::Configs,
-};
+use crate::{config::Configs, configurations, log, ui::UiSystem};
 
 // ----------------------------------------------
 // Public API
@@ -75,9 +70,12 @@ impl UiTextCategoryEntry {
             debug_assert!(string.key_hash == NULL_HASH);
 
             if string.key.is_empty() {
-                log::error!(log::channel!("ui"),
-                            "{:?}: Empty text entry key at [{}]! A key string must be provided.",
-                            self.category, index);
+                log::error!(
+                    log::channel!("ui"),
+                    "{:?}: Empty text entry key at [{}]! A key string must be provided.",
+                    self.category,
+                    index
+                );
                 continue;
             }
 
@@ -85,9 +83,13 @@ impl UiTextCategoryEntry {
             debug_assert!(string.key_hash != NULL_HASH);
 
             if self.mapping.insert(string.key_hash, index).is_some() {
-                log::error!(log::channel!("ui"),
-                            "{:?}: Duplicate text entry key at [{}]: '{}'",
-                            self.category, index, string.key);
+                log::error!(
+                    log::channel!("ui"),
+                    "{:?}: Duplicate text entry key at [{}]: '{}'",
+                    self.category,
+                    index,
+                    string.key
+                );
             }
         }
     }
@@ -110,8 +112,10 @@ impl UiTextStoreSingleton {
         }
 
         let category_entry = &self.categories[category as usize];
-        debug_assert!(category_entry.category == category,
-                      "Category index mismatch! Make sure file order of declaration matches the UiTextCategory enum.");
+        debug_assert!(
+            category_entry.category == category,
+            "Category index mismatch! Make sure file order of declaration matches the UiTextCategory enum."
+        );
 
         let string_index = category_entry.mapping.get(&key)?;
         let string = &category_entry.strings[*string_index];

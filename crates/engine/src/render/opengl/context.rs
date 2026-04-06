@@ -1,11 +1,13 @@
-use super::{
-    log_gl_info, panic_if_gl_error,
-    target::RenderTarget,
-    shader::{ShaderProgram, NULL_SHADER_HANDLE},
-    texture::{OpenGlTexture, TextureUnit, MAX_TEXTURE_UNITS, NULL_TEXTURE_HANDLE},
-    buffer::{IndexType, VertexArray, NULL_VERTEX_ARRAY_HANDLE, NULL_BUFFER_HANDLE},
-};
 use common::{Color, Rect};
+
+use super::{
+    buffer::{IndexType, NULL_BUFFER_HANDLE, NULL_VERTEX_ARRAY_HANDLE, VertexArray},
+    log_gl_info,
+    panic_if_gl_error,
+    shader::{NULL_SHADER_HANDLE, ShaderProgram},
+    target::RenderTarget,
+    texture::{MAX_TEXTURE_UNITS, NULL_TEXTURE_HANDLE, OpenGlTexture, TextureUnit},
+};
 use crate::render;
 
 // ----------------------------------------------
@@ -179,10 +181,7 @@ impl RenderContext {
     pub fn set_viewport(&mut self, viewport: Rect) -> &mut Self {
         debug_assert!(viewport.is_valid());
         unsafe {
-            gl::Viewport(viewport.x() as _,
-                         viewport.y() as _,
-                         viewport.width() as _,
-                         viewport.height() as _);
+            gl::Viewport(viewport.x() as _, viewport.y() as _, viewport.width() as _, viewport.height() as _);
         }
         self
     }
@@ -191,10 +190,7 @@ impl RenderContext {
         debug_assert!(rect.is_valid());
         debug_assert!(self.clip_test == ClipTest::Enabled);
         unsafe {
-            gl::Scissor(rect.x() as _,
-                        rect.y() as _,
-                        rect.width() as _,
-                        rect.height() as _);
+            gl::Scissor(rect.x() as _, rect.y() as _, rect.width() as _, rect.height() as _);
         }
         self
     }
@@ -318,10 +314,7 @@ impl RenderContext {
         let offset_in_bytes: usize = (first_index as usize) * index_type_size_in_bytes;
 
         unsafe {
-            gl::DrawElements(self.primitive_topology as _,
-                             index_count as _,
-                             gl_index_type,
-                             offset_in_bytes as _);
+            gl::DrawElements(self.primitive_topology as _, index_count as _, gl_index_type, offset_in_bytes as _);
         }
 
         self.draw_call_count += 1;
@@ -339,10 +332,7 @@ impl RenderContext {
         self.draw_call_count = 0;
 
         unsafe {
-            gl::ClearColor(self.clear_color.r,
-                           self.clear_color.g,
-                           self.clear_color.b,
-                           self.clear_color.a);
+            gl::ClearColor(self.clear_color.r, self.clear_color.g, self.clear_color.b, self.clear_color.a);
 
             let mut clear_mask = gl::COLOR_BUFFER_BIT;
             if self.depth_test == DepthTest::Enabled {
@@ -369,10 +359,10 @@ impl RenderContext {
         panic_if_gl_error();
 
         self.current_shader_program = NULL_SHADER_HANDLE;
-        self.current_vertex_array   = NULL_VERTEX_ARRAY_HANDLE;
-        self.current_index_type     = None;
-        self.current_texture      = [0; MAX_TEXTURE_UNITS];
-        self.current_framebuffer    = NULL_BUFFER_HANDLE;
+        self.current_vertex_array = NULL_VERTEX_ARRAY_HANDLE;
+        self.current_index_type = None;
+        self.current_texture = [0; MAX_TEXTURE_UNITS];
+        self.current_framebuffer = NULL_BUFFER_HANDLE;
     }
 
     #[inline]

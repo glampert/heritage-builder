@@ -1,4 +1,8 @@
-use common::{Size, hash::{self, StringHash}};
+use common::{
+    Size,
+    hash::{self, StringHash},
+};
+
 use crate::render;
 
 // ----------------------------------------------
@@ -83,11 +87,8 @@ impl WgpuTexture {
         debug_assert!(!params.name.is_empty());
         debug_assert!(params.size.is_valid());
 
-        let wgpu_size = wgpu::Extent3d {
-            width:  params.size.width  as u32,
-            height: params.size.height as u32,
-            depth_or_array_layers: 1,
-        };
+        let wgpu_size =
+            wgpu::Extent3d { width: params.size.width as u32, height: params.size.height as u32, depth_or_array_layers: 1 };
 
         let mip_level_count = if params.settings.mipmaps {
             (params.size.width.max(params.size.height) as f32).log2().floor() as u32 + 1
@@ -128,13 +129,8 @@ impl WgpuTexture {
 
         let view = texture.create_view(&wgpu::TextureViewDescriptor::default());
         let sampler = create_sampler(params.device, params.settings);
-        let bind_group = create_bind_group(
-            params.device,
-            params.texture_bind_group_layout,
-            &view,
-            &sampler,
-            Some(params.name)
-        );
+        let bind_group =
+            create_bind_group(params.device, params.texture_bind_group_layout, &view, &sampler, Some(params.name));
 
         Self {
             name: params.name.to_string(),
@@ -149,22 +145,17 @@ impl WgpuTexture {
     }
 
     // Rebuilds the sampler and bind group after a texture settings change.
-    pub fn rebuild_sampler_and_bind_group(&mut self,
-                                          device: &wgpu::Device,
-                                          texture_bind_group_layout: &wgpu::BindGroupLayout,
-                                          settings: render::texture::TextureSettings)
-    {
+    pub fn rebuild_sampler_and_bind_group(
+        &mut self,
+        device: &wgpu::Device,
+        texture_bind_group_layout: &wgpu::BindGroupLayout,
+        settings: render::texture::TextureSettings,
+    ) {
         debug_assert!(self.size.is_valid());
 
-        self.settings   = settings;
-        self.sampler    = create_sampler(device, settings);
-        self.bind_group = create_bind_group(
-            device,
-            texture_bind_group_layout,
-            &self.view,
-            &self.sampler,
-            Some(&self.name)
-        );
+        self.settings = settings;
+        self.sampler = create_sampler(device, settings);
+        self.bind_group = create_bind_group(device, texture_bind_group_layout, &self.view, &self.sampler, Some(&self.name));
     }
 
     #[inline]
@@ -173,17 +164,18 @@ impl WgpuTexture {
     }
 
     // Write pixel data to a sub-region (or the full extent) of the texture.
-    pub fn write_pixels(&self,
-                        queue: &wgpu::Queue,
-                        offset_x: u32,
-                        offset_y: u32,
-                        size: Size,
-                        mip_level: u32,
-                        pixels: &[u8])
-    {
+    pub fn write_pixels(
+        &self,
+        queue: &wgpu::Queue,
+        offset_x: u32,
+        offset_y: u32,
+        size: Size,
+        mip_level: u32,
+        pixels: &[u8],
+    ) {
         debug_assert!(!pixels.is_empty());
         debug_assert!(self.size.is_valid());
-        debug_assert!(offset_x as i32 + size.width  <= self.size.width);
+        debug_assert!(offset_x as i32 + size.width <= self.size.width);
         debug_assert!(offset_y as i32 + size.height <= self.size.height);
 
         queue.write_texture(
@@ -199,11 +191,7 @@ impl WgpuTexture {
                 bytes_per_row: Some(4 * size.width as u32), // Rgba8
                 rows_per_image: Some(size.height as u32),
             },
-            wgpu::Extent3d {
-                width:  size.width  as u32,
-                height: size.height as u32,
-                depth_or_array_layers: 1,
-            },
+            wgpu::Extent3d { width: size.width as u32, height: size.height as u32, depth_or_array_layers: 1 },
         );
     }
 
@@ -219,7 +207,9 @@ impl WgpuTexture {
 // Internal helpers
 // ----------------------------------------------
 
-fn to_wgpu_filter_mode(filter: render::texture::TextureFilter) -> (wgpu::FilterMode, wgpu::FilterMode, wgpu::MipmapFilterMode) {
+fn to_wgpu_filter_mode(
+    filter: render::texture::TextureFilter,
+) -> (wgpu::FilterMode, wgpu::FilterMode, wgpu::MipmapFilterMode) {
     // Returns (min_filter, mag_filter, mipmap_filter).
     match filter {
         render::texture::TextureFilter::Nearest              => (wgpu::FilterMode::Nearest, wgpu::FilterMode::Nearest, wgpu::MipmapFilterMode::Nearest),
@@ -260,18 +250,19 @@ fn create_sampler(device: &wgpu::Device, settings: render::texture::TextureSetti
     })
 }
 
-fn create_bind_group(device: &wgpu::Device,
-                     layout: &wgpu::BindGroupLayout,
-                     view: &wgpu::TextureView,
-                     sampler: &wgpu::Sampler,
-                     label: Option<&str>) -> wgpu::BindGroup
-{
+fn create_bind_group(
+    device: &wgpu::Device,
+    layout: &wgpu::BindGroupLayout,
+    view: &wgpu::TextureView,
+    sampler: &wgpu::Sampler,
+    label: Option<&str>,
+) -> wgpu::BindGroup {
     device.create_bind_group(&wgpu::BindGroupDescriptor {
         label,
         layout,
         entries: &[
             wgpu::BindGroupEntry { binding: 0, resource: wgpu::BindingResource::TextureView(view) },
-            wgpu::BindGroupEntry { binding: 1, resource: wgpu::BindingResource::Sampler(sampler)  },
+            wgpu::BindGroupEntry { binding: 1, resource: wgpu::BindingResource::Sampler(sampler) },
         ],
     })
 }

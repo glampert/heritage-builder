@@ -54,12 +54,13 @@ impl DebugDraw {
     }
 
     #[inline]
-    pub fn textured_colored_rect(&mut self,
-                                 rect: Rect,
-                                 tex_coords: &RectTexCoords,
-                                 texture: texture::TextureHandle,
-                                 color: Color)
-    {
+    pub fn textured_colored_rect(
+        &mut self,
+        rect: Rect,
+        tex_coords: &RectTexCoords,
+        texture: texture::TextureHandle,
+        color: Color,
+    ) {
         self.render_system.draw_textured_colored_rect(rect, tex_coords, texture, color);
     }
 }

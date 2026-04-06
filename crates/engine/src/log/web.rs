@@ -1,20 +1,16 @@
 use std::{fmt, sync::atomic::Ordering};
-use super::{Level, Channel, Location, ENABLE_SRC_LOCATION};
+
+use super::{Channel, ENABLE_SRC_LOCATION, Level, Location};
 
 // ----------------------------------------------
 // Web Console Log Output
 // ----------------------------------------------
 
-pub fn output_log(level: Level,
-                  channel: Option<Channel>,
-                  location: &Location,
-                  args: fmt::Arguments)
-{
+pub fn output_log(level: Level, channel: Option<Channel>, location: &Location, args: fmt::Arguments) {
     let chan_str = channel.map(|chan| chan.name).unwrap_or_default();
 
     let msg = if ENABLE_SRC_LOCATION.load(Ordering::Relaxed) {
-        format!("[{:?}]{} {}:{} {} - {}",
-                level, chan_str, location.file, location.line, location.module, args)
+        format!("[{:?}]{} {}:{} {} - {}", level, chan_str, location.file, location.line, location.module, args)
     } else {
         format!("[{:?}]{} {}", level, chan_str, args)
     };

@@ -7,10 +7,13 @@ use std::{
     },
 };
 
+use common::{
+    Color,
+    hash::{self, StringHash},
+};
 use serde::{Deserialize, Serialize};
 use strum::Display;
 
-use common::{Color, hash::{self, StringHash}};
 use crate::file_sys::paths::{self, FixedPath};
 
 #[cfg(feature = "desktop")]
@@ -106,10 +109,10 @@ pub struct Record {
 static LISTENER: OnceLock<Box<dyn Fn(Record) + Send + Sync>> = OnceLock::new();
 
 pub fn set_listener<F>(listener_fn: F)
-    where F: Fn(Record) + Send + Sync + 'static
+where
+    F: Fn(Record) + Send + Sync + 'static,
 {
-    LISTENER.set(Box::new(listener_fn))
-            .unwrap_or_else(|_| panic!("Log listener can only be set once!"));
+    LISTENER.set(Box::new(listener_fn)).unwrap_or_else(|_| panic!("Log listener can only be set once!"));
 }
 
 // ----------------------------------------------
@@ -152,10 +155,7 @@ pub struct Location {
     pub module: &'static str,
 }
 
-pub fn print_internal(level: Level,
-                      channel: Option<Channel>,
-                      location: &Location,
-                      args: fmt::Arguments) {
+pub fn print_internal(level: Level, channel: Option<Channel>, location: &Location, args: fmt::Arguments) {
     if !level.is_enabled() {
         return;
     }

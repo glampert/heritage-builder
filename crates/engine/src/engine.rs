@@ -1,32 +1,28 @@
 use common::{
+    Rect,
+    Vec2,
+    mem::RcMut,
     singleton_late_init,
-    Rect, Vec2, mem::RcMut,
-    time::{FrameClock, PerfTimer, Seconds, Milliseconds},
-};
-use crate::{
-    log,
-    ui::UiSystem,
-    sound::SoundSystem,
-    app::{
-        input::*,
-        Application, ApplicationEvent, ApplicationEventList,
-    },
-    render::{
-        RenderSystem, RenderStats,
-        texture::TextureCache, debug::DebugDraw,
-    },
+    time::{FrameClock, Milliseconds, PerfTimer, Seconds},
 };
 
-use crate::config::EngineConfigs;
+use crate::{
+    app::{Application, ApplicationEvent, ApplicationEventList, input::*},
+    config::EngineConfigs,
+    log,
+    render::{RenderStats, RenderSystem, debug::DebugDraw, texture::TextureCache},
+    sound::SoundSystem,
+    ui::UiSystem,
+};
 
 // ----------------------------------------------
 // EngineSystemsMutRefs
 // ----------------------------------------------
 
 pub struct EngineSystemsMutRefs<'engine> {
-    pub ui_sys:     &'engine UiSystem,
-    pub input_sys:  &'engine InputSystem,
-    pub sound_sys:  &'engine mut SoundSystem,
+    pub ui_sys: &'engine UiSystem,
+    pub input_sys: &'engine InputSystem,
+    pub sound_sys: &'engine mut SoundSystem,
     pub render_sys: &'engine mut RenderSystem,
     pub debug_draw: &'engine mut DebugDraw,
 }
@@ -128,9 +124,9 @@ impl Engine {
     #[inline]
     pub fn systems_mut_refs(&mut self) -> EngineSystemsMutRefs<'_> {
         EngineSystemsMutRefs {
-            ui_sys:     &self.ui_system,
-            input_sys:  self.app.input_system(),
-            sound_sys:  &mut self.sound_system,
+            ui_sys: &self.ui_system,
+            input_sys: self.app.input_system(),
+            sound_sys: &mut self.sound_system,
             render_sys: &mut self.render_system,
             debug_draw: &mut self.debug_draw,
         }
@@ -188,10 +184,11 @@ impl Engine {
     // Initialization:
     // ----------------------
 
-    pub fn start(configs: &EngineConfigs,
-                 app: RcMut<Application>,
-                 render_system: RcMut<RenderSystem>) -> &'static mut Engine
-    {
+    pub fn start(
+        configs: &EngineConfigs,
+        app: RcMut<Application>,
+        render_system: RcMut<RenderSystem>,
+    ) -> &'static mut Engine {
         let engine = Self::new(configs, app, render_system);
 
         // Set global instance:

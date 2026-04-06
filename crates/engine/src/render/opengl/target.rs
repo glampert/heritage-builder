@@ -1,16 +1,11 @@
-use super::{
-    panic_if_gl_error,
-    buffer::NULL_BUFFER_HANDLE,
-    texture::{
-        TextureSettings, TextureFilter, TextureWrapMode,
-        TextureUnit, TextureCreationParams, OpenGlTexture,
-    },
-};
 use common::Size;
-use crate::{
-    log,
-    render,
+
+use super::{
+    buffer::NULL_BUFFER_HANDLE,
+    panic_if_gl_error,
+    texture::{OpenGlTexture, TextureCreationParams, TextureFilter, TextureSettings, TextureUnit, TextureWrapMode},
 };
+use crate::{log, render};
 
 // ----------------------------------------------
 // RenderTarget
@@ -27,20 +22,14 @@ impl RenderTarget {
     pub fn new(size: Size, sampling_filter: TextureFilter) -> Self {
         debug_assert!(size.is_valid());
 
-        let color_rt_texture = OpenGlTexture::new(
-            TextureCreationParams {
-                name: "offscreen_render_target",
-                size,
-                pixels: &[],
-                settings: TextureSettings {
-                    filter: sampling_filter,
-                    wrap_mode: TextureWrapMode::ClampToEdge,
-                    mipmaps: false,
-                },
-                tex_unit: TextureUnit(0),
-                allow_settings_change: false,
-            }
-        );
+        let color_rt_texture = OpenGlTexture::new(TextureCreationParams {
+            name: "offscreen_render_target",
+            size,
+            pixels: &[],
+            settings: TextureSettings { filter: sampling_filter, wrap_mode: TextureWrapMode::ClampToEdge, mipmaps: false },
+            tex_unit: TextureUnit(0),
+            allow_settings_change: false,
+        });
 
         let framebuffer_handle = unsafe {
             let mut framebuffer_handle = NULL_BUFFER_HANDLE;
@@ -52,19 +41,15 @@ impl RenderTarget {
 
             gl::BindFramebuffer(gl::FRAMEBUFFER, framebuffer_handle);
 
-            gl::FramebufferTexture2D(
-                gl::FRAMEBUFFER,
-                gl::COLOR_ATTACHMENT0,
-                gl::TEXTURE_2D,
-                color_rt_texture.handle(),
-                0,
-            );
+            gl::FramebufferTexture2D(gl::FRAMEBUFFER, gl::COLOR_ATTACHMENT0, gl::TEXTURE_2D, color_rt_texture.handle(), 0);
 
             let framebuffer_status = gl::CheckFramebufferStatus(gl::FRAMEBUFFER);
             if framebuffer_status != gl::FRAMEBUFFER_COMPLETE {
-                log::error!(log::channel!("render"),
-                            "Invalid framebuffer status for 'offscreen_render_target': 0x{:X}",
-                            framebuffer_status);
+                log::error!(
+                    log::channel!("render"),
+                    "Invalid framebuffer status for 'offscreen_render_target': 0x{:X}",
+                    framebuffer_status
+                );
             }
 
             panic_if_gl_error();
@@ -75,24 +60,11 @@ impl RenderTarget {
         };
 
         let blit_filter = match sampling_filter {
-            TextureFilter::Nearest |
-            TextureFilter::NearestMipmapNearest |
-            TextureFilter::NearestMipmapLinear => {
-                gl::NEAREST
-            }
-            TextureFilter::Linear |
-            TextureFilter::LinearMipmapNearest |
-            TextureFilter::LinearMipmapLinear => {
-                gl::LINEAR
-            }
+            TextureFilter::Nearest | TextureFilter::NearestMipmapNearest | TextureFilter::NearestMipmapLinear => gl::NEAREST,
+            TextureFilter::Linear | TextureFilter::LinearMipmapNearest | TextureFilter::LinearMipmapLinear => gl::LINEAR,
         };
 
-        Self {
-            size,
-            framebuffer_handle,
-            color_rt_texture,
-            blit_filter,
-        }
+        Self { size, framebuffer_handle, color_rt_texture, blit_filter }
     }
 
     pub fn blit_to_screen(&self, dest_size: Size) {
@@ -117,7 +89,7 @@ impl RenderTarget {
                 dest_size.width,
                 dest_size.height,
                 gl::COLOR_BUFFER_BIT,
-                self.blit_filter
+                self.blit_filter,
             );
 
             gl::BindFramebuffer(gl::READ_FRAMEBUFFER, NULL_BUFFER_HANDLE);
@@ -128,9 +100,7 @@ impl RenderTarget {
     pub fn is_valid(&self) -> bool {
         use render::texture::Texture;
 
-        self.framebuffer_handle != NULL_BUFFER_HANDLE
-            && self.color_rt_texture.is_valid()
-            && self.size.is_valid()
+        self.framebuffer_handle != NULL_BUFFER_HANDLE && self.color_rt_texture.is_valid() && self.size.is_valid()
     }
 
     #[inline]

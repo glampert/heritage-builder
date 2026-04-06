@@ -1,20 +1,16 @@
 use objc2::rc::Retained;
+use objc2_app_kit::{NSApp, NSApplication, NSApplicationPresentationOptions, NSWindow};
 use objc2_foundation::MainThreadMarker;
-use objc2_app_kit::{
-    NSApp,
-    NSWindow,
-    NSApplication,
-    NSApplicationPresentationOptions,
-};
 
-use crate::{log, file_sys};
+use crate::{file_sys, log};
 
 // ----------------------------------------------
 // NSApplication presentation helpers
 // ----------------------------------------------
 
 fn with_app<F>(f: F)
-    where F: FnOnce(&Retained<NSApplication>)
+where
+    F: FnOnce(&Retained<NSApplication>),
 {
     // Ensure we're on the main thread (required by AppKit).
     let mtm = MainThreadMarker::new().expect("Must be called from the main thread!");
@@ -24,9 +20,8 @@ fn with_app<F>(f: F)
 
 pub fn enable_kiosk_mode() {
     with_app(|app| {
-        let options =
-            NSApplicationPresentationOptions::NSApplicationPresentationHideDock |
-            NSApplicationPresentationOptions::NSApplicationPresentationHideMenuBar;
+        let options = NSApplicationPresentationOptions::NSApplicationPresentationHideDock
+            | NSApplicationPresentationOptions::NSApplicationPresentationHideMenuBar;
 
         app.setPresentationOptions(options);
     });
@@ -34,8 +29,7 @@ pub fn enable_kiosk_mode() {
 
 pub fn disable_kiosk_mode() {
     with_app(|app| {
-        let options =
-            NSApplicationPresentationOptions::NSApplicationPresentationDefault;
+        let options = NSApplicationPresentationOptions::NSApplicationPresentationDefault;
 
         app.setPresentationOptions(options);
     });
@@ -43,9 +37,8 @@ pub fn disable_kiosk_mode() {
 
 pub fn enable_auto_hide_dock_and_menu_bar() {
     with_app(|app| {
-        let options =
-            NSApplicationPresentationOptions::NSApplicationPresentationAutoHideDock |
-            NSApplicationPresentationOptions::NSApplicationPresentationAutoHideMenuBar;
+        let options = NSApplicationPresentationOptions::NSApplicationPresentationAutoHideDock
+            | NSApplicationPresentationOptions::NSApplicationPresentationAutoHideMenuBar;
 
         app.setPresentationOptions(options);
     });
@@ -77,14 +70,19 @@ pub fn toggle_native_fullscreen(ns_window_ptr: *mut std::ffi::c_void) {
 pub fn set_cursor_position(x: f64, y: f64) {
     #[repr(C)]
     #[derive(Clone, Copy)]
-    struct CGPoint { x: f64, y: f64 }
+    struct CGPoint {
+        x: f64,
+        y: f64,
+    }
 
     #[link(name = "CoreGraphics", kind = "framework")]
     unsafe extern "C" {
         unsafe fn CGWarpMouseCursorPosition(new_cursor_position: CGPoint) -> i32;
     }
 
-    unsafe { CGWarpMouseCursorPosition(CGPoint { x, y }); }
+    unsafe {
+        CGWarpMouseCursorPosition(CGPoint { x, y });
+    }
 }
 
 // ----------------------------------------------
@@ -94,10 +92,12 @@ pub fn set_cursor_position(x: f64, y: f64) {
 // Redirects stderr to a log file for the duration of `f`, then restores it.
 // Used to suppress TTY spam from the OpenGL loader.
 pub fn redirect_stderr<F, R>(f: F, filename: &str) -> R
-    where F: FnOnce() -> R
+where
+    F: FnOnce() -> R,
 {
     use std::os::unix::io::AsRawFd;
-    use libc::{close, dup, dup2, STDERR_FILENO};
+
+    use libc::{STDERR_FILENO, close, dup, dup2};
 
     let logs_path = log::logs_path();
     let _ = file_sys::create_path(&logs_path);

@@ -1,16 +1,13 @@
-use smallvec::SmallVec;
+use common::{
+    Size,
+    Vec2,
+    mem::{RcMut, RcRef},
+};
 use glfw::Context;
+use smallvec::SmallVec;
 
-use super::{
-    ApplicationInitParams,
-    ApplicationWindowMode,
-    ApplicationContentScale,
-};
-use common::{Size, Vec2, mem::{RcRef, RcMut}};
-use crate::{
-    log,
-    app::platform,
-};
+use super::{ApplicationContentScale, ApplicationInitParams, ApplicationWindowMode};
+use crate::{app::platform, log};
 
 type GlfwEventReceiver = glfw::GlfwReceiver<(f64, glfw::WindowEvent)>;
 
@@ -86,19 +83,15 @@ impl GlfwWindowManager {
         // required for inspection.
         #[cfg(target_os = "macos")]
         {
-            platform::redirect_stderr(|| {
-                gl::load_with(|symbol| {
-                    manager.window.get_proc_address(symbol)
-                })
-            },
-            "stderr_gl_load_app.log");
+            platform::redirect_stderr(
+                || gl::load_with(|symbol| manager.window.get_proc_address(symbol)),
+                "stderr_gl_load_app.log",
+            );
         }
 
         #[cfg(not(target_os = "macos"))]
         {
-            gl::load_with(|symbol| {
-                manager.window.get_proc_address(symbol)
-            });
+            gl::load_with(|symbol| manager.window.get_proc_address(symbol));
         }
 
         GlfwWindowManagerRcMut::new(manager)
@@ -164,9 +157,7 @@ impl GlfwWindowManager {
                 let (x_scale, y_scale) = self.window.get_content_scale();
                 Vec2::new(x_scale, y_scale)
             }
-            ApplicationContentScale::Custom(scale) => {
-                Vec2::new(scale, scale)
-            }
+            ApplicationContentScale::Custom(scale) => Vec2::new(scale, scale),
         }
     }
 
@@ -180,29 +171,26 @@ impl GlfwWindowManager {
 // Internal helpers
 // ----------------------------------------------
 
-fn create_windowed_window(glfw_instance: &mut glfw::Glfw,
-                          window_title: &str,
-                          window_size: Size)
-                          -> (glfw::PWindow, GlfwEventReceiver)
-{
-    glfw_instance.create_window(window_size.width  as _,
-                                window_size.height as _,
-                                window_title,
-                                glfw::WindowMode::Windowed)
-                                .expect("Failed to create GLFW window in windowed mode!")
+fn create_windowed_window(
+    glfw_instance: &mut glfw::Glfw,
+    window_title: &str,
+    window_size: Size,
+) -> (glfw::PWindow, GlfwEventReceiver) {
+    glfw_instance
+        .create_window(window_size.width as _, window_size.height as _, window_title, glfw::WindowMode::Windowed)
+        .expect("Failed to create GLFW window in windowed mode!")
 }
 
-fn create_fullscreen_window(glfw_instance: &mut glfw::Glfw,
-                            window_title: &str,
-                            window_size: Size)
-                            -> (glfw::PWindow, GlfwEventReceiver)
-{
+fn create_fullscreen_window(
+    glfw_instance: &mut glfw::Glfw,
+    window_title: &str,
+    window_size: Size,
+) -> (glfw::PWindow, GlfwEventReceiver) {
     // On MacOS, normal fullscreen is windowed with "kiosk" mode. I.e., a regular window
     // without decorations and hidden dock and system menu.
     #[cfg(target_os = "macos")]
     {
-        let (mut window, event_receiver) =
-            create_windowed_window(glfw_instance, window_title, window_size);
+        let (mut window, event_receiver) = create_windowed_window(glfw_instance, window_title, window_size);
 
         let result: Result<(), &str> = glfw_instance.with_primary_monitor(|_, monitor_opt| {
             let monitor = monitor_opt.ok_or("No primary monitor found")?;
@@ -236,11 +224,11 @@ fn create_fullscreen_window(glfw_instance: &mut glfw::Glfw,
     }
 }
 
-fn create_exclusive_fullscreen_window(glfw_instance: &mut glfw::Glfw,
-                                      window_title: &str,
-                                      window_size: Size)
-                                      -> (glfw::PWindow, GlfwEventReceiver)
-{
+fn create_exclusive_fullscreen_window(
+    glfw_instance: &mut glfw::Glfw,
+    window_title: &str,
+    window_size: Size,
+) -> (glfw::PWindow, GlfwEventReceiver) {
     let result = glfw_instance.with_primary_monitor(|glfw_instance, monitor_opt| {
         let monitor = monitor_opt.ok_or("No primary monitor found")?;
         let video_modes = monitor.get_video_modes();
@@ -252,17 +240,22 @@ fn create_exclusive_fullscreen_window(glfw_instance: &mut glfw::Glfw,
 
         let best_video_mode = select_best_video_mode(&video_modes).ok_or("No suitable video mode available")?;
 
-        log::info!(log::channel!("app"),
-                   "Attempting to create exclusive fullscreen window with video mode: {}x{} @ {}hz",
-                   best_video_mode.width,
-                   best_video_mode.height,
-                   best_video_mode.refresh_rate);
+        log::info!(
+            log::channel!("app"),
+            "Attempting to create exclusive fullscreen window with video mode: {}x{} @ {}hz",
+            best_video_mode.width,
+            best_video_mode.height,
+            best_video_mode.refresh_rate
+        );
 
-        glfw_instance.create_window(best_video_mode.width,
-                                    best_video_mode.height,
-                                    window_title,
-                                    glfw::WindowMode::FullScreen(monitor))
-                                    .ok_or("Failed to create GLFW window")
+        glfw_instance
+            .create_window(
+                best_video_mode.width,
+                best_video_mode.height,
+                window_title,
+                glfw::WindowMode::FullScreen(monitor),
+            )
+            .ok_or("Failed to create GLFW window")
     });
 
     match result {
@@ -293,22 +286,14 @@ fn select_best_video_mode(modes: &[glfw::VidMode]) -> Option<glfw::VidMode> {
     }
 
     // First, find the maximum resolution (by pixel area):
-    let max_area = modes
-        .iter()
-        .map(|mode| mode.width * mode.height)
-        .max()?;
+    let max_area = modes.iter().map(|mode| mode.width * mode.height).max()?;
 
     // Filter only modes with that resolution:
-    let mut best_modes: SmallVec<[&glfw::VidMode; 16]> = modes
-        .iter()
-        .filter(|mode| (mode.width * mode.height) == max_area)
-        .collect();
+    let mut best_modes: SmallVec<[&glfw::VidMode; 16]> =
+        modes.iter().filter(|mode| (mode.width * mode.height) == max_area).collect();
 
     // Prefer 60Hz exactly if available.
-    if let Some(mode_60hz) = best_modes
-        .iter()
-        .find(|mode| mode.refresh_rate == 60)
-    {
+    if let Some(mode_60hz) = best_modes.iter().find(|mode| mode.refresh_rate == 60) {
         return Some(**mode_60hz);
     }
 

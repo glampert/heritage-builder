@@ -1,31 +1,41 @@
-use slab::Slab;
-use smallvec::SmallVec;
-use std::{time::Duration, marker::PhantomData};
+use std::{marker::PhantomData, time::Duration};
 
+use common::{
+    coords::IsoPointF32,
+    hash::{self, PreHashedKeyMap, StringHash},
+    mem::RcMut,
+    time::Seconds,
+};
 use kira::{
+    AudioManager,
+    AudioManagerSettings,
+    Tween,
     backend::DefaultBackend,
-    AudioManager, AudioManagerSettings,
-    Tween, track::{TrackHandle, TrackBuilder},
     sound::{
-        PlaybackState, FromFileError,
+        FromFileError,
+        PlaybackState,
         static_sound::{StaticSoundData, StaticSoundHandle},
         streaming::{StreamingSoundData, StreamingSoundHandle},
     },
+    track::{TrackBuilder, TrackHandle},
 };
+use slab::Slab;
+use smallvec::SmallVec;
 
 use super::{
-    SoundKind, SoundHandle, SoundGlobalSettings, PlaySoundParams,
-    SoundKey, SfxSoundKey, AmbienceSoundKey, MusicSoundKey, NarrationSoundKey,
-};
-use common::{
-    mem::RcMut,
-    time::Seconds,
-    coords::IsoPointF32,
-    hash::{self, StringHash, PreHashedKeyMap},
+    AmbienceSoundKey,
+    MusicSoundKey,
+    NarrationSoundKey,
+    PlaySoundParams,
+    SfxSoundKey,
+    SoundGlobalSettings,
+    SoundHandle,
+    SoundKey,
+    SoundKind,
 };
 use crate::{
+    file_sys::paths::{self, AssetPath, PathRef},
     log,
-    file_sys::paths::{self, PathRef, AssetPath},
 };
 
 // ----------------------------------------------
@@ -133,10 +143,10 @@ impl super::SoundSystemBackend for KiraSoundSystemBackend {
 
     fn sounds_playing(&self) -> usize {
         self.sfx.playing_count()
-        + self.ambience.playing_count()
-        + self.spatial.playing_count()
-        + self.music.playing_count()
-        + self.narration.playing_count()
+            + self.ambience.playing_count()
+            + self.spatial.playing_count()
+            + self.music.playing_count()
+            + self.narration.playing_count()
     }
 
     fn play(&mut self, params: PlaySoundParams<KiraSoundAssetRegistry>) -> SoundHandle {
@@ -230,11 +240,13 @@ trait SoundAsset {
     type BackendSoundHandle;
 
     // Returns a Kira sound handle for the playing sound.
-    fn play(&self,
-            track: &mut TrackHandle,
-            volume: f32,
-            fade_in_secs: Seconds,
-            looping: bool) -> Option<Self::BackendSoundHandle>;
+    fn play(
+        &self,
+        track: &mut TrackHandle,
+        volume: f32,
+        fade_in_secs: Seconds,
+        looping: bool,
+    ) -> Option<Self::BackendSoundHandle>;
 }
 
 struct StaticSoundAsset {
@@ -250,21 +262,19 @@ struct StreamedSoundAsset {
 impl SoundAsset for StaticSoundAsset {
     type BackendSoundHandle = StaticSoundHandle;
 
-    fn play(&self,
-            track: &mut TrackHandle,
-            volume: f32,
-            fade_in_secs: Seconds,
-            looping: bool) -> Option<Self::BackendSoundHandle>
-    {
+    fn play(
+        &self,
+        track: &mut TrackHandle,
+        volume: f32,
+        fade_in_secs: Seconds,
+        looping: bool,
+    ) -> Option<Self::BackendSoundHandle> {
         debug_assert!(!self.path.is_empty());
 
         let sound_data = self.data.volume(super::linear_to_decibels(volume));
 
-        let mut handle = match track.play(
-            sound_data.fade_in_tween(Tween {
-                duration: Duration::from_secs_f32(fade_in_secs),
-                ..Default::default()
-        }))
+        let mut handle = match track
+            .play(sound_data.fade_in_tween(Tween { duration: Duration::from_secs_f32(fade_in_secs), ..Default::default() }))
         {
             Ok(handle) => handle,
             Err(err) => {
@@ -285,12 +295,13 @@ impl SoundAsset for StaticSoundAsset {
 impl SoundAsset for StreamedSoundAsset {
     type BackendSoundHandle = StreamingSoundHandle<FromFileError>;
 
-    fn play(&self,
-            track: &mut TrackHandle,
-            volume: f32,
-            fade_in_secs: Seconds,
-            looping: bool) -> Option<Self::BackendSoundHandle>
-    {
+    fn play(
+        &self,
+        track: &mut TrackHandle,
+        volume: f32,
+        fade_in_secs: Seconds,
+        looping: bool,
+    ) -> Option<Self::BackendSoundHandle> {
         debug_assert!(!self.path.is_empty());
 
         let sound_data = match StreamingSoundData::from_file(&self.path) {
@@ -301,11 +312,8 @@ impl SoundAsset for StreamedSoundAsset {
             }
         };
 
-        let mut handle = match track.play(
-            sound_data.fade_in_tween(Tween {
-                duration: Duration::from_secs_f32(fade_in_secs),
-                ..Default::default()
-        }))
+        let mut handle = match track
+            .play(sound_data.fade_in_tween(Tween { duration: Duration::from_secs_f32(fade_in_secs), ..Default::default() }))
         {
             Ok(handle) => handle,
             Err(err) => {
@@ -331,7 +339,6 @@ impl SoundAsset for StreamedSoundAsset {
 pub(super) struct KiraSoundAssetRegistry {
     // SFX, Ambience, Spatial: StaticSoundData
     // Music & Narration: StreamingSoundData
-
     sfx: PreHashedKeyMap<StringHash, StaticSoundAsset>,
     ambience: PreHashedKeyMap<StringHash, StaticSoundAsset>, // Spatial sounds are the same as ambience.
 
@@ -395,16 +402,15 @@ impl super::SoundAssetRegistry for KiraSoundAssetRegistry {
     }
 
     fn sounds_loaded(&self) -> usize {
-        self.sfx.len()
-        + self.ambience.len()
-        + self.music.len()
-        + self.narration.len()
+        self.sfx.len() + self.ambience.len() + self.music.len() + self.narration.len()
     }
 }
 
-fn load_static_sound<Key: SoundKey>(hash_map: &mut PreHashedKeyMap<StringHash, StaticSoundAsset>,
-                                    base_path: &AssetPath,
-                                    asset_path: PathRef) -> Key {
+fn load_static_sound<Key: SoundKey>(
+    hash_map: &mut PreHashedKeyMap<StringHash, StaticSoundAsset>,
+    base_path: &AssetPath,
+    asset_path: PathRef,
+) -> Key {
     debug_assert!(!asset_path.is_empty());
 
     let sound_path = base_path.join(asset_path);
@@ -426,9 +432,11 @@ fn load_static_sound<Key: SoundKey>(hash_map: &mut PreHashedKeyMap<StringHash, S
     Key::new(sound_hash)
 }
 
-fn load_streamed_sound<Key: SoundKey>(hash_map: &mut PreHashedKeyMap<StringHash, StreamedSoundAsset>,
-                                      base_path: &AssetPath,
-                                      asset_path: PathRef) -> Key {
+fn load_streamed_sound<Key: SoundKey>(
+    hash_map: &mut PreHashedKeyMap<StringHash, StreamedSoundAsset>,
+    base_path: &AssetPath,
+    asset_path: PathRef,
+) -> Key {
     debug_assert!(!asset_path.is_empty());
 
     let sound_path = base_path.join(asset_path);
@@ -480,40 +488,32 @@ impl<const SINGLE_SOUND: bool, const SPATIAL: bool, Track, Inst, Asset, Handle>
     SoundController<SINGLE_SOUND, SPATIAL, Track, Inst, Asset, Handle>
 {
     fn new(track: Track, kind: SoundKind) -> Self {
-        Self {
-            track,
-            kind,
-            sounds: Slab::new(),
-            generation: 0,
-            _asset_type: PhantomData,
-            _handle_type: PhantomData,
-        }
+        Self { track, kind, sounds: Slab::new(), generation: 0, _asset_type: PhantomData, _handle_type: PhantomData }
     }
 }
 
 impl<const SINGLE_SOUND: bool, const SPATIAL: bool, Track, Inst, Asset, Handle>
     SoundController<SINGLE_SOUND, SPATIAL, Track, Inst, Asset, Handle>
-        where
-            Track: AsTrackHandle,
-            Inst:  SoundInstance<BackendSoundHandle = Handle>,
-            Asset: SoundAsset<BackendSoundHandle = Handle>,
+where
+    Track: AsTrackHandle,
+    Inst: SoundInstance<BackendSoundHandle = Handle>,
+    Asset: SoundAsset<BackendSoundHandle = Handle>,
 {
-    fn play(&mut self,
-            sound_asset: &Asset,
-            position: IsoPointF32,
-            volume: f32,
-            fade_in_secs: Seconds,
-            fade_out_secs: Seconds,
-            looping: bool) -> SoundHandle
-    {
+    fn play(
+        &mut self,
+        sound_asset: &Asset,
+        position: IsoPointF32,
+        volume: f32,
+        fade_in_secs: Seconds,
+        fade_out_secs: Seconds,
+        looping: bool,
+    ) -> SoundHandle {
         if SINGLE_SOUND {
             // Stop current if any is already playing.
             self.stop_all(fade_out_secs);
         }
 
-        if let Some(handle) =
-            sound_asset.play(self.track.as_handle_mut(), volume, fade_in_secs, looping)
-        {
+        if let Some(handle) = sound_asset.play(self.track.as_handle_mut(), volume, fade_in_secs, looping) {
             self.generation += 1;
             let index = self.sounds.insert(Inst::new(handle, self.generation, position, volume));
             return SoundHandle::new(self.kind, index, self.generation);
@@ -649,10 +649,7 @@ macro_rules! declare_sound_instance {
 
             #[inline]
             fn stop(&mut self, fade_out_secs: Seconds) {
-                self.handle.stop(Tween {
-                    duration: Duration::from_secs_f32(fade_out_secs),
-                    ..Default::default()
-                });
+                self.handle.stop(Tween { duration: Duration::from_secs_f32(fade_out_secs), ..Default::default() });
             }
 
             #[inline]

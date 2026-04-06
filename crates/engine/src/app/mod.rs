@@ -1,11 +1,11 @@
-use strum::Display;
-use smallvec::SmallVec;
-use serde::{Deserialize, Serialize};
-use enum_dispatch::enum_dispatch;
-
 use common::{Size, Vec2, mem::RcMut};
+use enum_dispatch::enum_dispatch;
+use input::{InputAction, InputKey, InputModifiers, InputSystem, MouseButton};
+use serde::{Deserialize, Serialize};
+use smallvec::SmallVec;
+use strum::Display;
+
 use crate::render::RenderApi;
-use input::{InputSystem, InputAction, InputKey, InputModifiers, MouseButton};
 
 pub mod input;
 
@@ -117,12 +117,7 @@ impl Application {
 
         let input_system = backend.new_input_system();
 
-        RcMut::new(Self {
-            app_api: params.app_api,
-            backend,
-            input_system,
-            pending_events: ApplicationEventList::new(),
-        })
+        RcMut::new(Self { app_api: params.app_api, backend, input_system, pending_events: ApplicationEventList::new() })
     }
 
     // Push an event from an external source (e.g. WebRunner).
@@ -240,8 +235,7 @@ impl ApplicationWindowMode {
     }
 
     pub fn is_fullscreen(self) -> bool {
-        self == Self::FullScreen ||
-        self == Self::ExclusiveFullScreen
+        self == Self::FullScreen || self == Self::ExclusiveFullScreen
     }
 
     pub fn is_exclusive_fullscreen(self) -> bool {

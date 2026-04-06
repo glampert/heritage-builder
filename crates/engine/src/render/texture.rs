@@ -1,21 +1,21 @@
-use slab::Slab;
 use arrayvec::ArrayVec;
-use image::RgbaImage;
-use strum::VariantArray;
-use num_enum::TryFromPrimitive;
-use proc_macros::DrawDebugUi;
-use serde::{Serialize, Deserialize};
-
 use common::{
     format_fixed_string,
+    hash::{self, PreHashedKeyMap, StringHash},
     mem::WeakMut,
-    hash::{self, StringHash, PreHashedKeyMap},
 };
+use image::RgbaImage;
+use num_enum::TryFromPrimitive;
+use proc_macros::DrawDebugUi;
+use serde::{Deserialize, Serialize};
+use slab::Slab;
+use strum::VariantArray;
+
 use super::*;
 use crate::{
+    file_sys::{self, paths::PathRef},
     log,
     ui::UiSystem,
-    file_sys::{self, paths::PathRef},
 };
 
 // ----------------------------------------------
@@ -184,7 +184,7 @@ impl TextureBackendImpl {
 // ----------------------------------------------
 
 pub struct TextureCache {
-    lookup:   PreHashedKeyMap<StringHash, u32>,
+    lookup: PreHashedKeyMap<StringHash, u32>,
     textures: Slab<TextureBackendImpl>,
     settings: TextureSettings, // Global default settings.
 
@@ -219,11 +219,7 @@ impl TextureCache {
     }
 
     // If settings are provided they will be used and will not be affected by change_texture_settings().
-    pub fn load_texture_with_settings(&mut self,
-                                      file_path: PathRef,
-                                      settings: Option<TextureSettings>)
-                                      -> TextureHandle
-    {
+    pub fn load_texture_with_settings(&mut self, file_path: PathRef, settings: Option<TextureSettings>) -> TextureHandle {
         if let Some(loaded_texture) = self.find_loaded_texture(file_path.as_str()) {
             return loaded_texture; // Already loaded.
         }
@@ -243,24 +239,19 @@ impl TextureCache {
     }
 
     // If settings are provided they will be used and will not be affected by change_texture_settings().
-    pub fn new_uninitialized_texture(&mut self,
-                                     name: &str,
-                                     size: Size,
-                                     settings: Option<TextureSettings>)
-                                     -> TextureHandle
-    {
+    pub fn new_uninitialized_texture(&mut self, name: &str, size: Size, settings: Option<TextureSettings>) -> TextureHandle {
         let pixels = []; // Empty pixels slice = uninitialized.
         self.new_initialized_texture(name, size, &pixels, settings)
     }
 
     // New texture with initial pixel data.
-    pub fn new_initialized_texture(&mut self,
-                                   name: &str,
-                                   size: Size,
-                                   pixels: &[u8],
-                                   settings: Option<TextureSettings>)
-                                   -> TextureHandle
-    {
+    pub fn new_initialized_texture(
+        &mut self,
+        name: &str,
+        size: Size,
+        pixels: &[u8],
+        settings: Option<TextureSettings>,
+    ) -> TextureHandle {
         debug_assert!(!name.is_empty());
         debug_assert!(size.is_valid());
         // `pixels` slice may be empty.
@@ -278,21 +269,22 @@ impl TextureCache {
             size,
             pixels,
             settings.unwrap_or(self.settings),
-            allow_settings_change
+            allow_settings_change,
         );
 
         self.register_new_texture(texture)
     }
 
     // Update texture mip-level sub-rect or whole texture.
-    pub fn update_texture(&mut self,
-                          handle: TextureHandle,
-                          offset_x: u32,
-                          offset_y: u32,
-                          size: Size,
-                          mip_level: u32,
-                          pixels: &[u8])
-    {
+    pub fn update_texture(
+        &mut self,
+        handle: TextureHandle,
+        offset_x: u32,
+        offset_y: u32,
+        size: Size,
+        mip_level: u32,
+        pixels: &[u8],
+    ) {
         debug_assert!(size.is_valid());
         debug_assert!(pixels.len() >= (size.width * size.height * 4) as usize); // RGBA images only.
         debug_assert!(!matches!(handle, TextureHandle::Invalid | TextureHandle::White));
@@ -323,7 +315,7 @@ impl TextureCache {
             if let Some(texture) = &mut texture {
                 let mut render_system = self.render_sys_rc();
                 render_system.release_texture(texture); // Release GPU resources immediately.
-            }   
+            }
 
             if !removed_successfully {
                 log::error!(log::channel!("render"), "Failed to remove TextureCache entry [{idx}].");
@@ -341,9 +333,13 @@ impl TextureCache {
     pub fn change_texture_settings(&mut self, settings: TextureSettings) {
         debug_assert!(self.is_valid());
 
-        log::info!(log::channel!("render"),
-                   "Changing texture settings: Filter:{}, WrapMode:{}, Mipmaps:{}",
-                   settings.filter, settings.wrap_mode, settings.mipmaps);
+        log::info!(
+            log::channel!("render"),
+            "Changing texture settings: Filter:{}, WrapMode:{}, Mipmaps:{}",
+            settings.filter,
+            settings.wrap_mode,
+            settings.mipmaps
+        );
 
         let mut render_system = self.render_sys_rc();
 
@@ -365,13 +361,14 @@ impl TextureCache {
     // Internal:
     // ----------------------
 
-    pub(super) fn new(render_system: WeakMut<RenderSystem>,
-                      initial_capacity: usize,
-                      settings: TextureSettings) -> Self
-    {
-        log::info!(log::channel!("render"),
-                   "Texture settings: Filter:{}, WrapMode:{}, Mipmaps:{}",
-                   settings.filter, settings.wrap_mode, settings.mipmaps);
+    pub(super) fn new(render_system: WeakMut<RenderSystem>, initial_capacity: usize, settings: TextureSettings) -> Self {
+        log::info!(
+            log::channel!("render"),
+            "Texture settings: Filter:{}, WrapMode:{}, Mipmaps:{}",
+            settings.filter,
+            settings.wrap_mode,
+            settings.mipmaps
+        );
 
         Self {
             lookup: PreHashedKeyMap::default(),
@@ -395,11 +392,10 @@ impl TextureCache {
     pub(super) fn texture_for_handle(&mut self, handle: TextureHandle) -> &mut TextureBackendImpl {
         match handle {
             TextureHandle::Invalid => self.dummy_texture(),
-            TextureHandle::White   => self.white_texture(),
+            TextureHandle::White => self.white_texture(),
             TextureHandle::Index(idx) => {
                 // If we have an index, it should point to a valid slot.
-                self.textures.get_mut(idx as usize)
-                    .expect("Unexpected invalid TextureHandle::Index!")
+                self.textures.get_mut(idx as usize).expect("Unexpected invalid TextureHandle::Index!")
             }
         }
     }
@@ -466,7 +462,7 @@ impl TextureCache {
                     log::error!(log::channel!("render"), "Image decode error: {err}");
                     return Err(());
                 }
-            }
+            },
             Err(err) => {
                 log::error!(log::channel!("render"), "Failed to load image file: {err}");
                 return Err(());
@@ -480,8 +476,7 @@ impl TextureCache {
         const SIZE: Size = Size::new(8, 8);
         const PIXEL_COUNT: usize = (SIZE.width * SIZE.height) as usize;
 
-        let pixels: ArrayVec<u8, { PIXEL_COUNT * 4 }> =
-            rgba.iter().copied().cycle().take(PIXEL_COUNT * 4).collect();
+        let pixels: ArrayVec<u8, { PIXEL_COUNT * 4 }> = rgba.iter().copied().cycle().take(PIXEL_COUNT * 4).collect();
 
         self.new_initialized_texture(name, SIZE, &pixels, None)
     }
@@ -512,20 +507,12 @@ impl TextureCache {
         let mut settings_changed = false;
 
         let mut current_filter_index = current_settings.filter as usize;
-        settings_changed |= ui.combo(
-            "Filter",
-            &mut current_filter_index,
-            TextureFilter::VARIANTS,
-            |filter| { filter.to_string().into() }
-        );
+        settings_changed |=
+            ui.combo("Filter", &mut current_filter_index, TextureFilter::VARIANTS, |filter| filter.to_string().into());
 
         let mut current_wrap_mode_index = current_settings.wrap_mode as usize;
-        settings_changed |= ui.combo(
-            "Wrap Mode",
-            &mut current_wrap_mode_index,
-            TextureWrapMode::VARIANTS,
-            |mode| { mode.to_string().into() }
-        );
+        settings_changed |=
+            ui.combo("Wrap Mode", &mut current_wrap_mode_index, TextureWrapMode::VARIANTS, |mode| mode.to_string().into());
 
         let mut current_gen_mipmaps = current_settings.mipmaps;
         settings_changed |= ui.checkbox("Mipmaps", &mut current_gen_mipmaps);

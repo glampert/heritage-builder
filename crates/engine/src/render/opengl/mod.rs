@@ -1,34 +1,25 @@
 use std::ffi::{CStr, c_char};
-use arrayvec::ArrayVec;
 
+use arrayvec::ArrayVec;
 use batch::*;
+use common::{Color, Rect, RectTexCoords, Size, Vec2, time::PerfTimer};
 use context::*;
 use shader::*;
+use target::*;
+pub use texture::OpenGlTexture;
 use texture::*;
 use vertex::*;
-use target::*;
 
-pub use texture::OpenGlTexture;
-
-use super::{
-    RenderApi,
-    RenderStats,
-    RenderSystemBackend,
-    RenderSystemInitParams,
-};
-use common::{Vec2, Size, Color, Rect, RectTexCoords, time::PerfTimer};
-use crate::{
-    log,
-    ui::UiRenderFrameBundle,
-};
+use super::{RenderApi, RenderStats, RenderSystemBackend, RenderSystemInitParams};
+use crate::{log, ui::UiRenderFrameBundle};
 
 mod batch;
 mod buffer;
 mod context;
 mod shader;
+mod target;
 mod texture;
 mod vertex;
-mod target;
 
 // ----------------------------------------------
 // OpenGlSystemState
@@ -63,10 +54,9 @@ impl OpenGlSystemState {
 
         // NOTE: Set render viewport to render target size; everything else is set
         // to the virtual viewport size, so we decouple rendering resolution from
-        // logical viewport. 
-        self.render_context.set_viewport(
-            Rect::from_pos_and_size(Vec2::zero(), self.offscreen_render_target.size().to_vec2())
-        );
+        // logical viewport.
+        self.render_context
+            .set_viewport(Rect::from_pos_and_size(Vec2::zero(), self.offscreen_render_target.size().to_vec2()));
 
         self.sprites_shader.set_viewport_size(self.viewport.size());
         self.lines_shader.set_viewport_size(self.viewport.size());
@@ -91,9 +81,7 @@ impl OpenGlSystemState {
         };
 
         self.sprites_batch.sync();
-        self.sprites_batch.draw_entries(&mut self.render_context,
-                                        &self.sprites_shader.program,
-                                        set_shader_vars_fn);
+        self.sprites_batch.draw_entries(&mut self.render_context, &self.sprites_shader.program, set_shader_vars_fn);
         self.sprites_batch.clear();
     }
 
@@ -134,10 +122,8 @@ impl OpenGlRenderSystemBackend {
 
         log::info!(log::channel!("render"), "--- Render Backend: OpenGL ---");
 
-        let offscreen_render_target = RenderTarget::new(
-            params.viewport_size.max(params.framebuffer_size),
-            TextureFilter::Linear
-        );
+        let offscreen_render_target =
+            RenderTarget::new(params.viewport_size.max(params.framebuffer_size), TextureFilter::Linear);
 
         let mut s = Box::new(OpenGlSystemState {
             frame_started: false,
@@ -211,11 +197,11 @@ impl RenderSystemBackend for OpenGlRenderSystemBackend {
         s.stats.render_submit_time_ms = 0.0;
     }
 
-    fn end_frame(&mut self,
-                 ui_frame_bundle: &mut UiRenderFrameBundle,
-                 tex_cache: &mut super::texture::TextureCache)
-                 -> RenderStats
-    {
+    fn end_frame(
+        &mut self,
+        ui_frame_bundle: &mut UiRenderFrameBundle,
+        tex_cache: &mut super::texture::TextureCache,
+    ) -> RenderStats {
         let s = self.state_mut();
         debug_assert!(s.framebuffer_size.is_valid());
 
@@ -285,22 +271,20 @@ impl RenderSystemBackend for OpenGlRenderSystemBackend {
         s.render_context.set_clip_test(ClipTest::Disabled);
     }
 
-    fn set_ui_draw_buffers(&mut self,
-                           vtx_buffer: &[super::UiDrawVertex],
-                           idx_buffer: &[super::UiDrawIndex])
-    {
+    fn set_ui_draw_buffers(&mut self, vtx_buffer: &[super::UiDrawVertex], idx_buffer: &[super::UiDrawIndex]) {
         debug_assert!(!vtx_buffer.is_empty() && !idx_buffer.is_empty());
         let s = self.state_mut();
         s.ui_batch.sync(&mut s.render_context, vtx_buffer, idx_buffer);
     }
 
-    fn draw_ui_elements(&mut self,
-                        first_index: u32,
-                        index_count: u32,
-                        texture: super::texture::TextureHandle,
-                        tex_cache: &mut super::texture::TextureCache,
-                        clip_rect: Rect)
-    {
+    fn draw_ui_elements(
+        &mut self,
+        first_index: u32,
+        index_count: u32,
+        texture: super::texture::TextureHandle,
+        tex_cache: &mut super::texture::TextureCache,
+        clip_rect: Rect,
+    ) {
         debug_assert!(index_count.is_multiple_of(3)); // We expect triangles.
 
         let s = self.state_mut();
@@ -325,11 +309,7 @@ impl RenderSystemBackend for OpenGlRenderSystemBackend {
     // Draw commands:
     // ----------------------
 
-    fn draw_colored_indexed_triangles(&mut self,
-                                      vertices: &[Vec2],
-                                      indices: &[super::DrawIndex],
-                                      color: Color)
-    {
+    fn draw_colored_indexed_triangles(&mut self, vertices: &[Vec2], indices: &[super::DrawIndex], color: Color) {
         let s = self.state_mut();
         debug_assert!(s.frame_started);
         debug_assert!(!vertices.is_empty() && !indices.is_empty());
@@ -339,28 +319,21 @@ impl RenderSystemBackend for OpenGlRenderSystemBackend {
 
         // Expand to sprite vertices with defaulted (unused) texture coordinates.
         for vert in vertices {
-            sprite_verts.push(SpriteVertex2D {
-                position: *vert,
-                tex_coords: Vec2::default(),
-            });
+            sprite_verts.push(SpriteVertex2D { position: *vert, tex_coords: Vec2::default() });
         }
 
-        s.sprites_batch.add_entry(
-            &sprite_verts,
-            indices,
-            super::texture::TextureHandle::white(),
-            color
-        );
+        s.sprites_batch.add_entry(&sprite_verts, indices, super::texture::TextureHandle::white(), color);
 
         s.stats.triangles_drawn += (indices.len() / 3) as u32;
     }
 
-    fn draw_textured_colored_rect(&mut self,
-                                  rect: Rect,
-                                  tex_coords: &RectTexCoords,
-                                  texture: super::texture::TextureHandle,
-                                  color: Color)
-    {
+    fn draw_textured_colored_rect(
+        &mut self,
+        rect: Rect,
+        tex_coords: &RectTexCoords,
+        texture: super::texture::TextureHandle,
+        color: Color,
+    ) {
         let s = self.state_mut();
         debug_assert!(s.frame_started);
 
@@ -426,44 +399,44 @@ impl RenderSystemBackend for OpenGlRenderSystemBackend {
     // Texture Allocation:
     // ----------------------
 
-    fn new_texture_from_pixels(&mut self,
-                               name: &str,
-                               size: Size,
-                               pixels: &[u8],
-                               settings: super::texture::TextureSettings,
-                               allow_settings_change: bool)
-                               -> super::texture::TextureBackendImpl
-    {
-        let gl_texture = OpenGlTexture::new(
-            TextureCreationParams {
-                name,
-                size,
-                pixels,
-                settings: TextureSettings::from(settings),
-                tex_unit: TextureUnit(0),
-                allow_settings_change,
-            }
-        );
+    fn new_texture_from_pixels(
+        &mut self,
+        name: &str,
+        size: Size,
+        pixels: &[u8],
+        settings: super::texture::TextureSettings,
+        allow_settings_change: bool,
+    ) -> super::texture::TextureBackendImpl {
+        let gl_texture = OpenGlTexture::new(TextureCreationParams {
+            name,
+            size,
+            pixels,
+            settings: TextureSettings::from(settings),
+            tex_unit: TextureUnit(0),
+            allow_settings_change,
+        });
 
         super::texture::TextureBackendImpl::OpenGl(gl_texture)
     }
 
-    fn update_texture_pixels(&mut self,
-                             texture: &mut super::texture::TextureBackendImpl,
-                             offset_x: u32,
-                             offset_y: u32,
-                             size: Size,
-                             mip_level: u32,
-                             pixels: &[u8])
-    {
+    fn update_texture_pixels(
+        &mut self,
+        texture: &mut super::texture::TextureBackendImpl,
+        offset_x: u32,
+        offset_y: u32,
+        size: Size,
+        mip_level: u32,
+        pixels: &[u8],
+    ) {
         let gl_texture = texture.as_opengl_mut();
         gl_texture.update(offset_x, offset_y, size, mip_level, pixels);
     }
 
-    fn update_texture_settings(&mut self,
-                               texture: &mut super::texture::TextureBackendImpl,
-                               settings: super::texture::TextureSettings)
-    {
+    fn update_texture_settings(
+        &mut self,
+        texture: &mut super::texture::TextureBackendImpl,
+        settings: super::texture::TextureSettings,
+    ) {
         let gl_texture = texture.as_opengl_mut();
         gl_texture.change_settings(TextureSettings::from(settings));
     }
@@ -482,23 +455,29 @@ fn log_gl_info() {
     unsafe {
         let gl_version = gl::GetString(gl::VERSION);
         if !gl_version.is_null() {
-            log::info!(log::channel!("render"),
-                       "GL_VERSION: {}",
-                       CStr::from_ptr(gl_version as *const c_char).to_str().unwrap());
+            log::info!(
+                log::channel!("render"),
+                "GL_VERSION: {}",
+                CStr::from_ptr(gl_version as *const c_char).to_str().unwrap()
+            );
         }
 
         let gl_vendor = gl::GetString(gl::VENDOR);
         if !gl_vendor.is_null() {
-            log::info!(log::channel!("render"),
-                       "GL_VENDOR: {}",
-                       CStr::from_ptr(gl_vendor as *const c_char).to_str().unwrap());
+            log::info!(
+                log::channel!("render"),
+                "GL_VENDOR: {}",
+                CStr::from_ptr(gl_vendor as *const c_char).to_str().unwrap()
+            );
         }
 
         let glsl_version = gl::GetString(gl::SHADING_LANGUAGE_VERSION);
         if !glsl_version.is_null() {
-            log::info!(log::channel!("render"),
-                       "GLSL_VERSION: {}",
-                       CStr::from_ptr(glsl_version as *const c_char).to_str().unwrap());
+            log::info!(
+                log::channel!("render"),
+                "GLSL_VERSION: {}",
+                CStr::from_ptr(glsl_version as *const c_char).to_str().unwrap()
+            );
         }
     }
 }

@@ -1,15 +1,18 @@
-use proc_macros::DrawDebugUi;
-use serde::{de::DeserializeOwned, Deserialize, Serialize};
-
 use common::{Color, Size};
+use proc_macros::DrawDebugUi;
+use serde::{Deserialize, Serialize, de::DeserializeOwned};
+
 use crate::{
+    app::{ApplicationApi, ApplicationContentScale, ApplicationWindowMode},
+    file_sys::{
+        self,
+        paths::{self, AssetPath, PathRef},
+    },
     log,
-    save::{self, *},
-    ui::UiSystem,
-    sound::SoundGlobalSettings,
     render::{RenderApi, texture::TextureSettings},
-    file_sys::{self, paths::{self, PathRef, AssetPath}},
-    app::{ApplicationApi, ApplicationWindowMode, ApplicationContentScale},
+    save::{self, *},
+    sound::SoundGlobalSettings,
+    ui::UiSystem,
 };
 
 // ----------------------------------------------
@@ -26,13 +29,12 @@ pub trait Configs {
 
     // Saves current configs to file.
     fn save_file(&'static self, config_file_name: PathRef) -> bool
-        where Self: Configs + Sized + Serialize
+    where
+        Self: Configs + Sized + Serialize,
     {
         debug_assert!(!config_file_name.is_empty());
 
-        let config_json_path = configs_path()
-            .join(config_file_name)
-            .with_extension("json");
+        let config_json_path = configs_path().join(config_file_name).with_extension("json");
 
         // First make sure the save directory exists. Ignore any errors since
         // this function might fail if any element of the path already exists.
@@ -41,14 +43,12 @@ pub trait Configs {
         let mut state = save::new_json_save_state(true);
 
         if let Err(err) = state.save(self) {
-            log::error!(log::channel!("config"),
-                        "Failed to save config file {config_json_path}: {err}");
+            log::error!(log::channel!("config"), "Failed to save config file {config_json_path}: {err}");
             return false;
         }
 
         if let Err(err) = state.write_file(&config_json_path) {
-            log::error!(log::channel!("config"),
-                        "Failed to write config file {config_json_path}: {err}");
+            log::error!(log::channel!("config"), "Failed to write config file {config_json_path}: {err}");
             return false;
         }
 
@@ -57,26 +57,27 @@ pub trait Configs {
 
     // Either succeeds loading the config file or returns a default config.
     fn load_file<T>(config_file_name: PathRef) -> T
-        where T: Configs + Sized + Default + DeserializeOwned
+    where
+        T: Configs + Sized + Default + DeserializeOwned,
     {
         debug_assert!(!config_file_name.is_empty());
 
-        let config_json_path = configs_path()
-            .join(config_file_name)
-            .with_extension("json");
+        let config_json_path = configs_path().join(config_file_name).with_extension("json");
 
         let mut state = save::new_json_save_state(false);
 
         if let Err(err) = state.read_file(&config_json_path) {
-            log::error!(log::channel!("config"),
-                        "Failed to read config file from path {config_json_path}: {err}");
+            log::error!(log::channel!("config"), "Failed to read config file from path {config_json_path}: {err}");
             return T::default();
         }
 
         match state.load_new_instance::<T>() {
             Ok(configs) => configs,
             Err(err) => {
-                log::error!(log::channel!("config"), "Failed to deserialize config file from path {config_json_path}: {err}");
+                log::error!(
+                    log::channel!("config"),
+                    "Failed to deserialize config file from path {config_json_path}: {err}"
+                );
                 T::default()
             }
         }

@@ -1,23 +1,19 @@
 use std::sync::Arc;
 
-use winit::{
-    event::WindowEvent,
-    application::ApplicationHandler,
-    event_loop::ActiveEventLoop,
-    window::{Window, WindowId, WindowAttributes},
-};
-
-#[cfg(feature = "desktop")]
-use winit::{
-    event_loop::EventLoop,
-    platform::pump_events::EventLoopExtPumpEvents,
-};
-
 use common::{Size, Vec2};
+use winit::{
+    application::ApplicationHandler,
+    event::WindowEvent,
+    event_loop::ActiveEventLoop,
+    window::{Window, WindowAttributes, WindowId},
+};
+#[cfg(feature = "desktop")]
+use winit::{event_loop::EventLoop, platform::pump_events::EventLoopExtPumpEvents};
+
 use crate::{
+    app::{ApplicationApi, ApplicationInitParams},
     log,
     render::RenderApi,
-    app::{ApplicationInitParams, ApplicationApi},
 };
 
 // ----------------------------------------------
@@ -44,8 +40,7 @@ impl WinitWindowManager {
 
         #[cfg(feature = "desktop")]
         {
-            let mut event_loop = EventLoop::new()
-                .expect("Failed to create Winit event loop!");
+            let mut event_loop = EventLoop::new().expect("Failed to create Winit event loop!");
 
             // Create the window during the first pump (triggers `resumed()`).
             let mut init_handler = WinitInitHandler::new(params);
@@ -53,8 +48,7 @@ impl WinitWindowManager {
             // Pump events once to trigger `resumed()`, which creates the window.
             let _ = event_loop.pump_app_events(Some(std::time::Duration::ZERO), &mut init_handler);
 
-            let window = init_handler.result
-                .expect("Winit: Window initialization failed — resumed() was not triggered!");
+            let window = init_handler.result.expect("Winit: Window initialization failed — resumed() was not triggered!");
 
             log::info!(log::channel!("app"), "WinitWindowManager (Wgpu) created.");
 
@@ -63,7 +57,8 @@ impl WinitWindowManager {
 
         #[cfg(feature = "web")]
         {
-            let window: Arc<winit::window::Window> = params.opt_window
+            let window: Arc<winit::window::Window> = params
+                .opt_window
                 .expect("Web WinitWindowManager requires an opt_window!")
                 .downcast_ref::<Arc<winit::window::Window>>()
                 .expect("opt_window must be Arc<winit::window::Window>!")
@@ -95,15 +90,13 @@ impl super::WinitWindowManager for WinitWindowManager {
     }
 
     fn poll_events<F>(&mut self, handler: F)
-        where F: FnMut(&ActiveEventLoop, WindowEvent)
+    where
+        F: FnMut(&ActiveEventLoop, WindowEvent),
     {
         // Desktop: synchronous event pump.
         #[cfg(feature = "desktop")]
         {
-            let mut evt_handler = WinitWindowEventHandler {
-                window_id: self.window.id(),
-                handler,
-            };
+            let mut evt_handler = WinitWindowEventHandler { window_id: self.window.id(), handler };
             let _ = self.event_loop.pump_app_events(Some(std::time::Duration::ZERO), &mut evt_handler);
         }
 
@@ -154,9 +147,7 @@ pub fn create_window(event_loop: &ActiveEventLoop, params: &ApplicationInitParam
         window_attributes = window_attributes.with_canvas(Some(canvas));
     }
 
-    let window =
-        event_loop.create_window(window_attributes)
-            .expect("Failed to create Winit window!");
+    let window = event_loop.create_window(window_attributes).expect("Failed to create Winit window!");
 
     log::info!(log::channel!("app"), "Winit Window for Wgpu created.");
     log::info!(log::channel!("app"), "Window Inner Size: {:?}, Outer Size: {:?}", window.inner_size(), window.outer_size());
@@ -175,17 +166,14 @@ struct WinitWindowEventHandler<F> {
 }
 
 impl<F> ApplicationHandler for WinitWindowEventHandler<F>
-    where F: FnMut(&ActiveEventLoop, WindowEvent)
+where
+    F: FnMut(&ActiveEventLoop, WindowEvent),
 {
     fn resumed(&mut self, _event_loop: &ActiveEventLoop) {
         // Window is already created; nothing to do during normal polling.
     }
 
-    fn window_event(&mut self,
-                    event_loop: &ActiveEventLoop,
-                    window_id: WindowId,
-                    event: WindowEvent)
-    {
+    fn window_event(&mut self, event_loop: &ActiveEventLoop, window_id: WindowId, event: WindowEvent) {
         if window_id != self.window_id {
             return;
         }
@@ -220,8 +208,5 @@ impl ApplicationHandler for WinitInitHandler<'_> {
         self.result = Some(create_window(event_loop, self.params));
     }
 
-    fn window_event(&mut self,
-                    _event_loop: &ActiveEventLoop,
-                    _window_id: WindowId,
-                    _event: WindowEvent) {}
+    fn window_event(&mut self, _event_loop: &ActiveEventLoop, _window_id: WindowId, _event: WindowEvent) {}
 }

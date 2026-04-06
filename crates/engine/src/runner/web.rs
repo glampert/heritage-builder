@@ -14,35 +14,30 @@
 use std::sync::Arc;
 
 use ::winit::{
-    event::WindowEvent,
     application::ApplicationHandler,
+    event::WindowEvent,
     event_loop::{ActiveEventLoop, EventLoop, EventLoopProxy},
     platform::web::EventLoopExtWebSys,
     window::{Window, WindowId},
 };
+use common::{Size, Vec2, singleton_late_init};
 
-use super::{Runner, RunLoop, RunLoopConfigs};
-use common::{singleton_late_init, Size, Vec2};
+use super::{RunLoop, RunLoopConfigs, Runner};
 use crate::{
-    log,
-    platform,
-    engine::Engine,
-    config::EngineConfigs,
-    file_sys::{self, paths},
-    render::{
-        RenderApi,
-        RenderSystem,
-        RenderSystemInitParams,
-        wgpu::WgpuInitResources,
-    },
     app::{
         self,
         Application,
+        ApplicationApi,
         ApplicationEvent,
         ApplicationInitParams,
-        ApplicationApi,
         winit::input, // Re-use winit input conversion helpers.
     },
+    config::EngineConfigs,
+    engine::Engine,
+    file_sys::{self, paths},
+    log,
+    platform,
+    render::{RenderApi, RenderSystem, RenderSystemInitParams, wgpu::WgpuInitResources},
 };
 
 // ----------------------------------------------
@@ -53,9 +48,7 @@ fn set_loading_progress(percent: u32, message: &str) {
     let Some(document) = web_sys::window().and_then(|w| w.document()) else { return };
     if let Some(bar) = document.get_element_by_id("loading-bar") {
         use wasm_bindgen::JsCast;
-        let _ = bar.unchecked_ref::<web_sys::HtmlElement>()
-            .style()
-            .set_property("width", &format!("{percent}%"));
+        let _ = bar.unchecked_ref::<web_sys::HtmlElement>().style().set_property("width", &format!("{percent}%"));
     }
     if let Some(status) = document.get_element_by_id("loading-status") {
         status.set_text_content(Some(message));
@@ -76,7 +69,9 @@ fn hide_loading_screen() {
 pub struct WebRunner;
 
 impl Runner for WebRunner {
-    fn new() -> Self { Self }
+    fn new() -> Self {
+        Self
+    }
 
     fn run<GameLoop: RunLoop + 'static>(&self) {
         log::info!(log::channel!("runner"), "--- Web Runner entry point started ---");
@@ -86,8 +81,7 @@ impl Runner for WebRunner {
         platform::initialize();
         paths::set_working_directory(paths::base_path());
 
-        let event_loop = EventLoop::new()
-            .expect("Failed to create Winit event loop!");
+        let event_loop = EventLoop::new().expect("Failed to create Winit event loop!");
 
         // Create a proxy to wake the event loop from async tasks.
         // Without a window, the browser won't fire requestAnimationFrame,
@@ -111,10 +105,7 @@ enum WebRunnerState {
     LoadingAssets,
 
     // Window created, async Wgpu GPU init in progress.
-    InitializingGpu {
-        window: Arc<Window>,
-        engine_configs: &'static EngineConfigs,
-    },
+    InitializingGpu { window: Arc<Window>, engine_configs: &'static EngineConfigs },
 
     // Finished initialization. About to go into Running state.
     ReadyToStartRunLoop,
@@ -130,10 +121,7 @@ struct WebEventHandler<GameLoop: RunLoop + 'static> {
 
 impl<GameLoop: RunLoop + 'static> WebEventHandler<GameLoop> {
     fn new() -> Self {
-        Self {
-            state: WebRunnerState::WaitingForResume,
-            _phantom: std::marker::PhantomData,
-        }
+        Self { state: WebRunnerState::WaitingForResume, _phantom: std::marker::PhantomData }
     }
 }
 
@@ -184,11 +172,7 @@ impl<GameLoop: RunLoop + 'static> ApplicationHandler for WebEventHandler<GameLoo
         self.start_asset_loading();
     }
 
-    fn window_event(&mut self,
-                    _event_loop: &ActiveEventLoop,
-                    _window_id: WindowId,
-                    event: WindowEvent)
-    {
+    fn window_event(&mut self, _event_loop: &ActiveEventLoop, _window_id: WindowId, event: WindowEvent) {
         // Only forward events when the game is running.
         if !matches!(self.state, WebRunnerState::Running { .. }) {
             return;
@@ -261,30 +245,24 @@ impl<GameLoop: RunLoop + 'static> WebEventHandler<GameLoop> {
         });
     }
 
-    fn create_window_and_wgpu_device(&mut self,
-                                     engine_configs: &'static EngineConfigs,
-                                     event_loop: &ActiveEventLoop)
-    {
+    fn create_window_and_wgpu_device(&mut self, engine_configs: &'static EngineConfigs, event_loop: &ActiveEventLoop) {
         log::info!(log::channel!("runner"), "Web Runner: Configs ready — creating window...");
 
         let window_params = ApplicationInitParams {
-            app_api:          ApplicationApi::Winit,
-            render_api:       RenderApi::Wgpu,
-            window_title:     &engine_configs.window_title,
-            window_size:      engine_configs.window_size,
-            window_mode:      engine_configs.window_mode,
-            content_scale:    engine_configs.content_scale,
+            app_api: ApplicationApi::Winit,
+            render_api: RenderApi::Wgpu,
+            window_title: &engine_configs.window_title,
+            window_size: engine_configs.window_size,
+            window_mode: engine_configs.window_mode,
+            content_scale: engine_configs.content_scale,
             resizable_window: engine_configs.resizable_window,
-            confine_cursor:   engine_configs.confine_cursor_to_window,
+            confine_cursor: engine_configs.confine_cursor_to_window,
             ..Default::default()
         };
 
         let window = Arc::new(app::winit::wgpu::create_window(event_loop, &window_params));
 
-        self.state = WebRunnerState::InitializingGpu {
-            window: window.clone(),
-            engine_configs,
-        };
+        self.state = WebRunnerState::InitializingGpu { window: window.clone(), engine_configs };
 
         // Kick off async wgpu initialization.
         wasm_bindgen_futures::spawn_local(async move {
@@ -295,14 +273,17 @@ impl<GameLoop: RunLoop + 'static> WebEventHandler<GameLoop> {
                 ..Default::default()
             });
 
-            let surface = instance.create_surface(wgpu::SurfaceTarget::from(window.clone()))
-                .expect("Failed to create Wgpu surface!");
+            let surface =
+                instance.create_surface(wgpu::SurfaceTarget::from(window.clone())).expect("Failed to create Wgpu surface!");
 
-            let adapter = instance.request_adapter(&wgpu::RequestAdapterOptions {
-                power_preference: wgpu::PowerPreference::HighPerformance,
-                compatible_surface: Some(&surface),
-                force_fallback_adapter: false,
-            }).await.expect("Failed to find a suitable GPU adapter!");
+            let adapter = instance
+                .request_adapter(&wgpu::RequestAdapterOptions {
+                    power_preference: wgpu::PowerPreference::HighPerformance,
+                    compatible_surface: Some(&surface),
+                    force_fallback_adapter: false,
+                })
+                .await
+                .expect("Failed to find a suitable GPU adapter!");
 
             log::info!(log::channel!("render"), "Wgpu Adapter Info:");
             {
@@ -321,23 +302,25 @@ impl<GameLoop: RunLoop + 'static> WebEventHandler<GameLoop> {
             let features = if adapter.features().contains(wgpu::Features::ADDRESS_MODE_CLAMP_TO_BORDER) {
                 wgpu::Features::ADDRESS_MODE_CLAMP_TO_BORDER
             } else {
-                log::warning!(log::channel!("render"), "Web Runner: ADDRESS_MODE_CLAMP_TO_BORDER not available, using ClampToEdge fallback.");
+                log::warning!(
+                    log::channel!("render"),
+                    "Web Runner: ADDRESS_MODE_CLAMP_TO_BORDER not available, using ClampToEdge fallback."
+                );
                 wgpu::Features::empty()
             };
 
-            let (device, queue) = adapter.request_device(
-                &wgpu::DeviceDescriptor {
+            let (device, queue) = adapter
+                .request_device(&wgpu::DeviceDescriptor {
                     label: Some("heritage_builder_device"),
                     required_features: features,
                     ..Default::default()
-                },
-            ).await.expect("Failed to create Wgpu device!");
+                })
+                .await
+                .expect("Failed to create Wgpu device!");
 
             let surface_caps = surface.get_capabilities(&adapter);
-            let surface_format = surface_caps.formats.iter()
-                .find(|f| !f.is_srgb())
-                .copied()
-                .unwrap_or(surface_caps.formats[0]);
+            let surface_format =
+                surface_caps.formats.iter().find(|f| !f.is_srgb()).copied().unwrap_or(surface_caps.formats[0]);
 
             let phys_size = window.inner_size();
             let surface_config = wgpu::SurfaceConfiguration {
@@ -373,33 +356,29 @@ impl<GameLoop: RunLoop + 'static> WebEventHandler<GameLoop> {
         };
 
         // Initialize Application:
-        let app = Application::new(
-            ApplicationInitParams {
-                app_api:          ApplicationApi::Winit,
-                render_api:       RenderApi::Wgpu,
-                window_title:     &engine_configs.window_title,
-                window_size:      engine_configs.window_size,
-                window_mode:      engine_configs.window_mode,
-                content_scale:    engine_configs.content_scale,
-                resizable_window: engine_configs.resizable_window,
-                confine_cursor:   engine_configs.confine_cursor_to_window,
-                opt_window:       Some(&window), // With pre-created Window instance.
-            }
-        );
+        let app = Application::new(ApplicationInitParams {
+            app_api: ApplicationApi::Winit,
+            render_api: RenderApi::Wgpu,
+            window_title: &engine_configs.window_title,
+            window_size: engine_configs.window_size,
+            window_mode: engine_configs.window_mode,
+            content_scale: engine_configs.content_scale,
+            resizable_window: engine_configs.resizable_window,
+            confine_cursor: engine_configs.confine_cursor_to_window,
+            opt_window: Some(&window), // With pre-created Window instance.
+        });
         log::info!(log::channel!("runner"), "Application initialized.");
 
         // Create the RenderSystem from pre-initialized resources:
-        let render_system = RenderSystem::new(
-            RenderSystemInitParams {
-                render_api:       RenderApi::Wgpu,
-                clear_color:      engine_configs.window_background_color,
-                texture_settings: engine_configs.texture_settings,
-                viewport_size:    app.window_size(),
-                framebuffer_size: app.framebuffer_size(),
-                wgpu_resources:   Some(wgpu_resources),
-                ..Default::default()
-            }
-        );
+        let render_system = RenderSystem::new(RenderSystemInitParams {
+            render_api: RenderApi::Wgpu,
+            clear_color: engine_configs.window_background_color,
+            texture_settings: engine_configs.texture_settings,
+            viewport_size: app.window_size(),
+            framebuffer_size: app.framebuffer_size(),
+            wgpu_resources: Some(wgpu_resources),
+            ..Default::default()
+        });
         log::info!(log::channel!("runner"), "RenderSystem initialized.");
 
         // Configs were already loaded in start_asset_loading().
@@ -456,9 +435,7 @@ impl<GameLoop: RunLoop + 'static> WebEventHandler<GameLoop> {
                 }
             }
             WindowEvent::ModifiersChanged(new_modifiers) => {
-                get_input_state(app).set_modifiers(
-                    input::winit_modifiers_to_input_modifiers(new_modifiers.state())
-                );
+                get_input_state(app).set_modifiers(input::winit_modifiers_to_input_modifiers(new_modifiers.state()));
             }
             WindowEvent::MouseWheel { delta, .. } => {
                 let scroll = input::winit_mouse_scroll_delta_to_vec2(delta);
@@ -477,10 +454,7 @@ impl<GameLoop: RunLoop + 'static> WebEventHandler<GameLoop> {
             }
             WindowEvent::CursorMoved { position, .. } => {
                 let scale = app.content_scale();
-                get_input_state(app).set_cursor_pos(Vec2::new(
-                    position.x as f32 / scale.x,
-                    position.y as f32 / scale.y,
-                ));
+                get_input_state(app).set_cursor_pos(Vec2::new(position.x as f32 / scale.x, position.y as f32 / scale.y));
             }
             _ => {}
         }

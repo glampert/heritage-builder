@@ -1,9 +1,9 @@
-use serde::{Serialize, Deserialize};
+use common::{Color, Rect, RectTexCoords, Size, Vec2, mem::RcMut, time::Milliseconds};
 use enum_dispatch::enum_dispatch;
+use serde::{Deserialize, Serialize};
 use strum::Display;
 
-use common::{Vec2, Size, Color, Rect, RectTexCoords, time::Milliseconds, mem::RcMut};
-use crate::ui::{UiRenderFrameBundle, UiDrawIndex, UiDrawVertex};
+use crate::ui::{UiDrawIndex, UiDrawVertex, UiRenderFrameBundle};
 
 pub mod debug;
 pub mod texture;
@@ -41,14 +41,10 @@ pub enum RenderApi {
 #[enum_dispatch(RenderSystemBackendImpl)]
 trait RenderSystemBackend: Sized {
     // Begin/End frame:
-    fn begin_frame(&mut self,
-                   viewport_size: Size,
-                   framebuffer_size: Size);
+    fn begin_frame(&mut self, viewport_size: Size, framebuffer_size: Size);
 
-    fn end_frame(&mut self,
-                 ui_frame_bundle: &mut UiRenderFrameBundle,
-                 tex_cache: &mut texture::TextureCache)
-                 -> RenderStats;
+    fn end_frame(&mut self, ui_frame_bundle: &mut UiRenderFrameBundle, tex_cache: &mut texture::TextureCache)
+    -> RenderStats;
 
     // Viewport/Framebuffer:
     fn viewport(&self) -> Rect;
@@ -59,53 +55,53 @@ trait RenderSystemBackend: Sized {
     fn begin_ui_render(&mut self);
     fn end_ui_render(&mut self);
 
-    fn set_ui_draw_buffers(&mut self,
-                           vtx_buffer: &[UiDrawVertex],
-                           idx_buffer: &[UiDrawIndex]);
+    fn set_ui_draw_buffers(&mut self, vtx_buffer: &[UiDrawVertex], idx_buffer: &[UiDrawIndex]);
 
-    fn draw_ui_elements(&mut self,
-                        first_index: u32,
-                        index_count: u32,
-                        texture: texture::TextureHandle,
-                        tex_cache: &mut texture::TextureCache,
-                        clip_rect: Rect);
+    fn draw_ui_elements(
+        &mut self,
+        first_index: u32,
+        index_count: u32,
+        texture: texture::TextureHandle,
+        tex_cache: &mut texture::TextureCache,
+        clip_rect: Rect,
+    );
 
     // Draw commands:
-    fn draw_colored_indexed_triangles(&mut self,
-                                      vertices: &[Vec2],
-                                      indices: &[DrawIndex],
-                                      color: Color);
+    fn draw_colored_indexed_triangles(&mut self, vertices: &[Vec2], indices: &[DrawIndex], color: Color);
 
-    fn draw_textured_colored_rect(&mut self,
-                                  rect: Rect,
-                                  tex_coords: &RectTexCoords,
-                                  texture: texture::TextureHandle,
-                                  color: Color);
+    fn draw_textured_colored_rect(
+        &mut self,
+        rect: Rect,
+        tex_coords: &RectTexCoords,
+        texture: texture::TextureHandle,
+        color: Color,
+    );
 
     // Line/point debug drawing:
     fn draw_line(&mut self, from_pos: Vec2, to_pos: Vec2, from_color: Color, to_color: Color);
     fn draw_point(&mut self, pt: Vec2, color: Color, size: f32);
 
     // Texture Allocation:
-    fn new_texture_from_pixels(&mut self,
-                               name: &str,
-                               size: Size,
-                               pixels: &[u8],
-                               settings: texture::TextureSettings,
-                               allow_settings_change: bool)
-                               -> texture::TextureBackendImpl;
+    fn new_texture_from_pixels(
+        &mut self,
+        name: &str,
+        size: Size,
+        pixels: &[u8],
+        settings: texture::TextureSettings,
+        allow_settings_change: bool,
+    ) -> texture::TextureBackendImpl;
 
-    fn update_texture_pixels(&mut self,
-                             texture: &mut texture::TextureBackendImpl,
-                             offset_x: u32,
-                             offset_y: u32,
-                             size: Size,
-                             mip_level: u32,
-                             pixels: &[u8]);
+    fn update_texture_pixels(
+        &mut self,
+        texture: &mut texture::TextureBackendImpl,
+        offset_x: u32,
+        offset_y: u32,
+        size: Size,
+        mip_level: u32,
+        pixels: &[u8],
+    );
 
-    fn update_texture_settings(&mut self,
-                               texture: &mut texture::TextureBackendImpl,
-                               settings: texture::TextureSettings);
+    fn update_texture_settings(&mut self, texture: &mut texture::TextureBackendImpl, settings: texture::TextureSettings);
 
     fn release_texture(&mut self, texture: &mut texture::TextureBackendImpl);
 }
@@ -205,15 +201,12 @@ impl RenderSystem {
                     wgpu_resources,
                     params.viewport_size,
                     params.framebuffer_size,
-                    params.clear_color
+                    params.clear_color,
                 ))
             };
 
-            let tex_cache = texture::TextureCache::new(
-                render_system,
-                params.tex_cache_initial_capacity,
-                params.texture_settings
-            );
+            let tex_cache =
+                texture::TextureCache::new(render_system, params.tex_cache_initial_capacity, params.texture_settings);
 
             Self { render_api: params.render_api, backend, tex_cache }
         });
@@ -284,20 +277,18 @@ impl RenderSystem {
     }
 
     #[inline]
-    pub fn set_ui_draw_buffers(&mut self,
-                               vtx_buffer: &[UiDrawVertex],
-                               idx_buffer: &[UiDrawIndex])
-    {
+    pub fn set_ui_draw_buffers(&mut self, vtx_buffer: &[UiDrawVertex], idx_buffer: &[UiDrawIndex]) {
         self.backend.set_ui_draw_buffers(vtx_buffer, idx_buffer);
     }
 
     #[inline]
-    pub fn draw_ui_elements(&mut self,
-                            first_index: u32,
-                            index_count: u32,
-                            texture: texture::TextureHandle,
-                            clip_rect: Rect)
-    {
+    pub fn draw_ui_elements(
+        &mut self,
+        first_index: u32,
+        index_count: u32,
+        texture: texture::TextureHandle,
+        clip_rect: Rect,
+    ) {
         self.backend.draw_ui_elements(first_index, index_count, texture, &mut self.tex_cache, clip_rect);
     }
 
@@ -307,40 +298,30 @@ impl RenderSystem {
 
     // This is used for emulated line drawing with custom thickness.
     #[inline]
-    pub fn draw_colored_indexed_triangles(&mut self,
-                                          vertices: &[Vec2],
-                                          indices: &[DrawIndex],
-                                          color: Color)
-    {
+    pub fn draw_colored_indexed_triangles(&mut self, vertices: &[Vec2], indices: &[DrawIndex], color: Color) {
         self.backend.draw_colored_indexed_triangles(vertices, indices, color);
     }
 
     // This is used for drawing sprite rectangles. There is a special case with
     // `texture=TextureHandle::white()` for drawing rectangles with color only.
     #[inline]
-    pub fn draw_textured_colored_rect(&mut self,
-                                      rect: Rect,
-                                      tex_coords: &RectTexCoords,
-                                      texture: texture::TextureHandle,
-                                      color: Color)
-    {
+    pub fn draw_textured_colored_rect(
+        &mut self,
+        rect: Rect,
+        tex_coords: &RectTexCoords,
+        texture: texture::TextureHandle,
+        color: Color,
+    ) {
         self.backend.draw_textured_colored_rect(rect, tex_coords, texture, color);
     }
 
     #[inline]
     pub fn draw_colored_rect(&mut self, rect: Rect, color: Color) {
         // Just call this with the default white texture.
-        self.draw_textured_colored_rect(rect,
-                                        &RectTexCoords::DEFAULT,
-                                        texture::TextureHandle::white(),
-                                        color);
+        self.draw_textured_colored_rect(rect, &RectTexCoords::DEFAULT, texture::TextureHandle::white(), color);
     }
 
-    pub fn draw_wireframe_rect_with_thickness(&mut self,
-                                              rect: Rect,
-                                              color: Color,
-                                              thickness: f32)
-    {
+    pub fn draw_wireframe_rect_with_thickness(&mut self, rect: Rect, color: Color, thickness: f32) {
         if is_rect_fully_offscreen(&self.viewport(), &rect) {
             return; // Cull if fully offscreen.
         }
@@ -358,12 +339,7 @@ impl RenderSystem {
     // This can handle straight lines efficiently but might produce discontinuities
     // at connecting edges of rectangles and other polygons. To draw connecting
     // lines/polygons use draw_polyline_with_thickness().
-    pub fn draw_line_with_thickness(&mut self,
-                                    from_pos: Vec2,
-                                    to_pos: Vec2,
-                                    color: Color,
-                                    thickness: f32)
-    {
+    pub fn draw_line_with_thickness(&mut self, from_pos: Vec2, to_pos: Vec2, color: Color, thickness: f32) {
         if is_line_fully_offscreen(&self.viewport(), &from_pos, &to_pos) {
             return; // Cull if fully offscreen.
         }
@@ -397,12 +373,7 @@ impl RenderSystem {
 
     // Handles connecting lines or closed polygons with seamless mitered joints.
     // Slower but with correct visual results and no seams.
-    pub fn draw_polyline_with_thickness(&mut self,
-                                        points: &[Vec2],
-                                        color: Color,
-                                        thickness: f32,
-                                        is_closed: bool)
-    {
+    pub fn draw_polyline_with_thickness(&mut self, points: &[Vec2], color: Color, thickness: f32, is_closed: bool) {
         const MAX_POINTS:   usize = 32;
         const MAX_VERTICES: usize = 2 * MAX_POINTS;
         const MAX_INDICES:  usize = 6 * MAX_POINTS;
@@ -520,34 +491,32 @@ impl RenderSystem {
     // ----------------------
 
     #[inline]
-    fn new_texture_from_pixels(&mut self,
-                               name: &str,
-                               size: Size,
-                               pixels: &[u8],
-                               settings: texture::TextureSettings,
-                               allow_settings_change: bool)
-                               -> texture::TextureBackendImpl
-    {
+    fn new_texture_from_pixels(
+        &mut self,
+        name: &str,
+        size: Size,
+        pixels: &[u8],
+        settings: texture::TextureSettings,
+        allow_settings_change: bool,
+    ) -> texture::TextureBackendImpl {
         self.backend.new_texture_from_pixels(name, size, pixels, settings, allow_settings_change)
     }
 
     #[inline]
-    fn update_texture_pixels(&mut self,
-                             texture: &mut texture::TextureBackendImpl,
-                             offset_x: u32,
-                             offset_y: u32,
-                             size: Size,
-                             mip_level: u32,
-                             pixels: &[u8])
-    {
+    fn update_texture_pixels(
+        &mut self,
+        texture: &mut texture::TextureBackendImpl,
+        offset_x: u32,
+        offset_y: u32,
+        size: Size,
+        mip_level: u32,
+        pixels: &[u8],
+    ) {
         self.backend.update_texture_pixels(texture, offset_x, offset_y, size, mip_level, pixels);
     }
 
     #[inline]
-    fn update_texture_settings(&mut self,
-                               texture: &mut texture::TextureBackendImpl,
-                               settings: texture::TextureSettings)
-    {
+    fn update_texture_settings(&mut self, texture: &mut texture::TextureBackendImpl, settings: texture::TextureSettings) {
         self.backend.update_texture_settings(texture, settings);
     }
 
@@ -576,14 +545,10 @@ pub fn is_rect_fully_offscreen(viewport: &Rect, rect: &Rect) -> bool {
 
 #[inline]
 pub fn is_line_fully_offscreen(viewport: &Rect, from: &Vec2, to: &Vec2) -> bool {
-    if (from.x < viewport.min.x && to.x < viewport.min.x)
-       || (from.y < viewport.min.y && to.y < viewport.min.y)
-    {
+    if (from.x < viewport.min.x && to.x < viewport.min.x) || (from.y < viewport.min.y && to.y < viewport.min.y) {
         return true;
     }
-    if (from.x > viewport.max.x && to.x > viewport.max.x)
-       || (from.y > viewport.max.y && to.y > viewport.max.y)
-    {
+    if (from.x > viewport.max.x && to.x > viewport.max.x) || (from.y > viewport.max.y && to.y > viewport.max.y) {
         return true;
     }
     false

@@ -1,14 +1,15 @@
-use serde::{Serialize, Deserialize};
-use proc_macros::DrawDebugUi;
-
 use common::{
-    Vec2, coords::IsoPointF32,
+    Vec2,
+    coords::IsoPointF32,
     hash::{self, StringHash},
     time::Seconds,
 };
+use proc_macros::DrawDebugUi;
+use serde::{Deserialize, Serialize};
+
 use crate::{
-    ui::{self, UiSystem, UiStaticVar},
     file_sys::paths::PathRef,
+    ui::{self, UiStaticVar, UiSystem},
 };
 
 // ----------------------------------------------
@@ -106,11 +107,7 @@ impl SoundHandle {
     fn new(kind: SoundKind, index: usize, generation: u32) -> Self {
         debug_assert!(index < u32::MAX as usize); // Reserved for invalid.
         debug_assert!(generation != 0);
-        Self {
-            kind,
-            index: index.try_into().expect("SoundHandle index cannot fit in a u32!"),
-            generation,
-        }
+        Self { kind, index: index.try_into().expect("SoundHandle index cannot fit in a u32!"), generation }
     }
 
     #[inline]
@@ -248,7 +245,8 @@ impl SoundGlobalSettings {
 // ----------------------------------------------
 
 struct PlaySoundParams<'a, R>
-    where R: SoundAssetRegistry
+where
+    R: SoundAssetRegistry,
 {
     registry: &'a R,
     settings: &'a SoundGlobalSettings,
@@ -293,18 +291,14 @@ trait SoundAssetRegistry: Sized {
 // ----------------------------------------------
 
 pub struct SoundSystem {
-    backend:  Option<Box<SoundSystemBackendImpl>>,
+    backend: Option<Box<SoundSystemBackendImpl>>,
     registry: SoundAssetRegistryImpl,
     settings: SoundGlobalSettings,
 }
 
 impl SoundSystem {
     pub fn new(settings: SoundGlobalSettings) -> Self {
-        Self {
-            backend:  SoundSystemBackendImpl::new(),
-            registry: SoundAssetRegistryImpl::new(),
-            settings,
-        }
+        Self { backend: SoundSystemBackendImpl::new(), registry: SoundAssetRegistryImpl::new(), settings }
     }
 
     #[inline]
@@ -381,7 +375,12 @@ impl SoundSystem {
         self.play_backend(SoundKind::Ambience, sound_key.hash, IsoPointF32::default(), looping)
     }
 
-    pub fn play_spatial_ambience(&mut self, sound_key: AmbienceSoundKey, world_position: IsoPointF32, looping: bool) -> SoundHandle {
+    pub fn play_spatial_ambience(
+        &mut self,
+        sound_key: AmbienceSoundKey,
+        world_position: IsoPointF32,
+        looping: bool,
+    ) -> SoundHandle {
         self.play_backend(SoundKind::SpatialAmbience, sound_key.hash, world_position, looping)
     }
 

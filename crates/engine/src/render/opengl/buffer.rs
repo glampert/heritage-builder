@@ -33,17 +33,15 @@ impl VertexBuffer {
     }
 
     pub fn with_data<T>(vertices: &[T], usage_hint: BufferUsageHint) -> Self {
-        Self::create_buffer(vertices.as_ptr() as *const c_void,
-                            vertices.len() as u32,
-                            mem::size_of::<T>() as u32,
-                            usage_hint)
+        Self::create_buffer(
+            vertices.as_ptr() as *const c_void,
+            vertices.len() as u32,
+            mem::size_of::<T>() as u32,
+            usage_hint,
+        )
     }
 
-    pub fn with_data_raw(vertices: *const c_void,
-                         count: u32,
-                         stride: u32,
-                         usage_hint: BufferUsageHint)
-                         -> Self {
+    pub fn with_data_raw(vertices: *const c_void, count: u32, stride: u32, usage_hint: BufferUsageHint) -> Self {
         Self::create_buffer(vertices, count, stride, usage_hint)
     }
 
@@ -81,10 +79,12 @@ impl VertexBuffer {
             gl::BindBuffer(gl::ARRAY_BUFFER, self.handle);
 
             let buffer_size = count * self.stride;
-            gl::BufferData(gl::ARRAY_BUFFER,
-                           buffer_size as gl::types::GLsizeiptr,
-                           vertices, // may be null
-                           self.usage_hint as gl::types::GLenum);
+            gl::BufferData(
+                gl::ARRAY_BUFFER,
+                buffer_size as gl::types::GLsizeiptr,
+                vertices, // may be null
+                self.usage_hint as gl::types::GLenum,
+            );
 
             gl::BindBuffer(gl::ARRAY_BUFFER, NULL_BUFFER_HANDLE);
         }
@@ -95,11 +95,7 @@ impl VertexBuffer {
         self.count = new_size as u32;
     }
 
-    fn create_buffer(vertices: *const c_void,
-                     count: u32,
-                     stride: u32,
-                     usage_hint: BufferUsageHint)
-                     -> Self {
+    fn create_buffer(vertices: *const c_void, count: u32, stride: u32, usage_hint: BufferUsageHint) -> Self {
         // `vertices` may be null.
         debug_assert!(count != 0);
         debug_assert!(stride != 0);
@@ -114,10 +110,12 @@ impl VertexBuffer {
             gl::BindBuffer(gl::ARRAY_BUFFER, buffer_handle);
 
             let buffer_size = count * stride;
-            gl::BufferData(gl::ARRAY_BUFFER,
-                           buffer_size as gl::types::GLsizeiptr,
-                           vertices,
-                           usage_hint as gl::types::GLenum);
+            gl::BufferData(
+                gl::ARRAY_BUFFER,
+                buffer_size as gl::types::GLsizeiptr,
+                vertices,
+                usage_hint as gl::types::GLenum,
+            );
 
             gl::BindBuffer(gl::ARRAY_BUFFER, NULL_BUFFER_HANDLE);
 
@@ -195,26 +193,16 @@ pub struct IndexBuffer {
 }
 
 impl IndexBuffer {
-    pub fn with_uninitialized_data(count: u32,
-                                   index_type: IndexType,
-                                   usage_hint: BufferUsageHint)
-                                   -> Self {
+    pub fn with_uninitialized_data(count: u32, index_type: IndexType, usage_hint: BufferUsageHint) -> Self {
         Self::create_buffer(ptr::null(), count, index_type, usage_hint)
     }
 
     pub fn with_data<T: IndexTrait>(indices: &[T], usage_hint: BufferUsageHint) -> IndexBuffer {
         debug_assert!(mem::size_of::<T>() == T::index_type().size_in_bytes());
-        Self::create_buffer(indices.as_ptr() as *const c_void,
-                            indices.len() as u32,
-                            T::index_type(),
-                            usage_hint)
+        Self::create_buffer(indices.as_ptr() as *const c_void, indices.len() as u32, T::index_type(), usage_hint)
     }
 
-    pub fn with_data_raw(indices: *const c_void,
-                         count: u32,
-                         index_type: IndexType,
-                         usage_hint: BufferUsageHint)
-                         -> Self {
+    pub fn with_data_raw(indices: *const c_void, count: u32, index_type: IndexType, usage_hint: BufferUsageHint) -> Self {
         Self::create_buffer(indices, count, index_type, usage_hint)
     }
 
@@ -252,10 +240,12 @@ impl IndexBuffer {
             gl::BindBuffer(gl::ELEMENT_ARRAY_BUFFER, self.handle);
 
             let buffer_size = (count as usize) * self.index_type.size_in_bytes();
-            gl::BufferData(gl::ELEMENT_ARRAY_BUFFER,
-                           buffer_size as gl::types::GLsizeiptr,
-                           indices, // may be null
-                           self.usage_hint as gl::types::GLenum);
+            gl::BufferData(
+                gl::ELEMENT_ARRAY_BUFFER,
+                buffer_size as gl::types::GLsizeiptr,
+                indices, // may be null
+                self.usage_hint as gl::types::GLenum,
+            );
 
             gl::BindBuffer(gl::ELEMENT_ARRAY_BUFFER, NULL_BUFFER_HANDLE);
         }
@@ -266,11 +256,7 @@ impl IndexBuffer {
         self.count = new_size as u32;
     }
 
-    fn create_buffer(indices: *const c_void,
-                     count: u32,
-                     index_type: IndexType,
-                     usage_hint: BufferUsageHint)
-                     -> Self {
+    fn create_buffer(indices: *const c_void, count: u32, index_type: IndexType, usage_hint: BufferUsageHint) -> Self {
         // `indices` may be null.
         debug_assert!(count != 0);
 
@@ -284,10 +270,12 @@ impl IndexBuffer {
             gl::BindBuffer(gl::ELEMENT_ARRAY_BUFFER, buffer_handle);
 
             let buffer_size = (count as usize) * index_type.size_in_bytes();
-            gl::BufferData(gl::ELEMENT_ARRAY_BUFFER,
-                           buffer_size as gl::types::GLsizeiptr,
-                           indices,
-                           usage_hint as gl::types::GLenum);
+            gl::BufferData(
+                gl::ELEMENT_ARRAY_BUFFER,
+                buffer_size as gl::types::GLsizeiptr,
+                indices,
+                usage_hint as gl::types::GLenum,
+            );
 
             gl::BindBuffer(gl::ELEMENT_ARRAY_BUFFER, NULL_BUFFER_HANDLE);
 
@@ -360,11 +348,12 @@ pub struct VertexArray {
 }
 
 impl VertexArray {
-    pub fn new(vertex_buffer: VertexBuffer,
-               index_buffer: IndexBuffer,
-               vertex_layout: &[VertexElementDef],
-               vertex_stride: usize)
-               -> Self {
+    pub fn new(
+        vertex_buffer: VertexBuffer,
+        index_buffer: IndexBuffer,
+        vertex_layout: &[VertexElementDef],
+        vertex_stride: usize,
+    ) -> Self {
         debug_assert!(vertex_buffer.is_valid());
         debug_assert!(index_buffer.is_valid());
         debug_assert!(vertex_stride != 0);
@@ -384,12 +373,14 @@ impl VertexArray {
             let mut offset: usize = 0;
             for (index, vertex_element) in (0_u32..).zip(vertex_layout.iter()) {
                 gl::EnableVertexAttribArray(index);
-                gl::VertexAttribPointer(index,
-                                        vertex_element.count as gl::types::GLint,
-                                        vertex_element.kind,
-                                        vertex_element.normalized,
-                                        vertex_stride as gl::types::GLsizei,
-                                        offset as *const c_void);
+                gl::VertexAttribPointer(
+                    index,
+                    vertex_element.count as gl::types::GLint,
+                    vertex_element.kind,
+                    vertex_element.normalized,
+                    vertex_stride as gl::types::GLsizei,
+                    offset as *const c_void,
+                );
 
                 offset += (vertex_element.count as usize) * vertex_element.size_in_bytes();
             }
@@ -430,9 +421,7 @@ impl VertexArray {
     }
 
     pub fn is_valid(&self) -> bool {
-        (self.handle != NULL_VERTEX_ARRAY_HANDLE)
-        && self.vertex_buffer.is_valid()
-        && self.index_buffer.is_valid()
+        (self.handle != NULL_VERTEX_ARRAY_HANDLE) && self.vertex_buffer.is_valid() && self.index_buffer.is_valid()
     }
 
     pub fn index_count(&self) -> u32 {

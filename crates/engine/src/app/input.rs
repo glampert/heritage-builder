@@ -1,7 +1,7 @@
 use bitflags::bitflags;
-use strum::EnumCount;
-use enum_dispatch::enum_dispatch;
 use common::Vec2;
+use enum_dispatch::enum_dispatch;
+use strum::EnumCount;
 
 // ----------------------------------------------
 // Internal backend implementations
@@ -56,7 +56,8 @@ impl InputSystem {
 
     // Direct backend access for platform-specific input mutation (e.g. WebRunner).
     #[cfg(feature = "web")]
-    #[inline] pub(crate) fn backend_mut(&mut self) -> &mut InputSystemBackendImpl {
+    #[inline]
+    pub(crate) fn backend_mut(&mut self) -> &mut InputSystemBackendImpl {
         &mut self.backend
     }
 }

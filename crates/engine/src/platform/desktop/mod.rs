@@ -1,4 +1,5 @@
 use std::{sync::OnceLock, thread::ThreadId};
+
 use super::*;
 
 // ----------------------------------------------
@@ -43,14 +44,11 @@ pub fn run_environment() -> RunEnvironment {
 static MAIN_THREAD_ID: OnceLock<ThreadId> = OnceLock::new();
 
 pub fn set_main_thread() {
-    MAIN_THREAD_ID.set(std::thread::current().id())
-        .expect("MAIN_THREAD_ID already initialized!");
+    MAIN_THREAD_ID.set(std::thread::current().id()).expect("MAIN_THREAD_ID already initialized!");
 }
 
 pub fn is_main_thread() -> bool {
-    MAIN_THREAD_ID
-        .get()
-        .is_some_and(|id| *id == std::thread::current().id())
+    MAIN_THREAD_ID.get().is_some_and(|id| *id == std::thread::current().id())
 }
 
 // ----------------------------------------------

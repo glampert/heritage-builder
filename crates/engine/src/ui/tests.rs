@@ -1,9 +1,10 @@
-use super::*;
 use common::Color;
+
+use super::*;
 use crate::{
+    file_sys::paths::{AssetPath, PathRef},
     log,
-    ui::{widgets::*, UiStaticVar},
-    file_sys::paths::{PathRef, AssetPath},
+    ui::{UiStaticVar, widgets::*},
 };
 
 // ----------------------------------------------
@@ -35,170 +36,110 @@ fn create_sample_menu_1_once(context: &mut dyn UiWidgetContext) {
         return; // Already created.
     }
 
-    let mut menu = UiMenu::new(
-        context,
-        UiMenuParams {
-            label: Some("Sample Menu 1".into()),
-            flags: UiMenuFlags::IsOpen | UiMenuFlags::AlignCenter | UiMenuFlags::AlignLeft,
-            size: Some(Vec2::new(512.0, 700.0)),
-            background: Some(PathRef::from_str("misc/square_page_bg.png")),
-            ..Default::default()
-        }
-    );
+    let mut menu = UiMenu::new(context, UiMenuParams {
+        label: Some("Sample Menu 1".into()),
+        flags: UiMenuFlags::IsOpen | UiMenuFlags::AlignCenter | UiMenuFlags::AlignLeft,
+        size: Some(Vec2::new(512.0, 700.0)),
+        background: Some(PathRef::from_str("misc/square_page_bg.png")),
+        ..Default::default()
+    });
 
     SAMPLE_MENU_1_INSTANCE.set(Some(menu.clone()));
 
     let heading_font_scale = UiFontScale(1.8);
     let widgets_font_scale = UiFontScale(1.0);
 
-    let menu_heading = UiMenuHeading::new(
-        context,
-        UiMenuHeadingParams {
-            lines: vec![UiText::colored("Sample Menu 1".into(), heading_font_scale, Color::red())],
-            separator: Some(PathRef::from_str("misc/brush_stroke_divider.png")),
-            margin_top: 10.0,
-            margin_bottom: 10.0,
-            ..Default::default()
-        }
-    );
+    let menu_heading = UiMenuHeading::new(context, UiMenuHeadingParams {
+        lines: vec![UiText::colored("Sample Menu 1".into(), heading_font_scale, Color::red())],
+        separator: Some(PathRef::from_str("misc/brush_stroke_divider.png")),
+        margin_top: 10.0,
+        margin_bottom: 10.0,
+        ..Default::default()
+    });
 
-    let slider = UiSlider::new(
-        context,
-        UiSliderParams {
-            font_scale: widgets_font_scale,
-            min: 0,
-            max: 100,
-            on_read_value: UiSliderReadValue::with_fn(
-                |_slider, _context| -> u32 {
-                    SAMPLE_MENU_1_STATE.slider
-                }
-            ),
-            on_update_value: UiSliderUpdateValue::with_fn(
-                |_slider, _context, new_value: u32| {
-                    log::info!("Updated Slider value: {new_value}");
-                    SAMPLE_MENU_1_STATE.as_mut().slider = new_value;
-                }
-            ),
-            ..Default::default()
-        }
-    );
+    let slider = UiSlider::new(context, UiSliderParams {
+        font_scale: widgets_font_scale,
+        min: 0,
+        max: 100,
+        on_read_value: UiSliderReadValue::with_fn(|_slider, _context| -> u32 { SAMPLE_MENU_1_STATE.slider }),
+        on_update_value: UiSliderUpdateValue::with_fn(|_slider, _context, new_value: u32| {
+            log::info!("Updated Slider value: {new_value}");
+            SAMPLE_MENU_1_STATE.as_mut().slider = new_value;
+        }),
+        ..Default::default()
+    });
 
-    let checkbox = UiCheckbox::new(
-        context,
-        UiCheckboxParams {
-            font_scale: widgets_font_scale,
-            on_read_value: UiCheckboxReadValue::with_fn(
-                |_checkbox, _context| -> bool {
-                    SAMPLE_MENU_1_STATE.checkbox
-                }
-            ),
-            on_update_value: UiCheckboxUpdateValue::with_fn(
-                |_checkbox, _context, new_value: bool| {
-                    log::info!("Updated Checkbox value: {new_value}");
-                    SAMPLE_MENU_1_STATE.as_mut().checkbox = new_value;
-                }
-            ),
-            ..Default::default()
-        }
-    );
+    let checkbox = UiCheckbox::new(context, UiCheckboxParams {
+        font_scale: widgets_font_scale,
+        on_read_value: UiCheckboxReadValue::with_fn(|_checkbox, _context| -> bool { SAMPLE_MENU_1_STATE.checkbox }),
+        on_update_value: UiCheckboxUpdateValue::with_fn(|_checkbox, _context, new_value: bool| {
+            log::info!("Updated Checkbox value: {new_value}");
+            SAMPLE_MENU_1_STATE.as_mut().checkbox = new_value;
+        }),
+        ..Default::default()
+    });
 
-    let text_input = UiTextInput::new(
-        context,
-        UiTextInputParams {
-            font_scale: widgets_font_scale,
-            on_read_value: UiTextInputReadValue::with_fn(
-                |_input, _context| {
-                    UiStrRef::new(&SAMPLE_MENU_1_STATE.text_input)
-                }
-            ),
-            on_update_value: UiTextInputUpdateValue::with_fn(
-                |_input, _context, new_value| {
-                    log::info!("Updated TextInput value: {new_value}");
-                    SAMPLE_MENU_1_STATE.as_mut().text_input = new_value.into();
-                }
-            ),
-            ..Default::default()
-        }
-    );
+    let text_input = UiTextInput::new(context, UiTextInputParams {
+        font_scale: widgets_font_scale,
+        on_read_value: UiTextInputReadValue::with_fn(|_input, _context| UiStrRef::new(&SAMPLE_MENU_1_STATE.text_input)),
+        on_update_value: UiTextInputUpdateValue::with_fn(|_input, _context, new_value| {
+            log::info!("Updated TextInput value: {new_value}");
+            SAMPLE_MENU_1_STATE.as_mut().text_input = new_value.into();
+        }),
+        ..Default::default()
+    });
 
-    let int_input = UiIntInput::new(
-        context,
-        UiIntInputParams {
-            font_scale: widgets_font_scale,
-            min: Some(0),
-            max: Some(256),
-            step: Some(32),
-            on_read_value: UiIntInputReadValue::with_fn(
-                |_input, _context| -> i32 {
-                    SAMPLE_MENU_1_STATE.int_input
-                }
-            ),
-            on_update_value: UiIntInputUpdateValue::with_fn(
-                |_input, _context, new_value: i32| {
-                    log::info!("Updated IntInput value: {}", new_value);
-                    SAMPLE_MENU_1_STATE.as_mut().int_input = new_value;
-                }
-            ),
-            ..Default::default()
-        }
-    );
+    let int_input = UiIntInput::new(context, UiIntInputParams {
+        font_scale: widgets_font_scale,
+        min: Some(0),
+        max: Some(256),
+        step: Some(32),
+        on_read_value: UiIntInputReadValue::with_fn(|_input, _context| -> i32 { SAMPLE_MENU_1_STATE.int_input }),
+        on_update_value: UiIntInputUpdateValue::with_fn(|_input, _context, new_value: i32| {
+            log::info!("Updated IntInput value: {}", new_value);
+            SAMPLE_MENU_1_STATE.as_mut().int_input = new_value;
+        }),
+        ..Default::default()
+    });
 
-    let dropdown = UiDropdown::new(
-        context,
-        UiDropdownParams {
-            font_scale: widgets_font_scale,
-            current_item: 0,
-            items: vec!["Zero".into(), "One".into(), "Two".into()],
-            on_selection_changed: UiDropdownSelectionChanged::with_fn(
-                |dropdown, _context| {
-                    log::info!("Updated Dropdown: '{}' [{}]",
-                        dropdown.current_selection(),
-                        dropdown.current_selection_index());
+    let dropdown = UiDropdown::new(context, UiDropdownParams {
+        font_scale: widgets_font_scale,
+        current_item: 0,
+        items: vec!["Zero".into(), "One".into(), "Two".into()],
+        on_selection_changed: UiDropdownSelectionChanged::with_fn(|dropdown, _context| {
+            log::info!("Updated Dropdown: '{}' [{}]", dropdown.current_selection(), dropdown.current_selection_index());
 
-                    SAMPLE_MENU_1_STATE.as_mut().dropdown = dropdown.current_selection().into();
-                }
-            ),
-            ..Default::default()
-        }
-    );
+            SAMPLE_MENU_1_STATE.as_mut().dropdown = dropdown.current_selection().into();
+        }),
+        ..Default::default()
+    });
 
-    let item_list = UiItemList::new(
-        context,
-        UiItemListParams {
-            font_scale: widgets_font_scale,
-            label: Some("Item List".into()),
-            size: Some(Vec2::new(0.0, 100.0)), // Use whole parent window width minus margin, fixed height.
-            margin_left: 30.0,
-            margin_right: 30.0,
-            flags: UiItemListFlags::Border | UiItemListFlags::TextInputField,
-            current_item: Some(0),
-            items: vec!["Zero".into(), "One".into(), "Two".into()],
-            on_selection_changed: UiItemListSelectionChanged::with_fn(
-                |item_list, _context| {
-                    let selection_string = item_list.current_selection().unwrap_or_else(|| {
-                        item_list.current_text_input_field().unwrap_or_default()
-                    });
+    let item_list = UiItemList::new(context, UiItemListParams {
+        font_scale: widgets_font_scale,
+        label: Some("Item List".into()),
+        size: Some(Vec2::new(0.0, 100.0)), // Use whole parent window width minus margin, fixed height.
+        margin_left: 30.0,
+        margin_right: 30.0,
+        flags: UiItemListFlags::Border | UiItemListFlags::TextInputField,
+        current_item: Some(0),
+        items: vec!["Zero".into(), "One".into(), "Two".into()],
+        on_selection_changed: UiItemListSelectionChanged::with_fn(|item_list, _context| {
+            let selection_string =
+                item_list.current_selection().unwrap_or_else(|| item_list.current_text_input_field().unwrap_or_default());
 
-                    log::info!("Updated ItemList: '{}' [{:?}]",
-                        selection_string,
-                        item_list.current_selection_index());
+            log::info!("Updated ItemList: '{}' [{:?}]", selection_string, item_list.current_selection_index());
 
-                    SAMPLE_MENU_1_STATE.as_mut().item_list = selection_string.into();
-                }
-            ),
-        }
-    );
+            SAMPLE_MENU_1_STATE.as_mut().item_list = selection_string.into();
+        }),
+    });
 
-    let mut labeled_group = UiLabeledWidgetGroup::new(
-        context,
-        UiLabeledWidgetGroupParams {
-            label_spacing: 5.0,
-            widget_spacing: 5.0,
-            center_vertically: false,
-            center_horizontally: true,
-            ..Default::default()
-        }
-    );
+    let mut labeled_group = UiLabeledWidgetGroup::new(context, UiLabeledWidgetGroupParams {
+        label_spacing: 5.0,
+        widget_spacing: 5.0,
+        center_vertically: false,
+        center_horizontally: true,
+        ..Default::default()
+    });
 
     labeled_group.add_widget("Slider".into(), slider);
     labeled_group.add_widget("Checkbox".into(), checkbox);
@@ -206,195 +147,141 @@ fn create_sample_menu_1_once(context: &mut dyn UiWidgetContext) {
     labeled_group.add_widget("Text Input".into(), text_input);
     labeled_group.add_widget("Dropdown".into(), dropdown);
 
-    let mut stacked_button_group = UiWidgetGroup::new(
-        context,
-        UiWidgetGroupParams {
-            widget_spacing: Vec2::new(5.0, 5.0),
-            center_vertically: false,
-            center_horizontally: true,
-            stack_vertically: true,
-            ..Default::default()
-        }
-    );
+    let mut stacked_button_group = UiWidgetGroup::new(context, UiWidgetGroupParams {
+        widget_spacing: Vec2::new(5.0, 5.0),
+        center_vertically: false,
+        center_horizontally: true,
+        stack_vertically: true,
+        ..Default::default()
+    });
 
-    stacked_button_group.add_widget(UiTextButton::new(
-        context,
-        UiTextButtonParams {
-            label: "Small Size Button".into(),
-            size: UiTextButtonSize::Small,
-            hover: Some(PathRef::from_str("misc/brush_stroke_divider.png")),
-            on_pressed: UiTextButtonPressed::with_fn(
-                |button, _context| {
-                    log::info!("Pressed Button: {}", button.label());
-                }
-            ),
-            ..Default::default()
-        }
-    ));
+    stacked_button_group.add_widget(UiTextButton::new(context, UiTextButtonParams {
+        label: "Small Size Button".into(),
+        size: UiTextButtonSize::Small,
+        hover: Some(PathRef::from_str("misc/brush_stroke_divider.png")),
+        on_pressed: UiTextButtonPressed::with_fn(|button, _context| {
+            log::info!("Pressed Button: {}", button.label());
+        }),
+        ..Default::default()
+    }));
 
-    stacked_button_group.add_widget(UiTextButton::new(
-        context,
-        UiTextButtonParams {
-            label: "Normal Size Button".into(),
-            size: UiTextButtonSize::Normal,
-            hover: Some(PathRef::from_str("misc/brush_stroke_divider.png")),
-            on_pressed: UiTextButtonPressed::with_fn(
-                |button, _context| {
-                    log::info!("Pressed Button: {}", button.label());
-                }
-            ),
-            ..Default::default()
-        }
-    ));
+    stacked_button_group.add_widget(UiTextButton::new(context, UiTextButtonParams {
+        label: "Normal Size Button".into(),
+        size: UiTextButtonSize::Normal,
+        hover: Some(PathRef::from_str("misc/brush_stroke_divider.png")),
+        on_pressed: UiTextButtonPressed::with_fn(|button, _context| {
+            log::info!("Pressed Button: {}", button.label());
+        }),
+        ..Default::default()
+    }));
 
-    stacked_button_group.add_widget(UiTextButton::new(
-        context,
-        UiTextButtonParams {
-            label: "Large Size Button".into(),
-            size: UiTextButtonSize::Large,
-            hover: Some(PathRef::from_str("misc/brush_stroke_divider.png")),
-            on_pressed: UiTextButtonPressed::with_fn(
-                |button, _context| {
-                    log::info!("Pressed Button: {}", button.label());
-                }
-            ),
-            ..Default::default()
-        }
-    ));
+    stacked_button_group.add_widget(UiTextButton::new(context, UiTextButtonParams {
+        label: "Large Size Button".into(),
+        size: UiTextButtonSize::Large,
+        hover: Some(PathRef::from_str("misc/brush_stroke_divider.png")),
+        on_pressed: UiTextButtonPressed::with_fn(|button, _context| {
+            log::info!("Pressed Button: {}", button.label());
+        }),
+        ..Default::default()
+    }));
 
-    stacked_button_group.add_widget(UiTextButton::new(
-        context,
-        UiTextButtonParams {
-            label: "Disabled Button".into(),
-            size: UiTextButtonSize::Normal,
-            hover: Some(PathRef::from_str("misc/brush_stroke_divider.png")),
-            on_pressed: UiTextButtonPressed::with_fn(
-                |button, _context| {
-                    log::info!("Pressed Button: {}", button.label());
-                }
-            ),
-            ..Default::default()
-        }
-    ));
+    stacked_button_group.add_widget(UiTextButton::new(context, UiTextButtonParams {
+        label: "Disabled Button".into(),
+        size: UiTextButtonSize::Normal,
+        hover: Some(PathRef::from_str("misc/brush_stroke_divider.png")),
+        on_pressed: UiTextButtonPressed::with_fn(|button, _context| {
+            log::info!("Pressed Button: {}", button.label());
+        }),
+        ..Default::default()
+    }));
 
-    let mut side_by_side_button_group = UiWidgetGroup::new(
-        context,
-        UiWidgetGroupParams {
-            widget_spacing: Vec2::new(5.0, 5.0),
-            center_vertically: false,
-            center_horizontally: true,
-            stack_vertically: false,
-            ..Default::default()
-        }
-    );
+    let mut side_by_side_button_group = UiWidgetGroup::new(context, UiWidgetGroupParams {
+        widget_spacing: Vec2::new(5.0, 5.0),
+        center_vertically: false,
+        center_horizontally: true,
+        stack_vertically: false,
+        ..Default::default()
+    });
 
     let menu_weak_ref_open_popup_btn = menu.downgrade();
-    side_by_side_button_group.add_widget(UiTextButton::new(
-        context,
-        UiTextButtonParams {
-            label: "Open Message Box".into(),
-            size: UiTextButtonSize::Normal,
-            hover: Some(PathRef::from_str("misc/brush_stroke_divider.png")),
-            on_pressed: UiTextButtonPressed::with_closure(
-                move |button, context| {
-                    log::info!("Pressed Button: {}", button.label());
+    side_by_side_button_group.add_widget(UiTextButton::new(context, UiTextButtonParams {
+        label: "Open Message Box".into(),
+        size: UiTextButtonSize::Normal,
+        hover: Some(PathRef::from_str("misc/brush_stroke_divider.png")),
+        on_pressed: UiTextButtonPressed::with_closure(move |button, context| {
+            log::info!("Pressed Button: {}", button.label());
 
-                    if let Some(mut menu_rc) = menu_weak_ref_open_popup_btn.upgrade() {
-                        menu_rc.open_message_box(context, |context: &mut dyn UiWidgetContext| {
-                            let menu_weak_ref_ok_btn = menu_weak_ref_open_popup_btn.clone();
-                            let menu_weak_ref_cancel_btn = menu_weak_ref_open_popup_btn.clone();
+            if let Some(mut menu_rc) = menu_weak_ref_open_popup_btn.upgrade() {
+                menu_rc.open_message_box(context, |context: &mut dyn UiWidgetContext| {
+                    let menu_weak_ref_ok_btn = menu_weak_ref_open_popup_btn.clone();
+                    let menu_weak_ref_cancel_btn = menu_weak_ref_open_popup_btn.clone();
 
-                            UiMessageBoxParams {
-                                label: Some("Message Box Popup".into()),
-                                background: Some(PathRef::from_str("misc/square_page_bg.png")),
-                                contents: vec![
-                                    UiWidgetImpl::from(UiMenuHeading::new(
-                                        context,
-                                        UiMenuHeadingParams {
-                                            lines: vec![
-                                                UiText::new("Quit to main menu?".into(), widgets_font_scale),
-                                                UiText::new("Unsaved progress will be lost".into(), widgets_font_scale),
-                                            ],
-                                            separator: Some(PathRef::from_str("misc/brush_stroke_divider.png")),
-                                            margin_top: 5.0,
-                                            ..Default::default()
-                                        }
-                                    ))
-                                ],
-                                buttons: vec![
-                                    UiWidgetImpl::from(UiTextButton::new(
-                                        context,
-                                        UiTextButtonParams {
-                                            label: "Ok".into(),
-                                            size: UiTextButtonSize::Small,
-                                            hover: Some(PathRef::from_str("misc/brush_stroke_divider.png")),
-                                            on_pressed: UiTextButtonPressed::with_closure(
-                                                move |button, context| {
-                                                    log::info!("Pressed Button: {}", button.label());
-                                                    if let Some(mut menu_rc) = menu_weak_ref_ok_btn.upgrade() {
-                                                        menu_rc.close_message_box(context);
-                                                    }
-                                                }
-                                            ),
-                                            ..Default::default()
-                                        }
-                                    )),
-                                    UiWidgetImpl::from(UiTextButton::new(
-                                        context,
-                                        UiTextButtonParams {
-                                            label: "Cancel".into(),
-                                            size: UiTextButtonSize::Small,
-                                            hover: Some(PathRef::from_str("misc/brush_stroke_divider.png")),
-                                            on_pressed: UiTextButtonPressed::with_closure(
-                                                move |button, context| {
-                                                    log::info!("Pressed Button: {}", button.label());
-                                                    if let Some(mut menu_rc) = menu_weak_ref_cancel_btn.upgrade() {
-                                                        menu_rc.close_message_box(context);
-                                                    }
-                                                }
-                                            ),
-                                            ..Default::default()
-                                        }
-                                    )),
-                                ],
+                    UiMessageBoxParams {
+                        label: Some("Message Box Popup".into()),
+                        background: Some(PathRef::from_str("misc/square_page_bg.png")),
+                        contents: vec![UiWidgetImpl::from(UiMenuHeading::new(context, UiMenuHeadingParams {
+                            lines: vec![
+                                UiText::new("Quit to main menu?".into(), widgets_font_scale),
+                                UiText::new("Unsaved progress will be lost".into(), widgets_font_scale),
+                            ],
+                            separator: Some(PathRef::from_str("misc/brush_stroke_divider.png")),
+                            margin_top: 5.0,
+                            ..Default::default()
+                        }))],
+                        buttons: vec![
+                            UiWidgetImpl::from(UiTextButton::new(context, UiTextButtonParams {
+                                label: "Ok".into(),
+                                size: UiTextButtonSize::Small,
+                                hover: Some(PathRef::from_str("misc/brush_stroke_divider.png")),
+                                on_pressed: UiTextButtonPressed::with_closure(move |button, context| {
+                                    log::info!("Pressed Button: {}", button.label());
+                                    if let Some(mut menu_rc) = menu_weak_ref_ok_btn.upgrade() {
+                                        menu_rc.close_message_box(context);
+                                    }
+                                }),
                                 ..Default::default()
-                            }
-                        });
+                            })),
+                            UiWidgetImpl::from(UiTextButton::new(context, UiTextButtonParams {
+                                label: "Cancel".into(),
+                                size: UiTextButtonSize::Small,
+                                hover: Some(PathRef::from_str("misc/brush_stroke_divider.png")),
+                                on_pressed: UiTextButtonPressed::with_closure(move |button, context| {
+                                    log::info!("Pressed Button: {}", button.label());
+                                    if let Some(mut menu_rc) = menu_weak_ref_cancel_btn.upgrade() {
+                                        menu_rc.close_message_box(context);
+                                    }
+                                }),
+                                ..Default::default()
+                            })),
+                        ],
+                        ..Default::default()
                     }
-                }
-            ),
-            ..Default::default()
-        }
-    ));
+                });
+            }
+        }),
+        ..Default::default()
+    }));
 
     let menu_weak_ref_close_popup_btn = menu.downgrade();
-    side_by_side_button_group.add_widget(UiTextButton::new(
-        context,
-        UiTextButtonParams {
-            label: "Close Message Box".into(),
-            size: UiTextButtonSize::Normal,
-            hover: Some(PathRef::from_str("misc/brush_stroke_divider.png")),
-            on_pressed: UiTextButtonPressed::with_closure(
-                move |button, context| {
-                    log::info!("Pressed Button: {}", button.label());
+    side_by_side_button_group.add_widget(UiTextButton::new(context, UiTextButtonParams {
+        label: "Close Message Box".into(),
+        size: UiTextButtonSize::Normal,
+        hover: Some(PathRef::from_str("misc/brush_stroke_divider.png")),
+        on_pressed: UiTextButtonPressed::with_closure(move |button, context| {
+            log::info!("Pressed Button: {}", button.label());
 
-                    if let Some(mut menu_rc) = menu_weak_ref_close_popup_btn.upgrade() {
-                        menu_rc.close_message_box(context);
-                    }
-                }
-            ),
-            ..Default::default()
-        }
-    ));
+            if let Some(mut menu_rc) = menu_weak_ref_close_popup_btn.upgrade() {
+                menu_rc.close_message_box(context);
+            }
+        }),
+        ..Default::default()
+    }));
 
-    let separator = UiSeparator::new(
-        context,
-        UiSeparatorParams {
-            separator: Some(PathRef::from_str("misc/brush_stroke_divider.png")),
-            thickness: Some(15.0),
-            ..Default::default()
-        }
-    );
+    let separator = UiSeparator::new(context, UiSeparatorParams {
+        separator: Some(PathRef::from_str("misc/brush_stroke_divider.png")),
+        thickness: Some(15.0),
+        ..Default::default()
+    });
 
     menu.add_widget(menu_heading);
     menu.add_widget(labeled_group);
@@ -424,123 +311,93 @@ fn create_sample_menu_2_once(context: &mut dyn UiWidgetContext) {
         return; // Already created.
     }
 
-    let mut menu = UiMenu::new(
-        context,
-        UiMenuParams {
-            label: Some("Sample Menu 2".into()),
-            flags: UiMenuFlags::IsOpen | UiMenuFlags::AlignCenter | UiMenuFlags::AlignRight,
-            size: Some(Vec2::new(512.0, 700.0)),
-            background: Some(PathRef::from_str("misc/square_page_bg.png")),
-            ..Default::default()
-        }
-    );
+    let mut menu = UiMenu::new(context, UiMenuParams {
+        label: Some("Sample Menu 2".into()),
+        flags: UiMenuFlags::IsOpen | UiMenuFlags::AlignCenter | UiMenuFlags::AlignRight,
+        size: Some(Vec2::new(512.0, 700.0)),
+        background: Some(PathRef::from_str("misc/square_page_bg.png")),
+        ..Default::default()
+    });
 
     SAMPLE_MENU_2_INSTANCE.set(Some(menu.clone()));
 
-    let button_tooltip = UiTooltipText::new(
-        context,
-        UiTooltipTextParams {
-            text: "This is a Sprite Button".into(),
-            font_scale: UiFontScale(0.8),
-            background: Some(PathRef::from_str("misc/square_page_bg.png")),
-        }
-    );
+    let button_tooltip = UiTooltipText::new(context, UiTooltipTextParams {
+        text: "This is a Sprite Button".into(),
+        font_scale: UiFontScale(0.8),
+        background: Some(PathRef::from_str("misc/square_page_bg.png")),
+    });
 
     let button_size = Vec2::new(50.0, 50.0);
 
-    let mut stacked_button_group = UiWidgetGroup::new(
-        context,
-        UiWidgetGroupParams {
-            widget_spacing: Vec2::new(5.0, 5.0),
-            center_vertically: false,
-            center_horizontally: true,
-            stack_vertically: true,
-            ..Default::default()
-        }
-    );
+    let mut stacked_button_group = UiWidgetGroup::new(context, UiWidgetGroupParams {
+        widget_spacing: Vec2::new(5.0, 5.0),
+        center_vertically: false,
+        center_horizontally: true,
+        stack_vertically: true,
+        ..Default::default()
+    });
 
-    stacked_button_group.add_widget(UiSpriteButton::new(
-        context,
-        UiSpriteButtonParams {
-            label: "palette/housing".into(),
-            tooltip: Some(button_tooltip.clone()),
-            show_tooltip_when_pressed: true,
-            size: button_size,
-            initial_state: UiSpriteButtonState::Idle,
-            ..Default::default()
-        }
-    ));
+    stacked_button_group.add_widget(UiSpriteButton::new(context, UiSpriteButtonParams {
+        label: "palette/housing".into(),
+        tooltip: Some(button_tooltip.clone()),
+        show_tooltip_when_pressed: true,
+        size: button_size,
+        initial_state: UiSpriteButtonState::Idle,
+        ..Default::default()
+    }));
 
-    stacked_button_group.add_widget(UiSpriteButton::new(
-        context,
-        UiSpriteButtonParams {
-            label: "palette/roads".into(),
-            tooltip: Some(button_tooltip.clone()),
-            show_tooltip_when_pressed: true,
-            size: button_size,
-            initial_state: UiSpriteButtonState::Idle,
-            ..Default::default()
-        }
-    ));
+    stacked_button_group.add_widget(UiSpriteButton::new(context, UiSpriteButtonParams {
+        label: "palette/roads".into(),
+        tooltip: Some(button_tooltip.clone()),
+        show_tooltip_when_pressed: true,
+        size: button_size,
+        initial_state: UiSpriteButtonState::Idle,
+        ..Default::default()
+    }));
 
-    stacked_button_group.add_widget(UiSpriteButton::new(
-        context,
-        UiSpriteButtonParams {
-            label: "palette/food_and_farming".into(),
-            tooltip: Some(button_tooltip.clone()),
-            show_tooltip_when_pressed: true,
-            size: button_size,
-            initial_state: UiSpriteButtonState::Disabled,
-            ..Default::default()
-        }
-    ));
+    stacked_button_group.add_widget(UiSpriteButton::new(context, UiSpriteButtonParams {
+        label: "palette/food_and_farming".into(),
+        tooltip: Some(button_tooltip.clone()),
+        show_tooltip_when_pressed: true,
+        size: button_size,
+        initial_state: UiSpriteButtonState::Disabled,
+        ..Default::default()
+    }));
 
-    let mut side_by_side_button_group = UiWidgetGroup::new(
-        context,
-        UiWidgetGroupParams {
-            widget_spacing: Vec2::new(5.0, 5.0),
-            center_vertically: false,
-            center_horizontally: true,
-            stack_vertically: false,
-            ..Default::default()
-        }
-    );
+    let mut side_by_side_button_group = UiWidgetGroup::new(context, UiWidgetGroupParams {
+        widget_spacing: Vec2::new(5.0, 5.0),
+        center_vertically: false,
+        center_horizontally: true,
+        stack_vertically: false,
+        ..Default::default()
+    });
 
-    side_by_side_button_group.add_widget(UiSpriteButton::new(
-        context,
-        UiSpriteButtonParams {
-            label: "palette/housing".into(),
-            tooltip: Some(button_tooltip.clone()),
-            show_tooltip_when_pressed: true,
-            size: button_size,
-            initial_state: UiSpriteButtonState::Idle,
-            ..Default::default()
-        }
-    ));
+    side_by_side_button_group.add_widget(UiSpriteButton::new(context, UiSpriteButtonParams {
+        label: "palette/housing".into(),
+        tooltip: Some(button_tooltip.clone()),
+        show_tooltip_when_pressed: true,
+        size: button_size,
+        initial_state: UiSpriteButtonState::Idle,
+        ..Default::default()
+    }));
 
-    side_by_side_button_group.add_widget(UiSpriteButton::new(
-        context,
-        UiSpriteButtonParams {
-            label: "palette/roads".into(),
-            tooltip: Some(button_tooltip.clone()),
-            show_tooltip_when_pressed: true,
-            size: button_size,
-            initial_state: UiSpriteButtonState::Idle,
-            ..Default::default()
-        }
-    ));
+    side_by_side_button_group.add_widget(UiSpriteButton::new(context, UiSpriteButtonParams {
+        label: "palette/roads".into(),
+        tooltip: Some(button_tooltip.clone()),
+        show_tooltip_when_pressed: true,
+        size: button_size,
+        initial_state: UiSpriteButtonState::Idle,
+        ..Default::default()
+    }));
 
-    side_by_side_button_group.add_widget(UiSpriteButton::new(
-        context,
-        UiSpriteButtonParams {
-            label: "palette/food_and_farming".into(),
-            tooltip: Some(button_tooltip.clone()),
-            show_tooltip_when_pressed: true,
-            size: button_size,
-            initial_state: UiSpriteButtonState::Disabled,
-            ..Default::default()
-        }
-    ));
+    side_by_side_button_group.add_widget(UiSpriteButton::new(context, UiSpriteButtonParams {
+        label: "palette/food_and_farming".into(),
+        tooltip: Some(button_tooltip.clone()),
+        show_tooltip_when_pressed: true,
+        size: button_size,
+        initial_state: UiSpriteButtonState::Disabled,
+        ..Default::default()
+    }));
 
     let slideshow_frame_count = 3;
     let mut slideshow_frames = Vec::with_capacity(slideshow_frame_count);
@@ -549,27 +406,21 @@ fn create_sample_menu_2_once(context: &mut dyn UiWidgetContext) {
         slideshow_frames.push(AssetPath::from_str(&path));
     }
 
-    let slideshow = UiSlideshow::new(
-        context,
-        UiSlideshowParams {
-            loop_mode: UiSlideshowLoopMode::WholeAnim,
-            frame_duration_secs: 0.5,
-            frames: slideshow_frames,
-            size: Some(Vec2::new(0.0, 250.0)),
-            margin_left: 30.0,
-            margin_right: 30.0,
-            ..Default::default()
-        }
-    );
+    let slideshow = UiSlideshow::new(context, UiSlideshowParams {
+        loop_mode: UiSlideshowLoopMode::WholeAnim,
+        frame_duration_secs: 0.5,
+        frames: slideshow_frames,
+        size: Some(Vec2::new(0.0, 250.0)),
+        margin_left: 30.0,
+        margin_right: 30.0,
+        ..Default::default()
+    });
 
-    let separator = UiSeparator::new(
-        context,
-        UiSeparatorParams {
-            separator: Some(PathRef::from_str("misc/brush_stroke_divider.png")),
-            thickness: Some(15.0),
-            ..Default::default()
-        }
-    );
+    let separator = UiSeparator::new(context, UiSeparatorParams {
+        separator: Some(PathRef::from_str("misc/brush_stroke_divider.png")),
+        thickness: Some(15.0),
+        ..Default::default()
+    });
 
     menu.add_widget(stacked_button_group);
     menu.add_widget(side_by_side_button_group);

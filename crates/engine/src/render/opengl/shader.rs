@@ -1,8 +1,9 @@
 use std::{ffi::CString, ptr};
+
+use common::{Color, Vec2};
 use paste::paste;
 
 use super::texture::OpenGlTexture;
-use common::{Color, Vec2};
 
 // ----------------------------------------------
 // Constants
@@ -71,12 +72,7 @@ impl ShaderVarTrait for Vec2 {
 impl ShaderVarTrait for Color {
     fn set_uniform(variable: &ShaderVariable, value: Self) {
         unsafe {
-            gl::ProgramUniform4f(variable.program_handle,
-                                 variable.location,
-                                 value.r,
-                                 value.g,
-                                 value.b,
-                                 value.a);
+            gl::ProgramUniform4f(variable.program_handle, variable.location, value.r, value.g, value.b, value.a);
         }
     }
 }
@@ -84,10 +80,12 @@ impl ShaderVarTrait for Color {
 impl ShaderVarTrait for &[f32] {
     fn set_uniform(variable: &ShaderVariable, value: Self) {
         unsafe {
-            gl::ProgramUniform1fv(variable.program_handle,
-                                  variable.location,
-                                  value.len() as gl::types::GLsizei,
-                                  value.as_ptr());
+            gl::ProgramUniform1fv(
+                variable.program_handle,
+                variable.location,
+                value.len() as gl::types::GLsizei,
+                value.as_ptr(),
+            );
         }
     }
 }
@@ -106,26 +104,18 @@ impl ShaderProgram {
     pub fn with_vs_code(vertex_shader_code: &str) -> Result<Self, String> {
         let vertex_shader_handle = Self::create_shader(gl::VERTEX_SHADER, vertex_shader_code)?;
         let program_handle = Self::create_program(vertex_shader_handle, NULL_SHADER_HANDLE)?;
-        Ok(Self { vertex_shader_handle,
-                  fragment_shader_handle: NULL_SHADER_HANDLE,
-                  program_handle })
+        Ok(Self { vertex_shader_handle, fragment_shader_handle: NULL_SHADER_HANDLE, program_handle })
     }
 
     pub fn with_fs_code(fragment_shader_code: &str) -> Result<Self, String> {
-        let fragment_shader_handle =
-            Self::create_shader(gl::FRAGMENT_SHADER, fragment_shader_code)?;
+        let fragment_shader_handle = Self::create_shader(gl::FRAGMENT_SHADER, fragment_shader_code)?;
         let program_handle = Self::create_program(NULL_SHADER_HANDLE, fragment_shader_handle)?;
-        Ok(Self { vertex_shader_handle: NULL_SHADER_HANDLE,
-                  fragment_shader_handle,
-                  program_handle })
+        Ok(Self { vertex_shader_handle: NULL_SHADER_HANDLE, fragment_shader_handle, program_handle })
     }
 
-    pub fn with_vs_fs_code(vertex_shader_code: &str,
-                           fragment_shader_code: &str)
-                           -> Result<Self, String> {
+    pub fn with_vs_fs_code(vertex_shader_code: &str, fragment_shader_code: &str) -> Result<Self, String> {
         let vertex_shader_handle = Self::create_shader(gl::VERTEX_SHADER, vertex_shader_code)?;
-        let fragment_shader_handle =
-            Self::create_shader(gl::FRAGMENT_SHADER, fragment_shader_code)?;
+        let fragment_shader_handle = Self::create_shader(gl::FRAGMENT_SHADER, fragment_shader_code)?;
         let program_handle = Self::create_program(vertex_shader_handle, fragment_shader_handle)?;
         Ok(Self { vertex_shader_handle, fragment_shader_handle, program_handle })
     }
@@ -158,9 +148,7 @@ impl ShaderProgram {
         if location < 0 {
             Err(format!("Cannot find shader variable '{}'", name))
         } else {
-            Ok(ShaderVariable { location,
-                                program_handle: self.program_handle,
-                                name: name.to_string() })
+            Ok(ShaderVariable { location, program_handle: self.program_handle, name: name.to_string() })
         }
     }
 
@@ -175,9 +163,7 @@ impl ShaderProgram {
         self
     }
 
-    fn create_shader(shader_type: gl::types::GLenum,
-                     shader_code: &str)
-                     -> Result<gl::types::GLuint, String> {
+    fn create_shader(shader_type: gl::types::GLenum, shader_code: &str) -> Result<gl::types::GLuint, String> {
         debug_assert!(!shader_code.is_empty());
 
         unsafe {
@@ -201,16 +187,19 @@ impl ShaderProgram {
                 let mut info_log = vec![0u8; INFO_LOG_BUFFER_SIZE];
                 info_log.set_len(INFO_LOG_BUFFER_SIZE - 1); // subtract 1 to skip the trailing null character
 
-                gl::GetShaderInfoLog(shader_handle,
-                                     INFO_LOG_BUFFER_SIZE as gl::types::GLsizei,
-                                     ptr::null_mut(),
-                                     info_log.as_mut_ptr() as *mut gl::types::GLchar);
+                gl::GetShaderInfoLog(
+                    shader_handle,
+                    INFO_LOG_BUFFER_SIZE as gl::types::GLsizei,
+                    ptr::null_mut(),
+                    info_log.as_mut_ptr() as *mut gl::types::GLchar,
+                );
 
                 let shader_stage_prefix = match shader_type {
                     gl::VERTEX_SHADER => "[VS]: ",
                     gl::FRAGMENT_SHADER => "[FS]: ",
                     _ => panic!("Unhandled shader type!"),
-                }.to_string();
+                }
+                .to_string();
 
                 let log_string = String::from_utf8(info_log).unwrap();
                 return Err(shader_stage_prefix + &log_string);
@@ -220,12 +209,12 @@ impl ShaderProgram {
         }
     }
 
-    fn create_program(vertex_shader_handle: gl::types::GLuint,
-                      fragment_shader_handle: gl::types::GLuint)
-                      -> Result<gl::types::GLuint, String> {
+    fn create_program(
+        vertex_shader_handle: gl::types::GLuint,
+        fragment_shader_handle: gl::types::GLuint,
+    ) -> Result<gl::types::GLuint, String> {
         // Should have at least one of the two shader stages.
-        debug_assert!(vertex_shader_handle != NULL_SHADER_HANDLE
-                      || fragment_shader_handle != NULL_SHADER_HANDLE);
+        debug_assert!(vertex_shader_handle != NULL_SHADER_HANDLE || fragment_shader_handle != NULL_SHADER_HANDLE);
 
         unsafe {
             let program_handle = gl::CreateProgram();
@@ -252,10 +241,12 @@ impl ShaderProgram {
                 let mut info_log = vec![0u8; INFO_LOG_BUFFER_SIZE];
                 info_log.set_len(INFO_LOG_BUFFER_SIZE - 1); // subtract 1 to skip the trailing null character
 
-                gl::GetProgramInfoLog(program_handle,
-                                      INFO_LOG_BUFFER_SIZE as gl::types::GLsizei,
-                                      ptr::null_mut(),
-                                      info_log.as_mut_ptr() as *mut gl::types::GLchar);
+                gl::GetProgramInfoLog(
+                    program_handle,
+                    INFO_LOG_BUFFER_SIZE as gl::types::GLsizei,
+                    ptr::null_mut(),
+                    info_log.as_mut_ptr() as *mut gl::types::GLchar,
+                );
 
                 let log_string = String::from_utf8(info_log).unwrap();
                 return Err(log_string);
@@ -305,9 +296,7 @@ pub fn new_program_from_code(vs_code: &str, fs_code: &str) -> ShaderProgram {
     }
 }
 
-pub fn set_variable_by_name<T: ShaderVarTrait>(shader_program: &ShaderProgram,
-                                               var_name: &str,
-                                               value: T) {
+pub fn set_variable_by_name<T: ShaderVarTrait>(shader_program: &ShaderProgram, var_name: &str, value: T) {
     let shader_var = shader_program.find_variable(var_name);
     shader_program.set_variable(&shader_var, value);
 }

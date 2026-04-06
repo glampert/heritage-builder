@@ -4,32 +4,36 @@ use std::{
 };
 
 use common::{
-    format_fixed_string, time::Seconds,
-    Color, FieldAccessorXY, Vec2, Rect,
-    mem::{RawPtr, Mutable, RcMut},
+    Color,
+    FieldAccessorXY,
+    Rect,
+    Vec2,
+    format_fixed_string,
+    mem::{Mutable, RawPtr, RcMut},
+    time::Seconds,
 };
+pub use imgui::{FontId as UiFontHandle, TextureId as UiTextureHandle};
+pub use renderer::{UiDrawIndex, UiDrawVertex, UiRenderFrameBundle};
+
 use crate::{
-    log,
-    platform,
-    file_sys::paths::{self, AssetPath},
-    render::{
-        RenderSystem,
-        texture::{TextureHandle, TextureSettings, TextureFilter},
-    },
     app::{
         Application,
-        input::{InputSystem, InputAction, InputKey, InputModifiers, MouseButton},
+        input::{InputAction, InputKey, InputModifiers, InputSystem, MouseButton},
+    },
+    file_sys::paths::{self, AssetPath},
+    log,
+    platform,
+    render::{
+        RenderSystem,
+        texture::{TextureFilter, TextureHandle, TextureSettings},
     },
 };
 
-pub use imgui::{FontId as UiFontHandle, TextureId as UiTextureHandle};
-pub use renderer::{UiRenderFrameBundle, UiDrawIndex, UiDrawVertex};
-
 pub mod icons;
-pub mod widgets;
+pub mod sound;
 pub mod tests;
 pub mod text;
-pub mod sound;
+pub mod widgets;
 
 // Internal implementation.
 mod internal;
@@ -120,10 +124,7 @@ impl UiSystem {
     }
 
     #[inline]
-    pub fn begin_frame(&mut self,
-                       app: &Application,
-                       input_sys: &InputSystem,
-                       delta_time_secs: Seconds) {
+    pub fn begin_frame(&mut self, app: &Application, input_sys: &InputSystem, delta_time_secs: Seconds) {
         debug_assert!(!self.frame_started());
 
         let theme_font_handle = self.inner.context.fonts.front_for_theme(self.inner.current_theme);
@@ -169,55 +170,31 @@ impl UiSystem {
     }
 
     #[inline]
-    pub fn on_key_input(&mut self,
-                        key: InputKey,
-                        action: InputAction,
-                        _: InputModifiers)
-                        -> UiInputEvent {
+    pub fn on_key_input(&mut self, key: InputKey, action: InputAction, _: InputModifiers) -> UiInputEvent {
         self.inner.context.on_key_input(key, action);
 
-        if self.is_handling_key_input() {
-            UiInputEvent::Handled
-        } else {
-            UiInputEvent::NotHandled
-        }
+        if self.is_handling_key_input() { UiInputEvent::Handled } else { UiInputEvent::NotHandled }
     }
 
     #[inline]
     pub fn on_char_input(&mut self, c: char) -> UiInputEvent {
         self.inner.context.on_char_input(c);
 
-        if self.is_handling_key_input() {
-            UiInputEvent::Handled
-        } else {
-            UiInputEvent::NotHandled
-        }
+        if self.is_handling_key_input() { UiInputEvent::Handled } else { UiInputEvent::NotHandled }
     }
 
     #[inline]
     pub fn on_scroll(&mut self, amount: Vec2) -> UiInputEvent {
         self.inner.context.on_scroll(amount);
 
-        if self.is_handling_mouse_input() {
-            UiInputEvent::Handled
-        } else {
-            UiInputEvent::NotHandled
-        }
+        if self.is_handling_mouse_input() { UiInputEvent::Handled } else { UiInputEvent::NotHandled }
     }
 
     #[inline]
-    pub fn on_mouse_button(&mut self,
-                           _: MouseButton,
-                           _: InputAction,
-                           _: InputModifiers)
-                           -> UiInputEvent {
+    pub fn on_mouse_button(&mut self, _: MouseButton, _: InputAction, _: InputModifiers) -> UiInputEvent {
         // Mouse events are polled from the InputSystem instead;
         // Just perform a quick check to see if mouse clicks are being consumed by ImGui.
-        if self.is_handling_mouse_input() {
-            UiInputEvent::Handled
-        } else {
-            UiInputEvent::NotHandled
-        }
+        if self.is_handling_mouse_input() { UiInputEvent::Handled } else { UiInputEvent::NotHandled }
     }
 
     #[inline]
@@ -409,19 +386,10 @@ impl UiContext {
         let fonts = Self::load_custom_fonts(&mut ctx);
         let renderer = UiRenderer::new(render_sys, &mut ctx);
 
-        Self {
-            ctx,
-            fonts,
-            renderer,
-            frame_started: false,
-        }
+        Self { ctx, fonts, renderer, frame_started: false }
     }
 
-    fn begin_frame(&mut self,
-                   app: &Application,
-                   input_sys: &InputSystem,
-                   delta_time_secs: Seconds)
-                   -> &imgui::Ui {
+    fn begin_frame(&mut self, app: &Application, input_sys: &InputSystem, delta_time_secs: Seconds) -> &imgui::Ui {
         debug_assert!(!self.frame_started);
         self.frame_started = true;
 
@@ -482,16 +450,16 @@ impl UiContext {
         io.mouse_down[2] = input_sys.mouse_button_state(MouseButton::Middle) == InputAction::Press;
 
         io.key_shift = input_sys.key_state(InputKey::LeftShift) == InputAction::Press
-                       || input_sys.key_state(InputKey::RightShift) == InputAction::Press;
+            || input_sys.key_state(InputKey::RightShift) == InputAction::Press;
 
         io.key_ctrl = input_sys.key_state(InputKey::LeftControl) == InputAction::Press
-                      || input_sys.key_state(InputKey::RightControl) == InputAction::Press;
+            || input_sys.key_state(InputKey::RightControl) == InputAction::Press;
 
         io.key_alt = input_sys.key_state(InputKey::LeftAlt) == InputAction::Press
-                     || input_sys.key_state(InputKey::RightAlt) == InputAction::Press;
+            || input_sys.key_state(InputKey::RightAlt) == InputAction::Press;
 
         io.key_super = input_sys.key_state(InputKey::LeftSuper) == InputAction::Press
-                       || input_sys.key_state(InputKey::RightSuper) == InputAction::Press;
+            || input_sys.key_state(InputKey::RightSuper) == InputAction::Press;
     }
 
     // Converts our InputKey to the corresponding ImGui key, if available.
@@ -773,12 +741,13 @@ impl UiContext {
         }
     }
 
-    fn load_font(fonts: &mut imgui::FontAtlas,
-                 font_data: &[u8],
-                 font_size: f32,
-                 glyph_ranges: Option<imgui::FontGlyphRanges>,
-                 glyph_extra_spacing: Option<[f32; 2]>)
-                 -> UiFontHandle {
+    fn load_font(
+        fonts: &mut imgui::FontAtlas,
+        font_data: &[u8],
+        font_size: f32,
+        glyph_ranges: Option<imgui::FontGlyphRanges>,
+        glyph_extra_spacing: Option<[f32; 2]>,
+    ) -> UiFontHandle {
         fonts.add_font(&[imgui::FontSource::TtfData {
             data: font_data,
             size_pixels: font_size,
@@ -806,39 +775,33 @@ pub fn assets_path() -> AssetPath {
 #[inline]
 pub fn texture_settings() -> TextureSettings {
     // Use linear filter without mipmaps for all UI textures.
-    TextureSettings {
-        filter: TextureFilter::Linear,
-        mipmaps: false,
-        ..Default::default()
-    }
+    TextureSettings { filter: TextureFilter::Linear, mipmaps: false, ..Default::default() }
 }
 
-pub fn input_i32(ui: &imgui::Ui,
-                 label: &str,
-                 value: &mut i32,
-                 read_only: bool,
-                 step: Option<i32>)
-                 -> bool {
+pub fn input_i32(ui: &imgui::Ui, label: &str, value: &mut i32, read_only: bool, step: Option<i32>) -> bool {
     ui.text(label);
     ui.indent_by(5.0);
 
-    let edited = ui.input_int(format_fixed_string!(128, "##_{}_value", label), value)
-                   .read_only(read_only)
-                   .step(step.unwrap_or(1))
-                   .build();
+    let edited = ui
+        .input_int(format_fixed_string!(128, "##_{}_value", label), value)
+        .read_only(read_only)
+        .step(step.unwrap_or(1))
+        .build();
 
     ui.unindent_by(5.0);
     edited
 }
 
-pub fn input_i32_xy<T>(ui: &imgui::Ui,
-                       label: &str,
-                       value: &mut T,
-                       read_only: bool,
-                       steps: Option<[i32; 2]>,
-                       field_labels: Option<[&str; 2]>)
-                       -> bool
-    where T: FieldAccessorXY<i32>
+pub fn input_i32_xy<T>(
+    ui: &imgui::Ui,
+    label: &str,
+    value: &mut T,
+    read_only: bool,
+    steps: Option<[i32; 2]>,
+    field_labels: Option<[&str; 2]>,
+) -> bool
+where
+    T: FieldAccessorXY<i32>,
 {
     let s = steps.unwrap_or([1, 1]);
     let l = field_labels.unwrap_or(["X", "Y"]);
@@ -846,47 +809,47 @@ pub fn input_i32_xy<T>(ui: &imgui::Ui,
     ui.text(label);
     ui.indent_by(5.0);
 
-    let edited_x = ui.input_int(format_fixed_string!(128, "{}##_{}_x", l[0], label), value.x_mut())
-                     .read_only(read_only)
-                     .step(s[0])
-                     .build();
+    let edited_x = ui
+        .input_int(format_fixed_string!(128, "{}##_{}_x", l[0], label), value.x_mut())
+        .read_only(read_only)
+        .step(s[0])
+        .build();
 
-    let edited_y = ui.input_int(format_fixed_string!(128, "{}##_{}_y", l[1], label), value.y_mut())
-                     .read_only(read_only)
-                     .step(s[1])
-                     .build();
+    let edited_y = ui
+        .input_int(format_fixed_string!(128, "{}##_{}_y", l[1], label), value.y_mut())
+        .read_only(read_only)
+        .step(s[1])
+        .build();
 
     ui.unindent_by(5.0);
     edited_x | edited_y
 }
 
-pub fn input_f32(ui: &imgui::Ui,
-                 label: &str,
-                 value: &mut f32,
-                 read_only: bool,
-                 step: Option<f32>)
-                 -> bool {
+pub fn input_f32(ui: &imgui::Ui, label: &str, value: &mut f32, read_only: bool, step: Option<f32>) -> bool {
     ui.text(label);
     ui.indent_by(5.0);
 
-    let edited = ui.input_float(format_fixed_string!(128, "##_{}_value", label), value)
-                   .read_only(read_only)
-                   .display_format("%.2f")
-                   .step(step.unwrap_or(1.0))
-                   .build();
+    let edited = ui
+        .input_float(format_fixed_string!(128, "##_{}_value", label), value)
+        .read_only(read_only)
+        .display_format("%.2f")
+        .step(step.unwrap_or(1.0))
+        .build();
 
     ui.unindent_by(5.0);
     edited
 }
 
-pub fn input_f32_xy<T>(ui: &imgui::Ui,
-                       label: &str,
-                       value: &mut T,
-                       read_only: bool,
-                       steps: Option<[f32; 2]>,
-                       field_labels: Option<[&str; 2]>)
-                       -> bool
-    where T: FieldAccessorXY<f32>
+pub fn input_f32_xy<T>(
+    ui: &imgui::Ui,
+    label: &str,
+    value: &mut T,
+    read_only: bool,
+    steps: Option<[f32; 2]>,
+    field_labels: Option<[&str; 2]>,
+) -> bool
+where
+    T: FieldAccessorXY<f32>,
 {
     let s = steps.unwrap_or([1.0, 1.0]);
     let l = field_labels.unwrap_or(["X", "Y"]);
@@ -894,17 +857,19 @@ pub fn input_f32_xy<T>(ui: &imgui::Ui,
     ui.text(label);
     ui.indent_by(5.0);
 
-    let edited_x = ui.input_float(format_fixed_string!(128, "{}##_{}_x", l[0], label), value.x_mut())
-                     .read_only(read_only)
-                     .display_format("%.2f")
-                     .step(s[0])
-                     .build();
+    let edited_x = ui
+        .input_float(format_fixed_string!(128, "{}##_{}_x", l[0], label), value.x_mut())
+        .read_only(read_only)
+        .display_format("%.2f")
+        .step(s[0])
+        .build();
 
-    let edited_y = ui.input_float(format_fixed_string!(128, "{}##_{}_y", l[1], label), value.y_mut())
-                     .read_only(read_only)
-                     .display_format("%.2f")
-                     .step(s[1])
-                     .build();
+    let edited_y = ui
+        .input_float(format_fixed_string!(128, "{}##_{}_y", l[1], label), value.y_mut())
+        .read_only(read_only)
+        .display_format("%.2f")
+        .step(s[1])
+        .build();
 
     ui.unindent_by(5.0);
     edited_x | edited_y
@@ -914,21 +879,17 @@ pub fn input_color(ui: &imgui::Ui, label: &str, value: &mut Color) -> bool {
     ui.text(label);
     ui.indent_by(5.0);
 
-    let edited_r = ui.slider_config(format_fixed_string!(128, "R##_{}_r", label), 0.0, 1.0)
-                     .display_format("%.2f")
-                     .build(&mut value.r);
+    let edited_r =
+        ui.slider_config(format_fixed_string!(128, "R##_{}_r", label), 0.0, 1.0).display_format("%.2f").build(&mut value.r);
 
-    let edited_g = ui.slider_config(format_fixed_string!(128, "G##_{}_g", label), 0.0, 1.0)
-                     .display_format("%.2f")
-                     .build(&mut value.g);
+    let edited_g =
+        ui.slider_config(format_fixed_string!(128, "G##_{}_g", label), 0.0, 1.0).display_format("%.2f").build(&mut value.g);
 
-    let edited_b = ui.slider_config(format_fixed_string!(128, "B##_{}_b", label), 0.0, 1.0)
-                     .display_format("%.2f")
-                     .build(&mut value.b);
+    let edited_b =
+        ui.slider_config(format_fixed_string!(128, "B##_{}_b", label), 0.0, 1.0).display_format("%.2f").build(&mut value.b);
 
-    let edited_a = ui.slider_config(format_fixed_string!(128, "A##_{}_a", label), 0.0, 1.0)
-                     .display_format("%.2f")
-                     .build(&mut value.a);
+    let edited_a =
+        ui.slider_config(format_fixed_string!(128, "A##_{}_a", label), 0.0, 1.0).display_format("%.2f").build(&mut value.a);
 
     ui.unindent_by(5.0);
     edited_r | edited_g | edited_b | edited_a
@@ -989,7 +950,9 @@ pub fn icon_button(ui_sys: &UiSystem, icon: char, tooltip: Option<&str>) -> bool
     let clicked = ui.button(icon.to_string());
     icon_font.pop();
 
-    if ui.is_item_hovered() && let Some(tooltip_text) = tooltip {
+    if ui.is_item_hovered()
+        && let Some(tooltip_text) = tooltip
+    {
         ui.tooltip_text(tooltip_text)
     }
 
@@ -1012,10 +975,12 @@ pub fn icon_button_custom_tooltip<TooltipFn: FnOnce()>(ui_sys: &UiSystem, icon: 
     clicked
 }
 
-pub fn custom_tooltip<TooltipFn: FnOnce()>(ui_sys: &UiSystem,
-                                           font_scale: UiFontScale,
-                                           background: Option<UiTextureHandle>,
-                                           tooltip_fn: TooltipFn) {
+pub fn custom_tooltip<TooltipFn: FnOnce()>(
+    ui_sys: &UiSystem,
+    font_scale: UiFontScale,
+    background: Option<UiTextureHandle>,
+    tooltip_fn: TooltipFn,
+) {
     let ui = ui_sys.ui();
     let tooltip = ui.begin_tooltip();
 
@@ -1025,16 +990,9 @@ pub fn custom_tooltip<TooltipFn: FnOnce()>(ui_sys: &UiSystem,
     ui_sys.set_tooltip_font_scale(font_scale);
 
     if let Some(bg_texture) = background {
-        let window_rect = Rect::from_pos_and_size(
-            Vec2::from_array(ui.window_pos()),
-            Vec2::from_array(ui.window_size())
-        );
+        let window_rect = Rect::from_pos_and_size(Vec2::from_array(ui.window_pos()), Vec2::from_array(ui.window_size()));
 
-        ui.get_window_draw_list()
-            .add_image(bg_texture,
-                       window_rect.min.to_array(),
-                       window_rect.max.to_array())
-                       .build();
+        ui.get_window_draw_list().add_image(bg_texture, window_rect.min.to_array(), window_rect.max.to_array()).build();
     }
 
     tooltip_fn();
@@ -1099,13 +1057,13 @@ pub fn image_button(ui_sys: &UiSystem, params: &UiImageButtonParams) -> bool {
     // No frame padding.
     let frame_padding = ui.push_style_var(imgui::StyleVar::FramePadding([0.0, 0.0]));
 
-    let clicked =
-        ui.image_button_config(params.id, params.ui_texture, params.size.to_array())
-            .background_col(bg_col)
-            .tint_col(tint_col)
-            .uv0([top_left_uvs.x, bottom_right_uvs.y]) // Swap Ys
-            .uv1([bottom_right_uvs.x, top_left_uvs.y])
-            .build();
+    let clicked = ui
+        .image_button_config(params.id, params.ui_texture, params.size.to_array())
+        .background_col(bg_col)
+        .tint_col(tint_col)
+        .uv0([top_left_uvs.x, bottom_right_uvs.y]) // Swap Ys
+        .uv1([bottom_right_uvs.x, top_left_uvs.y])
+        .build();
 
     frame_padding.pop();
 
@@ -1117,11 +1075,7 @@ pub fn image_button(ui_sys: &UiSystem, params: &UiImageButtonParams) -> bool {
             // that will be blended to simulate the hovered effect.
             let draw_list = ui.get_window_draw_list();
             let color = imgui::ImColor32::from_rgba_f32s(hovered.r, hovered.g, hovered.b, hovered.a);
-            draw_list.add_rect(ui.item_rect_min(),
-                               ui.item_rect_max(),
-                               color)
-                               .filled(true)
-                               .build();
+            draw_list.add_rect(ui.item_rect_min(), ui.item_rect_max(), color).filled(true).build();
         }
 
         // Show tooltip when hovered:
@@ -1135,8 +1089,7 @@ pub fn image_button(ui_sys: &UiSystem, params: &UiImageButtonParams) -> bool {
 
 pub fn overlay<DrawFn: FnOnce()>(ui: &imgui::Ui, name: &str, position: Vec2, bg_alpha: f32, draw_fn: DrawFn) {
     // Make the window background transparent and remove decorations.
-    let window_flags =
-        imgui::WindowFlags::NO_DECORATION
+    let window_flags = imgui::WindowFlags::NO_DECORATION
         | imgui::WindowFlags::NO_NAV
         | imgui::WindowFlags::NO_MOVE
         | imgui::WindowFlags::NO_MOUSE_INPUTS
@@ -1148,10 +1101,10 @@ pub fn overlay<DrawFn: FnOnce()>(ui: &imgui::Ui, name: &str, position: Vec2, bg_
         | imgui::WindowFlags::ALWAYS_AUTO_RESIZE;
 
     ui.window(name)
-      .position(position.to_array(), imgui::Condition::Always)
-      .flags(window_flags)
-      .bg_alpha(bg_alpha) // Semi-transparent
-      .build(draw_fn);
+        .position(position.to_array(), imgui::Condition::Always)
+        .flags(window_flags)
+        .bg_alpha(bg_alpha) // Semi-transparent
+        .build(draw_fn);
 }
 
 // ----------------------------------------------

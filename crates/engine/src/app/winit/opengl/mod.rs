@@ -1,26 +1,26 @@
 use std::num::NonZeroU32;
 
-use glutin_winit::{DisplayBuilder, GlWindow};
+use common::{Size, Vec2};
 use glutin::{
-    display::{GetGlDisplay, GlDisplay},
     config::{ConfigTemplateBuilder, GlConfig},
-    surface::{GlSurface, Surface, SurfaceAttributesBuilder, WindowSurface},
     context::{ContextApi, ContextAttributesBuilder, GlProfile, NotCurrentGlContext, PossiblyCurrentContext, Version},
+    display::{GetGlDisplay, GlDisplay},
+    surface::{GlSurface, Surface, SurfaceAttributesBuilder, WindowSurface},
 };
+use glutin_winit::{DisplayBuilder, GlWindow};
 use winit::{
-    event::WindowEvent,
     application::ApplicationHandler,
+    event::WindowEvent,
     event_loop::{ActiveEventLoop, EventLoop},
     platform::pump_events::EventLoopExtPumpEvents,
     raw_window_handle::HasWindowHandle,
-    window::{Window, WindowId, WindowAttributes},
+    window::{Window, WindowAttributes, WindowId},
 };
 
-use common::{Size, Vec2};
 use crate::{
+    app::{ApplicationApi, ApplicationInitParams},
     log,
     render::RenderApi,
-    app::{ApplicationInitParams, ApplicationApi},
 };
 
 // ----------------------------------------------
@@ -39,8 +39,7 @@ impl WinitWindowManager {
         assert!(params.app_api == ApplicationApi::Winit);
         assert!(params.render_api == RenderApi::OpenGl);
 
-        let mut event_loop = EventLoop::new()
-            .expect("Failed to create Winit event loop!");
+        let mut event_loop = EventLoop::new().expect("Failed to create Winit event loop!");
 
         // Create the window and GL context during the first pump (triggers `resumed()`).
         let mut init_handler = WinitInitHandler::new(params);
@@ -48,17 +47,12 @@ impl WinitWindowManager {
         // Pump events once to trigger `resumed()`, which creates the window + GL context.
         let _ = event_loop.pump_app_events(Some(std::time::Duration::ZERO), &mut init_handler);
 
-        let (window, gl_context, gl_surface) = init_handler.result
-            .expect("Winit: Window initialization failed — resumed() was not triggered!");
+        let (window, gl_context, gl_surface) =
+            init_handler.result.expect("Winit: Window initialization failed — resumed() was not triggered!");
 
         log::info!(log::channel!("app"), "WinitWindowManager (OpenGL) created.");
 
-        Self {
-            window,
-            event_loop,
-            gl_context,
-            gl_surface,
-        }
+        Self { window, event_loop, gl_context, gl_surface }
     }
 }
 
@@ -75,25 +69,21 @@ impl super::WinitWindowManager for WinitWindowManager {
         if new_size.is_valid() {
             self.gl_surface.resize(
                 &self.gl_context,
-                NonZeroU32::new(new_size.width  as u32).unwrap(),
-                NonZeroU32::new(new_size.height as u32).unwrap()
+                NonZeroU32::new(new_size.width as u32).unwrap(),
+                NonZeroU32::new(new_size.height as u32).unwrap(),
             );
         }
     }
 
     fn present(&mut self) {
-        self.gl_surface
-            .swap_buffers(&self.gl_context)
-            .expect("Failed to swap GL buffers!");
+        self.gl_surface.swap_buffers(&self.gl_context).expect("Failed to swap GL buffers!");
     }
 
     fn poll_events<F>(&mut self, handler: F)
-        where F: FnMut(&ActiveEventLoop, WindowEvent)
-    {        
-        let mut evt_handler = WinitWindowEventHandler {
-            window_id: self.window.id(),
-            handler,
-        };
+    where
+        F: FnMut(&ActiveEventLoop, WindowEvent),
+    {
+        let mut evt_handler = WinitWindowEventHandler { window_id: self.window.id(), handler };
 
         let _ = self.event_loop.pump_app_events(Some(std::time::Duration::ZERO), &mut evt_handler);
     }
@@ -108,10 +98,10 @@ impl super::WinitWindowManager for WinitWindowManager {
 // ----------------------------------------------
 
 // Called from inside `WinitInitHandler::resumed()` during init.
-fn create_window_and_gl_context(event_loop: &ActiveEventLoop,
-                                params: &ApplicationInitParams)
-                                -> Option<(Window, PossiblyCurrentContext, Surface<WindowSurface>)>
-{
+fn create_window_and_gl_context(
+    event_loop: &ActiveEventLoop,
+    params: &ApplicationInitParams,
+) -> Option<(Window, PossiblyCurrentContext, Surface<WindowSurface>)> {
     // Fullscreen mode requires a resizable window attribute on some platforms.
     let needs_resizable = params.resizable_window || params.window_mode.is_fullscreen();
     let fullscreen = super::select_fullscreen(event_loop, params.window_mode);
@@ -122,28 +112,21 @@ fn create_window_and_gl_context(event_loop: &ActiveEventLoop,
         .with_resizable(needs_resizable)
         .with_fullscreen(fullscreen);
 
-    let config_template = ConfigTemplateBuilder::new()
-        .with_alpha_size(8)
-        .with_api(glutin::config::Api::OPENGL);
+    let config_template = ConfigTemplateBuilder::new().with_alpha_size(8).with_api(glutin::config::Api::OPENGL);
 
-    let display_builder = DisplayBuilder::new()
-        .with_window_attributes(Some(window_attributes));
+    let display_builder = DisplayBuilder::new().with_window_attributes(Some(window_attributes));
 
     let (window_opt, gl_config) = display_builder
         .build(event_loop, config_template, |configs| {
             configs
-                .reduce(|best, config| {
-                    if config.num_samples() > best.num_samples() { config } else { best }
-                })
+                .reduce(|best, config| if config.num_samples() > best.num_samples() { config } else { best })
                 .expect("No suitable GL config found!")
         })
         .expect("Failed to build Winit window with GL display!");
 
     let window = window_opt.expect("Winit Window was not created during display build!");
 
-    let raw_window_handle = window.window_handle()
-        .expect("Failed to get window handle!")
-        .as_raw();
+    let raw_window_handle = window.window_handle().expect("Failed to get window handle!").as_raw();
 
     let context_attributes = ContextAttributesBuilder::new()
         .with_context_api(ContextApi::OpenGl(Some(Version::new(3, 3))))
@@ -151,25 +134,21 @@ fn create_window_and_gl_context(event_loop: &ActiveEventLoop,
         .build(Some(raw_window_handle));
 
     let not_current_context = unsafe {
-        gl_config.display()
-            .create_context(&gl_config, &context_attributes)
-            .expect("Failed to create OpenGL context!")
+        gl_config.display().create_context(&gl_config, &context_attributes).expect("Failed to create OpenGL context!")
     };
 
     // Build surface attributes using the glutin_winit helper.
-    let surface_attributes = window
-        .build_surface_attributes(SurfaceAttributesBuilder::new())
-        .expect("Failed to build surface attributes!");
+    let surface_attributes =
+        window.build_surface_attributes(SurfaceAttributesBuilder::new()).expect("Failed to build surface attributes!");
 
     let gl_surface = unsafe {
-        gl_config.display()
+        gl_config
+            .display()
             .create_window_surface(&gl_config, &surface_attributes)
             .expect("Failed to create GL window surface!")
     };
 
-    let gl_context = not_current_context
-        .make_current(&gl_surface)
-        .expect("Failed to make GL context current!");
+    let gl_context = not_current_context.make_current(&gl_surface).expect("Failed to make GL context current!");
 
     // On MacOS `gl::load_with` generates a lot of TTY spam about missing
     // OpenGL functions that we don't need or care about. This is a workaround
@@ -215,17 +194,14 @@ struct WinitWindowEventHandler<F> {
 }
 
 impl<F> ApplicationHandler for WinitWindowEventHandler<F>
-    where F: FnMut(&ActiveEventLoop, WindowEvent)
+where
+    F: FnMut(&ActiveEventLoop, WindowEvent),
 {
     fn resumed(&mut self, _event_loop: &ActiveEventLoop) {
         // Window is already created; nothing to do during normal polling.
     }
 
-    fn window_event(&mut self,
-                    event_loop: &ActiveEventLoop,
-                    window_id: WindowId,
-                    event: WindowEvent)
-    {
+    fn window_event(&mut self, event_loop: &ActiveEventLoop, window_id: WindowId, event: WindowEvent) {
         if window_id != self.window_id {
             return;
         }
@@ -259,8 +235,5 @@ impl ApplicationHandler for WinitInitHandler<'_> {
         self.result = create_window_and_gl_context(event_loop, self.params);
     }
 
-    fn window_event(&mut self,
-                    _event_loop: &ActiveEventLoop,
-                    _window_id: WindowId,
-                    _event: WindowEvent) {}
+    fn window_event(&mut self, _event_loop: &ActiveEventLoop, _window_id: WindowId, _event: WindowEvent) {}
 }

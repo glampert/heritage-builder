@@ -1,20 +1,17 @@
+use common::{Size, Vec2};
 use glfw::Context;
 
 use super::{
-    ApplicationBackend,
-    ApplicationInitParams,
     ApplicationApi,
+    ApplicationBackend,
+    ApplicationContentScale,
     ApplicationEvent,
     ApplicationEventList,
+    ApplicationInitParams,
     ApplicationWindowMode,
-    ApplicationContentScale,
     input::{InputSystem, InputSystemBackendImpl},
 };
-use common::{Size, Vec2};
-use crate::{
-    log,
-    render::RenderApi,
-};
+use crate::{log, render::RenderApi};
 
 mod window;
 use window::{GlfwWindowManager, GlfwWindowManagerRcMut};
@@ -39,25 +36,17 @@ impl GlfwApplicationBackend {
 
         log::info!(log::channel!("app"), "--- App Backend: GLFW ---");
 
-        let mut glfw_instance =
-            glfw::init(glfw::fail_on_errors)
-                .expect("Failed to initialize GLFW!");
+        let mut glfw_instance = glfw::init(glfw::fail_on_errors).expect("Failed to initialize GLFW!");
 
-        let window_manager =
-            GlfwWindowManager::new(&mut glfw_instance, params);
+        let window_manager = GlfwWindowManager::new(&mut glfw_instance, params);
 
-        Self {
-            should_quit: false,
-            glfw_instance,
-            window_manager,
-        }
+        Self { should_quit: false, glfw_instance, window_manager }
     }
 }
 
 impl ApplicationBackend for GlfwApplicationBackend {
     fn new_input_system(&mut self) -> InputSystem {
-        let input_system =
-            GlfwInputSystemBackend::new(self.window_manager.clone().into_not_mut());
+        let input_system = GlfwInputSystemBackend::new(self.window_manager.clone().into_not_mut());
 
         InputSystem::new(InputSystemBackendImpl::Glfw(input_system))
     }
@@ -97,7 +86,7 @@ impl ApplicationBackend for GlfwApplicationBackend {
                     events.push(ApplicationEvent::KeyInput(
                         input::glfw_key_to_input_key(key),
                         input::glfw_action_to_input_action(action),
-                        input::glfw_modifiers_to_input_modifiers(modifiers)
+                        input::glfw_modifiers_to_input_modifiers(modifiers),
                     ));
                 }
                 glfw::WindowEvent::Char(c) => {
@@ -110,7 +99,7 @@ impl ApplicationBackend for GlfwApplicationBackend {
                     events.push(ApplicationEvent::MouseButton(
                         input::glfw_mouse_button_to_mouse_button(button),
                         input::glfw_action_to_input_action(action),
-                        input::glfw_modifiers_to_input_modifiers(modifiers)
+                        input::glfw_modifiers_to_input_modifiers(modifiers),
                     ));
                 }
                 unhandled_event => {

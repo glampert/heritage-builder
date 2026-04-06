@@ -1,10 +1,13 @@
+use common::{
+    Size,
+    hash::{self, StringHash},
+};
 use strum::Display;
 
 use super::{
     gl_error_to_string,
     shader::{ShaderVarTrait, ShaderVariable},
 };
-use common::{Size, hash::{self, StringHash}};
 use crate::render;
 
 // ----------------------------------------------
@@ -24,9 +27,7 @@ pub struct TextureUnit(pub u32);
 impl ShaderVarTrait for &OpenGlTexture {
     fn set_uniform(variable: &ShaderVariable, texture: &OpenGlTexture) {
         unsafe {
-            gl::ProgramUniform1i(variable.program_handle,
-                                 variable.location,
-                                 texture.tex_unit.0 as _);
+            gl::ProgramUniform1i(variable.program_handle, variable.location, texture.tex_unit.0 as _);
         }
     }
 }
@@ -140,28 +141,28 @@ impl OpenGlTexture {
                 panic!("Failed to create texture handle!");
             }
 
-            let pixels_ptr = if params.pixels.is_empty() {
-                std::ptr::null()
-            } else {
-                params.pixels.as_ptr() as *const _
-            };
+            let pixels_ptr = if params.pixels.is_empty() { std::ptr::null() } else { params.pixels.as_ptr() as *const _ };
 
             bind_gl_texture(handle, params.tex_unit);
 
-            gl::TexImage2D(gl::TEXTURE_2D,
-                           0,
-                           gl::RGBA as _, // Only RGBA images supported for now.
-                           params.size.width as _,
-                           params.size.height as _,
-                           0,
-                           gl::RGBA,
-                           gl::UNSIGNED_BYTE,
-                           pixels_ptr);
+            gl::TexImage2D(
+                gl::TEXTURE_2D,
+                0,
+                gl::RGBA as _, // Only RGBA images supported for now.
+                params.size.width as _,
+                params.size.height as _,
+                0,
+                gl::RGBA,
+                gl::UNSIGNED_BYTE,
+                pixels_ptr,
+            );
 
-            let has_mipmaps = set_current_gl_texture_params(params.settings.filter,
-                                                            params.settings.wrap_mode,
-                                                            params.settings.mipmaps,
-                                                            params.name);
+            let has_mipmaps = set_current_gl_texture_params(
+                params.settings.filter,
+                params.settings.wrap_mode,
+                params.settings.mipmaps,
+                params.name,
+            );
 
             unbind_gl_texture();
 
@@ -179,32 +180,28 @@ impl OpenGlTexture {
         }
     }
 
-    pub fn update(&self,
-                  offset_x: u32,
-                  offset_y: u32,
-                  size: Size,
-                  mip_level: u32,
-                  pixels: &[u8])
-    {
+    pub fn update(&self, offset_x: u32, offset_y: u32, size: Size, mip_level: u32, pixels: &[u8]) {
         use render::texture::Texture;
 
         debug_assert!(self.is_valid());
-        debug_assert!(offset_x as i32 + size.width  <= self.size.width);
+        debug_assert!(offset_x as i32 + size.width <= self.size.width);
         debug_assert!(offset_y as i32 + size.height <= self.size.height);
         debug_assert!(!pixels.is_empty());
 
         bind_gl_texture(self.handle, self.tex_unit);
 
         unsafe {
-            gl::TexSubImage2D(gl::TEXTURE_2D,
-                              mip_level as _,
-                              offset_x as _,
-                              offset_y as _,
-                              size.width,
-                              size.height,
-                              gl::RGBA,
-                              gl::UNSIGNED_BYTE,
-                              pixels.as_ptr() as _);
+            gl::TexSubImage2D(
+                gl::TEXTURE_2D,
+                mip_level as _,
+                offset_x as _,
+                offset_y as _,
+                size.width,
+                size.height,
+                gl::RGBA,
+                gl::UNSIGNED_BYTE,
+                pixels.as_ptr() as _,
+            );
         }
 
         unbind_gl_texture();
@@ -218,10 +215,7 @@ impl OpenGlTexture {
 
         bind_gl_texture(self.handle, self.tex_unit);
 
-        let has_mipmaps = set_current_gl_texture_params(settings.filter,
-                                                        settings.wrap_mode,
-                                                        settings.mipmaps,
-                                                        &self.name);
+        let has_mipmaps = set_current_gl_texture_params(settings.filter, settings.wrap_mode, settings.mipmaps, &self.name);
 
         unbind_gl_texture();
 
@@ -236,8 +230,8 @@ impl OpenGlTexture {
             }
 
             self.handle = NULL_TEXTURE_HANDLE;
-            self.name   = String::new();
-            self.size   = Size::zero();
+            self.name = String::new();
+            self.size = Size::zero();
         }
     }
 
@@ -273,11 +267,7 @@ pub struct TextureSettings {
 
 impl From<render::texture::TextureSettings> for TextureSettings {
     fn from(settings: render::texture::TextureSettings) -> Self {
-        Self {
-            filter: settings.filter.into(),
-            wrap_mode: settings.wrap_mode.into(),
-            mipmaps: settings.mipmaps,
-        }
+        Self { filter: settings.filter.into(), wrap_mode: settings.wrap_mode.into(), mipmaps: settings.mipmaps }
     }
 }
 
@@ -348,20 +338,18 @@ fn unbind_gl_texture() {
 
 // Set params for currently bound texture.
 // Returns true if `mipmaps=true` & mipmap building succeeded.
-fn set_current_gl_texture_params(filter: TextureFilter,
-                                 wrap_mode: TextureWrapMode,
-                                 mipmaps: bool,
-                                 name: &str) -> bool
-{
+fn set_current_gl_texture_params(filter: TextureFilter, wrap_mode: TextureWrapMode, mipmaps: bool, name: &str) -> bool {
     unsafe {
         let has_mipmaps = {
             if mipmaps && gl::GenerateMipmap::is_loaded() {
                 gl::GenerateMipmap(gl::TEXTURE_2D);
                 let error_code = gl::GetError();
                 if error_code != gl::NO_ERROR {
-                    panic!("Failed to generate texture mipmaps for '{name}'. OpenGL Error: {} (0x{:X})",
-                           gl_error_to_string(error_code),
-                           error_code);
+                    panic!(
+                        "Failed to generate texture mipmaps for '{name}'. OpenGL Error: {} (0x{:X})",
+                        gl_error_to_string(error_code),
+                        error_code
+                    );
                 }
                 true
             } else {

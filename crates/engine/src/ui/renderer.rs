@@ -1,8 +1,9 @@
+use common::{Rect, Size, Vec2, mem::RcMut};
+
 use super::UiTextureHandle;
-use common::{Rect, Vec2, Size, mem::RcMut};
 use crate::render::{
     RenderSystem,
-    texture::{TextureHandle, TextureWrapMode, TextureFilter, TextureSettings},
+    texture::{TextureFilter, TextureHandle, TextureSettings, TextureWrapMode},
 };
 
 pub type UiDrawIndex  = imgui::DrawIdx;
@@ -32,11 +33,8 @@ pub struct UiRenderFrameBundle<'ui> {
 }
 
 impl<'ui> UiRenderFrameBundle<'ui> {
-    pub fn new(renderer: &'ui UiRenderer,
-               ctx: &'ui mut imgui::Context,
-               render_sys: RcMut<RenderSystem>) -> Self
-    {
-         Self { renderer, ctx, render_sys }
+    pub fn new(renderer: &'ui UiRenderer, ctx: &'ui mut imgui::Context, render_sys: RcMut<RenderSystem>) -> Self {
+        Self { renderer, ctx, render_sys }
     }
 
     pub fn render(&mut self) {
@@ -70,14 +68,7 @@ impl UiRenderer {
             })
         );
 
-        tex_cache.update_texture(
-            font_atlas_tex_handle,
-            0,
-            0,
-            font_atlas_size,
-            0,
-            font_atlas_texture.data
-        );
+        tex_cache.update_texture(font_atlas_tex_handle, 0, 0, font_atlas_size, 0, font_atlas_texture.data);
 
         font_atlas.tex_id = UiTextureHandle::new(font_atlas_tex_handle.pack());
 
@@ -112,17 +103,14 @@ impl UiRenderer {
             for cmd in draw_list.commands() {
                 match cmd {
                     imgui::DrawCmd::Elements { count, cmd_params } => {
-                        Self::execute_draw_command(
-                            render_sys,
-                            &UiDrawArgs {
-                                scale_w,
-                                scale_h,
-                                fb_width,
-                                fb_height,
-                                count,
-                                cmd_params,
-                            }
-                        );
+                        Self::execute_draw_command(render_sys, &UiDrawArgs {
+                            scale_w,
+                            scale_h,
+                            fb_width,
+                            fb_height,
+                            count,
+                            cmd_params,
+                        });
                     }
                     // These are not required by our UI renderer.
                     imgui::DrawCmd::ResetRenderState => {

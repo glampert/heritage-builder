@@ -1,4 +1,8 @@
-use std::{io, path::{Path, PathBuf}};
+use std::{
+    io,
+    path::{Path, PathBuf},
+};
+
 use bitflags::bitflags;
 
 pub mod paths;
@@ -38,7 +42,7 @@ trait FileSystemBackend: Sized {
     fn exists(&self, path: impl AsRef<Path>) -> bool;
 
     // Load file contents into memory.
-    fn load_bytes(&mut self, path: impl AsRef<Path>)  -> io::Result<Vec<u8>>;
+    fn load_bytes(&mut self, path: impl AsRef<Path>) -> io::Result<Vec<u8>>;
     fn load_string(&mut self, path: impl AsRef<Path>) -> io::Result<String>;
 
     // Create/remove files/directories.
@@ -47,10 +51,12 @@ trait FileSystemBackend: Sized {
     fn create_path(&self, path: impl AsRef<Path>) -> io::Result<()>;
 
     // Scan directory contents.
-    fn collect_dir_entries(&self,
-                           path: impl AsRef<Path>,
-                           flags: CollectFlags,
-                           extension: Option<&str>) -> io::Result<Vec<PathBuf>>;
+    fn collect_dir_entries(
+        &self,
+        path: impl AsRef<Path>,
+        flags: CollectFlags,
+        extension: Option<&str>,
+    ) -> io::Result<Vec<PathBuf>>;
 }
 
 // ----------------------------------------------
@@ -108,24 +114,20 @@ bitflags! {
 }
 
 #[inline]
-pub fn collect_sub_dirs(path: impl AsRef<Path>,
-                        flags: CollectFlags) -> io::Result<Vec<PathBuf>>
-{
+pub fn collect_sub_dirs(path: impl AsRef<Path>, flags: CollectFlags) -> io::Result<Vec<PathBuf>> {
     collect_dir_entries(path, flags | CollectFlags::SubDirs, None)
 }
 
 #[inline]
-pub fn collect_files(path: impl AsRef<Path>,
-                     flags: CollectFlags,
-                     extension: Option<&str>) -> io::Result<Vec<PathBuf>>
-{
+pub fn collect_files(path: impl AsRef<Path>, flags: CollectFlags, extension: Option<&str>) -> io::Result<Vec<PathBuf>> {
     collect_dir_entries(path, flags | CollectFlags::Files, extension)
 }
 
 #[inline]
-pub fn collect_dir_entries(path: impl AsRef<Path>,
-                           flags: CollectFlags,
-                           extension: Option<&str>) -> io::Result<Vec<PathBuf>>
-{
+pub fn collect_dir_entries(
+    path: impl AsRef<Path>,
+    flags: CollectFlags,
+    extension: Option<&str>,
+) -> io::Result<Vec<PathBuf>> {
     FileSystemBackendImpl::get().collect_dir_entries(path, flags, extension)
 }

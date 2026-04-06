@@ -15,26 +15,22 @@ pub struct RenderTarget {
 }
 
 impl RenderTarget {
-    pub fn new(device: &wgpu::Device,
-               size: Size,
-               format: wgpu::TextureFormat,
-               blit_texture_layout: &wgpu::BindGroupLayout) -> Self
-    {
+    pub fn new(
+        device: &wgpu::Device,
+        size: Size,
+        format: wgpu::TextureFormat,
+        blit_texture_layout: &wgpu::BindGroupLayout,
+    ) -> Self {
         debug_assert!(size.is_valid());
 
         let texture = device.create_texture(&wgpu::TextureDescriptor {
             label: Some("offscreen_render_target"),
-            size: wgpu::Extent3d {
-                width: size.width as u32,
-                height: size.height as u32,
-                depth_or_array_layers: 1,
-            },
+            size: wgpu::Extent3d { width: size.width as u32, height: size.height as u32, depth_or_array_layers: 1 },
             mip_level_count: 1,
             sample_count: 1,
             dimension: wgpu::TextureDimension::D2,
             format,
-            usage: wgpu::TextureUsages::RENDER_ATTACHMENT
-                 | wgpu::TextureUsages::TEXTURE_BINDING,
+            usage: wgpu::TextureUsages::RENDER_ATTACHMENT | wgpu::TextureUsages::TEXTURE_BINDING,
             view_formats: &[],
         });
 
@@ -52,7 +48,7 @@ impl RenderTarget {
             layout: blit_texture_layout,
             entries: &[
                 wgpu::BindGroupEntry { binding: 0, resource: wgpu::BindingResource::TextureView(&view) },
-                wgpu::BindGroupEntry { binding: 1, resource: wgpu::BindingResource::Sampler(&sampler)  },
+                wgpu::BindGroupEntry { binding: 1, resource: wgpu::BindingResource::Sampler(&sampler) },
             ],
         });
 

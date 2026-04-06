@@ -1,9 +1,11 @@
 use std::sync::LazyLock;
-use super::*;
+
 use common::{
+    hash::{self, PreHashedKeyMap, StringHash},
     singleton,
-    hash::{self, StringHash, PreHashedKeyMap},
 };
+
+use super::*;
 use crate::log;
 
 // ----------------------------------------------
@@ -28,7 +30,7 @@ struct AssetCacheEntry {
 }
 
 struct CachedPaths {
-    base_path:   paths::FixedPath,
+    base_path: paths::FixedPath,
     assets_path: paths::AssetPath,
 }
 
@@ -111,18 +113,17 @@ impl FileSystemBackend for WebFileSystemBackend {
     #[inline]
     fn load_bytes(&mut self, path: impl AsRef<Path>) -> io::Result<Vec<u8>> {
         // NOTE: Data is consumed after one cache lookup. This avoids having to clone the data.
-        self.remove_asset(path)
-            .ok_or_else(|| io::Error::new(io::ErrorKind::NotFound, "Asset not found in Web cache"))
+        self.remove_asset(path).ok_or_else(|| io::Error::new(io::ErrorKind::NotFound, "Asset not found in Web cache"))
     }
 
     #[inline]
     fn load_string(&mut self, path: impl AsRef<Path>) -> io::Result<String> {
         // NOTE: Data is consumed after one cache lookup. This avoids having to clone the data.
-        let bytes = self.remove_asset(path)
+        let bytes = self
+            .remove_asset(path)
             .ok_or_else(|| io::Error::new(io::ErrorKind::NotFound, "Asset not found in Web cache"))?;
 
-        String::from_utf8(bytes)
-            .map_err(|err| io::Error::new(io::ErrorKind::InvalidData, err))
+        String::from_utf8(bytes).map_err(|err| io::Error::new(io::ErrorKind::InvalidData, err))
     }
 
     fn write_file(&self, _path: impl AsRef<Path>, _data: impl AsRef<[u8]>) -> io::Result<()> {
@@ -137,11 +138,12 @@ impl FileSystemBackend for WebFileSystemBackend {
         Err(io::Error::new(io::ErrorKind::Unsupported, "Directory creation not supported on Web/WASM"))
     }
 
-    fn collect_dir_entries(&self,
-                           _path: impl AsRef<Path>,
-                           _flags: CollectFlags,
-                           _extension: Option<&str>) -> io::Result<Vec<PathBuf>>
-    {
+    fn collect_dir_entries(
+        &self,
+        _path: impl AsRef<Path>,
+        _flags: CollectFlags,
+        _extension: Option<&str>,
+    ) -> io::Result<Vec<PathBuf>> {
         Err(io::Error::new(io::ErrorKind::Unsupported, "Directory iteration not supported on Web/WASM"))
     }
 }

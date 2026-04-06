@@ -1,12 +1,13 @@
-use super::*;
 use common::time::PerfTimer;
+
+use super::*;
 use crate::{
-    log,
-    platform,
+    app::{Application, ApplicationApi, ApplicationInitParams},
     engine::Engine,
     file_sys::paths,
-    app::{Application, ApplicationInitParams, ApplicationApi},
-    render::{RenderSystem, RenderSystemInitParams, RenderApi},
+    log,
+    platform,
+    render::{RenderApi, RenderSystem, RenderSystemInitParams},
 };
 
 // ----------------------------------------------
@@ -16,7 +17,9 @@ use crate::{
 pub struct DesktopRunner;
 
 impl Runner for DesktopRunner {
-    fn new() -> Self { Self }
+    fn new() -> Self {
+        Self
+    }
 
     fn run<GameLoop: RunLoop + 'static>(&self) {
         let (engine, configs) = Self::start::<GameLoop>();
@@ -57,32 +60,28 @@ impl DesktopRunner {
         }
 
         // Initialize Application:
-        let app = Application::new(
-            ApplicationInitParams {
-                app_api,
-                render_api,
-                window_title:     &engine_configs.window_title,
-                window_size:      engine_configs.window_size,
-                window_mode:      engine_configs.window_mode,
-                content_scale:    engine_configs.content_scale,
-                resizable_window: engine_configs.resizable_window,
-                confine_cursor:   engine_configs.confine_cursor_to_window,
-            }
-        );
+        let app = Application::new(ApplicationInitParams {
+            app_api,
+            render_api,
+            window_title: &engine_configs.window_title,
+            window_size: engine_configs.window_size,
+            window_mode: engine_configs.window_mode,
+            content_scale: engine_configs.content_scale,
+            resizable_window: engine_configs.resizable_window,
+            confine_cursor: engine_configs.confine_cursor_to_window,
+        });
         log::info!(log::channel!("engine"), "Application initialized.");
 
         // Initialize Render System:
-        let render_system = RenderSystem::new(
-            RenderSystemInitParams {
-                render_api,
-                clear_color:      engine_configs.window_background_color,
-                texture_settings: engine_configs.texture_settings,
-                viewport_size:    app.window_size(),
-                framebuffer_size: app.framebuffer_size(),
-                app_context:      app.app_context(),
-                ..Default::default()
-            }
-        );
+        let render_system = RenderSystem::new(RenderSystemInitParams {
+            render_api,
+            clear_color: engine_configs.window_background_color,
+            texture_settings: engine_configs.texture_settings,
+            viewport_size: app.window_size(),
+            framebuffer_size: app.framebuffer_size(),
+            app_context: app.app_context(),
+            ..Default::default()
+        });
         log::info!(log::channel!("engine"), "RenderSystem initialized.");
 
         let engine = Engine::start(engine_configs, app, render_system);

@@ -1,7 +1,8 @@
-use imgui::sys::{ImVec2, ImFont};
 use arrayvec::ArrayString;
+use imgui::sys::{ImFont, ImVec2};
 use smallvec::SmallVec;
-use super::{*, widgets::*};
+
+use super::{widgets::*, *};
 
 // ----------------------------------------------
 // Internal ImGui helpers
@@ -10,15 +11,18 @@ use super::{*, widgets::*};
 #[inline]
 pub fn push_font(ui: &imgui::Ui, font_handle: UiFontHandle) {
     let font_atlas = ui.fonts();
-    let font = font_atlas.get_font(font_handle)
-        .expect("push_font(): UI font atlas did not contain the given font!");
+    let font = font_atlas.get_font(font_handle).expect("push_font(): UI font atlas did not contain the given font!");
 
-    unsafe { imgui::sys::igPushFont(font as *const _ as *mut _); }
+    unsafe {
+        imgui::sys::igPushFont(font as *const _ as *mut _);
+    }
 }
 
 #[inline]
 pub fn pop_font(_ui: &imgui::Ui) {
-    unsafe { imgui::sys::igPopFont(); }
+    unsafe {
+        imgui::sys::igPopFont();
+    }
 }
 
 #[inline]
@@ -40,12 +44,12 @@ pub fn current_ui_style() -> &'static imgui::Style {
 #[inline]
 pub fn base_widget_window_flags() -> imgui::WindowFlags {
     imgui::WindowFlags::ALWAYS_AUTO_RESIZE
-    | imgui::WindowFlags::NO_RESIZE
-    | imgui::WindowFlags::NO_DECORATION
-    | imgui::WindowFlags::NO_SCROLLBAR
-    | imgui::WindowFlags::NO_TITLE_BAR
-    | imgui::WindowFlags::NO_MOVE
-    | imgui::WindowFlags::NO_COLLAPSE
+        | imgui::WindowFlags::NO_RESIZE
+        | imgui::WindowFlags::NO_DECORATION
+        | imgui::WindowFlags::NO_SCROLLBAR
+        | imgui::WindowFlags::NO_TITLE_BAR
+        | imgui::WindowFlags::NO_MOVE
+        | imgui::WindowFlags::NO_COLLAPSE
 }
 
 #[inline]
@@ -55,11 +59,7 @@ pub fn set_next_widget_window_pos(pos: Vec2, pivot: Vec2, cond: imgui::Condition
     }
 
     unsafe {
-        imgui::sys::igSetNextWindowPos(
-            ImVec2 { x: pos.x, y: pos.y },
-            cond as _,
-            ImVec2 { x: pivot.x, y: pivot.y }
-        );
+        imgui::sys::igSetNextWindowPos(ImVec2 { x: pos.x, y: pos.y }, cond as _, ImVec2 { x: pivot.x, y: pivot.y });
     }
 }
 
@@ -70,29 +70,23 @@ pub fn set_next_widget_window_size(size: Vec2, cond: imgui::Condition) {
     }
 
     unsafe {
-        imgui::sys::igSetNextWindowSize(
-            ImVec2 { x: size.x, y: size.y },
-            cond as _
-        );
+        imgui::sys::igSetNextWindowSize(ImVec2 { x: size.x, y: size.y }, cond as _);
     }
 }
 
 #[inline]
 pub fn draw_widget_window_background(ui: &imgui::Ui, background: UiTextureHandle) {
-    let window_rect = Rect::from_pos_and_size(
-        Vec2::from_array(ui.window_pos()),
-        Vec2::from_array(ui.window_size())
-    );
+    let window_rect = Rect::from_pos_and_size(Vec2::from_array(ui.window_pos()), Vec2::from_array(ui.window_size()));
 
-    ui.get_window_draw_list()
-        .add_image(background, window_rect.min.to_array(), window_rect.max.to_array())
-        .build();
+    ui.get_window_draw_list().add_image(background, window_rect.min.to_array(), window_rect.max.to_array()).build();
 }
 
-pub fn draw_centered_text_group(context: &mut dyn UiWidgetContext,
-                                lines: &[UiText],
-                                vertical: bool,
-                                horizontal: bool) -> Rect {
+pub fn draw_centered_text_group(
+    context: &mut dyn UiWidgetContext,
+    lines: &[UiText],
+    vertical: bool,
+    horizontal: bool,
+) -> Rect {
     if lines.is_empty() {
         return Rect::zero();
     }
@@ -166,12 +160,14 @@ pub fn draw_centered_text_group(context: &mut dyn UiWidgetContext,
     Rect::from_pos_and_size(Vec2::new(start_x, start_y), Vec2::new(max_width, total_height))
 }
 
-pub fn draw_centered_widget_group(context: &mut dyn UiWidgetContext,
-                                  widgets: &mut [UiWidgetImpl],
-                                  vertical: bool,
-                                  horizontal: bool,
-                                  stack_vertically: bool,
-                                  margins: (f32, f32)) -> Rect {
+pub fn draw_centered_widget_group(
+    context: &mut dyn UiWidgetContext,
+    widgets: &mut [UiWidgetImpl],
+    vertical: bool,
+    horizontal: bool,
+    stack_vertically: bool,
+    margins: (f32, f32),
+) -> Rect {
     if widgets.is_empty() {
         return Rect::zero();
     }
@@ -260,11 +256,13 @@ pub fn draw_centered_widget_group(context: &mut dyn UiWidgetContext,
     Rect::from_pos_and_size(Vec2::new(start_x, start_y), Vec2::new(total_width, total_height))
 }
 
-pub fn draw_centered_labeled_widget_group(context: &mut dyn UiWidgetContext,
-                                          labels_and_widgets: &mut [(String, UiWidgetImpl)],
-                                          vertical: bool,
-                                          horizontal: bool,
-                                          margins: (f32, f32)) -> Rect {
+pub fn draw_centered_labeled_widget_group(
+    context: &mut dyn UiWidgetContext,
+    labels_and_widgets: &mut [(String, UiWidgetImpl)],
+    vertical: bool,
+    horizontal: bool,
+    margins: (f32, f32),
+) -> Rect {
     if labels_and_widgets.is_empty() {
         return Rect::zero();
     }
@@ -377,7 +375,8 @@ pub fn calc_child_window_size(ui_sys: &UiSystem, requested: Vec2) -> Vec2 {
         size.x = requested.x;
     } else if requested.x == 0.0 {
         size.x = region_avail.x;
-    } else { // requested < 0.0
+    } else {
+        // requested < 0.0
         size.x = (region_avail.x + requested.x).max(0.0);
     }
 
@@ -385,7 +384,8 @@ pub fn calc_child_window_size(ui_sys: &UiSystem, requested: Vec2) -> Vec2 {
         size.y = requested.y;
     } else if requested.y == 0.0 {
         size.y = region_avail.y;
-    } else { // requested < 0.0
+    } else {
+        // requested < 0.0
         size.y = (region_avail.y + requested.y).max(0.0);
     }
 
@@ -450,19 +450,21 @@ pub fn calc_text_size(ui_sys: &UiSystem, font_scale: UiFontScale, text: &str) ->
             wrap_width,
             text_start as *const _,
             text_end as *const _,
-            std::ptr::null::<i8>() as *mut *const _
+            std::ptr::null::<i8>() as *mut *const _,
         );
     }
 
     (Vec2::new(out.x, out.y), font_size)
 }
 
-pub fn slider_with_left_label<'ui, T>(ui: &'ui imgui::Ui,
-                                      label: &str,
-                                      min: T,
-                                      max: T)
-                                      -> (imgui::Slider<'ui, ArrayString<128>, T>, imgui::GroupToken<'ui>)
-    where T: imgui::internal::DataTypeKind
+pub fn slider_with_left_label<'ui, T>(
+    ui: &'ui imgui::Ui,
+    label: &str,
+    min: T,
+    max: T,
+) -> (imgui::Slider<'ui, ArrayString<128>, T>, imgui::GroupToken<'ui>)
+where
+    T: imgui::internal::DataTypeKind,
 {
     // Start a group so the layout behaves as a single item.
     let group = ui.begin_group();
@@ -490,11 +492,11 @@ pub fn slider_with_left_label<'ui, T>(ui: &'ui imgui::Ui,
     }
 }
 
-pub fn input_int_with_left_label<'ui, 'p>(ui: &'ui imgui::Ui,
-                                          label: &str,
-                                          value: &'p mut i32)
-                                          -> (imgui::InputScalar<'ui, 'p, i32, ArrayString<128>>, imgui::GroupToken<'ui>)
-{
+pub fn input_int_with_left_label<'ui, 'p>(
+    ui: &'ui imgui::Ui,
+    label: &str,
+    value: &'p mut i32,
+) -> (imgui::InputScalar<'ui, 'p, i32, ArrayString<128>>, imgui::GroupToken<'ui>) {
     // Start a group so the layout behaves as a single item.
     let group = ui.begin_group();
 
@@ -521,11 +523,11 @@ pub fn input_int_with_left_label<'ui, 'p>(ui: &'ui imgui::Ui,
     }
 }
 
-pub fn input_text_with_left_label<'ui, 'p>(ui: &'ui imgui::Ui,
-                                           label: &str,
-                                           buf: &'p mut String)
-                                           -> (imgui::InputText<'ui, 'p, ArrayString<128>>, imgui::GroupToken<'ui>)
-{
+pub fn input_text_with_left_label<'ui, 'p>(
+    ui: &'ui imgui::Ui,
+    label: &str,
+    buf: &'p mut String,
+) -> (imgui::InputText<'ui, 'p, ArrayString<128>>, imgui::GroupToken<'ui>) {
     // Start a group so the layout behaves as a single item.
     let group = ui.begin_group();
 
@@ -552,11 +554,7 @@ pub fn input_text_with_left_label<'ui, 'p>(ui: &'ui imgui::Ui,
     }
 }
 
-pub fn checkbox_with_left_label<'ui>(ui: &'ui imgui::Ui,
-                                     label: &str,
-                                     value: &mut bool)
-                                     -> (bool, imgui::GroupToken<'ui>)
-{
+pub fn checkbox_with_left_label<'ui>(ui: &'ui imgui::Ui, label: &str, value: &mut bool) -> (bool, imgui::GroupToken<'ui>) {
     // Start a group so the layout behaves as a single item.
     let group = ui.begin_group();
 
@@ -583,12 +581,12 @@ pub fn checkbox_with_left_label<'ui>(ui: &'ui imgui::Ui,
     }
 }
 
-pub fn combo_with_left_label<'ui>(ui: &'ui imgui::Ui,
-                                  label: &str,
-                                  current_item: &mut usize,
-                                  items: &[impl AsRef<str>])
-                                  -> (bool, imgui::GroupToken<'ui>)
-{
+pub fn combo_with_left_label<'ui>(
+    ui: &'ui imgui::Ui,
+    label: &str,
+    current_item: &mut usize,
+    items: &[impl AsRef<str>],
+) -> (bool, imgui::GroupToken<'ui>) {
     // Start a group so the layout behaves as a single item.
     let group = ui.begin_group();
 

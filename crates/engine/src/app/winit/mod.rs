@@ -1,28 +1,24 @@
-use smallvec::SmallVec;
+use common::{Size, Vec2, mem::RcMut};
 use enum_dispatch::enum_dispatch;
-
+use smallvec::SmallVec;
 use winit::{
-    window::{Window, Fullscreen},
-    monitor::VideoModeHandle,
-    event_loop::ActiveEventLoop,
     event::WindowEvent,
+    event_loop::ActiveEventLoop,
+    monitor::VideoModeHandle,
+    window::{Fullscreen, Window},
 };
 
 use super::{
-    ApplicationBackend,
     ApplicationApi,
-    ApplicationInitParams,
+    ApplicationBackend,
+    ApplicationContentScale,
     ApplicationEvent,
     ApplicationEventList,
-    ApplicationContentScale,
+    ApplicationInitParams,
     ApplicationWindowMode,
     input::{InputSystem, InputSystemBackendImpl},
 };
-use common::{Size, Vec2, mem::RcMut};
-use crate::{
-    log,
-    render::RenderApi,
-};
+use crate::{log, render::RenderApi};
 
 pub(crate) mod input;
 pub use input::WinitInputSystemBackend;
@@ -57,7 +53,8 @@ trait WinitWindowManager: Sized {
     fn resize_framebuffer(&mut self, new_size: Size);
 
     fn poll_events<F>(&mut self, handler: F)
-        where F: FnMut(&ActiveEventLoop, WindowEvent);
+    where
+        F: FnMut(&ActiveEventLoop, WindowEvent);
 
     fn set_cursor_position(&mut self, pos: Vec2);
 }
@@ -109,7 +106,7 @@ impl WinitApplicationBackend {
         debug_assert!(self.confine_cursor);
 
         let window_size = self.window_size().to_vec2();
-        let cursor_pos  = self.input_state.cursor_pos();
+        let cursor_pos = self.input_state.cursor_pos();
 
         let mut new_x = cursor_pos.x;
         let mut new_y = cursor_pos.y;
@@ -142,11 +139,7 @@ impl WinitApplicationBackend {
         self.input_state.set_cursor_pos(pos);
     }
 
-    fn handle_window_event(&mut self,
-                           events: &mut ApplicationEventList,
-                           event_loop: &ActiveEventLoop,
-                           event: WindowEvent)
-    {
+    fn handle_window_event(&mut self, events: &mut ApplicationEventList, event_loop: &ActiveEventLoop, event: WindowEvent) {
         match event {
             WindowEvent::CloseRequested => {
                 self.request_quit();
@@ -156,7 +149,7 @@ impl WinitApplicationBackend {
             WindowEvent::Resized(new_phys_size) => {
                 if self.resizable_window && self.phys_window_size != new_phys_size {
                     let prev_size = Size::new(self.phys_window_size.width as i32, self.phys_window_size.height as i32);
-                    let new_size  = Size::new(new_phys_size.width as i32, new_phys_size.height as i32);
+                    let new_size = Size::new(new_phys_size.width as i32, new_phys_size.height as i32);
 
                     log::info!(log::channel!("app"), "WindowEvent::Resized: Prev: {prev_size}, New: {new_size}");
 
@@ -166,10 +159,7 @@ impl WinitApplicationBackend {
                     let window_size = self.window_size();
                     let framebuffer_size = self.framebuffer_size();
 
-                    events.push(ApplicationEvent::WindowResize {
-                        window_size,
-                        framebuffer_size,
-                    });
+                    events.push(ApplicationEvent::WindowResize { window_size, framebuffer_size });
                 }
             }
             WindowEvent::ModifiersChanged(new_modifiers) => {
@@ -216,10 +206,7 @@ impl WinitApplicationBackend {
             }
             WindowEvent::CursorMoved { position, .. } => {
                 let scale = self.content_scale();
-                self.input_state.set_cursor_pos(Vec2::new(
-                    position.x as f32 / scale.x,
-                    position.y as f32 / scale.y,
-                ));
+                self.input_state.set_cursor_pos(Vec2::new(position.x as f32 / scale.x, position.y as f32 / scale.y));
             }
             _ => {} // Unhandled event.
         }
@@ -232,8 +219,7 @@ impl WinitApplicationBackend {
 
 impl ApplicationBackend for WinitApplicationBackend {
     fn new_input_system(&mut self) -> InputSystem {
-        let input_system =
-            WinitInputSystemBackend::new(self.input_state.clone());
+        let input_system = WinitInputSystemBackend::new(self.input_state.clone());
 
         InputSystem::new(InputSystemBackendImpl::Winit(input_system))
     }
@@ -304,9 +290,7 @@ impl ApplicationBackend for WinitApplicationBackend {
                 let scale = self.window_manager.window().scale_factor() as f32;
                 Vec2::new(scale, scale)
             }
-            ApplicationContentScale::Custom(scale) => {
-                Vec2::new(scale, scale)
-            }
+            ApplicationContentScale::Custom(scale) => Vec2::new(scale, scale),
         }
     }
 }
@@ -315,10 +299,7 @@ impl ApplicationBackend for WinitApplicationBackend {
 // Helpers
 // ----------------------------------------------
 
-fn select_fullscreen(event_loop: &ActiveEventLoop,
-                     window_mode: ApplicationWindowMode)
-                     -> Option<Fullscreen>
-{
+fn select_fullscreen(event_loop: &ActiveEventLoop, window_mode: ApplicationWindowMode) -> Option<Fullscreen> {
     match window_mode {
         ApplicationWindowMode::FullScreen => {
             // Borderless fullscreen on the primary monitor.
@@ -339,22 +320,18 @@ fn select_fullscreen(event_loop: &ActiveEventLoop,
 //  - Prefer 60 Hz if available at that resolution;
 //  - Otherwise prefer highest refresh rate.
 fn select_best_video_mode<I>(modes: I) -> Option<VideoModeHandle>
-    where I: Iterator<Item = VideoModeHandle>
+where
+    I: Iterator<Item = VideoModeHandle>,
 {
     let all_modes: SmallVec<[VideoModeHandle; 16]> = modes.collect();
     if all_modes.is_empty() {
         return None;
     }
 
-    let max_area = all_modes
-        .iter()
-        .map(|m| m.size().width * m.size().height)
-        .max()?;
+    let max_area = all_modes.iter().map(|m| m.size().width * m.size().height).max()?;
 
-    let mut best: SmallVec<[&VideoModeHandle; 16]> = all_modes
-        .iter()
-        .filter(|m| m.size().width * m.size().height == max_area)
-        .collect();
+    let mut best: SmallVec<[&VideoModeHandle; 16]> =
+        all_modes.iter().filter(|m| m.size().width * m.size().height == max_area).collect();
 
     if let Some(mode_60hz) = best.iter().find(|m| m.refresh_rate_millihertz() == 60_000) {
         return Some((*mode_60hz).clone());

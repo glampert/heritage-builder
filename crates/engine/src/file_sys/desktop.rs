@@ -1,4 +1,5 @@
 use std::{fs, sync::LazyLock};
+
 use super::*;
 use crate::log;
 
@@ -56,19 +57,19 @@ impl FileSystemBackend for StandardFileSystemBackend {
         fs::create_dir_all(path)
     }
 
-    fn collect_dir_entries(&self,
-                           path: impl AsRef<Path>,
-                           flags: CollectFlags,
-                           extension: Option<&str>) -> io::Result<Vec<PathBuf>>
-    {
+    fn collect_dir_entries(
+        &self,
+        path: impl AsRef<Path>,
+        flags: CollectFlags,
+        extension: Option<&str>,
+    ) -> io::Result<Vec<PathBuf>> {
         let mut result = Vec::new();
 
         let entries = match fs::read_dir(path) {
             Ok(entries) => entries,
             Err(err) => {
                 if flags.intersects(CollectFlags::ErrorIfPathDoesNotExist) {
-                    return Err(io::Error::new(io::ErrorKind::NotADirectory,
-                               format!("Failed to read directory: {err}")));
+                    return Err(io::Error::new(io::ErrorKind::NotADirectory, format!("Failed to read directory: {err}")));
                 }
                 return Ok(result);
             }
@@ -132,17 +133,13 @@ impl StandardFileSystemBackend {
 // ----------------------------------------------
 
 struct CachedPaths {
-    base_path:   paths::FixedPath,
+    base_path: paths::FixedPath,
     assets_path: paths::AssetPath,
 }
 
 // Cached on first use.
-static CACHED_PATHS: LazyLock<CachedPaths> = LazyLock::new(|| {
-    CachedPaths {
-        base_path:   find_base_path(),
-        assets_path: find_assets_path(),
-    }
-});
+static CACHED_PATHS: LazyLock<CachedPaths> =
+    LazyLock::new(|| CachedPaths { base_path: find_base_path(), assets_path: find_assets_path() });
 
 fn find_base_path() -> paths::FixedPath {
     #[cfg(target_os = "macos")]

@@ -7,18 +7,16 @@ use super::vertex;
 pub fn create_uniform_bind_group_layout(device: &wgpu::Device) -> wgpu::BindGroupLayout {
     device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
         label: Some("uniform_bind_group_layout"),
-        entries: &[
-            wgpu::BindGroupLayoutEntry {
-                binding: 0,
-                visibility: wgpu::ShaderStages::VERTEX,
-                ty: wgpu::BindingType::Buffer {
-                    ty: wgpu::BufferBindingType::Uniform,
-                    has_dynamic_offset: false,
-                    min_binding_size: None,
-                },
-                count: None,
+        entries: &[wgpu::BindGroupLayoutEntry {
+            binding: 0,
+            visibility: wgpu::ShaderStages::VERTEX,
+            ty: wgpu::BindingType::Buffer {
+                ty: wgpu::BufferBindingType::Uniform,
+                has_dynamic_offset: false,
+                min_binding_size: None,
             },
-        ],
+            count: None,
+        }],
     })
 }
 
@@ -50,11 +48,11 @@ pub fn create_texture_bind_group_layout(device: &wgpu::Device) -> wgpu::BindGrou
 // Pipeline creation helpers
 // ----------------------------------------------
 
-fn create_pipeline_layout(device: &wgpu::Device,
-                          label: &str,
-                          bind_group_layouts: &[&wgpu::BindGroupLayout])
-                          -> wgpu::PipelineLayout
-{
+fn create_pipeline_layout(
+    device: &wgpu::Device,
+    label: &str,
+    bind_group_layouts: &[&wgpu::BindGroupLayout],
+) -> wgpu::PipelineLayout {
     device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
         label: Some(label),
         bind_group_layouts,
@@ -67,12 +65,12 @@ fn alpha_blend_state() -> wgpu::BlendState {
         color: wgpu::BlendComponent {
             src_factor: wgpu::BlendFactor::SrcAlpha,
             dst_factor: wgpu::BlendFactor::OneMinusSrcAlpha,
-            operation:  wgpu::BlendOperation::Add,
+            operation: wgpu::BlendOperation::Add,
         },
         alpha: wgpu::BlendComponent {
             src_factor: wgpu::BlendFactor::One,
             dst_factor: wgpu::BlendFactor::OneMinusSrcAlpha,
-            operation:  wgpu::BlendOperation::Add,
+            operation: wgpu::BlendOperation::Add,
         },
     }
 }
@@ -81,22 +79,18 @@ fn alpha_blend_state() -> wgpu::BlendState {
 // Sprites Pipeline
 // ----------------------------------------------
 
-pub fn create_sprites_pipeline(device: &wgpu::Device,
-                               target_format: wgpu::TextureFormat,
-                               uniform_layout: &wgpu::BindGroupLayout,
-                               texture_layout: &wgpu::BindGroupLayout)
-                               -> wgpu::RenderPipeline
-{
+pub fn create_sprites_pipeline(
+    device: &wgpu::Device,
+    target_format: wgpu::TextureFormat,
+    uniform_layout: &wgpu::BindGroupLayout,
+    texture_layout: &wgpu::BindGroupLayout,
+) -> wgpu::RenderPipeline {
     let shader = device.create_shader_module(wgpu::ShaderModuleDescriptor {
         label: Some("sprites_shader"),
         source: wgpu::ShaderSource::Wgsl(include_str!("shaders/sprites.wgsl").into()),
     });
 
-    let layout = create_pipeline_layout(
-        device,
-        "sprites_pipeline_layout",
-        &[uniform_layout, texture_layout]
-    );
+    let layout = create_pipeline_layout(device, "sprites_pipeline_layout", &[uniform_layout, texture_layout]);
 
     device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
         label: Some("sprites_pipeline"),
@@ -137,21 +131,17 @@ pub fn create_sprites_pipeline(device: &wgpu::Device,
 // Lines Pipeline
 // ----------------------------------------------
 
-pub fn create_lines_pipeline(device: &wgpu::Device,
-                             target_format: wgpu::TextureFormat,
-                             uniform_layout: &wgpu::BindGroupLayout)
-                             -> wgpu::RenderPipeline
-{
+pub fn create_lines_pipeline(
+    device: &wgpu::Device,
+    target_format: wgpu::TextureFormat,
+    uniform_layout: &wgpu::BindGroupLayout,
+) -> wgpu::RenderPipeline {
     let shader = device.create_shader_module(wgpu::ShaderModuleDescriptor {
         label: Some("lines_shader"),
         source: wgpu::ShaderSource::Wgsl(include_str!("shaders/lines.wgsl").into()),
     });
 
-    let layout = create_pipeline_layout(
-        device,
-        "lines_pipeline_layout",
-        &[uniform_layout]
-    );
+    let layout = create_pipeline_layout(device, "lines_pipeline_layout", &[uniform_layout]);
 
     device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
         label: Some("lines_pipeline"),
@@ -172,10 +162,7 @@ pub fn create_lines_pipeline(device: &wgpu::Device,
             })],
             compilation_options: Default::default(),
         }),
-        primitive: wgpu::PrimitiveState {
-            topology: wgpu::PrimitiveTopology::LineList,
-            ..Default::default()
-        },
+        primitive: wgpu::PrimitiveState { topology: wgpu::PrimitiveTopology::LineList, ..Default::default() },
         depth_stencil: None,
         multisample: wgpu::MultisampleState::default(),
         multiview_mask: None,
@@ -187,11 +174,11 @@ pub fn create_lines_pipeline(device: &wgpu::Device,
 // Points Pipeline (renders as triangle quads)
 // ----------------------------------------------
 
-pub fn create_points_pipeline(device: &wgpu::Device,
-                              target_format: wgpu::TextureFormat,
-                              uniform_layout: &wgpu::BindGroupLayout)
-                              -> wgpu::RenderPipeline
-{
+pub fn create_points_pipeline(
+    device: &wgpu::Device,
+    target_format: wgpu::TextureFormat,
+    uniform_layout: &wgpu::BindGroupLayout,
+) -> wgpu::RenderPipeline {
     // Points are expanded to quads on CPU, so this is a triangle pipeline
     // using the same vertex layout as lines.
     let shader = device.create_shader_module(wgpu::ShaderModuleDescriptor {
@@ -199,11 +186,7 @@ pub fn create_points_pipeline(device: &wgpu::Device,
         source: wgpu::ShaderSource::Wgsl(include_str!("shaders/lines.wgsl").into()),
     });
 
-    let layout = create_pipeline_layout(
-        device,
-        "points_pipeline_layout",
-        &[uniform_layout]
-    );
+    let layout = create_pipeline_layout(device, "points_pipeline_layout", &[uniform_layout]);
 
     device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
         label: Some("points_pipeline"),
@@ -224,10 +207,7 @@ pub fn create_points_pipeline(device: &wgpu::Device,
             })],
             compilation_options: Default::default(),
         }),
-        primitive: wgpu::PrimitiveState {
-            topology: wgpu::PrimitiveTopology::TriangleList,
-            ..Default::default()
-        },
+        primitive: wgpu::PrimitiveState { topology: wgpu::PrimitiveTopology::TriangleList, ..Default::default() },
         depth_stencil: None,
         multisample: wgpu::MultisampleState::default(),
         multiview_mask: None,
@@ -239,22 +219,18 @@ pub fn create_points_pipeline(device: &wgpu::Device,
 // UI Pipeline
 // ----------------------------------------------
 
-pub fn create_ui_pipeline(device: &wgpu::Device,
-                          target_format: wgpu::TextureFormat,
-                          uniform_layout: &wgpu::BindGroupLayout,
-                          texture_layout: &wgpu::BindGroupLayout)
-                          -> wgpu::RenderPipeline
-{
+pub fn create_ui_pipeline(
+    device: &wgpu::Device,
+    target_format: wgpu::TextureFormat,
+    uniform_layout: &wgpu::BindGroupLayout,
+    texture_layout: &wgpu::BindGroupLayout,
+) -> wgpu::RenderPipeline {
     let shader = device.create_shader_module(wgpu::ShaderModuleDescriptor {
         label: Some("ui_shader"),
         source: wgpu::ShaderSource::Wgsl(include_str!("shaders/ui.wgsl").into()),
     });
 
-    let layout = create_pipeline_layout(
-        device,
-        "ui_pipeline_layout",
-        &[uniform_layout, texture_layout]
-    );
+    let layout = create_pipeline_layout(device, "ui_pipeline_layout", &[uniform_layout, texture_layout]);
 
     device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
         label: Some("ui_pipeline"),
@@ -275,10 +251,7 @@ pub fn create_ui_pipeline(device: &wgpu::Device,
             })],
             compilation_options: Default::default(),
         }),
-        primitive: wgpu::PrimitiveState {
-            topology: wgpu::PrimitiveTopology::TriangleList,
-            ..Default::default()
-        },
+        primitive: wgpu::PrimitiveState { topology: wgpu::PrimitiveTopology::TriangleList, ..Default::default() },
         depth_stencil: None,
         multisample: wgpu::MultisampleState::default(),
         multiview_mask: None,
@@ -290,21 +263,17 @@ pub fn create_ui_pipeline(device: &wgpu::Device,
 // Blit Offscreen RenderTarget Pipeline
 // ----------------------------------------------
 
-pub fn create_blit_pipeline(device: &wgpu::Device,
-                            target_format: wgpu::TextureFormat,
-                            texture_layout: &wgpu::BindGroupLayout)
-                            -> wgpu::RenderPipeline
-{
+pub fn create_blit_pipeline(
+    device: &wgpu::Device,
+    target_format: wgpu::TextureFormat,
+    texture_layout: &wgpu::BindGroupLayout,
+) -> wgpu::RenderPipeline {
     let shader = device.create_shader_module(wgpu::ShaderModuleDescriptor {
         label: Some("blit_shader"),
         source: wgpu::ShaderSource::Wgsl(include_str!("shaders/blit.wgsl").into()),
     });
 
-    let layout = create_pipeline_layout(
-        device,
-        "blit_pipeline_layout",
-        &[texture_layout]
-    );
+    let layout = create_pipeline_layout(device, "blit_pipeline_layout", &[texture_layout]);
 
     device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
         label: Some("blit_pipeline"),
@@ -325,10 +294,7 @@ pub fn create_blit_pipeline(device: &wgpu::Device,
             })],
             compilation_options: Default::default(),
         }),
-        primitive: wgpu::PrimitiveState {
-            topology: wgpu::PrimitiveTopology::TriangleList,
-            ..Default::default()
-        },
+        primitive: wgpu::PrimitiveState { topology: wgpu::PrimitiveTopology::TriangleList, ..Default::default() },
         depth_stencil: None,
         multisample: wgpu::MultisampleState::default(),
         multiview_mask: None,

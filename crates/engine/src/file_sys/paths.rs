@@ -1,4 +1,5 @@
 use std::path::{Path, PathBuf};
+
 use arrayvec::ArrayString;
 use smallvec::SmallVec;
 
@@ -81,14 +82,12 @@ impl<const N: usize> FixedPathBuf<N> {
 
     #[inline]
     pub fn file_stem(&self) -> Option<&str> {
-        self.file_name()
-            .and_then(|name| name.rsplit_once('.').map(|(stem, _)| stem).or(Some(name)))
+        self.file_name().and_then(|name| name.rsplit_once('.').map(|(stem, _)| stem).or(Some(name)))
     }
 
     #[inline]
     pub fn extension(&self) -> Option<&str> {
-        self.file_name()
-            .and_then(|name| name.rsplit_once('.').map(|(_, ext)| ext))
+        self.file_name().and_then(|name| name.rsplit_once('.').map(|(_, ext)| ext))
     }
 
     #[inline]
@@ -117,7 +116,7 @@ impl<const N: usize> FixedPathBuf<N> {
 
         if !self.is_empty() {
             let path_starts_with_separator = p.starts_with(SEPARATOR_CHAR);
-            let this_ends_with_separator   = self.buf.ends_with(SEPARATOR_CHAR);
+            let this_ends_with_separator = self.buf.ends_with(SEPARATOR_CHAR);
 
             // Add separator if needed.
             if !this_ends_with_separator && !path_starts_with_separator {
@@ -300,14 +299,12 @@ impl<'a> PathRef<'a> {
 
     #[inline]
     pub fn file_stem(&self) -> Option<&'a str> {
-        self.file_name()
-            .and_then(|name| name.rsplit_once('.').map(|(stem, _)| stem).or(Some(name)))
+        self.file_name().and_then(|name| name.rsplit_once('.').map(|(stem, _)| stem).or(Some(name)))
     }
 
     #[inline]
     pub fn extension(&self) -> Option<&'a str> {
-        self.file_name()
-            .and_then(|name| name.rsplit_once('.').map(|(_, ext)| ext))
+        self.file_name().and_then(|name| name.rsplit_once('.').map(|(_, ext)| ext))
     }
 
     #[inline]

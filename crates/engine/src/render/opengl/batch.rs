@@ -1,14 +1,15 @@
 use std::{
-    fmt::Debug,
     convert::{Into, TryFrom},
+    fmt::Debug,
 };
+
+use common::Color;
 
 use super::{
     buffer::*,
-    shader::ShaderProgram,
     context::{PrimitiveTopology, RenderContext},
+    shader::ShaderProgram,
 };
-use common::Color;
 use crate::render;
 
 // ----------------------------------------------
@@ -22,8 +23,9 @@ pub struct DrawBatchEntry {
 }
 
 pub struct DrawBatch<V, I>
-    where V: VertexTrait + Copy,
-          I: IndexTrait + Copy + TryFrom<usize> + Into<usize>
+where
+    V: VertexTrait + Copy,
+    I: IndexTrait + Copy + TryFrom<usize> + Into<usize>,
 {
     vertices: Vec<V>,
     indices: Vec<I>,
@@ -34,59 +36,51 @@ pub struct DrawBatch<V, I>
 }
 
 impl<V, I> DrawBatch<V, I>
-    where V: VertexTrait + Copy,
-          I: IndexTrait + Copy + TryFrom<usize> + Into<usize>
+where
+    V: VertexTrait + Copy,
+    I: IndexTrait + Copy + TryFrom<usize> + Into<usize>,
 {
-    pub fn new(vertices_capacity: u32,
-               indices_capacity: u32,
-               entries_capacity: u32,
-               primitive_topology: PrimitiveTopology)
-               -> Self
-    {
+    pub fn new(
+        vertices_capacity: u32,
+        indices_capacity: u32,
+        entries_capacity: u32,
+        primitive_topology: PrimitiveTopology,
+    ) -> Self {
         let vertex_layout = V::layout();
         let vertex_stride = V::stride();
 
-        let vertex_buffer = VertexBuffer::with_uninitialized_data(
-            vertices_capacity,
-            vertex_stride as u32,
-            BufferUsageHint::DynamicDraw);
+        let vertex_buffer =
+            VertexBuffer::with_uninitialized_data(vertices_capacity, vertex_stride as u32, BufferUsageHint::DynamicDraw);
 
-        let index_buffer = IndexBuffer::with_uninitialized_data(
-            indices_capacity,
-            I::index_type(),
-            BufferUsageHint::DynamicDraw);
+        let index_buffer =
+            IndexBuffer::with_uninitialized_data(indices_capacity, I::index_type(), BufferUsageHint::DynamicDraw);
 
         Self {
             vertices: Vec::with_capacity(vertices_capacity as usize),
-            indices:  Vec::with_capacity(indices_capacity  as usize),
-            entries:  Vec::with_capacity(entries_capacity  as usize),
-            vertex_array: VertexArray::new(
-                vertex_buffer,
-                index_buffer,
-                vertex_layout,
-                vertex_stride),
+            indices: Vec::with_capacity(indices_capacity as usize),
+            entries: Vec::with_capacity(entries_capacity as usize),
+            vertex_array: VertexArray::new(vertex_buffer, index_buffer, vertex_layout, vertex_stride),
             primitive_topology,
             needs_sync: false,
         }
     }
 
     pub fn add_entry(&mut self, vertices: &[V], indices: &[I], texture: render::texture::TextureHandle, color: Color)
-        where <I as TryFrom<usize>>::Error: Debug
+    where
+        <I as TryFrom<usize>>::Error: Debug,
     {
         let ib_slice_start = self.add_fast(vertices, indices);
 
         self.entries.push(DrawBatchEntry {
-            slice: IndexBufferSlice {
-                start: ib_slice_start as u32,
-                count: indices.len() as u32,
-            },
+            slice: IndexBufferSlice { start: ib_slice_start as u32, count: indices.len() as u32 },
             texture,
             color,
         });
     }
 
     pub fn add_fast(&mut self, vertices: &[V], indices: &[I]) -> usize
-        where <I as TryFrom<usize>>::Error: Debug
+    where
+        <I as TryFrom<usize>>::Error: Debug,
     {
         let new_vb_size = self.vertices.len() + vertices.len();
         if new_vb_size > self.vertex_array.vertex_buffer().count() as usize {
@@ -108,9 +102,7 @@ impl<V, I> DrawBatch<V, I>
             let index_as_usize: usize = i.into() + vb_base_vertex;
 
             // Narrow cast with overflow check (e.g. to u32 or u16):
-            let index_as_i: I =
-                index_as_usize.try_into()
-                              .expect("INTEGER OVERFLOW! Value does not fit into index type.");
+            let index_as_i: I = index_as_usize.try_into().expect("INTEGER OVERFLOW! Value does not fit into index type.");
 
             self.indices.push(index_as_i);
         }
@@ -121,11 +113,13 @@ impl<V, I> DrawBatch<V, I>
         ib_slice_start
     }
 
-    pub fn draw_entries<F>(&self,
-                           render_context: &mut RenderContext,
-                           shader_program: &ShaderProgram,
-                           mut set_shader_vars_fn: F)
-        where F: FnMut(&mut RenderContext, &DrawBatchEntry)
+    pub fn draw_entries<F>(
+        &self,
+        render_context: &mut RenderContext,
+        shader_program: &ShaderProgram,
+        mut set_shader_vars_fn: F,
+    ) where
+        F: FnMut(&mut RenderContext, &DrawBatchEntry),
     {
         if self.entries.is_empty() {
             return;
@@ -201,7 +195,7 @@ pub struct UiDrawBatch {
 impl UiDrawBatch {
     pub fn new() -> Self {
         const VERTICES_CAPACITY_HINT: u32 = 1024;
-        const INDICES_CAPACITY_HINT: u32  = 1024;
+        const INDICES_CAPACITY_HINT: u32 = 1024;
 
         let vertex_layout = render::UiDrawVertex::layout();
         let vertex_stride = render::UiDrawVertex::stride();
@@ -212,27 +206,15 @@ impl UiDrawBatch {
             _ => unimplemented!("Unsupported UiDrawIndex size!"),
         };
 
-        let vertex_buffer = VertexBuffer::with_uninitialized_data(
-            VERTICES_CAPACITY_HINT,
-            vertex_stride as u32,
-            BufferUsageHint::StreamDraw);
+        let vertex_buffer =
+            VertexBuffer::with_uninitialized_data(VERTICES_CAPACITY_HINT, vertex_stride as u32, BufferUsageHint::StreamDraw);
 
-        let index_buffer = IndexBuffer::with_uninitialized_data(
-            INDICES_CAPACITY_HINT,
-            index_type,
-            BufferUsageHint::StreamDraw);
+        let index_buffer =
+            IndexBuffer::with_uninitialized_data(INDICES_CAPACITY_HINT, index_type, BufferUsageHint::StreamDraw);
 
-        let vertex_array = VertexArray::new(
-            vertex_buffer,
-            index_buffer,
-            vertex_layout,
-            vertex_stride);
+        let vertex_array = VertexArray::new(vertex_buffer, index_buffer, vertex_layout, vertex_stride);
 
-        Self {
-            vertex_array,
-            pass_started: false,
-            synced: false,
-        }
+        Self { vertex_array, pass_started: false, synced: false }
     }
 
     pub fn begin(&mut self, render_context: &mut RenderContext, shader_program: &ShaderProgram) {
@@ -252,11 +234,12 @@ impl UiDrawBatch {
         render_context.unset_shader_program();
     }
 
-    pub fn sync(&mut self,
-                render_context: &mut RenderContext,
-                vtx_buffer: &[render::UiDrawVertex],
-                idx_buffer: &[render::UiDrawIndex])
-    {
+    pub fn sync(
+        &mut self,
+        render_context: &mut RenderContext,
+        vtx_buffer: &[render::UiDrawVertex],
+        idx_buffer: &[render::UiDrawIndex],
+    ) {
         debug_assert!(self.pass_started);
         self.synced = true;
 
@@ -279,11 +262,7 @@ impl UiDrawBatch {
         self.vertex_array.index_buffer().set_data(idx_buffer);
     }
 
-    pub fn draw(&mut self,
-                render_context: &mut RenderContext,
-                first_index: u32,
-                index_count: u32)
-    {
+    pub fn draw(&mut self, render_context: &mut RenderContext, first_index: u32, index_count: u32) {
         debug_assert!(self.pass_started);
         debug_assert!(self.synced);
 

@@ -1,21 +1,13 @@
 use arrayvec::ArrayVec;
-
 use batch::*;
+use common::{Color, Rect, RectTexCoords, Size, Vec2, time::PerfTimer};
+use target::*;
+pub use texture::WgpuTexture;
 use texture::*;
 use vertex::*;
-use target::*;
 
-pub use texture::WgpuTexture;
-
-use super::{
-    RenderStats,
-    RenderSystemBackend,
-};
-use common::{Vec2, Size, Color, Rect, RectTexCoords, time::PerfTimer};
-use crate::{
-    log,
-    ui::UiRenderFrameBundle,
-};
+use super::{RenderStats, RenderSystemBackend};
+use crate::{log, ui::UiRenderFrameBundle};
 
 mod batch;
 mod pipeline;
@@ -41,58 +33,58 @@ struct ShaderUniforms {
 // All Wgpu resources, created during initialize().
 struct WgpuSystemState {
     // Core wgpu state.
-    device:  wgpu::Device,
-    queue:   wgpu::Queue,
+    device: wgpu::Device,
+    queue: wgpu::Queue,
     surface: wgpu::Surface<'static>,
     surface_config: wgpu::SurfaceConfiguration,
     surface_format: wgpu::TextureFormat,
 
     // Render pipelines.
     sprites_pipeline: wgpu::RenderPipeline,
-    lines_pipeline:   wgpu::RenderPipeline,
-    points_pipeline:  wgpu::RenderPipeline,
-    ui_pipeline:      wgpu::RenderPipeline,
-    blit_pipeline:    wgpu::RenderPipeline,
+    lines_pipeline: wgpu::RenderPipeline,
+    points_pipeline: wgpu::RenderPipeline,
+    ui_pipeline: wgpu::RenderPipeline,
+    blit_pipeline: wgpu::RenderPipeline,
 
     // Shared bind group layouts.
     texture_bind_group_layout: wgpu::BindGroupLayout,
-    blit_texture_layout:       wgpu::BindGroupLayout,
+    blit_texture_layout: wgpu::BindGroupLayout,
 
     // Per-frame uniform buffer + bind group.
-    uniform_buffer:     wgpu::Buffer,
+    uniform_buffer: wgpu::Buffer,
     uniform_bind_group: wgpu::BindGroup,
 
     // CPU-side batches.
     sprites_batch: DrawBatch<SpriteVertex2D, SpriteIndex2D>,
-    lines_batch:   DrawBatch<LineVertex2D,   LineIndex2D>,
-    points_batch:  DrawBatch<PointVertex2D,  PointIndex2D>,
-    ui_batch:      UiDrawBatch,
+    lines_batch: DrawBatch<LineVertex2D, LineIndex2D>,
+    points_batch: DrawBatch<PointVertex2D, PointIndex2D>,
+    ui_batch: UiDrawBatch,
 
     // GPU-side buffers.
     sprites_gpu: GpuVertexIndexBuffers,
-    lines_gpu:   GpuVertexIndexBuffers,
-    points_gpu:  GpuVertexIndexBuffers,
-    ui_gpu:      GpuVertexIndexBuffers,
+    lines_gpu: GpuVertexIndexBuffers,
+    points_gpu: GpuVertexIndexBuffers,
+    ui_gpu: GpuVertexIndexBuffers,
 
     // Offscreen render target.
     offscreen_render_target: RenderTarget,
 
     // UI draw commands recorded during the frame.
     ui_draw_commands: Vec<UiDrawCommand>,
-    ui_base_vertex:   i32,
-    ui_index_offset:  u32,
+    ui_base_vertex: i32,
+    ui_index_offset: u32,
 
     // Frame state.
-    frame_started:    bool,
-    viewport:         Rect,
+    frame_started: bool,
+    viewport: Rect,
     framebuffer_size: Size,
-    clear_color:      Color,
-    stats:            RenderStats,
+    clear_color: Color,
+    stats: RenderStats,
 }
 
 impl WgpuSystemState {
     fn reconfigure_surface(&mut self) {
-        self.surface_config.width  = self.framebuffer_size.width  as u32;
+        self.surface_config.width = self.framebuffer_size.width as u32;
         self.surface_config.height = self.framebuffer_size.height as u32;
         self.surface.configure(&self.device, &self.surface_config);
     }
@@ -113,8 +105,8 @@ impl WgpuSystemState {
             let vp = Size::new(self.viewport.width() as i32, self.viewport.height() as i32);
             let rt_size = vp.max(new_size);
             if self.offscreen_render_target.needs_resize(rt_size) {
-                self.offscreen_render_target = RenderTarget::new(
-                    &self.device, rt_size, self.surface_format, &self.blit_texture_layout);
+                self.offscreen_render_target =
+                    RenderTarget::new(&self.device, rt_size, self.surface_format, &self.blit_texture_layout);
             }
         }
     }
@@ -157,25 +149,24 @@ impl WgpuRenderSystemBackend {
         log::info!(log::channel!("render"), "--- Render Backend: Wgpu ---");
 
         use std::sync::Arc;
-        let window: Arc<winit::window::Window> = params.app_context
+        let window: Arc<winit::window::Window> = params
+            .app_context
             .expect("Wgpu backend requires an app_context!")
             .downcast_ref::<Arc<winit::window::Window>>()
             .expect("app_context must be Arc<winit::window::Window>!")
             .clone();
 
-        let instance = wgpu::Instance::new(&wgpu::InstanceDescriptor {
-            backends: wgpu::Backends::all(),
-            ..Default::default()
-        });
+        let instance =
+            wgpu::Instance::new(&wgpu::InstanceDescriptor { backends: wgpu::Backends::all(), ..Default::default() });
 
-        let surface = instance.create_surface(wgpu::SurfaceTarget::from(window))
-            .expect("Failed to create Wgpu surface!");
+        let surface = instance.create_surface(wgpu::SurfaceTarget::from(window)).expect("Failed to create Wgpu surface!");
 
         let adapter = pollster::block_on(instance.request_adapter(&wgpu::RequestAdapterOptions {
             power_preference: wgpu::PowerPreference::HighPerformance,
             compatible_surface: Some(&surface),
             force_fallback_adapter: false,
-        })).expect("Failed to find a suitable GPU adapter!");
+        }))
+        .expect("Failed to find a suitable GPU adapter!");
 
         log::info!(log::channel!("render"), "Wgpu Adapter Info:");
         {
@@ -189,27 +180,23 @@ impl WgpuRenderSystemBackend {
             }
         }
 
-        let (device, queue) = pollster::block_on(adapter.request_device(
-            &wgpu::DeviceDescriptor {
-                label: Some("heritage_builder_device"),
-                required_features: wgpu::Features::ADDRESS_MODE_CLAMP_TO_BORDER,
-                ..Default::default()
-            },
-        )).expect("Failed to create Wgpu device!");
+        let (device, queue) = pollster::block_on(adapter.request_device(&wgpu::DeviceDescriptor {
+            label: Some("heritage_builder_device"),
+            required_features: wgpu::Features::ADDRESS_MODE_CLAMP_TO_BORDER,
+            ..Default::default()
+        }))
+        .expect("Failed to create Wgpu device!");
 
         // Configure surface — use a non-sRGB format to match OpenGL behaviour.
         // The game does all color work in sRGB space with no linear-space lighting,
         // so we want raw byte pass-through (no automatic gamma conversion).
         let surface_caps = surface.get_capabilities(&adapter);
-        let surface_format = surface_caps.formats.iter()
-            .find(|f| !f.is_srgb())
-            .copied()
-            .unwrap_or(surface_caps.formats[0]);
+        let surface_format = surface_caps.formats.iter().find(|f| !f.is_srgb()).copied().unwrap_or(surface_caps.formats[0]);
 
         let surface_config = wgpu::SurfaceConfiguration {
-            usage:  wgpu::TextureUsages::RENDER_ATTACHMENT,
+            usage: wgpu::TextureUsages::RENDER_ATTACHMENT,
             format: surface_format,
-            width:  params.framebuffer_size.width  as u32,
+            width: params.framebuffer_size.width as u32,
             height: params.framebuffer_size.height as u32,
             present_mode: wgpu::PresentMode::Fifo,
             alpha_mode: surface_caps.alpha_modes[0],
@@ -218,28 +205,18 @@ impl WgpuRenderSystemBackend {
         };
         surface.configure(&device, &surface_config);
 
-        let resources = WgpuInitResources {
-            device,
-            queue,
-            surface,
-            surface_config,
-            surface_format,
-        };
+        let resources = WgpuInitResources { device, queue, surface, surface_config, surface_format };
 
-        Self::from_resources(
-            resources,
-            params.viewport_size,
-            params.framebuffer_size,
-            params.clear_color,
-        )
+        Self::from_resources(resources, params.viewport_size, params.framebuffer_size, params.clear_color)
     }
 
     // Construct from pre-created Wgpu resources (used on Web/WASM after async GPU init).
-    pub fn from_resources(wgpu_resources: WgpuInitResources,
-                          viewport_size: Size,
-                          framebuffer_size: Size,
-                          clear_color: Color) -> Self
-    {
+    pub fn from_resources(
+        wgpu_resources: WgpuInitResources,
+        viewport_size: Size,
+        framebuffer_size: Size,
+        clear_color: Color,
+    ) -> Self {
         debug_assert!(viewport_size.is_valid());
         debug_assert!(framebuffer_size.is_valid());
 
@@ -248,19 +225,20 @@ impl WgpuRenderSystemBackend {
         // Bind group layouts.
         let uniform_bind_group_layout = pipeline::create_uniform_bind_group_layout(&device);
         let texture_bind_group_layout = pipeline::create_texture_bind_group_layout(&device);
-        let blit_texture_layout       = pipeline::create_texture_bind_group_layout(&device);
+        let blit_texture_layout = pipeline::create_texture_bind_group_layout(&device);
 
         // Pipelines.
         let sprites_pipeline = pipeline::create_sprites_pipeline(
-            &device, surface_format, &uniform_bind_group_layout, &texture_bind_group_layout);
-        let lines_pipeline = pipeline::create_lines_pipeline(
-            &device, surface_format, &uniform_bind_group_layout);
-        let points_pipeline = pipeline::create_points_pipeline(
-            &device, surface_format, &uniform_bind_group_layout);
-        let ui_pipeline = pipeline::create_ui_pipeline(
-            &device, surface_format, &uniform_bind_group_layout, &texture_bind_group_layout);
-        let blit_pipeline = pipeline::create_blit_pipeline(
-            &device, surface_format, &blit_texture_layout);
+            &device,
+            surface_format,
+            &uniform_bind_group_layout,
+            &texture_bind_group_layout,
+        );
+        let lines_pipeline = pipeline::create_lines_pipeline(&device, surface_format, &uniform_bind_group_layout);
+        let points_pipeline = pipeline::create_points_pipeline(&device, surface_format, &uniform_bind_group_layout);
+        let ui_pipeline =
+            pipeline::create_ui_pipeline(&device, surface_format, &uniform_bind_group_layout, &texture_bind_group_layout);
+        let blit_pipeline = pipeline::create_blit_pipeline(&device, surface_format, &blit_texture_layout);
 
         // Uniform buffer.
         let uniform_buffer = device.create_buffer(&wgpu::BufferDescriptor {
@@ -273,12 +251,7 @@ impl WgpuRenderSystemBackend {
         let uniform_bind_group = device.create_bind_group(&wgpu::BindGroupDescriptor {
             label: Some("shader_uniform_vars_bind_group"),
             layout: &uniform_bind_group_layout,
-            entries: &[
-                wgpu::BindGroupEntry {
-                    binding: 0,
-                    resource: uniform_buffer.as_entire_binding(),
-                }
-            ],
+            entries: &[wgpu::BindGroupEntry { binding: 0, resource: uniform_buffer.as_entire_binding() }],
         });
 
         // Offscreen render target.
@@ -286,18 +259,30 @@ impl WgpuRenderSystemBackend {
         let offscreen_render_target = RenderTarget::new(&device, rt_size, surface_format, &blit_texture_layout);
 
         // GPU buffers.
-        let sprites_gpu = GpuVertexIndexBuffers::new(&device, "sprites",
+        let sprites_gpu = GpuVertexIndexBuffers::new(
+            &device,
+            "sprites",
             512 * std::mem::size_of::<SpriteVertex2D>(),
-            512 * std::mem::size_of::<SpriteIndex2D>());
-        let lines_gpu = GpuVertexIndexBuffers::new(&device, "lines",
+            512 * std::mem::size_of::<SpriteIndex2D>(),
+        );
+        let lines_gpu = GpuVertexIndexBuffers::new(
+            &device,
+            "lines",
             64 * std::mem::size_of::<LineVertex2D>(),
-            64 * std::mem::size_of::<LineIndex2D>());
-        let points_gpu = GpuVertexIndexBuffers::new(&device, "points",
+            64 * std::mem::size_of::<LineIndex2D>(),
+        );
+        let points_gpu = GpuVertexIndexBuffers::new(
+            &device,
+            "points",
             64 * std::mem::size_of::<PointVertex2D>(),
-            64 * std::mem::size_of::<PointIndex2D>());
-        let ui_gpu = GpuVertexIndexBuffers::new(&device, "ui",
+            64 * std::mem::size_of::<PointIndex2D>(),
+        );
+        let ui_gpu = GpuVertexIndexBuffers::new(
+            &device,
+            "ui",
             1024 * std::mem::size_of::<UiVertex2D>(),
-            1024 * std::mem::size_of::<super::UiDrawIndex>());
+            1024 * std::mem::size_of::<super::UiDrawIndex>(),
+        );
 
         log::info!(log::channel!("render"), "Wgpu initialized.");
         log::info!(log::channel!("render"), " - Surface format: {:?}", surface_format);
@@ -324,9 +309,9 @@ impl WgpuRenderSystemBackend {
             uniform_bind_group,
 
             sprites_batch: DrawBatch::new(512, 512, 512),
-            lines_batch:   DrawBatch::new(64, 64, 0),
-            points_batch:  DrawBatch::new(64, 64, 0),
-            ui_batch:      UiDrawBatch::new(),
+            lines_batch: DrawBatch::new(64, 64, 0),
+            points_batch: DrawBatch::new(64, 64, 0),
+            ui_batch: UiDrawBatch::new(),
 
             sprites_gpu,
             lines_gpu,
@@ -336,7 +321,7 @@ impl WgpuRenderSystemBackend {
             offscreen_render_target,
 
             ui_draw_commands: Vec::with_capacity(64),
-            ui_base_vertex:  0,
+            ui_base_vertex: 0,
             ui_index_offset: 0,
 
             frame_started: false,
@@ -365,10 +350,7 @@ impl RenderSystemBackend for WgpuRenderSystemBackend {
     // Begin/End frame:
     // ----------------------
 
-    fn begin_frame(&mut self,
-                   viewport_size: Size,
-                   framebuffer_size: Size)
-    {
+    fn begin_frame(&mut self, viewport_size: Size, framebuffer_size: Size) {
         let s = self.state_mut();
         debug_assert!(!s.frame_started);
 
@@ -385,11 +367,11 @@ impl RenderSystemBackend for WgpuRenderSystemBackend {
         s.stats.render_submit_time_ms = 0.0;
     }
 
-    fn end_frame(&mut self,
-                 ui_frame_bundle: &mut UiRenderFrameBundle,
-                 tex_cache: &mut super::texture::TextureCache)
-                 -> RenderStats
-    {
+    fn end_frame(
+        &mut self,
+        ui_frame_bundle: &mut UiRenderFrameBundle,
+        tex_cache: &mut super::texture::TextureCache,
+    ) -> RenderStats {
         let render_submit_timer = PerfTimer::begin();
 
         // Record UI draw data. This re-enters through RenderSystem to call
@@ -403,10 +385,7 @@ impl RenderSystemBackend for WgpuRenderSystemBackend {
         debug_assert!(s.framebuffer_size.is_valid());
 
         // Upload viewport uniform.
-        let uniforms = ShaderUniforms {
-            viewport_size: [s.viewport.width(), s.viewport.height()],
-            _padding: [0.0; 2],
-        };
+        let uniforms = ShaderUniforms { viewport_size: [s.viewport.width(), s.viewport.height()], _padding: [0.0; 2] };
         s.queue.write_buffer(&s.uniform_buffer, 0, bytemuck::bytes_of(&uniforms));
 
         // Upload batch data to GPU.
@@ -420,23 +399,18 @@ impl RenderSystemBackend for WgpuRenderSystemBackend {
             Ok(tex) => tex,
             Err(wgpu::SurfaceError::Lost | wgpu::SurfaceError::Outdated) => {
                 s.reconfigure_surface();
-                s.surface.get_current_texture()
-                    .expect("Failed to acquire surface texture after reconfigure!")
+                s.surface.get_current_texture().expect("Failed to acquire surface texture after reconfigure!")
             }
             Err(e) => panic!("Failed to acquire surface texture: {e:?}"),
         };
         let surface_view = output.texture.create_view(&wgpu::TextureViewDescriptor::default());
 
-        let mut encoder = s.device.create_command_encoder(&wgpu::CommandEncoderDescriptor {
-            label: Some("frame_encoder"),
-        });
+        let mut encoder = s.device.create_command_encoder(&wgpu::CommandEncoderDescriptor { label: Some("frame_encoder") });
 
         // ---- Pass 1: Render world to offscreen RT ----
         {
             let cc = &s.clear_color;
-            let clear_color = wgpu::Color {
-                r: cc.r as f64, g: cc.g as f64, b: cc.b as f64, a: cc.a as f64,
-            };
+            let clear_color = wgpu::Color { r: cc.r as f64, g: cc.g as f64, b: cc.b as f64, a: cc.a as f64 };
 
             let mut pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
                 label: Some("offscreen_pass"),
@@ -444,10 +418,7 @@ impl RenderSystemBackend for WgpuRenderSystemBackend {
                     view: s.offscreen_render_target.view(),
                     depth_slice: None,
                     resolve_target: None,
-                    ops: wgpu::Operations {
-                        load: wgpu::LoadOp::Clear(clear_color),
-                        store: wgpu::StoreOp::Store,
-                    },
+                    ops: wgpu::Operations { load: wgpu::LoadOp::Clear(clear_color), store: wgpu::StoreOp::Store },
                 })],
                 depth_stencil_attachment: None,
                 ..Default::default()
@@ -467,8 +438,7 @@ impl RenderSystemBackend for WgpuRenderSystemBackend {
                         pass.set_bind_group(1, Some(bg), &[]);
                         s.stats.texture_changes += 1;
                     }
-                    pass.draw_indexed(
-                        entry.first_index..entry.first_index + entry.index_count, 0, 0..1);
+                    pass.draw_indexed(entry.first_index..entry.first_index + entry.index_count, 0, 0..1);
                     s.stats.draw_calls += 1;
                 }
             }
@@ -500,10 +470,7 @@ impl RenderSystemBackend for WgpuRenderSystemBackend {
                     view: &surface_view,
                     depth_slice: None,
                     resolve_target: None,
-                    ops: wgpu::Operations {
-                        load: wgpu::LoadOp::Clear(wgpu::Color::BLACK),
-                        store: wgpu::StoreOp::Store,
-                    },
+                    ops: wgpu::Operations { load: wgpu::LoadOp::Clear(wgpu::Color::BLACK), store: wgpu::StoreOp::Store },
                 })],
                 depth_stencil_attachment: None,
                 ..Default::default()
@@ -536,7 +503,7 @@ impl RenderSystemBackend for WgpuRenderSystemBackend {
             pass.set_bind_group(0, Some(&s.uniform_bind_group), &[]);
             s.ui_gpu.bind_to_render_pass(&mut pass, vertex::size_to_index_format::<super::UiDrawIndex>());
 
-            let fb_w = s.framebuffer_size.width  as u32;
+            let fb_w = s.framebuffer_size.width as u32;
             let fb_h = s.framebuffer_size.height as u32;
 
             for cmd in &s.ui_draw_commands {
@@ -555,9 +522,7 @@ impl RenderSystemBackend for WgpuRenderSystemBackend {
                 let bg = tex_cache.texture_for_handle(cmd.texture).as_wgpu().bind_group();
                 pass.set_bind_group(1, Some(bg), &[]);
 
-                pass.draw_indexed(
-                    cmd.first_index..cmd.first_index + cmd.index_count,
-                    cmd.base_vertex, 0..1);
+                pass.draw_indexed(cmd.first_index..cmd.first_index + cmd.index_count, cmd.base_vertex, 0..1);
                 s.stats.draw_calls += 1;
             }
         }
@@ -572,7 +537,7 @@ impl RenderSystemBackend for WgpuRenderSystemBackend {
         s.points_batch.clear();
         s.ui_batch.clear();
         s.ui_draw_commands.clear();
-        s.ui_base_vertex  = 0;
+        s.ui_base_vertex = 0;
         s.ui_index_offset = 0;
 
         s.frame_started = false;
@@ -618,10 +583,7 @@ impl RenderSystemBackend for WgpuRenderSystemBackend {
         // Nothing to do — UI pass is built in end_frame.
     }
 
-    fn set_ui_draw_buffers(&mut self,
-                           vtx_buffer: &[super::UiDrawVertex],
-                           idx_buffer: &[super::UiDrawIndex])
-    {
+    fn set_ui_draw_buffers(&mut self, vtx_buffer: &[super::UiDrawVertex], idx_buffer: &[super::UiDrawIndex]) {
         debug_assert!(!vtx_buffer.is_empty() && !idx_buffer.is_empty());
 
         let s = self.state_mut();
@@ -629,17 +591,18 @@ impl RenderSystemBackend for WgpuRenderSystemBackend {
         // Append this draw list's data (not replace). Each ImGui draw list has its own
         // vertex/index buffers; we merge them and track offsets.
         let (base_vertex, index_offset) = s.ui_batch.append_data(vtx_buffer, idx_buffer);
-        s.ui_base_vertex  = base_vertex;
+        s.ui_base_vertex = base_vertex;
         s.ui_index_offset = index_offset;
     }
 
-    fn draw_ui_elements(&mut self,
-                        first_index: u32,
-                        index_count: u32,
-                        texture: super::texture::TextureHandle,
-                        _tex_cache: &mut super::texture::TextureCache,
-                        clip_rect: Rect)
-    {
+    fn draw_ui_elements(
+        &mut self,
+        first_index: u32,
+        index_count: u32,
+        texture: super::texture::TextureHandle,
+        _tex_cache: &mut super::texture::TextureCache,
+        clip_rect: Rect,
+    ) {
         debug_assert!(index_count.is_multiple_of(3));
 
         let s = self.state_mut();
@@ -661,11 +624,7 @@ impl RenderSystemBackend for WgpuRenderSystemBackend {
     // Draw commands:
     // ----------------------
 
-    fn draw_colored_indexed_triangles(&mut self,
-                                      vertices: &[Vec2],
-                                      indices: &[super::DrawIndex],
-                                      color: Color)
-    {
+    fn draw_colored_indexed_triangles(&mut self, vertices: &[Vec2], indices: &[super::DrawIndex], color: Color) {
         let s = self.state_mut();
         debug_assert!(s.frame_started);
         debug_assert!(!vertices.is_empty() && !indices.is_empty());
@@ -680,12 +639,13 @@ impl RenderSystemBackend for WgpuRenderSystemBackend {
         s.stats.triangles_drawn += (indices.len() / 3) as u32;
     }
 
-    fn draw_textured_colored_rect(&mut self,
-                                  rect: Rect,
-                                  tex_coords: &RectTexCoords,
-                                  texture: super::texture::TextureHandle,
-                                  color: Color)
-    {
+    fn draw_textured_colored_rect(
+        &mut self,
+        rect: Rect,
+        tex_coords: &RectTexCoords,
+        texture: super::texture::TextureHandle,
+        color: Color,
+    ) {
         let s = self.state_mut();
         debug_assert!(s.frame_started);
 
@@ -754,13 +714,14 @@ impl RenderSystemBackend for WgpuRenderSystemBackend {
     // Texture Allocation:
     // ----------------------
 
-    fn new_texture_from_pixels(&mut self,
-                               name: &str,
-                               size: Size,
-                               pixels: &[u8],
-                               settings: super::texture::TextureSettings,
-                               allow_settings_change: bool) -> super::texture::TextureBackendImpl
-    {
+    fn new_texture_from_pixels(
+        &mut self,
+        name: &str,
+        size: Size,
+        pixels: &[u8],
+        settings: super::texture::TextureSettings,
+        allow_settings_change: bool,
+    ) -> super::texture::TextureBackendImpl {
         let s = self.state();
         let texture = WgpuTexture::new(&TextureCreationParams {
             name,
@@ -775,25 +736,26 @@ impl RenderSystemBackend for WgpuRenderSystemBackend {
         super::texture::TextureBackendImpl::Wgpu(texture)
     }
 
-    fn update_texture_pixels(&mut self,
-                             texture: &mut super::texture::TextureBackendImpl,
-                             offset_x: u32,
-                             offset_y: u32,
-                             size: Size,
-                             mip_level: u32,
-                             pixels: &[u8])
-    {
+    fn update_texture_pixels(
+        &mut self,
+        texture: &mut super::texture::TextureBackendImpl,
+        offset_x: u32,
+        offset_y: u32,
+        size: Size,
+        mip_level: u32,
+        pixels: &[u8],
+    ) {
         let s = self.state();
         texture.as_wgpu().write_pixels(&s.queue, offset_x, offset_y, size, mip_level, pixels);
     }
 
-    fn update_texture_settings(&mut self,
-                               texture: &mut super::texture::TextureBackendImpl,
-                               settings: super::texture::TextureSettings)
-    {
+    fn update_texture_settings(
+        &mut self,
+        texture: &mut super::texture::TextureBackendImpl,
+        settings: super::texture::TextureSettings,
+    ) {
         let s = self.state();
-        texture.as_wgpu_mut().rebuild_sampler_and_bind_group(
-            &s.device, &s.texture_bind_group_layout, settings);
+        texture.as_wgpu_mut().rebuild_sampler_and_bind_group(&s.device, &s.texture_bind_group_layout, settings);
     }
 
     fn release_texture(&mut self, texture: &mut super::texture::TextureBackendImpl) {

@@ -20,29 +20,35 @@
 // "suspended" state. We attempt `ctx.resume()` on first play.
 
 use std::{cell::RefCell, rc::Rc};
-use slab::Slab;
-
-use wasm_bindgen::prelude::*;
-use wasm_bindgen_futures::JsFuture;
 
 use common::{
     coords::IsoPointF32,
-    hash::{self, StringHash, PreHashedKeyMap},
+    hash::{self, PreHashedKeyMap, StringHash},
     time::Seconds,
 };
-use crate::{
-    log,
-    file_sys::{
-        self,
-        paths::{self, PathRef, AssetPath},
-    },
-};
+use slab::Slab;
+use wasm_bindgen::prelude::*;
+use wasm_bindgen_futures::JsFuture;
 
 use super::{
+    AmbienceSoundKey,
+    MusicSoundKey,
+    NarrationSoundKey,
     PlaySoundParams,
-    SoundAssetRegistry, SoundSystemBackend,
-    SoundGlobalSettings, SoundHandle, SoundKind, SoundKey,
-    SfxSoundKey, AmbienceSoundKey, MusicSoundKey, NarrationSoundKey,
+    SfxSoundKey,
+    SoundAssetRegistry,
+    SoundGlobalSettings,
+    SoundHandle,
+    SoundKey,
+    SoundKind,
+    SoundSystemBackend,
+};
+use crate::{
+    file_sys::{
+        self,
+        paths::{self, AssetPath, PathRef},
+    },
+    log,
 };
 
 // ----------------------------------------------
@@ -88,9 +94,12 @@ impl SoundSystemBackend for WebAudioSoundSystemBackend {
         let music_gain = create_gain_node(&ctx, &destination)?;
         let narration_gain = create_gain_node(&ctx, &destination)?;
 
-        log::info!(log::channel!("sound"),
+        log::info!(
+            log::channel!("sound"),
             "WebAudio initialized. State: {:?}, SampleRate: {}",
-            ctx.state(), ctx.sample_rate());
+            ctx.state(),
+            ctx.sample_rate()
+        );
 
         Some(Box::new(Self {
             ctx,
@@ -139,10 +148,10 @@ impl SoundSystemBackend for WebAudioSoundSystemBackend {
 
     fn sounds_playing(&self) -> usize {
         self.sfx.sounds.len()
-        + self.ambience.sounds.len()
-        + self.spatial.sounds.len()
-        + self.music.sounds.len()
-        + self.narration.sounds.len()
+            + self.ambience.sounds.len()
+            + self.spatial.sounds.len()
+            + self.music.sounds.len()
+            + self.narration.sounds.len()
     }
 
     fn play(&mut self, params: PlaySoundParams<Self::Registry>) -> SoundHandle {
@@ -173,15 +182,14 @@ impl SoundSystemBackend for WebAudioSoundSystemBackend {
             Some(asset) => match asset.buffer.borrow().clone() {
                 Some(buf) => buf,
                 None => {
-                    log::warning!(log::channel!("sound"),
-                        "Sound '{}' not yet decoded, skipping play", asset.path);
+                    log::warning!(log::channel!("sound"), "Sound '{}' not yet decoded, skipping play", asset.path);
                     return SoundHandle::invalid(params.kind);
                 }
             },
             None => return SoundHandle::invalid(params.kind),
         };
 
-        let volume  = params.settings.master_volume(params.kind);
+        let volume = params.settings.master_volume(params.kind);
         let fade_in = params.settings.fade_in_secs(params.kind);
         let spatial = params.kind == SoundKind::SpatialAmbience;
 
@@ -192,8 +200,14 @@ impl SoundSystemBackend for WebAudioSoundSystemBackend {
         }
 
         match WebAudioSoundInstance::new(
-            &self.ctx, &buffer, track_gain, volume, fade_in,
-            params.looping, spatial, params.position,
+            &self.ctx,
+            &buffer,
+            track_gain,
+            volume,
+            fade_in,
+            params.looping,
+            spatial,
+            params.position,
         ) {
             Some(instance) => pool.insert(instance),
             None => SoundHandle::invalid(params.kind),
@@ -316,17 +330,15 @@ impl SoundAssetRegistry for WebAudioSoundAssetRegistry {
     }
 
     fn sounds_loaded(&self) -> usize {
-        self.sfx.len()
-        + self.ambience.len()
-        + self.music.len()
-        + self.narration.len()
+        self.sfx.len() + self.ambience.len() + self.music.len() + self.narration.len()
     }
 }
 
-fn load_sound<Key: SoundKey>(hash_map: &mut PreHashedKeyMap<StringHash, WebAudioSoundAsset>,
-                             base_path: &AssetPath,
-                             asset_path: PathRef) -> Key
-{
+fn load_sound<Key: SoundKey>(
+    hash_map: &mut PreHashedKeyMap<StringHash, WebAudioSoundAsset>,
+    base_path: &AssetPath,
+    asset_path: PathRef,
+) -> Key {
     debug_assert!(!asset_path.is_empty());
 
     let sound_path = base_path.join(asset_path);
@@ -356,8 +368,7 @@ fn load_sound<Key: SoundKey>(hash_map: &mut PreHashedKeyMap<StringHash, WebAudio
                 *buffer_cell_clone.borrow_mut() = Some(audio_buffer);
             }
             Err(err) => {
-                log::error!(log::channel!("sound"),
-                    "Failed to decode audio '{sound_path}': {err}");
+                log::error!(log::channel!("sound"), "Failed to decode audio '{sound_path}': {err}");
             }
         }
     });
@@ -370,8 +381,7 @@ async fn decode_audio_data(bytes: &[u8]) -> Result<web_sys::AudioBuffer, String>
     // We need a temporary AudioContext for decoding. Re-use the global window
     // one would be ideal, but we don't have access to it here. Creating a
     // short-lived one is fine — browsers handle this efficiently.
-    let ctx = web_sys::AudioContext::new()
-        .map_err(|e| format!("AudioContext::new failed: {e:?}"))?;
+    let ctx = web_sys::AudioContext::new().map_err(|e| format!("AudioContext::new failed: {e:?}"))?;
 
     // Copy bytes into a JS ArrayBuffer.
     let js_array = js_sys::Uint8Array::new_with_length(bytes.len() as u32);
@@ -379,14 +389,11 @@ async fn decode_audio_data(bytes: &[u8]) -> Result<web_sys::AudioBuffer, String>
 
     let array_buffer = js_array.buffer();
 
-    let promise = ctx.decode_audio_data(&array_buffer)
-        .map_err(|e| format!("decodeAudioData failed: {e:?}"))?;
+    let promise = ctx.decode_audio_data(&array_buffer).map_err(|e| format!("decodeAudioData failed: {e:?}"))?;
 
-    let result = JsFuture::from(promise).await
-        .map_err(|e| format!("decodeAudioData rejected: {e:?}"))?;
+    let result = JsFuture::from(promise).await.map_err(|e| format!("decodeAudioData rejected: {e:?}"))?;
 
-    result.dyn_into::<web_sys::AudioBuffer>()
-        .map_err(|_| "decodeAudioData did not return an AudioBuffer".to_string())
+    result.dyn_into::<web_sys::AudioBuffer>().map_err(|_| "decodeAudioData did not return an AudioBuffer".to_string())
 }
 
 // ----------------------------------------------
@@ -408,15 +415,16 @@ struct WebAudioSoundInstance {
 }
 
 impl WebAudioSoundInstance {
-    fn new(ctx: &web_sys::AudioContext,
-           buffer: &web_sys::AudioBuffer,
-           track_gain: &web_sys::GainNode,
-           volume: f32,
-           fade_in_secs: Seconds,
-           looping: bool,
-           spatial: bool,
-           position: IsoPointF32) -> Option<Self>
-    {
+    fn new(
+        ctx: &web_sys::AudioContext,
+        buffer: &web_sys::AudioBuffer,
+        track_gain: &web_sys::GainNode,
+        volume: f32,
+        fade_in_secs: Seconds,
+        looping: bool,
+        spatial: bool,
+        position: IsoPointF32,
+    ) -> Option<Self> {
         // Create source node.
         let source = ctx.create_buffer_source().ok()?;
         source.set_buffer(Some(buffer));
@@ -450,11 +458,7 @@ impl WebAudioSoundInstance {
         // Start playback.
         source.start().ok()?;
 
-        let end_time = if looping {
-            f64::MAX
-        } else {
-            now + buffer.duration()
-        };
+        let end_time = if looping { f64::MAX } else { now + buffer.duration() };
 
         Some(Self {
             source,
@@ -504,11 +508,12 @@ impl WebAudioSoundInstance {
         self.gain.gain().set_value(volume);
     }
 
-    fn spatial_update(&mut self,
-                      ctx: &web_sys::AudioContext,
-                      listener_position: IsoPointF32,
-                      settings: &SoundGlobalSettings)
-    {
+    fn spatial_update(
+        &mut self,
+        ctx: &web_sys::AudioContext,
+        listener_position: IsoPointF32,
+        settings: &SoundGlobalSettings,
+    ) {
         let dx = self.position.0.x - listener_position.0.x;
         let dy = self.position.0.y - listener_position.0.y;
 
@@ -545,11 +550,7 @@ struct SoundPool {
 
 impl SoundPool {
     fn new(kind: SoundKind) -> Self {
-        Self {
-            kind,
-            sounds: Slab::new(),
-            generation: 0,
-        }
+        Self { kind, sounds: Slab::new(), generation: 0 }
     }
 
     fn insert(&mut self, mut instance: WebAudioSoundInstance) -> SoundHandle {
@@ -585,10 +586,8 @@ impl SoundPool {
     }
 
     fn remove_stopped(&mut self, now: f64) {
-        let to_remove: smallvec::SmallVec<[usize; 32]> = self.sounds.iter()
-            .filter(|(_, s)| s.is_stopped(now))
-            .map(|(i, _)| i)
-            .collect();
+        let to_remove: smallvec::SmallVec<[usize; 32]> =
+            self.sounds.iter().filter(|(_, s)| s.is_stopped(now)).map(|(i, _)| i).collect();
 
         for index in to_remove {
             self.sounds.remove(index);
@@ -600,10 +599,7 @@ impl SoundPool {
 // Helpers
 // ----------------------------------------------
 
-fn create_gain_node(ctx: &web_sys::AudioContext,
-                    destination: &web_sys::AudioDestinationNode)
-                    -> Option<web_sys::GainNode>
-{
+fn create_gain_node(ctx: &web_sys::AudioContext, destination: &web_sys::AudioDestinationNode) -> Option<web_sys::GainNode> {
     let gain = match ctx.create_gain() {
         Ok(g) => g,
         Err(err) => {

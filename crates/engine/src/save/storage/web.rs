@@ -1,5 +1,6 @@
-use super::*;
 use common::singleton;
+
+use super::*;
 
 // ----------------------------------------------
 // WebSaveGameStorageBackend
@@ -61,14 +62,15 @@ impl SaveGameStorageBackend for WebSaveGameStorageBackend {
     }
 
     fn load_save_file<T>(&self, save_file: PathRef) -> Result<T, String>
-        where T: DeserializeOwned
+    where
+        T: DeserializeOwned,
     {
-        let storage = Self::browser_local_storage()
-            .ok_or_else(|| "Browser Local Storage not available.".to_string())?;
+        let storage = Self::browser_local_storage().ok_or_else(|| "Browser Local Storage not available.".to_string())?;
 
         let key = self.make_save_key(save_file);
 
-        let storage_result = storage.get_item(key.as_str())
+        let storage_result = storage
+            .get_item(key.as_str())
             .map_err(|_| format!("Failed to read save '{save_file}' from Browser Local Storage."))?
             .ok_or_else(|| format!("Save file '{save_file}' not found in Browser Local Storage."));
 
@@ -87,10 +89,10 @@ impl SaveGameStorageBackend for WebSaveGameStorageBackend {
     }
 
     fn write_save_file<T>(&self, save_file: PathRef, instance: &T) -> SaveResult
-        where T: Serialize
+    where
+        T: Serialize,
     {
-        let storage = Self::browser_local_storage()
-            .ok_or_else(|| "Browser Local Storage not available.".to_string())?;
+        let storage = Self::browser_local_storage().ok_or_else(|| "Browser Local Storage not available.".to_string())?;
 
         let key = self.make_save_key(save_file);
 
@@ -102,17 +104,18 @@ impl SaveGameStorageBackend for WebSaveGameStorageBackend {
 
         let json = state.as_any().downcast_ref::<JsonSaveState>().unwrap();
 
-        storage.set_item(key.as_str(), json.to_str())
+        storage
+            .set_item(key.as_str(), json.to_str())
             .map_err(|_| format!("Failed to write save '{save_file}' to Browser Local Storage (quota exceeded?)"))
     }
 
     fn delete_save_file(&self, save_file: PathRef) -> SaveResult {
-        let storage = Self::browser_local_storage()
-            .ok_or_else(|| "Browser Local Storage not available.".to_string())?;
+        let storage = Self::browser_local_storage().ok_or_else(|| "Browser Local Storage not available.".to_string())?;
 
         let key = self.make_save_key(save_file);
 
-        storage.remove_item(key.as_str())
+        storage
+            .remove_item(key.as_str())
             .map_err(|_| format!("Failed to delete save '{save_file}' from Browser Local Storage."))
     }
 }

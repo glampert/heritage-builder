@@ -30,8 +30,7 @@
 // All `#[no_mangle] pub extern "C"` functions here are automatically exported
 // from the WASM binary and called by libc.js via `wasm.<fn_name>(...)`.
 
-use std::collections::HashMap;
-use std::cell::RefCell;
+use std::{cell::RefCell, collections::HashMap};
 
 // ----------------------------------------------
 // Memory allocation with size tracking
@@ -45,10 +44,14 @@ thread_local! {
 
 #[unsafe(no_mangle)]
 pub extern "C" fn c_malloc(size: usize) -> usize {
-    if size == 0 { return 0; }
+    if size == 0 {
+        return 0;
+    }
     let layout = unsafe { std::alloc::Layout::from_size_align_unchecked(size, 8) };
     let ptr = unsafe { std::alloc::alloc(layout) };
-    if ptr.is_null() { return 0; }
+    if ptr.is_null() {
+        return 0;
+    }
     let addr = ptr as usize;
     ALLOC_SIZES.with(|map| map.borrow_mut().insert(addr, size));
     addr
@@ -56,11 +59,15 @@ pub extern "C" fn c_malloc(size: usize) -> usize {
 
 #[unsafe(no_mangle)]
 pub extern "C" fn c_free(ptr: usize) {
-    if ptr == 0 { return; }
+    if ptr == 0 {
+        return;
+    }
     let size = ALLOC_SIZES.with(|map| map.borrow_mut().remove(&ptr));
     if let Some(size) = size {
         let layout = unsafe { std::alloc::Layout::from_size_align_unchecked(size, 8) };
-        unsafe { std::alloc::dealloc(ptr as *mut u8, layout); }
+        unsafe {
+            std::alloc::dealloc(ptr as *mut u8, layout);
+        }
     }
 }
 
@@ -74,12 +81,10 @@ pub extern "C" fn c_free(ptr: usize) {
 type QsortCmp = unsafe extern "C" fn(*const u8, *const u8) -> i32;
 
 #[unsafe(no_mangle)]
-pub unsafe extern "C" fn c_qsort(base: *mut u8,
-                                 nmemb: usize,
-                                 size: usize,
-                                 compar: QsortCmp)
-{
-    if nmemb <= 1 || size == 0 { return; }
+pub unsafe extern "C" fn c_qsort(base: *mut u8, nmemb: usize, size: usize, compar: QsortCmp) {
+    if nmemb <= 1 || size == 0 {
+        return;
+    }
 
     // Create index array, sort indices by comparator, then permute in place.
     let mut indices: Vec<usize> = (0..nmemb).collect();
@@ -94,7 +99,10 @@ pub unsafe extern "C" fn c_qsort(base: *mut u8,
     let mut tmp = vec![0u8; size];
     let mut done = vec![false; nmemb];
     for i in 0..nmemb {
-        if done[i] || indices[i] == i { done[i] = true; continue; }
+        if done[i] || indices[i] == i {
+            done[i] = true;
+            continue;
+        }
         // Follow the permutation cycle.
         let mut j = i;
         unsafe {
@@ -128,7 +136,9 @@ pub unsafe extern "C" fn c_qsort(base: *mut u8,
 unsafe fn c_str_len(ptr: *const u8) -> usize {
     unsafe {
         let mut len = 0;
-        while *ptr.add(len) != 0 { len += 1; }
+        while *ptr.add(len) != 0 {
+            len += 1;
+        }
         len
     }
 }
@@ -155,19 +165,25 @@ impl BufWriter {
 
     fn push(&mut self, byte: u8) {
         if self.len < self.cap {
-            unsafe { *self.buf.add(self.len) = byte; }
+            unsafe {
+                *self.buf.add(self.len) = byte;
+            }
         }
         self.len += 1;
     }
 
     fn push_bytes(&mut self, bytes: &[u8]) {
-        for &b in bytes { self.push(b); }
+        for &b in bytes {
+            self.push(b);
+        }
     }
 
     /// Null-terminate and return the logical length (what C vsnprintf returns).
     fn finish(self) -> i32 {
         let null_pos = self.len.min(self.cap);
-        unsafe { *self.buf.add(null_pos) = 0; }
+        unsafe {
+            *self.buf.add(null_pos) = 0;
+        }
         self.len as i32
     }
 }
@@ -179,7 +195,9 @@ struct VaReader {
 }
 
 impl VaReader {
-    fn new(ptr: *const u8) -> Self { Self { ptr } }
+    fn new(ptr: *const u8) -> Self {
+        Self { ptr }
+    }
 
     unsafe fn align_to(&mut self, align: usize) {
         let addr = self.ptr as usize;
@@ -224,19 +242,23 @@ fn push_padded(out: &mut BufWriter, content: &[u8], width: usize, left: bool, pa
     let len = content.len();
     if width > len && !left {
         // For zero-padding, preserve leading sign character.
-        if pad == b'0' && !content.is_empty()
-            && (content[0] == b'-' || content[0] == b'+' || content[0] == b' ')
-        {
+        if pad == b'0' && !content.is_empty() && (content[0] == b'-' || content[0] == b'+' || content[0] == b' ') {
             out.push(content[0]);
-            for _ in 0..(width - len) { out.push(pad); }
+            for _ in 0..(width - len) {
+                out.push(pad);
+            }
             out.push_bytes(&content[1..]);
             return;
         }
-        for _ in 0..(width - len) { out.push(pad); }
+        for _ in 0..(width - len) {
+            out.push(pad);
+        }
     }
     out.push_bytes(content);
     if width > len && left {
-        for _ in 0..(width - len) { out.push(b' '); }
+        for _ in 0..(width - len) {
+            out.push(b' ');
+        }
     }
 }
 
@@ -265,16 +287,27 @@ fn fmt_float_fixed(val: f64, prec: usize, force_sign: bool, space_sign: bool) ->
 fn fmt_float_sci(val: f64, prec: usize, upper: bool, force_sign: bool, space_sign: bool) -> String {
     let e = if upper { 'E' } else { 'e' };
     if val == 0.0 {
-        let sign = if force_sign { "+" } else if space_sign { " " } else { "" };
+        let sign = if force_sign {
+            "+"
+        } else if space_sign {
+            " "
+        } else {
+            ""
+        };
         return format!("{sign}0.{:0>w$}{e}+00", "", w = prec);
     }
     let abs = val.abs();
     let exp = abs.log10().floor() as i32;
     let mant = abs / 10f64.powi(exp);
-    let sign = if val < 0.0 { "-" }
-               else if force_sign { "+" }
-               else if space_sign { " " }
-               else { "" };
+    let sign = if val < 0.0 {
+        "-"
+    } else if force_sign {
+        "+"
+    } else if space_sign {
+        " "
+    } else {
+        ""
+    };
     let exp_sign = if exp >= 0 { '+' } else { '-' };
     format!("{sign}{mant:.prec$}{e}{exp_sign}{:02}", exp.unsigned_abs())
 }
@@ -282,7 +315,13 @@ fn fmt_float_sci(val: f64, prec: usize, upper: bool, force_sign: bool, space_sig
 fn fmt_float_general(val: f64, prec: usize, upper: bool, force_sign: bool, space_sign: bool) -> String {
     let prec = prec.max(1);
     if val == 0.0 {
-        let sign = if force_sign { "+" } else if space_sign { " " } else { "" };
+        let sign = if force_sign {
+            "+"
+        } else if space_sign {
+            " "
+        } else {
+            ""
+        };
         return format!("{sign}0");
     }
     let abs = val.abs();
@@ -298,11 +337,7 @@ fn fmt_float_general(val: f64, prec: usize, upper: bool, force_sign: bool, space
         let e_pos = s.find(if upper { 'E' } else { 'e' });
         let end = e_pos.unwrap_or(s.len());
         let trail_start = s[dot..end].trim_end_matches('0').len() + dot;
-        let trail_start = if s.as_bytes().get(trail_start - 1) == Some(&b'.') {
-            trail_start - 1
-        } else {
-            trail_start
-        };
+        let trail_start = if s.as_bytes().get(trail_start - 1) == Some(&b'.') { trail_start - 1 } else { trail_start };
         if trail_start < end {
             s.replace_range(trail_start..end, "");
         }
@@ -315,13 +350,11 @@ fn fmt_float_general(val: f64, prec: usize, upper: bool, force_sign: bool, space
 // ----------------------------------------------
 
 #[unsafe(no_mangle)]
-pub unsafe extern "C" fn c_vsnprintf(buf: *mut u8,
-                                     size: usize,
-                                     fmt: *const u8,
-                                     ap: *const u8) -> i32
-{
+pub unsafe extern "C" fn c_vsnprintf(buf: *mut u8, size: usize, fmt: *const u8, ap: *const u8) -> i32 {
     unsafe {
-        if buf.is_null() || size == 0 { return 0; }
+        if buf.is_null() || size == 0 {
+            return 0;
+        }
 
         let mut out = BufWriter::new(buf, size);
         let mut va = VaReader::new(ap);
@@ -334,8 +367,14 @@ pub unsafe extern "C" fn c_vsnprintf(buf: *mut u8,
                 continue;
             }
             p = p.add(1);
-            if *p == 0 { break; }
-            if *p == b'%' { out.push(b'%'); p = p.add(1); continue; }
+            if *p == 0 {
+                break;
+            }
+            if *p == b'%' {
+                out.push(b'%');
+                p = p.add(1);
+                continue;
+            }
 
             // -- Flags --
             let mut left = false;
@@ -345,12 +384,12 @@ pub unsafe extern "C" fn c_vsnprintf(buf: *mut u8,
             let mut alt = false;
             loop {
                 match *p {
-                    b'-' => left  = true,
-                    b'+' => sign  = true,
+                    b'-' => left = true,
+                    b'+' => sign = true,
                     b' ' => space = true,
-                    b'0' => zero  = true,
-                    b'#' => alt   = true,
-                    _    => break,
+                    b'0' => zero = true,
+                    b'#' => alt = true,
+                    _ => break,
                 }
                 p = p.add(1);
             }
@@ -390,15 +429,22 @@ pub unsafe extern "C" fn c_vsnprintf(buf: *mut u8,
             let mut long_count: u8 = 0;
             loop {
                 match *p {
-                    b'l' => { long_count += 1; p = p.add(1); }
-                    b'h' | b'z' | b'j' | b't' => { p = p.add(1); }
+                    b'l' => {
+                        long_count += 1;
+                        p = p.add(1);
+                    }
+                    b'h' | b'z' | b'j' | b't' => {
+                        p = p.add(1);
+                    }
                     _ => break,
                 }
             }
 
             // -- Conversion --
             let conv = *p;
-            if conv == 0 { break; }
+            if conv == 0 {
+                break;
+            }
             p = p.add(1);
 
             let pad = if zero && !left { b'0' } else { b' ' };
@@ -486,10 +532,7 @@ pub unsafe extern "C" fn c_vsnprintf(buf: *mut u8,
 // On wasm32, variadic args are passed as extra WASM function parameters.
 
 #[unsafe(no_mangle)]
-pub unsafe extern "C" fn c_sscanf(str_ptr: *const u8,
-                                  fmt_ptr: *const u8,
-                                  out_ptr: *mut u8) -> i32
-{
+pub unsafe extern "C" fn c_sscanf(str_ptr: *const u8, fmt_ptr: *const u8, out_ptr: *mut u8) -> i32 {
     unsafe {
         let input = c_str_bytes(str_ptr);
         let fmt = c_str_bytes(fmt_ptr);
@@ -501,19 +544,32 @@ pub unsafe extern "C" fn c_sscanf(str_ptr: *const u8,
         let mut fp = 0;
 
         // Skip literal chars / whitespace in format.
-        while fp < fmt.len() && fmt[fp] != b'%' { fp += 1; }
-        if fp >= fmt.len() { return 0; }
+        while fp < fmt.len() && fmt[fp] != b'%' {
+            fp += 1;
+        }
+        if fp >= fmt.len() {
+            return 0;
+        }
         fp += 1; // skip '%'
 
         // Skip flags/width (not typically used in sscanf by imgui, but be safe).
-        while fp < fmt.len() && (fmt[fp] == b'*' || fmt[fp].is_ascii_digit()) { fp += 1; }
+        while fp < fmt.len() && (fmt[fp] == b'*' || fmt[fp].is_ascii_digit()) {
+            fp += 1;
+        }
 
         // Length modifier.
         let mut is_long = false;
-        if fp < fmt.len() && fmt[fp] == b'l' { is_long = true; fp += 1; }
-        if fp < fmt.len() && fmt[fp] == b'l' { fp += 1; } // skip second 'l'
+        if fp < fmt.len() && fmt[fp] == b'l' {
+            is_long = true;
+            fp += 1;
+        }
+        if fp < fmt.len() && fmt[fp] == b'l' {
+            fp += 1;
+        } // skip second 'l'
 
-        if fp >= fmt.len() { return 0; }
+        if fp >= fmt.len() {
+            return 0;
+        }
         let conv = fmt[fp];
 
         // Convert input bytes to a str for parsing.
@@ -547,9 +603,7 @@ pub unsafe extern "C" fn c_sscanf(str_ptr: *const u8,
                 0
             }
             b'x' | b'X' => {
-                let hex_str = input_str.strip_prefix("0x")
-                    .or_else(|| input_str.strip_prefix("0X"))
-                    .unwrap_or(input_str);
+                let hex_str = input_str.strip_prefix("0x").or_else(|| input_str.strip_prefix("0X")).unwrap_or(input_str);
                 if let Ok(val) = u32::from_str_radix(hex_str, 16) {
                     *(out_ptr as *mut u32) = val;
                     return 1;

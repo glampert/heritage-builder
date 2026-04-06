@@ -1,6 +1,8 @@
-use std::{io, path::Path, any::Any};
+use std::{any::Any, io, path::Path};
+
 use enum_dispatch::enum_dispatch;
-use serde::{de::DeserializeOwned, Serialize};
+use serde::{Serialize, de::DeserializeOwned};
+
 use crate::file_sys;
 
 pub mod storage;
@@ -17,19 +19,24 @@ pub trait SaveState: Any {
     fn as_any(&self) -> &dyn Any;
 
     fn save<T>(&mut self, instance: &T) -> SaveResult
-        where T: Serialize;
+    where
+        T: Serialize;
 
     fn load<T>(&self, instance: &mut T) -> LoadResult
-        where T: DeserializeOwned;
+    where
+        T: DeserializeOwned;
 
     fn load_new_instance<T>(&self) -> Result<T, String>
-        where T: DeserializeOwned;
+    where
+        T: DeserializeOwned;
 
     fn read_file<P>(&mut self, path: P) -> io::Result<()>
-        where P: AsRef<Path>;
+    where
+        P: AsRef<Path>;
 
     fn write_file<P>(&self, path: P) -> io::Result<()>
-        where P: AsRef<Path>;
+    where
+        P: AsRef<Path>;
 }
 
 #[enum_dispatch]
@@ -66,15 +73,10 @@ impl SaveState for JsonSaveState {
     }
 
     fn save<T>(&mut self, instance: &T) -> SaveResult
-        where T: Serialize
+    where
+        T: Serialize,
     {
-        let result = {
-            if self.pretty {
-                serde_json::to_string_pretty(instance)
-            } else {
-                serde_json::to_string(instance)
-            }
-        };
+        let result = { if self.pretty { serde_json::to_string_pretty(instance) } else { serde_json::to_string(instance) } };
 
         let json = match result {
             Ok(json) => json,
@@ -86,7 +88,8 @@ impl SaveState for JsonSaveState {
     }
 
     fn load<T>(&self, instance: &mut T) -> LoadResult
-        where T: DeserializeOwned
+    where
+        T: DeserializeOwned,
     {
         // Load in place:
         *instance = self.load_new_instance()?;
@@ -94,7 +97,8 @@ impl SaveState for JsonSaveState {
     }
 
     fn load_new_instance<T>(&self) -> Result<T, String>
-        where T: DeserializeOwned
+    where
+        T: DeserializeOwned,
     {
         if self.buffer.is_empty() {
             return Err("JsonSaveState has no state to load!".into());
@@ -107,14 +111,16 @@ impl SaveState for JsonSaveState {
     }
 
     fn read_file<P>(&mut self, path: P) -> io::Result<()>
-        where P: AsRef<Path>
+    where
+        P: AsRef<Path>,
     {
         self.buffer = file_sys::load_string(path)?;
         Ok(())
     }
 
     fn write_file<P>(&self, path: P) -> io::Result<()>
-        where P: AsRef<Path>
+    where
+        P: AsRef<Path>,
     {
         file_sys::write_file(path, &self.buffer)
     }

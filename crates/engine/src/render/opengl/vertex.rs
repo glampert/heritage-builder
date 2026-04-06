@@ -1,5 +1,6 @@
-use super::buffer::{VertexElementDef, VertexTrait};
 use common::{Color, Vec2};
+
+use super::buffer::{VertexElementDef, VertexTrait};
 use crate::render;
 
 // ----------------------------------------------
@@ -25,7 +26,9 @@ impl VertexTrait for SpriteVertex2D {
         ]
     }
 
-    fn stride() -> usize { std::mem::size_of::<Self>() }
+    fn stride() -> usize {
+        std::mem::size_of::<Self>()
+    }
 }
 
 // ----------------------------------------------
@@ -51,7 +54,9 @@ impl VertexTrait for LineVertex2D {
         ]
     }
 
-    fn stride() -> usize { std::mem::size_of::<Self>() }
+    fn stride() -> usize {
+        std::mem::size_of::<Self>()
+    }
 }
 
 // ----------------------------------------------
@@ -80,7 +85,9 @@ impl VertexTrait for PointVertex2D {
         ]
     }
 
-    fn stride() -> usize { std::mem::size_of::<Self>() }
+    fn stride() -> usize {
+        std::mem::size_of::<Self>()
+    }
 }
 
 // ----------------------------------------------
@@ -99,5 +106,7 @@ impl VertexTrait for render::UiDrawVertex {
         ]
     }
 
-    fn stride() -> usize { std::mem::size_of::<Self>() }
+    fn stride() -> usize {
+        std::mem::size_of::<Self>()
+    }
 }

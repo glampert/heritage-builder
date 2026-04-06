@@ -1,11 +1,14 @@
-use bitflags::bitflags;
 use arrayvec::ArrayVec;
-use strum::{EnumCount, EnumProperty, EnumIter, IntoEnumIterator};
+use bitflags::bitflags;
+use common::{
+    singleton_late_init,
+    time::{self, Seconds},
+};
+use strum::{EnumCount, EnumIter, EnumProperty, IntoEnumIterator};
 
-use common::{singleton_late_init, time::{self, Seconds}};
 use crate::{
-    sound::{SoundSystem, SoundHandle, SoundKind, SoundKey, SfxSoundKey},
-    file_sys::paths::{PathRef, AssetPath},
+    file_sys::paths::{AssetPath, PathRef},
+    sound::{SfxSoundKey, SoundHandle, SoundKey, SoundKind, SoundSystem},
 };
 
 // ----------------------------------------------
@@ -72,17 +75,10 @@ pub fn initialize(sound_sys: &mut SoundSystem) {
 //  - If no other UI sound is currently playing (GloballyExclusive).
 //  - If the global cooldown time has elapsed since last call to play().
 pub fn play(sound_sys: &mut SoundSystem, sound_key: UiSoundKey) {
-    play_with_opts(sound_sys,
-                   sound_key,
-                   UI_SOUND_DEFAULT_COOLDOWN,
-                   UiPlaySoundFlags::GloballyExclusive);
+    play_with_opts(sound_sys, sound_key, UI_SOUND_DEFAULT_COOLDOWN, UiPlaySoundFlags::GloballyExclusive);
 }
 
-pub fn play_with_opts(sound_sys: &mut SoundSystem,
-                      sound_key: UiSoundKey,
-                      cooldown: Seconds,
-                      flags: UiPlaySoundFlags)
-{
+pub fn play_with_opts(sound_sys: &mut SoundSystem, sound_key: UiSoundKey, cooldown: Seconds, flags: UiPlaySoundFlags) {
     UiSoundManagerSingleton::get_mut().play_with_opts(sound_sys, sound_key, cooldown, flags);
 }
 
@@ -109,7 +105,7 @@ impl UiSound {
         Self {
             key: sound_sys.load_sfx((&path).into()),
             handle: SoundHandle::invalid(SoundKind::Sfx), // Handle set when we first play the sound.
-            last_play_time: None, // Never played.
+            last_play_time: None,                         // Never played.
             cooldown,
         }
     }
@@ -175,15 +171,14 @@ impl UiSoundManagerSingleton {
         Self { sounds }
     }
 
-    fn play_with_opts(&mut self,
-                      sound_sys: &mut SoundSystem,
-                      sound_key: UiSoundKey,
-                      cooldown: Seconds,
-                      flags: UiPlaySoundFlags)
-    {
-        if flags.intersects(UiPlaySoundFlags::GloballyExclusive)
-            && self.is_any_playing(sound_sys)
-        {
+    fn play_with_opts(
+        &mut self,
+        sound_sys: &mut SoundSystem,
+        sound_key: UiSoundKey,
+        cooldown: Seconds,
+        flags: UiPlaySoundFlags,
+    ) {
+        if flags.intersects(UiPlaySoundFlags::GloballyExclusive) && self.is_any_playing(sound_sys) {
             return;
         }
 

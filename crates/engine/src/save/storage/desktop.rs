@@ -19,16 +19,11 @@ impl SaveGameStorageBackend for FileSysSaveGameStorageBackend {
     }
 
     fn list_save_files(&self) -> Vec<PathBuf> {
-        let files = file_sys::collect_files(
-            self.save_files_path(),
-            file_sys::CollectFlags::FilenamesOnly,
-            Some("json")
-        ).unwrap_or_default();
+        let files = file_sys::collect_files(self.save_files_path(), file_sys::CollectFlags::FilenamesOnly, Some("json"))
+            .unwrap_or_default();
 
         // Strip file extension:
-        files.iter()
-             .map(|path| path.with_extension(""))
-             .collect()
+        files.iter().map(|path| path.with_extension("")).collect()
     }
 
     fn can_write_save_file(&self, save_file: PathRef) -> bool {
@@ -43,7 +38,8 @@ impl SaveGameStorageBackend for FileSysSaveGameStorageBackend {
     }
 
     fn load_save_file<T>(&self, save_file: PathRef) -> Result<T, String>
-        where T: DeserializeOwned
+    where
+        T: DeserializeOwned,
     {
         let absolute_path = self.make_absolute_save_path(save_file);
         let mut state = new_json_save_state(false);
@@ -60,7 +56,8 @@ impl SaveGameStorageBackend for FileSysSaveGameStorageBackend {
     }
 
     fn write_save_file<T>(&self, save_file: PathRef, instance: &T) -> SaveResult
-        where T: Serialize
+    where
+        T: Serialize,
     {
         let absolute_path = self.make_absolute_save_path(save_file);
 
@@ -84,8 +81,7 @@ impl SaveGameStorageBackend for FileSysSaveGameStorageBackend {
     fn delete_save_file(&self, save_file: PathRef) -> SaveResult {
         let absolute_path = self.make_absolute_save_path(save_file);
 
-        file_sys::remove_file(&absolute_path)
-            .map_err(|err| format!("Failed to delete save file '{absolute_path}': {err}"))
+        file_sys::remove_file(&absolute_path).map_err(|err| format!("Failed to delete save file '{absolute_path}': {err}"))
     }
 }
 
