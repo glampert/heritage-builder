@@ -1,5 +1,5 @@
 [package]
-name = "web-builder"
+name    = "web-builder"
 authors = ["Core System"]
 version = "0.1.0"
 edition = "2024"

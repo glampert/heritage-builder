@@ -25,7 +25,7 @@ web = [
 [dependencies]
 common         = { path = "../common", default-features = false }
 engine         = { path = "../engine", default-features = false }
-proc_macros    = { path = "../../proc_macros" }
+proc_macros    = { path = "../proc_macros" }
 
 # Game-specific deps:
 bitflags       = { version = "2.9.0",   features = ["serde"] }

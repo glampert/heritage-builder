@@ -22,8 +22,8 @@ fn main() {
         }
     };
 
-    let game_dir = Path::new("../game");
-    if !game_dir.exists() {
+    let working_dir = Path::new("../../crates/launcher");
+    if !working_dir.exists() {
         panic!("❌ Run this tool from `<project_root>/game` directory or adjust path!");
     };
 
@@ -35,7 +35,7 @@ fn main() {
     if let Some(flag) = release_flag {
         build_cmd.arg(flag);
     }
-    build_cmd.current_dir(game_dir);
+    build_cmd.current_dir(working_dir);
 
     if !build_cmd.status().expect("❌ Failed to run cargo build").success() {
         panic!("❌ Cargo build failed!");
@@ -47,14 +47,14 @@ fn main() {
     if let Some(flag) = release_flag {
         bundle_cmd.arg(flag);
     }
-    bundle_cmd.current_dir(game_dir);
+    bundle_cmd.current_dir(working_dir);
 
     if !bundle_cmd.status().expect("❌ Failed to run cargo bundle").success() {
         panic!("❌ Cargo bundle failed!");
     }
 
     // Step 3: Copy assets:
-    let bundle_resources_dir = Path::new("../")
+    let bundle_resources_dir = Path::new("../../")
         .join("target")
         .join(bundle_kind)
         .join("bundle")
@@ -63,7 +63,7 @@ fn main() {
         .join("Contents/Resources");
 
     if bundle_resources_dir.exists() {
-        let assets_src = Path::new("../").join(ASSETS_DIR);
+        let assets_src = Path::new("../../").join(ASSETS_DIR);
         println!("📦 Copying assets from {:?} to {:?}", assets_src, bundle_resources_dir);
         copy_dir_recursive(&assets_src, &bundle_resources_dir.join(ASSETS_DIR));
     } else {

@@ -4,8 +4,8 @@ members = [
     "crates/common",
     "crates/engine",
     "crates/game",
-    "tools/bundler",
-    "tools/web-builder",
-    "proc_macros",
-    "game"
+    "crates/launcher",
+    "crates/proc_macros",
+    "crates/tools/bundler",
+    "crates/tools/web-builder",
 ]

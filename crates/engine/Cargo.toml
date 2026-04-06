@@ -36,7 +36,7 @@ web = [
 
 [dependencies]
 common         = { path = "../common", default-features = false }
-proc_macros    = { path = "../../proc_macros" }
+proc_macros    = { path = "../proc_macros" }
 pollster       = { version = "0.4",  optional = true }
 bytemuck       = { version = "1.21", features = ["derive"] }
 wgpu           = "28.0.0"

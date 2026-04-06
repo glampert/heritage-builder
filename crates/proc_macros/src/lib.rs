@@ -1,6 +1,3 @@
-// NOTE: Allow for the whole crate.
-#![allow(clippy::collapsible_if)]
-
 mod debug_ui;
 
 // Procedural macro that implements the `#[derive(DrawDebugUi)]` annotation.

@@ -1,5 +1,5 @@
 [package]
-name = "bundler"
+name    = "bundler"
 authors = ["Core System"]
 version = "0.1.0"
 edition = "2024"

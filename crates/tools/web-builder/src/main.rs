@@ -247,7 +247,7 @@ fn run_wasm_bindgen(project_root: &Path, release: bool) {
         .expect("❌ Failed to run wasm-bindgen. Install it: cargo install wasm-bindgen-cli");
 
     if !status.success() {
-        panic!("❌ wasm-bindgen failed!");
+        panic!("❌ wasm-bindgen failed! - {status}");
     }
 
     println!("   Output: {}", out_dir.display());

@@ -1,5 +1,3 @@
-#![allow(unused_imports)]
-
 use strum::Display;
 use crate::{log, file_sys::paths};
 

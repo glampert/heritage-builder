@@ -40,15 +40,15 @@ web = [
 # ----------------------------
 
 [dependencies]
-common = { path = "../crates/common", default-features = false }
-engine = { path = "../crates/engine", default-features = false }
-game   = { path = "../crates/game",   default-features = false }
+common = { path = "../common", default-features = false }
+engine = { path = "../engine", default-features = false }
+game   = { path = "../game",   default-features = false }
 
 # ----------------------------
 #    Bundle/Package Builds
 # ----------------------------
 
-# Invoke these **from the game/ directory** after cargo build:
+# Invoke these from the `crates/launcher` directory after cargo build:
 #
 #  `cargo run -p bundler -- debug`
 #  `cargo run -p bundler -- release`
@@ -61,7 +61,7 @@ game   = { path = "../crates/game",   default-features = false }
 [package.metadata.bundle]
 name              = "Heritage Builder"
 identifier        = "com.coresystem.heritagebuilder"
-icon              = ["../assets/ui/icons/app_icon.png"]
+icon              = ["../../assets/ui/icons/app_icon.png"]
 version           = "0.1.0" # NOTE: Keep in sync with [package] version
 category          = "Game"
 resources         = ["assets"]
