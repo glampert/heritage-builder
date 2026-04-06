@@ -3,23 +3,36 @@
 use core::{iter, slice};
 use bitvec::vec::BitVec;
 use serde::{
+    Deserialize,
+    Deserializer,
+    Serialize,
+    Serializer,
     de::{SeqAccess, Visitor},
     ser::SerializeSeq,
-    Deserialize, Deserializer, Serialize, Serializer,
 };
 
-use super::stats::WorldStats;
+use common::coords::{Cell, CellRange, WorldToScreenTransform};
 use engine::{log, ui::UiSystem};
-use crate::save_context::PostLoadContext;
-use common::{coords::{Cell, CellRange, WorldToScreenTransform}};
+
+use super::stats::WorldStats;
 use crate::{
+    building::Building,
+    cheats,
+    constants::*,
     debug::DebugUiMode,
+    prop::Prop,
+    save_context::PostLoadContext,
+    sim::SimContext,
     tile::{
-    Tile, TileKind, TileFlags, TileMapLayerKind,
-    sets::{TileDef, PresetTiles},
-    placement::{self, TilePlacementErr, TileClearingErr, Placement},
+        Tile,
+        TileFlags,
+        TileKind,
+        TileMapLayerKind,
+        placement::{self, Placement, TileClearingErr, TilePlacementErr},
+        sets::{PresetTiles, TileDef},
     },
-    { cheats, constants::*, sim::SimContext, prop::Prop, building::Building, undo_redo::GameObjectSavedState, unit::{config::UnitConfigKey, Unit}, },
+    undo_redo::GameObjectSavedState,
+    unit::{Unit, config::UnitConfigKey},
 };
 
 // ----------------------------------------------
@@ -103,20 +116,17 @@ pub trait GameObject {
         None
     }
 
-    fn undo_redo_apply(&mut self, _state: &dyn GameObjectSavedState) {
-    }
+    fn undo_redo_apply(&mut self, _state: &dyn GameObjectSavedState) {}
 
     // Debug:
-    fn draw_debug_ui(&mut self,
-                     context: &SimContext,
-                     ui_sys: &UiSystem,
-                     mode: DebugUiMode);
-
-    fn draw_debug_popups(&mut self,
-                         context: &SimContext,
-                         ui_sys: &UiSystem,
-                         transform: WorldToScreenTransform,
-                         visible_range: CellRange);
+    fn draw_debug_ui(&mut self, context: &SimContext, ui_sys: &UiSystem, mode: DebugUiMode);
+    fn draw_debug_popups(
+        &mut self,
+        context: &SimContext,
+        ui_sys: &UiSystem,
+        transform: WorldToScreenTransform,
+        visible_range: CellRange,
+    );
 }
 
 // ----------------------------------------------
@@ -172,7 +182,9 @@ impl<'a, T> Iterator for SpawnPoolIterMut<'a, T> {
 
 impl<T> iter::FusedIterator for SpawnPoolIterMut<'_, T> {}
 
-impl<T> SpawnPool<T> where T: GameObject + Clone + Default
+impl<T> SpawnPool<T>
+where
+    T: GameObject + Clone + Default,
 {
     pub fn new(capacity: usize, generation: u32) -> Self {
         let default_instance = T::default();
@@ -185,7 +197,8 @@ impl<T> SpawnPool<T> where T: GameObject + Clone + Default
     }
 
     pub fn clear<F>(&mut self, context: &SimContext, on_despawned_fn: F)
-        where F: Fn(&mut T, &SimContext)
+    where
+        F: Fn(&mut T, &SimContext),
     {
         debug_assert!(self.is_valid());
 
@@ -198,7 +211,8 @@ impl<T> SpawnPool<T> where T: GameObject + Clone + Default
     }
 
     pub fn spawn<F>(&mut self, context: &SimContext, on_spawned_fn: F) -> &mut T
-        where F: FnOnce(&mut T, &SimContext, GenerationalIndex)
+    where
+        F: FnOnce(&mut T, &SimContext, GenerationalIndex),
     {
         debug_assert!(self.is_valid());
 
@@ -210,9 +224,7 @@ impl<T> SpawnPool<T> where T: GameObject + Clone + Default
             let recycled_instance = &mut self.instances[recycled_index];
 
             debug_assert!(!recycled_instance.is_spawned());
-            on_spawned_fn(recycled_instance,
-                          context,
-                          GenerationalIndex::new(generation, recycled_index));
+            on_spawned_fn(recycled_instance, context, GenerationalIndex::new(generation, recycled_index));
 
             self.spawned.set(recycled_index, true);
             self.peak = self.peak.max(self.spawned.count_ones());
@@ -235,7 +247,8 @@ impl<T> SpawnPool<T> where T: GameObject + Clone + Default
     }
 
     pub fn despawn<F>(&mut self, instance: &mut T, context: &SimContext, on_despawned_fn: F)
-        where F: FnOnce(&mut T, &SimContext)
+    where
+        F: FnOnce(&mut T, &SimContext),
     {
         debug_assert!(self.is_valid());
         debug_assert!(instance.is_spawned());
@@ -357,17 +370,22 @@ struct SpawnPoolSerializedHeader {
     generation: u32,
 }
 
-impl<T> Serialize for SpawnPool<T> where T: GameObject + Clone + Default + Serialize
+impl<T> Serialize for SpawnPool<T>
+where
+    T: GameObject + Clone + Default + Serialize,
 {
     fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
-        where S: Serializer
+    where
+        S: Serializer,
     {
         debug_assert!(self.is_valid());
         debug_assert!(self.generation != RESERVED_GENERATION);
 
-        let header = SpawnPoolSerializedHeader { spawned_count: self.spawned_count(),
-                                                 instance_count: self.instances.len(),
-                                                 generation: self.generation };
+        let header = SpawnPoolSerializedHeader {
+            spawned_count: self.spawned_count(),
+            instance_count: self.instances.len(),
+            generation: self.generation,
+        };
 
         let mut serialized_count = 0;
 
@@ -389,9 +407,11 @@ impl<T> Serialize for SpawnPool<T> where T: GameObject + Clone + Default + Seria
         }
 
         if header.spawned_count != serialized_count {
-            log::error!("Expected to serialize {} spawned instances but found {} instead.",
-                        header.spawned_count,
-                        serialized_count);
+            log::error!(
+                "Expected to serialize {} spawned instances but found {} instead.",
+                header.spawned_count,
+                serialized_count
+            );
             return Err(serde::ser::Error::custom("unexpected number of GameObject instances found"));
         }
 
@@ -400,17 +420,20 @@ impl<T> Serialize for SpawnPool<T> where T: GameObject + Clone + Default + Seria
 }
 
 impl<'de, T> Deserialize<'de> for SpawnPool<T>
-    where T: GameObject + Clone + Default + Deserialize<'de>
+where
+    T: GameObject + Clone + Default + Deserialize<'de>,
 {
     fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
-        where D: Deserializer<'de>
+    where
+        D: Deserializer<'de>,
     {
         struct PoolVisitor<T> {
             marker: std::marker::PhantomData<T>,
         }
 
         impl<'de, T> Visitor<'de> for PoolVisitor<T>
-            where T: GameObject + Clone + Default + Deserialize<'de>
+        where
+            T: GameObject + Clone + Default + Deserialize<'de>,
         {
             type Value = SpawnPool<T>;
 
@@ -419,15 +442,14 @@ impl<'de, T> Deserialize<'de> for SpawnPool<T>
             }
 
             fn visit_seq<A>(self, mut seq: A) -> Result<Self::Value, A::Error>
-                where A: SeqAccess<'de>
+            where
+                A: SeqAccess<'de>,
             {
                 // First element: info header
-                let header: SpawnPoolSerializedHeader = seq
-                    .next_element()?
-                    .ok_or_else(|| {
-                        log::error!("Failed to deserialize SpawnPoolSerializedHeader!");
-                        serde::de::Error::custom("missing SpawnPoolSerializedHeader")
-                    })?;
+                let header: SpawnPoolSerializedHeader = seq.next_element()?.ok_or_else(|| {
+                    log::error!("Failed to deserialize SpawnPoolSerializedHeader!");
+                    serde::de::Error::custom("missing SpawnPoolSerializedHeader")
+                })?;
 
                 if header.instance_count == 0 {
                     return Err(serde::de::Error::custom("SpawnPoolSerializedHeader::instance_count == 0"));
@@ -465,7 +487,11 @@ impl<'de, T> Deserialize<'de> for SpawnPool<T>
                 }
 
                 if header.spawned_count != deserialized_count {
-                    log::error!("Expected to deserialize {} spawned instanced but found {} instead.", header.instance_count, deserialized_count);
+                    log::error!(
+                        "Expected to deserialize {} spawned instanced but found {} instead.",
+                        header.instance_count,
+                        deserialized_count
+                    );
                     return Err(serde::de::Error::custom("unexpected number of GameObject instances found"));
                 }
 
@@ -512,11 +538,7 @@ impl SpawnerResult<'_> {
 impl<'game> Spawner<'game> {
     #[inline]
     pub fn new(context: &'game SimContext) -> Self {
-        Self {
-            context,
-            subtract_tile_cost: true,
-            restore_tile_cost: false,
-        }
+        Self { context, subtract_tile_cost: true, restore_tile_cost: false }
     }
 
     #[inline]
@@ -531,10 +553,7 @@ impl<'game> Spawner<'game> {
 
     // Spawn a GameObject (Building, Unit, Prop) or place a Tile
     // without any associated game state.
-    pub fn try_spawn_tile_with_def(&self,
-                                   target_cell: Cell,
-                                   tile_def: &'static TileDef)
-                                   -> SpawnerResult<'_> {
+    pub fn try_spawn_tile_with_def(&self, target_cell: Cell, tile_def: &'static TileDef) -> SpawnerResult<'_> {
         debug_assert!(target_cell.is_valid());
         debug_assert!(tile_def.is_valid());
 
@@ -602,18 +621,17 @@ impl<'game> Spawner<'game> {
     // Buildings:
     // ----------------------
 
-    pub fn try_spawn_building_with_tile_def(&self,
-                                            building_base_cell: Cell,
-                                            building_tile_def: &'static TileDef)
-                                            -> Result<&'game mut Building, TilePlacementErr> {
+    pub fn try_spawn_building_with_tile_def(
+        &self,
+        building_base_cell: Cell,
+        building_tile_def: &'static TileDef,
+    ) -> Result<&'game mut Building, TilePlacementErr> {
         if !self.can_afford_tile(building_tile_def) {
             return cost_error(building_tile_def);
         }
 
         let result =
-            self.context.world_mut().try_spawn_building_with_tile_def(self.context,
-                                                                      building_base_cell,
-                                                                      building_tile_def);
+            self.context.world_mut().try_spawn_building_with_tile_def(self.context, building_base_cell, building_tile_def);
 
         if let Ok(ref building) = result {
             self.subtract_tile_cost(building_tile_def);
@@ -639,16 +657,16 @@ impl<'game> Spawner<'game> {
     // Units:
     // ----------------------
 
-    pub fn try_spawn_unit_with_tile_def(&self,
-                                        unit_origin: Cell,
-                                        unit_tile_def: &'static TileDef)
-                                        -> Result<&'game mut Unit, TilePlacementErr> {
+    pub fn try_spawn_unit_with_tile_def(
+        &self,
+        unit_origin: Cell,
+        unit_tile_def: &'static TileDef,
+    ) -> Result<&'game mut Unit, TilePlacementErr> {
         if !self.can_afford_tile(unit_tile_def) {
             return cost_error(unit_tile_def);
         }
 
-        let result =
-            self.context.world_mut().try_spawn_unit_with_tile_def(self.context, unit_origin, unit_tile_def);
+        let result = self.context.world_mut().try_spawn_unit_with_tile_def(self.context, unit_origin, unit_tile_def);
 
         if result.is_ok() {
             self.subtract_tile_cost(unit_tile_def);
@@ -657,10 +675,11 @@ impl<'game> Spawner<'game> {
         result
     }
 
-    pub fn try_spawn_unit_with_config(&self,
-                                      unit_origin: Cell,
-                                      unit_config_key: UnitConfigKey)
-                                      -> Result<&'game mut Unit, TilePlacementErr> {
+    pub fn try_spawn_unit_with_config(
+        &self,
+        unit_origin: Cell,
+        unit_config_key: UnitConfigKey,
+    ) -> Result<&'game mut Unit, TilePlacementErr> {
         // NOTE: No affordability check needed here. This is only
         // used by dynamically spawned units, which have no cost.
 
@@ -683,16 +702,16 @@ impl<'game> Spawner<'game> {
     // Props:
     // ----------------------
 
-    pub fn try_spawn_prop_with_tile_def(&self,
-                                        prop_base_cell: Cell,
-                                        prop_tile_def: &'static TileDef)
-                                        -> Result<&'game mut Prop, TilePlacementErr> {
+    pub fn try_spawn_prop_with_tile_def(
+        &self,
+        prop_base_cell: Cell,
+        prop_tile_def: &'static TileDef,
+    ) -> Result<&'game mut Prop, TilePlacementErr> {
         if !self.can_afford_tile(prop_tile_def) {
             return cost_error(prop_tile_def);
         }
 
-        let result =
-            self.context.world_mut().try_spawn_prop_with_tile_def(self.context, prop_base_cell, prop_tile_def);
+        let result = self.context.world_mut().try_spawn_prop_with_tile_def(self.context, prop_base_cell, prop_tile_def);
 
         if result.is_ok() {
             self.subtract_tile_cost(prop_tile_def);
@@ -740,18 +759,13 @@ impl<'game> Spawner<'game> {
     }
 
     #[inline]
-    fn try_place_tile_with_def(&self,
-                               target_cell: Cell,
-                               tile_def: &'static TileDef)
-                               -> Result<&mut Tile, TilePlacementErr> {
+    fn try_place_tile_with_def(&self, target_cell: Cell, tile_def: &'static TileDef) -> Result<&mut Tile, TilePlacementErr> {
         if !self.can_afford_tile(tile_def) {
             return cost_error(tile_def);
         }
 
-        let prev_tile_def = self.context
-                                .tile_map()
-                                .try_tile_from_layer(target_cell, tile_def.layer_kind())
-                                .map(|tile| tile.tile_def());
+        let prev_tile_def =
+            self.context.tile_map().try_tile_from_layer(target_cell, tile_def.layer_kind()).map(|tile| tile.tile_def());
 
         match self.context.tile_map_mut().try_place_tile(target_cell, tile_def) {
             Ok(tile) => {

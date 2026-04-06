@@ -2,18 +2,19 @@
 
 use bitflags::bitflags;
 use smallvec::SmallVec;
-
-use super::{
-    road,
-    Tile,
-    TileFlags,
-    TileKind,
-    TileMap,
-    TileMapLayerKind,
-    TileDepthSortOverride,
+use common::{
+    Color,
+    Vec2,
+    constants::*,
+    coords::{self, CellRange, IsoPointF32, WorldToScreenTransform},
+    mem::RawPtr,
 };
-use engine::{ui::UiSystem, render::{RenderSystem, debug::DebugDraw}};
-use common::{ constants::*, mem::RawPtr, Color, Vec2, coords::{self, CellRange, WorldToScreenTransform, IsoPointF32}, };
+use engine::{
+    render::{RenderSystem, debug::DebugDraw},
+    ui::UiSystem,
+};
+
+use super::{Tile, TileDepthSortOverride, TileFlags, TileKind, TileMap, TileMapLayerKind, road};
 use crate::debug::{self};
 
 // ----------------------------------------------
@@ -113,7 +114,7 @@ impl TileMapRenderer {
             grid_color,
             grid_line_thickness: grid_line_thickness.clamp(MIN_GRID_LINE_THICKNESS, MAX_GRID_LINE_THICKNESS),
             stats: TileMapRenderStats::default(),
-            temp_tile_sort_list: Vec::with_capacity(512)
+            temp_tile_sort_list: Vec::with_capacity(512),
         }
     }
 
@@ -126,8 +127,7 @@ impl TileMapRenderer {
     }
 
     pub fn set_grid_line_thickness(&mut self, thickness: f32) {
-        self.grid_line_thickness =
-            thickness.clamp(MIN_GRID_LINE_THICKNESS, MAX_GRID_LINE_THICKNESS);
+        self.grid_line_thickness = thickness.clamp(MIN_GRID_LINE_THICKNESS, MAX_GRID_LINE_THICKNESS);
     }
 
     pub fn grid_line_thickness(&self) -> f32 {
@@ -138,22 +138,21 @@ impl TileMapRenderer {
         &self.stats
     }
 
-    pub fn draw_map(&mut self,
-                    render_sys: &mut RenderSystem,
-                    debug_draw: &mut DebugDraw,
-                    ui_sys: &UiSystem,
-                    tile_map: &TileMap,
-                    transform: WorldToScreenTransform,
-                    visible_range: CellRange,
-                    flags: TileMapRenderFlags)
-    {
+    pub fn draw_map(
+        &mut self,
+        render_sys: &mut RenderSystem,
+        debug_draw: &mut DebugDraw,
+        ui_sys: &UiSystem,
+        tile_map: &TileMap,
+        transform: WorldToScreenTransform,
+        visible_range: CellRange,
+        flags: TileMapRenderFlags,
+    ) {
         self.reset_stats();
 
         self.draw_terrain_layer(render_sys, debug_draw, ui_sys, tile_map, transform, visible_range, flags);
 
-        if flags.contains(TileMapRenderFlags::DrawGrid)
-           && !flags.contains(TileMapRenderFlags::DrawGridIgnoreDepth)
-        {
+        if flags.contains(TileMapRenderFlags::DrawGrid) && !flags.contains(TileMapRenderFlags::DrawGridIgnoreDepth) {
             // Draw the grid now so that lines will be on top of the terrain but not on top
             // of buildings.
             self.draw_isometric_grid(render_sys, tile_map, transform, visible_range);
@@ -170,14 +169,16 @@ impl TileMapRenderer {
         self.update_stats();
     }
 
-    fn draw_terrain_layer(&mut self,
-                          render_sys: &mut RenderSystem,
-                          debug_draw: &mut DebugDraw,
-                          ui_sys: &UiSystem,
-                          tile_map: &TileMap,
-                          transform: WorldToScreenTransform,
-                          visible_range: CellRange,
-                          flags: TileMapRenderFlags) {
+    fn draw_terrain_layer(
+        &mut self,
+        render_sys: &mut RenderSystem,
+        debug_draw: &mut DebugDraw,
+        ui_sys: &UiSystem,
+        tile_map: &TileMap,
+        transform: WorldToScreenTransform,
+        visible_range: CellRange,
+        flags: TileMapRenderFlags,
+    ) {
         if !flags.contains(TileMapRenderFlags::DrawTerrain) {
             return;
         }
@@ -206,26 +207,21 @@ impl TileMapRenderer {
                     }
                 }
 
-                Self::draw_tile(render_sys,
-                                debug_draw,
-                                &mut self.stats,
-                                ui_sys,
-                                transform,
-                                tile,
-                                tile_map,
-                                flags);
+                Self::draw_tile(render_sys, debug_draw, &mut self.stats, ui_sys, transform, tile, tile_map, flags);
             }
         }
     }
 
-    fn draw_objects_layer(&mut self,
-                          render_sys: &mut RenderSystem,
-                          debug_draw: &mut DebugDraw,
-                          ui_sys: &UiSystem,
-                          tile_map: &TileMap,
-                          transform: WorldToScreenTransform,
-                          visible_range: CellRange,
-                          flags: TileMapRenderFlags) {
+    fn draw_objects_layer(
+        &mut self,
+        render_sys: &mut RenderSystem,
+        debug_draw: &mut DebugDraw,
+        ui_sys: &UiSystem,
+        tile_map: &TileMap,
+        transform: WorldToScreenTransform,
+        visible_range: CellRange,
+        flags: TileMapRenderFlags,
+    ) {
         if !flags.intersects(TileMapRenderFlags::DrawAllObjects) {
             return;
         }
@@ -262,20 +258,15 @@ impl TileMapRenderer {
         let mut debug_draw_blocker_tile = |cell, tile: &Tile| -> bool {
             let should_draw = {
                 tile.is(TileKind::Blocker)
-                && (tile.has_flags(TileFlags::DrawBlockerInfo)
-                    || flags.contains(TileMapRenderFlags::DrawBlockersTileDebug))
+                    && (tile.has_flags(TileFlags::DrawBlockerInfo)
+                        || flags.contains(TileMapRenderFlags::DrawBlockersTileDebug))
             };
 
             if should_draw {
                 // Debug display for blocker tiles:
                 let tile_iso_pos = coords::cell_to_iso(cell);
                 let tile_screen_rect = coords::iso_to_screen_rect(tile_iso_pos, BASE_TILE_SIZE_I32, transform);
-                debug::utils::draw_tile_debug(debug_draw,
-                                              ui_sys,
-                                              tile_screen_rect,
-                                              transform,
-                                              tile,
-                                              flags);
+                debug::utils::draw_tile_debug(debug_draw, ui_sys, tile_screen_rect, transform, tile, flags);
             }
             should_draw
         };
@@ -296,35 +287,26 @@ impl TileMapRenderer {
             let tile = entry.tile();
             debug_assert!(tile.is(TileKind::Object));
 
-            Self::draw_tile(render_sys,
-                            debug_draw,
-                            &mut self.stats,
-                            ui_sys,
-                            transform,
-                            tile,
-                            tile_map,
-                            flags);
+            Self::draw_tile(render_sys, debug_draw, &mut self.stats, ui_sys, transform, tile, tile_map, flags);
         }
 
         self.stats.tile_sort_list_len += self.temp_tile_sort_list.len() as u32;
         self.temp_tile_sort_list.clear();
     }
 
-    fn draw_isometric_grid(&self,
-                           render_sys: &mut RenderSystem,
-                           tile_map: &TileMap,
-                           transform: WorldToScreenTransform,
-                           visible_range: CellRange) {
+    fn draw_isometric_grid(
+        &self,
+        render_sys: &mut RenderSystem,
+        tile_map: &TileMap,
+        transform: WorldToScreenTransform,
+        visible_range: CellRange,
+    ) {
         // Returns true only if all points are offscreen.
         let viewport = render_sys.viewport();
         let is_fully_offscreen = |points: &[Vec2; 4]| {
             let mut offscreen_count = 0;
             for pt in points {
-                if pt.x < viewport.min.x
-                   || pt.y < viewport.min.y
-                   || pt.x > viewport.max.x
-                   || pt.y > viewport.max.y
-                {
+                if pt.x < viewport.min.x || pt.y < viewport.min.y || pt.x > viewport.max.x || pt.y > viewport.max.y {
                     offscreen_count += 1;
                 }
             }
@@ -363,28 +345,24 @@ impl TileMapRenderer {
 
         // Highlighted on top:
         for points in &highlighted_cells {
-            render_sys.draw_polyline_with_thickness(points,
-                                                    HIGHLIGHT_GRID_COLOR,
-                                                    line_thickness,
-                                                    true);
+            render_sys.draw_polyline_with_thickness(points, HIGHLIGHT_GRID_COLOR, line_thickness, true);
         }
 
         for points in &invalidated_cells {
-            render_sys.draw_polyline_with_thickness(points,
-                                                    INVALID_GRID_COLOR,
-                                                    line_thickness,
-                                                    true);
+            render_sys.draw_polyline_with_thickness(points, INVALID_GRID_COLOR, line_thickness, true);
         }
     }
 
-    fn draw_tile(render_sys: &mut RenderSystem,
-                 debug_draw: &mut DebugDraw,
-                 stats: &mut TileMapRenderStats,
-                 ui_sys: &UiSystem,
-                 transform: WorldToScreenTransform,
-                 tile: &Tile,
-                 tile_map: &TileMap,
-                 flags: TileMapRenderFlags) {
+    fn draw_tile(
+        render_sys: &mut RenderSystem,
+        debug_draw: &mut DebugDraw,
+        stats: &mut TileMapRenderStats,
+        ui_sys: &UiSystem,
+        transform: WorldToScreenTransform,
+        tile: &Tile,
+        tile_map: &TileMap,
+        flags: TileMapRenderFlags,
+    ) {
         debug_assert!(tile.is_valid());
         debug_assert!(!tile.is(TileKind::Blocker));
 
@@ -422,10 +400,12 @@ impl TileMapRenderer {
         debug::utils::draw_tile_debug(debug_draw, ui_sys, tile_screen_rect, transform, tile, flags);
     }
 
-    fn draw_road_placement_overlay(render_sys: &mut RenderSystem,
-                                   transform: WorldToScreenTransform,
-                                   tile: &Tile,
-                                   tile_map: &TileMap) {
+    fn draw_road_placement_overlay(
+        render_sys: &mut RenderSystem,
+        transform: WorldToScreenTransform,
+        tile: &Tile,
+        tile_map: &TileMap,
+    ) {
         let cell = tile.base_cell();
 
         let tile_def = {
@@ -512,20 +492,14 @@ impl TileDrawListEntry {
             match tile.depth_sort_override() {
                 TileDepthSortOverride::None => {
                     // Compute from tile screen space diamond.
-                    coords::cell_to_screen_diamond_center_y(
-                        tile.base_cell(),
-                        tile.logical_size(),
-                        transform)
+                    coords::cell_to_screen_diamond_center_y(tile.base_cell(), tile.logical_size(), transform)
                 }
                 TileDepthSortOverride::Topmost => TILE_DEPTH_SORT_KEY_TOPMOST,
                 TileDepthSortOverride::Bottommost => TILE_DEPTH_SORT_KEY_BOTTOMMOST,
             }
         };
 
-        Self {
-            tile: RawPtr::from_ref(tile),
-            depth_sort_key,
-        }
+        Self { tile: RawPtr::from_ref(tile), depth_sort_key }
     }
 
     #[inline]

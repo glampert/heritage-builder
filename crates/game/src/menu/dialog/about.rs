@@ -1,4 +1,4 @@
-use strum::{EnumProperty, EnumCount, EnumIter};
+use strum::{EnumCount, EnumIter, EnumProperty};
 
 use super::*;
 use crate::menu::ButtonDef;
@@ -40,7 +40,7 @@ impl About {
             Self::KIND,
             Self::TITLE,
             DEFAULT_DIALOG_MENU_WIDGET_SPACING,
-            Option::<Vec<UiWidgetImpl>>::None
+            Option::<Vec<UiWidgetImpl>>::None,
         );
 
         let about_text = vec![
@@ -49,24 +49,18 @@ impl About {
             UiText::new(format!("Version {}", crate::version()), DEFAULT_DIALOG_MENU_WIDGET_FONT_SCALE),
         ];
 
-        menu.add_widget(UiMenuHeading::new(
-            context,
-            UiMenuHeadingParams {
-                lines: about_text,
-                margin_bottom: DEFAULT_DIALOG_MENU_HEADING_MARGINS.1,
-                ..Default::default()
-            }
-        ));
+        menu.add_widget(UiMenuHeading::new(context, UiMenuHeadingParams {
+            lines: about_text,
+            margin_bottom: DEFAULT_DIALOG_MENU_HEADING_MARGINS.1,
+            ..Default::default()
+        }));
 
-        let mut button_group = UiWidgetGroup::new(
-            context,
-            UiWidgetGroupParams {
-                widget_spacing: DEFAULT_DIALOG_MENU_WIDGET_SPACING,
-                center_vertically: false,
-                center_horizontally: true,
-                ..Default::default()
-            }
-        );
+        let mut button_group = UiWidgetGroup::new(context, UiWidgetGroupParams {
+            widget_spacing: DEFAULT_DIALOG_MENU_WIDGET_SPACING,
+            center_vertically: false,
+            center_horizontally: true,
+            ..Default::default()
+        });
 
         let buttons = make_dialog_button_widgets::<AboutButtonKind, ABOUT_BUTTON_COUNT>(context);
         for button in buttons {

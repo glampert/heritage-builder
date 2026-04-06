@@ -1,13 +1,18 @@
 #![allow(clippy::enum_variant_names)]
 
 use std::any::{Any, TypeId};
+
+use common::mem;
+use engine::{
+    Engine,
+    save::*,
+    ui::{UiStaticVar, UiSystem},
+};
 use enum_dispatch::enum_dispatch;
 use serde::{Deserialize, Serialize};
-use strum::{EnumCount, VariantNames, EnumIter, IntoEnumIterator, Display};
+use strum::{Display, EnumCount, EnumIter, IntoEnumIterator, VariantNames};
 
 use super::{constants::*, sim::SimContext, world::object::GenerationalIndex};
-use engine::{Engine, ui::{UiSystem, UiStaticVar}, save::*};
-use common::mem;
 use crate::save_context::*;
 
 // ----------------------------------------------
@@ -90,8 +95,9 @@ impl GameSystems {
     }
 
     pub fn register<System>(&mut self, system: System) -> GameSystemId
-        where System: GameSystem + 'static,
-              GameSystemImpl: From<System>
+    where
+        System: GameSystem + 'static,
+        GameSystemImpl: From<System>,
     {
         let sys_impl = GameSystemImpl::from(system);
         debug_assert!(!self.has(sys_impl.as_any().type_id()), "System {sys_impl} already registered!");
@@ -106,7 +112,8 @@ impl GameSystems {
     }
 
     pub fn find<System>(&self, sys_id: GameSystemId) -> Option<&System>
-        where System: GameSystem + 'static
+    where
+        System: GameSystem + 'static,
     {
         if sys_id.index() < self.systems.len() {
             let entry = &self.systems[sys_id.index()];
@@ -118,7 +125,8 @@ impl GameSystems {
     }
 
     pub fn find_mut<System>(&mut self, sys_id: GameSystemId) -> Option<&mut System>
-        where System: GameSystem + 'static
+    where
+        System: GameSystem + 'static,
     {
         if sys_id.index() < self.systems.len() {
             let entry = &mut self.systems[sys_id.index()];

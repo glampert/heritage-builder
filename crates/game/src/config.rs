@@ -1,10 +1,10 @@
 use std::path::PathBuf;
+
+use common::{Size, time::Seconds};
+use engine::{config::EngineConfigs, runner::RunLoopConfigs, ui::UiSystem};
+use proc_macros::DrawDebugUi;
 use serde::{Deserialize, Serialize};
 use strum::Display;
-
-use proc_macros::DrawDebugUi;
-use common::{Size, time::Seconds};
-use engine::{runner::RunLoopConfigs, config::EngineConfigs, ui::UiSystem};
 
 use crate::camera::*;
 
@@ -67,9 +67,7 @@ pub struct SaveGameConfigs {
 
 impl Default for SaveGameConfigs {
     fn default() -> Self {
-        Self { load_map_setting: LoadMapSetting::default(),
-               enable_autosave: true,
-               autosave_frequency_secs: 60.0 }
+        Self { load_map_setting: LoadMapSetting::default(), enable_autosave: true, autosave_frequency_secs: 60.0 }
     }
 }
 
@@ -109,17 +107,19 @@ pub struct CameraConfigs {
 
 impl Default for CameraConfigs {
     fn default() -> Self {
-        Self { zoom: CameraZoom::DEFAULT,
-               offset: CameraOffset::Center,
-               fixed_step_zoom_amount: 0.5,
-               disable_smooth_mouse_scroll_zoom: false,
-               disable_mouse_scroll_zoom: false,
-               disable_key_shortcut_zoom: false,
-               constrain_to_playable_map_area: true,
-               clamp_to_map_bounds: true,
-               enable_debug_draw: false,
-               scroll_speed: 500.0,
-               scroll_margin: 20.0 }
+        Self {
+            zoom: CameraZoom::DEFAULT,
+            offset: CameraOffset::Center,
+            fixed_step_zoom_amount: 0.5,
+            disable_smooth_mouse_scroll_zoom: false,
+            disable_mouse_scroll_zoom: false,
+            disable_key_shortcut_zoom: false,
+            constrain_to_playable_map_area: true,
+            clamp_to_map_bounds: true,
+            enable_debug_draw: false,
+            scroll_speed: 500.0,
+            scroll_margin: 20.0,
+        }
     }
 }
 
@@ -144,18 +144,20 @@ pub struct SimConfigs {
 
 impl Default for SimConfigs {
     fn default() -> Self {
-        Self { // Simulation:
-               random_seed: 0xCAFE1CAFE2CAFE3A,
-               update_frequency_secs: 0.5,
-               starting_gold_units: 0,
-               start_paused: false,
-               // Workers/Population:
-               workers_search_radius: 20,
-               workers_update_frequency_secs: 20.0,
-               // Game Systems:
-               birds_spawn_frequency: 20.0,
-               settlers_spawn_frequency_secs: 20.0,
-               population_per_settler_unit: 1 }
+        Self {
+            // Simulation:
+            random_seed: 0xCAFE1CAFE2CAFE3A,
+            update_frequency_secs: 0.5,
+            starting_gold_units: 0,
+            start_paused: false,
+            // Workers/Population:
+            workers_search_radius: 20,
+            workers_update_frequency_secs: 20.0,
+            // Game Systems:
+            birds_spawn_frequency: 20.0,
+            settlers_spawn_frequency_secs: 20.0,
+            population_per_settler_unit: 1,
+        }
     }
 }
 
@@ -173,13 +175,15 @@ pub struct DebugConfigs {
 
 impl Default for DebugConfigs {
     fn default() -> Self {
-        Self { skip_home_menu: false,
-               start_in_dev_editor_mode: false,
-               skip_loading_tile_sets: false,
-               show_popups: false,
-               enable_dev_tile_inspector: true,
-               disable_ambient_music: false,
-               disable_ambient_sounds: false }
+        Self {
+            skip_home_menu: false,
+            start_in_dev_editor_mode: false,
+            skip_loading_tile_sets: false,
+            show_popups: false,
+            enable_dev_tile_inspector: true,
+            disable_ambient_music: false,
+            disable_ambient_sounds: false,
+        }
     }
 }
 

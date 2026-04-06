@@ -1,37 +1,38 @@
 use common::{
-    Size, Vec2, coords::CellRange,
-    time::{Seconds, Milliseconds, UpdateTimer, PerfTimer},
+    Size,
+    Vec2,
+    coords::CellRange,
+    time::{Milliseconds, PerfTimer, Seconds, UpdateTimer},
 };
-
 use engine::{
-    log,
-    save,
     Engine,
-    runner::RunLoop,
-    ui::UiInputEvent,
-    file_sys::paths::PathRef,
     app::{
         ApplicationEvent,
         input::{InputAction, InputKey, InputModifiers, MouseButton},
     },
+    file_sys::paths::PathRef,
+    log,
+    runner::RunLoop,
+    save,
+    ui::UiInputEvent,
 };
 
 use crate::{
-    debug,
+    building::config::BuildingConfigs,
     cheats,
-    undo_redo,
     config::GameConfigs,
+    debug,
     menu::GameMenusMode,
+    prop::config::PropConfigs,
+    session::{self, GameSession, GameSessionCmdQueue},
     sim::Simulation,
     system::GameSystems,
-    prop::config::PropConfigs,
-    unit::config::UnitConfigs,
-    building::config::BuildingConfigs,
-    session::{self, GameSessionCmdQueue, GameSession},
     tile::{
-        sets::{TileDef, TileSets},
         rendering::{TileMapRenderFlags, TileMapRenderStats},
+        sets::{TileDef, TileSets},
     },
+    undo_redo,
+    unit::config::UnitConfigs,
 };
 
 // ----------------------------------------------
@@ -321,7 +322,7 @@ impl GameLoop {
         let is_any_ui_item_hovered = self.engine.ui_system().ui().is_any_item_hovered();
 
         let camera = self.session.camera_mut();
-        camera.set_viewport_size(viewport_size);        
+        camera.set_viewport_size(viewport_size);
         camera.update_zooming(delta_time_secs);
 
         // Map scrolling, if cursor not hovering a menu item.
@@ -351,11 +352,7 @@ impl GameLoop {
         }
     }
 
-    fn draw_tile_map(&mut self,
-                     delta_time_secs: Seconds,
-                     visible_range: CellRange,
-                     flags: TileMapRenderFlags)
-    {
+    fn draw_tile_map(&mut self, delta_time_secs: Seconds, visible_range: CellRange, flags: TileMapRenderFlags) {
         if !self.is_in_game() {
             return; // We don't have a tile map to render while at the home menus.
         }
@@ -432,17 +429,16 @@ impl GameLoop {
         self.session.menus_on_scroll(self.engine, amount)
     }
 
-    fn menus_on_key_input(&mut self,
-                          key: InputKey,
-                          action: InputAction,
-                          modifiers: InputModifiers) -> UiInputEvent {
+    fn menus_on_key_input(&mut self, key: InputKey, action: InputAction, modifiers: InputModifiers) -> UiInputEvent {
         self.session.menus_on_key_input(self.engine, key, action, modifiers)
     }
 
-    fn menus_on_mouse_button(&mut self,
-                             button: MouseButton,
-                             action: InputAction,
-                             modifiers: InputModifiers) -> UiInputEvent {
+    fn menus_on_mouse_button(
+        &mut self,
+        button: MouseButton,
+        action: InputAction,
+        modifiers: InputModifiers,
+    ) -> UiInputEvent {
         self.session.menus_on_mouse_button(self.engine, button, action, modifiers)
     }
 }

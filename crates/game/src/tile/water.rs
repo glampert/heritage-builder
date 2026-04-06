@@ -1,5 +1,6 @@
-use super::{sets::TileDef, TileMap, TileKind, TileMapLayerKind};
 use common::{coords::Cell, hash::StrHashPair};
+
+use super::{TileKind, TileMap, TileMapLayerKind, sets::TileDef};
 use crate::pathfind::NodeKind as PathNodeKind;
 
 // ----------------------------------------------
@@ -84,10 +85,10 @@ fn compute_full_water_transitions(tile_map: &TileMap, cell: Cell) -> (usize, Sho
     // Helper: does a given cell have at least one cardinal land neighbor (including self)?
     fn neighborhood_has_cardinal_land(tile_map: &TileMap, x: i32, y: i32) -> bool {
         tile_at(tile_map, x, y).is_land()
-        || tile_at(tile_map, x + 1, y).is_land()
-        || tile_at(tile_map, x - 1, y).is_land()
-        || tile_at(tile_map, x, y - 1).is_land()
-        || tile_at(tile_map, x, y + 1).is_land()
+            || tile_at(tile_map, x + 1, y).is_land()
+            || tile_at(tile_map, x - 1, y).is_land()
+            || tile_at(tile_map, x, y - 1).is_land()
+            || tile_at(tile_map, x, y + 1).is_land()
     }
 
     // Cardinal neighbors (N/S/E/W):
@@ -122,7 +123,8 @@ fn compute_full_water_transitions(tile_map: &TileMap, cell: Cell) -> (usize, Sho
     // SE diagonal case: se at (x-1, y-1)
     // adjacent cardinals for current tile: north (x+1,y) and west (x,y+1) must be water
     if se.is_land()
-        && north.is_water() && west.is_water()
+        && north.is_water()
+        && west.is_water()
         && (mask != 0 || neighborhood_has_cardinal_land(tile_map, cell.x - 1, cell.y - 1))
     {
         corner = ShoreCorner::SE;
@@ -131,7 +133,8 @@ fn compute_full_water_transitions(tile_map: &TileMap, cell: Cell) -> (usize, Sho
     // SW diagonal case: sw at (x-1, y+1)
     // adjacent: north (x+1,y) and east (x,y-1)
     if sw.is_land()
-        && north.is_water() && east.is_water()
+        && north.is_water()
+        && east.is_water()
         && (mask != 0 || neighborhood_has_cardinal_land(tile_map, cell.x - 1, cell.y + 1))
     {
         corner = ShoreCorner::SW;
@@ -140,7 +143,8 @@ fn compute_full_water_transitions(tile_map: &TileMap, cell: Cell) -> (usize, Sho
     // NE diagonal case: ne at (x+1, y-1)
     // adjacent: south (x-1,y) and west (x,y+1)
     if ne.is_land()
-        && south.is_water() && west.is_water()
+        && south.is_water()
+        && west.is_water()
         && (mask != 0 || neighborhood_has_cardinal_land(tile_map, cell.x + 1, cell.y - 1))
     {
         corner = ShoreCorner::NE;
@@ -149,7 +153,8 @@ fn compute_full_water_transitions(tile_map: &TileMap, cell: Cell) -> (usize, Sho
     // NW diagonal case: nw at (x+1, y+1)
     // adjacent: south (x-1,y) and east (x,y-1)
     if nw.is_land()
-        && south.is_water() && east.is_water()
+        && south.is_water()
+        && east.is_water()
         && (mask != 0 || neighborhood_has_cardinal_land(tile_map, cell.x + 1, cell.y + 1))
     {
         corner = ShoreCorner::NW;
@@ -211,8 +216,7 @@ const PORT_VARIATION_WEST_BANK:  usize = 3;
 // These buildings must be placed over a water edge tile.
 #[inline]
 pub fn is_port_or_wharf(tile_def: &TileDef) -> bool {
-    if tile_def.is(TileKind::Building)
-        && tile_def.hash == FISHING_WHARF.hash {
+    if tile_def.is(TileKind::Building) && tile_def.hash == FISHING_WHARF.hash {
         return true;
     }
     false

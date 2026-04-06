@@ -1,19 +1,28 @@
 use std::cell::{RefCell, RefMut};
 
 use common::{
-    mem, hash::{self, FNV1aHash}, time::Seconds, Size, Vec2
+    Size,
+    Vec2,
+    hash::{self, FNV1aHash},
+    mem,
+    time::Seconds,
 };
-
 use engine::{
     Engine,
-    sound::SoundSystem,
     render::RenderSystem,
-    ui::{UiSystem, UiFontScale, widgets::{UiWidgetContext, UiWidgetContextStaticTypeId}},
+    sound::SoundSystem,
+    ui::{
+        UiFontScale,
+        UiSystem,
+        widgets::{UiWidgetContext, UiWidgetContextStaticTypeId},
+    },
 };
 
 use crate::{
+    camera::Camera,
+    sim::{SimContext, Simulation},
     tile::{Tile, TileMap, selection::TileSelection},
-    camera::Camera, world::World, sim::{Simulation, SimContext},
+    world::World,
 };
 
 // ----------------------------------------------
@@ -44,13 +53,14 @@ pub struct GameUiContext<'game> {
 
 impl<'game> GameUiContext<'game> {
     #[inline]
-    pub fn new(sim: &'game mut Simulation,
-               world: &'game mut World,
-               tile_map: &'game mut TileMap,
-               tile_selection: &'game mut TileSelection,
-               camera: &'game mut Camera,
-               engine: &'game mut Engine) -> Self
-    {
+    pub fn new(
+        sim: &'game mut Simulation,
+        world: &'game mut World,
+        tile_map: &'game mut TileMap,
+        tile_selection: &'game mut TileSelection,
+        camera: &'game mut Camera,
+        engine: &'game mut Engine,
+    ) -> Self {
         let viewport_size = engine.viewport().integer_size();
         let delta_time_secs = engine.frame_clock().delta_time();
         let cursor_screen_pos = engine.input_system().cursor_pos();
@@ -85,7 +95,8 @@ impl<'game> GameUiContext<'game> {
         mem::mut_ref_cast(self.sim).new_sim_context(
             mem::mut_ref_cast(self.world),
             mem::mut_ref_cast(self.tile_map),
-            self.delta_time_secs)
+            self.delta_time_secs,
+        )
     }
 }
 

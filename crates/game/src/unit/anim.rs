@@ -1,8 +1,8 @@
+use common::hash::{self, PreHashedKeyMap, StrHashPair, StringHash};
+use engine::log;
 use serde::{Deserialize, Serialize};
 
-use engine::log;
-use common::hash::{self, PreHashedKeyMap, StrHashPair, StringHash};
-use crate::tile::{sets::TileDef, Tile};
+use crate::tile::{Tile, sets::TileDef};
 
 // ----------------------------------------------
 // UnitAnimSets
@@ -101,10 +101,13 @@ impl UnitAnimSets {
         let variation = &tile_def.variations[variation_index];
         for (index, anim_set) in variation.anim_sets.iter().enumerate() {
             if self.anim_set_index_map.insert(anim_set.hash, index).is_some() {
-                log::error!(log::channel!("unit"), "Unit '{}': An entry for anim set '{}' ({:#X}) already exists at index: {index}!",
-                            tile_def.name,
-                            anim_set.name,
-                            anim_set.hash);
+                log::error!(
+                    log::channel!("unit"),
+                    "Unit '{}': An entry for anim set '{}' ({:#X}) already exists at index: {index}!",
+                    tile_def.name,
+                    anim_set.name,
+                    anim_set.hash
+                );
             }
         }
     }

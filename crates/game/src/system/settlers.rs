@@ -1,17 +1,35 @@
 use std::any::Any;
+
+use common::{
+    Color,
+    callback::{self, Callback},
+    coords::Cell,
+    hash,
+    time::UpdateTimer,
+};
+use engine::{Engine, log};
 use serde::{Deserialize, Serialize};
 
 use super::GameSystem;
-use engine::{log, Engine};
-use crate::save_context::PostLoadContext;
-use common::{ callback::{self, Callback}, time::UpdateTimer, coords::Cell, hash, Color, };
 use crate::{
+    building::BuildingKind,
+    config::GameConfigs,
     debug::utils::UpdateTimerDebugUi,
     pathfind::{Node, NodeKind as PathNodeKind},
-    { building::BuildingKind, config::GameConfigs, sim::SimContext, unit::{ navigation::{self, UnitNavGoal}, task::{ UnitTaskArg, UnitTaskArgs, UnitTaskDespawnWithCallback, UnitTaskPostDespawnCallback, UnitTaskSettler, }, config::UnitConfigKey, UnitId, UnitTaskHelper, }, },
+    save_context::PostLoadContext,
+    sim::SimContext,
     tile::{
-    sets::{TileDef, OBJECTS_BUILDINGS_CATEGORY},
-    TileMapLayerKind, TileKind, TileFlags,
+        TileFlags,
+        TileKind,
+        TileMapLayerKind,
+        sets::{OBJECTS_BUILDINGS_CATEGORY, TileDef},
+    },
+    unit::{
+        UnitId,
+        UnitTaskHelper,
+        config::UnitConfigKey,
+        navigation::{self, UnitNavGoal},
+        task::{UnitTaskArg, UnitTaskArgs, UnitTaskDespawnWithCallback, UnitTaskPostDespawnCallback, UnitTaskSettler},
     },
 };
 
@@ -67,10 +85,7 @@ impl GameSystem for SettlersSpawnSystem {
         let spawn_point = Self::find_spawn_point(context);
         ui.text(format!("Spawn Point: {}", spawn_point.cell));
 
-        if ui.input_scalar("Population Per Settler Unit", &mut self.population_per_settler_unit)
-             .step(1)
-             .build()
-        {
+        if ui.input_scalar("Population Per Settler Unit", &mut self.population_per_settler_unit).step(1).build() {
             self.population_per_settler_unit = self.population_per_settler_unit.max(1);
         }
 
@@ -164,35 +179,31 @@ impl Settler {
         debug_assert!(unit_origin.is_valid());
         debug_assert!(population_to_add != 0);
 
-        self.try_spawn_with_task(
-            "SettlersSpawnSystem",
-            context,
-            unit_origin,
-            UnitConfigKey::Settler,
-            UnitTaskSettler {
-                completion_callback: Callback::default(),
-                completion_task: context.task_manager_mut().new_task(UnitTaskDespawnWithCallback {
-                    // NOTE: We have to spawn the house building *after* the unit has
-                    // despawned since we can't place a building over the unit tile.
-                    post_despawn_callback: callback::create!(Settler::on_settled),
-                    callback_extra_args: UnitTaskArgs::new(&[UnitTaskArg::U32(population_to_add)]),
-                }),
-                fallback_to_houses_with_room: true,
-                return_to_spawn_point_if_failed: true,
-                population_to_add,
-            })
+        self.try_spawn_with_task("SettlersSpawnSystem", context, unit_origin, UnitConfigKey::Settler, UnitTaskSettler {
+            completion_callback: Callback::default(),
+            completion_task: context.task_manager_mut().new_task(UnitTaskDespawnWithCallback {
+                // NOTE: We have to spawn the house building *after* the unit has
+                // despawned since we can't place a building over the unit tile.
+                post_despawn_callback: callback::create!(Settler::on_settled),
+                callback_extra_args: UnitTaskArgs::new(&[UnitTaskArg::U32(population_to_add)]),
+            }),
+            fallback_to_houses_with_room: true,
+            return_to_spawn_point_if_failed: true,
+            population_to_add,
+        })
     }
 
     pub fn register_callbacks() {
         let _: Callback<UnitTaskPostDespawnCallback> = callback::register!(Settler::on_settled);
     }
 
-    fn on_settled(context: &SimContext,
-                  unit_prev_cell: Cell,
-                  unit_prev_goal: Option<UnitNavGoal>,
-                  extra_args: &[UnitTaskArg]) {
-        let settle_new_vacant_lot =
-            unit_prev_goal.is_some_and(|goal| navigation::is_goal_vacant_lot_tile(&goal, context));
+    fn on_settled(
+        context: &SimContext,
+        unit_prev_cell: Cell,
+        unit_prev_goal: Option<UnitNavGoal>,
+        extra_args: &[UnitTaskArg],
+    ) {
+        let settle_new_vacant_lot = unit_prev_goal.is_some_and(|goal| navigation::is_goal_vacant_lot_tile(&goal, context));
 
         if settle_new_vacant_lot {
             if let Some(tile_def) = Self::find_house_tile_def(context) {
@@ -208,26 +219,28 @@ impl Settler {
 
                         let population_added = building.add_population(context, population_to_add);
                         if population_added != population_to_add {
-                            log::error!(log::channel!("unit"),
-                                        "Settler carried population of {population_to_add} but house accommodated {population_added}.");
+                            log::error!(
+                                log::channel!("unit"),
+                                "Settler carried population of {population_to_add} but house accommodated {population_added}."
+                            );
                         }
                     }
                     Err(err) => {
-                        log::error!(log::channel!("unit"),
-                                    "SettlersSpawnSystem: Failed to place House Level 0: {}", err.message);
+                        log::error!(
+                            log::channel!("unit"),
+                            "SettlersSpawnSystem: Failed to place House Level 0: {}",
+                            err.message
+                        );
                     }
                 }
             } else {
-                log::error!(log::channel!("unit"),
-                            "SettlersSpawnSystem: House Level 0 TileDef not found!");
+                log::error!(log::channel!("unit"), "SettlersSpawnSystem: House Level 0 TileDef not found!");
             }
         }
         // Else unit settled into existing household.
     }
 
     fn find_house_tile_def(context: &SimContext) -> Option<&'static TileDef> {
-        context.find_tile_def(TileMapLayerKind::Objects,
-                              OBJECTS_BUILDINGS_CATEGORY.hash,
-                              hash::fnv1a_from_str("house0"))
+        context.find_tile_def(TileMapLayerKind::Objects, OBJECTS_BUILDINGS_CATEGORY.hash, hash::fnv1a_from_str("house0"))
     }
 }

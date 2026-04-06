@@ -7,13 +7,17 @@ use std::{
     ops::{Index, IndexMut},
 };
 
-use rand::Rng;
 use arrayvec::ArrayVec;
+use common::{
+    Size,
+    bitflags_with_display,
+    coords::{Cell, CellRange},
+};
+use engine::ui::UiSystem;
 use priority_queue::PriorityQueue;
+use rand::Rng;
 use serde::{Deserialize, Serialize};
 
-use engine::ui::UiSystem;
-use common::{bitflags_with_display, coords::{Cell, CellRange}, Size};
 use crate::tile::{TileFlags, TileKind, TileMap, TileMapLayerKind};
 
 #[cfg(test)]
@@ -69,7 +73,8 @@ impl NodeKind {
     }
 
     #[inline]
-    pub fn is_land(self) -> bool { // Anything besides water.
+    pub fn is_land(self) -> bool {
+        // Anything besides water.
         !self.intersects(Self::Water)
     }
 
@@ -120,15 +125,17 @@ impl NodeKind {
 
     #[inline]
     pub fn is_flying_object_placeable(self) -> bool {
-        self.intersects(Self::Water |
-                        Self::EmptyLand |
-                        Self::Road |
-                        Self::VacantLot |
-                        Self::SettlersSpawnPoint |
-                        Self::Building |
-                        Self::Vegetation |
-                        Self::HarvestableTree |
-                        Self::Rocks)
+        self.intersects(
+            Self::Water
+                | Self::EmptyLand
+                | Self::Road
+                | Self::VacantLot
+                | Self::SettlersSpawnPoint
+                | Self::Building
+                | Self::Vegetation
+                | Self::HarvestableTree
+                | Self::Rocks,
+        )
     }
 
     #[inline]
@@ -196,7 +203,7 @@ impl Node {
             Node::new(Cell::new(self.cell.x + 1, self.cell.y)), // right
             Node::new(Cell::new(self.cell.x - 1, self.cell.y)), // left
             Node::new(Cell::new(self.cell.x, self.cell.y + 1)), // top
-            Node::new(Cell::new(self.cell.x, self.cell.y - 1))  // bottom
+            Node::new(Cell::new(self.cell.x, self.cell.y - 1)), // bottom
         ]
     }
 
@@ -226,15 +233,13 @@ impl<T> Grid<T> {
 
     #[inline]
     fn node_payload(&self, node: Node) -> &T {
-        let index = self.node_to_grid_index(node)
-                        .unwrap_or_else(|| panic!("Unexpected invalid grid node: {:?}", node));
+        let index = self.node_to_grid_index(node).unwrap_or_else(|| panic!("Unexpected invalid grid node: {:?}", node));
         &self.nodes[index]
     }
 
     #[inline]
     fn node_payload_mut(&mut self, node: Node) -> &mut T {
-        let index = self.node_to_grid_index(node)
-                        .unwrap_or_else(|| panic!("Unexpected invalid grid node: {:?}", node));
+        let index = self.node_to_grid_index(node).unwrap_or_else(|| panic!("Unexpected invalid grid node: {:?}", node));
         &mut self.nodes[index]
     }
 
@@ -249,9 +254,7 @@ impl<T> Grid<T> {
 
     #[inline]
     fn is_node_within_bounds(&self, node: Node) -> bool {
-        if (node.cell.x < 0 || node.cell.x >= self.size.width)
-           || (node.cell.y < 0 || node.cell.y >= self.size.height)
-        {
+        if (node.cell.x < 0 || node.cell.x >= self.size.width) || (node.cell.y < 0 || node.cell.y >= self.size.height) {
             return false;
         }
         true
@@ -259,7 +262,8 @@ impl<T> Grid<T> {
 
     #[inline]
     fn fill(&mut self, value: T)
-        where T: Clone
+    where
+        T: Clone,
     {
         self.nodes.fill(value);
     }
@@ -314,11 +318,7 @@ impl Graph {
         debug_assert!(grid_size.is_valid());
         debug_assert!(node_kind.is_single_kind(), "Expected single node kind flag!");
         let node_count = (grid_size.width * grid_size.height) as usize;
-        Self {
-            grid: Grid::new(grid_size, vec![node_kind; node_count]),
-            node_kinds: node_kind,
-            settlers_spawn_point: None,
-        }
+        Self { grid: Grid::new(grid_size, vec![node_kind; node_count]), node_kinds: node_kind, settlers_spawn_point: None }
     }
 
     pub fn with_node_grid(grid_size: Size, nodes: Vec<NodeKind>) -> Self {
@@ -330,11 +330,7 @@ impl Graph {
             node_kinds |= node_kind;
         }
 
-        Self {
-            grid: Grid::new(grid_size, nodes),
-            node_kinds,
-            settlers_spawn_point: None,
-        }
+        Self { grid: Grid::new(grid_size, nodes), node_kinds, settlers_spawn_point: None }
     }
 
     pub fn from_tile_map(tile_map: &TileMap) -> Self {
@@ -364,14 +360,9 @@ impl Graph {
         // then for building searches.
         tile_map.for_each_tile(TileMapLayerKind::Terrain, TileKind::Terrain, |tile| {
             let node = Node::new(tile.base_cell());
-            let blocker_kinds = TileKind::Building
-                                | TileKind::Blocker
-                                | TileKind::Rocks
-                                | TileKind::Vegetation;
+            let blocker_kinds = TileKind::Building | TileKind::Blocker | TileKind::Rocks | TileKind::Vegetation;
 
-            if let Some(blocker_tile) =
-                tile_map.find_tile(node.cell, TileMapLayerKind::Objects, blocker_kinds)
-            {
+            if let Some(blocker_tile) = tile_map.find_tile(node.cell, TileMapLayerKind::Objects, blocker_kinds) {
                 if blocker_tile.is(TileKind::Building | TileKind::Blocker) {
                     // Buildings have a node kind for building searches, but they are not
                     // traversable.
@@ -457,7 +448,7 @@ impl Graph {
             return None;
         }
 
-        let width  = self.grid.size.width;
+        let width = self.grid.size.width;
         let height = self.grid.size.height;
 
         for y in 0..height {
@@ -751,37 +742,36 @@ pub struct Search {
 
 impl Search {
     pub fn with_graph(graph: &Graph) -> Self {
-        if graph.grid_size().is_valid() {
-            Self::with_grid_size(graph.grid_size())
-        } else {
-            Self::default()
-        }
+        if graph.grid_size().is_valid() { Self::with_grid_size(graph.grid_size()) } else { Self::default() }
     }
 
     pub fn with_grid_size(grid_size: Size) -> Self {
         let node_count = (grid_size.width * grid_size.height) as usize;
-        Self { path: Path::new(),
-               frontier: PriorityQueue::new(),
-               came_from: Grid::new(grid_size, vec![Node::invalid(); node_count]),
-               cost_so_far: Grid::new(grid_size, vec![NODE_COST_INFINITE; node_count]),
-               possible_waypoints: Vec::with_capacity(64),
-               first_run: true }
+        Self {
+            path: Path::new(),
+            frontier: PriorityQueue::new(),
+            came_from: Grid::new(grid_size, vec![Node::invalid(); node_count]),
+            cost_so_far: Grid::new(grid_size, vec![NODE_COST_INFINITE; node_count]),
+            possible_waypoints: Vec::with_capacity(64),
+            first_run: true,
+        }
     }
 
     // A* graph search for the shortest path to goal.
     // Only nodes of `traversable_node_kinds` will be considered by the search.
     // Anything else is assumed not traversable and ignored.
-    pub fn find_path(&mut self,
-                     graph: &Graph,
-                     heuristic: &impl Heuristic,
-                     traversable_node_kinds: NodeKind,
-                     start: Node,
-                     goal: Node)
-                     -> SearchResult<'_> {
+    pub fn find_path(
+        &mut self,
+        graph: &Graph,
+        heuristic: &impl Heuristic,
+        traversable_node_kinds: NodeKind,
+        start: Node,
+        goal: Node,
+    ) -> SearchResult<'_> {
         debug_assert!(!traversable_node_kinds.is_empty());
 
         if !graph.node_kind(start).is_some_and(|kind| kind.intersects(traversable_node_kinds))
-           || !graph.node_kind(goal).is_some_and(|kind| kind.intersects(traversable_node_kinds))
+            || !graph.node_kind(goal).is_some_and(|kind| kind.intersects(traversable_node_kinds))
         {
             // Start/end nodes are invalid or not traversable!
             return SearchResult::PathNotFound;
@@ -798,18 +788,14 @@ impl Search {
             let neighbors = graph.neighbors(current, traversable_node_kinds);
 
             for neighbor in neighbors {
-                let new_cost =
-                    self.cost_so_far[current] + heuristic.movement_cost(graph, current, neighbor);
+                let new_cost = self.cost_so_far[current] + heuristic.movement_cost(graph, current, neighbor);
 
                 // If neighbor cost in INF, we haven't visited it yet, or if it is a cheaper
                 // node to explore, we'll visit it.
-                if self.cost_so_far[neighbor] == NODE_COST_INFINITE
-                   || new_cost < self.cost_so_far[neighbor]
-                {
+                if self.cost_so_far[neighbor] == NODE_COST_INFINITE || new_cost < self.cost_so_far[neighbor] {
                     self.cost_so_far[neighbor] = new_cost;
 
-                    let priority =
-                        new_cost + heuristic.estimate_cost_to_goal(graph, neighbor, goal);
+                    let priority = new_cost + heuristic.estimate_cost_to_goal(graph, neighbor, goal);
                     self.frontier.push(neighbor, Reverse(priority));
 
                     // Remember how we got here so we can backtrack.
@@ -823,21 +809,23 @@ impl Search {
 
     // Searches for all paths leading to the goal.
     // Returns the first path which PathFilter accepts.
-    pub fn find_paths<Filter>(&mut self,
-                              graph: &Graph,
-                              heuristic: &impl Heuristic,
-                              path_filter: &mut Filter,
-                              max_paths: usize,
-                              traversable_node_kinds: NodeKind,
-                              start: Node,
-                              goal: Node)
-                              -> SearchResult<'_>
-        where Filter: PathFilter
+    pub fn find_paths<Filter>(
+        &mut self,
+        graph: &Graph,
+        heuristic: &impl Heuristic,
+        path_filter: &mut Filter,
+        max_paths: usize,
+        traversable_node_kinds: NodeKind,
+        start: Node,
+        goal: Node,
+    ) -> SearchResult<'_>
+    where
+        Filter: PathFilter,
     {
         debug_assert!(!traversable_node_kinds.is_empty());
 
         if !graph.node_kind(start).is_some_and(|kind| kind.intersects(traversable_node_kinds))
-           || !graph.node_kind(goal).is_some_and(|kind| kind.intersects(traversable_node_kinds))
+            || !graph.node_kind(goal).is_some_and(|kind| kind.intersects(traversable_node_kinds))
         {
             // Start/end nodes are invalid or not traversable!
             return SearchResult::PathNotFound;
@@ -850,8 +838,7 @@ impl Search {
         while let Some((current, _)) = self.frontier.pop() {
             // Found a viable path.
             if current == goal {
-                let valid_path =
-                    Self::try_reconstruct_path(&mut self.path, &self.came_from, start, goal);
+                let valid_path = Self::try_reconstruct_path(&mut self.path, &self.came_from, start, goal);
                 if valid_path && path_filter.accepts(paths_found, &self.path, goal) {
                     // Filter accepted this path, we're done.
                     return SearchResult::PathFound(&self.path);
@@ -871,17 +858,15 @@ impl Search {
             let neighbors = graph.neighbors(current, traversable_node_kinds);
 
             for neighbor in neighbors {
-                let new_cost =
-                    self.cost_so_far[current] + heuristic.movement_cost(graph, current, neighbor);
+                let new_cost = self.cost_so_far[current] + heuristic.movement_cost(graph, current, neighbor);
 
                 if neighbor == goal
-                   || self.cost_so_far[neighbor] == NODE_COST_INFINITE
-                   || new_cost < self.cost_so_far[neighbor]
+                    || self.cost_so_far[neighbor] == NODE_COST_INFINITE
+                    || new_cost < self.cost_so_far[neighbor]
                 {
                     self.cost_so_far[neighbor] = new_cost;
 
-                    let priority =
-                        new_cost + heuristic.estimate_cost_to_goal(graph, neighbor, goal);
+                    let priority = new_cost + heuristic.estimate_cost_to_goal(graph, neighbor, goal);
                     self.frontier.push(neighbor, Reverse(priority));
 
                     // Remember how we got here so we can backtrack.
@@ -902,16 +887,18 @@ impl Search {
     // Path endpoint can be up to start+distance nodes.
     // Waypoint selection can optionally be biased and randomized to
     // produce different paths with the same start and max distance.
-    pub fn find_waypoints<Filter>(&mut self,
-                                  graph: &Graph,
-                                  heuristic: &impl Heuristic,
-                                  bias: &impl Bias,
-                                  path_filter: &mut Filter,
-                                  traversable_node_kinds: NodeKind,
-                                  start: Node,
-                                  max_distance: i32)
-                                  -> SearchResult<'_>
-        where Filter: PathFilter
+    pub fn find_waypoints<Filter>(
+        &mut self,
+        graph: &Graph,
+        heuristic: &impl Heuristic,
+        bias: &impl Bias,
+        path_filter: &mut Filter,
+        traversable_node_kinds: NodeKind,
+        start: Node,
+        max_distance: i32,
+    ) -> SearchResult<'_>
+    where
+        Filter: PathFilter,
     {
         debug_assert!(!traversable_node_kinds.is_empty());
         debug_assert!(max_distance > 0);
@@ -942,14 +929,11 @@ impl Search {
             path_filter.shuffle(&mut neighbors);
 
             for neighbor in neighbors {
-                let new_cost =
-                    self.cost_so_far[current] + heuristic.movement_cost(graph, current, neighbor);
+                let new_cost = self.cost_so_far[current] + heuristic.movement_cost(graph, current, neighbor);
 
                 // If neighbor cost in INF, we haven't visited it yet, or if it is a cheaper
                 // node to explore, we'll visit it.
-                if self.cost_so_far[neighbor] == NODE_COST_INFINITE
-                   || new_cost < self.cost_so_far[neighbor]
-                {
+                if self.cost_so_far[neighbor] == NODE_COST_INFINITE || new_cost < self.cost_so_far[neighbor] {
                     self.cost_so_far[neighbor] = new_cost;
 
                     // Apply optional directional bias:
@@ -975,8 +959,7 @@ impl Search {
         self.possible_waypoints.sort_by_key(|node| Reverse(start.manhattan_distance(*node)));
 
         for (index, node) in self.possible_waypoints.iter().enumerate() {
-            let valid_path =
-                Self::try_reconstruct_path(&mut self.path, &self.came_from, start, *node);
+            let valid_path = Self::try_reconstruct_path(&mut self.path, &self.came_from, start, *node);
             if valid_path && path_filter.accepts(index, &self.path, *node) {
                 // Filter accepted this path, we're done.
                 return SearchResult::PathFound(&self.path);
@@ -998,16 +981,18 @@ impl Search {
     // Search for buildings within a max distance from a starting node.
     // Path filter is invoked for each building access tile or building
     // road link found, depending on the requested traversable node kinds.
-    pub fn find_buildings<Filter>(&mut self,
-                                  graph: &Graph,
-                                  heuristic: &impl Heuristic,
-                                  bias: &impl Bias,
-                                  path_filter: &mut Filter,
-                                  traversable_node_kinds: NodeKind,
-                                  start: Node,
-                                  max_distance: i32)
-                                  -> SearchResult<'_>
-        where Filter: PathFilter
+    pub fn find_buildings<Filter>(
+        &mut self,
+        graph: &Graph,
+        heuristic: &impl Heuristic,
+        bias: &impl Bias,
+        path_filter: &mut Filter,
+        traversable_node_kinds: NodeKind,
+        start: Node,
+        max_distance: i32,
+    ) -> SearchResult<'_>
+    where
+        Filter: PathFilter,
     {
         debug_assert!(!traversable_node_kinds.is_empty());
         debug_assert!(max_distance > 0);
@@ -1029,8 +1014,7 @@ impl Search {
             destination_kinds |= NodeKind::BuildingAccess;
         }
 
-        debug_assert!(!destination_kinds.is_empty(),
-                      "Unsupported traversable node kinds: {traversable_node_kinds}");
+        debug_assert!(!destination_kinds.is_empty(), "Unsupported traversable node kinds: {traversable_node_kinds}");
 
         let wanted_neighbor_kinds = traversable_node_kinds | destination_kinds;
         let mut paths_found: usize = 0;
@@ -1048,8 +1032,7 @@ impl Search {
 
                 // Found a possible building or its road link/access tile.
                 if current_node_kind.intersects(destination_kinds) {
-                    let valid_path =
-                        Self::try_reconstruct_path(&mut self.path, &self.came_from, start, current);
+                    let valid_path = Self::try_reconstruct_path(&mut self.path, &self.came_from, start, current);
                     if valid_path && path_filter.accepts(paths_found, &self.path, current) {
                         // Filter accepted this path, we're done.
                         return SearchResult::PathFound(&self.path);
@@ -1064,14 +1047,11 @@ impl Search {
             path_filter.shuffle(&mut neighbors);
 
             for neighbor in neighbors {
-                let new_cost =
-                    self.cost_so_far[current] + heuristic.movement_cost(graph, current, neighbor);
+                let new_cost = self.cost_so_far[current] + heuristic.movement_cost(graph, current, neighbor);
 
                 // If neighbor cost in INF, we haven't visited it yet, or if it is a cheaper
                 // node to explore, we'll visit it.
-                if self.cost_so_far[neighbor] == NODE_COST_INFINITE
-                   || new_cost < self.cost_so_far[neighbor]
-                {
+                if self.cost_so_far[neighbor] == NODE_COST_INFINITE || new_cost < self.cost_so_far[neighbor] {
                     self.cost_so_far[neighbor] = new_cost;
 
                     // Apply optional directional bias:
@@ -1093,20 +1073,21 @@ impl Search {
     }
 
     // Find path to nodes matching any of the NodeKinds.
-    pub fn find_path_to_node<Filter>(&mut self,
-                                     graph: &Graph,
-                                     heuristic: &impl Heuristic,
-                                     bias: &impl Bias,
-                                     path_filter: &mut Filter,
-                                     traversable_node_kinds: NodeKind,
-                                     start: Node,
-                                     goal_node_kinds: NodeKind)
-                                     -> SearchResult<'_>
-        where Filter: PathFilter
+    pub fn find_path_to_node<Filter>(
+        &mut self,
+        graph: &Graph,
+        heuristic: &impl Heuristic,
+        bias: &impl Bias,
+        path_filter: &mut Filter,
+        traversable_node_kinds: NodeKind,
+        start: Node,
+        goal_node_kinds: NodeKind,
+    ) -> SearchResult<'_>
+    where
+        Filter: PathFilter,
     {
         debug_assert!(!traversable_node_kinds.is_empty());
-        debug_assert!(!goal_node_kinds.is_empty()
-                      && goal_node_kinds.intersects(traversable_node_kinds));
+        debug_assert!(!goal_node_kinds.is_empty() && goal_node_kinds.intersects(traversable_node_kinds));
 
         if !graph.node_kind(start).is_some_and(|kind| kind.intersects(traversable_node_kinds)) {
             // Start node is invalid or not traversable!
@@ -1123,8 +1104,7 @@ impl Search {
 
                 // Found a desired goal node kind:
                 if current_node_kind.intersects(goal_node_kinds) {
-                    let valid_path =
-                        Self::try_reconstruct_path(&mut self.path, &self.came_from, start, current);
+                    let valid_path = Self::try_reconstruct_path(&mut self.path, &self.came_from, start, current);
                     if valid_path && path_filter.accepts(paths_found, &self.path, current) {
                         // Filter accepted this path, we're done.
                         return SearchResult::PathFound(&self.path);
@@ -1139,14 +1119,11 @@ impl Search {
             path_filter.shuffle(&mut neighbors);
 
             for neighbor in neighbors {
-                let new_cost =
-                    self.cost_so_far[current] + heuristic.movement_cost(graph, current, neighbor);
+                let new_cost = self.cost_so_far[current] + heuristic.movement_cost(graph, current, neighbor);
 
                 // If neighbor cost in INF, we haven't visited it yet, or if it is a cheaper
                 // node to explore, we'll visit it.
-                if self.cost_so_far[neighbor] == NODE_COST_INFINITE
-                   || new_cost < self.cost_so_far[neighbor]
-                {
+                if self.cost_so_far[neighbor] == NODE_COST_INFINITE || new_cost < self.cost_so_far[neighbor] {
                     self.cost_so_far[neighbor] = new_cost;
 
                     // Apply optional directional bias:
@@ -1187,11 +1164,7 @@ impl Search {
         self.cost_so_far[start] = NODE_COST_ZERO;
     }
 
-    fn try_reconstruct_path(path: &mut Path,
-                            came_from: &Grid<Node>,
-                            start: Node,
-                            goal: Node)
-                            -> bool {
+    fn try_reconstruct_path(path: &mut Path, came_from: &Grid<Node>, start: Node, goal: Node) -> bool {
         debug_assert!(path.is_empty());
 
         if !came_from[goal].is_valid() {
@@ -1233,9 +1206,9 @@ pub fn find_nearest_road_link(graph: &Graph, start_cells: CellRange) -> Option<C
     for cell in &expanded_range {
         // Skip diagonal corners.
         let is_corner = (cell.x == start_x && cell.y == start_y)
-                        || (cell.x == start_x && cell.y == end_y)
-                        || (cell.x == end_x && cell.y == start_y)
-                        || (cell.x == end_x && cell.y == end_y);
+            || (cell.x == start_x && cell.y == end_y)
+            || (cell.x == end_x && cell.y == start_y)
+            || (cell.x == end_x && cell.y == end_y);
 
         if is_corner {
             continue;
@@ -1262,9 +1235,9 @@ pub fn for_each_surrounding_cell(start_cells: CellRange, mut visitor_fn: impl Fn
     for cell in &expanded_range {
         // Skip diagonal corners.
         let is_corner = (cell.x == start_x && cell.y == start_y)
-                        || (cell.x == start_x && cell.y == end_y)
-                        || (cell.x == end_x && cell.y == start_y)
-                        || (cell.x == end_x && cell.y == end_y);
+            || (cell.x == start_x && cell.y == end_y)
+            || (cell.x == end_x && cell.y == start_y)
+            || (cell.x == end_x && cell.y == end_y);
 
         if is_corner {
             continue;

@@ -1,10 +1,9 @@
 use std::borrow::Cow;
 
+use common::{self, Color, Vec2, time::Seconds};
+use engine::ui::UiSystem;
 use rand::{self, Rng};
 use smallvec::SmallVec;
-
-use engine::ui::UiSystem;
-use common::{self, Color, Vec2, time::Seconds};
 
 // ----------------------------------------------
 // PopupMessages
@@ -19,10 +18,7 @@ pub struct PopupMessages {
 
 impl PopupMessages {
     #[inline]
-    pub fn push_with_args(&mut self,
-                          lifetime_secs: Seconds,
-                          color: Color,
-                          text: impl Into<Cow<'static, str>>) {
+    pub fn push_with_args(&mut self, lifetime_secs: Seconds, color: Color, text: impl Into<Cow<'static, str>>) {
         self.push_message(PopupMessage::with_random_offset(Some(lifetime_secs), color, text));
     }
 
@@ -39,7 +35,8 @@ impl PopupMessages {
     }
 
     pub fn for_each<F>(&self, visitor_fn: F)
-        where F: Fn(&PopupMessage)
+    where
+        F: Fn(&PopupMessage),
     {
         // Don't lazily initialize the list here.
         if let Some(list) = self.try_get_list() {
@@ -74,21 +71,11 @@ impl PopupMessages {
         }
     }
 
-    pub fn draw(&self,
-                ui_sys: &UiSystem,
-                screen_pos: Vec2,
-                scroll_dist: f32,
-                scroll_speed: f32,
-                start_bg_alpha: f32) {
+    pub fn draw(&self, ui_sys: &UiSystem, screen_pos: Vec2, scroll_dist: f32, scroll_speed: f32, start_bg_alpha: f32) {
         // Don't lazily initialize the list here.
         if let Some(list) = self.try_get_list() {
             for message in list {
-                draw_popup_message(ui_sys,
-                                   message,
-                                   screen_pos,
-                                   scroll_dist,
-                                   scroll_speed,
-                                   start_bg_alpha);
+                draw_popup_message(ui_sys, message, screen_pos, scroll_dist, scroll_speed, start_bg_alpha);
             }
         }
     }
@@ -139,18 +126,12 @@ pub struct PopupMessage {
 }
 
 impl PopupMessage {
-    pub fn new(lifetime_secs: Option<Seconds>,
-               color: Color,
-               text: impl Into<Cow<'static, str>>)
-               -> Self {
+    pub fn new(lifetime_secs: Option<Seconds>, color: Color, text: impl Into<Cow<'static, str>>) -> Self {
         let lifetime = lifetime_secs.map(|seconds| (seconds, seconds));
         Self { lifetime, color, offset: Vec2::zero(), text: text.into() }
     }
 
-    pub fn with_random_offset(lifetime_secs: Option<Seconds>,
-                              color: Color,
-                              text: impl Into<Cow<'static, str>>)
-                              -> Self {
+    pub fn with_random_offset(lifetime_secs: Option<Seconds>, color: Color, text: impl Into<Cow<'static, str>>) -> Self {
         let mut message = PopupMessage::new(lifetime_secs, color, text);
 
         // Add a random offset to the message so when we render multiple popups over
@@ -168,12 +149,7 @@ impl PopupMessage {
 // Internal helpers
 // ----------------------------------------------
 
-fn draw_text_with_bg(ui: &imgui::Ui,
-                     text: &str,
-                     pos: Vec2,
-                     text_color: Color,
-                     bg_color: Color,
-                     padding: f32) {
+fn draw_text_with_bg(ui: &imgui::Ui, text: &str, pos: Vec2, text_color: Color, bg_color: Color, padding: f32) {
     let draw_list = ui.get_background_draw_list();
 
     // Measure text size
@@ -184,10 +160,8 @@ fn draw_text_with_bg(ui: &imgui::Ui,
     let p_max = [pos.x + text_size[0] + padding, pos.y + text_size[1] + padding];
 
     // Convert colors
-    let bg_col_u32 =
-        imgui::ImColor32::from_rgba_f32s(bg_color.r, bg_color.g, bg_color.b, bg_color.a);
-    let text_col_u32 =
-        imgui::ImColor32::from_rgba_f32s(text_color.r, text_color.g, text_color.b, text_color.a);
+    let bg_col_u32 = imgui::ImColor32::from_rgba_f32s(bg_color.r, bg_color.g, bg_color.b, bg_color.a);
+    let text_col_u32 = imgui::ImColor32::from_rgba_f32s(text_color.r, text_color.g, text_color.b, text_color.a);
 
     // Draw background rectangle
     draw_list.add_rect(p_min, p_max, bg_col_u32).filled(true).build();
@@ -203,12 +177,14 @@ fn calc_message_lifetime_percentage(lifetime_secs: Seconds, time_left_secs: Seco
     (time_left_secs / lifetime_secs).clamp(0.0, 1.0)
 }
 
-fn draw_popup_message(ui_sys: &UiSystem,
-                      message: &PopupMessage,
-                      screen_pos: Vec2,
-                      scroll_dist: f32,
-                      scroll_speed: f32,
-                      start_bg_alpha: f32) {
+fn draw_popup_message(
+    ui_sys: &UiSystem,
+    message: &PopupMessage,
+    screen_pos: Vec2,
+    scroll_dist: f32,
+    scroll_speed: f32,
+    start_bg_alpha: f32,
+) {
     let ui = ui_sys.ui();
 
     let lifetime_percentage = match message.lifetime {
@@ -218,16 +194,19 @@ fn draw_popup_message(ui_sys: &UiSystem,
 
     let (text_scroll, bg_alpha) = {
         if lifetime_percentage != 0.0 {
-            (scroll_dist * scroll_speed * (1.0 - lifetime_percentage),
-             common::lerp(0.0, start_bg_alpha, lifetime_percentage))
+            (
+                scroll_dist * scroll_speed * (1.0 - lifetime_percentage),
+                common::lerp(0.0, start_bg_alpha, lifetime_percentage),
+            )
         } else {
-            (0.0,            // no text scroll
-             start_bg_alpha  /* default bg_alpha */)
+            (
+                0.0,            // no text scroll
+                start_bg_alpha, // default bg_alpha
+            )
         }
     };
 
-    let pos =
-        Vec2::new(screen_pos.x - message.offset.x, screen_pos.y - message.offset.y - text_scroll);
+    let pos = Vec2::new(screen_pos.x - message.offset.x, screen_pos.y - message.offset.y - text_scroll);
 
     let text_color = message.color;
     let bg_color = Color::new(0.1, 0.1, 0.1, bg_alpha);

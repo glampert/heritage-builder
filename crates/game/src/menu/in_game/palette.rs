@@ -1,23 +1,44 @@
 use arrayvec::ArrayVec;
-use strum::{EnumCount, EnumProperty, EnumIter, IntoEnumIterator};
-
-use engine::{
-    render::texture::TextureHandle,
-    app::input::{InputAction, MouseButton},
-    ui::{self, UiInputEvent, widgets::*, sound::{self, UiSoundKey}},
-    file_sys::paths::PathRef,
+use common::{
+    self,
+    Color,
+    Rect,
+    RectTexCoords,
+    Vec2,
+    constants::BASE_TILE_SIZE_F32,
+    coords::WorldToScreenTransform,
+    mem::{RcMut, WeakMut, WeakRef},
 };
-use common::{ self, Vec2, Color, Rect, RectTexCoords, coords::WorldToScreenTransform, constants::BASE_TILE_SIZE_F32, mem::{RcMut, WeakMut, WeakRef}, };
+use engine::{
+    app::input::{InputAction, MouseButton},
+    file_sys::paths::PathRef,
+    render::texture::TextureHandle,
+    ui::{
+        self,
+        UiInputEvent,
+        sound::{self, UiSoundKey},
+        widgets::*,
+    },
+};
+use strum::{EnumCount, EnumIter, EnumProperty, IntoEnumIterator};
+
 use crate::{
-    {undo_redo, menu::*, ui_context::GameUiContext},
+    menu::*,
     tile::{
-    TileKind,
-    rendering::INVALID_TILE_COLOR,
-    sets::{
-    TileDef, TileDefHandle, TileSets, TileSector, PresetTiles,
-    OBJECTS_BUILDINGS_CATEGORY, TERRAIN_LAND_CATEGORY,
+        TileKind,
+        rendering::INVALID_TILE_COLOR,
+        sets::{
+            OBJECTS_BUILDINGS_CATEGORY,
+            PresetTiles,
+            TERRAIN_LAND_CATEGORY,
+            TileDef,
+            TileDefHandle,
+            TileSector,
+            TileSets,
+        },
     },
-    },
+    ui_context::GameUiContext,
+    undo_redo,
 };
 
 // ----------------------------------------------
@@ -108,9 +129,7 @@ impl TilePaletteMainButtonDef {
         let button_name = self.name();
 
         TileSets::get().for_each_category(|_, category| {
-            if category.hash == OBJECTS_BUILDINGS_CATEGORY.hash ||
-               category.hash == TERRAIN_LAND_CATEGORY.hash
-            {
+            if category.hash == OBJECTS_BUILDINGS_CATEGORY.hash || category.hash == TERRAIN_LAND_CATEGORY.hash {
                 category.for_each_tile_def(|tile_def| {
                     if tile_def.sector != TileSector::Housing && // NOTE: No child menu for housing; selects vacant lot instead.
                        tile_def.sector.name() == button_name
@@ -128,9 +147,7 @@ impl TilePaletteMainButtonDef {
 
     fn to_tile_selection(self, tile_def_handle: Option<TileDefHandle>) -> TilePaletteSelection {
         match self {
-            TilePaletteMainButtonDef::ClearLand => {
-                TilePaletteSelection::Clear
-            }
+            TilePaletteMainButtonDef::ClearLand => TilePaletteSelection::Clear,
             TilePaletteMainButtonDef::Housing => {
                 if let Some(tile_def) = PresetTiles::VacantLot.find_tile_def() {
                     TilePaletteSelection::Tile(TileDefHandle::from_tile_def(tile_def))
@@ -138,7 +155,7 @@ impl TilePaletteMainButtonDef {
                     TilePaletteSelection::None
                 }
             }
-            _ => TilePaletteSelection::Tile(tile_def_handle.unwrap())
+            _ => TilePaletteSelection::Tile(tile_def_handle.unwrap()),
         }
     }
 }
@@ -159,19 +176,9 @@ impl TilePaletteChildButtonDef {
     fn new(tile_def: &TileDef) -> Self {
         let label = common::fixed_string::snake_case_to_title::<128>(&tile_def.name).to_string();
 
-        let tooltip = {
-            if tile_def.cost != 0 {
-                Some(format!("Cost: {} gold", tile_def.cost))
-            } else {
-                None
-            }
-        };
+        let tooltip = { if tile_def.cost != 0 { Some(format!("Cost: {} gold", tile_def.cost)) } else { None } };
 
-        Self {
-            label,
-            tooltip,
-            tile_def_handle: TileDefHandle::from_tile_def(tile_def),
-        }
+        Self { label, tooltip, tile_def_handle: TileDefHandle::from_tile_def(tile_def) }
     }
 }
 
@@ -186,10 +193,7 @@ struct TilePaletteMainButtonsBuilder {
 
 impl TilePaletteMainButtonsBuilder {
     fn build_all(context: &mut GameUiContext, tile_palette: &TilePaletteMenuWeakMut) -> Self {
-        let mut buttons = Self {
-            main: ArrayVec::new(),
-            ui: ArrayVec::new(),
-        };
+        let mut buttons = Self { main: ArrayVec::new(), ui: ArrayVec::new() };
 
         for main_button_def in TilePaletteMainButtonDef::iter() {
             let mut main_button = TilePaletteMainButton::new(context, main_button_def, tile_palette);
@@ -197,8 +201,8 @@ impl TilePaletteMainButtonsBuilder {
             let tile_palette_weak_ref = tile_palette.clone();
             let child_menu_weak_ref = main_button.child_menu_weak_mut();
 
-            let on_main_button_state_changed = UiSpriteButtonStateChanged::with_closure(
-                move |button, context, prev_state| {
+            let on_main_button_state_changed =
+                UiSpriteButtonStateChanged::with_closure(move |button, context, prev_state| {
                     let mut tile_palette_rc = tile_palette_weak_ref.upgrade().unwrap();
 
                     let is_pressed = button.is_pressed();
@@ -240,8 +244,7 @@ impl TilePaletteMainButtonsBuilder {
                         // Stay pressed, except for undo/redo (reset_selection_internal above would have unpressed all).
                         button.press(stay_pressed);
                     }
-                }
-            );
+                });
 
             let ui_button = main_button_def.new_sprite_button(
                 context,
@@ -250,7 +253,7 @@ impl TilePaletteMainButtonsBuilder {
                 TILE_PALETTE_MAIN_BUTTON_SIZE,
                 main_button_def.state_transition_secs(),
                 main_button_def.initial_state(main_button.has_children()),
-                on_main_button_state_changed
+                on_main_button_state_changed,
             );
 
             buttons.main.push(main_button);
@@ -271,9 +274,11 @@ struct TilePaletteMainButton {
 }
 
 impl TilePaletteMainButton {
-    fn new(context: &mut GameUiContext,
-           main_button_def: TilePaletteMainButtonDef,
-           tile_palette: &TilePaletteMenuWeakMut) -> Self {
+    fn new(
+        context: &mut GameUiContext,
+        main_button_def: TilePaletteMainButtonDef,
+        tile_palette: &TilePaletteMenuWeakMut,
+    ) -> Self {
         let children = main_button_def.build_child_button_defs();
 
         let child_menu = {
@@ -287,40 +292,32 @@ impl TilePaletteMainButton {
         Self { def: main_button_def, child_menu }
     }
 
-    fn build_child_menu(context: &mut GameUiContext,
-                        main_button_def: TilePaletteMainButtonDef,
-                        tile_palette: &TilePaletteMenuWeakMut,
-                        children: Vec<TilePaletteChildButtonDef>) -> UiMenuRcMut {
-        let mut child_menu = UiMenu::new(
-            context,
-            UiMenuParams {
-                label: Some(format!("TilePaletteChildMenu: {}", main_button_def.name())),
-                background: Some(TILE_PALETTE_CHILD_MENU_BACKGROUND_SPRITE),
-                widget_spacing: Some(TILE_PALETTE_BUTTON_SPACING),
-                ..Default::default()
-            }
-        );
+    fn build_child_menu(
+        context: &mut GameUiContext,
+        main_button_def: TilePaletteMainButtonDef,
+        tile_palette: &TilePaletteMenuWeakMut,
+        children: Vec<TilePaletteChildButtonDef>,
+    ) -> UiMenuRcMut {
+        let mut child_menu = UiMenu::new(context, UiMenuParams {
+            label: Some(format!("TilePaletteChildMenu: {}", main_button_def.name())),
+            background: Some(TILE_PALETTE_CHILD_MENU_BACKGROUND_SPRITE),
+            widget_spacing: Some(TILE_PALETTE_BUTTON_SPACING),
+            ..Default::default()
+        });
 
-        let mut child_button_group = UiWidgetGroup::new(
-            context,
-            UiWidgetGroupParams {
-                widget_spacing: TILE_PALETTE_BUTTON_SPACING,
-                ..Default::default()
-            }
-        );
+        let mut child_button_group = UiWidgetGroup::new(context, UiWidgetGroupParams {
+            widget_spacing: TILE_PALETTE_BUTTON_SPACING,
+            ..Default::default()
+        });
 
         for child_def in children {
-            let child_tooltip =
-                child_def.tooltip.map(|tooltip_text| {
-                    UiTooltipText::new(
-                        context,
-                        UiTooltipTextParams {
-                            text: tooltip_text,
-                            font_scale: TOOLTIP_FONT_SCALE,
-                            background: Some(TOOLTIP_BACKGROUND_SPRITE),
-                        }
-                    )
-                });
+            let child_tooltip = child_def.tooltip.map(|tooltip_text| {
+                UiTooltipText::new(context, UiTooltipTextParams {
+                    text: tooltip_text,
+                    font_scale: TOOLTIP_FONT_SCALE,
+                    background: Some(TOOLTIP_BACKGROUND_SPRITE),
+                })
+            });
 
             let parent_button_def = main_button_def;
             let child_button_tile_def_handle = child_def.tile_def_handle;
@@ -328,31 +325,26 @@ impl TilePaletteMainButton {
             let tile_palette_weak_ref = tile_palette.clone();
             let child_menu_weak_ref = child_menu.downgrade();
 
-            let on_child_button_pressed = UiTextButtonPressed::with_closure(
-                move |_button, context| {
-                    let mut tile_palette_rc = tile_palette_weak_ref.upgrade().unwrap();
-                    let mut child_menu_rc = child_menu_weak_ref.upgrade().unwrap();
+            let on_child_button_pressed = UiTextButtonPressed::with_closure(move |_button, context| {
+                let mut tile_palette_rc = tile_palette_weak_ref.upgrade().unwrap();
+                let mut child_menu_rc = child_menu_weak_ref.upgrade().unwrap();
 
-                    let selection = parent_button_def.to_tile_selection(Some(child_button_tile_def_handle));
-                    tile_palette_rc.set_selection_internal(selection);
+                let selection = parent_button_def.to_tile_selection(Some(child_button_tile_def_handle));
+                tile_palette_rc.set_selection_internal(selection);
 
-                    // Keep the parent button pressed but close the child menu when we have a selection.
-                    child_menu_rc.close(context);
-                }
-            );
+                // Keep the parent button pressed but close the child menu when we have a selection.
+                child_menu_rc.close(context);
+            });
 
-            let child_button = UiTextButton::new(
-                context,
-                UiTextButtonParams {
-                    label: child_def.label,
-                    tooltip: child_tooltip,
-                    hover: Some(TEXT_BUTTON_HOVERED_SPRITE),
-                    sounds_enabled: UiButtonSoundsEnabled::Pressed,
-                    size: UiTextButtonSize::ExtraSmall,
-                    on_pressed: on_child_button_pressed,
-                    ..Default::default()
-                }
-            );
+            let child_button = UiTextButton::new(context, UiTextButtonParams {
+                label: child_def.label,
+                tooltip: child_tooltip,
+                hover: Some(TEXT_BUTTON_HOVERED_SPRITE),
+                sounds_enabled: UiButtonSoundsEnabled::Pressed,
+                size: UiTextButtonSize::ExtraSmall,
+                on_pressed: on_child_button_pressed,
+                ..Default::default()
+            });
 
             child_button_group.add_widget(child_button);
         }
@@ -362,7 +354,9 @@ impl TilePaletteMainButton {
     }
 
     fn draw_child_menu(&mut self, context: &mut GameUiContext) {
-        if let Some(child_menu) = &mut self.child_menu && child_menu.is_open() {
+        if let Some(child_menu) = &mut self.child_menu
+            && child_menu.is_open()
+        {
             child_menu.draw(context);
         }
     }
@@ -380,9 +374,7 @@ impl TilePaletteMainButton {
     }
 
     fn child_menu_weak_mut(&mut self) -> Option<UiMenuWeakMut> {
-        self.child_menu
-            .as_ref()
-            .map(|menu| menu.downgrade())
+        self.child_menu.as_ref().map(|menu| menu.downgrade())
     }
 
     fn has_children(&self) -> bool {
@@ -469,32 +461,25 @@ impl TilePalette for TilePaletteMenu {
 impl TilePaletteMenu {
     pub fn new(context: &mut GameUiContext) -> TilePaletteMenuRcMut {
         TilePaletteMenuRcMut::new_cyclic(|tile_palette_weak_ref| {
-            let buttons =
-                TilePaletteMainButtonsBuilder::build_all(context, &tile_palette_weak_ref);
+            let buttons = TilePaletteMainButtonsBuilder::build_all(context, &tile_palette_weak_ref);
 
-            let mut palette_menu = UiMenu::new(
-                context,
-                UiMenuParams {
-                    label: Some("TilePaletteMenu".into()),
-                    flags: UiMenuFlags::IsOpen | UiMenuFlags::AlignRight,
-                    background: Some(TILE_PALETTE_BACKGROUND_SPRITE),
-                    widget_spacing: Some(TILE_PALETTE_BUTTON_SPACING),
-                    ..Default::default()
-                }
-            );
+            let mut palette_menu = UiMenu::new(context, UiMenuParams {
+                label: Some("TilePaletteMenu".into()),
+                flags: UiMenuFlags::IsOpen | UiMenuFlags::AlignRight,
+                background: Some(TILE_PALETTE_BACKGROUND_SPRITE),
+                widget_spacing: Some(TILE_PALETTE_BUTTON_SPACING),
+                ..Default::default()
+            });
 
             for (index, ui_button) in buttons.ui.into_iter().enumerate() {
                 palette_menu.add_widget(ui_button);
 
                 if buttons.main[index].def.separator_follows() {
-                    palette_menu.add_widget(UiSeparator::new(
-                        context,
-                        UiSeparatorParams {
-                            separator: Some(SMALL_HORIZONTAL_SEPARATOR_SPRITE),
-                            thickness: Some(2.0),
-                            ..Default::default()
-                        }
-                    ));
+                    palette_menu.add_widget(UiSeparator::new(context, UiSeparatorParams {
+                        separator: Some(SMALL_HORIZONTAL_SEPARATOR_SPRITE),
+                        thickness: Some(2.0),
+                        ..Default::default()
+                    }));
                 }
             }
 
@@ -540,9 +525,7 @@ impl TilePaletteMenu {
     // ----------------------
 
     fn enable_button(menu: &mut UiMenu, def: TilePaletteMainButtonDef, enable: bool) {
-        let (_, button) = menu
-            .find_widget_with_label_mut::<UiSpriteButton>(def.label_str())
-            .unwrap();
+        let (_, button) = menu.find_widget_with_label_mut::<UiSpriteButton>(def.label_str()).unwrap();
 
         button.enable(enable);
     }
@@ -552,18 +535,18 @@ impl TilePaletteMenu {
             if let Some(child_menu) = &mut main_button.child_menu {
                 let child_menu_width = child_menu.measure(context).x;
                 let palette_menu_weak_ref = self.menu.downgrade().into_not_mut();
-                let main_button_index =
-                    self.menu.find_widget_with_label::<UiSpriteButton>(main_button.def.label_str())
-                        .expect("Couldn't find UiSpriteButton widget in palette menu!").0;
+                let main_button_index = self
+                    .menu
+                    .find_widget_with_label::<UiSpriteButton>(main_button.def.label_str())
+                    .expect("Couldn't find UiSpriteButton widget in palette menu!")
+                    .0;
 
-                child_menu.set_position(UiMenuPosition::Callback(
-                    UiMenuCalcPosition::with_closure(move |_, _| {
-                        let palette_menu = palette_menu_weak_ref.upgrade().unwrap();
-                        let main_button  = palette_menu.widget_as::<UiSpriteButton>(main_button_index).unwrap();
-                        let main_button_pos = main_button.position();
-                        Vec2::new(main_button_pos.x - child_menu_width, main_button_pos.y)
-                    })
-                ));
+                child_menu.set_position(UiMenuPosition::Callback(UiMenuCalcPosition::with_closure(move |_, _| {
+                    let palette_menu = palette_menu_weak_ref.upgrade().unwrap();
+                    let main_button = palette_menu.widget_as::<UiSpriteButton>(main_button_index).unwrap();
+                    let main_button_pos = main_button.position();
+                    Vec2::new(main_button_pos.x - child_menu_width, main_button_pos.y)
+                })));
             }
         }
     }
@@ -610,27 +593,18 @@ impl TileSelectionRenderer {
         if current_selection.is_clear() {
             const CLEAR_ICON_SIZE: Vec2 = BASE_TILE_SIZE_F32;
 
-            let rect = Rect::from_pos_and_size(
-                context.cursor_screen_pos - (CLEAR_ICON_SIZE * 0.5),
-                CLEAR_ICON_SIZE
-            );
+            let rect = Rect::from_pos_and_size(context.cursor_screen_pos - (CLEAR_ICON_SIZE * 0.5), CLEAR_ICON_SIZE);
 
-            context.render_sys().draw_textured_colored_rect(rect,
-                                                            &RectTexCoords::DEFAULT,
-                                                            self.clear_icon,
-                                                            Color::white());
+            context.render_sys().draw_textured_colored_rect(rect, &RectTexCoords::DEFAULT, self.clear_icon, Color::white());
         } else {
             let selected_tile = current_selection.as_tile_def().unwrap();
             let rect = Rect::from_pos_and_size(context.cursor_screen_pos, selected_tile.draw_size.to_vec2());
 
-            let offset =
-                if selected_tile.is(TileKind::Building | TileKind::Rocks | TileKind::Vegetation) {
-                    Vec2::new(-(selected_tile.draw_size.width  as f32 / 2.0),
-                              -(selected_tile.draw_size.height as f32))
-                } else {
-                    Vec2::new(-(selected_tile.draw_size.width  as f32 / 2.0),
-                              -(selected_tile.draw_size.height as f32 / 2.0))
-                };
+            let offset = if selected_tile.is(TileKind::Building | TileKind::Rocks | TileKind::Vegetation) {
+                Vec2::new(-(selected_tile.draw_size.width as f32 / 2.0), -(selected_tile.draw_size.height as f32))
+            } else {
+                Vec2::new(-(selected_tile.draw_size.width as f32 / 2.0), -(selected_tile.draw_size.height as f32 / 2.0))
+            };
 
             let has_valid_placement = context.tile_selection.has_valid_placement();
             let transform = context.camera.transform();
@@ -643,14 +617,16 @@ impl TileSelectionRenderer {
                     selected_tile.color.r,
                     selected_tile.color.g,
                     selected_tile.color.b,
-                    0.7 // Semi-transparent
+                    0.7, // Semi-transparent
                 );
 
-                context.render_sys().draw_textured_colored_rect(cursor_transform.scale_and_offset_rect(rect),
-                                                                &sprite_frame.tex_info.coords,
-                                                                sprite_frame.tex_info.texture,
-                                                                tile_color * highlight_color);
+                context.render_sys().draw_textured_colored_rect(
+                    cursor_transform.scale_and_offset_rect(rect),
+                    &sprite_frame.tex_info.coords,
+                    sprite_frame.tex_info.texture,
+                    tile_color * highlight_color,
+                );
             }
         }
-    }    
+    }
 }

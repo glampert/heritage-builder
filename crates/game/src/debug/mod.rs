@@ -1,20 +1,33 @@
-use std::sync::atomic::{AtomicBool, Ordering};
-use std::any::Any;
+use std::{
+    any::Any,
+    sync::atomic::{AtomicBool, Ordering},
+};
 
-use inspector::TileInspectorDevMenu;
-use palette::TilePaletteDevMenu;
-use settings::DebugSettingsDevMenu;
-use log_viewer::LogViewer;
-
+use common::{
+    coords::{Cell, CellRange},
+    mem::{RcMut, SingleThreadStatic, WeakMut},
+};
 use engine::{
     Engine,
     ui::{self, UiTheme},
 };
-use common::{coords::{Cell, CellRange}, mem::{SingleThreadStatic, RcMut, WeakMut}};
-use crate::save_context::{Save, Load, PreLoadContext, PostLoadContext};
+use inspector::TileInspectorDevMenu;
+use log_viewer::LogViewer;
+use palette::TilePaletteDevMenu;
+use settings::DebugSettingsDevMenu;
+
 use crate::{
-    {config::GameConfigs, GameLoop, menu::*, ui_context::GameUiContext},
-    tile::{rendering::TileMapRenderFlags, TileMap, TileMapLayerKind, minimap::{MinimapRenderer, DevUiMinimapRenderer}},
+    GameLoop,
+    config::GameConfigs,
+    menu::*,
+    save_context::{Load, PostLoadContext, PreLoadContext, Save},
+    tile::{
+        TileMap,
+        TileMapLayerKind,
+        minimap::{DevUiMinimapRenderer, MinimapRenderer},
+        rendering::TileMapRenderFlags,
+    },
+    ui_context::GameUiContext,
 };
 
 pub mod game_object_debug;
@@ -70,11 +83,7 @@ impl GameMenusSystem for DevEditorMenus {
 
     fn tile_inspector(&mut self) -> Option<&mut dyn TileInspector> {
         let singleton = DevEditorMenusSingleton::get_mut();
-        if singleton.enable_dev_tile_inspector {
-            Some(&mut singleton.tile_inspector_menu)
-        } else {
-            None
-        }
+        if singleton.enable_dev_tile_inspector { Some(&mut singleton.tile_inspector_menu) } else { None }
     }
 
     fn selected_render_flags(&self) -> TileMapRenderFlags {
@@ -171,13 +180,9 @@ impl DevEditorMenusSingleton {
             *show_log_viewer_window = self.log_viewer.draw(context.ui_sys);
         }
 
-        self.tile_palette_menu.draw(context,
-                                    engine.debug_draw_mut(),
-                                    show_selection_bounds);
+        self.tile_palette_menu.draw(context, engine.debug_draw_mut(), show_selection_bounds);
 
-        self.debug_settings_menu.draw(context,
-                                      &self.log_viewer,
-                                      &mut self.enable_dev_tile_inspector);
+        self.debug_settings_menu.draw(context, &self.log_viewer, &mut self.enable_dev_tile_inspector);
 
         if self.enable_dev_tile_inspector {
             self.tile_inspector_menu.draw(context);
@@ -195,24 +200,21 @@ impl DevEditorMenusSingleton {
         }
 
         if show_cursor_pos {
-            utils::draw_cursor_overlay(context.ui_sys,
-                                       context.camera.transform(),
-                                       context.cursor_screen_pos,
-                                       None);
+            utils::draw_cursor_overlay(context.ui_sys, context.camera.transform(), context.cursor_screen_pos, None);
         }
 
         if show_render_perf_stats {
-            utils::draw_render_perf_stats(context.ui_sys,
-                                          engine.render_stats(),
-                                          GameLoop::get().tile_map_render_stats());
+            utils::draw_render_perf_stats(context.ui_sys, engine.render_stats(), GameLoop::get().tile_map_render_stats());
         }
 
         if show_world_perf_stats {
-            utils::draw_world_perf_stats(context.ui_sys,
-                                         context.world,
-                                         context.tile_map,
-                                         visible_range,
-                                         GameLoop::get().stats());
+            utils::draw_world_perf_stats(
+                context.ui_sys,
+                context.world,
+                context.tile_map,
+                visible_range,
+                GameLoop::get().stats(),
+            );
         }
 
         if show_screen_origin {
@@ -288,8 +290,7 @@ fn remove_tile_map_debug_callbacks() {
 pub fn tile_name_at(cell: Cell, layer: TileMapLayerKind) -> &'static str {
     if let Some(tile_map_weak_ref) = TILE_MAP_DEBUG_REF.as_ref() {
         if let Some(tile_map_strong_ref) = tile_map_weak_ref.upgrade() {
-            return tile_map_strong_ref.try_tile_from_layer(cell, layer)
-                .map_or("", |tile| tile.name());
+            return tile_map_strong_ref.try_tile_from_layer(cell, layer).map_or("", |tile| tile.name());
         }
     }
     ""

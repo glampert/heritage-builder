@@ -1,7 +1,7 @@
 use bitflags::bitflags;
+use engine::{file_sys::paths::PathRef, save};
 
 use super::*;
-use engine::{save, file_sys::paths::PathRef};
 use crate::{GameLoop, menu::TEXT_BUTTON_HOVERED_SPRITE};
 
 // ----------------------------------------------
@@ -97,13 +97,11 @@ impl SaveGameHelper {
     }
 
     fn current_save_file_selection(menu: &UiMenu) -> (PathRef<'_>, &[String]) {
-        let (_, save_files_list) = menu
-            .find_widget_of_type::<UiItemList>()
-            .unwrap();
+        let (_, save_files_list) = menu.find_widget_of_type::<UiItemList>().unwrap();
 
-        let save_file_name = save_files_list.current_selection().unwrap_or_else(|| {
-            save_files_list.current_text_input_field().unwrap_or_default()
-        });
+        let save_file_name = save_files_list
+            .current_selection()
+            .unwrap_or_else(|| save_files_list.current_text_input_field().unwrap_or_default());
 
         (PathRef::from_str(save_file_name), save_files_list.items())
     }
@@ -113,65 +111,54 @@ impl SaveGameHelper {
 
         menu.open_message_box(context, |context: &mut dyn UiWidgetContext| {
             let yes_button_menu_weak_ref = menu_rc.downgrade();
-            let no_button_menu_weak_ref  = menu_rc.downgrade();
+            let no_button_menu_weak_ref = menu_rc.downgrade();
 
             UiMessageBoxParams {
                 label: Some("Overwrite Save Game Popup".into()),
                 background: Some(DEFAULT_DIALOG_POPUP_BACKGROUND_SPRITE),
-                contents: vec![
-                    UiWidgetImpl::from(UiMenuHeading::new(
-                        context,
-                        UiMenuHeadingParams {
-                            lines: vec![UiText::new("Overwrite existing save game?".into(), DEFAULT_DIALOG_POPUP_FONT_SCALE)],
-                            separator: Some(LARGE_HORIZONTAL_SEPARATOR_SPRITE),
-                            margin_top: 2.0,
-                            ..Default::default()
-                        }
-                    ))
-                ],
+                contents: vec![UiWidgetImpl::from(UiMenuHeading::new(context, UiMenuHeadingParams {
+                    lines: vec![UiText::new("Overwrite existing save game?".into(), DEFAULT_DIALOG_POPUP_FONT_SCALE)],
+                    separator: Some(LARGE_HORIZONTAL_SEPARATOR_SPRITE),
+                    margin_top: 2.0,
+                    ..Default::default()
+                }))],
                 buttons: vec![
-                    UiWidgetImpl::from(UiTextButton::new(
-                        context,
-                        UiTextButtonParams {
-                            label: "Yes".into(),
-                            size: UiTextButtonSize::Normal,
-                            hover: Some(LARGE_HORIZONTAL_SEPARATOR_SPRITE),
-                            sounds_enabled: UiButtonSoundsEnabled::all(),
-                            on_pressed: UiTextButtonPressed::with_closure(move |_, context| {
-                                let mut save_game_menu = yes_button_menu_weak_ref.upgrade().unwrap();
-                                let (save_file_name, _) = Self::current_save_file_selection(&save_game_menu);
-                                GameLoop::get_mut().save_game(save_file_name);
-                                save_game_menu.close_message_box(context);
-                            }),
-                            ..Default::default()
-                        }
-                    )),
-                    UiWidgetImpl::from(UiTextButton::new(
-                        context,
-                        UiTextButtonParams {
-                            label: "No".into(),
-                            size: UiTextButtonSize::Normal,
-                            hover: Some(LARGE_HORIZONTAL_SEPARATOR_SPRITE),
-                            sounds_enabled: UiButtonSoundsEnabled::all(),
-                            on_pressed: UiTextButtonPressed::with_closure(move |_, context| {
-                                let mut save_game_menu = no_button_menu_weak_ref.upgrade().unwrap();
-                                save_game_menu.close_message_box(context);
-                            }),
-                            ..Default::default()
-                        }
-                    )),
+                    UiWidgetImpl::from(UiTextButton::new(context, UiTextButtonParams {
+                        label: "Yes".into(),
+                        size: UiTextButtonSize::Normal,
+                        hover: Some(LARGE_HORIZONTAL_SEPARATOR_SPRITE),
+                        sounds_enabled: UiButtonSoundsEnabled::all(),
+                        on_pressed: UiTextButtonPressed::with_closure(move |_, context| {
+                            let mut save_game_menu = yes_button_menu_weak_ref.upgrade().unwrap();
+                            let (save_file_name, _) = Self::current_save_file_selection(&save_game_menu);
+                            GameLoop::get_mut().save_game(save_file_name);
+                            save_game_menu.close_message_box(context);
+                        }),
+                        ..Default::default()
+                    })),
+                    UiWidgetImpl::from(UiTextButton::new(context, UiTextButtonParams {
+                        label: "No".into(),
+                        size: UiTextButtonSize::Normal,
+                        hover: Some(LARGE_HORIZONTAL_SEPARATOR_SPRITE),
+                        sounds_enabled: UiButtonSoundsEnabled::all(),
+                        on_pressed: UiTextButtonPressed::with_closure(move |_, context| {
+                            let mut save_game_menu = no_button_menu_weak_ref.upgrade().unwrap();
+                            save_game_menu.close_message_box(context);
+                        }),
+                        ..Default::default()
+                    })),
                 ],
                 ..Default::default()
             }
         });
     }
 
-    fn build_menu(&self,
-                  context: &mut GameUiContext,
-                  dialog_menu_kind: DialogMenuKind,
-                  heading_title: &[&str])
-                  -> UiMenuRcMut
-    {
+    fn build_menu(
+        &self,
+        context: &mut GameUiContext,
+        dialog_menu_kind: DialogMenuKind,
+        heading_title: &[&str],
+    ) -> UiMenuRcMut {
         // -------------
         // Menu:
         // -------------
@@ -181,62 +168,51 @@ impl SaveGameHelper {
             dialog_menu_kind,
             heading_title,
             DEFAULT_DIALOG_MENU_WIDGET_SPACING,
-            Option::<Vec<UiWidgetImpl>>::None
+            Option::<Vec<UiWidgetImpl>>::None,
         );
 
         // -------------
         // Widgets:
         // -------------
 
-        let save_files_list = UiItemList::new(
-            context,
-            UiItemListParams {
-                font_scale: DEFAULT_DIALOG_MENU_WIDGET_FONT_SCALE,
-                size: Some(Vec2::new(0.0, 250.0)), // Use whole parent window width minus margin, fixed height.
-                margin_left: 95.0,
-                margin_right: 100.0,
-                flags: UiItemListFlags::Border | 
-                       UiItemListFlags::TextInputField |
-                       UiItemListFlags::Scrollbars |
-                       UiItemListFlags::Scrollable,
-                ..Default::default()
-            }
-        );
+        let save_files_list = UiItemList::new(context, UiItemListParams {
+            font_scale: DEFAULT_DIALOG_MENU_WIDGET_FONT_SCALE,
+            size: Some(Vec2::new(0.0, 250.0)), // Use whole parent window width minus margin, fixed height.
+            margin_left: 95.0,
+            margin_right: 100.0,
+            flags: UiItemListFlags::Border
+                | UiItemListFlags::TextInputField
+                | UiItemListFlags::Scrollbars
+                | UiItemListFlags::Scrollable,
+            ..Default::default()
+        });
 
         // -------------
         // Buttons:
         // -------------
 
-        let mut side_by_side_button_group = UiWidgetGroup::new(
-            context,
-            UiWidgetGroupParams {
-                widget_spacing: DEFAULT_DIALOG_MENU_WIDGET_SPACING * 2.0,
-                center_vertically: false,
-                center_horizontally: true,
-                stack_vertically: false,
-                ..Default::default()
-            }
-        );
+        let mut side_by_side_button_group = UiWidgetGroup::new(context, UiWidgetGroupParams {
+            widget_spacing: DEFAULT_DIALOG_MENU_WIDGET_SPACING * 2.0,
+            center_vertically: false,
+            center_horizontally: true,
+            stack_vertically: false,
+            ..Default::default()
+        });
 
         if self.actions.intersects(SaveGameActions::Load) {
             let menu_weak_ref = menu.downgrade().into_not_mut();
 
-            let load_game_button = UiTextButton::new(
-                context,
-                UiTextButtonParams {
-                    label: "Load Game".into(),
-                    hover: Some(TEXT_BUTTON_HOVERED_SPRITE),
-                    sounds_enabled: UiButtonSoundsEnabled::all(),
-                    on_pressed: UiTextButtonPressed::with_closure(
-                        move |_, _context| {
-                            let menu_rc = menu_weak_ref.upgrade().unwrap();
-                            let (save_file_name, _) = Self::current_save_file_selection(&menu_rc);
-                            GameLoop::get_mut().load_save_game(save_file_name);
-                        }
-                    ),
-                    ..Default::default()
-                }
-            );
+            let load_game_button = UiTextButton::new(context, UiTextButtonParams {
+                label: "Load Game".into(),
+                hover: Some(TEXT_BUTTON_HOVERED_SPRITE),
+                sounds_enabled: UiButtonSoundsEnabled::all(),
+                on_pressed: UiTextButtonPressed::with_closure(move |_, _context| {
+                    let menu_rc = menu_weak_ref.upgrade().unwrap();
+                    let (save_file_name, _) = Self::current_save_file_selection(&menu_rc);
+                    GameLoop::get_mut().load_save_game(save_file_name);
+                }),
+                ..Default::default()
+            });
 
             side_by_side_button_group.add_widget(load_game_button);
         }
@@ -244,53 +220,44 @@ impl SaveGameHelper {
         if self.actions.intersects(SaveGameActions::Save) {
             let menu_weak_ref = menu.downgrade();
 
-            let save_game_button = UiTextButton::new(
-                context,
-                UiTextButtonParams {
-                    label: "Save Game".into(),
-                    hover: Some(TEXT_BUTTON_HOVERED_SPRITE),
-                    sounds_enabled: UiButtonSoundsEnabled::all(),
-                    on_pressed: UiTextButtonPressed::with_closure(
-                        move |_, context| {
-                            let mut menu_rc = menu_weak_ref.upgrade().unwrap();
+            let save_game_button = UiTextButton::new(context, UiTextButtonParams {
+                label: "Save Game".into(),
+                hover: Some(TEXT_BUTTON_HOVERED_SPRITE),
+                sounds_enabled: UiButtonSoundsEnabled::all(),
+                on_pressed: UiTextButtonPressed::with_closure(move |_, context| {
+                    let mut menu_rc = menu_weak_ref.upgrade().unwrap();
 
-                            let (save_file_name, existing_save_files) =
-                                Self::current_save_file_selection(&menu_rc);
+                    let (save_file_name, existing_save_files) = Self::current_save_file_selection(&menu_rc);
 
-                            let save_file_already_exits = existing_save_files
-                                .iter()
-                                .any(|file| file.eq_ignore_ascii_case(save_file_name.as_str()));
+                    let save_file_already_exits =
+                        existing_save_files.iter().any(|file| file.eq_ignore_ascii_case(save_file_name.as_str()));
 
-                            if save_file_already_exits {
-                                // Prompt the user about overwriting an existing save file.
-                                Self::open_overwrite_save_game_message_box(&mut menu_rc, ui::widgets::context_as_mut::<GameUiContext>(context));
-                            } else {
-                                // Creating a new save. No prompt required.
-                                GameLoop::get_mut().save_game(save_file_name);
-                            }
-                        }
-                    ),
-                    ..Default::default()
-                }
-            );
+                    if save_file_already_exits {
+                        // Prompt the user about overwriting an existing save file.
+                        Self::open_overwrite_save_game_message_box(
+                            &mut menu_rc,
+                            ui::widgets::context_as_mut::<GameUiContext>(context),
+                        );
+                    } else {
+                        // Creating a new save. No prompt required.
+                        GameLoop::get_mut().save_game(save_file_name);
+                    }
+                }),
+                ..Default::default()
+            });
 
             side_by_side_button_group.add_widget(save_game_button);
         }
 
-        let cancel_button = UiTextButton::new(
-            context,
-            UiTextButtonParams {
-                label: "Cancel".into(),
-                hover: Some(TEXT_BUTTON_HOVERED_SPRITE),
-                sounds_enabled: UiButtonSoundsEnabled::all(),
-                on_pressed: UiTextButtonPressed::with_fn(
-                    |_, context| {
-                        super::close_current(ui::widgets::context_as_mut::<GameUiContext>(context));
-                    }
-                ),
-                ..Default::default()
-            }
-        );
+        let cancel_button = UiTextButton::new(context, UiTextButtonParams {
+            label: "Cancel".into(),
+            hover: Some(TEXT_BUTTON_HOVERED_SPRITE),
+            sounds_enabled: UiButtonSoundsEnabled::all(),
+            on_pressed: UiTextButtonPressed::with_fn(|_, context| {
+                super::close_current(ui::widgets::context_as_mut::<GameUiContext>(context));
+            }),
+            ..Default::default()
+        });
 
         side_by_side_button_group.add_widget(cancel_button);
 
@@ -300,35 +267,28 @@ impl SaveGameHelper {
 
         // When menu opens, refresh list of available save game files:
         let save_game_actions = self.actions;
-        menu.set_open_close_callback(UiMenuOpenClose::with_closure(
-            move |save_game_menu, _context, is_open| {
-                if is_open {
-                    let (_, save_files_list) = save_game_menu
-                        .find_widget_of_type_mut::<UiItemList>()
-                        .unwrap();
+        menu.set_open_close_callback(UiMenuOpenClose::with_closure(move |save_game_menu, _context, is_open| {
+            if is_open {
+                let (_, save_files_list) = save_game_menu.find_widget_of_type_mut::<UiItemList>().unwrap();
 
-                    let available_save_files = Self::list_save_files();
-                    let current_selection_index = save_files_list.current_selection_index();
+                let available_save_files = Self::list_save_files();
+                let current_selection_index = save_files_list.current_selection_index();
 
-                    if let Some(index) = current_selection_index {
-                        let current_item = index.min(available_save_files.len() - 1);
-                        save_files_list.reset_items(Some(current_item), available_save_files);
-                    } else {
-                        let default_save_file_name = Self::default_save_file_name(save_game_actions);
-                        save_files_list.reset_items(None, available_save_files);
-                        save_files_list.reset_text_input_field(default_save_file_name.to_string());
-                    }
+                if let Some(index) = current_selection_index {
+                    let current_item = index.min(available_save_files.len() - 1);
+                    save_files_list.reset_items(Some(current_item), available_save_files);
+                } else {
+                    let default_save_file_name = Self::default_save_file_name(save_game_actions);
+                    save_files_list.reset_items(None, available_save_files);
+                    save_files_list.reset_text_input_field(default_save_file_name.to_string());
                 }
             }
-        ));
+        }));
 
-        let spacing = UiSeparator::new(
-            context,
-            UiSeparatorParams {
-                thickness: Some(DEFAULT_DIALOG_MENU_WIDGET_SPACING.x),
-                ..Default::default()
-            }
-        );
+        let spacing = UiSeparator::new(context, UiSeparatorParams {
+            thickness: Some(DEFAULT_DIALOG_MENU_WIDGET_SPACING.x),
+            ..Default::default()
+        });
 
         menu.add_widget(save_files_list);
         menu.add_widget(spacing);

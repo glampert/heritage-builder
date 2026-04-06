@@ -1,20 +1,46 @@
 use std::cmp::Reverse;
-use proc_macros::DrawDebugUi;
-use serde::{Deserialize, Serialize};
-use arrayvec::ArrayVec;
 
-use super::{
-    config::{BuildingConfig, BuildingConfigs, building_config},
-    Building, BuildingBehavior, BuildingContext, BuildingKind, BuildingStock,
+use arrayvec::ArrayVec;
+use common::{
+    Color,
+    callback::{self, Callback},
+    hash::{self, StringHash},
+    time::{Seconds, UpdateTimer},
 };
 use engine::{log, ui::UiSystem};
-use crate::save_context::PostLoadContext;
-use common::{ time::{Seconds, UpdateTimer}, callback::{self, Callback}, hash::{self, StringHash}, Color, };
+use proc_macros::DrawDebugUi;
+use serde::{Deserialize, Serialize};
+
+use super::{
+    Building,
+    BuildingBehavior,
+    BuildingContext,
+    BuildingKind,
+    BuildingStock,
+    config::{BuildingConfig, BuildingConfigs, building_config},
+};
 use crate::{
-    { cheats, sim::{ SimContext, resources::{ ResourceKind, ResourceKinds, ShoppingList, Workers, StockItem, RESOURCE_KIND_COUNT, }, }, unit::{ patrol::*, runner::Runner, task::{ UnitTaskFetchCompletionCallback, UnitTaskFetchFromStorage, UnitTaskRandomizedPatrol, }, config::UnitConfigKey, Unit, UnitTaskHelper, }, world::{object::GameObject, stats::WorldStats}, undo_redo::{GameObjectSavedState, game_object_undo_redo_state}, },
-    debug::utils::UpdateTimerDebugUi,
+    cheats,
+    debug::{
+        game_object_debug::{GameObjectDebugOptions, GameObjectDebugOptionsExt, game_object_debug_options},
+        utils::UpdateTimerDebugUi,
+    },
+    save_context::PostLoadContext,
+    sim::{
+        SimContext,
+        resources::{RESOURCE_KIND_COUNT, ResourceKind, ResourceKinds, ShoppingList, StockItem, Workers},
+    },
     tile::Tile,
-    debug::game_object_debug::{GameObjectDebugOptions, GameObjectDebugOptionsExt, game_object_debug_options},
+    undo_redo::{GameObjectSavedState, game_object_undo_redo_state},
+    unit::{
+        Unit,
+        UnitTaskHelper,
+        config::UnitConfigKey,
+        patrol::*,
+        runner::Runner,
+        task::{UnitTaskFetchCompletionCallback, UnitTaskFetchFromStorage, UnitTaskRandomizedPatrol},
+    },
+    world::{object::GameObject, stats::WorldStats},
 };
 
 // ----------------------------------------------
@@ -62,20 +88,22 @@ pub struct ServiceConfig {
 impl Default for ServiceConfig {
     #[inline]
     fn default() -> Self {
-        Self { kind: BuildingKind::SmallWell,
-               name: "Small Well".into(),
-               tile_def_name: "small_well".into(),
-               tile_def_name_hash: hash::fnv1a_from_str("small_well"),
-               min_workers: 0,
-               max_workers: 0,
-               effect_radius: 5,
-               requires_road_access: false,
-               has_patrol_unit: false,
-               patrol_unit: UnitConfigKey::default(),
-               patrol_frequency_secs: 0.0,
-               stock_update_frequency_secs: 0.0,
-               resources_required: ResourceKinds::none(),
-               stock_capacity: 0 }
+        Self {
+            kind: BuildingKind::SmallWell,
+            name: "Small Well".into(),
+            tile_def_name: "small_well".into(),
+            tile_def_name_hash: hash::fnv1a_from_str("small_well"),
+            min_workers: 0,
+            max_workers: 0,
+            effect_radius: 5,
+            requires_road_access: false,
+            has_patrol_unit: false,
+            patrol_unit: UnitConfigKey::default(),
+            patrol_frequency_secs: 0.0,
+            stock_update_frequency_secs: 0.0,
+            resources_required: ResourceKinds::none(),
+            stock_capacity: 0,
+        }
     }
 }
 
@@ -123,8 +151,8 @@ pub struct ServiceBuilding {
     // Stock of required resources for this service or a treasury for a TaxOffice.
     stock_or_treasury: StockOrTreasury,
 
-    runner: Runner, // Runner Unit we may send out to fetch resources from storage.
-    patrol: Patrol, // Unit we may send out on patrol to provide the service.
+    runner: Runner,            // Runner Unit we may send out to fetch resources from storage.
+    patrol: Patrol,            // Unit we may send out on patrol to provide the service.
     patrol_timer: UpdateTimer, // Min time before we can send out a new patrol unit.
 
     #[serde(skip)]
@@ -166,9 +194,9 @@ impl BuildingBehavior for ServiceBuilding {
         }
 
         if has_patrol_unit
-           && has_min_required_workers
-           && !self.debug.freeze_patrol()
-           && self.patrol_timer.tick(delta_time_secs).should_update()
+            && has_min_required_workers
+            && !self.debug.freeze_patrol()
+            && self.patrol_timer.tick(delta_time_secs).should_update()
         {
             self.send_out_patrol_unit(context);
         }
@@ -217,11 +245,11 @@ impl BuildingBehavior for ServiceBuilding {
                 stock.for_each(|_, item| {
                     items.push(*item);
                 });
-            },
+            }
             StockOrTreasury::Treasury { gold_units } => {
                 items.push(StockItem { kind: ResourceKind::Gold, count: *gold_units });
-            },
-            StockOrTreasury::None => {},
+            }
+            StockOrTreasury::None => {}
         }
 
         items
@@ -378,9 +406,7 @@ impl BuildingBehavior for ServiceBuilding {
     // ----------------------
 
     fn undo_redo_record(&self) -> Option<Box<dyn GameObjectSavedState>> {
-        UndoRedoServiceSavedState::new_state(UndoRedoServiceSavedState {
-            stock_or_treasury: self.stock_or_treasury.clone(),
-        })
+        UndoRedoServiceSavedState::new_state(UndoRedoServiceSavedState { stock_or_treasury: self.stock_or_treasury.clone() })
     }
 
     fn undo_redo_apply(&mut self, state: &dyn GameObjectSavedState) {
@@ -421,20 +447,20 @@ impl BuildingBehavior for ServiceBuilding {
 
 impl ServiceBuilding {
     pub fn new(config: &'static ServiceConfig) -> Self {
-        Self { config: Some(config),
-               workers: Workers::employer(config.min_workers, config.max_workers),
-               stock_or_treasury: StockOrTreasury::new(config),
-               runner: Runner::default(),
-               patrol: Patrol::default(),
-               patrol_timer: UpdateTimer::new(config.patrol_frequency_secs),
-               debug: ServiceDebug::default() }
+        Self {
+            config: Some(config),
+            workers: Workers::employer(config.min_workers, config.max_workers),
+            stock_or_treasury: StockOrTreasury::new(config),
+            runner: Runner::default(),
+            patrol: Patrol::default(),
+            patrol_timer: UpdateTimer::new(config.patrol_frequency_secs),
+            debug: ServiceDebug::default(),
+        }
     }
 
     pub fn register_callbacks() {
-        let _: Callback<UnitTaskFetchCompletionCallback> =
-            callback::register!(ServiceBuilding::on_resources_fetched);
-        let _: Callback<PatrolCompletionCallback> =
-            callback::register!(ServiceBuilding::on_patrol_completed);
+        let _: Callback<UnitTaskFetchCompletionCallback> = callback::register!(ServiceBuilding::on_resources_fetched);
+        let _: Callback<PatrolCompletionCallback> = callback::register!(ServiceBuilding::on_patrol_completed);
     }
 
     // ----------------------
@@ -444,7 +470,7 @@ impl ServiceBuilding {
     fn stock_update(&mut self, context: &BuildingContext) {
         if self.is_waiting_on_runner() {
             return; // A runner is already out fetching resources. Try again
-                    // later.
+            // later.
         }
 
         // Unit spawns at the nearest road link.
@@ -460,12 +486,13 @@ impl ServiceBuilding {
             return;
         }
 
-        self.runner
-            .try_fetch_from_storage(context,
-                                    unit_origin,
-                                    storage_buildings_accepted,
-                                    resources_to_fetch,
-                                    callback::create!(ServiceBuilding::on_resources_fetched));
+        self.runner.try_fetch_from_storage(
+            context,
+            unit_origin,
+            storage_buildings_accepted,
+            resources_to_fetch,
+            callback::create!(ServiceBuilding::on_resources_fetched),
+        );
     }
 
     #[inline]
@@ -491,16 +518,13 @@ impl ServiceBuilding {
         let this_building_kind = this_building.kind();
         let this_service = this_building.as_service_mut();
 
-        debug_assert!(!runner_unit.inventory_is_empty(),
-                      "Runner Unit inventory shouldn't be empty!");
-        debug_assert!(this_service.is_runner_fetching_resources(context),
-                      "No Runner was sent out by this building!");
+        debug_assert!(!runner_unit.inventory_is_empty(), "Runner Unit inventory shouldn't be empty!");
+        debug_assert!(this_service.is_runner_fetching_resources(context), "No Runner was sent out by this building!");
         debug_assert!(this_service.runner.unit_id() == runner_unit.id());
 
         // Try unload cargo:
         if let Some(item) = runner_unit.peek_inventory() {
-            debug_assert!(item.count
-                          <= this_service.stock_or_treasury.as_stock().capacity_for(item.kind));
+            debug_assert!(item.count <= this_service.stock_or_treasury.as_stock().capacity_for(item.kind));
 
             let received_count = this_service.receive_resources(item.kind, item.count);
             if received_count != 0 {
@@ -510,9 +534,12 @@ impl ServiceBuilding {
 
             if !runner_unit.inventory_is_empty() {
                 // TODO: We have to ship back to storage if we couldn't receive everything!
-                log::error!(log::channel!("TODO"),
-                            "{} - '{}': Couldn't receive all resources from runner. Implement fallback task for this!",
-                            this_building_kind, this_service.name());
+                log::error!(
+                    log::channel!("TODO"),
+                    "{} - '{}': Couldn't receive all resources from runner. Implement fallback task for this!",
+                    this_building_kind,
+                    this_service.name()
+                );
 
                 runner_unit.clear_inventory();
             }
@@ -527,10 +554,9 @@ impl ServiceBuilding {
         let stock = self.stock_or_treasury.as_stock();
 
         stock.for_each(|index, item| {
-                 debug_assert!(item.count <= stock.capacity_at(index), "{item}");
-                 list.push(StockItem { kind: item.kind,
-                                       count: stock.capacity_at(index) - item.count });
-             });
+            debug_assert!(item.count <= stock.capacity_at(index), "{item}");
+            list.push(StockItem { kind: item.kind, count: stock.capacity_at(index) - item.count });
+        });
 
         // Items with the highest capacity first.
         list.sort_by_key(|item: &StockItem| Reverse(item.count));
@@ -561,14 +587,15 @@ impl ServiceBuilding {
         let max_patrol_distance = self.config.unwrap().effect_radius;
 
         // Look for houses to visit:
-        self.patrol
-            .start_randomized_patrol(context,
-                                     unit_origin,
-                                     unit_config,
-                                     max_patrol_distance,
-                                     Some(BuildingKind::House),
-                                     callback::create!(ServiceBuilding::on_patrol_completed),
-                                     None);
+        self.patrol.start_randomized_patrol(
+            context,
+            unit_origin,
+            unit_config,
+            max_patrol_distance,
+            Some(BuildingKind::House),
+            callback::create!(ServiceBuilding::on_patrol_completed),
+            None,
+        );
     }
 
     #[inline]
@@ -581,34 +608,33 @@ impl ServiceBuilding {
         self.patrol.is_spawned()
     }
 
-    fn on_patrol_completed(this_building: &mut Building,
-                           patrol_unit: &mut Unit,
-                           context: &SimContext)
-                           -> bool {
+    fn on_patrol_completed(this_building: &mut Building, patrol_unit: &mut Unit, context: &SimContext) -> bool {
         let this_building_kind = this_building.kind();
         let this_service = this_building.as_service_mut();
 
         debug_assert!(this_service.patrol.unit_id() == patrol_unit.id());
-        debug_assert!(this_service.patrol.is_running_task::<UnitTaskRandomizedPatrol>(context),
-                      "No Patrol was sent out by this building!");
+        debug_assert!(
+            this_service.patrol.is_running_task::<UnitTaskRandomizedPatrol>(context),
+            "No Patrol was sent out by this building!"
+        );
 
         if let Some(item) = patrol_unit.peek_inventory() {
             // Only tax collector patrols will bring back resources (Gold).
             if let StockOrTreasury::Treasury { gold_units } = &mut this_service.stock_or_treasury {
-                debug_assert!(item.kind == ResourceKind::Gold,
-                              "ServiceBuilding Treasury: Expected Gold but got: {item}");
+                debug_assert!(item.kind == ResourceKind::Gold, "ServiceBuilding Treasury: Expected Gold but got: {item}");
 
                 let tax_collected = patrol_unit.remove_resources(item.kind, item.count);
                 *gold_units += tax_collected;
 
-                this_service.debug.popup_msg_color(Color::yellow(),
-                                                   format!("Tax collected +{tax_collected}"));
+                this_service.debug.popup_msg_color(Color::yellow(), format!("Tax collected +{tax_collected}"));
             } else {
-                log::error!(log::channel!("unit"),
-                            "Patrol unit inventory has {} which {} - '{}' cannot receive!",
-                            item,
-                            this_building_kind,
-                            this_service.name());
+                log::error!(
+                    log::channel!("unit"),
+                    "Patrol unit inventory has {} which {} - '{}' cannot receive!",
+                    item,
+                    this_building_kind,
+                    this_service.name()
+                );
             }
 
             patrol_unit.clear_inventory();
@@ -645,7 +671,7 @@ impl StockOrTreasury {
         } else if !config.resources_required.is_empty() && config.stock_capacity != 0 {
             Self::Stock {
                 update_timer: UpdateTimer::new(config.stock_update_frequency_secs),
-                stock: BuildingStock::with_accepted_list_and_capacity(&config.resources_required, config.stock_capacity)
+                stock: BuildingStock::with_accepted_list_and_capacity(&config.resources_required, config.stock_capacity),
             }
         } else {
             Self::None

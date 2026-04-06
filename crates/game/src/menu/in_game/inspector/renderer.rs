@@ -1,15 +1,16 @@
-use arrayvec::{ArrayVec, ArrayString};
-use strum::EnumCount;
-
-use super::{TileInspector, TileInspectorMenuWeakMut};
+use arrayvec::{ArrayString, ArrayVec};
+use common::{Vec2, format_fixed_string};
 use engine::{
     file_sys::paths::PathRef,
     ui::{self, UiFontScale, sound::UiButtonSoundsEnabled, widgets::*},
 };
-use common::{Vec2, format_fixed_string};
+use strum::EnumCount;
+
+use super::{TileInspector, TileInspectorMenuWeakMut};
 use crate::{
+    menu::TEXT_BUTTON_HOVERED_SPRITE,
     tile::{TileKind, sets::TileIconSprite},
-    {ui_context::GameUiContext, menu::TEXT_BUTTON_HOVERED_SPRITE},
+    ui_context::GameUiContext,
 };
 
 // ----------------------------------------------
@@ -109,10 +110,8 @@ macro_rules! add_body_str {
     };
 }
 
-pub(super) use {
-    add_body_line,
-    add_body_str,
-};
+pub(super) use add_body_line;
+pub(super) use add_body_str;
 
 // ----------------------------------------------
 // InspectorMenuRenderer
@@ -148,8 +147,9 @@ impl InspectorMenuRenderer {
     }
 
     pub fn set_heading_pairs<K, V>(&mut self, key_vals: &[(K, V)])
-        where K: std::fmt::Display,
-              V: std::fmt::Display
+    where
+        K: std::fmt::Display,
+        V: std::fmt::Display,
     {
         self.clear_headings();
         let heading = self.find_heading();
@@ -224,119 +224,93 @@ impl InspectorMenuRenderer {
         icon.set_size(scaled_size);
     }
 
-    pub fn new(context: &mut GameUiContext,
-               tile_inspector_menu_weak_ref: &TileInspectorMenuWeakMut,
-               menu_name: &str) -> Self
-    {
-        let icon = UiSpriteIcon::new(
-            context,
-            UiSpriteIconParams {
-                size: Vec2::one(), // placeholder
-                outline: true,
-                clip_to_parent_menu: true,
-                ..Default::default()
-            }
-        );
+    pub fn new(
+        context: &mut GameUiContext,
+        tile_inspector_menu_weak_ref: &TileInspectorMenuWeakMut,
+        menu_name: &str,
+    ) -> Self {
+        let icon = UiSpriteIcon::new(context, UiSpriteIconParams {
+            size: Vec2::one(), // placeholder
+            outline: true,
+            clip_to_parent_menu: true,
+            ..Default::default()
+        });
 
-        const TITLE:      UiText = UiText::empty(INSPECTOR_TITLE_FONT_SCALE);
+        const TITLE: UiText = UiText::empty(INSPECTOR_TITLE_FONT_SCALE);
         const SUBHEADING: UiText = UiText::empty(INSPECTOR_SUBHEADING_FONT_SCALE);
 
-        let heading = UiMenuHeading::new(
-            context,
-            UiMenuHeadingParams {
-                lines: vec![
-                    TITLE,      // title placeholder
-                    SUBHEADING, // subheading 0 placeholder
-                    SUBHEADING, // subheading 1 placeholder
-                    SUBHEADING, // subheading 2 placeholder
-                    SUBHEADING, // subheading 3 placeholder
-                ],
-                center_vertically: false,
-                center_horizontally: false,
-                ..Default::default()
-            }
-        );
+        let heading = UiMenuHeading::new(context, UiMenuHeadingParams {
+            lines: vec![
+                TITLE,      // title placeholder
+                SUBHEADING, // subheading 0 placeholder
+                SUBHEADING, // subheading 1 placeholder
+                SUBHEADING, // subheading 2 placeholder
+                SUBHEADING, // subheading 3 placeholder
+            ],
+            center_vertically: false,
+            center_horizontally: false,
+            ..Default::default()
+        });
 
-        let mut icon_and_heading_group = UiWidgetGroup::new(
-            context,
-            UiWidgetGroupParams {
-                widget_spacing: Vec2::new(20.0, 8.0),
-                center_vertically: false,
-                center_horizontally: true,
-                stack_vertically: false,
-                ..Default::default()
-            }
-        );
+        let mut icon_and_heading_group = UiWidgetGroup::new(context, UiWidgetGroupParams {
+            widget_spacing: Vec2::new(20.0, 8.0),
+            center_vertically: false,
+            center_horizontally: true,
+            stack_vertically: false,
+            ..Default::default()
+        });
 
         let icon_index = icon_and_heading_group.add_widget(icon);
         let heading_index = icon_and_heading_group.add_widget(heading);
 
         let close_button_inspector_menu_weak_ref = tile_inspector_menu_weak_ref.clone();
-        let close_button = UiTextButton::new(
-            context,
-            UiTextButtonParams {
-                label: "Close".into(),
-                size: UiTextButtonSize::Normal,
-                hover: Some(TEXT_BUTTON_HOVERED_SPRITE),
-                sounds_enabled: UiButtonSoundsEnabled::all(),
-                on_pressed: UiTextButtonPressed::with_closure(move |_, context| {
-                    let mut inspector_menu = close_button_inspector_menu_weak_ref.upgrade().unwrap();
-                    inspector_menu.close(ui::widgets::context_as_mut::<GameUiContext>(context));
-                }),
-                ..Default::default()
-            }
-        );
+        let close_button = UiTextButton::new(context, UiTextButtonParams {
+            label: "Close".into(),
+            size: UiTextButtonSize::Normal,
+            hover: Some(TEXT_BUTTON_HOVERED_SPRITE),
+            sounds_enabled: UiButtonSoundsEnabled::all(),
+            on_pressed: UiTextButtonPressed::with_closure(move |_, context| {
+                let mut inspector_menu = close_button_inspector_menu_weak_ref.upgrade().unwrap();
+                inspector_menu.close(ui::widgets::context_as_mut::<GameUiContext>(context));
+            }),
+            ..Default::default()
+        });
 
-        let mut button_group = UiWidgetGroup::new(
-            context,
-            UiWidgetGroupParams {
-                center_vertically: false,
-                center_horizontally: true,
-                stack_vertically: false,
-                ..Default::default()
-            }
-        );
+        let mut button_group = UiWidgetGroup::new(context, UiWidgetGroupParams {
+            center_vertically: false,
+            center_horizontally: true,
+            stack_vertically: false,
+            ..Default::default()
+        });
 
         button_group.add_widget(close_button);
 
-        let body_text = UiMenuHeading::new(
-            context,
-            UiMenuHeadingParams {
-                // placeholder text
-                lines: vec![
-                    UiText::empty(INSPECTOR_BODY_TEXT_FONT_SCALE);
-                    INSPECTOR_BODY_TEXT_MAX_LINES
-                ],
-                center_vertically: false,
-                center_horizontally: true,
-                ..Default::default()
-            }
-        );
+        let body_text = UiMenuHeading::new(context, UiMenuHeadingParams {
+            // placeholder text
+            lines: vec![UiText::empty(INSPECTOR_BODY_TEXT_FONT_SCALE); INSPECTOR_BODY_TEXT_MAX_LINES],
+            center_vertically: false,
+            center_horizontally: true,
+            ..Default::default()
+        });
 
-        let separator = UiSeparator::new(
-            context,
-            UiSeparatorParams {
-                thickness: Some(1.0), // Includes widget_spacing/item_spacing.
-                ..Default::default()
-            }
-        );
+        let separator = UiSeparator::new(context, UiSeparatorParams {
+            thickness: Some(1.0), // Includes widget_spacing/item_spacing.
+            ..Default::default()
+        });
 
         let menu_size = Self::calc_menu_size(context);
-        let mut menu = UiMenu::new(
-            context,
-            UiMenuParams {
-                label: Some(menu_name.into()),
-                flags: UiMenuFlags::PauseSimIfOpen
-                     | UiMenuFlags::AlignCenter
-                     | UiMenuFlags::Modal
-                     | UiMenuFlags::CloseModalOnEscape
-                     | UiMenuFlags::AdjustSizeToContents,
-                size: Some(menu_size),
-                background: Some(PathRef::from_str("misc/square_page_bg.png")),
-                widget_spacing: Some(Vec2::new(0.0, 10.0)),
-                ..Default::default()
-            }
-        );
+        let mut menu = UiMenu::new(context, UiMenuParams {
+            label: Some(menu_name.into()),
+            flags: UiMenuFlags::PauseSimIfOpen
+                | UiMenuFlags::AlignCenter
+                | UiMenuFlags::Modal
+                | UiMenuFlags::CloseModalOnEscape
+                | UiMenuFlags::AdjustSizeToContents,
+            size: Some(menu_size),
+            background: Some(PathRef::from_str("misc/square_page_bg.png")),
+            widget_spacing: Some(Vec2::new(0.0, 10.0)),
+            ..Default::default()
+        });
 
         menu.add_widget(separator.clone());
         let icon_and_heading_group_index = menu.add_widget(icon_and_heading_group);
@@ -349,14 +323,7 @@ impl InspectorMenuRenderer {
 
         menu.add_widget(separator);
 
-        Self {
-            menu,
-            icon_index,
-            heading_index,
-            icon_and_heading_group_index,
-            body_text_index,
-            button_group_index,
-        }
+        Self { menu, icon_index, heading_index, icon_and_heading_group_index, body_text_index, button_group_index }
     }
 
     // ----------------------

@@ -2,9 +2,9 @@ use std::borrow::Cow;
 
 use common::{
     self,
+    Color,
     coords::{CellRange, WorldToScreenTransform},
     time::Seconds,
-    Color,
 };
 use engine::ui::UiSystem;
 use smallvec::SmallVec;
@@ -109,24 +109,20 @@ pub trait GameObjectDebugOptions {
         let mut vars = self.get_vars();
         if !vars.is_empty() {
             let ui = ui_sys.ui();
-            if ui.collapsing_header("Debug Options##_game_obj_debug_opts",
-                                    imgui::TreeNodeFlags::empty())
-            {
+            if ui.collapsing_header("Debug Options##_game_obj_debug_opts", imgui::TreeNodeFlags::empty()) {
                 for var in &mut vars {
                     match &mut var.value {
                         GameObjectDebugVarRef::Bool(value) => {
                             ui.checkbox(common::fixed_string::snake_case_to_title::<64>(var.name), value);
                         }
                         GameObjectDebugVarRef::I32(value) => {
-                            ui.input_int(common::fixed_string::snake_case_to_title::<64>(var.name), value)
-                              .step(1)
-                              .build();
+                            ui.input_int(common::fixed_string::snake_case_to_title::<64>(var.name), value).step(1).build();
                         }
                         GameObjectDebugVarRef::F32(value) => {
                             ui.input_float(common::fixed_string::snake_case_to_title::<64>(var.name), value)
-                              .display_format("%.2f")
-                              .step(1.0)
-                              .build();
+                                .display_format("%.2f")
+                                .step(1.0)
+                                .build();
                         }
                     }
                 }
@@ -134,12 +130,14 @@ pub trait GameObjectDebugOptions {
         }
     }
 
-    fn draw_popup_messages(&mut self,
-                           tile: &Tile,
-                           ui_sys: &UiSystem,
-                           transform: WorldToScreenTransform,
-                           visible_range: CellRange,
-                           delta_time_secs: Seconds) {
+    fn draw_popup_messages(
+        &mut self,
+        tile: &Tile,
+        ui_sys: &UiSystem,
+        transform: WorldToScreenTransform,
+        visible_range: CellRange,
+        delta_time_secs: Seconds,
+    ) {
         if self.show_popups() && visible_range.contains(tile.base_cell()) {
             const LIFETIME_MULTIPLIER: f32 = 3.0;
             const SCROLL_DIST: f32 = 5.0;
@@ -187,10 +185,12 @@ pub trait GameObjectDebugOptions {
 
 pub trait GameObjectDebugOptionsExt {
     fn popup_msg<T>(&mut self, text: T)
-        where T: Into<Cow<'static, str>>;
+    where
+        T: Into<Cow<'static, str>>;
 
     fn popup_msg_color<T>(&mut self, color: Color, text: T)
-        where T: Into<Cow<'static, str>>;
+    where
+        T: Into<Cow<'static, str>>;
 }
 
 // ----------------------------------------------

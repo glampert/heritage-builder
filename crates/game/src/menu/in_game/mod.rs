@@ -1,25 +1,20 @@
 use std::any::Any;
 
-use inspector::{TileInspectorMenu, TileInspectorMenuRcMut};
-use palette::{TilePaletteMenu, TilePaletteMenuRcMut};
 use bars::{InGameMenuBars, InGameMenuBarsRcMut};
-
-use super::{
-    GameMenusMode,
-    GameMenusSystem,
-    GameMenusInputArgs,
-    TilePlacement,
-    TileInspector,
-    TilePalette,
-    dialog,
-};
+use common::coords::CellRange;
 use engine::{
     app::input::{InputAction, InputKey},
     ui::{UiInputEvent, UiTheme, widgets::UiMenuFlags},
 };
-use crate::save_context::{Save, Load, PreLoadContext};
-use common::coords::CellRange;
-use crate::{tile::minimap::{MinimapRenderer, InGameUiMinimapRenderer}, ui_context::GameUiContext};
+use inspector::{TileInspectorMenu, TileInspectorMenuRcMut};
+use palette::{TilePaletteMenu, TilePaletteMenuRcMut};
+
+use super::{GameMenusInputArgs, GameMenusMode, GameMenusSystem, TileInspector, TilePalette, TilePlacement, dialog};
+use crate::{
+    save_context::{Load, PreLoadContext, Save},
+    tile::minimap::{InGameUiMinimapRenderer, MinimapRenderer},
+    ui_context::GameUiContext,
+};
 
 mod bars;
 mod inspector;

@@ -1,15 +1,22 @@
+use common::{callback::Callback, coords::Cell};
 use serde::{Deserialize, Serialize};
 
 use super::{
-    task::{
-        UnitTaskDeliverToStorage, UnitTaskDeliveryCompletionCallback, UnitTaskDespawn,
-        UnitTaskFetchCompletionCallback, UnitTaskFetchFromStorage,
-    },
+    UnitId,
+    UnitTaskHelper,
     config::UnitConfigKey,
-    UnitId, UnitTaskHelper,
+    task::{
+        UnitTaskDeliverToStorage,
+        UnitTaskDeliveryCompletionCallback,
+        UnitTaskDespawn,
+        UnitTaskFetchCompletionCallback,
+        UnitTaskFetchFromStorage,
+    },
 };
-use common::{callback::Callback, coords::Cell};
-use crate::{ building::{BuildingContext, BuildingKind}, sim::resources::{ResourceKind, ShoppingList}, };
+use crate::{
+    building::{BuildingContext, BuildingKind},
+    sim::resources::{ResourceKind, ShoppingList},
+};
 
 // ----------------------------------------------
 // Runner Unit helper
@@ -47,14 +54,15 @@ impl UnitTaskHelper for Runner {
 }
 
 impl Runner {
-    pub fn try_deliver_to_storage(&mut self,
-                                  context: &BuildingContext,
-                                  unit_origin: Cell,
-                                  storage_buildings_accepted: BuildingKind,
-                                  resource_kind_to_deliver: ResourceKind,
-                                  resource_count: u32,
-                                  completion_callback: Callback<UnitTaskDeliveryCompletionCallback>)
-                                  -> bool {
+    pub fn try_deliver_to_storage(
+        &mut self,
+        context: &BuildingContext,
+        unit_origin: Cell,
+        storage_buildings_accepted: BuildingKind,
+        resource_kind_to_deliver: ResourceKind,
+        resource_count: u32,
+        completion_callback: Callback<UnitTaskDeliveryCompletionCallback>,
+    ) -> bool {
         self.try_spawn_with_task(
             context.debug_name(),
             context.sim_ctx,
@@ -68,31 +76,34 @@ impl Runner {
                 resource_count,
                 completion_callback,
                 completion_task: context.sim_ctx.task_manager_mut().new_task(UnitTaskDespawn),
-                allow_producer_fallback: true, // If we can't find a Storage that will take our goods,
-                                               // try delivering directly to other Producers.
-            }
+                allow_producer_fallback: true, /* If we can't find a Storage that will take our goods,
+                                                * try delivering directly to other Producers. */
+            },
         )
     }
 
-    pub fn try_fetch_from_storage(&mut self,
-                                  context: &BuildingContext,
-                                  unit_origin: Cell,
-                                  storage_buildings_accepted: BuildingKind,
-                                  resources_to_fetch: ShoppingList, // Will fetch at most *one* of these. This is a list of desired options.
-                                  completion_callback: Callback<UnitTaskFetchCompletionCallback>)
-                                  -> bool {
-        self.try_spawn_with_task(context.debug_name(),
-                                 context.sim_ctx,
-                                 unit_origin,
-                                 UnitConfigKey::Runner,
-                                 UnitTaskFetchFromStorage {
-                                     origin_building: context.kind_and_id(),
-                                     origin_building_tile: context.tile_info(),
-                                     storage_buildings_accepted,
-                                     resources_to_fetch,
-                                     completion_callback,
-                                     completion_task: context.sim_ctx.task_manager_mut().new_task(UnitTaskDespawn),
-                                     is_returning_to_origin: false,
-                                 })
+    pub fn try_fetch_from_storage(
+        &mut self,
+        context: &BuildingContext,
+        unit_origin: Cell,
+        storage_buildings_accepted: BuildingKind,
+        resources_to_fetch: ShoppingList, // Will fetch at most *one* of these. This is a list of desired options.
+        completion_callback: Callback<UnitTaskFetchCompletionCallback>,
+    ) -> bool {
+        self.try_spawn_with_task(
+            context.debug_name(),
+            context.sim_ctx,
+            unit_origin,
+            UnitConfigKey::Runner,
+            UnitTaskFetchFromStorage {
+                origin_building: context.kind_and_id(),
+                origin_building_tile: context.tile_info(),
+                storage_buildings_accepted,
+                resources_to_fetch,
+                completion_callback,
+                completion_task: context.sim_ctx.task_manager_mut().new_task(UnitTaskDespawn),
+                is_returning_to_origin: false,
+            },
+        )
     }
 }

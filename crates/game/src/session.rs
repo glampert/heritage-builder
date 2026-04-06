@@ -1,41 +1,35 @@
 use std::{collections::VecDeque, path::PathBuf};
+
+use common::{Size, Vec2, coords::CellRange, hash, mem::RcMut, time::Seconds};
+use engine::{
+    Engine,
+    app::input::{InputAction, InputKey, InputModifiers, MouseButton},
+    file_sys::paths::PathRef,
+    log,
+    save::{self, LoadResult, SaveResult, SaveState, SaveStateImpl},
+    ui::UiInputEvent,
+};
 use serde::{Deserialize, Serialize};
 
-use common::{
-    Vec2, Size, hash, coords::CellRange, mem::RcMut, time::Seconds,
-};
-
-use engine::{
-    log,
-    Engine,
-    ui::UiInputEvent,
-    file_sys::paths::PathRef,
-    save::{self, SaveState, SaveStateImpl, SaveResult, LoadResult},
-    app::input::{InputAction, InputKey, InputModifiers, MouseButton},
-};
-
 use crate::{
-    undo_redo,
-    world::World,
+    camera::*,
+    config::{GameConfigs, LoadMapSetting},
+    debug::{self, DevEditorMenus},
+    menu::{GameMenusInputArgs, GameMenusMode, GameMenusSystem, home::HomeMenus, in_game::InGameMenus},
+    save_context::*,
     sim::Simulation,
     system::GameSystems,
-    save_context::*,
-    camera::*,
-    debug::{self, DevEditorMenus},
-    config::{GameConfigs, LoadMapSetting},
-    menu::{
-        GameMenusMode,
-        GameMenusSystem,
-        GameMenusInputArgs,
-        home::HomeMenus,
-        in_game::InGameMenus,
-    },
     tile::{
-        sets::TileDef,
-        selection::TileSelection,
-        TileKind, TileFlags, TileMap, TileMapLayerKind,
+        TileFlags,
+        TileKind,
+        TileMap,
+        TileMapLayerKind,
         rendering::{TileMapRenderFlags, TileMapRenderStats, TileMapRenderer},
+        selection::TileSelection,
+        sets::TileDef,
     },
+    undo_redo,
+    world::World,
 };
 
 // ----------------------------------------------
@@ -76,16 +70,11 @@ impl GameSessionCmdQueue {
     }
 
     pub fn push_reset_session(&mut self, reset_map_with_tile_def: Option<&'static TileDef>, new_map_size: Option<Size>) {
-        self.queue.push_back(GameSessionCmd::Reset {
-            reset_map_with_tile_def,
-            new_map_size,
-        });
+        self.queue.push_back(GameSessionCmd::Reset { reset_map_with_tile_def, new_map_size });
     }
 
     pub fn push_load_preset_map(&mut self, preset_number: usize) {
-        self.queue.push_back(GameSessionCmd::LoadPreset {
-            preset_number,
-        });
+        self.queue.push_back(GameSessionCmd::LoadPreset { preset_number });
     }
 
     pub fn push_load_save_game(&mut self, save_file_name: PathRef) {
@@ -94,9 +83,7 @@ impl GameSessionCmdQueue {
             return;
         }
 
-        self.queue.push_back(GameSessionCmd::LoadSaveGame {
-            save_file: save_file_name.to_path_buf(),
-        });
+        self.queue.push_back(GameSessionCmd::LoadSaveGame { save_file: save_file_name.to_path_buf() });
     }
 
     pub fn push_save_game(&mut self, save_file_name: PathRef) {
@@ -105,9 +92,7 @@ impl GameSessionCmdQueue {
             return;
         }
 
-        self.queue.push_back(GameSessionCmd::SaveGame {
-            save_file: save_file_name.to_path_buf(),
-        });
+        self.queue.push_back(GameSessionCmd::SaveGame { save_file: save_file_name.to_path_buf() });
     }
 
     pub fn execute(&mut self, session: &mut GameSession, engine: &mut Engine, configs: &'static GameConfigs) {
@@ -139,59 +124,52 @@ impl GameSessionCmdQueue {
     // Command Impls:
     // ----------------------
 
-    fn cmd_quit_to_main_menu(&mut self,
-                             session: &mut GameSession,
-                             engine: &mut Engine,
-                             configs: &'static GameConfigs)
-    {
+    fn cmd_quit_to_main_menu(&mut self, session: &mut GameSession, engine: &mut Engine, configs: &'static GameConfigs) {
         destroy(session, engine, configs);
         *session = create(engine, configs, None);
     }
 
-    fn cmd_toggle_menus_mode(&mut self,
-                             session: &mut GameSession,
-                             engine: &mut Engine)
-    {
+    fn cmd_toggle_menus_mode(&mut self, session: &mut GameSession, engine: &mut Engine) {
         session.toggle_menus_mode(engine);
     }
 
-    fn cmd_reset_session(&mut self,
-                         session: &mut GameSession,
-                         engine: &mut Engine,
-                         configs: &'static GameConfigs,
-                         reset_map_with_tile_def: Option<&'static TileDef>,
-                         new_map_size: Option<Size>)
-    {
+    fn cmd_reset_session(
+        &mut self,
+        session: &mut GameSession,
+        engine: &mut Engine,
+        configs: &'static GameConfigs,
+        reset_map_with_tile_def: Option<&'static TileDef>,
+        new_map_size: Option<Size>,
+    ) {
         let reset_map = true;
         let home_menu = false;
         session.reset(engine, configs, reset_map, reset_map_with_tile_def, new_map_size, home_menu);
         log::info!(log::channel!("session"), "--- Game Session Reset ---");
     }
 
-    fn cmd_load_preset(&mut self,
-                       session: &mut GameSession,
-                       engine: &mut Engine,
-                       configs: &'static GameConfigs,
-                       preset_number: usize)
-    {
+    fn cmd_load_preset(
+        &mut self,
+        session: &mut GameSession,
+        engine: &mut Engine,
+        configs: &'static GameConfigs,
+        preset_number: usize,
+    ) {
         destroy(session, engine, configs);
         *session = create(engine, configs, Some(preset_number));
     }
 
-    fn cmd_load_save_game(&mut self,
-                          session: &mut GameSession,
-                          engine: &mut Engine,
-                          configs: &'static GameConfigs,
-                          save_file: PathRef)
-    {
+    fn cmd_load_save_game(
+        &mut self,
+        session: &mut GameSession,
+        engine: &mut Engine,
+        configs: &'static GameConfigs,
+        save_file: PathRef,
+    ) {
         debug_assert!(!save_file.is_empty());
         session.load_save_game(engine, configs, save_file);
     }
 
-    fn cmd_save_game(&mut self,
-                     session: &mut GameSession,
-                     save_file: PathRef)
-    {
+    fn cmd_save_game(&mut self, session: &mut GameSession, save_file: PathRef) {
         debug_assert!(!save_file.is_empty());
         session.save_game(save_file);
     }
@@ -235,9 +213,9 @@ macro_rules! make_ui_widget_context {
             &mut $session.tile_map,
             &mut $session.tile_selection,
             &mut $session.camera,
-            $engine
+            $engine,
         )
-    }
+    };
 }
 
 // ----------------------------------------------
@@ -254,7 +232,6 @@ pub struct GameSession {
 
     // NOTE: The following members are not serialized on save games.
     // We only need to invoke pre_load/post_load on them.
-
     #[serde(skip)]
     tile_selection: TileSelection,
 
@@ -345,11 +322,7 @@ impl GameSession {
     // ----------------------
 
     pub fn update_simulation(&mut self, engine: &mut Engine, delta_time_secs: Seconds) {
-        self.sim.update(engine,
-                        &mut self.world,
-                        &mut self.systems,
-                        &mut self.tile_map,
-                        delta_time_secs);
+        self.sim.update(engine, &mut self.world, &mut self.systems, &mut self.tile_map, delta_time_secs);
     }
 
     pub fn update_anims(&mut self, visible_range: CellRange, delta_time_secs: Seconds) {
@@ -359,29 +332,28 @@ impl GameSession {
         }
     }
 
-    pub fn draw_tile_map(&mut self,
-                         engine: &mut Engine,
-                         delta_time_secs: Seconds,
-                         visible_range: CellRange,
-                         flags: TileMapRenderFlags)
-    {
+    pub fn draw_tile_map(
+        &mut self,
+        engine: &mut Engine,
+        delta_time_secs: Seconds,
+        visible_range: CellRange,
+        flags: TileMapRenderFlags,
+    ) {
         let systems = engine.systems_mut_refs();
         let tex_cache = systems.render_sys.texture_cache_mut();
 
-        self.tile_map.minimap_mut().update(&mut self.camera,
-                                           tex_cache,
-                                           systems.input_sys,
-                                           systems.ui_sys,
-                                           delta_time_secs);
+        self.tile_map.minimap_mut().update(&mut self.camera, tex_cache, systems.input_sys, systems.ui_sys, delta_time_secs);
 
         if self.tile_map.size_in_cells().is_valid() {
-            self.tile_map_renderer.draw_map(systems.render_sys,
-                                            systems.debug_draw,
-                                            systems.ui_sys,
-                                            &self.tile_map,
-                                            self.camera.transform(),
-                                            visible_range,
-                                            flags);
+            self.tile_map_renderer.draw_map(
+                systems.render_sys,
+                systems.debug_draw,
+                systems.ui_sys,
+                &self.tile_map,
+                self.camera.transform(),
+                visible_range,
+                flags,
+            );
 
             self.tile_selection.draw(engine.render_system_mut());
         }
@@ -391,11 +363,12 @@ impl GameSession {
     // Session Create/Reset:
     // ----------------------
 
-    fn create_with_settings(engine: &mut Engine,
-                            configs: &'static GameConfigs,
-                            load_map_setting: &LoadMapSetting,
-                            home_menu: bool) -> Self
-    {
+    fn create_with_settings(
+        engine: &mut Engine,
+        configs: &'static GameConfigs,
+        load_map_setting: &LoadMapSetting,
+        home_menu: bool,
+    ) -> Self {
         let viewport_size = engine.viewport().integer_size();
 
         if !viewport_size.is_valid() {
@@ -408,10 +381,7 @@ impl GameSession {
         let sim = Simulation::new(&tile_map, configs);
         let systems = GameSystems::register_all();
 
-        let camera = Camera::new(viewport_size,
-                                 tile_map.size_in_cells(),
-                                 configs.camera.zoom,
-                                 configs.camera.offset);
+        let camera = Camera::new(viewport_size, tile_map.size_in_cells(), configs.camera.zoom, configs.camera.offset);
 
         let mut session = Self {
             tile_map,
@@ -439,25 +409,20 @@ impl GameSession {
         session
     }
 
-    fn create_with_preset_map(engine: &mut Engine,
-                              configs: &'static GameConfigs,
-                              preset_number: usize) -> Self
-    {
+    fn create_with_preset_map(engine: &mut Engine, configs: &'static GameConfigs, preset_number: usize) -> Self {
         // Override GameConfigs.load_map_setting
-        Self::create_with_settings(engine,
-                                   configs,
-                                   &LoadMapSetting::Preset { preset_number },
-                                   false)
+        Self::create_with_settings(engine, configs, &LoadMapSetting::Preset { preset_number }, false)
     }
 
-    fn reset(&mut self,
-             engine: &mut Engine,
-             configs: &'static GameConfigs,
-             reset_map: bool,
-             reset_map_with_tile_def: Option<&'static TileDef>,
-             new_map_size: Option<Size>,
-             home_menu: bool)
-    {
+    fn reset(
+        &mut self,
+        engine: &mut Engine,
+        configs: &'static GameConfigs,
+        reset_map: bool,
+        reset_map_with_tile_def: Option<&'static TileDef>,
+        new_map_size: Option<Size>,
+        home_menu: bool,
+    ) {
         undo_redo::clear();
 
         self.tile_selection = TileSelection::default();
@@ -469,20 +434,19 @@ impl GameSession {
 
             if reset_map_with_tile_def.is_some() {
                 // Randomize terrain tiles.
-                self.tile_map.for_each_tile_mut(
-                    TileMapLayerKind::Terrain,
-                    TileKind::Terrain,
-                    |terrain| {
-                        if terrain.has_flags(TileFlags::RandomizePlacement) {
-                            terrain.set_random_variation_index(&mut rand::rng());
-                        }
-                    });
+                self.tile_map.for_each_tile_mut(TileMapLayerKind::Terrain, TileKind::Terrain, |terrain| {
+                    if terrain.has_flags(TileFlags::RandomizePlacement) {
+                        terrain.set_random_variation_index(&mut rand::rng());
+                    }
+                });
             }
 
-            log::info!(log::channel!("session"),
-                       "Map size: {}x{}.",
-                       self.tile_map.size_in_cells().width,
-                       self.tile_map.size_in_cells().height);
+            log::info!(
+                log::channel!("session"),
+                "Map size: {}x{}.",
+                self.tile_map.size_in_cells().width,
+                self.tile_map.size_in_cells().height
+            );
 
             self.camera.set_map_size_in_cells(self.tile_map.size_in_cells());
         }
@@ -529,18 +493,15 @@ impl GameSession {
         }
     }
 
-    fn create_game_menus_from_config(&mut self,
-                                     engine: &mut Engine,
-                                     configs: &'static GameConfigs,
-                                     home_menu: bool) -> Box<dyn GameMenusSystem>
-    {
+    fn create_game_menus_from_config(
+        &mut self,
+        engine: &mut Engine,
+        configs: &'static GameConfigs,
+        home_menu: bool,
+    ) -> Box<dyn GameMenusSystem> {
         let menu_mode = {
             if configs.debug.skip_home_menu || !home_menu {
-                if configs.debug.start_in_dev_editor_mode {
-                    GameMenusMode::DevEditor
-                } else {
-                    GameMenusMode::InGame
-                }
+                if configs.debug.start_in_dev_editor_mode { GameMenusMode::DevEditor } else { GameMenusMode::InGame }
             } else {
                 GameMenusMode::Home
             }
@@ -558,24 +519,24 @@ impl GameSession {
             LoadMapSetting::None => {
                 TileMap::default() // Empty dummy map.
             }
-            LoadMapSetting::EmptyMap { size_in_cells,
-                                       terrain_tile_category,
-                                       terrain_tile_name } => {
+            LoadMapSetting::EmptyMap { size_in_cells, terrain_tile_category, terrain_tile_name } => {
                 let map_size = if !size_in_cells.is_valid() {
-                    log::error!(log::channel!("session"),
-                                "LoadMapSetting::EmptyMap: Invalid Tile Map dimensions! Width & height must not be zero.");
+                    log::error!(
+                        log::channel!("session"),
+                        "LoadMapSetting::EmptyMap: Invalid Tile Map dimensions! Width & height must not be zero."
+                    );
                     Size::new(64, 64) // Default fallback.
                 } else {
                     *size_in_cells
                 };
 
-                log::info!(log::channel!("session"),
-                           "Creating empty Tile Map. Size: {map_size}, Fill: {terrain_tile_name}");
+                log::info!(log::channel!("session"), "Creating empty Tile Map. Size: {map_size}, Fill: {terrain_tile_name}");
 
-                let mut tile_map =
-                    TileMap::with_terrain_tile(map_size,
-                                               hash::fnv1a_from_str(terrain_tile_category),
-                                               hash::fnv1a_from_str(terrain_tile_name));
+                let mut tile_map = TileMap::with_terrain_tile(
+                    map_size,
+                    hash::fnv1a_from_str(terrain_tile_category),
+                    hash::fnv1a_from_str(terrain_tile_name),
+                );
 
                 tile_map.for_each_tile_mut(TileMapLayerKind::Terrain, TileKind::Terrain, |terrain| {
                     if terrain.has_flags(TileFlags::RandomizePlacement) {
@@ -585,9 +546,7 @@ impl GameSession {
 
                 tile_map
             }
-            LoadMapSetting::Preset { preset_number } => {
-                debug::utils::create_preset_tile_map(world, *preset_number)
-            }
+            LoadMapSetting::Preset { preset_number } => debug::utils::create_preset_tile_map(world, *preset_number),
             LoadMapSetting::SaveGame { save_file } => {
                 if save_file.to_str().unwrap().is_empty() {
                     log::error!(log::channel!("session"), "LoadMapSetting::SaveGame: No save file path provided!");
@@ -689,7 +648,7 @@ impl GameSession {
 
         if !save::storage::can_write_save_file(save_file) {
             log::error!(log::channel!("session"), "Save game file path '{save_file}' is not accessible!");
-            return false; 
+            return false;
         }
 
         self.pre_save();
@@ -717,12 +676,7 @@ impl GameSession {
 
         self.pre_load(&mut PreLoadContext::new(engine));
         *self = session;
-        self.post_load(&mut PostLoadContext::new(
-            engine,
-            configs,
-            self.sim.rng().clone(),
-            self.tile_map.clone()
-        ));
+        self.post_load(&mut PostLoadContext::new(engine, configs, self.sim.rng().clone(), self.tile_map.clone()));
 
         true
     }
@@ -748,35 +702,37 @@ impl GameSession {
         }
     }
 
-    pub fn menus_on_key_input(&mut self,
-                              engine: &mut Engine,
-                              key: InputKey,
-                              action: InputAction,
-                              modifiers: InputModifiers)
-                              -> UiInputEvent
-    {
+    pub fn menus_on_key_input(
+        &mut self,
+        engine: &mut Engine,
+        key: InputKey,
+        action: InputAction,
+        modifiers: InputModifiers,
+    ) -> UiInputEvent {
         if let Some(menus) = &mut self.menus {
-            menus.handle_input(
-                &mut make_ui_widget_context!(self, engine),
-                GameMenusInputArgs::Key { key, action, modifiers }
-            )
+            menus.handle_input(&mut make_ui_widget_context!(self, engine), GameMenusInputArgs::Key {
+                key,
+                action,
+                modifiers,
+            })
         } else {
             UiInputEvent::NotHandled
         }
     }
 
-    pub fn menus_on_mouse_button(&mut self,
-                                 engine: &mut Engine,
-                                 button: MouseButton,
-                                 action: InputAction,
-                                 modifiers: InputModifiers)
-                                 -> UiInputEvent
-    {
+    pub fn menus_on_mouse_button(
+        &mut self,
+        engine: &mut Engine,
+        button: MouseButton,
+        action: InputAction,
+        modifiers: InputModifiers,
+    ) -> UiInputEvent {
         if let Some(menus) = &mut self.menus {
-            menus.handle_input(
-                &mut make_ui_widget_context!(self, engine),
-                GameMenusInputArgs::Mouse { button, action, modifiers }
-            )
+            menus.handle_input(&mut make_ui_widget_context!(self, engine), GameMenusInputArgs::Mouse {
+                button,
+                action,
+                modifiers,
+            })
         } else {
             UiInputEvent::NotHandled
         }
@@ -784,10 +740,7 @@ impl GameSession {
 
     pub fn menus_on_scroll(&mut self, engine: &mut Engine, amount: Vec2) -> UiInputEvent {
         if let Some(menus) = &mut self.menus {
-            menus.handle_input(
-                &mut make_ui_widget_context!(self, engine),
-                GameMenusInputArgs::Scroll { amount }
-            )
+            menus.handle_input(&mut make_ui_widget_context!(self, engine), GameMenusInputArgs::Scroll { amount })
         } else {
             UiInputEvent::NotHandled
         }

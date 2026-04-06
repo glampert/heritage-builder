@@ -1,43 +1,55 @@
-use serde::{Deserialize, Serialize};
-
 use anim::*;
+use common::{
+    self,
+    Color,
+    coords::{Cell, CellRange, IsoPointF32, WorldToScreenTransform},
+    hash,
+};
 use config::*;
+use engine::{log, ui::UiSystem};
 use inventory::*;
 use navigation::*;
 use patrol::*;
+use serde::{Deserialize, Serialize};
 use task::*;
 
 use super::{
     building::{Building, BuildingKind},
     sim::{
-        resources::{ResourceKind, StockItem},
         SimContext,
+        resources::{ResourceKind, StockItem},
     },
     world::{
         object::{GameObject, GenerationalIndex, Spawner},
         stats::WorldStats,
     },
 };
-use engine::{log, ui::UiSystem};
-use crate::save_context::PostLoadContext;
-use common::{ self, hash, Color, coords::{Cell, CellRange, WorldToScreenTransform, IsoPointF32}, };
 use crate::{
-    debug::DebugUiMode,
-    pathfind::{NodeKind as PathNodeKind, Path},
-    tile::{
-    self, Tile, TileKind, TileMap, placement::TilePlacementErr,
-    TileMapLayerKind, TilePoolIndex, TileDepthSortOverride,
+    debug::{
+        DebugUiMode,
+        game_object_debug::{GameObjectDebugOptions, GameObjectDebugOptionsExt, game_object_debug_options},
     },
-    debug::game_object_debug::{GameObjectDebugOptions, GameObjectDebugOptionsExt, game_object_debug_options},
+    pathfind::{NodeKind as PathNodeKind, Path},
+    save_context::PostLoadContext,
+    tile::{
+        self,
+        Tile,
+        TileDepthSortOverride,
+        TileKind,
+        TileMap,
+        TileMapLayerKind,
+        TilePoolIndex,
+        placement::TilePlacementErr,
+    },
 };
 
 pub mod anim;
-pub mod task;
 pub mod config;
+pub mod harvester;
 pub mod navigation;
 pub mod patrol;
 pub mod runner;
-pub mod harvester;
+pub mod task;
 
 mod debug;
 mod inventory;
@@ -56,15 +68,13 @@ game_object_debug_options! {
 
 pub type UnitId = GenerationalIndex;
 
-/*
-Common Unit Behavior:
- - Spawn and despawn dynamically.
- - Moves across the tile map, so map cell can change.
- - Transports resources from A to B (has a start point and a destination).
- - Patrols an area around its building to provide a service to households.
- - Most units will only walk on paved roads. Some units may go off-road.
- - Has an inventory that can cary a single ResourceKind at a time, any amount.
-*/
+// Common Unit Behavior:
+// - Spawn and despawn dynamically.
+// - Moves across the tile map, so map cell can change.
+// - Transports resources from A to B (has a start point and a destination).
+// - Patrols an area around its building to provide a service to households.
+// - Most units will only walk on paved roads. Some units may go off-road.
+// - Has an inventory that can cary a single ResourceKind at a time, any amount.
 #[derive(Clone, Default, Serialize, Deserialize)]
 pub struct Unit {
     id: UnitId,
@@ -113,9 +123,7 @@ impl GameObject for Unit {
             stats.add_unit_resources(item.kind, item.count);
 
             // Tax Collector / TaxOffice patrol.
-            if item.kind == ResourceKind::Gold
-                && self.is(UnitConfigKey::TaxCollector)
-            {
+            if item.kind == ResourceKind::Gold && self.is(UnitConfigKey::TaxCollector) {
                 stats.treasury.tax_collected += item.count;
             }
         }
@@ -148,18 +156,16 @@ impl GameObject for Unit {
         }
     }
 
-    fn draw_debug_popups(&mut self,
-                         context: &SimContext,
-                         ui_sys: &UiSystem,
-                         transform: WorldToScreenTransform,
-                         visible_range: CellRange) {
+    fn draw_debug_popups(
+        &mut self,
+        context: &SimContext,
+        ui_sys: &UiSystem,
+        transform: WorldToScreenTransform,
+        visible_range: CellRange,
+    ) {
         debug_assert!(self.is_spawned());
 
-        self.debug.draw_popup_messages(self.find_tile(context),
-                                       ui_sys,
-                                       transform,
-                                       visible_range,
-                                       context.delta_time_secs());
+        self.debug.draw_popup_messages(self.find_tile(context), ui_sys, transform, visible_range, context.delta_time_secs());
     }
 }
 
@@ -237,10 +243,7 @@ impl Unit {
             return true;
         }
 
-        if tile_map.try_move_tile_with_stacking(self.tile_index,
-                                                self.map_cell,
-                                                destination_cell,
-                                                TileMapLayerKind::Objects)
+        if tile_map.try_move_tile_with_stacking(self.tile_index, self.map_cell, destination_cell, TileMapLayerKind::Objects)
         {
             let tile = tile_map.tile_at_index_mut(self.tile_index, TileMapLayerKind::Objects);
             debug_assert!(tile.is(TileKind::Unit));
@@ -270,8 +273,7 @@ impl Unit {
     pub fn patrol_task_origin_building<'game>(&self, context: &'game SimContext) -> Option<&'game mut Building> {
         debug_assert!(self.is_spawned());
         if let Some(task) = self.current_task_as::<UnitTaskRandomizedPatrol>(context.task_manager()) {
-            return context.world_mut()
-                          .find_building_mut(task.origin_building.kind, task.origin_building.id);
+            return context.world_mut().find_building_mut(task.origin_building.kind, task.origin_building.id);
         }
         None
     }
@@ -299,21 +301,22 @@ impl Unit {
     #[inline]
     pub fn settler_population(&self, context: &SimContext) -> u32 {
         debug_assert!(self.is_settler());
-        let task = self.current_task_as::<UnitTaskSettler>(context.task_manager())
-                       .expect("Expected unit to be running a UnitTaskSettler!");
+        let task = self
+            .current_task_as::<UnitTaskSettler>(context.task_manager())
+            .expect("Expected unit to be running a UnitTaskSettler!");
         task.population_to_add
     }
 
     #[inline]
     pub fn is_market_vendor(&self, context: &SimContext) -> bool {
         self.is(UnitConfigKey::Vendor)
-        && self.patrol_task_building_kind(context).is_some_and(|kind| kind == BuildingKind::Market)
+            && self.patrol_task_building_kind(context).is_some_and(|kind| kind == BuildingKind::Market)
     }
 
     #[inline]
     pub fn is_tax_collector(&self, context: &SimContext) -> bool {
         self.is(UnitConfigKey::TaxCollector)
-        && self.patrol_task_building_kind(context).is_some_and(|kind| kind == BuildingKind::TaxOffice)
+            && self.patrol_task_building_kind(context).is_some_and(|kind| kind == BuildingKind::TaxOffice)
     }
 
     // ----------------------
@@ -445,17 +448,17 @@ impl Unit {
 
     #[inline]
     pub fn is_running_task<Task>(&self, task_manager: &UnitTaskManager) -> bool
-        where Task: UnitTask + 'static
+    where
+        Task: UnitTask + 'static,
     {
         debug_assert!(self.is_spawned());
         task_manager.is_task::<Task>(self.current_task_id)
     }
 
     #[inline]
-    pub fn current_task_as<'task, Task>(&self,
-                                        task_manager: &'task UnitTaskManager)
-                                        -> Option<&'task Task>
-        where Task: UnitTask + 'static
+    pub fn current_task_as<'task, Task>(&self, task_manager: &'task UnitTaskManager) -> Option<&'task Task>
+    where
+        Task: UnitTask + 'static,
     {
         debug_assert!(self.is_spawned());
         task_manager.try_get_task::<Task>(self.current_task_id)
@@ -464,11 +467,7 @@ impl Unit {
     #[inline]
     pub fn current_task(&self) -> Option<UnitTaskId> {
         debug_assert!(self.is_spawned());
-        if self.current_task_id.is_valid() {
-            Some(self.current_task_id)
-        } else {
-            None
-        }
+        if self.current_task_id.is_valid() { Some(self.current_task_id) } else { None }
     }
 
     #[inline]
@@ -478,13 +477,15 @@ impl Unit {
         self.current_task_id = task_id.unwrap_or_default();
     }
 
-    pub fn try_spawn_with_task<Task>(context: &SimContext,
-                                     unit_origin: Cell,
-                                     unit_config: UnitConfigKey,
-                                     task: Task)
-                                     -> Result<&mut Unit, TilePlacementErr>
-        where Task: UnitTask,
-              UnitTaskArchetype: From<Task>
+    pub fn try_spawn_with_task<Task>(
+        context: &SimContext,
+        unit_origin: Cell,
+        unit_config: UnitConfigKey,
+        task: Task,
+    ) -> Result<&mut Unit, TilePlacementErr>
+    where
+        Task: UnitTask,
+        UnitTaskArchetype: From<Task>,
     {
         debug_assert!(unit_origin.is_valid());
 
@@ -601,9 +602,7 @@ impl Unit {
             return;
         }
 
-        self.debug.popup_msg(format!("Goto: {} -> {}",
-                                     goal.origin_debug_name(),
-                                     goal.destination_debug_name()));
+        self.debug.popup_msg(format!("Goto: {} -> {}", goal.origin_debug_name(), goal.destination_debug_name()));
     }
 }
 
@@ -645,21 +644,24 @@ pub trait UnitTaskHelper {
 
     #[inline]
     fn is_running_task<Task>(&self, context: &SimContext) -> bool
-        where Task: UnitTask + 'static
+    where
+        Task: UnitTask + 'static,
     {
         self.try_unit(context).is_some_and(|unit| unit.is_running_task::<Task>(context.task_manager()))
     }
 
     #[inline]
-    fn try_spawn_with_task<Task>(&mut self,
-                                 spawner_name: &str,
-                                 context: &SimContext,
-                                 unit_origin: Cell,
-                                 unit_config: UnitConfigKey,
-                                 task: Task)
-                                 -> bool
-        where Task: UnitTask,
-              UnitTaskArchetype: From<Task>
+    fn try_spawn_with_task<Task>(
+        &mut self,
+        spawner_name: &str,
+        context: &SimContext,
+        unit_origin: Cell,
+        unit_config: UnitConfigKey,
+        task: Task,
+    ) -> bool
+    where
+        Task: UnitTask,
+        UnitTaskArchetype: From<Task>,
     {
         debug_assert!(!self.is_spawned(), "Unit already spawned! reset() first.");
 

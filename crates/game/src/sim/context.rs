@@ -1,24 +1,44 @@
 #![allow(clippy::too_many_arguments)]
 
-use smallvec::SmallVec;
-use rand::{distr::uniform::{SampleRange, SampleUniform}, Rng};
-
-use super::{
-    RandomGenerator,
-    GlobalTreasury,
+use common::{
+    coords::{Cell, CellRange},
+    hash::StringHash,
+    mem::RawPtr,
+    time::Seconds,
 };
 use engine::log;
-use common::{ time::Seconds, coords::{Cell, CellRange}, hash::StringHash, mem::RawPtr, };
+use rand::{
+    Rng,
+    distr::uniform::{SampleRange, SampleUniform},
+};
+use smallvec::SmallVec;
+
+use super::{GlobalTreasury, RandomGenerator};
 use crate::{
-    { world::World, unit::task::UnitTaskManager, building::{Building, BuildingKind}, },
+    building::{Building, BuildingKind},
     pathfind::{
-    self, AStarUniformCostHeuristic, Bias, Graph, Node, NodeKind as PathNodeKind,
-    Path, PathFilter, Search, SearchResult, Unbiased, DefaultPathFilter,
+        self,
+        AStarUniformCostHeuristic,
+        Bias,
+        DefaultPathFilter,
+        Graph,
+        Node,
+        NodeKind as PathNodeKind,
+        Path,
+        PathFilter,
+        Search,
+        SearchResult,
+        Unbiased,
     },
     tile::{
-    sets::{TileDef, TileSets},
-    Tile, TileKind, TileMap, TileMapLayerKind,
+        Tile,
+        TileKind,
+        TileMap,
+        TileMapLayerKind,
+        sets::{TileDef, TileSets},
     },
+    unit::task::UnitTaskManager,
+    world::World,
 };
 
 // ----------------------------------------------
@@ -53,15 +73,16 @@ pub struct SimContext {
 
 impl SimContext {
     #[inline]
-    pub fn new(rng: &mut RandomGenerator,
-               graph: &mut Graph,
-               search: &mut Search,
-               task_manager: &mut UnitTaskManager,
-               world: &mut World,
-               tile_map: &mut TileMap,
-               treasury: &mut GlobalTreasury,
-               delta_time_secs: Seconds)
-           -> Self {
+    pub fn new(
+        rng: &mut RandomGenerator,
+        graph: &mut Graph,
+        search: &mut Search,
+        task_manager: &mut UnitTaskManager,
+        world: &mut World,
+        tile_map: &mut TileMap,
+        treasury: &mut GlobalTreasury,
+        delta_time_secs: Seconds,
+    ) -> Self {
         Self {
             rng: RawPtr::from_ref(rng),
             graph: RawPtr::from_ref(graph),
@@ -146,36 +167,30 @@ impl SimContext {
 
     #[inline(always)]
     pub fn random_range<T, R>(&self, range: R) -> T
-        where T: SampleUniform,
-              R: SampleRange<T>
+    where
+        T: SampleUniform,
+        R: SampleRange<T>,
     {
         self.rng_mut().random_range(range)
     }
 
     #[inline]
-    pub fn find_tile_def(&self,
-                         layer: TileMapLayerKind,
-                         category_name_hash: StringHash,
-                         tile_def_name_hash: StringHash)
-                         -> Option<&'static TileDef> {
+    pub fn find_tile_def(
+        &self,
+        layer: TileMapLayerKind,
+        category_name_hash: StringHash,
+        tile_def_name_hash: StringHash,
+    ) -> Option<&'static TileDef> {
         TileSets::get().find_tile_def_by_hash(layer, category_name_hash, tile_def_name_hash)
     }
 
     #[inline]
-    pub fn find_tile(&self,
-                     cell: Cell,
-                     layer: TileMapLayerKind,
-                     tile_kinds: TileKind)
-                     -> Option<&Tile> {
+    pub fn find_tile(&self, cell: Cell, layer: TileMapLayerKind, tile_kinds: TileKind) -> Option<&Tile> {
         self.tile_map().find_tile(cell, layer, tile_kinds)
     }
 
     #[inline]
-    pub fn find_tile_mut(&self,
-                         cell: Cell,
-                         layer: TileMapLayerKind,
-                         tile_kinds: TileKind)
-                         -> Option<&mut Tile> {
+    pub fn find_tile_mut(&self, cell: Cell, layer: TileMapLayerKind, tile_kinds: TileKind) -> Option<&mut Tile> {
         self.tile_map_mut().find_tile_mut(cell, layer, tile_kinds)
     }
 
@@ -189,126 +204,136 @@ impl SimContext {
     }
 
     #[inline]
-    pub fn find_path(&self,
-                     traversable_node_kinds: PathNodeKind,
-                     start: Cell,
-                     goal: Cell)
-                     -> SearchResult<'_> {
-        self.search_mut().find_path(self.graph(),
-                                    &AStarUniformCostHeuristic::new(),
-                                    traversable_node_kinds,
-                                    Node::new(start),
-                                    Node::new(goal))
+    pub fn find_path(&self, traversable_node_kinds: PathNodeKind, start: Cell, goal: Cell) -> SearchResult<'_> {
+        self.search_mut().find_path(
+            self.graph(),
+            &AStarUniformCostHeuristic::new(),
+            traversable_node_kinds,
+            Node::new(start),
+            Node::new(goal),
+        )
     }
 
     #[inline]
-    pub fn find_paths<Filter>(&self,
-                              path_filter: &mut Filter,
-                              max_paths: usize,
-                              traversable_node_kinds: PathNodeKind,
-                              start: Cell,
-                              goal: Cell)
-                              -> SearchResult<'_>
-        where Filter: PathFilter
+    pub fn find_paths<Filter>(
+        &self,
+        path_filter: &mut Filter,
+        max_paths: usize,
+        traversable_node_kinds: PathNodeKind,
+        start: Cell,
+        goal: Cell,
+    ) -> SearchResult<'_>
+    where
+        Filter: PathFilter,
     {
-        self.search_mut().find_paths(self.graph(),
-                                     &AStarUniformCostHeuristic::new(),
-                                     path_filter,
-                                     max_paths,
-                                     traversable_node_kinds,
-                                     Node::new(start),
-                                     Node::new(goal))
+        self.search_mut().find_paths(
+            self.graph(),
+            &AStarUniformCostHeuristic::new(),
+            path_filter,
+            max_paths,
+            traversable_node_kinds,
+            Node::new(start),
+            Node::new(goal),
+        )
     }
 
     #[inline]
-    pub fn find_waypoints<Filter>(&self,
-                                  bias: &impl Bias,
-                                  path_filter: &mut Filter,
-                                  traversable_node_kinds: PathNodeKind,
-                                  start: Cell,
-                                  max_distance: i32)
-                                  -> SearchResult<'_>
-        where Filter: PathFilter
+    pub fn find_waypoints<Filter>(
+        &self,
+        bias: &impl Bias,
+        path_filter: &mut Filter,
+        traversable_node_kinds: PathNodeKind,
+        start: Cell,
+        max_distance: i32,
+    ) -> SearchResult<'_>
+    where
+        Filter: PathFilter,
     {
-        self.search_mut().find_waypoints(self.graph(),
-                                         &AStarUniformCostHeuristic::new(),
-                                         bias,
-                                         path_filter,
-                                         traversable_node_kinds,
-                                         Node::new(start),
-                                         max_distance)
+        self.search_mut().find_waypoints(
+            self.graph(),
+            &AStarUniformCostHeuristic::new(),
+            bias,
+            path_filter,
+            traversable_node_kinds,
+            Node::new(start),
+            max_distance,
+        )
     }
 
     #[inline]
-    pub fn find_path_to_node(&self,
-                             bias: &impl Bias,
-                             traversable_node_kinds: PathNodeKind,
-                             start: Cell,
-                             goal_node_kinds: PathNodeKind)
-                             -> SearchResult<'_> {
-        self.search_mut().find_path_to_node(self.graph(),
-                                            &AStarUniformCostHeuristic::new(),
-                                            bias,
-                                            &mut DefaultPathFilter::new(),
-                                            traversable_node_kinds,
-                                            Node::new(start),
-                                            goal_node_kinds)
+    pub fn find_path_to_node(
+        &self,
+        bias: &impl Bias,
+        traversable_node_kinds: PathNodeKind,
+        start: Cell,
+        goal_node_kinds: PathNodeKind,
+    ) -> SearchResult<'_> {
+        self.search_mut().find_path_to_node(
+            self.graph(),
+            &AStarUniformCostHeuristic::new(),
+            bias,
+            &mut DefaultPathFilter::new(),
+            traversable_node_kinds,
+            Node::new(start),
+            goal_node_kinds,
+        )
     }
 
     #[inline]
-    pub fn find_paths_to_node<Filter>(&self,
-                                      bias: &impl Bias,
-                                      path_filter: &mut Filter,
-                                      traversable_node_kinds: PathNodeKind,
-                                      start: Cell,
-                                      goal_node_kinds: PathNodeKind)
-                                      -> SearchResult<'_>
-        where Filter: PathFilter
+    pub fn find_paths_to_node<Filter>(
+        &self,
+        bias: &impl Bias,
+        path_filter: &mut Filter,
+        traversable_node_kinds: PathNodeKind,
+        start: Cell,
+        goal_node_kinds: PathNodeKind,
+    ) -> SearchResult<'_>
+    where
+        Filter: PathFilter,
     {
-        self.search_mut().find_path_to_node(self.graph(),
-                                            &AStarUniformCostHeuristic::new(),
-                                            bias,
-                                            path_filter,
-                                            traversable_node_kinds,
-                                            Node::new(start),
-                                            goal_node_kinds)
+        self.search_mut().find_path_to_node(
+            self.graph(),
+            &AStarUniformCostHeuristic::new(),
+            bias,
+            path_filter,
+            traversable_node_kinds,
+            Node::new(start),
+            goal_node_kinds,
+        )
     }
 
     #[inline]
-    pub fn find_nearest_buildings<F>(&self,
-                                     start: Cell,
-                                     building_kinds: BuildingKind,
-                                     traversable_node_kinds: PathNodeKind,
-                                     max_distance: Option<i32>,
-                                     visitor_fn: F)
-                                     -> Option<(&Building, &Path)>
-        where F: FnMut(&Building, &Path) -> bool {
-
-        self.find_nearest_buildings_mut(start,
-                                        building_kinds,
-                                        traversable_node_kinds,
-                                        max_distance,
-                                        visitor_fn)
-                                        .map(|(building, path)| (building as &Building, path))
+    pub fn find_nearest_buildings<F>(
+        &self,
+        start: Cell,
+        building_kinds: BuildingKind,
+        traversable_node_kinds: PathNodeKind,
+        max_distance: Option<i32>,
+        visitor_fn: F,
+    ) -> Option<(&Building, &Path)>
+    where
+        F: FnMut(&Building, &Path) -> bool,
+    {
+        self.find_nearest_buildings_mut(start, building_kinds, traversable_node_kinds, max_distance, visitor_fn)
+            .map(|(building, path)| (building as &Building, path))
     }
 
-    pub fn find_nearest_buildings_mut<F>(&self,
-                                         start: Cell,
-                                         building_kinds: BuildingKind,
-                                         traversable_node_kinds: PathNodeKind,
-                                         max_distance: Option<i32>,
-                                         visitor_fn: F)
-                                     -> Option<(&mut Building, &Path)>
-        where F: FnMut(&Building, &Path) -> bool
+    pub fn find_nearest_buildings_mut<F>(
+        &self,
+        start: Cell,
+        building_kinds: BuildingKind,
+        traversable_node_kinds: PathNodeKind,
+        max_distance: Option<i32>,
+        visitor_fn: F,
+    ) -> Option<(&mut Building, &Path)>
+    where
+        F: FnMut(&Building, &Path) -> bool,
     {
         debug_assert!(start.is_valid());
         debug_assert!(!building_kinds.is_empty());
         debug_assert!(!traversable_node_kinds.is_empty());
 
-        if !self.graph()
-                .node_kind(Node::new(start))
-                .is_some_and(|kind| kind.intersects(traversable_node_kinds))
-        {
+        if !self.graph().node_kind(Node::new(start)).is_some_and(|kind| kind.intersects(traversable_node_kinds)) {
             log::error!(log::channel!("sim"), "Near building search: start cell {start} is not traversable!");
             return None;
         }
@@ -324,7 +349,8 @@ impl SimContext {
         }
 
         impl<F> PathFilter for BuildingPathFilter<'_, F>
-            where F: FnMut(&Building, &Path) -> bool
+        where
+            F: FnMut(&Building, &Path) -> bool,
         {
             fn accepts(&mut self, _index: usize, path: &Path, goal: Node) -> bool {
                 if self.visited_nodes.contains(&goal) {
@@ -336,16 +362,15 @@ impl SimContext {
                 debug_assert!(path.last().unwrap().cell == goal.cell);
 
                 let node_kind = self.context.graph().node_kind(goal).unwrap();
-                debug_assert!(node_kind.intersects(PathNodeKind::BuildingRoadLink
-                                                   | PathNodeKind::BuildingAccess),
-                              "Unexpected PathNodeKind: {node_kind}");
+                debug_assert!(
+                    node_kind.intersects(PathNodeKind::BuildingRoadLink | PathNodeKind::BuildingAccess),
+                    "Unexpected PathNodeKind: {node_kind}"
+                );
 
                 let neighbors = self.context.graph().neighbors(goal, PathNodeKind::Building);
                 for neighbor in neighbors {
                     if let Some(building) =
-                        self.context
-                            .world_mut()
-                            .find_building_for_cell_mut(neighbor.cell, self.context.tile_map())
+                        self.context.world_mut().find_building_for_cell_mut(neighbor.cell, self.context.tile_map())
                     {
                         if building.is(self.building_kinds) {
                             let mut accept_building = false;
@@ -354,9 +379,7 @@ impl SimContext {
                             // road link goal actually belongs to this
                             // building. Buildings can share the same road link tile.
                             if self.traversable_node_kinds.is_road() {
-                                if building.road_link(self.context)
-                                           .is_some_and(|link| link == goal.cell)
-                                {
+                                if building.road_link(self.context).is_some_and(|link| link == goal.cell) {
                                     accept_building = !(self.visitor_fn)(building, path);
                                 }
                             } else {
@@ -397,18 +420,17 @@ impl SimContext {
             &mut building_filter,
             traversable_node_kinds,
             Node::new(start),
-            max_distance.unwrap_or(i32::MAX));
+            max_distance.unwrap_or(i32::MAX),
+        );
 
         match result {
             SearchResult::PathFound(path_found) => {
                 debug_assert!(!path_found.is_empty());
 
-                let result_building = building_filter.result_building
-                    .expect("If we've found a path we should have found a building too!");
+                let result_building =
+                    building_filter.result_building.expect("If we've found a path we should have found a building too!");
 
-                let result_path =
-                    building_filter.result_path
-                                   .expect("Path should be valid for SearchResult::PathFound!");
+                let result_path = building_filter.result_path.expect("Path should be valid for SearchResult::PathFound!");
 
                 debug_assert!(result_building.is(building_kinds));
                 debug_assert!(result_path.as_ref() == path_found); // Must be the same.
@@ -419,38 +441,34 @@ impl SimContext {
         }
     }
 
-    pub fn is_near_building(&self,
-                            start: Cell, // -> Cell must be traversable!
-                            building_kinds: BuildingKind,
-                            connected_to_road_only: bool,
-                            effect_radius: i32)
-                            -> bool {
+    pub fn is_near_building(
+        &self,
+        start: Cell, // -> Cell must be traversable!
+        building_kinds: BuildingKind,
+        connected_to_road_only: bool,
+        effect_radius: i32,
+    ) -> bool {
         debug_assert!(start.is_valid());
         debug_assert!(!building_kinds.is_empty());
         debug_assert!(effect_radius > 0);
 
-        let traversable_node_kinds = {
-            if connected_to_road_only {
-                PathNodeKind::Road
-            } else {
-                PathNodeKind::EmptyLand | PathNodeKind::Road
-            }
-        };
+        let traversable_node_kinds =
+            { if connected_to_road_only { PathNodeKind::Road } else { PathNodeKind::EmptyLand | PathNodeKind::Road } };
 
-        if !self.graph()
-                .node_kind(Node::new(start))
-                .is_some_and(|kind| kind.intersects(traversable_node_kinds))
-        {
+        if !self.graph().node_kind(Node::new(start)).is_some_and(|kind| kind.intersects(traversable_node_kinds)) {
             log::error!(log::channel!("sim"), "Near building search: start cell {start} is not traversable!");
             return false;
         }
 
-        self.find_nearest_buildings(start,
-                                    building_kinds,
-                                    traversable_node_kinds,
-                                    Some(effect_radius),
-                                    |_building, _path| {
-                                        false // Stop iterating, we'll take the first match.
-                                    }).is_some()
+        self.find_nearest_buildings(
+            start,
+            building_kinds,
+            traversable_node_kinds,
+            Some(effect_radius),
+            |_building, _path| {
+                false // Stop iterating, we'll take the first match.
+            },
+        )
+        .is_some()
     }
 }

@@ -1,8 +1,11 @@
+use common::{
+    hash::{self, PreHashedKeyMap, StringHash},
+    time::Seconds,
+};
+use engine::{log, ui::UiSystem};
 use proc_macros::DrawDebugUi;
 use serde::{Deserialize, Serialize};
 
-use engine::{log, ui::UiSystem};
-use common::{time::Seconds, hash::{self, PreHashedKeyMap, StringHash}};
 use crate::sim::resources::ResourceKind;
 
 // ----------------------------------------------
@@ -32,12 +35,14 @@ pub struct PropConfig {
 impl Default for PropConfig {
     #[inline]
     fn default() -> Self {
-        Self { name: "Tree".into(),
-               tile_def_name: "tree".into(),
-               tile_def_name_hash: hash::fnv1a_from_str("tree"),
-               harvestable_resource: ResourceKind::Wood,
-               harvestable_amount: 20,
-               respawn_time_secs: 60.0 }
+        Self {
+            name: "Tree".into(),
+            tile_def_name: "tree".into(),
+            tile_def_name_hash: hash::fnv1a_from_str("tree"),
+            harvestable_resource: ResourceKind::Wood,
+            harvestable_amount: 20,
+            respawn_time_secs: 60.0,
+        }
     }
 }
 
@@ -56,9 +61,7 @@ impl PropConfig {
 
         // Must have a tile def name.
         if self.tile_def_name.is_empty() {
-            log::error!(log::channel!("config"),
-                        "PropConfig '{}': Invalid empty TileDef name! Index: [{index}]",
-                        self.name);
+            log::error!(log::channel!("config"), "PropConfig '{}': Invalid empty TileDef name! Index: [{index}]", self.name);
             return false;
         }
 
@@ -92,10 +95,7 @@ impl PropConfigs {
         self.find_config_by_hash(hash::fnv1a_from_str(tile_def_name), tile_def_name)
     }
 
-    pub fn find_config_by_hash(&'static self,
-                               tile_def_name_hash: StringHash,
-                               tile_def_name: &str)
-                               -> &'static PropConfig {
+    pub fn find_config_by_hash(&'static self, tile_def_name_hash: StringHash, tile_def_name: &str) -> &'static PropConfig {
         debug_assert!(tile_def_name_hash != hash::NULL_HASH);
 
         match self.mapping.get(&tile_def_name_hash) {
@@ -115,10 +115,13 @@ impl PropConfigs {
             }
 
             if self.mapping.insert(config.tile_def_name_hash, index).is_some() {
-                log::error!(log::channel!("config"), "PropConfig '{}': An entry for key '{}' ({:#X}) already exists at [{index}]!",
-                            config.name,
-                            config.tile_def_name,
-                            config.tile_def_name_hash);
+                log::error!(
+                    log::channel!("config"),
+                    "PropConfig '{}': An entry for key '{}' ({:#X}) already exists at [{index}]!",
+                    config.name,
+                    config.tile_def_name,
+                    config.tile_def_name_hash
+                );
             }
         }
     }

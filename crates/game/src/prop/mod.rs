@@ -1,29 +1,35 @@
-use serde::{Deserialize, Serialize};
+use common::{
+    Color,
+    coords::{Cell, CellRange, WorldToScreenTransform},
+    hash::{self, StrHashPair, StringHash},
+    time::{CountdownTimer, Seconds},
+};
+use config::{PropConfig, PropConfigs};
+use engine::ui::{UiFontScale, UiStaticVar, UiSystem};
 use proc_macros::DrawDebugUi;
+use serde::{Deserialize, Serialize};
 
 use super::{
     sim::{
-        resources::{ResourceKind, StockItem},
         SimContext,
+        resources::{ResourceKind, StockItem},
     },
+    undo_redo::GameObjectSavedState,
+    unit::UnitId,
     world::{
         object::{GameObject, GenerationalIndex},
         stats::WorldStats,
     },
-    undo_redo::GameObjectSavedState,
-    unit::UnitId,
 };
-use engine::ui::{UiSystem, UiStaticVar, UiFontScale};
-use crate::save_context::PostLoadContext;
-use common::{ coords::{Cell, CellRange, WorldToScreenTransform}, hash::{self, StringHash, StrHashPair}, time::{CountdownTimer, Seconds}, Color, };
 use crate::{
-    debug::DebugUiMode,
-    undo_redo::game_object_undo_redo_state,
+    debug::{
+        DebugUiMode,
+        game_object_debug::{GameObjectDebugOptions, GameObjectDebugOptionsExt, game_object_debug_options},
+    },
+    save_context::PostLoadContext,
     tile::{Tile, TileKind, TileMapLayerKind},
-    debug::game_object_debug::{GameObjectDebugOptions, GameObjectDebugOptionsExt, game_object_debug_options},
+    undo_redo::game_object_undo_redo_state,
 };
-
-use config::{PropConfig, PropConfigs};
 pub mod config;
 
 // ----------------------------------------------
@@ -159,18 +165,16 @@ impl GameObject for Prop {
         }
     }
 
-    fn draw_debug_popups(&mut self,
-                         context: &SimContext,
-                         ui_sys: &UiSystem,
-                         transform: WorldToScreenTransform,
-                         visible_range: CellRange) {
+    fn draw_debug_popups(
+        &mut self,
+        context: &SimContext,
+        ui_sys: &UiSystem,
+        transform: WorldToScreenTransform,
+        visible_range: CellRange,
+    ) {
         debug_assert!(self.is_spawned());
 
-        self.debug.draw_popup_messages(self.find_tile(context),
-                                       ui_sys,
-                                       transform,
-                                       visible_range,
-                                       context.delta_time_secs());
+        self.debug.draw_popup_messages(self.find_tile(context), ui_sys, transform, visible_range, context.delta_time_secs());
     }
 }
 
@@ -302,8 +306,7 @@ impl Prop {
     // Callbacks:
     // ----------------------
 
-    pub fn register_callbacks() {
-    }
+    pub fn register_callbacks() {}
 
     // ----------------------
     // Internal helpers:
@@ -336,14 +339,16 @@ impl Prop {
 
     #[inline]
     fn find_tile<'game>(&self, context: &'game SimContext) -> &'game Tile {
-        context.find_tile(self.cell(), TileMapLayerKind::Objects, TileKind::Prop)
-             .expect("Prop should have an associated Tile in the TileMap!")
+        context
+            .find_tile(self.cell(), TileMapLayerKind::Objects, TileKind::Prop)
+            .expect("Prop should have an associated Tile in the TileMap!")
     }
 
     #[inline]
     fn find_tile_mut<'game>(&self, context: &'game SimContext) -> &'game mut Tile {
-        context.find_tile_mut(self.cell(), TileMapLayerKind::Objects, TileKind::Prop)
-             .expect("Prop should have an associated Tile in the TileMap!")
+        context
+            .find_tile_mut(self.cell(), TileMapLayerKind::Objects, TileKind::Prop)
+            .expect("Prop should have an associated Tile in the TileMap!")
     }
 
     // ----------------------
@@ -367,8 +372,7 @@ impl Prop {
             }
         };
 
-        color_bullet_text(&format!("Harvestable {}", self.harvestable.resource),
-                          self.harvestable.amount);
+        color_bullet_text(&format!("Harvestable {}", self.harvestable.resource), self.harvestable.amount);
     }
 
     fn draw_debug_ui_detailed(&mut self, context: &SimContext, ui_sys: &UiSystem) {
@@ -406,9 +410,7 @@ impl Prop {
             }
 
             static HARVEST_AMOUNT: UiStaticVar<u32> = UiStaticVar::new(1);
-            ui.input_scalar("Harvest Amount", HARVEST_AMOUNT.as_mut())
-                .step(1)
-                .build();
+            ui.input_scalar("Harvest Amount", HARVEST_AMOUNT.as_mut()).step(1).build();
 
             if ui.button("Harvest") {
                 self.harvest(context, *HARVEST_AMOUNT);

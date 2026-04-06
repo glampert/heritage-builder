@@ -1,14 +1,15 @@
-use std::any::Any;
-use std::collections::VecDeque;
-use bitflags::bitflags;
+use std::{any::Any, collections::VecDeque};
 
-use engine::log;
+use bitflags::bitflags;
 use common::coords::Cell;
+use engine::log;
 
 use crate::{
+    menu::TilePlacement,
     pathfind::NodeKind as PathNodeKind,
-    world::World, sim::SimContext, menu::TilePlacement,
-    tile::{Tile, TileKind, TileFlags, TileMap, TileMapLayerKind, sets::TileDef},
+    sim::SimContext,
+    tile::{Tile, TileFlags, TileKind, TileMap, TileMapLayerKind, sets::TileDef},
+    world::World,
 };
 
 // ----------------------------------------------
@@ -19,18 +20,11 @@ const UNDO_REDO_STACK_MAX_SIZE: usize = 16;
 
 // We can undo/redo placing/deleting of roads and vacant lots.
 const SUPPORTED_TERRAIN_KINDS: PathNodeKind =
-    PathNodeKind::from_bits_retain(
-        PathNodeKind::Road.bits()
-        | PathNodeKind::VacantLot.bits()
-    );
+    PathNodeKind::from_bits_retain(PathNodeKind::Road.bits() | PathNodeKind::VacantLot.bits());
 
 // We can undo/redo placing/deleting of buildings and props.
 const SUPPORTED_OBJECT_KINDS: TileKind =
-    TileKind::from_bits_retain(
-        TileKind::Building.bits()
-        | TileKind::Rocks.bits()
-        | TileKind::Vegetation.bits()
-    );
+    TileKind::from_bits_retain(TileKind::Building.bits() | TileKind::Rocks.bits() | TileKind::Vegetation.bits());
 
 // ----------------------------------------------
 // Macros
@@ -49,7 +43,8 @@ macro_rules! game_object_undo_redo_state {
                 Some(Box::new(instance))
             }
             fn downcast(state: &dyn $crate::undo_redo::GameObjectSavedState) -> &$struct_name {
-                state.as_any()
+                state
+                    .as_any()
                     .downcast_ref::<$struct_name>()
                     .unwrap_or_else(|| panic!("Expected an {} instance!", stringify!($struct_name)))
             }
@@ -77,15 +72,13 @@ struct TileSavedState {
 #[derive(Default)]
 struct SavedState {
     terrain_tile_state: Option<TileSavedState>,
-    object_tile_state:  Option<TileSavedState>,
-    game_object_state:  Option<Box<dyn GameObjectSavedState>>,
+    object_tile_state: Option<TileSavedState>,
+    game_object_state: Option<Box<dyn GameObjectSavedState>>,
 }
 
 impl SavedState {
     fn is_empty(&self) -> bool {
-        self.terrain_tile_state.is_none() &&
-        self.object_tile_state.is_none()  &&
-        self.game_object_state.is_none()
+        self.terrain_tile_state.is_none() && self.object_tile_state.is_none() && self.game_object_state.is_none()
     }
 }
 
@@ -104,13 +97,17 @@ pub trait CellKey {
 
 impl CellKey for &Cell {
     #[inline]
-    fn to_cell(&self) -> &Cell { self }
+    fn to_cell(&self) -> &Cell {
+        self
+    }
 }
 
 // Allows us to get Cells from HashMap pairs.
 impl<T> CellKey for (&Cell, T) {
     #[inline]
-    fn to_cell(&self) -> &Cell { self.0 }
+    fn to_cell(&self) -> &Cell {
+        self.0
+    }
 }
 
 #[derive(Copy, Clone)]
@@ -134,18 +131,14 @@ impl Record {
     // - Clear Tiles: Delete tiles added.
     fn apply_action(&self, command: Command, context: &SimContext) {
         match command {
-            Command::Undo => {
-                match self.action {
-                    EditAction::PlacedTiles   => self.clear_tiles(context, true),
-                    EditAction::ClearingTiles => self.place_tiles(context, false),
-                }
-            }
-            Command::Redo => {
-                match self.action {
-                    EditAction::PlacedTiles   => self.place_tiles(context, true),
-                    EditAction::ClearingTiles => self.clear_tiles(context, false),
-                }
-            }
+            Command::Undo => match self.action {
+                EditAction::PlacedTiles => self.clear_tiles(context, true),
+                EditAction::ClearingTiles => self.place_tiles(context, false),
+            },
+            Command::Redo => match self.action {
+                EditAction::PlacedTiles => self.place_tiles(context, true),
+                EditAction::ClearingTiles => self.clear_tiles(context, false),
+            },
         }
     }
 
@@ -165,9 +158,7 @@ impl Record {
 
             if let Some(object_tile) = maybe_object_tile {
                 if let Some(game_object_state) = &state.game_object_state {
-                    if let Some(game_object) =
-                        context.world_mut().find_game_object_for_tile_mut(object_tile)
-                    {
+                    if let Some(game_object) = context.world_mut().find_game_object_for_tile_mut(object_tile) {
                         game_object.undo_redo_apply(game_object_state.as_ref());
                     }
                 }
@@ -175,11 +166,12 @@ impl Record {
         }
     }
 
-    fn place_tile<'game>(context: &'game SimContext,
-                          layer: TileMapLayerKind,
-                          tile_state: &TileSavedState,
-                          subtract_tile_cost: bool)
-                          -> Option<&'game Tile> {
+    fn place_tile<'game>(
+        context: &'game SimContext,
+        layer: TileMapLayerKind,
+        tile_state: &TileSavedState,
+        subtract_tile_cost: bool,
+    ) -> Option<&'game Tile> {
         let target_cell = tile_state.tile_base_cell;
         let tile_def = tile_state.tile_def;
         let tile_variation_index = tile_state.tile_variation_index;
@@ -236,10 +228,7 @@ struct UndoRedoSingleton {
 
 impl UndoRedoSingleton {
     fn new() -> Self {
-        Self {
-            undo_stack: VecDeque::new(),
-            redo_stack: VecDeque::new(),
-        }
+        Self { undo_stack: VecDeque::new(), redo_stack: VecDeque::new() }
     }
 
     fn clear(&mut self) {
@@ -248,9 +237,9 @@ impl UndoRedoSingleton {
     }
 
     fn record<I, C>(&mut self, action: EditAction, affected_cells: I, layers: EditedLayer, tile_map: &TileMap, world: &World)
-        where
-            I: IntoIterator<Item = C>,
-            C: CellKey,
+    where
+        I: IntoIterator<Item = C>,
+        C: CellKey,
     {
         let mut saved_states = Vec::new();
 
@@ -349,9 +338,9 @@ pub fn clear() {
 }
 
 pub fn record<I, C>(action: EditAction, affected_cells: I, layers: EditedLayer, tile_map: &TileMap, world: &World)
-    where
-        I: IntoIterator<Item = C>,
-        C: CellKey,
+where
+    I: IntoIterator<Item = C>,
+    C: CellKey,
 {
     UndoRedoSingleton::get_mut().record(action, affected_cells, layers, tile_map, world);
 }

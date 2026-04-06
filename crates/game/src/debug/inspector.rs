@@ -1,15 +1,16 @@
 use arrayvec::ArrayString;
+use common::{Color, Size, Vec2, constants::*, coords::Cell, format_fixed_string, mem::RawPtr, time::Seconds};
+use engine::ui::{self, UiSystem};
 use proc_macros::DrawDebugUi;
 use strum::{VariantArray, VariantNames};
 
 use super::DebugUiMode;
-use engine::{ui::{self, UiSystem}};
-use common::{constants::*, coords::Cell, time::Seconds, mem::RawPtr, Color, Size, Vec2, format_fixed_string};
 use crate::{
-    ui_context::GameUiContext,
+    GameLoop,
+    menu::TileInspector,
     pathfind::NodeKind as PathNodeKind,
-    {GameLoop, menu::TileInspector},
-    tile::{Tile, TileFlags, TileKind, TileMapLayerKind, TileDepthSortOverride},
+    tile::{Tile, TileDepthSortOverride, TileFlags, TileKind, TileMapLayerKind},
+    ui_context::GameUiContext,
 };
 
 // ----------------------------------------------
@@ -28,11 +29,7 @@ struct TileWeakRef {
 
 impl TileWeakRef {
     fn new(tile: &Tile) -> Self {
-        Self {
-            tile_ptr: RawPtr::from_ref(tile),
-            tile_kind: tile.kind(),
-            tile_layer: tile.layer_kind(),
-        }
+        Self { tile_ptr: RawPtr::from_ref(tile), tile_kind: tile.kind(), tile_layer: tile.layer_kind() }
     }
 
     fn try_tile(&self) -> Option<&Tile> {
@@ -124,8 +121,7 @@ impl TileInspectorDevMenu {
             (tile.screen_rect(context.camera.transform(), true), Self::make_stable_imgui_window_label(tile))
         };
 
-        let window_position =
-            [tile_screen_rect.center().x - 30.0, tile_screen_rect.center().y - 30.0];
+        let window_position = [tile_screen_rect.center().x - 30.0, tile_screen_rect.center().y - 30.0];
 
         let window_flags = imgui::WindowFlags::ALWAYS_AUTO_RESIZE;
 
@@ -133,36 +129,36 @@ impl TileInspectorDevMenu {
         let mut is_open = self.is_open;
 
         ui.window(window_label)
-          .opened(&mut is_open)
-          .flags(window_flags)
-          .position(window_position, imgui::Condition::FirstUseEver)
-          .build(|| {
-              let tile = match self.try_get_selected_tile_mut() {
-                  Some(tile) => tile,
-                  None => return,
-              };
+            .opened(&mut is_open)
+            .flags(window_flags)
+            .position(window_position, imgui::Condition::FirstUseEver)
+            .build(|| {
+                let tile = match self.try_get_selected_tile_mut() {
+                    Some(tile) => tile,
+                    None => return,
+                };
 
-              let sim = GameLoop::get_mut().sim_mut();
+                let sim = GameLoop::get_mut().sim_mut();
 
-              // Overview:
-              sim.draw_game_object_debug_ui(context, tile, DebugUiMode::Overview);
+                // Overview:
+                sim.draw_game_object_debug_ui(context, tile, DebugUiMode::Overview);
 
-              // Detailed:
-              if tile.game_object_handle().is_valid() {
-                  // If the tile has a game object, we'll have different dropdowns besides "Tile"
-                  // (e.g.: "Building", "Unit"), so nest tile debug under its own collapsing header.
-                  if ui.collapsing_header("Tile", imgui::TreeNodeFlags::empty()) {
-                      ui.indent_by(10.0);
-                      Self::draw_tile_debug_ui(context, tile);
-                      ui.unindent_by(10.0);
-                  }
-              } else {
-                  // Draw tile debug ui directly without nesting under a collapsing header.
-                  Self::draw_tile_debug_ui(context, tile);
-              }
+                // Detailed:
+                if tile.game_object_handle().is_valid() {
+                    // If the tile has a game object, we'll have different dropdowns besides "Tile"
+                    // (e.g.: "Building", "Unit"), so nest tile debug under its own collapsing header.
+                    if ui.collapsing_header("Tile", imgui::TreeNodeFlags::empty()) {
+                        ui.indent_by(10.0);
+                        Self::draw_tile_debug_ui(context, tile);
+                        ui.unindent_by(10.0);
+                    }
+                } else {
+                    // Draw tile debug ui directly without nesting under a collapsing header.
+                    Self::draw_tile_debug_ui(context, tile);
+                }
 
-              sim.draw_game_object_debug_ui(context, tile, DebugUiMode::Detailed);
-          });
+                sim.draw_game_object_debug_ui(context, tile, DebugUiMode::Detailed);
+            });
 
         self.is_open = is_open;
     }
@@ -195,11 +191,12 @@ impl TileInspectorDevMenu {
         let game_object_handle = tile.game_object_handle();
         if game_object_handle.is_valid() {
             return format_fixed_string!(
-                           128,
-                           "{} - ID({},{:x})",
-                           tile.kind(),
-                           game_object_handle.index(),
-                           game_object_handle.kind());
+                128,
+                "{} - ID({},{:x})",
+                tile.kind(),
+                game_object_handle.index(),
+                game_object_handle.kind()
+            );
         }
 
         // Use the tile cell as a fallback. This is fine as long as the
@@ -253,7 +250,7 @@ impl TileInspectorDevMenu {
             draw_size: tile.draw_size(),
             logical_size: tile.logical_size(),
             variation_offset: tile.variation_offset(),
-            color: tile.tint_color()
+            color: tile.tint_color(),
         };
 
         debug_vars.draw_debug_ui(context.ui_sys);
@@ -295,10 +292,11 @@ impl TileInspectorDevMenu {
         ui.text("Depth Sort Override:");
         {
             let mut selected_index = tile.depth_sort_override() as usize;
-            if ui.combo_simple_string("##DepthSortOverride",
-                                      &mut selected_index,
-                                      <TileDepthSortOverride as VariantNames>::VARIANTS)
-            {
+            if ui.combo_simple_string(
+                "##DepthSortOverride",
+                &mut selected_index,
+                <TileDepthSortOverride as VariantNames>::VARIANTS,
+            ) {
                 let selected_override = <TileDepthSortOverride as VariantArray>::VARIANTS[selected_index];
                 tile.set_depth_sort_override(selected_override);
             }
@@ -417,7 +415,7 @@ impl TileInspectorDevMenu {
             looping: anim_set.looping,
             frame_index: tile.anim_frame_index(),
             frame_duration_secs: anim_set.frame_duration_secs(),
-            frame_play_time_secs: tile.anim_frame_play_time_secs()
+            frame_play_time_secs: tile.anim_frame_play_time_secs(),
         };
 
         debug_vars.draw_debug_ui(context.ui_sys);
@@ -522,13 +520,14 @@ impl TileInspectorDevMenu {
         ui.separator();
 
         let mut logical_size = tile.logical_size();
-        if ui::input_i32_xy(ui,
-                                  "Logical Size:",
-                                  &mut logical_size,
-                                  false,
-                                  Some([BASE_TILE_WIDTH_I32, BASE_TILE_HEIGHT_I32]),
-                                  Some(["W", "H"]))
-        {
+        if ui::input_i32_xy(
+            ui,
+            "Logical Size:",
+            &mut logical_size,
+            false,
+            Some([BASE_TILE_WIDTH_I32, BASE_TILE_HEIGHT_I32]),
+            Some(["W", "H"]),
+        ) {
             if let Some(editable_def) = tile.try_get_editable_tile_def() {
                 if logical_size.is_valid() // Must be a multiple of BASE_TILE_SIZE.
                     && (logical_size.width  % BASE_TILE_WIDTH_I32)  == 0

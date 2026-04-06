@@ -1,32 +1,30 @@
 use std::any::Any;
 
-use super::{
-    GameMenusMode,
-    GameMenusSystem,
-    GameMenusInputArgs,
-    TilePlacement,
-    TileInspector,
-    TilePalette,
-    dialog::{self, DialogMenuKind},
-};
+use common::{coords::CellRange, format_fixed_string, time::Seconds};
 use engine::{
     app::input::{InputAction, InputKey},
     file_sys::paths::AssetPath,
     ui::{
-    UiInputEvent, UiTheme,
-    widgets::{
-    UiWidget,
-    UiMenuFlags,
-    UiSlideshow,
-    UiSlideshowFlags,
-    UiSlideshowLoopMode,
-    UiSlideshowParams,
-    }
+        UiInputEvent,
+        UiTheme,
+        widgets::{UiMenuFlags, UiSlideshow, UiSlideshowFlags, UiSlideshowLoopMode, UiSlideshowParams, UiWidget},
     },
 };
-use common::{time::Seconds, coords::CellRange, format_fixed_string};
-use crate::save_context::{Save, Load, PreLoadContext};
-use crate::{tile::rendering::TileMapRenderFlags, ui_context::GameUiContext};
+
+use super::{
+    GameMenusInputArgs,
+    GameMenusMode,
+    GameMenusSystem,
+    TileInspector,
+    TilePalette,
+    TilePlacement,
+    dialog::{self, DialogMenuKind},
+};
+use crate::{
+    save_context::{Load, PreLoadContext, Save},
+    tile::rendering::TileMapRenderFlags,
+    ui_context::GameUiContext,
+};
 
 const ANIMATED_BACKGROUND: bool = false;
 
@@ -111,8 +109,7 @@ impl GameMenusSystem for HomeMenus {
         TileMapRenderFlags::empty()
     }
 
-    fn begin_frame(&mut self, _context: &mut GameUiContext) {
-    }
+    fn begin_frame(&mut self, _context: &mut GameUiContext) {}
 
     fn handle_input(&mut self, context: &mut GameUiContext, args: GameMenusInputArgs) -> UiInputEvent {
         if let GameMenusInputArgs::Key { key, action, .. } = args {

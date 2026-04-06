@@ -1,14 +1,21 @@
 use std::any::Any;
-use arrayvec::ArrayVec;
-use enum_dispatch::enum_dispatch;
-use strum::{EnumCount, EnumIter, EnumDiscriminants, IntoEnumIterator, Display};
 
-use super::{LARGE_HORIZONTAL_SEPARATOR_SPRITE};
+use arrayvec::ArrayVec;
+use common::{Color, Vec2, mem};
 use engine::{
     file_sys::paths::PathRef,
-    ui::{self, UiFontScale, UiStaticVar, sound::{self, UiSoundKey, UiButtonSoundsEnabled}, widgets::*},
+    ui::{
+        self,
+        UiFontScale,
+        UiStaticVar,
+        sound::{self, UiButtonSoundsEnabled, UiSoundKey},
+        widgets::*,
+    },
 };
-use common::{Vec2, Color, mem};
+use enum_dispatch::enum_dispatch;
+use strum::{Display, EnumCount, EnumDiscriminants, EnumIter, IntoEnumIterator};
+
+use super::LARGE_HORIZONTAL_SEPARATOR_SPRITE;
 use crate::{menu::ButtonDef, ui_context::GameUiContext};
 
 mod home;
@@ -237,13 +244,12 @@ pub trait DialogMenu: Any {
                     menu_rc_on_close.close(context);
                 }
             },
-            move |_| {
-                menu_rc_get_msg_box.message_box()
-            },
+            move |_| menu_rc_get_msg_box.message_box(),
             move |_, context| {
                 // Draw child menu inside root layout.
                 menu_rc_on_draw.draw_menu_contents(context);
-            });
+            },
+        );
     }
 }
 
@@ -358,7 +364,7 @@ impl DialogMenusSingleton {
             let (dialog, root) = get2(&mut self.dialog_menus, stack_top as usize, root_menu as usize);
 
             debug_assert!(dialog.kind() == stack_top);
-            debug_assert!(root.kind()   == root_menu);
+            debug_assert!(root.kind() == root_menu);
 
             return Some((dialog, Some(root)));
         }
@@ -389,7 +395,9 @@ impl DialogMenusSingleton {
 
     fn find_dialog_as<Dialog: DialogMenuFactory>(&mut self) -> &mut Dialog {
         let dialog = self.find_dialog(Dialog::KIND);
-        dialog.as_any_mut().downcast_mut::<Dialog>()
+        dialog
+            .as_any_mut()
+            .downcast_mut::<Dialog>()
             .unwrap_or_else(|| panic!("Expected dialog menu kind to be {}!", Dialog::KIND))
     }
 
@@ -406,10 +414,8 @@ impl DialogMenusSingleton {
     }
 
     fn pop_dialog(&mut self, dialog_menu_kind: DialogMenuKind) {
-        let index = self.menu_stack
-            .iter()
-            .position(|kind| *kind == dialog_menu_kind)
-            .expect("Dialog menu not in menu stack!");
+        let index =
+            self.menu_stack.iter().position(|kind| *kind == dialog_menu_kind).expect("Dialog menu not in menu stack!");
         let removed = self.menu_stack.remove(index);
         debug_assert!(removed == dialog_menu_kind, "Closed menu should have been in the menu stack!");
     }
@@ -524,9 +530,7 @@ const DEFAULT_DIALOG_POPUP_FONT_SCALE: UiFontScale = UiFontScale(1.5);
 const DEFAULT_DIALOG_POPUP_BACKGROUND_SPRITE: PathRef = PathRef::from_str("misc/square_page_bg.png");
 
 const DEFAULT_DIALOG_MENU_FLAGS: UiMenuFlags = UiMenuFlags::from_bits_retain(
-    UiMenuFlags::Modal.bits()
-    | UiMenuFlags::CloseModalOnEscape.bits()
-    | UiMenuFlags::PauseSimIfOpen.bits()
+    UiMenuFlags::Modal.bits() | UiMenuFlags::CloseModalOnEscape.bits() | UiMenuFlags::PauseSimIfOpen.bits(),
 );
 
 static GLOBAL_DIALOG_MENU_FLAGS: UiStaticVar<UiMenuFlags> = UiStaticVar::new(DEFAULT_DIALOG_MENU_FLAGS);
@@ -535,51 +539,42 @@ fn default_dialog_menu_size(context: &GameUiContext) -> Vec2 {
     Vec2::new(550.0, context.viewport_size.height as f32 - 150.0)
 }
 
-fn make_default_layout_dialog_menu(context: &mut GameUiContext,
-                                   dialog_menu_kind: DialogMenuKind,
-                                   heading_title: &[&str], // Each item in the slice is a heading line.
-                                   widget_spacing: Vec2,
-                                   widgets: Option<impl IntoIterator<Item = UiWidgetImpl>>)
-                                   -> UiMenuRcMut
-{
+fn make_default_layout_dialog_menu(
+    context: &mut GameUiContext,
+    dialog_menu_kind: DialogMenuKind,
+    heading_title: &[&str], // Each item in the slice is a heading line.
+    widget_spacing: Vec2,
+    widgets: Option<impl IntoIterator<Item = UiWidgetImpl>>,
+) -> UiMenuRcMut {
     let menu_size = default_dialog_menu_size(context);
-    let mut menu = UiMenu::new(
-        context,
-        UiMenuParams {
-            label: Some(dialog_menu_kind.to_string()),
-            flags: *GLOBAL_DIALOG_MENU_FLAGS,
-            size: Some(menu_size),
-            background: Some(DEFAULT_DIALOG_MENU_BACKGROUND_SPRITE),
-            ..Default::default()
-        }
-    );
+    let mut menu = UiMenu::new(context, UiMenuParams {
+        label: Some(dialog_menu_kind.to_string()),
+        flags: *GLOBAL_DIALOG_MENU_FLAGS,
+        size: Some(menu_size),
+        background: Some(DEFAULT_DIALOG_MENU_BACKGROUND_SPRITE),
+        ..Default::default()
+    });
 
-    let heading = UiMenuHeading::new(
-        context,
-        UiMenuHeadingParams {
-            lines: heading_title
-                .iter()
-                .map(|line| UiText::new(line.to_string(), DEFAULT_DIALOG_MENU_HEADING_FONT_SCALE))
-                .collect(),
-            separator: Some(LARGE_HORIZONTAL_SEPARATOR_SPRITE),
-            margin_top: DEFAULT_DIALOG_MENU_HEADING_MARGINS.0,
-            margin_bottom: DEFAULT_DIALOG_MENU_HEADING_MARGINS.1,
-            ..Default::default()
-        }
-    );
+    let heading = UiMenuHeading::new(context, UiMenuHeadingParams {
+        lines: heading_title
+            .iter()
+            .map(|line| UiText::new(line.to_string(), DEFAULT_DIALOG_MENU_HEADING_FONT_SCALE))
+            .collect(),
+        separator: Some(LARGE_HORIZONTAL_SEPARATOR_SPRITE),
+        margin_top: DEFAULT_DIALOG_MENU_HEADING_MARGINS.0,
+        margin_bottom: DEFAULT_DIALOG_MENU_HEADING_MARGINS.1,
+        ..Default::default()
+    });
 
     menu.add_widget(heading);
 
     if let Some(widgets) = widgets {
-        let mut group = UiWidgetGroup::new(
-            context,
-            UiWidgetGroupParams {
-                widget_spacing,
-                center_vertically: false,
-                center_horizontally: true,
-                ..Default::default()
-            }
-        );
+        let mut group = UiWidgetGroup::new(context, UiWidgetGroupParams {
+            widget_spacing,
+            center_vertically: false,
+            center_horizontally: true,
+            ..Default::default()
+        });
 
         for widget in widgets {
             group.add_widget(widget);
@@ -591,26 +586,23 @@ fn make_default_layout_dialog_menu(context: &mut GameUiContext,
     menu
 }
 
-fn make_dialog_button_widgets<ButtonKind, const COUNT: usize>(context: &mut GameUiContext) -> ArrayVec::<UiWidgetImpl, COUNT>
-    where ButtonKind: ButtonDef + EnumCount + IntoEnumIterator + 'static
+fn make_dialog_button_widgets<ButtonKind, const COUNT: usize>(context: &mut GameUiContext) -> ArrayVec<UiWidgetImpl, COUNT>
+where
+    ButtonKind: ButtonDef + EnumCount + IntoEnumIterator + 'static,
 {
     let mut buttons = ArrayVec::<UiWidgetImpl, COUNT>::new();
 
     for button_kind in ButtonKind::iter() {
-        let on_pressed = UiTextButtonPressed::with_closure(
-            move |_, context| {
-                button_kind.on_pressed(ui::widgets::context_as_mut::<GameUiContext>(context));
-            }
-        );
+        let on_pressed = UiTextButtonPressed::with_closure(move |_, context| {
+            button_kind.on_pressed(ui::widgets::context_as_mut::<GameUiContext>(context));
+        });
 
-        buttons.push(UiWidgetImpl::from(
-            button_kind.new_text_button(
-                context,
-                UiButtonSoundsEnabled::all(),
-                UiTextButtonSize::Large,
-                on_pressed
-            )
-        ));
+        buttons.push(UiWidgetImpl::from(button_kind.new_text_button(
+            context,
+            UiButtonSoundsEnabled::all(),
+            UiTextButtonSize::Large,
+            on_pressed,
+        )));
     }
 
     buttons

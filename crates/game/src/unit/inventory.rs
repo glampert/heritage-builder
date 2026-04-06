@@ -1,7 +1,7 @@
-use serde::{Deserialize, Serialize};
-use rand::{self, Rng};
-
 use engine::ui::UiSystem;
+use rand::{self, Rng};
+use serde::{Deserialize, Serialize};
+
 use crate::sim::resources::{ResourceKind, StockItem};
 
 // ----------------------------------------------
@@ -43,11 +43,13 @@ impl UnitInventory {
         debug_assert!(kind.is_single_resource());
         if count != 0 {
             if let Some(item) = &mut self.item {
-                debug_assert!(item.kind == kind && item.count != 0,
-                              "item.kind {} != {}, item.count = {}",
-                              item.kind,
-                              kind,
-                              item.count);
+                debug_assert!(
+                    item.kind == kind && item.count != 0,
+                    "item.kind {} != {}, item.count = {}",
+                    item.kind,
+                    kind,
+                    item.count
+                );
 
                 item.count += count;
             } else {
@@ -63,11 +65,13 @@ impl UnitInventory {
         debug_assert!(kind.is_single_resource());
         if count != 0 {
             if let Some(mut item) = self.item.take() {
-                debug_assert!(item.kind == kind && item.count != 0,
-                              "item.kind {} != {}, item.count = {}",
-                              item.kind,
-                              kind,
-                              item.count);
+                debug_assert!(
+                    item.kind == kind && item.count != 0,
+                    "item.kind {} != {}, item.count = {}",
+                    item.kind,
+                    kind,
+                    item.count
+                );
 
                 let removed = count.min(item.count);
                 item.count -= removed;

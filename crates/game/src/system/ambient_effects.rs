@@ -1,19 +1,26 @@
 use std::any::Any;
-use smallvec::SmallVec;
+
+use common::{callback::Callback, coords::Cell, time::UpdateTimer};
+use engine::{Engine, log};
 use rand::seq::{IndexedRandom, IteratorRandom};
 use serde::{Deserialize, Serialize};
-use strum::IntoEnumIterator;
-use strum::EnumIter;
+use smallvec::SmallVec;
+use strum::{EnumIter, IntoEnumIterator};
 
 use super::GameSystem;
-use engine::{log, Engine};
-use crate::save_context::PostLoadContext;
-use common::{callback::Callback, coords::Cell, time::UpdateTimer};
 use crate::{
-    pathfind::{Path, Node},
-    tile::{TileDepthSortOverride},
+    config::GameConfigs,
     debug::utils::UpdateTimerDebugUi,
-    { config::GameConfigs, sim::SimContext, unit::{ Unit, anim::UnitAnimSets, config::UnitConfigKey, task::{UnitTaskDespawn, UnitTaskFollowPath}, }, },
+    pathfind::{Node, Path},
+    save_context::PostLoadContext,
+    sim::SimContext,
+    tile::TileDepthSortOverride,
+    unit::{
+        Unit,
+        anim::UnitAnimSets,
+        config::UnitConfigKey,
+        task::{UnitTaskDespawn, UnitTaskFollowPath},
+    },
 };
 
 // ----------------------------------------------
@@ -68,9 +75,7 @@ impl GameSystem for AmbientEffectsSystem {
 impl Default for AmbientEffectsSystem {
     fn default() -> Self {
         let configs = GameConfigs::get();
-        Self {
-            bird_spawn_timer: UpdateTimer::new(configs.sim.birds_spawn_frequency),
-        }
+        Self { bird_spawn_timer: UpdateTimer::new(configs.sim.birds_spawn_frequency) }
     }
 }
 
@@ -88,25 +93,17 @@ enum BirdFlightPath {
 fn spawn_bird(context: &SimContext, flight_path: BirdFlightPath) {
     let (path, anim_set_key) = {
         match flight_path {
-            BirdFlightPath::LeftToRight => {
-                (make_left_to_right_randomized_path(context), UnitAnimSets::WALK_SE)
-            }
-            BirdFlightPath::RightToLeft => {
-                (make_right_to_left_randomized_path(context), UnitAnimSets::WALK_SW)
-            }
+            BirdFlightPath::LeftToRight => (make_left_to_right_randomized_path(context), UnitAnimSets::WALK_SE),
+            BirdFlightPath::RightToLeft => (make_right_to_left_randomized_path(context), UnitAnimSets::WALK_SW),
         }
     };
 
-    let result = Unit::try_spawn_with_task(
-        context,
-        path.first().unwrap().cell,
-        UnitConfigKey::Bird,
-        UnitTaskFollowPath {
-            path,
-            completion_callback: Callback::default(),
-            completion_task: context.task_manager_mut().new_task(UnitTaskDespawn),
-            terminate_if_stuck: true,
-        });
+    let result = Unit::try_spawn_with_task(context, path.first().unwrap().cell, UnitConfigKey::Bird, UnitTaskFollowPath {
+        path,
+        completion_callback: Callback::default(),
+        completion_task: context.task_manager_mut().new_task(UnitTaskDespawn),
+        terminate_if_stuck: true,
+    });
 
     match result {
         Ok(unit) => {

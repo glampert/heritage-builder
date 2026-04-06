@@ -1,22 +1,30 @@
-use rand_pcg::Pcg64;
+use common::{
+    coords::CellRange,
+    mem::RcMut,
+    time::{Seconds, UpdateTimer},
+};
+use engine::{Engine, save::*};
 use rand::SeedableRng;
+use rand_pcg::Pcg64;
 use serde::{Deserialize, Serialize};
 
 use super::{
-    constants::*,
-    world::World,
     config::GameConfigs,
+    constants::*,
     system::GameSystems,
     ui_context::GameUiContext,
     unit::task::UnitTaskManager,
+    world::World,
 };
-use engine::{save::*, Engine};
-use common::{coords::CellRange, mem::RcMut, time::{Seconds, UpdateTimer}};
-use crate::{debug::DebugUiMode, pathfind::{Graph, Search}, tile::{Tile, TileKind, TileMap}};
-use crate::save_context::*;
+use crate::{
+    debug::DebugUiMode,
+    pathfind::{Graph, Search},
+    save_context::*,
+    tile::{Tile, TileKind, TileMap},
+};
 
-//pub mod commands;
-//pub use commands::SimCmds;
+// pub mod commands;
+// pub use commands::SimCmds;
 
 pub mod context;
 pub use context::SimContext;
@@ -67,19 +75,17 @@ impl Simulation {
     }
 
     #[inline]
-    pub fn new_sim_context(&mut self,
-                           world: &mut World,
-                           tile_map: &mut TileMap,
-                           delta_time_secs: Seconds)
-                           -> SimContext {
-        SimContext::new(&mut self.rng,
-                        &mut self.graph,
-                        &mut self.search,
-                        &mut self.task_manager,
-                        world,
-                        tile_map,
-                        &mut self.treasury,
-                        delta_time_secs)
+    pub fn new_sim_context(&mut self, world: &mut World, tile_map: &mut TileMap, delta_time_secs: Seconds) -> SimContext {
+        SimContext::new(
+            &mut self.rng,
+            &mut self.graph,
+            &mut self.search,
+            &mut self.task_manager,
+            world,
+            tile_map,
+            &mut self.treasury,
+            delta_time_secs,
+        )
     }
 
     #[inline]
@@ -112,12 +118,14 @@ impl Simulation {
         &mut self.rng
     }
 
-    pub fn update(&mut self,
-                  engine: &mut Engine,
-                  world: &mut World,
-                  systems: &mut GameSystems,
-                  tile_map: &mut TileMap,
-                  delta_time_secs: Seconds) {
+    pub fn update(
+        &mut self,
+        engine: &mut Engine,
+        world: &mut World,
+        systems: &mut GameSystems,
+        tile_map: &mut TileMap,
+        delta_time_secs: Seconds,
+    ) {
         // Rebuild the search graph once every frame so any
         // add/remove tile changes will be reflected on the graph.
         //
@@ -153,18 +161,20 @@ impl Simulation {
         }
     }
 
-    pub fn reset_world(&mut self,
-                       engine: &mut Engine,
-                       world: &mut World,
-                       systems: &mut GameSystems,
-                       tile_map: &mut TileMap) {
+    pub fn reset_world(
+        &mut self,
+        engine: &mut Engine,
+        world: &mut World,
+        systems: &mut GameSystems,
+        tile_map: &mut TileMap,
+    ) {
         let context = self.new_sim_context(world, tile_map, 0.0);
         world.reset(&context);
         systems.reset(engine);
     }
 
     pub fn reset_search_graph(&mut self, tile_map: &TileMap) {
-        self.graph  = Graph::from_tile_map(tile_map);
+        self.graph = Graph::from_tile_map(tile_map);
         self.search = Search::with_graph(&self.graph);
     }
 
@@ -224,19 +234,18 @@ impl Simulation {
     }
 
     // Game Systems:
-    pub fn draw_game_systems_debug_ui(&mut self,
-                                      context: &mut GameUiContext,
-                                      engine: &mut Engine,
-                                      systems: &mut GameSystems) {
+    pub fn draw_game_systems_debug_ui(
+        &mut self,
+        context: &mut GameUiContext,
+        engine: &mut Engine,
+        systems: &mut GameSystems,
+    ) {
         let sim_context = self.new_sim_context(context.world, context.tile_map, context.delta_time_secs);
         systems.draw_debug_ui(engine, &sim_context, context.ui_sys);
     }
 
     // Generic GameObjects:
-    pub fn draw_game_object_debug_ui(&mut self,
-                                     context: &mut GameUiContext,
-                                     tile: &Tile,
-                                     mode: DebugUiMode) {
+    pub fn draw_game_object_debug_ui(&mut self, context: &mut GameUiContext, tile: &Tile, mode: DebugUiMode) {
         if tile.is(TileKind::Building) {
             self.draw_building_debug_ui(context, tile, mode);
         } else if tile.is(TileKind::Unit) {
@@ -255,16 +264,10 @@ impl Simulation {
     // Buildings:
     fn draw_building_debug_popups(&mut self, context: &mut GameUiContext, visible_range: CellRange) {
         let sim_context = self.new_sim_context(context.world, context.tile_map, context.delta_time_secs);
-        context.world.draw_building_debug_popups(&sim_context,
-                                                 context.ui_sys,
-                                                 context.camera.transform(),
-                                                 visible_range);
+        context.world.draw_building_debug_popups(&sim_context, context.ui_sys, context.camera.transform(), visible_range);
     }
 
-    fn draw_building_debug_ui(&mut self,
-                              context: &mut GameUiContext,
-                              tile: &Tile,
-                              mode: DebugUiMode) {
+    fn draw_building_debug_ui(&mut self, context: &mut GameUiContext, tile: &Tile, mode: DebugUiMode) {
         let sim_context = self.new_sim_context(context.world, context.tile_map, context.delta_time_secs);
         context.world.draw_building_debug_ui(&sim_context, context.ui_sys, tile, mode);
     }
@@ -275,10 +278,7 @@ impl Simulation {
         context.world.draw_unit_debug_popups(&sim_context, context.ui_sys, context.camera.transform(), visible_range);
     }
 
-    fn draw_unit_debug_ui(&mut self,
-                          context: &mut GameUiContext,
-                          tile: &Tile,
-                          mode: DebugUiMode) {
+    fn draw_unit_debug_ui(&mut self, context: &mut GameUiContext, tile: &Tile, mode: DebugUiMode) {
         let sim_context = self.new_sim_context(context.world, context.tile_map, context.delta_time_secs);
         context.world.draw_unit_debug_ui(&sim_context, context.ui_sys, tile, mode);
     }
@@ -289,10 +289,7 @@ impl Simulation {
         context.world.draw_prop_debug_popups(&sim_context, context.ui_sys, context.camera.transform(), visible_range);
     }
 
-    fn draw_prop_debug_ui(&mut self,
-                          context: &mut GameUiContext,
-                          tile: &Tile,
-                          mode: DebugUiMode) {
+    fn draw_prop_debug_ui(&mut self, context: &mut GameUiContext, tile: &Tile, mode: DebugUiMode) {
         let sim_context = self.new_sim_context(context.world, context.tile_map, context.delta_time_secs);
         context.world.draw_prop_debug_ui(&sim_context, context.ui_sys, tile, mode);
     }

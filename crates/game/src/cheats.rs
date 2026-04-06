@@ -1,6 +1,6 @@
-use proc_macros::DrawDebugUi;
-use common::{hash::{self, PreHashedKeyMap, StringHash}};
+use common::hash::{self, PreHashedKeyMap, StringHash};
 use engine::ui::UiSystem;
+use proc_macros::DrawDebugUi;
 
 // ----------------------------------------------
 // CheatsLookup
@@ -25,10 +25,7 @@ pub trait CheatsLookup {
     }
 
     fn try_set_by_hash(&mut self, cheat_hash: StringHash, value: bool) -> Result<(), &'static str> {
-        self.lookup_mut()
-            .get_mut(&cheat_hash)
-            .map(|(_, cheat)| **cheat = value)
-            .ok_or("Game cheat not found!")
+        self.lookup_mut().get_mut(&cheat_hash).map(|(_, cheat)| **cheat = value).ok_or("Game cheat not found!")
     }
 }
 

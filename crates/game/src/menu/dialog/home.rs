@@ -1,4 +1,4 @@
-use strum::{EnumProperty, EnumCount, EnumIter};
+use strum::{EnumCount, EnumIter, EnumProperty};
 
 use super::*;
 use crate::{GameLoop, menu::ButtonDef};
@@ -75,8 +75,8 @@ impl Home {
                 Self::KIND,
                 Self::TITLE,
                 DEFAULT_DIALOG_MENU_BUTTON_SPACING,
-                Some(buttons)
-            )
+                Some(buttons),
+            ),
         }
     }
 }

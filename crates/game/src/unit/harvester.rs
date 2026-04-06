@@ -1,15 +1,13 @@
+use common::{callback::Callback, coords::Cell, time::CountdownTimer};
 use serde::{Deserialize, Serialize};
 
 use super::{
-    task::{
-        UnitTaskHarvestWood, UnitTaskDespawn,
-        UnitTaskHarvestCompletionCallback,
-    },
+    UnitId,
+    UnitTaskHelper,
     config::UnitConfigKey,
-    UnitId, UnitTaskHelper,
+    task::{UnitTaskDespawn, UnitTaskHarvestCompletionCallback, UnitTaskHarvestWood},
 };
-use common::{callback::Callback, time::CountdownTimer, coords::Cell};
-use crate::{prop::PropId, building::BuildingContext};
+use crate::{building::BuildingContext, prop::PropId};
 
 // ----------------------------------------------
 // Harvester Unit helper
@@ -47,11 +45,12 @@ impl UnitTaskHelper for Harvester {
 }
 
 impl Harvester {
-    pub fn try_harvest_wood(&mut self,
-                            context: &BuildingContext,
-                            unit_origin: Cell,
-                            completion_callback: Callback<UnitTaskHarvestCompletionCallback>)
-                            -> bool {
+    pub fn try_harvest_wood(
+        &mut self,
+        context: &BuildingContext,
+        unit_origin: Cell,
+        completion_callback: Callback<UnitTaskHarvestCompletionCallback>,
+    ) -> bool {
         self.try_spawn_with_task(
             context.debug_name(),
             context.sim_ctx,
@@ -65,7 +64,7 @@ impl Harvester {
                 harvest_timer: CountdownTimer::default(),
                 harvest_target: PropId::default(),
                 is_returning_to_origin: false,
-            }
+            },
         )
     }
 }

@@ -1,18 +1,30 @@
+use common::{
+    Rect,
+    Size,
+    Vec2,
+    coords::{self, Cell, CellRange, WorldToScreenTransform},
+};
+use engine::{
+    app::input::{InputAction, MouseButton},
+    render::RenderSystem,
+    ui::UiInputEvent,
+};
 use smallvec::SmallVec;
 
 use super::{
+    Tile,
+    TileFlags,
+    TileKind,
+    TileMap,
+    TileMapLayerKind,
+    TileMapLayerMutRefs,
     placement::{self, TilePlacementOp},
     rendering::SELECTION_RECT_COLOR,
-    Tile, TileFlags, TileKind, TileMap, TileMapLayerKind, TileMapLayerMutRefs,
 };
-use engine::{
-    ui::UiInputEvent,
-    render::RenderSystem,
-    app::input::{InputAction, MouseButton},
+use crate::{
+    pathfind::NodeKind as PathNodeKind,
+    save_context::{Load, PostLoadContext, Save},
 };
-use crate::save_context::{Save, Load, PostLoadContext};
-use common::{ coords::{self, Cell, CellRange, WorldToScreenTransform}, Rect, Size, Vec2, };
-use crate::pathfind::{NodeKind as PathNodeKind};
 
 // ----------------------------------------------
 // TileSelection
@@ -50,43 +62,37 @@ impl TileSelection {
         &self.cells
     }
 
-    pub fn range_selection_cells(&self,
-                                 tile_map: &TileMap,
-                                 cursor_screen_pos: Vec2,
-                                 transform: WorldToScreenTransform)
-                                 -> Option<(Cell, Cell)> {
+    pub fn range_selection_cells(
+        &self,
+        tile_map: &TileMap,
+        cursor_screen_pos: Vec2,
+        transform: WorldToScreenTransform,
+    ) -> Option<(Cell, Cell)> {
         if self.is_selecting_range() && self.cursor_drag_start_cell.is_valid() {
             let start = self.cursor_drag_start_cell;
-            let end = tile_map.find_exact_cell_for_point(
-                TileMapLayerKind::Terrain,
-                cursor_screen_pos,
-                transform);
+            let end = tile_map.find_exact_cell_for_point(TileMapLayerKind::Terrain, cursor_screen_pos, transform);
             Some((start, end))
         } else if self.left_mouse_button_held && self.cursor_drag_start != Vec2::zero() {
-            let cell = tile_map.find_exact_cell_for_point(
-                TileMapLayerKind::Terrain,
-                self.cursor_drag_start,
-                transform);
+            let cell = tile_map.find_exact_cell_for_point(TileMapLayerKind::Terrain, self.cursor_drag_start, transform);
             Some((cell, cell)) // One cell selection.
         } else {
             None
         }
     }
 
-    pub fn on_mouse_button(&mut self,
-                           button: MouseButton,
-                           action: InputAction,
-                           tile_map: &TileMap,
-                           cursor_screen_pos: Vec2,
-                           transform: WorldToScreenTransform)
-                           -> UiInputEvent {
+    pub fn on_mouse_button(
+        &mut self,
+        button: MouseButton,
+        action: InputAction,
+        tile_map: &TileMap,
+        cursor_screen_pos: Vec2,
+        transform: WorldToScreenTransform,
+    ) -> UiInputEvent {
         if button == MouseButton::Left {
             if action == InputAction::Press {
                 self.cursor_drag_start = cursor_screen_pos;
-                self.cursor_drag_start_cell = tile_map.find_exact_cell_for_point(
-                    TileMapLayerKind::Terrain,
-                    cursor_screen_pos,
-                    transform);
+                self.cursor_drag_start_cell =
+                    tile_map.find_exact_cell_for_point(TileMapLayerKind::Terrain, cursor_screen_pos, transform);
                 self.left_mouse_button_held = true;
                 return UiInputEvent::Handled;
             } else if action == InputAction::Release {
@@ -105,12 +111,14 @@ impl TileSelection {
         }
     }
 
-    pub fn update(&mut self,
-                  mut layers: TileMapLayerMutRefs,
-                  map_size_in_cells: Size,
-                  cursor_screen_pos: Vec2,
-                  transform: WorldToScreenTransform,
-                  placement_op: TilePlacementOp) {
+    pub fn update(
+        &mut self,
+        mut layers: TileMapLayerMutRefs,
+        map_size_in_cells: Size,
+        cursor_screen_pos: Vec2,
+        transform: WorldToScreenTransform,
+        placement_op: TilePlacementOp,
+    ) {
         if self.left_mouse_button_held {
             // Keep updating the selection rect while left mouse button is held.
             self.rect = Rect::from_extents(self.cursor_drag_start, cursor_screen_pos);
@@ -130,9 +138,7 @@ impl TileSelection {
             for cell in &range {
                 if let Some(base_tile) = layers.get(TileMapLayerKind::Terrain).try_tile(cell) {
                     let tile_iso_coords = base_tile.iso_coords();
-                    let tile_screen_rect = coords::iso_to_screen_rect(tile_iso_coords,
-                                                                      base_tile.logical_size(),
-                                                                      transform);
+                    let tile_screen_rect = coords::iso_to_screen_rect(tile_iso_coords, base_tile.logical_size(), transform);
 
                     if tile_screen_rect.intersects(&self.rect) {
                         let base_cell = base_tile.base_cell();
@@ -156,8 +162,8 @@ impl TileSelection {
             }
 
             // Set new selection highlight:
-            let highlight_cell = layers.get(TileMapLayerKind::Terrain)
-                                       .find_exact_cell_for_point(cursor_screen_pos, transform);
+            let highlight_cell =
+                layers.get(TileMapLayerKind::Terrain).find_exact_cell_for_point(cursor_screen_pos, transform);
 
             self.toggle_selection(layers, highlight_cell, placement_op);
         }
@@ -196,10 +202,7 @@ impl TileSelection {
         debug_assert!(self.last_cell() == tile.base_cell());
     }
 
-    fn toggle_selection(&mut self,
-                        mut layers: TileMapLayerMutRefs,
-                        base_cell: Cell,
-                        placement_op: TilePlacementOp) {
+    fn toggle_selection(&mut self, mut layers: TileMapLayerMutRefs, base_cell: Cell, placement_op: TilePlacementOp) {
         if !layers.get(TileMapLayerKind::Terrain).is_cell_within_bounds(base_cell) {
             self.valid_placement = false;
             return;
@@ -208,9 +211,7 @@ impl TileSelection {
         // Highlight object layer tiles if we are placing an object, clearing tiles or
         // just mouse hovering. Don't highlight objects if placing terrain tiles.
         let highlight_objects = match placement_op {
-            TilePlacementOp::Place(tile_def) | TilePlacementOp::Invalidate(tile_def) => {
-                tile_def.is(TileKind::Object)
-            }
+            TilePlacementOp::Place(tile_def) | TilePlacementOp::Invalidate(tile_def) => tile_def.is(TileKind::Object),
             TilePlacementOp::Clear | TilePlacementOp::None => true,
         };
 
@@ -219,9 +220,7 @@ impl TileSelection {
             TilePlacementOp::Place(tile_def) => {
                 let mut flags = TileFlags::Highlighted;
 
-                if placement::internal::is_placement_on_terrain_valid(layers.to_refs(),
-                                                                      base_cell,
-                                                                      tile_def).is_err() {
+                if placement::internal::is_placement_on_terrain_valid(layers.to_refs(), base_cell, tile_def).is_err() {
                     flags = TileFlags::Invalidated;
                 } else {
                     for cell in &tile_def.cell_range(base_cell) {
@@ -319,28 +318,17 @@ impl Load for TileSelection {
 // Given the layout of the isometric tile map, this algorithm is quite greedy
 // and will select more tiles than actually intersect the rect, so a refinement
 // pass must be done after to intersect each tile's rect with the selection rect.
-pub fn bounds(screen_rect: &Rect,
-              map_size_in_cells: Size,
-              transform: WorldToScreenTransform)
-              -> CellRange {
+pub fn bounds(screen_rect: &Rect, map_size_in_cells: Size, transform: WorldToScreenTransform) -> CellRange {
     debug_assert!(screen_rect.is_valid());
 
     // Convert screen-space corners to isometric space:
-    let top_left = coords::screen_to_iso_point(
-        screen_rect.min,
-        transform);
+    let top_left = coords::screen_to_iso_point(screen_rect.min, transform);
 
-    let bottom_right = coords::screen_to_iso_point(
-        screen_rect.max,
-        transform);
+    let bottom_right = coords::screen_to_iso_point(screen_rect.max, transform);
 
-    let top_right = coords::screen_to_iso_point(
-        Vec2::new(screen_rect.max.x, screen_rect.min.y),
-        transform);
+    let top_right = coords::screen_to_iso_point(Vec2::new(screen_rect.max.x, screen_rect.min.y), transform);
 
-    let bottom_left = coords::screen_to_iso_point(
-        Vec2::new(screen_rect.min.x, screen_rect.max.y),
-        transform);
+    let bottom_left = coords::screen_to_iso_point(Vec2::new(screen_rect.min.x, screen_rect.max.y), transform);
 
     // Convert isometric points to cell coordinates:
     let cell_tl = coords::iso_to_cell(top_left);
@@ -355,8 +343,8 @@ pub fn bounds(screen_rect: &Rect,
     let mut max_y = cell_tl.y.max(cell_tr.y).max(cell_bl.y).max(cell_br.y);
 
     // Clamp to map bounds:
-    min_x = min_x.clamp(0, map_size_in_cells.width  - 1);
-    max_x = max_x.clamp(0, map_size_in_cells.width  - 1);
+    min_x = min_x.clamp(0, map_size_in_cells.width - 1);
+    max_x = max_x.clamp(0, map_size_in_cells.width - 1);
     min_y = min_y.clamp(0, map_size_in_cells.height - 1);
     max_y = max_y.clamp(0, map_size_in_cells.height - 1);
 

@@ -1,10 +1,10 @@
-use proc_macros::DrawDebugUi;
-use strum::Display;
-use num_enum::TryFromPrimitive;
-use serde::{Deserialize, Serialize};
-
-use engine::{log, ui::UiSystem};
 use common::hash::{self, PreHashedKeyMap, StringHash};
+use engine::{log, ui::UiSystem};
+use num_enum::TryFromPrimitive;
+use proc_macros::DrawDebugUi;
+use serde::{Deserialize, Serialize};
+use strum::Display;
+
 use crate::pathfind::NodeKind as PathNodeKind;
 
 // ----------------------------------------------
@@ -53,11 +53,13 @@ pub struct UnitConfig {
 impl Default for UnitConfig {
     #[inline]
     fn default() -> Self {
-        Self { name: "Peasant".into(),
-               tile_def_name: "peasant".into(),
-               tile_def_name_hash: UnitConfigKey::Peasant as StringHash,
-               traversable_node_kinds: PathNodeKind::default(),
-               movement_speed: 1.66 }
+        Self {
+            name: "Peasant".into(),
+            tile_def_name: "peasant".into(),
+            tile_def_name_hash: UnitConfigKey::Peasant as StringHash,
+            traversable_node_kinds: PathNodeKind::default(),
+            movement_speed: 1.66,
+        }
     }
 }
 
@@ -86,9 +88,7 @@ impl UnitConfig {
 
         // Must have a tile def name.
         if self.tile_def_name.is_empty() {
-            log::error!(log::channel!("config"),
-                        "UnitConfig '{}': Invalid empty TileDef name! Index: [{index}]",
-                        self.name);
+            log::error!(log::channel!("config"), "UnitConfig '{}': Invalid empty TileDef name! Index: [{index}]", self.name);
             return false;
         }
 
@@ -119,11 +119,7 @@ pub struct UnitConfigs {
 
 impl UnitConfigs {
     pub fn find_config_by_key(&'static self, unit_config: UnitConfigKey) -> &'static UnitConfig {
-        let tile_def_name = if cfg!(debug_assertions) {
-            &unit_config.to_string()
-        } else {
-            ""
-        };
+        let tile_def_name = if cfg!(debug_assertions) { &unit_config.to_string() } else { "" };
         self.find_config_by_hash(unit_config as StringHash, tile_def_name)
     }
 
@@ -131,10 +127,7 @@ impl UnitConfigs {
         self.find_config_by_hash(hash::fnv1a_from_str(tile_def_name), tile_def_name)
     }
 
-    pub fn find_config_by_hash(&'static self,
-                               tile_def_name_hash: StringHash,
-                               tile_def_name: &str)
-                               -> &'static UnitConfig {
+    pub fn find_config_by_hash(&'static self, tile_def_name_hash: StringHash, tile_def_name: &str) -> &'static UnitConfig {
         debug_assert!(tile_def_name_hash != hash::NULL_HASH);
 
         match self.mapping.get(&tile_def_name_hash) {
@@ -154,10 +147,13 @@ impl UnitConfigs {
             }
 
             if self.mapping.insert(config.tile_def_name_hash, index).is_some() {
-                log::error!(log::channel!("config"), "UnitConfig '{}': An entry for key '{}' ({:#X}) already exists at [{index}]!",
-                            config.name,
-                            config.tile_def_name,
-                            config.tile_def_name_hash);
+                log::error!(
+                    log::channel!("config"),
+                    "UnitConfig '{}': An entry for key '{}' ({:#X}) already exists at [{index}]!",
+                    config.name,
+                    config.tile_def_name,
+                    config.tile_def_name_hash
+                );
             }
         }
     }

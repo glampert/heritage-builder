@@ -4,8 +4,12 @@
 // and are separate from the engine-level save infrastructure (SaveState, JsonSaveState).
 
 use common::mem::RcMut;
-use engine::{Engine, save::{SaveStateImpl, SaveResult, LoadResult}};
-use crate::{tile::TileMap, config::GameConfigs, sim::RandomGenerator};
+use engine::{
+    Engine,
+    save::{LoadResult, SaveResult, SaveStateImpl},
+};
+
+use crate::{config::GameConfigs, sim::RandomGenerator, tile::TileMap};
 
 // ----------------------------------------------
 // Save / Load Traits
@@ -13,13 +17,17 @@ use crate::{tile::TileMap, config::GameConfigs, sim::RandomGenerator};
 
 pub trait Save {
     fn pre_save(&mut self) {}
-    fn save(&self, _state: &mut SaveStateImpl) -> SaveResult { Ok(()) }
+    fn save(&self, _state: &mut SaveStateImpl) -> SaveResult {
+        Ok(())
+    }
     fn post_save(&mut self) {}
 }
 
 pub trait Load {
     fn pre_load(&mut self, _context: &mut PreLoadContext) {}
-    fn load(&mut self, _state: &SaveStateImpl) -> LoadResult { Ok(()) }
+    fn load(&mut self, _state: &SaveStateImpl) -> LoadResult {
+        Ok(())
+    }
     fn post_load(&mut self, _context: &mut PostLoadContext) {}
 }
 
@@ -61,11 +69,12 @@ pub struct PostLoadContext<'game> {
 
 impl<'game> PostLoadContext<'game> {
     #[inline]
-    pub fn new(engine: &'game mut Engine,
-               configs: &'static GameConfigs,
-               rng: RcMut<RandomGenerator>,
-               tile_map: RcMut<TileMap>) -> Self
-    {
+    pub fn new(
+        engine: &'game mut Engine,
+        configs: &'static GameConfigs,
+        rng: RcMut<RandomGenerator>,
+        tile_map: RcMut<TileMap>,
+    ) -> Self {
         Self { engine, configs, rng, tile_map }
     }
 

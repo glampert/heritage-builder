@@ -1,8 +1,19 @@
-use engine::ui::{self, text::UiTextCategory, widgets::{UiWidget, UiMenu}};
-use common::{mem::{RcMut, WeakMut, WeakRef}, fixed_string::snake_case_to_title};
+use common::{
+    fixed_string::snake_case_to_title,
+    mem::{RcMut, WeakMut, WeakRef},
+};
+use engine::ui::{
+    self,
+    text::UiTextCategory,
+    widgets::{UiMenu, UiWidget},
+};
+
 use crate::{
+    building::{Building, BuildingArchetypeKind, BuildingKind},
+    menu::TileInspector,
+    sim::resources::{ResourceKind, StockItem},
     tile::{Tile, TileKind},
-    { building::{Building, BuildingKind, BuildingArchetypeKind}, sim::resources::{ResourceKind, StockItem}, menu::TileInspector, ui_context::GameUiContext, },
+    ui_context::GameUiContext,
 };
 
 mod renderer;
@@ -65,14 +76,12 @@ impl TileInspector for TileInspectorMenu {
 
 impl TileInspectorMenu {
     pub fn new(context: &mut GameUiContext) -> TileInspectorMenuRcMut {
-        TileInspectorMenuRcMut::new_cyclic(|tile_inspector_menu_weak_ref| {
-            Self {
-                current_inspector_kind: None,
-                unit_inspector: UnitInspector::new(context, &tile_inspector_menu_weak_ref),
-                building_inspector: BuildingInspector::new(context, &tile_inspector_menu_weak_ref),
-                prop_inspector: PropInspector::new(context, &tile_inspector_menu_weak_ref),
-                terrain_inspector: TerrainInspector::new(context, &tile_inspector_menu_weak_ref),
-            }
+        TileInspectorMenuRcMut::new_cyclic(|tile_inspector_menu_weak_ref| Self {
+            current_inspector_kind: None,
+            unit_inspector: UnitInspector::new(context, &tile_inspector_menu_weak_ref),
+            building_inspector: BuildingInspector::new(context, &tile_inspector_menu_weak_ref),
+            prop_inspector: PropInspector::new(context, &tile_inspector_menu_weak_ref),
+            terrain_inspector: TerrainInspector::new(context, &tile_inspector_menu_weak_ref),
         })
     }
 
@@ -145,13 +154,11 @@ trait GameObjectInspector {
 // ----------------------------------------------
 
 fn find_tile_description(tile: &Tile) -> &'static str {
-    ui::text::find_str(UiTextCategory::TileDescription, tile.tile_def().hash)
-        .unwrap_or("")
+    ui::text::find_str(UiTextCategory::TileDescription, tile.tile_def().hash).unwrap_or("")
 }
 
 fn find_unit_dialog(unit_tile: &Tile) -> &'static str {
-    ui::text::find_str(UiTextCategory::UnitDialog, unit_tile.tile_def().hash)
-        .unwrap_or("")
+    ui::text::find_str(UiTextCategory::UnitDialog, unit_tile.tile_def().hash).unwrap_or("")
 }
 
 // ----------------------------------------------
@@ -179,13 +186,7 @@ impl GameObjectInspector for UnitInspector {
 
 impl UnitInspector {
     fn new(context: &mut GameUiContext, tile_inspector_menu_weak_ref: &TileInspectorMenuWeakMut) -> Self {
-        Self {
-            renderer: InspectorMenuRenderer::new(
-                context,
-                tile_inspector_menu_weak_ref,
-                stringify!(UnitInspector)
-            )
-        }
+        Self { renderer: InspectorMenuRenderer::new(context, tile_inspector_menu_weak_ref, stringify!(UnitInspector)) }
     }
 
     fn set_inventory(&mut self, inventory: Option<StockItem>) {
@@ -222,13 +223,7 @@ impl GameObjectInspector for BuildingInspector {
 
 impl BuildingInspector {
     fn new(context: &mut GameUiContext, tile_inspector_menu_weak_ref: &TileInspectorMenuWeakMut) -> Self {
-        Self {
-            renderer: InspectorMenuRenderer::new(
-                context,
-                tile_inspector_menu_weak_ref,
-                stringify!(BuildingInspector)
-            )
-        }
+        Self { renderer: InspectorMenuRenderer::new(context, tile_inspector_menu_weak_ref, stringify!(BuildingInspector)) }
     }
 
     fn set_population_and_workers(&mut self, building: &Building) {
@@ -307,7 +302,7 @@ impl BuildingInspector {
                     add_body_line!(&mut body, "{}", upgrade_requirements.services_missing());
                 }
             }
-        } else {                
+        } else {
             add_body_line!(&mut body, "This house is upgraded to its highest level!");
         }
 
@@ -358,9 +353,8 @@ impl BuildingInspector {
             }
         }
 
-        let skip_empty =
-            building.archetype_kind() == BuildingArchetypeKind::ServiceBuilding ||
-            building.archetype_kind() == BuildingArchetypeKind::StorageBuilding;
+        let skip_empty = building.archetype_kind() == BuildingArchetypeKind::ServiceBuilding
+            || building.archetype_kind() == BuildingArchetypeKind::StorageBuilding;
 
         let stock = building.stock();
 
@@ -426,13 +420,7 @@ impl GameObjectInspector for PropInspector {
 
 impl PropInspector {
     fn new(context: &mut GameUiContext, tile_inspector_menu_weak_ref: &TileInspectorMenuWeakMut) -> Self {
-        Self {
-            renderer: InspectorMenuRenderer::new(
-                context,
-                tile_inspector_menu_weak_ref,
-                stringify!(PropInspector)
-            )
-        }
+        Self { renderer: InspectorMenuRenderer::new(context, tile_inspector_menu_weak_ref, stringify!(PropInspector)) }
     }
 
     fn set_harvestable_resource(&mut self, resource: ResourceKind, amount: u32) {
@@ -466,12 +454,6 @@ impl GameObjectInspector for TerrainInspector {
 
 impl TerrainInspector {
     fn new(context: &mut GameUiContext, tile_inspector_menu_weak_ref: &TileInspectorMenuWeakMut) -> Self {
-        Self {
-            renderer: InspectorMenuRenderer::new(
-                context,
-                tile_inspector_menu_weak_ref,
-                stringify!(TerrainInspector),
-            )
-        }
+        Self { renderer: InspectorMenuRenderer::new(context, tile_inspector_menu_weak_ref, stringify!(TerrainInspector)) }
     }
 }

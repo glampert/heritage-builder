@@ -1,14 +1,23 @@
-#![allow(clippy::enum_variant_names)]
-
-use paste::paste;
+use arrayvec::ArrayVec;
+use smallvec::SmallVec;
 use bitflags::Flags;
 use enum_dispatch::enum_dispatch;
-use proc_macros::DrawDebugUi;
-use smallvec::SmallVec;
-use arrayvec::ArrayVec;
-use serde::{de, Deserialize, Deserializer, Serialize};
-use strum::{Display, EnumCount, EnumIter, EnumDiscriminants, IntoDiscriminant};
+use serde::{Deserialize, Deserializer, Serialize, de};
+use strum::{Display, EnumCount, EnumDiscriminants, EnumIter, IntoDiscriminant};
 
+use common::{
+    Color,
+    bitflags_with_display,
+    coords::{Cell, CellRange, WorldToScreenTransform},
+    hash::StringHash,
+    mem::Mutable,
+    time::UpdateTimer,
+};
+use engine::{
+    log,
+    ui::{UiFontScale, UiStaticVar, UiSystem},
+};
+use proc_macros::DrawDebugUi;
 use house::HouseBuilding;
 use producer::ProducerBuilding;
 use service::ServiceBuilding;
@@ -16,33 +25,40 @@ use storage::StorageBuilding;
 use config::{BuildingConfig, BuildingConfigs};
 
 use super::{
-    undo_redo::GameObjectSavedState,
-    unit::{patrol::Patrol, runner::Runner, Unit},
     sim::{
         SimContext,
         resources::{
-            Population, ResourceKind, ResourceKinds, ResourceStock,
-            ServiceKind, StockItem, Workers, RESOURCE_KIND_COUNT,
+            Population,
+            RESOURCE_KIND_COUNT,
+            ResourceKind,
+            ResourceKinds,
+            ResourceStock,
+            ServiceKind,
+            StockItem,
+            Workers,
         },
     },
+    undo_redo::GameObjectSavedState,
+    unit::{Unit, patrol::Patrol, runner::Runner},
     world::{
-        stats::WorldStats,
         object::{GameObject, GenerationalIndex},
+        stats::WorldStats,
     },
 };
-use engine::{log, ui::{UiSystem, UiStaticVar, UiFontScale}};
-use crate::save_context::PostLoadContext;
-use common::{ bitflags_with_display, coords::{Cell, CellRange, WorldToScreenTransform}, hash::StringHash, mem::Mutable, Color, time::UpdateTimer, };
 use crate::{
     config::GameConfigs,
-    debug::{DebugUiMode, utils::UpdateTimerDebugUi},
+    debug::{DebugUiMode, game_object_debug::GameObjectDebugOptions, utils::UpdateTimerDebugUi},
     pathfind::{self, NodeKind as PathNodeKind},
+    save_context::PostLoadContext,
     tile::{
-    sets::{TileDef, OBJECTS_BUILDINGS_CATEGORY},
-    Tile, TileFlags, TileGameObjectHandle, TileKind,
-    TileMap, TileMapLayerKind,
+        Tile,
+        TileFlags,
+        TileGameObjectHandle,
+        TileKind,
+        TileMap,
+        TileMapLayerKind,
+        sets::{OBJECTS_BUILDINGS_CATEGORY, TileDef},
     },
-    debug::game_object_debug::{GameObjectDebugOptions},
 };
 
 pub mod config;
@@ -111,11 +127,13 @@ impl BuildingKind {
 
     #[inline]
     pub const fn producers() -> Self {
-        Self::from_bits_retain(Self::Farm.bits()
-                               | Self::FishingWharf.bits()
-                               | Self::Factory.bits()
-                               | Self::Mine.bits()
-                               | Self::Lumberyard.bits())
+        Self::from_bits_retain(
+            Self::Farm.bits()
+                | Self::FishingWharf.bits()
+                | Self::Factory.bits()
+                | Self::Mine.bits()
+                | Self::Lumberyard.bits(),
+        )
     }
 
     #[inline]
@@ -135,20 +153,22 @@ impl BuildingKind {
 
     #[inline]
     pub const fn services() -> Self {
-        Self::from_bits_retain(Self::SmallWell.bits()
-                               | Self::LargeWell.bits()
-                               | Self::Market.bits()
-                               | Self::TaxOffice.bits()
-                               | Self::Shrine.bits()
-                               | Self::Temple.bits()
-                               | Self::Citadel.bits()
-                               | Self::GovernorPalace.bits()
-                               | Self::PoliceStation.bits()
-                               | Self::Theater.bits()
-                               | Self::University.bits()
-                               | Self::Apothecary.bits()
-                               | Self::Hospital.bits()
-                               | Self::Garden.bits())
+        Self::from_bits_retain(
+            Self::SmallWell.bits()
+                | Self::LargeWell.bits()
+                | Self::Market.bits()
+                | Self::TaxOffice.bits()
+                | Self::Shrine.bits()
+                | Self::Temple.bits()
+                | Self::Citadel.bits()
+                | Self::GovernorPalace.bits()
+                | Self::PoliceStation.bits()
+                | Self::Theater.bits()
+                | Self::University.bits()
+                | Self::Apothecary.bits()
+                | Self::Hospital.bits()
+                | Self::Garden.bits(),
+        )
     }
 
     #[inline]
@@ -158,8 +178,7 @@ impl BuildingKind {
 
     #[inline]
     pub fn from_game_object_handle(handle: TileGameObjectHandle) -> Self {
-        Self::from_bits(handle.kind())
-            .expect("TileGameObjectHandle does not contain a valid BuildingKind enum value!")
+        Self::from_bits(handle.kind()).expect("TileGameObjectHandle does not contain a valid BuildingKind enum value!")
     }
 
     #[inline]
@@ -184,7 +203,7 @@ impl BuildingKind {
 
 macro_rules! building_type_casts {
     ($derived_mod:ident, $derived_struct:ident) => {
-        paste! {
+        paste::paste! {
             #[inline]
             pub fn [<as_ $derived_mod>](&self) -> &$derived_struct {
                 match self.archetype() {
@@ -283,9 +302,7 @@ impl GameObject for Building {
         debug_assert!(kind.is_single_building());
 
         let tile_map = context.tile_map_rc();
-        let tile = tile_map
-            .find_tile(self.base_cell(), TileMapLayerKind::Objects, TileKind::Building)
-            .unwrap();
+        let tile = tile_map.find_tile(self.base_cell(), TileMapLayerKind::Objects, TileKind::Building).unwrap();
         debug_assert!(tile.is_valid());
 
         self.archetype_mut().post_load(context, kind, tile);
@@ -320,22 +337,24 @@ impl GameObject for Building {
         }
     }
 
-    fn draw_debug_popups(&mut self,
-                         context: &SimContext,
-                         ui_sys: &UiSystem,
-                         transform: WorldToScreenTransform,
-                         visible_range: CellRange) {
+    fn draw_debug_popups(
+        &mut self,
+        context: &SimContext,
+        ui_sys: &UiSystem,
+        transform: WorldToScreenTransform,
+        visible_range: CellRange,
+    ) {
         debug_assert!(self.is_spawned());
 
-        let tile =
-            context.find_tile(self.base_cell(), TileMapLayerKind::Objects, TileKind::Building)
-                 .unwrap();
+        let tile = context.find_tile(self.base_cell(), TileMapLayerKind::Objects, TileKind::Building).unwrap();
 
-        self.archetype_mut().debug_options().draw_popup_messages(tile,
-                                                                 ui_sys,
-                                                                 transform,
-                                                                 visible_range,
-                                                                 context.delta_time_secs());
+        self.archetype_mut().debug_options().draw_popup_messages(
+            tile,
+            ui_sys,
+            transform,
+            visible_range,
+            context.delta_time_secs(),
+        );
     }
 }
 
@@ -344,12 +363,14 @@ impl Building {
     // Spawning / Despawning:
     // ----------------------
 
-    pub fn spawned(&mut self,
-                   context: &SimContext,
-                   id: BuildingId,
-                   kind: BuildingKind,
-                   map_cells: CellRange,
-                   archetype: BuildingArchetype) {
+    pub fn spawned(
+        &mut self,
+        context: &SimContext,
+        id: BuildingId,
+        kind: BuildingKind,
+        map_cells: CellRange,
+        archetype: BuildingArchetype,
+    ) {
         debug_assert!(!self.is_spawned());
         debug_assert!(id.is_valid());
         debug_assert!(kind.is_single_building());
@@ -386,12 +407,7 @@ impl Building {
 
     #[inline]
     pub fn new_context<'game>(&self, sim_ctx: &'game SimContext) -> BuildingContext<'game> {
-        BuildingContext::new(self.id,
-                             self.map_cells,
-                             self.road_link(sim_ctx),
-                             self.kind,
-                             self.archetype_kind(),
-                             sim_ctx)
+        BuildingContext::new(self.id, self.map_cells, self.road_link(sim_ctx), self.kind, self.archetype_kind(), sim_ctx)
     }
 
     #[inline]
@@ -494,10 +510,7 @@ impl Building {
         }
 
         if tile_map.try_move_tile(self.base_cell(), destination_cell, TileMapLayerKind::Objects) {
-            let tile = tile_map.find_tile_mut(destination_cell,
-                                              TileMapLayerKind::Objects,
-                                              TileKind::Building)
-                               .unwrap();
+            let tile = tile_map.find_tile_mut(destination_cell, TileMapLayerKind::Objects, TileKind::Building).unwrap();
 
             debug_assert!(tile.base_cell() == destination_cell);
             self.map_cells = tile.cell_range();
@@ -632,8 +645,7 @@ impl Building {
             if workers_added != 0 {
                 self.archetype_mut()
                     .debug_options()
-                    .popup_msg_color_string(Color::cyan(),
-                                            format!("+{workers_added} workers").into());
+                    .popup_msg_color_string(Color::cyan(), format!("+{workers_added} workers").into());
             }
         }
         workers_added
@@ -650,8 +662,7 @@ impl Building {
             if workers_removed != 0 {
                 self.archetype_mut()
                     .debug_options()
-                    .popup_msg_color_string(Color::magenta(),
-                                            format!("-{workers_removed} workers").into());
+                    .popup_msg_color_string(Color::magenta(), format!("-{workers_removed} workers").into());
             }
         }
         workers_removed
@@ -692,10 +703,8 @@ impl Building {
                 if !employer.is_at_max_capacity() {
                     if let Some(house) = self.find_house_with_available_workers(context) {
                         let workers_available = house.workers_count();
-                        let workers_added =
-                            self.add_workers(workers_available, house.kind_and_id());
-                        let workers_removed =
-                            house.remove_workers(workers_added, self.kind_and_id());
+                        let workers_added = self.add_workers(workers_available, house.kind_and_id());
+                        let workers_removed = house.remove_workers(workers_added, self.kind_and_id());
                         debug_assert!(workers_added == workers_removed);
                     }
                 }
@@ -703,8 +712,7 @@ impl Building {
         }
     }
 
-    fn find_house_with_available_workers<'game>(&self, context: &'game SimContext)
-                                                -> Option<&'game mut Building> {
+    fn find_house_with_available_workers<'game>(&self, context: &'game SimContext) -> Option<&'game mut Building> {
         let workers_search_radius = GameConfigs::get().sim.workers_search_radius;
         debug_assert!(workers_search_radius > 0);
 
@@ -718,7 +726,8 @@ impl Building {
                     return false; // Accept and stop search.
                 }
                 true // Continue searching.
-            });
+            },
+        );
 
         if let Some((house, _path)) = result {
             debug_assert!(house.is(BuildingKind::House));
@@ -793,17 +802,13 @@ impl Building {
 
             if new_road_link != *self.road_link.as_ref() && self.road_link.is_valid() {
                 // Clear previous underlying tile flag:
-                if let Some(prev_road_link_tile) =
-                    Self::find_road_link_tile_for_cell(context, *self.road_link.as_ref())
-                {
+                if let Some(prev_road_link_tile) = Self::find_road_link_tile_for_cell(context, *self.road_link.as_ref()) {
                     prev_road_link_tile.set_flags(TileFlags::BuildingRoadLink, false);
                 }
             }
 
             // Set new underlying tile flag:
-            if let Some(new_road_link_tile) =
-                Self::find_road_link_tile_for_cell(context, new_road_link)
-            {
+            if let Some(new_road_link_tile) = Self::find_road_link_tile_for_cell(context, new_road_link) {
                 new_road_link_tile.set_flags(TileFlags::BuildingRoadLink, true);
             }
 
@@ -817,9 +822,7 @@ impl Building {
     fn clear_road_link(&mut self, tile_map: &mut TileMap) {
         let road_link = self.road_link.as_mut();
         if road_link.is_valid() {
-            if let Some(road_link_tile) =
-                tile_map.try_tile_from_layer_mut(*road_link, TileMapLayerKind::Terrain)
-            {
+            if let Some(road_link_tile) = tile_map.try_tile_from_layer_mut(*road_link, TileMapLayerKind::Terrain) {
                 road_link_tile.set_flags(TileFlags::BuildingRoadLink, false);
             }
         }
@@ -868,14 +871,12 @@ impl Building {
 
         if self.archetype_kind() == BuildingArchetypeKind::HouseBuilding {
             let house = self.as_house();
-            ui.bullet_text(format!("Tax: (generated: {}, avail: {})",
-                                   house.tax_generated(),
-                                   house.tax_available()));
+            ui.bullet_text(format!("Tax: (generated: {}, avail: {})", house.tax_generated(), house.tax_available()));
 
             if !house.level().is_max() {
                 let upgrade_requirements = house.upgrade_requirements(context);
                 let has_required_resources = upgrade_requirements.has_required_resources();
-                let has_required_services  = upgrade_requirements.has_required_services();
+                let has_required_services = upgrade_requirements.has_required_services();
 
                 color_bullet_bool("Has resources to upgrade", has_required_resources);
                 if !has_required_resources {
@@ -901,34 +902,33 @@ impl Building {
         }
 
         if let Some(population) = self.archetype().population() {
-            ui.bullet_text(format!("Population: {} (max: {})",
-                                   population.count(),
-                                   population.max()));
+            ui.bullet_text(format!("Population: {} (max: {})", population.count(), population.max()));
         }
 
         if let Some(workers) = self.archetype().workers() {
             if let Some(worker_pool) = workers.as_household_worker_pool() {
-                ui.bullet_text(format!("Workers: {} (employed: {}, unemployed: {})",
-                                       worker_pool.total_workers(),
-                                       worker_pool.employed_count(),
-                                       worker_pool.unemployed_count()));
+                ui.bullet_text(format!(
+                    "Workers: {} (employed: {}, unemployed: {})",
+                    worker_pool.total_workers(),
+                    worker_pool.employed_count(),
+                    worker_pool.unemployed_count()
+                ));
             } else if let Some(employer) = workers.as_employer() {
                 color_bullet_bool("Has min workers", self.archetype().has_min_required_workers());
                 color_bullet_bool("Has all workers", employer.is_at_max_capacity());
                 if employer.is_below_min_required() {
                     ui.bullet_text("Workers:");
                     ui.same_line();
-                    ui.text_colored(Color::red().to_array(),
-                                    format!("{}", employer.employee_count()));
+                    ui.text_colored(Color::red().to_array(), format!("{}", employer.employee_count()));
                     ui.same_line();
-                    ui.text(format!("(min: {}, max: {})",
-                                    employer.min_employees(),
-                                    employer.max_employees()));
+                    ui.text(format!("(min: {}, max: {})", employer.min_employees(), employer.max_employees()));
                 } else {
-                    ui.bullet_text(format!("Workers: {} (min: {}, max: {})",
-                                           employer.employee_count(),
-                                           employer.min_employees(),
-                                           employer.max_employees()));
+                    ui.bullet_text(format!(
+                        "Workers: {} (min: {}, max: {})",
+                        employer.employee_count(),
+                        employer.min_employees(),
+                        employer.max_employees()
+                    ));
                 }
             }
         }
@@ -954,7 +954,7 @@ impl Building {
                 archetype: self.archetype_kind(),
                 cells: self.cell_range(),
                 road_link: self.road_link(context.sim_ctx).unwrap_or_default(),
-                id: self.id()
+                id: self.id(),
             };
             debug_vars.draw_debug_ui(ui_sys);
         }
@@ -1011,9 +1011,7 @@ impl Building {
                                     building_kind_names.push(kind.name());
                                 }
                             }
-                            ui.combo_simple_string("Kind",
-                                                   BUILDING_KIND_IDX.as_mut(),
-                                                   &building_kind_names);
+                            ui.combo_simple_string("Kind", BUILDING_KIND_IDX.as_mut(), &building_kind_names);
                             *BuildingKind::FLAGS[*BUILDING_KIND_IDX + 1].value() // We've skipped House @ [0]
                         }
                     };
@@ -1025,9 +1023,7 @@ impl Building {
                 };
 
                 if ui.button("Add Worker (+1)") && !self.workers_is_maxed() {
-                    if let Some(building) =
-                        context.sim_ctx.world_mut().find_building_mut(source.kind, source.id)
-                    {
+                    if let Some(building) = context.sim_ctx.world_mut().find_building_mut(source.kind, source.id) {
                         let removed_count = building.remove_workers(1, self.kind_and_id());
                         let added_count = self.add_workers(removed_count, source);
                         debug_assert!(removed_count == added_count);
@@ -1037,9 +1033,7 @@ impl Building {
                 }
 
                 if ui.button("Remove Worker (-1)") && self.workers_count() != 0 {
-                    if let Some(building) =
-                        context.sim_ctx.world_mut().find_building_mut(source.kind, source.id)
-                    {
+                    if let Some(building) = context.sim_ctx.world_mut().find_building_mut(source.kind, source.id) {
                         let added_count = building.add_workers(1, self.kind_and_id());
                         let removed_count = self.remove_workers(added_count, source);
                         debug_assert!(added_count == removed_count);
@@ -1066,8 +1060,7 @@ impl Building {
                 ui.text_colored(Color::red().to_array(), "No road access!");
             }
 
-            ui.text(format!("Road Link Tile : {}",
-                            self.road_link(context.sim_ctx).unwrap_or_default()));
+            ui.text(format!("Road Link Tile : {}", self.road_link(context.sim_ctx).unwrap_or_default()));
 
             let mut show_road_link = self.is_showing_road_link_debug(context.sim_ctx);
             if ui.checkbox("Show Road Link", &mut show_road_link) {
@@ -1075,8 +1068,7 @@ impl Building {
             }
 
             if ui.button("Highlight Access Tiles") {
-                pathfind::highlight_building_access_tiles(context.sim_ctx.tile_map_mut(),
-                                                          self.cell_range());
+                pathfind::highlight_building_access_tiles(context.sim_ctx.tile_map_mut(), self.cell_range());
             }
         }
 
@@ -1088,35 +1080,36 @@ impl Building {
 // ----------------------------------------------
 // Building Archetypes
 // ----------------------------------------------
-/*
-* Population Building (AKA House/Household):
- - Consumes resources (water, food, goods, etc).
- - Needs access to certain services in the neighborhood.
- - Adds a population number (workers).
- - Pays tax (income).
- - Can evolve/expand (more population capacity).
- - Only evolves if it has required resources and services.
-
-* Producer Building:
- - Produces a resource/consumer good (farm, fishing wharf, factory) or raw material (mine, lumberyard).
- - Uses workers (min, max workers needed). Production output depends on number of workers.
- - May need other raw materials to function (factory needs wood, metal, etc).
- - Needs Storage Buildings to store production.
-
-* Storage Building:
- - Stores production from Producer Buildings (granary, storage yard).
- - Uses workers (min, max workers needed).
-
-* Service Building:
- - Uses workers (min, max workers needed).
- - May consume resources (food, goods, etc) from storage (e.g.: a Market).
- - Provides services to neighborhood.
-*/
+// Population Building (AKA House/Household):
+// - Consumes resources (water, food, goods, etc).
+// - Needs access to certain services in the neighborhood.
+// - Adds a population number (workers).
+// - Pays tax (income).
+// - Can evolve/expand (more population capacity).
+// - Only evolves if it has required resources and services.
+//
+// Producer Building:
+// - Produces a resource/consumer good (farm, fishing wharf, factory) or raw material (mine, lumberyard).
+// - Uses workers (min, max workers needed). Production output depends on number of workers.
+// - May need other raw materials to function (factory needs wood, metal, etc).
+// - Needs Storage Buildings to store production.
+//
+// Storage Building:
+// - Stores production from Producer Buildings (granary, storage yard).
+// - Uses workers (min, max workers needed).
+//
+// Service Building:
+// - Uses workers (min, max workers needed).
+// - May consume resources (food, goods, etc) from storage (e.g.: a Market).
+// - Provides services to neighborhood.
 #[enum_dispatch]
 #[derive(Clone, EnumDiscriminants, Serialize, Deserialize)]
-#[strum_discriminants(repr(u32),
-                      name(BuildingArchetypeKind),
-                      derive(Display, EnumCount, EnumIter, PartialOrd, Ord, Serialize, Deserialize))]
+#[strum_discriminants(
+    repr(u32),
+    name(BuildingArchetypeKind),
+    derive(Display, EnumCount, EnumIter, PartialOrd, Ord, Serialize, Deserialize)
+)]
+#[allow(clippy::enum_variant_names)]
 pub enum BuildingArchetype {
     ProducerBuilding(ProducerBuilding),
     StorageBuilding(StorageBuilding),
@@ -1238,8 +1231,7 @@ trait BuildingBehavior {
         None
     }
 
-    fn undo_redo_apply(&mut self, _state: &dyn GameObjectSavedState) {
-    }
+    fn undo_redo_apply(&mut self, _state: &dyn GameObjectSavedState) {}
 
     // ----------------------
     // Debug:
@@ -1294,21 +1286,15 @@ pub struct BuildingContext<'game> {
 
 impl<'game> BuildingContext<'game> {
     #[inline]
-    fn new(id: BuildingId,
-           map_cells: CellRange,
-           road_link: Option<Cell>,
-           kind: BuildingKind,
-           archetype_kind: BuildingArchetypeKind,
-           sim_ctx: &'game SimContext)
-           -> Self {
-        Self {
-            id,
-            map_cells: Mutable::new(map_cells),
-            road_link,
-            kind,
-            archetype_kind,
-            sim_ctx,
-        }
+    fn new(
+        id: BuildingId,
+        map_cells: CellRange,
+        road_link: Option<Cell>,
+        kind: BuildingKind,
+        archetype_kind: BuildingArchetypeKind,
+        sim_ctx: &'game SimContext,
+    ) -> Self {
+        Self { id, map_cells: Mutable::new(map_cells), road_link, kind, archetype_kind, sim_ctx }
     }
 
     #[inline]
@@ -1351,9 +1337,7 @@ impl<'game> BuildingContext<'game> {
 
     #[inline]
     pub fn find_tile_def(&self, tile_def_name_hash: StringHash) -> Option<&'static TileDef> {
-        self.sim_ctx.find_tile_def(TileMapLayerKind::Objects,
-                                 OBJECTS_BUILDINGS_CATEGORY.hash,
-                                 tile_def_name_hash)
+        self.sim_ctx.find_tile_def(TileMapLayerKind::Objects, OBJECTS_BUILDINGS_CATEGORY.hash, tile_def_name_hash)
     }
 
     #[inline]
@@ -1377,10 +1361,12 @@ impl<'game> BuildingContext<'game> {
 
         if let Some(road_link) = self.road_link {
             let config = BuildingConfigs::get().find_service_config(service_kind);
-            return self.sim_ctx.is_near_building(road_link,
-                                               service_kind,
-                                               config.requires_road_access,
-                                               config.effect_radius);
+            return self.sim_ctx.is_near_building(
+                road_link,
+                service_kind,
+                config.requires_road_access,
+                config.effect_radius,
+            );
         }
 
         false
@@ -1429,14 +1415,18 @@ pub struct BuildingStock {
 impl BuildingStock {
     fn with_accepted_list_and_capacity(accepted_resources: &ResourceKinds, capacity: u32) -> Self {
         let capacity_u8: u8 = capacity.try_into().expect("Stock capacity must be < 256");
-        Self { resources: ResourceStock::with_accepted_list(accepted_resources),
-               capacities: [capacity_u8; RESOURCE_KIND_COUNT] }
+        Self {
+            resources: ResourceStock::with_accepted_list(accepted_resources),
+            capacities: [capacity_u8; RESOURCE_KIND_COUNT],
+        }
     }
 
     fn with_accepted_kinds_and_capacity(accepted_kinds: ResourceKind, capacity: u32) -> Self {
         let capacity_u8: u8 = capacity.try_into().expect("Stock capacity must be < 256");
-        Self { resources: ResourceStock::with_accepted_kinds(accepted_kinds),
-               capacities: [capacity_u8; RESOURCE_KIND_COUNT] }
+        Self {
+            resources: ResourceStock::with_accepted_kinds(accepted_kinds),
+            capacities: [capacity_u8; RESOURCE_KIND_COUNT],
+        }
     }
 
     fn available_resources(&self, kind: ResourceKind) -> u32 {
@@ -1496,8 +1486,13 @@ impl BuildingStock {
         other.for_each(|index, item| {
             let received_count = self.receive_resources(item.kind, item.count);
             if received_count != item.count {
-                log::error!("Stock merge exceeds max capacity for {}. Capacity: {}, trying to merge: {}, merged only: {}",
-                            item.kind, self.capacity_at(index), item.count, received_count);
+                log::error!(
+                    "Stock merge exceeds max capacity for {}. Capacity: {}, trying to merge: {}, merged only: {}",
+                    item.kind,
+                    self.capacity_at(index),
+                    item.count,
+                    received_count
+                );
                 success = false;
             }
         });
@@ -1560,7 +1555,8 @@ impl BuildingStock {
 
     #[inline]
     fn for_each<F>(&self, visitor_fn: F)
-        where F: FnMut(usize, &StockItem)
+    where
+        F: FnMut(usize, &StockItem),
     {
         self.resources.for_each(visitor_fn);
     }
@@ -1597,7 +1593,8 @@ impl BuildingStock {
 //  and keep backwards compatibility with older save games.
 impl<'de> Deserialize<'de> for BuildingStock {
     fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
-        where D: Deserializer<'de>
+    where
+        D: Deserializer<'de>,
     {
         #[derive(Deserialize)]
         struct SerializedStock {

@@ -1,41 +1,54 @@
 #![allow(clippy::too_many_arguments)]
 
 use std::any::Any;
-use strum::EnumProperty;
 
+use common::{
+    self,
+    Vec2,
+    coords::{Cell, CellRange},
+    hash::SmallSet,
+    time::Seconds,
+};
 use engine::{
-    log,
     app::input::{InputAction, InputKey, InputModifiers, MouseButton},
     file_sys::paths::PathRef,
+    log,
     ui::{
-    UiInputEvent,
-    UiFontScale,
-    sound::UiButtonSoundsEnabled,
-    widgets::{
-    UiTooltipText,
-    UiTooltipTextParams,
-    UiTextButton,
-    UiTextButtonSize,
-    UiTextButtonPressed,
-    UiTextButtonParams,
-    UiSpriteButton,
-    UiSpriteButtonState,
-    UiSpriteButtonParams,
-    UiSpriteButtonStateChanged,
-    },
+        UiFontScale,
+        UiInputEvent,
+        sound::UiButtonSoundsEnabled,
+        widgets::{
+            UiSpriteButton,
+            UiSpriteButtonParams,
+            UiSpriteButtonState,
+            UiSpriteButtonStateChanged,
+            UiTextButton,
+            UiTextButtonParams,
+            UiTextButtonPressed,
+            UiTextButtonSize,
+            UiTooltipText,
+            UiTooltipTextParams,
+        },
     },
 };
-use common::{self, Vec2, coords::{Cell, CellRange}, time::Seconds, hash::SmallSet};
-use crate::save_context::{Save, Load};
+use strum::EnumProperty;
+
 use crate::{
-    { sim::SimContext, ui_context::GameUiContext, world::object::{Spawner, SpawnerResult}, undo_redo::{self, EditAction, EditedLayer}, },
+    save_context::{Load, Save},
+    sim::SimContext,
     tile::{
-    Tile, TileKind, TileMapLayerKind,
-    rendering::TileMapRenderFlags,
-    sets::{TileSets, TileDef, TileDefHandle, PresetTiles},
-    water, road::{self, RoadSegment, RoadKind},
-    placement::{TilePlacementOp, TilePlacementErrReason},
+        Tile,
+        TileKind,
+        TileMapLayerKind,
+        placement::{TilePlacementErrReason, TilePlacementOp},
+        rendering::TileMapRenderFlags,
+        road::{self, RoadKind, RoadSegment},
+        sets::{PresetTiles, TileDef, TileDefHandle, TileSets},
+        water,
     },
+    ui_context::GameUiContext,
+    undo_redo::{self, EditAction, EditedLayer},
+    world::object::{Spawner, SpawnerResult},
 };
 
 mod dialog;
@@ -74,32 +87,28 @@ pub enum GameMenusInputArgs {
 // Internal helper functions
 // ----------------------------------------------
 
-fn selection_handle_mouse_button(context: &mut GameUiContext,
-                                 button: MouseButton,
-                                 action: InputAction) -> bool {
+fn selection_handle_mouse_button(context: &mut GameUiContext, button: MouseButton, action: InputAction) -> bool {
     if button != MouseButton::Left {
         return false;
     }
 
-    context.tile_selection.on_mouse_button(button,
-                                           action,
-                                           context.tile_map,
-                                           context.cursor_screen_pos,
-                                           context.camera.transform())
-                                           .is_handled()
+    context
+        .tile_selection
+        .on_mouse_button(button, action, context.tile_map, context.cursor_screen_pos, context.camera.transform())
+        .is_handled()
 }
 
 fn update_selection(context: &mut GameUiContext, placement_op: TilePlacementOp) {
-    context.tile_map.update_selection(context.tile_selection,
-                                      context.cursor_screen_pos,
-                                      context.camera.transform(),
-                                      placement_op);
+    context.tile_map.update_selection(
+        context.tile_selection,
+        context.cursor_screen_pos,
+        context.camera.transform(),
+        placement_op,
+    );
 }
 
 fn range_selection_cells(context: &GameUiContext) -> Option<(Cell, Cell)> {
-    context.tile_selection.range_selection_cells(context.tile_map,
-                                                 context.cursor_screen_pos,
-                                                 context.camera.transform())
+    context.tile_selection.range_selection_cells(context.tile_map, context.cursor_screen_pos, context.camera.transform())
 }
 
 fn clear_selection(context: &mut GameUiContext) {
@@ -170,9 +179,7 @@ pub trait GameMenusSystem: Any + Save + Load {
             }
 
             let result = match TilePlacement::try_place_or_clear_tile(selection, context) {
-                PlaceOrClearResult::ClearedTile(_tile_def) => {
-                    PlacementResult::ClearedTile
-                }
+                PlaceOrClearResult::ClearedTile(_tile_def) => PlacementResult::ClearedTile,
                 PlaceOrClearResult::PlacedTile(tile_def) => {
                     if tile_def.is(TileKind::Building | TileKind::Unit) {
                         PlacementResult::PlacedBuildingOrUnit
@@ -191,8 +198,8 @@ pub trait GameMenusSystem: Any + Save + Load {
                     let mut fail_placement = true;
 
                     // If attempting to place vacant lot over existing vacant lot, ignore.
-                    if let Some(tile_to_place) = placement_attempt_tile_def &&
-                       let Some(obstruction)   = obstructing_tile_def
+                    if let Some(tile_to_place) = placement_attempt_tile_def
+                        && let Some(obstruction) = obstructing_tile_def
                     {
                         if tile_to_place.is_vacant_lot() && obstruction.is_vacant_lot() {
                             fail_placement = false;
@@ -277,7 +284,7 @@ pub trait GameMenusSystem: Any + Save + Load {
                         match result {
                             PlaceRoadSegmentResult::Placed => self.palette().on_road_segment_placed(context),
                             PlaceRoadSegmentResult::Failed => self.palette().on_tile_placement_failed(context),
-                            PlaceRoadSegmentResult::Empty  => {},
+                            PlaceRoadSegmentResult::Empty => {}
                         }
                     } else if is_clear_selected && !context.tile_selection.cells().is_empty() {
                         // Clear batch of selected tiles:
@@ -305,11 +312,13 @@ pub trait GameMenusSystem: Any + Save + Load {
                         if !clearable_cells.is_empty() {
                             let mut cleared_any = false;
 
-                            undo_redo::record(EditAction::ClearingTiles,
-                                              clearable_cells.iter(),
-                                              layers,
-                                              context.tile_map,
-                                              context.world);
+                            undo_redo::record(
+                                EditAction::ClearingTiles,
+                                clearable_cells.iter(),
+                                layers,
+                                context.tile_map,
+                                context.world,
+                            );
 
                             for (&cell, _) in clearable_cells.iter() {
                                 if layers.intersects(EditedLayer::Objects) {
@@ -409,10 +418,9 @@ impl TilePlacement {
         let road_segment_is_empty = self.current_road_segment.is_empty();
 
         // Place road segment if valid & we can afford it:
-        let is_valid_road_placement =
-            !road_segment_is_empty &&
-            self.current_road_segment.is_valid &&
-            can_afford_cost(context, self.current_road_segment.cost());
+        let is_valid_road_placement = !road_segment_is_empty
+            && self.current_road_segment.is_valid
+            && can_afford_cost(context, self.current_road_segment.cost());
 
         if is_valid_road_placement {
             let sim_context = context.new_sim_context();
@@ -428,11 +436,13 @@ impl TilePlacement {
                 road::update_junctions(context.tile_map, *cell);
             }
 
-            undo_redo::record(EditAction::PlacedTiles,
-                              &self.current_road_segment.path,
-                              EditedLayer::Terrain,
-                              context.tile_map,
-                              context.world);
+            undo_redo::record(
+                EditAction::PlacedTiles,
+                &self.current_road_segment.path,
+                EditedLayer::Terrain,
+                context.tile_map,
+                context.world,
+            );
         }
 
         // Clear road segment highlight:
@@ -455,12 +465,10 @@ impl TilePlacement {
         // Clear previous segment highlight:
         road::mark_tiles(context.tile_map, &self.current_road_segment, false, false);
 
-        self.current_road_segment =
-            road::build_segment(context.tile_map, start, end, road_kind);
+        self.current_road_segment = road::build_segment(context.tile_map, start, end, road_kind);
 
         let is_valid_road_placement =
-            self.current_road_segment.is_valid &&
-            can_afford_cost(context, self.current_road_segment.cost());
+            self.current_road_segment.is_valid && can_afford_cost(context, self.current_road_segment.cost());
 
         // Highlight new segment:
         road::mark_tiles(context.tile_map, &self.current_road_segment, true, is_valid_road_placement);
@@ -480,15 +488,15 @@ impl TilePlacement {
         }
     }
 
-    fn try_place_or_clear_tile(selection: TilePaletteSelection,
-                               context: &mut GameUiContext)
-                               -> PlaceOrClearResult {
+    fn try_place_or_clear_tile(selection: TilePaletteSelection, context: &mut GameUiContext) -> PlaceOrClearResult {
         // If we have a selection, place it. Otherwise we want to try removing the tile
         // under the cursor. Do not remove terrain tiles though.
         if let Some(tile_def) = selection.as_tile_def() {
-            let target_cell = context.tile_map.find_exact_cell_for_point(tile_def.layer_kind(),
-                                                                         context.cursor_screen_pos,
-                                                                         context.camera.transform());
+            let target_cell = context.tile_map.find_exact_cell_for_point(
+                tile_def.layer_kind(),
+                context.cursor_screen_pos,
+                context.camera.transform(),
+            );
             if target_cell.is_valid() {
                 let sim_context = context.new_sim_context();
                 return Self::place(&sim_context, target_cell, tile_def, true, true);
@@ -496,9 +504,8 @@ impl TilePlacement {
         } else if selection.is_clear() {
             // Clear/remove tile:
             let sim_context = context.new_sim_context();
-            if let Some(tile) = sim_context.tile_map().topmost_tile_at_cursor(
-                    context.cursor_screen_pos,
-                    context.camera.transform())
+            if let Some(tile) =
+                sim_context.tile_map().topmost_tile_at_cursor(context.cursor_screen_pos, context.camera.transform())
             {
                 return Self::clear(&sim_context, tile, false, true);
             }
@@ -507,12 +514,13 @@ impl TilePlacement {
         PlaceOrClearResult::Failed { placement_attempt_tile_def: None, obstructing_tile_def: None }
     }
 
-    pub fn place(context: &SimContext,
-                 target_cell: Cell,
-                 tile_def: &'static TileDef,
-                 subtract_tile_cost: bool,
-                 undo_redo: bool)
-                 -> PlaceOrClearResult {
+    pub fn place(
+        context: &SimContext,
+        target_cell: Cell,
+        tile_def: &'static TileDef,
+        subtract_tile_cost: bool,
+        undo_redo: bool,
+    ) -> PlaceOrClearResult {
         let mut spawner = Spawner::new(context);
         spawner.set_subtract_tile_cost(subtract_tile_cost);
 
@@ -538,26 +546,15 @@ impl TilePlacement {
                     }
                 };
 
-                return PlaceOrClearResult::Failed {
-                    placement_attempt_tile_def: Some(tile_def),
-                    obstructing_tile_def
-                }
+                return PlaceOrClearResult::Failed { placement_attempt_tile_def: Some(tile_def), obstructing_tile_def };
             }
             _ => {}
         }
 
         if spawn_result.is_ok() {
             if undo_redo {
-                let layers = if tile_def.is(TileKind::Terrain) {
-                    EditedLayer::Terrain
-                } else {
-                    EditedLayer::Objects
-                };
-                undo_redo::record(EditAction::PlacedTiles,
-                                  &[target_cell],
-                                  layers,
-                                  context.tile_map(),
-                                  context.world());
+                let layers = if tile_def.is(TileKind::Terrain) { EditedLayer::Terrain } else { EditedLayer::Objects };
+                undo_redo::record(EditAction::PlacedTiles, &[target_cell], layers, context.tile_map(), context.world());
             }
             return PlaceOrClearResult::PlacedTile(tile_def);
         }
@@ -566,11 +563,7 @@ impl TilePlacement {
         unreachable!();
     }
 
-    pub fn clear(context: &SimContext,
-                 tile: &Tile,
-                 restore_tile_cost: bool,
-                 undo_redo: bool)
-                 -> PlaceOrClearResult {
+    pub fn clear(context: &SimContext, tile: &Tile, restore_tile_cost: bool, undo_redo: bool) -> PlaceOrClearResult {
         let tile_def = tile.tile_def();
 
         let is_terrain = tile.is(TileKind::Terrain);
@@ -579,19 +572,11 @@ impl TilePlacement {
 
         // Cannot explicit remove terrain tiles except for roads and vacant lots.
         if !is_terrain || is_road || is_vacant_lot {
-            let target_cell  = tile.base_cell();
+            let target_cell = tile.base_cell();
 
             if undo_redo {
-                let layers = if is_terrain {
-                    EditedLayer::Terrain
-                } else {
-                    EditedLayer::Objects
-                };
-                undo_redo::record(EditAction::ClearingTiles,
-                                  &[target_cell],
-                                  layers,
-                                  context.tile_map(),
-                                  context.world());
+                let layers = if is_terrain { EditedLayer::Terrain } else { EditedLayer::Objects };
+                undo_redo::record(EditAction::ClearingTiles, &[target_cell], layers, context.tile_map(), context.world());
             }
 
             let mut spawner = Spawner::new(context);
@@ -749,8 +734,7 @@ trait ButtonDef: Sized + Copy + Clone + EnumProperty {
     }
 
     fn label(self) -> String {
-        self.get_str("Label")
-            .map_or(String::new(), |prop| prop.to_string())
+        self.get_str("Label").map_or(String::new(), |prop| prop.to_string())
     }
 
     fn tooltip(self) -> String {
@@ -788,76 +772,64 @@ trait ButtonDef: Sized + Copy + Clone + EnumProperty {
         self.get_bool("Enabled").unwrap_or(true)
     }
 
-    fn new_text_button(self,
-                       context: &mut GameUiContext,
-                       sounds_enabled: UiButtonSoundsEnabled,
-                       size: UiTextButtonSize,
-                       on_pressed: UiTextButtonPressed)
-                       -> UiTextButton
-    {
+    fn new_text_button(
+        self,
+        context: &mut GameUiContext,
+        sounds_enabled: UiButtonSoundsEnabled,
+        size: UiTextButtonSize,
+        on_pressed: UiTextButtonPressed,
+    ) -> UiTextButton {
         let tooltip = {
             // Only give it a tooltip if we have a Tooltip property.
             if self.has_custom_tooltip() {
-                Some(UiTooltipText::new(
-                    context,
-                    UiTooltipTextParams {
-                        text: self.tooltip(),
-                        font_scale: TOOLTIP_FONT_SCALE,
-                        background: Some(TOOLTIP_BACKGROUND_SPRITE),
-                    }
-                ))
+                Some(UiTooltipText::new(context, UiTooltipTextParams {
+                    text: self.tooltip(),
+                    font_scale: TOOLTIP_FONT_SCALE,
+                    background: Some(TOOLTIP_BACKGROUND_SPRITE),
+                }))
             } else {
                 None
             }
         };
 
-        UiTextButton::new(
-            context,
-            UiTextButtonParams {
-                label: self.label(),
-                tooltip,
-                hover: Some(TEXT_BUTTON_HOVERED_SPRITE),
-                sounds_enabled,
-                size,
-                enabled: self.is_enabled(),
-                on_pressed,
-            }
-        )
+        UiTextButton::new(context, UiTextButtonParams {
+            label: self.label(),
+            tooltip,
+            hover: Some(TEXT_BUTTON_HOVERED_SPRITE),
+            sounds_enabled,
+            size,
+            enabled: self.is_enabled(),
+            on_pressed,
+        })
     }
 
-    fn new_sprite_button(self,
-                         context: &mut GameUiContext,
-                         sounds_enabled: UiButtonSoundsEnabled,
-                         show_tooltip_when_pressed: bool,
-                         size: Vec2,
-                         state_transition_secs: Seconds,
-                         initial_state: UiSpriteButtonState,
-                         on_state_changed: UiSpriteButtonStateChanged)
-                         -> UiSpriteButton
-    {
+    fn new_sprite_button(
+        self,
+        context: &mut GameUiContext,
+        sounds_enabled: UiButtonSoundsEnabled,
+        show_tooltip_when_pressed: bool,
+        size: Vec2,
+        state_transition_secs: Seconds,
+        initial_state: UiSpriteButtonState,
+        on_state_changed: UiSpriteButtonStateChanged,
+    ) -> UiSpriteButton {
         // Always give a tooltip for sprite buttons.
-        let tooltip = UiTooltipText::new(
-            context,
-            UiTooltipTextParams {
-                text: self.tooltip(),
-                font_scale: TOOLTIP_FONT_SCALE,
-                background: Some(TOOLTIP_BACKGROUND_SPRITE),
-            }
-        );
+        let tooltip = UiTooltipText::new(context, UiTooltipTextParams {
+            text: self.tooltip(),
+            font_scale: TOOLTIP_FONT_SCALE,
+            background: Some(TOOLTIP_BACKGROUND_SPRITE),
+        });
 
-        UiSpriteButton::new(
-            context,
-            UiSpriteButtonParams {
-                label: self.label(),
-                tooltip: Some(tooltip),
-                show_tooltip_when_pressed,
-                sounds_enabled,
-                size,
-                state_transition_secs,
-                initial_state,
-                on_state_changed,
-            }
-        )
+        UiSpriteButton::new(context, UiSpriteButtonParams {
+            label: self.label(),
+            tooltip: Some(tooltip),
+            show_tooltip_when_pressed,
+            sounds_enabled,
+            size,
+            state_transition_secs,
+            initial_state,
+            on_state_changed,
+        })
     }
 
     fn on_pressed(self, _context: &mut GameUiContext) -> bool {

@@ -1,29 +1,40 @@
 #![allow(clippy::enum_variant_names)]
 
-use rand::Rng;
-use slab::Slab;
-use arrayvec::ArrayVec;
-use enum_dispatch::enum_dispatch;
-use num_enum::TryFromPrimitive;
 use std::ops::{Index, IndexMut};
-use serde::{Deserialize, Deserializer, Serialize, Serializer};
-use strum::{EnumCount, EnumProperty, Display, VariantNames, VariantArray, EnumIter, IntoEnumIterator};
 
+use arrayvec::ArrayVec;
+use common::{
+    Color,
+    Rect,
+    Size,
+    Vec2,
+    bitflags_with_display,
+    constants::*,
+    coords::{self, Cell, CellRange, IsoPoint, IsoPointF32, WorldToScreenTransform},
+    hash::StringHash,
+    mem::RawPtr,
+    time::Seconds,
+};
+use engine::{file_sys::paths::PathRef, log, save::*};
+use enum_dispatch::enum_dispatch;
 use minimap::Minimap;
+use num_enum::TryFromPrimitive;
+use placement::{Clearing, Placement, TileClearingErr, TilePlacementErr, TilePlacementOp};
+use rand::Rng;
 use selection::TileSelection;
-use placement::{TilePlacementOp, TilePlacementErr, TileClearingErr, Placement, Clearing};
-use sets::{TileAnimSet, TileDef, SerializableTileDefHandle, TileSets, TileTexInfo, TileIconSprite};
+use serde::{Deserialize, Deserializer, Serialize, Serializer};
+use sets::{SerializableTileDefHandle, TileAnimSet, TileDef, TileIconSprite, TileSets, TileTexInfo};
+use slab::Slab;
+use strum::{Display, EnumCount, EnumIter, EnumProperty, IntoEnumIterator, VariantArray, VariantNames};
 
-use engine::{log, save::*, file_sys::paths::PathRef};
-use common::{ constants::*, bitflags_with_display, Color, Rect, Size, Vec2, hash::StringHash, mem::RawPtr, time::Seconds, coords::{self, Cell, CellRange, IsoPoint, IsoPointF32, WorldToScreenTransform}, };
 use crate::{pathfind::NodeKind as PathNodeKind, save_context::*};
 
 pub mod minimap;
-pub mod rendering;
-pub mod selection;
 pub mod placement;
-pub mod sets;
+pub mod rendering;
 pub mod road;
+pub mod selection;
+pub mod sets;
 pub mod water;
 
 // Internal:
@@ -127,8 +138,7 @@ impl TileGameObjectHandle {
         // Reserved value for invalid.
         debug_assert!(index < u32::MAX as usize);
         debug_assert!(kind < u32::MAX);
-        Self { index: index.try_into().expect("Index cannot fit into u32!"),
-               kind_or_generation: kind }
+        Self { index: index.try_into().expect("Index cannot fit into u32!"), kind_or_generation: kind }
     }
 
     #[inline]
@@ -136,8 +146,7 @@ impl TileGameObjectHandle {
         // Reserved value for invalid.
         debug_assert!(index < u32::MAX as usize);
         debug_assert!(generation < u32::MAX);
-        Self { index: index.try_into().expect("Index cannot fit into u32!"),
-               kind_or_generation: generation }
+        Self { index: index.try_into().expect("Index cannot fit into u32!"), kind_or_generation: generation }
     }
 
     #[inline]
@@ -145,8 +154,7 @@ impl TileGameObjectHandle {
         // Reserved value for invalid.
         debug_assert!(index < u32::MAX as usize);
         debug_assert!(generation < u32::MAX);
-        Self { index: index.try_into().expect("Index cannot fit into u32!"),
-               kind_or_generation: generation }
+        Self { index: index.try_into().expect("Index cannot fit into u32!"), kind_or_generation: generation }
     }
 
     #[inline]
@@ -261,15 +269,17 @@ impl TileDefRef {
     #[inline]
     fn post_load(&mut self) {
         let handle = self.as_handle();
-        let def = TileSets::get().serializable_handle_to_tile_def(handle)
-                                 .expect("Invalid SerializableTileDefHandle! Check serialization code...");
+        let def = TileSets::get()
+            .serializable_handle_to_tile_def(handle)
+            .expect("Invalid SerializableTileDefHandle! Check serialization code...");
         *self = Self::Ref(def);
     }
 }
 
 impl Serialize for TileDefRef {
     fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
-        where S: Serializer
+    where
+        S: Serializer,
     {
         let handle: SerializableTileDefHandle = match self {
             Self::Ref(def) => SerializableTileDefHandle::from_tile_def(def),
@@ -283,7 +293,8 @@ impl Serialize for TileDefRef {
 
 impl<'de> Deserialize<'de> for TileDefRef {
     fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
-        where D: Deserializer<'de>
+    where
+        D: Deserializer<'de>,
     {
         // Always deserialize as handle. post_load() converts back to reference.
         let handle = SerializableTileDefHandle::deserialize(deserializer)?;
@@ -370,9 +381,11 @@ struct TerrainTile {
 
 impl TerrainTile {
     fn new(cell: Cell, tile_def: &'static TileDef) -> Self {
-        Self { def: TileDefRef::new(tile_def),
-               cell,
-               iso_coords_f32: IsoPointF32::from_integer_iso(coords::cell_to_iso(cell)) }
+        Self {
+            def: TileDefRef::new(tile_def),
+            cell,
+            iso_coords_f32: IsoPointF32::from_integer_iso(coords::cell_to_iso(cell)),
+        }
     }
 }
 
@@ -476,15 +489,14 @@ struct ObjectTile {
 
 impl ObjectTile {
     fn new(cell: Cell, tile_def: &'static TileDef, layer: &TileMapLayer) -> Self {
-        Self { def: TileDefRef::new(tile_def),
-               layer: TileMapLayerPtr::new(layer),
-               cell_range: tile_def.cell_range(cell),
-               game_object_handle: TileGameObjectHandle::default(),
-               anim_state: TileAnimState::default(),
-               iso_coords_f32: calc_object_iso_coords(tile_def.kind(),
-                                                      cell,
-                                                      tile_def.logical_size,
-                                                      tile_def.draw_size) }
+        Self {
+            def: TileDefRef::new(tile_def),
+            layer: TileMapLayerPtr::new(layer),
+            cell_range: tile_def.cell_range(cell),
+            game_object_handle: TileGameObjectHandle::default(),
+            anim_state: TileAnimState::default(),
+            iso_coords_f32: calc_object_iso_coords(tile_def.kind(), cell, tile_def.logical_size, tile_def.draw_size),
+        }
     }
 }
 
@@ -508,9 +520,7 @@ impl TileBehavior for ObjectTile {
                 tile.next_index
             };
 
-            layer.visit_next_tiles_mut(next_tile_index, |next_tile| {
-                     next_tile.flags.set(new_flags, value)
-                 });
+            layer.visit_next_tiles_mut(next_tile_index, |next_tile| next_tile.flags.set(new_flags, value));
         }
     }
 
@@ -518,8 +528,7 @@ impl TileBehavior for ObjectTile {
     fn set_base_cell(&mut self, cell: Cell) {
         let def = self.def.as_ref();
         self.cell_range = def.cell_range(cell);
-        self.iso_coords_f32 =
-            calc_object_iso_coords(def.kind(), cell, def.logical_size, def.draw_size);
+        self.iso_coords_f32 = calc_object_iso_coords(def.kind(), cell, def.logical_size, def.draw_size);
     }
 
     #[inline]
@@ -583,11 +592,7 @@ pub fn calc_unit_iso_coords(base_cell: Cell, draw_size: Size) -> IsoPointF32 {
 }
 
 #[inline]
-pub fn calc_object_iso_coords(kind: TileKind,
-                              base_cell: Cell,
-                              logical_size: Size,
-                              draw_size: Size)
-                              -> IsoPointF32 {
+pub fn calc_object_iso_coords(kind: TileKind, base_cell: Cell, logical_size: Size, draw_size: Size) -> IsoPointF32 {
     // Convert the anchor (bottom tile for buildings) to isometric coordinates:
     let mut tile_iso_coords = coords::cell_to_iso(base_cell);
 
@@ -741,11 +746,7 @@ impl TileBehavior for BlockerTile {
 // ----------------------------------------------
 
 impl Tile {
-    fn new(cell: Cell,
-           index: TilePoolIndex,
-           tile_def: &'static TileDef,
-           layer: &TileMapLayer)
-           -> Self {
+    fn new(cell: Cell, index: TilePoolIndex, tile_def: &'static TileDef, layer: &TileMapLayer) -> Self {
         let archetype = match layer.kind() {
             TileMapLayerKind::Terrain => {
                 debug_assert!(tile_def.kind() == TileKind::Terrain); // Only Terrain.
@@ -759,30 +760,35 @@ impl Tile {
             }
         };
 
-        Self { kind: tile_def.kind(),
-               flags: tile_def.flags(),
-               variation_index: 0,
-               depth_sort_override: TileDepthSortOverride::default(),
-               self_index: index,
-               next_index: TilePoolIndex::invalid(),
-               archetype }
+        Self {
+            kind: tile_def.kind(),
+            flags: tile_def.flags(),
+            variation_index: 0,
+            depth_sort_override: TileDepthSortOverride::default(),
+            self_index: index,
+            next_index: TilePoolIndex::invalid(),
+            archetype,
+        }
     }
 
-    fn new_blocker(blocker_cell: Cell,
-                   index: TilePoolIndex,
-                   owner_cell: Cell,
-                   owner_kind: TileKind,
-                   owner_flags: TileFlags,
-                   layer: &TileMapLayer)
-                   -> Self {
+    fn new_blocker(
+        blocker_cell: Cell,
+        index: TilePoolIndex,
+        owner_cell: Cell,
+        owner_kind: TileKind,
+        owner_flags: TileFlags,
+        layer: &TileMapLayer,
+    ) -> Self {
         debug_assert!(owner_kind == TileKind::Object | TileKind::Building);
-        Self { kind: TileKind::Object | TileKind::Blocker,
-               flags: owner_flags,
-               variation_index: 0, // unused
-               depth_sort_override: TileDepthSortOverride::default(), // unused
-               self_index: index,
-               next_index: TilePoolIndex::invalid(),
-               archetype: TileArchetype::from(BlockerTile::new(blocker_cell, owner_cell, layer)) }
+        Self {
+            kind: TileKind::Object | TileKind::Blocker,
+            flags: owner_flags,
+            variation_index: 0,                                    // unused
+            depth_sort_override: TileDepthSortOverride::default(), // unused
+            self_index: index,
+            next_index: TilePoolIndex::invalid(),
+            archetype: TileArchetype::from(BlockerTile::new(blocker_cell, owner_cell, layer)),
+        }
     }
 
     #[inline]
@@ -947,7 +953,8 @@ impl Tile {
 
     #[inline]
     pub fn for_each_cell<F>(&self, reverse: bool, mut visitor_fn: F)
-        where F: FnMut(Cell)
+    where
+        F: FnMut(Cell),
     {
         if reverse {
             for cell in self.cell_range().iter_rev() {
@@ -960,22 +967,15 @@ impl Tile {
         }
     }
 
-    pub fn is_screen_point_inside_base_cell(&self,
-                                            screen_point: Vec2,
-                                            transform: WorldToScreenTransform)
-                                            -> bool {
+    pub fn is_screen_point_inside_base_cell(&self, screen_point: Vec2, transform: WorldToScreenTransform) -> bool {
         let cell = self.actual_base_cell();
         let tile_size = self.logical_size();
 
-        coords::is_screen_point_inside_cell(screen_point,
-                                            cell,
-                                            tile_size,
-                                            transform)
+        coords::is_screen_point_inside_cell(screen_point, cell, tile_size, transform)
     }
 
     pub fn category_name(&self) -> &'static str {
-        TileSets::get().find_category_for_tile_def(self.tile_def())
-                       .map_or("<none>", |cat| &cat.name)
+        TileSets::get().find_category_for_tile_def(self.tile_def()).map_or("<none>", |cat| &cat.name)
     }
 
     pub fn try_get_editable_tile_def(&self) -> Option<&'static mut TileDef> {
@@ -1024,9 +1024,8 @@ impl Tile {
 
     #[inline]
     pub fn set_variation_index(&mut self, index: usize) {
-        self.variation_index = index.min(self.variation_count() - 1)
-            .try_into()
-            .expect("Value cannot fit into a TileVariationIndex!");
+        self.variation_index =
+            index.min(self.variation_count() - 1).try_into().expect("Value cannot fit into a TileVariationIndex!");
 
         // Propagate to owner tile in case this is a blocker.
         self.archetype.set_variation_index(self.variation_index());
@@ -1083,8 +1082,7 @@ impl Tile {
     pub fn set_anim_set_index(&mut self, index: usize) {
         let max_index = self.anim_sets_count() - 1;
         let anim_state = self.anim_state_mut();
-        let new_anim_set_index: u16 =
-            index.min(max_index).try_into().expect("Anim Set index must be <= u16::MAX!");
+        let new_anim_set_index: u16 = index.min(max_index).try_into().expect("Anim Set index must be <= u16::MAX!");
         if new_anim_set_index != anim_state.anim_set_index {
             anim_state.anim_set_index = new_anim_set_index;
             anim_state.frame_index = 0;
@@ -1205,17 +1203,9 @@ impl Tile {
 // ----------------------------------------------
 
 #[repr(u8)]
-#[derive(Copy,
-         Clone,
-         PartialEq,
-         Eq,
-         Display,
-         EnumCount,
-         EnumIter,
-         EnumProperty,
-         TryFromPrimitive,
-         Serialize,
-         Deserialize)]
+#[derive(
+    Copy, Clone, PartialEq, Eq, Display, EnumCount, EnumIter, EnumProperty, TryFromPrimitive, Serialize, Deserialize,
+)]
 pub enum TileMapLayerKind {
     #[strum(props(AssetsPath = "tiles/terrain", Name = "terrain"))]
     Terrain,
@@ -1376,16 +1366,18 @@ impl TilePool {
         debug_assert!(size_in_cells.is_valid());
         let tile_count = (size_in_cells.width * size_in_cells.height) as usize;
 
-        Self { layer_kind,
-               layer_size_in_cells: size_in_cells,
-               cell_to_slab_idx: vec![INVALID_TILE_INDEX; tile_count],
-               slab: Slab::new() }
+        Self {
+            layer_kind,
+            layer_size_in_cells: size_in_cells,
+            cell_to_slab_idx: vec![INVALID_TILE_INDEX; tile_count],
+            slab: Slab::new(),
+        }
     }
 
     #[inline(always)]
     fn is_cell_within_bounds(&self, cell: Cell) -> bool {
-        if (cell.x < 0 || cell.x >= self.layer_size_in_cells.width) ||
-           (cell.y < 0 || cell.y >= self.layer_size_in_cells.height)
+        if (cell.x < 0 || cell.x >= self.layer_size_in_cells.width)
+            || (cell.y < 0 || cell.y >= self.layer_size_in_cells.height)
         {
             return false;
         }
@@ -1536,12 +1528,10 @@ impl TilePool {
             if curr_tile_index == index_to_remove {
                 if prev_tile_index == INVALID_TILE_INDEX {
                     // list head
-                    self.cell_to_slab_idx[cell_index.as_usize()] =
-                        self.slab[curr_tile_index.as_usize()].next_index;
+                    self.cell_to_slab_idx[cell_index.as_usize()] = self.slab[curr_tile_index.as_usize()].next_index;
                 } else {
                     // middle
-                    self.slab[prev_tile_index.as_usize()].next_index =
-                        self.slab[curr_tile_index.as_usize()].next_index;
+                    self.slab[prev_tile_index.as_usize()].next_index = self.slab[curr_tile_index.as_usize()].next_index;
                 }
 
                 debug_assert!(self.slab[curr_tile_index.as_usize()].self_index == curr_tile_index);
@@ -1571,12 +1561,13 @@ pub struct TileMapLayer {
 }
 
 impl TileMapLayer {
-    fn new(layer_kind: TileMapLayerKind,
-           size_in_cells: Size,
-           playable_area: &TileMapPlayableArea,
-           fill_with_def: Option<&'static TileDef>,
-           allow_stacking: bool)
-           -> Box<TileMapLayer> {
+    fn new(
+        layer_kind: TileMapLayerKind,
+        size_in_cells: Size,
+        playable_area: &TileMapPlayableArea,
+        fill_with_def: Option<&'static TileDef>,
+        allow_stacking: bool,
+    ) -> Box<TileMapLayer> {
         let mut layer = Box::new(Self { pool: TilePool::new(layer_kind, size_in_cells) });
 
         // Optionally initialize all cells:
@@ -1587,9 +1578,15 @@ impl TileMapLayer {
             let tile_count = playable_area.tile_count(size_in_cells);
             debug_assert!(tile_count > 0 && tile_count <= (size_in_cells.width * size_in_cells.height) as usize);
 
-            log::info!(log::channel!("tile"),
-                       "Trimming margin of {} tiles for layer {}, map size: {}, instantiated tiles: {} out of: {}.",
-                       playable_area.margin(), layer_kind, size_in_cells, tile_count, size_in_cells.width * size_in_cells.height);
+            log::info!(
+                log::channel!("tile"),
+                "Trimming margin of {} tiles for layer {}, map size: {}, instantiated tiles: {} out of: {}.",
+                playable_area.margin(),
+                layer_kind,
+                size_in_cells,
+                tile_count,
+                size_in_cells.width * size_in_cells.height
+            );
 
             layer.pool.slab.reserve_exact(tile_count);
 
@@ -1655,16 +1652,12 @@ impl TileMapLayer {
     // cell is empty.
     #[inline]
     pub fn tile(&self, cell: Cell) -> &Tile {
-        self.pool
-            .try_get_tile(cell)
-            .expect("TileMapLayer::tile(): Out of bounds cell or empty map cell!")
+        self.pool.try_get_tile(cell).expect("TileMapLayer::tile(): Out of bounds cell or empty map cell!")
     }
 
     #[inline]
     pub fn tile_mut(&mut self, cell: Cell) -> &mut Tile {
-        self.pool
-            .try_get_tile_mut(cell)
-            .expect("TileMapLayer::tile_mut(): Out of bounds cell or empty map cell!")
+        self.pool.try_get_tile_mut(cell).expect("TileMapLayer::tile_mut(): Out of bounds cell or empty map cell!")
     }
 
     // Fails with None if the cell indices are not within bounds or if the tile cell
@@ -1731,10 +1724,7 @@ impl TileMapLayer {
         neighbors
     }
 
-    pub fn tile_neighbors_mut(&mut self,
-                              cell: Cell,
-                              include_self: bool)
-                              -> ArrayVec<Option<&mut Tile>, 9> {
+    pub fn tile_neighbors_mut(&mut self, cell: Cell, include_self: bool) -> ArrayVec<Option<&mut Tile>, 9> {
         let mut neighbors: ArrayVec<_, 9> = ArrayVec::new();
 
         // Helper closure to get a raw pointer from try_tile_mut().
@@ -1762,10 +1752,7 @@ impl TileMapLayer {
         neighbors.into_iter().map(|opt_ptr| opt_ptr.map(|ptr| unsafe { &mut *ptr })).collect()
     }
 
-    pub fn find_exact_cell_for_point(&self,
-                                     screen_point: Vec2,
-                                     transform: WorldToScreenTransform)
-                                     -> Cell {
+    pub fn find_exact_cell_for_point(&self, screen_point: Vec2, transform: WorldToScreenTransform) -> Cell {
         let iso_point = coords::screen_to_iso_point(screen_point, transform);
         let approx_cell = coords::iso_to_cell(iso_point);
 
@@ -1792,11 +1779,7 @@ impl TileMapLayer {
         ];
 
         for cell in neighbor_cells {
-            if coords::is_screen_point_inside_cell(screen_point,
-                                                   cell,
-                                                   BASE_TILE_SIZE_I32,
-                                                   transform)
-            {
+            if coords::is_screen_point_inside_cell(screen_point, cell, BASE_TILE_SIZE_I32, transform) {
                 return cell;
             }
         }
@@ -1806,7 +1789,8 @@ impl TileMapLayer {
 
     #[inline]
     pub fn for_each_tile<F>(&self, tile_kinds: TileKind, mut visitor_fn: F)
-        where F: FnMut(&Tile)
+    where
+        F: FnMut(&Tile),
     {
         for (_, tile) in &self.pool.slab {
             if tile.is(tile_kinds) {
@@ -1817,7 +1801,8 @@ impl TileMapLayer {
 
     #[inline]
     pub fn for_each_tile_mut<F>(&mut self, tile_kinds: TileKind, mut visitor_fn: F)
-        where F: FnMut(&mut Tile)
+    where
+        F: FnMut(&mut Tile),
     {
         for (_, tile) in &mut self.pool.slab {
             if tile.is(tile_kinds) {
@@ -1834,11 +1819,7 @@ impl TileMapLayer {
     // tiles. Blocker insertion/removal is handled explicitly by the tile
     // placement code.
 
-    pub fn insert_tile(&mut self,
-                       cell: Cell,
-                       tile_def: &'static TileDef,
-                       allow_stacking: bool)
-                       -> bool {
+    pub fn insert_tile(&mut self, cell: Cell, tile_def: &'static TileDef, allow_stacking: bool) -> bool {
         debug_assert!(tile_def.layer_kind() == self.kind());
         let new_tile = Tile::new(cell, self.pool.next_index(), tile_def, self);
         self.pool.insert_tile(cell, new_tile, allow_stacking)
@@ -1854,12 +1835,8 @@ impl TileMapLayer {
             }
 
             let owner_tile = self.tile(owner_cell);
-            let blocker_tile = Tile::new_blocker(blocker_cell,
-                                                 self.pool.next_index(),
-                                                 owner_cell,
-                                                 owner_tile.kind,
-                                                 owner_tile.flags,
-                                                 self);
+            let blocker_tile =
+                Tile::new_blocker(blocker_cell, self.pool.next_index(), owner_cell, owner_tile.kind, owner_tile.flags, self);
 
             const ALLOW_STACKING: bool = false;
             if !self.pool.insert_tile(blocker_cell, blocker_tile, ALLOW_STACKING) {
@@ -1886,7 +1863,8 @@ impl TileMapLayer {
 
     #[inline]
     fn visit_next_tiles<F>(&self, mut next_tile_index: TilePoolIndex, mut visitor_fn: F)
-        where F: FnMut(&Tile)
+    where
+        F: FnMut(&Tile),
     {
         while next_tile_index != INVALID_TILE_INDEX {
             let next_tile = &self[next_tile_index];
@@ -1897,7 +1875,8 @@ impl TileMapLayer {
 
     #[inline]
     fn visit_next_tiles_mut<F>(&mut self, mut next_tile_index: TilePoolIndex, mut visitor_fn: F)
-        where F: FnMut(&mut Tile)
+    where
+        F: FnMut(&mut Tile),
     {
         while next_tile_index != INVALID_TILE_INDEX {
             let next_tile = &mut self[next_tile_index];
@@ -1932,8 +1911,8 @@ impl TileMapLayer {
 
             // Update next tiles in the stack chain.
             self.visit_next_tiles_mut(next_tile_index, |next_tile| {
-                    next_tile.update_anim(delta_time_secs);
-                });
+                next_tile.update_anim(delta_time_secs);
+            });
         }
     }
 
@@ -1995,11 +1974,11 @@ enum TileMapPlayableArea {
 
     // Map diamond margins are trimmed, only inner rect is playable.
     TrimmedMargins {
-        min_sum:  i32,
-        max_sum:  i32,
+        min_sum: i32,
+        max_sum: i32,
         min_diff: i32,
         max_diff: i32,
-    }
+    },
 }
 
 impl TileMapPlayableArea {
@@ -2026,19 +2005,13 @@ impl TileMapPlayableArea {
 
     fn tile_count(&self, map_size: Size) -> usize {
         match self {
-            Self::WholeMap => {
-                (map_size.width * map_size.height) as usize
-            }
+            Self::WholeMap => (map_size.width * map_size.height) as usize,
             Self::TrimmedMargins { min_sum, max_sum, min_diff, max_diff } => {
                 let mut total: usize = 0;
                 for x in 0..map_size.width {
-                    let y_min = 0
-                        .max(*min_sum - x)
-                        .max(x - *max_diff);
+                    let y_min = 0.max(*min_sum - x).max(x - *max_diff);
 
-                    let y_max = (map_size.height - 1)
-                        .min(*max_sum - x)
-                        .min(x - *min_diff);
+                    let y_max = (map_size.height - 1).min(*max_sum - x).min(x - *min_diff);
 
                     if y_max >= y_min {
                         total += (y_max - y_min + 1) as usize;
@@ -2053,9 +2026,7 @@ impl TileMapPlayableArea {
         let max_cell_x = map_size.width  - 1;
         let max_cell_y = map_size.height - 1;
         match self {
-            Self::WholeMap => {
-                CellRange::new(Cell::new(0, 0), Cell::new(max_cell_x, max_cell_y))
-            }
+            Self::WholeMap => CellRange::new(Cell::new(0, 0), Cell::new(max_cell_x, max_cell_y)),
             Self::TrimmedMargins { min_sum, .. } => {
                 let margin = *min_sum;
                 let inset  = margin / 2;
@@ -2079,10 +2050,7 @@ impl TileMapPlayableArea {
             Self::TrimmedMargins { min_sum, max_sum, min_diff, max_diff } => {
                 let sum  = x + y;
                 let diff = x - y;
-                sum  >= *min_sum  &&
-                sum  <= *max_sum  &&
-                diff >= *min_diff &&
-                diff <= *max_diff
+                sum >= *min_sum && sum <= *max_sum && diff >= *min_diff && diff <= *max_diff
             }
         }
     }
@@ -2155,20 +2123,16 @@ impl TileMap {
             minimap: Minimap::new(size_in_cells),
             on_tile_placed_callback: None,
             on_removing_tile_callback: None,
-            on_map_reset_callback: None
+            on_map_reset_callback: None,
         };
 
         tile_map.reset(fill_with_def, None);
         tile_map
     }
 
-    pub fn with_terrain_tile(size_in_cells: Size,
-                             category_name_hash: StringHash,
-                             tile_name_hash: StringHash)
-                             -> Self {
-        let fill_with_def = TileSets::get().find_tile_def_by_hash(TileMapLayerKind::Terrain,
-                                                                  category_name_hash,
-                                                                  tile_name_hash);
+    pub fn with_terrain_tile(size_in_cells: Size, category_name_hash: StringHash, tile_name_hash: StringHash) -> Self {
+        let fill_with_def =
+            TileSets::get().find_tile_def_by_hash(TileMapLayerKind::Terrain, category_name_hash, tile_name_hash);
 
         Self::new(size_in_cells, fill_with_def)
     }
@@ -2190,11 +2154,7 @@ impl TileMap {
             // Find which layer this tile belong to if we're not just setting everything to empty.
             let fill_opt = {
                 if let Some(fill_tile_def) = fill_with_def {
-                    if fill_tile_def.layer_kind() == layer_kind {
-                        fill_with_def
-                    } else {
-                        None
-                    }
+                    if fill_tile_def.layer_kind() == layer_kind { fill_with_def } else { None }
                 } else {
                     None
                 }
@@ -2206,7 +2166,7 @@ impl TileMap {
                 self.size_in_cells,
                 &self.playable_area,
                 fill_opt,
-                ALLOW_STACKING
+                ALLOW_STACKING,
             ));
         }
     }
@@ -2269,9 +2229,7 @@ impl TileMap {
 
     #[inline]
     pub fn is_cell_within_bounds(&self, cell: Cell) -> bool {
-        if (cell.x < 0 || cell.x >= self.size_in_cells.width) ||
-           (cell.y < 0 || cell.y >= self.size_in_cells.height)
-        {
+        if (cell.x < 0 || cell.x >= self.size_in_cells.width) || (cell.y < 0 || cell.y >= self.size_in_cells.height) {
             return false;
         }
         true
@@ -2293,7 +2251,7 @@ impl TileMap {
             ptrs: [
                 RawPtr::from_ref(self.layer(TileMapLayerKind::Terrain)),
                 RawPtr::from_ref(self.layer(TileMapLayerKind::Objects)),
-            ]
+            ],
         }
     }
 
@@ -2303,7 +2261,7 @@ impl TileMap {
             ptrs: [
                 RawPtr::from_ref(self.layer_mut(TileMapLayerKind::Terrain)),
                 RawPtr::from_ref(self.layer_mut(TileMapLayerKind::Objects)),
-            ]
+            ],
         }
     }
 
@@ -2331,10 +2289,7 @@ impl TileMap {
     }
 
     #[inline]
-    pub fn try_tile_from_layer_mut(&mut self,
-                                   cell: Cell,
-                                   kind: TileMapLayerKind)
-                                   -> Option<&mut Tile> {
+    pub fn try_tile_from_layer_mut(&mut self, cell: Cell, kind: TileMapLayerKind) -> Option<&mut Tile> {
         if self.layers.is_empty() {
             return None;
         }
@@ -2354,11 +2309,7 @@ impl TileMap {
     }
 
     #[inline]
-    pub fn find_tile(&self,
-                     cell: Cell,
-                     layer_kind: TileMapLayerKind,
-                     tile_kinds: TileKind)
-                     -> Option<&Tile> {
+    pub fn find_tile(&self, cell: Cell, layer_kind: TileMapLayerKind, tile_kinds: TileKind) -> Option<&Tile> {
         if self.layers.is_empty() {
             return None;
         }
@@ -2367,11 +2318,7 @@ impl TileMap {
     }
 
     #[inline]
-    pub fn find_tile_mut(&mut self,
-                         cell: Cell,
-                         layer_kind: TileMapLayerKind,
-                         tile_kinds: TileKind)
-                         -> Option<&mut Tile> {
+    pub fn find_tile_mut(&mut self, cell: Cell, layer_kind: TileMapLayerKind, tile_kinds: TileKind) -> Option<&mut Tile> {
         if self.layers.is_empty() {
             return None;
         }
@@ -2380,11 +2327,12 @@ impl TileMap {
     }
 
     #[inline]
-    pub fn find_exact_cell_for_point(&self,
-                                     layer_kind: TileMapLayerKind,
-                                     screen_point: Vec2,
-                                     transform: WorldToScreenTransform)
-                                     -> Cell {
+    pub fn find_exact_cell_for_point(
+        &self,
+        layer_kind: TileMapLayerKind,
+        screen_point: Vec2,
+        transform: WorldToScreenTransform,
+    ) -> Cell {
         if self.layers.is_empty() {
             return Cell::invalid();
         }
@@ -2393,11 +2341,9 @@ impl TileMap {
     }
 
     #[inline]
-    pub fn for_each_tile<F>(&self,
-                            layer_kind: TileMapLayerKind,
-                            tile_kinds: TileKind,
-                            visitor_fn: F)
-        where F: FnMut(&Tile)
+    pub fn for_each_tile<F>(&self, layer_kind: TileMapLayerKind, tile_kinds: TileKind, visitor_fn: F)
+    where
+        F: FnMut(&Tile),
     {
         if !self.layers.is_empty() {
             let layer = self.layer(layer_kind);
@@ -2406,11 +2352,9 @@ impl TileMap {
     }
 
     #[inline]
-    pub fn for_each_tile_mut<F>(&mut self,
-                                layer_kind: TileMapLayerKind,
-                                tile_kinds: TileKind,
-                                visitor_fn: F)
-        where F: FnMut(&mut Tile)
+    pub fn for_each_tile_mut<F>(&mut self, layer_kind: TileMapLayerKind, tile_kinds: TileKind, visitor_fn: F)
+    where
+        F: FnMut(&mut Tile),
     {
         if !self.layers.is_empty() {
             let layer = self.layer_mut(layer_kind);
@@ -2449,10 +2393,7 @@ impl TileMap {
     }
 
     #[inline]
-    pub fn tile_at_index_mut(&mut self,
-                             index: TilePoolIndex,
-                             layer_kind: TileMapLayerKind)
-                             -> &mut Tile {
+    pub fn tile_at_index_mut(&mut self, index: TilePoolIndex, layer_kind: TileMapLayerKind) -> &mut Tile {
         debug_assert!(index != INVALID_TILE_INDEX);
         let layer = self.layer_mut(layer_kind);
         &mut layer[index]
@@ -2480,7 +2421,8 @@ impl TileMap {
 
     #[inline]
     pub fn visit_next_tiles<F>(&self, tile: &Tile, visitor_fn: F)
-        where F: FnMut(&Tile)
+    where
+        F: FnMut(&Tile),
     {
         let layer = self.layer(tile.layer_kind());
         layer.visit_next_tiles(tile.next_index, visitor_fn);
@@ -2488,7 +2430,8 @@ impl TileMap {
 
     #[inline]
     pub fn visit_next_tiles_mut<F>(&mut self, tile: &Tile, visitor_fn: F)
-        where F: FnMut(&mut Tile)
+    where
+        F: FnMut(&mut Tile),
     {
         let layer = self.layer_mut(tile.layer_kind());
         layer.visit_next_tiles_mut(tile.next_index, visitor_fn);
@@ -2499,29 +2442,31 @@ impl TileMap {
     // ----------------------
 
     #[inline]
-    pub fn try_place_tile(&mut self,
-                          target_cell: Cell,
-                          tile_def_to_place: &'static TileDef)
-                          -> Result<&mut Tile, TilePlacementErr> {
-        self.try_place_tile_in_layer(target_cell,
-                                     tile_def_to_place.layer_kind(), // Guess layer from TileDef.
-                                     tile_def_to_place)
+    pub fn try_place_tile(
+        &mut self,
+        target_cell: Cell,
+        tile_def_to_place: &'static TileDef,
+    ) -> Result<&mut Tile, TilePlacementErr> {
+        self.try_place_tile_in_layer(
+            target_cell,
+            tile_def_to_place.layer_kind(), // Guess layer from TileDef.
+            tile_def_to_place,
+        )
     }
 
     #[inline]
-    pub fn try_place_tile_in_layer(&mut self,
-                                   target_cell: Cell,
-                                   layer_kind: TileMapLayerKind,
-                                   tile_def_to_place: &'static TileDef)
-                                   -> Result<&mut Tile, TilePlacementErr> {
+    pub fn try_place_tile_in_layer(
+        &mut self,
+        target_cell: Cell,
+        layer_kind: TileMapLayerKind,
+        tile_def_to_place: &'static TileDef,
+    ) -> Result<&mut Tile, TilePlacementErr> {
         if self.layers.is_empty() {
             return placement::err!(Placement::EmptyMap, "Map has no layers!");
         }
 
         // Prevent placing objects/props over non-walkable terrain tiles (water/roads, etc).
-        placement::internal::is_placement_on_terrain_valid(self.layers(),
-                                                           target_cell,
-                                                           tile_def_to_place)?;
+        placement::internal::is_placement_on_terrain_valid(self.layers(), target_cell, tile_def_to_place)?;
 
         let mut minimap = RawPtr::from_ref(&self.minimap);
 
@@ -2529,14 +2474,15 @@ impl TileMap {
         let layer = self.layer_mut(layer_kind);
         let prev_pool_capacity = layer.pool_capacity();
 
-        let result = placement::internal::try_place_tile_in_layer(layer, target_cell, tile_def_to_place)
-            .map(|(tile, new_pool_capacity)| {
+        let result = placement::internal::try_place_tile_in_layer(layer, target_cell, tile_def_to_place).map(
+            |(tile, new_pool_capacity)| {
                 if let Some(callback) = tile_placed_callback {
                     let did_reallocate = new_pool_capacity != prev_pool_capacity;
                     callback(tile, did_reallocate);
                 }
                 tile
-            });
+            },
+        );
 
         if result.is_ok() {
             minimap.place_tile(target_cell, tile_def_to_place);
@@ -2546,10 +2492,11 @@ impl TileMap {
     }
 
     #[inline]
-    pub fn try_clear_tile_from_layer(&mut self,
-                                     target_cell: Cell,
-                                     layer_kind: TileMapLayerKind)
-                                     -> Result<(), TileClearingErr> {
+    pub fn try_clear_tile_from_layer(
+        &mut self,
+        target_cell: Cell,
+        layer_kind: TileMapLayerKind,
+    ) -> Result<(), TileClearingErr> {
         if self.layers.is_empty() {
             return placement::err!(Clearing::EmptyMap, "Map has no layers!");
         }
@@ -2560,8 +2507,7 @@ impl TileMap {
             }
         }
 
-        let result =
-            placement::internal::try_clear_tile_from_layer(self.layer_mut(layer_kind), target_cell);
+        let result = placement::internal::try_clear_tile_from_layer(self.layer_mut(layer_kind), target_cell);
 
         if let Ok(tile_def) = result {
             self.minimap.clear_tile(target_cell, tile_def);
@@ -2571,11 +2517,12 @@ impl TileMap {
     }
 
     #[inline]
-    pub fn try_clear_tile_from_layer_by_index(&mut self,
-                                              target_index: TilePoolIndex,
-                                              target_cell: Cell,
-                                              layer_kind: TileMapLayerKind)
-                                              -> Result<(), TileClearingErr> {
+    pub fn try_clear_tile_from_layer_by_index(
+        &mut self,
+        target_index: TilePoolIndex,
+        target_cell: Cell,
+        layer_kind: TileMapLayerKind,
+    ) -> Result<(), TileClearingErr> {
         debug_assert!(target_index != INVALID_TILE_INDEX);
 
         if self.layers.is_empty() {
@@ -2590,9 +2537,7 @@ impl TileMap {
         }
 
         let result =
-            placement::internal::try_clear_tile_from_layer_by_index(self.layer_mut(layer_kind),
-                                                                    target_index,
-                                                                    target_cell);
+            placement::internal::try_clear_tile_from_layer_by_index(self.layer_mut(layer_kind), target_index, target_cell);
 
         if let Ok(tile_def) = result {
             self.minimap.clear_tile(target_cell, tile_def);
@@ -2601,12 +2546,7 @@ impl TileMap {
         result.map(|_| ())
     }
 
-    pub fn can_move_tile(&self,
-                         from: Cell,
-                         to: Cell,
-                         layer_kind: TileMapLayerKind,
-                         allow_stacking: bool)
-                         -> bool {
+    pub fn can_move_tile(&self, from: Cell, to: Cell, layer_kind: TileMapLayerKind, allow_stacking: bool) -> bool {
         if from == to || self.layers.is_empty() {
             return false;
         }
@@ -2665,12 +2605,13 @@ impl TileMap {
     }
 
     // Move tile from one cell to another, stacking unit tiles if they overlap.
-    pub fn try_move_tile_with_stacking(&mut self,
-                                       from_idx: TilePoolIndex,
-                                       from_cell: Cell,
-                                       to_cell: Cell,
-                                       layer_kind: TileMapLayerKind)
-                                       -> bool {
+    pub fn try_move_tile_with_stacking(
+        &mut self,
+        from_idx: TilePoolIndex,
+        from_cell: Cell,
+        to_cell: Cell,
+        layer_kind: TileMapLayerKind,
+    ) -> bool {
         debug_assert!(from_idx != INVALID_TILE_INDEX);
 
         const ALLOW_STACKING: bool = true;
@@ -2696,8 +2637,7 @@ impl TileMap {
                 if curr_tile_index == from_idx {
                     if prev_tile_index == INVALID_TILE_INDEX {
                         // list head
-                        layer.pool.cell_to_slab_idx[from_cell_index.as_usize()] =
-                            layer[curr_tile_index].next_index;
+                        layer.pool.cell_to_slab_idx[from_cell_index.as_usize()] = layer[curr_tile_index].next_index;
                     } else {
                         // middle
                         layer[prev_tile_index].next_index = layer[curr_tile_index].next_index;
@@ -2725,8 +2665,7 @@ impl TileMap {
             let to_slab_index = layer.pool.cell_index_to_slab(to_cell_index);
 
             // Only units can stack.
-            debug_assert!(to_slab_index == INVALID_TILE_INDEX
-                          || layer[to_slab_index].is(TileKind::Unit));
+            debug_assert!(to_slab_index == INVALID_TILE_INDEX || layer[to_slab_index].is(TileKind::Unit));
 
             layer.pool.cell_to_slab_idx[to_cell_index.as_usize()] = from_idx;
 
@@ -2745,22 +2684,20 @@ impl TileMap {
     // ----------------------
 
     #[inline]
-    pub fn update_selection(&mut self,
-                            selection: &mut TileSelection,
-                            cursor_screen_pos: Vec2,
-                            transform: WorldToScreenTransform,
-                            placement_op: TilePlacementOp) {
+    pub fn update_selection(
+        &mut self,
+        selection: &mut TileSelection,
+        cursor_screen_pos: Vec2,
+        transform: WorldToScreenTransform,
+        placement_op: TilePlacementOp,
+    ) {
         if self.layers.is_empty() {
             return;
         }
 
         let map_size_in_cells = self.size_in_cells();
 
-        selection.update(self.layers_mut(),
-                         map_size_in_cells,
-                         cursor_screen_pos,
-                         transform,
-                         placement_op);
+        selection.update(self.layers_mut(), map_size_in_cells, cursor_screen_pos, transform, placement_op);
     }
 
     #[inline]
@@ -2784,10 +2721,7 @@ impl TileMap {
         None
     }
 
-    pub fn topmost_tile_at_cursor(&self,
-                                  cursor_screen_pos: Vec2,
-                                  transform: WorldToScreenTransform)
-                                  -> Option<&Tile> {
+    pub fn topmost_tile_at_cursor(&self, cursor_screen_pos: Vec2, transform: WorldToScreenTransform) -> Option<&Tile> {
         debug_assert!(transform.is_valid());
 
         if self.layers.is_empty() {
@@ -2864,7 +2798,8 @@ impl Load for TileMap {
         debug_assert!(self.on_removing_tile_callback.is_none());
         debug_assert!(self.on_map_reset_callback.is_none());
 
-        if self.size_in_cells.is_valid() { // If not loading into an empty map.
+        if self.size_in_cells.is_valid() {
+            // If not loading into an empty map.
             self.playable_area = TileMapPlayableArea::with_inner_rect_margin(self.size_in_cells);
         }
 

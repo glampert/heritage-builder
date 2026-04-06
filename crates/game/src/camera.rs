@@ -1,14 +1,22 @@
+use common::{
+    self,
+    Color,
+    Rect,
+    Size,
+    Vec2,
+    constants::*,
+    coords::{self, Cell, CellF32, CellRange, IsoDiamond, IsoPointF32, WorldToScreenTransform},
+    time::Seconds,
+};
+use engine::{
+    app::input::{InputAction, InputKey, InputModifiers},
+    render::debug::DebugDraw,
+    save::*,
+    ui::{self, UiInputEvent, UiStaticVar, UiSystem},
+};
 use serde::{Deserialize, Serialize};
 
-use engine::{
-    save::*,
-    render::debug::DebugDraw,
-    ui::{self, UiSystem, UiInputEvent, UiStaticVar},
-    app::input::{InputAction, InputKey, InputModifiers},
-};
-use common::{ self, constants::*, time::Seconds, Rect, Size, Vec2, Color, coords::{self, Cell, CellF32, CellRange, WorldToScreenTransform, IsoDiamond, IsoPointF32}, };
-use crate::config::GameConfigs;
-use crate::save_context::*;
+use crate::{config::GameConfigs, save_context::*};
 
 // ----------------------------------------------
 // Camera Coordinates and Conventions
@@ -105,20 +113,13 @@ pub struct Camera {
 }
 
 impl Camera {
-    pub fn new(viewport_size: Size,
-               map_size_in_cells: Size,
-               zoom: f32,
-               offset: CameraOffset)
-               -> Self {
+    pub fn new(viewport_size: Size, map_size_in_cells: Size, zoom: f32, offset: CameraOffset) -> Self {
         let clamped_scaling = zoom.clamp(CameraZoom::MIN, CameraZoom::MAX);
         let clamped_offset = match offset {
-            CameraOffset::Center => {
-                calc_map_center(map_size_in_cells, clamped_scaling, viewport_size)
+            CameraOffset::Center => calc_map_center(map_size_in_cells, clamped_scaling, viewport_size),
+            CameraOffset::Point(x, y) => {
+                clamp_to_map_bounds(map_size_in_cells, clamped_scaling, viewport_size, Vec2::new(x, y))
             }
-            CameraOffset::Point(x, y) => clamp_to_map_bounds(map_size_in_cells,
-                                                             clamped_scaling,
-                                                             viewport_size,
-                                                             Vec2::new(x, y)),
         };
 
         Self {
@@ -312,17 +313,21 @@ impl Camera {
 
         // Remap the offset to the new scaled map bounds, so we stay at the same
         // relative position as before.
-        self.transform.offset.x = common::map_value_to_range(self.transform.offset.x,
-                                                            current_bounds.min.x,
-                                                            current_bounds.max.x,
-                                                            new_bounds.min.x,
-                                                            new_bounds.max.x);
+        self.transform.offset.x = common::map_value_to_range(
+            self.transform.offset.x,
+            current_bounds.min.x,
+            current_bounds.max.x,
+            new_bounds.min.x,
+            new_bounds.max.x,
+        );
 
-        self.transform.offset.y = common::map_value_to_range(self.transform.offset.y,
-                                                            current_bounds.min.y,
-                                                            current_bounds.max.y,
-                                                            new_bounds.min.y,
-                                                            new_bounds.max.y);
+        self.transform.offset.y = common::map_value_to_range(
+            self.transform.offset.y,
+            current_bounds.min.y,
+            current_bounds.max.y,
+            new_bounds.min.y,
+            new_bounds.max.y,
+        );
 
         self.transform.scaling = new_zoom;
     }
@@ -346,9 +351,7 @@ impl Camera {
     pub fn update_zooming(&mut self, delta_time_secs: Seconds) {
         if self.is_zooming {
             if !common::approx_equal(self.current_zoom, self.target_zoom, 0.001) {
-                self.current_zoom = common::lerp(self.current_zoom,
-                                                self.target_zoom,
-                                                delta_time_secs * CameraZoom::SPEED);
+                self.current_zoom = common::lerp(self.current_zoom, self.target_zoom, delta_time_secs * CameraZoom::SPEED);
             } else {
                 self.current_zoom = self.target_zoom;
                 self.is_zooming = false;
@@ -380,10 +383,7 @@ impl Camera {
     #[inline]
     pub fn set_scroll(&mut self, scroll: Vec2) {
         self.transform.offset = if GameConfigs::get().camera.clamp_to_map_bounds {
-            clamp_to_map_bounds(self.map_size_in_cells,
-                                self.current_zoom(),
-                                self.viewport_size,
-                                scroll)
+            clamp_to_map_bounds(self.map_size_in_cells, self.current_zoom(), self.viewport_size, scroll)
         } else {
             scroll
         };
@@ -392,16 +392,10 @@ impl Camera {
     pub fn update_scrolling(&mut self, cursor_screen_pos: Vec2, delta_time_secs: Seconds) {
         let configs = &GameConfigs::get().camera;
 
-        let scroll_dir = calc_scroll_delta(
-            cursor_screen_pos,
-            self.viewport_size,
-            configs.scroll_margin);
+        let scroll_dir = calc_scroll_delta(cursor_screen_pos, self.viewport_size, configs.scroll_margin);
 
-        let scroll_speed = calc_scroll_speed(
-            cursor_screen_pos,
-            self.viewport_size,
-            configs.scroll_margin,
-            configs.scroll_speed);
+        let scroll_speed =
+            calc_scroll_speed(cursor_screen_pos, self.viewport_size, configs.scroll_margin, configs.scroll_speed);
 
         let desired_delta = scroll_dir * scroll_speed * delta_time_secs;
         if desired_delta == Vec2::zero() {
@@ -452,8 +446,7 @@ impl Camera {
 
         let iso_point = coords::cell_to_iso(destination_cell);
 
-        let transform_no_offset =
-            WorldToScreenTransform::new(self.current_zoom(), Vec2::zero());
+        let transform_no_offset = WorldToScreenTransform::new(self.current_zoom(), Vec2::zero());
 
         let desired_camera_center = coords::iso_to_screen_point(iso_point, transform_no_offset);
 
@@ -476,11 +469,9 @@ impl Camera {
     pub fn teleport_iso(&mut self, destination_iso: IsoPointF32) -> bool {
         let viewport_center = self.viewport_center();
 
-        let transform_no_offset =
-            WorldToScreenTransform::new(self.current_zoom(), Vec2::zero());
+        let transform_no_offset = WorldToScreenTransform::new(self.current_zoom(), Vec2::zero());
 
-        let screen_point =
-            coords::iso_to_screen_point_f32(destination_iso, transform_no_offset);
+        let screen_point = coords::iso_to_screen_point_f32(destination_iso, transform_no_offset);
 
         let desired_camera_center = screen_point;
 
@@ -503,11 +494,7 @@ impl Camera {
     // Input events:
     // ----------------------
 
-    pub fn on_key_input(&mut self,
-                        key: InputKey,
-                        action: InputAction,
-                        modifiers: InputModifiers)
-                        -> UiInputEvent {
+    pub fn on_key_input(&mut self, key: InputKey, action: InputAction, modifiers: InputModifiers) -> UiInputEvent {
         let configs = &GameConfigs::get().camera;
 
         // [CTRL]+[-] / [CTRL]+[=]: Zoom in/out by a fixed step.
@@ -562,7 +549,7 @@ impl Camera {
     pub fn draw_debug(&self, debug_draw: &mut DebugDraw, ui_sys: &UiSystem) {
         if !GameConfigs::get().camera.enable_debug_draw {
             return;
-        }        
+        }
 
         const CAMERA_RELATIVE: bool = true; // Use camera-relative space for rendering.
         let constraints = self.build_constraints(CAMERA_RELATIVE);
@@ -613,11 +600,7 @@ impl Camera {
         }
 
         let mut step_zoom = configs.fixed_step_zoom_amount;
-        if ui.input_float("Step Zoom", &mut step_zoom)
-            .display_format("%.1f")
-            .step(0.5)
-            .build()
-        {
+        if ui.input_float("Step Zoom", &mut step_zoom).display_format("%.1f").step(0.5).build() {
             configs.fixed_step_zoom_amount = step_zoom.clamp(zoom_min, zoom_max);
         }
 
@@ -626,17 +609,11 @@ impl Camera {
         let scroll_limits = self.scroll_limits();
         let mut scroll = self.current_scroll();
 
-        if ui.slider_config("Scroll X", scroll_limits.0.x, scroll_limits.1.x)
-             .display_format("%.1f")
-             .build(&mut scroll.x)
-        {
+        if ui.slider_config("Scroll X", scroll_limits.0.x, scroll_limits.1.x).display_format("%.1f").build(&mut scroll.x) {
             self.set_scroll(scroll);
         }
 
-        if ui.slider_config("Scroll Y", scroll_limits.0.y, scroll_limits.1.y)
-             .display_format("%.1f")
-             .build(&mut scroll.y)
-        {
+        if ui.slider_config("Scroll Y", scroll_limits.0.y, scroll_limits.1.y).display_format("%.1f").build(&mut scroll.y) {
             self.set_scroll(scroll);
         }
 
@@ -749,10 +726,7 @@ impl CameraConstraints for CameraConstraintsInnerRect {
         if t_max_x <= 0.0 && t_max_y <= 0.0 {
             Vec2::zero()
         } else {
-            Vec2::new(
-                delta.x * t_max_x.clamp(0.0, 1.0),
-                delta.y * t_max_y.clamp(0.0, 1.0)
-            )
+            Vec2::new(delta.x * t_max_x.clamp(0.0, 1.0), delta.y * t_max_y.clamp(0.0, 1.0))
         }
     }
 
@@ -867,13 +841,9 @@ impl CameraConstraintsIsoDiamond {
             let edge = b - a;
             let normal = inward_normal(edge);
 
-            let offset = (camera_half_extents.x * normal.x.abs()) + 
-                         (camera_half_extents.y * normal.y.abs());
+            let offset = (camera_half_extents.x * normal.x.abs()) + (camera_half_extents.y * normal.y.abs());
 
-            planes[i] = ConstraintPlane {
-                p: a + (normal * offset),
-                n: normal,
-            };
+            planes[i] = ConstraintPlane { p: a + (normal * offset), n: normal };
 
             normals[i] = normal;
         }
@@ -994,19 +964,11 @@ impl CameraConstraints for CameraConstraintsIsoDiamond {
         const CAMERA_RELATIVE: bool = true;
 
         // Map diamond bounds and inward-facing normals:
-        draw_diamond_edges_and_normals(
-            debug_draw,
-            &camera.map_diamond(CAMERA_RELATIVE),
-            Color::red(),
-            Color::green());
+        draw_diamond_edges_and_normals(debug_draw, &camera.map_diamond(CAMERA_RELATIVE), Color::red(), Color::green());
 
         // Half map diamond bounds and normals, where we constrain
         // the camera center to, in camera-relative screen/render space.
-        draw_diamond_edges_and_normals(
-            debug_draw,
-            &self.diamond,
-            Color::blue(),
-            Color::yellow());
+        draw_diamond_edges_and_normals(debug_draw, &self.diamond, Color::blue(), Color::yellow());
     }
 }
 
@@ -1021,10 +983,7 @@ fn inward_normal(edge: Vec2) -> Vec2 {
     Vec2::new(-edge.y, edge.x).normalize()
 }
 
-fn draw_diamond_edges_and_normals(debug_draw: &mut DebugDraw,
-                                  diamond: &IsoDiamond,
-                                  edge_color: Color,
-                                  normal_color: Color) {
+fn draw_diamond_edges_and_normals(debug_draw: &mut DebugDraw, diamond: &IsoDiamond, edge_color: Color, normal_color: Color) {
     let points = diamond.screen_points();
 
     for i in 0..points.len() {
@@ -1046,10 +1005,7 @@ fn draw_diamond_edges_and_normals(debug_draw: &mut DebugDraw,
     }
 }
 
-fn calc_visible_cells_range(map_size_in_cells: Size,
-                            viewport_size: Size,
-                            transform: WorldToScreenTransform)
-                            -> CellRange {
+fn calc_visible_cells_range(map_size_in_cells: Size, viewport_size: Size, transform: WorldToScreenTransform) -> CellRange {
     if !map_size_in_cells.is_valid() {
         return CellRange::new(Cell::zero(), Cell::zero());
     }
@@ -1136,20 +1092,15 @@ fn calc_map_bounds(map_size_in_cells: Size, scaling: f32, viewport_size: Size) -
 
     let min_pt = Vec2::new(
         -(half_map_width_pixels + half_tile_width_pixels - (viewport_size.width as f32)),
-        (viewport_size.height as f32) - tile_height_pixels);
+        (viewport_size.height as f32) - tile_height_pixels,
+    );
 
-    let max_pt = Vec2::new(
-        half_map_width_pixels - half_tile_width_pixels,
-        map_height_pixels - tile_height_pixels);
+    let max_pt = Vec2::new(half_map_width_pixels - half_tile_width_pixels, map_height_pixels - tile_height_pixels);
 
     Rect::from_extents(min_pt, max_pt)
 }
 
-fn clamp_to_map_bounds(map_size_in_cells: Size,
-                       scaling: f32,
-                       viewport_size: Size,
-                       offset: Vec2)
-                       -> Vec2 {
+fn clamp_to_map_bounds(map_size_in_cells: Size, scaling: f32, viewport_size: Size, offset: Vec2) -> Vec2 {
     let bounds = calc_map_bounds(map_size_in_cells, scaling, viewport_size);
 
     let off_x = offset.x.clamp(bounds.min.x, bounds.max.x);

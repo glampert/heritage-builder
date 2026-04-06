@@ -1,7 +1,11 @@
-use strum::Display;
-use super::{water, sets::TileDef, Tile, TileKind, TileMapLayer, TileMapLayerRefs, TileMapLayerKind, TilePoolIndex};
 use common::coords::Cell;
-use crate::{debug, pathfind::{self, NodeKind as PathNodeKind}};
+use strum::Display;
+
+use super::{Tile, TileKind, TileMapLayer, TileMapLayerKind, TileMapLayerRefs, TilePoolIndex, sets::TileDef, water};
+use crate::{
+    debug,
+    pathfind::{self, NodeKind as PathNodeKind},
+};
 
 // ----------------------------------------------
 // Tile placement error handling
@@ -106,10 +110,11 @@ pub enum TilePlacementOp {
 pub mod internal {
     use super::*;
 
-    pub fn is_placement_on_terrain_valid(layers: TileMapLayerRefs,
-                                         target_cell: Cell,
-                                         tile_def_to_place: &'static TileDef)
-                                         -> Result<(), TilePlacementErr> {
+    pub fn is_placement_on_terrain_valid(
+        layers: TileMapLayerRefs,
+        target_cell: Cell,
+        tile_def_to_place: &'static TileDef,
+    ) -> Result<(), TilePlacementErr> {
         debug_assert!(tile_def_to_place.is_valid());
 
         if !target_cell.is_valid() {
@@ -124,8 +129,10 @@ pub mod internal {
                 for cell in &cell_range {
                     if let Some(tile) = layers.get(TileMapLayerKind::Terrain).try_tile(cell) {
                         if !tile.path_kind().is_water() {
-                            return err!(Placement::RequiresProximity(PathNodeKind::Water),
-                                        "Building must be placed near the water edge.");
+                            return err!(
+                                Placement::RequiresProximity(PathNodeKind::Water),
+                                "Building must be placed near the water edge."
+                            );
                         }
                     }
                 }
@@ -144,8 +151,10 @@ pub mod internal {
                 });
 
                 if !is_near_land {
-                    return err!(Placement::RequiresProximity(PathNodeKind::Water),
-                                "Building must be placed near the water edge.");
+                    return err!(
+                        Placement::RequiresProximity(PathNodeKind::Water),
+                        "Building must be placed near the water edge."
+                    );
                 }
             } else {
                 let has_proximity_requirements = !tile_def_to_place.required_proximity.is_empty();
@@ -155,41 +164,51 @@ pub mod internal {
                     if let Some(tile) = layers.get(TileMapLayerKind::Terrain).try_tile(cell) {
                         let path_kind = tile.path_kind();
 
-                        if tile_def_to_place.is(TileKind::Object) && tile_def_to_place.flying_object
+                        if tile_def_to_place.is(TileKind::Object)
+                            && tile_def_to_place.flying_object
                             && !path_kind.is_flying_object_placeable()
                         {
-                            return err!(Placement::Obstruction(tile.tile_def()),
-                                        "Cannot place flying object '{}' over terrain tile '{}'.",
-                                        tile_def_to_place.name, tile.name());
-                        } else if tile_def_to_place.is(TileKind::Unit) && !tile_def_to_place.flying_object
+                            return err!(
+                                Placement::Obstruction(tile.tile_def()),
+                                "Cannot place flying object '{}' over terrain tile '{}'.",
+                                tile_def_to_place.name,
+                                tile.name()
+                            );
+                        } else if tile_def_to_place.is(TileKind::Unit)
+                            && !tile_def_to_place.flying_object
                             && !path_kind.is_unit_placeable()
                         {
-                            return err!(Placement::Obstruction(tile.tile_def()),
-                                        "Cannot place unit '{}' over terrain tile '{}'.",
-                                        tile_def_to_place.name, tile.name());
+                            return err!(
+                                Placement::Obstruction(tile.tile_def()),
+                                "Cannot place unit '{}' over terrain tile '{}'.",
+                                tile_def_to_place.name,
+                                tile.name()
+                            );
                         } else if tile_def_to_place.is(TileKind::Rocks | TileKind::Vegetation)
-                                && !path_kind.is_object_placeable()
+                            && !path_kind.is_object_placeable()
                         {
-                            return err!(Placement::Obstruction(tile.tile_def()),
-                                        "Cannot place object prop '{}' over terrain tile '{}'.",
-                                        tile_def_to_place.name, tile.name());
-                        } else if tile_def_to_place.is(TileKind::Building)
-                                && !path_kind.is_object_placeable()
-                        {
-                            let can_place_building =
-                                path_kind.is_vacant_lot() && tile_def_to_place.is_house();
+                            return err!(
+                                Placement::Obstruction(tile.tile_def()),
+                                "Cannot place object prop '{}' over terrain tile '{}'.",
+                                tile_def_to_place.name,
+                                tile.name()
+                            );
+                        } else if tile_def_to_place.is(TileKind::Building) && !path_kind.is_object_placeable() {
+                            let can_place_building = path_kind.is_vacant_lot() && tile_def_to_place.is_house();
 
                             if !can_place_building {
-                                return err!(Placement::Obstruction(tile.tile_def()),
-                                            "Cannot place building '{}' over terrain tile '{}'.",
-                                            tile_def_to_place.name, tile.name());
+                                return err!(
+                                    Placement::Obstruction(tile.tile_def()),
+                                    "Cannot place building '{}' over terrain tile '{}'.",
+                                    tile_def_to_place.name,
+                                    tile.name()
+                                );
                             }
                         }
 
                         // Tile must be placed near water/rocks/etc.
                         if has_proximity_requirements && !found_proximity_requirements {
-                            let neighbors =
-                                layers.get(TileMapLayerKind::Terrain).tile_neighbors(cell, false);
+                            let neighbors = layers.get(TileMapLayerKind::Terrain).tile_neighbors(cell, false);
                             let is_near = neighbors
                                 .iter()
                                 .flatten()
@@ -199,8 +218,7 @@ pub mod internal {
 
                         // Check requirements again in the objects layer.
                         if has_proximity_requirements && !found_proximity_requirements {
-                            let neighbors =
-                                layers.get(TileMapLayerKind::Objects).tile_neighbors(cell, false);
+                            let neighbors = layers.get(TileMapLayerKind::Objects).tile_neighbors(cell, false);
                             let is_near = neighbors
                                 .iter()
                                 .flatten()
@@ -211,44 +229,53 @@ pub mod internal {
                 }
 
                 if has_proximity_requirements && !found_proximity_requirements {
-                    return err!(Placement::RequiresProximity(tile_def_to_place.required_proximity),
-                                "Building must be placed near {}.",
-                                tile_def_to_place.required_proximity);
+                    return err!(
+                        Placement::RequiresProximity(tile_def_to_place.required_proximity),
+                        "Building must be placed near {}.",
+                        tile_def_to_place.required_proximity
+                    );
                 }
             }
         } else if tile_def_to_place.path_kind.is_vacant_lot() {
             if let Some(tile) = layers.get(TileMapLayerKind::Terrain).try_tile(target_cell) {
-                if tile.path_kind().intersects(PathNodeKind::Road
-                                            | PathNodeKind::Water
-                                            | PathNodeKind::Building
-                                            | PathNodeKind::SettlersSpawnPoint)
-                {
-                    return err!(Placement::Obstruction(tile.tile_def()),
-                                "Cannot place vacant lot over terrain tile '{}'.",
-                                tile.name());
+                if tile.path_kind().intersects(
+                    PathNodeKind::Road | PathNodeKind::Water | PathNodeKind::Building | PathNodeKind::SettlersSpawnPoint,
+                ) {
+                    return err!(
+                        Placement::Obstruction(tile.tile_def()),
+                        "Cannot place vacant lot over terrain tile '{}'.",
+                        tile.name()
+                    );
                 }
             }
 
             // Objects layer mut be empty.
             if let Some(object) = layers.get(TileMapLayerKind::Objects).try_tile(target_cell) {
-                return err!(Placement::Obstruction(object.tile_def()),
-                            "Cannot place vacant lot here! Cell already occupied by an object.");
+                return err!(
+                    Placement::Obstruction(object.tile_def()),
+                    "Cannot place vacant lot here! Cell already occupied by an object."
+                );
             }
         } else if tile_def_to_place.path_kind.intersects(PathNodeKind::Road | PathNodeKind::SettlersSpawnPoint) {
             if let Some(tile) = layers.get(TileMapLayerKind::Terrain).try_tile(target_cell) {
                 if tile.path_kind().is_water() {
-                    return err!(Placement::Obstruction(tile.tile_def()),
-                                "Cannot place road over terrain tile '{}'.",
-                                tile.name());
+                    return err!(
+                        Placement::Obstruction(tile.tile_def()),
+                        "Cannot place road over terrain tile '{}'.",
+                        tile.name()
+                    );
                 }
             }
         } else if tile_def_to_place.path_kind.intersects(PathNodeKind::EmptyLand | PathNodeKind::Water) {
             // Land/water can only be placed over other land/water tiles.
             if let Some(tile) = layers.get(TileMapLayerKind::Terrain).try_tile(target_cell) {
                 if !tile.path_kind().intersects(PathNodeKind::EmptyLand | PathNodeKind::Water) {
-                    return err!(Placement::Obstruction(tile.tile_def()),
-                                "Cannot place '{}' tile over terrain tile '{}'.",
-                                tile_def_to_place.name, tile.name());
+                    return err!(
+                        Placement::Obstruction(tile.tile_def()),
+                        "Cannot place '{}' tile over terrain tile '{}'.",
+                        tile_def_to_place.name,
+                        tile.name()
+                    );
                 }
             }
 
@@ -256,25 +283,31 @@ pub mod internal {
             if tile_def_to_place.path_kind.is_water()
                 && let Some(object) = layers.get(TileMapLayerKind::Objects).try_tile(target_cell)
             {
-                return err!(Placement::Obstruction(object.tile_def()),
-                            "Cannot place water tile here! Cell already occupied by an object.");
+                return err!(
+                    Placement::Obstruction(object.tile_def()),
+                    "Cannot place water tile here! Cell already occupied by an object."
+                );
             }
         }
 
         Ok(())
     }
 
-    pub fn try_place_tile_in_layer<'tile_map>(layer: &'tile_map mut TileMapLayer,
-                                              target_cell: Cell,
-                                              tile_def_to_place: &'static TileDef)
-                                              -> Result<(&'tile_map mut Tile, usize), TilePlacementErr> {
+    pub fn try_place_tile_in_layer<'tile_map>(
+        layer: &'tile_map mut TileMapLayer,
+        target_cell: Cell,
+        tile_def_to_place: &'static TileDef,
+    ) -> Result<(&'tile_map mut Tile, usize), TilePlacementErr> {
         debug_assert!(tile_def_to_place.is_valid());
         debug_assert!(tile_def_to_place.layer_kind() == layer.kind());
 
         if !layer.is_cell_within_bounds(target_cell) {
-            return err!(Placement::CellOutOfBounds,
-                        "'{}' - {}: Target cell {target_cell} is out of bounds",
-                        tile_def_to_place.name, layer.kind());
+            return err!(
+                Placement::CellOutOfBounds,
+                "'{}' - {}: Target cell {target_cell} is out of bounds",
+                tile_def_to_place.name,
+                layer.kind()
+            );
         }
 
         let mut allow_stacking = false;
@@ -287,9 +320,11 @@ pub mod internal {
             if let Some(existing_tile) = layer.try_tile(target_cell) {
                 // Avoid any work if we already have the same terrain tile.
                 if existing_tile.tile_def().hash == tile_def_to_place.hash {
-                    return err!(Placement::Obstruction(existing_tile.tile_def()),
-                                "Cell {target_cell} already contains '{}'",
-                                tile_def_to_place.name);
+                    return err!(
+                        Placement::Obstruction(existing_tile.tile_def()),
+                        "Cell {target_cell} already contains '{}'",
+                        tile_def_to_place.name
+                    );
                 }
 
                 layer.remove_tile(target_cell);
@@ -306,23 +341,34 @@ pub mod internal {
         let cell_range = tile_def_to_place.cell_range(target_cell);
         for cell in &cell_range {
             if !layer.is_cell_within_bounds(cell) {
-                return err!(Placement::CellOutOfBounds,
-                            "'{}' - {}: Target cell {cell} for this tile falls outside of the map bounds",
-                            tile_def_to_place.name, layer.kind());
+                return err!(
+                    Placement::CellOutOfBounds,
+                    "'{}' - {}: Target cell {cell} for this tile falls outside of the map bounds",
+                    tile_def_to_place.name,
+                    layer.kind()
+                );
             }
 
             if allow_stacking {
                 if let Some(existing_tile) = layer.try_tile(cell) {
                     if !existing_tile.is(TileKind::Unit) {
-                        return err!(Placement::Obstruction(existing_tile.tile_def()),
-                                    "'{}' - {}: Target cell {cell} for this unit is already occupied by '{}'",
-                                    tile_def_to_place.name, layer.kind(), debug::tile_name_at(cell, layer.kind()));
+                        return err!(
+                            Placement::Obstruction(existing_tile.tile_def()),
+                            "'{}' - {}: Target cell {cell} for this unit is already occupied by '{}'",
+                            tile_def_to_place.name,
+                            layer.kind(),
+                            debug::tile_name_at(cell, layer.kind())
+                        );
                     }
                 }
             } else if let Some(existing_tile) = layer.try_tile(cell) {
-                return err!(Placement::Obstruction(existing_tile.tile_def()),
-                            "'{}' - {}: Target cell {cell} for this tile is already occupied by '{}'",
-                            tile_def_to_place.name, layer.kind(), debug::tile_name_at(cell, layer.kind()));
+                return err!(
+                    Placement::Obstruction(existing_tile.tile_def()),
+                    "'{}' - {}: Target cell {cell} for this tile is already occupied by '{}'",
+                    tile_def_to_place.name,
+                    layer.kind(),
+                    debug::tile_name_at(cell, layer.kind())
+                );
             }
         }
 
@@ -342,13 +388,12 @@ pub mod internal {
         Ok((new_tile, new_pool_capacity))
     }
 
-    pub fn try_clear_tile_from_layer(layer: &mut TileMapLayer,
-                                     target_cell: Cell)
-                                     -> Result<&'static TileDef, TileClearingErr> {
+    pub fn try_clear_tile_from_layer(
+        layer: &mut TileMapLayer,
+        target_cell: Cell,
+    ) -> Result<&'static TileDef, TileClearingErr> {
         if !layer.is_cell_within_bounds(target_cell) {
-            return err!(Clearing::CellOutOfBounds,
-                        "{}: Target cell {} is out of bounds",
-                        layer.kind(), target_cell);
+            return err!(Clearing::CellOutOfBounds, "{}: Target cell {} is out of bounds", layer.kind(), target_cell);
         }
 
         if let Some(tile) = layer.try_tile(target_cell) {
@@ -367,14 +412,13 @@ pub mod internal {
         }
     }
 
-    pub fn try_clear_tile_from_layer_by_index(layer: &mut TileMapLayer,
-                                              target_index: TilePoolIndex,
-                                              target_cell: Cell)
-                                              -> Result<&'static TileDef, TileClearingErr> {
+    pub fn try_clear_tile_from_layer_by_index(
+        layer: &mut TileMapLayer,
+        target_index: TilePoolIndex,
+        target_cell: Cell,
+    ) -> Result<&'static TileDef, TileClearingErr> {
         if !layer.is_cell_within_bounds(target_cell) {
-            return err!(Clearing::CellOutOfBounds,
-                        "{}: Target cell {} is out of bounds",
-                        layer.kind(), target_cell);
+            return err!(Clearing::CellOutOfBounds, "{}: Target cell {} is out of bounds", layer.kind(), target_cell);
         }
 
         if let Some(tile) = layer.try_tile(target_cell) {

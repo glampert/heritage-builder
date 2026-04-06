@@ -1,11 +1,28 @@
 use std::rc::Rc;
-use arrayvec::ArrayVec;
-use num_enum::TryFromPrimitive;
-use strum::{EnumCount, EnumProperty, EnumIter, IntoEnumIterator, Display};
 
-use engine::{ui::{self, widgets::*, sound::UiButtonSoundsEnabled}, file_sys::paths::PathRef};
-use common::{Vec2, mem::{RcMut, WeakMut, WeakRef}, time::Seconds};
-use crate::{ ui_context::GameUiContext, menu::{ ButtonDef, dialog::{self, DialogMenuKind}, TOOLTIP_FONT_SCALE, TOOLTIP_BACKGROUND_SPRITE, SMALL_VERTICAL_SEPARATOR_SPRITE, }, };
+use arrayvec::ArrayVec;
+use common::{
+    Vec2,
+    mem::{RcMut, WeakMut, WeakRef},
+    time::Seconds,
+};
+use engine::{
+    file_sys::paths::PathRef,
+    ui::{self, sound::UiButtonSoundsEnabled, widgets::*},
+};
+use num_enum::TryFromPrimitive;
+use strum::{Display, EnumCount, EnumIter, EnumProperty, IntoEnumIterator};
+
+use crate::{
+    menu::{
+        ButtonDef,
+        SMALL_VERTICAL_SEPARATOR_SPRITE,
+        TOOLTIP_BACKGROUND_SPRITE,
+        TOOLTIP_FONT_SCALE,
+        dialog::{self, DialogMenuKind},
+    },
+    ui_context::GameUiContext,
+};
 
 // ----------------------------------------------
 // InGameMenuBars
@@ -175,10 +192,7 @@ struct TopBarStats {
 
 impl TopBarStats {
     fn new(context: &GameUiContext) -> Self {
-        Self {
-            population: context.world.stats().population.total,
-            gold: context.world.stats().treasury.gold_units_total,
-        }
+        Self { population: context.world.stats().population.total, gold: context.world.stats().treasury.gold_units_total }
     }
 }
 
@@ -208,59 +222,47 @@ impl TopBar {
     fn new(context: &mut GameUiContext) -> Rc<Self> {
         let stats = TopBarStats::new(context);
 
-        let mut group = UiWidgetGroup::new(
-            context,
-            UiWidgetGroupParams {
-                widget_spacing: TOP_BAR_ICON_SPACING,
-                center_horizontally: false, // Let content float left.
-                stack_vertically: false, // Layout icons side-by-side.
-                ..Default::default()
-            }
-        );
+        let mut group = UiWidgetGroup::new(context, UiWidgetGroupParams {
+            widget_spacing: TOP_BAR_ICON_SPACING,
+            center_horizontally: false, // Let content float left.
+            stack_vertically: false,    // Layout icons side-by-side.
+            ..Default::default()
+        });
 
         let mut icon_label_indices = [None; TOP_BAR_ICON_COUNT];
 
         for (icon_index, icon) in TopBarIcon::iter().enumerate() {
             let icon_tooltip = {
                 if icon.with_tooltip() {
-                    Some(UiTooltipText::new(
-                        context,
-                        UiTooltipTextParams {
-                            text: icon.to_string(),
-                            font_scale: TOOLTIP_FONT_SCALE,
-                            background: Some(TOOLTIP_BACKGROUND_SPRITE),
-                        }
-                    ))
+                    Some(UiTooltipText::new(context, UiTooltipTextParams {
+                        text: icon.to_string(),
+                        font_scale: TOOLTIP_FONT_SCALE,
+                        background: Some(TOOLTIP_BACKGROUND_SPRITE),
+                    }))
                 } else {
                     None
                 }
             };
 
-            let icon_sprite = UiSpriteIcon::new(
-                context,
-                UiSpriteIconParams {
-                    sprite: Some(icon.asset_path()),
-                    size: icon.size(),
-                    margin_top: icon.margin_top(),
-                    tooltip: icon_tooltip,
-                    clip_to_parent_menu: icon.clip_to_menu(),
-                    unclipped_draw_size: Some(icon.size_unclipped()),
-                    ..Default::default()
-                }
-            );
+            let icon_sprite = UiSpriteIcon::new(context, UiSpriteIconParams {
+                sprite: Some(icon.asset_path()),
+                size: icon.size(),
+                margin_top: icon.margin_top(),
+                tooltip: icon_tooltip,
+                clip_to_parent_menu: icon.clip_to_menu(),
+                unclipped_draw_size: Some(icon.size_unclipped()),
+                ..Default::default()
+            });
 
             group.add_widget(icon_sprite);
 
             if let Some(label_text) = icon.label_for_stats(&stats) {
                 let size = TopBarIcon::max_label_size(context);
-                let icon_label = UiSizedTextLabel::new(
-                    context,
-                    UiSizedTextLabelParams {
-                        font_scale: TOOLTIP_FONT_SCALE,
-                        label: label_text,
-                        size,
-                    }
-                );
+                let icon_label = UiSizedTextLabel::new(context, UiSizedTextLabelParams {
+                    font_scale: TOOLTIP_FONT_SCALE,
+                    label: label_text,
+                    size,
+                });
 
                 let label_index = group.add_widget(icon_label);
                 icon_label_indices[icon_index] = Some(label_index);
@@ -270,28 +272,22 @@ impl TopBar {
             if !is_last {
                 const SEPARATOR_WIDTH: f32 = 20.0;
 
-                let spacing = UiSeparator::new(
-                    context,
-                    UiSeparatorParams {
-                        size: Some(Vec2::new(SEPARATOR_WIDTH, 0.0)),
-                        ..Default::default()
-                    }
-                );
+                let spacing = UiSeparator::new(context, UiSeparatorParams {
+                    size: Some(Vec2::new(SEPARATOR_WIDTH, 0.0)),
+                    ..Default::default()
+                });
 
                 group.add_widget(spacing);
             }
         }
 
-        let mut menu = UiMenu::new(
-            context,
-            UiMenuParams {
-                label: Some("TopBar".into()),
-                flags: UiMenuFlags::IsOpen | UiMenuFlags::AlignCenterTop,
-                widget_spacing: Some(TOP_BAR_ICON_SPACING),
-                background: Some(PathRef::from_str("misc/wide_page_bg.png")),
-                ..Default::default()
-            }
-        );
+        let mut menu = UiMenu::new(context, UiMenuParams {
+            label: Some("TopBar".into()),
+            flags: UiMenuFlags::IsOpen | UiMenuFlags::AlignCenterTop,
+            widget_spacing: Some(TOP_BAR_ICON_SPACING),
+            background: Some(PathRef::from_str("misc/wide_page_bg.png")),
+            ..Default::default()
+        });
 
         menu.add_widget(group);
 
@@ -301,9 +297,7 @@ impl TopBar {
     fn update_stats(&mut self, stats: TopBarStats) {
         self.current_stats = stats;
 
-        let (_, group) = self.menu
-            .find_widget_of_type_mut::<UiWidgetGroup>()
-            .unwrap();
+        let (_, group) = self.menu.find_widget_of_type_mut::<UiWidgetGroup>().unwrap();
 
         for (icon_index, label_index) in self.icon_label_indices.iter().enumerate() {
             if let Some(widget_index) = *label_index {
@@ -370,29 +364,24 @@ impl MenuBar for LeftBar {
 
 impl LeftBar {
     fn new(context: &mut GameUiContext) -> Rc<Self> {
-        let mut menu = UiMenu::new(
-            context,
-            UiMenuParams {
-                label: Some("LeftBar".into()),
-                flags: UiMenuFlags::IsOpen | UiMenuFlags::AlignLeft,
-                position: UiMenuPosition::Vec2(0.0, 60.0),
-                widget_spacing: Some(Vec2::new(LEFT_BAR_BUTTON_SPACING, LEFT_BAR_BUTTON_SPACING)),
-                background: Some(PathRef::from_str("misc/tall_page_bg.png")),
-                ..Default::default()
-            }
-        );
+        let mut menu = UiMenu::new(context, UiMenuParams {
+            label: Some("LeftBar".into()),
+            flags: UiMenuFlags::IsOpen | UiMenuFlags::AlignLeft,
+            position: UiMenuPosition::Vec2(0.0, 60.0),
+            widget_spacing: Some(Vec2::new(LEFT_BAR_BUTTON_SPACING, LEFT_BAR_BUTTON_SPACING)),
+            background: Some(PathRef::from_str("misc/tall_page_bg.png")),
+            ..Default::default()
+        });
 
         for button_kind in LeftBarButtonKind::iter() {
-            let on_button_state_changed = UiSpriteButtonStateChanged::with_closure(
-                move |button, context, _| {
-                    if button.is_pressed() {
-                        button_kind.on_pressed(ui::widgets::context_as_mut::<GameUiContext>(context));
+            let on_button_state_changed = UiSpriteButtonStateChanged::with_closure(move |button, context, _| {
+                if button.is_pressed() {
+                    button_kind.on_pressed(ui::widgets::context_as_mut::<GameUiContext>(context));
 
-                        // Pressed state doesn't persist.
-                        button.press(false);
-                    }
+                    // Pressed state doesn't persist.
+                    button.press(false);
                 }
-            );
+            });
 
             let button = button_kind.new_sprite_button(
                 context,
@@ -401,7 +390,7 @@ impl LeftBar {
                 LEFT_BAR_BUTTON_SIZE,
                 LEFT_BAR_BUTTON_STATE_TRANSITION_SECS,
                 UiSpriteButtonState::Idle,
-                on_button_state_changed
+                on_button_state_changed,
             );
 
             menu.add_widget(button);
@@ -483,27 +472,22 @@ impl MenuBar for SpeedControlsBar {
 
 impl SpeedControlsBar {
     fn new(context: &mut GameUiContext) -> Rc<Self> {
-        let mut group = UiWidgetGroup::new(
-            context,
-            UiWidgetGroupParams {
-                widget_spacing: SPEED_CONTROLS_BUTTON_SPACING,
-                center_horizontally: false, // Let content float left.
-                stack_vertically: false, // Layout buttons side-by-side.
-                ..Default::default()
-            }
-        );
+        let mut group = UiWidgetGroup::new(context, UiWidgetGroupParams {
+            widget_spacing: SPEED_CONTROLS_BUTTON_SPACING,
+            center_horizontally: false, // Let content float left.
+            stack_vertically: false,    // Layout buttons side-by-side.
+            ..Default::default()
+        });
 
         for button_kind in SpeedControlsButtonKind::iter() {
-            let on_button_state_changed = UiSpriteButtonStateChanged::with_closure(
-                move |button, context, _| {
-                    if button.is_pressed() {
-                        button_kind.on_pressed(ui::widgets::context_as_mut::<GameUiContext>(context));
+            let on_button_state_changed = UiSpriteButtonStateChanged::with_closure(move |button, context, _| {
+                if button.is_pressed() {
+                    button_kind.on_pressed(ui::widgets::context_as_mut::<GameUiContext>(context));
 
-                        // Pressed state doesn't persist.
-                        button.press(false);
-                    }
+                    // Pressed state doesn't persist.
+                    button.press(false);
                 }
-            );
+            });
 
             let button = button_kind.new_sprite_button(
                 context,
@@ -512,49 +496,40 @@ impl SpeedControlsBar {
                 SPEED_CONTROLS_BUTTON_SIZE,
                 SPEED_CONTROLS_BUTTON_STATE_TRANSITION_SECS,
                 UiSpriteButtonState::Idle,
-                on_button_state_changed
+                on_button_state_changed,
             );
 
             group.add_widget(button);
         }
 
         const SEPARATOR_THICKNESS: f32 = 8.0;
-        let separator = UiSeparator::new(
-            context,
-            UiSeparatorParams {
-                separator: Some(SMALL_VERTICAL_SEPARATOR_SPRITE),
-                thickness: Some(SEPARATOR_THICKNESS),
-                vertical: true,
-                ..Default::default()
-            }
-        );
+        let separator = UiSeparator::new(context, UiSeparatorParams {
+            separator: Some(SMALL_VERTICAL_SEPARATOR_SPRITE),
+            thickness: Some(SEPARATOR_THICKNESS),
+            vertical: true,
+            ..Default::default()
+        });
 
         group.add_widget(separator);
 
         let sim_state = SimState::new(context);
         let (label_text, label_size) = sim_state.label_and_size(context);
 
-        let sim_state_label = UiSizedTextLabel::new(
-            context,
-            UiSizedTextLabelParams {
-                font_scale: TOOLTIP_FONT_SCALE,
-                label: label_text,
-                size: label_size,
-            }
-        );
+        let sim_state_label = UiSizedTextLabel::new(context, UiSizedTextLabelParams {
+            font_scale: TOOLTIP_FONT_SCALE,
+            label: label_text,
+            size: label_size,
+        });
 
         group.add_widget(sim_state_label);
 
-        let mut menu = UiMenu::new(
-            context,
-            UiMenuParams {
-                label: Some("SpeedControlsBar".into()),
-                flags: UiMenuFlags::IsOpen | UiMenuFlags::AlignLeft,
-                widget_spacing: Some(SPEED_CONTROLS_BUTTON_SPACING),
-                background: Some(PathRef::from_str("misc/wide_page_bg.png")),
-                ..Default::default()
-            }
-        );
+        let mut menu = UiMenu::new(context, UiMenuParams {
+            label: Some("SpeedControlsBar".into()),
+            flags: UiMenuFlags::IsOpen | UiMenuFlags::AlignLeft,
+            widget_spacing: Some(SPEED_CONTROLS_BUTTON_SPACING),
+            background: Some(PathRef::from_str("misc/wide_page_bg.png")),
+            ..Default::default()
+        });
 
         menu.add_widget(group);
 
@@ -564,13 +539,9 @@ impl SpeedControlsBar {
     fn update_sim_state(&mut self, context: &GameUiContext, sim_state: SimState) {
         self.current_sim_state = sim_state;
 
-        let (_, group) = self.menu
-            .find_widget_of_type_mut::<UiWidgetGroup>()
-            .unwrap();
+        let (_, group) = self.menu.find_widget_of_type_mut::<UiWidgetGroup>().unwrap();
 
-        let (_, label) = group
-            .find_widget_of_type_mut::<UiSizedTextLabel>()
-            .unwrap();
+        let (_, label) = group.find_widget_of_type_mut::<UiSizedTextLabel>().unwrap();
 
         let (label_text, label_size) = sim_state.label_and_size(context);
 

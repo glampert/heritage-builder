@@ -1,21 +1,54 @@
 use std::cmp::Reverse;
-use smallvec::SmallVec;
-use arrayvec::ArrayVec;
-use proc_macros::DrawDebugUi;
-use serde::{Deserialize, Serialize};
 
-use super::{
-    config::{BuildingConfig, BuildingConfigs, building_config},
-    Building, BuildingBehavior, BuildingContext, BuildingKind,
+use arrayvec::ArrayVec;
+use common::{
+    Color,
+    callback::{self, Callback},
+    hash::{self, StringHash},
+    time::{Seconds, UpdateTimer},
 };
 use engine::{log, ui::UiSystem};
-use crate::save_context::PostLoadContext;
-use common::{ callback::{self, Callback}, hash::{self, StringHash}, time::{Seconds, UpdateTimer}, Color, };
+use proc_macros::DrawDebugUi;
+use serde::{Deserialize, Serialize};
+use smallvec::SmallVec;
+
+use super::{
+    Building,
+    BuildingBehavior,
+    BuildingContext,
+    BuildingKind,
+    config::{BuildingConfig, BuildingConfigs, building_config},
+};
 use crate::{
+    cheats,
+    debug::{
+        game_object_debug::{GameObjectDebugOptions, GameObjectDebugOptionsExt, game_object_debug_options},
+        utils::UpdateTimerDebugUi,
+    },
+    save_context::PostLoadContext,
+    sim::{
+        RandomGenerator,
+        SimContext,
+        resources::{RESOURCE_KIND_COUNT, ResourceKind, ResourceKinds, ShoppingList, StockItem, Workers},
+    },
     tile::Tile,
-    debug::utils::UpdateTimerDebugUi,
-    { cheats, sim::{ resources::{ ResourceKind, ResourceKinds, ShoppingList, Workers, StockItem, RESOURCE_KIND_COUNT }, SimContext, RandomGenerator, }, unit::{ runner::Runner, harvester::Harvester, patrol::{Patrol, AmbientPatrolConfig, TimedAmbientPatrol}, Unit, UnitTaskHelper, config::UnitConfigKey, task::{ UnitTaskDeliverToStorage, UnitTaskDeliveryCompletionCallback, UnitTaskFetchCompletionCallback, UnitTaskFetchFromStorage, UnitTaskHarvestWood, }, }, world::{object::GameObject, stats::WorldStats}, undo_redo::{GameObjectSavedState, game_object_undo_redo_state}, },
-    debug::game_object_debug::{GameObjectDebugOptions, GameObjectDebugOptionsExt, game_object_debug_options},
+    undo_redo::{GameObjectSavedState, game_object_undo_redo_state},
+    unit::{
+        Unit,
+        UnitTaskHelper,
+        config::UnitConfigKey,
+        harvester::Harvester,
+        patrol::{AmbientPatrolConfig, Patrol, TimedAmbientPatrol},
+        runner::Runner,
+        task::{
+            UnitTaskDeliverToStorage,
+            UnitTaskDeliveryCompletionCallback,
+            UnitTaskFetchCompletionCallback,
+            UnitTaskFetchFromStorage,
+            UnitTaskHarvestWood,
+        },
+    },
+    world::{object::GameObject, stats::WorldStats},
 };
 
 // ----------------------------------------------
@@ -69,26 +102,29 @@ pub struct ProducerConfig {
 impl Default for ProducerConfig {
     #[inline]
     fn default() -> Self {
-        Self { kind: BuildingKind::Farm,
-               name: "Rice Farm".into(),
-               tile_def_name: "rice_farm".into(),
-               tile_def_name_hash: hash::fnv1a_from_str("rice_farm"),
-               min_workers: 2,
-               max_workers: 4,
-               production_output_frequency_secs: 20.0,
-               production_output_amount: 1,
-               production_output: ResourceKind::Rice,
-               production_capacity: 5,
-               resources_required: ResourceKinds::none(),
-               resources_capacity: 0,
-               harvested_resource: ResourceKind::empty(),
-               deliver_to_storage_kinds: BuildingKind::Granary,
-               fetch_from_storage_kinds: BuildingKind::empty(),
-               ambient_patrol: AmbientPatrolConfig {
-                   unit: Some(UnitConfigKey::Buffalo),
-                   spawn_frequency_secs: [80.0, 120.0],
-                   spawn_chance: 10,
-                   max_distance: 40 }}
+        Self {
+            kind: BuildingKind::Farm,
+            name: "Rice Farm".into(),
+            tile_def_name: "rice_farm".into(),
+            tile_def_name_hash: hash::fnv1a_from_str("rice_farm"),
+            min_workers: 2,
+            max_workers: 4,
+            production_output_frequency_secs: 20.0,
+            production_output_amount: 1,
+            production_output: ResourceKind::Rice,
+            production_capacity: 5,
+            resources_required: ResourceKinds::none(),
+            resources_capacity: 0,
+            harvested_resource: ResourceKind::empty(),
+            deliver_to_storage_kinds: BuildingKind::Granary,
+            fetch_from_storage_kinds: BuildingKind::empty(),
+            ambient_patrol: AmbientPatrolConfig {
+                unit: Some(UnitConfigKey::Buffalo),
+                spawn_frequency_secs: [80.0, 120.0],
+                spawn_chance: 10,
+                max_distance: 40,
+            },
+        }
     }
 }
 
@@ -140,7 +176,7 @@ pub struct ProducerBuilding {
     workers: Workers,
 
     production_update_timer: UpdateTimer,
-    production_input_stock: ProducerInputsLocalStock,  // Local stock of required raw materials.
+    production_input_stock: ProducerInputsLocalStock, // Local stock of required raw materials.
     production_output_stock: ProducerOutputLocalStock, // Local production output storage.
 
     // Runner Unit we may send out to deliver our production or fetch raw materials.
@@ -178,9 +214,7 @@ impl BuildingBehavior for ProducerBuilding {
         let delta_time_secs = context.sim_ctx.delta_time_secs();
 
         // Update producer states:
-        if self.production_update_timer.tick(delta_time_secs).should_update()
-           && self.has_min_required_workers()
-        {
+        if self.production_update_timer.tick(delta_time_secs).should_update() && self.has_min_required_workers() {
             let is_harvester_building = self.is_harvester_building();
 
             if !self.debug.freeze_harvesting() && is_harvester_building {
@@ -205,9 +239,7 @@ impl BuildingBehavior for ProducerBuilding {
             }
         }
 
-        if self.ambient_patrol.spawn_timer.tick(delta_time_secs).should_update()
-            && self.has_min_required_workers()
-        {
+        if self.ambient_patrol.spawn_timer.tick(delta_time_secs).should_update() && self.has_min_required_workers() {
             self.spawn_ambient_patrol(context, false);
         }
     }
@@ -243,8 +275,7 @@ impl BuildingBehavior for ProducerBuilding {
 
         let tile_def = tile.tile_def();
 
-        let config =
-            BuildingConfigs::get().find_producer_config(kind, tile_def.hash, &tile_def.name);
+        let config = BuildingConfigs::get().find_producer_config(kind, tile_def.hash, &tile_def.name);
 
         self.production_update_timer.post_load(config.production_output_frequency_secs);
         self.ambient_patrol.post_load(context, config.ambient_patrol.spawn_frequency_secs);
@@ -287,9 +318,7 @@ impl BuildingBehavior for ProducerBuilding {
         if self.production_output_stock.is_full() {
             return true;
         }
-        if self.production_input_stock.requires_any_resource()
-           && !self.production_input_stock.has_required_resources()
-        {
+        if self.production_input_stock.requires_any_resource() && !self.production_input_stock.has_required_resources() {
             return true;
         }
         false
@@ -380,7 +409,7 @@ impl BuildingBehavior for ProducerBuilding {
 
     fn undo_redo_record(&self) -> Option<Box<dyn GameObjectSavedState>> {
         UndoRedoProducerSavedState::new_state(UndoRedoProducerSavedState {
-            production_input_stock:  self.production_input_stock.clone(),
+            production_input_stock: self.production_input_stock.clone(),
             production_output_stock: self.production_output_stock.clone(),
         })
     }
@@ -389,7 +418,7 @@ impl BuildingBehavior for ProducerBuilding {
         let saved_state = UndoRedoProducerSavedState::downcast(state);
 
         // NOTE: Only stocks are preserved on undo/redo. Runners/harvesters and workers are reset.
-        self.production_input_stock  = saved_state.production_input_stock.clone();
+        self.production_input_stock = saved_state.production_input_stock.clone();
         self.production_output_stock = saved_state.production_output_stock.clone();
     }
 
@@ -418,24 +447,19 @@ impl ProducerBuilding {
             config: Some(config),
             workers: Workers::employer(config.min_workers, config.max_workers),
             production_update_timer: UpdateTimer::new(config.production_output_frequency_secs),
-            production_input_stock: ProducerInputsLocalStock::new(&config.resources_required,
-                                                                  config.resources_capacity),
-            production_output_stock: ProducerOutputLocalStock::new(config.production_output,
-                                                                   config.production_capacity),
+            production_input_stock: ProducerInputsLocalStock::new(&config.resources_required, config.resources_capacity),
+            production_output_stock: ProducerOutputLocalStock::new(config.production_output, config.production_capacity),
             runner: Runner::default(),
             harvester: Harvester::default(),
             ambient_patrol: TimedAmbientPatrol::new(rng, config.ambient_patrol.spawn_frequency_secs),
-            debug: ProducerDebug::default()
+            debug: ProducerDebug::default(),
         }
     }
 
     pub fn register_callbacks() {
-        let _: Callback<UnitTaskDeliveryCompletionCallback> =
-            callback::register!(ProducerBuilding::on_resources_delivered);
-        let _: Callback<UnitTaskFetchCompletionCallback> =
-            callback::register!(ProducerBuilding::on_resources_fetched);
-        let _: Callback<UnitTaskFetchCompletionCallback> =
-            callback::register!(ProducerBuilding::on_resources_harvested);
+        let _: Callback<UnitTaskDeliveryCompletionCallback> = callback::register!(ProducerBuilding::on_resources_delivered);
+        let _: Callback<UnitTaskFetchCompletionCallback> = callback::register!(ProducerBuilding::on_resources_fetched);
+        let _: Callback<UnitTaskFetchCompletionCallback> = callback::register!(ProducerBuilding::on_resources_harvested);
     }
 
     fn harvesting_update(&mut self, context: &BuildingContext) -> bool {
@@ -459,10 +483,7 @@ impl ProducerBuilding {
         };
 
         // Send out a harvester:
-        self.harvester
-            .try_harvest_wood(context,
-                              unit_origin,
-                              callback::create!(ProducerBuilding::on_resources_harvested))
+        self.harvester.try_harvest_wood(context, unit_origin, callback::create!(ProducerBuilding::on_resources_harvested))
     }
 
     fn production_update(&mut self) {
@@ -498,7 +519,7 @@ impl ProducerBuilding {
 
         if self.is_waiting_on_runner() {
             return; // A runner is already out fetching/delivering resources.
-                    // Try again later.
+            // Try again later.
         }
 
         // Unit spawns at the nearest road link.
@@ -512,14 +533,14 @@ impl ProducerBuilding {
         let resource_kind_to_deliver = self.production_output_stock.resource_kind();
         let resource_count = self.production_output_stock.resource_count();
 
-        if self.runner
-               .try_deliver_to_storage(context,
-                                       unit_origin,
-                                       storage_buildings_accepted,
-                                       resource_kind_to_deliver,
-                                       resource_count,
-                                       callback::create!(ProducerBuilding::on_resources_delivered))
-        {
+        if self.runner.try_deliver_to_storage(
+            context,
+            unit_origin,
+            storage_buildings_accepted,
+            resource_kind_to_deliver,
+            resource_count,
+            callback::create!(ProducerBuilding::on_resources_delivered),
+        ) {
             // We've handed over our resources to the spawned unit, clear the stock.
             let removed_count = self.remove_resources(resource_kind_to_deliver, resource_count);
             debug_assert!(removed_count == resource_count);
@@ -537,7 +558,7 @@ impl ProducerBuilding {
 
         if self.is_waiting_on_runner() {
             return; // A runner is already out fetching/delivering resources.
-                    // Try again later.
+            // Try again later.
         }
 
         // Unit spawns at the nearest road link.
@@ -553,21 +574,20 @@ impl ProducerBuilding {
             return;
         }
 
-        self.runner
-            .try_fetch_from_storage(context,
-                                    unit_origin,
-                                    storage_buildings_accepted,
-                                    resources_to_fetch,
-                                    callback::create!(ProducerBuilding::on_resources_fetched));
+        self.runner.try_fetch_from_storage(
+            context,
+            unit_origin,
+            storage_buildings_accepted,
+            resources_to_fetch,
+            callback::create!(ProducerBuilding::on_resources_fetched),
+        );
     }
 
     fn on_resources_delivered(this_building: &mut Building, runner_unit: &mut Unit, context: &SimContext) {
         let this_producer = this_building.as_producer_mut();
 
-        debug_assert!(runner_unit.inventory_is_empty(),
-                      "Runner Unit should have delivered all resourced by now!");
-        debug_assert!(this_producer.is_runner_delivering_resources(context),
-                      "No Runner was sent out by this building!");
+        debug_assert!(runner_unit.inventory_is_empty(), "Runner Unit should have delivered all resourced by now!");
+        debug_assert!(this_producer.is_runner_delivering_resources(context), "No Runner was sent out by this building!");
         debug_assert!(this_producer.runner.unit_id() == runner_unit.id());
 
         this_producer.runner.reset();
@@ -578,10 +598,8 @@ impl ProducerBuilding {
         let this_building_kind = this_building.kind();
         let this_producer = this_building.as_producer_mut();
 
-        debug_assert!(!runner_unit.inventory_is_empty(),
-                      "Runner Unit inventory shouldn't be empty!");
-        debug_assert!(this_producer.is_runner_fetching_resources(context),
-                      "No Runner was sent out by this building!");
+        debug_assert!(!runner_unit.inventory_is_empty(), "Runner Unit inventory shouldn't be empty!");
+        debug_assert!(this_producer.is_runner_fetching_resources(context), "No Runner was sent out by this building!");
         debug_assert!(this_producer.runner.unit_id() == runner_unit.id());
 
         // Try unload cargo:
@@ -597,9 +615,12 @@ impl ProducerBuilding {
 
             if !runner_unit.inventory_is_empty() {
                 // TODO: We have to ship back to storage if we couldn't receive everything!
-                log::error!(log::channel!("TODO"),
-                            "{} - '{}': Couldn't receive all resources from runner. Implement fallback task for this!",
-                            this_building_kind, this_producer.name());
+                log::error!(
+                    log::channel!("TODO"),
+                    "{} - '{}': Couldn't receive all resources from runner. Implement fallback task for this!",
+                    this_building_kind,
+                    this_producer.name()
+                );
 
                 // For now we just drop the remaining resources.
                 runner_unit.clear_inventory();
@@ -623,7 +644,11 @@ impl ProducerBuilding {
             this_producer.production_output_stock.store_resources(item.count);
             harvester_unit.clear_inventory();
         } else {
-            log::error!(log::channel!("producer"), "Harvester Unit '{}' inventory shouldn't be empty!", harvester_unit.name());
+            log::error!(
+                log::channel!("producer"),
+                "Harvester Unit '{}' inventory shouldn't be empty!",
+                harvester_unit.name()
+            );
         }
 
         this_producer.harvester.reset();
@@ -667,8 +692,7 @@ impl ProducerBuilding {
     fn spawn_ambient_patrol(&mut self, context: &BuildingContext, force_spawn: bool) {
         let tile_def = context.find_tile().tile_def();
 
-        let config =
-            BuildingConfigs::get().find_producer_config(context.kind, tile_def.hash, &tile_def.name);
+        let config = BuildingConfigs::get().find_producer_config(context.kind, tile_def.hash, &tile_def.name);
 
         if let Some(unit_config) = config.ambient_patrol.unit {
             let spawn_chance = config.ambient_patrol.spawn_chance;
@@ -681,7 +705,8 @@ impl ProducerBuilding {
                 spawn_chance,
                 max_patrol_distance,
                 idle_countdown_secs,
-                force_spawn);
+                force_spawn,
+            );
         }
     }
 }
@@ -733,11 +758,7 @@ impl ProducerOutputLocalStock {
     #[inline]
     fn available_resources(&self, kind: ResourceKind) -> u32 {
         debug_assert!(kind.is_single_resource());
-        if self.item.kind == kind {
-            self.item.count
-        } else {
-            0
-        }
+        if self.item.kind == kind { self.item.count } else { 0 }
     }
 
     #[inline]
@@ -773,9 +794,9 @@ impl ProducerInputsLocalStock {
     fn new(resources_required: &ResourceKinds, capacity: u32) -> Self {
         let mut slots = SmallVec::new();
         resources_required.for_each(|kind| {
-                              slots.push(StockItem { kind, count: 0 });
-                              true
-                          });
+            slots.push(StockItem { kind, count: 0 });
+            true
+        });
         Self { slots, capacity }
     }
 
@@ -961,7 +982,7 @@ impl ProducerBuilding {
             if self.production_output_stock.is_full() {
                 ui.text_colored(Color::red().to_array(), "Local Stock Full!");
             } else if self.production_input_stock.requires_any_resource()
-                        && !self.production_input_stock.has_required_resources()
+                && !self.production_input_stock.has_required_resources()
             {
                 ui.text_colored(Color::red().to_array(), "Missing Resources!");
             } else {

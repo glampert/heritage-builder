@@ -1,19 +1,32 @@
-use smallvec::SmallVec;
 use arrayvec::ArrayString;
-use serde::{Deserialize, Serialize};
-use strum::{EnumProperty, Display, IntoEnumIterator};
-
-use super::{
-    atlas::{self, *},
-    TileFlags, TileKind, TileMapLayerKind, TILE_MAP_LAYER_COUNT,
+use common::{
+    Color,
+    RectTexCoords,
+    Size,
+    Vec2,
+    constants::*,
+    coords::{Cell, CellRange},
+    format_fixed_string,
+    hash::{self, PreHashedKeyMap, StrHashPair, StringHash},
+    mem::{Mutable, RawPtr},
 };
 use engine::{
+    file_sys::paths::{self, AssetPath, PathRef},
     log,
-    save::{self, SaveState},
     render::texture::{TextureCache, TextureHandle},
-    file_sys::paths::{self, PathRef, AssetPath},
+    save::{self, SaveState},
 };
-use common::{constants::*, coords::{Cell, CellRange}, hash::{self, PreHashedKeyMap, StrHashPair, StringHash}, mem::{RawPtr, Mutable}, Color, RectTexCoords, Size, Vec2, format_fixed_string};
+use serde::{Deserialize, Serialize};
+use smallvec::SmallVec;
+use strum::{Display, EnumProperty, IntoEnumIterator};
+
+use super::{
+    TILE_MAP_LAYER_COUNT,
+    TileFlags,
+    TileKind,
+    TileMapLayerKind,
+    atlas::{self, *},
+};
 use crate::pathfind::NodeKind as PathNodeKind;
 
 // ----------------------------------------------
@@ -50,14 +63,8 @@ impl PresetTiles {
 
     #[inline]
     pub fn find_tile_def(self) -> Option<&'static TileDef> {
-        let category_name_hash = if self == Self::Water {
-            TERRAIN_WATER_CATEGORY.hash
-        } else {
-            TERRAIN_LAND_CATEGORY.hash
-        };
-        TileSets::get().find_tile_def_by_hash(TileMapLayerKind::Terrain,
-                                              category_name_hash,
-                                              self.hash())
+        let category_name_hash = if self == Self::Water { TERRAIN_WATER_CATEGORY.hash } else { TERRAIN_LAND_CATEGORY.hash };
+        TileSets::get().find_tile_def_by_hash(TileMapLayerKind::Terrain, category_name_hash, self.hash())
     }
 }
 
@@ -223,15 +230,15 @@ impl TileAnimSet {
         self.duration / (frame_count as f32)
     }
 
-    fn post_load(&mut self,
-                 tex_cache: &mut TextureCache,
-                 tex_atlas: &mut impl TextureAtlas,
-                 tile_set_path_with_category: PathRef,
-                 variation_name: &str,
-                 tile_def_name: &str,
-                 tile_def_kind: TileKind)
-                 -> bool {
-
+    fn post_load(
+        &mut self,
+        tex_cache: &mut TextureCache,
+        tex_atlas: &mut impl TextureAtlas,
+        tile_set_path_with_category: PathRef,
+        variation_name: &str,
+        tile_def_name: &str,
+        tile_def_kind: TileKind,
+    ) -> bool {
         self.hash = hash::fnv1a_from_str(&self.name);
 
         match &self.frames_source {
@@ -242,19 +249,23 @@ impl TileAnimSet {
 
                 for (frame_index, frame) in self.frames.iter_mut().enumerate() {
                     if frame.name.is_empty() {
-                        log::error!(log::channel!("tileset"),
-                                    "Missing sprite frame name for index [{frame_index}]. AnimSet: '{}', TileDef: '{tile_def_kind}' - '{tile_def_name}'",
-                                    self.name);
+                        log::error!(
+                            log::channel!("tileset"),
+                            "Missing sprite frame name for index [{frame_index}]. AnimSet: '{}', TileDef: '{tile_def_kind}' - '{tile_def_name}'",
+                            self.name
+                        );
                         return false;
                     }
 
-                    Self::load_frame_texture(frame,
-                                             tex_cache,
-                                             tex_atlas,
-                                             tile_set_path_with_category,
-                                             variation_name,
-                                             &self.name,
-                                             tile_def_name);
+                    Self::load_frame_texture(
+                        frame,
+                        tex_cache,
+                        tex_atlas,
+                        tile_set_path_with_category,
+                        variation_name,
+                        &self.name,
+                        tile_def_name,
+                    );
 
                     if self.mirror {
                         frame.tex_info.coords.mirror();
@@ -262,9 +273,11 @@ impl TileAnimSet {
                 }
 
                 if self.frames.is_empty() {
-                    log::warning!(log::channel!("tileset"),
-                                  "Unexpected empty `frames` list on AnimSet: '{}', TileDef: '{tile_def_kind}' - '{tile_def_name}'",
-                                  self.name);
+                    log::warning!(
+                        log::channel!("tileset"),
+                        "Unexpected empty `frames` list on AnimSet: '{}', TileDef: '{tile_def_kind}' - '{tile_def_name}'",
+                        self.name
+                    );
                 }
             }
             AnimSetFramesSource::Files(frame_count) => {
@@ -272,28 +285,30 @@ impl TileAnimSet {
                 // the naming convention: "frame[N].png". Expect to load up
                 // to `frame_count` images.
                 //
-                // "frames_source": { "Files": 2 } // look for frame0.png, frame1.png 
-    
+                // "frames_source": { "Files": 2 } // look for frame0.png, frame1.png
+
                 if !self.frames.is_empty() {
-                    log::error!(log::channel!("tileset"),
-                                "Cannot specify both `frames` and `frames_source`. AnimSet: '{}', TileDef: '{tile_def_kind}' - '{tile_def_name}'",
-                                self.name);
+                    log::error!(
+                        log::channel!("tileset"),
+                        "Cannot specify both `frames` and `frames_source`. AnimSet: '{}', TileDef: '{tile_def_kind}' - '{tile_def_name}'",
+                        self.name
+                    );
                     return false;
                 }
 
                 for frame_index in 0..*frame_count {
-                    let mut frame = TileSprite {
-                        name: format_fixed_string!(16, "frame{frame_index}"),
-                        ..Default::default()
-                    };
+                    let mut frame =
+                        TileSprite { name: format_fixed_string!(16, "frame{frame_index}"), ..Default::default() };
 
-                    Self::load_frame_texture(&mut frame,
-                                             tex_cache,
-                                             tex_atlas,
-                                             tile_set_path_with_category,
-                                             variation_name,
-                                             &self.name,
-                                             tile_def_name);
+                    Self::load_frame_texture(
+                        &mut frame,
+                        tex_cache,
+                        tex_atlas,
+                        tile_set_path_with_category,
+                        variation_name,
+                        &self.name,
+                        tile_def_name,
+                    );
 
                     if self.mirror {
                         frame.tex_info.coords.mirror();
@@ -305,9 +320,11 @@ impl TileAnimSet {
             AnimSetFramesSource::CopyAllFrom(_) => {
                 // Resolved later by resolve_frame_references().
                 if !self.frames.is_empty() {
-                    log::error!(log::channel!("tileset"),
-                                "Cannot specify both `frames` and `frames_source`. AnimSet: '{}', TileDef: '{tile_def_kind}' - '{tile_def_name}'",
-                                self.name);
+                    log::error!(
+                        log::channel!("tileset"),
+                        "Cannot specify both `frames` and `frames_source`. AnimSet: '{}', TileDef: '{tile_def_kind}' - '{tile_def_name}'",
+                        self.name
+                    );
                     return false;
                 }
             }
@@ -320,14 +337,15 @@ impl TileAnimSet {
         true
     }
 
-    fn resolve_frame_references(&mut self,
-                                tex_cache: &mut TextureCache,
-                                tex_atlas: &mut impl TextureAtlas,
-                                tile_set_path_with_category: PathRef,
-                                tile_def_name: &str,
-                                tile_def_kind: TileKind,
-                                variation: &TileVariation) -> bool {
-
+    fn resolve_frame_references(
+        &mut self,
+        tex_cache: &mut TextureCache,
+        tex_atlas: &mut impl TextureAtlas,
+        tile_set_path_with_category: PathRef,
+        tile_def_name: &str,
+        tile_def_kind: TileKind,
+        variation: &TileVariation,
+    ) -> bool {
         fn find_anim_set<'a>(variation: &'a TileVariation, anim_set_name: &str) -> Option<&'a TileAnimSet> {
             (&variation.anim_sets).into_iter().find(|&anim_set| anim_set.name == anim_set_name)
         }
@@ -339,16 +357,20 @@ impl TileAnimSet {
                 // "frames_source": { "CopyAllFrom": "idle_se" }
 
                 if self.name == *anim_set_name {
-                    log::error!(log::channel!("tileset"),
-                                "AnimSet `frames_source` cannot reference self! '{anim_set_name}'");
+                    log::error!(
+                        log::channel!("tileset"),
+                        "AnimSet `frames_source` cannot reference self! '{anim_set_name}'"
+                    );
                     return false;
                 }
 
                 let src_anim_set = find_anim_set(variation, anim_set_name);
                 if src_anim_set.is_none() {
-                    log::error!(log::channel!("tileset"),
-                                "Couldn't find AnimSet '{anim_set_name}' to copy frames from for '{}'.",
-                                self.name);
+                    log::error!(
+                        log::channel!("tileset"),
+                        "Couldn't find AnimSet '{anim_set_name}' to copy frames from for '{}'.",
+                        self.name
+                    );
                     return false;
                 }
 
@@ -367,59 +389,70 @@ impl TileAnimSet {
                 // "frames": [ {"name": "frame0"}, {"name": "@1"} ]
 
                 if self.name == *anim_set_name {
-                    log::error!(log::channel!("tileset"),
-                                "AnimSet `frames_source` cannot reference self! '{anim_set_name}'");
+                    log::error!(
+                        log::channel!("tileset"),
+                        "AnimSet `frames_source` cannot reference self! '{anim_set_name}'"
+                    );
                     return false;
                 }
 
                 let src_anim_set = find_anim_set(variation, anim_set_name);
                 if src_anim_set.is_none() {
-                    log::error!(log::channel!("tileset"),
-                                "Couldn't find AnimSet '{anim_set_name}' to copy frames from for '{}'.",
-                                self.name);
+                    log::error!(
+                        log::channel!("tileset"),
+                        "Couldn't find AnimSet '{anim_set_name}' to copy frames from for '{}'.",
+                        self.name
+                    );
                     return false;
                 }
 
                 for (frame_index, frame) in self.frames.iter_mut().enumerate() {
                     if frame.name.is_empty() {
-                        log::error!(log::channel!("tileset"),
-                                    "Missing sprite frame name for index [{frame_index}]. AnimSet: '{}', TileDef: '{tile_def_kind}' - '{tile_def_name}'",
-                                    self.name);
+                        log::error!(
+                            log::channel!("tileset"),
+                            "Missing sprite frame name for index [{frame_index}]. AnimSet: '{}', TileDef: '{tile_def_kind}' - '{tile_def_name}'",
+                            self.name
+                        );
                         return false;
                     }
 
                     if frame.name.starts_with('@') {
                         // Is a reference to a frame of `src_anim_set`. Index follows the @ sign.
-                        let src_frame_index: Option<usize> = frame.name
-                            .strip_prefix('@')
-                            .map(|num_str| num_str.parse().unwrap_or_default());
+                        let src_frame_index: Option<usize> =
+                            frame.name.strip_prefix('@').map(|num_str| num_str.parse().unwrap_or_default());
 
                         if src_frame_index.is_none() {
-                            log::error!(log::channel!("tileset"),
-                                        "Invalid frame index after '@' sign when copying frame [{frame_index}] for '{}'.",
-                                        self.name);
+                            log::error!(
+                                log::channel!("tileset"),
+                                "Invalid frame index after '@' sign when copying frame [{frame_index}] for '{}'.",
+                                self.name
+                            );
                             return false;
                         }
 
                         let src_idx = src_frame_index.unwrap();
                         let src_frames = &src_anim_set.unwrap().frames;
                         if src_idx >= src_frames.len() {
-                            log::error!(log::channel!("tileset"),
-                                        "Out-of-bounds frame index after '@' sign when copying frame [{frame_index}] for '{}'.",
-                                        self.name);
+                            log::error!(
+                                log::channel!("tileset"),
+                                "Out-of-bounds frame index after '@' sign when copying frame [{frame_index}] for '{}'.",
+                                self.name
+                            );
                             return false;
                         }
 
                         *frame = src_frames[src_idx].clone();
                     } else {
                         // Load a new unique image file.
-                        Self::load_frame_texture(frame,
-                                                 tex_cache,
-                                                 tex_atlas,
-                                                 tile_set_path_with_category,
-                                                 &variation.name,
-                                                 &self.name,
-                                                 tile_def_name);
+                        Self::load_frame_texture(
+                            frame,
+                            tex_cache,
+                            tex_atlas,
+                            tile_set_path_with_category,
+                            &variation.name,
+                            &self.name,
+                            tile_def_name,
+                        );
                     }
 
                     if self.mirror {
@@ -428,9 +461,11 @@ impl TileAnimSet {
                 }
 
                 if self.frames.is_empty() {
-                    log::warning!(log::channel!("tileset"),
-                                  "Unexpected empty `frames` list on AnimSet: '{}', TileDef: '{tile_def_kind}' - '{tile_def_name}'",
-                                  self.name);
+                    log::warning!(
+                        log::channel!("tileset"),
+                        "Unexpected empty `frames` list on AnimSet: '{}', TileDef: '{tile_def_kind}' - '{tile_def_name}'",
+                        self.name
+                    );
                 }
             }
             _ => {}
@@ -439,14 +474,15 @@ impl TileAnimSet {
         true
     }
 
-    fn load_frame_texture(frame: &mut TileSprite,
-                          tex_cache: &mut TextureCache,
-                          tex_atlas: &mut impl TextureAtlas,
-                          tile_set_path_with_category: PathRef,
-                          variation_name: &str,
-                          anim_set_name: &str,
-                          tile_def_name: &str)
-    {
+    fn load_frame_texture(
+        frame: &mut TileSprite,
+        tex_cache: &mut TextureCache,
+        tex_atlas: &mut impl TextureAtlas,
+        tile_set_path_with_category: PathRef,
+        variation_name: &str,
+        anim_set_name: &str,
+        tile_def_name: &str,
+    ) {
         debug_assert!(!frame.name.is_empty());
         frame.hash = hash::fnv1a_from_str(&frame.name);
 
@@ -623,8 +659,7 @@ impl TileDef {
     #[inline]
     pub fn size_in_cells(&self) -> Size {
         // `logical_size` is assumed to be a multiple of the base tile size.
-        Size::new(self.logical_size.width / BASE_TILE_WIDTH_I32,
-                  self.logical_size.height / BASE_TILE_HEIGHT_I32)
+        Size::new(self.logical_size.width / BASE_TILE_WIDTH_I32, self.logical_size.height / BASE_TILE_HEIGHT_I32)
     }
 
     #[inline]
@@ -648,11 +683,7 @@ impl TileDef {
     }
 
     #[inline]
-    pub fn texture_by_index(&self,
-                            variation_index: usize,
-                            anim_set_index: usize,
-                            frame_index: usize)
-                            -> TileTexInfo {
+    pub fn texture_by_index(&self, variation_index: usize, anim_set_index: usize, frame_index: usize) -> TileTexInfo {
         if let Some(frame) = self.anim_frame_by_index(variation_index, anim_set_index, frame_index) {
             return frame.tex_info;
         }
@@ -660,11 +691,12 @@ impl TileDef {
     }
 
     #[inline]
-    pub fn anim_frame_by_index(&self,
-                               variation_index: usize,
-                               anim_set_index: usize,
-                               frame_index: usize)
-                               -> Option<&TileSprite> {
+    pub fn anim_frame_by_index(
+        &self,
+        variation_index: usize,
+        anim_set_index: usize,
+        frame_index: usize,
+    ) -> Option<&TileSprite> {
         if let Some(anim_set) = self.anim_set_by_index(variation_index, anim_set_index) {
             if frame_index < anim_set.frames.len() {
                 return Some(&anim_set.frames[frame_index]);
@@ -674,10 +706,7 @@ impl TileDef {
     }
 
     #[inline]
-    pub fn anim_set_by_index(&self,
-                             variation_index: usize,
-                             anim_set_index: usize)
-                             -> Option<&TileAnimSet> {
+    pub fn anim_set_by_index(&self, variation_index: usize, anim_set_index: usize) -> Option<&TileAnimSet> {
         if variation_index >= self.variations.len() {
             return None;
         }
@@ -735,13 +764,14 @@ impl TileDef {
         self.variations.len() > 1
     }
 
-    fn post_load(&mut self,
-                 tex_cache: &mut TextureCache,
-                 tex_atlas: &mut impl TextureAtlas,
-                 tile_set_path_with_category: PathRef,
-                 layer: TileMapLayerKind,
-                 category_hash: StringHash)
-                 -> bool {
+    fn post_load(
+        &mut self,
+        tex_cache: &mut TextureCache,
+        tex_atlas: &mut impl TextureAtlas,
+        tile_set_path_with_category: PathRef,
+        layer: TileMapLayerKind,
+        category_hash: StringHash,
+    ) -> bool {
         debug_assert!(self.hash != hash::NULL_HASH);
         debug_assert!(category_hash != hash::NULL_HASH);
 
@@ -757,37 +787,35 @@ impl TileDef {
         self.kind = archetype | specialized_type;
 
         if self.name.is_empty() {
-            log::error!(log::channel!("tileset"),
-                        "TileDef '{}' name is missing! A name is required.",
-                        self.kind);
+            log::error!(log::channel!("tileset"), "TileDef '{}' name is missing! A name is required.", self.kind);
             return false;
         }
 
         if !self.logical_size.is_valid() {
-            log::error!(log::channel!("tileset"),
-                        "Invalid/missing TileDef logical size: '{}' - '{}'",
-                        self.kind,
-                        self.name);
+            log::error!(log::channel!("tileset"), "Invalid/missing TileDef logical size: '{}' - '{}'", self.kind, self.name);
             return false;
         }
 
-        if (self.logical_size.width  % BASE_TILE_WIDTH_I32)  != 0 ||
-           (self.logical_size.height % BASE_TILE_HEIGHT_I32) != 0 {
-            log::error!(log::channel!("tileset"),
-                        "Invalid TileDef logical size ({})! Must be a multiple of BASE_TILE_SIZE: '{}' - '{}'",
-                        self.logical_size,
-                        self.kind,
-                        self.name);
+        if (self.logical_size.width % BASE_TILE_WIDTH_I32) != 0 || (self.logical_size.height % BASE_TILE_HEIGHT_I32) != 0 {
+            log::error!(
+                log::channel!("tileset"),
+                "Invalid TileDef logical size ({})! Must be a multiple of BASE_TILE_SIZE: '{}' - '{}'",
+                self.logical_size,
+                self.kind,
+                self.name
+            );
             return false;
         }
 
         if self.is(TileKind::Terrain) {
             // For terrain logical_size must be BASE_TILE_SIZE.
             if self.logical_size != BASE_TILE_SIZE_I32 {
-                log::error!(log::channel!("tileset"),
-                            "Terrain TileDef logical size must be equal to BASE_TILE_SIZE: '{}' - '{}'",
-                            self.kind,
-                            self.name);
+                log::error!(
+                    log::channel!("tileset"),
+                    "Terrain TileDef logical size must be equal to BASE_TILE_SIZE: '{}' - '{}'",
+                    self.kind,
+                    self.name
+                );
                 return false;
             }
             self.occludes_terrain = false;
@@ -799,10 +827,12 @@ impl TileDef {
         }
 
         if self.variations.is_empty() {
-            log::error!(log::channel!("tileset"),
-                        "At least one variation is required! TileDef: '{}' - '{}'",
-                        self.kind,
-                        self.name);
+            log::error!(
+                log::channel!("tileset"),
+                "At least one variation is required! TileDef: '{}' - '{}'",
+                self.kind,
+                self.name
+            );
             return false;
         }
 
@@ -811,13 +841,14 @@ impl TileDef {
             variation.hash = hash::fnv1a_from_str(&variation.name);
 
             for anim_set in &mut variation.anim_sets {
-                if !anim_set.post_load(tex_cache,
-                                       tex_atlas,
-                                       tile_set_path_with_category,
-                                       &variation.name,
-                                       &self.name,
-                                       self.kind)
-                {
+                if !anim_set.post_load(
+                    tex_cache,
+                    tex_atlas,
+                    tile_set_path_with_category,
+                    &variation.name,
+                    &self.name,
+                    self.kind,
+                ) {
                     return false;
                 }
             }
@@ -831,13 +862,14 @@ impl TileDef {
             let mut variation = RawPtr::from_ref(&self.variations[v]);
 
             for anim_set in &mut variation.as_mut().anim_sets {
-                if !anim_set.resolve_frame_references(tex_cache,
-                                                      tex_atlas,
-                                                      tile_set_path_with_category,
-                                                      &self.name,
-                                                      self.kind,
-                                                      &self.variations[v])
-                {
+                if !anim_set.resolve_frame_references(
+                    tex_cache,
+                    tex_atlas,
+                    tile_set_path_with_category,
+                    &self.name,
+                    self.kind,
+                    &self.variations[v],
+                ) {
                     return false;
                 }
             }
@@ -918,10 +950,12 @@ impl TileCategory {
         let entry_index = match self.mapping.get(&tile_name_hash) {
             Some(entry_index) => *entry_index,
             None => {
-                log::error!(log::channel!("tileset"),
-                            "TileCategory '{}': Couldn't find TileDef for '{}'.",
-                            self.name,
-                            tile_name);
+                log::error!(
+                    log::channel!("tileset"),
+                    "TileCategory '{}': Couldn't find TileDef for '{}'.",
+                    self.name,
+                    tile_name
+                );
                 return None;
             }
         };
@@ -932,10 +966,12 @@ impl TileCategory {
         let entry_index = match self.mapping.get(&tile_name_hash) {
             Some(entry_index) => *entry_index,
             None => {
-                log::error!(log::channel!("tileset"),
-                            "TileCategory '{}': Couldn't find TileDef for '{:#X}'.",
-                            self.name,
-                            tile_name_hash);
+                log::error!(
+                    log::channel!("tileset"),
+                    "TileCategory '{}': Couldn't find TileDef for '{:#X}'.",
+                    self.name,
+                    tile_name_hash
+                );
                 return None;
             }
         };
@@ -943,7 +979,8 @@ impl TileCategory {
     }
 
     pub fn for_each_tile_def<F>(&'static self, mut visitor_fn: F)
-        where F: FnMut(&'static TileDef) -> bool
+    where
+        F: FnMut(&'static TileDef) -> bool,
     {
         for editable_def in &self.tile_defs {
             let should_continue = visitor_fn(editable_def);
@@ -953,32 +990,32 @@ impl TileCategory {
         }
     }
 
-    fn post_load(&mut self,
-                 tex_cache: &mut TextureCache,
-                 tex_atlas: &mut impl TextureAtlas,
-                 tile_set_path: PathRef,
-                 layer: TileMapLayerKind)
-                 -> bool {
+    fn post_load(
+        &mut self,
+        tex_cache: &mut TextureCache,
+        tex_atlas: &mut impl TextureAtlas,
+        tile_set_path: PathRef,
+        layer: TileMapLayerKind,
+    ) -> bool {
         debug_assert!(self.mapping.is_empty());
         debug_assert!(self.hash != hash::NULL_HASH);
 
         if self.name.is_empty() {
-            log::error!(log::channel!("tileset"),
-                        "TileCategory name is missing! A name is required.");
+            log::error!(log::channel!("tileset"), "TileCategory name is missing! A name is required.");
             return false;
         }
 
-        let tile_set_path_with_category =
-            AssetPath::from_ref(tile_set_path)
-            .join(&self.name);
+        let tile_set_path_with_category = AssetPath::from_ref(tile_set_path).join(&self.name);
 
         for (index, editable_def) in self.tile_defs.iter_mut().enumerate() {
             let tile_def = editable_def.as_mut();
 
             if tile_def.name.is_empty() {
-                log::error!(log::channel!("tileset"),
-                            "TileCategory '{}': Invalid empty TileDef name! Index: [{index}]",
-                            self.name);
+                log::error!(
+                    log::channel!("tileset"),
+                    "TileCategory '{}': Invalid empty TileDef name! Index: [{index}]",
+                    self.name
+                );
                 continue;
             }
 
@@ -993,18 +1030,22 @@ impl TileCategory {
             }
 
             if tile_def.kind.is_empty() {
-                log::error!(log::channel!("tileset"),
-                            "TileCategory '{}': Invalid empty TileDef kind! Index: [{index}]",
-                            self.name);
+                log::error!(
+                    log::channel!("tileset"),
+                    "TileCategory '{}': Invalid empty TileDef kind! Index: [{index}]",
+                    self.name
+                );
                 continue;
             }
 
             if self.mapping.insert(tile_name_hash, index).is_some() {
-                log::error!(log::channel!("tileset"),
-                            "TileCategory '{}': An entry for key '{}' ({:#X}) already exists at index: {index}!",
-                            self.name,
-                            tile_def.name,
-                            tile_name_hash);
+                log::error!(
+                    log::channel!("tileset"),
+                    "TileCategory '{}': An entry for key '{}' ({:#X}) already exists at index: {index}!",
+                    self.name,
+                    tile_def.name,
+                    tile_name_hash
+                );
             }
         }
 
@@ -1044,10 +1085,12 @@ impl TileSet {
         let entry_index = match self.mapping.get(&category_name_hash) {
             Some(entry_index) => *entry_index,
             None => {
-                log::error!(log::channel!("tileset"),
-                            "TileSet '{}': Couldn't find TileCategory for '{}'.",
-                            self.layer,
-                            category_name);
+                log::error!(
+                    log::channel!("tileset"),
+                    "TileSet '{}': Couldn't find TileCategory for '{}'.",
+                    self.layer,
+                    category_name
+                );
                 return None;
             }
         };
@@ -1058,28 +1101,33 @@ impl TileSet {
         let entry_index = match self.mapping.get(&category_name_hash) {
             Some(entry_index) => *entry_index,
             None => {
-                log::error!(log::channel!("tileset"),
-                            "TileSet '{}': Couldn't find TileCategory for '{:#X}'.",
-                            self.layer,
-                            category_name_hash);
+                log::error!(
+                    log::channel!("tileset"),
+                    "TileSet '{}': Couldn't find TileCategory for '{:#X}'.",
+                    self.layer,
+                    category_name_hash
+                );
                 return None;
             }
         };
         Some(&self.categories[entry_index])
     }
 
-    fn post_load(&mut self,
-                 tex_cache: &mut TextureCache,
-                 tex_atlas: &mut impl TextureAtlas,
-                 tile_set_path: PathRef)
-                 -> bool {
+    fn post_load(
+        &mut self,
+        tex_cache: &mut TextureCache,
+        tex_atlas: &mut impl TextureAtlas,
+        tile_set_path: PathRef,
+    ) -> bool {
         debug_assert!(self.mapping.is_empty());
 
         for (index, category) in self.categories.iter_mut().enumerate() {
             if category.name.is_empty() {
-                log::error!(log::channel!("tileset"),
-                            "TileSet '{}': Invalid empty category name! Index: [{index}]",
-                            self.layer);
+                log::error!(
+                    log::channel!("tileset"),
+                    "TileSet '{}': Invalid empty category name! Index: [{index}]",
+                    self.layer
+                );
                 continue;
             }
 
@@ -1093,11 +1141,13 @@ impl TileSet {
             }
 
             if self.mapping.insert(category_name_hash, index).is_some() {
-                log::error!(log::channel!("tileset"),
-                            "TileSet '{}': An entry for key '{}' ({:#X}) already exists at index: {index}!",
-                            self.layer,
-                            category.name,
-                            category_name_hash);
+                log::error!(
+                    log::channel!("tileset"),
+                    "TileSet '{}': An entry for key '{}' ({:#X}) already exists at index: {index}!",
+                    self.layer,
+                    category.name,
+                    category_name_hash
+                );
             }
         }
 
@@ -1122,16 +1172,20 @@ pub struct TileDefHandle(u16, u16, u16);
 impl TileDefHandle {
     #[inline]
     pub fn new(tile_set: &TileSet, tile_category: &TileCategory, tile_def: &TileDef) -> Self {
-        Self(tile_set.layer as u16,
-             tile_category.tileset_category_index.try_into().expect("Index cannot fit in a u16"),
-             tile_def.category_tiledef_index.try_into().expect("Index cannot fit in a u16"))
+        Self(
+            tile_set.layer as u16,
+            tile_category.tileset_category_index.try_into().expect("Index cannot fit in a u16"),
+            tile_def.category_tiledef_index.try_into().expect("Index cannot fit in a u16"),
+        )
     }
 
     #[inline]
     pub fn from_tile_def(tile_def: &TileDef) -> Self {
-        Self(tile_def.layer_kind() as u16,
-             tile_def.tileset_category_index.try_into().expect("Index cannot fit in a u16"),
-             tile_def.category_tiledef_index.try_into().expect("Index cannot fit in a u16"))
+        Self(
+            tile_def.layer_kind() as u16,
+            tile_def.tileset_category_index.try_into().expect("Index cannot fit in a u16"),
+            tile_def.category_tiledef_index.try_into().expect("Index cannot fit in a u16"),
+        )
     }
 }
 
@@ -1178,9 +1232,11 @@ pub struct TileSets {
 }
 
 impl TileSets {
-    pub fn load(tex_cache: &mut TextureCache,
-                use_packed_texture_atlas: bool,
-                skip_loading_tile_sets: bool) -> &'static Self {
+    pub fn load(
+        tex_cache: &mut TextureCache,
+        use_packed_texture_atlas: bool,
+        skip_loading_tile_sets: bool,
+    ) -> &'static Self {
         let mut instance = Self {
             sets: [
                 TileSet::new(TileMapLayerKind::Terrain), // 0
@@ -1236,16 +1292,12 @@ impl TileSets {
         let category_hash = handle.1; // TileCategory name hash.
         let tile_def_hash = handle.2; // TileDef name hash.
 
-        let layer =
-            TileMapLayerKind::try_from(set_idx)
-            .expect("Invalid TileSet index / layer kind!");
+        let layer = TileMapLayerKind::try_from(set_idx).expect("Invalid TileSet index / layer kind!");
 
         self.find_tile_def_by_hash(layer, category_hash, tile_def_hash)
     }
 
-    pub fn find_category_for_tile_def(&'static self,
-                                      tile_def: &'static TileDef)
-                                      -> Option<&'static TileCategory> {
+    pub fn find_category_for_tile_def(&'static self, tile_def: &'static TileDef) -> Option<&'static TileCategory> {
         let layer_idx = tile_def.layer_kind() as usize;
         let set_idx = tile_def.tileset_category_index as usize;
         let cat_idx = tile_def.category_tiledef_index as usize;
@@ -1265,9 +1317,7 @@ impl TileSets {
         Some(cat)
     }
 
-    pub fn find_set_for_tile_def(&'static self,
-                                 tile_def: &'static TileDef)
-                                 -> Option<&'static TileSet> {
+    pub fn find_set_for_tile_def(&'static self, tile_def: &'static TileDef) -> Option<&'static TileSet> {
         let layer = tile_def.layer_kind();
         let set = &self.sets[layer as usize];
         debug_assert!(set.layer == layer);
@@ -1287,42 +1337,47 @@ impl TileSets {
         Some(&self.sets[index])
     }
 
-    pub fn find_category_by_name(&'static self,
-                                 layer: TileMapLayerKind,
-                                 category_name: &str)
-                                 -> Option<&'static TileCategory> {
+    pub fn find_category_by_name(
+        &'static self,
+        layer: TileMapLayerKind,
+        category_name: &str,
+    ) -> Option<&'static TileCategory> {
         let set = self.find_set_by_layer(layer)?;
         set.find_category_by_name(category_name)
     }
 
-    pub fn find_category_by_hash(&'static self,
-                                 layer: TileMapLayerKind,
-                                 category_name_hash: StringHash)
-                                 -> Option<&'static TileCategory> {
+    pub fn find_category_by_hash(
+        &'static self,
+        layer: TileMapLayerKind,
+        category_name_hash: StringHash,
+    ) -> Option<&'static TileCategory> {
         let set = self.find_set_by_layer(layer)?;
         set.find_category_by_hash(category_name_hash)
     }
 
-    pub fn find_tile_def_by_name(&'static self,
-                                 layer: TileMapLayerKind,
-                                 category_name: &str,
-                                 tile_name: &str)
-                                 -> Option<&'static TileDef> {
+    pub fn find_tile_def_by_name(
+        &'static self,
+        layer: TileMapLayerKind,
+        category_name: &str,
+        tile_name: &str,
+    ) -> Option<&'static TileDef> {
         let cat = self.find_category_by_name(layer, category_name)?;
         cat.find_tile_def_by_name(tile_name)
     }
 
-    pub fn find_tile_def_by_hash(&'static self,
-                                 layer: TileMapLayerKind,
-                                 category_name_hash: StringHash,
-                                 tile_name_hash: StringHash)
-                                 -> Option<&'static TileDef> {
+    pub fn find_tile_def_by_hash(
+        &'static self,
+        layer: TileMapLayerKind,
+        category_name_hash: StringHash,
+        tile_name_hash: StringHash,
+    ) -> Option<&'static TileDef> {
         let cat = self.find_category_by_hash(layer, category_name_hash)?;
         cat.find_tile_def_by_hash(tile_name_hash)
     }
 
     pub fn for_each_set<F>(&'static self, mut visitor_fn: F)
-        where F: FnMut(&'static TileSet) -> bool
+    where
+        F: FnMut(&'static TileSet) -> bool,
     {
         for set in &self.sets {
             let should_continue = visitor_fn(set);
@@ -1333,7 +1388,8 @@ impl TileSets {
     }
 
     pub fn for_each_category<F>(&'static self, mut visitor_fn: F)
-        where F: FnMut(&'static TileSet, &'static TileCategory) -> bool
+    where
+        F: FnMut(&'static TileSet, &'static TileCategory) -> bool,
     {
         for set in &self.sets {
             for cat in &set.categories {
@@ -1346,7 +1402,8 @@ impl TileSets {
     }
 
     pub fn for_each_tile_def<F>(&'static self, mut visitor_fn: F)
-        where F: FnMut(&'static TileSet, &'static TileCategory, &'static TileDef) -> bool
+    where
+        F: FnMut(&'static TileSet, &'static TileCategory, &'static TileDef) -> bool,
     {
         for set in &self.sets {
             for cat in &set.categories {
@@ -1363,9 +1420,7 @@ impl TileSets {
     // Get back a mutable reference for the given TileDef.
     // This function is only intended for development/debug
     // and use within the ImGui TileInspector widget.
-    pub fn try_get_editable_tile_def(&'static self,
-                                     tile_def: &'static TileDef)
-                                     -> Option<&'static mut TileDef> {
+    pub fn try_get_editable_tile_def(&'static self, tile_def: &'static TileDef) -> Option<&'static mut TileDef> {
         if let Some(cat) = self.find_category_for_tile_def(tile_def) {
             let editable_def = &cat.tile_defs[tile_def.category_tiledef_index as usize];
             // SAFETY: We're assuming that mutable access is sound here
@@ -1414,43 +1469,43 @@ impl TileSets {
         }
     }
 
-    fn load_tile_set(&mut self,
-                     tex_cache: &mut TextureCache,
-                     tile_set_path: PathRef,
-                     layer: TileMapLayerKind,
-                     use_packed_texture_atlas: bool)
-                     -> bool {
+    fn load_tile_set(
+        &mut self,
+        tex_cache: &mut TextureCache,
+        tile_set_path: PathRef,
+        layer: TileMapLayerKind,
+        use_packed_texture_atlas: bool,
+    ) -> bool {
         debug_assert!(!tile_set_path.is_empty());
 
         log::info!(log::channel!("tileset"), "---- Loading TileSet Layer: {layer} ----");
 
-        let tile_set_json_path =
-            paths::assets_path()
-            .join(tile_set_path)
-            .join("tile_set")
-            .with_extension("json");
+        let tile_set_json_path = paths::assets_path().join(tile_set_path).join("tile_set").with_extension("json");
 
         let mut state = save::new_json_save_state(false);
 
         if let Err(err) = state.read_file(&tile_set_json_path) {
-            log::error!(log::channel!("tileset"),
-                        "Failed to read TileSet json file from path {tile_set_json_path}: {err}");
+            log::error!(log::channel!("tileset"), "Failed to read TileSet json file from path {tile_set_json_path}: {err}");
             return false;
         }
 
         let mut tile_set: TileSet = match state.load_new_instance() {
             Ok(tile_set) => tile_set,
             Err(err) => {
-                log::error!(log::channel!("tileset"),
-                            "Failed to deserialize TileSet layer '{layer}' from path {tile_set_json_path}: {err}");
+                log::error!(
+                    log::channel!("tileset"),
+                    "Failed to deserialize TileSet layer '{layer}' from path {tile_set_json_path}: {err}"
+                );
                 return false;
             }
         };
 
         if tile_set.layer != layer {
-            log::error!(log::channel!("tileset"),
-                        "TileSet layer kind mismatch! File specifies '{}' but expected '{layer}' for this set.",
-                        tile_set.layer);
+            log::error!(
+                log::channel!("tileset"),
+                "TileSet layer kind mismatch! File specifies '{}' but expected '{layer}' for this set.",
+                tile_set.layer
+            );
             return false;
         }
 

@@ -1,5 +1,6 @@
-use super::*;
 use engine::Engine;
+
+use super::*;
 use crate::config::GameConfigs;
 
 // ----------------------------------------------
@@ -42,44 +43,45 @@ impl SoundSettings {
         let mut category = SettingsCategory::new();
 
         category
-        .add_setting(SettingImpl::new(
-            "SFX Volume",
-            SettingsWidgetKind::SliderU32(VOLUME_MIN, VOLUME_MAX),
-            || read_master_volume_u32!(sfx_master_volume),
-            |volume| write_mater_volume_u32!(sfx_master_volume, volume),
-        ))
-        .add_setting(SettingImpl::new(
-            "Music Volume",
-            SettingsWidgetKind::SliderU32(VOLUME_MIN, VOLUME_MAX),
-            || read_master_volume_u32!(music_master_volume),
-            |volume| write_mater_volume_u32!(music_master_volume, volume),
-        ))
-        .add_setting(SettingImpl::new(
-            "Ambience Volume",
-            SettingsWidgetKind::SliderU32(VOLUME_MIN, VOLUME_MAX),
-            || read_master_volume_u32!(ambience_master_volume),
-            |volume| write_mater_volume_u32!(ambience_master_volume, volume),
-        ))
-        .add_setting(SettingImpl::new(
-            "Narration Volume",
-            SettingsWidgetKind::SliderU32(VOLUME_MIN, VOLUME_MAX),
-            || read_master_volume_u32!(narration_master_volume),
-            |volume| write_mater_volume_u32!(narration_master_volume, volume),
-        ))
-        .add_setting(SettingImpl::new(
-            "Spatial Volume",
-            SettingsWidgetKind::SliderU32(VOLUME_MIN, VOLUME_MAX),
-            || read_master_volume_u32!(spatial_master_volume),
-            |volume| write_mater_volume_u32!(spatial_master_volume, volume),
-        ));
+            .add_setting(SettingImpl::new(
+                "SFX Volume",
+                SettingsWidgetKind::SliderU32(VOLUME_MIN, VOLUME_MAX),
+                || read_master_volume_u32!(sfx_master_volume),
+                |volume| write_mater_volume_u32!(sfx_master_volume, volume),
+            ))
+            .add_setting(SettingImpl::new(
+                "Music Volume",
+                SettingsWidgetKind::SliderU32(VOLUME_MIN, VOLUME_MAX),
+                || read_master_volume_u32!(music_master_volume),
+                |volume| write_mater_volume_u32!(music_master_volume, volume),
+            ))
+            .add_setting(SettingImpl::new(
+                "Ambience Volume",
+                SettingsWidgetKind::SliderU32(VOLUME_MIN, VOLUME_MAX),
+                || read_master_volume_u32!(ambience_master_volume),
+                |volume| write_mater_volume_u32!(ambience_master_volume, volume),
+            ))
+            .add_setting(SettingImpl::new(
+                "Narration Volume",
+                SettingsWidgetKind::SliderU32(VOLUME_MIN, VOLUME_MAX),
+                || read_master_volume_u32!(narration_master_volume),
+                |volume| write_mater_volume_u32!(narration_master_volume, volume),
+            ))
+            .add_setting(SettingImpl::new(
+                "Spatial Volume",
+                SettingsWidgetKind::SliderU32(VOLUME_MIN, VOLUME_MAX),
+                || read_master_volume_u32!(spatial_master_volume),
+                |volume| write_mater_volume_u32!(spatial_master_volume, volume),
+            ));
 
         let menu = category.build_menu(
             category.downgrade(),
-            context, Self::KIND,
+            context,
+            Self::KIND,
             Self::TITLE,
             // Margins:
             50.0,
-            30.0
+            30.0,
         );
 
         Self { menu, category }

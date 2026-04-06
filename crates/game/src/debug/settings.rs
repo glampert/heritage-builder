@@ -1,22 +1,27 @@
-use proc_macros::DrawDebugUi;
-
+use common::{Color, Size};
 use engine::{
-    log,
-    save,
-    file_sys::paths::PathRef,
     Engine,
     config::Configs,
-    ui::{self, UiSystem, UiStaticVar},
+    file_sys::paths::PathRef,
+    log,
+    save,
+    ui::{self, UiStaticVar, UiSystem},
 };
-use common::{Color, Size};
+use proc_macros::DrawDebugUi;
+
 use crate::{
+    GameLoop,
+    building::config::BuildingConfigs,
+    cheats,
+    config::GameConfigs,
     debug,
-    ui_context::GameUiContext,
-    { cheats, GameLoop, config::GameConfigs, unit::config::UnitConfigs, prop::config::PropConfigs, building::config::BuildingConfigs, },
+    prop::config::PropConfigs,
     tile::{
-    sets::PresetTiles,
-    rendering::{TileMapRenderFlags, MAX_GRID_LINE_THICKNESS, MIN_GRID_LINE_THICKNESS},
+        rendering::{MAX_GRID_LINE_THICKNESS, MIN_GRID_LINE_THICKNESS, TileMapRenderFlags},
+        sets::PresetTiles,
     },
+    ui_context::GameUiContext,
+    unit::config::UnitConfigs,
 };
 
 // ----------------------------------------------
@@ -94,12 +99,14 @@ pub struct DebugSettingsDevMenu {
 
 impl DebugSettingsDevMenu {
     pub fn new() -> Self {
-        Self { draw_terrain: true,
-               draw_buildings: true,
-               draw_props: true,
-               draw_units: true,
-               draw_vegetation: true,
-               ..Default::default() }
+        Self {
+            draw_terrain: true,
+            draw_buildings: true,
+            draw_props: true,
+            draw_units: true,
+            draw_vegetation: true,
+            ..Default::default()
+        }
     }
 
     pub fn show_selection_bounds(&self) -> bool {
@@ -180,10 +187,12 @@ impl DebugSettingsDevMenu {
         flags
     }
 
-    pub fn draw(&mut self,
-                context: &mut GameUiContext,
-                log_viewer: &debug::log_viewer::LogViewer,
-                enable_dev_tile_inspector: &mut bool) {
+    pub fn draw(
+        &mut self,
+        context: &mut GameUiContext,
+        log_viewer: &debug::log_viewer::LogViewer,
+        enable_dev_tile_inspector: &mut bool,
+    ) {
         let ui = context.ui_sys.ui();
 
         if let Some(_menu_bar) = ui.begin_main_menu_bar() {
@@ -213,9 +222,7 @@ impl DebugSettingsDevMenu {
         self.draw_child_windows(context);
     }
 
-    fn menu_bar_text(&self,
-                     context: &mut GameUiContext,
-                     log_viewer: &debug::log_viewer::LogViewer) {
+    fn menu_bar_text(&self, context: &mut GameUiContext, log_viewer: &debug::log_viewer::LogViewer) {
         let ui = context.ui_sys.ui();
 
         // Log error/warning count:
@@ -287,18 +294,16 @@ impl DebugSettingsDevMenu {
 
         let preset_tile_map_names = debug::utils::preset_tile_maps_list();
 
-        if ui.combo_simple_string("Preset Map",
-                                  &mut self.preset_tile_map_number,
-                                  &preset_tile_map_names)
-        {
-            self.preset_tile_map_number =
-                self.preset_tile_map_number.min(preset_tile_map_names.len());
+        if ui.combo_simple_string("Preset Map", &mut self.preset_tile_map_number, &preset_tile_map_names) {
+            self.preset_tile_map_number = self.preset_tile_map_number.min(preset_tile_map_names.len());
         }
 
         if ui.button("Load Preset") {
-            log::info!(log::channel!("debug"),
-                       "Loading preset tile map '{}' ...",
-                       preset_tile_map_names[self.preset_tile_map_number]);
+            log::info!(
+                log::channel!("debug"),
+                "Loading preset tile map '{}' ...",
+                preset_tile_map_names[self.preset_tile_map_number]
+            );
             game_loop.load_preset_map(self.preset_tile_map_number);
         }
 
@@ -306,13 +311,7 @@ impl DebugSettingsDevMenu {
         ui.separator();
 
         static NEW_MAP_SIZE: UiStaticVar<Size> = UiStaticVar::new(Size::new(64, 64));
-        if ui::input_i32_xy(ui,
-            "New Map Size:",
-            NEW_MAP_SIZE.as_mut(),
-            false,
-            Some([32, 32]),
-            Some(["Width", "Height"]))
-        {
+        if ui::input_i32_xy(ui, "New Map Size:", NEW_MAP_SIZE.as_mut(), false, Some([32, 32]), Some(["Width", "Height"])) {
             NEW_MAP_SIZE.set(NEW_MAP_SIZE.as_ref().clamp(Size::zero(), Size::new(1024, 1024)));
         }
 
@@ -356,9 +355,7 @@ impl DebugSettingsDevMenu {
         context.camera.draw_debug_ui(context.ui_sys);
     }
 
-    fn debug_options_menu(&mut self,
-                          context: &mut GameUiContext,
-                          enable_dev_tile_inspector: &mut bool) {
+    fn debug_options_menu(&mut self, context: &mut GameUiContext, enable_dev_tile_inspector: &mut bool) {
         let ui = context.ui_sys.ui();
 
         self.draw_debug_ui(context.ui_sys);
@@ -381,9 +378,10 @@ impl DebugSettingsDevMenu {
         let game_loop = GameLoop::get_mut();
 
         let mut line_thickness = game_loop.grid_line_thickness();
-        if ui.slider_config("Grid thickness", MIN_GRID_LINE_THICKNESS, MAX_GRID_LINE_THICKNESS)
-             .display_format("%.1f")
-             .build(&mut line_thickness)
+        if ui
+            .slider_config("Grid thickness", MIN_GRID_LINE_THICKNESS, MAX_GRID_LINE_THICKNESS)
+            .display_format("%.1f")
+            .build(&mut line_thickness)
         {
             game_loop.set_grid_line_thickness(line_thickness);
         }
@@ -478,81 +476,81 @@ impl DebugSettingsDevMenu {
         let ui = context.ui_sys.ui();
 
         ui.window("Game Configs")
-          .opened(&mut self.show_game_configs_debug)
-          .position([200.0, 20.0], imgui::Condition::FirstUseEver)
-          .size([400.0, 350.0], imgui::Condition::FirstUseEver)
-          .build(|| {
-              if let Some(_tab_bar) = ui.tab_bar("Configs Tab Bar") {
-                  if let Some(_tab) = ui.tab_item("Engine/Game") {
-                      GameConfigs::get().draw_debug_ui(context.ui_sys);
-                  }
-                  if let Some(_tab) = ui.tab_item("Buildings") {
-                      BuildingConfigs::get().draw_debug_ui(context.ui_sys);
-                  }
-                  if let Some(_tab) = ui.tab_item("Units") {
-                      UnitConfigs::get().draw_debug_ui(context.ui_sys);
-                  }
-                  if let Some(_tab) = ui.tab_item("Props") {
-                      PropConfigs::get().draw_debug_ui(context.ui_sys);
-                  }
-                  if let Some(_tab) = ui.tab_item("Ui Text") {
-                      ui::text::draw_debug_ui(context.ui_sys);
-                  }
-              }
-          });
+            .opened(&mut self.show_game_configs_debug)
+            .position([200.0, 20.0], imgui::Condition::FirstUseEver)
+            .size([400.0, 350.0], imgui::Condition::FirstUseEver)
+            .build(|| {
+                if let Some(_tab_bar) = ui.tab_bar("Configs Tab Bar") {
+                    if let Some(_tab) = ui.tab_item("Engine/Game") {
+                        GameConfigs::get().draw_debug_ui(context.ui_sys);
+                    }
+                    if let Some(_tab) = ui.tab_item("Buildings") {
+                        BuildingConfigs::get().draw_debug_ui(context.ui_sys);
+                    }
+                    if let Some(_tab) = ui.tab_item("Units") {
+                        UnitConfigs::get().draw_debug_ui(context.ui_sys);
+                    }
+                    if let Some(_tab) = ui.tab_item("Props") {
+                        PropConfigs::get().draw_debug_ui(context.ui_sys);
+                    }
+                    if let Some(_tab) = ui.tab_item("Ui Text") {
+                        ui::text::draw_debug_ui(context.ui_sys);
+                    }
+                }
+            });
     }
 
     fn draw_world_debug_window(&mut self, context: &mut GameUiContext) {
         let ui = context.ui_sys.ui();
 
         ui.window("World Debug")
-          .opened(&mut self.show_game_world_debug)
-          .position([300.0, 20.0], imgui::Condition::FirstUseEver)
-          .size([400.0, 350.0], imgui::Condition::FirstUseEver)
-          .build(|| {
-              let sim = GameLoop::get_mut().sim_mut();
-              sim.draw_world_debug_ui(context);
-          });
+            .opened(&mut self.show_game_world_debug)
+            .position([300.0, 20.0], imgui::Condition::FirstUseEver)
+            .size([400.0, 350.0], imgui::Condition::FirstUseEver)
+            .build(|| {
+                let sim = GameLoop::get_mut().sim_mut();
+                sim.draw_world_debug_ui(context);
+            });
     }
 
     fn draw_game_systems_debug_window(&mut self, context: &mut GameUiContext) {
         let ui = context.ui_sys.ui();
 
         ui.window("Game Systems Debug")
-          .opened(&mut self.show_game_systems_debug)
-          .position([400.0, 20.0], imgui::Condition::FirstUseEver)
-          .size([400.0, 350.0], imgui::Condition::FirstUseEver)
-          .build(|| {
-              let engine = Engine::get_mut();
-              let sim = GameLoop::get_mut().sim_mut();
-              let systems = GameLoop::get_mut().systems_mut();
-              sim.draw_game_systems_debug_ui(context, engine, systems);
-          });
+            .opened(&mut self.show_game_systems_debug)
+            .position([400.0, 20.0], imgui::Condition::FirstUseEver)
+            .size([400.0, 350.0], imgui::Condition::FirstUseEver)
+            .build(|| {
+                let engine = Engine::get_mut();
+                let sim = GameLoop::get_mut().sim_mut();
+                let systems = GameLoop::get_mut().systems_mut();
+                sim.draw_game_systems_debug_ui(context, engine, systems);
+            });
     }
 
     fn draw_texture_settings_window(&mut self, context: &mut GameUiContext) {
         let ui = context.ui_sys.ui();
 
         ui.window("Texture Settings")
-          .opened(&mut self.show_texture_settings)
-          .position([500.0, 20.0], imgui::Condition::FirstUseEver)
-          .size([300.0, 150.0], imgui::Condition::FirstUseEver)
-          .build(|| {
-              let tex_cache = Engine::get_mut().texture_cache_mut();
-              tex_cache.draw_debug_ui(context.ui_sys);
-          });
+            .opened(&mut self.show_texture_settings)
+            .position([500.0, 20.0], imgui::Condition::FirstUseEver)
+            .size([300.0, 150.0], imgui::Condition::FirstUseEver)
+            .build(|| {
+                let tex_cache = Engine::get_mut().texture_cache_mut();
+                tex_cache.draw_debug_ui(context.ui_sys);
+            });
     }
 
     fn draw_sound_settings_window(&mut self, context: &mut GameUiContext) {
         let ui = context.ui_sys.ui();
 
         ui.window("Sound Settings")
-          .opened(&mut self.show_sound_settings)
-          .position([350.0, 20.0], imgui::Condition::FirstUseEver)
-          .size([500.0, 400.0], imgui::Condition::FirstUseEver)
-          .build(|| {
-              let sound_sys = Engine::get_mut().sound_system_mut();
-              sound_sys.draw_debug_ui(context.ui_sys);
-          });
+            .opened(&mut self.show_sound_settings)
+            .position([350.0, 20.0], imgui::Condition::FirstUseEver)
+            .size([500.0, 400.0], imgui::Condition::FirstUseEver)
+            .build(|| {
+                let sound_sys = Engine::get_mut().sound_system_mut();
+                sound_sys.draw_debug_ui(context.ui_sys);
+            });
     }
 }

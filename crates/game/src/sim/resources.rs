@@ -2,21 +2,25 @@
 
 use core::slice::Iter;
 use std::{
+    collections::{HashMap, hash_map::Entry},
     fmt::Display,
     ops::{Deref, DerefMut},
-    collections::{hash_map::Entry, HashMap},
 };
 
 use arrayvec::ArrayVec;
-use smallvec::SmallVec;
 use bitflags::Flags;
-use proc_macros::DrawDebugUi;
-use rand::{seq::IteratorRandom, Rng};
-use serde::{de, Deserialize, Deserializer, Serialize};
-
-use engine::{log, ui::UiSystem};
 use common::{Color, bitflags_with_display};
-use crate::{ cheats, world::{object::GameObject, stats::WorldStats, World}, building::{Building, BuildingId, BuildingKind, BuildingKindAndId}, };
+use engine::{log, ui::UiSystem};
+use proc_macros::DrawDebugUi;
+use rand::{Rng, seq::IteratorRandom};
+use serde::{Deserialize, Deserializer, Serialize, de};
+use smallvec::SmallVec;
+
+use crate::{
+    building::{Building, BuildingId, BuildingKind, BuildingKindAndId},
+    cheats,
+    world::{World, object::GameObject, stats::WorldStats},
+};
 
 // ----------------------------------------------
 // Resources (Consumer Goods, Raw Materials)
@@ -120,12 +124,14 @@ pub type ServiceKinds = ResourceList<ServiceKind, SERVICE_KIND_COUNT>;
 // and builds back a map during deserialization.
 mod serialize_hash_map_as_pairs {
     use std::{collections::HashMap, hash::Hash};
+
     use serde::{Deserialize, Deserializer, Serialize, Serializer};
 
     pub fn serialize<K, V, S>(map: &HashMap<K, V>, ser: S) -> Result<S::Ok, S::Error>
-        where K: Serialize + Eq + Hash,
-              V: Serialize,
-              S: Serializer
+    where
+        K: Serialize + Eq + Hash,
+        V: Serialize,
+        S: Serializer,
     {
         // Turn into Vec of pairs and serialize that:
         let vec: Vec<(&K, &V)> = map.iter().collect();
@@ -133,9 +139,10 @@ mod serialize_hash_map_as_pairs {
     }
 
     pub fn deserialize<'de, K, V, D>(de: D) -> Result<HashMap<K, V>, D::Error>
-        where K: Deserialize<'de> + Eq + Hash,
-              V: Deserialize<'de>,
-              D: Deserializer<'de>
+    where
+        K: Deserialize<'de> + Eq + Hash,
+        V: Deserialize<'de>,
+        D: Deserializer<'de>,
     {
         let vec = Vec::<(K, V)>::deserialize(de)?;
         Ok(vec.into_iter().collect())
@@ -185,7 +192,8 @@ impl HouseholdWorkerPool {
     }
 
     pub fn for_each_employer<F>(&self, world: &mut World, mut visitor_fn: F)
-        where F: FnMut(&mut Building, u32) -> bool
+    where
+        F: FnMut(&mut Building, u32) -> bool,
     {
         for (employer_info, employed_count) in &self.employers {
             if let Some(employer) = world.find_building_mut(employer_info.kind, employer_info.id) {
@@ -193,17 +201,20 @@ impl HouseholdWorkerPool {
                     return;
                 }
             } else {
-                log::error!(log::channel!("Household"),
-                            "Unknown employer record: ({}, {}); employed_count={}",
-                            employer_info.kind,
-                            employer_info.id,
-                            employed_count);
+                log::error!(
+                    log::channel!("Household"),
+                    "Unknown employer record: ({}, {}); employed_count={}",
+                    employer_info.kind,
+                    employer_info.id,
+                    employed_count
+                );
             }
         }
     }
 
     pub fn for_each_employer_mut<F>(&mut self, world: &mut World, mut visitor_fn: F)
-        where F: FnMut(&mut Building, &mut u32) -> bool
+    where
+        F: FnMut(&mut Building, &mut u32) -> bool,
     {
         for (employer_info, employed_count) in &mut self.employers {
             if let Some(employer) = world.find_building_mut(employer_info.kind, employer_info.id) {
@@ -214,11 +225,13 @@ impl HouseholdWorkerPool {
                     break;
                 }
             } else {
-                log::error!(log::channel!("Household"),
-                            "Unknown employer record: ({}, {}); employed_count={}",
-                            employer_info.kind,
-                            employer_info.id,
-                            employed_count);
+                log::error!(
+                    log::channel!("Household"),
+                    "Unknown employer record: ({}, {}); employed_count={}",
+                    employer_info.kind,
+                    employer_info.id,
+                    employed_count
+                );
             }
         }
 
@@ -256,9 +269,13 @@ impl HouseholdWorkerPool {
                     e.remove_entry();
                 }
             } else {
-                log::error!(log::channel!("Household"),
-                            "Expected to have an entry for ({}, {}); add({})",
-                            source.kind, source.id, amount);
+                log::error!(
+                    log::channel!("Household"),
+                    "Expected to have an entry for ({}, {}); add({})",
+                    source.kind,
+                    source.id,
+                    amount
+                );
             }
 
             return unemployed_amount; // Return amount added to unemployed count.
@@ -287,7 +304,7 @@ impl HouseholdWorkerPool {
             }
 
             return employed_amount; // Return amount taken from unemployed
-                                    // count. i.e., amount employed.
+            // count. i.e., amount employed.
         }
         0
     }
@@ -296,8 +313,12 @@ impl HouseholdWorkerPool {
         for (employer_info, employed_count) in &other.employers {
             let merged_count = self.remove_unemployed(*employed_count, *employer_info);
             if merged_count != *employed_count {
-                log::error!("HouseholdWorkerPool merge exceeds workers available! Unemployed: {}, trying to merge: {}, merged only: {}",
-                            self.unemployed_count(), *employed_count, merged_count);
+                log::error!(
+                    "HouseholdWorkerPool merge exceeds workers available! Unemployed: {}, trying to merge: {}, merged only: {}",
+                    self.unemployed_count(),
+                    *employed_count,
+                    merged_count
+                );
                 return false;
             }
         }
@@ -316,11 +337,13 @@ impl HouseholdWorkerPool {
 
             for (employer_info, employed_count) in &self.employers {
                 if let Some(employer) = world.find_building(employer_info.kind, employer_info.id) {
-                    ui.text(format!("- {} cell={} id={}: {}",
-                                    employer.name(),
-                                    employer.base_cell(),
-                                    employer.id(),
-                                    employed_count));
+                    ui.text(format!(
+                        "- {} cell={} id={}: {}",
+                        employer.name(),
+                        employer.base_cell(),
+                        employer.id(),
+                        employed_count
+                    ));
                 } else {
                     ui.text_colored(Color::red().to_array(), "<unknown employer record>");
                 }
@@ -350,10 +373,7 @@ impl Employer {
     #[inline]
     pub fn new(min_employees: u32, max_employees: u32) -> Self {
         debug_assert!(min_employees <= max_employees);
-        Self { employee_count: 0,
-               min_employees,
-               max_employees,
-               employee_households: HashMap::new() }
+        Self { employee_count: 0, min_employees, max_employees, employee_households: HashMap::new() }
     }
 
     #[inline]
@@ -387,7 +407,8 @@ impl Employer {
     }
 
     pub fn for_each_employee_household<F>(&self, world: &mut World, mut visitor_fn: F)
-        where F: FnMut(&mut Building, u32) -> bool
+    where
+        F: FnMut(&mut Building, u32) -> bool,
     {
         for (house_id, employee_count) in &self.employee_households {
             if let Some(house) = world.find_building_mut(BuildingKind::House, *house_id) {
@@ -395,14 +416,17 @@ impl Employer {
                     return;
                 }
             } else {
-                log::error!(log::channel!("Employer"),
-                            "Unknown employee household: {house_id}; employee_count={employee_count}");
+                log::error!(
+                    log::channel!("Employer"),
+                    "Unknown employee household: {house_id}; employee_count={employee_count}"
+                );
             }
         }
     }
 
     pub fn for_each_employee_household_mut<F>(&mut self, world: &mut World, mut visitor_fn: F)
-        where F: FnMut(&mut Building, &mut u32) -> bool
+    where
+        F: FnMut(&mut Building, &mut u32) -> bool,
     {
         for (house_id, employee_count) in &mut self.employee_households {
             if let Some(house) = world.find_building_mut(BuildingKind::House, *house_id) {
@@ -413,8 +437,10 @@ impl Employer {
                     break;
                 }
             } else {
-                log::error!(log::channel!("Employer"),
-                            "Unknown employee household: {house_id}; employee_count={employee_count}");
+                log::error!(
+                    log::channel!("Employer"),
+                    "Unknown employee household: {house_id}; employee_count={employee_count}"
+                );
             }
         }
 
@@ -463,9 +489,13 @@ impl Employer {
                 e.remove_entry();
             }
         } else {
-            log::error!(log::channel!("Employer"),
-                        "Expected to have an entry for ({}, {}); subtract({})",
-                        source.kind, source.id, amount);
+            log::error!(
+                log::channel!("Employer"),
+                "Expected to have an entry for ({}, {}); subtract({})",
+                source.kind,
+                source.id,
+                amount
+            );
         }
 
         unemployed_amount // Return amount subtracted from employees.
@@ -473,13 +503,16 @@ impl Employer {
 
     pub fn merge(&mut self, other: &Employer) -> bool {
         for (house_id, employee_count) in &other.employee_households {
-            let merged_count = self.add_employee(*employee_count,
-                                                 BuildingKindAndId { kind: BuildingKind::House,
-                                                                     id: *house_id });
+            let merged_count =
+                self.add_employee(*employee_count, BuildingKindAndId { kind: BuildingKind::House, id: *house_id });
 
             if merged_count != *employee_count {
-                log::error!("Employer merge exceeds maximum! Max employees: {}, trying to merge: {}, merged only: {}",
-                            self.max_employees(), *employee_count, merged_count);
+                log::error!(
+                    "Employer merge exceeds maximum! Max employees: {}, trying to merge: {}, merged only: {}",
+                    self.max_employees(),
+                    *employee_count,
+                    merged_count
+                );
                 return false;
             }
         }
@@ -506,11 +539,7 @@ impl Employer {
 
             for (house_id, employee_count) in &self.employee_households {
                 if let Some(house) = world.find_building(BuildingKind::House, *house_id) {
-                    ui.text(format!("- {} cell={} id={}: {}",
-                                    house.name(),
-                                    house.base_cell(),
-                                    house.id(),
-                                    employee_count));
+                    ui.text(format!("- {} cell={} id={}: {}", house.name(), house.base_cell(), house.id(), employee_count));
                 } else {
                     ui.text_colored(Color::red().to_array(), "<unknown employee household>");
                 }
@@ -622,9 +651,7 @@ impl Workers {
 
     pub fn merge(&mut self, other: &Workers) -> bool {
         match self {
-            Self::HouseholdWorkerPool(inner) => {
-                inner.merge(other.as_household_worker_pool().unwrap())
-            }
+            Self::HouseholdWorkerPool(inner) => inner.merge(other.as_household_worker_pool().unwrap()),
             Self::Employer(inner) => inner.merge(other.as_employer().unwrap()),
         }
     }
@@ -653,8 +680,10 @@ pub struct Population {
 impl Population {
     pub fn new(count: u32, max: u32) -> Self {
         debug_assert!(max != 0);
-        Self { count: count.min(max).try_into().expect("Population count must be < 256"),
-               max: max.try_into().expect("Max population must be < 256") }
+        Self {
+            count: count.min(max).try_into().expect("Population count must be < 256"),
+            max: max.try_into().expect("Max population must be < 256"),
+        }
     }
 
     #[inline]
@@ -716,8 +745,12 @@ impl Population {
     pub fn merge(&mut self, other: &Population) -> bool {
         let merged_count = self.add(other.count());
         if merged_count != other.count() {
-            log::error!("Population merge exceeds max capacity! Capacity: {}, trying to merge: {}, merged only: {}",
-                        self.max(), other.count(), merged_count);
+            log::error!(
+                "Population merge exceeds max capacity! Capacity: {}, trying to merge: {}, merged only: {}",
+                self.max(),
+                other.count(),
+                merged_count
+            );
             return false;
         }
         true
@@ -801,8 +834,7 @@ impl GlobalTreasury {
         // not be high enough.
         world.stats_mut().treasury.gold_units_total -= gold_units_subtracted;
 
-        debug_assert!(amount == 0,
-                      "Should have found enough gold units in the available treasury buildings!");
+        debug_assert!(amount == 0, "Should have found enough gold units in the available treasury buildings!");
     }
 }
 
@@ -832,10 +864,7 @@ impl ResourceStock {
     #[inline]
     #[must_use]
     pub fn with_accepted_list(accepted_resources: &ResourceKinds) -> Self {
-        let mut stock = Self {
-            kinds: ResourceKind::empty(),
-            counts: [0; RESOURCE_KIND_COUNT],
-        };
+        let mut stock = Self { kinds: ResourceKind::empty(), counts: [0; RESOURCE_KIND_COUNT] };
 
         accepted_resources.for_each(|kind| {
             stock.kinds.insert(kind);
@@ -962,7 +991,8 @@ impl ResourceStock {
 
     #[inline]
     pub fn for_each<F>(&self, mut visitor_fn: F)
-        where F: FnMut(usize, &StockItem)
+    where
+        F: FnMut(usize, &StockItem),
     {
         for (index, kind) in self.kinds.iter().enumerate() {
             if index < self.counts.len() {
@@ -975,7 +1005,8 @@ impl ResourceStock {
 
     #[inline]
     pub fn for_each_mut<F>(&mut self, mut visitor_fn: F)
-        where F: FnMut(usize, &mut StockItem)
+    where
+        F: FnMut(usize, &mut StockItem),
     {
         for (index, kind) in self.kinds.iter().enumerate() {
             if index < self.counts.len() {
@@ -993,8 +1024,7 @@ impl ResourceStock {
         if ui.collapsing_header(label, imgui::TreeNodeFlags::empty()) {
             ui.indent_by(5.0);
             self.for_each(|index, item| {
-                ui.input_text(format!("{}##_stock_item_{}", item.kind, index),
-                                &mut format!("{}", item.count))
+                ui.input_text(format!("{}##_stock_item_{}", item.kind, index), &mut format!("{}", item.count))
                     .read_only(true)
                     .build();
             });
@@ -1014,7 +1044,8 @@ impl Display for StockItem {
 //  and keep backwards compatibility with older save games.
 impl<'de> Deserialize<'de> for ResourceStock {
     fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
-        where D: Deserializer<'de>
+    where
+        D: Deserializer<'de>,
     {
         #[derive(Deserialize)]
         struct SerializedStock {
@@ -1050,7 +1081,8 @@ pub struct ResourceList<T, const CAPACITY: usize> {
 }
 
 impl<T, const CAPACITY: usize> ResourceList<T, CAPACITY>
-    where T: Copy + Display + bitflags::Flags
+where
+    T: Copy + Display + bitflags::Flags,
 {
     #[inline]
     #[must_use]
@@ -1142,7 +1174,8 @@ impl<T, const CAPACITY: usize> ResourceList<T, CAPACITY>
     // combined flags as they appear.
     #[inline]
     pub fn for_each<F>(&self, mut visitor_fn: F)
-        where F: FnMut(T) -> bool
+    where
+        F: FnMut(T) -> bool,
     {
         for kinds in self.kinds.iter() {
             // Break down flags that are ORed together (T is bitflags).
@@ -1156,7 +1189,8 @@ impl<T, const CAPACITY: usize> ResourceList<T, CAPACITY>
 }
 
 impl<T, const CAPACITY: usize> Display for ResourceList<T, CAPACITY>
-    where T: Copy + Display + bitflags::Flags
+where
+    T: Copy + Display + bitflags::Flags,
 {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
         let mut first = true;

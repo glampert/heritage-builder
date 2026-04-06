@@ -1,9 +1,9 @@
+use common::format_fixed_string;
+use engine::log;
 use strum::EnumCount;
 
 use super::*;
-use engine::log;
 use crate::menu::TEXT_BUTTON_HOVERED_SPRITE;
-use common::format_fixed_string;
 
 // ----------------------------------------------
 // Enums / Constants
@@ -66,70 +66,50 @@ impl PopulationManagement {
             Self::KIND,
             Self::TITLE,
             DEFAULT_DIALOG_MENU_WIDGET_SPACING,
-            Option::<Vec<UiWidgetImpl>>::None
+            Option::<Vec<UiWidgetImpl>>::None,
         );
 
-        let population_stats_heading = UiMenuHeading::new(
-            context,
-            UiMenuHeadingParams {
-                lines: POPULATION_STATS_TEXT.into(),
-                separator: Some(LARGE_HORIZONTAL_SEPARATOR_SPRITE),
-                ..Default::default()
-            }
-        );
+        let population_stats_heading = UiMenuHeading::new(context, UiMenuHeadingParams {
+            lines: POPULATION_STATS_TEXT.into(),
+            separator: Some(LARGE_HORIZONTAL_SEPARATOR_SPRITE),
+            ..Default::default()
+        });
 
         let population_stats_heading_index = menu.add_widget(population_stats_heading);
 
-        let worker_stats_heading = UiMenuHeading::new(
-            context,
-            UiMenuHeadingParams {
-                lines: WORKER_STATS_TEXT.into(),
-                separator: Some(LARGE_HORIZONTAL_SEPARATOR_SPRITE),
-                ..Default::default()
-            }
-        );
+        let worker_stats_heading = UiMenuHeading::new(context, UiMenuHeadingParams {
+            lines: WORKER_STATS_TEXT.into(),
+            separator: Some(LARGE_HORIZONTAL_SEPARATOR_SPRITE),
+            ..Default::default()
+        });
 
         let worker_stats_heading_index = menu.add_widget(worker_stats_heading);
 
-        let mut button_group = UiWidgetGroup::new(
-            context,
-            UiWidgetGroupParams {
-                center_vertically: false,
-                ..Default::default()
-            }
-        );
+        let mut button_group =
+            UiWidgetGroup::new(context, UiWidgetGroupParams { center_vertically: false, ..Default::default() });
 
-        let ok_button = UiTextButton::new(
-            context,
-            UiTextButtonParams {
-                label: "Ok".into(),
-                hover: Some(TEXT_BUTTON_HOVERED_SPRITE),
-                sounds_enabled: UiButtonSoundsEnabled::all(),
-                on_pressed: UiTextButtonPressed::with_fn(|_, context| {
-                    super::close_current(ui::widgets::context_as_mut::<GameUiContext>(context));
-                }),
-                ..Default::default()
-            }
-        );
+        let ok_button = UiTextButton::new(context, UiTextButtonParams {
+            label: "Ok".into(),
+            hover: Some(TEXT_BUTTON_HOVERED_SPRITE),
+            sounds_enabled: UiButtonSoundsEnabled::all(),
+            on_pressed: UiTextButtonPressed::with_fn(|_, context| {
+                super::close_current(ui::widgets::context_as_mut::<GameUiContext>(context));
+            }),
+            ..Default::default()
+        });
 
         button_group.add_widget(ok_button);
         menu.add_widget(button_group);
 
         // Refresh body text when menu is opened.
-        menu.set_open_close_callback(UiMenuOpenClose::with_fn(
-            |_, context, is_open| {
-                if is_open {
-                    let this_dialog = super::find::<PopulationManagement>();
-                    this_dialog.update_stats(ui::widgets::context_as_mut::<GameUiContext>(context));
-                }
+        menu.set_open_close_callback(UiMenuOpenClose::with_fn(|_, context, is_open| {
+            if is_open {
+                let this_dialog = super::find::<PopulationManagement>();
+                this_dialog.update_stats(ui::widgets::context_as_mut::<GameUiContext>(context));
             }
-        ));
+        }));
 
-        Self {
-            menu,
-            population_stats_heading_index,
-            worker_stats_heading_index,
-        }
+        Self { menu, population_stats_heading_index, worker_stats_heading_index }
     }
 
     fn update_stats(&mut self, context: &GameUiContext) {
@@ -137,17 +117,18 @@ impl PopulationManagement {
         debug_assert!(world_stats.population.is_valid());
 
         if world_stats.population.workforce() != world_stats.workers.total {
-            log::error!(log::channel!("game"),
-                        "Population vs Workforce stats mismatch: Population Workforce: {}, Workers Total: {}",
-                        world_stats.population.workforce(), world_stats.workers.total);
+            log::error!(
+                log::channel!("game"),
+                "Population vs Workforce stats mismatch: Population Workforce: {}, Workers Total: {}",
+                world_stats.population.workforce(),
+                world_stats.workers.total
+            );
         }
 
         const FMT_LEN: usize = 128;
 
         {
-            let heading =
-                self.menu.widget_as_mut::<UiMenuHeading>(self.population_stats_heading_index)
-                .unwrap();
+            let heading = self.menu.widget_as_mut::<UiMenuHeading>(self.population_stats_heading_index).unwrap();
 
             let population = &world_stats.population;
 
@@ -156,51 +137,59 @@ impl PopulationManagement {
 
             heading.set_line_string(
                 PopulationStatsIdx::TotalPopulation as usize,
-                &format_fixed_string!(FMT_LEN, "Total Population: {}", population.total));
+                &format_fixed_string!(FMT_LEN, "Total Population: {}", population.total),
+            );
 
             heading.set_line_string(
                 PopulationStatsIdx::Employed as usize,
-                &format_fixed_string!(FMT_LEN, "Employed: {}", population.employed));
+                &format_fixed_string!(FMT_LEN, "Employed: {}", population.employed),
+            );
 
             heading.set_line_string(
                 PopulationStatsIdx::Unemployed as usize,
-                &format_fixed_string!(FMT_LEN, "Unemployed: {}", population.unemployed));
+                &format_fixed_string!(FMT_LEN, "Unemployed: {}", population.unemployed),
+            );
 
             heading.set_line_string(
                 PopulationStatsIdx::EmploymentRate as usize,
-                &format_fixed_string!(FMT_LEN, "Employment Rate: {}%", employment_percent.round() as u32));
+                &format_fixed_string!(FMT_LEN, "Employment Rate: {}%", employment_percent.round() as u32),
+            );
 
             heading.set_line_string(
                 PopulationStatsIdx::UnemploymentRate as usize,
-                &format_fixed_string!(FMT_LEN, "Unemployment Rate: {}%", unemployment_percent.round() as u32));
+                &format_fixed_string!(FMT_LEN, "Unemployment Rate: {}%", unemployment_percent.round() as u32),
+            );
         }
 
         {
-            let heading =
-                self.menu.widget_as_mut::<UiMenuHeading>(self.worker_stats_heading_index)
-                .unwrap();
+            let heading = self.menu.widget_as_mut::<UiMenuHeading>(self.worker_stats_heading_index).unwrap();
 
             let workers = &world_stats.workers;
 
             heading.set_line_string(
                 WorkerStatsIdx::TotalWorkforce as usize,
-                &format_fixed_string!(FMT_LEN, "Total Workforce: {}", workers.total));
+                &format_fixed_string!(FMT_LEN, "Total Workforce: {}", workers.total),
+            );
 
             heading.set_line_string(
                 WorkerStatsIdx::MinWorkersRequired as usize,
-                &format_fixed_string!(FMT_LEN, "Min Workers Required: {}", workers.min_required));
+                &format_fixed_string!(FMT_LEN, "Min Workers Required: {}", workers.min_required),
+            );
 
             heading.set_line_string(
                 WorkerStatsIdx::MaxWorkersEmployed as usize,
-                &format_fixed_string!(FMT_LEN, "Max Workers Employed: {}", workers.max_employed));
+                &format_fixed_string!(FMT_LEN, "Max Workers Employed: {}", workers.max_employed),
+            );
 
             heading.set_line_string(
                 WorkerStatsIdx::BuildingsBelowMinWorkers as usize,
-                &format_fixed_string!(FMT_LEN, "Buildings Below Min Workers: {}", workers.buildings_below_min));
+                &format_fixed_string!(FMT_LEN, "Buildings Below Min Workers: {}", workers.buildings_below_min),
+            );
 
             heading.set_line_string(
                 WorkerStatsIdx::BuildingsBelowMaxWorkers as usize,
-                &format_fixed_string!(FMT_LEN, "Buildings Below Max Workers: {}", workers.buildings_below_max));
+                &format_fixed_string!(FMT_LEN, "Buildings Below Max Workers: {}", workers.buildings_below_max),
+            );
         }
     }
 }

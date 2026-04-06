@@ -1,13 +1,15 @@
-use std::iter::Rev;
-use std::ops::RangeInclusive;
-use std::sync::LazyLock;
+use std::{iter::Rev, ops::RangeInclusive, sync::LazyLock};
 
 use common::{coords::Cell, hash::StrHashPair};
+
 use crate::{
     pathfind::NodeKind as PathNodeKind,
     tile::{
-    TileKind, TileFlags, TileMap, TileMapLayerKind,
-    sets::{TileDef, TileSets, TERRAIN_LAND_CATEGORY},
+        TileFlags,
+        TileKind,
+        TileMap,
+        TileMapLayerKind,
+        sets::{TERRAIN_LAND_CATEGORY, TileDef, TileSets},
     },
 };
 
@@ -99,19 +101,15 @@ pub fn kind(tile_def: &'static TileDef) -> RoadKind {
 }
 
 static DIRT_ROAD_TILE_DEF: LazyLock<&'static TileDef> = LazyLock::new(|| {
-    TileSets::get().find_tile_def_by_hash(
-        TileMapLayerKind::Terrain,
-        TERRAIN_LAND_CATEGORY.hash,
-        tile_name(RoadKind::Dirt).hash)
-            .expect("Failed to find dirt road tile!")
+    TileSets::get()
+        .find_tile_def_by_hash(TileMapLayerKind::Terrain, TERRAIN_LAND_CATEGORY.hash, tile_name(RoadKind::Dirt).hash)
+        .expect("Failed to find dirt road tile!")
 });
 
 static PAVED_ROAD_TILE_DEF: LazyLock<&'static TileDef> = LazyLock::new(|| {
-    TileSets::get().find_tile_def_by_hash(
-        TileMapLayerKind::Terrain,
-        TERRAIN_LAND_CATEGORY.hash,
-        tile_name(RoadKind::Paved).hash)
-            .expect("Failed to find paved road tile!")
+    TileSets::get()
+        .find_tile_def_by_hash(TileMapLayerKind::Terrain, TERRAIN_LAND_CATEGORY.hash, tile_name(RoadKind::Paved).hash)
+        .expect("Failed to find paved road tile!")
 });
 
 enum RangeInclusiveIter {
@@ -162,8 +160,7 @@ fn can_place_road(tile_map: &TileMap, cell: Cell) -> bool {
 
 fn is_road(tile_map: &TileMap, cell: Cell) -> bool {
     if let Some(tile) = tile_map.try_tile_from_layer(cell, TileMapLayerKind::Terrain) {
-        if tile.path_kind().is_road() ||
-           tile.has_flags(TileFlags::DirtRoadPlacement | TileFlags::PavedRoadPlacement) {
+        if tile.path_kind().is_road() || tile.has_flags(TileFlags::DirtRoadPlacement | TileFlags::PavedRoadPlacement) {
             return true;
         }
     }
@@ -285,11 +282,7 @@ pub fn mark_tiles(tile_map: &mut TileMap, segment: &RoadSegment, highlight: bool
     } else {
         for cell in &segment.path {
             if let Some(tile) = tile_map.try_tile_from_layer_mut(*cell, TileMapLayerKind::Terrain) {
-                tile.set_flags(
-                    road_placement_flag |
-                    TileFlags::Highlighted |
-                    TileFlags::Invalidated,
-                    false);
+                tile.set_flags(road_placement_flag | TileFlags::Highlighted | TileFlags::Invalidated, false);
             }
         }
     }

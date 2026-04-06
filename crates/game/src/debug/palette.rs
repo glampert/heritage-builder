@@ -1,22 +1,26 @@
 #![allow(clippy::too_many_arguments)]
 
-use smallvec::SmallVec;
 use std::collections::HashMap;
 
+use common::{self, Color, Rect, RectTexCoords, Vec2, constants::*, coords::WorldToScreenTransform};
 use engine::{
-    file_sys::paths::PathRef,
     app::input::{InputAction, MouseButton},
-    render::{texture::TextureHandle, debug::DebugDraw},
+    file_sys::paths::PathRef,
+    render::{debug::DebugDraw, texture::TextureHandle},
     ui::{self, UiInputEvent, UiSystem, widgets::UiWidgetContext},
 };
-use common::{ self, constants::*, Color, Rect, RectTexCoords, Vec2, coords::WorldToScreenTransform, };
+use smallvec::SmallVec;
+
 use crate::{
-    { building::{config::BuildingConfigs, BuildingArchetypeKind}, menu::{TilePalette, TilePaletteSelection}, undo_redo, ui_context::GameUiContext, },
+    building::{BuildingArchetypeKind, config::BuildingConfigs},
+    menu::{TilePalette, TilePaletteSelection},
     tile::{
-    TileKind,
-    rendering::INVALID_TILE_COLOR,
-    sets::{TileCategory, TileDef, TileDefHandle, TileSet, TileSets},
+        TileKind,
+        rendering::INVALID_TILE_COLOR,
+        sets::{TileCategory, TileDef, TileDefHandle, TileSet, TileSets},
     },
+    ui_context::GameUiContext,
+    undo_redo,
 };
 
 // ----------------------------------------------
@@ -72,10 +76,7 @@ impl TilePaletteDevMenu {
         }
     }
 
-    pub fn draw(&mut self,
-                context: &mut GameUiContext,
-                debug_draw: &mut DebugDraw,
-                show_selection_bounds: bool) {
+    pub fn draw(&mut self, context: &mut GameUiContext, debug_draw: &mut DebugDraw, show_selection_bounds: bool) {
         let ui = context.ui_sys.ui();
 
         let tiles_per_row = 2;
@@ -89,8 +90,7 @@ impl TilePaletteDevMenu {
         let window_position = [ui.io().display_size[0] - window_width - window_margin, 20.0];
         let window_flags = imgui::WindowFlags::ALWAYS_AUTO_RESIZE | imgui::WindowFlags::NO_RESIZE;
 
-        let _item_spacing =
-            ui.push_style_var(imgui::StyleVar::ItemSpacing([spacing_between_tiles, spacing_between_tiles]));
+        let _item_spacing = ui.push_style_var(imgui::StyleVar::ItemSpacing([spacing_between_tiles, spacing_between_tiles]));
 
         ui.window("Tile Selection")
             .flags(window_flags)
@@ -102,11 +102,19 @@ impl TilePaletteDevMenu {
                 ui.text("Tools");
                 {
                     if ui::icon_button(ui_sys, ui::icons::ICON_UNDO, Some("Undo")) {
-                        undo_redo::undo(&context.sim.new_sim_context(context.world, context.tile_map, context.delta_time_secs));
+                        undo_redo::undo(&context.sim.new_sim_context(
+                            context.world,
+                            context.tile_map,
+                            context.delta_time_secs,
+                        ));
                     }
                     ui.same_line();
                     if ui::icon_button(ui_sys, ui::icons::ICON_REDO, Some("Redo")) {
-                        undo_redo::redo(&context.sim.new_sim_context(context.world, context.tile_map, context.delta_time_secs));
+                        undo_redo::redo(&context.sim.new_sim_context(
+                            context.world,
+                            context.tile_map,
+                            context.delta_time_secs,
+                        ));
                     }
 
                     let btn_params = ui::UiImageButtonParams {
@@ -129,27 +137,20 @@ impl TilePaletteDevMenu {
 
                 let sections = [
                     ("Terrain", TileKind::Terrain),
-                    ("",        TileKind::Building),
-                    ("Props",   TileKind::Rocks | TileKind::Vegetation),
-                    ("Units",   TileKind::Unit),
+                    ("", TileKind::Building),
+                    ("Props", TileKind::Rocks | TileKind::Vegetation),
+                    ("Units", TileKind::Unit),
                 ];
 
                 for (label, tile_kind) in sections {
-                    self.draw_tile_list(label,
-                                        tile_kind,
-                                        ui_sys,
-                                        tiles_per_row,
-                                        spacing_between_tiles);
+                    self.draw_tile_list(label, tile_kind, ui_sys, tiles_per_row, spacing_between_tiles);
                 }
             });
 
         self.draw_selected_tile(context, debug_draw, show_selection_bounds);
     }
 
-    fn draw_selected_tile(&self,
-                          context: &mut GameUiContext,
-                          debug_draw: &mut DebugDraw,
-                          show_selection_bounds: bool) {
+    fn draw_selected_tile(&self, context: &mut GameUiContext, debug_draw: &mut DebugDraw, show_selection_bounds: bool) {
         if !self.has_selection() {
             return;
         }
@@ -158,27 +159,18 @@ impl TilePaletteDevMenu {
         if self.current_selection().is_clear() {
             const CLEAR_ICON_SIZE: Vec2 = BASE_TILE_SIZE_F32;
 
-            let rect = Rect::from_pos_and_size(
-                context.cursor_screen_pos - (CLEAR_ICON_SIZE * 0.5),
-                CLEAR_ICON_SIZE
-            );
+            let rect = Rect::from_pos_and_size(context.cursor_screen_pos - (CLEAR_ICON_SIZE * 0.5), CLEAR_ICON_SIZE);
 
-            debug_draw.textured_colored_rect(rect,
-                                             &RectTexCoords::DEFAULT,
-                                             self.clear_button_image,
-                                             Color::white());
+            debug_draw.textured_colored_rect(rect, &RectTexCoords::DEFAULT, self.clear_button_image, Color::white());
         } else {
             let selected_tile = self.current_selection().as_tile_def().unwrap();
             let rect = Rect::from_pos_and_size(context.cursor_screen_pos, selected_tile.draw_size.to_vec2());
 
-            let offset =
-                if selected_tile.is(TileKind::Building | TileKind::Rocks | TileKind::Vegetation) {
-                    Vec2::new(-(selected_tile.draw_size.width  as f32 / 2.0),
-                              -(selected_tile.draw_size.height as f32))
-                } else {
-                    Vec2::new(-(selected_tile.draw_size.width  as f32 / 2.0),
-                              -(selected_tile.draw_size.height as f32 / 2.0))
-                };
+            let offset = if selected_tile.is(TileKind::Building | TileKind::Rocks | TileKind::Vegetation) {
+                Vec2::new(-(selected_tile.draw_size.width as f32 / 2.0), -(selected_tile.draw_size.height as f32))
+            } else {
+                Vec2::new(-(selected_tile.draw_size.width as f32 / 2.0), -(selected_tile.draw_size.height as f32 / 2.0))
+            };
 
             let has_valid_placement = context.tile_selection.has_valid_placement();
             let transform = context.camera.transform();
@@ -191,13 +183,15 @@ impl TilePaletteDevMenu {
                     selected_tile.color.r,
                     selected_tile.color.g,
                     selected_tile.color.b,
-                    0.7 // Semi-transparent
+                    0.7, // Semi-transparent
                 );
 
-                debug_draw.textured_colored_rect(cursor_transform.scale_and_offset_rect(rect),
-                                                 &sprite_frame.tex_info.coords,
-                                                 sprite_frame.tex_info.texture,
-                                                 tile_color * highlight_color);
+                debug_draw.textured_colored_rect(
+                    cursor_transform.scale_and_offset_rect(rect),
+                    &sprite_frame.tex_info.coords,
+                    sprite_frame.tex_info.texture,
+                    tile_color * highlight_color,
+                );
             }
 
             if show_selection_bounds {
@@ -206,12 +200,14 @@ impl TilePaletteDevMenu {
         }
     }
 
-    fn draw_tile_list(&mut self,
-                      label: &str,
-                      tile_kind: TileKind,
-                      ui_sys: &UiSystem,
-                      tiles_per_row: usize,
-                      padding_between_tiles: f32) {
+    fn draw_tile_list(
+        &mut self,
+        label: &str,
+        tile_kind: TileKind,
+        ui_sys: &UiSystem,
+        tiles_per_row: usize,
+        padding_between_tiles: f32,
+    ) {
         let ui = ui_sys.ui();
 
         if !label.is_empty() {
@@ -230,11 +226,8 @@ impl TilePaletteDevMenu {
             let ui_texture = ui_sys.to_ui_texture(tile_sprite.texture);
 
             let btn_id = common::fixed_string::snake_case_to_title::<64>(&tile_def.name);
-            let btn_tooltip = if tile_def.cost != 0 {
-                &format!("{}\nCost: {} gold", btn_id, tile_def.cost)
-            } else {
-                btn_id.as_str()
-            };
+            let btn_tooltip =
+                if tile_def.cost != 0 { &format!("{}\nCost: {} gold", btn_id, tile_def.cost) } else { btn_id.as_str() };
 
             let btn_params = ui::UiImageButtonParams {
                 id: &btn_id,
@@ -266,8 +259,7 @@ impl TilePaletteDevMenu {
         // Gather relevant tiles:
         TileSets::get().for_each_tile_def(|tile_set, tile_category, tile_def| {
             if tile_def.is(tile_kind) {
-                let building_archetype =
-                    BuildingConfigs::get().find_building_archetype_kind_for_tile_def(tile_def);
+                let building_archetype = BuildingConfigs::get().find_building_archetype_kind_for_tile_def(tile_def);
 
                 tile_defs.push((tile_set, tile_category, tile_def, building_archetype));
             }
@@ -275,7 +267,7 @@ impl TilePaletteDevMenu {
         });
 
         // Group by building archetype kind (if any):
-        tile_defs.sort_by_key(|entry|
+        tile_defs.sort_by_key(|entry| {
             if let Some(archetype) = entry.3 {
                 match archetype {
                     // Custom sort order.
@@ -287,7 +279,7 @@ impl TilePaletteDevMenu {
             } else {
                 4
             }
-        );
+        });
 
         let mut button_count_for_row = 0;
         let mut prev_building_archetype: Option<BuildingArchetypeKind> = None;

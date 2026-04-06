@@ -1,6 +1,9 @@
+use std::{
+    collections::{HashMap, VecDeque},
+    sync::{Mutex, OnceLock},
+};
+
 use arrayvec::ArrayString;
-use std::sync::{OnceLock, Mutex};
-use std::collections::{HashMap, VecDeque};
 use common::format_fixed_string;
 use engine::{log, ui::UiSystem};
 
@@ -84,43 +87,43 @@ impl LogViewerSingleton {
         let ui = ui_sys.ui();
 
         ui.window("Log Viewer")
-          .opened(&mut is_window_open)
-          .position([10.0, 20.0], imgui::Condition::FirstUseEver)
-          .size([550.0, 350.0], imgui::Condition::FirstUseEver)
-          .horizontal_scrollbar(true)
-          .menu_bar(true)
-          .build(|| {
-              // Draw menu bar:
-              if let Some(_menu_bar) = ui.begin_menu_bar() {
-                  if let Some(_menu) = ui.begin_menu("Filter") {
-                      if ui.menu_item("Channels") {
-                          self.is_channel_filter_window_open = true;
-                      }
-                  }
-              }
+            .opened(&mut is_window_open)
+            .position([10.0, 20.0], imgui::Condition::FirstUseEver)
+            .size([550.0, 350.0], imgui::Condition::FirstUseEver)
+            .horizontal_scrollbar(true)
+            .menu_bar(true)
+            .build(|| {
+                // Draw menu bar:
+                if let Some(_menu_bar) = ui.begin_menu_bar() {
+                    if let Some(_menu) = ui.begin_menu("Filter") {
+                        if ui.menu_item("Channels") {
+                            self.is_channel_filter_window_open = true;
+                        }
+                    }
+                }
 
-              // Draw log lines:
-              for line in &self.lines {
-                  if !self.is_channel_enabled(&line.channel) {
-                      continue;
-                  }
+                // Draw log lines:
+                for line in &self.lines {
+                    if !self.is_channel_enabled(&line.channel) {
+                        continue;
+                    }
 
-                  let color = line.level.color();
-                  ui.text_colored(color.to_array(), Self::line_prefix(line));
-                  ui.same_line();
-                  ui.text(&line.message);
-              }
+                    let color = line.level.color();
+                    ui.text_colored(color.to_array(), Self::line_prefix(line));
+                    ui.same_line();
+                    ui.text(&line.message);
+                }
 
-              // Auto-scroll to bottom if we just added something.
-              if ui.is_window_focused() && self.auto_scroll {
-                  ui.set_scroll_here_y_with_ratio(1.0);
-                  self.auto_scroll = false;
-              }
+                // Auto-scroll to bottom if we just added something.
+                if ui.is_window_focused() && self.auto_scroll {
+                    ui.set_scroll_here_y_with_ratio(1.0);
+                    self.auto_scroll = false;
+                }
 
-              if self.is_channel_filter_window_open {
-                  self.draw_channel_filter_child_window(ui);
-              }
-          });
+                if self.is_channel_filter_window_open {
+                    self.draw_channel_filter_child_window(ui);
+                }
+            });
 
         if !is_window_open {
             self.is_channel_filter_window_open = false;
@@ -137,13 +140,13 @@ impl LogViewerSingleton {
 
     fn draw_channel_filter_child_window(&mut self, ui: &imgui::Ui) {
         ui.window("Log Channel Filter")
-          .opened(&mut self.is_channel_filter_window_open)
-          .size([250.0, 300.0], imgui::Condition::FirstUseEver)
-          .build(|| {
-              for (channel, is_enabled) in self.channel_filter.iter_mut() {
-                  ui.checkbox(channel.name, is_enabled);
-              }
-          });
+            .opened(&mut self.is_channel_filter_window_open)
+            .size([250.0, 300.0], imgui::Condition::FirstUseEver)
+            .build(|| {
+                for (channel, is_enabled) in self.channel_filter.iter_mut() {
+                    ui.checkbox(channel.name, is_enabled);
+                }
+            });
     }
 }
 
@@ -163,22 +166,17 @@ fn init_log_viewer_singleton_once() {
     const MAX_LINES: usize = 128;
     let viewer = LogViewerSingleton::new(START_OPEN, MAX_LINES);
 
-    LOG_VIEWER_SINGLETON.set(Mutex::new(viewer))
-        .unwrap_or_else(|_| panic!("LogViewerSingleton already initialized!"));
+    LOG_VIEWER_SINGLETON.set(Mutex::new(viewer)).unwrap_or_else(|_| panic!("LogViewerSingleton already initialized!"));
 
     log::set_listener(|line| {
-        let mut viewer = log_viewer_singleton()
-            .lock()
-            .unwrap();
+        let mut viewer = log_viewer_singleton().lock().unwrap();
 
         viewer.push_line(line);
     });
 }
 
 fn log_viewer_singleton() -> &'static Mutex<LogViewerSingleton> {
-    LOG_VIEWER_SINGLETON
-        .get()
-        .expect("LogViewerSingleton is not initialized!")
+    LOG_VIEWER_SINGLETON.get().expect("LogViewerSingleton is not initialized!")
 }
 
 // ----------------------------------------------
@@ -198,33 +196,25 @@ impl LogViewer {
     }
 
     pub fn error_and_warning_count(&self) -> (u32, u32) {
-        let viewer = log_viewer_singleton()
-            .lock()
-            .unwrap();
+        let viewer = log_viewer_singleton().lock().unwrap();
 
         (viewer.error_count, viewer.warning_count)
     }
 
     pub fn show(&mut self, show: bool) {
-        let mut viewer = log_viewer_singleton()
-            .lock()
-            .unwrap();
+        let mut viewer = log_viewer_singleton().lock().unwrap();
 
         viewer.show(show);
     }
 
     pub fn set_enabled_channels(&mut self, channels: &[(log::Channel, bool)]) {
-        let mut viewer = log_viewer_singleton()
-            .lock()
-            .unwrap();
+        let mut viewer = log_viewer_singleton().lock().unwrap();
 
         viewer.set_enabled_channels(channels);
     }
 
     pub fn draw(&mut self, ui_sys: &UiSystem) -> bool {
-        let mut viewer = log_viewer_singleton()
-            .lock()
-            .unwrap();
+        let mut viewer = log_viewer_singleton().lock().unwrap();
 
         viewer.draw(ui_sys)
     }

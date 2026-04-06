@@ -1,23 +1,42 @@
-use rand::Rng;
 use bitflags::Flags;
-use smallvec::SmallVec;
+use common::{
+    Color,
+    callback::{self, Callback},
+    coords::Cell,
+    hash,
+    time::CountdownTimer,
+};
+use engine::{
+    log,
+    ui::{self, UiDPadDirection, UiFontScale, UiStaticVar, UiSystem},
+};
 use proc_macros::DrawDebugUi;
+use rand::Rng;
+use smallvec::SmallVec;
 
 use super::{
+    Unit,
+    UnitId,
     navigation::{self, *},
     task::*,
-    Unit, UnitId,
 };
-use engine::{log, ui::{self, UiDPadDirection, UiSystem, UiStaticVar, UiFontScale}};
-use common::{ callback::{self, Callback}, time::CountdownTimer, coords::Cell, hash, Color, };
 use crate::{
-    pathfind::{self, NodeKind as PathNodeKind, Path},
-    { prop::PropId, building::{Building, BuildingKind, BuildingKindAndId, BuildingTileInfo}, sim::{ resources::{ResourceKind, ShoppingList, StockItem}, SimContext, }, world::{ object::{GameObject, Spawner}, }, },
-    tile::{
-    self, Tile, TileMapLayerKind, TilePoolIndex,
-    minimap::{MinimapIcon, MINIMAP_ICON_DEFAULT_LIFETIME}
-    },
+    building::{Building, BuildingKind, BuildingKindAndId, BuildingTileInfo},
     debug::game_object_debug::{GameObjectDebugOptions, GameObjectDebugOptionsExt},
+    pathfind::{self, NodeKind as PathNodeKind, Path},
+    prop::PropId,
+    sim::{
+        SimContext,
+        resources::{ResourceKind, ShoppingList, StockItem},
+    },
+    tile::{
+        self,
+        Tile,
+        TileMapLayerKind,
+        TilePoolIndex,
+        minimap::{MINIMAP_ICON_DEFAULT_LIFETIME, MinimapIcon},
+    },
+    world::object::{GameObject, Spawner},
 };
 
 // ----------------------------------------------
@@ -32,14 +51,10 @@ impl Unit {
         ui.text(format!("{} | ID{} @{}", self.name(), self.id(), self.cell()));
         ui_sys.set_window_font_scale(UiFontScale::default());
 
-        ui.bullet_text(format!("Anim: {} (dir: {})",
-                               self.anim_sets.current_anim_name(),
-                               self.direction));
+        ui.bullet_text(format!("Anim: {} (dir: {})", self.anim_sets.current_anim_name(), self.direction));
 
         if let Some(task_id) = self.current_task() {
-            if let Some((archetype, state)) =
-                context.task_manager().try_get_task_archetype_and_state(task_id)
-            {
+            if let Some((archetype, state)) = context.task_manager().try_get_task_archetype_and_state(task_id) {
                 ui.bullet_text(format!("Task: {archetype} | {state}"));
             }
         }
@@ -150,15 +165,12 @@ impl Unit {
                 UnitNavStatus::Moving => Color::green(),
             };
 
-            ui.text_colored(color.to_array(),
-                            format!("Path Navigation Status: {:?}", self.navigation.status()));
+            ui.text_colored(color.to_array(), format!("Path Navigation Status: {:?}", self.navigation.status()));
         }
 
         if let Some(goal) = self.navigation.goal() {
             ui.text(format!("Start Tile : {}, {}", goal.origin_cell(), goal.origin_debug_name()));
-            ui.text(format!("Dest  Tile : {}, {}",
-                            goal.destination_cell(),
-                            goal.destination_debug_name()));
+            ui.text(format!("Dest  Tile : {}, {}", goal.destination_cell(), goal.destination_debug_name()));
         }
 
         self.navigation.draw_debug_ui(ui_sys);
@@ -176,10 +188,7 @@ impl Unit {
 
         if ui.button("Push Minimap Alert") {
             let minimap = context.tile_map_mut().minimap_mut();
-            minimap.push_icon(MinimapIcon::Alert,
-                              self.cell(),
-                              Color::default(),
-                              MINIMAP_ICON_DEFAULT_LIFETIME);
+            minimap.push_icon(MinimapIcon::Alert, self.cell(), Color::default(), MINIMAP_ICON_DEFAULT_LIFETIME);
         }
 
         if ui.button("Clear Current Task") {
@@ -227,14 +236,8 @@ impl Unit {
                 if self.teleport(context.tile_map_mut(), start_cell) {
                     let completion_task = task_manager.new_task(UnitTaskDespawn);
                     let task = task_manager.new_task(UnitTaskDeliverToStorage {
-                        origin_building: BuildingKindAndId {
-                            kind: building.kind(),
-                            id: building.id(),
-                        },
-                        origin_building_tile: BuildingTileInfo {
-                            road_link: start_cell,
-                            base_cell: building.base_cell(),
-                        },
+                        origin_building: BuildingKindAndId { kind: building.kind(), id: building.id() },
+                        origin_building_tile: BuildingTileInfo { road_link: start_cell, base_cell: building.base_cell() },
                         storage_buildings_accepted: BuildingKind::storage(), // any storage
                         resource_kind_to_deliver: ResourceKind::random_food(&mut rand::rng()),
                         resource_count: 1,
@@ -252,20 +255,16 @@ impl Unit {
             // these placed on the map.
             if let Some(building) = world.find_building_by_name("Market", BuildingKind::Market) {
                 let mut rng = rand::rng();
-                let resources_to_fetch =
-                    ShoppingList::from_items(&[StockItem { kind: ResourceKind::random(&mut rng), count: rng.random_range(1..5) }]);
+                let resources_to_fetch = ShoppingList::from_items(&[StockItem {
+                    kind: ResourceKind::random(&mut rng),
+                    count: rng.random_range(1..5),
+                }]);
                 let start_cell = building.road_link(context).unwrap_or_default();
                 if self.teleport(context.tile_map_mut(), start_cell) {
                     let completion_task = task_manager.new_task(UnitTaskDespawn);
                     let task = task_manager.new_task(UnitTaskFetchFromStorage {
-                        origin_building: BuildingKindAndId {
-                            kind: building.kind(),
-                            id: building.id(),
-                        },
-                        origin_building_tile: BuildingTileInfo {
-                            road_link: start_cell,
-                            base_cell: building.base_cell(),
-                        },
+                        origin_building: BuildingKindAndId { kind: building.kind(), id: building.id() },
+                        origin_building_tile: BuildingTileInfo { road_link: start_cell, base_cell: building.base_cell() },
                         storage_buildings_accepted: BuildingKind::storage(), // any storage
                         resources_to_fetch,
                         completion_callback: callback::create!(unit_debug_fetch_task_completed),
@@ -292,14 +291,8 @@ impl Unit {
 
         ui.input_int("Patrol Rounds", PATROL_ROUNDS.as_mut()).step(1).build();
         ui.input_int("Patrol Max Distance", MAX_PATROL_DISTANCE.as_mut()).step(1).build();
-        ui.input_float("Patrol Path Bias Min", PATH_BIAS_MIN.as_mut())
-            .display_format("%.2f")
-            .step(0.1)
-            .build();
-        ui.input_float("Patrol Path Bias Max", PATH_BIAS_MAX.as_mut())
-            .display_format("%.2f")
-            .step(0.1)
-            .build();
+        ui.input_float("Patrol Path Bias Min", PATH_BIAS_MIN.as_mut()).display_format("%.2f").step(0.1).build();
+        ui.input_float("Patrol Path Bias Max", PATH_BIAS_MAX.as_mut()).display_format("%.2f").step(0.1).build();
 
         let task_manager = context.task_manager_mut();
         let world = context.world();
@@ -312,14 +305,8 @@ impl Unit {
                 if self.teleport(context.tile_map_mut(), start_cell) {
                     let completion_task = task_manager.new_task(UnitTaskDespawn);
                     let task = task_manager.new_task(UnitTaskRandomizedPatrol {
-                        origin_building: BuildingKindAndId {
-                            kind: building.kind(),
-                            id: building.id(),
-                        },
-                        origin_building_tile: BuildingTileInfo {
-                            road_link: start_cell,
-                            base_cell: building.base_cell(),
-                        },
+                        origin_building: BuildingKindAndId { kind: building.kind(), id: building.id() },
+                        origin_building_tile: BuildingTileInfo { road_link: start_cell, base_cell: building.base_cell() },
                         max_distance: *MAX_PATROL_DISTANCE,
                         path_bias_min: *PATH_BIAS_MIN,
                         path_bias_max: *PATH_BIAS_MAX,
@@ -357,9 +344,7 @@ impl Unit {
             ui.checkbox("Road Paths", USE_ROAD_PATHS.as_mut());
             ui.checkbox("Dirt Paths", USE_DIRT_PATHS.as_mut());
             ui.input_int("Max Search Distance", MAX_SEARCH_DISTANCE.as_mut()).step(1).build();
-            ui.combo_simple_string("Dest Building Kind",
-                                   BUILDING_KIND_IDX.as_mut(),
-                                   &building_kind_names);
+            ui.combo_simple_string("Dest Building Kind", BUILDING_KIND_IDX.as_mut(), &building_kind_names);
 
             let mut traversable_node_kinds = PathNodeKind::empty();
             if *USE_ROAD_PATHS {
@@ -372,19 +357,14 @@ impl Unit {
             (traversable_node_kinds, *MAX_SEARCH_DISTANCE, *BuildingKind::FLAGS[*BUILDING_KIND_IDX].value())
         };
 
-        if ui.button(format!("Path To Nearest Building ({})", search_building_kind))
-           && !traversable_node_kinds.is_empty()
-        {
+        if ui.button(format!("Path To Nearest Building ({})", search_building_kind)) && !traversable_node_kinds.is_empty() {
             let start = self.cell();
             self.set_traversable_node_kinds(traversable_node_kinds);
 
             let visit_building = |building: &Building, path: &Path| -> bool {
                 let tile_map = context.tile_map_mut();
 
-                log::info!("{} '{}' found. Path len: {}",
-                           building.kind(),
-                           building.name(),
-                           path.len());
+                log::info!("{} '{}' found. Path len: {}", building.kind(), building.name(), path.len());
                 debug_assert!(building.is(search_building_kind)); // The building we're looking for.
 
                 // Highlight the path to take:
@@ -398,33 +378,26 @@ impl Unit {
                 false // done
             };
 
-            context.find_nearest_buildings(start,
-                                           search_building_kind,
-                                           traversable_node_kinds,
-                                           Some(max_search_distance),
-                                           visit_building);
+            context.find_nearest_buildings(
+                start,
+                search_building_kind,
+                traversable_node_kinds,
+                Some(max_search_distance),
+                visit_building,
+            );
         }
 
-        if ui.button(format!("Test Is Near Building ({})", search_building_kind))
-           && !traversable_node_kinds.is_empty()
-        {
+        if ui.button(format!("Test Is Near Building ({})", search_building_kind)) && !traversable_node_kinds.is_empty() {
             let connected_to_road_only = traversable_node_kinds.intersects(PathNodeKind::Road)
-                                         && !traversable_node_kinds.intersects(PathNodeKind::EmptyLand);
+                && !traversable_node_kinds.intersects(PathNodeKind::EmptyLand);
 
-            let is_near = context.is_near_building(self.cell(),
-                                                   search_building_kind,
-                                                   connected_to_road_only,
-                                                   max_search_distance);
+            let is_near =
+                context.is_near_building(self.cell(), search_building_kind, connected_to_road_only, max_search_distance);
 
             if is_near {
-                self.debug
-                    .popup_msg_color(Color::green(),
-                                     format!("{}: Near {}!", self.cell(), search_building_kind));
+                self.debug.popup_msg_color(Color::green(), format!("{}: Near {}!", self.cell(), search_building_kind));
             } else {
-                self.debug.popup_msg_color(Color::red(),
-                                           format!("{}: Not near {}!",
-                                                   self.cell(),
-                                                   search_building_kind));
+                self.debug.popup_msg_color(Color::red(), format!("{}: Not near {}!", self.cell(), search_building_kind));
             }
         }
 
@@ -487,14 +460,8 @@ impl Unit {
                 if self.teleport(context.tile_map_mut(), start_cell) {
                     let completion_task = task_manager.new_task(UnitTaskDespawn);
                     let task = task_manager.new_task(UnitTaskHarvestWood {
-                        origin_building: BuildingKindAndId {
-                            kind: building.kind(),
-                            id: building.id(),
-                        },
-                        origin_building_tile: BuildingTileInfo {
-                            road_link: start_cell,
-                            base_cell: building.base_cell(),
-                        },
+                        origin_building: BuildingKindAndId { kind: building.kind(), id: building.id() },
+                        origin_building_tile: BuildingTileInfo { road_link: start_cell, base_cell: building.base_cell() },
                         completion_callback: callback::create!(unit_debug_harvest_wood_task_completed),
                         completion_task,
                         harvest_timer: CountdownTimer::default(),
@@ -543,11 +510,13 @@ fn unit_debug_delivery_task_completed(building: &mut Building, unit: &mut Unit, 
 
 fn unit_debug_fetch_task_completed(building: &mut Building, unit: &mut Unit, _: &SimContext) {
     let item = unit.inventory.peek().unwrap();
-    log::info!("Unit {}: Fetch Resources from: {}. Task Completed. Got: {}, {}",
-               unit.name(),
-               building.name(),
-               item.kind,
-               item.count);
+    log::info!(
+        "Unit {}: Fetch Resources from: {}. Task Completed. Got: {}, {}",
+        unit.name(),
+        building.name(),
+        item.kind,
+        item.count
+    );
     unit.inventory.clear();
 }
 
@@ -556,27 +525,26 @@ fn unit_debug_find_vacant_lot_task_completed(unit: &mut Unit, dest_tile: &Tile, 
     unit.debug.popup_msg(format!("Reached {}", dest_tile.name()));
 }
 
-fn unit_debug_settle_task_completed(unit: &mut Unit,
-                                    dest_tile: &Tile,
-                                    population_to_add: u32,
-                                    _: &SimContext) {
+fn unit_debug_settle_task_completed(unit: &mut Unit, dest_tile: &Tile, population_to_add: u32, _: &SimContext) {
     debug_assert!(population_to_add == 1);
     log::info!("Unit {} reached {}.", unit.name(), dest_tile.name());
     unit.debug.popup_msg(format!("Reached {}", dest_tile.name()));
 }
 
-fn unit_debug_settle_task_post_despawn(context: &SimContext,
-                                       unit_prev_cell: Cell,
-                                       unit_prev_goal: Option<UnitNavGoal>,
-                                       extra_args: &[UnitTaskArg]) {
-    let settle_new_vacant_lot =
-        unit_prev_goal.is_some_and(|goal| navigation::is_goal_vacant_lot_tile(&goal, context));
+fn unit_debug_settle_task_post_despawn(
+    context: &SimContext,
+    unit_prev_cell: Cell,
+    unit_prev_goal: Option<UnitNavGoal>,
+    extra_args: &[UnitTaskArg],
+) {
+    let settle_new_vacant_lot = unit_prev_goal.is_some_and(|goal| navigation::is_goal_vacant_lot_tile(&goal, context));
 
     if settle_new_vacant_lot {
-        if let Some(tile_def) = context.find_tile_def(TileMapLayerKind::Objects,
-                                                      tile::sets::OBJECTS_BUILDINGS_CATEGORY.hash,
-                                                      hash::fnv1a_from_str("house0"))
-        {
+        if let Some(tile_def) = context.find_tile_def(
+            TileMapLayerKind::Objects,
+            tile::sets::OBJECTS_BUILDINGS_CATEGORY.hash,
+            hash::fnv1a_from_str("house0"),
+        ) {
             match context.world_mut().try_spawn_building_with_tile_def(context, unit_prev_cell, tile_def) {
                 Ok(building) => {
                     debug_assert!(building.is(BuildingKind::House));
@@ -586,8 +554,10 @@ fn unit_debug_settle_task_post_despawn(context: &SimContext,
 
                     let population_added = building.add_population(context, population_to_add);
                     if population_added != population_to_add {
-                        log::error!(log::channel!("unit"),
-                                    "Settler carried population of {population_to_add} but house accommodated {population_added}.");
+                        log::error!(
+                            log::channel!("unit"),
+                            "Settler carried population of {population_to_add} but house accommodated {population_added}."
+                        );
                     }
                 }
                 Err(err) => {
@@ -604,10 +574,12 @@ fn unit_debug_settle_task_post_despawn(context: &SimContext,
 
 fn unit_debug_harvest_wood_task_completed(building: &mut Building, unit: &mut Unit, _: &SimContext) {
     let item = unit.inventory.peek().unwrap();
-    log::info!("Unit {}: Harvested for: {}. Task Completed. Got: {}, {}",
-               unit.name(),
-               building.name(),
-               item.kind,
-               item.count);
+    log::info!(
+        "Unit {}: Harvested for: {}. Task Completed. Got: {}, {}",
+        unit.name(),
+        building.name(),
+        item.kind,
+        item.count
+    );
     unit.inventory.clear();
 }

@@ -1,19 +1,28 @@
 #![allow(clippy::needless_range_loop)]
 
+use image::RgbaImage;
+use serde::{Deserialize, Serialize};
+
 #[cfg(feature = "desktop")]
 use rayon::prelude::*;
 
-use image::RgbaImage;
-use serde::{Serialize, Deserialize};
-
-use super::{sets::TileTexInfo, TileMapLayerKind};
-use engine::{
-    log,
-    save::{self, SaveState},
-    file_sys::{self, paths::{self, PathRef, FixedPath}},
-    render::texture::{TextureCache, TextureHandle, TextureSettings},
+use common::{
+    RectTexCoords,
+    Size,
+    format_fixed_string,
+    hash::{self, PreHashedKeyMap, StringHash},
 };
-use common::{Size, RectTexCoords, hash::{self, StringHash, PreHashedKeyMap}, format_fixed_string};
+use engine::{
+    file_sys::{
+        self,
+        paths::{self, FixedPath, PathRef},
+    },
+    log,
+    render::texture::{TextureCache, TextureHandle, TextureSettings},
+    save::{self, SaveState},
+};
+
+use super::{TileMapLayerKind, sets::TileTexInfo};
 
 // ----------------------------------------------
 // TextureAtlas
@@ -97,57 +106,36 @@ impl TextureAtlas for RuntimePackedTextureAtlas {
     }
 
     fn commit_textures(&self, tex_cache: &mut TextureCache) {
-        log::info!(log::channel!("atlas"),
-                   "Committing texture atlas '{}' to graphics memory...",
-                   self.layer);
+        log::info!(log::channel!("atlas"), "Committing texture atlas '{}' to graphics memory...", self.layer);
 
         for page in self.packer.pages() {
             let (width, height) = page.image.dimensions();
             let pixels = page.image.as_raw();
 
-            tex_cache.update_texture(page.texture,
-                                     0,
-                                     0,
-                                     Size::new(width as i32, height as i32),
-                                     0,
-                                     pixels);
+            tex_cache.update_texture(page.texture, 0, 0, Size::new(width as i32, height as i32), 0, pixels);
         }
 
-        log::info!(log::channel!("atlas"),
-                   "Texture atlas '{}' committed ({} pages).",
-                   self.layer, self.packer.page_count());
+        log::info!(log::channel!("atlas"), "Texture atlas '{}' committed ({} pages).", self.layer, self.packer.page_count());
     }
 
     #[cfg(feature = "desktop")]
     fn save_textures_to_file(&self, base_path: PathRef) {
-        let save_path =
-            paths::base_path()
-                .join(base_path)
-                .join("atlas")
-                .join(self.layer.lowercase_name());
+        let save_path = paths::base_path().join(base_path).join("atlas").join(self.layer.lowercase_name());
 
         let _ = file_sys::create_path(&save_path);
 
-        log::info!(log::channel!("atlas"),
-                   "Saving texture atlas {} with {} pages...",
-                   save_path, self.packer.page_count());
+        log::info!(log::channel!("atlas"), "Saving texture atlas {} with {} pages...", save_path, self.packer.page_count());
 
         // Save pages in parallel:
-        self.packer.pages()
-            .par_iter()
-            .enumerate()
-            .for_each(|(index, page)| {
-                let image_file_path = save_path
-                    .join(format_fixed_string!(64, "page_{index}.png"));
+        self.packer.pages().par_iter().enumerate().for_each(|(index, page)| {
+            let image_file_path = save_path.join(format_fixed_string!(64, "page_{index}.png"));
+            save_image_file((&image_file_path).into(), &page.image);
 
-                save_image_file((&image_file_path).into(), &page.image);
+            let metadata_file_path = save_path.join(format_fixed_string!(64, "page_{index}_sprite_meta.json"));
 
-                let metadata_file_path = save_path
-                    .join(format_fixed_string!(64, "page_{index}_sprite_meta.json"));
-
-                let page_size = Size::new(page.image.width() as i32, page.image.height() as i32);
-                save_sprite_metadata_file((&metadata_file_path).into(), &page.sprites, page_size);
-            });
+            let page_size = Size::new(page.image.width() as i32, page.image.height() as i32);
+            save_sprite_metadata_file((&metadata_file_path).into(), &page.sprites, page_size);
+        });
 
         let metadata_file_path = save_path.join("atlas_meta.json");
         save_atlas_metadata_file((&metadata_file_path).into(), self.packer.page_count(), self.layer);
@@ -175,11 +163,7 @@ impl OfflinePackedTextureAtlas {
     pub fn new(layer: TileMapLayerKind, tex_cache: &mut TextureCache) -> Self {
         let layer_name = layer.lowercase_name();
 
-        let cache_path =
-            paths::base_path()
-                .join(CACHE_BASE_PATH)
-                .join("atlas")
-                .join(layer_name);
+        let cache_path = paths::base_path().join(CACHE_BASE_PATH).join("atlas").join(layer_name);
 
         let atlas_metadata_path = cache_path.join("atlas_meta.json");
         let atlas_metadata = load_atlas_metadata_file((&atlas_metadata_path).into(), layer);
@@ -191,16 +175,17 @@ impl OfflinePackedTextureAtlas {
         let mut mapping = PreHashedKeyMap::default();
 
         for page_index in 0..atlas_metadata.page_count {
-            let sprite_metadata_path = cache_path
-                .join(format_fixed_string!(64, "page_{page_index}_sprite_meta.json"));
+            let sprite_metadata_path = cache_path.join(format_fixed_string!(64, "page_{page_index}_sprite_meta.json"));
 
             let sprite_metadata = load_sprite_metadata_file((&sprite_metadata_path).into());
 
             // Build mapping:
             for (sprite_index, sprite) in sprite_metadata.sprites.iter().enumerate() {
                 if mapping.insert(sprite.key, (page_index, sprite_index)).is_some() {
-                    log::error!(log::channel!("atlas"),
-                                "Sprite key collision! Atlas {layer_name}, page [{page_index}], sprite [{sprite_index}]");
+                    log::error!(
+                        log::channel!("atlas"),
+                        "Sprite key collision! Atlas {layer_name}, page [{page_index}], sprite [{sprite_index}]"
+                    );
                 }
             }
 
@@ -213,9 +198,14 @@ impl OfflinePackedTextureAtlas {
                 let tex_size = Size::new(image.width() as i32, image.height() as i32);
 
                 if sprite_metadata.page_size != tex_size {
-                    log::error!(log::channel!("atlas"),
-                                "Page size mismatch: Expected {} but found texture of size {}, in atlas {}, page [{}]",
-                                sprite_metadata.page_size, tex_size, layer_name, page_index);
+                    log::error!(
+                        log::channel!("atlas"),
+                        "Page size mismatch: Expected {} but found texture of size {}, in atlas {}, page [{}]",
+                        sprite_metadata.page_size,
+                        tex_size,
+                        layer_name,
+                        page_index
+                    );
                 }
 
                 if layer == TileMapLayerKind::Terrain {
@@ -245,8 +235,8 @@ impl TextureAtlas for OfflinePackedTextureAtlas {
         self.mapping.get(&key).map_or(TileTexInfo::default(), |(page_index, sprite_index)| {
             let page = &self.pages[*page_index];
             let sprite = &page.sprites[*sprite_index];
-    
-            debug_assert!(sprite.key  == key);
+
+            debug_assert!(sprite.key == key);
             debug_assert!(sprite.path == texture_path.as_str());
 
             TileTexInfo { texture: page.texture, coords: sprite.rect }
@@ -268,11 +258,7 @@ pub const CACHE_BASE_PATH: PathRef = PathRef::from_str("cache");
 
 pub fn cached_packed_atlas_exists(layer: TileMapLayerKind) -> bool {
     let layer_name = layer.lowercase_name();
-    let cache_path = 
-        paths::base_path()
-            .join(CACHE_BASE_PATH)
-            .join("atlas")
-            .join(layer_name);
+    let cache_path = paths::base_path().join(CACHE_BASE_PATH).join("atlas").join(layer_name);
     cache_path.exists()
 }
 
@@ -289,17 +275,14 @@ fn load_cached_atlas_page_images(layer_name: &str, page_count: usize) -> Vec<Opt
     let iter = (0..page_count).into_iter();
 
     iter.map(|page_index| {
-            let image_path: FixedPath =
-                CACHE_BASE_PATH
-                    .join("atlas")
-                    .join(layer_name)
-                    .join(format_fixed_string!(64, "page_{page_index}.png"));
+        let image_path: FixedPath =
+            CACHE_BASE_PATH.join("atlas").join(layer_name).join(format_fixed_string!(64, "page_{page_index}.png"));
 
-            load_image_file(paths::base_path().into(), (&image_path).into())
-                // Dummy 8x8 image fallback - all pixels = 0.
-                .or_else(|| Some(RgbaImage::new(8, 8)))
-        })
-        .collect()
+        load_image_file(paths::base_path().into(), (&image_path).into())
+            // Dummy 8x8 image fallback - all pixels = 0.
+            .or_else(|| Some(RgbaImage::new(8, 8)))
+    })
+    .collect()
 }
 
 fn load_image_file(base_path: PathRef, path: PathRef) -> Option<RgbaImage> {
@@ -349,11 +332,7 @@ struct SerializedSpriteMetadata<'a> {
 }
 
 fn save_sprite_metadata_file(path: PathRef, sprites: &[packer::AtlasSprite], page_size: Size) -> bool {
-    let metadata = SerializedSpriteMetadata {
-        page_size,
-        sprite_count: sprites.len(),
-        sprites,
-    };
+    let metadata = SerializedSpriteMetadata { page_size, sprite_count: sprites.len(), sprites };
 
     let mut state = save::new_json_save_state(true);
 
@@ -377,10 +356,7 @@ struct SerializedAtlasMetadata {
 }
 
 fn save_atlas_metadata_file(path: PathRef, page_count: usize, layer: TileMapLayerKind) -> bool {
-    let metadata = SerializedAtlasMetadata {
-        page_count,
-        layer,
-    };
+    let metadata = SerializedAtlasMetadata { page_count, layer };
 
     let mut state = save::new_json_save_state(true);
 
@@ -415,9 +391,12 @@ fn load_sprite_metadata_file(path: PathRef) -> DeserializedSpriteMetadata {
     match state.load_new_instance::<DeserializedSpriteMetadata>() {
         Ok(metadata) => {
             if metadata.sprite_count != metadata.sprites.len() {
-                log::error!(log::channel!("atlas"),
-                            "Wrong sprite metadata count in {path}: Expected {} but found {}.",
-                            metadata.sprite_count, metadata.sprites.len());
+                log::error!(
+                    log::channel!("atlas"),
+                    "Wrong sprite metadata count in {path}: Expected {} but found {}.",
+                    metadata.sprite_count,
+                    metadata.sprites.len()
+                );
             }
             metadata
         }
@@ -445,9 +424,12 @@ fn load_atlas_metadata_file(path: PathRef, layer: TileMapLayerKind) -> Deseriali
     match state.load_new_instance::<DeserializedAtlasMetadata>() {
         Ok(metadata) => {
             if metadata.layer != layer {
-                log::error!(log::channel!("atlas"),
-                            "Wrong atlas metadata layer in {path}: Expected {} but found {}.",
-                            layer, metadata.layer);
+                log::error!(
+                    log::channel!("atlas"),
+                    "Wrong atlas metadata layer in {path}: Expected {} but found {}.",
+                    layer,
+                    metadata.layer
+                );
             }
             metadata
         }
@@ -463,9 +445,13 @@ fn load_atlas_metadata_file(path: PathRef, layer: TileMapLayerKind) -> Deseriali
 // ----------------------------------------------
 
 mod packer {
-    use super::*;
-    use common::{Vec2, hash::{self, StringHash}};
+    use common::{
+        Vec2,
+        hash::{self, StringHash},
+    };
     use texture_packer::{Frame, TexturePacker, TexturePackerConfig};
+
+    use super::*;
 
     const TEXTURE_PACKER_CONFIG: TexturePackerConfig = TexturePackerConfig {
         max_width: 4096,
@@ -505,10 +491,7 @@ mod packer {
             Self { layer, pages: Vec::new(), packers: Vec::new() }
         }
 
-        pub fn pack_image(&mut self,
-                          tex_cache: &mut TextureCache,
-                          path: PathRef,
-                          image: RgbaImage) -> TileTexInfo {
+        pub fn pack_image(&mut self, tex_cache: &mut TextureCache, path: PathRef, image: RgbaImage) -> TileTexInfo {
             debug_assert!(!path.is_empty());
             let key = hash::fnv1a_from_str(path.as_str());
 
@@ -525,7 +508,7 @@ mod packer {
         }
 
         pub fn pages(&self) -> &[AtlasPage] {
-           &self.pages 
+            &self.pages
         }
 
         pub fn page_count(&self) -> usize {
@@ -558,12 +541,13 @@ mod packer {
             (self.packers.last_mut().unwrap(), self.pages.last_mut().unwrap())
         }
 
-        fn do_pack_image(packer: &mut TexPacker,
-                         page: &mut AtlasPage,
-                         key: StringHash,
-                         path: PathRef,
-                         image: RgbaImage) -> TileTexInfo
-        {
+        fn do_pack_image(
+            packer: &mut TexPacker,
+            page: &mut AtlasPage,
+            key: StringHash,
+            path: PathRef,
+            image: RgbaImage,
+        ) -> TileTexInfo {
             if let Err(err) = packer.pack_own(key, image) {
                 log::error!(log::channel!("atlas"), "Failed to pack texture '{path}' into atlas: {err:?}");
                 return TileTexInfo::default();

@@ -1,16 +1,22 @@
 use std::collections::HashMap;
+
+use common::hash::{self, PreHashedKeyMap, StringHash};
+use engine::{log, ui::UiSystem};
 use serde::{Deserialize, Serialize};
 
 use super::{
+    BuildingArchetype,
+    BuildingArchetypeKind,
+    BuildingKind,
     house::{HouseBuilding, HouseConfig, HouseLevel, HouseLevelConfig},
     producer::{ProducerBuilding, ProducerConfig},
     service::{ServiceBuilding, ServiceConfig},
     storage::{StorageBuilding, StorageConfig},
-    BuildingArchetype, BuildingArchetypeKind, BuildingKind,
 };
-use engine::{log, ui::UiSystem};
-use common::hash::{self, PreHashedKeyMap, StringHash};
-use crate::{tile::sets::TileDef, sim::{RandomGenerator, resources::ServiceKind}};
+use crate::{
+    sim::{RandomGenerator, resources::ServiceKind},
+    tile::sets::TileDef,
+};
 
 // ----------------------------------------------
 // BuildingConfig
@@ -44,23 +50,23 @@ macro_rules! building_config {
             }
 
             fn post_load(&mut self, index: usize) -> bool {
-                use engine::log;
                 use common::hash;
+                use engine::log;
 
                 // Must have a building name.
                 if self.name.is_empty() {
-                    log::error!(log::channel!("config"),
-                                "{} [{index}]: Invalid empty name!",
-                                stringify!($config_struct));
+                    log::error!(log::channel!("config"), "{} [{index}]: Invalid empty name!", stringify!($config_struct));
                     return false;
                 }
 
                 // Must have a tile def name.
                 if self.tile_def_name.is_empty() {
-                    log::error!(log::channel!("config"),
-                                "{} '{}': Invalid empty TileDef name! Index: [{index}]",
-                                stringify!($config_struct),
-                                self.name);
+                    log::error!(
+                        log::channel!("config"),
+                        "{} '{}': Invalid empty TileDef name! Index: [{index}]",
+                        stringify!($config_struct),
+                        self.name
+                    );
                     return false;
                 }
 
@@ -90,16 +96,16 @@ struct BuildingConfigEntry {
 }
 
 impl BuildingConfigEntry {
-    fn instantiate_archetype(&'static self,
-                             configs: &'static BuildingConfigs,
-                             rng: &mut RandomGenerator)
-                             -> (BuildingKind, BuildingArchetype) {
+    fn instantiate_archetype(
+        &'static self,
+        configs: &'static BuildingConfigs,
+        rng: &mut RandomGenerator,
+    ) -> (BuildingKind, BuildingArchetype) {
         match self.archetype_kind {
             BuildingArchetypeKind::ProducerBuilding => {
                 let producer_config = &configs.producer_configs[self.index];
                 debug_assert!(producer_config.kind.intersects(BuildingKind::producers()));
-                (producer_config.kind,
-                 BuildingArchetype::from(ProducerBuilding::new(producer_config, rng)))
+                (producer_config.kind, BuildingArchetype::from(ProducerBuilding::new(producer_config, rng)))
             }
             BuildingArchetypeKind::StorageBuilding => {
                 let storage_config = &configs.storage_configs[self.index];
@@ -114,11 +120,10 @@ impl BuildingConfigEntry {
             BuildingArchetypeKind::HouseBuilding => {
                 let house_config = &configs.house_config;
                 let house_level_config = &configs.house_levels[self.index];
-                (BuildingKind::House,
-                 BuildingArchetype::from(HouseBuilding::new(house_level_config.level,
-                                                            house_config,
-                                                            configs,
-                                                            rng)))
+                (
+                    BuildingKind::House,
+                    BuildingArchetype::from(HouseBuilding::new(house_level_config.level, house_config, configs, rng)),
+                )
             }
         }
     }
@@ -181,11 +186,12 @@ impl BuildingConfigs {
         &self.default_house_level_config
     }
 
-    pub fn find_producer_config(&'static self,
-                                kind: BuildingKind,
-                                tile_def_name_hash: StringHash,
-                                tile_def_name: &str)
-                                -> &'static ProducerConfig {
+    pub fn find_producer_config(
+        &'static self,
+        kind: BuildingKind,
+        tile_def_name_hash: StringHash,
+        tile_def_name: &str,
+    ) -> &'static ProducerConfig {
         debug_assert!(kind.is_single_building());
         debug_assert!(tile_def_name_hash != hash::NULL_HASH);
 
@@ -194,19 +200,16 @@ impl BuildingConfigs {
                 debug_assert!(entry.archetype_kind == BuildingArchetypeKind::ProducerBuilding);
                 if entry.archetype_kind == kind.archetype_kind() {
                     let config = &self.producer_configs[entry.index];
-                    debug_assert!(config.kind.is_single_building()
-                                  && config.kind.intersects(BuildingKind::producers()));
+                    debug_assert!(config.kind.is_single_building() && config.kind.intersects(BuildingKind::producers()));
                     if config.kind == kind {
                         return config;
                     }
                 }
-                log::error!(log::channel!("config"),
-                            "Invalid ProducerConfig kind ({kind}) for '{tile_def_name}'.");
+                log::error!(log::channel!("config"), "Invalid ProducerConfig kind ({kind}) for '{tile_def_name}'.");
                 &self.default_producer_config
             }
             None => {
-                log::error!(log::channel!("config"),
-                            "Can't find ProducerConfig for {kind} | '{tile_def_name}'.");
+                log::error!(log::channel!("config"), "Can't find ProducerConfig for {kind} | '{tile_def_name}'.");
                 &self.default_producer_config
             }
         }
@@ -247,8 +250,8 @@ impl BuildingConfigs {
     pub fn new_building_archetype_for_tile_def(
         &'static self,
         tile_def: &TileDef,
-        rng: &mut RandomGenerator)
-        -> Result<(BuildingKind, BuildingArchetype), String> {
+        rng: &mut RandomGenerator,
+    ) -> Result<(BuildingKind, BuildingArchetype), String> {
         debug_assert!(tile_def.hash != hash::NULL_HASH);
 
         match self.tile_def_mapping.get(&tile_def.hash) {
@@ -257,14 +260,10 @@ impl BuildingConfigs {
         }
     }
 
-    pub fn find_building_archetype_kind_for_tile_def(
-        &'static self,
-        tile_def: &TileDef)
-        -> Option<BuildingArchetypeKind> {
+    pub fn find_building_archetype_kind_for_tile_def(&'static self, tile_def: &TileDef) -> Option<BuildingArchetypeKind> {
         debug_assert!(tile_def.hash != hash::NULL_HASH);
 
-        self.tile_def_mapping.get(&tile_def.hash)
-            .map(|entry| entry.archetype_kind)
+        self.tile_def_mapping.get(&tile_def.hash).map(|entry| entry.archetype_kind)
     }
 
     fn post_load(&'static mut self) {
@@ -272,10 +271,12 @@ impl BuildingConfigs {
         self.house_config.post_load(0);
 
         if self.house_levels.len() != HouseLevel::count() {
-            log::error!(log::channel!("config"),
-                        "BuildingConfigs: Unexpected House Level count: {} vs {}",
-                        self.house_levels.len(),
-                        HouseLevel::count());
+            log::error!(
+                log::channel!("config"),
+                "BuildingConfigs: Unexpected House Level count: {} vs {}",
+                self.house_levels.len(),
+                HouseLevel::count()
+            );
         }
 
         // HOUSE LEVELS:
@@ -287,26 +288,28 @@ impl BuildingConfigs {
                 continue;
             }
 
-            let entry =
-                BuildingConfigEntry { archetype_kind: BuildingArchetypeKind::HouseBuilding, index };
+            let entry = BuildingConfigEntry { archetype_kind: BuildingArchetypeKind::HouseBuilding, index };
 
             if self.tile_def_mapping.insert(config.tile_def_name_hash, entry).is_some() {
-                log::error!(log::channel!("config"), "HouseLevelConfig '{}': An entry for key '{}' ({:#X}) already exists at [{index}]!",
-                            config.name,
-                            config.tile_def_name,
-                            config.tile_def_name_hash);
+                log::error!(
+                    log::channel!("config"),
+                    "HouseLevelConfig '{}': An entry for key '{}' ({:#X}) already exists at [{index}]!",
+                    config.name,
+                    config.tile_def_name,
+                    config.tile_def_name_hash
+                );
             }
         }
 
         // PRODUCERS:
         for (index, config) in &mut self.producer_configs.iter_mut().enumerate() {
-            if !config.kind.intersects(BuildingKind::producers())
-               || !config.kind.is_single_building()
-            {
-                log::error!(log::channel!("config"),
-                            "ProducerConfig '{}': Invalid BuildingKind: {}.",
-                            config.name,
-                            config.kind);
+            if !config.kind.intersects(BuildingKind::producers()) || !config.kind.is_single_building() {
+                log::error!(
+                    log::channel!("config"),
+                    "ProducerConfig '{}': Invalid BuildingKind: {}.",
+                    config.name,
+                    config.kind
+                );
                 continue;
             }
 
@@ -315,26 +318,28 @@ impl BuildingConfigs {
                 continue;
             }
 
-            let entry =
-                BuildingConfigEntry { archetype_kind: BuildingArchetypeKind::ProducerBuilding, index };
+            let entry = BuildingConfigEntry { archetype_kind: BuildingArchetypeKind::ProducerBuilding, index };
 
             if self.tile_def_mapping.insert(config.tile_def_name_hash, entry).is_some() {
-                log::error!(log::channel!("config"), "ProducerConfig '{}': An entry for key '{}' ({:#X}) already exists at [{index}]!",
-                            config.name,
-                            config.tile_def_name,
-                            config.tile_def_name_hash);
+                log::error!(
+                    log::channel!("config"),
+                    "ProducerConfig '{}': An entry for key '{}' ({:#X}) already exists at [{index}]!",
+                    config.name,
+                    config.tile_def_name,
+                    config.tile_def_name_hash
+                );
             }
         }
 
         // SERVICES:
         for (index, config) in &mut self.service_configs.iter_mut().enumerate() {
-            if !config.kind.intersects(BuildingKind::services())
-               || !config.kind.is_single_building()
-            {
-                log::error!(log::channel!("config"),
-                            "ServiceConfig '{}': Invalid BuildingKind: {}.",
-                            config.name,
-                            config.kind);
+            if !config.kind.intersects(BuildingKind::services()) || !config.kind.is_single_building() {
+                log::error!(
+                    log::channel!("config"),
+                    "ServiceConfig '{}': Invalid BuildingKind: {}.",
+                    config.name,
+                    config.kind
+                );
                 continue;
             }
 
@@ -343,31 +348,37 @@ impl BuildingConfigs {
                 continue;
             }
 
-            let entry =
-                BuildingConfigEntry { archetype_kind: BuildingArchetypeKind::ServiceBuilding, index };
+            let entry = BuildingConfigEntry { archetype_kind: BuildingArchetypeKind::ServiceBuilding, index };
 
             if self.tile_def_mapping.insert(config.tile_def_name_hash, entry).is_some() {
-                log::error!(log::channel!("config"), "ServiceConfig '{}': An entry for key '{}' ({:#X}) already exists at [{index}]!",
-                            config.name,
-                            config.tile_def_name,
-                            config.tile_def_name_hash);
+                log::error!(
+                    log::channel!("config"),
+                    "ServiceConfig '{}': An entry for key '{}' ({:#X}) already exists at [{index}]!",
+                    config.name,
+                    config.tile_def_name,
+                    config.tile_def_name_hash
+                );
             }
 
             if self.service_mapping.insert(config.kind, index).is_some() {
-                log::error!(log::channel!("config"), "ServiceConfig '{}': An entry for kind {} already exists at [{index}]!",
-                            config.name,
-                            config.kind);
+                log::error!(
+                    log::channel!("config"),
+                    "ServiceConfig '{}': An entry for kind {} already exists at [{index}]!",
+                    config.name,
+                    config.kind
+                );
             }
         }
 
         // STORAGE:
         for (index, config) in &mut self.storage_configs.iter_mut().enumerate() {
-            if !config.kind.intersects(BuildingKind::storage()) || !config.kind.is_single_building()
-            {
-                log::error!(log::channel!("config"),
-                            "StorageConfig '{}': Invalid BuildingKind: {}.",
-                            config.name,
-                            config.kind);
+            if !config.kind.intersects(BuildingKind::storage()) || !config.kind.is_single_building() {
+                log::error!(
+                    log::channel!("config"),
+                    "StorageConfig '{}': Invalid BuildingKind: {}.",
+                    config.name,
+                    config.kind
+                );
                 continue;
             }
 
@@ -376,20 +387,25 @@ impl BuildingConfigs {
                 continue;
             }
 
-            let entry =
-                BuildingConfigEntry { archetype_kind: BuildingArchetypeKind::StorageBuilding, index };
+            let entry = BuildingConfigEntry { archetype_kind: BuildingArchetypeKind::StorageBuilding, index };
 
             if self.tile_def_mapping.insert(config.tile_def_name_hash, entry).is_some() {
-                log::error!(log::channel!("config"), "StorageConfig '{}': An entry for key '{}' ({:#X}) already exists at [{index}]!",
-                            config.name,
-                            config.tile_def_name,
-                            config.tile_def_name_hash);
+                log::error!(
+                    log::channel!("config"),
+                    "StorageConfig '{}': An entry for key '{}' ({:#X}) already exists at [{index}]!",
+                    config.name,
+                    config.tile_def_name,
+                    config.tile_def_name_hash
+                );
             }
 
             if self.storage_mapping.insert(config.kind, index).is_some() {
-                log::error!(log::channel!("config"), "StorageConfig '{}': An entry for kind {} already exists at [{index}]!",
-                            config.name,
-                            config.kind);
+                log::error!(
+                    log::channel!("config"),
+                    "StorageConfig '{}': An entry for kind {} already exists at [{index}]!",
+                    config.name,
+                    config.kind
+                );
             }
         }
     }

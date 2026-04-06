@@ -1,7 +1,10 @@
-use strum::{EnumProperty, EnumCount, EnumIter};
+use strum::{EnumCount, EnumIter, EnumProperty};
 
 use super::*;
-use crate::{ GameLoop, menu::{ButtonDef, LARGE_HORIZONTAL_SEPARATOR_SPRITE}, };
+use crate::{
+    GameLoop,
+    menu::{ButtonDef, LARGE_HORIZONTAL_SEPARATOR_SPRITE},
+};
 
 // ----------------------------------------------
 // MainGameButtonKind
@@ -46,8 +49,7 @@ impl ButtonDef for MainGameButtonKind {
 
 impl MainGameButtonKind {
     fn on_quit(context: &mut GameUiContext) -> bool {
-        let main_menu = super::current_as::<MainGame>()
-            .expect("Expected MainGame dialog to be open!");
+        let main_menu = super::current_as::<MainGame>().expect("Expected MainGame dialog to be open!");
 
         main_menu.open_quit_game_message_box(context)
     }
@@ -72,7 +74,7 @@ impl MainGame {
             Self::KIND,
             Self::TITLE,
             DEFAULT_DIALOG_MENU_BUTTON_SPACING,
-            Some(buttons)
+            Some(buttons),
         );
 
         menu.set_flags(UiMenuFlags::HideWhenMessageBoxOpen, true);
@@ -94,59 +96,43 @@ impl MainGame {
             UiMessageBoxParams {
                 label: Some("Quit Game Popup".into()),
                 background: Some(DEFAULT_DIALOG_POPUP_BACKGROUND_SPRITE),
-                contents: vec![
-                    UiWidgetImpl::from(UiMenuHeading::new(
-                        context,
-                        UiMenuHeadingParams {
-                            lines: vec![
-                                UiText::new("Quit Game?".into(), DEFAULT_DIALOG_POPUP_FONT_SCALE),
-                                UiText::new("Any unsaved progress will be lost...".into(), DEFAULT_DIALOG_POPUP_FONT_SCALE),
-                            ],
-                            separator: Some(LARGE_HORIZONTAL_SEPARATOR_SPRITE),
-                            margin_top: 2.0,
-                            ..Default::default()
-                        }
-                    ))
-                ],
+                contents: vec![UiWidgetImpl::from(UiMenuHeading::new(context, UiMenuHeadingParams {
+                    lines: vec![
+                        UiText::new("Quit Game?".into(), DEFAULT_DIALOG_POPUP_FONT_SCALE),
+                        UiText::new("Any unsaved progress will be lost...".into(), DEFAULT_DIALOG_POPUP_FONT_SCALE),
+                    ],
+                    separator: Some(LARGE_HORIZONTAL_SEPARATOR_SPRITE),
+                    margin_top: 2.0,
+                    ..Default::default()
+                }))],
                 buttons: vec![
-                    UiWidgetImpl::from(UiTextButton::new(
-                        context,
-                        UiTextButtonParams {
-                            label: "Quit to Main Menu".into(),
-                            size: UiTextButtonSize::Normal,
-                            hover: Some(LARGE_HORIZONTAL_SEPARATOR_SPRITE),
-                            sounds_enabled: UiButtonSoundsEnabled::all(),
-                            on_pressed: UiTextButtonPressed::with_fn(|_, _| GameLoop::get_mut().quit_to_main_menu()),
-                            ..Default::default()
-                        }
-                    )),
-                    UiWidgetImpl::from(UiTextButton::new(
-                        context,
-                        UiTextButtonParams {
-                            label: "Exit Game".into(),
-                            size: UiTextButtonSize::Normal,
-                            hover: Some(LARGE_HORIZONTAL_SEPARATOR_SPRITE),
-                            sounds_enabled: UiButtonSoundsEnabled::all(),
-                            on_pressed: UiTextButtonPressed::with_fn(|_, _| GameLoop::get_mut().quit_game()),
-                            ..Default::default()
-                        }
-                    )),
-                    UiWidgetImpl::from(UiTextButton::new(
-                        context,
-                        UiTextButtonParams {
-                            label: "Cancel".into(),
-                            size: UiTextButtonSize::Normal,
-                            hover: Some(LARGE_HORIZONTAL_SEPARATOR_SPRITE),
-                            sounds_enabled: UiButtonSoundsEnabled::all(),
-                            on_pressed: UiTextButtonPressed::with_closure(
-                                move |_, context| {
-                                    let mut main_menu = menu_weak_ref.upgrade().unwrap();
-                                    main_menu.close_message_box(context);
-                                }
-                            ),
-                            ..Default::default()
-                        }
-                    )),
+                    UiWidgetImpl::from(UiTextButton::new(context, UiTextButtonParams {
+                        label: "Quit to Main Menu".into(),
+                        size: UiTextButtonSize::Normal,
+                        hover: Some(LARGE_HORIZONTAL_SEPARATOR_SPRITE),
+                        sounds_enabled: UiButtonSoundsEnabled::all(),
+                        on_pressed: UiTextButtonPressed::with_fn(|_, _| GameLoop::get_mut().quit_to_main_menu()),
+                        ..Default::default()
+                    })),
+                    UiWidgetImpl::from(UiTextButton::new(context, UiTextButtonParams {
+                        label: "Exit Game".into(),
+                        size: UiTextButtonSize::Normal,
+                        hover: Some(LARGE_HORIZONTAL_SEPARATOR_SPRITE),
+                        sounds_enabled: UiButtonSoundsEnabled::all(),
+                        on_pressed: UiTextButtonPressed::with_fn(|_, _| GameLoop::get_mut().quit_game()),
+                        ..Default::default()
+                    })),
+                    UiWidgetImpl::from(UiTextButton::new(context, UiTextButtonParams {
+                        label: "Cancel".into(),
+                        size: UiTextButtonSize::Normal,
+                        hover: Some(LARGE_HORIZONTAL_SEPARATOR_SPRITE),
+                        sounds_enabled: UiButtonSoundsEnabled::all(),
+                        on_pressed: UiTextButtonPressed::with_closure(move |_, context| {
+                            let mut main_menu = menu_weak_ref.upgrade().unwrap();
+                            main_menu.close_message_box(context);
+                        }),
+                        ..Default::default()
+                    })),
                 ],
                 ..Default::default()
             }

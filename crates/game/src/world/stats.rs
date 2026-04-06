@@ -1,6 +1,10 @@
-use engine::ui::{UiSystem, UiStaticVar};
 use common::Color;
-use crate::{ building::HouseLevel, sim::resources::{GlobalTreasury, ResourceKind, ResourceStock}, };
+use engine::ui::{UiStaticVar, UiSystem};
+
+use crate::{
+    building::HouseLevel,
+    sim::resources::{GlobalTreasury, ResourceKind, ResourceStock},
+};
 
 // ----------------------------------------------
 // WorldStats & Helper Types
@@ -245,12 +249,8 @@ impl WorldStats {
                 ui.text(format!("Min Required : {}", self.workers.min_required));
                 ui.text(format!("Max Employed : {}", self.workers.max_employed));
                 ui.spacing();
-                highlight_nonzero_value("Buildings Below Min",
-                                        self.workers.buildings_below_min,
-                                        Color::red());
-                highlight_nonzero_value("Buildings Below Max",
-                                        self.workers.buildings_below_max,
-                                        Color::yellow());
+                highlight_nonzero_value("Buildings Below Min", self.workers.buildings_below_min, Color::red());
+                highlight_nonzero_value("Buildings Below Max", self.workers.buildings_below_max, Color::yellow());
             }
             ui.separator();
 
