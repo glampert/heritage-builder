@@ -4,8 +4,8 @@
 use core::ptr::NonNull;
 use std::{
     cell::UnsafeCell,
-    rc::{Rc, Weak},
     ops::{Deref, DerefMut},
+    rc::{Rc, Weak},
 };
 
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
@@ -131,21 +131,27 @@ impl<T: ?Sized> DerefMut for Mutable<T> {
 }
 
 // Serde serialization support.
-impl<T: ?Sized> Serialize for Mutable<T> where T: Serialize
+impl<T: ?Sized> Serialize for Mutable<T>
+where
+    T: Serialize,
 {
     #[inline]
     fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
-        where S: Serializer
+    where
+        S: Serializer,
     {
         self.as_ref().serialize(serializer)
     }
 }
 
-impl<'de, T> Deserialize<'de> for Mutable<T> where T: Deserialize<'de>
+impl<'de, T> Deserialize<'de> for Mutable<T>
+where
+    T: Deserialize<'de>,
 {
     #[inline]
     fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
-        where D: Deserializer<'de>
+    where
+        D: Deserializer<'de>,
     {
         T::deserialize(deserializer).map(Mutable::new)
     }
@@ -227,9 +233,7 @@ impl<T> SingleThreadStatic<T> {
                 Some(_) => panic!("SingleThreadStatic accessed from non-owner thread!"),
                 None => {
                     // First access claims ownership:
-                    self.owner
-                        .set(this_thread)
-                        .unwrap_or_else(|_| panic!("Failed to set owner thread id!"));
+                    self.owner.set(this_thread).unwrap_or_else(|_| panic!("Failed to set owner thread id!"));
                 }
             }
         }
@@ -408,7 +412,8 @@ impl<T> RcMut<T> {
 
     #[inline]
     pub fn new_cyclic<F>(init_fn: F) -> Self
-        where F: FnOnce(WeakMut<T>) -> T
+    where
+        F: FnOnce(WeakMut<T>) -> T,
     {
         Self(Rc::new_cyclic(|weak| {
             let weak_mut = WeakMut(weak.clone());
@@ -473,7 +478,8 @@ impl<T: ?Sized> DerefMut for RcMut<T> {
 impl<T: Serialize> Serialize for RcMut<T> {
     #[inline]
     fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
-        where S: Serializer
+    where
+        S: Serializer,
     {
         self.0.as_ref().serialize(serializer)
     }
@@ -482,7 +488,8 @@ impl<T: Serialize> Serialize for RcMut<T> {
 impl<'de, T: Deserialize<'de>> Deserialize<'de> for RcMut<T> {
     #[inline]
     fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
-        where D: Deserializer<'de>
+    where
+        D: Deserializer<'de>,
     {
         let instance = T::deserialize(deserializer)?;
         Ok(Self(Rc::new(instance)))
@@ -528,7 +535,8 @@ impl<T> RcRef<T> {
 
     #[inline]
     pub fn new_cyclic<F>(init_fn: F) -> Self
-        where F: FnOnce(WeakRef<T>) -> T
+    where
+        F: FnOnce(WeakRef<T>) -> T,
     {
         Self(Rc::new_cyclic(|weak| {
             let widget_weak_ref = WeakRef(weak.clone());
@@ -576,7 +584,8 @@ impl<T: ?Sized> Deref for RcRef<T> {
 impl<T: Serialize> Serialize for RcRef<T> {
     #[inline]
     fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
-        where S: Serializer
+    where
+        S: Serializer,
     {
         self.0.as_ref().serialize(serializer)
     }
@@ -585,7 +594,8 @@ impl<T: Serialize> Serialize for RcRef<T> {
 impl<'de, T: Deserialize<'de>> Deserialize<'de> for RcRef<T> {
     #[inline]
     fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
-        where D: Deserializer<'de>
+    where
+        D: Deserializer<'de>,
     {
         let instance = T::deserialize(deserializer)?;
         Ok(Self(Rc::new(instance)))

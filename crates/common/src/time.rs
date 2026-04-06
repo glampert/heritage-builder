@@ -1,10 +1,10 @@
+use serde::{Deserialize, Serialize};
+
 #[cfg(feature = "desktop")]
 use std::time;
 
 #[cfg(feature = "web")]
 use web_time as time;
-
-use serde::{Deserialize, Serialize};
 
 // ----------------------------------------------
 // Type Aliases

@@ -140,8 +140,9 @@ macro_rules! append_fixed_string_trunc {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
     use arrayvec::ArrayString;
+
+    use super::*;
 
     #[test]
     fn test_snake_case_to_title() {

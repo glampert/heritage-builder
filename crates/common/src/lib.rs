@@ -161,37 +161,25 @@ impl Vec2 {
         let (s, c) = angle_radians.sin_cos();
         let dx = self.x - point.x;
         let dy = self.y - point.y;
-        Self {
-            x: point.x + (dx * c) - (dy * s),
-            y: point.y + (dx * s) + (dy * c)
-        }
+        Self { x: point.x + (dx * c) - (dy * s), y: point.y + (dx * s) + (dy * c) }
     }
 
     #[inline]
     #[must_use]
     pub fn min(&self, other: Self) -> Self {
-        Self {
-            x: self.x.min(other.x),
-            y: self.y.min(other.y),
-        }
+        Self { x: self.x.min(other.x), y: self.y.min(other.y) }
     }
 
     #[inline]
     #[must_use]
     pub fn max(&self, other: Self) -> Self {
-        Self {
-            x: self.x.max(other.x),
-            y: self.y.max(other.y),
-        }
+        Self { x: self.x.max(other.x), y: self.y.max(other.y) }
     }
 
     #[inline]
     #[must_use]
     pub fn clamp(&self, min: Self, max: Self) -> Self {
-        Self {
-            x: self.x.clamp(min.x, max.x),
-            y: self.y.clamp(min.y, max.y),
-        }
+        Self { x: self.x.clamp(min.x, max.x), y: self.y.clamp(min.y, max.y) }
     }
 }
 
@@ -361,10 +349,7 @@ impl Color {
 
     #[inline]
     pub fn clamp(&self) -> Self {
-        Self { r: self.r.clamp(0.0, 1.0),
-               g: self.g.clamp(0.0, 1.0),
-               b: self.b.clamp(0.0, 1.0),
-               a: self.a.clamp(0.0, 1.0) }
+        Self { r: self.r.clamp(0.0, 1.0), g: self.g.clamp(0.0, 1.0), b: self.b.clamp(0.0, 1.0), a: self.a.clamp(0.0, 1.0) }
     }
 }
 
@@ -379,10 +364,12 @@ impl Default for Color {
 impl std::ops::Mul for Color {
     type Output = Color;
     fn mul(self, rhs: Color) -> Color {
-        Color { r: (self.r * rhs.r).min(1.0),
-                g: (self.g * rhs.g).min(1.0),
-                b: (self.b * rhs.b).min(1.0),
-                a: (self.a * rhs.a).min(1.0) }
+        Color {
+            r: (self.r * rhs.r).min(1.0),
+            g: (self.g * rhs.g).min(1.0),
+            b: (self.b * rhs.b).min(1.0),
+            a: (self.a * rhs.a).min(1.0),
+        }
     }
 }
 
@@ -400,10 +387,12 @@ impl std::ops::MulAssign for Color {
 impl std::ops::Mul<f32> for Color {
     type Output = Color;
     fn mul(self, rhs: f32) -> Color {
-        Color { r: (self.r * rhs).min(1.0),
-                g: (self.g * rhs).min(1.0),
-                b: (self.b * rhs).min(1.0),
-                a: (self.a * rhs).min(1.0) }
+        Color {
+            r: (self.r * rhs).min(1.0),
+            g: (self.g * rhs).min(1.0),
+            b: (self.b * rhs).min(1.0),
+            a: (self.a * rhs).min(1.0),
+        }
     }
 }
 
@@ -411,10 +400,12 @@ impl std::ops::Mul<f32> for Color {
 impl std::ops::Mul<Color> for f32 {
     type Output = Color;
     fn mul(self, rhs: Color) -> Color {
-        Color { r: (self * rhs.r).min(1.0),
-                g: (self * rhs.g).min(1.0),
-                b: (self * rhs.b).min(1.0),
-                a: (self * rhs.a).min(1.0) }
+        Color {
+            r: (self * rhs.r).min(1.0),
+            g: (self * rhs.g).min(1.0),
+            b: (self * rhs.b).min(1.0),
+            a: (self * rhs.a).min(1.0),
+        }
     }
 }
 
@@ -484,28 +475,19 @@ impl Size {
     #[inline]
     #[must_use]
     pub fn min(&self, other: Self) -> Self {
-        Self {
-            width: self.width.min(other.width),
-            height: self.height.min(other.height),
-        }
+        Self { width: self.width.min(other.width), height: self.height.min(other.height) }
     }
 
     #[inline]
     #[must_use]
     pub fn max(&self, other: Self) -> Self {
-        Self {
-            width: self.width.max(other.width),
-            height: self.height.max(other.height),
-        }
+        Self { width: self.width.max(other.width), height: self.height.max(other.height) }
     }
 
     #[inline]
     #[must_use]
     pub fn clamp(&self, min: Self, max: Self) -> Self {
-        Self {
-            width: self.width.clamp(min.width, max.width),
-            height: self.height.clamp(min.height, max.height),
-        }
+        Self { width: self.width.clamp(min.width, max.width), height: self.height.clamp(min.height, max.height) }
     }
 }
 
@@ -884,12 +866,13 @@ impl Default for RectTexCoords {
 // Maps a value in the numerical range [in_min, in_max] to the range [out_min, out_max].
 #[inline]
 pub fn map_value_to_range<T>(val: T, in_min: T, in_max: T, out_min: T, out_max: T) -> T
-    where T: std::ops::Sub<Output = T>
-           + std::ops::Div<Output = T>
-           + std::ops::Mul<Output = T>
-           + std::ops::Add<Output = T>
-           + PartialEq
-           + Copy
+where
+    T: std::ops::Sub<Output = T>
+     + std::ops::Div<Output = T>
+     + std::ops::Mul<Output = T>
+     + std::ops::Add<Output = T>
+     + PartialEq
+     + Copy
 {
     if in_min == in_max {
         val // Would cause a division by zero in in_max - in_min, so just return back the input.
@@ -901,7 +884,8 @@ pub fn map_value_to_range<T>(val: T, in_min: T, in_max: T, out_min: T, out_max: 
 // Maps a scalar value within a range to the [0,1] normalized range.
 #[inline]
 pub fn normalize_value<T>(val: T, minimum: T, maximum: T) -> T
-    where T: std::ops::Sub<Output = T> + std::ops::Div<Output = T> + Copy
+where
+    T: std::ops::Sub<Output = T> + std::ops::Div<Output = T> + Copy,
 {
     (val - minimum) / (maximum - minimum)
 }
@@ -909,8 +893,9 @@ pub fn normalize_value<T>(val: T, minimum: T, maximum: T) -> T
 // Linear interpolation.
 #[inline]
 pub fn lerp<T>(a: T, b: T, t: f32) -> T
-    where T: std::ops::Mul<f32, Output = T> + std::ops::Add<Output = T> + Copy,
-          f32: std::ops::Mul<T, Output = T> // for (1.0 - t) * a
+where
+    T: std::ops::Mul<f32, Output = T> + std::ops::Add<Output = T> + Copy,
+    f32: std::ops::Mul<T, Output = T>, // for (1.0 - t) * a
 {
     (1.0 - t) * a + t * b
 }

@@ -1,7 +1,8 @@
 use std::{iter::FusedIterator, ops::RangeInclusive};
+
 use serde::{Deserialize, Serialize};
 
-use super::{field_accessor_xy, constants::*, Rect, Size, Vec2, Color};
+use super::{constants::*, field_accessor_xy, Color, Rect, Size, Vec2};
 
 // ----------------------------------------------
 // IsoPoint
@@ -153,10 +154,7 @@ impl CellRange {
 
     #[inline]
     pub fn is_valid(&self) -> bool {
-        self.start.is_valid()
-        && self.end.is_valid()
-        && self.start.x <= self.end.x
-        && self.start.y <= self.end.y
+        self.start.is_valid() && self.end.is_valid() && self.start.x <= self.end.x && self.start.y <= self.end.y
     }
 
     #[inline]
@@ -510,11 +508,12 @@ pub fn is_screen_point_inside_diamond(p: Vec2, points: &[Vec2; 4]) -> bool {
 
 // Test precisely if the screen point is inside the isometric cell diamond.
 #[inline]
-pub fn is_screen_point_inside_cell(screen_point: Vec2,
-                                   cell: Cell,
-                                   tile_size: Size,
-                                   transform: WorldToScreenTransform)
-                                   -> bool {
+pub fn is_screen_point_inside_cell(
+    screen_point: Vec2,
+    cell: Cell,
+    tile_size: Size,
+    transform: WorldToScreenTransform,
+) -> bool {
     let screen_points = cell_to_screen_diamond_points(cell, tile_size, transform);
     is_screen_point_inside_diamond(screen_point, &screen_points)
 }
@@ -551,10 +550,7 @@ pub fn is_screen_point_inside_triangle(point: Vec2, a: Vec2, b: Vec2, c: Vec2) -
 
 // Creates an isometric-aligned diamond rectangle for the given tile size and cell location.
 // Winding order of edges is Counter-Clockwise (CCW) in *screen space* (+Y points down, positive signed area).
-pub fn cell_to_screen_diamond_points(cell: Cell,
-                                     tile_size: Size,
-                                     transform: WorldToScreenTransform)
-                                     -> [Vec2; 4] {
+pub fn cell_to_screen_diamond_points(cell: Cell, tile_size: Size, transform: WorldToScreenTransform) -> [Vec2; 4] {
     debug_assert!(transform.is_valid());
 
     let iso_center = cell_to_iso(cell);
@@ -579,10 +575,7 @@ pub fn cell_to_screen_diamond_points(cell: Cell,
 
 // Simplified version of cell_to_screen_diamond_points() that only
 // computes the left/right corner Y coord, used as tile sorting key.
-pub fn cell_to_screen_diamond_center_y(cell: Cell,
-                                       tile_size: Size,
-                                       transform: WorldToScreenTransform)
-                                       -> f32 {
+pub fn cell_to_screen_diamond_center_y(cell: Cell, tile_size: Size, transform: WorldToScreenTransform) -> f32 {
     debug_assert!(transform.is_valid());
 
     let iso_center = cell_to_iso(cell);
@@ -640,25 +633,19 @@ impl IsoDiamond {
         Self { points }
     }
 
-    pub fn from_cell(cell: Cell,
-                     tile_size: Size,
-                     transform: WorldToScreenTransform) -> Self {
+    pub fn from_cell(cell: Cell, tile_size: Size, transform: WorldToScreenTransform) -> Self {
         let points = cell_to_screen_diamond_points(cell, tile_size, transform);
         Self { points }
     }
 
-    pub fn from_tile_map(map_size_in_cells: Size,
-                         transform: WorldToScreenTransform) -> Self {
+    pub fn from_tile_map(map_size_in_cells: Size, transform: WorldToScreenTransform) -> Self {
         let map_origin_cell = Cell::zero();
         let map_size_in_pixels = Size::new(
             map_size_in_cells.width  * BASE_TILE_SIZE_I32.width,
             map_size_in_cells.height * BASE_TILE_SIZE_I32.height,
         );
 
-        let points = cell_to_screen_diamond_points(
-            map_origin_cell,
-            map_size_in_pixels,
-            transform);
+        let points = cell_to_screen_diamond_points(map_origin_cell, map_size_in_pixels, transform);
 
         Self { points }
     }
@@ -694,7 +681,8 @@ impl IsoDiamond {
     }
 
     pub fn map_points<F>(&self, f: F) -> [Vec2; 4]
-        where F: Fn(Vec2) -> Vec2
+    where
+        F: Fn(Vec2) -> Vec2,
     {
         [
             f(self.points[Self::TOP]),
@@ -705,7 +693,8 @@ impl IsoDiamond {
     }
 
     pub fn map_inner_rect<F>(&self, f: F) -> Rect
-        where F: Fn(Vec2) -> Vec2
+    where
+        F: Fn(Vec2) -> Vec2,
     {
         let corners = self.inner_rect().corners_ccw().map(f);
         Rect::from_points(&corners)

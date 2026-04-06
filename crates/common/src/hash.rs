@@ -1,7 +1,6 @@
 use std::{
-    hash::Hash,
     collections::HashMap,
-    hash::{BuildHasherDefault, Hasher},
+    hash::{BuildHasherDefault, Hash, Hasher},
 };
 
 use small_map::SmallMap;
@@ -50,7 +49,8 @@ pub const fn new_const_hash_map<K, V>() -> PreHashedKeyMap<K, V> {
 pub struct SmallSet<const N: usize, T>(SmallMap<N, T, ()>);
 
 impl<const N: usize, T> SmallSet<N, T>
-    where T: Eq + Hash
+where
+    T: Eq + Hash,
 {
     #[inline]
     pub fn new() -> Self {

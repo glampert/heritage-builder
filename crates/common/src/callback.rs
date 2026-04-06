@@ -1,4 +1,5 @@
 use std::{any::Any, collections::hash_map::Entry};
+
 use serde::{Deserialize, Serialize};
 
 use super::hash::{self, FNV1aHash, PreHashedKeyMap};
@@ -21,7 +22,9 @@ pub struct Callback<F> {
     fptr: Option<F>,
 }
 
-impl<F> Callback<F> where F: 'static + Copy + Clone + PartialEq
+impl<F> Callback<F>
+where
+    F: 'static + Copy + Clone + PartialEq,
 {
     #[inline]
     pub fn create(key: CallbackKey, name: &'static str, fptr: F) -> Self {
@@ -54,9 +57,10 @@ impl<F> Callback<F> where F: 'static + Copy + Clone + PartialEq
     pub fn get(&self) -> F {
         debug_assert!(self.is_valid(), "Callback '{}' is not valid!", self.name);
         self.fptr.unwrap_or_else(|| {
-            panic!("Function pointer for callback '{}' ({:X}) is not set! Did you forget to call Callback::post_load()?",
-                   self.name,
-                   self.key.hash);
+            panic!(
+                "Function pointer for callback '{}' ({:X}) is not set! Did you forget to call Callback::post_load()?",
+                self.name, self.key.hash
+            );
         })
     }
 
@@ -74,18 +78,16 @@ impl<F> Callback<F> where F: 'static + Copy + Clone + PartialEq
             self.name = entry.name;
             self.fptr = entry.cb.downcast_ref::<F>().copied();
 
-            debug_assert!(self.fptr.is_some(),
-                          "Failed to lookup deserialized callback '{}'!",
-                          self.name);
-            debug_assert!(self.key.hash == hash::fnv1a_from_str(self.name),
-                          "Callback name and key do not match for '{}'!",
-                          self.name);
+            debug_assert!(self.fptr.is_some(), "Failed to lookup deserialized callback '{}'!", self.name);
+            debug_assert!(
+                self.key.hash == hash::fnv1a_from_str(self.name),
+                "Callback name and key do not match for '{}'!",
+                self.name
+            );
         } else {
             // Else the callback key must be invalid/default.
             // If it isn't then we failed to find it in the registry.
-            debug_assert!(!self.key.is_valid(),
-                          "Failed to find callback '{}' in registry!",
-                          self.name);
+            debug_assert!(!self.key.is_valid(), "Failed to find callback '{}' in registry!", self.name);
         }
     }
 }
@@ -155,12 +157,9 @@ impl CallbackRegistry {
         Self { lookup: hash::new_const_hash_map() }
     }
 
-    fn register<F>(&'static mut self,
-                   key: CallbackKey,
-                   name: &'static str,
-                   fptr: F,
-                   expect_entry: bool)
-        where F: 'static + Copy + Clone + PartialEq
+    fn register<F>(&'static mut self, key: CallbackKey, name: &'static str, fptr: F, expect_entry: bool)
+    where
+        F: 'static + Copy + Clone + PartialEq,
     {
         debug_assert!(key.is_valid());
         debug_assert!(!name.is_empty());
@@ -185,7 +184,8 @@ impl CallbackRegistry {
     }
 
     fn find_func_ptr<F>(&'static self, key: CallbackKey) -> Option<&'static F>
-        where F: 'static + Copy + Clone + PartialEq
+    where
+        F: 'static + Copy + Clone + PartialEq,
     {
         if !key.is_valid() {
             return None;
@@ -214,7 +214,8 @@ singleton! { CALLBACK_REGISTRY_SINGLETON, CallbackRegistry }
 
 #[inline]
 pub fn find<F>(key: CallbackKey) -> Option<&'static F>
-    where F: 'static + Copy + Clone + PartialEq
+where
+    F: 'static + Copy + Clone + PartialEq,
 {
     CallbackRegistry::get().find_func_ptr(key)
 }
@@ -226,8 +227,7 @@ pub fn find<F>(key: CallbackKey) -> Option<&'static F>
 #[macro_export]
 macro_rules! register_callback {
     ($func:expr) => {{
-        const KEY: $crate::callback::CallbackKey =
-            $crate::callback::CallbackKey::new(stringify!($func));
+        const KEY: $crate::callback::CallbackKey = $crate::callback::CallbackKey::new(stringify!($func));
         $crate::callback::Callback::register(KEY, stringify!($func), $func)
     }};
 }
@@ -235,14 +235,14 @@ macro_rules! register_callback {
 #[macro_export]
 macro_rules! create_callback {
     ($func:expr) => {{
-        const KEY: $crate::callback::CallbackKey =
-            $crate::callback::CallbackKey::new(stringify!($func));
+        const KEY: $crate::callback::CallbackKey = $crate::callback::CallbackKey::new(stringify!($func));
         $crate::callback::Callback::create(KEY, stringify!($func), $func)
     }};
 }
 
 // Re-export here so usage is scoped, e.g.: callback::register!(...)
-pub use {create_callback as create, register_callback as register};
+pub use create_callback as create;
+pub use register_callback as register;
 
 // ----------------------------------------------
 // Unit Tests
@@ -252,6 +252,7 @@ pub use {create_callback as create, register_callback as register};
 mod tests {
     use crate::callback::{self, Callback};
 
+    #[rustfmt::skip]
     #[test]
     fn test_callback_registry() {
         struct Test;
