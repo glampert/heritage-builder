@@ -3,8 +3,17 @@
 use proc_macro2::{Span, TokenStream};
 use quote::quote;
 use syn::{
-    parse_macro_input, punctuated::Punctuated, token::Comma, Attribute, Data, DeriveInput, Field,
-    Fields, LitStr, Type, TypePath,
+    parse_macro_input,
+    punctuated::Punctuated,
+    token::Comma,
+    Attribute,
+    Data,
+    DeriveInput,
+    Field,
+    Fields,
+    LitStr,
+    Type,
+    TypePath,
 };
 
 // -------------------------------------------------------
@@ -102,11 +111,14 @@ fn parse_debug_ui_attrs(attrs: &[Attribute]) -> DebugUiAttrs {
                     }
                 });
             } else {
-                return Err(meta.error(format!("Unsupported attribute: '{}'",
-                    meta.path.get_ident().map_or_else(|| "unknown".to_string(), |id| id.to_string()))));
+                return Err(meta.error(format!(
+                    "Unsupported attribute: '{}'",
+                    meta.path.get_ident().map_or_else(|| "unknown".to_string(), |id| id.to_string())
+                )));
             }
             Ok(())
-        }).expect("Invalid meta attributes!");
+        })
+        .expect("Invalid meta attributes!");
     }
 
     result
@@ -127,9 +139,7 @@ fn infer_field_kind(field: &Field) -> FieldKind {
         if let Some(ident) = path.get_ident() {
             let kind = match ident.to_string().as_str() {
                 "bool" => FieldKind::Bool,
-                "u8" | "u16" | "u32" | "u64" | "usize" | "i8" | "i16" | "i32" | "i64" | "isize" => {
-                    FieldKind::Int
-                }
+                "u8" | "u16" | "u32" | "u64" | "usize" | "i8" | "i16" | "i32" | "i64" | "isize" => FieldKind::Int,
                 "f32" | "f64" | "Seconds" => FieldKind::Float,
                 "String" => FieldKind::String,
                 _ => FieldKind::Unknown,
@@ -168,15 +178,15 @@ fn has_any_edit_attr(fields: &Punctuated<Field, Comma>) -> bool {
 
 fn snake_case_to_title(s: &str) -> String {
     s.split('_')
-     .map(|word| {
-         let mut chars = word.chars();
-         match chars.next() {
-             Some(first) => first.to_uppercase().collect::<String>() + chars.as_str(),
-             None => String::new(),
-         }
-     })
-     .collect::<Vec<_>>()
-     .join(" ")
+        .map(|word| {
+            let mut chars = word.chars();
+            match chars.next() {
+                Some(first) => first.to_uppercase().collect::<String>() + chars.as_str(),
+                None => String::new(),
+            }
+        })
+        .collect::<Vec<_>>()
+        .join(" ")
 }
 
 // Entry point function.
@@ -188,15 +198,11 @@ pub fn draw_debug_ui_proc_macro_impl(input: proc_macro::TokenStream) -> proc_mac
         match data_struct.fields {
             Fields::Named(named_fields) => named_fields.named,
             _ => {
-                return syn::Error::new_spanned(struct_name, "Expected named fields!")
-                    .to_compile_error()
-                    .into();
+                return syn::Error::new_spanned(struct_name, "Expected named fields!").to_compile_error().into();
             }
         }
     } else {
-        return syn::Error::new_spanned(struct_name, "Only structs are supported!")
-            .to_compile_error()
-            .into();
+        return syn::Error::new_spanned(struct_name, "Only structs are supported!").to_compile_error().into();
     };
 
     let field_name_padding = calc_field_name_padding(&fields);
@@ -278,7 +284,7 @@ pub fn draw_debug_ui_proc_macro_impl(input: proc_macro::TokenStream) -> proc_mac
                     } else {
                         quote! { ui.checkbox(#label_str, &mut self.#field_name); }
                     }
-                },
+                }
                 FieldKind::Int => {
                     let display_format = attrs.display_format.unwrap_or("%i".into());
                     if slider {
@@ -311,9 +317,9 @@ pub fn draw_debug_ui_proc_macro_impl(input: proc_macro::TokenStream) -> proc_mac
                                 .build();
                         }
                     }
-                },
+                }
                 FieldKind::Float => {
-                   let display_format = attrs.display_format.unwrap_or("%.2f".into());
+                    let display_format = attrs.display_format.unwrap_or("%.2f".into());
                     if slider {
                         let min: f32 = attrs.min.unwrap_or("0.0".into()).parse().expect("Invalid 'min' attribute!");
                         let max: f32 = attrs.max.unwrap_or("999.0".into()).parse().expect("Invalid 'max' attribute!");
@@ -344,14 +350,14 @@ pub fn draw_debug_ui_proc_macro_impl(input: proc_macro::TokenStream) -> proc_mac
                                 .build();
                         }
                     }
-                },
+                }
                 FieldKind::String => {
                     quote! {
                         ui.input_text(#label_str, &mut self.#field_name)
                             .read_only(#read_only)
                             .build();
                     }
-                },
+                }
                 FieldKind::Unknown => {
                     if attrs.nested {
                         // Nested structure with its own draw_debug_ui method.
@@ -360,7 +366,7 @@ pub fn draw_debug_ui_proc_macro_impl(input: proc_macro::TokenStream) -> proc_mac
                         // Fallback: Try format Display text.
                         quote! { ui.text(format!(#format_str_lit, self.#field_name)); }
                     }
-                },
+                }
             };
 
             tokens.extend(field_tokens);
