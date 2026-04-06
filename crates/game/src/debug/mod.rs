@@ -17,6 +17,7 @@ use crate::{
     tile::{rendering::TileMapRenderFlags, TileMap, TileMapLayerKind, minimap::{MinimapRenderer, DevUiMinimapRenderer}},
 };
 
+pub mod game_object_debug;
 pub mod log_viewer;
 pub mod popups;
 pub mod utils;

@@ -14,7 +14,6 @@ use super::{
         SimContext,
     },
     world::{
-        debug::game_object_debug_options,
         object::{GameObject, GenerationalIndex, Spawner},
         stats::WorldStats,
     },
@@ -29,6 +28,7 @@ use crate::{
     self, Tile, TileKind, TileMap, placement::TilePlacementErr,
     TileMapLayerKind, TilePoolIndex, TileDepthSortOverride,
     },
+    debug::game_object_debug::{GameObjectDebugOptions, GameObjectDebugOptionsExt, game_object_debug_options},
 };
 
 pub mod anim;

@@ -14,7 +14,8 @@ use common::{ callback::{self, Callback}, hash::{self, StringHash}, time::{Secon
 use crate::{
     tile::Tile,
     debug::utils::UpdateTimerDebugUi,
-    { cheats, sim::{ resources::{ ResourceKind, ResourceKinds, ShoppingList, Workers, StockItem, RESOURCE_KIND_COUNT }, SimContext, RandomGenerator, }, unit::{ runner::Runner, harvester::Harvester, patrol::{Patrol, AmbientPatrolConfig, TimedAmbientPatrol}, Unit, UnitTaskHelper, config::UnitConfigKey, task::{ UnitTaskDeliverToStorage, UnitTaskDeliveryCompletionCallback, UnitTaskFetchCompletionCallback, UnitTaskFetchFromStorage, UnitTaskHarvestWood, }, }, world::{object::GameObject, stats::WorldStats, debug::game_object_debug_options}, undo_redo::{GameObjectSavedState, game_object_undo_redo_state}, },
+    { cheats, sim::{ resources::{ ResourceKind, ResourceKinds, ShoppingList, Workers, StockItem, RESOURCE_KIND_COUNT }, SimContext, RandomGenerator, }, unit::{ runner::Runner, harvester::Harvester, patrol::{Patrol, AmbientPatrolConfig, TimedAmbientPatrol}, Unit, UnitTaskHelper, config::UnitConfigKey, task::{ UnitTaskDeliverToStorage, UnitTaskDeliveryCompletionCallback, UnitTaskFetchCompletionCallback, UnitTaskFetchFromStorage, UnitTaskHarvestWood, }, }, world::{object::GameObject, stats::WorldStats}, undo_redo::{GameObjectSavedState, game_object_undo_redo_state}, },
+    debug::game_object_debug::{GameObjectDebugOptions, GameObjectDebugOptionsExt, game_object_debug_options},
 };
 
 // ----------------------------------------------

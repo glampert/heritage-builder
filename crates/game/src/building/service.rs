@@ -11,9 +11,10 @@ use engine::{log, ui::UiSystem};
 use crate::save_context::PostLoadContext;
 use common::{ time::{Seconds, UpdateTimer}, callback::{self, Callback}, hash::{self, StringHash}, Color, };
 use crate::{
-    { cheats, sim::{ SimContext, resources::{ ResourceKind, ResourceKinds, ShoppingList, Workers, StockItem, RESOURCE_KIND_COUNT, }, }, unit::{ patrol::*, runner::Runner, task::{ UnitTaskFetchCompletionCallback, UnitTaskFetchFromStorage, UnitTaskRandomizedPatrol, }, config::UnitConfigKey, Unit, UnitTaskHelper, }, world::{object::GameObject, stats::WorldStats, debug::game_object_debug_options}, undo_redo::{GameObjectSavedState, game_object_undo_redo_state}, },
+    { cheats, sim::{ SimContext, resources::{ ResourceKind, ResourceKinds, ShoppingList, Workers, StockItem, RESOURCE_KIND_COUNT, }, }, unit::{ patrol::*, runner::Runner, task::{ UnitTaskFetchCompletionCallback, UnitTaskFetchFromStorage, UnitTaskRandomizedPatrol, }, config::UnitConfigKey, Unit, UnitTaskHelper, }, world::{object::GameObject, stats::WorldStats}, undo_redo::{GameObjectSavedState, game_object_undo_redo_state}, },
     debug::utils::UpdateTimerDebugUi,
     tile::Tile,
+    debug::game_object_debug::{GameObjectDebugOptions, GameObjectDebugOptionsExt, game_object_debug_options},
 };
 
 // ----------------------------------------------

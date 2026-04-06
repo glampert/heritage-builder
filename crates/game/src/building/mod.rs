@@ -27,7 +27,6 @@ use super::{
     },
     world::{
         stats::WorldStats,
-        debug::GameObjectDebugOptions,
         object::{GameObject, GenerationalIndex},
     },
 };
@@ -43,6 +42,7 @@ use crate::{
     Tile, TileFlags, TileGameObjectHandle, TileKind,
     TileMap, TileMapLayerKind,
     },
+    debug::game_object_debug::{GameObjectDebugOptions},
 };
 
 pub mod config;

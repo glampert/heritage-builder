@@ -1,9 +1,19 @@
 use std::borrow::Cow;
+
+use common::{
+    self,
+    coords::{CellRange, WorldToScreenTransform},
+    time::Seconds,
+    Color,
+};
+use engine::ui::UiSystem;
 use smallvec::SmallVec;
 
-use engine::ui::UiSystem;
-use common::{self, Color, coords::{CellRange, WorldToScreenTransform}, time::Seconds};
-use crate::{tile::Tile, sim::resources::ResourceKind, debug::{self, popups::PopupMessages}};
+use crate::{
+    debug::{self, popups::PopupMessages},
+    sim::resources::ResourceKind,
+    tile::Tile,
+};
 
 // ----------------------------------------------
 // GameObjectDebugVar
@@ -192,19 +202,10 @@ macro_rules! game_object_debug_options {
         $struct_name:ident,
         $($field_name:ident : $field_type:ty),* $(,)?
     ) => {
-        use paste::paste;
-        use std::borrow::Cow;
-        use $crate::world::debug::{
-            GameObjectDebugVar,
-            GameObjectDebugPopups,
-            GameObjectDebugOptions,
-            GameObjectDebugOptionsExt
-        };
-
-        paste! {
+        paste::paste! {
             #[derive(Clone, Default)]
             struct $struct_name {
-                popups: GameObjectDebugPopups,
+                popups: $crate::debug::game_object_debug::GameObjectDebugPopups,
                 $(
                     [<opt_ $field_name>] : $field_type,
                 )*
@@ -220,37 +221,37 @@ macro_rules! game_object_debug_options {
                 )*
             }
 
-            impl GameObjectDebugOptions for $struct_name {
+            impl $crate::debug::game_object_debug::GameObjectDebugOptions for $struct_name {
                 #[inline]
-                fn get_popups(&mut self) -> &mut GameObjectDebugPopups {
+                fn get_popups(&mut self) -> &mut $crate::debug::game_object_debug::GameObjectDebugPopups {
                     &mut self.popups
                 }
 
                 #[inline]
-                fn get_vars(&mut self) -> smallvec::SmallVec<[GameObjectDebugVar<'_>; 16]> {
+                fn get_vars(&mut self) -> smallvec::SmallVec<[$crate::debug::game_object_debug::GameObjectDebugVar<'_>; 16]> {
                     let mut vars = smallvec::smallvec![
                         $(
-                            GameObjectDebugVar::new(stringify!($field_name), &mut self.[<opt_ $field_name>]),
+                            $crate::debug::game_object_debug::GameObjectDebugVar::new(stringify!($field_name), &mut self.[<opt_ $field_name>]),
                         )*
                     ];
-                    vars.push(GameObjectDebugVar::new("show_popup_messages", &mut self.popups.show));
+                    vars.push($crate::debug::game_object_debug::GameObjectDebugVar::new("show_popup_messages", &mut self.popups.show));
                     vars
                 }
             }
 
-            impl GameObjectDebugOptionsExt for $struct_name {
+            impl $crate::debug::game_object_debug::GameObjectDebugOptionsExt for $struct_name {
                 #[inline]
                 fn popup_msg<T>(&mut self, text: T)
-                    where T: Into<Cow<'static, str>>
+                    where T: Into<std::borrow::Cow<'static, str>>
                 {
-                    GameObjectDebugOptions::popup_msg_string(self, text.into());
+                    $crate::debug::game_object_debug::GameObjectDebugOptions::popup_msg_string(self, text.into());
                 }
 
                 #[inline]
                 fn popup_msg_color<T>(&mut self, color: Color, text: T)
-                    where T: Into<Cow<'static, str>>
+                    where T: Into<std::borrow::Cow<'static, str>>
                 {
-                    GameObjectDebugOptions::popup_msg_color_string(self, color, text.into());
+                    $crate::debug::game_object_debug::GameObjectDebugOptions::popup_msg_color_string(self, color, text.into());
                 }
             }
         }

@@ -18,7 +18,6 @@ use crate::{
     },
 };
 
-pub mod debug;
 pub mod object;
 pub mod stats;
 

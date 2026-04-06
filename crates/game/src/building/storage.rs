@@ -12,8 +12,9 @@ use engine::{ui::UiSystem};
 use crate::save_context::PostLoadContext;
 use common::{hash::{self, StringHash}, Color};
 use crate::{
-    { cheats, sim::resources::{ ResourceKind, ResourceKinds, ResourceStock, Workers, StockItem, RESOURCE_KIND_COUNT, }, unit::{ task::{UnitTaskDeliverToStorage, UnitTaskFetchFromStorage}, Unit, }, world::{stats::WorldStats, debug::game_object_debug_options}, undo_redo::{GameObjectSavedState, game_object_undo_redo_state}, },
+    { cheats, sim::resources::{ ResourceKind, ResourceKinds, ResourceStock, Workers, StockItem, RESOURCE_KIND_COUNT, }, unit::{ task::{UnitTaskDeliverToStorage, UnitTaskFetchFromStorage}, Unit, }, world::{stats::WorldStats}, undo_redo::{GameObjectSavedState, game_object_undo_redo_state}, },
     tile::Tile,
+    debug::game_object_debug::{GameObjectDebugOptions, GameObjectDebugOptionsExt, game_object_debug_options},
 };
 
 // ----------------------------------------------

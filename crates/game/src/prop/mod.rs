@@ -7,7 +7,6 @@ use super::{
         SimContext,
     },
     world::{
-        debug::game_object_debug_options,
         object::{GameObject, GenerationalIndex},
         stats::WorldStats,
     },
@@ -21,6 +20,7 @@ use crate::{
     debug::DebugUiMode,
     undo_redo::game_object_undo_redo_state,
     tile::{Tile, TileKind, TileMapLayerKind},
+    debug::game_object_debug::{GameObjectDebugOptions, GameObjectDebugOptionsExt, game_object_debug_options},
 };
 
 use config::{PropConfig, PropConfigs};

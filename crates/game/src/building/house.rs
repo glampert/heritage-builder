@@ -16,7 +16,8 @@ use common::{hash::{self, StringHash}, time::{Seconds, UpdateTimer}, Color};
 use crate::{
     tile::{sets::TileDef, Tile},
     debug::utils::UpdateTimerDebugUi,
-    { sim::RandomGenerator, system::settlers::Settler, world::{stats::WorldStats, debug::game_object_debug_options}, undo_redo::{GameObjectSavedState, game_object_undo_redo_state}, sim::resources::{ Population, ResourceKind, ResourceKinds, ServiceKind, ServiceKinds, Workers, StockItem, RESOURCE_KIND_COUNT, }, unit::{ Unit, UnitTaskHelper, config::UnitConfigKey, patrol::{Patrol, AmbientPatrolConfig, TimedAmbientPatrol}, }, },
+    { sim::RandomGenerator, system::settlers::Settler, world::{stats::WorldStats}, undo_redo::{GameObjectSavedState, game_object_undo_redo_state}, sim::resources::{ Population, ResourceKind, ResourceKinds, ServiceKind, ServiceKinds, Workers, StockItem, RESOURCE_KIND_COUNT, }, unit::{ Unit, UnitTaskHelper, config::UnitConfigKey, patrol::{Patrol, AmbientPatrolConfig, TimedAmbientPatrol}, }, },
+    debug::game_object_debug::{GameObjectDebugOptions, GameObjectDebugOptionsExt, game_object_debug_options},
 };
 
 // ----------------------------------------------

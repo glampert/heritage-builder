@@ -12,11 +12,12 @@ use engine::{log, ui::{self, UiDPadDirection, UiSystem, UiStaticVar, UiFontScale
 use common::{ callback::{self, Callback}, time::CountdownTimer, coords::Cell, hash, Color, };
 use crate::{
     pathfind::{self, NodeKind as PathNodeKind, Path},
-    { prop::PropId, building::{Building, BuildingKind, BuildingKindAndId, BuildingTileInfo}, sim::{ resources::{ResourceKind, ShoppingList, StockItem}, SimContext, }, world::{ debug::{GameObjectDebugOptions, GameObjectDebugOptionsExt}, object::{GameObject, Spawner}, }, },
+    { prop::PropId, building::{Building, BuildingKind, BuildingKindAndId, BuildingTileInfo}, sim::{ resources::{ResourceKind, ShoppingList, StockItem}, SimContext, }, world::{ object::{GameObject, Spawner}, }, },
     tile::{
     self, Tile, TileMapLayerKind, TilePoolIndex,
     minimap::{MinimapIcon, MINIMAP_ICON_DEFAULT_LIFETIME}
     },
+    debug::game_object_debug::{GameObjectDebugOptions, GameObjectDebugOptionsExt},
 };
 
 // ----------------------------------------------
