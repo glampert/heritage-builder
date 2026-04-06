@@ -5,25 +5,23 @@
 
 // Core game modules:
 pub mod building;
+pub mod camera;
 pub mod cheats;
 pub mod config;
 pub mod constants;
+pub mod debug;
 pub mod menu;
+pub mod pathfind;
 pub mod prop;
 pub mod save_context;
 pub mod session;
 pub mod sim;
 pub mod system;
+pub mod tile;
 pub mod ui_context;
 pub mod undo_redo;
 pub mod unit;
 pub mod world;
-
-// Game systems:
-pub mod camera;
-pub mod debug;
-pub mod pathfind;
-pub mod tile;
 
 // Re-export GameLoop and key types at the crate root.
 mod game_loop;
