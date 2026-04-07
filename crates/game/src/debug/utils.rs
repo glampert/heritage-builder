@@ -435,13 +435,13 @@ pub struct DebugSimContextBuilder<'game> {
 }
 
 impl<'game> DebugSimContextBuilder<'game> {
-    pub fn new(world: &'game mut World, tile_map: &'game mut TileMap, map_size_in_cells: Size) -> Self {
+    pub fn new(world: &'game mut World, tile_map: &'game mut TileMap, map_size_in_cells: Size, configs: &GameConfigs) -> Self {
         Self {
-            rng: RandomGenerator::seed_from_u64(GameConfigs::get().sim.random_seed),
+            rng: RandomGenerator::seed_from_u64(configs.sim.random_seed),
             graph: Graph::with_empty_grid(map_size_in_cells),
             search: Search::with_grid_size(map_size_in_cells),
             task_manager: UnitTaskManager::new(1),
-            treasury: GlobalTreasury::new(GameConfigs::get().sim.starting_gold_units),
+            treasury: GlobalTreasury::new(configs.sim.starting_gold_units),
             world,
             tile_map,
         }
@@ -670,8 +670,9 @@ mod preset_maps {
         debug_assert!(preset.terrain_tiles.len() == tile_count);
         debug_assert!(preset.building_tiles.len() == tile_count);
 
+        let configs = GameConfigs::get();
         let mut tile_map = TileMap::new(map_size_in_cells, None);
-        let mut builder = DebugSimContextBuilder::new(world, &mut tile_map, map_size_in_cells);
+        let mut builder = DebugSimContextBuilder::new(world, &mut tile_map, map_size_in_cells, configs);
         let context = builder.new_sim_context();
 
         // Terrain:
