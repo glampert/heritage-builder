@@ -16,13 +16,15 @@ use engine::{log, ui::UiSystem};
 
 use super::stats::WorldStats;
 use crate::{
-    building::Building,
     cheats,
     constants::*,
     debug::DebugUiMode,
-    prop::Prop,
-    save_context::PostLoadContext,
     sim::SimContext,
+    undo_redo::GameObjectSavedState,
+    save_context::PostLoadContext,
+    prop::{Prop, PropId},
+    building::{Building, BuildingKindAndId},
+    unit::{Unit, UnitId, config::UnitConfigKey},
     tile::{
         Tile,
         TileFlags,
@@ -31,8 +33,6 @@ use crate::{
         placement::{self, Placement, TileClearingErr, TilePlacementErr},
         sets::{PresetTiles, TileDef},
     },
-    undo_redo::GameObjectSavedState,
-    unit::{Unit, config::UnitConfigKey},
 };
 
 // ----------------------------------------------
@@ -653,6 +653,12 @@ impl<'game> Spawner<'game> {
         }
     }
 
+    pub fn despawn_building_with_id(&self, kind_and_id: BuildingKindAndId) {
+        if let Some(building) = self.context.world_mut().find_building_mut(kind_and_id.kind, kind_and_id.id) {
+            self.despawn_building(building);
+        }
+    }
+
     // ----------------------
     // Units:
     // ----------------------
@@ -698,6 +704,12 @@ impl<'game> Spawner<'game> {
         }
     }
 
+    pub fn despawn_unit_with_id(&self, id: UnitId) {
+        if let Some(unit) = self.context.world_mut().find_unit_mut(id) {
+            self.despawn_unit(unit);
+        }
+    }
+
     // ----------------------
     // Props:
     // ----------------------
@@ -729,6 +741,12 @@ impl<'game> Spawner<'game> {
     pub fn despawn_prop_at_cell(&self, prop_base_cell: Cell) {
         if let Err(err) = self.context.world_mut().despawn_prop_at_cell(self.context, prop_base_cell) {
             despawn_error("Prop", &err);
+        }
+    }
+
+    pub fn despawn_prop_with_id(&self, id: PropId) {
+        if let Some(prop) = self.context.world_mut().find_prop_mut(id) {
+            self.despawn_prop(prop);
         }
     }
 
