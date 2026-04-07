@@ -48,6 +48,7 @@ pub struct Simulation {
     rng: RcMut<RandomGenerator>,
 
     update_timer: UpdateTimer,
+    #[serde(default)] // Preserve save game backwards compatibility.
     paused_update_timer: UpdateTimer,
 
     task_manager: UnitTaskManager,
