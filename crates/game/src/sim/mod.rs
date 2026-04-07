@@ -141,10 +141,12 @@ impl Simulation {
         self.graph.rebuild_from_tile_map(tile_map, true);
 
         // Paused simulation update:
-        if self.is_paused && self.paused_update_timer.tick(delta_time_secs).should_update() {
-            let context = self.new_sim_context(world, tile_map, delta_time_secs);
-            systems.paused_update(engine, &context);
-            return;
+        if self.is_paused {
+            if self.paused_update_timer.tick(delta_time_secs).should_update() {
+                let context = self.new_sim_context(world, tile_map, delta_time_secs);
+                systems.paused_update(engine, &context);
+            }
+            return; // Early out.
         }
 
         let scaled_delta_time_secs = delta_time_secs * self.speed;
