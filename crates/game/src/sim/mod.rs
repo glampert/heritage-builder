@@ -1,12 +1,13 @@
+use rand::SeedableRng;
+use rand_pcg::Pcg64;
+use serde::{Deserialize, Serialize};
+
 use common::{
     coords::CellRange,
     mem::RcMut,
     time::{Seconds, UpdateTimer},
 };
 use engine::{Engine, save::*};
-use rand::SeedableRng;
-use rand_pcg::Pcg64;
-use serde::{Deserialize, Serialize};
 
 use super::{
     config::GameConfigs,
@@ -47,6 +48,8 @@ pub struct Simulation {
     rng: RcMut<RandomGenerator>,
 
     update_timer: UpdateTimer,
+    paused_update_timer: UpdateTimer,
+
     task_manager: UnitTaskManager,
     treasury: GlobalTreasury,
 
@@ -65,6 +68,7 @@ impl Simulation {
         Self {
             rng: RcMut::new(RandomGenerator::seed_from_u64(configs.sim.random_seed)),
             update_timer: UpdateTimer::new(configs.sim.update_frequency_secs),
+            paused_update_timer: UpdateTimer::new(configs.sim.paused_update_frequency_secs),
             task_manager: UnitTaskManager::new(UNIT_TASK_POOL_CAPACITY),
             treasury: GlobalTreasury::new(configs.sim.starting_gold_units),
             graph: Graph::from_tile_map(tile_map),
@@ -135,8 +139,8 @@ impl Simulation {
         // this full map update pass altogether.
         self.graph.rebuild_from_tile_map(tile_map, true);
 
-        if self.is_paused {
-            // TODO: Should we have a paused update timer or let it run every frame?
+        // Paused simulation update:
+        if self.is_paused && self.paused_update_timer.tick(delta_time_secs).should_update() {
             let context = self.new_sim_context(world, tile_map, delta_time_secs);
             systems.paused_update(engine, &context);
             return;
@@ -317,6 +321,7 @@ impl Load for Simulation {
     fn post_load(&mut self, context: &mut PostLoadContext) {
         self.search = Search::with_graph(&self.graph);
         self.update_timer.post_load(context.configs().sim.update_frequency_secs);
+        self.paused_update_timer.post_load(context.configs().sim.paused_update_frequency_secs);
         self.task_manager.post_load();
     }
 }
