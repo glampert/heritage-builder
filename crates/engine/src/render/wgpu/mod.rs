@@ -1,10 +1,11 @@
 use arrayvec::ArrayVec;
-use batch::*;
 use common::{Color, Rect, RectTexCoords, Size, Vec2, time::PerfTimer};
+use batch::*;
 use target::*;
-pub use texture::WgpuTexture;
 use texture::*;
 use vertex::*;
+
+pub use texture::WgpuTexture;
 
 use super::{RenderStats, RenderSystemBackend};
 use crate::{log, ui::UiRenderFrameBundle};
@@ -236,8 +237,7 @@ impl WgpuRenderSystemBackend {
         );
         let lines_pipeline = pipeline::create_lines_pipeline(&device, surface_format, &uniform_bind_group_layout);
         let points_pipeline = pipeline::create_points_pipeline(&device, surface_format, &uniform_bind_group_layout);
-        let ui_pipeline =
-            pipeline::create_ui_pipeline(&device, surface_format, &uniform_bind_group_layout, &texture_bind_group_layout);
+        let ui_pipeline = pipeline::create_ui_pipeline(&device, surface_format, &uniform_bind_group_layout, &texture_bind_group_layout);
         let blit_pipeline = pipeline::create_blit_pipeline(&device, surface_format, &blit_texture_layout);
 
         // Uniform buffer.

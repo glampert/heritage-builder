@@ -1,14 +1,15 @@
 use std::ffi::{CStr, c_char};
 
 use arrayvec::ArrayVec;
-use batch::*;
 use common::{Color, Rect, RectTexCoords, Size, Vec2, time::PerfTimer};
+use batch::*;
 use context::*;
 use shader::*;
 use target::*;
-pub use texture::OpenGlTexture;
 use texture::*;
 use vertex::*;
+
+pub use texture::OpenGlTexture;
 
 use super::{RenderApi, RenderStats, RenderSystemBackend, RenderSystemInitParams};
 use crate::{log, ui::UiRenderFrameBundle};
