@@ -514,6 +514,13 @@ impl<T: ?Sized> WeakMut<T> {
     }
 }
 
+impl<T: Sized> Default for WeakMut<T> {
+    #[inline]
+    fn default() -> Self {
+        Self(Weak::default())
+    }
+}
+
 impl<T: ?Sized> Clone for WeakMut<T> {
     #[inline(always)]
     fn clone(&self) -> Self {
@@ -612,6 +619,13 @@ impl<T: ?Sized> WeakRef<T> {
     #[inline]
     pub fn upgrade(&self) -> Option<RcRef<T>> {
         self.0.upgrade().map(|rc| RcRef(rc))
+    }
+}
+
+impl<T: Sized> Default for WeakRef<T> {
+    #[inline]
+    fn default() -> Self {
+        Self(Weak::default())
     }
 }
 
