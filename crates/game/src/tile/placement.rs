@@ -59,6 +59,7 @@ pub(crate) use err_reason;
 // TilePlacementErr
 // ----------------------------------------------
 
+#[derive(Clone)]
 pub struct TilePlacementErr {
     pub reason: TilePlacementErrReason,
     pub message: String,
