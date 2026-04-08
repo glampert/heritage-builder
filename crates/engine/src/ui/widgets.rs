@@ -2,8 +2,11 @@
 #![allow(clippy::type_complexity)]
 
 use std::{any::Any, cell::RefMut, fmt::Display};
-
 use arrayvec::ArrayString;
+use smallbox::{SmallBox, smallbox};
+use enum_dispatch::enum_dispatch;
+use strum::{EnumCount, EnumIter, EnumProperty, IntoEnumIterator};
+
 use common::{
     Color,
     Rect,
@@ -16,8 +19,6 @@ use common::{
     mem::{self, RawPtr, RcMut, WeakMut, WeakRef},
     time::{CountdownTimer, Seconds},
 };
-use enum_dispatch::enum_dispatch;
-use strum::{EnumCount, EnumIter, EnumProperty, IntoEnumIterator};
 
 use super::{
     INVALID_UI_TEXTURE_HANDLE,
@@ -236,7 +237,7 @@ where
     Fn(for<'a> fn(Access::Ref<'a>, &mut dyn UiWidgetContext) -> Output),
 
     // With closure/capture. Allocates memory, most flexible.
-    Closure(Box<dyn for<'a> Fn(Access::Ref<'a>, &mut dyn UiWidgetContext) -> Output + 'static>),
+    Closure(SmallBox<dyn for<'a> Fn(Access::Ref<'a>, &mut dyn UiWidgetContext) -> Output + 'static, smallbox::space::S2>),
 }
 
 impl<Widget, Access, Output> UiWidgetCallback<Widget, Access, Output>
@@ -252,7 +253,7 @@ where
     where
         C: for<'a> Fn(Access::Ref<'a>, &mut dyn UiWidgetContext) -> Output + 'static,
     {
-        Self::Closure(Box::new(c))
+        Self::Closure(smallbox!(c))
     }
 
     pub fn is_none(&self) -> bool {
@@ -287,7 +288,7 @@ where
     Fn(for<'a> fn(Access::Ref<'a>, &mut dyn UiWidgetContext, Arg::Arg<'a>) -> Output),
 
     // With closure/capture. Allocates memory, most flexible.
-    Closure(Box<dyn for<'a> Fn(Access::Ref<'a>, &mut dyn UiWidgetContext, Arg::Arg<'a>) -> Output + 'static>),
+    Closure(SmallBox<dyn for<'a> Fn(Access::Ref<'a>, &mut dyn UiWidgetContext, Arg::Arg<'a>) -> Output + 'static, smallbox::space::S2>),
 }
 
 impl<Widget, Access, Arg, Output> UiWidgetCallbackWithArg<Widget, Access, Arg, Output>
@@ -304,7 +305,7 @@ where
     where
         C: for<'a> Fn(Access::Ref<'a>, &mut dyn UiWidgetContext, Arg::Arg<'a>) -> Output + 'static,
     {
-        Self::Closure(Box::new(c))
+        Self::Closure(smallbox!(c))
     }
 
     pub fn is_none(&self) -> bool {
