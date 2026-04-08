@@ -5,24 +5,26 @@ use common::{
     time::{Milliseconds, PerfTimer, Seconds, UpdateTimer},
 };
 use engine::{
+    log,
+    save,
     Engine,
+    ui::UiInputEvent,
+    runner::RunLoop,
+    file_sys::paths::PathRef,
     app::{
         ApplicationEvent,
         input::{InputAction, InputKey, InputModifiers, MouseButton},
     },
-    file_sys::paths::PathRef,
-    log,
-    runner::RunLoop,
-    save,
-    ui::UiInputEvent,
 };
 
 use crate::{
-    building::config::BuildingConfigs,
     cheats,
-    config::GameConfigs,
     debug,
+    undo_redo,
     menu::GameMenusMode,
+    config::GameConfigs,
+    unit::config::UnitConfigs,
+    building::config::BuildingConfigs,
     prop::config::PropConfigs,
     session::{self, GameSession, GameSessionCmdQueue},
     sim::Simulation,
@@ -31,8 +33,6 @@ use crate::{
         rendering::{TileMapRenderFlags, TileMapRenderStats},
         sets::{TileDef, TileSets},
     },
-    undo_redo,
-    unit::config::UnitConfigs,
 };
 
 // ----------------------------------------------
@@ -280,7 +280,7 @@ impl GameLoop {
         log::info!(log::channel!("game"), "PropConfigs loaded.");
 
         let tex_cache = engine.texture_cache_mut();
-        TileSets::load(tex_cache, configs.engine.use_packed_texture_atlas, configs.debug.skip_loading_tile_sets);
+        TileSets::load(tex_cache, configs.engine.use_packed_texture_atlas, configs.debug.skip_loading_tile_sets, false);
         log::info!(log::channel!("game"), "TileSets loaded.");
 
         let load_assets_time_ms = load_assets_timer.end();

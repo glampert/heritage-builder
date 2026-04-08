@@ -172,9 +172,22 @@ fn find_assets_path() -> paths::AssetPath {
 // Fallback for non-MacOS platforms or when running unbundled.
 // Returns a path relative to the project root.
 fn project_relative(relative_path: &str) -> paths::FixedPath {
-    // Try CARGO_MANIFEST_DIR for a stable dev path:
-    if let Ok(manifest_dir) = std::env::var("CARGO_MANIFEST_DIR") {
-        return paths::FixedPath::from_str(&manifest_dir).join(relative_path);
+    // Try CARGO_MANIFEST_DIR for a stable dev path.
+    // This points to the crate's own directory, which may be a subdirectory
+    // of the workspace root (e.g. `crates/game/`). Walk up to find the
+    // workspace root by looking for the `assets` directory.
+    if let Some(manifest_dir) = option_env!("CARGO_MANIFEST_DIR") {
+        let mut dir = PathBuf::from(manifest_dir);
+        loop {
+            if dir.join("assets").is_dir() {
+                return paths::FixedPath::from_path(&dir).join(relative_path);
+            }
+            if !dir.pop() {
+                break;
+            }
+        }
+        // assets dir not found above manifest — use manifest dir as-is.
+        return paths::FixedPath::from_str(manifest_dir).join(relative_path);
     }
 
     // Fallback: current working directory.

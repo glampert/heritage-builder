@@ -238,6 +238,7 @@ impl TileAnimSet {
         variation_name: &str,
         tile_def_name: &str,
         tile_def_kind: TileKind,
+        skip_loading_textures: bool,
     ) -> bool {
         self.hash = hash::fnv1a_from_str(&self.name);
 
@@ -265,6 +266,7 @@ impl TileAnimSet {
                         variation_name,
                         &self.name,
                         tile_def_name,
+                        skip_loading_textures,
                     );
 
                     if self.mirror {
@@ -308,6 +310,7 @@ impl TileAnimSet {
                         variation_name,
                         &self.name,
                         tile_def_name,
+                        skip_loading_textures,
                     );
 
                     if self.mirror {
@@ -345,6 +348,7 @@ impl TileAnimSet {
         tile_def_name: &str,
         tile_def_kind: TileKind,
         variation: &TileVariation,
+        skip_loading_textures: bool,
     ) -> bool {
         fn find_anim_set<'a>(variation: &'a TileVariation, anim_set_name: &str) -> Option<&'a TileAnimSet> {
             (&variation.anim_sets).into_iter().find(|&anim_set| anim_set.name == anim_set_name)
@@ -452,6 +456,7 @@ impl TileAnimSet {
                             &variation.name,
                             &self.name,
                             tile_def_name,
+                            skip_loading_textures,
                         );
                     }
 
@@ -482,9 +487,14 @@ impl TileAnimSet {
         variation_name: &str,
         anim_set_name: &str,
         tile_def_name: &str,
+        skip_loading_textures: bool,
     ) {
         debug_assert!(!frame.name.is_empty());
         frame.hash = hash::fnv1a_from_str(&frame.name);
+
+        if skip_loading_textures {
+            return; // Debug early out.
+        }
 
         // Path format:
         //  <layer>/<category>/<tile_name>/<variation>/<anim_set>/<frame[N]>.png
@@ -771,6 +781,7 @@ impl TileDef {
         tile_set_path_with_category: PathRef,
         layer: TileMapLayerKind,
         category_hash: StringHash,
+        skip_loading_textures: bool,
     ) -> bool {
         debug_assert!(self.hash != hash::NULL_HASH);
         debug_assert!(category_hash != hash::NULL_HASH);
@@ -848,6 +859,7 @@ impl TileDef {
                     &variation.name,
                     &self.name,
                     self.kind,
+                    skip_loading_textures,
                 ) {
                     return false;
                 }
@@ -869,6 +881,7 @@ impl TileDef {
                     &self.name,
                     self.kind,
                     &self.variations[v],
+                    skip_loading_textures,
                 ) {
                     return false;
                 }
@@ -996,6 +1009,7 @@ impl TileCategory {
         tex_atlas: &mut impl TextureAtlas,
         tile_set_path: PathRef,
         layer: TileMapLayerKind,
+        skip_loading_textures: bool,
     ) -> bool {
         debug_assert!(self.mapping.is_empty());
         debug_assert!(self.hash != hash::NULL_HASH);
@@ -1025,7 +1039,14 @@ impl TileCategory {
             let tile_name_hash = hash::fnv1a_from_str(&tile_def.name);
             tile_def.hash = tile_name_hash;
 
-            if !tile_def.post_load(tex_cache, tex_atlas, (&tile_set_path_with_category).into(), layer, self.hash) {
+            if !tile_def.post_load(
+                tex_cache,
+                tex_atlas,
+                (&tile_set_path_with_category).into(),
+                layer,
+                self.hash,
+                skip_loading_textures,
+            ) {
                 continue;
             }
 
@@ -1118,6 +1139,7 @@ impl TileSet {
         tex_cache: &mut TextureCache,
         tex_atlas: &mut impl TextureAtlas,
         tile_set_path: PathRef,
+        skip_loading_textures: bool,
     ) -> bool {
         debug_assert!(self.mapping.is_empty());
 
@@ -1136,7 +1158,7 @@ impl TileSet {
             let category_name_hash = hash::fnv1a_from_str(&category.name);
             category.hash = category_name_hash;
 
-            if !category.post_load(tex_cache, tex_atlas, tile_set_path, self.layer) {
+            if !category.post_load(tex_cache, tex_atlas, tile_set_path, self.layer, skip_loading_textures) {
                 continue;
             }
 
@@ -1236,6 +1258,7 @@ impl TileSets {
         tex_cache: &mut TextureCache,
         use_packed_texture_atlas: bool,
         skip_loading_tile_sets: bool,
+        skip_loading_textures: bool,
     ) -> &'static Self {
         let mut instance = Self {
             sets: [
@@ -1245,7 +1268,7 @@ impl TileSets {
         };
 
         if !skip_loading_tile_sets {
-            instance.load_all_layers(tex_cache, use_packed_texture_atlas);
+            instance.load_all_layers(tex_cache, use_packed_texture_atlas, skip_loading_textures);
         }
 
         TileSets::initialize(instance); // Set global instance.
@@ -1460,10 +1483,15 @@ impl TileSets {
     //  objects/units/peasant/walk_sw/frame0.png
     //  objects/units/peasant/walk_sw/frame1.png
     //
-    fn load_all_layers(&mut self, tex_cache: &mut TextureCache, use_packed_texture_atlas: bool) {
+    fn load_all_layers(
+        &mut self,
+        tex_cache: &mut TextureCache,
+        use_packed_texture_atlas: bool,
+        skip_loading_textures: bool,
+    ) {
         for layer in TileMapLayerKind::iter() {
             let tile_set_path = layer.assets_path();
-            if !self.load_tile_set(tex_cache, tile_set_path, layer, use_packed_texture_atlas) {
+            if !self.load_tile_set(tex_cache, tile_set_path, layer, use_packed_texture_atlas, skip_loading_textures) {
                 log::error!(log::channel!("tileset"), "TileSet '{layer}' ({tile_set_path}) didn't load!");
             }
         }
@@ -1475,6 +1503,7 @@ impl TileSets {
         tile_set_path: PathRef,
         layer: TileMapLayerKind,
         use_packed_texture_atlas: bool,
+        skip_loading_textures: bool,
     ) -> bool {
         debug_assert!(!tile_set_path.is_empty());
 
@@ -1519,7 +1548,7 @@ impl TileSets {
                 log::info!(log::channel!("tileset"), "Loading offline packed Texture Atlas for '{layer}'...");
 
                 let mut tex_atlas = OfflinePackedTextureAtlas::new(layer, tex_cache);
-                if !tile_set.post_load(tex_cache, &mut tex_atlas, tile_set_path) {
+                if !tile_set.post_load(tex_cache, &mut tex_atlas, tile_set_path, skip_loading_textures) {
                     log::error!(log::channel!("tileset"), "Post load failed for TileSet '{layer}' - {tile_set_json_path}!");
                     return false;
                 }
@@ -1528,7 +1557,7 @@ impl TileSets {
                 log::info!(log::channel!("tileset"), "Packing Texture Atlas on-the-fly for '{layer}'...");
 
                 let mut tex_atlas = RuntimePackedTextureAtlas::new(layer, tex_cache);
-                if !tile_set.post_load(tex_cache, &mut tex_atlas, tile_set_path) {
+                if !tile_set.post_load(tex_cache, &mut tex_atlas, tile_set_path, skip_loading_textures) {
                     log::error!(log::channel!("tileset"), "Post load failed for TileSet '{layer}' - {tile_set_json_path}!");
                     return false;
                 }
@@ -1543,7 +1572,7 @@ impl TileSets {
             log::info!(log::channel!("tileset"), "Texture Atlas Packing: NO");
 
             let mut tex_atlas = PassthroughTextureAtlas::new(layer, tex_cache);
-            if !tile_set.post_load(tex_cache, &mut tex_atlas, tile_set_path) {
+            if !tile_set.post_load(tex_cache, &mut tex_atlas, tile_set_path, skip_loading_textures) {
                 log::error!(log::channel!("tileset"), "Post load failed for TileSet '{layer}' - {tile_set_json_path}!");
                 return false;
             }

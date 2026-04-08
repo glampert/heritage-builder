@@ -50,3 +50,11 @@ texture_packer = { git = "https://github.com/glampert/texture_packer", rev = "98
 
 # Desktop-only:
 rayon          = { version = "1.11.0", optional = true }
+
+# ----------------------------
+#   Integration Tests
+# ----------------------------
+
+[[test]]
+name    = "sim_cmds"
+harness = false

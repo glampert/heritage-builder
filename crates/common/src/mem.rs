@@ -229,8 +229,16 @@ impl<T> SingleThreadStatic<T> {
         {
             let this_thread = std::thread::current().id();
             match self.owner.get() {
-                Some(owner) if *owner == this_thread => {} // Same thread, no action.
-                Some(_) => panic!("SingleThreadStatic accessed from non-owner thread!"),
+                Some(owner) => {
+                    if *owner != this_thread {
+                        panic!(
+                            "SingleThreadStatic accessed from non-owner thread! Owner: {:?}, access from: {:?}",
+                            owner, this_thread
+                        );
+                    } else {
+                        // Same thread, no action.
+                    }
+                }
                 None => {
                     // First access claims ownership:
                     self.owner.set(this_thread).unwrap_or_else(|_| panic!("Failed to set owner thread id!"));

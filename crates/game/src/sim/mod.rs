@@ -24,8 +24,8 @@ use crate::{
     tile::{Tile, TileKind, TileMap},
 };
 
-// pub mod commands;
-// pub use commands::SimCmds;
+pub mod commands;
+pub use commands::SimCmds;
 
 pub mod context;
 pub use context::SimContext;

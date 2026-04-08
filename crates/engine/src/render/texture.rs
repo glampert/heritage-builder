@@ -183,6 +183,7 @@ impl TextureBackendImpl {
 // TextureCache
 // ----------------------------------------------
 
+#[derive(Default)]
 pub struct TextureCache {
     lookup: PreHashedKeyMap<StringHash, u32>,
     textures: Slab<TextureBackendImpl>,
