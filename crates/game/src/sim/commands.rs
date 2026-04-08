@@ -90,6 +90,11 @@ impl SpawnPromiseStatePool {
         Self { pool: Slab::with_capacity(capacity), generation: INITIAL_GENERATION }
     }
 
+    fn clear(&mut self) {
+        self.pool.clear();
+        self.generation = INITIAL_GENERATION;
+    }
+
     fn allocate(&mut self) -> SpawnPromiseStateId {
         let generation = self.generation;
         self.generation += 1;
@@ -214,6 +219,12 @@ pub struct SimCmds {
     promises: SpawnPromiseStatePool,
 }
 
+impl Default for SimCmds {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl SimCmds {
     pub fn new() -> Self {
         Self {
@@ -221,6 +232,20 @@ impl SimCmds {
             cmds: Vec::with_capacity(SIM_CMDS_INITIAL_CAPACITY),
             promises: SpawnPromiseStatePool::new(SIM_CMDS_INITIAL_CAPACITY),
         }
+    }
+
+    pub fn reset(&mut self) {
+        self.current_frame = 0;
+        self.cmds.clear();
+        self.promises.clear();
+    }
+
+    pub fn pre_load(&mut self) {
+        self.reset();
+    }
+
+    pub fn post_load(&mut self) {
+        // Nothing currently.
     }
 
     #[inline]

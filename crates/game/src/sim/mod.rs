@@ -3,24 +3,24 @@ use rand_pcg::Pcg64;
 use serde::{Deserialize, Serialize};
 
 use common::{
-    coords::CellRange,
     mem::RcMut,
+    coords::CellRange,
     time::{Seconds, UpdateTimer},
 };
 use engine::{Engine, save::*};
 
 use super::{
-    config::GameConfigs,
     constants::*,
+    world::World,
     system::GameSystems,
+    config::GameConfigs,
     ui_context::GameUiContext,
     unit::task::UnitTaskManager,
-    world::World,
 };
 use crate::{
+    save_context::*,
     debug::DebugUiMode,
     pathfind::{Graph, Search},
-    save_context::*,
     tile::{Tile, TileKind, TileMap},
 };
 
@@ -53,6 +53,8 @@ pub struct Simulation {
 
     task_manager: UnitTaskManager,
     treasury: GlobalTreasury,
+    #[serde(skip)]
+    cmds: SimCmds,
 
     // Path finding:
     graph: Graph,
@@ -72,6 +74,7 @@ impl Simulation {
             paused_update_timer: UpdateTimer::new(configs.sim.paused_update_frequency_secs),
             task_manager: UnitTaskManager::new(UNIT_TASK_POOL_CAPACITY),
             treasury: GlobalTreasury::new(configs.sim.starting_gold_units),
+            cmds: SimCmds::new(),
             graph: Graph::from_tile_map(tile_map),
             search: Search::with_grid_size(tile_map.size_in_cells()),
             speed: Self::MIN_SIM_SPEED,
@@ -164,6 +167,7 @@ impl Simulation {
                 let context = self.new_sim_context(world, tile_map, world_update_delta_time_secs);
                 world.update(&context);
                 systems.update(engine, &context);
+                self.cmds.execute(&context);
             }
         }
     }
@@ -178,10 +182,11 @@ impl Simulation {
         let context = self.new_sim_context(world, tile_map, 0.0);
         world.reset(&context);
         systems.reset(engine);
+        self.cmds.reset();
     }
 
     pub fn reset_search_graph(&mut self, tile_map: &TileMap) {
-        self.graph = Graph::from_tile_map(tile_map);
+        self.graph  = Graph::from_tile_map(tile_map);
         self.search = Search::with_graph(&self.graph);
     }
 
@@ -315,6 +320,7 @@ impl Save for Simulation {
 impl Load for Simulation {
     fn pre_load(&mut self, _context: &mut PreLoadContext) {
         self.task_manager.pre_load();
+        self.cmds.pre_load();
     }
 
     fn load(&mut self, state: &SaveStateImpl) -> LoadResult {
@@ -326,5 +332,6 @@ impl Load for Simulation {
         self.update_timer.post_load(context.configs().sim.update_frequency_secs);
         self.paused_update_timer.post_load(context.configs().sim.paused_update_frequency_secs);
         self.task_manager.post_load();
+        self.cmds.post_load();
     }
 }

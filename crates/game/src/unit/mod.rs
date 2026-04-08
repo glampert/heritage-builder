@@ -244,8 +244,7 @@ impl Unit {
             return true;
         }
 
-        if tile_map.try_move_tile_with_stacking(self.tile_index, self.map_cell, destination_cell, TileMapLayerKind::Objects)
-        {
+        if tile_map.try_move_tile_with_stacking(self.tile_index, self.map_cell, destination_cell, TileMapLayerKind::Objects) {
             let tile = tile_map.tile_at_index_mut(self.tile_index, TileMapLayerKind::Objects);
             debug_assert!(tile.is(TileKind::Unit));
 

@@ -2087,6 +2087,10 @@ pub struct TileMap {
     size_in_cells: Size,
     layers: ArrayVec<Box<TileMapLayer>, TILE_MAP_LAYER_COUNT>,
 
+    // Not serialized. Prevents placing/clearing tiles while locked.
+    #[serde(skip)]
+    locked: bool,
+
     // Not serialized. PlayableArea is reconstructed on post_load().
     #[serde(skip)]
     playable_area: TileMapPlayableArea,
@@ -2106,8 +2110,8 @@ pub struct TileMap {
     #[serde(skip)]
     on_removing_tile_callback: Option<RemovingTileCallback>,
 
-    // Called *after* the TileMap has been reset. Any existing tile references/cells are
-    // invalidated.
+    // Called *after* the TileMap has been reset. Any existing tile references/cells
+    // are invalidated.
     #[serde(skip)]
     on_map_reset_callback: Option<TileMapResetCallback>,
 }
@@ -2119,6 +2123,7 @@ impl TileMap {
         let mut tile_map = Self {
             size_in_cells,
             layers: ArrayVec::new(),
+            locked: false,
             playable_area: TileMapPlayableArea::with_inner_rect_margin(size_in_cells),
             minimap: Minimap::new(size_in_cells),
             on_tile_placed_callback: None,
@@ -2138,6 +2143,8 @@ impl TileMap {
     }
 
     pub fn reset(&mut self, fill_with_def: Option<&'static TileDef>, new_map_size: Option<Size>) {
+        debug_assert!(!self.is_locked());
+
         self.layers.clear();
         self.minimap.reset(fill_with_def, new_map_size);
 
@@ -2220,6 +2227,21 @@ impl TileMap {
         }
 
         stats
+    }
+
+    #[inline]
+    pub fn lock(&mut self) {
+        self.locked = true;
+    }
+
+    #[inline]
+    pub fn unlock(&mut self) {
+        self.locked = false;
+    }
+
+    #[inline]
+    pub fn is_locked(&self) -> bool {
+        self.locked
     }
 
     #[inline]
@@ -2454,13 +2476,14 @@ impl TileMap {
         )
     }
 
-    #[inline]
     pub fn try_place_tile_in_layer(
         &mut self,
         target_cell: Cell,
         layer_kind: TileMapLayerKind,
         tile_def_to_place: &'static TileDef,
     ) -> Result<&mut Tile, TilePlacementErr> {
+        debug_assert!(!self.is_locked(), "Cannot place tiles while map is locked!");
+
         if self.layers.is_empty() {
             return placement::err!(Placement::EmptyMap, "Map has no layers!");
         }
@@ -2491,12 +2514,13 @@ impl TileMap {
         result
     }
 
-    #[inline]
     pub fn try_clear_tile_from_layer(
         &mut self,
         target_cell: Cell,
         layer_kind: TileMapLayerKind,
     ) -> Result<(), TileClearingErr> {
+        debug_assert!(!self.is_locked(), "Cannot clear tiles while map is locked!");
+
         if self.layers.is_empty() {
             return placement::err!(Clearing::EmptyMap, "Map has no layers!");
         }
@@ -2523,6 +2547,7 @@ impl TileMap {
         target_cell: Cell,
         layer_kind: TileMapLayerKind,
     ) -> Result<(), TileClearingErr> {
+        debug_assert!(!self.is_locked(), "Cannot clear tiles while map is locked!");
         debug_assert!(target_index != INVALID_TILE_INDEX);
 
         if self.layers.is_empty() {
@@ -2765,6 +2790,8 @@ impl TileMap {
 
 impl Save for TileMap {
     fn pre_save(&mut self) {
+        debug_assert!(!self.is_locked(), "Map should not be locked while saving!");
+
         // Reset selection state. We don't save TileSelection.
         self.for_each_tile_mut(TileMapLayerKind::Terrain, TileKind::all(), |tile| {
             tile.set_flags(TileFlags::Highlighted | TileFlags::Invalidated, false);
@@ -2790,6 +2817,7 @@ impl Load for TileMap {
     }
 
     fn post_load(&mut self, context: &mut PostLoadContext) {
+        debug_assert!(!self.is_locked(), "Map should not be locked while loading!");
         debug_assert!(self.size_in_cells >= Size::zero());
 
         // These are *not* serialized, so should be unset.

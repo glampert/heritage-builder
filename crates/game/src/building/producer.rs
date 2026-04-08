@@ -518,8 +518,7 @@ impl ProducerBuilding {
         }
 
         if self.is_waiting_on_runner() {
-            return; // A runner is already out fetching/delivering resources.
-            // Try again later.
+            return; // A runner is already out fetching/delivering resources. Try again later.
         }
 
         // Unit spawns at the nearest road link.

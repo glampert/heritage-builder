@@ -1783,7 +1783,7 @@ impl UnitTaskPool {
         self.tasks.get_mut(task_id.index()).filter(|task| task.id == task_id)
     }
 
-    pub fn pre_load(&mut self) {
+    fn pre_load(&mut self) {
         self.tasks.clear();
         self.generation = RESERVED_GENERATION;
     }
