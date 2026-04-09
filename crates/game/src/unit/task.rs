@@ -1747,7 +1747,7 @@ impl UnitTaskPool {
 
         let index = task_id.index();
 
-        // Handle feeing an invalid handle gracefully.
+        // Handle freeing an invalid handle gracefully.
         // This will also avoid any invalid frees thanks to the generation check.
         match self.tasks.get(index) {
             Some(task) => {
