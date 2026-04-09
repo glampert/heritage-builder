@@ -17,6 +17,7 @@ use task::*;
 use super::{
     building::{Building, BuildingKind},
     sim::{
+        SimCmds,
         SimContext,
         resources::{ResourceKind, StockItem},
     },
@@ -109,7 +110,7 @@ impl GameObject for Unit {
     }
 
     #[inline]
-    fn update(&mut self, context: &SimContext) {
+    fn update(&mut self, _cmds: &mut SimCmds, context: &SimContext) {
         debug_assert!(self.config.is_some());
         self.update_tasks(context);
     }
@@ -503,6 +504,38 @@ impl Unit {
         // This will start the task chain and might take some time to complete.
         unit.assign_task(task_manager, task_id);
         Ok(unit)
+    }
+
+    pub fn try_spawn_with_task_cb<Task, F>(
+        cmds: &mut SimCmds,
+        context: &SimContext,
+        unit_origin: Cell,
+        unit_config: UnitConfigKey,
+        task: Task,
+        on_spawned: F,
+    )
+    where
+        Task: UnitTask,
+        UnitTaskArchetype: From<Task>,
+        F: Fn(&SimContext, Result<&mut Unit, TilePlacementErr>) + 'static
+    {
+        debug_assert!(unit_origin.is_valid());
+        let task_id = context.task_manager_mut().new_task(task);
+
+        cmds.spawn_unit_with_config_cb(unit_origin, unit_config, move |context, result| {
+            let unit = match result {
+                Ok(unit) => unit,
+                error @ Err(_) => {
+                    context.task_manager_mut().free_task(task_id.unwrap());
+                    on_spawned(context, error);
+                    return;
+                }
+            };
+
+            // This will start the task chain and might take some time to complete.
+            unit.assign_task(context.task_manager_mut(), task_id);
+            on_spawned(context, Ok(unit));
+        });
     }
 
     // ----------------------

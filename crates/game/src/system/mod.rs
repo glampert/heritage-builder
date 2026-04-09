@@ -1,5 +1,3 @@
-#![allow(clippy::enum_variant_names)]
-
 use std::any::{Any, TypeId};
 
 use common::mem;
@@ -12,7 +10,7 @@ use enum_dispatch::enum_dispatch;
 use serde::{Deserialize, Serialize};
 use strum::{Display, EnumCount, EnumIter, IntoEnumIterator, VariantNames};
 
-use super::{constants::*, sim::SimContext, world::object::GenerationalIndex};
+use super::{constants::*, sim::{SimCmds, SimContext}, world::object::GenerationalIndex};
 use crate::save_context::*;
 
 // ----------------------------------------------
@@ -44,18 +42,19 @@ pub trait GameSystem: Any {
 
     // Required overrides:
     fn as_any(&self) -> &dyn Any;
-    fn update(&mut self, engine: &mut Engine, context: &SimContext);
+    fn update(&mut self, engine: &mut Engine, cmds: &mut SimCmds, context: &SimContext);
 
     // Optional overrides:
-    fn paused_update(&mut self, _engine: &mut Engine, _query: &SimContext) {}
+    fn paused_update(&mut self, _engine: &mut Engine, _context: &SimContext) {}
     fn reset(&mut self, _engine: &mut Engine) {}
     fn post_load(&mut self, _context: &mut PostLoadContext) {}
-    fn draw_debug_ui(&mut self, _engine: &mut Engine, _query: &SimContext) {}
+    fn draw_debug_ui(&mut self, _engine: &mut Engine, _cmds: &mut SimCmds, _context: &SimContext) {}
     fn register_callbacks(&self) {}
 }
 
 #[enum_dispatch]
 #[derive(EnumCount, EnumIter, VariantNames, Display, Serialize, Deserialize)]
+#[allow(clippy::enum_variant_names)]
 pub enum GameSystemImpl {
     SettlersSpawnSystem,
     AmbientEffectsSystem,
@@ -147,9 +146,9 @@ impl GameSystems {
     }
 
     // Regular update, called every simulation tick *when the game is NOT paused*.
-    pub fn update(&mut self, engine: &mut Engine, context: &SimContext) {
+    pub fn update(&mut self, engine: &mut Engine, cmds: &mut SimCmds, context: &SimContext) {
         for entry in &mut self.systems {
-            entry.system.update(engine, context);
+            entry.system.update(engine, cmds, context);
         }
     }
 
@@ -178,12 +177,12 @@ impl GameSystems {
     // Debug UI:
     // ----------------------
 
-    pub fn draw_debug_ui(&mut self, engine: &mut Engine, context: &SimContext, ui_sys: &UiSystem) {
+    pub fn draw_debug_ui(&mut self, engine: &mut Engine, cmds: &mut SimCmds, context: &SimContext, ui_sys: &UiSystem) {
         let ui = ui_sys.ui();
         if let Some(_tab_bar) = ui.tab_bar("Game Systems Tab Bar") {
             for entry in &mut self.systems {
                 if let Some(_tab) = ui.tab_item(entry.system.to_string()) {
-                    entry.system.draw_debug_ui(engine, context);
+                    entry.system.draw_debug_ui(engine, cmds, context);
                 }
             }
 

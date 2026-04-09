@@ -17,7 +17,7 @@ use crate::{
     debug::utils::UpdateTimerDebugUi,
     pathfind::{Node, NodeKind as PathNodeKind},
     save_context::PostLoadContext,
-    sim::SimContext,
+    sim::{SimCmds, SimContext},
     tile::{
         TileFlags,
         TileKind,
@@ -48,7 +48,7 @@ impl GameSystem for SettlersSpawnSystem {
         self
     }
 
-    fn update(&mut self, _engine: &mut Engine, context: &SimContext) {
+    fn update(&mut self, _engine: &mut Engine, _cmds: &mut SimCmds, context: &SimContext) {
         if self.spawn_timer.tick(context.delta_time_secs()).should_update() {
             // Only attempt to spawn if we have any empty housing lots available.
             if Self::has_vacant_lots(context) {
@@ -65,7 +65,7 @@ impl GameSystem for SettlersSpawnSystem {
         self.spawn_timer.post_load(context.configs().sim.settlers_spawn_frequency_secs);
     }
 
-    fn draw_debug_ui(&mut self, engine: &mut Engine, context: &SimContext) {
+    fn draw_debug_ui(&mut self, engine: &mut Engine, _cmds: &mut SimCmds, context: &SimContext) {
         self.spawn_timer.draw_debug_ui("Settler Spawn", 0, engine.ui_system());
 
         let ui = engine.ui_system().ui();

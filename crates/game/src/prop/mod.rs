@@ -10,12 +10,13 @@ use proc_macros::DrawDebugUi;
 use serde::{Deserialize, Serialize};
 
 use super::{
+    undo_redo::GameObjectSavedState,
+    unit::UnitId,
     sim::{
+        SimCmds,
         SimContext,
         resources::{ResourceKind, StockItem},
     },
-    undo_redo::GameObjectSavedState,
-    unit::UnitId,
     world::{
         object::{GameObject, GenerationalIndex},
         stats::WorldStats,
@@ -30,6 +31,7 @@ use crate::{
     tile::{Tile, TileKind, TileMapLayerKind},
     undo_redo::game_object_undo_redo_state,
 };
+
 pub mod config;
 
 // ----------------------------------------------
@@ -106,7 +108,7 @@ impl GameObject for Prop {
     }
 
     #[inline]
-    fn update(&mut self, context: &SimContext) {
+    fn update(&mut self, _cmds: &mut SimCmds, context: &SimContext) {
         debug_assert!(self.is_spawned());
         debug_assert!(self.config.is_some());
 
@@ -201,7 +203,7 @@ impl Prop {
         self.harvestable.initial_variation = tile.variation_index().try_into().unwrap();
     }
 
-    pub fn despawned(&mut self, _query: &SimContext) {
+    pub fn despawned(&mut self, _context: &SimContext) {
         debug_assert!(self.is_spawned());
 
         self.id = PropId::default();
@@ -355,7 +357,7 @@ impl Prop {
     // Debug UI:
     // ----------------------
 
-    fn draw_debug_ui_overview(&mut self, _query: &SimContext, ui_sys: &UiSystem) {
+    fn draw_debug_ui_overview(&mut self, _context: &SimContext, ui_sys: &UiSystem) {
         let ui = ui_sys.ui();
 
         ui_sys.set_window_font_scale(UiFontScale(1.2));

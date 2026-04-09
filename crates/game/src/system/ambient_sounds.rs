@@ -11,7 +11,7 @@ use serde::{Deserialize, Serialize};
 use strum::{Display, EnumCount, EnumIter, EnumProperty, IntoEnumIterator};
 
 use super::GameSystem;
-use crate::{config::GameConfigs, save_context::PostLoadContext, sim::SimContext};
+use crate::{config::GameConfigs, save_context::PostLoadContext, sim::{SimCmds, SimContext}};
 
 // ----------------------------------------------
 // AmbientSoundKey
@@ -85,7 +85,7 @@ impl GameSystem for AmbientSoundsSystem {
         self
     }
 
-    fn update(&mut self, engine: &mut Engine, _query: &SimContext) {
+    fn update(&mut self, engine: &mut Engine, _cmds: &mut SimCmds, _context: &SimContext) {
         if !self.is_enabled() {
             return;
         }
@@ -115,7 +115,7 @@ impl GameSystem for AmbientSoundsSystem {
         self.reset(context.engine_mut());
     }
 
-    fn draw_debug_ui(&mut self, engine: &mut Engine, _query: &SimContext) {
+    fn draw_debug_ui(&mut self, engine: &mut Engine, _cmds: &mut SimCmds, _context: &SimContext) {
         let ui = engine.ui_system().ui();
 
         if !self.is_enabled() {

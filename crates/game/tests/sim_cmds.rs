@@ -1,4 +1,4 @@
-use common::{coords::Cell, Size};
+use common::{mem::SingleThreadStatic, coords::Cell, Size};
 use game::{
     world::World,
     config::GameConfigs,
@@ -21,6 +21,7 @@ fn main() {
     test_utils::run_tests(&[
         test_utils::test_fn!(test_sim_cmd_queue_spawning),
         test_utils::test_fn!(test_sim_cmd_queue_spawn_failure),
+        test_utils::test_fn!(test_sim_cmd_queue_spawning_with_callbacks),
     ]);
 }
 
@@ -204,5 +205,104 @@ fn test_sim_cmd_queue_spawn_failure() {
             assert!(matches!(err.reason, TilePlacementErrReason::CellOutOfBounds));
         }
         res => panic!("Expected failed SpawnPromise, got {res} instead."),
+    }
+}
+
+fn test_sim_cmd_queue_spawning_with_callbacks() {
+    let mut test_env = TestEnvironment::new();
+    let mut context_builder = test_env.context_builder();
+    let context = context_builder.new_sim_context();
+
+    let mut cmds = SimCmds::new();
+
+    struct SpawnResults {
+        tile_spawned: bool,
+        building_spawned: bool,
+        unit_spawned: bool,
+        prop_spawned: bool,
+        invalid_cell_spawn_failed: bool,
+    }
+    static SPAWN_RESULTS: SingleThreadStatic<SpawnResults> = SingleThreadStatic::new(
+        SpawnResults {
+            tile_spawned: false,
+            building_spawned: false,
+            unit_spawned: false,
+            prop_spawned: false,
+            invalid_cell_spawn_failed: false,
+        }
+    );
+
+    // Push spawn commands:
+    cmds.spawn_tile_with_tile_def_cb(
+        Cell::new(0, 0),
+        TileSets::get().find_tile_def_by_name(
+            TileMapLayerKind::Terrain,
+            TERRAIN_LAND_CATEGORY.string,
+            "grass",
+        ).unwrap(),
+        |_context, result| {
+            assert!(result.is_ok());
+            SPAWN_RESULTS.as_mut().tile_spawned = true;
+        },
+    );
+
+    cmds.spawn_building_with_tile_def_cb(
+        Cell::new(1, 1),
+        TileSets::get().find_tile_def_by_name(
+            TileMapLayerKind::Objects,
+            OBJECTS_BUILDINGS_CATEGORY.string,
+            "small_well",
+        ).unwrap(),
+        |_context, result| {
+            assert!(result.is_ok());
+            SPAWN_RESULTS.as_mut().building_spawned = true;
+        },
+    );
+
+    cmds.spawn_unit_with_config_cb(
+        Cell::new(2, 2),
+        UnitConfigKey::Peasant,
+        |_context, result| {
+            assert!(result.is_ok());
+            SPAWN_RESULTS.as_mut().unit_spawned = true;
+        },
+    );
+
+    cmds.spawn_prop_with_tile_def_cb(
+        Cell::new(3, 3),
+        TileSets::get().find_tile_def_by_name(
+            TileMapLayerKind::Objects,
+            OBJECTS_VEGETATION_CATEGORY.string,
+            "tree",
+        ).unwrap(),
+        |_context, result| {
+            assert!(result.is_ok());
+            SPAWN_RESULTS.as_mut().prop_spawned = true;
+        },
+    );
+
+    // Push a command that will fail as well.
+    cmds.spawn_unit_with_config_cb(
+        Cell::new(999, 999), // Out of bounds cell - must fail.
+        UnitConfigKey::Peasant,
+        |_context, result| {
+            assert!(result.is_err_and(|err| matches!(err.reason, TilePlacementErrReason::CellOutOfBounds)));
+            SPAWN_RESULTS.as_mut().invalid_cell_spawn_failed = true;
+        },
+    );
+
+    // Execute commands:
+    assert!(!cmds.is_empty());
+    cmds.execute(&context);
+    assert!(cmds.is_empty());
+
+    // Validate spawn results:
+    {
+        let results = SPAWN_RESULTS.as_ref();
+        assert!(results.tile_spawned);
+        assert!(results.building_spawned);
+        assert!(results.unit_spawned);
+        assert!(results.prop_spawned);
+        assert!(results.invalid_cell_spawn_failed);
     }
 }

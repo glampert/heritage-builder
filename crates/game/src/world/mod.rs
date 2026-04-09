@@ -20,7 +20,7 @@ use crate::{
     save_context::*,
     debug::DebugUiMode,
     prop::{Prop, PropId, config::PropConfigs},
-    sim::{SimContext, resources::GlobalTreasury},
+    sim::{SimCmds, SimContext, GlobalTreasury},
     tile::{
         Tile,
         TileGameObjectHandle,
@@ -99,7 +99,7 @@ impl World {
     }
 
     pub fn reset(&mut self, context: &SimContext) {
-        debug_assert!(!self.is_locked());
+        debug_assert!(!self.is_locked(), "Cannot mutate locked world!");
 
         for (_, buildings) in &mut self.building_spawn_pools {
             buildings.clear(context, Building::despawned);
@@ -115,25 +115,25 @@ impl World {
         }
     }
 
-    pub fn update(&mut self, context: &SimContext) {
+    pub fn update(&mut self, cmds: &mut SimCmds, context: &SimContext) {
         self.stats.reset();
 
         context.treasury().tally(&mut self.stats);
 
         for unit in self.unit_spawn_pool.iter_mut() {
-            unit.update(context);
+            unit.update(cmds, context);
             unit.tally(&mut self.stats);
         }
 
         for prop in self.prop_spawn_pool.iter_mut() {
-            prop.update(context);
+            prop.update(cmds, context);
             prop.tally(&mut self.stats);
         }
 
         for (archetype_kind, buildings) in &mut self.building_spawn_pools {
             for building in buildings.iter_mut() {
                 debug_assert!(building.archetype_kind() == *archetype_kind);
-                building.update(context);
+                building.update(cmds, context);
                 building.tally(&mut self.stats);
             }
         }
@@ -340,6 +340,7 @@ impl World {
 
     #[inline]
     pub fn find_building_mut(&mut self, kind: BuildingKind, id: BuildingId) -> Option<&mut Building> {
+        debug_assert!(!self.is_locked(), "Cannot mutate locked world!");
         let buildings = self.buildings_pool_mut(kind.archetype_kind());
         buildings.try_get_mut(id)
     }
@@ -359,6 +360,7 @@ impl World {
 
     #[inline]
     pub fn find_building_for_tile_mut(&mut self, tile: &Tile) -> Option<&mut Building> {
+        debug_assert!(!self.is_locked(), "Cannot mutate locked world!");
         let game_object_handle = tile.game_object_handle();
         if game_object_handle.is_valid() {
             let pool_index = game_object_handle.index();
@@ -380,6 +382,7 @@ impl World {
 
     #[inline]
     pub fn find_building_for_cell_mut(&mut self, cell: Cell, tile_map: &TileMap) -> Option<&mut Building> {
+        debug_assert!(!self.is_locked(), "Cannot mutate locked world!");
         if let Some(tile) = tile_map.find_tile(cell, TileMapLayerKind::Objects, TileKind::Building | TileKind::Blocker) {
             return self.find_building_for_tile_mut(tile);
         }
@@ -393,6 +396,7 @@ impl World {
 
     #[inline]
     pub fn find_building_by_name_mut(&mut self, name: &str, kind: BuildingKind) -> Option<&mut Building> {
+        debug_assert!(!self.is_locked(), "Cannot mutate locked world!");
         self.buildings_pool_mut(kind.archetype_kind())
             .iter_mut()
             .find(|building| building.name() == name && building.is(kind))
@@ -419,6 +423,8 @@ impl World {
     where
         F: FnMut(&mut Building) -> bool,
     {
+        debug_assert!(!self.is_locked(), "Cannot mutate locked world!");
+
         let buildings = self.buildings_pool_mut(building_kinds.archetype_kind());
         for building in buildings.iter_mut() {
             if building.is(building_kinds) && !visitor_fn(building) {
@@ -491,7 +497,7 @@ impl World {
             match context.tile_map_mut().try_place_tile(unit_origin, tile_def) {
                 Ok(tile) => {
                     // Spawn unit:
-                    let unit = self.unit_spawn_pool.spawn(context, |unit, _query, id| {
+                    let unit = self.unit_spawn_pool.spawn(context, |unit, _context, id| {
                         unit.spawned(tile, config, id);
                     });
                     debug_assert!(unit.is_spawned());
@@ -540,7 +546,7 @@ impl World {
                 let config = UnitConfigs::get().find_config_by_hash(tile_def.hash, &tile_def.name);
 
                 // Spawn unit:
-                let unit = self.unit_spawn_pool.spawn(context, |unit, _query, id| {
+                let unit = self.unit_spawn_pool.spawn(context, |unit, _context, id| {
                     unit.spawned(tile, config, id);
                 });
                 debug_assert!(unit.is_spawned());
@@ -682,6 +688,7 @@ impl World {
 
     #[inline]
     pub fn find_unit_mut(&mut self, id: UnitId) -> Option<&mut Unit> {
+        debug_assert!(!self.is_locked(), "Cannot mutate locked world!");
         self.unit_spawn_pool.try_get_mut(id)
     }
 
@@ -697,6 +704,7 @@ impl World {
 
     #[inline]
     pub fn find_unit_for_tile_mut(&mut self, tile: &Tile) -> Option<&mut Unit> {
+        debug_assert!(!self.is_locked(), "Cannot mutate locked world!");
         let game_object_handle = tile.game_object_handle();
         if game_object_handle.is_valid() {
             let id = UnitId::new(game_object_handle.generation(), game_object_handle.index());
@@ -715,6 +723,7 @@ impl World {
 
     #[inline]
     pub fn find_unit_for_cell_mut(&mut self, cell: Cell, tile_map: &mut TileMap) -> Option<&mut Unit> {
+        debug_assert!(!self.is_locked(), "Cannot mutate locked world!");
         if let Some(tile) = tile_map.find_tile(cell, TileMapLayerKind::Objects, TileKind::Unit) {
             return self.find_unit_for_tile_mut(tile);
         }
@@ -728,6 +737,7 @@ impl World {
 
     #[inline]
     pub fn find_unit_by_name_mut(&mut self, name: &str) -> Option<&mut Unit> {
+        debug_assert!(!self.is_locked(), "Cannot mutate locked world!");
         self.unit_spawn_pool.iter_mut().find(|unit| unit.name() == name)
     }
 
@@ -748,6 +758,8 @@ impl World {
     where
         F: FnMut(&mut Unit) -> bool,
     {
+        debug_assert!(!self.is_locked(), "Cannot mutate locked world!");
+
         for unit in self.unit_spawn_pool.iter_mut() {
             if !visitor_fn(unit) {
                 break;
@@ -798,7 +810,7 @@ impl World {
                 let config = PropConfigs::get().find_config_by_hash(tile_def.hash, &tile_def.name);
 
                 // Spawn prop:
-                let prop = self.prop_spawn_pool.spawn(context, |prop, _query, id| {
+                let prop = self.prop_spawn_pool.spawn(context, |prop, _context, id| {
                     prop.spawned(tile, config, id);
                 });
                 debug_assert!(prop.is_spawned());
@@ -876,6 +888,7 @@ impl World {
 
     #[inline]
     pub fn find_prop_mut(&mut self, id: PropId) -> Option<&mut Prop> {
+        debug_assert!(!self.is_locked(), "Cannot mutate locked world!");
         self.prop_spawn_pool.try_get_mut(id)
     }
 
@@ -891,6 +904,7 @@ impl World {
 
     #[inline]
     pub fn find_prop_for_tile_mut(&mut self, tile: &Tile) -> Option<&mut Prop> {
+        debug_assert!(!self.is_locked(), "Cannot mutate locked world!");
         let game_object_handle = tile.game_object_handle();
         if game_object_handle.is_valid() {
             let id = PropId::new(game_object_handle.generation(), game_object_handle.index());
@@ -909,6 +923,7 @@ impl World {
 
     #[inline]
     pub fn find_prop_for_cell_mut(&mut self, cell: Cell, tile_map: &mut TileMap) -> Option<&mut Prop> {
+        debug_assert!(!self.is_locked(), "Cannot mutate locked world!");
         if let Some(tile) = tile_map.find_tile(cell, TileMapLayerKind::Objects, TileKind::Prop) {
             return self.find_prop_for_tile_mut(tile);
         }
@@ -922,6 +937,7 @@ impl World {
 
     #[inline]
     pub fn find_prop_by_name_mut(&mut self, name: &str) -> Option<&mut Prop> {
+        debug_assert!(!self.is_locked(), "Cannot mutate locked world!");
         self.prop_spawn_pool.iter_mut().find(|prop| prop.name() == name)
     }
 
@@ -942,6 +958,8 @@ impl World {
     where
         F: FnMut(&mut Prop) -> bool,
     {
+        debug_assert!(!self.is_locked(), "Cannot mutate locked world!");
+
         for prop in self.prop_spawn_pool.iter_mut() {
             if !visitor_fn(prop) {
                 break;
@@ -989,6 +1007,7 @@ impl World {
 
 impl Save for World {
     fn save(&self, state: &mut SaveStateImpl) -> SaveResult {
+        debug_assert!(!self.is_locked(), "World should not be locked while saving!");
         state.save(self)
     }
 
@@ -999,6 +1018,7 @@ impl Save for World {
 
 impl Load for World {
     fn load(&mut self, state: &SaveStateImpl) -> LoadResult {
+        debug_assert!(!self.is_locked(), "World should not be locked while loading!");
         state.load(self)
     }
 

@@ -143,25 +143,25 @@ pub trait UnitTask: Any {
     fn post_load(&mut self) {}
 
     // Performs one time initialization before the task is first run.
-    fn initialize(&mut self, _unit: &mut Unit, _query: &SimContext) {}
+    fn initialize(&mut self, _unit: &mut Unit, _context: &SimContext) {}
 
     // Cleans up any other task handles this task may have.
     // Called just before the task instance is freed.
     fn terminate(&mut self, _task_pool: &mut UnitTaskPool) {}
 
     // Returns the next state to move to.
-    fn update(&mut self, _unit: &mut Unit, _query: &SimContext) -> UnitTaskState {
+    fn update(&mut self, _unit: &mut Unit, _context: &SimContext) -> UnitTaskState {
         UnitTaskState::Completed
     }
 
     // Logic to execute once the task is marked as completed.
     // Returns the next task to run when completed or `None` if the task chain is over.
-    fn completed(&mut self, _unit: &mut Unit, _query: &SimContext) -> UnitTaskResult {
+    fn completed(&mut self, _unit: &mut Unit, _context: &SimContext) -> UnitTaskResult {
         UnitTaskResult::Completed { next_task: UnitTaskForwarded(None) }
     }
 
     // Task ImGui debug. Optional override.
-    fn draw_debug_ui(&mut self, _unit: &mut Unit, _query: &SimContext, _ui_sys: &UiSystem) {}
+    fn draw_debug_ui(&mut self, _unit: &mut Unit, _context: &SimContext, _ui_sys: &UiSystem) {}
 }
 
 // ----------------------------------------------
@@ -811,7 +811,7 @@ impl UnitTask for UnitTaskDeliverToStorage {
         }
     }
 
-    fn draw_debug_ui(&mut self, _unit: &mut Unit, _query: &SimContext, ui_sys: &UiSystem) {
+    fn draw_debug_ui(&mut self, _unit: &mut Unit, _context: &SimContext, ui_sys: &UiSystem) {
         let ui = ui_sys.ui();
 
         let building_kind = self.origin_building.kind;
@@ -1046,7 +1046,7 @@ impl UnitTask for UnitTaskFetchFromStorage {
         }
     }
 
-    fn draw_debug_ui(&mut self, _unit: &mut Unit, _query: &SimContext, ui_sys: &UiSystem) {
+    fn draw_debug_ui(&mut self, _unit: &mut Unit, _context: &SimContext, ui_sys: &UiSystem) {
         let ui = ui_sys.ui();
 
         let building_kind = self.origin_building.kind;
@@ -1254,7 +1254,7 @@ impl UnitTask for UnitTaskSettler {
         UnitTaskResult::Retry
     }
 
-    fn draw_debug_ui(&mut self, _unit: &mut Unit, _query: &SimContext, ui_sys: &UiSystem) {
+    fn draw_debug_ui(&mut self, _unit: &mut Unit, _context: &SimContext, ui_sys: &UiSystem) {
         let ui = ui_sys.ui();
         ui.text(format!("Population To Add : {}", self.population_to_add));
     }
@@ -1538,7 +1538,7 @@ impl UnitTask for UnitTaskHarvestWood {
         }
     }
 
-    fn draw_debug_ui(&mut self, _unit: &mut Unit, _query: &SimContext, ui_sys: &UiSystem) {
+    fn draw_debug_ui(&mut self, _unit: &mut Unit, _context: &SimContext, ui_sys: &UiSystem) {
         let ui = ui_sys.ui();
 
         let building_kind = self.origin_building.kind;
@@ -1587,7 +1587,7 @@ impl UnitTask for UnitTaskFollowPath {
         self.completion_callback.post_load();
     }
 
-    fn initialize(&mut self, unit: &mut Unit, _query: &SimContext) {
+    fn initialize(&mut self, unit: &mut Unit, _context: &SimContext) {
         // Sanity check:
         debug_assert!(unit.goal().is_none());
         debug_assert!(!self.path.is_empty());
@@ -1601,7 +1601,7 @@ impl UnitTask for UnitTaskFollowPath {
         }
     }
 
-    fn update(&mut self, unit: &mut Unit, _query: &SimContext) -> UnitTaskState {
+    fn update(&mut self, unit: &mut Unit, _context: &SimContext) -> UnitTaskState {
         if unit.has_reached_goal() || (unit.path_is_blocked() && self.terminate_if_stuck) {
             UnitTaskState::Completed
         } else {
@@ -1624,7 +1624,7 @@ impl UnitTask for UnitTaskFollowPath {
         UnitTaskResult::Completed { next_task: forward_task(&mut self.completion_task) }
     }
 
-    fn draw_debug_ui(&mut self, _unit: &mut Unit, _query: &SimContext, ui_sys: &UiSystem) {
+    fn draw_debug_ui(&mut self, _unit: &mut Unit, _context: &SimContext, ui_sys: &UiSystem) {
         let ui = ui_sys.ui();
 
         let start = self.path.first().unwrap().cell;

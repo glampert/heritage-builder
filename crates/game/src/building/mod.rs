@@ -26,6 +26,7 @@ use config::{BuildingConfig, BuildingConfigs};
 
 use super::{
     sim::{
+        SimCmds,
         SimContext,
         resources::{
             Population,
@@ -248,7 +249,7 @@ impl GameObject for Building {
         self.id
     }
 
-    fn update(&mut self, context: &SimContext) {
+    fn update(&mut self, _cmds: &mut SimCmds, context: &SimContext) {
         debug_assert!(self.is_spawned());
 
         // Refresh cached road link cell.

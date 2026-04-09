@@ -13,7 +13,7 @@ use crate::{
     debug::utils::UpdateTimerDebugUi,
     pathfind::{Node, Path},
     save_context::PostLoadContext,
-    sim::SimContext,
+    sim::{SimCmds, SimContext},
     tile::TileDepthSortOverride,
     unit::{
         Unit,
@@ -37,9 +37,9 @@ impl GameSystem for AmbientEffectsSystem {
         self
     }
 
-    fn update(&mut self, _engine: &mut Engine, context: &SimContext) {
+    fn update(&mut self, _engine: &mut Engine, cmds: &mut SimCmds, context: &SimContext) {
         if self.bird_spawn_timer.tick(context.delta_time_secs()).should_update() {
-            spawn_bird_with_random_flight_path(context);
+            spawn_bird_with_random_flight_path(cmds, context);
         }
     }
 
@@ -51,22 +51,22 @@ impl GameSystem for AmbientEffectsSystem {
         self.bird_spawn_timer.post_load(context.configs().sim.birds_spawn_frequency);
     }
 
-    fn draw_debug_ui(&mut self, engine: &mut Engine, context: &SimContext) {
+    fn draw_debug_ui(&mut self, engine: &mut Engine, cmds: &mut SimCmds, context: &SimContext) {
         self.bird_spawn_timer.draw_debug_ui("Bird Spawn", 0, engine.ui_system());
 
         let ui = engine.ui_system().ui();
 
         if ui.button("Spawn Bird (left-to-right path") {
-            spawn_bird(context, BirdFlightPath::LeftToRight);
+            spawn_bird(cmds, context, BirdFlightPath::LeftToRight);
         }
 
         if ui.button("Spawn Bird (right-to-left path)") {
-            spawn_bird(context, BirdFlightPath::RightToLeft);
+            spawn_bird(cmds, context, BirdFlightPath::RightToLeft);
         }
 
         if ui.button("Spawn Big Flock") {
             for _ in 0..50 {
-                spawn_bird_with_random_flight_path(context);
+                spawn_bird_with_random_flight_path(cmds, context);
             }
         }
     }
@@ -90,7 +90,7 @@ enum BirdFlightPath {
     RightToLeft,
 }
 
-fn spawn_bird(context: &SimContext, flight_path: BirdFlightPath) {
+fn spawn_bird(cmds: &mut SimCmds, context: &SimContext, flight_path: BirdFlightPath) {
     let (path, anim_set_key) = {
         match flight_path {
             BirdFlightPath::LeftToRight => (make_left_to_right_randomized_path(context), UnitAnimSets::WALK_SE),
@@ -98,27 +98,28 @@ fn spawn_bird(context: &SimContext, flight_path: BirdFlightPath) {
         }
     };
 
-    let result = Unit::try_spawn_with_task(context, path.first().unwrap().cell, UnitConfigKey::Bird, UnitTaskFollowPath {
+    Unit::try_spawn_with_task_cb(cmds, context, path.first().unwrap().cell, UnitConfigKey::Bird, UnitTaskFollowPath {
         path,
         completion_callback: Callback::default(),
         completion_task: context.task_manager_mut().new_task(UnitTaskDespawn),
         terminate_if_stuck: true,
+    },
+    move |context, result| {
+        match result {
+            Ok(unit) => {
+                unit.set_animation(context, anim_set_key);
+                unit.set_depth_sort_override(context, TileDepthSortOverride::Topmost);
+            }
+            Err(err) => {
+                log::warning!(log::channel!("ambient_effects"), "Failed to spawn bird: {}", err.message);
+            }
+        }
     });
-
-    match result {
-        Ok(unit) => {
-            unit.set_animation(context, anim_set_key);
-            unit.set_depth_sort_override(context, TileDepthSortOverride::Topmost);
-        }
-        Err(err) => {
-            log::warning!(log::channel!("ambient_effects"), "Failed to spawn bird: {}", err.message);
-        }
-    }
 }
 
-fn spawn_bird_with_random_flight_path(context: &SimContext) {
+fn spawn_bird_with_random_flight_path(cmds: &mut SimCmds, context: &SimContext) {
     let flight_path = BirdFlightPath::iter().choose(context.rng_mut()).unwrap();
-    spawn_bird(context, flight_path);
+    spawn_bird(cmds, context, flight_path);
 }
 
 fn make_left_to_right_randomized_path(context: &SimContext) -> Path {

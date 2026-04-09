@@ -162,11 +162,28 @@ impl Simulation {
 
         // Fixed step world & systems update.
         {
+            const LOCK_WORLD_AND_MAP_DURING_UPDATE: bool = true;
+
             let world_update_delta_time_secs = self.update_timer.time_since_last_secs() * self.speed;
+
             if self.update_timer.tick(scaled_delta_time_secs).should_update() {
+                debug_assert!(self.cmds.is_empty());
+
+                if cfg!(debug_assertions) && LOCK_WORLD_AND_MAP_DURING_UPDATE {
+                    tile_map.lock();
+                    world.lock();
+                }
+
                 let context = self.new_sim_context(world, tile_map, world_update_delta_time_secs);
-                world.update(&context);
-                systems.update(engine, &context);
+                world.update(&mut self.cmds, &context);
+                systems.update(engine, &mut self.cmds, &context);
+
+                if cfg!(debug_assertions) && LOCK_WORLD_AND_MAP_DURING_UPDATE {
+                    world.unlock();
+                    tile_map.unlock();
+                }
+
+                // Any world or tile map mutation would have been deferred until now.
                 self.cmds.execute(&context);
             }
         }
@@ -252,8 +269,12 @@ impl Simulation {
         engine: &mut Engine,
         systems: &mut GameSystems,
     ) {
+        debug_assert!(self.cmds.is_empty());
+
         let sim_context = self.new_sim_context(context.world, context.tile_map, context.delta_time_secs);
-        systems.draw_debug_ui(engine, &sim_context, context.ui_sys);
+        systems.draw_debug_ui(engine, &mut self.cmds, &sim_context, context.ui_sys);
+
+        self.cmds.execute(&sim_context);
     }
 
     // Generic GameObjects:

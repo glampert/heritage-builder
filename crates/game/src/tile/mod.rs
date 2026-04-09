@@ -2143,7 +2143,7 @@ impl TileMap {
     }
 
     pub fn reset(&mut self, fill_with_def: Option<&'static TileDef>, new_map_size: Option<Size>) {
-        debug_assert!(!self.is_locked());
+        debug_assert!(!self.is_locked(), "Cannot mutate locked TileMap!");
 
         self.layers.clear();
         self.minimap.reset(fill_with_def, new_map_size);
@@ -2279,6 +2279,7 @@ impl TileMap {
 
     #[inline]
     pub fn layers_mut(&mut self) -> TileMapLayerMutRefs {
+        debug_assert!(!self.is_locked(), "Cannot mutate locked TileMap!");
         TileMapLayerMutRefs {
             ptrs: [
                 RawPtr::from_ref(self.layer_mut(TileMapLayerKind::Terrain)),
@@ -2295,6 +2296,7 @@ impl TileMap {
 
     #[inline]
     pub fn layer_mut(&mut self, kind: TileMapLayerKind) -> &mut TileMapLayer {
+        debug_assert!(!self.is_locked(), "Cannot mutate locked TileMap!");
         debug_assert!(self.layers[kind as usize].kind() == kind);
         &mut self.layers[kind as usize]
     }
@@ -2312,6 +2314,8 @@ impl TileMap {
 
     #[inline]
     pub fn try_tile_from_layer_mut(&mut self, cell: Cell, kind: TileMapLayerKind) -> Option<&mut Tile> {
+        debug_assert!(!self.is_locked(), "Cannot mutate locked TileMap!");
+
         if self.layers.is_empty() {
             return None;
         }
@@ -2341,6 +2345,8 @@ impl TileMap {
 
     #[inline]
     pub fn find_tile_mut(&mut self, cell: Cell, layer_kind: TileMapLayerKind, tile_kinds: TileKind) -> Option<&mut Tile> {
+        debug_assert!(!self.is_locked(), "Cannot mutate locked TileMap!");
+
         if self.layers.is_empty() {
             return None;
         }
@@ -2378,6 +2384,8 @@ impl TileMap {
     where
         F: FnMut(&mut Tile),
     {
+        debug_assert!(!self.is_locked(), "Cannot mutate locked TileMap!");
+
         if !self.layers.is_empty() {
             let layer = self.layer_mut(layer_kind);
             layer.for_each_tile_mut(tile_kinds, visitor_fn);
@@ -2396,6 +2404,8 @@ impl TileMap {
 
     #[inline]
     pub fn update_anims(&mut self, visible_range: CellRange, delta_time_secs: Seconds) {
+        debug_assert!(!self.is_locked(), "Cannot mutate locked TileMap!");
+
         if !self.layers.is_empty() {
             // NOTE: Terrain layer is not animated by design. Only objects animate.
             let objects_layer = self.layer_mut(TileMapLayerKind::Objects);
@@ -2416,7 +2426,9 @@ impl TileMap {
 
     #[inline]
     pub fn tile_at_index_mut(&mut self, index: TilePoolIndex, layer_kind: TileMapLayerKind) -> &mut Tile {
+        debug_assert!(!self.is_locked(), "Cannot mutate locked TileMap!");
         debug_assert!(index != INVALID_TILE_INDEX);
+
         let layer = self.layer_mut(layer_kind);
         &mut layer[index]
     }
@@ -2433,6 +2445,8 @@ impl TileMap {
 
     #[inline]
     pub fn next_tile_mut(&mut self, tile: &Tile) -> Option<&mut Tile> {
+        debug_assert!(!self.is_locked(), "Cannot mutate locked TileMap!");
+
         if tile.next_index == INVALID_TILE_INDEX {
             return None;
         }
@@ -2455,6 +2469,8 @@ impl TileMap {
     where
         F: FnMut(&mut Tile),
     {
+        debug_assert!(!self.is_locked(), "Cannot mutate locked TileMap!");
+
         let layer = self.layer_mut(tile.layer_kind());
         layer.visit_next_tiles_mut(tile.next_index, visitor_fn);
     }
@@ -2603,6 +2619,8 @@ impl TileMap {
 
     // Move tile from one cell to another if destination is free.
     pub fn try_move_tile(&mut self, from: Cell, to: Cell, layer_kind: TileMapLayerKind) -> bool {
+        debug_assert!(!self.is_locked(), "Cannot mutate locked TileMap!");
+
         const ALLOW_STACKING: bool = false;
         if !self.can_move_tile(from, to, layer_kind, ALLOW_STACKING) {
             return false;
@@ -2637,6 +2655,7 @@ impl TileMap {
         to_cell: Cell,
         layer_kind: TileMapLayerKind,
     ) -> bool {
+        debug_assert!(!self.is_locked(), "Cannot mutate locked TileMap!");
         debug_assert!(from_idx != INVALID_TILE_INDEX);
 
         const ALLOW_STACKING: bool = true;
@@ -2716,6 +2735,8 @@ impl TileMap {
         transform: WorldToScreenTransform,
         placement_op: TilePlacementOp,
     ) {
+        debug_assert!(!self.is_locked(), "Cannot mutate locked TileMap!");
+
         if self.layers.is_empty() {
             return;
         }
@@ -2727,9 +2748,12 @@ impl TileMap {
 
     #[inline]
     pub fn clear_selection(&mut self, selection: &mut TileSelection) {
+        debug_assert!(!self.is_locked(), "Cannot mutate locked TileMap!");
+
         if self.layers.is_empty() {
             return;
         }
+
         selection.clear(self.layers_mut());
     }
 
@@ -2803,16 +2827,19 @@ impl Save for TileMap {
     }
 
     fn save(&self, state: &mut SaveStateImpl) -> SaveResult {
+        debug_assert!(!self.is_locked(), "Map should not be locked while saving!");
         state.save(self)
     }
 }
 
 impl Load for TileMap {
     fn pre_load(&mut self, context: &mut PreLoadContext) {
+        debug_assert!(!self.is_locked(), "Map should not be locked while loading!");
         self.minimap.pre_load(context);
     }
 
     fn load(&mut self, state: &SaveStateImpl) -> LoadResult {
+        debug_assert!(!self.is_locked(), "Map should not be locked while loading!");
         state.load(self)
     }
 

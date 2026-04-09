@@ -19,7 +19,7 @@ use crate::{
     cheats,
     constants::*,
     debug::DebugUiMode,
-    sim::SimContext,
+    sim::{SimCmds, SimContext},
     undo_redo::GameObjectSavedState,
     save_context::PostLoadContext,
     prop::{Prop, PropId},
@@ -105,7 +105,7 @@ pub trait GameObject {
     }
 
     // Update:
-    fn update(&mut self, context: &SimContext);
+    fn update(&mut self, cmds: &mut SimCmds, context: &SimContext);
     fn tally(&self, stats: &mut WorldStats);
 
     // Save/load support:

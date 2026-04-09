@@ -11,7 +11,7 @@ use serde::{Deserialize, Serialize};
 use strum::{Display, EnumCount, EnumIter, EnumProperty, IntoEnumIterator};
 
 use super::GameSystem;
-use crate::{GameLoop, config::GameConfigs, save_context::PostLoadContext, sim::SimContext};
+use crate::{GameLoop, config::GameConfigs, save_context::PostLoadContext, sim::{SimCmds, SimContext}};
 
 // ----------------------------------------------
 // MusicTrackKey
@@ -118,29 +118,13 @@ impl GameSystem for AmbientMusicSystem {
         self
     }
 
-    fn update(&mut self, engine: &mut Engine, _query: &SimContext) {
-        if !self.is_enabled() {
-            return;
-        }
-
-        let sound_sys = engine.sound_system_mut();
-
-        if !self.tracks_are_loaded() {
-            self.load_tracks(sound_sys);
-        }
-
-        let track_is_playing   = self.update_current_track(sound_sys);
-        let game_state_changed = self.update_game_state();
-
-        // If nothing is currently playing or if the game state has changed, start a new track.
-        if !track_is_playing || game_state_changed {
-            self.start_new_track(sound_sys);
-        }
+    fn update(&mut self, engine: &mut Engine, _cmds: &mut SimCmds, _context: &SimContext) {
+        self.update_internal(engine);
     }
 
-    fn paused_update(&mut self, engine: &mut Engine, context: &SimContext) {
+    fn paused_update(&mut self, engine: &mut Engine, _context: &SimContext) {
         // We want to update as normal when paused since the home menu will pause the game simulation.
-        self.update(engine, context);
+        self.update_internal(engine);
     }
 
     fn reset(&mut self, engine: &mut Engine) {
@@ -154,7 +138,7 @@ impl GameSystem for AmbientMusicSystem {
         self.reset(context.engine_mut());
     }
 
-    fn draw_debug_ui(&mut self, engine: &mut Engine, _query: &SimContext) {
+    fn draw_debug_ui(&mut self, engine: &mut Engine, _cmds: &mut SimCmds, _context: &SimContext) {
         let ui = engine.ui_system().ui();
 
         if !self.is_enabled() {
@@ -256,5 +240,25 @@ impl AmbientMusicSystem {
         }
 
         state_changed
+    }
+
+    fn update_internal(&mut self, engine: &mut Engine) {
+        if !self.is_enabled() {
+            return;
+        }
+
+        let sound_sys = engine.sound_system_mut();
+
+        if !self.tracks_are_loaded() {
+            self.load_tracks(sound_sys);
+        }
+
+        let track_is_playing   = self.update_current_track(sound_sys);
+        let game_state_changed = self.update_game_state();
+
+        // If nothing is currently playing or if the game state has changed, start a new track.
+        if !track_is_playing || game_state_changed {
+            self.start_new_track(sound_sys);
+        }
     }
 }
