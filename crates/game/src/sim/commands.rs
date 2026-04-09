@@ -65,7 +65,8 @@ impl<T> std::fmt::Display for SpawnQueryResult<T> {
 // SpawnPromiseState Internals
 // ----------------------------------------------
 
-type SpawnPromiseStateId = GenerationalIndex;
+#[derive(Copy, Clone)]
+struct SpawnPromiseStateId(GenerationalIndex);
 
 #[derive(Display)]
 enum SpawnPromiseState {
@@ -100,25 +101,25 @@ impl SpawnPromiseStatePool {
         let generation = self.generation;
         self.generation += 1;
 
-        let id = SpawnPromiseStateId::new(generation, self.pool.vacant_key());
+        let id = SpawnPromiseStateId(GenerationalIndex::new(generation, self.pool.vacant_key()));
         let index = self.pool.insert((id, SpawnPromiseState::Pending));
 
-        debug_assert!(id == self.pool[index].0);
+        debug_assert!(id.0 == self.pool[index].0.0);
         id
     }
 
     fn free(&mut self, state_id: SpawnPromiseStateId) {
-        if !state_id.is_valid() {
+        if !state_id.0.is_valid() {
             return;
         }
 
-        let index = state_id.index();
+        let index = state_id.0.index();
 
         // Handle freeing an invalid handle gracefully.
         // This will also avoid any invalid frees thanks to the generation check.
         match self.pool.get(index) {
             Some((id, _)) => {
-                if *id != state_id {
+                if id.0 != state_id.0 {
                     return; // Slot reused, not same item.
                 }
             }
@@ -130,22 +131,22 @@ impl SpawnPromiseStatePool {
     }
 
     fn try_get(&self, state_id: SpawnPromiseStateId) -> Option<&SpawnPromiseState> {
-        if !state_id.is_valid() {
+        if !state_id.0.is_valid() {
             return None;
         }
 
-        self.pool.get(state_id.index())
-            .filter(|(id, _)| *id == state_id)
+        self.pool.get(state_id.0.index())
+            .filter(|(id, _)| id.0 == state_id.0)
             .map(|(_, state)| state)
     }
 
     fn try_get_mut(&mut self, state_id: SpawnPromiseStateId) -> Option<&mut SpawnPromiseState> {
-        if !state_id.is_valid() {
+        if !state_id.0.is_valid() {
             return None;
         }
 
-        self.pool.get_mut(state_id.index())
-            .filter(|(id, _)| *id == state_id)
+        self.pool.get_mut(state_id.0.index())
+            .filter(|(id, _)| id.0 == state_id.0)
             .map(|(_, state)| state)
     }
 
@@ -159,7 +160,7 @@ impl SpawnPromiseStatePool {
         log::error!("----------------------------");
 
         for (index, (id, state)) in &self.pool {
-            log::error!("Leaked SpawnPromiseState[{index}]: {id}, {state}");
+            log::error!("Leaked SpawnPromiseState[{index}]: {}, {}", id.0, state);
         }
 
         if cfg!(debug_assertions) {
@@ -341,7 +342,7 @@ impl SimCmds {
                     }
                     SpawnPromiseState::Pending => {
                         // Shouldn't happen if the is_promise_resolved() test above passed...
-                        log::error!(log::channel!("sim"), "Unexpected SpawnPromiseState::Pending for {state_id}!");
+                        log::error!(log::channel!("sim"), "Unexpected SpawnPromiseState::Pending for {}!", state_id.0);
                         (SpawnQueryResult::Pending(promise), false)
                     }
                 }
@@ -536,7 +537,7 @@ impl SimCmds {
 
                 if let Some(state_id) = state_id {
                     let promise = promises.try_get_mut(*state_id)
-                        .unwrap_or_else(|| panic!("SpawnTileWithTileDef: Invalid SpawnPromiseStateId: {state_id}"));
+                        .unwrap_or_else(|| panic!("SpawnTileWithTileDef: Invalid SpawnPromiseStateId: {}", state_id.0));
 
                     debug_assert!(promise.is_pending());
 
@@ -603,7 +604,7 @@ impl SimCmds {
     ) {
         if let Some(state_id) = state_id {
             let promise = promises.try_get_mut(*state_id)
-                .unwrap_or_else(|| panic!("Invalid SpawnPromiseStateId: {state_id}"));
+                .unwrap_or_else(|| panic!("Invalid SpawnPromiseStateId: {}", state_id.0));
 
             debug_assert!(promise.is_pending());
 
