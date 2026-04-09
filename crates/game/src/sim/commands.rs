@@ -185,24 +185,57 @@ impl Drop for SpawnPromiseStatePool {
 // SimCmd
 // ----------------------------------------------
 
-#[derive(Display)]
 enum SimCmd {
     // -- Tile operations -----------------------
-    SpawnTileWithTileDef { cell: Cell, tile_def: &'static TileDef, on_spawned: OnSpawnedTile },
-    DespawnTileAtCell { cell: Cell, layer_kind: TileMapLayerKind },
+    SpawnTileWithTileDef {
+        cell: Cell,
+        tile_def: &'static TileDef,
+        state_id: Option<SpawnPromiseStateId>,
+        on_spawned: SpawnCallbackBox<TileCallback>,
+    },
+    DespawnTileAtCell {
+        cell: Cell,
+        layer_kind: TileMapLayerKind,
+    },
 
     // -- Unit operations -----------------------
-    SpawnUnitWithConfig { origin: Cell, config: UnitConfigKey, on_spawned: OnSpawned<Unit> },
-    SpawnUnitWithTileDef { origin: Cell, tile_def: &'static TileDef, on_spawned: OnSpawned<Unit> },
-    DespawnUnitWithId { id: UnitId },
+    SpawnUnitWithConfig {
+        origin: Cell,
+        config: UnitConfigKey,
+        state_id: Option<SpawnPromiseStateId>,
+        on_spawned: SpawnCallbackBox<GameObjectCallback<Unit>>,
+    },
+    SpawnUnitWithTileDef {
+        origin: Cell,
+        tile_def: &'static TileDef,
+        state_id: Option<SpawnPromiseStateId>,
+        on_spawned: SpawnCallbackBox<GameObjectCallback<Unit>>,
+    },
+    DespawnUnitWithId {
+        id: UnitId,
+    },
 
     // -- Building operations -------------------
-    SpawnBuildingWithTileDef { base_cell: Cell, tile_def: &'static TileDef, on_spawned: OnSpawned<Building> },
-    DespawnBuildingWithId { kind_and_id: BuildingKindAndId },
+    SpawnBuildingWithTileDef {
+        base_cell: Cell,
+        tile_def: &'static TileDef,
+        state_id: Option<SpawnPromiseStateId>,
+        on_spawned: SpawnCallbackBox<GameObjectCallback<Building>>,
+    },
+    DespawnBuildingWithId {
+        kind_and_id: BuildingKindAndId,
+    },
 
     // -- Prop operations -----------------------
-    SpawnPropWithTileDef { origin: Cell, tile_def: &'static TileDef, on_spawned: OnSpawned<Prop> },
-    DespawnPropWithId { id: PropId },
+    SpawnPropWithTileDef {
+        origin: Cell,
+        tile_def: &'static TileDef,
+        state_id: Option<SpawnPromiseStateId>,
+        on_spawned: SpawnCallbackBox<GameObjectCallback<Prop>>,
+    },
+    DespawnPropWithId {
+        id: PropId,
+    },
 
     // TODO: Add other commands.
     // E.g.: VisitBuilding, UpgradeHouse, AddGold/RemoveGold, etc.
@@ -221,44 +254,6 @@ type GameObjectCallback<T> = dyn Fn(&SimContext, Result<&mut T, TilePlacementErr
 // No underlying mutable game object exists, so the borrowed shape avoids
 // the need to clone TilePlacementErr in the failure path.
 type TileCallback = dyn Fn(&SimContext, Result<SpawnReadyResult, TilePlacementErr>) + 'static;
-
-// Action to perform after a Unit/Building/Prop spawn command executes.
-enum OnSpawned<T> {
-    UpdatePromise(SpawnPromiseStateId),
-    InvokeCallback(SpawnCallbackBox<GameObjectCallback<T>>),
-}
-
-impl<T> OnSpawned<T> {
-    fn new_promise(state_id: SpawnPromiseStateId) -> Self {
-        Self::UpdatePromise(state_id)
-    }
-
-    fn new_cb<F>(cb: F) -> Self
-    where
-        F: Fn(&SimContext, Result<&mut T, TilePlacementErr>) + 'static,
-    {
-        Self::InvokeCallback(smallbox!(cb))
-    }
-}
-
-// Action to perform after a tile placement command executes.
-enum OnSpawnedTile {
-    UpdatePromise(SpawnPromiseStateId),
-    InvokeCallback(SpawnCallbackBox<TileCallback>),
-}
-
-impl OnSpawnedTile {
-    fn new_promise(state_id: SpawnPromiseStateId) -> Self {
-        Self::UpdatePromise(state_id)
-    }
-
-    fn new_cb<F>(cb: F) -> Self
-    where
-        F: Fn(&SimContext, Result<SpawnReadyResult, TilePlacementErr>) + 'static,
-    {
-        Self::InvokeCallback(smallbox!(cb))
-    }
-}
 
 // ----------------------------------------------
 // SimCmds
@@ -368,13 +363,30 @@ impl SimCmds {
         self.promises.free(promise.state_id);
     }
 
+    // -- No callback sentinel values -----------
+
+    // No-op tile spawn callback.
+    #[inline]
+    pub fn no_tile_callback() -> fn(&SimContext, Result<SpawnReadyResult, TilePlacementErr>) {
+        |_ctx, _result| {}
+    }
+
+    // No-op game object spawn callback. `T` is inferred from the surrounding spawn call.
+    #[inline]
+    pub fn no_object_callback<T>() -> fn(&SimContext, Result<&mut T, TilePlacementErr>) {
+        |_ctx, _result| {}
+    }
+
     // -- Tile operations -----------------------
 
     #[inline]
     #[must_use]
-    pub fn spawn_tile_with_tile_def(&mut self, cell: Cell, tile_def: &'static TileDef) -> SpawnPromise<Tile> {
+    pub fn spawn_tile_with_tile_def_promise<F>(&mut self, cell: Cell, tile_def: &'static TileDef, on_spawned: F) -> SpawnPromise<Tile>
+    where
+        F: Fn(&SimContext, Result<SpawnReadyResult, TilePlacementErr>) + 'static
+    {
         let state_id = self.promises.allocate();
-        self.cmds.push(SimCmd::SpawnTileWithTileDef { cell, tile_def, on_spawned: OnSpawnedTile::new_promise(state_id) });
+        self.cmds.push(SimCmd::SpawnTileWithTileDef { cell, tile_def, state_id: Some(state_id), on_spawned: smallbox!(on_spawned) });
         SpawnPromise::new(self.current_frame, state_id)
     }
 
@@ -383,7 +395,7 @@ impl SimCmds {
     where
         F: Fn(&SimContext, Result<SpawnReadyResult, TilePlacementErr>) + 'static
     {
-        self.cmds.push(SimCmd::SpawnTileWithTileDef { cell, tile_def, on_spawned: OnSpawnedTile::new_cb(on_spawned) });
+        self.cmds.push(SimCmd::SpawnTileWithTileDef { cell, tile_def, state_id: None, on_spawned: smallbox!(on_spawned) });
     }
 
     #[inline]
@@ -395,9 +407,12 @@ impl SimCmds {
 
     #[inline]
     #[must_use]
-    pub fn spawn_unit_with_config(&mut self, origin: Cell, config: UnitConfigKey) -> SpawnPromise<Unit> {
+    pub fn spawn_unit_with_config_promise<F>(&mut self, origin: Cell, config: UnitConfigKey, on_spawned: F) -> SpawnPromise<Unit>
+    where
+        F: Fn(&SimContext, Result<&mut Unit, TilePlacementErr>) + 'static
+    {
         let state_id = self.promises.allocate();
-        self.cmds.push(SimCmd::SpawnUnitWithConfig { origin, config, on_spawned: OnSpawned::new_promise(state_id) });
+        self.cmds.push(SimCmd::SpawnUnitWithConfig { origin, config, state_id: Some(state_id), on_spawned: smallbox!(on_spawned) });
         SpawnPromise::new(self.current_frame, state_id)
     }
 
@@ -406,14 +421,17 @@ impl SimCmds {
     where
         F: Fn(&SimContext, Result<&mut Unit, TilePlacementErr>) + 'static
     {
-        self.cmds.push(SimCmd::SpawnUnitWithConfig { origin, config, on_spawned: OnSpawned::new_cb(on_spawned) });
+        self.cmds.push(SimCmd::SpawnUnitWithConfig { origin, config, state_id: None, on_spawned: smallbox!(on_spawned) });
     }
 
     #[inline]
     #[must_use]
-    pub fn spawn_unit_with_tile_def(&mut self, origin: Cell, tile_def: &'static TileDef) -> SpawnPromise<Unit> {
+    pub fn spawn_unit_with_tile_def_promise<F>(&mut self, origin: Cell, tile_def: &'static TileDef, on_spawned: F) -> SpawnPromise<Unit>
+    where
+        F: Fn(&SimContext, Result<&mut Unit, TilePlacementErr>) + 'static
+    {
         let state_id = self.promises.allocate();
-        self.cmds.push(SimCmd::SpawnUnitWithTileDef { origin, tile_def, on_spawned: OnSpawned::new_promise(state_id) });
+        self.cmds.push(SimCmd::SpawnUnitWithTileDef { origin, tile_def, state_id: Some(state_id), on_spawned: smallbox!(on_spawned) });
         SpawnPromise::new(self.current_frame, state_id)
     }
 
@@ -422,7 +440,7 @@ impl SimCmds {
     where
         F: Fn(&SimContext, Result<&mut Unit, TilePlacementErr>) + 'static
     {
-        self.cmds.push(SimCmd::SpawnUnitWithTileDef { origin, tile_def, on_spawned: OnSpawned::new_cb(on_spawned) });
+        self.cmds.push(SimCmd::SpawnUnitWithTileDef { origin, tile_def, state_id: None, on_spawned: smallbox!(on_spawned) });
     }
 
     #[inline]
@@ -434,9 +452,12 @@ impl SimCmds {
 
     #[inline]
     #[must_use]
-    pub fn spawn_building_with_tile_def(&mut self, base_cell: Cell, tile_def: &'static TileDef) -> SpawnPromise<Building> {
+    pub fn spawn_building_with_tile_def_promise<F>(&mut self, base_cell: Cell, tile_def: &'static TileDef, on_spawned: F) -> SpawnPromise<Building>
+    where
+        F: Fn(&SimContext, Result<&mut Building, TilePlacementErr>) + 'static
+    {
         let state_id = self.promises.allocate();
-        self.cmds.push(SimCmd::SpawnBuildingWithTileDef { base_cell, tile_def, on_spawned: OnSpawned::new_promise(state_id) });
+        self.cmds.push(SimCmd::SpawnBuildingWithTileDef { base_cell, tile_def, state_id: Some(state_id), on_spawned: smallbox!(on_spawned) });
         SpawnPromise::new(self.current_frame, state_id)
     }
 
@@ -445,7 +466,7 @@ impl SimCmds {
     where
         F: Fn(&SimContext, Result<&mut Building, TilePlacementErr>) + 'static
     {
-        self.cmds.push(SimCmd::SpawnBuildingWithTileDef { base_cell, tile_def, on_spawned: OnSpawned::new_cb(on_spawned) });
+        self.cmds.push(SimCmd::SpawnBuildingWithTileDef { base_cell, tile_def, state_id: None, on_spawned: smallbox!(on_spawned) });
     }
 
     #[inline]
@@ -457,9 +478,12 @@ impl SimCmds {
 
     #[inline]
     #[must_use]
-    pub fn spawn_prop_with_tile_def(&mut self, origin: Cell, tile_def: &'static TileDef) -> SpawnPromise<Prop> {
+    pub fn spawn_prop_with_tile_def_promise<F>(&mut self, origin: Cell, tile_def: &'static TileDef, on_spawned: F) -> SpawnPromise<Prop>
+    where
+        F: Fn(&SimContext, Result<&mut Prop, TilePlacementErr>) + 'static
+    {
         let state_id = self.promises.allocate();
-        self.cmds.push(SimCmd::SpawnPropWithTileDef { origin, tile_def, on_spawned: OnSpawned::new_promise(state_id) });
+        self.cmds.push(SimCmd::SpawnPropWithTileDef { origin, tile_def, state_id: Some(state_id), on_spawned: smallbox!(on_spawned) });
         SpawnPromise::new(self.current_frame, state_id)
     }
 
@@ -468,7 +492,7 @@ impl SimCmds {
     where
         F: Fn(&SimContext, Result<&mut Prop, TilePlacementErr>) + 'static
     {
-        self.cmds.push(SimCmd::SpawnPropWithTileDef { origin, tile_def, on_spawned: OnSpawned::new_cb(on_spawned) });
+        self.cmds.push(SimCmd::SpawnPropWithTileDef { origin, tile_def, state_id: None, on_spawned: smallbox!(on_spawned) });
     }
 
     #[inline]
@@ -501,7 +525,7 @@ impl SimCmds {
             // --------------
             // Tiles:
             // --------------
-            SimCmd::SpawnTileWithTileDef { cell, tile_def, on_spawned } => {
+            SimCmd::SpawnTileWithTileDef { cell, tile_def, state_id, on_spawned } => {
                 let result = match spawner.try_spawn_tile_with_def(*cell, tile_def) {
                     SpawnerResult::Building(b) => Ok(SpawnReadyResult::GameObject(b.id())),
                     SpawnerResult::Unit(u)     => Ok(SpawnReadyResult::GameObject(u.id())),
@@ -510,22 +534,19 @@ impl SimCmds {
                     SpawnerResult::Err(err)    => Err(err),
                 };
 
-                match on_spawned {
-                    OnSpawnedTile::UpdatePromise(state_id) => {
-                        let promise = promises.try_get_mut(*state_id)
-                            .unwrap_or_else(|| panic!("SpawnTileWithTileDef: Invalid SpawnPromiseStateId: {state_id}"));
+                if let Some(state_id) = state_id {
+                    let promise = promises.try_get_mut(*state_id)
+                        .unwrap_or_else(|| panic!("SpawnTileWithTileDef: Invalid SpawnPromiseStateId: {state_id}"));
 
-                        debug_assert!(promise.is_pending());
+                    debug_assert!(promise.is_pending());
 
-                        *promise = match result {
-                            Ok(ready) => SpawnPromiseState::Ready(ready),
-                            Err(err)  => SpawnPromiseState::Failed(err),
-                        };
-                    }
-                    OnSpawnedTile::InvokeCallback(cb) => {
-                        cb(context, result);
-                    }
+                    *promise = match &result {
+                        Ok(ready) => SpawnPromiseState::Ready(ready.clone()),
+                        Err(err)  => SpawnPromiseState::Failed(err.clone()),
+                    };
                 }
+
+                on_spawned(context, result);
             }
             SimCmd::DespawnTileAtCell { cell, layer_kind } => {
                 spawner.despawn_tile_at_cell(*cell, *layer_kind);
@@ -534,13 +555,13 @@ impl SimCmds {
             // --------------
             // Units:
             // --------------
-            SimCmd::SpawnUnitWithConfig { origin, config, on_spawned } => {
+            SimCmd::SpawnUnitWithConfig { origin, config, state_id, on_spawned } => {
                 let result = spawner.try_spawn_unit_with_config(*origin, *config);
-                Self::resolve_game_object_spawn(promises, on_spawned, context, result);
+                Self::resolve_game_object_spawn(promises, state_id, on_spawned, context, result);
             }
-            SimCmd::SpawnUnitWithTileDef { origin, tile_def, on_spawned } => {
+            SimCmd::SpawnUnitWithTileDef { origin, tile_def, state_id, on_spawned } => {
                 let result = spawner.try_spawn_unit_with_tile_def(*origin, tile_def);
-                Self::resolve_game_object_spawn(promises, on_spawned, context, result);
+                Self::resolve_game_object_spawn(promises, state_id, on_spawned, context, result);
             }
             SimCmd::DespawnUnitWithId { id } => {
                 spawner.despawn_unit_with_id(*id);
@@ -549,9 +570,9 @@ impl SimCmds {
             // --------------
             // Buildings:
             // --------------
-            SimCmd::SpawnBuildingWithTileDef { base_cell, tile_def, on_spawned } => {
+            SimCmd::SpawnBuildingWithTileDef { base_cell, tile_def, state_id, on_spawned } => {
                 let result = spawner.try_spawn_building_with_tile_def(*base_cell, tile_def);
-                Self::resolve_game_object_spawn(promises, on_spawned, context, result);
+                Self::resolve_game_object_spawn(promises, state_id, on_spawned, context, result);
             }
             SimCmd::DespawnBuildingWithId { kind_and_id } => {
                 spawner.despawn_building_with_id(*kind_and_id);
@@ -560,9 +581,9 @@ impl SimCmds {
             // --------------
             // Props:
             // --------------
-            SimCmd::SpawnPropWithTileDef { origin, tile_def, on_spawned } => {
+            SimCmd::SpawnPropWithTileDef { origin, tile_def, state_id, on_spawned } => {
                 let result = spawner.try_spawn_prop_with_tile_def(*origin, tile_def);
-                Self::resolve_game_object_spawn(promises, on_spawned, context, result);
+                Self::resolve_game_object_spawn(promises, state_id, on_spawned, context, result);
             }
             SimCmd::DespawnPropWithId { id } => {
                 spawner.despawn_prop_with_id(*id);
@@ -575,25 +596,23 @@ impl SimCmds {
     // user callback with the borrowed mutable reference to initialize the new object.
     fn resolve_game_object_spawn<T: GameObject>(
         promises: &mut SpawnPromiseStatePool,
-        on_spawned: &OnSpawned<T>,
+        state_id: &Option<SpawnPromiseStateId>,
+        on_spawned: &SpawnCallbackBox<GameObjectCallback<T>>,
         context: &SimContext,
         result: Result<&mut T, TilePlacementErr>,
     ) {
-        match on_spawned {
-            OnSpawned::UpdatePromise(state_id) => {
-                let promise = promises.try_get_mut(*state_id)
-                    .unwrap_or_else(|| panic!("Invalid SpawnPromiseStateId: {state_id}"));
+        if let Some(state_id) = state_id {
+            let promise = promises.try_get_mut(*state_id)
+                .unwrap_or_else(|| panic!("Invalid SpawnPromiseStateId: {state_id}"));
 
-                debug_assert!(promise.is_pending());
+            debug_assert!(promise.is_pending());
 
-                *promise = match result {
-                    Ok(obj)  => SpawnPromiseState::Ready(SpawnReadyResult::GameObject(obj.id())),
-                    Err(err) => SpawnPromiseState::Failed(err),
-                };
-            }
-            OnSpawned::InvokeCallback(cb) => {
-                cb(context, result);
-            }
+            *promise = match &result {
+                Ok(obj)  => SpawnPromiseState::Ready(SpawnReadyResult::GameObject(obj.id())),
+                Err(err) => SpawnPromiseState::Failed(err.clone()),
+            };
         }
+
+        on_spawned(context, result);
     }
 }

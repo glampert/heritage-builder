@@ -98,7 +98,7 @@ fn spawn_bird(cmds: &mut SimCmds, context: &SimContext, flight_path: BirdFlightP
         }
     };
 
-    Unit::try_spawn_with_task_cb(cmds, context, path.first().unwrap().cell, UnitConfigKey::Bird, UnitTaskFollowPath {
+    Unit::try_spawn_with_task_deferred_cb(cmds, context, path.first().unwrap().cell, UnitConfigKey::Bird, UnitTaskFollowPath {
         path,
         completion_callback: Callback::default(),
         completion_task: context.task_manager_mut().new_task(UnitTaskDespawn),

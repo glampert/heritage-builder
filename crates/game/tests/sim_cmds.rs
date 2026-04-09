@@ -58,36 +58,40 @@ fn test_sim_cmd_queue_spawning() {
     let mut cmds = SimCmds::new();
 
     // Push spawn commands:
-    let mut tile_promise = cmds.spawn_tile_with_tile_def(
+    let mut tile_promise = cmds.spawn_tile_with_tile_def_promise(
         Cell::new(0, 0),
         TileSets::get().find_tile_def_by_name(
             TileMapLayerKind::Terrain,
             TERRAIN_LAND_CATEGORY.string,
             "grass",
         ).unwrap(),
+        SimCmds::no_tile_callback(),
     );
 
-    let mut building_promise = cmds.spawn_building_with_tile_def(
+    let mut building_promise = cmds.spawn_building_with_tile_def_promise(
         Cell::new(1, 1),
         TileSets::get().find_tile_def_by_name(
             TileMapLayerKind::Objects,
             OBJECTS_BUILDINGS_CATEGORY.string,
             "small_well",
         ).unwrap(),
+        SimCmds::no_object_callback(),
     );
 
-    let mut unit_promise = cmds.spawn_unit_with_config(
+    let mut unit_promise = cmds.spawn_unit_with_config_promise(
         Cell::new(2, 2),
         UnitConfigKey::Peasant,
+        SimCmds::no_object_callback(),
     );
 
-    let mut prop_promise = cmds.spawn_prop_with_tile_def(
+    let mut prop_promise = cmds.spawn_prop_with_tile_def_promise(
         Cell::new(3, 3),
         TileSets::get().find_tile_def_by_name(
             TileMapLayerKind::Objects,
             OBJECTS_VEGETATION_CATEGORY.string,
             "tree",
         ).unwrap(),
+        SimCmds::no_object_callback(),
     );
 
     // Check pending commands return pending promises:
@@ -177,9 +181,10 @@ fn test_sim_cmd_queue_spawn_failure() {
 
     let mut cmds = SimCmds::new();
 
-    let mut unit_promise = cmds.spawn_unit_with_config(
+    let mut unit_promise = cmds.spawn_unit_with_config_promise(
         Cell::new(999, 999), // Out of bounds cell - must fail.
         UnitConfigKey::Peasant,
+        SimCmds::no_object_callback(),
     );
 
     // Check pending commands return pending promises:

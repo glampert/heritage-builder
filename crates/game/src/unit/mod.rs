@@ -19,6 +19,7 @@ use super::{
     sim::{
         SimCmds,
         SimContext,
+        commands::SpawnPromise,
         resources::{ResourceKind, StockItem},
     },
     world::{
@@ -478,6 +479,8 @@ impl Unit {
         self.current_task_id = task_id.unwrap_or_default();
     }
 
+    // Blocking spawn, executes immediately.
+    // IMPORTANT: Cannot be called while the world is locked for update.
     pub fn try_spawn_with_task<Task>(
         context: &SimContext,
         unit_origin: Cell,
@@ -506,7 +509,42 @@ impl Unit {
         Ok(unit)
     }
 
-    pub fn try_spawn_with_task_cb<Task, F>(
+    // Deferred spawn, pushes a command into the sim command queue.
+    // Returns a promise that must be polled for completion.
+    // Can be called while the world is locked for update.
+    pub fn try_spawn_with_task_deferred_promise<Task>(
+        cmds: &mut SimCmds,
+        context: &SimContext,
+        unit_origin: Cell,
+        unit_config: UnitConfigKey,
+        task: Task,
+    ) -> SpawnPromise<Unit>
+    where
+        Task: UnitTask,
+        UnitTaskArchetype: From<Task>,
+    {
+        debug_assert!(unit_origin.is_valid());
+        let task_id = context.task_manager_mut().new_task(task);
+
+        cmds.spawn_unit_with_config_promise(unit_origin, unit_config, move |context, result| {
+            let unit = match result {
+                Ok(unit) => unit,
+                Err(_) => {
+                    context.task_manager_mut().free_task(task_id.unwrap());
+                    // SpawnPromise contains a copy of the error.
+                    return;
+                }
+            };
+
+            // This will start the task chain and might take some time to complete.
+            unit.assign_task(context.task_manager_mut(), task_id);
+        })
+    }
+
+    // Deferred spawn, pushes a command into the sim command queue.
+    // Receives a callback to be invoked when the command is executed.
+    // Can be called while the world is locked for update.
+    pub fn try_spawn_with_task_deferred_cb<Task, F>(
         cmds: &mut SimCmds,
         context: &SimContext,
         unit_origin: Cell,
