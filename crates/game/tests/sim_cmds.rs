@@ -111,11 +111,11 @@ fn test_sim_cmd_queue_spawning() {
         err => panic!("Expected pending SpawnPromise, got {err} instead."),
     };
 
-    // Ready check should also return false for all.
-    assert!(!cmds.is_promise_ready(&tile_promise));
-    assert!(!cmds.is_promise_ready(&building_promise));
-    assert!(!cmds.is_promise_ready(&unit_promise));
-    assert!(!cmds.is_promise_ready(&prop_promise));
+    // Resolved check should also return false for all.
+    assert!(!cmds.is_promise_resolved(&tile_promise));
+    assert!(!cmds.is_promise_resolved(&building_promise));
+    assert!(!cmds.is_promise_resolved(&unit_promise));
+    assert!(!cmds.is_promise_resolved(&prop_promise));
 
     // Execute commands:
     assert!(!cmds.is_empty());
@@ -123,10 +123,10 @@ fn test_sim_cmd_queue_spawning() {
     assert!(cmds.is_empty());
 
     // All should have been executed.
-    assert!(cmds.is_promise_ready(&tile_promise));
-    assert!(cmds.is_promise_ready(&building_promise));
-    assert!(cmds.is_promise_ready(&unit_promise));
-    assert!(cmds.is_promise_ready(&prop_promise));
+    assert!(cmds.is_promise_resolved(&tile_promise));
+    assert!(cmds.is_promise_resolved(&building_promise));
+    assert!(cmds.is_promise_resolved(&unit_promise));
+    assert!(cmds.is_promise_resolved(&prop_promise));
 
     // Query promise results:
     let tile_result = match cmds.query_promise(tile_promise) {
@@ -188,8 +188,8 @@ fn test_sim_cmd_queue_spawn_failure() {
         err => panic!("Expected pending SpawnPromise, got {err} instead."),
     };
 
-    // Ready check should also return false.
-    assert!(!cmds.is_promise_ready(&unit_promise));
+    // Resolved check should also return false.
+    assert!(!cmds.is_promise_resolved(&unit_promise));
 
     // Execute commands:
     assert!(!cmds.is_empty());
@@ -197,7 +197,7 @@ fn test_sim_cmd_queue_spawn_failure() {
     assert!(cmds.is_empty());
 
     // Should have been executed.
-    assert!(cmds.is_promise_ready(&unit_promise));
+    assert!(cmds.is_promise_resolved(&unit_promise));
 
     // Expect a tile placement error.
     match cmds.query_promise(unit_promise) {
