@@ -50,6 +50,12 @@ impl WinitWindowManager {
         let (window, gl_context, gl_surface) =
             init_handler.result.expect("Winit: Window initialization failed — resumed() was not triggered!");
 
+        // On MacOS, Winit's default app menu wires CMD+Q to `terminate:`,
+        // which kills the process without giving us a clean shutdown.
+        // Rewire it to `performClose:` so it surfaces as CloseRequested.
+        #[cfg(target_os = "macos")]
+        crate::app::platform::rewire_quit_menu_item_to_close();
+
         log::info!(log::channel!("app"), "WinitWindowManager (OpenGL) created.");
 
         Self { window, event_loop, gl_context, gl_surface }

@@ -1,5 +1,5 @@
-use objc2::rc::Retained;
-use objc2_app_kit::{NSApp, NSApplication, NSApplicationPresentationOptions, NSWindow};
+use objc2::{sel, rc::Retained};
+use objc2_app_kit::{NSApp, NSApplication, NSApplicationPresentationOptions, NSMenu, NSWindow};
 use objc2_foundation::MainThreadMarker;
 
 use crate::{file_sys, log};
@@ -42,6 +42,56 @@ pub fn enable_auto_hide_dock_and_menu_bar() {
 
         app.setPresentationOptions(options);
     });
+}
+
+// Rewires the default "Quit" menu item (CMD+Q) installed by Winit so that it
+// sends `performClose:` to the key window instead of `terminate:` on the app.
+//
+// Winit's default MacOS menu wires CMD+Q to `NSApp.terminate:`, which calls
+// `applicationWillTerminate:` and then hard-exits the process from AppKit —
+// the winit event loop never observes the quit and our cleanup code does not
+// run. `performClose:` instead triggers `windowShouldClose:` on the key
+// window, which Winit translates into `WindowEvent::CloseRequested`, giving
+// us a chance to emit `ApplicationEvent::Quit` and shut down cleanly.
+//
+// Must be called after the Winit event loop has initialized the default menu
+// (i.e. after the first pump_app_events that creates the window).
+pub fn rewire_quit_menu_item_to_close() {
+    with_app(|app| {
+        let Some(main_menu) = (unsafe { app.mainMenu() }) else {
+            log::warning!(log::channel!("app"), "rewire_quit_menu_item_to_close: no main menu installed.");
+            return;
+        };
+
+        if !patch_quit_item(&main_menu) {
+            log::warning!(log::channel!("app"), "rewire_quit_menu_item_to_close: Quit menu item not found.");
+        }
+    });
+}
+
+// Walks the menu tree looking for an item whose action is `terminate:` and
+// rewrites it to `performClose:` with a nil target (so AppKit routes it via
+// the responder chain to the key window). Returns true if patched.
+fn patch_quit_item(menu: &NSMenu) -> bool {
+    let count = unsafe { menu.numberOfItems() };
+    for i in 0..count {
+        let Some(item) = (unsafe { menu.itemAtIndex(i) }) else { continue };
+
+        if let Some(submenu) = unsafe { item.submenu() } {
+            if patch_quit_item(&submenu) {
+                return true;
+            }
+        }
+
+        if unsafe { item.action() } == Some(sel!(terminate:)) {
+            unsafe {
+                item.setAction(Some(sel!(performClose:)));
+                item.setTarget(None);
+            }
+            return true;
+        }
+    }
+    false
 }
 
 // ----------------------------------------------
