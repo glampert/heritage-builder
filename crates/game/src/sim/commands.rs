@@ -209,7 +209,7 @@ enum SimCmd {
         cell: Cell,
         tile_def: &'static TileDef,
         state_id: Option<SpawnPromiseStateId>,
-        on_spawned: SpawnCallbackBox<TileCallback>,
+        on_spawned: SpawnCallbackBox<TileSpawnedCallback>,
     },
     DespawnTileAtCell {
         cell: Cell,
@@ -221,13 +221,13 @@ enum SimCmd {
         origin: Cell,
         config: UnitConfigKey,
         state_id: Option<SpawnPromiseStateId>,
-        on_spawned: SpawnCallbackBox<GameObjectCallback<Unit>>,
+        on_spawned: SpawnCallbackBox<GameObjectSpawnedCallback<Unit>>,
     },
     SpawnUnitWithTileDef {
         origin: Cell,
         tile_def: &'static TileDef,
         state_id: Option<SpawnPromiseStateId>,
-        on_spawned: SpawnCallbackBox<GameObjectCallback<Unit>>,
+        on_spawned: SpawnCallbackBox<GameObjectSpawnedCallback<Unit>>,
     },
     DespawnUnitWithId {
         id: UnitId,
@@ -238,10 +238,14 @@ enum SimCmd {
         base_cell: Cell,
         tile_def: &'static TileDef,
         state_id: Option<SpawnPromiseStateId>,
-        on_spawned: SpawnCallbackBox<GameObjectCallback<Building>>,
+        on_spawned: SpawnCallbackBox<GameObjectSpawnedCallback<Building>>,
     },
     DespawnBuildingWithId {
         kind_and_id: BuildingKindAndId,
+    },
+    DeferredBuildingUpdate {
+        kind_and_id: BuildingKindAndId,
+        callback: SpawnCallbackBox<GameObjectDeferredCallback<Building>>,
     },
 
     // -- Prop operations -----------------------
@@ -249,14 +253,11 @@ enum SimCmd {
         origin: Cell,
         tile_def: &'static TileDef,
         state_id: Option<SpawnPromiseStateId>,
-        on_spawned: SpawnCallbackBox<GameObjectCallback<Prop>>,
+        on_spawned: SpawnCallbackBox<GameObjectSpawnedCallback<Prop>>,
     },
     DespawnPropWithId {
         id: PropId,
     },
-
-    // TODO: Add other commands.
-    // E.g.: VisitBuilding, UpgradeHouse, AddGold/RemoveGold, etc.
 }
 
 // Inline storage budget for boxed spawn callbacks. S8 = 8 machine words (64B on 64-bit),
@@ -266,12 +267,15 @@ type SpawnCallbackBox<F> = SmallBox<F, smallbox::space::S8>;
 
 // Game object callback: receives `&mut T` so the closure can initialize the
 // freshly-spawned object before it goes live (e.g. assigning a task to a new Unit).
-type GameObjectCallback<T> = dyn Fn(&SimContext, Result<&mut T, TilePlacementErr>) + 'static;
+type GameObjectSpawnedCallback<T> = dyn Fn(&SimContext, Result<&mut T, TilePlacementErr>) + 'static;
 
 // Tile placement callback: receives borrowed refs to a small data enum.
 // No underlying mutable game object exists, so the borrowed shape avoids
 // the need to clone TilePlacementErr in the failure path.
-type TileCallback = dyn Fn(&SimContext, Result<SpawnReadyResult, TilePlacementErr>) + 'static;
+type TileSpawnedCallback = dyn Fn(&SimContext, Result<SpawnReadyResult, TilePlacementErr>) + 'static;
+
+// Generic deferred update callback for units/buildings/props.
+type GameObjectDeferredCallback<T> = dyn Fn(&SimContext, &mut T);
 
 // ----------------------------------------------
 // SimCmds
@@ -485,6 +489,14 @@ impl SimCmds {
         self.cmds.push(SimCmd::DespawnBuildingWithId { kind_and_id });
     }
 
+    #[inline]
+    pub fn defer_building_update<F>(&mut self, kind_and_id: BuildingKindAndId, callback: F)
+    where
+        F: Fn(&SimContext, &mut Building) + 'static
+    {
+        self.cmds.push(SimCmd::DeferredBuildingUpdate { kind_and_id, callback: smallbox!(callback) });
+    }
+
     // -- Prop operations -----------------------
 
     #[inline]
@@ -588,6 +600,12 @@ impl SimCmds {
             SimCmd::DespawnBuildingWithId { kind_and_id } => {
                 spawner.despawn_building_with_id(*kind_and_id);
             }
+            SimCmd::DeferredBuildingUpdate { kind_and_id, callback } => {
+                let building = context.world_mut()
+                    .find_building_mut(kind_and_id.kind, kind_and_id.id)
+                    .expect("SimCmd::DeferredBuildingUpdate invalid building id!");
+                callback(context, building);
+            }
 
             // --------------
             // Props:
@@ -608,7 +626,7 @@ impl SimCmds {
     fn resolve_game_object_spawn<T: GameObject>(
         promises: &mut SpawnPromiseStatePool,
         state_id: &Option<SpawnPromiseStateId>,
-        on_spawned: &SpawnCallbackBox<GameObjectCallback<T>>,
+        on_spawned: &SpawnCallbackBox<GameObjectSpawnedCallback<T>>,
         context: &SimContext,
         result: Result<&mut T, TilePlacementErr>,
     ) {

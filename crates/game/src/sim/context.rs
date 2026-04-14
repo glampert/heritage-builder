@@ -1,21 +1,24 @@
 #![allow(clippy::too_many_arguments)]
 
-use common::{
-    coords::{Cell, CellRange},
-    hash::StringHash,
-    mem::RawPtr,
-    time::Seconds,
-};
-use engine::log;
+use smallvec::SmallVec;
 use rand::{
     Rng,
     distr::uniform::{SampleRange, SampleUniform},
 };
-use smallvec::SmallVec;
+
+use common::{
+    coords::{Cell, CellRange},
+    mem::{self, RawPtr},
+    hash::StringHash,
+    time::Seconds,
+};
+use engine::log;
 
 use super::{GlobalTreasury, RandomGenerator};
 use crate::{
+    world::World,
     building::{Building, BuildingKind},
+    unit::task::UnitTaskManager,
     pathfind::{
         self,
         AStarUniformCostHeuristic,
@@ -37,8 +40,6 @@ use crate::{
         TileMapLayerKind,
         sets::{TileDef, TileSets},
     },
-    unit::task::UnitTaskManager,
-    world::World,
 };
 
 // ----------------------------------------------
@@ -313,21 +314,6 @@ impl SimContext {
     }
 
     #[inline]
-    pub fn find_nearest_buildings<F>(
-        &self,
-        start: Cell,
-        building_kinds: BuildingKind,
-        traversable_node_kinds: PathNodeKind,
-        max_distance: Option<i32>,
-        visitor_fn: F,
-    ) -> Option<(&Building, &Path)>
-    where
-        F: FnMut(&Building, &Path) -> bool,
-    {
-        self.find_nearest_buildings_mut(start, building_kinds, traversable_node_kinds, max_distance, visitor_fn)
-            .map(|(building, path)| (building as &Building, path))
-    }
-
     pub fn find_nearest_buildings_mut<F>(
         &self,
         start: Cell,
@@ -336,6 +322,21 @@ impl SimContext {
         max_distance: Option<i32>,
         visitor_fn: F,
     ) -> Option<(&mut Building, &Path)>
+    where
+        F: FnMut(&Building, &Path) -> bool,
+    {
+        self.find_nearest_buildings(start, building_kinds, traversable_node_kinds, max_distance, visitor_fn)
+            .map(|(building, path)| (mem::mut_ref_cast(building), path))
+    }
+
+    pub fn find_nearest_buildings<F>(
+        &self,
+        start: Cell,
+        building_kinds: BuildingKind,
+        traversable_node_kinds: PathNodeKind,
+        max_distance: Option<i32>,
+        visitor_fn: F,
+    ) -> Option<(&Building, &Path)>
     where
         F: FnMut(&Building, &Path) -> bool,
     {
@@ -353,8 +354,8 @@ impl SimContext {
             building_kinds: BuildingKind,
             traversable_node_kinds: PathNodeKind,
             visitor_fn: F,
-            result_building: Option<&'game mut Building>, // Search result.
-            result_path: Option<RawPtr<Path>>,            // SAFETY: Saved for result debug validation only.
+            result_building: Option<&'game Building>, // Search result.
+            result_path: Option<RawPtr<Path>>,        // SAFETY: Saved for result debug validation only.
             visited_nodes: SmallVec<[Node; 32]>,
         }
 
@@ -380,7 +381,7 @@ impl SimContext {
                 let neighbors = self.context.graph().neighbors(goal, PathNodeKind::Building);
                 for neighbor in neighbors {
                     if let Some(building) =
-                        self.context.world_mut().find_building_for_cell_mut(neighbor.cell, self.context.tile_map())
+                        self.context.world().find_building_for_cell(neighbor.cell, self.context.tile_map())
                     {
                         if building.is(self.building_kinds) {
                             let mut accept_building = false;
@@ -440,7 +441,8 @@ impl SimContext {
                 let result_building =
                     building_filter.result_building.expect("If we've found a path we should have found a building too!");
 
-                let result_path = building_filter.result_path.expect("Path should be valid for SearchResult::PathFound!");
+                let result_path =
+                    building_filter.result_path.expect("Path should be valid for SearchResult::PathFound!");
 
                 debug_assert!(result_building.is(building_kinds));
                 debug_assert!(result_path.as_ref() == path_found); // Must be the same.

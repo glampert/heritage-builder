@@ -217,9 +217,9 @@ where
         self.spawned.fill(false);
     }
 
-    pub fn spawn<F>(&mut self, context: &SimContext, on_spawned_fn: F) -> &mut T
+    pub fn spawn<F>(&mut self, cmds: &mut SimCmds, context: &SimContext, on_spawned_fn: F) -> &mut T
     where
-        F: FnOnce(&mut T, &SimContext, GenerationalIndex),
+        F: FnOnce(&mut T, &mut SimCmds, &SimContext, GenerationalIndex),
     {
         debug_assert!(self.is_valid());
 
@@ -231,7 +231,7 @@ where
             let recycled_instance = &mut self.instances[recycled_index];
 
             debug_assert!(!recycled_instance.is_spawned());
-            on_spawned_fn(recycled_instance, context, GenerationalIndex::new(generation, recycled_index));
+            on_spawned_fn(recycled_instance, cmds, context, GenerationalIndex::new(generation, recycled_index));
 
             self.spawned.set(recycled_index, true);
             self.peak = self.peak.max(self.spawned.count_ones());
@@ -244,7 +244,7 @@ where
         let mut new_instance = T::default();
 
         debug_assert!(!new_instance.is_spawned());
-        on_spawned_fn(&mut new_instance, context, GenerationalIndex::new(generation, new_index));
+        on_spawned_fn(&mut new_instance, cmds, context, GenerationalIndex::new(generation, new_index));
 
         self.instances.push(new_instance);
         self.spawned.push(true);
@@ -637,14 +637,17 @@ impl<'game> Spawner<'game> {
             return cost_error(building_tile_def);
         }
 
+        let mut cmds = SimCmds::default();
+
         let result =
-            self.context.world_mut().try_spawn_building_with_tile_def(self.context, building_base_cell, building_tile_def);
+            self.context.world_mut().try_spawn_building_with_tile_def(&mut cmds, self.context, building_base_cell, building_tile_def);
 
         if let Ok(ref building) = result {
             self.subtract_tile_cost(building_tile_def);
             building.set_random_variation(self.context);
         }
 
+        cmds.execute(self.context);
         result
     }
 
@@ -687,11 +690,14 @@ impl<'game> Spawner<'game> {
             return cost_error(unit_tile_def);
         }
 
-        let result = self.context.world_mut().try_spawn_unit_with_tile_def(self.context, unit_origin, unit_tile_def);
+        let mut cmds = SimCmds::default();
+
+        let result = self.context.world_mut().try_spawn_unit_with_tile_def(&mut cmds, self.context, unit_origin, unit_tile_def);
         if result.is_ok() {
             self.subtract_tile_cost(unit_tile_def);
         }
 
+        cmds.execute(self.context);
         result
     }
 
@@ -703,7 +709,10 @@ impl<'game> Spawner<'game> {
         // NOTE: No affordability check needed here. This is only
         // used by dynamically spawned units, which have no cost.
 
-        self.context.world_mut().try_spawn_unit_with_config(self.context, unit_origin, unit_config_key)
+        let mut cmds = SimCmds::default();
+        let result = self.context.world_mut().try_spawn_unit_with_config(&mut cmds, self.context, unit_origin, unit_config_key);
+        cmds.execute(self.context);
+        result
     }
 
     pub fn despawn_unit(&self, unit: &mut Unit) {
@@ -745,11 +754,14 @@ impl<'game> Spawner<'game> {
             return cost_error(prop_tile_def);
         }
 
-        let result = self.context.world_mut().try_spawn_prop_with_tile_def(self.context, prop_base_cell, prop_tile_def);
+        let mut cmds = SimCmds::default();
+
+        let result = self.context.world_mut().try_spawn_prop_with_tile_def(&mut cmds, self.context, prop_base_cell, prop_tile_def);
         if result.is_ok() {
             self.subtract_tile_cost(prop_tile_def);
         }
 
+        cmds.execute(self.context);
         result
     }
 

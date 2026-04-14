@@ -253,10 +253,10 @@ impl GameObject for Building {
         debug_assert!(self.is_spawned());
 
         // Refresh cached road link cell.
-        self.update_road_link(context);
+        self.update_road_link(cmds, context);
 
         if self.workers_update_timer.tick(context.delta_time_secs()).should_update() {
-            self.update_workers(context);
+            self.update_workers(cmds, context);
         }
 
         let context = self.new_context(context);
@@ -385,6 +385,7 @@ impl Building {
 
     pub fn spawned(
         &mut self,
+        cmds: &mut SimCmds,
         context: &SimContext,
         id: BuildingId,
         kind: BuildingKind,
@@ -402,10 +403,12 @@ impl Building {
         self.workers_update_timer = UpdateTimer::new(GameConfigs::get().sim.workers_update_frequency_secs);
         self.archetype = Some(archetype);
 
-        self.update_road_link(context);
+        self.update_road_link(cmds, context);
 
-        let context = self.new_context(context);
-        self.archetype_mut().spawned(&context);
+        {
+            let context = self.new_context(context);
+            self.archetype_mut().spawned(&context);
+        }
     }
 
     pub fn despawned(&mut self, cmds: &mut SimCmds, context: &SimContext) {
@@ -718,7 +721,7 @@ impl Building {
         }
     }
 
-    fn update_workers(&mut self, context: &SimContext) {
+    fn update_workers(&mut self, cmds: &mut SimCmds, context: &SimContext) {
         if !self.is_linked_to_road(context) {
             return;
         }
@@ -727,12 +730,14 @@ impl Building {
         if let Some(workers) = self.archetype().workers() {
             if let Some(employer) = workers.as_employer() {
                 if !employer.is_at_max_capacity() {
-                    if let Some(house) = self.find_house_with_available_workers(context) {
-                        let workers_available = house.workers_count();
-                        let workers_added = self.add_workers(workers_available, house.kind_and_id());
-                        let workers_removed = house.remove_workers(workers_added, self.kind_and_id());
-                        debug_assert!(workers_added == workers_removed);
-                    }
+                    cmds.defer_building_update(self.kind_and_id(), |context, building| {
+                        if let Some(house) = building.find_house_with_available_workers(context) {
+                            let workers_available = house.workers_count();
+                            let workers_added = building.add_workers(workers_available, house.kind_and_id());
+                            let workers_removed = house.remove_workers(workers_added, building.kind_and_id());
+                            debug_assert!(workers_added == workers_removed);
+                        }
+                    });
                 }
             }
         }
@@ -822,21 +827,24 @@ impl Building {
         context.find_tile_mut(road_link, TileMapLayerKind::Terrain, TileKind::Terrain)
     }
 
-    fn update_road_link(&mut self, context: &SimContext) {
+    fn update_road_link(&mut self, cmds: &mut SimCmds, context: &SimContext) {
         if let Some(new_road_link) = context.find_nearest_road_link(self.cell_range()) {
             debug_assert!(new_road_link.is_valid());
+            let prev_road_link = *self.road_link;
 
-            if new_road_link != *self.road_link.as_ref() && self.road_link.is_valid() {
-                // Clear previous underlying tile flag:
-                if let Some(prev_road_link_tile) = Self::find_road_link_tile_for_cell(context, *self.road_link.as_ref()) {
-                    prev_road_link_tile.set_flags(TileFlags::BuildingRoadLink, false);
+            cmds.defer_building_update(self.kind_and_id(), move |context, _building| {
+                if new_road_link != prev_road_link && prev_road_link.is_valid() {
+                    // Clear previous underlying tile flag:
+                    if let Some(prev_road_link_tile) = Self::find_road_link_tile_for_cell(context, prev_road_link) {
+                        prev_road_link_tile.set_flags(TileFlags::BuildingRoadLink, false);
+                    }
                 }
-            }
 
-            // Set new underlying tile flag:
-            if let Some(new_road_link_tile) = Self::find_road_link_tile_for_cell(context, new_road_link) {
-                new_road_link_tile.set_flags(TileFlags::BuildingRoadLink, true);
-            }
+                // Set new underlying tile flag:
+                if let Some(new_road_link_tile) = Self::find_road_link_tile_for_cell(context, new_road_link) {
+                    new_road_link_tile.set_flags(TileFlags::BuildingRoadLink, true);
+                }
+            });
 
             *self.road_link.as_mut() = new_road_link;
         } else {

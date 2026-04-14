@@ -224,6 +224,7 @@ impl World {
 
     fn try_spawn_building_with_tile_def(
         &mut self,
+        cmds: &mut SimCmds,
         context: &SimContext,
         tile_base_cell: Cell,
         tile_def: &'static TileDef,
@@ -242,8 +243,8 @@ impl World {
                         let archetype_kind = building_archetype.discriminant();
                         let buildings = self.buildings_pool_mut(archetype_kind);
 
-                        let building = buildings.spawn(context, |building, context, id| {
-                            building.spawned(context, id, building_kind, tile.cell_range(), building_archetype);
+                        let building = buildings.spawn(cmds, context, |building, cmds, context, id| {
+                            building.spawned(cmds, context, id, building_kind, tile.cell_range(), building_archetype);
                         });
                         debug_assert!(building.is_spawned());
 
@@ -487,6 +488,7 @@ impl World {
 
     fn try_spawn_unit_with_config(
         &mut self,
+        cmds: &mut SimCmds,
         context: &SimContext,
         unit_origin: Cell,
         unit_config: UnitConfigKey,
@@ -506,7 +508,7 @@ impl World {
             match context.tile_map_mut().try_place_tile(unit_origin, tile_def) {
                 Ok(tile) => {
                     // Spawn unit:
-                    let unit = self.unit_spawn_pool.spawn(context, |unit, _context, id| {
+                    let unit = self.unit_spawn_pool.spawn(cmds, context, |unit, _cmds, _context, id| {
                         unit.spawned(tile, config, id);
                     });
                     debug_assert!(unit.is_spawned());
@@ -540,6 +542,7 @@ impl World {
 
     fn try_spawn_unit_with_tile_def(
         &mut self,
+        cmds: &mut SimCmds,
         context: &SimContext,
         unit_origin: Cell,
         tile_def: &'static TileDef,
@@ -555,7 +558,7 @@ impl World {
                 let config = UnitConfigs::get().find_config_by_hash(tile_def.hash, &tile_def.name);
 
                 // Spawn unit:
-                let unit = self.unit_spawn_pool.spawn(context, |unit, _context, id| {
+                let unit = self.unit_spawn_pool.spawn(cmds, context, |unit, _cmds, _context, id| {
                     unit.spawned(tile, config, id);
                 });
                 debug_assert!(unit.is_spawned());
@@ -814,6 +817,7 @@ impl World {
 
     fn try_spawn_prop_with_tile_def(
         &mut self,
+        cmds: &mut SimCmds,
         context: &SimContext,
         prop_base_cell: Cell,
         tile_def: &'static TileDef,
@@ -829,7 +833,7 @@ impl World {
                 let config = PropConfigs::get().find_config_by_hash(tile_def.hash, &tile_def.name);
 
                 // Spawn prop:
-                let prop = self.prop_spawn_pool.spawn(context, |prop, _context, id| {
+                let prop = self.prop_spawn_pool.spawn(cmds, context, |prop, _cmds, _context, id| {
                     prop.spawned(tile, config, id);
                 });
                 debug_assert!(prop.is_spawned());
