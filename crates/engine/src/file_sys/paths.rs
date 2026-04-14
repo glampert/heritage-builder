@@ -29,6 +29,7 @@ impl<const N: usize> FixedPathBuf<N> {
     }
 
     #[inline]
+    #[allow(clippy::should_implement_trait)]
     pub fn from_str(s: &str) -> Self {
         let mut new = Self::new();
         new.buf.try_push_str(s).expect(Self::PATH_BUF_OVERFLOW);

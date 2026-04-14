@@ -1127,6 +1127,7 @@ impl<T> UiStaticVar<T> {
     }
 
     #[inline]
+    #[allow(clippy::should_implement_trait)]
     pub fn as_ref(&'static self) -> &'static T {
         debug_assert!(platform::is_main_thread(), "Can only use UiStaticVar from main thread!");
         unsafe { &*self.value.get() }

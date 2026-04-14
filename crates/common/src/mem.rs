@@ -1,6 +1,9 @@
 // mut-casts in RawPtr/Mutable are intentional and required.
 #![allow(clippy::mut_from_ref)]
 
+// Inherent `as_ref`/`as_mut` methods shadow AsRef/AsMut intentionally.
+#![allow(clippy::should_implement_trait)]
+
 use core::ptr::NonNull;
 use std::{
     cell::UnsafeCell,
