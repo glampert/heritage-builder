@@ -1,4 +1,7 @@
+use rand::Rng;
 use bitflags::Flags;
+use smallvec::SmallVec;
+
 use common::{
     Color,
     callback::{self, Callback},
@@ -11,8 +14,6 @@ use engine::{
     ui::{self, UiDPadDirection, UiFontScale, UiStaticVar, UiSystem},
 };
 use proc_macros::DrawDebugUi;
-use rand::Rng;
-use smallvec::SmallVec;
 
 use super::{
     Unit,
@@ -24,8 +25,10 @@ use crate::{
     building::{Building, BuildingKind, BuildingKindAndId, BuildingTileInfo},
     debug::game_object_debug::{GameObjectDebugOptions, GameObjectDebugOptionsExt},
     pathfind::{self, NodeKind as PathNodeKind, Path},
+    world::object::GameObject,
     prop::PropId,
     sim::{
+        SimCmds,
         SimContext,
         resources::{ResourceKind, ShoppingList, StockItem},
     },
@@ -36,7 +39,6 @@ use crate::{
         TilePoolIndex,
         minimap::{MINIMAP_ICON_DEFAULT_LIFETIME, MinimapIcon},
     },
-    world::object::{GameObject, Spawner},
 };
 
 // ----------------------------------------------
@@ -74,14 +76,14 @@ impl Unit {
         }
     }
 
-    pub fn draw_debug_ui_detailed(&mut self, context: &SimContext, ui_sys: &UiSystem) {
+    pub fn draw_debug_ui_detailed(&mut self, cmds: &mut SimCmds, context: &SimContext, ui_sys: &UiSystem) {
         self.draw_debug_ui_properties(ui_sys);
         self.draw_debug_ui_config(ui_sys);
         self.debug.draw_debug_ui(ui_sys);
         self.inventory.draw_debug_ui(ui_sys);
         self.draw_debug_ui_tasks(context, ui_sys);
         self.draw_debug_ui_navigation(context, ui_sys);
-        self.draw_debug_ui_misc(context, ui_sys);
+        self.draw_debug_ui_misc(cmds, context, ui_sys);
     }
 
     fn draw_debug_ui_properties(&mut self, ui_sys: &UiSystem) {
@@ -176,7 +178,7 @@ impl Unit {
         self.navigation.draw_debug_ui(ui_sys);
     }
 
-    fn draw_debug_ui_misc(&mut self, context: &SimContext, ui_sys: &UiSystem) {
+    fn draw_debug_ui_misc(&mut self, cmds: &mut SimCmds, context: &SimContext, ui_sys: &UiSystem) {
         let ui = ui_sys.ui();
         if !ui.collapsing_header("Debug Misc", imgui::TreeNodeFlags::empty()) {
             return; // collapsed.
@@ -196,14 +198,14 @@ impl Unit {
             self.follow_path(None);
         }
 
-        self.debug_dropdown_despawn_tasks(context, ui_sys);
+        self.debug_dropdown_despawn_tasks(cmds, context, ui_sys);
         self.debug_dropdown_runner_tasks(context, ui_sys);
         self.debug_dropdown_patrol_tasks(context, ui_sys);
         self.debug_dropdown_pathfinding_tasks(context, ui_sys);
         self.debug_dropdown_harvest_tasks(context, ui_sys);
     }
 
-    fn debug_dropdown_despawn_tasks(&mut self, context: &SimContext, ui_sys: &UiSystem) {
+    fn debug_dropdown_despawn_tasks(&mut self, cmds: &mut SimCmds, context: &SimContext, ui_sys: &UiSystem) {
         let ui = ui_sys.ui();
         if !ui.collapsing_header("Despawn Tasks", imgui::TreeNodeFlags::empty()) {
             return; // collapsed.
@@ -215,7 +217,7 @@ impl Unit {
         }
 
         if ui.button("Force Despawn Immediately") {
-            Spawner::new(context).despawn_unit(self);
+            cmds.despawn_unit_with_id(self.id());
         }
     }
 
@@ -532,12 +534,14 @@ fn unit_debug_settle_task_completed(unit: &mut Unit, dest_tile: &Tile, populatio
 }
 
 fn unit_debug_settle_task_post_despawn(
+    cmds: &mut SimCmds,
     context: &SimContext,
     unit_prev_cell: Cell,
     unit_prev_goal: Option<UnitNavGoal>,
     extra_args: &[UnitTaskArg],
 ) {
-    let settle_new_vacant_lot = unit_prev_goal.is_some_and(|goal| navigation::is_goal_vacant_lot_tile(&goal, context));
+    let settle_new_vacant_lot =
+        unit_prev_goal.is_some_and(|goal| navigation::is_goal_vacant_lot_tile(&goal, context));
 
     if settle_new_vacant_lot {
         if let Some(tile_def) = context.find_tile_def(
@@ -545,25 +549,27 @@ fn unit_debug_settle_task_post_despawn(
             tile::sets::OBJECTS_BUILDINGS_CATEGORY.hash,
             hash::fnv1a_from_str("house0"),
         ) {
-            match context.world_mut().try_spawn_building_with_tile_def(context, unit_prev_cell, tile_def) {
-                Ok(building) => {
-                    debug_assert!(building.is(BuildingKind::House));
+            let population_to_add = extra_args[0].as_u32();
+            debug_assert!(population_to_add == 1);
 
-                    let population_to_add = extra_args[0].as_u32();
-                    debug_assert!(population_to_add == 1);
+            cmds.spawn_building_with_tile_def_cb(unit_prev_cell, tile_def, move |context, result| {
+                match result {
+                    Ok(building) => {
+                        debug_assert!(building.is(BuildingKind::House));
 
-                    let population_added = building.add_population(context, population_to_add);
-                    if population_added != population_to_add {
-                        log::error!(
-                            log::channel!("unit"),
-                            "Settler carried population of {population_to_add} but house accommodated {population_added}."
-                        );
+                        let population_added = building.add_population(context, population_to_add);
+                        if population_added != population_to_add {
+                            log::error!(
+                                log::channel!("unit"),
+                                "Settler carried population of {population_to_add} but house accommodated {population_added}."
+                            );
+                        }
+                    }
+                    Err(err) => {
+                        log::error!(log::channel!("unit"), "Failed to place House Level 0: {}", err.message)
                     }
                 }
-                Err(err) => {
-                    log::error!(log::channel!("unit"), "Failed to place House Level 0: {}", err.message)
-                }
-            }
+            });
         } else {
             log::error!(log::channel!("unit"), "House Level 0 TileDef not found!");
         }

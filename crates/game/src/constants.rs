@@ -14,7 +14,10 @@ pub const UNIT_TASK_POOL_CAPACITY:  usize = UNIT_SPAWN_POOL_CAPACITY * 2;
 // Props:
 pub const PROP_SPAWN_POOL_CAPACITY: usize = 128;
 
-// We reserve generation 0 as a sentinel value to detect uninitialized
-// deserialized data.
+// SimCmds:
+pub const SIM_CMDS_CAPACITY: usize = 64;
+
+// We reserve generation 0 as a sentinel value
+// to detect uninitialized deserialized data.
 pub const INITIAL_GENERATION:  u32 = 1;
 pub const RESERVED_GENERATION: u32 = 0;

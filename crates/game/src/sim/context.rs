@@ -69,6 +69,9 @@ pub struct SimContext {
 
     treasury: RawPtr<GlobalTreasury>,
     delta_time_secs: Seconds,
+
+    // True if the world is being reset/destroyed.
+    is_world_teardown: bool,
 }
 
 impl SimContext {
@@ -82,6 +85,7 @@ impl SimContext {
         tile_map: &mut TileMap,
         treasury: &mut GlobalTreasury,
         delta_time_secs: Seconds,
+        is_world_teardown: bool,
     ) -> Self {
         Self {
             rng: RawPtr::from_ref(rng),
@@ -92,6 +96,7 @@ impl SimContext {
             tile_map: RawPtr::from_ref(tile_map),
             treasury: RawPtr::from_ref(treasury),
             delta_time_secs,
+            is_world_teardown,
         }
     }
 
@@ -104,6 +109,11 @@ impl SimContext {
     // ----------------------
     // Public API:
     // ----------------------
+
+    #[inline(always)]
+    pub fn is_world_teardown(&self) -> bool {
+        self.is_world_teardown
+    }
 
     #[inline(always)]
     pub fn delta_time_secs(&self) -> Seconds {

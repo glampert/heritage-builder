@@ -2813,7 +2813,7 @@ impl TileMap {
 // ----------------------------------------------
 
 impl Save for TileMap {
-    fn pre_save(&mut self) {
+    fn pre_save(&mut self, _context: &mut PreSaveContext) {
         debug_assert!(!self.is_locked(), "Map should not be locked while saving!");
 
         // Reset selection state. We don't save TileSelection.

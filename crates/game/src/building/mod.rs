@@ -47,10 +47,10 @@ use super::{
     },
 };
 use crate::{
+    save_context::*,
     config::GameConfigs,
     debug::{DebugUiMode, game_object_debug::GameObjectDebugOptions, utils::UpdateTimerDebugUi},
     pathfind::{self, NodeKind as PathNodeKind},
-    save_context::PostLoadContext,
     tile::{
         Tile,
         TileFlags,
@@ -249,7 +249,7 @@ impl GameObject for Building {
         self.id
     }
 
-    fn update(&mut self, _cmds: &mut SimCmds, context: &SimContext) {
+    fn update(&mut self, cmds: &mut SimCmds, context: &SimContext) {
         debug_assert!(self.is_spawned());
 
         // Refresh cached road link cell.
@@ -260,7 +260,7 @@ impl GameObject for Building {
         }
 
         let context = self.new_context(context);
-        self.archetype_mut().update(&context);
+        self.archetype_mut().update(cmds, &context);
     }
 
     fn tally(&self, stats: &mut WorldStats) {
@@ -294,6 +294,21 @@ impl GameObject for Building {
         self.archetype().tally(stats, self.kind);
     }
 
+    fn pre_save(&mut self, context: &mut PreSaveContext) {
+        debug_assert!(self.is_spawned());
+        self.archetype_mut().pre_save(context.cmds_mut());
+    }
+
+    fn post_save(&mut self, _context: &mut PostSaveContext) {
+        debug_assert!(self.is_spawned());
+        self.archetype_mut().post_save();
+    }
+
+    fn pre_load(&mut self, _context: &mut PreLoadContext) {
+        debug_assert!(self.is_spawned());
+        // Nothing at the moment.
+    }
+
     fn post_load(&mut self, context: &mut PostLoadContext) {
         debug_assert!(self.is_spawned());
 
@@ -320,7 +335,7 @@ impl GameObject for Building {
         self.workers_update_timer.force_update();
     }
 
-    fn draw_debug_ui(&mut self, context: &SimContext, ui_sys: &UiSystem, mode: DebugUiMode) {
+    fn draw_debug_ui(&mut self, cmds: &mut SimCmds, context: &SimContext, ui_sys: &UiSystem, mode: DebugUiMode) {
         debug_assert!(self.is_spawned());
 
         match mode {
@@ -331,7 +346,7 @@ impl GameObject for Building {
                 let ui = ui_sys.ui();
                 if ui.collapsing_header("Building", imgui::TreeNodeFlags::empty()) {
                     ui.indent_by(10.0);
-                    self.draw_debug_ui_detailed(&self.new_context(context), ui_sys);
+                    self.draw_debug_ui_detailed(cmds, &self.new_context(context), ui_sys);
                     ui.unindent_by(10.0);
                 }
             }
@@ -347,7 +362,11 @@ impl GameObject for Building {
     ) {
         debug_assert!(self.is_spawned());
 
-        let tile = context.find_tile(self.base_cell(), TileMapLayerKind::Objects, TileKind::Building).unwrap();
+        let tile = context.find_tile(
+            self.base_cell(),
+            TileMapLayerKind::Objects,
+            TileKind::Building)
+            .unwrap();
 
         self.archetype_mut().debug_options().draw_popup_messages(
             tile,
@@ -389,15 +408,21 @@ impl Building {
         self.archetype_mut().spawned(&context);
     }
 
-    pub fn despawned(&mut self, context: &SimContext) {
+    pub fn despawned(&mut self, cmds: &mut SimCmds, context: &SimContext) {
         debug_assert!(self.is_spawned());
 
-        self.remove_all_workers(context);
-        self.remove_all_population(context);
+        // Don't spawn evicted settlers or perform other cleanups when we are resetting the world/map.
+        if !context.is_world_teardown() {
+            self.remove_all_workers(context);
+            self.remove_all_population(cmds, context);
+        }
+
         self.clear_road_link(context.tile_map_mut());
 
-        let context = self.new_context(context);
-        self.archetype_mut().despawned(&context);
+        {
+            let context = self.new_context(context);
+            self.archetype_mut().despawned(cmds, &context);
+        }
 
         self.id = BuildingId::default();
         self.map_cells = CellRange::default();
@@ -431,7 +456,7 @@ impl Building {
     building_type_casts! { house,    HouseBuilding    } // as_house()
 
     #[inline]
-    pub fn name(&self) -> &str {
+    pub fn name(&self) -> &'static str {
         self.archetype().name()
     }
 
@@ -604,15 +629,15 @@ impl Building {
     }
 
     #[inline]
-    pub fn remove_population(&mut self, context: &SimContext, count: u32) -> u32 {
+    pub fn remove_population(&mut self, cmds: &mut SimCmds, context: &SimContext, count: u32) -> u32 {
         debug_assert!(self.is_spawned());
         let context = self.new_context(context);
-        self.archetype_mut().remove_population(&context, count)
+        self.archetype_mut().remove_population(cmds, &context, count)
     }
 
     #[inline]
-    fn remove_all_population(&mut self, context: &SimContext) {
-        self.remove_population(context, self.population_count());
+    fn remove_all_population(&mut self, cmds: &mut SimCmds, context: &SimContext) {
+        self.remove_population(cmds, context, self.population_count());
     }
 
     // ----------------------
@@ -935,7 +960,7 @@ impl Building {
         }
     }
 
-    fn draw_debug_ui_detailed(&mut self, context: &BuildingContext, ui_sys: &UiSystem) {
+    fn draw_debug_ui_detailed(&mut self, cmds: &mut SimCmds, context: &BuildingContext, ui_sys: &UiSystem) {
         let ui = ui_sys.ui();
 
         // NOTE: Use the special ##id here so we don't collide with Tile/Properties.
@@ -971,11 +996,11 @@ impl Building {
                 }
 
                 if ui.button("Evict Resident (-1)") {
-                    self.archetype_mut().remove_population(context, 1);
+                    self.archetype_mut().remove_population(cmds, context, 1);
                 }
 
                 if ui.button("Evict All Residents") {
-                    self.remove_all_population(context.sim_ctx);
+                    self.remove_all_population(cmds, context.sim_ctx);
                 }
             }
         }
@@ -1074,7 +1099,7 @@ impl Building {
         }
 
         self.archetype_mut().debug_options().draw_debug_ui(ui_sys);
-        self.archetype_mut().draw_debug_ui(context, ui_sys);
+        self.archetype_mut().draw_debug_ui(cmds, context, ui_sys);
     }
 }
 
@@ -1131,15 +1156,17 @@ trait BuildingBehavior {
     // World Callbacks:
     // ----------------------
 
-    fn name(&self) -> &str;
+    fn name(&self) -> &'static str;
     fn configs(&self) -> &dyn BuildingConfig;
 
     fn spawned(&mut self, _context: &BuildingContext) {}
-    fn despawned(&mut self, _context: &BuildingContext) {}
+    fn despawned(&mut self, _cmds: &mut SimCmds, _context: &BuildingContext);
 
-    fn update(&mut self, context: &BuildingContext);
+    fn update(&mut self, cmds: &mut SimCmds, context: &BuildingContext);
     fn visited_by(&mut self, unit: &mut Unit, context: &BuildingContext);
 
+    fn pre_save(&mut self, cmds: &mut SimCmds);
+    fn post_save(&mut self);
     fn post_load(&mut self, context: &mut PostLoadContext, kind: BuildingKind, tile: &Tile);
 
     // ----------------------
@@ -1200,7 +1227,7 @@ trait BuildingBehavior {
         0
     }
 
-    fn remove_population(&mut self, _context: &BuildingContext, _count: u32) -> u32 {
+    fn remove_population(&mut self, _cmds: &mut SimCmds, _context: &BuildingContext, _count: u32) -> u32 {
         0
     }
 
@@ -1239,7 +1266,7 @@ trait BuildingBehavior {
     // ----------------------
 
     fn debug_options(&mut self) -> &mut dyn GameObjectDebugOptions;
-    fn draw_debug_ui(&mut self, context: &BuildingContext, ui_sys: &UiSystem);
+    fn draw_debug_ui(&mut self, cmds: &mut SimCmds, context: &BuildingContext, ui_sys: &UiSystem);
 }
 
 // ----------------------------------------------
@@ -1327,7 +1354,7 @@ impl<'game> BuildingContext<'game> {
     }
 
     #[inline]
-    pub fn debug_name(&self) -> &str {
+    pub fn debug_name(&self) -> &'static str {
         if cfg!(debug_assertions) {
             if let Some(building) = self.sim_ctx.world().find_building(self.kind, self.id) {
                 return building.name();

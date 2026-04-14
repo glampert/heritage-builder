@@ -16,9 +16,11 @@ use engine::{
 
 use crate::{
     GameLoopStats,
-    cheats::{self, Cheats},
     config::GameConfigs,
+    cheats::{self, Cheats},
     pathfind::{Graph, Search},
+    unit::task::UnitTaskManager,
+    world::{World, object::Spawner},
     sim::{RandomGenerator, SimContext, resources::GlobalTreasury},
     tile::{
         self,
@@ -29,12 +31,10 @@ use crate::{
         TileMap,
         TileMapLayerKind,
         rendering::{TileMapRenderFlags, TileMapRenderStats},
-        road,
         sets::{TileDef, TileSets},
+        road,
         water,
     },
-    unit::task::UnitTaskManager,
-    world::World,
 };
 
 // ----------------------------------------------
@@ -457,6 +457,7 @@ impl<'game> DebugSimContextBuilder<'game> {
             self.tile_map,
             &mut self.treasury,
             0.0,
+            false,
         )
     }
 }
@@ -691,12 +692,14 @@ mod preset_maps {
             }
         }
 
+        let spawner = Spawner::new(&context);
+
         // Buildings (Objects):
         for y in 0..map_size_in_cells.height {
             for x in 0..map_size_in_cells.width {
                 let tile_id = preset.building_tiles[(x + (y * map_size_in_cells.width)) as usize];
                 if let Some(tile_def) = find_tile(TileMapLayerKind::Objects, tile_id) {
-                    if let Err(err) = world.try_spawn_building_with_tile_def(&context, Cell::new(x, y), tile_def) {
+                    if let Err(err) = spawner.try_spawn_building_with_tile_def(Cell::new(x, y), tile_def) {
                         log::error!(log::channel!("debug"), "Preset: Failed to place Building tile: {}", err.message);
                     }
                 }

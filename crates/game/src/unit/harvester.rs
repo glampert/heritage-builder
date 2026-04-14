@@ -2,12 +2,19 @@ use common::{callback::Callback, coords::Cell, time::CountdownTimer};
 use serde::{Deserialize, Serialize};
 
 use super::{
+    Unit,
     UnitId,
     UnitTaskHelper,
+    UnitSpawnState,
+    SpawnedUnitWithTask,
     config::UnitConfigKey,
     task::{UnitTaskDespawn, UnitTaskHarvestCompletionCallback, UnitTaskHarvestWood},
 };
-use crate::{building::BuildingContext, prop::PropId};
+use crate::{
+    prop::PropId,
+    building::BuildingContext,
+    sim::commands::{SimCmds, SpawnPromise},
+};
 
 // ----------------------------------------------
 // Harvester Unit helper
@@ -15,44 +22,48 @@ use crate::{building::BuildingContext, prop::PropId};
 
 #[derive(Clone, Default, Serialize, Deserialize)]
 pub struct Harvester {
-    unit_id: UnitId,
-    #[serde(skip)]
-    failed_to_spawn: bool, // Debug flag; not serialized.
+    #[serde(flatten)] // Preserve backwards compatibility with old save files. Previously `unit_id: UnitId`.
+    unit: SpawnedUnitWithTask,
 }
 
 impl UnitTaskHelper for Harvester {
     #[inline]
     fn reset(&mut self) {
-        self.unit_id = UnitId::default();
-        self.failed_to_spawn = false;
+        self.unit.reset();
     }
 
     #[inline]
-    fn on_unit_spawn(&mut self, unit_id: UnitId, failed_to_spawn: bool) {
-        self.unit_id = unit_id;
-        self.failed_to_spawn = failed_to_spawn;
+    fn get_pending_promise(&mut self) -> Option<SpawnPromise<Unit>> {
+        self.unit.get_pending_promise()
+    }
+
+    #[inline]
+    fn set_spawn_state(&mut self, state: UnitSpawnState) {
+        self.unit.set_spawn_state(state);
+    }
+
+    #[inline]
+    fn spawn_state(&self) -> &UnitSpawnState {
+        self.unit.spawn_state()
     }
 
     #[inline]
     fn unit_id(&self) -> UnitId {
-        self.unit_id
-    }
-
-    #[inline]
-    fn failed_to_spawn(&self) -> bool {
-        self.failed_to_spawn
+        self.unit.unit_id()
     }
 }
 
 impl Harvester {
     pub fn try_harvest_wood(
         &mut self,
+        cmds: &mut SimCmds,
         context: &BuildingContext,
         unit_origin: Cell,
         completion_callback: Callback<UnitTaskHarvestCompletionCallback>,
-    ) -> bool {
+    ) {
         self.try_spawn_with_task(
             context.debug_name(),
+            cmds,
             context.sim_ctx,
             unit_origin,
             UnitConfigKey::Peasant,
@@ -65,6 +76,6 @@ impl Harvester {
                 harvest_target: PropId::default(),
                 is_returning_to_origin: false,
             },
-        )
+        );
     }
 }

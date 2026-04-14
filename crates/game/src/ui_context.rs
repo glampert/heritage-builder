@@ -96,6 +96,7 @@ impl<'game> GameUiContext<'game> {
             mem::mut_ref_cast(self.world),
             mem::mut_ref_cast(self.tile_map),
             self.delta_time_secs,
+            false,
         )
     }
 }

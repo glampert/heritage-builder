@@ -1,6 +1,7 @@
 use std::cmp::Reverse;
-
 use arrayvec::ArrayVec;
+use serde::{Deserialize, Serialize};
+
 use common::{
     Color,
     callback::{self, Callback},
@@ -9,7 +10,6 @@ use common::{
 };
 use engine::{log, ui::UiSystem};
 use proc_macros::DrawDebugUi;
-use serde::{Deserialize, Serialize};
 
 use super::{
     Building,
@@ -21,17 +21,19 @@ use super::{
 };
 use crate::{
     cheats,
+    tile::Tile,
+    save_context::PostLoadContext,
+    world::{object::GameObject, stats::WorldStats},
+    undo_redo::{GameObjectSavedState, game_object_undo_redo_state},
     debug::{
         game_object_debug::{GameObjectDebugOptions, GameObjectDebugOptionsExt, game_object_debug_options},
         utils::UpdateTimerDebugUi,
     },
-    save_context::PostLoadContext,
     sim::{
+        SimCmds,
         SimContext,
         resources::{RESOURCE_KIND_COUNT, ResourceKind, ResourceKinds, ShoppingList, StockItem, Workers},
     },
-    tile::Tile,
-    undo_redo::{GameObjectSavedState, game_object_undo_redo_state},
     unit::{
         Unit,
         UnitTaskHelper,
@@ -40,7 +42,6 @@ use crate::{
         runner::Runner,
         task::{UnitTaskFetchCompletionCallback, UnitTaskFetchFromStorage, UnitTaskRandomizedPatrol},
     },
-    world::{object::GameObject, stats::WorldStats},
 };
 
 // ----------------------------------------------
@@ -168,7 +169,7 @@ impl BuildingBehavior for ServiceBuilding {
     // World Callbacks:
     // ----------------------
 
-    fn name(&self) -> &str {
+    fn name(&self) -> &'static str {
         &self.config.unwrap().name
     }
 
@@ -176,8 +177,16 @@ impl BuildingBehavior for ServiceBuilding {
         self.config.unwrap()
     }
 
-    fn update(&mut self, context: &BuildingContext) {
+    fn despawned(&mut self, cmds: &mut SimCmds, _context: &BuildingContext) {
+        self.runner.discard_spawn_promise(cmds);
+        self.patrol.discard_spawn_promise(cmds);
+    }
+
+    fn update(&mut self, cmds: &mut SimCmds, context: &BuildingContext) {
         debug_assert!(self.config.is_some());
+
+        self.runner.update(cmds);
+        self.patrol.update(cmds);
 
         let delta_time_secs = context.sim_ctx.delta_time_secs();
         let has_min_required_workers = self.has_min_required_workers();
@@ -188,7 +197,7 @@ impl BuildingBehavior for ServiceBuilding {
         if has_stock_requirements && has_min_required_workers && !self.debug.freeze_stock_update() {
             if let StockOrTreasury::Stock { update_timer, .. } = &mut self.stock_or_treasury {
                 if update_timer.tick(delta_time_secs).should_update() {
-                    self.stock_update(context);
+                    self.stock_update(cmds, context);
                 }
             }
         }
@@ -198,7 +207,7 @@ impl BuildingBehavior for ServiceBuilding {
             && !self.debug.freeze_patrol()
             && self.patrol_timer.tick(delta_time_secs).should_update()
         {
-            self.send_out_patrol_unit(context);
+            self.send_out_patrol_unit(cmds, context);
         }
     }
 
@@ -207,8 +216,20 @@ impl BuildingBehavior for ServiceBuilding {
         unimplemented!("ServiceBuilding::visited_by() not yet implemented!");
     }
 
+    fn pre_save(&mut self, cmds: &mut SimCmds) {
+        self.runner.pre_save(cmds);
+        self.patrol.pre_save(cmds);
+    }
+
+    fn post_save(&mut self) {
+        self.runner.post_save();
+        self.patrol.post_save();
+    }
+
     fn post_load(&mut self, _context: &mut PostLoadContext, kind: BuildingKind, _tile: &Tile) {
         debug_assert!(kind.intersects(BuildingKind::services()));
+
+        self.runner.post_load();
         self.patrol.post_load();
 
         let config = BuildingConfigs::get().find_service_config(kind);
@@ -434,7 +455,7 @@ impl BuildingBehavior for ServiceBuilding {
         &mut self.debug
     }
 
-    fn draw_debug_ui(&mut self, context: &BuildingContext, ui_sys: &UiSystem) {
+    fn draw_debug_ui(&mut self, _cmds: &mut SimCmds, context: &BuildingContext, ui_sys: &UiSystem) {
         self.draw_debug_ui_resources_stock(context, ui_sys);
         self.draw_debug_ui_patrol(ui_sys);
         self.draw_debug_ui_treasury(ui_sys);
@@ -467,10 +488,9 @@ impl ServiceBuilding {
     // Stock Update:
     // ----------------------
 
-    fn stock_update(&mut self, context: &BuildingContext) {
+    fn stock_update(&mut self, cmds: &mut SimCmds, context: &BuildingContext) {
         if self.is_waiting_on_runner() {
-            return; // A runner is already out fetching resources. Try again
-            // later.
+            return; // A runner is already out fetching resources. Try again later.
         }
 
         // Unit spawns at the nearest road link.
@@ -487,6 +507,7 @@ impl ServiceBuilding {
         }
 
         self.runner.try_fetch_from_storage(
+            cmds,
             context,
             unit_origin,
             storage_buildings_accepted,
@@ -506,7 +527,7 @@ impl ServiceBuilding {
 
     #[inline]
     fn is_waiting_on_runner(&self) -> bool {
-        self.runner.is_spawned()
+        self.runner.is_spawned_or_pending_spawn()
     }
 
     #[inline]
@@ -567,7 +588,7 @@ impl ServiceBuilding {
     // Patrol Update:
     // ----------------------
 
-    fn send_out_patrol_unit(&mut self, context: &BuildingContext) {
+    fn send_out_patrol_unit(&mut self, cmds: &mut SimCmds, context: &BuildingContext) {
         if self.is_waiting_on_patrol() {
             return; // A patrol unit is already out. Try again later.
         }
@@ -588,6 +609,7 @@ impl ServiceBuilding {
 
         // Look for houses to visit:
         self.patrol.start_randomized_patrol(
+            cmds,
             context,
             unit_origin,
             unit_config,
@@ -605,7 +627,7 @@ impl ServiceBuilding {
 
     #[inline]
     fn is_waiting_on_patrol(&self) -> bool {
-        self.patrol.is_spawned()
+        self.patrol.is_spawned_or_pending_spawn()
     }
 
     fn on_patrol_completed(this_building: &mut Building, patrol_unit: &mut Unit, context: &SimContext) -> bool {
@@ -769,6 +791,9 @@ impl ServiceBuilding {
         }
 
         self.patrol_timer.draw_debug_ui("Patrol", 0, ui_sys);
+
+        ui.text(format!("Spawn State: {:?}", self.patrol.spawn_state()));
+
         self.patrol.draw_debug_ui("Patrol Params", ui_sys);
     }
 

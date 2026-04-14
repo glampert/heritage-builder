@@ -106,6 +106,7 @@ impl TilePaletteDevMenu {
                             context.world,
                             context.tile_map,
                             context.delta_time_secs,
+                            false,
                         ));
                     }
                     ui.same_line();
@@ -114,6 +115,7 @@ impl TilePaletteDevMenu {
                             context.world,
                             context.tile_map,
                             context.delta_time_secs,
+                            false,
                         ));
                     }
 

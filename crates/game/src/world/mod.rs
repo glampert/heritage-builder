@@ -23,11 +23,11 @@ use crate::{
     sim::{SimCmds, SimContext, GlobalTreasury},
     tile::{
         Tile,
-        TileGameObjectHandle,
         TileKind,
         TileMap,
         TileMapLayerKind,
         TilePoolIndex,
+        TileGameObjectHandle,
         placement::{self, Clearing, Placement, TileClearingErr, TilePlacementErr},
         sets::{OBJECTS_UNITS_CATEGORY, TileDef, TileSets},
     },
@@ -98,15 +98,15 @@ impl World {
         }
     }
 
-    pub fn reset(&mut self, context: &SimContext) {
+    pub fn reset(&mut self, cmds: &mut SimCmds, context: &SimContext) {
         debug_assert!(!self.is_locked(), "Cannot mutate locked world!");
 
         for (_, buildings) in &mut self.building_spawn_pools {
-            buildings.clear(context, Building::despawned);
+            buildings.clear(cmds, context, Building::despawned);
         }
 
-        self.unit_spawn_pool.clear(context, Unit::despawned);
-        self.prop_spawn_pool.clear(context, Prop::despawned);
+        self.unit_spawn_pool.clear(cmds, context, Unit::despawned);
+        self.prop_spawn_pool.clear(cmds, context, Prop::despawned);
     }
 
     pub fn update_unit_navigation(&mut self, context: &SimContext) {
@@ -222,7 +222,7 @@ impl World {
     // Buildings API:
     // ----------------------
 
-    pub fn try_spawn_building_with_tile_def(
+    fn try_spawn_building_with_tile_def(
         &mut self,
         context: &SimContext,
         tile_base_cell: Cell,
@@ -278,7 +278,12 @@ impl World {
         }
     }
 
-    pub fn despawn_building(&mut self, context: &SimContext, building: &mut Building) -> Result<(), TileClearingErr> {
+    fn despawn_building(
+        &mut self,
+        cmds: &mut SimCmds,
+        context: &SimContext,
+        building: &mut Building,
+    ) -> Result<(), TileClearingErr> {
         debug_assert!(!self.is_locked(), "Cannot despawn buildings while world is locked!");
 
         let tile_base_cell = building.base_cell();
@@ -315,12 +320,16 @@ impl World {
         debug_assert!(pool_index == building.id().index());
 
         // Put the building instance back into the spawn pool.
-        buildings.despawn(building, context, Building::despawned);
+        buildings.despawn(building, cmds, context, Building::despawned);
         Ok(())
     }
 
-    #[inline]
-    pub fn despawn_building_at_cell(&mut self, context: &SimContext, tile_base_cell: Cell) -> Result<(), TileClearingErr> {
+    fn despawn_building_at_cell(
+        &mut self,
+        cmds: &mut SimCmds,
+        context: &SimContext,
+        tile_base_cell: Cell,
+    ) -> Result<(), TileClearingErr> {
         debug_assert!(!self.is_locked(), "Cannot despawn buildings while world is locked!");
         debug_assert!(tile_base_cell.is_valid());
 
@@ -329,7 +338,7 @@ impl World {
             .find_building_for_cell_mut(tile_base_cell, context.tile_map())
             .expect("Tile cell does not contain a Building!");
 
-        self.despawn_building(context, building)
+        self.despawn_building(cmds, context, building)
     }
 
     #[inline]
@@ -466,9 +475,9 @@ impl World {
         }
     }
 
-    pub fn draw_building_debug_ui(&mut self, context: &SimContext, ui_sys: &UiSystem, tile: &Tile, mode: DebugUiMode) {
+    pub fn draw_building_debug_ui(&mut self, cmds: &mut SimCmds, context: &SimContext, ui_sys: &UiSystem, tile: &Tile, mode: DebugUiMode) {
         if let Some(building) = self.find_building_for_tile_mut(tile) {
-            building.draw_debug_ui(context, ui_sys, mode);
+            building.draw_debug_ui(cmds, context, ui_sys, mode);
         }
     }
 
@@ -476,7 +485,7 @@ impl World {
     // Units API:
     // ----------------------
 
-    pub fn try_spawn_unit_with_config(
+    fn try_spawn_unit_with_config(
         &mut self,
         context: &SimContext,
         unit_origin: Cell,
@@ -529,7 +538,7 @@ impl World {
         }
     }
 
-    pub fn try_spawn_unit_with_tile_def(
+    fn try_spawn_unit_with_tile_def(
         &mut self,
         context: &SimContext,
         unit_origin: Cell,
@@ -569,7 +578,12 @@ impl World {
         }
     }
 
-    pub fn despawn_unit(&mut self, context: &SimContext, unit: &mut Unit) -> Result<(), TileClearingErr> {
+    fn despawn_unit(
+        &mut self,
+        cmds: &mut SimCmds,
+        context: &SimContext,
+        unit: &mut Unit,
+    ) -> Result<(), TileClearingErr> {
         debug_assert!(!self.is_locked(), "Cannot despawn units while world is locked!");
 
         debug_assert!(unit.is_spawned());
@@ -612,7 +626,7 @@ impl World {
                 tile_map.try_clear_tile_from_layer_by_index(*tile_index, tile_cell, TileMapLayerKind::Objects)?;
 
                 // Put the unit instance back into the spawn pool.
-                self.unit_spawn_pool.despawn(unit, context, Unit::despawned);
+                self.unit_spawn_pool.despawn(unit, cmds, context, Unit::despawned);
                 return Ok(());
             }
         }
@@ -639,7 +653,12 @@ impl World {
         }
     }
 
-    pub fn despawn_unit_at_cell(&mut self, context: &SimContext, tile_base_cell: Cell) -> Result<(), TileClearingErr> {
+    fn despawn_unit_at_cell(
+        &mut self,
+        cmds: &mut SimCmds,
+        context: &SimContext,
+        tile_base_cell: Cell,
+    ) -> Result<(), TileClearingErr> {
         debug_assert!(!self.is_locked(), "Cannot despawn units while world is locked!");
         debug_assert!(tile_base_cell.is_valid());
 
@@ -675,7 +694,7 @@ impl World {
 
         // Despawn all units at this cell.
         for unit in units {
-            context.world_mut().unit_spawn_pool.despawn(unit, context, Unit::despawned);
+            context.world_mut().unit_spawn_pool.despawn(unit, cmds, context, Unit::despawned);
         }
 
         Ok(())
@@ -783,9 +802,9 @@ impl World {
         }
     }
 
-    pub fn draw_unit_debug_ui(&mut self, context: &SimContext, ui_sys: &UiSystem, tile: &Tile, mode: DebugUiMode) {
+    pub fn draw_unit_debug_ui(&mut self, cmds: &mut SimCmds, context: &SimContext, ui_sys: &UiSystem, tile: &Tile, mode: DebugUiMode) {
         if let Some(unit) = self.find_unit_for_tile_mut(tile) {
-            unit.draw_debug_ui(context, ui_sys, mode);
+            unit.draw_debug_ui(cmds, context, ui_sys, mode);
         }
     }
 
@@ -793,7 +812,7 @@ impl World {
     // Props API:
     // ----------------------
 
-    pub fn try_spawn_prop_with_tile_def(
+    fn try_spawn_prop_with_tile_def(
         &mut self,
         context: &SimContext,
         prop_base_cell: Cell,
@@ -833,7 +852,12 @@ impl World {
         }
     }
 
-    pub fn despawn_prop(&mut self, context: &SimContext, prop: &mut Prop) -> Result<(), TileClearingErr> {
+    fn despawn_prop(
+        &mut self,
+        cmds: &mut SimCmds,
+        context: &SimContext,
+        prop: &mut Prop,
+    ) -> Result<(), TileClearingErr> {
         debug_assert!(!self.is_locked(), "Cannot despawn props while world is locked!");
 
         let tile_base_cell = prop.cell();
@@ -864,12 +888,16 @@ impl World {
         tile_map.try_clear_tile_from_layer(tile_base_cell, TileMapLayerKind::Objects)?;
 
         // Despawn prop instance:
-        self.prop_spawn_pool.despawn(prop, context, Prop::despawned);
+        self.prop_spawn_pool.despawn(prop, cmds, context, Prop::despawned);
         Ok(())
     }
 
-    #[inline]
-    pub fn despawn_prop_at_cell(&mut self, context: &SimContext, tile_base_cell: Cell) -> Result<(), TileClearingErr> {
+    fn despawn_prop_at_cell(
+        &mut self,
+        cmds: &mut SimCmds,
+        context: &SimContext,
+        tile_base_cell: Cell,
+    ) -> Result<(), TileClearingErr> {
         debug_assert!(!self.is_locked(), "Cannot despawn props while world is locked!");
         debug_assert!(tile_base_cell.is_valid());
 
@@ -878,7 +906,7 @@ impl World {
             .find_prop_for_cell_mut(tile_base_cell, context.tile_map_mut())
             .expect("Tile cell does not contain a Prop!");
 
-        self.despawn_prop(context, prop)
+        self.despawn_prop(cmds, context, prop)
     }
 
     #[inline]
@@ -983,9 +1011,9 @@ impl World {
         }
     }
 
-    pub fn draw_prop_debug_ui(&mut self, context: &SimContext, ui_sys: &UiSystem, tile: &Tile, mode: DebugUiMode) {
+    pub fn draw_prop_debug_ui(&mut self, cmds: &mut SimCmds, context: &SimContext, ui_sys: &UiSystem, tile: &Tile, mode: DebugUiMode) {
         if let Some(prop) = self.find_prop_for_tile_mut(tile) {
-            prop.draw_debug_ui(context, ui_sys, mode);
+            prop.draw_debug_ui(cmds, context, ui_sys, mode);
         }
     }
 
@@ -1006,17 +1034,70 @@ impl World {
 // ----------------------------------------------
 
 impl Save for World {
+    fn pre_save(&mut self, context: &mut PreSaveContext) {
+        debug_assert!(!self.is_locked(), "World should not be locked while saving!");
+
+        for unit in self.unit_spawn_pool.iter_mut() {
+            unit.pre_save(context);
+        }
+
+        for prop in self.prop_spawn_pool.iter_mut() {
+            prop.pre_save(context);
+        }
+
+        for (archetype_kind, buildings) in &mut self.building_spawn_pools {
+            for building in buildings.iter_mut() {
+                debug_assert!(building.archetype_kind() == *archetype_kind);
+                building.pre_save(context);
+            }
+        }
+    }
+
     fn save(&self, state: &mut SaveStateImpl) -> SaveResult {
         debug_assert!(!self.is_locked(), "World should not be locked while saving!");
         state.save(self)
     }
 
-    fn post_save(&mut self) {
+    fn post_save(&mut self, context: &mut PostSaveContext) {
         debug_assert!(!self.is_locked(), "World should not be locked while saving!");
+
+        for unit in self.unit_spawn_pool.iter_mut() {
+            unit.post_save(context);
+        }
+
+        for prop in self.prop_spawn_pool.iter_mut() {
+            prop.post_save(context);
+        }
+
+        for (archetype_kind, buildings) in &mut self.building_spawn_pools {
+            for building in buildings.iter_mut() {
+                debug_assert!(building.archetype_kind() == *archetype_kind);
+                building.post_save(context);
+            }
+        }
     }
 }
 
 impl Load for World {
+    fn pre_load(&mut self, context: &mut PreLoadContext) {
+        debug_assert!(!self.is_locked(), "World should not be locked while loading!");
+
+        for unit in self.unit_spawn_pool.iter_mut() {
+            unit.pre_load(context);
+        }
+
+        for prop in self.prop_spawn_pool.iter_mut() {
+            prop.pre_load(context);
+        }
+
+        for (archetype_kind, buildings) in &mut self.building_spawn_pools {
+            for building in buildings.iter_mut() {
+                debug_assert!(building.archetype_kind() == *archetype_kind);
+                building.pre_load(context);
+            }
+        }
+    }
+
     fn load(&mut self, state: &SaveStateImpl) -> LoadResult {
         debug_assert!(!self.is_locked(), "World should not be locked while loading!");
         state.load(self)

@@ -565,16 +565,16 @@ impl GameSession {
 // ----------------------------------------------
 
 impl Save for GameSession {
-    fn pre_save(&mut self) {
-        self.tile_map.pre_save();
-        self.world.pre_save();
-        self.sim.pre_save();
-        self.systems.pre_save();
-        self.camera.pre_save();
-        self.tile_selection.pre_save();
+    fn pre_save(&mut self, context: &mut PreSaveContext) {
+        self.tile_map.pre_save(context);
+        self.world.pre_save(context);
+        self.sim.pre_save(context);
+        self.systems.pre_save(context);
+        self.camera.pre_save(context);
+        self.tile_selection.pre_save(context);
 
         if let Some(menus) = &mut self.menus {
-            menus.pre_save();
+            menus.pre_save(context);
         }
     }
 
@@ -582,16 +582,16 @@ impl Save for GameSession {
         state.save(self)
     }
 
-    fn post_save(&mut self) {
-        self.tile_map.post_save();
-        self.world.post_save();
-        self.sim.post_save();
-        self.systems.post_save();
-        self.camera.post_save();
-        self.tile_selection.post_save();
+    fn post_save(&mut self, context: &mut PostSaveContext) {
+        self.tile_map.post_save(context);
+        self.world.post_save(context);
+        self.sim.post_save(context);
+        self.systems.post_save(context);
+        self.camera.post_save(context);
+        self.tile_selection.post_save(context);
 
         if let Some(menus) = &mut self.menus {
-            menus.post_save();
+            menus.post_save(context);
         }
     }
 }
@@ -651,9 +651,9 @@ impl GameSession {
             return false;
         }
 
-        self.pre_save();
+        self.pre_save(&mut PreSaveContext::new(self.sim.cmds().clone()));
         let save_result = save::storage::write_save_file(save_file, self);
-        self.post_save();
+        self.post_save(&mut PostSaveContext::new());
 
         if let Err(err) = save_result {
             log::error!(log::channel!("session"), "{err}");

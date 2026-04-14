@@ -459,6 +459,13 @@ impl<T: ?Sized> From<Rc<T>> for RcMut<T> {
     }
 }
 
+impl<T: Default> Default for RcMut<T> {
+    #[inline]
+    fn default() -> Self {
+        Self(Rc::default())
+    }
+}
+
 impl<T: ?Sized> Clone for RcMut<T> {
     #[inline(always)]
     fn clone(&self) -> Self {
@@ -576,6 +583,13 @@ impl<T: ?Sized> RcRef<T> {
 impl<T: ?Sized> From<Rc<T>> for RcRef<T> {
     fn from(rc: Rc<T>) -> Self {
         Self(rc)
+    }
+}
+
+impl<T: Default> Default for RcRef<T> {
+    #[inline]
+    fn default() -> Self {
+        Self(Rc::default())
     }
 }
 

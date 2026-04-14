@@ -3,10 +3,21 @@ name    = "common"
 version = "0.1.0"
 edition = "2024"
 
+[lints]
+workspace = true
+
+# ----------------------------
+#   Feature Targets
+# ----------------------------
+
 [features]
 default = ["desktop"]
 desktop = []
 web     = ["dep:web-time"]
+
+# ----------------------------
+#   Dependencies
+# ----------------------------
 
 [dependencies]
 serde     = { version = "1.0.228", features = ["derive"] }

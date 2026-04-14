@@ -1,5 +1,6 @@
 use slab::Slab;
 use strum::Display;
+use smallvec::SmallVec;
 use smallbox::{SmallBox, smallbox};
 
 use common::coords::Cell;
@@ -7,7 +8,7 @@ use engine::log;
 
 use super::SimContext;
 use crate::{
-    constants::INITIAL_GENERATION,
+    constants::{SIM_CMDS_CAPACITY, INITIAL_GENERATION},
     prop::{Prop, PropId},
     building::{Building, BuildingKindAndId},
     unit::{config::UnitConfigKey, Unit, UnitId},
@@ -19,6 +20,7 @@ use crate::{
 // SpawnPromise
 // ----------------------------------------------
 
+#[derive(Clone, Default)]
 pub struct SpawnPromise<T> {
     _marker: std::marker::PhantomData<T>,
 
@@ -61,11 +63,20 @@ impl<T> std::fmt::Display for SpawnQueryResult<T> {
     }
 }
 
+impl<T> std::fmt::Debug for SpawnPromise<T> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("SpawnPromise")
+            .field("request_frame", &self.request_frame)
+            .field("state_id", &self.state_id)
+            .finish()
+    }
+}
+
 // ----------------------------------------------
 // SpawnPromiseState Internals
 // ----------------------------------------------
 
-#[derive(Copy, Clone)]
+#[derive(Copy, Clone, Debug, Default)]
 struct SpawnPromiseStateId(GenerationalIndex);
 
 #[derive(Display)]
@@ -85,6 +96,12 @@ impl SpawnPromiseState {
 struct SpawnPromiseStatePool {
     pool: Slab<(SpawnPromiseStateId, SpawnPromiseState)>,
     generation: u32,
+}
+
+impl Default for SpawnPromiseStatePool {
+    fn default() -> Self {
+        Self { pool: Slab::default(), generation: INITIAL_GENERATION }
+    }
 }
 
 impl SpawnPromiseStatePool {
@@ -260,29 +277,22 @@ type TileCallback = dyn Fn(&SimContext, Result<SpawnReadyResult, TilePlacementEr
 // SimCmds
 // ----------------------------------------------
 
-const SIM_CMDS_INITIAL_CAPACITY: usize = 64;
-
 // Deferred command queue populated during simulation updates.
 // Any world or tile map modification is done via a deferred command.
 // Commands are applied after all game objects have been updated.
+#[derive(Default)]
 pub struct SimCmds {
     current_frame: usize,
-    cmds: Vec<SimCmd>,
     promises: SpawnPromiseStatePool,
-}
-
-impl Default for SimCmds {
-    fn default() -> Self {
-        Self::new()
-    }
+    cmds: SmallVec<[SimCmd; SIM_CMDS_CAPACITY]>,
 }
 
 impl SimCmds {
     pub fn new() -> Self {
         Self {
             current_frame: 0,
-            cmds: Vec::with_capacity(SIM_CMDS_INITIAL_CAPACITY),
-            promises: SpawnPromiseStatePool::new(SIM_CMDS_INITIAL_CAPACITY),
+            promises: SpawnPromiseStatePool::new(SIM_CMDS_CAPACITY),
+            cmds: SmallVec::new(),
         }
     }
 
@@ -359,7 +369,7 @@ impl SimCmds {
         result
     }
 
-    fn discard_promise<T>(&mut self, promise: SpawnPromise<T>) {
+    pub fn discard_promise<T>(&mut self, promise: SpawnPromise<T>) {
         // Free the promise state without checking for completion.
         self.promises.free(promise.state_id);
     }

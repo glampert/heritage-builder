@@ -9,3 +9,11 @@ members = [
     "crates/tools/bundler",
     "crates/tools/web-builder",
 ]
+
+# -------------------------
+#   Ignored Clippy lints
+# -------------------------
+
+[workspace.lints.clippy]
+new_without_default = "allow"
+collapsible_if = "allow"

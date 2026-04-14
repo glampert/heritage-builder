@@ -51,10 +51,10 @@ pub struct Simulation {
     #[serde(default)] // Preserve save game backwards compatibility.
     paused_update_timer: UpdateTimer,
 
+    #[serde(skip)]
+    cmds: RcMut<SimCmds>,
     task_manager: UnitTaskManager,
     treasury: GlobalTreasury,
-    #[serde(skip)]
-    cmds: SimCmds,
 
     // Path finding:
     graph: Graph,
@@ -72,9 +72,9 @@ impl Simulation {
             rng: RcMut::new(RandomGenerator::seed_from_u64(configs.sim.random_seed)),
             update_timer: UpdateTimer::new(configs.sim.update_frequency_secs),
             paused_update_timer: UpdateTimer::new(configs.sim.paused_update_frequency_secs),
+            cmds: RcMut::new(SimCmds::new()),
             task_manager: UnitTaskManager::new(UNIT_TASK_POOL_CAPACITY),
             treasury: GlobalTreasury::new(configs.sim.starting_gold_units),
-            cmds: SimCmds::new(),
             graph: Graph::from_tile_map(tile_map),
             search: Search::with_grid_size(tile_map.size_in_cells()),
             speed: Self::MIN_SIM_SPEED,
@@ -83,7 +83,13 @@ impl Simulation {
     }
 
     #[inline]
-    pub fn new_sim_context(&mut self, world: &mut World, tile_map: &mut TileMap, delta_time_secs: Seconds) -> SimContext {
+    pub fn new_sim_context(
+        &mut self,
+        world: &mut World,
+        tile_map: &mut TileMap,
+        delta_time_secs: Seconds,
+        is_world_teardown: bool,
+    ) -> SimContext {
         SimContext::new(
             &mut self.rng,
             &mut self.graph,
@@ -93,7 +99,13 @@ impl Simulation {
             tile_map,
             &mut self.treasury,
             delta_time_secs,
+            is_world_teardown,
         )
+    }
+
+    #[inline]
+    pub fn cmds(&self) -> &RcMut<SimCmds> {
+        &self.cmds
     }
 
     #[inline]
@@ -146,7 +158,7 @@ impl Simulation {
         // Paused simulation update:
         if self.is_paused {
             if self.paused_update_timer.tick(delta_time_secs).should_update() {
-                let context = self.new_sim_context(world, tile_map, delta_time_secs);
+                let context = self.new_sim_context(world, tile_map, delta_time_secs, false);
                 systems.paused_update(engine, &context);
             }
             return; // Early out.
@@ -156,13 +168,15 @@ impl Simulation {
 
         // Units movement needs to be smooth, so it updates every frame.
         {
-            let context = self.new_sim_context(world, tile_map, scaled_delta_time_secs);
+            let context = self.new_sim_context(world, tile_map, scaled_delta_time_secs, false);
             world.update_unit_navigation(&context);
         }
 
         // Fixed step world & systems update.
         {
-            const LOCK_WORLD_AND_MAP_DURING_UPDATE: bool = true;
+            // TODO: Set to true once SimCmds conversion is finished!
+            //const LOCK_WORLD_AND_MAP_DURING_UPDATE: bool = true;
+            const LOCK_WORLD_AND_MAP_DURING_UPDATE: bool = false;
 
             let world_update_delta_time_secs = self.update_timer.time_since_last_secs() * self.speed;
 
@@ -174,7 +188,7 @@ impl Simulation {
                     world.lock();
                 }
 
-                let context = self.new_sim_context(world, tile_map, world_update_delta_time_secs);
+                let context = self.new_sim_context(world, tile_map, world_update_delta_time_secs, false);
                 world.update(&mut self.cmds, &context);
                 systems.update(engine, &mut self.cmds, &context);
 
@@ -196,9 +210,15 @@ impl Simulation {
         systems: &mut GameSystems,
         tile_map: &mut TileMap,
     ) {
-        let context = self.new_sim_context(world, tile_map, 0.0);
-        world.reset(&context);
+        debug_assert!(self.cmds.is_empty());
+
+        const IS_WORLD_TEARDOWN: bool = true;
+        let context = self.new_sim_context(world, tile_map, 0.0, IS_WORLD_TEARDOWN);
+
+        world.reset(&mut self.cmds, &context);
         systems.reset(engine);
+
+        self.cmds.execute(&context);
         self.cmds.reset();
     }
 
@@ -271,7 +291,7 @@ impl Simulation {
     ) {
         debug_assert!(self.cmds.is_empty());
 
-        let sim_context = self.new_sim_context(context.world, context.tile_map, context.delta_time_secs);
+        let sim_context = self.new_sim_context(context.world, context.tile_map, context.delta_time_secs, false);
         systems.draw_debug_ui(engine, &mut self.cmds, &sim_context, context.ui_sys);
 
         self.cmds.execute(&sim_context);
@@ -296,35 +316,47 @@ impl Simulation {
 
     // Buildings:
     fn draw_building_debug_popups(&mut self, context: &mut GameUiContext, visible_range: CellRange) {
-        let sim_context = self.new_sim_context(context.world, context.tile_map, context.delta_time_secs);
+        let sim_context = self.new_sim_context(context.world, context.tile_map, context.delta_time_secs, false);
         context.world.draw_building_debug_popups(&sim_context, context.ui_sys, context.camera.transform(), visible_range);
     }
 
     fn draw_building_debug_ui(&mut self, context: &mut GameUiContext, tile: &Tile, mode: DebugUiMode) {
-        let sim_context = self.new_sim_context(context.world, context.tile_map, context.delta_time_secs);
-        context.world.draw_building_debug_ui(&sim_context, context.ui_sys, tile, mode);
+        debug_assert!(self.cmds.is_empty());
+
+        let sim_context = self.new_sim_context(context.world, context.tile_map, context.delta_time_secs, false);
+        context.world.draw_building_debug_ui(&mut self.cmds, &sim_context, context.ui_sys, tile, mode);
+
+        self.cmds.execute(&sim_context);
     }
 
     // Units:
     fn draw_unit_debug_popups(&mut self, context: &mut GameUiContext, visible_range: CellRange) {
-        let sim_context = self.new_sim_context(context.world, context.tile_map, context.delta_time_secs);
+        let sim_context = self.new_sim_context(context.world, context.tile_map, context.delta_time_secs, false);
         context.world.draw_unit_debug_popups(&sim_context, context.ui_sys, context.camera.transform(), visible_range);
     }
 
     fn draw_unit_debug_ui(&mut self, context: &mut GameUiContext, tile: &Tile, mode: DebugUiMode) {
-        let sim_context = self.new_sim_context(context.world, context.tile_map, context.delta_time_secs);
-        context.world.draw_unit_debug_ui(&sim_context, context.ui_sys, tile, mode);
+        debug_assert!(self.cmds.is_empty());
+
+        let sim_context = self.new_sim_context(context.world, context.tile_map, context.delta_time_secs, false);
+        context.world.draw_unit_debug_ui(&mut self.cmds, &sim_context, context.ui_sys, tile, mode);
+
+        self.cmds.execute(&sim_context);
     }
 
     // Props:
     fn draw_prop_debug_popups(&mut self, context: &mut GameUiContext, visible_range: CellRange) {
-        let sim_context = self.new_sim_context(context.world, context.tile_map, context.delta_time_secs);
+        let sim_context = self.new_sim_context(context.world, context.tile_map, context.delta_time_secs, false);
         context.world.draw_prop_debug_popups(&sim_context, context.ui_sys, context.camera.transform(), visible_range);
     }
 
     fn draw_prop_debug_ui(&mut self, context: &mut GameUiContext, tile: &Tile, mode: DebugUiMode) {
-        let sim_context = self.new_sim_context(context.world, context.tile_map, context.delta_time_secs);
-        context.world.draw_prop_debug_ui(&sim_context, context.ui_sys, tile, mode);
+        debug_assert!(self.cmds.is_empty());
+
+        let sim_context = self.new_sim_context(context.world, context.tile_map, context.delta_time_secs, false);
+        context.world.draw_prop_debug_ui(&mut self.cmds, &sim_context, context.ui_sys, tile, mode);
+
+        self.cmds.execute(&sim_context);
     }
 }
 
@@ -333,6 +365,10 @@ impl Simulation {
 // ----------------------------------------------
 
 impl Save for Simulation {
+    fn pre_save(&mut self, _context: &mut PreSaveContext) {
+        debug_assert!(self.cmds.is_empty(), "Shouldn't have any pending sim commands when saving!");
+    }
+
     fn save(&self, state: &mut SaveStateImpl) -> SaveResult {
         state.save(self)
     }

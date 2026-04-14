@@ -18,10 +18,10 @@ use super::stats::WorldStats;
 use crate::{
     cheats,
     constants::*,
+    save_context::*,
     debug::DebugUiMode,
     sim::{SimCmds, SimContext},
     undo_redo::GameObjectSavedState,
-    save_context::PostLoadContext,
     prop::{Prop, PropId},
     building::{Building, BuildingKindAndId},
     unit::{Unit, UnitId, config::UnitConfigKey},
@@ -30,8 +30,8 @@ use crate::{
         TileFlags,
         TileKind,
         TileMapLayerKind,
-        placement::{self, Placement, TileClearingErr, TilePlacementErr},
         sets::{PresetTiles, TileDef},
+        placement::{self, Placement, TileClearingErr, TilePlacementErr},
     },
 };
 
@@ -109,17 +109,24 @@ pub trait GameObject {
     fn tally(&self, stats: &mut WorldStats);
 
     // Save/load support:
-    fn post_load(&mut self, context: &mut PostLoadContext);
+    fn pre_save(&mut self, _context: &mut PreSaveContext)   {}
+    fn post_save(&mut self, _context: &mut PostSaveContext) {}
+    fn pre_load(&mut self, _context: &mut PreLoadContext)   {}
+    fn post_load(&mut self, _context: &mut PostLoadContext) {}
 
     // Optional undo/redo support:
-    fn undo_redo_record(&self) -> Option<Box<dyn GameObjectSavedState>> {
-        None
-    }
-
+    fn undo_redo_record(&self) -> Option<Box<dyn GameObjectSavedState>> { None }
     fn undo_redo_apply(&mut self, _state: &dyn GameObjectSavedState) {}
 
     // Debug:
-    fn draw_debug_ui(&mut self, context: &SimContext, ui_sys: &UiSystem, mode: DebugUiMode);
+    fn draw_debug_ui(
+        &mut self,
+        cmds: &mut SimCmds,
+        context: &SimContext,
+        ui_sys: &UiSystem,
+        mode: DebugUiMode,
+    );
+
     fn draw_debug_popups(
         &mut self,
         context: &SimContext,
@@ -196,14 +203,14 @@ where
         }
     }
 
-    pub fn clear<F>(&mut self, context: &SimContext, on_despawned_fn: F)
+    pub fn clear<F>(&mut self, cmds: &mut SimCmds, context: &SimContext, on_despawned_fn: F)
     where
-        F: Fn(&mut T, &SimContext),
+        F: Fn(&mut T, &mut SimCmds, &SimContext),
     {
         debug_assert!(self.is_valid());
 
         for instance in self.iter_mut() {
-            on_despawned_fn(instance, context);
+            on_despawned_fn(instance, cmds, context);
         }
 
         self.instances.fill(T::default());
@@ -246,9 +253,9 @@ where
         &mut self.instances[new_index]
     }
 
-    pub fn despawn<F>(&mut self, instance: &mut T, context: &SimContext, on_despawned_fn: F)
+    pub fn despawn<F>(&mut self, instance: &mut T, cmds: &mut SimCmds, context: &SimContext, on_despawned_fn: F)
     where
-        F: FnOnce(&mut T, &SimContext),
+        F: FnOnce(&mut T, &mut SimCmds, &SimContext),
     {
         debug_assert!(self.is_valid());
         debug_assert!(instance.is_spawned());
@@ -257,7 +264,7 @@ where
         debug_assert!(self.spawned[index]);
         debug_assert!(std::ptr::eq(&self.instances[index], instance)); // Ensure addresses are the same.
 
-        on_despawned_fn(instance, context);
+        on_despawned_fn(instance, cmds, context);
         self.spawned.set(index, false);
     }
 
@@ -642,15 +649,23 @@ impl<'game> Spawner<'game> {
     }
 
     pub fn despawn_building(&self, building: &mut Building) {
-        if let Err(err) = self.context.world_mut().despawn_building(self.context, building) {
+        let mut cmds = SimCmds::default();
+
+        if let Err(err) = self.context.world_mut().despawn_building(&mut cmds, self.context, building) {
             despawn_error("Building", &err);
         }
+
+        cmds.execute(self.context);
     }
 
     pub fn despawn_building_at_cell(&self, building_base_cell: Cell) {
-        if let Err(err) = self.context.world_mut().despawn_building_at_cell(self.context, building_base_cell) {
+        let mut cmds = SimCmds::default();
+
+        if let Err(err) = self.context.world_mut().despawn_building_at_cell(&mut cmds, self.context, building_base_cell) {
             despawn_error("Building", &err);
         }
+
+        cmds.execute(self.context);
     }
 
     pub fn despawn_building_with_id(&self, kind_and_id: BuildingKindAndId) {
@@ -673,7 +688,6 @@ impl<'game> Spawner<'game> {
         }
 
         let result = self.context.world_mut().try_spawn_unit_with_tile_def(self.context, unit_origin, unit_tile_def);
-
         if result.is_ok() {
             self.subtract_tile_cost(unit_tile_def);
         }
@@ -693,15 +707,23 @@ impl<'game> Spawner<'game> {
     }
 
     pub fn despawn_unit(&self, unit: &mut Unit) {
-        if let Err(err) = self.context.world_mut().despawn_unit(self.context, unit) {
+        let mut cmds = SimCmds::default();
+
+        if let Err(err) = self.context.world_mut().despawn_unit(&mut cmds, self.context, unit) {
             despawn_error("Unit", &err);
         }
+
+        cmds.execute(self.context);
     }
 
     pub fn despawn_unit_at_cell(&self, unit_base_cell: Cell) {
-        if let Err(err) = self.context.world_mut().despawn_unit_at_cell(self.context, unit_base_cell) {
+        let mut cmds = SimCmds::default();
+
+        if let Err(err) = self.context.world_mut().despawn_unit_at_cell(&mut cmds, self.context, unit_base_cell) {
             despawn_error("Unit", &err);
         }
+
+        cmds.execute(self.context);
     }
 
     pub fn despawn_unit_with_id(&self, id: UnitId) {
@@ -724,7 +746,6 @@ impl<'game> Spawner<'game> {
         }
 
         let result = self.context.world_mut().try_spawn_prop_with_tile_def(self.context, prop_base_cell, prop_tile_def);
-
         if result.is_ok() {
             self.subtract_tile_cost(prop_tile_def);
         }
@@ -733,15 +754,23 @@ impl<'game> Spawner<'game> {
     }
 
     pub fn despawn_prop(&self, prop: &mut Prop) {
-        if let Err(err) = self.context.world_mut().despawn_prop(self.context, prop) {
+        let mut cmds = SimCmds::default();
+
+        if let Err(err) = self.context.world_mut().despawn_prop(&mut cmds, self.context, prop) {
             despawn_error("Prop", &err);
         }
+
+        cmds.execute(self.context);
     }
 
     pub fn despawn_prop_at_cell(&self, prop_base_cell: Cell) {
-        if let Err(err) = self.context.world_mut().despawn_prop_at_cell(self.context, prop_base_cell) {
+        let mut cmds = SimCmds::default();
+
+        if let Err(err) = self.context.world_mut().despawn_prop_at_cell(&mut cmds, self.context, prop_base_cell) {
             despawn_error("Prop", &err);
         }
+
+        cmds.execute(self.context);
     }
 
     pub fn despawn_prop_with_id(&self, id: PropId) {

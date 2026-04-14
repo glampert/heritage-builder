@@ -1,27 +1,35 @@
 #![allow(clippy::too_many_arguments)]
 
+use rand::Rng;
+use serde::{Deserialize, Serialize};
+
 use common::{
-    callback::{self, Callback},
     coords::Cell,
+    callback::{self, Callback},
     time::{CountdownTimer, Seconds, UpdateTimer},
 };
 use engine::ui::UiSystem;
 use proc_macros::DrawDebugUi;
-use rand::Rng;
-use serde::{Deserialize, Serialize};
 
 use super::{
     Unit,
     UnitId,
     UnitTaskHelper,
+    UnitSpawnState,
+    SpawnedUnitWithTask,
     config::UnitConfigKey,
-    task::{UnitPatrolPathRecord, UnitTaskDespawn, UnitTaskPatrolCompletionCallback, UnitTaskRandomizedPatrol},
+    task::{
+        UnitTaskDespawn,
+        UnitPatrolPathRecord,
+        UnitTaskPatrolCompletionCallback,
+        UnitTaskRandomizedPatrol,
+    },
 };
 use crate::{
-    building::{Building, BuildingContext, BuildingKind},
     save_context::PostLoadContext,
-    sim::{RandomGenerator, SimContext},
     world::object::GameObject,
+    building::{Building, BuildingContext, BuildingKind},
+    sim::{RandomGenerator, SimContext, commands::{SimCmds, SpawnPromise}},
 };
 
 // ----------------------------------------------
@@ -45,17 +53,12 @@ struct PatrolInternalState {
 
     #[debug_ui(skip)]
     completion_callback: Callback<PatrolCompletionCallback>,
-
-    #[serde(skip)]
-    #[debug_ui(skip)]
-    failed_to_spawn: bool, // Debug flag; not serialized.
 }
 
 impl PatrolInternalState {
     #[inline]
     fn reset(&mut self) {
         self.completion_callback = Callback::default();
-        self.failed_to_spawn = false;
     }
 }
 
@@ -65,45 +68,45 @@ impl PatrolInternalState {
 
 #[derive(Clone, Default, Serialize, Deserialize)]
 pub struct Patrol {
-    unit_id: UnitId,
+    #[serde(flatten)] // Preserve backwards compatibility with old save files. Previously `unit_id: UnitId`.
+    unit: SpawnedUnitWithTask,
     state: Option<Box<PatrolInternalState>>, // Lazily initialized.
 }
 
 impl UnitTaskHelper for Patrol {
     #[inline]
     fn reset(&mut self) {
-        self.unit_id = UnitId::default();
+        self.unit.reset();
         if let Some(state) = self.try_get_state_mut() {
             state.reset();
         }
     }
 
     #[inline]
-    fn on_unit_spawn(&mut self, unit_id: UnitId, failed_to_spawn: bool) {
-        self.unit_id = unit_id;
-        if let Some(state) = self.try_get_state_mut() {
-            state.failed_to_spawn = failed_to_spawn;
-        }
+    fn get_pending_promise(&mut self) -> Option<SpawnPromise<Unit>> {
+        self.unit.get_pending_promise()
+    }
+
+    #[inline]
+    fn set_spawn_state(&mut self, state: UnitSpawnState) {
+        self.unit.set_spawn_state(state);
+    }
+
+    #[inline]
+    fn spawn_state(&self) -> &UnitSpawnState {
+        self.unit.spawn_state()
     }
 
     #[inline]
     fn unit_id(&self) -> UnitId {
-        self.unit_id
-    }
-
-    #[inline]
-    fn failed_to_spawn(&self) -> bool {
-        if let Some(state) = self.try_get_state() {
-            state.failed_to_spawn
-        } else {
-            false
-        }
+        self.unit.unit_id()
     }
 }
 
 impl Patrol {
     pub fn start_randomized_patrol(
         &mut self,
+        cmds: &mut SimCmds,
         context: &BuildingContext,
         unit_origin: Cell,
         unit_config: UnitConfigKey,
@@ -111,10 +114,10 @@ impl Patrol {
         buildings_to_visit: Option<BuildingKind>,
         completion_callback: Callback<PatrolCompletionCallback>,
         idle_countdown_secs: Option<Seconds>,
-    ) -> bool {
+    ) {
         debug_assert!(unit_origin.is_valid());
         debug_assert!(max_patrol_distance > 0, "Patrol max distance cannot be zero!");
-        debug_assert!(!self.is_spawned(), "Patrol Unit already spawned! reset() first.");
+        debug_assert!(!self.is_spawned_or_pending_spawn(), "Patrol Unit already spawned! reset() first.");
 
         let (max_distance, path_bias_min, path_bias_max, path_record) = {
             let state = self.get_or_init_state(max_patrol_distance);
@@ -122,18 +125,19 @@ impl Patrol {
             (state.max_distance, state.path_bias_min, state.path_bias_max, state.path_record.clone())
         };
 
-        self.try_spawn_with_task(context.debug_name(), context.sim_ctx, unit_origin, unit_config, UnitTaskRandomizedPatrol {
-            origin_building: context.kind_and_id(),
-            origin_building_tile: context.tile_info(),
-            max_distance,
-            path_bias_min,
-            path_bias_max,
-            path_record,
-            buildings_to_visit,
-            completion_callback: callback::create!(Patrol::on_randomized_patrol_completed),
-            completion_task: context.sim_ctx.task_manager_mut().new_task(UnitTaskDespawn),
-            idle_countdown: idle_countdown_secs.map(|countdown| (CountdownTimer::new(countdown), countdown)),
-        })
+        self.try_spawn_with_task(context.debug_name(), cmds, context.sim_ctx, unit_origin, unit_config,
+            UnitTaskRandomizedPatrol {
+                origin_building: context.kind_and_id(),
+                origin_building_tile: context.tile_info(),
+                max_distance,
+                path_bias_min,
+                path_bias_max,
+                path_record,
+                buildings_to_visit,
+                completion_callback: callback::create!(Patrol::on_randomized_patrol_completed),
+                completion_task: context.sim_ctx.task_manager_mut().new_task(UnitTaskDespawn),
+                idle_countdown: idle_countdown_secs.map(|countdown| (CountdownTimer::new(countdown), countdown)),
+            });
     }
 
     pub fn register_callbacks() {
@@ -145,6 +149,8 @@ impl Patrol {
     }
 
     pub fn post_load(&mut self) {
+        self.unit.post_load();
+
         if let Some(state) = self.try_get_state_mut() {
             state.completion_callback.post_load();
         }
@@ -168,7 +174,6 @@ impl Patrol {
             .expect("Expected Patrol Unit to be running a UnitTaskRandomizedPatrol!");
 
         let this_patrol = origin_building.active_patrol().expect("Origin building should have sent out a Patrol Unit!");
-
         let state = this_patrol.try_get_state_mut().expect("Missing PatrolInternalState!");
 
         // Update path record and invoke the Building's completion callback:
@@ -191,7 +196,6 @@ impl Patrol {
                 path_bias_max: 0.5,
                 path_record: UnitPatrolPathRecord::default(),
                 completion_callback: Callback::default(),
-                failed_to_spawn: false,
             }));
         }
         self.state.as_deref_mut().unwrap()
@@ -245,6 +249,34 @@ pub struct TimedAmbientPatrol {
     pub spawn_timer: UpdateTimer, // Min time before we can spawn a new patrol unit.
 }
 
+impl UnitTaskHelper for TimedAmbientPatrol {
+    #[inline]
+    fn reset(&mut self) {
+        self.patrol.reset();
+        self.spawn_timer.reset();
+    }
+
+    #[inline]
+    fn get_pending_promise(&mut self) -> Option<SpawnPromise<Unit>> {
+        self.patrol.get_pending_promise()
+    }
+
+    #[inline]
+    fn set_spawn_state(&mut self, state: UnitSpawnState) {
+        self.patrol.set_spawn_state(state);
+    }
+
+    #[inline]
+    fn spawn_state(&self) -> &UnitSpawnState {
+        self.patrol.spawn_state()
+    }
+
+    #[inline]
+    fn unit_id(&self) -> UnitId {
+        self.patrol.unit_id()
+    }
+}
+
 impl TimedAmbientPatrol {
     pub fn new(rng: &mut RandomGenerator, spawn_frequency_secs: [Seconds; 2]) -> Self {
         let frequency_secs = Self::randomized_spawn_frequency(rng, spawn_frequency_secs);
@@ -260,36 +292,38 @@ impl TimedAmbientPatrol {
 
     pub fn try_spawn_unit(
         &mut self,
+        cmds: &mut SimCmds,
         context: &BuildingContext,
         unit_config: UnitConfigKey,
         spawn_chance: u32,
         max_patrol_distance: i32,
         idle_countdown_secs: f32,
         force_spawn: bool,
-    ) -> bool {
-        if self.patrol.is_spawned() || max_patrol_distance <= 0 {
-            return false; // A unit is already spawned. Try again later.
+    ) {
+        if self.patrol.is_spawned_or_pending_spawn() || max_patrol_distance <= 0 {
+            return; // A unit is already spawned. Try again later.
         }
 
         if !force_spawn {
             let chance = spawn_chance.min(100); // 0-100%
             if chance == 0 {
-                return false;
+                return;
             }
 
             let should_spawn = context.sim_ctx.rng_mut().random_bool(chance as f64 / 100.0);
             if !should_spawn {
-                return false;
+                return;
             }
         }
 
         // Unit spawns at the nearest road link.
         let unit_origin = match context.road_link {
             Some(road_link) => road_link,
-            None => return false, // We are not connected to a road!
+            None => return, // We are not connected to a road!
         };
 
         self.patrol.start_randomized_patrol(
+            cmds,
             context,
             unit_origin,
             unit_config,
@@ -297,7 +331,7 @@ impl TimedAmbientPatrol {
             None,
             callback::create!(TimedAmbientPatrol::on_timed_patrol_completed),
             Some(idle_countdown_secs.round()),
-        )
+        );
     }
 
     fn on_timed_patrol_completed(this_building: &mut Building, patrol_unit: &mut Unit, context: &SimContext) -> bool {

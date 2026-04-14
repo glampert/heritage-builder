@@ -20,17 +20,27 @@ use super::{
     navigation::{self, UnitDirection, UnitNavGoal},
 };
 use crate::{
-    building::{Building, BuildingId, BuildingKind, BuildingKindAndId, BuildingTileInfo},
     constants::*,
     debug::{self},
-    pathfind::{self, Node, NodeKind as PathNodeKind, Path, PathFilter, PathHistory, RandomDirectionalBias, SearchResult},
     prop::PropId,
+    world::object::{GameObject, GenerationalIndex},
+    building::{Building, BuildingId, BuildingKind, BuildingKindAndId, BuildingTileInfo},
+    tile::{Tile, TileFlags, TileKind, TileMapLayerKind},
+    pathfind::{
+        self,
+        Node,
+        NodeKind as PathNodeKind,
+        Path,
+        PathFilter,
+        PathHistory,
+        RandomDirectionalBias,
+        SearchResult,
+    },
     sim::{
+        SimCmds,
         SimContext,
         resources::{ResourceKind, ShoppingList},
     },
-    tile::{Tile, TileFlags, TileKind, TileMapLayerKind},
-    world::object::{GameObject, GenerationalIndex, Spawner},
 };
 
 // ----------------------------------------------
@@ -207,12 +217,12 @@ impl UnitTask for UnitTaskDespawn {
 // UnitTaskDespawnWithCallback
 // ----------------------------------------------
 
-pub type UnitTaskPostDespawnCallback = fn(&SimContext, Cell, Option<UnitNavGoal>, &[UnitTaskArg]);
+pub type UnitTaskPostDespawnCallback = fn(&mut SimCmds, &SimContext, Cell, Option<UnitNavGoal>, &[UnitTaskArg]);
 
 #[derive(Serialize, Deserialize)]
 pub struct UnitTaskDespawnWithCallback {
     // Callback invoked *after* the unit has despawned.
-    // |context, unit_prev_cell, unit_prev_goal, extra_args|
+    // |cmds, context, unit_prev_cell, unit_prev_goal, extra_args|
     pub post_despawn_callback: Callback<UnitTaskPostDespawnCallback>,
 
     // Extra arguments for the callback.
@@ -242,7 +252,6 @@ where
     Task: UnitTask + 'static,
 {
     let current_task = unit.current_task().expect("Unit should have a despawn task!");
-
     debug_assert!(context.task_manager().is_task::<Task>(current_task), "Unit should have a despawn task!");
 
     debug_assert!(
@@ -1884,7 +1893,7 @@ impl UnitTaskManager {
         Some((&task.archetype, &task.state))
     }
 
-    pub fn run_unit_tasks(&mut self, unit: &mut Unit, context: &SimContext) {
+    pub fn run_unit_tasks(&mut self, unit: &mut Unit, cmds: &mut SimCmds, context: &SimContext) {
         if let Some(current_task_id) = unit.current_task() {
             if let Some(task) = self.task_pool.try_get_mut(current_task_id) {
                 match task.update(unit, context) {
@@ -1899,14 +1908,19 @@ impl UnitTaskManager {
                         let unit_prev_goal = unit.goal().cloned();
 
                         unit.assign_task(self, None);
-                        Spawner::new(context).despawn_unit(unit);
+
+                        // Push deferred despawn command. Completes after world update.
+                        cmds.despawn_unit_with_id(unit.id());
 
                         if post_despawn_callback.is_valid() {
                             let callback = post_despawn_callback.get();
 
-                            let args: &[UnitTaskArg] = callback_extra_args.args.as_ref().map(|arr| &arr[..]).unwrap_or(&[]);
+                            let args: &[UnitTaskArg] = callback_extra_args.args
+                                .as_ref()
+                                .map(|arr| &arr[..])
+                                .unwrap_or(&[]);
 
-                            callback(context, unit_prev_cell, unit_prev_goal, args);
+                            callback(cmds, context, unit_prev_cell, unit_prev_goal, args);
                         }
                     }
                     invalid => {

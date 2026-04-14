@@ -1,8 +1,8 @@
 use common::{
     self,
     Color,
-    coords::{Cell, CellRange, IsoPointF32, WorldToScreenTransform},
     hash,
+    coords::{Cell, CellRange, IsoPointF32, WorldToScreenTransform},
 };
 use engine::{log, ui::UiSystem};
 use serde::{Deserialize, Serialize};
@@ -19,21 +19,21 @@ use super::{
     sim::{
         SimCmds,
         SimContext,
-        commands::SpawnPromise,
+        commands::{SpawnPromise, SpawnQueryResult, SpawnReadyResult},
         resources::{ResourceKind, StockItem},
     },
     world::{
-        object::{GameObject, GenerationalIndex, Spawner},
+        object::{GameObject, GenerationalIndex},
         stats::WorldStats,
     },
 };
 use crate::{
+    save_context::PostLoadContext,
+    pathfind::{NodeKind as PathNodeKind, Path},
     debug::{
         DebugUiMode,
         game_object_debug::{GameObjectDebugOptions, GameObjectDebugOptionsExt, game_object_debug_options},
     },
-    pathfind::{NodeKind as PathNodeKind, Path},
-    save_context::PostLoadContext,
     tile::{
         self,
         Tile,
@@ -111,9 +111,9 @@ impl GameObject for Unit {
     }
 
     #[inline]
-    fn update(&mut self, _cmds: &mut SimCmds, context: &SimContext) {
+    fn update(&mut self, cmds: &mut SimCmds, context: &SimContext) {
         debug_assert!(self.config.is_some());
-        self.update_tasks(context);
+        self.update_tasks(cmds, context);
     }
 
     #[inline]
@@ -136,12 +136,10 @@ impl GameObject for Unit {
         debug_assert!(self.is_spawned());
         debug_assert!(self.tile_index.is_valid());
 
-        let config = UnitConfigs::get().find_config_by_key(self.config_key);
-
-        self.config = Some(config);
+        self.config = Some(UnitConfigs::get().find_config_by_key(self.config_key));
     }
 
-    fn draw_debug_ui(&mut self, context: &SimContext, ui_sys: &UiSystem, mode: DebugUiMode) {
+    fn draw_debug_ui(&mut self, cmds: &mut SimCmds, context: &SimContext, ui_sys: &UiSystem, mode: DebugUiMode) {
         debug_assert!(self.is_spawned());
 
         match mode {
@@ -152,7 +150,7 @@ impl GameObject for Unit {
                 let ui = ui_sys.ui();
                 if ui.collapsing_header("Unit", imgui::TreeNodeFlags::empty()) {
                     ui.indent_by(10.0);
-                    self.draw_debug_ui_detailed(context, ui_sys);
+                    self.draw_debug_ui_detailed(cmds, context, ui_sys);
                     ui.unindent_by(10.0);
                 }
             }
@@ -167,7 +165,6 @@ impl GameObject for Unit {
         visible_range: CellRange,
     ) {
         debug_assert!(self.is_spawned());
-
         self.debug.draw_popup_messages(self.find_tile(context), ui_sys, transform, visible_range, context.delta_time_secs());
     }
 }
@@ -197,7 +194,7 @@ impl Unit {
         self.debug.set_show_popups(crate::debug::show_popup_messages());
     }
 
-    pub fn despawned(&mut self, context: &SimContext) {
+    pub fn despawned(&mut self, _cmds: &mut SimCmds, context: &SimContext) {
         debug_assert!(self.is_spawned());
 
         self.id = UnitId::default();
@@ -442,10 +439,10 @@ impl Unit {
     // ----------------------
 
     #[inline]
-    fn update_tasks(&mut self, context: &SimContext) {
+    fn update_tasks(&mut self, cmds: &mut SimCmds, context: &SimContext) {
         debug_assert!(self.is_spawned());
         let task_manager = context.task_manager_mut();
-        task_manager.run_unit_tasks(self, context);
+        task_manager.run_unit_tasks(self, cmds, context);
     }
 
     #[inline]
@@ -479,49 +476,22 @@ impl Unit {
         self.current_task_id = task_id.unwrap_or_default();
     }
 
-    // Blocking spawn, executes immediately.
-    // IMPORTANT: Cannot be called while the world is locked for update.
-    pub fn try_spawn_with_task<Task>(
-        context: &SimContext,
-        unit_origin: Cell,
-        unit_config: UnitConfigKey,
-        task: Task,
-    ) -> Result<&mut Unit, TilePlacementErr>
-    where
-        Task: UnitTask,
-        UnitTaskArchetype: From<Task>,
-    {
-        debug_assert!(unit_origin.is_valid());
-
-        let task_manager = context.task_manager_mut();
-        let task_id = task_manager.new_task(task);
-
-        let unit = match Spawner::new(context).try_spawn_unit_with_config(unit_origin, unit_config) {
-            Ok(unit) => unit,
-            error @ Err(_) => {
-                task_manager.free_task(task_id.unwrap());
-                return error;
-            }
-        };
-
-        // This will start the task chain and might take some time to complete.
-        unit.assign_task(task_manager, task_id);
-        Ok(unit)
-    }
-
     // Deferred spawn, pushes a command into the sim command queue.
     // Returns a promise that must be polled for completion.
     // Can be called while the world is locked for update.
-    pub fn try_spawn_with_task_deferred_promise<Task>(
+    #[must_use]
+    pub fn try_spawn_with_task_deferred_promise<Task, F>(
         cmds: &mut SimCmds,
         context: &SimContext,
         unit_origin: Cell,
         unit_config: UnitConfigKey,
         task: Task,
+        on_spawned: F,
     ) -> SpawnPromise<Unit>
     where
         Task: UnitTask,
         UnitTaskArchetype: From<Task>,
+        F: Fn(&SimContext, Result<&mut Unit, TilePlacementErr>) + 'static,
     {
         debug_assert!(unit_origin.is_valid());
         let task_id = context.task_manager_mut().new_task(task);
@@ -529,15 +499,17 @@ impl Unit {
         cmds.spawn_unit_with_config_promise(unit_origin, unit_config, move |context, result| {
             let unit = match result {
                 Ok(unit) => unit,
-                Err(_) => {
+                error @ Err(_) => {
                     context.task_manager_mut().free_task(task_id.unwrap());
-                    // SpawnPromise contains a copy of the error.
+                    // SpawnPromise also contains a copy of the error.
+                    on_spawned(context, error);
                     return;
                 }
             };
 
             // This will start the task chain and might take some time to complete.
             unit.assign_task(context.task_manager_mut(), task_id);
+            on_spawned(context, Ok(unit));
         })
     }
 
@@ -555,7 +527,7 @@ impl Unit {
     where
         Task: UnitTask,
         UnitTaskArchetype: From<Task>,
-        F: Fn(&SimContext, Result<&mut Unit, TilePlacementErr>) + 'static
+        F: Fn(&SimContext, Result<&mut Unit, TilePlacementErr>) + 'static,
     {
         debug_assert!(unit_origin.is_valid());
         let task_id = context.task_manager_mut().new_task(task);
@@ -678,19 +650,49 @@ impl Unit {
 }
 
 // ----------------------------------------------
+// UnitSpawnState
+// ----------------------------------------------
+
+#[derive(Clone, Debug, Default)]
+pub enum UnitSpawnState {
+    #[default]
+    Unset,                       // Invalid UnitId
+    Failed,                      // Invalid UnitId
+    Pending(SpawnPromise<Unit>), // Invalid UnitId
+    Spawned(UnitId),             // Valid UnitId
+}
+
+// ----------------------------------------------
 // UnitTaskHelper
 // ----------------------------------------------
 
-pub trait UnitTaskHelper {
+pub trait UnitTaskHelper: Sized {
     fn reset(&mut self);
-    fn on_unit_spawn(&mut self, unit_id: UnitId, failed_to_spawn: bool);
 
+    fn get_pending_promise(&mut self) -> Option<SpawnPromise<Unit>>;
+    fn set_spawn_state(&mut self, state: UnitSpawnState);
+
+    fn spawn_state(&self) -> &UnitSpawnState;
     fn unit_id(&self) -> UnitId;
-    fn failed_to_spawn(&self) -> bool;
+
+    #[inline]
+    fn failed_to_spawn(&self) -> bool {
+        matches!(self.spawn_state(), UnitSpawnState::Failed)
+    }
+
+    #[inline]
+    fn is_pending_spawn(&self) -> bool {
+        matches!(self.spawn_state(), UnitSpawnState::Pending(_))
+    }
 
     #[inline]
     fn is_spawned(&self) -> bool {
-        self.unit_id().is_valid()
+        matches!(self.spawn_state(), UnitSpawnState::Spawned(_))
+    }
+
+    #[inline]
+    fn is_spawned_or_pending_spawn(&self) -> bool {
+        matches!(self.spawn_state(), UnitSpawnState::Spawned(_) | UnitSpawnState::Pending(_))
     }
 
     #[inline]
@@ -724,28 +726,194 @@ pub trait UnitTaskHelper {
     #[inline]
     fn try_spawn_with_task<Task>(
         &mut self,
-        spawner_name: &str,
+        spawner_name: &'static str,
+        cmds: &mut SimCmds,
         context: &SimContext,
         unit_origin: Cell,
         unit_config: UnitConfigKey,
         task: Task,
-    ) -> bool
+    )
     where
         Task: UnitTask,
         UnitTaskArchetype: From<Task>,
     {
-        debug_assert!(!self.is_spawned(), "Unit already spawned! reset() first.");
+        debug_assert!(!self.is_spawned_or_pending_spawn(), "Unit already spawned! reset() first.");
 
-        match Unit::try_spawn_with_task(context, unit_origin, unit_config, task) {
-            Ok(unit) => {
-                self.on_unit_spawn(unit.id(), false);
-                true
+        let promise = Unit::try_spawn_with_task_deferred_promise(
+            cmds, context, unit_origin, unit_config, task,
+            move |_context, result| {
+                if let Err(err) = result {
+                    log::error!(log::channel!("unit"), "{}: {}", spawner_name, err.message);
+                }
+            });
+
+        self.set_spawn_state(UnitSpawnState::Pending(promise));
+    }
+
+    #[inline]
+    fn update(&mut self, cmds: &mut SimCmds) {
+        if let Some(promise) = self.get_pending_promise() {
+            debug_assert!(self.is_pending_spawn());
+
+            match cmds.query_promise(promise) {
+                SpawnQueryResult::InvalidPromise | SpawnQueryResult::Failed(_) => {
+                    self.set_spawn_state(UnitSpawnState::Failed);
+                }
+                SpawnQueryResult::Pending(promise) => {
+                    self.set_spawn_state(UnitSpawnState::Pending(promise));
+                }
+                SpawnQueryResult::Ready(result) => {
+                    if let SpawnReadyResult::GameObject(id) = result {
+                        self.set_spawn_state(UnitSpawnState::Spawned(id));
+                    } else {
+                        panic!("Unit: Expected SpawnReadyResult::GameObject id!");
+                    }
+                }
             }
-            Err(err) => {
-                log::error!(log::channel!("unit"), "{}: {}", spawner_name, err.message);
-                self.on_unit_spawn(UnitId::invalid(), true);
-                false
-            }
+        } else {
+            debug_assert!(matches!(
+                self.spawn_state(),
+                UnitSpawnState::Spawned(_) |
+                UnitSpawnState::Failed |
+                UnitSpawnState::Unset
+            ));
         }
+    }
+
+    #[inline]
+    fn pre_save(&mut self, cmds: &mut SimCmds) {
+        // Resolve spawn promise before saving, in case it is still pending.
+        self.update(cmds);
+    }
+
+    #[inline]
+    fn post_save(&mut self) {
+        // Check post save invariants.
+        debug_assert!(matches!(
+            self.spawn_state(),
+            UnitSpawnState::Spawned(_) |
+            UnitSpawnState::Failed |
+            UnitSpawnState::Unset
+        ));
+        debug_assert!(self.get_pending_promise().is_none());
+    }
+
+    #[inline]
+    fn post_load(&mut self) {
+        // Check post load invariants.
+        debug_assert!(matches!(
+            self.spawn_state(),
+            UnitSpawnState::Spawned(_) |
+            UnitSpawnState::Failed |
+            UnitSpawnState::Unset
+        ));
+        debug_assert!(self.get_pending_promise().is_none());
+    }
+
+    #[inline]
+    fn discard_spawn_promise(&mut self, cmds: &mut SimCmds) {
+        if let Some(promise) = self.get_pending_promise() {
+            self.set_spawn_state(UnitSpawnState::Unset);
+            cmds.discard_promise(promise);
+        }
+    }
+}
+
+// ----------------------------------------------
+// SpawnedUnitWithTask
+// ----------------------------------------------
+
+#[derive(Clone, Default)]
+pub struct SpawnedUnitWithTask {
+    spawn_state: UnitSpawnState,
+}
+
+impl UnitTaskHelper for SpawnedUnitWithTask {
+    #[inline]
+    fn reset(&mut self) {
+        self.spawn_state = UnitSpawnState::default();
+    }
+
+    #[inline]
+    fn get_pending_promise(&mut self) -> Option<SpawnPromise<Unit>> {
+        if let UnitSpawnState::Pending(promise) = &mut self.spawn_state {
+            Some(std::mem::take(promise))
+        } else {
+            None
+        }
+    }
+
+    #[inline]
+    fn set_spawn_state(&mut self, state: UnitSpawnState) {
+        self.spawn_state = state;
+    }
+
+    #[inline]
+    fn spawn_state(&self) -> &UnitSpawnState {
+        &self.spawn_state
+    }
+
+    #[inline]
+    fn unit_id(&self) -> UnitId {
+        if let UnitSpawnState::Spawned(unit_id) = self.spawn_state {
+            unit_id
+        } else {
+            UnitId::invalid()
+        }
+    }
+}
+
+#[cfg(debug_assertions)]
+impl Drop for SpawnedUnitWithTask {
+    fn drop(&mut self) {
+        debug_assert!(
+            !self.is_pending_spawn(),
+            "SpawnedUnitWithTask dropped while holding a pending SpawnPromise!",
+        );
+    }
+}
+
+// This keeps backwards compatibility with the existing save format.
+// Previous UnitTaskHelpers saved a single `unit_id` field.
+#[derive(Serialize, Deserialize)]
+struct SpawnedUnitWithTaskSerializedData {
+    unit_id: UnitId,
+}
+
+impl Serialize for SpawnedUnitWithTask {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: serde::Serializer,
+    {
+        // Ensure spawn promise is resolved by now.
+        debug_assert!(
+            !self.is_pending_spawn(),
+            "SpawnedUnitWithTask should have completed spawning before serialization!",
+        );
+
+        // Serialize unit id only.
+        let unit_id = self.unit_id();
+        SpawnedUnitWithTaskSerializedData { unit_id }.serialize(serializer)
+    }
+}
+
+impl<'de> Deserialize<'de> for SpawnedUnitWithTask {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: serde::Deserializer<'de>,
+    {
+        let ser_data = SpawnedUnitWithTaskSerializedData::deserialize(deserializer)?;
+
+        let spawn_state = {
+            if ser_data.unit_id.is_valid() {
+                UnitSpawnState::Spawned(ser_data.unit_id)
+            } else {
+                // Assume unset if the unit id was invalid. Could also mean Failed,
+                // both states are effectively equivalent, so we choose the most likely one.
+                UnitSpawnState::Unset
+            }
+        };
+
+        Ok(Self { spawn_state })
     }
 }

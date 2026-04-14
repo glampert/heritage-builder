@@ -1,15 +1,16 @@
 use rand::Rng;
 use arrayvec::ArrayVec;
-use num_enum::{IntoPrimitive, TryFromPrimitive};
-use proc_macros::DrawDebugUi;
 use serde::{Deserialize, Serialize};
+use num_enum::{IntoPrimitive, TryFromPrimitive};
 use strum::{Display, EnumCount, EnumIter};
+
 use common::{
     Color,
     hash::{self, StringHash},
     time::{Seconds, UpdateTimer},
 };
 use engine::{log, ui::UiSystem};
+use proc_macros::DrawDebugUi;
 
 use super::{
     Building,
@@ -18,16 +19,21 @@ use super::{
     BuildingKind,
     BuildingKindAndId,
     BuildingStock,
-    config::{BuildingConfig, BuildingConfigs, building_config},
     house_upgrade,
+    config::{BuildingConfig, BuildingConfigs, building_config},
 };
 use crate::{
-    debug::{
-        game_object_debug::{GameObjectDebugOptions, GameObjectDebugOptionsExt, game_object_debug_options},
-        utils::UpdateTimerDebugUi,
-    },
     save_context::PostLoadContext,
+    world::stats::WorldStats,
+    system::settlers::Settler,
+    tile::{Tile, sets::TileDef},
+    undo_redo::{GameObjectSavedState, game_object_undo_redo_state},
+    debug::{
+        utils::UpdateTimerDebugUi,
+        game_object_debug::{GameObjectDebugOptions, GameObjectDebugOptionsExt, game_object_debug_options},
+    },
     sim::{
+        SimCmds,
         RandomGenerator,
         resources::{
             Population,
@@ -40,16 +46,12 @@ use crate::{
             Workers,
         },
     },
-    system::settlers::Settler,
-    tile::{Tile, sets::TileDef},
-    undo_redo::{GameObjectSavedState, game_object_undo_redo_state},
     unit::{
         Unit,
         UnitTaskHelper,
         config::UnitConfigKey,
         patrol::{AmbientPatrolConfig, Patrol, TimedAmbientPatrol},
     },
-    world::stats::WorldStats,
 };
 
 // ----------------------------------------------
@@ -268,7 +270,7 @@ impl BuildingBehavior for HouseBuilding {
     // World Callbacks:
     // ----------------------
 
-    fn name(&self) -> &str {
+    fn name(&self) -> &'static str {
         &self.current_level_config().name
     }
 
@@ -276,8 +278,14 @@ impl BuildingBehavior for HouseBuilding {
         self.current_level_config()
     }
 
-    fn update(&mut self, context: &BuildingContext) {
+    fn despawned(&mut self, cmds: &mut SimCmds, _context: &BuildingContext) {
+        self.ambient_patrol.discard_spawn_promise(cmds);
+    }
+
+    fn update(&mut self, cmds: &mut SimCmds, context: &BuildingContext) {
         let delta_time_secs = context.sim_ctx.delta_time_secs();
+
+        self.ambient_patrol.update(cmds);
 
         // Update house states:
         if self.stock_update_timer.tick(delta_time_secs).should_update() && !self.debug.freeze_stock_update() {
@@ -285,7 +293,7 @@ impl BuildingBehavior for HouseBuilding {
         }
 
         if self.upgrade_update_timer.tick(delta_time_secs).should_update() && !self.debug.freeze_upgrade_update() {
-            self.upgrade_update(context);
+            self.upgrade_update(cmds, context);
         }
 
         if self.population_update_timer.tick(delta_time_secs).should_update() && !self.debug.freeze_population_update() {
@@ -297,7 +305,7 @@ impl BuildingBehavior for HouseBuilding {
         }
 
         if self.ambient_patrol.spawn_timer.tick(delta_time_secs).should_update() {
-            self.spawn_ambient_patrol(context, false);
+            self.spawn_ambient_patrol(cmds, context, false);
         }
     }
 
@@ -309,6 +317,14 @@ impl BuildingBehavior for HouseBuilding {
         } else if unit.is_tax_collector(context.sim_ctx) {
             self.visited_by_tax_collector(unit, context);
         }
+    }
+
+    fn pre_save(&mut self, cmds: &mut SimCmds) {
+        self.ambient_patrol.pre_save(cmds);
+    }
+
+    fn post_save(&mut self) {
+        self.ambient_patrol.post_save();
     }
 
     fn post_load(&mut self, context: &mut PostLoadContext, kind: BuildingKind, _tile: &Tile) {
@@ -400,10 +416,10 @@ impl BuildingBehavior for HouseBuilding {
         0
     }
 
-    fn remove_population(&mut self, context: &BuildingContext, count: u32) -> u32 {
+    fn remove_population(&mut self, cmds: &mut SimCmds, context: &BuildingContext, count: u32) -> u32 {
         if count != 0 && self.population.count() != 0 {
             let amount_removed = self.population.remove(count);
-            self.evict_population(context, amount_removed);
+            self.evict_population(cmds, context, amount_removed);
             self.adjust_workers_available(context);
             return amount_removed;
         }
@@ -452,11 +468,11 @@ impl BuildingBehavior for HouseBuilding {
         &mut self.debug
     }
 
-    fn draw_debug_ui(&mut self, context: &BuildingContext, ui_sys: &UiSystem) {
+    fn draw_debug_ui(&mut self, cmds: &mut SimCmds, context: &BuildingContext, ui_sys: &UiSystem) {
         house_upgrade::draw_debug_ui(context, ui_sys);
-        self.draw_debug_ui_timers(context, ui_sys);
+        self.draw_debug_ui_timers(cmds, context, ui_sys);
         self.draw_debug_ui_stock(context, ui_sys);
-        self.draw_debug_ui_upgrade_state(context, ui_sys);
+        self.draw_debug_ui_upgrade_state(cmds, context, ui_sys);
     }
 }
 
@@ -600,7 +616,7 @@ impl HouseBuilding {
     // Upgrade Update:
     // ----------------------
 
-    fn upgrade_update(&mut self, context: &BuildingContext) {
+    fn upgrade_update(&mut self, cmds: &mut SimCmds, context: &BuildingContext) {
         let mut upgraded = false;
         let mut downgraded = false;
 
@@ -611,14 +627,14 @@ impl HouseBuilding {
         debug_assert!(upgrade.next_level_config.is_some());
 
         if upgrade.can_upgrade(context, &self.stock) {
-            upgraded = upgrade.try_upgrade(context, &mut self.debug);
+            upgraded = upgrade.try_upgrade(cmds, context, &mut self.debug);
         } else if upgrade.can_downgrade(context, &self.stock) {
-            downgraded = upgrade.try_downgrade(context, &mut self.debug);
+            downgraded = upgrade.try_downgrade(cmds, context, &mut self.debug);
         }
 
         if upgraded || downgraded {
             self.stock.update_capacities(self.current_level_config().stock_capacity);
-            self.adjust_population(context, self.population.count(), self.current_level_config().max_population);
+            self.adjust_population(cmds, context, self.population.count(), self.current_level_config().max_population);
         }
     }
 
@@ -645,13 +661,14 @@ impl HouseBuilding {
     #[inline]
     pub fn merge(
         &mut self,
+        cmds: &mut SimCmds,
         context: &BuildingContext,
         house_to_merge: &mut HouseBuilding,
         house_to_merge_kind_and_id: BuildingKindAndId,
         target_level_config: &HouseLevelConfig,
     ) {
         self.merge_resources(context, house_to_merge, target_level_config);
-        self.merge_population(context, house_to_merge, target_level_config);
+        self.merge_population(cmds, context, house_to_merge, target_level_config);
         self.merge_workers(context, house_to_merge, house_to_merge_kind_and_id);
     }
 
@@ -679,6 +696,7 @@ impl HouseBuilding {
 
     fn merge_population(
         &mut self,
+        cmds: &mut SimCmds,
         context: &BuildingContext,
         house_to_merge: &mut HouseBuilding,
         target_level_config: &HouseLevelConfig,
@@ -690,7 +708,7 @@ impl HouseBuilding {
         // residents first.
         if new_population > new_max_population {
             let amount_to_evict = new_population - new_max_population;
-            self.evict_population(context, amount_to_evict);
+            self.evict_population(cmds, context, amount_to_evict);
             new_population -= amount_to_evict;
         }
 
@@ -782,27 +800,25 @@ impl HouseBuilding {
 
     fn visited_by_settler(&mut self, unit: &mut Unit, context: &BuildingContext) {
         let population_to_add = unit.settler_population(context.sim_ctx);
-        let population_added = self.add_population(context, population_to_add);
+        let population_added  = self.add_population(context, population_to_add);
         if population_added == 0 {
             self.debug.popup_msg_color(Color::red(), "Refused settler");
         }
     }
 
-    fn evict_population(&mut self, context: &BuildingContext, amount_to_evict: u32) {
+    fn evict_population(&mut self, cmds: &mut SimCmds, context: &BuildingContext, amount_to_evict: u32) {
         let unit_origin = context.road_link_or_building_access_tile();
         if !unit_origin.is_valid() {
             log::error!(log::channel!("house"), "Failed to find a vacant cell to spawn evicted unit!");
             return;
         }
 
-        let mut settler = Settler::default();
-
-        settler.try_spawn(context.sim_ctx, unit_origin, amount_to_evict);
+        Settler::try_spawn(cmds, context.sim_ctx, unit_origin, amount_to_evict);
 
         self.debug.popup_msg_color(Color::red(), format!("Evicted {amount_to_evict} residents"));
     }
 
-    fn adjust_population(&mut self, context: &BuildingContext, new_population: u32, new_max: u32) {
+    fn adjust_population(&mut self, cmds: &mut SimCmds, context: &BuildingContext, new_population: u32, new_max: u32) {
         let prev_population = self.population.count();
         let curr_population = self.population.set_max_and_count(new_max, new_population);
 
@@ -811,7 +827,7 @@ impl HouseBuilding {
 
             if curr_population < prev_population {
                 let amount_to_evict = prev_population - curr_population;
-                self.evict_population(context, amount_to_evict);
+                self.evict_population(cmds, context, amount_to_evict);
             }
         }
     }
@@ -913,7 +929,7 @@ impl HouseBuilding {
     // Ambient Patrol Unit:
     // ----------------------
 
-    fn spawn_ambient_patrol(&mut self, context: &BuildingContext, force_spawn: bool) {
+    fn spawn_ambient_patrol(&mut self, cmds: &mut SimCmds, context: &BuildingContext, force_spawn: bool) {
         let config = BuildingConfigs::get().house_config();
 
         if let Some(unit_config) = config.ambient_patrol.unit {
@@ -922,6 +938,7 @@ impl HouseBuilding {
             let idle_countdown_secs = context.sim_ctx.random_range(15.0..30.0);
 
             self.ambient_patrol.try_spawn_unit(
+                cmds,
                 context,
                 unit_config,
                 spawn_chance,
@@ -1167,12 +1184,11 @@ impl HouseUpgradeState {
 
         let curr_level_requirements = HouseLevelRequirements::new(context, self.curr_level_config.unwrap(), stock);
 
-        // Downgrade if we don't have the required services and resources for the
-        // current level.
+        // Downgrade if we don't have the required services and resources for the current level.
         !curr_level_requirements.has_required_services() || !curr_level_requirements.has_required_resources()
     }
 
-    fn try_upgrade(&mut self, context: &BuildingContext, debug: &mut HouseDebug) -> bool {
+    fn try_upgrade(&mut self, cmds: &mut SimCmds, context: &BuildingContext, debug: &mut HouseDebug) -> bool {
         let mut upgraded_successfully = false;
 
         let configs = BuildingConfigs::get();
@@ -1181,7 +1197,7 @@ impl HouseUpgradeState {
 
         if let Some(new_tile_def) = context.find_tile_def(next_level_config.tile_def_name_hash) {
             // Try placing new. Might fail if there isn't enough space.
-            if self.try_replace_tile(context, self.level, next_level, new_tile_def) {
+            if self.try_replace_tile(cmds, context, self.level, next_level, new_tile_def) {
                 self.level.upgrade();
                 debug_assert!(self.level == next_level);
 
@@ -1216,7 +1232,7 @@ impl HouseUpgradeState {
         upgraded_successfully
     }
 
-    fn try_downgrade(&mut self, context: &BuildingContext, debug: &mut HouseDebug) -> bool {
+    fn try_downgrade(&mut self, cmds: &mut SimCmds, context: &BuildingContext, debug: &mut HouseDebug) -> bool {
         let mut downgraded_successfully = false;
 
         let configs = BuildingConfigs::get();
@@ -1226,7 +1242,7 @@ impl HouseUpgradeState {
         if let Some(new_tile_def) = context.find_tile_def(prev_level_config.tile_def_name_hash) {
             // Try placing new. Should always be able to place a lower-tier (smaller or same
             // size) house tile.
-            if self.try_replace_tile(context, self.level, prev_level, new_tile_def) {
+            if self.try_replace_tile(cmds, context, self.level, prev_level, new_tile_def) {
                 self.level.downgrade();
                 debug_assert!(self.level == prev_level);
 
@@ -1260,6 +1276,7 @@ impl HouseUpgradeState {
     // unchanged otherwise.
     fn try_replace_tile(
         &self,
+        cmds: &mut SimCmds,
         context: &BuildingContext,
         current_level: HouseLevel,
         target_level: HouseLevel,
@@ -1275,7 +1292,7 @@ impl HouseUpgradeState {
 
         if wants_to_expand {
             // Upgrade to larger tile:
-            house_upgrade::try_expand_house(context, house_id, current_level, target_level)
+            house_upgrade::try_expand_house(cmds, context, house_id, current_level, target_level)
         } else {
             // Downgrade or upgrade to same size:
             // - No expansion required, but we still have to place a new tile.
@@ -1308,7 +1325,7 @@ impl HouseUpgradeState {
 // ----------------------------------------------
 
 impl HouseBuilding {
-    fn draw_debug_ui_upgrade_state(&mut self, context: &BuildingContext, ui_sys: &UiSystem) {
+    fn draw_debug_ui_upgrade_state(&mut self, cmds: &mut SimCmds, context: &BuildingContext, ui_sys: &UiSystem) {
         let ui = ui_sys.ui();
 
         if !ui.collapsing_header("Upgrade", imgui::TreeNodeFlags::empty()) {
@@ -1389,17 +1406,17 @@ impl HouseBuilding {
 
                 match level.cmp(&self.upgrade_state.level) {
                     std::cmp::Ordering::Greater => {
-                        upgraded = self.upgrade_state.try_upgrade(context, &mut self.debug);
+                        upgraded = self.upgrade_state.try_upgrade(cmds, context, &mut self.debug);
                     }
                     std::cmp::Ordering::Less => {
-                        downgraded = self.upgrade_state.try_downgrade(context, &mut self.debug);
+                        downgraded = self.upgrade_state.try_downgrade(cmds, context, &mut self.debug);
                     }
                     std::cmp::Ordering::Equal => {} // nothing
                 }
 
                 if upgraded || downgraded {
                     self.stock.update_capacities(self.current_level_config().stock_capacity);
-                    self.adjust_population(context, self.population.count(), self.current_level_config().max_population);
+                    self.adjust_population(cmds, context, self.population.count(), self.current_level_config().max_population);
                 }
             }
         }
@@ -1428,7 +1445,7 @@ impl HouseBuilding {
         }
     }
 
-    fn draw_debug_ui_timers(&mut self, context: &BuildingContext, ui_sys: &UiSystem) {
+    fn draw_debug_ui_timers(&mut self, cmds: &mut SimCmds, context: &BuildingContext, ui_sys: &UiSystem) {
         let ui = ui_sys.ui();
 
         if !ui.collapsing_header("Timers", imgui::TreeNodeFlags::empty()) {
@@ -1442,10 +1459,10 @@ impl HouseBuilding {
         self.ambient_patrol.spawn_timer.draw_debug_ui("Spawn Patrol", 4, ui_sys);
 
         if ui.button("Force Spawn Ambient Patrol") {
-            self.spawn_ambient_patrol(context, true);
+            self.spawn_ambient_patrol(cmds, context, true);
         }
 
-        if self.ambient_patrol.patrol.is_spawned() {
+        if self.ambient_patrol.patrol.is_spawned_or_pending_spawn() {
             ui.text_colored(Color::yellow().to_array(), "Ambient Patrol Spawned...");
         }
     }

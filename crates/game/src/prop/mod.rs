@@ -1,13 +1,14 @@
+use serde::{Deserialize, Serialize};
+
 use common::{
     Color,
     coords::{Cell, CellRange, WorldToScreenTransform},
     hash::{self, StrHashPair, StringHash},
     time::{CountdownTimer, Seconds},
 };
-use config::{PropConfig, PropConfigs};
 use engine::ui::{UiFontScale, UiStaticVar, UiSystem};
 use proc_macros::DrawDebugUi;
-use serde::{Deserialize, Serialize};
+use config::{PropConfig, PropConfigs};
 
 use super::{
     undo_redo::GameObjectSavedState,
@@ -149,7 +150,7 @@ impl GameObject for Prop {
         self.harvestable.initial_variation = saved_state.initial_variation;
     }
 
-    fn draw_debug_ui(&mut self, context: &SimContext, ui_sys: &UiSystem, mode: DebugUiMode) {
+    fn draw_debug_ui(&mut self, _cmds: &mut SimCmds, context: &SimContext, ui_sys: &UiSystem, mode: DebugUiMode) {
         debug_assert!(self.is_spawned());
 
         match mode {
@@ -203,7 +204,7 @@ impl Prop {
         self.harvestable.initial_variation = tile.variation_index().try_into().unwrap();
     }
 
-    pub fn despawned(&mut self, _context: &SimContext) {
+    pub fn despawned(&mut self, _cmds: &mut SimCmds, _context: &SimContext) {
         debug_assert!(self.is_spawned());
 
         self.id = PropId::default();

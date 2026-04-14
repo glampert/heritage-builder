@@ -1,14 +1,14 @@
 use std::any::Any;
+use serde::{Deserialize, Serialize};
 
 use common::{
     Color,
-    callback::{self, Callback},
-    coords::Cell,
     hash,
+    coords::Cell,
     time::UpdateTimer,
+    callback::{self, Callback},
 };
 use engine::{Engine, log};
-use serde::{Deserialize, Serialize};
 
 use super::GameSystem;
 use crate::{
@@ -25,8 +25,7 @@ use crate::{
         sets::{OBJECTS_BUILDINGS_CATEGORY, TileDef},
     },
     unit::{
-        UnitId,
-        UnitTaskHelper,
+        Unit,
         config::UnitConfigKey,
         navigation::{self, UnitNavGoal},
         task::{UnitTaskArg, UnitTaskArgs, UnitTaskDespawnWithCallback, UnitTaskPostDespawnCallback, UnitTaskSettler},
@@ -48,11 +47,11 @@ impl GameSystem for SettlersSpawnSystem {
         self
     }
 
-    fn update(&mut self, _engine: &mut Engine, _cmds: &mut SimCmds, context: &SimContext) {
+    fn update(&mut self, _engine: &mut Engine, cmds: &mut SimCmds, context: &SimContext) {
         if self.spawn_timer.tick(context.delta_time_secs()).should_update() {
             // Only attempt to spawn if we have any empty housing lots available.
             if Self::has_vacant_lots(context) {
-                self.try_spawn(context);
+                self.try_spawn(cmds, context);
             }
         }
     }
@@ -65,7 +64,7 @@ impl GameSystem for SettlersSpawnSystem {
         self.spawn_timer.post_load(context.configs().sim.settlers_spawn_frequency_secs);
     }
 
-    fn draw_debug_ui(&mut self, engine: &mut Engine, _cmds: &mut SimCmds, context: &SimContext) {
+    fn draw_debug_ui(&mut self, engine: &mut Engine, cmds: &mut SimCmds, context: &SimContext) {
         self.spawn_timer.draw_debug_ui("Settler Spawn", 0, engine.ui_system());
 
         let ui = engine.ui_system().ui();
@@ -90,7 +89,7 @@ impl GameSystem for SettlersSpawnSystem {
         }
 
         if ui.button("Force Spawn Now") {
-            self.try_spawn(context);
+            self.try_spawn(cmds, context);
         }
 
         if ui.button("Highlight Spawn Point") {
@@ -132,107 +131,86 @@ impl SettlersSpawnSystem {
         })
     }
 
-    fn try_spawn(&self, context: &SimContext) {
-        let mut settler = Settler::default();
+    fn try_spawn(&self, cmds: &mut SimCmds, context: &SimContext) {
         let spawn_point = Self::find_spawn_point(context);
-        settler.try_spawn(context, spawn_point.cell, self.population_per_settler_unit);
+        Settler::try_spawn(cmds, context, spawn_point.cell, self.population_per_settler_unit);
     }
 }
 
 // ----------------------------------------------
-// Settler Unit helper
+// Settler Unit spawner helper
 // ----------------------------------------------
 
-#[derive(Default, Serialize, Deserialize)]
-pub struct Settler {
-    unit_id: UnitId,
-    #[serde(skip)]
-    failed_to_spawn: bool, // Debug flag; not serialized.
-}
-
-impl UnitTaskHelper for Settler {
-    #[inline]
-    fn reset(&mut self) {
-        self.unit_id = UnitId::default();
-        self.failed_to_spawn = false;
-    }
-
-    #[inline]
-    fn on_unit_spawn(&mut self, unit_id: UnitId, failed_to_spawn: bool) {
-        self.unit_id = unit_id;
-        self.failed_to_spawn = failed_to_spawn;
-    }
-
-    #[inline]
-    fn unit_id(&self) -> UnitId {
-        self.unit_id
-    }
-
-    #[inline]
-    fn failed_to_spawn(&self) -> bool {
-        self.failed_to_spawn
-    }
-}
+pub struct Settler;
 
 impl Settler {
-    pub fn try_spawn(&mut self, context: &SimContext, unit_origin: Cell, population_to_add: u32) -> bool {
+    pub fn try_spawn(cmds: &mut SimCmds, context: &SimContext, unit_origin: Cell, population_to_add: u32) {
         debug_assert!(unit_origin.is_valid());
         debug_assert!(population_to_add != 0);
 
-        self.try_spawn_with_task("SettlersSpawnSystem", context, unit_origin, UnitConfigKey::Settler, UnitTaskSettler {
-            completion_callback: Callback::default(),
-            completion_task: context.task_manager_mut().new_task(UnitTaskDespawnWithCallback {
-                // NOTE: We have to spawn the house building *after* the unit has
-                // despawned since we can't place a building over the unit tile.
-                post_despawn_callback: callback::create!(Settler::on_settled),
-                callback_extra_args: UnitTaskArgs::new(&[UnitTaskArg::U32(population_to_add)]),
-            }),
-            fallback_to_houses_with_room: true,
-            return_to_spawn_point_if_failed: true,
-            population_to_add,
-        })
+        Unit::try_spawn_with_task_deferred_cb(cmds, context, unit_origin, UnitConfigKey::Settler,
+            UnitTaskSettler {
+                completion_callback: Callback::default(),
+                completion_task: context.task_manager_mut().new_task(UnitTaskDespawnWithCallback {
+                    // NOTE: We have to spawn the house building *after* the unit has
+                    // despawned since we can't place a building over the unit tile.
+                    post_despawn_callback: callback::create!(Settler::on_settled),
+                    callback_extra_args: UnitTaskArgs::new(&[UnitTaskArg::U32(population_to_add)]),
+                }),
+                fallback_to_houses_with_room: true,
+                return_to_spawn_point_if_failed: true,
+                population_to_add,
+            },
+            |_context, result| {
+                if let Err(err) = result {
+                    log::error!(log::channel!("unit"), "SettlersSpawnSystem: {}", err.message);
+                }
+            },
+        );
     }
 
-    pub fn register_callbacks() {
+    fn register_callbacks() {
         let _: Callback<UnitTaskPostDespawnCallback> = callback::register!(Settler::on_settled);
     }
 
     fn on_settled(
+        cmds: &mut SimCmds,
         context: &SimContext,
         unit_prev_cell: Cell,
         unit_prev_goal: Option<UnitNavGoal>,
         extra_args: &[UnitTaskArg],
     ) {
-        let settle_new_vacant_lot = unit_prev_goal.is_some_and(|goal| navigation::is_goal_vacant_lot_tile(&goal, context));
+        let settle_new_vacant_lot =
+            unit_prev_goal.is_some_and(|goal| navigation::is_goal_vacant_lot_tile(&goal, context));
 
         if settle_new_vacant_lot {
             if let Some(tile_def) = Self::find_house_tile_def(context) {
-                let world = context.world_mut();
-                match world.try_spawn_building_with_tile_def(context, unit_prev_cell, tile_def) {
-                    Ok(building) => {
-                        debug_assert!(building.is(BuildingKind::House));
+                let population_to_add = extra_args[0].as_u32();
+                debug_assert!(population_to_add != 0);
 
-                        building.set_random_variation(context);
+                cmds.spawn_building_with_tile_def_cb(unit_prev_cell, tile_def, move |context, result| {
+                    match result {
+                        Ok(building) => {
+                            debug_assert!(building.is(BuildingKind::House));
+                            building.set_random_variation(context);
 
-                        let population_to_add = extra_args[0].as_u32();
-                        debug_assert!(population_to_add != 0);
-
-                        let population_added = building.add_population(context, population_to_add);
-                        if population_added != population_to_add {
+                            let population_added = building.add_population(context, population_to_add);
+                            if population_added != population_to_add {
+                                log::error!(
+                                    log::channel!("unit"),
+                                    "Settler carried population of {population_to_add} but house accommodated {population_added}."
+                                );
+                            }
+                        }
+                        Err(err) => {
                             log::error!(
                                 log::channel!("unit"),
-                                "Settler carried population of {population_to_add} but house accommodated {population_added}."
+                                "SettlersSpawnSystem: Failed to place House Level 0: {}",
+                                err.message
                             );
                         }
                     }
-                    Err(err) => {
-                        log::error!(
-                            log::channel!("unit"),
-                            "SettlersSpawnSystem: Failed to place House Level 0: {}",
-                            err.message
-                        );
-                    }
-                }
+                });
             } else {
                 log::error!(log::channel!("unit"), "SettlersSpawnSystem: House Level 0 TileDef not found!");
             }

@@ -1,6 +1,8 @@
 use std::cmp::Reverse;
-
 use arrayvec::ArrayVec;
+use smallvec::SmallVec;
+use serde::{Deserialize, Serialize};
+
 use common::{
     Color,
     callback::{self, Callback},
@@ -9,8 +11,6 @@ use common::{
 };
 use engine::{log, ui::UiSystem};
 use proc_macros::DrawDebugUi;
-use serde::{Deserialize, Serialize};
-use smallvec::SmallVec;
 
 use super::{
     Building,
@@ -21,18 +21,20 @@ use super::{
 };
 use crate::{
     cheats,
+    tile::Tile,
+    save_context::PostLoadContext,
+    world::{object::GameObject, stats::WorldStats},
+    undo_redo::{GameObjectSavedState, game_object_undo_redo_state},
     debug::{
         game_object_debug::{GameObjectDebugOptions, GameObjectDebugOptionsExt, game_object_debug_options},
         utils::UpdateTimerDebugUi,
     },
-    save_context::PostLoadContext,
     sim::{
-        RandomGenerator,
+        SimCmds,
         SimContext,
+        RandomGenerator,
         resources::{RESOURCE_KIND_COUNT, ResourceKind, ResourceKinds, ShoppingList, StockItem, Workers},
     },
-    tile::Tile,
-    undo_redo::{GameObjectSavedState, game_object_undo_redo_state},
     unit::{
         Unit,
         UnitTaskHelper,
@@ -48,7 +50,6 @@ use crate::{
             UnitTaskHarvestWood,
         },
     },
-    world::{object::GameObject, stats::WorldStats},
 };
 
 // ----------------------------------------------
@@ -201,7 +202,7 @@ impl BuildingBehavior for ProducerBuilding {
     // World Callbacks:
     // ----------------------
 
-    fn name(&self) -> &str {
+    fn name(&self) -> &'static str {
         &self.config.unwrap().name
     }
 
@@ -209,9 +210,19 @@ impl BuildingBehavior for ProducerBuilding {
         self.config.unwrap()
     }
 
-    fn update(&mut self, context: &BuildingContext) {
+    fn despawned(&mut self, cmds: &mut SimCmds, _context: &BuildingContext) {
+        self.runner.discard_spawn_promise(cmds);
+        self.harvester.discard_spawn_promise(cmds);
+        self.ambient_patrol.discard_spawn_promise(cmds);
+    }
+
+    fn update(&mut self, cmds: &mut SimCmds, context: &BuildingContext) {
         debug_assert!(self.config.is_some());
         let delta_time_secs = context.sim_ctx.delta_time_secs();
+
+        self.runner.update(cmds);
+        self.harvester.update(cmds);
+        self.ambient_patrol.update(cmds);
 
         // Update producer states:
         if self.production_update_timer.tick(delta_time_secs).should_update() && self.has_min_required_workers() {
@@ -220,7 +231,7 @@ impl BuildingBehavior for ProducerBuilding {
             if !self.debug.freeze_harvesting() && is_harvester_building {
                 // If we've sent out a harvester unit wait until
                 // next update to send out a delivery runner.
-                if self.harvesting_update(context) {
+                if self.harvesting_update(cmds, context) {
                     return;
                 }
             }
@@ -231,16 +242,16 @@ impl BuildingBehavior for ProducerBuilding {
             }
 
             if !self.debug.freeze_storage_delivery() {
-                self.deliver_to_storage(context);
+                self.deliver_to_storage(cmds, context);
             }
 
             if !self.debug.freeze_storage_fetching() {
-                self.fetch_from_storage(context);
+                self.fetch_from_storage(cmds, context);
             }
         }
 
         if self.ambient_patrol.spawn_timer.tick(delta_time_secs).should_update() && self.has_min_required_workers() {
-            self.spawn_ambient_patrol(context, false);
+            self.spawn_ambient_patrol(cmds, context, false);
         }
     }
 
@@ -270,14 +281,28 @@ impl BuildingBehavior for ProducerBuilding {
         }
     }
 
+    fn pre_save(&mut self, cmds: &mut SimCmds) {
+        self.runner.pre_save(cmds);
+        self.harvester.pre_save(cmds);
+        self.ambient_patrol.pre_save(cmds);
+    }
+
+    fn post_save(&mut self) {
+        self.runner.post_save();
+        self.harvester.post_save();
+        self.ambient_patrol.post_save();
+    }
+
     fn post_load(&mut self, context: &mut PostLoadContext, kind: BuildingKind, tile: &Tile) {
         debug_assert!(kind.intersects(BuildingKind::producers()));
 
         let tile_def = tile.tile_def();
-
         let config = BuildingConfigs::get().find_producer_config(kind, tile_def.hash, &tile_def.name);
 
         self.production_update_timer.post_load(config.production_output_frequency_secs);
+
+        self.runner.post_load();
+        self.harvester.post_load();
         self.ambient_patrol.post_load(context, config.ambient_patrol.spawn_frequency_secs);
 
         self.config = Some(config);
@@ -430,10 +455,10 @@ impl BuildingBehavior for ProducerBuilding {
         &mut self.debug
     }
 
-    fn draw_debug_ui(&mut self, context: &BuildingContext, ui_sys: &UiSystem) {
+    fn draw_debug_ui(&mut self, cmds: &mut SimCmds, context: &BuildingContext, ui_sys: &UiSystem) {
         self.draw_debug_ui_input_stock(ui_sys);
         self.draw_debug_ui_production_output(context, ui_sys);
-        self.draw_debug_ui_ambient_patrol(context, ui_sys);
+        self.draw_debug_ui_ambient_patrol(cmds, context, ui_sys);
     }
 }
 
@@ -458,11 +483,11 @@ impl ProducerBuilding {
 
     pub fn register_callbacks() {
         let _: Callback<UnitTaskDeliveryCompletionCallback> = callback::register!(ProducerBuilding::on_resources_delivered);
-        let _: Callback<UnitTaskFetchCompletionCallback> = callback::register!(ProducerBuilding::on_resources_fetched);
-        let _: Callback<UnitTaskFetchCompletionCallback> = callback::register!(ProducerBuilding::on_resources_harvested);
+        let _: Callback<UnitTaskFetchCompletionCallback>    = callback::register!(ProducerBuilding::on_resources_fetched);
+        let _: Callback<UnitTaskFetchCompletionCallback>    = callback::register!(ProducerBuilding::on_resources_harvested);
     }
 
-    fn harvesting_update(&mut self, context: &BuildingContext) -> bool {
+    fn harvesting_update(&mut self, cmds: &mut SimCmds, context: &BuildingContext) -> bool {
         let harvested_resource = self.config.unwrap().harvested_resource;
         if harvested_resource != ResourceKind::Wood {
             panic!("Only wood harvesting supported for now!");
@@ -483,7 +508,13 @@ impl ProducerBuilding {
         };
 
         // Send out a harvester:
-        self.harvester.try_harvest_wood(context, unit_origin, callback::create!(ProducerBuilding::on_resources_harvested))
+        self.harvester.try_harvest_wood(
+            cmds,
+            context,
+            unit_origin,
+            callback::create!(ProducerBuilding::on_resources_harvested),
+        );
+        true
     }
 
     fn production_update(&mut self) {
@@ -512,7 +543,7 @@ impl ProducerBuilding {
         }
     }
 
-    fn deliver_to_storage(&mut self, context: &BuildingContext) {
+    fn deliver_to_storage(&mut self, cmds: &mut SimCmds, context: &BuildingContext) {
         if self.production_output_stock.is_empty() {
             return; // Nothing to deliver.
         }
@@ -532,21 +563,27 @@ impl ProducerBuilding {
         let resource_kind_to_deliver = self.production_output_stock.resource_kind();
         let resource_count = self.production_output_stock.resource_count();
 
-        if self.runner.try_deliver_to_storage(
+        self.runner.try_deliver_to_storage(
+            cmds,
             context,
             unit_origin,
             storage_buildings_accepted,
             resource_kind_to_deliver,
             resource_count,
             callback::create!(ProducerBuilding::on_resources_delivered),
-        ) {
-            // We've handed over our resources to the spawned unit, clear the stock.
-            let removed_count = self.remove_resources(resource_kind_to_deliver, resource_count);
-            debug_assert!(removed_count == resource_count);
-        }
+        );
+
+        // We've handed over our resources to the spawned unit, clear the stock.
+        //
+        // TODO: If by any reason the unit fails to spawn, the resources handed to the task would lost.
+        // A unit spawn failure would be a bug (e.g., missing TileDef / invalid spawn point), which
+        // shouldn't happen during normal gameplay, so maybe not worthwhile fixing this?
+        //
+        let removed_count = self.remove_resources(resource_kind_to_deliver, resource_count);
+        debug_assert!(removed_count == resource_count);
     }
 
-    fn fetch_from_storage(&mut self, context: &BuildingContext) {
+    fn fetch_from_storage(&mut self, cmds: &mut SimCmds, context: &BuildingContext) {
         if !self.production_input_stock.requires_any_resource() {
             return; // We don't require any raw materials.
         }
@@ -574,6 +611,7 @@ impl ProducerBuilding {
         }
 
         self.runner.try_fetch_from_storage(
+            cmds,
             context,
             unit_origin,
             storage_buildings_accepted,
@@ -661,12 +699,12 @@ impl ProducerBuilding {
 
     #[inline]
     fn is_waiting_on_harvester(&self) -> bool {
-        self.harvester.is_spawned()
+        self.harvester.is_spawned_or_pending_spawn()
     }
 
     #[inline]
     fn is_waiting_on_runner(&self) -> bool {
-        self.runner.is_spawned()
+        self.runner.is_spawned_or_pending_spawn()
     }
 
     #[inline]
@@ -688,10 +726,11 @@ impl ProducerBuilding {
     // Ambient Patrol Unit:
     // ----------------------
 
-    fn spawn_ambient_patrol(&mut self, context: &BuildingContext, force_spawn: bool) {
+    fn spawn_ambient_patrol(&mut self, cmds: &mut SimCmds, context: &BuildingContext, force_spawn: bool) {
         let tile_def = context.find_tile().tile_def();
 
-        let config = BuildingConfigs::get().find_producer_config(context.kind, tile_def.hash, &tile_def.name);
+        let config = BuildingConfigs::get()
+            .find_producer_config(context.kind, tile_def.hash, &tile_def.name);
 
         if let Some(unit_config) = config.ambient_patrol.unit {
             let spawn_chance = config.ambient_patrol.spawn_chance;
@@ -699,6 +738,7 @@ impl ProducerBuilding {
             let idle_countdown_secs = context.sim_ctx.random_range(15.0..30.0);
 
             self.ambient_patrol.try_spawn_unit(
+                cmds,
                 context,
                 unit_config,
                 spawn_chance,
@@ -1033,7 +1073,7 @@ impl ProducerBuilding {
         }
     }
 
-    fn draw_debug_ui_ambient_patrol(&mut self, context: &BuildingContext, ui_sys: &UiSystem) {
+    fn draw_debug_ui_ambient_patrol(&mut self, cmds: &mut SimCmds, context: &BuildingContext, ui_sys: &UiSystem) {
         let ui = ui_sys.ui();
         if !ui.collapsing_header("Ambient Patrol", imgui::TreeNodeFlags::empty()) {
             return; // collapsed.
@@ -1042,10 +1082,10 @@ impl ProducerBuilding {
         self.ambient_patrol.spawn_timer.draw_debug_ui("Spawn Patrol", 0, ui_sys);
 
         if ui.button("Force Spawn Ambient Patrol") {
-            self.spawn_ambient_patrol(context, true);
+            self.spawn_ambient_patrol(cmds, context, true);
         }
 
-        if self.ambient_patrol.patrol.is_spawned() {
+        if self.ambient_patrol.patrol.is_spawned_or_pending_spawn() {
             ui.text_colored(Color::yellow().to_array(), "Ambient Patrol Spawned...");
         }
     }

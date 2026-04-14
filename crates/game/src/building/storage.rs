@@ -1,13 +1,14 @@
 use arrayvec::ArrayVec;
+use smallvec::{SmallVec, smallvec};
+use serde::{Deserialize, Serialize};
+use rand::seq::IteratorRandom;
+
 use common::{
     Color,
     hash::{self, StringHash},
 };
 use engine::ui::UiSystem;
 use proc_macros::DrawDebugUi;
-use rand::seq::IteratorRandom;
-use serde::{Deserialize, Serialize};
-use smallvec::{SmallVec, smallvec};
 
 use super::{
     BuildingBehavior,
@@ -17,16 +18,19 @@ use super::{
 };
 use crate::{
     cheats,
-    debug::game_object_debug::{GameObjectDebugOptions, GameObjectDebugOptionsExt, game_object_debug_options},
-    save_context::PostLoadContext,
-    sim::resources::{RESOURCE_KIND_COUNT, ResourceKind, ResourceKinds, ResourceStock, StockItem, Workers},
     tile::Tile,
+    save_context::PostLoadContext,
+    world::stats::WorldStats,
     undo_redo::{GameObjectSavedState, game_object_undo_redo_state},
+    debug::game_object_debug::{GameObjectDebugOptions, GameObjectDebugOptionsExt, game_object_debug_options},
+    sim::{
+        SimCmds,
+        resources::{RESOURCE_KIND_COUNT, ResourceKind, ResourceKinds, ResourceStock, StockItem, Workers},
+    },
     unit::{
         Unit,
         task::{UnitTaskDeliverToStorage, UnitTaskFetchFromStorage},
     },
-    world::stats::WorldStats,
 };
 
 // ----------------------------------------------
@@ -123,7 +127,7 @@ impl BuildingBehavior for StorageBuilding {
     // World Callbacks:
     // ----------------------
 
-    fn name(&self) -> &str {
+    fn name(&self) -> &'static str {
         &self.config.unwrap().name
     }
 
@@ -131,7 +135,11 @@ impl BuildingBehavior for StorageBuilding {
         self.config.unwrap()
     }
 
-    fn update(&mut self, _context: &BuildingContext) {
+    fn despawned(&mut self, _cmds: &mut SimCmds, _context: &BuildingContext) {
+        // Nothing for now.
+    }
+
+    fn update(&mut self, _cmds: &mut SimCmds, _context: &BuildingContext) {
         debug_assert!(self.config.is_some());
         // Nothing for now.
     }
@@ -178,10 +186,17 @@ impl BuildingBehavior for StorageBuilding {
         }
     }
 
+    fn pre_save(&mut self, _cmds: &mut SimCmds) {
+        // Nothing for now.
+    }
+
+    fn post_save(&mut self) {
+        // Nothing for now.
+    }
+
     fn post_load(&mut self, _context: &mut PostLoadContext, kind: BuildingKind, _tile: &Tile) {
         debug_assert!(kind.intersects(BuildingKind::storage()));
-        let config = BuildingConfigs::get().find_storage_config(kind);
-        self.config = Some(config);
+        self.config = Some(BuildingConfigs::get().find_storage_config(kind));
     }
 
     // ----------------------
@@ -297,7 +312,7 @@ impl BuildingBehavior for StorageBuilding {
         &mut self.debug
     }
 
-    fn draw_debug_ui(&mut self, _context: &BuildingContext, ui_sys: &UiSystem) {
+    fn draw_debug_ui(&mut self, _cmds: &mut SimCmds, _context: &BuildingContext, ui_sys: &UiSystem) {
         self.storage_slots.draw_debug_ui("Stock Slots", ui_sys);
     }
 }

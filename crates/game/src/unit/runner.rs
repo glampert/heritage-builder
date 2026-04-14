@@ -1,21 +1,26 @@
+#![allow(clippy::too_many_arguments)]
+
 use common::{callback::Callback, coords::Cell};
 use serde::{Deserialize, Serialize};
 
 use super::{
+    Unit,
     UnitId,
     UnitTaskHelper,
+    UnitSpawnState,
+    SpawnedUnitWithTask,
     config::UnitConfigKey,
     task::{
+        UnitTaskDespawn,
         UnitTaskDeliverToStorage,
         UnitTaskDeliveryCompletionCallback,
-        UnitTaskDespawn,
-        UnitTaskFetchCompletionCallback,
         UnitTaskFetchFromStorage,
+        UnitTaskFetchCompletionCallback,
     },
 };
 use crate::{
     building::{BuildingContext, BuildingKind},
-    sim::resources::{ResourceKind, ShoppingList},
+    sim::{resources::{ResourceKind, ShoppingList}, commands::{SimCmds, SpawnPromise}},
 };
 
 // ----------------------------------------------
@@ -24,47 +29,51 @@ use crate::{
 
 #[derive(Clone, Default, Serialize, Deserialize)]
 pub struct Runner {
-    unit_id: UnitId,
-    #[serde(skip)]
-    failed_to_spawn: bool, // Debug flag; not serialized.
+    #[serde(flatten)] // Preserve backwards compatibility with old save files. Previously `unit_id: UnitId`.
+    unit: SpawnedUnitWithTask,
 }
 
 impl UnitTaskHelper for Runner {
     #[inline]
     fn reset(&mut self) {
-        self.unit_id = UnitId::default();
-        self.failed_to_spawn = false;
+        self.unit.reset();
     }
 
     #[inline]
-    fn on_unit_spawn(&mut self, unit_id: UnitId, failed_to_spawn: bool) {
-        self.unit_id = unit_id;
-        self.failed_to_spawn = failed_to_spawn;
+    fn get_pending_promise(&mut self) -> Option<SpawnPromise<Unit>> {
+        self.unit.get_pending_promise()
+    }
+
+    #[inline]
+    fn set_spawn_state(&mut self, state: UnitSpawnState) {
+        self.unit.set_spawn_state(state);
+    }
+
+    #[inline]
+    fn spawn_state(&self) -> &UnitSpawnState {
+        self.unit.spawn_state()
     }
 
     #[inline]
     fn unit_id(&self) -> UnitId {
-        self.unit_id
-    }
-
-    #[inline]
-    fn failed_to_spawn(&self) -> bool {
-        self.failed_to_spawn
+        self.unit.unit_id()
     }
 }
 
 impl Runner {
     pub fn try_deliver_to_storage(
         &mut self,
+        cmds: &mut SimCmds,
         context: &BuildingContext,
         unit_origin: Cell,
         storage_buildings_accepted: BuildingKind,
         resource_kind_to_deliver: ResourceKind,
         resource_count: u32,
         completion_callback: Callback<UnitTaskDeliveryCompletionCallback>,
-    ) -> bool {
+    ) {
         self.try_spawn_with_task(
             context.debug_name(),
+            cmds,
             context.sim_ctx,
             unit_origin,
             UnitConfigKey::Runner,
@@ -76,22 +85,24 @@ impl Runner {
                 resource_count,
                 completion_callback,
                 completion_task: context.sim_ctx.task_manager_mut().new_task(UnitTaskDespawn),
-                allow_producer_fallback: true, /* If we can't find a Storage that will take our goods,
-                                                * try delivering directly to other Producers. */
+                // If we can't find a Storage that will take our goods, try delivering directly to other Producers.
+                allow_producer_fallback: true,
             },
-        )
+        );
     }
 
     pub fn try_fetch_from_storage(
         &mut self,
+        cmds: &mut SimCmds,
         context: &BuildingContext,
         unit_origin: Cell,
         storage_buildings_accepted: BuildingKind,
         resources_to_fetch: ShoppingList, // Will fetch at most *one* of these. This is a list of desired options.
         completion_callback: Callback<UnitTaskFetchCompletionCallback>,
-    ) -> bool {
+    ) {
         self.try_spawn_with_task(
             context.debug_name(),
+            cmds,
             context.sim_ctx,
             unit_origin,
             UnitConfigKey::Runner,
@@ -104,6 +115,6 @@ impl Runner {
                 completion_task: context.sim_ctx.task_manager_mut().new_task(UnitTaskDespawn),
                 is_returning_to_origin: false,
             },
-        )
+        );
     }
 }

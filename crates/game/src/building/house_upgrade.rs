@@ -1,4 +1,5 @@
 use std::collections::VecDeque;
+use smallvec::SmallVec;
 
 use common::{
     Size,
@@ -9,20 +10,20 @@ use engine::{
     log,
     ui::{UiStaticVar, UiSystem},
 };
-use smallvec::SmallVec;
 
 use super::{
     Building,
-    BuildingContext,
     BuildingId,
     BuildingKind,
+    BuildingContext,
     config::BuildingConfigs,
     house::{HouseLevel, HouseLevelConfig},
 };
 use crate::{
+    sim::SimCmds,
+    world::object::GameObject,
     pathfind::{Node, NodeKind as PathNodeKind},
     tile::{TileFlags, TileKind, TileMapLayerKind, sets::TileDef},
-    world::object::{GameObject, Spawner},
 };
 
 // ----------------------------------------------
@@ -53,11 +54,11 @@ pub fn can_expand_house(
         return false;
     }
 
-    // We can only advance one level at a time (expanding by one tile in each
-    // dimension).
+    // We can only advance one level at a time (expanding by one tile in each dimension).
     debug_assert!(target_level == current_level.next());
 
-    let best_result = find_best_expanded_rect_and_candidates(context, house_id);
+    let best_result =
+        find_best_expanded_rect_and_candidates(context, house_id);
 
     if best_result.is_none() || find_tile_def_for_level(context, target_level).is_none() {
         return false; // Not possible to expand.
@@ -68,6 +69,7 @@ pub fn can_expand_house(
 
 // Attempts to expand the house by *one cell* in each dimension, e.g.: 1x1 -> 2x2.
 pub fn try_expand_house(
+    cmds: &mut SimCmds,
     context: &BuildingContext,
     house_id: BuildingId,
     current_level: HouseLevel,
@@ -77,11 +79,11 @@ pub fn try_expand_house(
         return false;
     }
 
-    // We can only advance one level at a time (expanding by one tile in each
-    // dimension).
+    // We can only advance one level at a time (expanding by one tile in each dimension).
     debug_assert!(target_level == current_level.next());
 
-    let best_result = find_best_expanded_rect_and_candidates(context, house_id);
+    let best_result =
+        find_best_expanded_rect_and_candidates(context, house_id);
 
     let (target_rect, merge_ids) = match best_result {
         Some(best_result) => best_result,
@@ -111,7 +113,15 @@ pub fn try_expand_house(
         }
     };
 
-    try_merge_and_replace_tile(context, target_level_config, target_tile_def, start_cell, house_id, &house_ids_to_merge)
+    try_merge_and_replace_tile(
+        cmds,
+        context,
+        target_level_config,
+        target_tile_def,
+        start_cell,
+        house_id,
+        &house_ids_to_merge,
+    )
 }
 
 // Replaces house tile with a new (possibly bigger) tile.
@@ -469,6 +479,7 @@ fn candidate_target_rects(current_cell_range: CellRange) -> [CellRect; CANDIDATE
 }
 
 fn try_merge_and_replace_tile(
+    cmds: &mut SimCmds,
     context: &BuildingContext,
     target_level_config: &HouseLevelConfig,
     target_tile_def: &'static TileDef,
@@ -482,10 +493,9 @@ fn try_merge_and_replace_tile(
     debug_assert!(new_cell_range.size() == context.cell_range().size() + 1);
 
     if !ids_to_merge.is_empty() {
-        merge_houses(context, target_level_config, house_id, ids_to_merge);
+        merge_houses(cmds, context, target_level_config, house_id, ids_to_merge);
     }
-    // Else this house is expanding into vacant lots / empty terrain. Nothing to
-    // merge.
+    // Else this house is expanding into vacant lots / empty terrain. Nothing to merge.
 
     try_replace_tile(context, house_id, target_tile_def, new_cell_range)
 }
@@ -493,6 +503,7 @@ fn try_merge_and_replace_tile(
 // Merges `ids_to_merge` houses into `dest_id` house and destroys all
 // `ids_to_merge` houses. Ids are assumed to be all valid house buildings.
 fn merge_houses(
+    cmds: &mut SimCmds,
     context: &BuildingContext,
     target_level_config: &HouseLevelConfig,
     dest_id: BuildingId,
@@ -508,13 +519,14 @@ fn merge_houses(
 
         let building_to_merge = house_for_id_mut(context, *merge_id);
 
-        merge_house(context, dest_building, building_to_merge, target_level_config);
-        destroy_house(context, building_to_merge);
+        merge_house(cmds, context, dest_building, building_to_merge, target_level_config);
+        destroy_house(cmds, building_to_merge);
     }
 }
 
 // Merge resources, population and workers.
 fn merge_house(
+    cmds: &mut SimCmds,
     context: &BuildingContext,
     dest_building: &mut Building,
     building_to_merge: &mut Building,
@@ -526,11 +538,17 @@ fn merge_house(
     let house_to_merge = building_to_merge.as_house_mut();
     let dest_house = dest_building.as_house_mut();
 
-    dest_house.merge(context, house_to_merge, house_to_merge_kind_and_id, target_level_config);
+    dest_house.merge(
+        cmds,
+        context,
+        house_to_merge,
+        house_to_merge_kind_and_id,
+        target_level_config,
+    );
 }
 
-fn destroy_house(context: &BuildingContext, merged_building: &mut Building) {
-    Spawner::new(context.sim_ctx).despawn_building(merged_building);
+fn destroy_house(cmds: &mut SimCmds, merged_building: &mut Building) {
+    cmds.despawn_building_with_id(merged_building.kind_and_id());
 }
 
 // ----------------------------------------------

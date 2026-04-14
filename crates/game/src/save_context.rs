@@ -9,26 +9,60 @@ use engine::{
     save::{LoadResult, SaveResult, SaveStateImpl},
 };
 
-use crate::{config::GameConfigs, sim::RandomGenerator, tile::TileMap};
+use crate::{
+    tile::TileMap,
+    config::GameConfigs,
+    sim::{RandomGenerator, SimCmds},
+};
 
 // ----------------------------------------------
 // Save / Load Traits
 // ----------------------------------------------
 
 pub trait Save {
-    fn pre_save(&mut self) {}
-    fn save(&self, _state: &mut SaveStateImpl) -> SaveResult {
-        Ok(())
-    }
-    fn post_save(&mut self) {}
+    fn pre_save(&mut self, _context: &mut PreSaveContext) {}
+    fn save(&self, _state: &mut SaveStateImpl) -> SaveResult { Ok(()) }
+    fn post_save(&mut self, _context: &mut PostSaveContext) {}
 }
 
 pub trait Load {
     fn pre_load(&mut self, _context: &mut PreLoadContext) {}
-    fn load(&mut self, _state: &SaveStateImpl) -> LoadResult {
-        Ok(())
-    }
+    fn load(&mut self, _state: &SaveStateImpl) -> LoadResult { Ok(()) }
     fn post_load(&mut self, _context: &mut PostLoadContext) {}
+}
+
+// ----------------------------------------------
+// PreSaveContext
+// ----------------------------------------------
+
+pub struct PreSaveContext {
+    cmds: RcMut<SimCmds>,
+}
+
+impl PreSaveContext {
+    #[inline]
+    pub fn new(cmds: RcMut<SimCmds>) -> Self {
+        Self { cmds }
+    }
+
+    #[inline]
+    pub fn cmds_mut(&mut self) -> &mut SimCmds {
+        &mut self.cmds
+    }
+}
+
+// ----------------------------------------------
+// PostSaveContext
+// ----------------------------------------------
+
+pub struct PostSaveContext {
+}
+
+impl PostSaveContext {
+    #[inline]
+    pub fn new() -> Self {
+        Self {}
+    }
 }
 
 // ----------------------------------------------
