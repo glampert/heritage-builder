@@ -14,7 +14,7 @@ use super::{
     UnitTaskPool,
     UnitTaskResult,
     UnitTaskState,
-    common::invoke_completion_callback,
+    common::invoke_completion_callback_deferred,
 };
 use crate::{
     debug::{self},
@@ -192,7 +192,7 @@ impl PathFilter for UnitPatrolReturnPathFilter<'_> {
 // UnitTaskRandomizedPatrol
 // ----------------------------------------------
 
-pub type UnitTaskPatrolCompletionCallback = fn(&mut Building, &mut Unit, &SimContext) -> bool;
+pub type UnitTaskPatrolCompletionCallback = fn(&SimContext, &mut Building, &mut Unit);
 
 // - Unit walks up to a certain distance away from the origin.
 // - Once max distance is reached, start walking back to origin.
@@ -214,8 +214,7 @@ pub struct UnitTaskRandomizedPatrol {
     pub buildings_to_visit: Option<BuildingKind>,
 
     // Called on the origin building once the unit has completed its patrol and returned.
-    // `|origin_building, patrol_unit, context| -> bool`: Returns if the task should complete or
-    // retry.
+    // `|context, origin_building, patrol_unit|`.
     pub completion_callback: Callback<UnitTaskPatrolCompletionCallback>,
 
     // Optional completion task to run after this task.
@@ -377,20 +376,22 @@ impl UnitTask for UnitTaskRandomizedPatrol {
         }
     }
 
-    fn completed(&mut self, unit: &mut Unit, _cmds: &mut SimCmds, context: &SimContext) -> UnitTaskResult {
+    fn completed(&mut self, unit: &mut Unit, cmds: &mut SimCmds, context: &SimContext) -> UnitTaskResult {
         let unit_goal = unit.goal().expect("Expected unit to have an active goal!");
         let mut task_completed = false;
 
         if self.is_returning_to_origin(unit_goal) {
             if self.completion_callback.is_valid() {
-                task_completed = invoke_completion_callback(
+                invoke_completion_callback_deferred(
                     unit,
+                    cmds,
                     context,
                     self.origin_building.kind,
                     self.origin_building.id,
                     self.completion_callback.get(),
-                )
-                .unwrap_or(true);
+                );
+
+                task_completed = true;
                 unit.follow_path(None);
             }
         } else {

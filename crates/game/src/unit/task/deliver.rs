@@ -10,21 +10,26 @@ use super::{
     UnitTaskPool,
     UnitTaskResult,
     UnitTaskState,
-    common::{PathFindResult, find_delivery_candidate, invoke_completion_callback, visit_destination},
+    common::{
+        PathFindResult,
+        find_delivery_candidate,
+        invoke_completion_callback_immediate,
+        visit_destination_deferred,
+    },
 };
 use crate::{
-    debug::{self},
+    debug,
     tile::TileMapLayerKind,
-    unit::Unit,
-    building::{Building, BuildingKind, BuildingKindAndId, BuildingTileInfo},
     sim::{SimCmds, SimContext, resources::ResourceKind},
+    building::{Building, BuildingKind, BuildingKindAndId, BuildingTileInfo},
+    unit::Unit,
 };
 
 // ----------------------------------------------
 // UnitTaskDeliverToStorage
 // ----------------------------------------------
 
-pub type UnitTaskDeliveryCompletionCallback = fn(&mut Building, &mut Unit, &SimContext);
+pub type UnitTaskDeliveryCompletionCallback = fn(&SimContext, &mut Building, &mut Unit);
 
 #[derive(Copy, Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
 pub enum UnitTaskDeliveryState {
@@ -49,7 +54,7 @@ pub struct UnitTaskDeliverToStorage {
     pub resource_count: u32,
 
     // Called on the origin building once resources are delivered.
-    // `|origin_building, runner_unit, context|`
+    // `|context, origin_building, runner_unit|`
     pub completion_callback: Callback<UnitTaskDeliveryCompletionCallback>,
 
     // Optional completion task to run after this task.
@@ -163,7 +168,7 @@ impl UnitTask for UnitTaskDeliverToStorage {
 
     fn completed(&mut self, unit: &mut Unit, cmds: &mut SimCmds, context: &SimContext) -> UnitTaskResult {
         if self.internal_state == UnitTaskDeliveryState::MovingToGoal || unit.goal().is_some() {
-            let destination_exists = visit_destination(unit, cmds, context, |context, _building, unit, _result| {
+            let destination_exists = visit_destination_deferred(unit, cmds, context, |context, _building, unit, _result| {
                 let task = unit.current_task_as_mut::<Self>(context.task_manager_mut())
                     .expect("Expected unit to be running UnitTaskDeliverToStorage!");
 
@@ -173,7 +178,8 @@ impl UnitTask for UnitTaskDeliverToStorage {
                 // to offload everything, so we'll retry with another building later.
                 if unit.inventory_is_empty() {
                     if task.completion_callback.is_valid() {
-                        invoke_completion_callback(
+                        // NOTE: Invoke callback immediately; we are already inside a deferred callback.
+                        invoke_completion_callback_immediate(
                             unit,
                             context,
                             task.origin_building.kind,

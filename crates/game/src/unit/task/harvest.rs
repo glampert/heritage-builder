@@ -14,7 +14,7 @@ use super::{
     UnitTaskPool,
     UnitTaskResult,
     UnitTaskState,
-    common::invoke_completion_callback,
+    common::invoke_completion_callback_deferred,
 };
 use crate::{
     debug,
@@ -38,7 +38,7 @@ use crate::{
 // UnitTaskHarvestWood
 // ----------------------------------------------
 
-pub type UnitTaskHarvestCompletionCallback = fn(&mut Building, &mut Unit, &SimContext);
+pub type UnitTaskHarvestCompletionCallback = fn(&SimContext, &mut Building, &mut Unit);
 
 // How long it takes for a unit to complete a harvest once it arrives at a tree.
 const WOOD_HARVEST_TIME_INTERVAL: Seconds = 20.0;
@@ -53,7 +53,7 @@ pub struct UnitTaskHarvestWood {
     pub origin_building_tile: BuildingTileInfo,
 
     // Optional completion callback.
-    // |origin_building, harvester_unit, context|
+    // |context, origin_building, harvester_unit|
     pub completion_callback: Callback<UnitTaskHarvestCompletionCallback>,
 
     // Optional completion task to run after this task.
@@ -227,7 +227,7 @@ impl UnitTask for UnitTaskHarvestWood {
         if unit.has_reached_goal() { UnitTaskState::Completed } else { UnitTaskState::Running }
     }
 
-    fn completed(&mut self, unit: &mut Unit, _cmds: &mut SimCmds, context: &SimContext) -> UnitTaskResult {
+    fn completed(&mut self, unit: &mut Unit, cmds: &mut SimCmds, context: &SimContext) -> UnitTaskResult {
         let mut task_completed = false;
 
         if self.is_returning_to_origin {
@@ -245,8 +245,9 @@ impl UnitTask for UnitTaskHarvestWood {
             debug_assert!(unit.peek_inventory().unwrap().kind == ResourceKind::Wood);
 
             if self.completion_callback.is_valid() {
-                invoke_completion_callback(
+                invoke_completion_callback_deferred(
                     unit,
+                    cmds,
                     context,
                     self.origin_building.kind,
                     self.origin_building.id,

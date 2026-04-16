@@ -286,13 +286,11 @@ impl Unit {
             return; // collapsed.
         }
 
-        // SAFETY: Debug code only called from the main thread (ImGui is inherently
-        // single-threaded).
+        // SAFETY: Debug code only called from the main thread (ImGui is inherently single-threaded).
         static MAX_PATROL_DISTANCE: UiStaticVar<i32> = UiStaticVar::new(50);
         static PATH_BIAS_MIN: UiStaticVar<f32> = UiStaticVar::new(0.1);
         static PATH_BIAS_MAX: UiStaticVar<f32> = UiStaticVar::new(0.5);
 
-        ui.input_int("Patrol Rounds", PATROL_ROUNDS.as_mut()).step(1).build();
         ui.input_int("Patrol Max Distance", MAX_PATROL_DISTANCE.as_mut()).step(1).build();
         ui.input_float("Patrol Path Bias Min", PATH_BIAS_MIN.as_mut()).display_format("%.2f").step(0.1).build();
         ui.input_float("Patrol Path Bias Max", PATH_BIAS_MAX.as_mut()).display_format("%.2f").step(0.1).build();
@@ -501,19 +499,15 @@ pub fn register_callbacks() {
         callback::register!(unit_debug_harvest_wood_task_completed);
 }
 
-static PATROL_ROUNDS: UiStaticVar<i32> = UiStaticVar::new(5);
-
-fn unit_debug_patrol_task_completed(_: &mut Building, unit: &mut Unit, _: &SimContext) -> bool {
-    PATROL_ROUNDS.set(*PATROL_ROUNDS - 1);
-    log::info!("Unit {}: Patrol Task Round {} Completed.", unit.name(), *PATROL_ROUNDS);
-    *PATROL_ROUNDS <= 0 // Run the task a few times.
+fn unit_debug_patrol_task_completed(_: &SimContext, building: &mut Building, unit: &mut Unit) {
+    log::info!("Unit {}: Patrol Task From {} Completed.", unit.name(), building.name());
 }
 
-fn unit_debug_delivery_task_completed(building: &mut Building, unit: &mut Unit, _: &SimContext) {
+fn unit_debug_delivery_task_completed(_: &SimContext, building: &mut Building, unit: &mut Unit) {
     log::info!("Unit {}: Deliver Resources to: {}. Task Completed.", unit.name(), building.name());
 }
 
-fn unit_debug_fetch_task_completed(building: &mut Building, unit: &mut Unit, _: &SimContext) {
+fn unit_debug_fetch_task_completed(_: &SimContext, building: &mut Building, unit: &mut Unit) {
     let item = unit.inventory.peek().unwrap();
     log::info!(
         "Unit {}: Fetch Resources from: {}. Task Completed. Got: {}, {}",
@@ -525,12 +519,12 @@ fn unit_debug_fetch_task_completed(building: &mut Building, unit: &mut Unit, _: 
     unit.inventory.clear();
 }
 
-fn unit_debug_find_vacant_lot_task_completed(unit: &mut Unit, dest_tile: &Tile, _: u32, _: &SimContext) {
+fn unit_debug_find_vacant_lot_task_completed(_: &SimContext, unit: &mut Unit, dest_tile: &Tile, _: u32) {
     log::info!("Unit {} reached {}.", unit.name(), dest_tile.name());
     unit.debug.popup_msg(format!("Reached {}", dest_tile.name()));
 }
 
-fn unit_debug_settle_task_completed(unit: &mut Unit, dest_tile: &Tile, population_to_add: u32, _: &SimContext) {
+fn unit_debug_settle_task_completed(_: &SimContext, unit: &mut Unit, dest_tile: &Tile, population_to_add: u32) {
     debug_assert!(population_to_add == 1);
     log::info!("Unit {} reached {}.", unit.name(), dest_tile.name());
     unit.debug.popup_msg(format!("Reached {}", dest_tile.name()));
@@ -581,7 +575,7 @@ fn unit_debug_settle_task_post_despawn(
     }
 }
 
-fn unit_debug_harvest_wood_task_completed(building: &mut Building, unit: &mut Unit, _: &SimContext) {
+fn unit_debug_harvest_wood_task_completed(_: &SimContext, building: &mut Building, unit: &mut Unit) {
     let item = unit.inventory.peek().unwrap();
     log::info!(
         "Unit {}: Harvested for: {}. Task Completed. Got: {}, {}",

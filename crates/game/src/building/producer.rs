@@ -624,7 +624,7 @@ impl ProducerBuilding {
         );
     }
 
-    fn on_resources_delivered(this_building: &mut Building, runner_unit: &mut Unit, context: &SimContext) {
+    fn on_resources_delivered(context: &SimContext, this_building: &mut Building, runner_unit: &mut Unit) {
         let this_producer = this_building.as_producer_mut();
 
         debug_assert!(runner_unit.inventory_is_empty(), "Runner Unit should have delivered all resourced by now!");
@@ -635,7 +635,7 @@ impl ProducerBuilding {
         this_producer.debug.popup_msg_color(Color::cyan(), "Delivery Task complete");
     }
 
-    fn on_resources_fetched(this_building: &mut Building, runner_unit: &mut Unit, context: &SimContext) {
+    fn on_resources_fetched(context: &SimContext, this_building: &mut Building, runner_unit: &mut Unit) {
         let this_building_kind = this_building.kind();
         let this_producer = this_building.as_producer_mut();
 
@@ -671,7 +671,7 @@ impl ProducerBuilding {
         this_producer.debug.popup_msg_color(Color::cyan(), "Fetch Task complete");
     }
 
-    fn on_resources_harvested(this_building: &mut Building, harvester_unit: &mut Unit, context: &SimContext) {
+    fn on_resources_harvested(context: &SimContext, this_building: &mut Building, harvester_unit: &mut Unit) {
         let this_producer = this_building.as_producer_mut();
 
         debug_assert!(this_producer.is_harvester_fetching_resources(context), "No Harvester was sent out by this building!");

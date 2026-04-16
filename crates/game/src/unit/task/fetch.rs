@@ -10,10 +10,16 @@ use super::{
     UnitTaskPool,
     UnitTaskResult,
     UnitTaskState,
-    common::{PathFindResult, find_storage_fetch_candidate, invoke_completion_callback, visit_destination},
+    common::{
+        PathFindResult,
+        find_storage_fetch_candidate,
+        visit_destination_deferred,
+        invoke_completion_callback_immediate,
+        invoke_completion_callback_deferred,
+    },
 };
 use crate::{
-    debug::{self},
+    debug,
     pathfind::SearchResult,
     tile::TileMapLayerKind,
     unit::{Unit, navigation::UnitNavGoal},
@@ -25,7 +31,7 @@ use crate::{
 // UnitTaskFetchFromStorage
 // ----------------------------------------------
 
-pub type UnitTaskFetchCompletionCallback = fn(&mut Building, &mut Unit, &SimContext);
+pub type UnitTaskFetchCompletionCallback = fn(&SimContext, &mut Building, &mut Unit);
 
 #[derive(Copy, Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
 pub enum UnitTaskFetchState {
@@ -50,7 +56,7 @@ pub struct UnitTaskFetchFromStorage {
     pub resources_to_fetch: ShoppingList, // Will fetch at most *one* of these. This is a list of desired options.
 
     // Called on the origin building once the unit has returned with resources.
-    // `|origin_building, runner_unit, context|`
+    // `|context, origin_building, runner_unit|`
     pub completion_callback: Callback<UnitTaskFetchCompletionCallback>,
 
     // Optional completion task to run after this task.
@@ -121,21 +127,6 @@ impl UnitTaskFetchFromStorage {
             }
         }
     }
-
-    fn notify_completion(&mut self, unit: &mut Unit, context: &SimContext) {
-        if self.completion_callback.is_valid() {
-            invoke_completion_callback(
-                unit,
-                context,
-                self.origin_building.kind,
-                self.origin_building.id,
-                self.completion_callback.get(),
-            );
-        }
-
-        debug_assert_ne!(self.internal_state, UnitTaskFetchState::Completed);
-        self.internal_state = UnitTaskFetchState::Completed;
-    }
 }
 
 impl UnitTask for UnitTaskFetchFromStorage {
@@ -167,7 +158,7 @@ impl UnitTask for UnitTaskFetchFromStorage {
         }
     }
 
-    fn update(&mut self, unit: &mut Unit, _cmds: &mut SimCmds, context: &SimContext) -> UnitTaskState {
+    fn update(&mut self, unit: &mut Unit, cmds: &mut SimCmds, context: &SimContext) -> UnitTaskState {
         // If we have a goal we're already moving somewhere,
         // otherwise we may need to pathfind again.
         match self.internal_state {
@@ -189,7 +180,21 @@ impl UnitTask for UnitTaskFetchFromStorage {
                             "Aborting TaskFetchFromStorage. Unable to return to origin building..."
                         );
                         unit.clear_inventory();
-                        self.notify_completion(unit, context);
+
+                        if self.completion_callback.is_valid() {
+                            invoke_completion_callback_deferred(
+                                unit,
+                                cmds,
+                                context,
+                                self.origin_building.kind,
+                                self.origin_building.id,
+                                self.completion_callback.get(),
+                            );
+                        }
+
+                        debug_assert_ne!(self.internal_state, UnitTaskFetchState::Completed);
+                        self.internal_state = UnitTaskFetchState::Completed;
+
                         return UnitTaskState::Completed;
                     }
                 }
@@ -230,7 +235,20 @@ impl UnitTask for UnitTaskFetchFromStorage {
                 debug_assert!(self.resources_to_fetch.iter().any(|entry| entry.kind == unit.peek_inventory().unwrap().kind));
             }
 
-            self.notify_completion(unit, context);
+            if self.completion_callback.is_valid() {
+                invoke_completion_callback_deferred(
+                    unit,
+                    cmds,
+                    context,
+                    self.origin_building.kind,
+                    self.origin_building.id,
+                    self.completion_callback.get(),
+                );
+            }
+
+            debug_assert_ne!(self.internal_state, UnitTaskFetchState::Completed);
+            self.internal_state = UnitTaskFetchState::Completed;
+
             unit.follow_path(None);
 
             if !unit.inventory_is_empty() {
@@ -248,7 +266,7 @@ impl UnitTask for UnitTaskFetchFromStorage {
             // We may fail and try again with another building or start returning to the origin.
             debug_assert!(unit.inventory_is_empty());
 
-            let destination_exists = visit_destination(unit, cmds, context, |context, _building, unit, _result| {
+            let destination_exists = visit_destination_deferred(unit, cmds, context, |context, _building, unit, _result| {
                 let task = unit.current_task_as_mut::<Self>(context.task_manager_mut())
                     .expect("Expected unit to be running UnitTaskFetchFromStorage!");
 
@@ -274,7 +292,20 @@ impl UnitTask for UnitTaskFetchFromStorage {
                             "Aborting TaskFetchFromStorage. Unable to return to origin building..."
                         );
                         unit.clear_inventory();
-                        task.notify_completion(unit, context);
+
+                        // NOTE: Invoke callback immediately; we are already inside a deferred callback.
+                        if task.completion_callback.is_valid() {
+                            invoke_completion_callback_immediate(
+                                unit,
+                                context,
+                                task.origin_building.kind,
+                                task.origin_building.id,
+                                task.completion_callback.get(),
+                            );
+                        }
+
+                        debug_assert_ne!(task.internal_state, UnitTaskFetchState::Completed);
+                        task.internal_state = UnitTaskFetchState::Completed;
                     }
 
                     debug_assert!(matches!(

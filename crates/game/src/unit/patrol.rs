@@ -36,7 +36,7 @@ use crate::{
 // PatrolInternalState
 // ----------------------------------------------
 
-pub type PatrolCompletionCallback = fn(&mut Building, &mut Unit, &SimContext) -> bool;
+pub type PatrolCompletionCallback = fn(&SimContext, &mut Building, &mut Unit);
 
 #[derive(Clone, DrawDebugUi, Serialize, Deserialize)]
 struct PatrolInternalState {
@@ -168,7 +168,7 @@ impl Patrol {
         }
     }
 
-    fn on_randomized_patrol_completed(origin_building: &mut Building, patrol_unit: &mut Unit, context: &SimContext) -> bool {
+    fn on_randomized_patrol_completed(context: &SimContext, origin_building: &mut Building, patrol_unit: &mut Unit) {
         let patrol_task = patrol_unit
             .current_task_as::<UnitTaskRandomizedPatrol>(context.task_manager())
             .expect("Expected Patrol Unit to be running a UnitTaskRandomizedPatrol!");
@@ -181,10 +181,8 @@ impl Patrol {
 
         if state.completion_callback.is_valid() {
             let callback = state.completion_callback.get();
-            return callback(origin_building, patrol_unit, context);
+            callback(context, origin_building, patrol_unit);
         }
-
-        true // Task completed.
     }
 
     #[inline]
@@ -334,7 +332,7 @@ impl TimedAmbientPatrol {
         );
     }
 
-    fn on_timed_patrol_completed(this_building: &mut Building, patrol_unit: &mut Unit, context: &SimContext) -> bool {
+    fn on_timed_patrol_completed(context: &SimContext, this_building: &mut Building, patrol_unit: &mut Unit) {
         let patrol = this_building.active_patrol().expect("Expected building to have an active TimedAmbientPatrol!");
 
         debug_assert!(patrol.unit_id() == patrol_unit.id());
@@ -344,7 +342,6 @@ impl TimedAmbientPatrol {
         );
 
         patrol.reset();
-        true
     }
 
     fn randomized_spawn_frequency(rng: &mut RandomGenerator, spawn_frequency_secs: [Seconds; 2]) -> Seconds {

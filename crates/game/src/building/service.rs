@@ -536,7 +536,7 @@ impl ServiceBuilding {
         self.runner.is_running_task::<UnitTaskFetchFromStorage>(context)
     }
 
-    fn on_resources_fetched(this_building: &mut Building, runner_unit: &mut Unit, context: &SimContext) {
+    fn on_resources_fetched(context: &SimContext, this_building: &mut Building, runner_unit: &mut Unit) {
         let this_building_kind = this_building.kind();
         let this_service = this_building.as_service_mut();
 
@@ -631,7 +631,7 @@ impl ServiceBuilding {
         self.patrol.is_spawned_or_pending_spawn()
     }
 
-    fn on_patrol_completed(this_building: &mut Building, patrol_unit: &mut Unit, context: &SimContext) -> bool {
+    fn on_patrol_completed(context: &SimContext, this_building: &mut Building, patrol_unit: &mut Unit) {
         let this_building_kind = this_building.kind();
         let this_service = this_building.as_service_mut();
 
@@ -665,8 +665,6 @@ impl ServiceBuilding {
 
         this_service.patrol.reset();
         this_service.debug.popup_msg_color(Color::magenta(), "Patrol complete");
-
-        true
     }
 }
 

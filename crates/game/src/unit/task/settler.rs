@@ -28,7 +28,7 @@ use crate::{
 // UnitTaskSettler
 // ----------------------------------------------
 
-pub type UnitTaskSettlerCompletionCallback = fn(&mut Unit, &Tile, u32, &SimContext);
+pub type UnitTaskSettlerCompletionCallback = fn(&SimContext, &mut Unit, &Tile, u32);
 
 #[derive(Copy, Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub enum UnitTaskSettlerGoal {
@@ -50,7 +50,7 @@ pub enum UnitTaskSettlerState {
 #[derive(Serialize, Deserialize)]
 pub struct UnitTaskSettler {
     // Optional completion callback. Invoke with the empty house lot building we've visited.
-    // |unit, dest_tile, population_to_add, context|
+    // |context, unit, dest_tile, population_to_add|
     pub completion_callback: Callback<UnitTaskSettlerCompletionCallback>,
 
     // Optional completion task to run after this task.
@@ -140,7 +140,7 @@ impl UnitTaskSettler {
     fn notify_completion(&mut self, unit: &mut Unit, tile: &Tile, context: &SimContext) {
         if self.completion_callback.is_valid() {
             let callback = self.completion_callback.get();
-            callback(unit, tile, self.population_to_add, context);
+            callback(context, unit, tile, self.population_to_add);
         }
 
         debug_assert_ne!(self.internal_state, UnitTaskSettlerState::Completed);

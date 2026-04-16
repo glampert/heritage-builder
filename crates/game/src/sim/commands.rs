@@ -248,6 +248,11 @@ enum SimCmd {
         unit_id: UnitId,
         on_post_visit: SpawnCallbackBox<BuildingVisitedCallback>,
     },
+    DeferBuildingTaskCallback {
+        kind_and_id: BuildingKindAndId,
+        unit_id: UnitId,
+        callback: SpawnCallbackBox<BuildingTaskCallback>,
+    },
     DeferBuildingUpdate {
         kind_and_id: BuildingKindAndId,
         callback: SpawnCallbackBox<GameObjectDeferredCallback<Building>>,
@@ -288,6 +293,9 @@ type GameObjectDeferredCallback<T> = dyn Fn(&SimContext, &mut T);
 
 // Optional post building visit callback. Receives the same arguments as Building::visited_by
 type BuildingVisitedCallback = dyn Fn(&SimContext, &mut Building, &mut Unit, BuildingVisitResult);
+
+// Task completion callback for building + unit.
+type BuildingTaskCallback = dyn Fn(&SimContext, &mut Building, &mut Unit);
 
 // ----------------------------------------------
 // SimCmds
@@ -517,6 +525,14 @@ impl SimCmds {
     }
 
     #[inline]
+    pub fn defer_building_task_cb<F>(&mut self, kind_and_id: BuildingKindAndId, unit_id: UnitId, callback: F)
+    where
+        F: Fn(&SimContext, &mut Building, &mut Unit) + 'static
+    {
+        self.cmds.push(SimCmd::DeferBuildingTaskCallback { kind_and_id, unit_id, callback: smallbox!(callback) });
+    }
+
+    #[inline]
     pub fn defer_building_update<F>(&mut self, kind_and_id: BuildingKindAndId, callback: F)
     where
         F: Fn(&SimContext, &mut Building) + 'static
@@ -586,7 +602,7 @@ impl SimCmds {
 
                 if let Some(state_id) = state_id {
                     let promise = promises.try_get_mut(*state_id)
-                        .unwrap_or_else(|| panic!("SpawnTileWithTileDef: Invalid SpawnPromiseStateId: {}", state_id.0));
+                        .unwrap_or_else(|| panic!("SimCmd::SpawnTileWithTileDef: Invalid SpawnPromiseStateId: {}", state_id.0));
 
                     debug_assert!(promise.is_pending());
 
@@ -641,6 +657,17 @@ impl SimCmds {
                 // Optional post visit user callback.
                 on_post_visit(context, building, unit, result);
             }
+            SimCmd::DeferBuildingTaskCallback { kind_and_id, unit_id, callback } => {
+                let building = context.world_mut()
+                    .find_building_mut(kind_and_id.kind, kind_and_id.id)
+                    .unwrap_or_else(|| panic!("SimCmd::DeferBuildingTaskCallback invalid building kind/id: {} {}", kind_and_id.kind, kind_and_id.id));
+
+                let unit = context.world_mut()
+                    .find_unit_mut(*unit_id)
+                    .unwrap_or_else(|| panic!("SimCmd::DeferBuildingTaskCallback invalid unit id: {unit_id}"));
+    
+                callback(context, building, unit);
+            }
             SimCmd::DeferBuildingUpdate { kind_and_id, callback } => {
                 let building = context.world_mut()
                     .find_building_mut(kind_and_id.kind, kind_and_id.id)
@@ -674,7 +701,7 @@ impl SimCmds {
     ) {
         if let Some(state_id) = state_id {
             let promise = promises.try_get_mut(*state_id)
-                .unwrap_or_else(|| panic!("Invalid SpawnPromiseStateId: {}", state_id.0));
+                .unwrap_or_else(|| panic!("SimCmds - Invalid SpawnPromiseStateId: {}", state_id.0));
 
             debug_assert!(promise.is_pending());
 
