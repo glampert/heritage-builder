@@ -194,6 +194,14 @@ impl PathFilter for UnitPatrolReturnPathFilter<'_> {
 
 pub type UnitTaskPatrolCompletionCallback = fn(&SimContext, &mut Building, &mut Unit);
 
+#[derive(Copy, Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub enum UnitTaskPatrolState {
+    #[default]
+    Running,
+    PendingCompletionCallback,
+    Completed,
+}
+
 // - Unit walks up to a certain distance away from the origin.
 // - Once max distance is reached, start walking back to origin.
 // - Visit any buildings it is interested on along the way.
@@ -222,6 +230,11 @@ pub struct UnitTaskRandomizedPatrol {
 
     // Optional idle timeout between goals.
     pub idle_countdown: Option<(CountdownTimer, Seconds)>,
+
+    // Current internal completion state. Should start as Running.
+    // Deserialize uses Default if missing to retain backwards compatibility with older save files.
+    #[serde(default)]
+    pub internal_state: UnitTaskPatrolState,
 }
 
 impl UnitTaskRandomizedPatrol {
@@ -327,6 +340,18 @@ impl UnitTask for UnitTaskRandomizedPatrol {
     }
 
     fn update(&mut self, unit: &mut Unit, cmds: &mut SimCmds, context: &SimContext) -> UnitTaskState {
+        match self.internal_state {
+            UnitTaskPatrolState::PendingCompletionCallback => {
+                // Wait for the deferred completion callback to be executed.
+                return UnitTaskState::Running;
+            }
+            UnitTaskPatrolState::Completed => {
+                // Deferred completion callback has run; end the task.
+                return UnitTaskState::Completed;
+            }
+            UnitTaskPatrolState::Running => {}
+        }
+
         // If we have a goal we're already moving somewhere,
         // otherwise we may need to pathfind again.
         if unit.goal().is_none() {
@@ -377,20 +402,40 @@ impl UnitTask for UnitTaskRandomizedPatrol {
     }
 
     fn completed(&mut self, unit: &mut Unit, cmds: &mut SimCmds, context: &SimContext) -> UnitTaskResult {
+        // If the deferred completion callback has already run, finalize the task.
+        if self.internal_state == UnitTaskPatrolState::Completed {
+            return UnitTaskResult::completed_with(&mut self.completion_task);
+        }
+
         let unit_goal = unit.goal().expect("Expected unit to have an active goal!");
         let mut task_completed = false;
 
         if self.is_returning_to_origin(unit_goal) {
             if self.completion_callback.is_valid() {
-                invoke_completion_callback_deferred(
+                let scheduled = invoke_completion_callback_deferred(
                     unit,
                     cmds,
                     context,
                     self.origin_building.kind,
                     self.origin_building.id,
                     self.completion_callback.get(),
+                    |context, _building, unit| {
+                        let task = unit.current_task_as_mut::<Self>(context.task_manager_mut())
+                            .expect("Expected unit to be running UnitTaskRandomizedPatrol!");
+
+                        debug_assert_eq!(task.internal_state, UnitTaskPatrolState::PendingCompletionCallback);
+                        task.internal_state = UnitTaskPatrolState::Completed;
+                    },
                 );
 
+                if scheduled {
+                    // Wait for deferred callback to complete before ending the task.
+                    self.internal_state = UnitTaskPatrolState::PendingCompletionCallback;
+                    unit.follow_path(None);
+                    return UnitTaskResult::Retry;
+                }
+
+                // Origin building no longer exists; end the task without invoking the callback.
                 task_completed = true;
                 unit.follow_path(None);
             }
@@ -419,6 +464,7 @@ impl UnitTask for UnitTaskRandomizedPatrol {
         let building_name = debug::tile_name_at(building_cell, TileMapLayerKind::Objects);
 
         ui.text(format!("Origin Building         : {}, '{}', {}", building_kind, building_name, building_cell));
+        ui.text(format!("Internal State          : {:?}", self.internal_state));
         ui.text(format!("Max Distance            : {}", self.max_distance));
         ui.text(format!("Min Path Bias           : {}", self.path_bias_min));
         ui.text(format!("Max Path Bias           : {}", self.path_bias_max));

@@ -316,6 +316,7 @@ impl Unit {
                         completion_callback: callback::create!(unit_debug_patrol_task_completed),
                         completion_task,
                         idle_countdown: None,
+                        internal_state: UnitTaskPatrolState::default(),
                     });
                     self.assign_task(task_manager, task);
                 }
@@ -470,6 +471,7 @@ impl Unit {
                         harvest_timer: CountdownTimer::default(),
                         harvest_target: PropId::default(),
                         is_returning_to_origin: false,
+                        internal_state: UnitTaskHarvestState::default(),
                     });
                     self.assign_task(task_manager, task);
                 }

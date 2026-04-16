@@ -40,6 +40,7 @@ pub enum UnitTaskFetchState {
     MovingToGoal,
     PendingBuildingVisit,
     ReturningToOrigin,
+    PendingCompletionCallback,
     Completed,
 }
 
@@ -182,14 +183,28 @@ impl UnitTask for UnitTaskFetchFromStorage {
                         unit.clear_inventory();
 
                         if self.completion_callback.is_valid() {
-                            invoke_completion_callback_deferred(
+                            let scheduled = invoke_completion_callback_deferred(
                                 unit,
                                 cmds,
                                 context,
                                 self.origin_building.kind,
                                 self.origin_building.id,
                                 self.completion_callback.get(),
+                                |context, _building, unit| {
+                                    let task = unit.current_task_as_mut::<Self>(context.task_manager_mut())
+                                        .expect("Expected unit to be running UnitTaskFetchFromStorage!");
+
+                                    debug_assert_eq!(task.internal_state, UnitTaskFetchState::PendingCompletionCallback);
+                                    task.internal_state = UnitTaskFetchState::Completed;
+                                },
                             );
+
+                            if scheduled {
+                                // Wait for deferred callback to run before ending the task.
+                                debug_assert_ne!(self.internal_state, UnitTaskFetchState::PendingCompletionCallback);
+                                self.internal_state = UnitTaskFetchState::PendingCompletionCallback;
+                                return UnitTaskState::Running;
+                            }
                         }
 
                         debug_assert_ne!(self.internal_state, UnitTaskFetchState::Completed);
@@ -199,8 +214,8 @@ impl UnitTask for UnitTaskFetchFromStorage {
                     }
                 }
             }
-            UnitTaskFetchState::PendingBuildingVisit => {
-                // Wait for building visited callback to be invoked.
+            UnitTaskFetchState::PendingBuildingVisit | UnitTaskFetchState::PendingCompletionCallback => {
+                // Wait for deferred callback to be invoked.
                 return UnitTaskState::Running;
             }
             UnitTaskFetchState::Completed => {
@@ -225,6 +240,19 @@ impl UnitTask for UnitTaskFetchFromStorage {
             })
         };
 
+        // If the deferred completion callback has already run, finalize the task.
+        if self.internal_state == UnitTaskFetchState::Completed {
+            if !unit.inventory_is_empty() {
+                // TODO: We can recover from this and ship the resources back to storage.
+                log::error!(
+                    log::channel!("TODO"),
+                    "TaskFetchFromStorage: Failed to unload all resources. Src building destroyed?"
+                );
+                unit.clear_inventory();
+            }
+            return UnitTaskResult::completed_with(&mut self.completion_task);
+        }
+
         let task_completed = if self.internal_state == UnitTaskFetchState::ReturningToOrigin || goal_is_origin_building(unit) {
             // We've reached our origin building with the resources we were supposed to
             // fetch. Invoke the completion callback and end the task.
@@ -236,14 +264,29 @@ impl UnitTask for UnitTaskFetchFromStorage {
             }
 
             if self.completion_callback.is_valid() {
-                invoke_completion_callback_deferred(
+                let scheduled = invoke_completion_callback_deferred(
                     unit,
                     cmds,
                     context,
                     self.origin_building.kind,
                     self.origin_building.id,
                     self.completion_callback.get(),
+                    |context, _building, unit| {
+                        let task = unit.current_task_as_mut::<Self>(context.task_manager_mut())
+                            .expect("Expected unit to be running UnitTaskFetchFromStorage!");
+
+                        debug_assert_eq!(task.internal_state, UnitTaskFetchState::PendingCompletionCallback);
+                        task.internal_state = UnitTaskFetchState::Completed;
+                    },
                 );
+
+                if scheduled {
+                    // Wait for deferred callback to run before ending the task.
+                    debug_assert_ne!(self.internal_state, UnitTaskFetchState::PendingCompletionCallback);
+                    self.internal_state = UnitTaskFetchState::PendingCompletionCallback;
+                    unit.follow_path(None);
+                    return UnitTaskResult::Retry;
+                }
             }
 
             debug_assert_ne!(self.internal_state, UnitTaskFetchState::Completed);

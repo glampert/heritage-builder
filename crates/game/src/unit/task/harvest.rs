@@ -46,6 +46,14 @@ const WOOD_HARVEST_TIME_INTERVAL: Seconds = 20.0;
 // Take a random range between 1 and this for the amount of wood harvested each time.
 const WOOD_HARVEST_MAX_AMOUNT: u32 = 5;
 
+#[derive(Copy, Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub enum UnitTaskHarvestState {
+    #[default]
+    Running,
+    PendingCompletionCallback,
+    Completed,
+}
+
 #[derive(Serialize, Deserialize)]
 pub struct UnitTaskHarvestWood {
     // Origin building info:
@@ -63,6 +71,11 @@ pub struct UnitTaskHarvestWood {
     pub harvest_timer: CountdownTimer,
     pub harvest_target: PropId,
     pub is_returning_to_origin: bool,
+
+    // Current internal completion state. Should start as Running.
+    // Deserialize uses Default if missing to retain backwards compatibility with older save files.
+    #[serde(default)]
+    pub internal_state: UnitTaskHarvestState,
 }
 
 struct FindHarvestableTreeFilter<'task> {
@@ -209,6 +222,18 @@ impl UnitTask for UnitTaskHarvestWood {
     }
 
     fn update(&mut self, unit: &mut Unit, _cmds: &mut SimCmds, context: &SimContext) -> UnitTaskState {
+        match self.internal_state {
+            UnitTaskHarvestState::PendingCompletionCallback => {
+                // Wait for the deferred completion callback to be executed.
+                return UnitTaskState::Running;
+            }
+            UnitTaskHarvestState::Completed => {
+                // Deferred completion callback has run; end the task.
+                return UnitTaskState::Completed;
+            }
+            UnitTaskHarvestState::Running => {}
+        }
+
         // If we have a goal we're already moving somewhere,
         // otherwise we may need to pathfind again.
         if unit.goal().is_none() {
@@ -228,6 +253,15 @@ impl UnitTask for UnitTaskHarvestWood {
     }
 
     fn completed(&mut self, unit: &mut Unit, cmds: &mut SimCmds, context: &SimContext) -> UnitTaskResult {
+        // If the deferred completion callback has already run, finalize the task.
+        if self.internal_state == UnitTaskHarvestState::Completed {
+            if !unit.inventory_is_empty() {
+                log::warning!(log::channel!("task"), "TaskHarvestWood: Failed to unload all resources.");
+                unit.clear_inventory();
+            }
+            return UnitTaskResult::completed_with(&mut self.completion_task);
+        }
+
         let mut task_completed = false;
 
         if self.is_returning_to_origin {
@@ -245,14 +279,28 @@ impl UnitTask for UnitTaskHarvestWood {
             debug_assert!(unit.peek_inventory().unwrap().kind == ResourceKind::Wood);
 
             if self.completion_callback.is_valid() {
-                invoke_completion_callback_deferred(
+                let scheduled = invoke_completion_callback_deferred(
                     unit,
                     cmds,
                     context,
                     self.origin_building.kind,
                     self.origin_building.id,
                     self.completion_callback.get(),
+                    |context, _building, unit| {
+                        let task = unit.current_task_as_mut::<Self>(context.task_manager_mut())
+                            .expect("Expected unit to be running UnitTaskHarvestWood!");
+
+                        debug_assert_eq!(task.internal_state, UnitTaskHarvestState::PendingCompletionCallback);
+                        task.internal_state = UnitTaskHarvestState::Completed;
+                    },
                 );
+
+                if scheduled {
+                    // Wait for deferred callback to complete before ending the task.
+                    self.internal_state = UnitTaskHarvestState::PendingCompletionCallback;
+                    unit.follow_path(None);
+                    return UnitTaskResult::Retry;
+                }
             }
 
             if !unit.inventory_is_empty() {
@@ -321,6 +369,7 @@ impl UnitTask for UnitTaskHarvestWood {
         let building_name = debug::tile_name_at(building_cell, TileMapLayerKind::Objects);
 
         ui.text(format!("Origin Building         : {}, '{}', {}", building_kind, building_name, building_cell));
+        ui.text(format!("Internal State          : {:?}", self.internal_state));
         ui.text(format!("Is Returning To Origin  : {}", self.is_returning_to_origin));
         ui.separator();
         ui.text(format!("Harvest Target          : {}", self.harvest_target));

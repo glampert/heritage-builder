@@ -147,6 +147,12 @@ where
     false
 }
 
+// The post-callback is used to notify the owning task that the deferred
+// callback has been executed so it can end.
+//
+// NOTE: If the origin building is no longer valid, neither callback will run,
+// so the caller must be able to handle this case as well (the task will simply
+// not see its post-callback fire and should recover on its own).
 pub(super) fn invoke_completion_callback_deferred<F>(
     unit: &mut Unit,
     cmds: &mut SimCmds,
@@ -154,11 +160,25 @@ pub(super) fn invoke_completion_callback_deferred<F>(
     origin_building_kind: BuildingKind,
     origin_building_id: BuildingId,
     callback: F,
-)
+    post_callback: F,
+) -> bool
 where
     F: Fn(&SimContext, &mut Building, &mut Unit) + 'static
 {
-    invoke_completion_callback_internal(unit, Some(cmds), context, origin_building_kind, origin_building_id, callback);
+    // Deferred execution (non-mutable building access).
+    if let Some(origin_building) = context.world().find_building(origin_building_kind, origin_building_id) {
+        // NOTE: Only invoke the completion callback if the original base cell still
+        // contains the exact same building that initiated this task. We don't
+        // want to accidentally invoke the callback on a different building,
+        // even if the type of building there is the same.
+        debug_assert!(origin_building.kind() == origin_building_kind);
+        debug_assert!(origin_building.id()   == origin_building_id);
+
+        cmds.defer_building_task_cb_with_post(origin_building.kind_and_id(), unit.id(), callback, post_callback);
+        return true;
+    }
+
+    false
 }
 
 pub(super) fn invoke_completion_callback_immediate<F>(
@@ -167,45 +187,21 @@ pub(super) fn invoke_completion_callback_immediate<F>(
     origin_building_kind: BuildingKind,
     origin_building_id: BuildingId,
     callback: F,
-)
+) -> bool
 where
     F: Fn(&SimContext, &mut Building, &mut Unit) + 'static
 {
-    invoke_completion_callback_internal(unit, None, context, origin_building_kind, origin_building_id, callback);
-}
+    // Immediate execution (requires mutable building access).
+    if let Some(origin_building) = context.world_mut().find_building_mut(origin_building_kind, origin_building_id) {
+        // See comment above on invoke_completion_callback_deferred.
+        debug_assert!(origin_building.kind() == origin_building_kind);
+        debug_assert!(origin_building.id()   == origin_building_id);
 
-fn invoke_completion_callback_internal<F>(
-    unit: &mut Unit,
-    cmds: Option<&mut SimCmds>,
-    context: &SimContext,
-    origin_building_kind: BuildingKind,
-    origin_building_id: BuildingId,
-    callback: F,
-)
-where
-    F: Fn(&SimContext, &mut Building, &mut Unit) + 'static
-{
-    if let Some(cmds) = cmds {
-        // Deferred execution (non-mutable building access):
-        if let Some(origin_building) = context.world().find_building(origin_building_kind, origin_building_id) {
-            // NOTE: Only invoke the completion callback if the original base cell still
-            // contains the exact same building that initiated this task. We don't
-            // want to accidentally invoke the callback on a different building,
-            // even if the type of building there is the same.
-            debug_assert!(origin_building.kind() == origin_building_kind);
-            debug_assert!(origin_building.id()   == origin_building_id);
-
-            cmds.defer_building_task_cb(origin_building.kind_and_id(), unit.id(), callback);
-        }
-    } else {
-        // Immediate execution (requires mutable building access):
-        if let Some(origin_building) = context.world_mut().find_building_mut(origin_building_kind, origin_building_id) {
-            debug_assert!(origin_building.kind() == origin_building_kind);
-            debug_assert!(origin_building.id()   == origin_building_id);
-
-            callback(context, origin_building, unit);
-        }
+        callback(context, origin_building, unit);
+        return true;
     }
+
+    false
 }
 
 // ----------------------------------------------

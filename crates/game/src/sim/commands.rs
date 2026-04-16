@@ -246,12 +246,15 @@ enum SimCmd {
     VisitBuilding {
         kind_and_id: BuildingKindAndId,
         unit_id: UnitId,
-        on_post_visit: SpawnCallbackBox<BuildingVisitedCallback>,
+        on_post_visit: Option<SpawnCallbackBox<BuildingVisitedCallback>>,
     },
     DeferBuildingTaskCallback {
         kind_and_id: BuildingKindAndId,
         unit_id: UnitId,
         callback: SpawnCallbackBox<BuildingTaskCallback>,
+        // Optional callback invoked after the main one, e.g. to notify
+        // the owning task that the deferred callback has been executed.
+        post_callback: Option<SpawnCallbackBox<BuildingTaskCallback>>,
     },
     DeferBuildingUpdate {
         kind_and_id: BuildingKindAndId,
@@ -511,9 +514,8 @@ impl SimCmds {
 
     #[inline]
     pub fn visit_building(&mut self, kind_and_id: BuildingKindAndId, unit_id: UnitId) {
-        // No user defined completion callback.
-        fn empty_cb(_ctx: &SimContext, _building: &mut Building, _unit: &mut Unit, _result: BuildingVisitResult) {}
-        self.cmds.push(SimCmd::VisitBuilding { kind_and_id, unit_id, on_post_visit: smallbox!(empty_cb) });
+        // Without user-specified completion callback.
+        self.cmds.push(SimCmd::VisitBuilding { kind_and_id, unit_id, on_post_visit: None });
     }
 
     #[inline]
@@ -521,7 +523,7 @@ impl SimCmds {
     where
         F: Fn(&SimContext, &mut Building, &mut Unit, BuildingVisitResult) + 'static
     {
-        self.cmds.push(SimCmd::VisitBuilding { kind_and_id, unit_id, on_post_visit: smallbox!(on_post_visit) });
+        self.cmds.push(SimCmd::VisitBuilding { kind_and_id, unit_id, on_post_visit: Some(smallbox!(on_post_visit)) });
     }
 
     #[inline]
@@ -529,7 +531,15 @@ impl SimCmds {
     where
         F: Fn(&SimContext, &mut Building, &mut Unit) + 'static
     {
-        self.cmds.push(SimCmd::DeferBuildingTaskCallback { kind_and_id, unit_id, callback: smallbox!(callback) });
+        self.cmds.push(SimCmd::DeferBuildingTaskCallback { kind_and_id, unit_id, callback: smallbox!(callback), post_callback: None });
+    }
+
+    #[inline]
+    pub fn defer_building_task_cb_with_post<F>(&mut self, kind_and_id: BuildingKindAndId, unit_id: UnitId, callback: F, post_callback: F)
+    where
+        F: Fn(&SimContext, &mut Building, &mut Unit) + 'static
+    {
+        self.cmds.push(SimCmd::DeferBuildingTaskCallback { kind_and_id, unit_id, callback: smallbox!(callback), post_callback: Some(smallbox!(post_callback)) });
     }
 
     #[inline]
@@ -655,9 +665,11 @@ impl SimCmds {
                 let result = building.visited_by(unit, context);
 
                 // Optional post visit user callback.
-                on_post_visit(context, building, unit, result);
+                if let Some(on_post_visit) = on_post_visit {
+                    on_post_visit(context, building, unit, result);
+                }
             }
-            SimCmd::DeferBuildingTaskCallback { kind_and_id, unit_id, callback } => {
+            SimCmd::DeferBuildingTaskCallback { kind_and_id, unit_id, callback, post_callback } => {
                 let building = context.world_mut()
                     .find_building_mut(kind_and_id.kind, kind_and_id.id)
                     .unwrap_or_else(|| panic!("SimCmd::DeferBuildingTaskCallback invalid building kind/id: {} {}", kind_and_id.kind, kind_and_id.id));
@@ -665,8 +677,14 @@ impl SimCmds {
                 let unit = context.world_mut()
                     .find_unit_mut(*unit_id)
                     .unwrap_or_else(|| panic!("SimCmd::DeferBuildingTaskCallback invalid unit id: {unit_id}"));
-    
+
                 callback(context, building, unit);
+
+                // Optional post-callback. Runs after the main callback with the same refs,
+                // letting the caller observe completion (e.g. to advance a task state machine).
+                if let Some(post_callback) = post_callback {
+                    post_callback(context, building, unit);
+                }
             }
             SimCmd::DeferBuildingUpdate { kind_and_id, callback } => {
                 let building = context.world_mut()

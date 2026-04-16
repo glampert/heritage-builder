@@ -8,7 +8,7 @@ use super::{
     UnitSpawnState,
     SpawnedUnitWithTask,
     config::UnitConfigKey,
-    task::{UnitTaskDespawn, UnitTaskHarvestCompletionCallback, UnitTaskHarvestWood},
+    task::{UnitTaskDespawn, UnitTaskHarvestCompletionCallback, UnitTaskHarvestState, UnitTaskHarvestWood},
 };
 use crate::{
     prop::PropId,
@@ -75,6 +75,7 @@ impl Harvester {
                 harvest_timer: CountdownTimer::default(),
                 harvest_target: PropId::default(),
                 is_returning_to_origin: false,
+                internal_state: UnitTaskHarvestState::default(),
             },
         );
     }

@@ -22,6 +22,7 @@ use super::{
         UnitTaskDespawn,
         UnitPatrolPathRecord,
         UnitTaskPatrolCompletionCallback,
+        UnitTaskPatrolState,
         UnitTaskRandomizedPatrol,
     },
 };
@@ -137,6 +138,7 @@ impl Patrol {
                 completion_callback: callback::create!(Patrol::on_randomized_patrol_completed),
                 completion_task: context.sim_ctx.task_manager_mut().new_task(UnitTaskDespawn),
                 idle_countdown: idle_countdown_secs.map(|countdown| (CountdownTimer::new(countdown), countdown)),
+                internal_state: UnitTaskPatrolState::default(),
             });
     }
 
