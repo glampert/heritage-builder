@@ -9,7 +9,7 @@ use common::{
     Color,
     callback::Callback,
     coords::Cell,
-    mem::RawPtr,
+    mem::{self, RawPtr},
     time::{CountdownTimer, Seconds},
 };
 use engine::{log, ui::UiSystem};
@@ -24,7 +24,14 @@ use crate::{
     debug::{self},
     prop::PropId,
     world::object::{GameObject, GenerationalIndex},
-    building::{Building, BuildingId, BuildingKind, BuildingKindAndId, BuildingTileInfo},
+    building::{
+        Building,
+        BuildingId,
+        BuildingKind,
+        BuildingKindAndId,
+        BuildingTileInfo,
+        BuildingVisitResult,
+    },
     tile::{Tile, TileFlags, TileKind, TileMapLayerKind},
     pathfind::{
         self,
@@ -70,14 +77,14 @@ pub enum UnitTaskResult {
     },
 }
 
-pub struct UnitTaskForwarded(Option<UnitTaskId>);
-
-#[inline]
-fn forward_task(task: &mut Option<UnitTaskId>) -> UnitTaskForwarded {
-    let mut forwarded = None;
-    std::mem::swap(&mut forwarded, task);
-    UnitTaskForwarded(forwarded)
+impl UnitTaskResult {
+    #[inline]
+    fn completed_with(completion_task: &mut Option<UnitTaskId>) -> Self {
+        Self::Completed { next_task: UnitTaskForwarded(completion_task.take()) }
+    }
 }
+
+pub struct UnitTaskForwarded(Option<UnitTaskId>);
 
 #[derive(Copy, Clone, Serialize, Deserialize)]
 pub enum UnitTaskArg {
@@ -153,20 +160,20 @@ pub trait UnitTask: Any {
     fn post_load(&mut self) {}
 
     // Performs one time initialization before the task is first run.
-    fn initialize(&mut self, _unit: &mut Unit, _context: &SimContext) {}
+    fn initialize(&mut self, _unit: &mut Unit, _cmds: &mut SimCmds, _context: &SimContext) {}
 
     // Cleans up any other task handles this task may have.
     // Called just before the task instance is freed.
     fn terminate(&mut self, _task_pool: &mut UnitTaskPool) {}
 
     // Returns the next state to move to.
-    fn update(&mut self, _unit: &mut Unit, _context: &SimContext) -> UnitTaskState {
+    fn update(&mut self, _unit: &mut Unit, _cmds: &mut SimCmds, _context: &SimContext) -> UnitTaskState {
         UnitTaskState::Completed
     }
 
     // Logic to execute once the task is marked as completed.
     // Returns the next task to run when completed or `None` if the task chain is over.
-    fn completed(&mut self, _unit: &mut Unit, _context: &SimContext) -> UnitTaskResult {
+    fn completed(&mut self, _unit: &mut Unit, _cmds: &mut SimCmds, _context: &SimContext) -> UnitTaskResult {
         UnitTaskResult::Completed { next_task: UnitTaskForwarded(None) }
     }
 
@@ -204,7 +211,7 @@ impl UnitTask for UnitTaskDespawn {
         self
     }
 
-    fn update(&mut self, unit: &mut Unit, context: &SimContext) -> UnitTaskState {
+    fn update(&mut self, unit: &mut Unit, _cmds: &mut SimCmds, context: &SimContext) -> UnitTaskState {
         check_unit_despawn_state::<UnitTaskDespawn>(unit, context);
         UnitTaskState::TerminateAndDespawn {
             post_despawn_callback: Callback::default(),
@@ -238,7 +245,7 @@ impl UnitTask for UnitTaskDespawnWithCallback {
         self.post_despawn_callback.post_load();
     }
 
-    fn update(&mut self, unit: &mut Unit, context: &SimContext) -> UnitTaskState {
+    fn update(&mut self, unit: &mut Unit, _cmds: &mut SimCmds, context: &SimContext) -> UnitTaskState {
         check_unit_despawn_state::<UnitTaskDespawnWithCallback>(unit, context);
         UnitTaskState::TerminateAndDespawn {
             post_despawn_callback: self.post_despawn_callback,
@@ -534,7 +541,7 @@ impl UnitTask for UnitTaskRandomizedPatrol {
         self.completion_callback.post_load();
     }
 
-    fn initialize(&mut self, unit: &mut Unit, context: &SimContext) {
+    fn initialize(&mut self, unit: &mut Unit, _cmds: &mut SimCmds, context: &SimContext) {
         // Sanity check:
         debug_assert!(unit.goal().is_none());
         debug_assert!(unit.cell() == self.origin_building_tile.road_link); // We start at the nearest building road link.
@@ -554,7 +561,7 @@ impl UnitTask for UnitTaskRandomizedPatrol {
         }
     }
 
-    fn update(&mut self, unit: &mut Unit, context: &SimContext) -> UnitTaskState {
+    fn update(&mut self, unit: &mut Unit, cmds: &mut SimCmds, context: &SimContext) -> UnitTaskState {
         // If we have a goal we're already moving somewhere,
         // otherwise we may need to pathfind again.
         if unit.goal().is_none() {
@@ -577,14 +584,11 @@ impl UnitTask for UnitTaskRandomizedPatrol {
 
             if let Some(node_kind) = graph.node_kind(current_node) {
                 if node_kind.intersects(PathNodeKind::BuildingRoadLink) {
-                    let world = context.world_mut();
-                    let tile_map = context.tile_map();
                     let neighbors = graph.neighbors(current_node, PathNodeKind::Building);
-
                     for neighbor in neighbors {
-                        if let Some(building) = world.find_building_for_cell_mut(neighbor.cell, tile_map) {
+                        if let Some(building) = context.world().find_building_for_cell(neighbor.cell, context.tile_map()) {
                             if building.is(buildings_to_visit) {
-                                building.visited_by(unit, context);
+                                cmds.visit_building(building.kind_and_id(), unit.id());
                             }
                         }
                     }
@@ -607,7 +611,7 @@ impl UnitTask for UnitTaskRandomizedPatrol {
         }
     }
 
-    fn completed(&mut self, unit: &mut Unit, context: &SimContext) -> UnitTaskResult {
+    fn completed(&mut self, unit: &mut Unit, _cmds: &mut SimCmds, context: &SimContext) -> UnitTaskResult {
         let unit_goal = unit.goal().expect("Expected unit to have an active goal!");
         let mut task_completed = false;
 
@@ -634,7 +638,7 @@ impl UnitTask for UnitTaskRandomizedPatrol {
         }
 
         if task_completed {
-            UnitTaskResult::Completed { next_task: forward_task(&mut self.completion_task) }
+            UnitTaskResult::completed_with(&mut self.completion_task)
         } else {
             UnitTaskResult::Retry
         }
@@ -657,10 +661,7 @@ impl UnitTask for UnitTaskRandomizedPatrol {
         ui.text(format!("Buildings To Visit      : {}", self.buildings_to_visit.unwrap_or(BuildingKind::empty())));
         ui.text(format!("Has Completion Callback : {}", self.completion_callback.is_valid()));
         ui.text(format!("Has Completion Task     : {}", self.completion_task.is_some()));
-        ui.text(format!(
-            "Idle Countdown Timer    : {:.2}",
-            self.idle_countdown.as_ref().map_or(0.0, |(countdown, _)| countdown.remaining_secs())
-        ));
+        ui.text(format!("Idle Countdown Timer    : {:.2}", self.idle_countdown.as_ref().map_or(0.0, |(countdown, _)| countdown.remaining_secs())));
 
         ui.separator();
 
@@ -694,6 +695,15 @@ impl UnitTask for UnitTaskRandomizedPatrol {
 
 pub type UnitTaskDeliveryCompletionCallback = fn(&mut Building, &mut Unit, &SimContext);
 
+#[derive(Copy, Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub enum UnitTaskDeliveryState {
+    #[default]
+    Idle,
+    MovingToGoal,
+    PendingBuildingVisit,
+    Completed,
+}
+
 // Deliver goods to a storage building.
 // Producer -> Storage | Storage -> Storage | Producer -> Producer (fallback)
 #[derive(Serialize, Deserialize)]
@@ -717,10 +727,15 @@ pub struct UnitTaskDeliverToStorage {
     // Optional fallback if we are not able to deliver to a Storage.
     // E.g.: Deliver directly to a Producer building instead.
     pub allow_producer_fallback: bool,
+
+    // Current internal task state. Should start as Idle.
+    // Deserialize uses Default if missing to retain backwards compatibility with older save files.
+    #[serde(default)]
+    pub internal_state: UnitTaskDeliveryState,
 }
 
 impl UnitTaskDeliverToStorage {
-    fn try_find_goal(&self, unit: &mut Unit, context: &SimContext) {
+    fn try_find_goal(&mut self, unit: &mut Unit, context: &SimContext) {
         let origin_kind = self.origin_building.kind;
         let origin_base_cell = unit.cell();
         let traversable_node_kinds = unit.traversable_node_kinds();
@@ -749,6 +764,7 @@ impl UnitTaskDeliverToStorage {
 
         if let PathFindResult::Success { path, goal } = path_find_result {
             unit.move_to_goal(path, goal);
+            self.internal_state = UnitTaskDeliveryState::MovingToGoal;
         }
         // Else no path or Storage/Producer building found. Try again later.
     }
@@ -763,7 +779,7 @@ impl UnitTask for UnitTaskDeliverToStorage {
         self.completion_callback.post_load();
     }
 
-    fn initialize(&mut self, unit: &mut Unit, context: &SimContext) {
+    fn initialize(&mut self, unit: &mut Unit, _cmds: &mut SimCmds, context: &SimContext) {
         // Sanity check:
         debug_assert!(unit.goal().is_none());
         debug_assert!(unit.inventory_is_empty());
@@ -773,6 +789,7 @@ impl UnitTask for UnitTaskDeliverToStorage {
         debug_assert!(!self.storage_buildings_accepted.is_empty());
         debug_assert!(self.resource_kind_to_deliver.is_single_resource());
         debug_assert!(self.resource_count != 0);
+        debug_assert_eq!(self.internal_state, UnitTaskDeliveryState::Idle);
 
         // Give the unit the resources we want to deliver:
         let received_count = unit.receive_resources(self.resource_kind_to_deliver, self.resource_count);
@@ -787,36 +804,80 @@ impl UnitTask for UnitTaskDeliverToStorage {
         }
     }
 
-    fn update(&mut self, unit: &mut Unit, context: &SimContext) -> UnitTaskState {
-        // If we have a goal we're already moving somewhere,
-        // otherwise we may need to pathfind again.
-        if unit.goal().is_none() {
-            self.try_find_goal(unit, context);
+    fn update(&mut self, unit: &mut Unit, _cmds: &mut SimCmds, context: &SimContext) -> UnitTaskState {
+        match self.internal_state {
+            UnitTaskDeliveryState::Idle | UnitTaskDeliveryState::MovingToGoal => {
+                // If we have a goal we're already moving somewhere,
+                // otherwise we may need to pathfind again.
+                if unit.goal().is_none() {
+                    self.try_find_goal(unit, context);
+                }
+            }
+            UnitTaskDeliveryState::PendingBuildingVisit => {
+                // Wait for building visited callback to be invoked.
+                return UnitTaskState::Running;
+            }
+            UnitTaskDeliveryState::Completed => {
+                // Task completed or aborted.
+                return UnitTaskState::Completed;
+            }
         }
 
-        if unit.has_reached_goal() { UnitTaskState::Completed } else { UnitTaskState::Running }
+        if unit.has_reached_goal() {
+            UnitTaskState::Completed
+        } else {
+            UnitTaskState::Running
+        }
     }
 
-    fn completed(&mut self, unit: &mut Unit, context: &SimContext) -> UnitTaskResult {
-        visit_destination(unit, context);
-        unit.follow_path(None);
+    fn completed(&mut self, unit: &mut Unit, cmds: &mut SimCmds, context: &SimContext) -> UnitTaskResult {
+        if self.internal_state == UnitTaskDeliveryState::MovingToGoal || unit.goal().is_some() {
+            let destination_exists = visit_destination(unit, cmds, context, |context, _building, unit, _result| {
+                let task = unit.current_task_as_mut::<Self>(context.task_manager_mut())
+                    .expect("Expected unit to be running UnitTaskDeliverToStorage!");
 
-        // If we've delivered our goods, we're done. Otherwise we were not able
-        // to offload everything, so we'll retry with another building later.
-        if unit.inventory_is_empty() {
-            if self.completion_callback.is_valid() {
-                invoke_completion_callback(
-                    unit,
-                    context,
-                    self.origin_building.kind,
-                    self.origin_building.id,
-                    self.completion_callback.get(),
+                debug_assert_eq!(task.internal_state, UnitTaskDeliveryState::PendingBuildingVisit);
+
+                // If we've delivered our goods, we're done. Otherwise we were not able
+                // to offload everything, so we'll retry with another building later.
+                if unit.inventory_is_empty() {
+                    if task.completion_callback.is_valid() {
+                        invoke_completion_callback(
+                            unit,
+                            context,
+                            task.origin_building.kind,
+                            task.origin_building.id,
+                            task.completion_callback.get(),
+                        );
+                    }
+
+                    task.internal_state = UnitTaskDeliveryState::Completed;
+                } else {
+                    task.internal_state = UnitTaskDeliveryState::Idle;
+                }
+            });
+
+            if destination_exists {
+                // Building visitation is deferred, so we must wait for it to complete.
+                self.internal_state = UnitTaskDeliveryState::PendingBuildingVisit;
+            } else {
+                // Destination building no longer valid (might have been destroyed).
+                self.internal_state = UnitTaskDeliveryState::Idle;
+            }
+
+            // Wait for PendingBuildingVisit.
+            unit.follow_path(None);
+            UnitTaskResult::Retry
+        } else {
+            if self.internal_state != UnitTaskDeliveryState::Completed {
+                log::error!(
+                    log::channel!("task"),
+                    "Unexpected UnitTaskDeliverToStorage state. Expected Completed, found: {:?}",
+                    self.internal_state,
                 );
             }
 
-            UnitTaskResult::Completed { next_task: forward_task(&mut self.completion_task) }
-        } else {
-            UnitTaskResult::Retry
+            UnitTaskResult::completed_with(&mut self.completion_task)
         }
     }
 
@@ -828,6 +889,7 @@ impl UnitTask for UnitTaskDeliverToStorage {
         let building_name = debug::tile_name_at(building_cell, TileMapLayerKind::Objects);
 
         ui.text(format!("Origin Building            : {}, '{}', {}", building_kind, building_name, building_cell));
+        ui.text(format!("Internal State             : {:?}", self.internal_state));
         ui.separator();
         ui.text(format!("Storage Buildings Accepted : {}", self.storage_buildings_accepted));
         ui.text(format!("Resource Kind To Deliver   : {}", self.resource_kind_to_deliver));
@@ -845,6 +907,16 @@ impl UnitTask for UnitTaskDeliverToStorage {
 
 pub type UnitTaskFetchCompletionCallback = fn(&mut Building, &mut Unit, &SimContext);
 
+#[derive(Copy, Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub enum UnitTaskFetchState {
+    #[default]
+    Idle,
+    MovingToGoal,
+    PendingBuildingVisit,
+    ReturningToOrigin,
+    Completed,
+}
+
 // Fetch goods from a storage building.
 // Storage -> Producer | Storage -> Storage
 #[derive(Serialize, Deserialize)]
@@ -855,8 +927,7 @@ pub struct UnitTaskFetchFromStorage {
 
     // Resources to fetch:
     pub storage_buildings_accepted: BuildingKind,
-    pub resources_to_fetch: ShoppingList, /* Will fetch at most *one* of these. This is a list
-                                           * of desired options. */
+    pub resources_to_fetch: ShoppingList, // Will fetch at most *one* of these. This is a list of desired options.
 
     // Called on the origin building once the unit has returned with resources.
     // `|origin_building, runner_unit, context|`
@@ -865,11 +936,14 @@ pub struct UnitTaskFetchFromStorage {
     // Optional completion task to run after this task.
     pub completion_task: Option<UnitTaskId>,
 
-    pub is_returning_to_origin: bool,
+    // Current internal task state. Should start as Idle.
+    // Deserialize uses Default if missing to retain backwards compatibility with older save files.
+    #[serde(default)]
+    pub internal_state: UnitTaskFetchState,
 }
 
 impl UnitTaskFetchFromStorage {
-    fn try_find_goal(&self, unit: &mut Unit, context: &SimContext) {
+    fn try_find_goal(&mut self, unit: &mut Unit, context: &SimContext) -> bool {
         let origin_cell = unit.cell();
         let traversable_node_kinds = unit.traversable_node_kinds();
 
@@ -887,10 +961,13 @@ impl UnitTaskFetchFromStorage {
 
             if let PathFindResult::Success { path, goal } = path_find_result {
                 unit.move_to_goal(path, goal);
-                break;
+                self.internal_state = UnitTaskFetchState::MovingToGoal;
+                return true;
             }
             // Else no path or Storage building found. Try again.
         }
+
+        false
     }
 
     fn try_return_to_origin(&mut self, unit: &mut Unit, context: &SimContext) -> bool {
@@ -912,7 +989,7 @@ impl UnitTaskFetchFromStorage {
                     self.origin_building_tile,
                 );
                 unit.move_to_goal(path, goal);
-                self.is_returning_to_origin = true;
+                self.internal_state = UnitTaskFetchState::ReturningToOrigin;
                 true
             }
             SearchResult::PathNotFound => {
@@ -923,6 +1000,21 @@ impl UnitTaskFetchFromStorage {
                 false
             }
         }
+    }
+
+    fn notify_completion(&mut self, unit: &mut Unit, context: &SimContext) {
+        if self.completion_callback.is_valid() {
+            invoke_completion_callback(
+                unit,
+                context,
+                self.origin_building.kind,
+                self.origin_building.id,
+                self.completion_callback.get(),
+            );
+        }
+
+        debug_assert_ne!(self.internal_state, UnitTaskFetchState::Completed);
+        self.internal_state = UnitTaskFetchState::Completed;
     }
 }
 
@@ -935,7 +1027,7 @@ impl UnitTask for UnitTaskFetchFromStorage {
         self.completion_callback.post_load();
     }
 
-    fn initialize(&mut self, unit: &mut Unit, context: &SimContext) {
+    fn initialize(&mut self, unit: &mut Unit, _cmds: &mut SimCmds, context: &SimContext) {
         // Sanity check:
         debug_assert!(unit.goal().is_none());
         debug_assert!(unit.inventory_is_empty());
@@ -944,7 +1036,7 @@ impl UnitTask for UnitTaskFetchFromStorage {
         debug_assert!(self.origin_building_tile.is_valid());
         debug_assert!(!self.storage_buildings_accepted.is_empty());
         debug_assert!(!self.resources_to_fetch.is_empty());
-        debug_assert!(!self.is_returning_to_origin);
+        debug_assert_eq!(self.internal_state, UnitTaskFetchState::Idle);
 
         self.try_find_goal(unit, context);
     }
@@ -955,54 +1047,71 @@ impl UnitTask for UnitTaskFetchFromStorage {
         }
     }
 
-    fn update(&mut self, unit: &mut Unit, context: &SimContext) -> UnitTaskState {
+    fn update(&mut self, unit: &mut Unit, _cmds: &mut SimCmds, context: &SimContext) -> UnitTaskState {
         // If we have a goal we're already moving somewhere,
         // otherwise we may need to pathfind again.
-        if unit.goal().is_none() {
-            if self.is_returning_to_origin {
-                if !self.try_return_to_origin(unit, context) {
-                    // TODO: We can recover from this and ship the resources back to storage.
-                    log::error!(
-                        log::channel!("TODO"),
-                        "Aborting TaskFetchFromStorage. Unable to return to origin building..."
-                    );
-                    unit.clear_inventory();
-                    return UnitTaskState::Completed;
+        match self.internal_state {
+            UnitTaskFetchState::Idle | UnitTaskFetchState::MovingToGoal => {
+                if unit.goal().is_none() {
+                    if !self.try_find_goal(unit, context) {
+                        // No storage buildings available. Return home.
+                        self.internal_state = UnitTaskFetchState::ReturningToOrigin;
+                        return UnitTaskState::Running;
+                    }
                 }
-            } else {
-                self.try_find_goal(unit, context);
+            }
+            UnitTaskFetchState::ReturningToOrigin => {
+                if unit.goal().is_none() {
+                    if !self.try_return_to_origin(unit, context) {
+                        // TODO: We can recover from this and ship the resources back to storage.
+                        log::error!(
+                            log::channel!("TODO"),
+                            "Aborting TaskFetchFromStorage. Unable to return to origin building..."
+                        );
+                        unit.clear_inventory();
+                        self.notify_completion(unit, context);
+                        return UnitTaskState::Completed;
+                    }
+                }
+            }
+            UnitTaskFetchState::PendingBuildingVisit => {
+                // Wait for building visited callback to be invoked.
+                return UnitTaskState::Running;
+            }
+            UnitTaskFetchState::Completed => {
+                // Task completed or aborted.
+                return UnitTaskState::Completed;
             }
         }
 
-        if unit.has_reached_goal() { UnitTaskState::Completed } else { UnitTaskState::Running }
+        if unit.has_reached_goal() {
+            UnitTaskState::Completed
+        } else {
+            UnitTaskState::Running
+        }
     }
 
-    fn completed(&mut self, unit: &mut Unit, context: &SimContext) -> UnitTaskResult {
-        let mut task_completed = false;
+    fn completed(&mut self, unit: &mut Unit, cmds: &mut SimCmds, context: &SimContext) -> UnitTaskResult {
+        // NOTE: For backwards compatibility with old saves that didn't have internal_state.
+        let goal_is_origin_building = |unit: &Unit| -> bool {
+            unit.goal().is_some_and(|goal| {
+                goal.is_building()
+                    && goal.building_destination() == (self.origin_building.kind, self.origin_building_tile.base_cell)
+            })
+        };
 
-        if self.is_returning_to_origin {
-            debug_assert!(
-                unit.goal().is_some_and(|goal| {
-                    goal.is_building()
-                        && goal.building_destination() == (self.origin_building.kind, self.origin_building_tile.base_cell)
-                }),
-                "Unit goal is not its origin building!"
-            );
-
+        let task_completed = if self.internal_state == UnitTaskFetchState::ReturningToOrigin || goal_is_origin_building(unit) {
             // We've reached our origin building with the resources we were supposed to
             // fetch. Invoke the completion callback and end the task.
-            debug_assert!(!unit.inventory_is_empty());
-            debug_assert!(self.resources_to_fetch.iter().any(|entry| entry.kind == unit.peek_inventory().unwrap().kind));
-
-            if self.completion_callback.is_valid() {
-                invoke_completion_callback(
-                    unit,
-                    context,
-                    self.origin_building.kind,
-                    self.origin_building.id,
-                    self.completion_callback.get(),
-                );
+            if !unit.inventory_is_empty() {
+                // If the unit inventory is not empty then we should have one of the items we were looking for.
+                // If the inventory is empty it means we failed to find a storage building and are coming back
+                // home empty handed.
+                debug_assert!(self.resources_to_fetch.iter().any(|entry| entry.kind == unit.peek_inventory().unwrap().kind));
             }
+
+            self.notify_completion(unit, context);
+            unit.follow_path(None);
 
             if !unit.inventory_is_empty() {
                 // TODO: We can recover from this and ship the resources back to storage.
@@ -1013,43 +1122,76 @@ impl UnitTask for UnitTaskFetchFromStorage {
                 unit.clear_inventory();
             }
 
-            task_completed = true;
-            unit.follow_path(None);
-        } else {
+            true // Task completed.
+        } else if self.internal_state == UnitTaskFetchState::MovingToGoal || (unit.goal().is_some() && !goal_is_origin_building(unit)) {
             // We've reached a destination to visit and attempt to fetch some resources.
-            // We may fail and try again with another building or start returning to the
-            // origin.
+            // We may fail and try again with another building or start returning to the origin.
             debug_assert!(unit.inventory_is_empty());
-            visit_destination(unit, context);
+
+            let destination_exists = visit_destination(unit, cmds, context, |context, _building, unit, _result| {
+                let task = unit.current_task_as_mut::<Self>(context.task_manager_mut())
+                    .expect("Expected unit to be running UnitTaskFetchFromStorage!");
+
+                debug_assert_eq!(task.internal_state, UnitTaskFetchState::PendingBuildingVisit);
+
+                // If we've collected resources from the visited destination
+                // we are done and can return to our origin building.
+                if let Some(item) = unit.peek_inventory() {
+                    debug_assert!(item.count != 0, "Expected nonzero item count: {item}");
+                    debug_assert!(
+                        task.resources_to_fetch.iter().any(|entry| entry.kind == item.kind),
+                        "Expected to have item kind {}",
+                        item.kind
+                    );
+
+                    // If we couldn't find a path back to the origin, maybe because the origin
+                    // building was destroyed, we'll have to abort the task. Any
+                    // resources collected will be lost.
+                    if !task.try_return_to_origin(unit, context) {
+                        // TODO: We can recover from this and ship the resources back to storage.
+                        log::error!(
+                            log::channel!("TODO"),
+                            "Aborting TaskFetchFromStorage. Unable to return to origin building..."
+                        );
+                        unit.clear_inventory();
+                        task.notify_completion(unit, context);
+                    }
+
+                    debug_assert!(matches!(
+                        task.internal_state,
+                        UnitTaskFetchState::ReturningToOrigin | UnitTaskFetchState::Completed
+                    ));
+                } else {
+                    // Destination didn't have the resources we wanted. Try again elsewhere.
+                    task.internal_state = UnitTaskFetchState::Idle;
+                }
+            });
+
+            if destination_exists {
+                // Building visitation is deferred, so we must wait for it to complete.
+                self.internal_state = UnitTaskFetchState::PendingBuildingVisit;
+            } else {
+                // Destination building no longer valid (might have been destroyed).
+                self.internal_state = UnitTaskFetchState::Idle;
+            }
+
             unit.follow_path(None);
 
-            // If we've collected resources from the visited destination
-            // we are done and can return to our origin building.
-            if let Some(item) = unit.peek_inventory() {
-                debug_assert!(item.count != 0, "{item}");
-                debug_assert!(
-                    self.resources_to_fetch.iter().any(|entry| entry.kind == item.kind),
-                    "Expected to have item kind {}",
-                    item.kind
+            false // Task pending.
+        } else {
+            if self.internal_state != UnitTaskFetchState::Completed {
+                log::error!(
+                    log::channel!("task"),
+                    "Unexpected UnitTaskFetchFromStorage state. Expected Completed, found: {:?}",
+                    self.internal_state,
                 );
-
-                // If we couldn't find a path back to the origin, maybe because the origin
-                // building was destroyed, we'll have to abort the task. Any
-                // resources collected will be lost.
-                if !self.try_return_to_origin(unit, context) {
-                    // TODO: We can recover from this and ship the resources back to storage.
-                    log::error!(
-                        log::channel!("TODO"),
-                        "Aborting TaskFetchFromStorage. Unable to return to origin building..."
-                    );
-                    unit.clear_inventory();
-                    task_completed = true;
-                }
             }
-        }
+
+            true // Task completed.
+        };
 
         if task_completed {
-            UnitTaskResult::Completed { next_task: forward_task(&mut self.completion_task) }
+            UnitTaskResult::completed_with(&mut self.completion_task)
         } else {
             UnitTaskResult::Retry
         }
@@ -1063,7 +1205,7 @@ impl UnitTask for UnitTaskFetchFromStorage {
         let building_name = debug::tile_name_at(building_cell, TileMapLayerKind::Objects);
 
         ui.text(format!("Origin Building            : {}, '{}', {}", building_kind, building_name, building_cell));
-        ui.text(format!("Is Returning To Origin     : {}", self.is_returning_to_origin));
+        ui.text(format!("Internal State             : {:?}", self.internal_state));
         ui.separator();
         ui.text(format!("Storage Buildings Accepted : {}", self.storage_buildings_accepted));
         ui.text(format!("Resources To Fetch         : {}", self.resources_to_fetch));
@@ -1079,6 +1221,23 @@ impl UnitTask for UnitTaskFetchFromStorage {
 
 pub type UnitTaskSettlerCompletionCallback = fn(&mut Unit, &Tile, u32, &SimContext);
 
+#[derive(Copy, Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub enum UnitTaskSettlerGoal {
+    VacantLot,
+    House,
+    SpawnPointExit,
+}
+
+#[derive(Copy, Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub enum UnitTaskSettlerState {
+    #[default]
+    Idle,
+    MovingToGoal(UnitTaskSettlerGoal),
+    PendingBuildingVisit,
+    BuildingVisited { settler_accepted: bool },
+    Completed,
+}
+
 #[derive(Serialize, Deserialize)]
 pub struct UnitTaskSettler {
     // Optional completion callback. Invoke with the empty house lot building we've visited.
@@ -1088,30 +1247,35 @@ pub struct UnitTaskSettler {
     // Optional completion task to run after this task.
     pub completion_task: Option<UnitTaskId>,
 
-    // If true and we can't find an empty lot, try to find any house with room that will take the
-    // settler.
+    // If true and we can't find an empty lot, try to find any house with room that will take the settler.
     pub fallback_to_houses_with_room: bool,
 
-    // If we can't find either an empty lot or a house, find a way back to the spawn point and
-    // leave.
+    // If we can't find either an empty lot or a house, find a way back to the spawn point and leave.
     pub return_to_spawn_point_if_failed: bool,
 
     // Amount to add once settled into a new lot or house.
     pub population_to_add: u32,
+
+    // Current internal settler task state. Should start as Idle.
+    // Deserialize uses Default if missing to retain backwards compatibility with older save files.
+    #[serde(default)]
+    pub internal_state: UnitTaskSettlerState,
 }
 
 impl UnitTaskSettler {
-    fn try_find_goal(&self, unit: &mut Unit, context: &SimContext) {
+    fn try_find_goal(&mut self, unit: &mut Unit, context: &SimContext) {
         let start = unit.cell();
         let traversable_node_kinds = unit.traversable_node_kinds();
         let bias = RandomDirectionalBias::new(context.rng_mut(), 0.1, 0.5);
 
         // First try to find an empty lot we can settle:
         {
-            let result = context.find_path_to_node(&bias, traversable_node_kinds, start, PathNodeKind::VacantLot);
+            let result =
+                context.find_path_to_node(&bias, traversable_node_kinds, start, PathNodeKind::VacantLot);
 
             if let SearchResult::PathFound(path) = result {
                 unit.move_to_goal(path, UnitNavGoal::tile(start, path));
+                self.internal_state = UnitTaskSettlerState::MovingToGoal(UnitTaskSettlerGoal::VacantLot);
                 return;
             }
         }
@@ -1125,7 +1289,7 @@ impl UnitTaskSettler {
                 None,
                 |building, _path| {
                     if let Some(population) = building.population() {
-                        if !population.is_max() && building.is_linked_to_road(context) {
+                        if !population.is_max() {
                             return false; // Accept this building and end the search.
                         }
                     }
@@ -1140,29 +1304,38 @@ impl UnitTaskSettler {
                         BuildingKind::empty(), // Unused.
                         start,
                         building.kind(),
-                        building.tile_info(context),
+                        BuildingTileInfo {
+                            // NOTE: Always use path goal cell; house may not be connected to a road, so we use any available access tile.
+                            road_link: path.last().unwrap().cell,
+                            base_cell: building.base_cell(),
+                        },
                     ),
                 );
+                self.internal_state = UnitTaskSettlerState::MovingToGoal(UnitTaskSettlerGoal::House);
                 return;
             }
         }
 
-        // If we can't find any viable destination, move back to the settler spawn point
-        // and abort.
+        // If we can't find any viable destination, move back to the settler spawn point and abort.
         if self.return_to_spawn_point_if_failed {
-            let result = context.find_path_to_node(&bias, traversable_node_kinds, start, PathNodeKind::SettlersSpawnPoint);
+            let result =
+                context.find_path_to_node(&bias, traversable_node_kinds, start, PathNodeKind::SettlersSpawnPoint);
 
             if let SearchResult::PathFound(path) = result {
                 unit.move_to_goal(path, UnitNavGoal::tile(start, path));
+                self.internal_state = UnitTaskSettlerState::MovingToGoal(UnitTaskSettlerGoal::SpawnPointExit);
             }
         }
     }
 
-    fn notify_completion(&self, unit: &mut Unit, tile: &Tile, context: &SimContext) {
+    fn notify_completion(&mut self, unit: &mut Unit, tile: &Tile, context: &SimContext) {
         if self.completion_callback.is_valid() {
             let callback = self.completion_callback.get();
             callback(unit, tile, self.population_to_add, context);
         }
+
+        debug_assert_ne!(self.internal_state, UnitTaskSettlerState::Completed);
+        self.internal_state = UnitTaskSettlerState::Completed;
     }
 }
 
@@ -1175,8 +1348,9 @@ impl UnitTask for UnitTaskSettler {
         self.completion_callback.post_load();
     }
 
-    fn initialize(&mut self, unit: &mut Unit, context: &SimContext) {
+    fn initialize(&mut self, unit: &mut Unit, _cmds: &mut SimCmds, context: &SimContext) {
         debug_assert!(self.population_to_add != 0);
+        debug_assert_eq!(self.internal_state, UnitTaskSettlerState::Idle);
 
         // Settlers can go off-road.
         let current_node_kinds = unit.traversable_node_kinds();
@@ -1197,75 +1371,138 @@ impl UnitTask for UnitTaskSettler {
         }
     }
 
-    fn update(&mut self, unit: &mut Unit, context: &SimContext) -> UnitTaskState {
-        if unit.goal().is_none() {
-            self.try_find_goal(unit, context);
-        }
+    fn update(&mut self, unit: &mut Unit, _cmds: &mut SimCmds, context: &SimContext) -> UnitTaskState {
+        match self.internal_state {
+            UnitTaskSettlerState::Idle | UnitTaskSettlerState::MovingToGoal(_) => {
+                if unit.goal().is_none() {
+                    self.try_find_goal(unit, context);
+                }
 
-        if unit.has_reached_goal() { UnitTaskState::Completed } else { UnitTaskState::Running }
+                if unit.has_reached_goal() {
+                    UnitTaskState::Completed
+                } else {
+                    UnitTaskState::Running
+                }
+            }
+            UnitTaskSettlerState::PendingBuildingVisit => {
+                // Wait for building visited callback to be invoked.
+                UnitTaskState::Running
+            }
+            UnitTaskSettlerState::BuildingVisited { settler_accepted } => {
+                if settler_accepted {
+                    // House accepted the setter. Task finished.
+                    UnitTaskState::Completed
+                } else {
+                    // Else we have to try another house.
+                    unit.follow_path(None);
+                    self.internal_state = UnitTaskSettlerState::Idle;
+                    UnitTaskState::Running
+                }
+            }
+            UnitTaskSettlerState::Completed => {
+                // Shouldn't ever be reached. We won't update the task if state == Completed.
+                panic!("Unexpected UnitTaskSettlerState: Completed");
+            }
+        }
     }
 
-    fn completed(&mut self, unit: &mut Unit, context: &SimContext) -> UnitTaskResult {
+    fn completed(&mut self, unit: &mut Unit, cmds: &mut SimCmds, context: &SimContext) -> UnitTaskResult {
         let unit_goal = unit.goal().expect("Expected unit to have an active goal!");
-        let tile_map = context.tile_map();
 
-        if unit_goal.is_tile() {
+        if let UnitTaskSettlerState::BuildingVisited { settler_accepted } = self.internal_state {
+            // Completed a deferred Building::visited_by command.
+            // If the house accepted the settler we finish the task.
+            if settler_accepted {
+                let (destination_kind, destination_cell) = unit_goal.building_destination();
+                debug_assert!(destination_kind == BuildingKind::House);
+                debug_assert!(destination_cell.is_valid());
+
+                if let Some(house_tile) = context.find_tile(destination_cell, TileMapLayerKind::Objects, TileKind::Building) {
+                    self.notify_completion(unit, house_tile, context);
+                    return UnitTaskResult::completed_with(&mut self.completion_task);
+                }
+            }
+        } else if unit_goal.is_tile() {
             // Moving to a vacant lot or back to spawn point:
+            if !matches!(self.internal_state,
+                UnitTaskSettlerState::Idle | // NOTE: Allow Idle for backwards compatibility with old saves that don't have internal_state.
+                UnitTaskSettlerState::MovingToGoal(UnitTaskSettlerGoal::VacantLot) |
+                UnitTaskSettlerState::MovingToGoal(UnitTaskSettlerGoal::SpawnPointExit)
+            ) {
+                log::error!(
+                    log::channel!("task"),
+                    "Expected UnitTaskSettlerState to be MovingToGoal(VacantLot | SpawnPointExit), found: {:?}",
+                    self.internal_state,
+                );
+            }
+
             let destination_cell = unit_goal.tile_destination();
             debug_assert!(destination_cell.is_valid());
 
-            if let Some(tile) = tile_map.try_tile_from_layer(destination_cell, TileMapLayerKind::Terrain) {
+            if let Some(tile) = context.tile_map().try_tile_from_layer(destination_cell, TileMapLayerKind::Terrain) {
                 if tile.path_kind().is_vacant_lot() || tile.has_flags(TileFlags::SettlersSpawnPoint) {
                     // Notify completion:
                     self.notify_completion(unit, tile, context);
-
-                    return UnitTaskResult::Completed { next_task: forward_task(&mut self.completion_task) };
+                    return UnitTaskResult::completed_with(&mut self.completion_task);
                 }
             }
         } else if unit_goal.is_building() {
             // Moving to a house with room to take a new settler:
             debug_assert!(self.fallback_to_houses_with_room);
 
-            let (destination_kind, destination_cell) = unit_goal.building_destination();
+            if !matches!(self.internal_state,
+                UnitTaskSettlerState::Idle | // NOTE: Allow Idle for backwards compatibility with old saves that don't have internal_state.
+                UnitTaskSettlerState::MovingToGoal(UnitTaskSettlerGoal::House)
+            ) {
+                log::error!(
+                    log::channel!("task"),
+                    "Expected UnitTaskSettlerState to be MovingToGoal(House), found: {:?}",
+                    self.internal_state,
+                );
+            }
 
+            let (destination_kind, destination_cell) = unit_goal.building_destination();
             debug_assert!(destination_kind == BuildingKind::House);
             debug_assert!(destination_cell.is_valid());
 
-            if let Some(house_tile) = tile_map.find_tile(destination_cell, TileMapLayerKind::Objects, TileKind::Building) {
-                let world = context.world_mut();
-                let mut task_completed = false;
+            // Visit destination building:
+            if let Some(house_building) = context.world().find_building_for_cell(destination_cell, context.tile_map())
+                && house_building.kind() == destination_kind
+            {
+                cmds.visit_building_with_cb(house_building.kind_and_id(), unit.id(),
+                    |context, _building, unit, result| {
+                        // House accepted the setter. Task will complete.
+                        let settler_accepted = result == BuildingVisitResult::Accepted;
 
-                // Visit destination building:
-                if let Some(house_building) = world.find_building_for_cell_mut(destination_cell, tile_map) {
-                    if house_building.kind() == destination_kind {
-                        let prev_population = house_building.population_count();
-                        house_building.visited_by(unit, context);
-                        let curr_population = house_building.population_count();
+                        let task = unit.current_task_as_mut::<Self>(context.task_manager_mut())
+                            .expect("Expected unit to be running UnitTaskSettler!");
 
-                        // House accepted the setter. Task finished.
-                        if curr_population > prev_population {
-                            task_completed = true;
-                        }
-                    }
-                }
+                        debug_assert_eq!(task.internal_state, UnitTaskSettlerState::PendingBuildingVisit);
+                        task.internal_state = UnitTaskSettlerState::BuildingVisited { settler_accepted };
+                    });
 
-                if task_completed {
-                    // Notify completion:
-                    self.notify_completion(unit, house_tile, context);
-
-                    return UnitTaskResult::Completed { next_task: forward_task(&mut self.completion_task) };
-                }
+                // Waiting to complete a building visit or not reached a valid goal yet; Retry.
+                self.internal_state = UnitTaskSettlerState::PendingBuildingVisit;
+                return UnitTaskResult::Retry;
             }
         }
 
-        // Failed; retry.
+        // Failed; Retry.
         unit.follow_path(None);
+        self.internal_state = UnitTaskSettlerState::Idle;
+
         UnitTaskResult::Retry
     }
 
-    fn draw_debug_ui(&mut self, _unit: &mut Unit, _context: &SimContext, ui_sys: &UiSystem) {
+    fn draw_debug_ui(&mut self, unit: &mut Unit, _context: &SimContext, ui_sys: &UiSystem) {
         let ui = ui_sys.ui();
-        ui.text(format!("Population To Add : {}", self.population_to_add));
+
+        ui.text(format!("Population To Add               : {}", self.population_to_add));
+        ui.text(format!("Internal State                  : {:?}", self.internal_state));
+        ui.separator();
+        ui.text(format!("Fallback To Houses With Room    : {}", self.fallback_to_houses_with_room));
+        ui.text(format!("Return To Spawn Point If Failed : {}", self.return_to_spawn_point_if_failed));
+        ui.text(format!("Traversable Node Kinds          : {}", unit.traversable_node_kinds()));
     }
 }
 
@@ -1420,7 +1657,7 @@ impl UnitTask for UnitTaskHarvestWood {
         self.completion_callback.post_load();
     }
 
-    fn initialize(&mut self, unit: &mut Unit, context: &SimContext) {
+    fn initialize(&mut self, unit: &mut Unit, _cmds: &mut SimCmds, context: &SimContext) {
         debug_assert!(!self.harvest_target.is_valid());
         debug_assert!(!self.is_returning_to_origin);
 
@@ -1443,7 +1680,7 @@ impl UnitTask for UnitTaskHarvestWood {
         }
     }
 
-    fn update(&mut self, unit: &mut Unit, context: &SimContext) -> UnitTaskState {
+    fn update(&mut self, unit: &mut Unit, _cmds: &mut SimCmds, context: &SimContext) -> UnitTaskState {
         // If we have a goal we're already moving somewhere,
         // otherwise we may need to pathfind again.
         if unit.goal().is_none() {
@@ -1462,7 +1699,7 @@ impl UnitTask for UnitTaskHarvestWood {
         if unit.has_reached_goal() { UnitTaskState::Completed } else { UnitTaskState::Running }
     }
 
-    fn completed(&mut self, unit: &mut Unit, context: &SimContext) -> UnitTaskResult {
+    fn completed(&mut self, unit: &mut Unit, _cmds: &mut SimCmds, context: &SimContext) -> UnitTaskResult {
         let mut task_completed = false;
 
         if self.is_returning_to_origin {
@@ -1541,7 +1778,7 @@ impl UnitTask for UnitTaskHarvestWood {
         }
 
         if task_completed {
-            UnitTaskResult::Completed { next_task: forward_task(&mut self.completion_task) }
+            UnitTaskResult::completed_with(&mut self.completion_task)
         } else {
             UnitTaskResult::Retry
         }
@@ -1596,7 +1833,7 @@ impl UnitTask for UnitTaskFollowPath {
         self.completion_callback.post_load();
     }
 
-    fn initialize(&mut self, unit: &mut Unit, _context: &SimContext) {
+    fn initialize(&mut self, unit: &mut Unit, _cmds: &mut SimCmds, _context: &SimContext) {
         // Sanity check:
         debug_assert!(unit.goal().is_none());
         debug_assert!(!self.path.is_empty());
@@ -1610,7 +1847,7 @@ impl UnitTask for UnitTaskFollowPath {
         }
     }
 
-    fn update(&mut self, unit: &mut Unit, _context: &SimContext) -> UnitTaskState {
+    fn update(&mut self, unit: &mut Unit, _cmds: &mut SimCmds, _context: &SimContext) -> UnitTaskState {
         if unit.has_reached_goal() || (unit.path_is_blocked() && self.terminate_if_stuck) {
             UnitTaskState::Completed
         } else {
@@ -1618,7 +1855,7 @@ impl UnitTask for UnitTaskFollowPath {
         }
     }
 
-    fn completed(&mut self, unit: &mut Unit, context: &SimContext) -> UnitTaskResult {
+    fn completed(&mut self, unit: &mut Unit, _cmds: &mut SimCmds, context: &SimContext) -> UnitTaskResult {
         if !unit.path_is_blocked() {
             unit.goal().expect("Expected unit to have an active goal!");
             debug_assert!(unit.cell() == self.path.last().unwrap().cell, "Unit has not reached its goal yet!");
@@ -1630,7 +1867,7 @@ impl UnitTask for UnitTaskFollowPath {
 
         unit.follow_path(None);
 
-        UnitTaskResult::Completed { next_task: forward_task(&mut self.completion_task) }
+        UnitTaskResult::completed_with(&mut self.completion_task)
     }
 
     fn draw_debug_ui(&mut self, _unit: &mut Unit, _context: &SimContext, ui_sys: &UiSystem) {
@@ -1662,22 +1899,22 @@ impl UnitTaskInstance {
         Self { id, state: UnitTaskState::Uninitialized, archetype }
     }
 
-    fn update(&mut self, unit: &mut Unit, context: &SimContext) -> UnitTaskResult {
+    fn update(&mut self, unit: &mut Unit, cmds: &mut SimCmds, context: &SimContext) -> UnitTaskResult {
         debug_assert!(matches!(self.state, UnitTaskState::Uninitialized | UnitTaskState::Running));
 
         // First update?
         if matches!(self.state, UnitTaskState::Uninitialized) {
-            self.archetype.initialize(unit, context);
+            self.archetype.initialize(unit, cmds, context);
             self.state = UnitTaskState::Running;
         }
 
-        self.state = self.archetype.update(unit, context);
+        self.state = self.archetype.update(unit, cmds, context);
 
         match self.state {
             UnitTaskState::Running => UnitTaskResult::Running,
             UnitTaskState::Completed => {
                 // Completed may ask for a retry, in which case we revert back to Running.
-                match self.archetype.completed(unit, context) {
+                match self.archetype.completed(unit, cmds, context) {
                     UnitTaskResult::Retry => {
                         self.state = UnitTaskState::Running;
                         UnitTaskResult::Running
@@ -1888,6 +2125,16 @@ impl UnitTaskManager {
     }
 
     #[inline]
+    pub fn try_get_task_mut<Task>(&mut self, task_id: UnitTaskId) -> Option<&mut Task>
+    where
+        Task: UnitTask + 'static,
+    {
+        let task = self.task_pool.try_get_mut(task_id)?;
+        // NOTE: Reuse the non-mutable as_any() interface for convenience.
+        mem::mut_ref_cast(task.archetype.as_any()).downcast_mut::<Task>()
+    }
+
+    #[inline]
     pub fn try_get_task_archetype_and_state(&self, task_id: UnitTaskId) -> Option<(&UnitTaskArchetype, &UnitTaskState)> {
         let task = self.task_pool.try_get(task_id)?;
         Some((&task.archetype, &task.state))
@@ -1896,7 +2143,7 @@ impl UnitTaskManager {
     pub fn run_unit_tasks(&mut self, unit: &mut Unit, cmds: &mut SimCmds, context: &SimContext) {
         if let Some(current_task_id) = unit.current_task() {
             if let Some(task) = self.task_pool.try_get_mut(current_task_id) {
-                match task.update(unit, context) {
+                match task.update(unit, cmds, context) {
                     UnitTaskResult::Running => {
                         // Stay on current task and run it again next update.
                     }
@@ -1964,25 +2211,28 @@ impl UnitTaskManager {
 // Task helpers:
 // ----------------------------------------------
 
-fn visit_destination(unit: &mut Unit, context: &SimContext) {
+fn visit_destination<F>(unit: &mut Unit, cmds: &mut SimCmds, context: &SimContext, on_post_visit: F) -> bool
+where
+    F: Fn(&SimContext, &mut Building, &mut Unit, BuildingVisitResult) + 'static
+{
     let unit_goal = unit.goal().expect("Expected unit to have an active goal!");
     let (destination_kind, destination_cell) = unit_goal.building_destination();
 
     debug_assert!(destination_kind.is_single_building());
     debug_assert!(destination_cell.is_valid());
 
-    let world = context.world_mut();
-    let tile_map = context.tile_map();
-
-    // Visit destination building:
-    if let Some(destination_building) = world.find_building_for_cell_mut(destination_cell, tile_map) {
+    // Visit destination building (deferred):
+    if let Some(destination_building) = context.world().find_building_for_cell(destination_cell, context.tile_map()) {
         // NOTE: No need to check for generation match here. If the destination building
         // is still the same kind of building we where looking for, it doesn't matter if
         // it was destroyed and recreated since we started the task.
         if destination_building.kind() == destination_kind {
-            destination_building.visited_by(unit, context);
+            cmds.visit_building_with_cb(destination_building.kind_and_id(), unit.id(), on_post_visit);
+            return true;
         }
     }
+
+    false
 }
 
 fn invoke_completion_callback<F, R>(

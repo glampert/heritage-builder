@@ -1027,20 +1027,18 @@ impl Search {
                 continue;
             }
 
-            if current != start {
-                let current_node_kind = graph.node_kind(current).unwrap();
+            let current_node_kind = graph.node_kind(current).unwrap();
 
-                // Found a possible building or its road link/access tile.
-                if current_node_kind.intersects(destination_kinds) {
-                    let valid_path = Self::try_reconstruct_path(&mut self.path, &self.came_from, start, current);
-                    if valid_path && path_filter.accepts(paths_found, &self.path, current) {
-                        // Filter accepted this path, we're done.
-                        return SearchResult::PathFound(&self.path);
-                    }
-
-                    paths_found += 1;
-                    self.path.clear(); // Else keep searching.
+            // Found a possible building or its road link/access tile.
+            if current_node_kind.intersects(destination_kinds) {
+                let valid_path = Self::try_reconstruct_path(&mut self.path, &self.came_from, start, current);
+                if valid_path && path_filter.accepts(paths_found, &self.path, current) {
+                    // Filter accepted this path, we're done.
+                    return SearchResult::PathFound(&self.path);
                 }
+
+                paths_found += 1;
+                self.path.clear(); // Else keep searching.
             }
 
             let mut neighbors = graph.neighbors(current, wanted_neighbor_kinds);
@@ -1099,20 +1097,18 @@ impl Search {
         let mut paths_found: usize = 0;
 
         while let Some((current, _)) = self.frontier.pop() {
-            if current != start {
-                let current_node_kind = graph.node_kind(current).unwrap();
+            let current_node_kind = graph.node_kind(current).unwrap();
 
-                // Found a desired goal node kind:
-                if current_node_kind.intersects(goal_node_kinds) {
-                    let valid_path = Self::try_reconstruct_path(&mut self.path, &self.came_from, start, current);
-                    if valid_path && path_filter.accepts(paths_found, &self.path, current) {
-                        // Filter accepted this path, we're done.
-                        return SearchResult::PathFound(&self.path);
-                    }
-
-                    paths_found += 1;
-                    self.path.clear(); // Else keep searching.
+            // Found a desired goal node kind:
+            if current_node_kind.intersects(goal_node_kinds) {
+                let valid_path = Self::try_reconstruct_path(&mut self.path, &self.came_from, start, current);
+                if valid_path && path_filter.accepts(paths_found, &self.path, current) {
+                    // Filter accepted this path, we're done.
+                    return SearchResult::PathFound(&self.path);
                 }
+
+                paths_found += 1;
+                self.path.clear(); // Else keep searching.
             }
 
             let mut neighbors = graph.neighbors(current, traversable_node_kinds);

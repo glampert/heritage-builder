@@ -236,7 +236,7 @@ impl UpdateTimerDebugUi for UpdateTimer {
 
         ui.text(format_fast!("{}:", label));
 
-        ui.input_float(format_fast!("Frequency (secs)##_timer_frequency_{}", imgui_id), &mut self.frequency_secs())
+        ui.input_float(format_fast!("Frequency (secs)##_timer_frequency_{}", imgui_id), &mut self.update_frequency_secs)
             .display_format("%.2f")
             .step(0.5)
             .build();

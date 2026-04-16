@@ -246,6 +246,7 @@ impl Unit {
                         completion_callback: callback::create!(unit_debug_delivery_task_completed),
                         completion_task,
                         allow_producer_fallback: true,
+                        internal_state: UnitTaskDeliveryState::default(),
                     });
                     self.assign_task(task_manager, task);
                 }
@@ -271,7 +272,7 @@ impl Unit {
                         resources_to_fetch,
                         completion_callback: callback::create!(unit_debug_fetch_task_completed),
                         completion_task,
-                        is_returning_to_origin: false,
+                        internal_state: UnitTaskFetchState::default(),
                     });
                     self.assign_task(task_manager, task);
                 }
@@ -418,6 +419,7 @@ impl Unit {
                 fallback_to_houses_with_room: false,
                 return_to_spawn_point_if_failed: false,
                 population_to_add: 1,
+                internal_state: UnitTaskSettlerState::default(),
             });
 
             self.assign_task(task_manager, task);
@@ -439,6 +441,7 @@ impl Unit {
                 fallback_to_houses_with_room: true,
                 return_to_spawn_point_if_failed: false,
                 population_to_add: 1,
+                internal_state: UnitTaskSettlerState::default(),
             });
 
             self.assign_task(task_manager, task);

@@ -13,6 +13,7 @@ use proc_macros::DrawDebugUi;
 
 use super::{
     Building,
+    BuildingVisitResult,
     BuildingBehavior,
     BuildingContext,
     BuildingKind,
@@ -211,7 +212,7 @@ impl BuildingBehavior for ServiceBuilding {
         }
     }
 
-    fn visited_by(&mut self, _unit: &mut Unit, _context: &BuildingContext) {
+    fn visited_by(&mut self, _unit: &mut Unit, _context: &BuildingContext) -> BuildingVisitResult {
         // TODO: Do we need anything here? Deliveries are handled by the task completion callback...
         unimplemented!("ServiceBuilding::visited_by() not yet implemented!");
     }
@@ -539,7 +540,6 @@ impl ServiceBuilding {
         let this_building_kind = this_building.kind();
         let this_service = this_building.as_service_mut();
 
-        debug_assert!(!runner_unit.inventory_is_empty(), "Runner Unit inventory shouldn't be empty!");
         debug_assert!(this_service.is_runner_fetching_resources(context), "No Runner was sent out by this building!");
         debug_assert!(this_service.runner.unit_id() == runner_unit.id());
 
@@ -565,6 +565,7 @@ impl ServiceBuilding {
                 runner_unit.clear_inventory();
             }
         }
+        // Else the runner failed to fetch the wanted resources and came back home empty handed.
 
         this_service.runner.reset();
         this_service.debug.popup_msg_color(Color::cyan(), "Fetch Task complete");

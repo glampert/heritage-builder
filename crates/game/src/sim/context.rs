@@ -386,14 +386,15 @@ impl SimContext {
                         if building.is(self.building_kinds) {
                             let mut accept_building = false;
 
-                            // If we're looking for buildings connected to roads, check that this
-                            // road link goal actually belongs to this
+                            // If we're looking for buildings connected to roads,
+                            // check that this road link goal actually belongs to this
                             // building. Buildings can share the same road link tile.
-                            if self.traversable_node_kinds.is_road() {
+                            if self.traversable_node_kinds.is_road() && !self.traversable_node_kinds.is_empty_land() {
                                 if building.road_link(self.context).is_some_and(|link| link == goal.cell) {
                                     accept_building = !(self.visitor_fn)(building, path);
                                 }
-                            } else {
+                            } else if self.traversable_node_kinds.is_empty_land() {
+                                // We don't require road linked buildings.
                                 accept_building = !(self.visitor_fn)(building, path);
                             }
 

@@ -14,8 +14,10 @@ use super::{
         UnitTaskDespawn,
         UnitTaskDeliverToStorage,
         UnitTaskDeliveryCompletionCallback,
+        UnitTaskDeliveryState,
         UnitTaskFetchFromStorage,
         UnitTaskFetchCompletionCallback,
+        UnitTaskFetchState,
     },
 };
 use crate::{
@@ -87,6 +89,7 @@ impl Runner {
                 completion_task: context.sim_ctx.task_manager_mut().new_task(UnitTaskDespawn),
                 // If we can't find a Storage that will take our goods, try delivering directly to other Producers.
                 allow_producer_fallback: true,
+                internal_state: UnitTaskDeliveryState::default(),
             },
         );
     }
@@ -113,7 +116,7 @@ impl Runner {
                 resources_to_fetch,
                 completion_callback,
                 completion_task: context.sim_ctx.task_manager_mut().new_task(UnitTaskDespawn),
-                is_returning_to_origin: false,
+                internal_state: UnitTaskFetchState::default(),
             },
         );
     }

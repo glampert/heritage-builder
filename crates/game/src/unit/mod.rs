@@ -358,6 +358,8 @@ impl Unit {
     #[inline]
     pub fn move_to_goal(&mut self, path: &Path, goal: UnitNavGoal) {
         debug_assert!(self.is_spawned());
+        debug_assert_eq!(path.last().unwrap().cell, goal.destination_cell());
+
         self.navigation.reset_path_and_goal(Some(path), Some(goal));
         self.path_is_blocked = false;
         self.log_going_to(&goal);
@@ -461,6 +463,15 @@ impl Unit {
     {
         debug_assert!(self.is_spawned());
         task_manager.try_get_task::<Task>(self.current_task_id)
+    }
+
+    #[inline]
+    pub fn current_task_as_mut<'task, Task>(&mut self, task_manager: &'task mut UnitTaskManager) -> Option<&'task mut Task>
+    where
+        Task: UnitTask + 'static,
+    {
+        debug_assert!(self.is_spawned());
+        task_manager.try_get_task_mut::<Task>(self.current_task_id)
     }
 
     #[inline]

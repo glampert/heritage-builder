@@ -14,6 +14,7 @@ use proc_macros::DrawDebugUi;
 
 use super::{
     Building,
+    BuildingVisitResult,
     BuildingBehavior,
     BuildingContext,
     BuildingKind,
@@ -309,13 +310,15 @@ impl BuildingBehavior for HouseBuilding {
         }
     }
 
-    fn visited_by(&mut self, unit: &mut Unit, context: &BuildingContext) {
+    fn visited_by(&mut self, unit: &mut Unit, context: &BuildingContext) -> BuildingVisitResult {
         if unit.is_settler() {
-            self.visited_by_settler(unit, context);
+            self.visited_by_settler(unit, context)
         } else if unit.is_market_vendor(context.sim_ctx) {
-            self.visited_by_market_vendor(unit, context);
+            self.visited_by_market_vendor(unit, context)
         } else if unit.is_tax_collector(context.sim_ctx) {
-            self.visited_by_tax_collector(unit, context);
+            self.visited_by_tax_collector(unit, context)
+        } else {
+            BuildingVisitResult::Refused
         }
     }
 
@@ -540,15 +543,18 @@ impl HouseBuilding {
         });
     }
 
-    fn visited_by_market_vendor(&mut self, unit: &mut Unit, context: &BuildingContext) {
+    fn visited_by_market_vendor(&mut self, unit: &mut Unit, context: &BuildingContext) -> BuildingVisitResult {
         if self.debug.freeze_stock_update() {
-            return;
+            return BuildingVisitResult::Refused;
         }
 
         if let Some(market) = unit.patrol_task_origin_building(context.sim_ctx) {
             self.shop_from_market(market, context);
             self.debug.popup_msg_color(Color::green(), "Visited by market vendor");
+            return BuildingVisitResult::Accepted;
         }
+
+        BuildingVisitResult::Refused
     }
 
     fn shop_from_market(&mut self, market: &mut Building, context: &BuildingContext) {
@@ -798,11 +804,15 @@ impl HouseBuilding {
         }
     }
 
-    fn visited_by_settler(&mut self, unit: &mut Unit, context: &BuildingContext) {
+    fn visited_by_settler(&mut self, unit: &mut Unit, context: &BuildingContext) -> BuildingVisitResult {
         let population_to_add = unit.settler_population(context.sim_ctx);
         let population_added  = self.add_population(context, population_to_add);
-        if population_added == 0 {
+
+        if population_added != 0 {
+            BuildingVisitResult::Accepted
+        } else {
             self.debug.popup_msg_color(Color::red(), "Refused settler");
+            BuildingVisitResult::Refused
         }
     }
 
@@ -912,7 +922,7 @@ impl HouseBuilding {
         }
     }
 
-    fn visited_by_tax_collector(&mut self, unit: &mut Unit, _context: &BuildingContext) {
+    fn visited_by_tax_collector(&mut self, unit: &mut Unit, _context: &BuildingContext) -> BuildingVisitResult {
         if self.tax_available != 0 {
             let tax_collected = self.tax_available;
             self.tax_available = 0;
@@ -922,7 +932,10 @@ impl HouseBuilding {
             debug_assert!(received_amount == tax_collected);
 
             self.debug.popup_msg_color(Color::red(), format!("Tax collected -{tax_collected}"));
+            return BuildingVisitResult::Accepted;
         }
+
+        BuildingVisitResult::Refused
     }
 
     // ----------------------

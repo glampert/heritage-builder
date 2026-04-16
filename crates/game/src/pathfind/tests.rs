@@ -297,3 +297,159 @@ fn test_find_waypoint_shorter_distance() {
         _ => panic!("Expected a path!"),
     }
 }
+
+#[test]
+fn test_find_path_to_node() {
+    const R: NodeKind = NodeKind::Road;
+    const W: NodeKind = NodeKind::Water;
+    const V: NodeKind = NodeKind::VacantLot;
+
+    // Row 3 is a road; cell (5, 3) is also flagged as a vacant lot.
+    let nodes = vec![
+        W,W,W,W,W,W,W,W,
+        W,W,W,W,W,W,W,W,
+        W,W,W,W,W,W,W,W,
+        R,R,R,R,R,V,R,R,
+        W,W,W,W,W,W,W,W,
+        W,W,W,W,W,W,W,W,
+        W,W,W,W,W,W,W,W,
+        W,W,W,W,W,W,W,W,
+    ];
+
+    let graph = Graph::with_node_grid(Size::new(8, 8), nodes);
+    let heuristic = AStarUniformCostHeuristic::new();
+    let bias = Unbiased::new();
+    let mut filter = DefaultPathFilter::new();
+    let mut search = Search::with_graph(&graph);
+
+    let traversable = NodeKind::Road | NodeKind::VacantLot;
+
+    // Path from road start to the vacant lot.
+    {
+        let start = Node::new(Cell::new(0, 3));
+        let path = search.find_path_to_node(&graph,
+                                            &heuristic,
+                                            &bias,
+                                            &mut filter,
+                                            traversable,
+                                            start,
+                                            NodeKind::VacantLot);
+        match path {
+            SearchResult::PathFound(path) => {
+                let expected: Vec<Node> = (0..=5).map(|i| Node::new(Cell::new(i, 3))).collect();
+                assert_eq!(path, &expected); // goal=[5,3]
+            }
+            _ => panic!("Expected a path!"),
+        }
+    }
+
+    // start == goal: unit already standing on a vacant lot.
+    {
+        let start = Node::new(Cell::new(5, 3));
+        let path = search.find_path_to_node(&graph,
+                                            &heuristic,
+                                            &bias,
+                                            &mut filter,
+                                            traversable,
+                                            start,
+                                            NodeKind::VacantLot);
+        match path {
+            SearchResult::PathFound(path) => {
+                assert_eq!(path, &[start]);
+            }
+            _ => panic!("Expected a 1-node path!"),
+        }
+    }
+
+    // No reachable goal of the requested kind (grid has no EmptyLand).
+    {
+        let start = Node::new(Cell::new(0, 3));
+        let traversable_with_empty = NodeKind::Road | NodeKind::EmptyLand;
+        let path = search.find_path_to_node(&graph,
+                                            &heuristic,
+                                            &bias,
+                                            &mut filter,
+                                            traversable_with_empty,
+                                            start,
+                                            NodeKind::EmptyLand);
+        assert!(path.not_found());
+    }
+}
+
+#[test]
+fn test_find_buildings() {
+    const R: NodeKind = NodeKind::Road;
+    const W: NodeKind = NodeKind::Water;
+    let l = NodeKind::Road | NodeKind::BuildingRoadLink;
+
+    // Row 3 is a road; cell (5, 3) is also flagged as a building road link.
+    let nodes = vec![
+        W,W,W,W,W,W,W,W,
+        W,W,W,W,W,W,W,W,
+        W,W,W,W,W,W,W,W,
+        R,R,R,R,R,l,R,R,
+        W,W,W,W,W,W,W,W,
+        W,W,W,W,W,W,W,W,
+        W,W,W,W,W,W,W,W,
+        W,W,W,W,W,W,W,W,
+    ];
+
+    let graph = Graph::with_node_grid(Size::new(8, 8), nodes);
+    let heuristic = AStarUniformCostHeuristic::new();
+    let bias = Unbiased::new();
+    let mut filter = DefaultPathFilter::new();
+    let mut search = Search::with_graph(&graph);
+
+    // Path from a road start to the nearest road link.
+    {
+        let start = Node::new(Cell::new(0, 3));
+        let max_distance = 100;
+        let path = search.find_buildings(&graph,
+                                         &heuristic,
+                                         &bias,
+                                         &mut filter,
+                                         NodeKind::Road,
+                                         start,
+                                         max_distance);
+        match path {
+            SearchResult::PathFound(path) => {
+                let expected: Vec<Node> = (0..=5).map(|i| Node::new(Cell::new(i, 3))).collect();
+                assert_eq!(path, &expected); // goal=[5,3]
+            }
+            _ => panic!("Expected a path!"),
+        }
+    }
+
+    // start == goal: unit already standing on a building road link.
+    {
+        let start = Node::new(Cell::new(5, 3));
+        let max_distance = 100;
+        let path = search.find_buildings(&graph,
+                                         &heuristic,
+                                         &bias,
+                                         &mut filter,
+                                         NodeKind::Road,
+                                         start,
+                                         max_distance);
+        match path {
+            SearchResult::PathFound(path) => {
+                assert_eq!(path, &[start]);
+            }
+            _ => panic!("Expected a 1-node path!"),
+        }
+    }
+
+    // No road link within the allowed distance.
+    {
+        let start = Node::new(Cell::new(0, 3));
+        let max_distance = 3; // Not enough to reach (5, 3).
+        let path = search.find_buildings(&graph,
+                                         &heuristic,
+                                         &bias,
+                                         &mut filter,
+                                         NodeKind::Road,
+                                         start,
+                                         max_distance);
+        assert!(path.not_found());
+    }
+}

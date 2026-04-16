@@ -11,6 +11,7 @@ use engine::ui::UiSystem;
 use proc_macros::DrawDebugUi;
 
 use super::{
+    BuildingVisitResult,
     BuildingBehavior,
     BuildingContext,
     BuildingKind,
@@ -144,9 +145,9 @@ impl BuildingBehavior for StorageBuilding {
         // Nothing for now.
     }
 
-    fn visited_by(&mut self, unit: &mut Unit, context: &BuildingContext) {
+    fn visited_by(&mut self, unit: &mut Unit, context: &BuildingContext) -> BuildingVisitResult {
         if !self.has_min_required_workers() {
-            return;
+            return BuildingVisitResult::Refused;
         }
 
         let task_manager = context.sim_ctx.task_manager();
@@ -162,6 +163,7 @@ impl BuildingBehavior for StorageBuilding {
                     debug_assert!(removed_count == received_count);
 
                     self.debug.popup_msg(format!("{} delivered {} {}", unit.name(), received_count, item.kind));
+                    return BuildingVisitResult::Accepted;
                 }
             }
         } else if let Some(task) = unit.current_task_as::<UnitTaskFetchFromStorage>(task_manager) {
@@ -178,12 +180,14 @@ impl BuildingBehavior for StorageBuilding {
                     debug_assert!(removed_count == max_fetch_count);
 
                     self.debug.popup_msg(format!("{} fetched {} {}", unit.name(), max_fetch_count, item.kind));
-                    break;
+                    return BuildingVisitResult::Accepted;
                 }
             }
         } else {
             panic!("Unhandled Unit Task in StorageBuilding::visited_by()!");
         }
+
+        BuildingVisitResult::Refused
     }
 
     fn pre_save(&mut self, _cmds: &mut SimCmds) {

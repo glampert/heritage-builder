@@ -224,6 +224,16 @@ macro_rules! building_type_casts {
 }
 
 // ----------------------------------------------
+// BuildingVisitResult
+// ----------------------------------------------
+
+#[derive(Copy, Clone, Debug, Display, PartialEq, Eq)]
+pub enum BuildingVisitResult {
+    Accepted,
+    Refused,
+}
+
+// ----------------------------------------------
 // Building
 // ----------------------------------------------
 
@@ -526,10 +536,10 @@ impl Building {
         self.archetype().has_min_required_workers()
     }
 
-    pub fn visited_by(&mut self, unit: &mut Unit, context: &SimContext) {
+    pub fn visited_by(&mut self, unit: &mut Unit, context: &SimContext) -> BuildingVisitResult {
         debug_assert!(self.is_spawned());
         let context = self.new_context(context);
-        self.archetype_mut().visited_by(unit, &context);
+        self.archetype_mut().visited_by(unit, &context)
     }
 
     pub fn teleport(&mut self, tile_map: &mut TileMap, destination_cell: Cell) -> bool {
@@ -1171,7 +1181,7 @@ trait BuildingBehavior {
     fn despawned(&mut self, _cmds: &mut SimCmds, _context: &BuildingContext);
 
     fn update(&mut self, cmds: &mut SimCmds, context: &BuildingContext);
-    fn visited_by(&mut self, unit: &mut Unit, context: &BuildingContext);
+    fn visited_by(&mut self, unit: &mut Unit, context: &BuildingContext) -> BuildingVisitResult;
 
     fn pre_save(&mut self, cmds: &mut SimCmds);
     fn post_save(&mut self);

@@ -61,7 +61,7 @@ impl FrameClock {
 #[derive(Clone, Default, Serialize, Deserialize)]
 pub struct UpdateTimer {
     #[serde(skip, default = "default_timer_update_frequency")]
-    update_frequency_secs: Seconds,
+    pub update_frequency_secs: Seconds,
     time_since_last_update_secs: Seconds,
 }
 

@@ -28,7 +28,14 @@ use crate::{
         Unit,
         config::UnitConfigKey,
         navigation::{self, UnitNavGoal},
-        task::{UnitTaskArg, UnitTaskArgs, UnitTaskDespawnWithCallback, UnitTaskPostDespawnCallback, UnitTaskSettler},
+        task::{
+            UnitTaskArg,
+            UnitTaskArgs,
+            UnitTaskDespawnWithCallback,
+            UnitTaskPostDespawnCallback,
+            UnitTaskSettler,
+            UnitTaskSettlerState,
+        },
     },
 };
 
@@ -127,7 +134,14 @@ impl SettlersSpawnSystem {
             let map_size = context.tile_map().size_in_cells();
             let x = (map_size.width / 2) - 1;
             let y = map_size.height - 1;
-            Node::new(Cell::new(x, y))
+            let default_spawn_point = Cell::new(x, y);
+
+            // Make sure default tile is flagged as a spawn point otherwise unit path finding wouldn't work.
+            if let Some(tile) = context.find_tile_mut(default_spawn_point, TileMapLayerKind::Terrain, TileKind::Terrain) {
+                tile.set_flags(TileFlags::SettlersSpawnPoint, true);
+            }
+
+            Node::new(default_spawn_point)
         })
     }
 
@@ -160,6 +174,7 @@ impl Settler {
                 fallback_to_houses_with_room: true,
                 return_to_spawn_point_if_failed: true,
                 population_to_add,
+                internal_state: UnitTaskSettlerState::default(),
             },
             |_context, result| {
                 if let Err(err) = result {
@@ -219,6 +234,10 @@ impl Settler {
     }
 
     fn find_house_tile_def(context: &SimContext) -> Option<&'static TileDef> {
-        context.find_tile_def(TileMapLayerKind::Objects, OBJECTS_BUILDINGS_CATEGORY.hash, hash::fnv1a_from_str("house0"))
+        context.find_tile_def(
+            TileMapLayerKind::Objects,
+            OBJECTS_BUILDINGS_CATEGORY.hash,
+            hash::fnv1a_from_str("house0"),
+        )
     }
 }

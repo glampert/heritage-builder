@@ -14,6 +14,7 @@ use proc_macros::DrawDebugUi;
 
 use super::{
     Building,
+    BuildingVisitResult,
     BuildingBehavior,
     BuildingContext,
     BuildingKind,
@@ -255,7 +256,7 @@ impl BuildingBehavior for ProducerBuilding {
         }
     }
 
-    fn visited_by(&mut self, unit: &mut Unit, context: &BuildingContext) {
+    fn visited_by(&mut self, unit: &mut Unit, context: &BuildingContext) -> BuildingVisitResult {
         // We can only accept resource deliveries here.
         debug_assert!(unit.is_running_task::<UnitTaskDeliverToStorage>(context.sim_ctx.task_manager()));
 
@@ -264,7 +265,7 @@ impl BuildingBehavior for ProducerBuilding {
             // deliveries, let this runner deliver the resources somewhere else.
             //
             // Additionally, if we don't have enough workers we cannot receive the delivery.
-            return;
+            return BuildingVisitResult::Refused;
         }
 
         // Try unload cargo:
@@ -277,8 +278,11 @@ impl BuildingBehavior for ProducerBuilding {
                 debug_assert!(removed_count == received_count);
 
                 self.debug.popup_msg(format!("{} received delivery -> {}", self.name(), unit.name()));
+                return BuildingVisitResult::Accepted;
             }
         }
+
+        BuildingVisitResult::Refused
     }
 
     fn pre_save(&mut self, cmds: &mut SimCmds) {
@@ -635,7 +639,6 @@ impl ProducerBuilding {
         let this_building_kind = this_building.kind();
         let this_producer = this_building.as_producer_mut();
 
-        debug_assert!(!runner_unit.inventory_is_empty(), "Runner Unit inventory shouldn't be empty!");
         debug_assert!(this_producer.is_runner_fetching_resources(context), "No Runner was sent out by this building!");
         debug_assert!(this_producer.runner.unit_id() == runner_unit.id());
 

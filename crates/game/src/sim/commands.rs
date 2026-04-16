@@ -10,7 +10,7 @@ use super::SimContext;
 use crate::{
     constants::{SIM_CMDS_CAPACITY, INITIAL_GENERATION},
     prop::{Prop, PropId},
-    building::{Building, BuildingKindAndId},
+    building::{Building, BuildingKindAndId, BuildingVisitResult},
     unit::{config::UnitConfigKey, Unit, UnitId},
     world::object::{GenerationalIndex, GameObject, Spawner, SpawnerResult},
     tile::{placement::TilePlacementErr, sets::TileDef, Tile, TileMapLayerKind},
@@ -243,7 +243,12 @@ enum SimCmd {
     DespawnBuildingWithId {
         kind_and_id: BuildingKindAndId,
     },
-    DeferredBuildingUpdate {
+    VisitBuilding {
+        kind_and_id: BuildingKindAndId,
+        unit_id: UnitId,
+        on_post_visit: SpawnCallbackBox<BuildingVisitedCallback>,
+    },
+    DeferBuildingUpdate {
         kind_and_id: BuildingKindAndId,
         callback: SpawnCallbackBox<GameObjectDeferredCallback<Building>>,
     },
@@ -259,6 +264,10 @@ enum SimCmd {
         id: PropId,
     },
 }
+
+// ----------------------------------------------
+// Internal callback signatures
+// ----------------------------------------------
 
 // Inline storage budget for boxed spawn callbacks. S8 = 8 machine words (64B on 64-bit),
 // chosen to fit closures that capture a task id plus a small user closure without
@@ -276,6 +285,9 @@ type TileSpawnedCallback = dyn Fn(&SimContext, Result<SpawnReadyResult, TilePlac
 
 // Generic deferred update callback for units/buildings/props.
 type GameObjectDeferredCallback<T> = dyn Fn(&SimContext, &mut T);
+
+// Optional post building visit callback. Receives the same arguments as Building::visited_by
+type BuildingVisitedCallback = dyn Fn(&SimContext, &mut Building, &mut Unit, BuildingVisitResult);
 
 // ----------------------------------------------
 // SimCmds
@@ -490,11 +502,26 @@ impl SimCmds {
     }
 
     #[inline]
+    pub fn visit_building(&mut self, kind_and_id: BuildingKindAndId, unit_id: UnitId) {
+        // No user defined completion callback.
+        fn empty_cb(_ctx: &SimContext, _building: &mut Building, _unit: &mut Unit, _result: BuildingVisitResult) {}
+        self.cmds.push(SimCmd::VisitBuilding { kind_and_id, unit_id, on_post_visit: smallbox!(empty_cb) });
+    }
+
+    #[inline]
+    pub fn visit_building_with_cb<F>(&mut self, kind_and_id: BuildingKindAndId, unit_id: UnitId, on_post_visit: F)
+    where
+        F: Fn(&SimContext, &mut Building, &mut Unit, BuildingVisitResult) + 'static
+    {
+        self.cmds.push(SimCmd::VisitBuilding { kind_and_id, unit_id, on_post_visit: smallbox!(on_post_visit) });
+    }
+
+    #[inline]
     pub fn defer_building_update<F>(&mut self, kind_and_id: BuildingKindAndId, callback: F)
     where
         F: Fn(&SimContext, &mut Building) + 'static
     {
-        self.cmds.push(SimCmd::DeferredBuildingUpdate { kind_and_id, callback: smallbox!(callback) });
+        self.cmds.push(SimCmd::DeferBuildingUpdate { kind_and_id, callback: smallbox!(callback) });
     }
 
     // -- Prop operations -----------------------
@@ -600,10 +627,25 @@ impl SimCmds {
             SimCmd::DespawnBuildingWithId { kind_and_id } => {
                 spawner.despawn_building_with_id(*kind_and_id);
             }
-            SimCmd::DeferredBuildingUpdate { kind_and_id, callback } => {
+            SimCmd::VisitBuilding { kind_and_id, unit_id, on_post_visit } => {
                 let building = context.world_mut()
                     .find_building_mut(kind_and_id.kind, kind_and_id.id)
-                    .expect("SimCmd::DeferredBuildingUpdate invalid building id!");
+                    .unwrap_or_else(|| panic!("SimCmd::VisitBuilding invalid building kind/id: {} {}", kind_and_id.kind, kind_and_id.id));
+
+                let unit = context.world_mut()
+                    .find_unit_mut(*unit_id)
+                    .unwrap_or_else(|| panic!("SimCmd::VisitBuilding invalid unit id: {unit_id}"));
+
+                let result = building.visited_by(unit, context);
+
+                // Optional post visit user callback.
+                on_post_visit(context, building, unit, result);
+            }
+            SimCmd::DeferBuildingUpdate { kind_and_id, callback } => {
+                let building = context.world_mut()
+                    .find_building_mut(kind_and_id.kind, kind_and_id.id)
+                    .unwrap_or_else(|| panic!("SimCmd::DeferBuildingUpdate invalid building kind/id: {} {}", kind_and_id.kind, kind_and_id.id));
+
                 callback(context, building);
             }
 
