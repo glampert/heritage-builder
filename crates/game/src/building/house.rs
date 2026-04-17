@@ -622,25 +622,15 @@ impl HouseBuilding {
     // Upgrade Update:
     // ----------------------
 
-    fn upgrade_update(&mut self, cmds: &mut SimCmds, context: &BuildingContext) {
-        let mut upgraded = false;
-        let mut downgraded = false;
+    fn upgrade_update(&self, cmds: &mut SimCmds, context: &BuildingContext) {
+        debug_assert!(self.upgrade_state.curr_level_config.is_some());
+        debug_assert!(self.upgrade_state.next_level_config.is_some());
 
         // Attempt to upgrade or downgrade based on services and resources availability.
-        let upgrade = &mut self.upgrade_state;
-
-        debug_assert!(upgrade.curr_level_config.is_some());
-        debug_assert!(upgrade.next_level_config.is_some());
-
-        if upgrade.can_upgrade(context, &self.stock) {
-            upgraded = upgrade.try_upgrade(cmds, context, &mut self.debug);
-        } else if upgrade.can_downgrade(context, &self.stock) {
-            downgraded = upgrade.try_downgrade(cmds, context, &mut self.debug);
-        }
-
-        if upgraded || downgraded {
-            self.stock.update_capacities(self.current_level_config().stock_capacity);
-            self.adjust_population(cmds, context, self.population.count(), self.current_level_config().max_population);
+        if self.upgrade_state.can_upgrade(context, &self.stock) {
+            cmds.upgrade_house(context.kind_and_id(), HouseUpgradeDirection::Upgrade);
+        } else if self.upgrade_state.can_downgrade(context, &self.stock) {
+            cmds.upgrade_house(context.kind_and_id(), HouseUpgradeDirection::Downgrade);
         }
     }
 
@@ -653,6 +643,22 @@ impl HouseBuilding {
 
     pub fn upgrade_requirements(&self, context: &BuildingContext) -> HouseLevelRequirements {
         HouseLevelRequirements::new(context, self.next_level_config(), &self.stock)
+    }
+
+    pub fn perform_upgrade(&mut self, cmds: &mut SimCmds, context: &BuildingContext, dir: HouseUpgradeDirection) {
+        let success = match dir {
+            HouseUpgradeDirection::Upgrade => {
+                self.upgrade_state.try_upgrade(cmds, context, &mut self.debug)
+            }
+            HouseUpgradeDirection::Downgrade => {
+                self.upgrade_state.try_downgrade(cmds, context, &mut self.debug)
+            }
+        };
+
+        if success {
+            self.stock.update_capacities(self.current_level_config().stock_capacity);
+            self.adjust_population(cmds, context, self.population.count(), self.current_level_config().max_population);
+        }
     }
 
     // ----------------------
@@ -1145,6 +1151,16 @@ impl HouseLevelRequirements {
 }
 
 // ----------------------------------------------
+// HouseUpgradeDirection
+// ----------------------------------------------
+
+#[derive(Copy, Clone)]
+pub enum HouseUpgradeDirection {
+    Upgrade,
+    Downgrade,
+}
+
+// ----------------------------------------------
 // HouseUpgradeState
 // ----------------------------------------------
 
@@ -1179,7 +1195,7 @@ impl HouseUpgradeState {
         }
     }
 
-    fn can_upgrade(&mut self, context: &BuildingContext, stock: &BuildingStock) -> bool {
+    fn can_upgrade(&self, context: &BuildingContext, stock: &BuildingStock) -> bool {
         if self.level.is_max() {
             return false;
         }
@@ -1190,7 +1206,7 @@ impl HouseUpgradeState {
         next_level_requirements.has_required_services() && next_level_requirements.has_required_resources()
     }
 
-    fn can_downgrade(&mut self, context: &BuildingContext, stock: &BuildingStock) -> bool {
+    fn can_downgrade(&self, context: &BuildingContext, stock: &BuildingStock) -> bool {
         if self.level.is_min() {
             return false;
         }

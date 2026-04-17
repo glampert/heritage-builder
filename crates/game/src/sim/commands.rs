@@ -10,8 +10,8 @@ use super::SimContext;
 use crate::{
     constants::{SIM_CMDS_CAPACITY, INITIAL_GENERATION},
     prop::{Prop, PropId},
-    building::{Building, BuildingKindAndId, BuildingVisitResult},
     unit::{config::UnitConfigKey, Unit, UnitId},
+    building::{Building, BuildingKindAndId, BuildingVisitResult, HouseUpgradeDirection},
     world::object::{GenerationalIndex, GameObject, Spawner, SpawnerResult},
     tile::{placement::TilePlacementErr, sets::TileDef, Tile, TileMapLayerKind},
 };
@@ -248,17 +248,21 @@ enum SimCmd {
         unit_id: UnitId,
         on_post_visit: Option<SpawnCallbackBox<BuildingVisitedCallback>>,
     },
-    DeferBuildingTaskCallback {
+    DeferBuildingTaskStep {
         kind_and_id: BuildingKindAndId,
         unit_id: UnitId,
         callback: SpawnCallbackBox<BuildingTaskCallback>,
         // Optional callback invoked after the main one, e.g. to notify
         // the owning task that the deferred callback has been executed.
-        post_callback: Option<SpawnCallbackBox<BuildingTaskCallback>>,
+        on_complete: Option<SpawnCallbackBox<BuildingTaskCallback>>,
     },
     DeferBuildingUpdate {
         kind_and_id: BuildingKindAndId,
         callback: SpawnCallbackBox<GameObjectDeferredCallback<Building>>,
+    },
+    UpgradeHouse {
+        kind_and_id: BuildingKindAndId,
+        dir: HouseUpgradeDirection,
     },
 
     // -- Prop operations -----------------------
@@ -271,6 +275,16 @@ enum SimCmd {
     DespawnPropWithId {
         id: PropId,
     },
+}
+
+impl SimCmd {
+    // Command types we delay execution until after all other commands have been executed.
+    #[inline]
+    fn is_delayed_execution(&self) -> bool {
+        // UpgradeHouse:
+        // - Executes after all other commands because it may trigger multiple building despawns and house mergers.
+        matches!(self, Self::UpgradeHouse { .. })
+    }
 }
 
 // ----------------------------------------------
@@ -519,7 +533,7 @@ impl SimCmds {
     }
 
     #[inline]
-    pub fn visit_building_with_cb<F>(&mut self, kind_and_id: BuildingKindAndId, unit_id: UnitId, on_post_visit: F)
+    pub fn visit_building_with_completion<F>(&mut self, kind_and_id: BuildingKindAndId, unit_id: UnitId, on_post_visit: F)
     where
         F: Fn(&SimContext, &mut Building, &mut Unit, BuildingVisitResult) + 'static
     {
@@ -527,19 +541,19 @@ impl SimCmds {
     }
 
     #[inline]
-    pub fn defer_building_task_cb<F>(&mut self, kind_and_id: BuildingKindAndId, unit_id: UnitId, callback: F)
+    pub fn defer_task_step<F>(&mut self, kind_and_id: BuildingKindAndId, unit_id: UnitId, callback: F)
     where
         F: Fn(&SimContext, &mut Building, &mut Unit) + 'static
     {
-        self.cmds.push(SimCmd::DeferBuildingTaskCallback { kind_and_id, unit_id, callback: smallbox!(callback), post_callback: None });
+        self.cmds.push(SimCmd::DeferBuildingTaskStep { kind_and_id, unit_id, callback: smallbox!(callback), on_complete: None });
     }
 
     #[inline]
-    pub fn defer_building_task_cb_with_post<F>(&mut self, kind_and_id: BuildingKindAndId, unit_id: UnitId, callback: F, post_callback: F)
+    pub fn defer_task_step_with_completion<F>(&mut self, kind_and_id: BuildingKindAndId, unit_id: UnitId, callback: F, on_complete: F)
     where
         F: Fn(&SimContext, &mut Building, &mut Unit) + 'static
     {
-        self.cmds.push(SimCmd::DeferBuildingTaskCallback { kind_and_id, unit_id, callback: smallbox!(callback), post_callback: Some(smallbox!(post_callback)) });
+        self.cmds.push(SimCmd::DeferBuildingTaskStep { kind_and_id, unit_id, callback: smallbox!(callback), on_complete: Some(smallbox!(on_complete)) });
     }
 
     #[inline]
@@ -548,6 +562,11 @@ impl SimCmds {
         F: Fn(&SimContext, &mut Building) + 'static
     {
         self.cmds.push(SimCmd::DeferBuildingUpdate { kind_and_id, callback: smallbox!(callback) });
+    }
+
+    #[inline]
+    pub fn upgrade_house(&mut self, kind_and_id: BuildingKindAndId, dir: HouseUpgradeDirection) {
+        self.cmds.push(SimCmd::UpgradeHouse { kind_and_id, dir });
     }
 
     // -- Prop operations -----------------------
@@ -584,8 +603,20 @@ impl SimCmds {
         }
 
         let spawner = Spawner::new(context);
+        let mut delayed_cmds = SmallVec::<[&SimCmd; SIM_CMDS_CAPACITY]>::new();
 
         for cmd in &self.cmds {
+            if cmd.is_delayed_execution() {
+                // Delay till all other commands are executed.
+                delayed_cmds.push(cmd);
+                continue;
+            }
+
+            Self::execute_cmd(&mut self.promises, cmd, context, &spawner);
+        }
+
+        // Run delayed commands now:
+        for cmd in delayed_cmds {
             Self::execute_cmd(&mut self.promises, cmd, context, &spawner);
         }
 
@@ -669,21 +700,21 @@ impl SimCmds {
                     on_post_visit(context, building, unit, result);
                 }
             }
-            SimCmd::DeferBuildingTaskCallback { kind_and_id, unit_id, callback, post_callback } => {
+            SimCmd::DeferBuildingTaskStep { kind_and_id, unit_id, callback, on_complete } => {
                 let building = context.world_mut()
                     .find_building_mut(kind_and_id.kind, kind_and_id.id)
-                    .unwrap_or_else(|| panic!("SimCmd::DeferBuildingTaskCallback invalid building kind/id: {} {}", kind_and_id.kind, kind_and_id.id));
+                    .unwrap_or_else(|| panic!("SimCmd::DeferBuildingTaskStep invalid building kind/id: {} {}", kind_and_id.kind, kind_and_id.id));
 
                 let unit = context.world_mut()
                     .find_unit_mut(*unit_id)
-                    .unwrap_or_else(|| panic!("SimCmd::DeferBuildingTaskCallback invalid unit id: {unit_id}"));
+                    .unwrap_or_else(|| panic!("SimCmd::DeferBuildingTaskStep invalid unit id: {unit_id}"));
 
                 callback(context, building, unit);
 
                 // Optional post-callback. Runs after the main callback with the same refs,
                 // letting the caller observe completion (e.g. to advance a task state machine).
-                if let Some(post_callback) = post_callback {
-                    post_callback(context, building, unit);
+                if let Some(on_complete) = on_complete {
+                    on_complete(context, building, unit);
                 }
             }
             SimCmd::DeferBuildingUpdate { kind_and_id, callback } => {
@@ -692,6 +723,18 @@ impl SimCmds {
                     .unwrap_or_else(|| panic!("SimCmd::DeferBuildingUpdate invalid building kind/id: {} {}", kind_and_id.kind, kind_and_id.id));
 
                 callback(context, building);
+            }
+            SimCmd::UpgradeHouse { kind_and_id, dir } => {
+                let building = context.world_mut()
+                    .find_building_mut(kind_and_id.kind, kind_and_id.id)
+                    .unwrap_or_else(|| panic!("SimCmd::UpgradeHouse invalid building kind/id: {} {}", kind_and_id.kind, kind_and_id.id));
+
+                let mut cmds = SimCmds::default();
+
+                let building_ctx = building.new_context(context);
+                building.as_house_mut().perform_upgrade(&mut cmds, &building_ctx, *dir);
+
+                cmds.execute(context);
             }
 
             // --------------

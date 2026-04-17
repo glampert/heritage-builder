@@ -88,8 +88,8 @@ impl<T: ?Sized> Clone for RawPtr<T> {
 // Mutable
 // ----------------------------------------------
 
-// Hold an UnsafeCell<T> which allows unchecked interior mutability (casting
-// away const).
+// Hold an UnsafeCell<T> which allows unchecked interior mutability
+// (casting away const).
 pub struct Mutable<T: ?Sized> {
     cell: UnsafeCell<T>,
 }
@@ -98,6 +98,11 @@ impl<T> Mutable<T> {
     #[inline]
     pub const fn new(instance: T) -> Self {
         Self { cell: UnsafeCell::new(instance) }
+    }
+
+    #[inline]
+    pub fn replace(&self, value: T) -> T {
+        unsafe { core::ptr::replace(self.cell.get(), value) }
     }
 }
 

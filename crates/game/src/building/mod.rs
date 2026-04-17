@@ -63,7 +63,7 @@ use crate::{
 };
 
 pub mod config;
-pub use house::HouseLevel;
+pub use house::{HouseLevel, HouseUpgradeDirection};
 
 mod house;
 mod house_upgrade;
@@ -446,7 +446,14 @@ impl Building {
 
     #[inline]
     pub fn new_context<'game>(&self, sim_ctx: &'game SimContext) -> BuildingContext<'game> {
-        BuildingContext::new(self.id, self.map_cells, self.road_link(sim_ctx), self.kind, self.archetype_kind(), sim_ctx)
+        BuildingContext::new(
+            self.map_cells,
+            self.id,
+            self.kind,
+            self.archetype_kind(),
+            self.road_link(sim_ctx),
+            sim_ctx,
+        )
     }
 
     #[inline]
@@ -1322,25 +1329,37 @@ impl BuildingTileInfo {
 // ----------------------------------------------
 
 pub struct BuildingContext<'game> {
+    map_cells: Mutable<CellRange>, // Can be updated during a house upgrade if the building tile changes.
     pub id: BuildingId,
-    pub map_cells: Mutable<CellRange>,
-    pub road_link: Option<Cell>,
     pub kind: BuildingKind,
     pub archetype_kind: BuildingArchetypeKind,
+    pub road_link: Option<Cell>,
     pub sim_ctx: &'game SimContext,
 }
 
 impl<'game> BuildingContext<'game> {
     #[inline]
     fn new(
-        id: BuildingId,
         map_cells: CellRange,
-        road_link: Option<Cell>,
+        id: BuildingId,
         kind: BuildingKind,
         archetype_kind: BuildingArchetypeKind,
+        road_link: Option<Cell>,
         sim_ctx: &'game SimContext,
     ) -> Self {
-        Self { id, map_cells: Mutable::new(map_cells), road_link, kind, archetype_kind, sim_ctx }
+        Self {
+            map_cells: Mutable::new(map_cells),
+            id,
+            kind,
+            archetype_kind,
+            road_link,
+            sim_ctx,
+        }
+    }
+
+    #[inline]
+    fn update_cell_range(&self, new_cell_range: CellRange) {
+        self.map_cells.replace(new_cell_range);
     }
 
     #[inline]
@@ -1350,7 +1369,7 @@ impl<'game> BuildingContext<'game> {
 
     #[inline]
     pub fn cell_range(&self) -> CellRange {
-        *self.map_cells.as_ref()
+        *self.map_cells
     }
 
     #[inline]

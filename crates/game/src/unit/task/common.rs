@@ -139,7 +139,7 @@ where
         // is still the same kind of building we where looking for, it doesn't matter if
         // it was destroyed and recreated since we started the task.
         if destination_building.kind() == destination_kind {
-            cmds.visit_building_with_cb(destination_building.kind_and_id(), unit.id(), on_post_visit);
+            cmds.visit_building_with_completion(destination_building.kind_and_id(), unit.id(), on_post_visit);
             return true;
         }
     }
@@ -174,7 +174,7 @@ where
         debug_assert!(origin_building.kind() == origin_building_kind);
         debug_assert!(origin_building.id()   == origin_building_id);
 
-        cmds.defer_building_task_cb_with_post(origin_building.kind_and_id(), unit.id(), callback, post_callback);
+        cmds.defer_task_step_with_completion(origin_building.kind_and_id(), unit.id(), callback, post_callback);
         return true;
     }
 

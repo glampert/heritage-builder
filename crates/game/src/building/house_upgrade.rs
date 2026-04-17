@@ -21,7 +21,7 @@ use super::{
 };
 use crate::{
     sim::SimCmds,
-    world::object::GameObject,
+    world::object::{GameObject, Spawner},
     pathfind::{Node, NodeKind as PathNodeKind},
     tile::{TileFlags, TileKind, TileMapLayerKind, sets::TileDef},
 };
@@ -204,7 +204,7 @@ pub fn try_replace_tile(
     if new_cell_range != prev_cell_range {
         // Update cell range cached in the building & context.
         dest_house.map_cells = new_cell_range;
-        *context.map_cells.as_mut() = new_cell_range;
+        context.update_cell_range(new_cell_range);
 
         // Update path finding graph:
         let graph = context.sim_ctx.graph_mut();
@@ -520,7 +520,7 @@ fn merge_houses(
         let building_to_merge = house_for_id_mut(context, *merge_id);
 
         merge_house(cmds, context, dest_building, building_to_merge, target_level_config);
-        destroy_house(cmds, building_to_merge);
+        destroy_house(context, building_to_merge);
     }
 }
 
@@ -547,8 +547,10 @@ fn merge_house(
     );
 }
 
-fn destroy_house(cmds: &mut SimCmds, merged_building: &mut Building) {
-    cmds.despawn_building_with_id(merged_building.kind_and_id());
+fn destroy_house(context: &BuildingContext, merged_building: &mut Building) {
+    // NOTE: We can safely immediately despawn the merged house here since
+    // the whole house upgrade logic is already deferred as a SimCmd.
+    Spawner::new(context.sim_ctx).despawn_building(merged_building);
 }
 
 // ----------------------------------------------

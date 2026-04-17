@@ -278,7 +278,7 @@ impl UnitTask for UnitTaskSettler {
             if let Some(house_building) = context.world().find_building_for_cell(destination_cell, context.tile_map())
                 && house_building.kind() == destination_kind
             {
-                cmds.visit_building_with_cb(house_building.kind_and_id(), unit.id(),
+                cmds.visit_building_with_completion(house_building.kind_and_id(), unit.id(),
                     |context, _building, unit, result| {
                         // House accepted the setter. Task will complete.
                         let settler_accepted = result == BuildingVisitResult::Accepted;
