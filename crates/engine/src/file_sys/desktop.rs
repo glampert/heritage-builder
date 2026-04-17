@@ -54,7 +54,11 @@ impl FileSystemBackend for StandardFileSystemBackend {
 
     #[inline]
     fn create_path(&self, path: impl AsRef<Path>) -> io::Result<()> {
-        fs::create_dir_all(path)
+        if let Some(path_without_filename) = path.as_ref().parent() {
+            fs::create_dir_all(path_without_filename)
+        } else {
+            Ok(())
+        }
     }
 
     fn collect_dir_entries(
