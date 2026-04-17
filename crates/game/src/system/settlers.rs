@@ -88,7 +88,7 @@ impl GameSystem for SettlersSpawnSystem {
 
         color_text("Has vacant lots:", Self::has_vacant_lots(context));
 
-        let spawn_point = Self::find_spawn_point(context);
+        let spawn_point = Self::find_spawn_point(cmds, context);
         ui.text(format!("Spawn Point: {}", spawn_point.cell));
 
         if ui.input_scalar("Population Per Settler Unit", &mut self.population_per_settler_unit).step(1).build() {
@@ -128,7 +128,7 @@ impl SettlersSpawnSystem {
     }
 
     #[inline]
-    fn find_spawn_point(context: &SimContext) -> Node {
+    fn find_spawn_point(cmds: &mut SimCmds, context: &SimContext) -> Node {
         context.graph().settlers_spawn_point().unwrap_or_else(|| {
             // Fallback to map playable area top-left corner cell if no spawn point it set.
             let map_size = context.tile_map().size_in_cells();
@@ -137,16 +137,16 @@ impl SettlersSpawnSystem {
             let default_spawn_point = Cell::new(x, y);
 
             // Make sure default tile is flagged as a spawn point otherwise unit path finding wouldn't work.
-            if let Some(tile) = context.find_tile_mut(default_spawn_point, TileMapLayerKind::Terrain, TileKind::Terrain) {
+            cmds.defer_tile_update(default_spawn_point, TileMapLayerKind::Terrain, TileKind::Terrain, |_context, tile| {
                 tile.set_flags(TileFlags::SettlersSpawnPoint, true);
-            }
+            });
 
             Node::new(default_spawn_point)
         })
     }
 
     fn try_spawn(&self, cmds: &mut SimCmds, context: &SimContext) {
-        let spawn_point = Self::find_spawn_point(context);
+        let spawn_point = Self::find_spawn_point(cmds, context);
         Settler::try_spawn(cmds, context, spawn_point.cell, self.population_per_settler_unit);
     }
 }

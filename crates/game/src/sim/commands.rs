@@ -13,7 +13,7 @@ use crate::{
     unit::{config::UnitConfigKey, Unit, UnitId},
     building::{Building, BuildingKindAndId, BuildingVisitResult, HouseUpgradeDirection},
     world::object::{GenerationalIndex, GameObject, Spawner, SpawnerResult},
-    tile::{placement::TilePlacementErr, sets::TileDef, Tile, TileMapLayerKind},
+    tile::{placement::TilePlacementErr, sets::TileDef, Tile, TileKind, TileMapLayerKind},
 };
 
 // ----------------------------------------------
@@ -209,11 +209,17 @@ enum SimCmd {
         cell: Cell,
         tile_def: &'static TileDef,
         state_id: Option<SpawnPromiseStateId>,
-        on_spawned: SpawnCallbackBox<TileSpawnedCallback>,
+        on_spawned: CallbackBox<TileSpawnedCallback>,
     },
     DespawnTileAtCell {
         cell: Cell,
         layer_kind: TileMapLayerKind,
+    },
+    DeferTileUpdate {
+        cell: Cell,
+        layer: TileMapLayerKind,
+        kind: TileKind,
+        callback: CallbackBox<DeferredCallback<Tile>>,
     },
 
     // -- Unit operations -----------------------
@@ -221,13 +227,13 @@ enum SimCmd {
         origin: Cell,
         config: UnitConfigKey,
         state_id: Option<SpawnPromiseStateId>,
-        on_spawned: SpawnCallbackBox<GameObjectSpawnedCallback<Unit>>,
+        on_spawned: CallbackBox<GameObjectSpawnedCallback<Unit>>,
     },
     SpawnUnitWithTileDef {
         origin: Cell,
         tile_def: &'static TileDef,
         state_id: Option<SpawnPromiseStateId>,
-        on_spawned: SpawnCallbackBox<GameObjectSpawnedCallback<Unit>>,
+        on_spawned: CallbackBox<GameObjectSpawnedCallback<Unit>>,
     },
     DespawnUnitWithId {
         id: UnitId,
@@ -238,7 +244,7 @@ enum SimCmd {
         base_cell: Cell,
         tile_def: &'static TileDef,
         state_id: Option<SpawnPromiseStateId>,
-        on_spawned: SpawnCallbackBox<GameObjectSpawnedCallback<Building>>,
+        on_spawned: CallbackBox<GameObjectSpawnedCallback<Building>>,
     },
     DespawnBuildingWithId {
         kind_and_id: BuildingKindAndId,
@@ -246,19 +252,19 @@ enum SimCmd {
     VisitBuilding {
         kind_and_id: BuildingKindAndId,
         unit_id: UnitId,
-        on_post_visit: Option<SpawnCallbackBox<BuildingVisitedCallback>>,
+        on_post_visit: Option<CallbackBox<BuildingVisitedCallback>>,
     },
     DeferBuildingTaskStep {
         kind_and_id: BuildingKindAndId,
         unit_id: UnitId,
-        callback: SpawnCallbackBox<BuildingTaskCallback>,
+        callback: CallbackBox<BuildingTaskCallback>,
         // Optional callback invoked after the main one, e.g. to notify
         // the owning task that the deferred callback has been executed.
-        on_complete: Option<SpawnCallbackBox<BuildingTaskCallback>>,
+        on_complete: Option<CallbackBox<BuildingTaskCallback>>,
     },
     DeferBuildingUpdate {
         kind_and_id: BuildingKindAndId,
-        callback: SpawnCallbackBox<GameObjectDeferredCallback<Building>>,
+        callback: CallbackBox<DeferredCallback<Building>>,
     },
     UpgradeHouse {
         kind_and_id: BuildingKindAndId,
@@ -270,7 +276,7 @@ enum SimCmd {
         origin: Cell,
         tile_def: &'static TileDef,
         state_id: Option<SpawnPromiseStateId>,
-        on_spawned: SpawnCallbackBox<GameObjectSpawnedCallback<Prop>>,
+        on_spawned: CallbackBox<GameObjectSpawnedCallback<Prop>>,
     },
     DespawnPropWithId {
         id: PropId,
@@ -291,10 +297,10 @@ impl SimCmd {
 // Internal callback signatures
 // ----------------------------------------------
 
-// Inline storage budget for boxed spawn callbacks. S8 = 8 machine words (64B on 64-bit),
-// chosen to fit closures that capture a task id plus a small user closure without
+// Inline storage budget for boxed callbacks. S8 = 8 machine words (64B on 64-bit),
+// chosen to fit closures that capture an object id plus a small user closure without
 // silently spilling to the heap.
-type SpawnCallbackBox<F> = SmallBox<F, smallbox::space::S8>;
+type CallbackBox<F> = SmallBox<F, smallbox::space::S8>;
 
 // Game object callback: receives `&mut T` so the closure can initialize the
 // freshly-spawned object before it goes live (e.g. assigning a task to a new Unit).
@@ -305,8 +311,8 @@ type GameObjectSpawnedCallback<T> = dyn Fn(&SimContext, Result<&mut T, TilePlace
 // the need to clone TilePlacementErr in the failure path.
 type TileSpawnedCallback = dyn Fn(&SimContext, Result<SpawnReadyResult, TilePlacementErr>) + 'static;
 
-// Generic deferred update callback for units/buildings/props.
-type GameObjectDeferredCallback<T> = dyn Fn(&SimContext, &mut T);
+// Generic deferred update callback for tiles/units/buildings/props.
+type DeferredCallback<T> = dyn Fn(&SimContext, &mut T);
 
 // Optional post building visit callback. Receives the same arguments as Building::visited_by
 type BuildingVisitedCallback = dyn Fn(&SimContext, &mut Building, &mut Unit, BuildingVisitResult);
@@ -337,7 +343,7 @@ impl SimCmds {
         }
     }
 
-    pub fn reset(&mut self) {
+    pub(super) fn reset(&mut self) {
         // Outstanding promises would dangle across a reset: their state slots are
         // wiped and the generation counter restarts, so a stale handle could even
         // collide with a freshly-allocated one. Callers must drop or query all
@@ -352,11 +358,11 @@ impl SimCmds {
         self.promises.clear();
     }
 
-    pub fn pre_load(&mut self) {
+    pub(super) fn pre_load(&mut self) {
         self.reset();
     }
 
-    pub fn post_load(&mut self) {
+    pub(super) fn post_load(&mut self) {
         // Nothing currently.
     }
 
@@ -453,6 +459,14 @@ impl SimCmds {
     #[inline]
     pub fn despawn_tile_at_cell(&mut self, cell: Cell, layer_kind: TileMapLayerKind) {
         self.cmds.push(SimCmd::DespawnTileAtCell { cell, layer_kind });
+    }
+
+    #[inline]
+    pub fn defer_tile_update<F>(&mut self, cell: Cell, layer: TileMapLayerKind, kind: TileKind, callback: F)
+    where
+        F: Fn(&SimContext, &mut Tile) + 'static
+    {
+        self.cmds.push(SimCmd::DeferTileUpdate { cell, layer, kind, callback: smallbox!(callback) });
     }
 
     // -- Unit operations -----------------------
@@ -658,6 +672,12 @@ impl SimCmds {
             SimCmd::DespawnTileAtCell { cell, layer_kind } => {
                 spawner.despawn_tile_at_cell(*cell, *layer_kind);
             }
+            SimCmd::DeferTileUpdate { cell, layer, kind, callback } => {
+                let tile = context.find_tile_mut(*cell, *layer, *kind)
+                    .unwrap_or_else(|| panic!("SimCmd::DeferTileUpdate invalid tile cell/layer/kind: {} {} {}", cell, layer, kind));
+
+                callback(context, tile);
+            }
 
             // --------------
             // Units:
@@ -756,7 +776,7 @@ impl SimCmds {
     fn resolve_game_object_spawn<T: GameObject>(
         promises: &mut SpawnPromiseStatePool,
         state_id: &Option<SpawnPromiseStateId>,
-        on_spawned: &SpawnCallbackBox<GameObjectSpawnedCallback<T>>,
+        on_spawned: &CallbackBox<GameObjectSpawnedCallback<T>>,
         context: &SimContext,
         result: Result<&mut T, TilePlacementErr>,
     ) {

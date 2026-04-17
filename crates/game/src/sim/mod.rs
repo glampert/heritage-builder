@@ -174,16 +174,14 @@ impl Simulation {
 
         // Fixed step world & systems update.
         {
-            // TODO: Set to true once SimCmds conversion is finished!
-            //const LOCK_WORLD_AND_MAP_DURING_UPDATE: bool = true;
-            const LOCK_WORLD_AND_MAP_DURING_UPDATE: bool = false;
+            const LOCK_WORLD_AND_MAP_DURING_UPDATE: bool = cfg!(debug_assertions);
 
             let world_update_delta_time_secs = self.update_timer.time_since_last_secs() * self.speed;
 
             if self.update_timer.tick(scaled_delta_time_secs).should_update() {
                 debug_assert!(self.cmds.is_empty());
 
-                if cfg!(debug_assertions) && LOCK_WORLD_AND_MAP_DURING_UPDATE {
+                if LOCK_WORLD_AND_MAP_DURING_UPDATE {
                     tile_map.lock();
                     world.lock();
                 }
@@ -192,7 +190,7 @@ impl Simulation {
                 world.update(&mut self.cmds, &context);
                 systems.update(engine, &mut self.cmds, &context);
 
-                if cfg!(debug_assertions) && LOCK_WORLD_AND_MAP_DURING_UPDATE {
+                if LOCK_WORLD_AND_MAP_DURING_UPDATE {
                     world.unlock();
                     tile_map.unlock();
                 }
