@@ -1,6 +1,7 @@
 #![allow(clippy::too_many_arguments)]
 
 use std::any::Any;
+use strum::EnumProperty;
 
 use common::{
     self,
@@ -10,9 +11,9 @@ use common::{
     time::Seconds,
 };
 use engine::{
-    app::input::{InputAction, InputKey, InputModifiers, MouseButton},
-    file_sys::paths::PathRef,
     log,
+    file_sys::paths::PathRef,
+    app::input::{InputAction, InputKey, InputModifiers, MouseButton},
     ui::{
         UiFontScale,
         UiInputEvent,
@@ -31,11 +32,13 @@ use engine::{
         },
     },
 };
-use strum::EnumProperty;
 
 use crate::{
-    save_context::{Load, Save},
     sim::SimContext,
+    ui_context::GameUiContext,
+    save_context::{Load, Save},
+    undo_redo::{self, EditAction, EditedLayer},
+    world::object::{Spawner, SpawnerResult},
     tile::{
         Tile,
         TileKind,
@@ -46,9 +49,6 @@ use crate::{
         sets::{PresetTiles, TileDef, TileDefHandle, TileSets},
         water,
     },
-    ui_context::GameUiContext,
-    undo_redo::{self, EditAction, EditedLayer},
-    world::object::{Spawner, SpawnerResult},
 };
 
 mod dialog;
@@ -288,20 +288,18 @@ pub trait GameMenusSystem: Any + Save + Load {
                         }
                     } else if is_clear_selected && !context.tile_selection.cells().is_empty() {
                         // Clear batch of selected tiles:
-                        let sim_context = context.new_sim_context();
-                        let tile_map = sim_context.tile_map();
-
+                        //
                         // Ensure each cell is unique with a hash set.
                         let mut clearable_cells: SmallSet<64, Cell> = SmallSet::new();
                         let mut layers = EditedLayer::empty();
 
                         for &cell in context.tile_selection.cells() {
-                            if let Some(tile) = tile_map.try_tile_from_layer(cell, TileMapLayerKind::Objects) {
+                            if let Some(tile) = context.tile_map.try_tile_from_layer(cell, TileMapLayerKind::Objects) {
                                 if TilePlacement::can_clear(tile) {
                                     clearable_cells.insert(cell);
                                     layers |= EditedLayer::Objects;
                                 }
-                            } else if let Some(tile) = tile_map.try_tile_from_layer(cell, TileMapLayerKind::Terrain) {
+                            } else if let Some(tile) = context.tile_map.try_tile_from_layer(cell, TileMapLayerKind::Terrain) {
                                 if TilePlacement::can_clear(tile) {
                                     clearable_cells.insert(cell);
                                     layers |= EditedLayer::Terrain;
@@ -310,8 +308,6 @@ pub trait GameMenusSystem: Any + Save + Load {
                         }
 
                         if !clearable_cells.is_empty() {
-                            let mut cleared_any = false;
-
                             undo_redo::record(
                                 EditAction::ClearingTiles,
                                 clearable_cells.iter(),
@@ -320,16 +316,21 @@ pub trait GameMenusSystem: Any + Save + Load {
                                 context.world,
                             );
 
-                            for (&cell, _) in clearable_cells.iter() {
-                                if layers.intersects(EditedLayer::Objects) {
-                                    if let Some(tile) = tile_map.try_tile_from_layer(cell, TileMapLayerKind::Objects) {
-                                        cleared_any |= TilePlacement::clear(&sim_context, tile, false, false).is_ok();
-                                    }
-                                }
+                            let mut cleared_any = false;
+                            {
+                                let sim_context = context.new_sim_context();
 
-                                if layers.intersects(EditedLayer::Terrain) {
-                                    if let Some(tile) = tile_map.try_tile_from_layer(cell, TileMapLayerKind::Terrain) {
-                                        cleared_any |= TilePlacement::clear(&sim_context, tile, false, false).is_ok();
+                                for (&cell, _) in clearable_cells.iter() {
+                                    if layers.intersects(EditedLayer::Objects) {
+                                        if let Some(tile) = sim_context.tile_map().try_tile_from_layer(cell, TileMapLayerKind::Objects) {
+                                            cleared_any |= TilePlacement::clear(&sim_context, tile, false, false).is_ok();
+                                        }
+                                    }
+
+                                    if layers.intersects(EditedLayer::Terrain) {
+                                        if let Some(tile) = sim_context.tile_map().try_tile_from_layer(cell, TileMapLayerKind::Terrain) {
+                                            cleared_any |= TilePlacement::clear(&sim_context, tile, false, false).is_ok();
+                                        }
                                     }
                                 }
                             }
@@ -497,16 +498,18 @@ impl TilePlacement {
                 context.cursor_screen_pos,
                 context.camera.transform(),
             );
+
             if target_cell.is_valid() {
                 let sim_context = context.new_sim_context();
                 return Self::place(&sim_context, target_cell, tile_def, true, true);
             }
         } else if selection.is_clear() {
             // Clear/remove tile:
+            let cursor_screen_pos = context.cursor_screen_pos;
+            let camera_transform = context.camera.transform();
             let sim_context = context.new_sim_context();
-            if let Some(tile) =
-                sim_context.tile_map().topmost_tile_at_cursor(context.cursor_screen_pos, context.camera.transform())
-            {
+
+            if let Some(tile) = sim_context.tile_map().topmost_tile_at_cursor(cursor_screen_pos, camera_transform) {
                 return Self::clear(&sim_context, tile, false, true);
             }
         }

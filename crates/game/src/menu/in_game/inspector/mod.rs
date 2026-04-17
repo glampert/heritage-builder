@@ -9,11 +9,11 @@ use engine::ui::{
 };
 
 use crate::{
-    building::{Building, BuildingArchetypeKind, BuildingKind},
     menu::TileInspector,
-    sim::resources::{ResourceKind, StockItem},
     tile::{Tile, TileKind},
     ui_context::GameUiContext,
+    sim::resources::{ResourceKind, StockItem},
+    building::{Building, BuildingArchetypeKind, BuildingKind, BuildingContext},
 };
 
 mod renderer;
@@ -124,16 +124,15 @@ enum GameObjectInspectorKind {
 }
 
 trait GameObjectInspector {
-    fn update_selection(&mut self, context: &GameUiContext, selected_tile: &Tile);
+    fn update_selection(&mut self, context: &mut GameUiContext);
     fn menu(&mut self) -> &mut UiMenu;
 
     fn open(&mut self, context: &mut GameUiContext) {
-        let selected_tile = match context.topmost_selected_tile() {
-            Some(tile) => tile,
-            None => return,
-        };
+        if context.topmost_selected_tile().is_none() {
+            return;
+        }
 
-        self.update_selection(context, selected_tile);
+        self.update_selection(context);
         self.menu().open(context);
     }
 
@@ -170,7 +169,9 @@ struct UnitInspector {
 }
 
 impl GameObjectInspector for UnitInspector {
-    fn update_selection(&mut self, context: &GameUiContext, selected_tile: &Tile) {
+    fn update_selection(&mut self, context: &mut GameUiContext) {
+        let selected_tile = context.topmost_selected_tile().unwrap();
+
         if let Some(unit) = context.world.find_unit_for_tile(selected_tile) {
             self.renderer.set_icon(context, selected_tile.icon_sprite(), selected_tile.kind());
             self.renderer.set_title(unit.name());
@@ -207,12 +208,17 @@ struct BuildingInspector {
 }
 
 impl GameObjectInspector for BuildingInspector {
-    fn update_selection(&mut self, context: &GameUiContext, selected_tile: &Tile) {
+    fn update_selection(&mut self, context: &mut GameUiContext) {
+        let sim_context = context.new_sim_context();
+        let selected_tile = context.topmost_selected_tile().unwrap();
+
         if let Some(building) = context.world.find_building_for_tile(selected_tile) {
             self.renderer.set_icon(context, selected_tile.icon_sprite(), selected_tile.kind());
             self.renderer.set_title(building.name());
             self.set_population_and_workers(building);
-            self.set_stats_info(context, building);
+
+            let building_ctx = building.new_context(&sim_context);
+            self.set_stats_info(&building_ctx, building);
         }
     }
 
@@ -263,32 +269,29 @@ impl BuildingInspector {
         self.renderer.set_headings(&headings);
     }
 
-    fn set_stats_info(&mut self, context: &GameUiContext, building: &Building) {
+    fn set_stats_info(&mut self, building_ctx: &BuildingContext, building: &Building) {
         let body = {
             if building.is(BuildingKind::House) {
-                Self::gather_house_stats(context, building)
+                Self::gather_house_stats(building_ctx, building)
             } else {
-                Self::gather_building_stats(context, building)
+                Self::gather_building_stats(building_ctx, building)
             }
         };
         self.renderer.set_body(&body);
     }
 
-    fn gather_house_stats(context: &GameUiContext, building: &Building) -> InspectorMenuBody {
+    fn gather_house_stats(building_ctx: &BuildingContext, building: &Building) -> InspectorMenuBody {
         let mut body = InspectorMenuBody::new();
 
         let house = building.as_house();
 
         if !house.level().is_max() {
-            let sim_context = context.new_sim_context();
-            let building_context = building.new_context(&sim_context);
-
-            if !building.is_linked_to_road(&sim_context) {
+            if !building.is_linked_to_road(building_ctx.sim_ctx) {
                 add_body_line!(&mut body, "House lacks road access!");
-            } else if !house.is_upgrade_available(&building_context) {
+            } else if !house.is_upgrade_available(building_ctx) {
                 add_body_line!(&mut body, "House has no room to expand!");
             } else {
-                let upgrade_requirements = house.upgrade_requirements(&building_context);
+                let upgrade_requirements = house.upgrade_requirements(building_ctx);
                 let has_required_resources = upgrade_requirements.has_required_resources();
                 let has_required_services  = upgrade_requirements.has_required_services();
 
@@ -320,13 +323,12 @@ impl BuildingInspector {
         body
     }
 
-    fn gather_building_stats(context: &GameUiContext, building: &Building) -> InspectorMenuBody {
+    fn gather_building_stats(building_ctx: &BuildingContext, building: &Building) -> InspectorMenuBody {
         let mut body = InspectorMenuBody::new();
 
         let is_operational = building.is_operational();
         if !is_operational {
-            let sim_context = context.new_sim_context();
-            let is_linked_to_road = building.is_linked_to_road(&sim_context);
+            let is_linked_to_road = building.is_linked_to_road(building_ctx.sim_ctx);
 
             let has_min_required_workers = building.has_min_required_workers();
             let has_min_required_resources = building.has_min_required_resources();
@@ -404,7 +406,9 @@ struct PropInspector {
 }
 
 impl GameObjectInspector for PropInspector {
-    fn update_selection(&mut self, context: &GameUiContext, selected_tile: &Tile) {
+    fn update_selection(&mut self, context: &mut GameUiContext) {
+        let selected_tile = context.topmost_selected_tile().unwrap();
+
         if let Some(prop) = context.world.find_prop_for_tile(selected_tile) {
             self.renderer.set_icon(context, selected_tile.icon_sprite(), selected_tile.kind());
             self.renderer.set_title(prop.name());
@@ -441,7 +445,9 @@ struct TerrainInspector {
 }
 
 impl GameObjectInspector for TerrainInspector {
-    fn update_selection(&mut self, context: &GameUiContext, selected_tile: &Tile) {
+    fn update_selection(&mut self, context: &mut GameUiContext) {
+        let selected_tile = context.topmost_selected_tile().unwrap();
+
         self.renderer.set_icon(context, selected_tile.icon_sprite(), selected_tile.kind());
         self.renderer.set_title(&snake_case_to_title::<128>(selected_tile.name()));
         self.renderer.set_body_text(find_tile_description(selected_tile));

@@ -217,7 +217,6 @@ enum SimCmd {
     },
     DeferTileUpdate {
         cell: Cell,
-        layer: TileMapLayerKind,
         kind: TileKind,
         callback: CallbackBox<DeferredCallback<Tile>>,
     },
@@ -462,11 +461,11 @@ impl SimCmds {
     }
 
     #[inline]
-    pub fn defer_tile_update<F>(&mut self, cell: Cell, layer: TileMapLayerKind, kind: TileKind, callback: F)
+    pub fn defer_tile_update<F>(&mut self, cell: Cell, kind: TileKind, callback: F)
     where
         F: Fn(&SimContext, &mut Tile) + 'static
     {
-        self.cmds.push(SimCmd::DeferTileUpdate { cell, layer, kind, callback: smallbox!(callback) });
+        self.cmds.push(SimCmd::DeferTileUpdate { cell, kind, callback: smallbox!(callback) });
     }
 
     // -- Unit operations -----------------------
@@ -672,9 +671,9 @@ impl SimCmds {
             SimCmd::DespawnTileAtCell { cell, layer_kind } => {
                 spawner.despawn_tile_at_cell(*cell, *layer_kind);
             }
-            SimCmd::DeferTileUpdate { cell, layer, kind, callback } => {
-                let tile = context.find_tile_mut(*cell, *layer, *kind)
-                    .unwrap_or_else(|| panic!("SimCmd::DeferTileUpdate invalid tile cell/layer/kind: {} {} {}", cell, layer, kind));
+            SimCmd::DeferTileUpdate { cell, kind, callback } => {
+                let tile = context.find_tile_mut(*cell, *kind)
+                    .unwrap_or_else(|| panic!("SimCmd::DeferTileUpdate invalid tile cell/kind: {} {}", cell, kind));
 
                 callback(context, tile);
             }

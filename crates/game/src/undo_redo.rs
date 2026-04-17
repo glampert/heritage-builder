@@ -182,7 +182,7 @@ impl Record {
         debug_assert!(tile_def.layer_kind() == layer);
 
         if TilePlacement::place(context, target_cell, tile_def, subtract_tile_cost, false).is_ok() {
-            if let Some(tile) = context.find_tile_mut(target_cell, layer, tile_def.kind()) {
+            if let Some(tile) = context.find_tile_mut(target_cell, tile_def.kind()) {
                 tile.set_variation_index(tile_variation_index as usize);
                 if !tile_flags.is_empty() {
                     tile.set_flags(tile_flags, true);
@@ -210,7 +210,7 @@ impl Record {
         let tile_def = tile_state.tile_def;
         debug_assert!(tile_def.layer_kind() == layer);
 
-        if let Some(tile) = context.find_tile(tile_state.tile_base_cell, layer, tile_def.kind()) {
+        if let Some(tile) = context.find_tile(tile_state.tile_base_cell, tile_def.kind()) {
             TilePlacement::clear(context, tile, restore_tile_cost, false);
         }
     }

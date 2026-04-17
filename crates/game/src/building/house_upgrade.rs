@@ -207,12 +207,11 @@ pub fn try_replace_tile(
         context.update_cell_range(new_cell_range);
 
         // Update path finding graph:
-        let graph = context.sim_ctx.graph_mut();
         for cell in &prev_cell_range {
-            graph.set_node_kind(Node::new(cell), PathNodeKind::EmptyLand); // Traversable
+            context.sim_ctx.set_path_node_kind(Node::new(cell), PathNodeKind::EmptyLand); // Traversable
         }
         for cell in &new_cell_range {
-            graph.set_node_kind(Node::new(cell), PathNodeKind::Building); // Not Traversable
+            context.sim_ctx.set_path_node_kind(Node::new(cell), PathNodeKind::Building); // Not Traversable
         }
     }
 

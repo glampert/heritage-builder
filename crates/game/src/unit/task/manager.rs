@@ -107,6 +107,12 @@ pub struct UnitTaskPool {
     generation: u32,
 }
 
+impl Default for UnitTaskPool {
+    fn default() -> Self {
+        Self { tasks: Slab::default(), generation: INITIAL_GENERATION }
+    }
+}
+
 impl UnitTaskPool {
     fn new(capacity: usize) -> Self {
         Self { tasks: Slab::with_capacity(capacity), generation: INITIAL_GENERATION }
@@ -220,7 +226,7 @@ impl Drop for UnitTaskPool {
 // UnitTaskManager
 // ----------------------------------------------
 
-#[derive(Serialize, Deserialize)]
+#[derive(Default, Serialize, Deserialize)]
 pub struct UnitTaskManager {
     task_pool: UnitTaskPool,
 }

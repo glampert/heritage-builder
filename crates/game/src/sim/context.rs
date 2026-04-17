@@ -76,6 +76,10 @@ pub struct SimContext {
 }
 
 impl SimContext {
+    // ----------------------
+    // Internal:
+    // ----------------------
+
     #[inline]
     pub fn new(
         rng: &mut RandomGenerator,
@@ -101,7 +105,6 @@ impl SimContext {
         }
     }
 
-    // Internal.
     #[inline(always)]
     fn search_mut(&self) -> &mut Search {
         self.search.mut_ref_cast()
@@ -134,11 +137,6 @@ impl SimContext {
     #[inline(always)]
     pub fn graph(&self) -> &Graph {
         &self.graph
-    }
-
-    #[inline(always)]
-    pub fn graph_mut(&self) -> &mut Graph {
-        self.graph.mut_ref_cast()
     }
 
     #[inline(always)]
@@ -186,27 +184,32 @@ impl SimContext {
     }
 
     #[inline]
+    pub fn set_path_node_kind(&self, node: Node, kind: PathNodeKind) {
+        self.graph.mut_ref_cast().set_node_kind(node, kind);
+    }
+
+    #[inline]
     pub fn find_tile_def(
         &self,
         layer: TileMapLayerKind,
         category_name_hash: StringHash,
-        tile_def_name_hash: StringHash,
+        tile_name_hash: StringHash,
     ) -> Option<&'static TileDef> {
-        TileSets::get().find_tile_def_by_hash(layer, category_name_hash, tile_def_name_hash)
+        TileSets::get().find_tile_def_by_hash(layer, category_name_hash, tile_name_hash)
     }
 
     #[inline]
-    pub fn find_tile(&self, cell: Cell, layer: TileMapLayerKind, tile_kinds: TileKind) -> Option<&Tile> {
-        self.tile_map().find_tile(cell, layer, tile_kinds)
+    pub fn find_tile(&self, cell: Cell, tile_kinds: TileKind) -> Option<&Tile> {
+        self.tile_map().find_tile(cell, tile_kinds.layer_kind(), tile_kinds)
     }
 
     #[inline]
-    pub fn find_tile_mut(&self, cell: Cell, layer: TileMapLayerKind, tile_kinds: TileKind) -> Option<&mut Tile> {
-        self.tile_map_mut().find_tile_mut(cell, layer, tile_kinds)
+    pub fn find_tile_mut(&self, cell: Cell, tile_kinds: TileKind) -> Option<&mut Tile> {
+        self.tile_map_mut().find_tile_mut(cell, tile_kinds.layer_kind(), tile_kinds)
     }
 
     // ----------------------
-    // World Searches:
+    // World/Map Searches:
     // ----------------------
 
     #[inline]
@@ -325,6 +328,7 @@ impl SimContext {
     where
         F: FnMut(&Building, &Path) -> bool,
     {
+        // Reuse non mutable find_nearest_buildings().
         self.find_nearest_buildings(start, building_kinds, traversable_node_kinds, max_distance, visitor_fn)
             .map(|(building, path)| (mem::mut_ref_cast(building), path))
     }

@@ -374,7 +374,6 @@ impl GameObject for Building {
 
         let tile = context.find_tile(
             self.base_cell(),
-            TileMapLayerKind::Objects,
             TileKind::Building)
             .unwrap();
 
@@ -841,7 +840,7 @@ impl Building {
     }
 
     fn find_road_link_tile_for_cell(context: &SimContext, road_link: Cell) -> Option<&mut Tile> {
-        context.find_tile_mut(road_link, TileMapLayerKind::Terrain, TileKind::Terrain)
+        context.find_tile_mut(road_link, TileKind::Terrain)
     }
 
     fn update_road_link(&mut self, cmds: &mut SimCmds, context: &SimContext) {
@@ -1408,14 +1407,14 @@ impl<'game> BuildingContext<'game> {
     #[inline]
     pub fn find_tile(&self) -> &Tile {
         self.sim_ctx
-            .find_tile(self.base_cell(), TileMapLayerKind::Objects, TileKind::Building)
+            .find_tile(self.base_cell(), TileKind::Building)
             .expect("Building should have an associated Tile in the TileMap!")
     }
 
     #[inline]
     pub fn find_tile_mut(&self) -> &mut Tile {
         self.sim_ctx
-            .find_tile_mut(self.base_cell(), TileMapLayerKind::Objects, TileKind::Building)
+            .find_tile_mut(self.base_cell(), TileKind::Building)
             .expect("Building should have an associated Tile in the TileMap!")
     }
 

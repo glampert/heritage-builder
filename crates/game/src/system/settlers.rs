@@ -100,7 +100,7 @@ impl GameSystem for SettlersSpawnSystem {
         }
 
         if ui.button("Highlight Spawn Point") {
-            if let Some(tile) = context.find_tile_mut(spawn_point.cell, TileMapLayerKind::Terrain, TileKind::Terrain) {
+            if let Some(tile) = context.find_tile_mut(spawn_point.cell, TileKind::Terrain) {
                 tile.set_flags(TileFlags::Highlighted | TileFlags::DrawDebugBounds, true);
             }
         }
@@ -137,7 +137,7 @@ impl SettlersSpawnSystem {
             let default_spawn_point = Cell::new(x, y);
 
             // Make sure default tile is flagged as a spawn point otherwise unit path finding wouldn't work.
-            cmds.defer_tile_update(default_spawn_point, TileMapLayerKind::Terrain, TileKind::Terrain, |_context, tile| {
+            cmds.defer_tile_update(default_spawn_point, TileKind::Terrain, |_context, tile| {
                 tile.set_flags(TileFlags::SettlersSpawnPoint, true);
             });
 

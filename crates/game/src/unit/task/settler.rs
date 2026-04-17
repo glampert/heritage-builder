@@ -226,7 +226,7 @@ impl UnitTask for UnitTaskSettler {
                 debug_assert!(destination_kind == BuildingKind::House);
                 debug_assert!(destination_cell.is_valid());
 
-                if let Some(house_tile) = context.find_tile(destination_cell, TileMapLayerKind::Objects, TileKind::Building) {
+                if let Some(house_tile) = context.find_tile(destination_cell, TileKind::Building) {
                     self.notify_completion(unit, house_tile, context);
                     return UnitTaskResult::completed_with(&mut self.completion_task);
                 }

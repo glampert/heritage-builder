@@ -1,4 +1,5 @@
 use serde::{Deserialize, Serialize};
+use proc_macros::DrawDebugUi;
 
 use common::{
     Color,
@@ -7,8 +8,6 @@ use common::{
     time::{CountdownTimer, Seconds},
 };
 use engine::ui::{UiFontScale, UiStaticVar, UiSystem};
-use proc_macros::DrawDebugUi;
-use config::{PropConfig, PropConfigs};
 
 use super::{
     undo_redo::GameObjectSavedState,
@@ -24,16 +23,17 @@ use super::{
     },
 };
 use crate::{
+    save_context::PostLoadContext,
+    undo_redo::game_object_undo_redo_state,
+    tile::{Tile, TileKind},
     debug::{
         DebugUiMode,
         game_object_debug::{GameObjectDebugOptions, GameObjectDebugOptionsExt, game_object_debug_options},
     },
-    save_context::PostLoadContext,
-    tile::{Tile, TileKind, TileMapLayerKind},
-    undo_redo::game_object_undo_redo_state,
 };
 
 pub mod config;
+use config::{PropConfig, PropConfigs};
 
 // ----------------------------------------------
 // Constants
@@ -343,14 +343,14 @@ impl Prop {
     #[inline]
     fn find_tile<'game>(&self, context: &'game SimContext) -> &'game Tile {
         context
-            .find_tile(self.cell(), TileMapLayerKind::Objects, TileKind::Prop)
+            .find_tile(self.cell(), TileKind::Prop)
             .expect("Prop should have an associated Tile in the TileMap!")
     }
 
     #[inline]
     fn find_tile_mut<'game>(&self, context: &'game SimContext) -> &'game mut Tile {
         context
-            .find_tile_mut(self.cell(), TileMapLayerKind::Objects, TileKind::Prop)
+            .find_tile_mut(self.cell(), TileKind::Prop)
             .expect("Prop should have an associated Tile in the TileMap!")
     }
 

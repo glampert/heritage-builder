@@ -20,7 +20,7 @@ use crate::{
     cheats::{self, Cheats},
     pathfind::{Graph, Search},
     unit::task::UnitTaskManager,
-    world::{World, object::Spawner},
+    world::{World, object::{Spawner, SpawnerResult}},
     sim::{RandomGenerator, SimContext, resources::GlobalTreasury},
     tile::{
         self,
@@ -440,7 +440,7 @@ impl<'game> DebugSimContextBuilder<'game> {
             rng: RandomGenerator::seed_from_u64(configs.sim.random_seed),
             graph: Graph::with_empty_grid(map_size_in_cells),
             search: Search::with_grid_size(map_size_in_cells),
-            task_manager: UnitTaskManager::new(1),
+            task_manager: UnitTaskManager::default(),
             treasury: GlobalTreasury::new(configs.sim.starting_gold_units),
             world,
             tile_map,
@@ -672,27 +672,34 @@ mod preset_maps {
         debug_assert!(preset.building_tiles.len() == tile_count);
 
         let configs = GameConfigs::get();
+
         let mut tile_map = TileMap::new(map_size_in_cells, None);
         let mut builder = DebugSimContextBuilder::new(world, &mut tile_map, map_size_in_cells, configs);
+
         let context = builder.new_sim_context();
+        let mut spawner = Spawner::new(&context);
+        spawner.set_subtract_tile_cost(false);
 
         // Terrain:
         for y in 0..map_size_in_cells.height {
             for x in 0..map_size_in_cells.width {
                 let tile_id = preset.terrain_tiles[(x + (y * map_size_in_cells.width)) as usize];
                 if let Some(tile_def) = find_tile(TileMapLayerKind::Terrain, tile_id) {
-                    let tile = tile_map.try_place_tile_in_layer(Cell::new(x, y), TileMapLayerKind::Terrain, tile_def)
-                        .unwrap_or_else(|err| panic!("Failed to place Terrain tile: {}", err.message));
-
-                    // Set a random terrain tile variation:
-                    if tile.has_flags(TileFlags::RandomizePlacement) {
-                        tile.set_random_variation_index(context.rng_mut());
+                    match spawner.try_spawn_tile_with_def(Cell::new(x, y), tile_def) {
+                        SpawnerResult::Tile(tile) => {
+                            // Set a random terrain tile variation:
+                            if tile.has_flags(TileFlags::RandomizePlacement) {
+                                tile.set_random_variation_index(context.rng_mut());
+                            }
+                        },
+                        SpawnerResult::Err(err) => {
+                            log::error!(log::channel!("debug"), "Preset: Failed to place Terrain tile: {} - {}", err.reason, err.message);
+                        }
+                        _ => unreachable!(),
                     }
                 }
             }
         }
-
-        let spawner = Spawner::new(&context);
 
         // Buildings (Objects):
         for y in 0..map_size_in_cells.height {
@@ -700,7 +707,7 @@ mod preset_maps {
                 let tile_id = preset.building_tiles[(x + (y * map_size_in_cells.width)) as usize];
                 if let Some(tile_def) = find_tile(TileMapLayerKind::Objects, tile_id) {
                     if let Err(err) = spawner.try_spawn_building_with_tile_def(Cell::new(x, y), tile_def) {
-                        log::error!(log::channel!("debug"), "Preset: Failed to place Building tile: {}", err.message);
+                        log::error!(log::channel!("debug"), "Preset: Failed to place Building tile: {} - {}", err.reason, err.message);
                     }
                 }
             }

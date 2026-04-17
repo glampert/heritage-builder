@@ -74,11 +74,32 @@ bitflags_with_display! {
         const Vegetation = 1 << 6;
 
         // Aliases:
-        const Prop       = Self::Vegetation.bits(); // Only harvestable trees for now.
+        const Prop = Self::Vegetation.bits(); // Only harvestable trees for now.
+
+        // All Object Layer kinds.
+        const AllObjectKinds = Self::Object.bits()
+                             | Self::Blocker.bits()
+                             | Self::Building.bits()
+                             | Self::Unit.bits()
+                             | Self::Rocks.bits()
+                             | Self::Vegetation.bits();
     }
 }
 
 impl TileKind {
+    #[inline]
+    pub fn layer_kind(self) -> TileMapLayerKind {
+        if self.intersects(Self::Terrain) {
+            debug_assert!(!self.intersects(Self::AllObjectKinds));
+            TileMapLayerKind::Terrain
+        } else if self.intersects(Self::AllObjectKinds) {
+            debug_assert!(!self.intersects(Self::Terrain));
+            TileMapLayerKind::Objects
+        } else {
+            panic!("Unknown TileKind!");
+        }
+    }
+
     #[inline]
     fn specialized_kind_for_category(category_hash: StringHash) -> Self {
         if category_hash == sets::OBJECTS_BUILDINGS_CATEGORY.hash {

@@ -34,6 +34,42 @@ pub mod resources;
 pub use resources::GlobalTreasury;
 
 // ----------------------------------------------
+// Internal helper macros
+// ----------------------------------------------
+
+macro_rules! make_update_context {
+    ($self:ident, $delta_time_secs:expr, $tile_map:expr, $world:expr) => {
+        SimContext::new(
+            &mut $self.rng,
+            &mut $self.graph,
+            &mut $self.search,
+            &mut $self.task_manager,
+            $world,
+            $tile_map,
+            &mut $self.treasury,
+            $delta_time_secs,
+            false, // is_world_teardown
+        )
+    };
+}
+
+macro_rules! make_world_reset_context {
+    ($self:ident, $tile_map:expr, $world:expr) => {
+        SimContext::new(
+            &mut $self.rng,
+            &mut $self.graph,
+            &mut $self.search,
+            &mut $self.task_manager,
+            $world,
+            $tile_map,
+            &mut $self.treasury,
+            0.0,  // delta_time_secs
+            true, // is_world_teardown
+        )
+    };
+}
+
+// ----------------------------------------------
 // RandomGenerator
 // ----------------------------------------------
 
@@ -83,24 +119,13 @@ impl Simulation {
     }
 
     #[inline]
-    pub fn new_sim_context(
-        &mut self,
-        world: &mut World,
-        tile_map: &mut TileMap,
+    pub fn new_sim_context<'game>(
+        &'game mut self,
         delta_time_secs: Seconds,
-        is_world_teardown: bool,
+        tile_map: &'game mut TileMap,
+        world: &'game mut World,
     ) -> SimContext {
-        SimContext::new(
-            &mut self.rng,
-            &mut self.graph,
-            &mut self.search,
-            &mut self.task_manager,
-            world,
-            tile_map,
-            &mut self.treasury,
-            delta_time_secs,
-            is_world_teardown,
-        )
+        make_update_context!(self, delta_time_secs, tile_map, world)
     }
 
     #[inline]
@@ -155,27 +180,27 @@ impl Simulation {
         // this full map update pass altogether.
         self.graph.rebuild_from_tile_map(tile_map, true);
 
-        // Paused simulation update:
+        // Paused simulation update.
         if self.is_paused {
             if self.paused_update_timer.tick(delta_time_secs).should_update() {
-                let context = self.new_sim_context(world, tile_map, delta_time_secs, false);
+                let context = make_update_context!(self, delta_time_secs, tile_map, world);
                 systems.paused_update(engine, &context);
             }
             return; // Early out.
         }
 
-        let scaled_delta_time_secs = delta_time_secs * self.speed;
-
         // Units movement needs to be smooth, so it updates every frame.
         {
-            let context = self.new_sim_context(world, tile_map, scaled_delta_time_secs, false);
+            let scaled_delta_time_secs = delta_time_secs * self.speed;
+            let context = make_update_context!(self, scaled_delta_time_secs, tile_map, world);
             world.update_unit_navigation(&context);
         }
 
-        // Fixed step world & systems update.
+        // Fixed step world & game systems update.
         {
             const LOCK_WORLD_AND_MAP_DURING_UPDATE: bool = cfg!(debug_assertions);
 
+            let scaled_delta_time_secs = delta_time_secs * self.speed;
             let world_update_delta_time_secs = self.update_timer.time_since_last_secs() * self.speed;
 
             if self.update_timer.tick(scaled_delta_time_secs).should_update() {
@@ -186,9 +211,12 @@ impl Simulation {
                     world.lock();
                 }
 
-                let context = self.new_sim_context(world, tile_map, world_update_delta_time_secs, false);
-                world.update(&mut self.cmds, &context);
-                systems.update(engine, &mut self.cmds, &context);
+                // Update world and game systems. Cross entity mutation will be deferred into SimCmds.
+                {
+                    let context = make_update_context!(self, world_update_delta_time_secs, tile_map, world);
+                    world.update(&mut self.cmds, &context);
+                    systems.update(engine, &mut self.cmds, &context);
+                }
 
                 if LOCK_WORLD_AND_MAP_DURING_UPDATE {
                     world.unlock();
@@ -196,7 +224,10 @@ impl Simulation {
                 }
 
                 // Any world or tile map mutation would have been deferred until now.
-                self.cmds.execute(&context);
+                {
+                    let context = make_update_context!(self, world_update_delta_time_secs, tile_map, world);
+                    self.cmds.execute(&context);
+                }
             }
         }
     }
@@ -210,9 +241,7 @@ impl Simulation {
     ) {
         debug_assert!(self.cmds.is_empty());
 
-        const IS_WORLD_TEARDOWN: bool = true;
-        let context = self.new_sim_context(world, tile_map, 0.0, IS_WORLD_TEARDOWN);
-
+        let context = make_world_reset_context!(self, tile_map, world);
         world.reset(&mut self.cmds, &context);
         systems.reset(engine);
 
@@ -289,7 +318,7 @@ impl Simulation {
     ) {
         debug_assert!(self.cmds.is_empty());
 
-        let sim_context = self.new_sim_context(context.world, context.tile_map, context.delta_time_secs, false);
+        let sim_context = make_update_context!(self, context.delta_time_secs, context.tile_map, context.world);
         systems.draw_debug_ui(engine, &mut self.cmds, &sim_context, context.ui_sys);
 
         self.cmds.execute(&sim_context);
@@ -314,14 +343,14 @@ impl Simulation {
 
     // Buildings:
     fn draw_building_debug_popups(&mut self, context: &mut GameUiContext, visible_range: CellRange) {
-        let sim_context = self.new_sim_context(context.world, context.tile_map, context.delta_time_secs, false);
+        let sim_context = make_update_context!(self, context.delta_time_secs, context.tile_map, context.world);
         context.world.draw_building_debug_popups(&sim_context, context.ui_sys, context.camera.transform(), visible_range);
     }
 
     fn draw_building_debug_ui(&mut self, context: &mut GameUiContext, tile: &Tile, mode: DebugUiMode) {
         debug_assert!(self.cmds.is_empty());
 
-        let sim_context = self.new_sim_context(context.world, context.tile_map, context.delta_time_secs, false);
+        let sim_context = make_update_context!(self, context.delta_time_secs, context.tile_map, context.world);
         context.world.draw_building_debug_ui(&mut self.cmds, &sim_context, context.ui_sys, tile, mode);
 
         self.cmds.execute(&sim_context);
@@ -329,14 +358,14 @@ impl Simulation {
 
     // Units:
     fn draw_unit_debug_popups(&mut self, context: &mut GameUiContext, visible_range: CellRange) {
-        let sim_context = self.new_sim_context(context.world, context.tile_map, context.delta_time_secs, false);
+        let sim_context = make_update_context!(self, context.delta_time_secs, context.tile_map, context.world);
         context.world.draw_unit_debug_popups(&sim_context, context.ui_sys, context.camera.transform(), visible_range);
     }
 
     fn draw_unit_debug_ui(&mut self, context: &mut GameUiContext, tile: &Tile, mode: DebugUiMode) {
         debug_assert!(self.cmds.is_empty());
 
-        let sim_context = self.new_sim_context(context.world, context.tile_map, context.delta_time_secs, false);
+        let sim_context = make_update_context!(self, context.delta_time_secs, context.tile_map, context.world);
         context.world.draw_unit_debug_ui(&mut self.cmds, &sim_context, context.ui_sys, tile, mode);
 
         self.cmds.execute(&sim_context);
@@ -344,14 +373,14 @@ impl Simulation {
 
     // Props:
     fn draw_prop_debug_popups(&mut self, context: &mut GameUiContext, visible_range: CellRange) {
-        let sim_context = self.new_sim_context(context.world, context.tile_map, context.delta_time_secs, false);
+        let sim_context = make_update_context!(self, context.delta_time_secs, context.tile_map, context.world);
         context.world.draw_prop_debug_popups(&sim_context, context.ui_sys, context.camera.transform(), visible_range);
     }
 
     fn draw_prop_debug_ui(&mut self, context: &mut GameUiContext, tile: &Tile, mode: DebugUiMode) {
         debug_assert!(self.cmds.is_empty());
 
-        let sim_context = self.new_sim_context(context.world, context.tile_map, context.delta_time_secs, false);
+        let sim_context = make_update_context!(self, context.delta_time_secs, context.tile_map, context.world);
         context.world.draw_prop_debug_ui(&mut self.cmds, &sim_context, context.ui_sys, tile, mode);
 
         self.cmds.execute(&sim_context);

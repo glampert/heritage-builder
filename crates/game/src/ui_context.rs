@@ -3,9 +3,8 @@ use std::cell::{RefCell, RefMut};
 use common::{
     Size,
     Vec2,
-    hash::{self, FNV1aHash},
-    mem,
     time::Seconds,
+    hash::{self, FNV1aHash},
 };
 use engine::{
     Engine,
@@ -20,9 +19,9 @@ use engine::{
 
 use crate::{
     camera::Camera,
-    sim::{SimContext, Simulation},
-    tile::{Tile, TileMap, selection::TileSelection},
     world::World,
+    sim::{Simulation, SimContext},
+    tile::{Tile, TileMap, selection::TileSelection},
 };
 
 // ----------------------------------------------
@@ -89,15 +88,8 @@ impl<'game> GameUiContext<'game> {
     }
 
     #[inline]
-    pub fn new_sim_context(&self) -> SimContext {
-        // TODO: Clean this up once we switch to SimCmds queue and make SimContext truly immutable.
-        // Shouldn't require the mut_ref_cast hacks after that is done.
-        mem::mut_ref_cast(self.sim).new_sim_context(
-            mem::mut_ref_cast(self.world),
-            mem::mut_ref_cast(self.tile_map),
-            self.delta_time_secs,
-            false,
-        )
+    pub fn new_sim_context(&mut self) -> SimContext {
+        self.sim.new_sim_context(self.delta_time_secs, self.tile_map, self.world)
     }
 }
 
