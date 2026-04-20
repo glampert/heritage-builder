@@ -1,6 +1,7 @@
 use std::{any::Any, collections::hash_map::Entry};
 
 use serde::{Deserialize, Serialize};
+use smallbox::{SmallBox, smallbox};
 
 use super::hash::{self, FNV1aHash, PreHashedKeyMap};
 use crate::singleton;
@@ -142,7 +143,8 @@ impl CallbackKey {
 
 struct CallbackEntry {
     name: &'static str,
-    cb: Box<dyn Any>,
+    // S1 = one word; plain `fn` pointers are pointer-sized, so they fit inline without heap allocation.
+    cb: SmallBox<dyn Any, smallbox::space::S1>,
 }
 
 // Global registry that maps a callback function to a 64bits integer that we can
@@ -178,7 +180,7 @@ impl CallbackRegistry {
                 if expect_entry {
                     panic!("Callback '{name}' is not registered!");
                 }
-                entry.insert(CallbackEntry { name, cb: Box::new(fptr) });
+                entry.insert(CallbackEntry { name, cb: smallbox!(fptr) });
             }
         }
     }

@@ -25,3 +25,4 @@ bitflags  = { version = "2.9.0",   features = ["serde"] }
 arrayvec  = { version = "0.7.6",   features = ["serde"] }
 web-time  = { version = "1",       optional = true }
 small-map = "0.1.3"
+smallbox  = "0.8.8"
