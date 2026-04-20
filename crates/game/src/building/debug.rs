@@ -41,7 +41,7 @@ impl Building {
         ui.text(format!("{} | ID{} @{}", self.name(), self.id(), self.base_cell()));
         ui_sys.set_window_font_scale(UiFontScale::default());
 
-        color_bullet_bool("Linked to road", self.is_linked_to_road(context.sim_ctx));
+        color_bullet_bool("Linked to road", self.is_linked_to_road());
 
         if self.archetype_kind() == BuildingArchetypeKind::HouseBuilding {
             let house = self.as_house();
@@ -127,7 +127,7 @@ impl Building {
                 kind: self.kind(),
                 archetype: self.archetype_kind(),
                 cells: self.cell_range(),
-                road_link: self.road_link(context.sim_ctx).unwrap_or_default(),
+                road_link: self.road_link().unwrap_or_default(),
                 id: self.id(),
             };
             debug_vars.draw_debug_ui(ui_sys);
@@ -228,13 +228,13 @@ impl Building {
         }
 
         if ui.collapsing_header("Access", imgui::TreeNodeFlags::empty()) {
-            if self.is_linked_to_road(context.sim_ctx) {
+            if self.is_linked_to_road() {
                 ui.text_colored(Color::green().to_array(), "Has road access.");
             } else {
                 ui.text_colored(Color::red().to_array(), "No road access!");
             }
 
-            ui.text(format!("Road Link Tile : {}", self.road_link(context.sim_ctx).unwrap_or_default()));
+            ui.text(format!("Road Link Tile : {}", self.road_link().unwrap_or_default()));
 
             let mut show_road_link = self.is_showing_road_link_debug(context.sim_ctx);
             if ui.checkbox("Show Road Link", &mut show_road_link) {

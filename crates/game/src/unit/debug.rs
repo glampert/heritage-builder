@@ -234,7 +234,7 @@ impl Unit {
             // We need a building to own the task, so this assumes there's at least one of
             // these placed on the map.
             if let Some(building) = world.find_building_by_name("Market", BuildingKind::Market) {
-                let start_cell = building.road_link(context).unwrap_or_default();
+                let start_cell = building.road_link().unwrap_or_default();
                 if self.teleport(context.tile_map_mut(), start_cell) {
                     let completion_task = task_manager.new_task(UnitTaskDespawn);
                     let task = task_manager.new_task(UnitTaskDeliverToStorage {
@@ -262,7 +262,7 @@ impl Unit {
                     kind: ResourceKind::random(&mut rng),
                     count: rng.random_range(1..5),
                 }]);
-                let start_cell = building.road_link(context).unwrap_or_default();
+                let start_cell = building.road_link().unwrap_or_default();
                 if self.teleport(context.tile_map_mut(), start_cell) {
                     let completion_task = task_manager.new_task(UnitTaskDespawn);
                     let task = task_manager.new_task(UnitTaskFetchFromStorage {
@@ -302,7 +302,7 @@ impl Unit {
             // We need a building to own the task, so this assumes there's at least one of
             // these placed on the map.
             if let Some(building) = world.find_building_by_name("Market", BuildingKind::Market) {
-                let start_cell = building.road_link(context).unwrap_or_default();
+                let start_cell = building.road_link().unwrap_or_default();
                 if self.teleport(context.tile_map_mut(), start_cell) {
                     let completion_task = task_manager.new_task(UnitTaskDespawn);
                     let task = task_manager.new_task(UnitTaskRandomizedPatrol {
@@ -460,7 +460,7 @@ impl Unit {
             // We need a building to own the task, so this assumes there's at least one
             // lumberyard placed on the map.
             if let Some(building) = world.find_building_by_name("Lumberyard", BuildingKind::Lumberyard) {
-                let start_cell = building.road_link(context).unwrap_or_default();
+                let start_cell = building.road_link().unwrap_or_default();
                 if self.teleport(context.tile_map_mut(), start_cell) {
                     let completion_task = task_manager.new_task(UnitTaskDespawn);
                     let task = task_manager.new_task(UnitTaskHarvestWood {

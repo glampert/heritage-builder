@@ -347,10 +347,9 @@ impl SimContext {
                 );
 
                 let neighbors = self.context.graph().neighbors(goal, PathNodeKind::Building);
+
                 for neighbor in neighbors {
-                    if let Some(building) =
-                        self.context.world().find_building_for_cell(neighbor.cell, self.context.tile_map())
-                    {
+                    if let Some(building) = self.context.world().find_building_for_cell(neighbor.cell, self.context.tile_map()) {
                         if building.is(self.building_kinds) {
                             let mut accept_building = false;
 
@@ -358,7 +357,7 @@ impl SimContext {
                             // check that this road link goal actually belongs to this
                             // building. Buildings can share the same road link tile.
                             if self.traversable_node_kinds.is_road() && !self.traversable_node_kinds.is_empty_land() {
-                                if building.road_link(self.context).is_some_and(|link| link == goal.cell) {
+                                if building.road_link().is_some_and(|link| link == goal.cell) {
                                     accept_building = !(self.visitor_fn)(building, path);
                                 }
                             } else if self.traversable_node_kinds.is_empty_land() {

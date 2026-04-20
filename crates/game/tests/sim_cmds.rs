@@ -55,7 +55,7 @@ fn test_sim_cmd_queue_spawning() {
     let mut context_builder = test_env.context_builder();
     let context = context_builder.new_sim_context();
 
-    let mut cmds = SimCmds::new();
+    let mut cmds = SimCmds::default();
 
     // Push spawn commands:
     let mut tile_promise = cmds.spawn_tile_with_tile_def_promise(
@@ -179,7 +179,7 @@ fn test_sim_cmd_queue_spawn_failure() {
     let mut context_builder = test_env.context_builder();
     let context = context_builder.new_sim_context();
 
-    let mut cmds = SimCmds::new();
+    let mut cmds = SimCmds::default();
 
     let mut unit_promise = cmds.spawn_unit_with_config_promise(
         Cell::new(999, 999), // Out of bounds cell - must fail.
@@ -218,7 +218,7 @@ fn test_sim_cmd_queue_spawning_with_callbacks() {
     let mut context_builder = test_env.context_builder();
     let context = context_builder.new_sim_context();
 
-    let mut cmds = SimCmds::new();
+    let mut cmds = SimCmds::default();
 
     struct SpawnResults {
         tile_spawned: bool,

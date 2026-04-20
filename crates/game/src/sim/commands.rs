@@ -237,6 +237,10 @@ enum SimCmd {
     DespawnUnitWithId {
         id: UnitId,
     },
+    DeferUnitUpdate {
+        id: UnitId,
+        callback: CallbackBox<DeferredCallback<Unit>>,
+    },
 
     // -- Building operations -------------------
     SpawnBuildingWithTileDef {
@@ -279,6 +283,10 @@ enum SimCmd {
     },
     DespawnPropWithId {
         id: PropId,
+    },
+    DeferPropUpdate {
+        id: PropId,
+        callback: CallbackBox<DeferredCallback<Prop>>,
     },
 }
 
@@ -513,6 +521,14 @@ impl SimCmds {
         self.cmds.push(SimCmd::DespawnUnitWithId { id });
     }
 
+    #[inline]
+    pub fn defer_unit_update<F>(&mut self, id: UnitId, callback: F)
+    where
+        F: Fn(&SimContext, &mut Unit) + 'static
+    {
+        self.cmds.push(SimCmd::DeferUnitUpdate { id, callback: smallbox!(callback) });
+    }
+
     // -- Building operations -------------------
 
     #[inline]
@@ -608,6 +624,14 @@ impl SimCmds {
         self.cmds.push(SimCmd::DespawnPropWithId { id });
     }
 
+    #[inline]
+    pub fn defer_prop_update<F>(&mut self, id: PropId, callback: F)
+    where
+        F: Fn(&SimContext, &mut Prop) + 'static
+    {
+        self.cmds.push(SimCmd::DeferPropUpdate { id, callback: smallbox!(callback) });
+    }
+
     // -- Apply operations ----------------------
 
     pub fn execute(&mut self, context: &SimContext) {
@@ -692,6 +716,13 @@ impl SimCmds {
             SimCmd::DespawnUnitWithId { id } => {
                 spawner.despawn_unit_with_id(*id);
             }
+            SimCmd::DeferUnitUpdate { id, callback } => {
+                let unit = context.world_mut()
+                    .find_unit_mut(*id)
+                    .unwrap_or_else(|| panic!("SimCmd::DeferUnitUpdate invalid unit id: {id}"));
+
+                callback(context, unit);
+            }
 
             // --------------
             // Buildings:
@@ -765,6 +796,13 @@ impl SimCmds {
             }
             SimCmd::DespawnPropWithId { id } => {
                 spawner.despawn_prop_with_id(*id);
+            }
+            SimCmd::DeferPropUpdate { id, callback } => {
+                let prop = context.world_mut()
+                    .find_prop_mut(*id)
+                    .unwrap_or_else(|| panic!("SimCmd::DeferPropUpdate invalid prop id: {id}"));
+
+                callback(context, prop);
             }
         }
     }

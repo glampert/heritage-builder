@@ -360,7 +360,11 @@ impl UnitTask for UnitTaskRandomizedPatrol {
                 if idle_countdown.tick(context.delta_time_secs()) {
                     self.try_find_goal(unit, context);
                 } else {
-                    unit.idle(context);
+                    cmds.defer_unit_update(unit.id(), |context, unit| {
+                        // NOTE: idle() changes the anim in the underlying
+                        // Tile instance, so must be deferred to post update.
+                        unit.idle(context);
+                    });
                 }
             } else {
                 // Move to goal immediately.
@@ -391,7 +395,11 @@ impl UnitTask for UnitTaskRandomizedPatrol {
                 if idle_countdown.tick(context.delta_time_secs()) {
                     return UnitTaskState::Completed;
                 } else {
-                    unit.idle(context);
+                    cmds.defer_unit_update(unit.id(), |context, unit| {
+                        // NOTE: idle() changes the anim in the underlying
+                        // Tile instance, so must be deferred to post update.
+                        unit.idle(context);
+                    });
                     return UnitTaskState::Running;
                 }
             }

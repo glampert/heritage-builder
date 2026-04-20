@@ -50,6 +50,7 @@ const WOOD_HARVEST_MAX_AMOUNT: u32 = 5;
 pub enum UnitTaskHarvestState {
     #[default]
     Running,
+    PendingHarvest,
     PendingCompletionCallback,
     Completed,
 }
@@ -108,7 +109,7 @@ impl PathFilter for FindHarvestableTreeFilter<'_> {
 }
 
 impl UnitTaskHarvestWood {
-    fn try_find_goal(&mut self, unit: &mut Unit, context: &SimContext) {
+    fn try_find_goal(&mut self, unit: &mut Unit, cmds: &mut SimCmds, context: &SimContext) {
         let start = unit.cell();
         let traversable_node_kinds = unit.traversable_node_kinds();
 
@@ -128,9 +129,12 @@ impl UnitTaskHarvestWood {
             // Last node should be our tree prop.
             let tree_cell = path_to_harvestable_tree.last().unwrap().cell;
 
-            if let Some(tree) = context.world_mut().find_prop_for_cell_mut(tree_cell, context.tile_map_mut()) {
+            if let Some(tree) = context.world().find_prop_for_cell(tree_cell, context.tile_map()) {
                 // Filter should only accept paths to trees that are not being harvested by another unit.
                 debug_assert!(!tree.is_being_harvested());
+
+                let tree_id = tree.id();
+                let unit_id = unit.id();
 
                 // Tree tile itself is not walkable, so find a nearby traversable neighbor we can path to.
                 pathfind::for_each_surrounding_cell(tree.cell_range(), |neighbor_cell| {
@@ -142,9 +146,11 @@ impl UnitTaskHarvestWood {
                         if let SearchResult::PathFound(dest_path) =
                             context.find_path(traversable_node_kinds, start, neighbor_cell)
                         {
-                            // Call dibs on this tree.
-                            tree.set_harvester_unit(unit.id());
-                            self.harvest_target = tree.id();
+                            // Call dibs on this tree (deferred).
+                            cmds.defer_prop_update(tree_id, move |_ctx, tree| {
+                                tree.set_harvester_unit(unit_id);
+                            });
+                            self.harvest_target = tree_id;
 
                             // Time it takes to harvest a tree.
                             self.harvest_timer.reset(WOOD_HARVEST_TIME_INTERVAL);
@@ -198,9 +204,10 @@ impl UnitTask for UnitTaskHarvestWood {
         self.completion_callback.post_load();
     }
 
-    fn initialize(&mut self, unit: &mut Unit, _cmds: &mut SimCmds, context: &SimContext) {
+    fn initialize(&mut self, unit: &mut Unit, cmds: &mut SimCmds, context: &SimContext) {
         debug_assert!(!self.harvest_target.is_valid());
         debug_assert!(!self.is_returning_to_origin);
+        debug_assert_eq!(self.internal_state, UnitTaskHarvestState::Running);
 
         // Harvesters can go off-road.
         let current_node_kinds = unit.traversable_node_kinds();
@@ -212,7 +219,7 @@ impl UnitTask for UnitTaskHarvestWood {
                 | PathNodeKind::SettlersSpawnPoint,
         );
 
-        self.try_find_goal(unit, context);
+        self.try_find_goal(unit, cmds, context);
     }
 
     fn terminate(&mut self, task_pool: &mut UnitTaskPool) {
@@ -221,10 +228,10 @@ impl UnitTask for UnitTaskHarvestWood {
         }
     }
 
-    fn update(&mut self, unit: &mut Unit, _cmds: &mut SimCmds, context: &SimContext) -> UnitTaskState {
+    fn update(&mut self, unit: &mut Unit, cmds: &mut SimCmds, context: &SimContext) -> UnitTaskState {
         match self.internal_state {
-            UnitTaskHarvestState::PendingCompletionCallback => {
-                // Wait for the deferred completion callback to be executed.
+            UnitTaskHarvestState::PendingHarvest | UnitTaskHarvestState::PendingCompletionCallback => {
+                // Wait for the deferred callback to be executed.
                 return UnitTaskState::Running;
             }
             UnitTaskHarvestState::Completed => {
@@ -245,7 +252,7 @@ impl UnitTask for UnitTaskHarvestWood {
                     return UnitTaskState::Completed;
                 }
             } else {
-                self.try_find_goal(unit, context);
+                self.try_find_goal(unit, cmds, context);
             }
         }
 
@@ -319,32 +326,36 @@ impl UnitTask for UnitTaskHarvestWood {
             }
 
             // Reached the tree we wanted to harvest.
-            if let Some(tree) = context.world_mut().find_prop_mut(self.harvest_target) {
+            if let Some(tree) = context.world().find_prop(self.harvest_target) {
                 if tree.harvester_unit() == unit.id() {
                     // Once enough time has elapsed, give it the harvested wood.
                     if self.harvest_timer.tick(context.delta_time_secs()) {
-                        // Finished.
+                        // Finished - defer the harvest mutation.
                         let harvest_amount = context.random_range(1..WOOD_HARVEST_MAX_AMOUNT);
-                        let harvested_resource = tree.harvest(context, harvest_amount);
+                        let unit_id = unit.id();
+                        let harvest_target = self.harvest_target;
 
-                        debug_assert!(harvested_resource.kind == ResourceKind::Wood, "Expected to have ResourceKind::Wood");
-                        unit.receive_resources(harvested_resource.kind, harvested_resource.count);
+                        cmds.defer_prop_update(harvest_target, move |context, tree| {
+                            let harvested_resource = tree.harvest(context, harvest_amount);
+                            debug_assert!(harvested_resource.kind == ResourceKind::Wood, "Expected to have ResourceKind::Wood");
+                            tree.set_harvester_unit(UnitId::invalid());
 
-                        tree.set_harvester_unit(UnitId::invalid());
-                        self.harvest_target = PropId::invalid();
+                            let unit = context.world_mut().find_unit_mut(unit_id)
+                                .expect("Expected harvester unit to still be valid!");
+                            unit.receive_resources(harvested_resource.kind, harvested_resource.count);
+                            unit.follow_path(None);
 
-                        // If we couldn't find a path back to the origin, maybe because the origin
-                        // building was destroyed, we'll have to abort the task. Any
-                        // resources harvested will be lost.
-                        if !self.try_return_to_origin(unit, context) {
-                            // Not possible to recover if the origin building is gone.
-                            log::warning!(
-                                log::channel!("task"),
-                                "Aborting TaskHarvestWood. Unable to return to origin building..."
-                            );
-                            unit.clear_inventory();
-                            task_completed = true;
-                        }
+                            let task = unit.current_task_as_mut::<UnitTaskHarvestWood>(context.task_manager_mut())
+                                .expect("Expected unit to be running UnitTaskHarvestWood!");
+
+                            debug_assert_eq!(task.internal_state, UnitTaskHarvestState::PendingHarvest);
+                            task.harvest_target = PropId::invalid();
+                            task.is_returning_to_origin = true;
+                            task.internal_state = UnitTaskHarvestState::Running;
+                        });
+
+                        self.internal_state = UnitTaskHarvestState::PendingHarvest;
+                        return UnitTaskResult::Retry;
                     }
                 } else {
                     reroute(unit, &mut self.harvest_target);

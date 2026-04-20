@@ -274,7 +274,7 @@ impl BuildingInspector {
             if building.is(BuildingKind::House) {
                 Self::gather_house_stats(building_ctx, building)
             } else {
-                Self::gather_building_stats(building_ctx, building)
+                Self::gather_building_stats(building)
             }
         };
         self.renderer.set_body(&body);
@@ -286,7 +286,7 @@ impl BuildingInspector {
         let house = building.as_house();
 
         if !house.level().is_max() {
-            if !building.is_linked_to_road(building_ctx.sim_ctx) {
+            if !building.is_linked_to_road() {
                 add_body_line!(&mut body, "House lacks road access!");
             } else if !house.is_upgrade_available(building_ctx) {
                 add_body_line!(&mut body, "House has no room to expand!");
@@ -323,12 +323,12 @@ impl BuildingInspector {
         body
     }
 
-    fn gather_building_stats(building_ctx: &BuildingContext, building: &Building) -> InspectorMenuBody {
+    fn gather_building_stats(building: &Building) -> InspectorMenuBody {
         let mut body = InspectorMenuBody::new();
 
         let is_operational = building.is_operational();
         if !is_operational {
-            let is_linked_to_road = building.is_linked_to_road(building_ctx.sim_ctx);
+            let is_linked_to_road = building.is_linked_to_road();
 
             let has_min_required_workers = building.has_min_required_workers();
             let has_min_required_resources = building.has_min_required_resources();

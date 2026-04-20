@@ -1,8 +1,9 @@
+use serde::{Deserialize, Serialize};
+use strum::Display;
+
 use common::{coords::Cell, time::Seconds};
 use engine::ui::UiSystem;
 use proc_macros::DrawDebugUi;
-use serde::{Deserialize, Serialize};
-use strum::Display;
 
 use super::anim::{UnitAnimSetKey, UnitAnimSets};
 use crate::{
@@ -51,10 +52,10 @@ impl UnitDirection {
 
 #[inline]
 pub fn same_axis(a: UnitDirection, b: UnitDirection) -> bool {
-    (a.is_north() && b.is_north())
-        || (a.is_south() && b.is_south())
-        || (a.is_east() && b.is_east())
-        || (a.is_west() && b.is_west())
+    (a.is_north() && b.is_north()) ||
+    (a.is_south() && b.is_south()) ||
+    (a.is_east()  && b.is_east())  ||
+    (a.is_west()  && b.is_west())
 }
 
 #[inline]
@@ -85,10 +86,10 @@ pub fn direction_between(a: Cell, b: Cell) -> UnitDirection {
 pub fn anim_set_for_direction(direction: UnitDirection) -> UnitAnimSetKey {
     match direction {
         UnitDirection::Idle => UnitAnimSets::IDLE,
-        UnitDirection::NE => UnitAnimSets::WALK_NE,
-        UnitDirection::NW => UnitAnimSets::WALK_NW,
-        UnitDirection::SE => UnitAnimSets::WALK_SE,
-        UnitDirection::SW => UnitAnimSets::WALK_SW,
+        UnitDirection::NE   => UnitAnimSets::WALK_NE,
+        UnitDirection::NW   => UnitAnimSets::WALK_NW,
+        UnitDirection::SE   => UnitAnimSets::WALK_SE,
+        UnitDirection::SW   => UnitAnimSets::WALK_SW,
     }
 }
 
@@ -96,10 +97,10 @@ pub fn anim_set_for_direction(direction: UnitDirection) -> UnitAnimSetKey {
 pub fn idle_anim_set_for_direction(direction: UnitDirection) -> UnitAnimSetKey {
     match direction {
         UnitDirection::Idle => UnitAnimSets::IDLE,
-        UnitDirection::NE => UnitAnimSets::IDLE_NE,
-        UnitDirection::NW => UnitAnimSets::IDLE_NW,
-        UnitDirection::SE => UnitAnimSets::IDLE_SE,
-        UnitDirection::SW => UnitAnimSets::IDLE_SW,
+        UnitDirection::NE   => UnitAnimSets::IDLE_NE,
+        UnitDirection::NW   => UnitAnimSets::IDLE_NW,
+        UnitDirection::SE   => UnitAnimSets::IDLE_SE,
+        UnitDirection::SW   => UnitAnimSets::IDLE_SW,
     }
 }
 
@@ -125,15 +126,15 @@ pub enum UnitNavGoal {
 impl UnitNavGoal {
     pub fn origin_cell(&self) -> Cell {
         match self {
-            UnitNavGoal::Building { origin_base_cell, .. } => *origin_base_cell,
-            UnitNavGoal::Tile { origin_cell, .. } => *origin_cell,
+            Self::Building { origin_base_cell, .. } => *origin_base_cell,
+            Self::Tile { origin_cell, .. } => *origin_cell,
         }
     }
 
     pub fn destination_cell(&self) -> Cell {
         match self {
-            UnitNavGoal::Building { destination_road_link, .. } => *destination_road_link,
-            UnitNavGoal::Tile { destination_cell, .. } => *destination_cell,
+            Self::Building { destination_road_link, .. } => *destination_road_link,
+            Self::Tile { destination_cell, .. } => *destination_cell,
         }
     }
 
@@ -147,8 +148,8 @@ impl UnitNavGoal {
 
     pub fn destination_debug_name(&self) -> &str {
         let (destination_cell, layer) = match self {
-            UnitNavGoal::Building { destination_base_cell, .. } => (*destination_base_cell, TileMapLayerKind::Objects),
-            UnitNavGoal::Tile { destination_cell, .. } => (*destination_cell, TileMapLayerKind::Terrain),
+            Self::Building { destination_base_cell, .. } => (*destination_base_cell, TileMapLayerKind::Objects),
+            Self::Tile { destination_cell, .. } => (*destination_cell, TileMapLayerKind::Terrain),
         };
         debug_utils::tile_name_at(destination_cell, layer)
     }

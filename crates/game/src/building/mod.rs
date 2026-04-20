@@ -247,7 +247,7 @@ pub type BuildingId = GenerationalIndex;
 pub struct Building {
     id: BuildingId,
     map_cells: CellRange,
-    road_link: Mutable<Cell>,
+    road_link: Cell,
     kind: BuildingKind,
     workers_update_timer: UpdateTimer,
     archetype: Option<BuildingArchetype>,
@@ -270,11 +270,13 @@ impl GameObject for Building {
         self.update_road_link(cmds, context);
 
         if self.workers_update_timer.tick(context.delta_time_secs()).should_update() {
-            self.update_workers(cmds, context);
+            self.update_workers(cmds);
         }
 
-        let context = self.new_context(context);
-        self.archetype_mut().update(cmds, &context);
+        {
+            let context = self.new_context(context);
+            self.archetype_mut().update(cmds, &context);
+        }
     }
 
     fn tally(&self, stats: &mut WorldStats) {
@@ -458,7 +460,7 @@ impl Building {
             self.id,
             self.kind,
             self.archetype_kind(),
-            self.road_link(sim_ctx),
+            self.road_link(),
             sim_ctx,
         )
     }
@@ -504,9 +506,9 @@ impl Building {
     }
 
     #[inline]
-    pub fn tile_info(&self, context: &SimContext) -> BuildingTileInfo {
+    pub fn tile_info(&self) -> BuildingTileInfo {
         BuildingTileInfo {
-            road_link: self.road_link(context).unwrap_or_default(), // We may or may not be connected to a road.
+            road_link: self.road_link().unwrap_or_default(), // We may or may not be connected to a road.
             base_cell: self.base_cell(),
         }
     }
@@ -745,8 +747,8 @@ impl Building {
         }
     }
 
-    fn update_workers(&mut self, cmds: &mut SimCmds, context: &SimContext) {
-        if !self.is_linked_to_road(context) {
+    fn update_workers(&mut self, cmds: &mut SimCmds) {
+        if !self.is_linked_to_road() {
             return;
         }
 
@@ -755,7 +757,7 @@ impl Building {
             if let Some(employer) = workers.as_employer() {
                 if !employer.is_at_max_capacity() {
                     cmds.defer_building_update(self.kind_and_id(), |context, building| {
-                        if let Some(house) = building.find_house_with_available_workers(context) {
+                        if let Some(house) = building.find_house_with_available_workers_mut(context) {
                             let workers_available = house.workers_count();
                             let workers_added = building.add_workers(workers_available, house.kind_and_id());
                             let workers_removed = house.remove_workers(workers_added, building.kind_and_id());
@@ -767,12 +769,12 @@ impl Building {
         }
     }
 
-    fn find_house_with_available_workers<'game>(&self, context: &'game SimContext) -> Option<&'game mut Building> {
+    fn find_house_with_available_workers_mut<'game>(&self, context: &'game SimContext) -> Option<&'game mut Building> {
         let workers_search_radius = GameConfigs::get().sim.workers_search_radius;
         debug_assert!(workers_search_radius > 0);
 
         let result = context.find_nearest_buildings_mut(
-            self.road_link(context).unwrap(),
+            self.road_link().unwrap(),
             BuildingKind::House,
             PathNodeKind::Road,
             Some(workers_search_radius),
@@ -798,93 +800,77 @@ impl Building {
     // ----------------------
 
     #[inline]
-    pub fn is_linked_to_road(&self, context: &SimContext) -> bool {
-        self.road_link(context).is_some()
+    pub fn is_linked_to_road(&self) -> bool {
+        self.road_link().is_some()
     }
 
     #[inline]
-    pub fn road_link(&self, context: &SimContext) -> Option<Cell> {
+    pub fn road_link(&self) -> Option<Cell> {
         debug_assert!(self.is_spawned());
-
         if self.road_link.is_valid() {
-            return Some(*self.road_link.as_ref());
+            Some(self.road_link)
+        } else {
+            None
         }
-
-        // Lazily cache the road link cell on demand:
-        if let Some(road_link) = context.find_nearest_road_link(self.cell_range()) {
-            // Cache road link cell:
-            debug_assert!(road_link.is_valid());
-            *self.road_link.as_mut() = road_link;
-
-            // Set underlying tile flag:
-            if let Some(road_link_tile) = Self::find_road_link_tile_for_cell(context, road_link) {
-                road_link_tile.set_flags(TileFlags::BuildingRoadLink, true);
-            }
-
-            return Some(road_link);
-        }
-
-        None
     }
 
     pub fn is_showing_road_link_debug(&self, context: &SimContext) -> bool {
-        if let Some(road_link_tile) = self.find_road_link_tile(context) {
+        if let Some(road_link_tile) = self.find_road_link_tile_mut(context) {
             return road_link_tile.has_flags(TileFlags::DrawDebugBounds);
         }
         false
     }
 
     pub fn set_show_road_link_debug(&self, context: &SimContext, show: bool) {
-        if let Some(road_link_tile) = self.find_road_link_tile(context) {
+        if let Some(road_link_tile) = self.find_road_link_tile_mut(context) {
             road_link_tile.set_flags(TileFlags::DrawDebugBounds, show);
         }
     }
 
-    pub fn find_road_link_tile<'game>(&self, context: &'game SimContext) -> Option<&'game mut Tile> {
-        if let Some(road_link) = self.road_link(context) {
-            return Self::find_road_link_tile_for_cell(context, road_link);
+    pub fn find_road_link_tile_mut<'game>(&self, context: &'game SimContext) -> Option<&'game mut Tile> {
+        if let Some(road_link) = self.road_link() {
+            return Self::find_road_link_tile_for_cell_mut(context, road_link);
         }
         None
     }
 
-    fn find_road_link_tile_for_cell(context: &SimContext, road_link: Cell) -> Option<&mut Tile> {
+    fn find_road_link_tile_for_cell_mut(context: &SimContext, road_link: Cell) -> Option<&mut Tile> {
         context.find_tile_mut(road_link, TileKind::Terrain)
     }
 
     fn update_road_link(&mut self, cmds: &mut SimCmds, context: &SimContext) {
         if let Some(new_road_link) = context.find_nearest_road_link(self.cell_range()) {
             debug_assert!(new_road_link.is_valid());
-            let prev_road_link = *self.road_link;
+            let prev_road_link = self.road_link;
 
             cmds.defer_building_update(self.kind_and_id(), move |context, _building| {
                 if new_road_link != prev_road_link && prev_road_link.is_valid() {
                     // Clear previous underlying tile flag:
-                    if let Some(prev_road_link_tile) = Self::find_road_link_tile_for_cell(context, prev_road_link) {
+                    if let Some(prev_road_link_tile) = Self::find_road_link_tile_for_cell_mut(context, prev_road_link) {
                         prev_road_link_tile.set_flags(TileFlags::BuildingRoadLink, false);
                     }
                 }
 
                 // Set new underlying tile flag:
-                if let Some(new_road_link_tile) = Self::find_road_link_tile_for_cell(context, new_road_link) {
+                if let Some(new_road_link_tile) = Self::find_road_link_tile_for_cell_mut(context, new_road_link) {
                     new_road_link_tile.set_flags(TileFlags::BuildingRoadLink, true);
                 }
             });
 
-            *self.road_link.as_mut() = new_road_link;
+            self.road_link = new_road_link;
         } else {
             // Building not connected to a road.
-            *self.road_link.as_mut() = Cell::invalid();
+            self.road_link = Cell::invalid();
         }
     }
 
     fn clear_road_link(&mut self, tile_map: &mut TileMap) {
-        let road_link = self.road_link.as_mut();
-        if road_link.is_valid() {
-            if let Some(road_link_tile) = tile_map.try_tile_from_layer_mut(*road_link, TileMapLayerKind::Terrain) {
+        if self.road_link.is_valid() {
+            if let Some(road_link_tile) = tile_map.try_tile_from_layer_mut(self.road_link, TileMapLayerKind::Terrain) {
                 road_link_tile.set_flags(TileFlags::BuildingRoadLink, false);
             }
         }
-        *road_link = Cell::invalid();
+        self.road_link = Cell::invalid();
     }
 
     // ----------------------

@@ -849,13 +849,13 @@ impl HouseBuilding {
     fn adjust_workers_available(&mut self, context: &BuildingContext) {
         // Percentage of current household residents that are workers: [0,100].
         let worker_percentage = (self.current_level_config().worker_percentage as f32) / 100.0;
-        let curr_population = self.population.count() as f32;
+        let curr_population   = self.population.count() as f32;
         let workers_available = (curr_population * worker_percentage).round() as u32;
 
         let workers = self.workers.as_household_worker_pool_mut().unwrap();
 
-        let curr_employed = workers.employed_count();
-        let new_employed = curr_employed.min(workers_available);
+        let curr_employed  = workers.employed_count();
+        let new_employed   = curr_employed.min(workers_available);
         let new_unemployed = workers_available - new_employed;
 
         if new_employed < curr_employed {

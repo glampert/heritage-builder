@@ -219,7 +219,6 @@ impl PathFindResult<'_> {
     }
 
     fn from_query_result<'search>(
-        context: &'search SimContext,
         origin_kind: BuildingKind,
         origin_base_cell: Cell,
         result: Option<(&Building, &'search Path)>,
@@ -229,7 +228,7 @@ impl PathFindResult<'_> {
                 debug_assert!(!path.is_empty());
 
                 let destination_road_link =
-                    destination_building.road_link(context).expect("Dest building should have a road link tile!");
+                    destination_building.road_link().expect("Dest building should have a road link tile!");
 
                 if destination_road_link != path.last().unwrap().cell {
                     log::error!(
@@ -248,7 +247,7 @@ impl PathFindResult<'_> {
                         origin_kind,
                         origin_base_cell,
                         destination_building.kind(),
-                        destination_building.tile_info(context),
+                        destination_building.tile_info(),
                     ),
                 }
             }
@@ -277,7 +276,7 @@ pub(super) fn find_delivery_candidate(
         traversable_node_kinds,
         None,
         |building, _path| {
-            if building.receivable_resources(resource_kind_to_deliver) != 0 && building.is_linked_to_road(context) {
+            if building.receivable_resources(resource_kind_to_deliver) != 0 && building.is_linked_to_road() {
                 return false; // Accept this building and end the search.
             }
             // Else we couldn't find a free slot in this building or it
@@ -286,7 +285,7 @@ pub(super) fn find_delivery_candidate(
         },
     );
 
-    PathFindResult::from_query_result(context, origin_kind, origin_base_cell, result)
+    PathFindResult::from_query_result(origin_kind, origin_base_cell, result)
 }
 
 pub(super) fn find_storage_fetch_candidate(
@@ -309,7 +308,7 @@ pub(super) fn find_storage_fetch_candidate(
         traversable_node_kinds,
         None,
         |building, _path| {
-            if building.available_resources(resource_kind_to_fetch) != 0 && building.is_linked_to_road(context) {
+            if building.available_resources(resource_kind_to_fetch) != 0 && building.is_linked_to_road() {
                 return false; // Accept this building and end the search.
             }
             // Else we couldn't find the resource we're looking for
@@ -319,5 +318,5 @@ pub(super) fn find_storage_fetch_candidate(
         },
     );
 
-    PathFindResult::from_query_result(context, origin_kind, origin_base_cell, result)
+    PathFindResult::from_query_result(origin_kind, origin_base_cell, result)
 }
