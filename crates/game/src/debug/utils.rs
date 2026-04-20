@@ -458,6 +458,7 @@ impl<'game> DebugSimContextBuilder<'game> {
             &mut self.treasury,
             0.0,
             false,
+            false,
         )
     }
 }

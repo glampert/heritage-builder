@@ -68,11 +68,17 @@ pub struct SimContext {
     world: RawPtr<World>,
     tile_map: RawPtr<TileMap>,
 
+    // World resource stats:
     treasury: RawPtr<GlobalTreasury>,
+
+    // Update delta time.
     delta_time_secs: Seconds,
 
     // True if the world is being reset/destroyed.
     is_world_teardown: bool,
+
+    // True if the context is in "read-only" mode (mutable methods are not allowed to be called).
+    is_read_only: bool,
 }
 
 impl SimContext {
@@ -91,6 +97,7 @@ impl SimContext {
         treasury: &mut GlobalTreasury,
         delta_time_secs: Seconds,
         is_world_teardown: bool,
+        is_read_only: bool,
     ) -> Self {
         Self {
             rng: RawPtr::from_ref(rng),
@@ -102,12 +109,34 @@ impl SimContext {
             treasury: RawPtr::from_ref(treasury),
             delta_time_secs,
             is_world_teardown,
+            is_read_only,
         }
     }
 
     #[inline(always)]
     fn search_mut(&self) -> &mut Search {
         self.search.mut_ref_cast()
+    }
+
+    // ----------------------
+    // Global Sim RNG:
+    // ----------------------
+
+    #[inline(always)]
+    pub fn rng_mut(&self) -> &mut RandomGenerator {
+        // NOTE: Mutable RNG access is granted even on read-only contexts.
+        // The Sim RNG is a global shared resource that is not tracked as
+        // a world or tile map modification.
+        self.rng.mut_ref_cast()
+    }
+
+    #[inline]
+    pub fn random_range<T, R>(&self, range: R) -> T
+    where
+        T: SampleUniform,
+        R: SampleRange<T>,
+    {
+        self.rng_mut().random_range(range)
     }
 
     // ----------------------
@@ -432,45 +461,39 @@ impl SimContext {
 
     #[inline(always)]
     pub fn task_manager_mut(&self) -> &mut UnitTaskManager {
+        // NOTE: Allow accessing mutable UnitTaskManager on a read-only context.
+        // UnitTaskManager is a shared global resource used to allocate and assign
+        // unit tasks, so we do not track it as a world or tile map modification.
         self.task_manager.mut_ref_cast()
     }
 
     #[inline(always)]
     pub fn world_mut(&self) -> &mut World {
+        debug_assert!(!self.is_read_only, "Called mutable method on a read-only SimContext!");
         self.world.mut_ref_cast()
     }
 
     #[inline(always)]
     pub fn tile_map_mut(&self) -> &mut TileMap {
+        debug_assert!(!self.is_read_only, "Called mutable method on a read-only SimContext!");
         self.tile_map.mut_ref_cast()
     }
 
     #[inline(always)]
     pub fn treasury_mut(&self) -> &mut GlobalTreasury {
+        debug_assert!(!self.is_read_only, "Called mutable method on a read-only SimContext!");
         self.treasury.mut_ref_cast()
     }
 
-    #[inline(always)]
-    pub fn rng_mut(&self) -> &mut RandomGenerator {
-        self.rng.mut_ref_cast()
-    }
-
     #[inline]
-    pub fn random_range<T, R>(&self, range: R) -> T
-    where
-        T: SampleUniform,
-        R: SampleRange<T>,
-    {
-        self.rng_mut().random_range(range)
-    }
-
-    #[inline]
-    pub fn set_path_node_kind(&self, node: Node, kind: PathNodeKind) {
+    pub fn set_path_node_kind_mut(&self, node: Node, kind: PathNodeKind) {
+        debug_assert!(!self.is_read_only, "Called mutable method on a read-only SimContext!");
         self.graph.mut_ref_cast().set_node_kind(node, kind);
     }
 
     #[inline]
     pub fn find_tile_mut(&self, cell: Cell, tile_kinds: TileKind) -> Option<&mut Tile> {
+        debug_assert!(!self.is_read_only, "Called mutable method on a read-only SimContext!");
         self.tile_map_mut().find_tile_mut(cell, tile_kinds.layer_kind(), tile_kinds)
     }
 
@@ -486,8 +509,57 @@ impl SimContext {
     where
         F: FnMut(&Building, &Path) -> bool,
     {
+        debug_assert!(!self.is_read_only, "Called mutable method on a read-only SimContext!");
+
         // Reuse non mutable find_nearest_buildings().
         self.find_nearest_buildings(start, building_kinds, traversable_node_kinds, max_distance, visitor_fn)
             .map(|(building, path)| (mem::mut_ref_cast(building), path))
     }
 }
+
+// ----------------------------------------------
+// Internal helper macros
+// ----------------------------------------------
+
+macro_rules! make_context {
+    ($self:ident, $delta_time_secs:expr, $tile_map:expr, $world:expr, $is_world_teardown:expr, $is_read_only:expr) => {
+        $crate::sim::context::SimContext::new(
+            &mut $self.rng,
+            &mut $self.graph,
+            &mut $self.search,
+            &mut $self.task_manager,
+            $world,
+            $tile_map,
+            &mut $self.treasury,
+            $delta_time_secs,
+            $is_world_teardown,
+            $is_read_only,
+        )
+    };
+}
+
+macro_rules! make_update_context_readonly {
+    ($self:ident, $delta_time_secs:expr, $tile_map:expr, $world:expr) => {{
+        const IS_WORLD_TEARDOWN: bool = false;
+        const IS_READ_ONLY: bool = true;
+        $crate::sim::context::make_context!($self, $delta_time_secs, $tile_map, $world, IS_WORLD_TEARDOWN, IS_READ_ONLY)
+    }};
+}
+
+macro_rules! make_update_context_mut {
+    ($self:ident, $delta_time_secs:expr, $tile_map:expr, $world:expr) => {{
+        const IS_WORLD_TEARDOWN: bool = false;
+        const IS_READ_ONLY: bool = false;
+        $crate::sim::context::make_context!($self, $delta_time_secs, $tile_map, $world, IS_WORLD_TEARDOWN, IS_READ_ONLY)
+    }};
+}
+
+macro_rules! make_world_reset_context {
+    ($self:ident, $tile_map:expr, $world:expr) => {{
+        const IS_WORLD_TEARDOWN: bool = true;
+        const IS_READ_ONLY: bool = false;
+        $crate::sim::context::make_context!($self, 0.0, $tile_map, $world, IS_WORLD_TEARDOWN, IS_READ_ONLY)
+    }};
+}
+
+pub(super) use { make_context, make_update_context_readonly, make_update_context_mut, make_world_reset_context };

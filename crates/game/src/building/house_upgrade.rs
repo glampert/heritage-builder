@@ -208,10 +208,10 @@ pub fn try_replace_tile(
 
         // Update path finding graph:
         for cell in &prev_cell_range {
-            context.sim_ctx.set_path_node_kind(Node::new(cell), PathNodeKind::EmptyLand); // Traversable
+            context.sim_ctx.set_path_node_kind_mut(Node::new(cell), PathNodeKind::EmptyLand); // Traversable
         }
         for cell in &new_cell_range {
-            context.sim_ctx.set_path_node_kind(Node::new(cell), PathNodeKind::Building); // Not Traversable
+            context.sim_ctx.set_path_node_kind_mut(Node::new(cell), PathNodeKind::Building); // Not Traversable
         }
     }
 
