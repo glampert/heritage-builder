@@ -46,7 +46,7 @@ use crate::{
 // ----------------------------------------------
 
 impl Unit {
-    pub fn draw_debug_ui_overview(&mut self, context: &SimContext, ui_sys: &UiSystem) {
+    pub(super) fn draw_debug_ui_overview(&mut self, context: &SimContext, ui_sys: &UiSystem) {
         let ui = ui_sys.ui();
 
         ui_sys.set_window_font_scale(UiFontScale(1.2));
@@ -76,7 +76,7 @@ impl Unit {
         }
     }
 
-    pub fn draw_debug_ui_detailed(&mut self, cmds: &mut SimCmds, context: &SimContext, ui_sys: &UiSystem) {
+    pub(super) fn draw_debug_ui_detailed(&mut self, cmds: &mut SimCmds, context: &SimContext, ui_sys: &UiSystem) {
         self.draw_debug_ui_properties(ui_sys);
         self.draw_debug_ui_config(ui_sys);
         self.debug.draw_debug_ui(ui_sys);
@@ -484,7 +484,7 @@ impl Unit {
 // Debug callbacks
 // ----------------------------------------------
 
-pub fn register_callbacks() {
+pub(super) fn register_callbacks() {
     let _: Callback<UnitTaskDeliveryCompletionCallback> =
         callback::register!(unit_debug_delivery_task_completed);
     let _: Callback<UnitTaskFetchCompletionCallback> =
