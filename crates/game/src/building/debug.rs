@@ -140,7 +140,7 @@ impl Building {
                 population.draw_debug_ui(ui_sys);
 
                 if ui.button("Increase Population (+1)") {
-                    self.archetype_mut().add_population(context, 1);
+                    self.archetype_mut().add_population(cmds, context, 1);
                 }
 
                 if ui.button("Evict Resident (-1)") {

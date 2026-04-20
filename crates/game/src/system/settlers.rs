@@ -209,7 +209,10 @@ impl Settler {
                             debug_assert!(building.is(BuildingKind::House));
                             building.set_random_variation(context);
 
-                            let population_added = building.add_population(context, population_to_add);
+                            let mut cmds = SimCmds::default(); // Already within a deferred command.
+                            let population_added = building.add_population(&mut cmds, context, population_to_add);
+                            cmds.execute(context);
+
                             if population_added != population_to_add {
                                 log::error!(
                                     log::channel!("unit"),

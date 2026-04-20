@@ -556,7 +556,10 @@ fn unit_debug_settle_task_post_despawn(
                     Ok(building) => {
                         debug_assert!(building.is(BuildingKind::House));
 
-                        let population_added = building.add_population(context, population_to_add);
+                        let mut cmds = SimCmds::default(); // Already within a deferred command.
+                        let population_added = building.add_population(&mut cmds, context, population_to_add);
+                        cmds.execute(context);
+
                         if population_added != population_to_add {
                             log::error!(
                                 log::channel!("unit"),

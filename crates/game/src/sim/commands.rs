@@ -775,16 +775,18 @@ impl SimCmds {
                 callback(context, building);
             }
             SimCmd::UpgradeHouse { kind_and_id, dir } => {
-                let building = context.world_mut()
-                    .find_building_mut(kind_and_id.kind, kind_and_id.id)
-                    .unwrap_or_else(|| panic!("SimCmd::UpgradeHouse invalid building kind/id: {} {}", kind_and_id.kind, kind_and_id.id));
+                // NOTE: Ignore an invalid BuildingId here. We may have multiple upgrade commands
+                // referencing nearby houses that will be merged. The first command to execute wins,
+                // merging and despawning the neighboring houses, thus making any remaining commands
+                // no longer valid.
+                if let Some(building) = context.world_mut().find_building_mut(kind_and_id.kind, kind_and_id.id) {
+                    let mut cmds = SimCmds::default();
 
-                let mut cmds = SimCmds::default();
+                    let building_ctx = building.new_context(context);
+                    building.as_house_mut().perform_upgrade(&mut cmds, &building_ctx, *dir);
 
-                let building_ctx = building.new_context(context);
-                building.as_house_mut().perform_upgrade(&mut cmds, &building_ctx, *dir);
-
-                cmds.execute(context);
+                    cmds.execute(context);
+                }
             }
 
             // --------------

@@ -296,7 +296,7 @@ impl BuildingBehavior for HouseBuilding {
         }
 
         if self.population_update_timer.tick(delta_time_secs).should_update() && !self.debug.freeze_population_update() {
-            self.population_update(context);
+            self.population_update(cmds, context);
         }
 
         if self.generate_tax_timer.tick(delta_time_secs).should_update() && !self.debug.freeze_tax_generation() {
@@ -407,11 +407,14 @@ impl BuildingBehavior for HouseBuilding {
         Some(self.population)
     }
 
-    fn add_population(&mut self, context: &BuildingContext, count: u32) -> u32 {
+    fn add_population(&mut self, cmds: &mut SimCmds, context: &BuildingContext, count: u32) -> u32 {
         if count != 0 && !self.population.is_max() {
             let amount_added = self.population.add(count);
             debug_popup_msg_color!(self.debug, Color::green(), "+{amount_added} Population");
-            self.adjust_workers_available(context);
+            cmds.defer_building_update(context.kind_and_id(), |sim_ctx, building| {
+                let context = building.new_context(sim_ctx);
+                building.as_house_mut().adjust_workers_available(&context);
+            });
             return amount_added;
         }
         0
@@ -421,7 +424,10 @@ impl BuildingBehavior for HouseBuilding {
         if count != 0 && self.population.count() != 0 {
             let amount_removed = self.population.remove(count);
             self.evict_population(cmds, context, amount_removed);
-            self.adjust_workers_available(context);
+            cmds.defer_building_update(context.kind_and_id(), |sim_ctx, building| {
+                let context = building.new_context(sim_ctx);
+                building.as_house_mut().adjust_workers_available(&context);
+            });
             return amount_removed;
         }
         0
@@ -793,7 +799,7 @@ impl HouseBuilding {
     // Population Update:
     // ----------------------
 
-    fn population_update(&mut self, context: &BuildingContext) {
+    fn population_update(&mut self, cmds: &mut SimCmds, context: &BuildingContext) {
         if self.population.is_max() {
             return;
         }
@@ -803,14 +809,18 @@ impl HouseBuilding {
         let increase_population = rng.random_ratio(chance, 100);
 
         if increase_population {
-            let population_added = self.add_population(context, 1);
+            let population_added = self.add_population(cmds, context, 1);
             debug_assert!(population_added == 1);
         }
     }
 
     fn visited_by_settler(&mut self, unit: &mut Unit, context: &BuildingContext) -> BuildingVisitResult {
+        let mut cmds = SimCmds::default(); // Already within a VisitBuilding command.
+
         let population_to_add = unit.settler_population(context.sim_ctx);
-        let population_added  = self.add_population(context, population_to_add);
+        let population_added  = self.add_population(&mut cmds, context, population_to_add);
+
+        cmds.execute(context.sim_ctx);
 
         if population_added != 0 {
             BuildingVisitResult::Accepted
@@ -1428,22 +1438,14 @@ impl HouseBuilding {
         let mut level_num: u8 = self.upgrade_state.level.into();
         if ui.input_scalar("Level", &mut level_num).step(1).build() {
             if let Ok(level) = HouseLevel::try_from_primitive(level_num) {
-                let mut upgraded = false;
-                let mut downgraded = false;
-
                 match level.cmp(&self.upgrade_state.level) {
                     std::cmp::Ordering::Greater => {
-                        upgraded = self.upgrade_state.try_upgrade(cmds, context, &mut self.debug);
+                        self.perform_upgrade(cmds, context, HouseUpgradeDirection::Upgrade);
                     }
                     std::cmp::Ordering::Less => {
-                        downgraded = self.upgrade_state.try_downgrade(cmds, context, &mut self.debug);
+                        self.perform_upgrade(cmds, context, HouseUpgradeDirection::Downgrade);
                     }
                     std::cmp::Ordering::Equal => {} // nothing
-                }
-
-                if upgraded || downgraded {
-                    self.stock.update_capacities(self.current_level_config().stock_capacity);
-                    self.adjust_population(cmds, context, self.population.count(), self.current_level_config().max_population);
                 }
             }
         }

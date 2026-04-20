@@ -107,7 +107,7 @@ impl GameObject for Prop {
     }
 
     #[inline]
-    fn update(&mut self, _cmds: &mut SimCmds, context: &SimContext) {
+    fn update(&mut self, cmds: &mut SimCmds, context: &SimContext) {
         debug_assert!(self.is_spawned());
         debug_assert!(self.config.is_some());
 
@@ -115,7 +115,9 @@ impl GameObject for Prop {
             && self.harvestable.amount == 0
             && self.harvestable.respawn_timer.tick(context.delta_time_secs())
         {
-            self.respawn_harvestable(context);
+            cmds.defer_prop_update(self.id(), |context, prop| {
+                prop.respawn_harvestable(context);
+            });
         }
     }
 

@@ -647,10 +647,10 @@ impl Building {
     }
 
     #[inline]
-    pub fn add_population(&mut self, context: &SimContext, count: u32) -> u32 {
+    pub fn add_population(&mut self, cmds: &mut SimCmds, context: &SimContext, count: u32) -> u32 {
         debug_assert!(self.is_spawned());
         let context = self.new_context(context);
-        self.archetype_mut().add_population(&context, count)
+        self.archetype_mut().add_population(cmds, &context, count)
     }
 
     #[inline]
@@ -1005,7 +1005,7 @@ trait BuildingBehavior {
     }
 
     // These return the amount added/removed, which can be <= the `count` parameter.
-    fn add_population(&mut self, _context: &BuildingContext, _count: u32) -> u32 {
+    fn add_population(&mut self, _cmds: &mut SimCmds, _context: &BuildingContext, _count: u32) -> u32 {
         0
     }
 
