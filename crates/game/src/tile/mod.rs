@@ -1,8 +1,12 @@
-#![allow(clippy::enum_variant_names)]
-
 use std::ops::{Index, IndexMut};
-
+use rand::Rng;
+use slab::Slab;
 use arrayvec::ArrayVec;
+use enum_dispatch::enum_dispatch;
+use num_enum::TryFromPrimitive;
+use serde::{Deserialize, Deserializer, Serialize, Serializer};
+use strum::{Display, EnumCount, EnumIter, EnumProperty, IntoEnumIterator, VariantArray, VariantNames};
+
 use common::{
     Color,
     Rect,
@@ -10,23 +14,17 @@ use common::{
     Vec2,
     bitflags_with_display,
     constants::*,
-    coords::{self, Cell, CellRange, IsoPoint, IsoPointF32, WorldToScreenTransform},
     hash::StringHash,
     mem::RawPtr,
     time::Seconds,
+    coords::{self, Cell, CellRange, IsoPoint, IsoPointF32, WorldToScreenTransform},
 };
 use engine::{file_sys::paths::PathRef, log, save::*};
-use enum_dispatch::enum_dispatch;
-use minimap::Minimap;
-use num_enum::TryFromPrimitive;
-use placement::{Clearing, Placement, TileClearingErr, TilePlacementErr, TilePlacementOp};
-use rand::Rng;
-use selection::TileSelection;
-use serde::{Deserialize, Deserializer, Serialize, Serializer};
-use sets::{SerializableTileDefHandle, TileAnimSet, TileDef, TileIconSprite, TileSets, TileTexInfo};
-use slab::Slab;
-use strum::{Display, EnumCount, EnumIter, EnumProperty, IntoEnumIterator, VariantArray, VariantNames};
 
+use minimap::Minimap;
+use selection::TileSelection;
+use placement::{Clearing, Placement, TileClearingErr, TilePlacementErr, TilePlacementOp};
+use sets::{SerializableTileDefHandle, TileAnimSet, TileDef, TileIconSprite, TileSets, TileTexInfo};
 use crate::{pathfind::NodeKind as PathNodeKind, save_context::*};
 
 pub mod minimap;
@@ -343,6 +341,7 @@ pub struct Tile {
 
 #[enum_dispatch]
 #[derive(Serialize, Deserialize)]
+#[allow(clippy::enum_variant_names)]
 enum TileArchetype {
     TerrainTile(TerrainTile),
     ObjectTile(ObjectTile),
