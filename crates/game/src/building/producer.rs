@@ -27,7 +27,7 @@ use crate::{
     world::{object::GameObject, stats::WorldStats},
     undo_redo::{GameObjectSavedState, game_object_undo_redo_state},
     debug::{
-        game_object_debug::{GameObjectDebugOptions, GameObjectDebugOptionsExt, game_object_debug_options},
+        game_object_debug::{GameObjectDebugOptions, debug_popup_msg, debug_popup_msg_color, game_object_debug_options},
         utils::UpdateTimerDebugUi,
     },
     sim::{
@@ -275,7 +275,7 @@ impl BuildingBehavior for ProducerBuilding {
                 let removed_count = unit.remove_resources(item.kind, received_count);
                 debug_assert!(removed_count == received_count);
 
-                self.debug.popup_msg(format!("{} received delivery -> {}", self.name(), unit.name()));
+                debug_popup_msg!(self.debug, "{} received delivery -> {}", self.name(), unit.name());
                 return BuildingVisitResult::Accepted;
             }
         }
@@ -630,7 +630,7 @@ impl ProducerBuilding {
         debug_assert!(this_producer.runner.unit_id() == runner_unit.id());
 
         this_producer.runner.reset();
-        this_producer.debug.popup_msg_color(Color::cyan(), "Delivery Task complete");
+        debug_popup_msg_color!(this_producer.debug, Color::cyan(), "Delivery Task complete");
     }
 
     fn on_resources_fetched(context: &SimContext, this_building: &mut Building, runner_unit: &mut Unit) {
@@ -666,7 +666,7 @@ impl ProducerBuilding {
         }
 
         this_producer.runner.reset();
-        this_producer.debug.popup_msg_color(Color::cyan(), "Fetch Task complete");
+        debug_popup_msg_color!(this_producer.debug, Color::cyan(), "Fetch Task complete");
     }
 
     fn on_resources_harvested(context: &SimContext, this_building: &mut Building, harvester_unit: &mut Unit) {
@@ -690,7 +690,7 @@ impl ProducerBuilding {
         }
 
         this_producer.harvester.reset();
-        this_producer.debug.popup_msg_color(Color::cyan(), "Harvest Task complete");
+        debug_popup_msg_color!(this_producer.debug, Color::cyan(), "Harvest Task complete");
     }
 
     #[inline]

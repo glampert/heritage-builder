@@ -1,16 +1,20 @@
-use std::borrow::Cow;
+use smallvec::SmallVec;
 
 use common::{
     self,
     Color,
-    coords::{CellRange, WorldToScreenTransform},
     time::Seconds,
+    coords::{CellRange, WorldToScreenTransform},
 };
-use engine::ui::UiSystem;
-use smallvec::SmallVec;
+use engine::{
+    ui::UiSystem,
+};
 
 use crate::{
-    debug::{self, popups::PopupMessages},
+    debug::{
+        self,
+        popups::{PopupMessages, PopupMsgText, POPUP_MSG_CAP},
+    },
     sim::resources::ResourceKind,
     tile::Tile,
 };
@@ -153,7 +157,7 @@ pub trait GameObjectDebugOptions {
     }
 
     #[inline]
-    fn popup_msg_string(&mut self, text: Cow<'static, str>) {
+    fn popup_msg(&mut self, text: PopupMsgText) {
         if self.show_popups() {
             const LIFETIME: Seconds = 9.0;
             self.get_popups().messages.push_with_args(LIFETIME, Color::default(), text);
@@ -161,7 +165,7 @@ pub trait GameObjectDebugOptions {
     }
 
     #[inline]
-    fn popup_msg_color_string(&mut self, color: Color, text: Cow<'static, str>) {
+    fn popup_msg_color(&mut self, color: Color, text: PopupMsgText) {
         if self.show_popups() {
             const LIFETIME: Seconds = 9.0;
             self.get_popups().messages.push_with_args(LIFETIME, color, text);
@@ -171,26 +175,18 @@ pub trait GameObjectDebugOptions {
     #[inline]
     fn log_resources_gained(&mut self, kind: ResourceKind, count: u32) {
         if self.show_popups() && !kind.is_empty() && count != 0 {
-            self.popup_msg_color_string(Color::green(), format!("+{count} {kind}").into());
+            let text = common::format_fixed_string_trunc!(POPUP_MSG_CAP, "+{count} {kind}");
+            self.popup_msg_color(Color::green(), text);
         }
     }
 
     #[inline]
     fn log_resources_lost(&mut self, kind: ResourceKind, count: u32) {
         if self.show_popups() && !kind.is_empty() && count != 0 {
-            self.popup_msg_color_string(Color::red(), format!("-{count} {kind}").into());
+            let text = common::format_fixed_string_trunc!(POPUP_MSG_CAP, "-{count} {kind}");
+            self.popup_msg_color(Color::red(), text);
         }
     }
-}
-
-pub trait GameObjectDebugOptionsExt {
-    fn popup_msg<T>(&mut self, text: T)
-    where
-        T: Into<Cow<'static, str>>;
-
-    fn popup_msg_color<T>(&mut self, color: Color, text: T)
-    where
-        T: Into<Cow<'static, str>>;
 }
 
 // ----------------------------------------------
@@ -239,23 +235,33 @@ macro_rules! game_object_debug_options {
                 }
             }
 
-            impl $crate::debug::game_object_debug::GameObjectDebugOptionsExt for $struct_name {
-                #[inline]
-                fn popup_msg<T>(&mut self, text: T)
-                    where T: Into<std::borrow::Cow<'static, str>>
-                {
-                    $crate::debug::game_object_debug::GameObjectDebugOptions::popup_msg_string(self, text.into());
-                }
-
-                #[inline]
-                fn popup_msg_color<T>(&mut self, color: Color, text: T)
-                    where T: Into<std::borrow::Cow<'static, str>>
-                {
-                    $crate::debug::game_object_debug::GameObjectDebugOptions::popup_msg_color_string(self, color, text.into());
-                }
-            }
         }
     };
 }
 
-pub(crate) use game_object_debug_options;
+// ----------------------------------------------
+// Macros: debug_popup_msg / debug_popup_msg_color
+// ----------------------------------------------
+
+// Gate the `format!()`/`write!()` expansion behind `show_popups()` so the
+// common case (popups disabled) pays no allocation and no formatting cost.
+
+macro_rules! debug_popup_msg {
+    ($debug:expr, $($arg:tt)*) => {
+        if ($debug).show_popups() {
+            let text = common::format_fixed_string_trunc!({ $crate::debug::popups::POPUP_MSG_CAP }, $($arg)*);
+            ($debug).popup_msg(text);
+        }
+    };
+}
+
+macro_rules! debug_popup_msg_color {
+    ($debug:expr, $color:expr, $($arg:tt)*) => {
+        if ($debug).show_popups() {
+            let text = common::format_fixed_string_trunc!({ $crate::debug::popups::POPUP_MSG_CAP }, $($arg)*);
+            ($debug).popup_msg_color($color, text);
+        }
+    };
+}
+
+pub(crate) use {debug_popup_msg, debug_popup_msg_color, game_object_debug_options};

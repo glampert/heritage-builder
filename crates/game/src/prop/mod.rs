@@ -28,7 +28,7 @@ use crate::{
     tile::{Tile, TileKind},
     debug::{
         DebugUiMode,
-        game_object_debug::{GameObjectDebugOptions, GameObjectDebugOptionsExt, game_object_debug_options},
+        game_object_debug::{GameObjectDebugOptions, debug_popup_msg_color, game_object_debug_options},
     },
 };
 
@@ -289,7 +289,7 @@ impl Prop {
         }
 
         if amount_harvested != 0 {
-            self.debug.popup_msg_color(Color::red(), format!("-{amount_harvested} {resource}"));
+            debug_popup_msg_color!(self.debug, Color::red(), "-{amount_harvested} {resource}");
         }
 
         StockItem { kind: resource, count: amount_harvested }
@@ -318,11 +318,11 @@ impl Prop {
             if self.harvestable.amount == 0 {
                 if let Some(index) = self.find_variation(context, PROP_VARIATION_DEPLETED.hash) {
                     tile.set_variation_index(index);
-                    self.debug.popup_msg_color(Color::red(), "Depleted");
+                    debug_popup_msg_color!(self.debug, Color::red(), "Depleted");
                 }
             } else {
                 tile.set_variation_index(self.harvestable.initial_variation as usize);
-                self.debug.popup_msg_color(Color::green(), "Respawned");
+                debug_popup_msg_color!(self.debug, Color::green(), "Respawned");
             }
         }
     }

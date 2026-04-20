@@ -23,7 +23,7 @@ use super::{
 };
 use crate::{
     building::{Building, BuildingKind, BuildingKindAndId, BuildingTileInfo},
-    debug::game_object_debug::{GameObjectDebugOptions, GameObjectDebugOptionsExt},
+    debug::game_object_debug::{GameObjectDebugOptions, debug_popup_msg, debug_popup_msg_color},
     pathfind::{self, NodeKind as PathNodeKind, Path},
     world::object::GameObject,
     prop::PropId,
@@ -185,7 +185,7 @@ impl Unit {
         }
 
         if ui.button("Say Hello") {
-            self.debug.popup_msg("Hello!");
+            debug_popup_msg!(self.debug, "Hello!");
         }
 
         if ui.button("Push Minimap Alert") {
@@ -397,9 +397,9 @@ impl Unit {
                 context.is_near_building(self.cell(), search_building_kind, connected_to_road_only, max_search_distance);
 
             if is_near {
-                self.debug.popup_msg_color(Color::green(), format!("{}: Near {}!", self.cell(), search_building_kind));
+                debug_popup_msg_color!(self.debug, Color::green(), "{}: Near {}!", self.cell(), search_building_kind);
             } else {
-                self.debug.popup_msg_color(Color::red(), format!("{}: Not near {}!", self.cell(), search_building_kind));
+                debug_popup_msg_color!(self.debug, Color::red(), "{}: Not near {}!", self.cell(), search_building_kind);
             }
         }
 
@@ -523,13 +523,13 @@ fn unit_debug_fetch_task_completed(_: &SimContext, building: &mut Building, unit
 
 fn unit_debug_find_vacant_lot_task_completed(_: &SimContext, unit: &mut Unit, dest_tile: &Tile, _: u32) {
     log::info!("Unit {} reached {}.", unit.name(), dest_tile.name());
-    unit.debug.popup_msg(format!("Reached {}", dest_tile.name()));
+    debug_popup_msg!(unit.debug, "Reached {}", dest_tile.name());
 }
 
 fn unit_debug_settle_task_completed(_: &SimContext, unit: &mut Unit, dest_tile: &Tile, population_to_add: u32) {
     debug_assert!(population_to_add == 1);
     log::info!("Unit {} reached {}.", unit.name(), dest_tile.name());
-    unit.debug.popup_msg(format!("Reached {}", dest_tile.name()));
+    debug_popup_msg!(unit.debug, "Reached {}", dest_tile.name());
 }
 
 fn unit_debug_settle_task_post_despawn(

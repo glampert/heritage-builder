@@ -31,7 +31,7 @@ use crate::{
     undo_redo::{GameObjectSavedState, game_object_undo_redo_state},
     debug::{
         utils::UpdateTimerDebugUi,
-        game_object_debug::{GameObjectDebugOptions, GameObjectDebugOptionsExt, game_object_debug_options},
+        game_object_debug::{GameObjectDebugOptions, debug_popup_msg, debug_popup_msg_color, game_object_debug_options},
     },
     sim::{
         SimCmds,
@@ -410,7 +410,7 @@ impl BuildingBehavior for HouseBuilding {
     fn add_population(&mut self, context: &BuildingContext, count: u32) -> u32 {
         if count != 0 && !self.population.is_max() {
             let amount_added = self.population.add(count);
-            self.debug.popup_msg_color(Color::green(), format!("+{amount_added} Population"));
+            debug_popup_msg_color!(self.debug, Color::green(), "+{amount_added} Population");
             self.adjust_workers_available(context);
             return amount_added;
         }
@@ -548,7 +548,7 @@ impl HouseBuilding {
 
         if let Some(market) = unit.patrol_task_origin_building(context.sim_ctx) {
             self.shop_from_market(market, context);
-            self.debug.popup_msg_color(Color::green(), "Visited by market vendor");
+            debug_popup_msg_color!(self.debug, Color::green(), "Visited by market vendor");
             return BuildingVisitResult::Accepted;
         }
 
@@ -815,7 +815,7 @@ impl HouseBuilding {
         if population_added != 0 {
             BuildingVisitResult::Accepted
         } else {
-            self.debug.popup_msg_color(Color::red(), "Refused settler");
+            debug_popup_msg_color!(self.debug, Color::red(), "Refused settler");
             BuildingVisitResult::Refused
         }
     }
@@ -829,7 +829,7 @@ impl HouseBuilding {
 
         Settler::try_spawn(cmds, context.sim_ctx, unit_origin, amount_to_evict);
 
-        self.debug.popup_msg_color(Color::red(), format!("Evicted {amount_to_evict} residents"));
+        debug_popup_msg_color!(self.debug, Color::red(), "Evicted {amount_to_evict} residents");
     }
 
     fn adjust_population(&mut self, cmds: &mut SimCmds, context: &BuildingContext, new_population: u32, new_max: u32) {
@@ -860,7 +860,7 @@ impl HouseBuilding {
 
         if new_employed < curr_employed {
             let mut difference = curr_employed - new_employed;
-            self.debug.popup_msg_color(Color::magenta(), format!("-{difference} workers"));
+            debug_popup_msg_color!(self.debug, Color::magenta(), "-{difference} workers");
 
             workers.for_each_employer_mut(context.sim_ctx.world_mut(), |employer, employed_count| {
                 let removed_count = employer.remove_workers((*employed_count).min(difference), context.kind_and_id());
@@ -922,7 +922,7 @@ impl HouseBuilding {
         let tax_generated = self.tax_generated();
         if tax_generated != 0 {
             self.tax_available += tax_generated;
-            self.debug.popup_msg_color(Color::yellow(), format!("Tax available +{tax_generated}"));
+            debug_popup_msg_color!(self.debug, Color::yellow(), "Tax available +{tax_generated}");
         }
     }
 
@@ -935,7 +935,7 @@ impl HouseBuilding {
             let received_amount = unit.receive_resources(ResourceKind::Gold, tax_collected);
             debug_assert!(received_amount == tax_collected);
 
-            self.debug.popup_msg_color(Color::red(), format!("Tax collected -{tax_collected}"));
+            debug_popup_msg_color!(self.debug, Color::red(), "Tax collected -{tax_collected}");
             return BuildingVisitResult::Accepted;
         }
 
@@ -1236,7 +1236,7 @@ impl HouseUpgradeState {
                 // Set a random variation for the new building tile:
                 context.set_random_building_variation();
 
-                debug.popup_msg(format!("[U] {} -> {}", self.curr_level_config.unwrap().tile_def_name, self.level));
+                debug_popup_msg!(*debug, "[U] {} -> {}", self.curr_level_config.unwrap().tile_def_name, self.level);
                 upgraded_successfully = true;
             }
         } else {
@@ -1249,10 +1249,10 @@ impl HouseUpgradeState {
         }
 
         if !upgraded_successfully {
-            debug.popup_msg_color(
+            debug_popup_msg_color!(
+                *debug,
                 Color::yellow(),
-                format!("[U] {}: No space", self.curr_level_config.unwrap().tile_def_name),
-            );
+                "[U] {}: No space", self.curr_level_config.unwrap().tile_def_name);
         }
 
         self.has_room_to_upgrade = upgraded_successfully;
@@ -1279,7 +1279,7 @@ impl HouseUpgradeState {
                 // Set a random variation for the new building:
                 context.set_random_building_variation();
 
-                debug.popup_msg(format!("[D] {} -> {}", self.curr_level_config.unwrap().tile_def_name, self.level));
+                debug_popup_msg!(*debug, "[D] {} -> {}", self.curr_level_config.unwrap().tile_def_name, self.level);
                 downgraded_successfully = true;
             }
         } else {
@@ -1292,7 +1292,7 @@ impl HouseUpgradeState {
         }
 
         if !downgraded_successfully {
-            debug.popup_msg_color(Color::red(), format!("[D] {}: Failed!", self.curr_level_config.unwrap().tile_def_name));
+            debug_popup_msg_color!(*debug, Color::red(), "[D] {}: Failed!", self.curr_level_config.unwrap().tile_def_name);
         }
 
         self.has_room_to_upgrade = downgraded_successfully;

@@ -27,7 +27,7 @@ use crate::{
     world::{object::GameObject, stats::WorldStats},
     undo_redo::{GameObjectSavedState, game_object_undo_redo_state},
     debug::{
-        game_object_debug::{GameObjectDebugOptions, GameObjectDebugOptionsExt, game_object_debug_options},
+        game_object_debug::{GameObjectDebugOptions, debug_popup_msg_color, game_object_debug_options},
         utils::UpdateTimerDebugUi,
     },
     sim::{
@@ -568,7 +568,7 @@ impl ServiceBuilding {
         // Else the runner failed to fetch the wanted resources and came back home empty handed.
 
         this_service.runner.reset();
-        this_service.debug.popup_msg_color(Color::cyan(), "Fetch Task complete");
+        debug_popup_msg_color!(this_service.debug, Color::cyan(), "Fetch Task complete");
     }
 
     fn resource_fetch_list(&self) -> ShoppingList {
@@ -649,7 +649,7 @@ impl ServiceBuilding {
                 let tax_collected = patrol_unit.remove_resources(item.kind, item.count);
                 *gold_units += tax_collected;
 
-                this_service.debug.popup_msg_color(Color::yellow(), format!("Tax collected +{tax_collected}"));
+                debug_popup_msg_color!(this_service.debug, Color::yellow(), "Tax collected +{tax_collected}");
             } else {
                 log::error!(
                     log::channel!("unit"),
@@ -664,7 +664,7 @@ impl ServiceBuilding {
         }
 
         this_service.patrol.reset();
-        this_service.debug.popup_msg_color(Color::magenta(), "Patrol complete");
+        debug_popup_msg_color!(this_service.debug, Color::magenta(), "Patrol complete");
     }
 }
 

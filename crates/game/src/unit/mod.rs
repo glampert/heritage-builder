@@ -32,7 +32,7 @@ use crate::{
     pathfind::{NodeKind as PathNodeKind, Path},
     debug::{
         DebugUiMode,
-        game_object_debug::{GameObjectDebugOptions, GameObjectDebugOptionsExt, game_object_debug_options},
+        game_object_debug::{GameObjectDebugOptions, debug_popup_msg, debug_popup_msg_color, game_object_debug_options},
     },
     tile::{
         self,
@@ -340,7 +340,7 @@ impl Unit {
         self.navigation.reset_path_and_goal(path, None);
         self.path_is_blocked = false;
         if path.is_some() {
-            self.debug.popup_msg("New Path");
+            debug_popup_msg!(self.debug, "New Path");
         }
     }
 
@@ -402,7 +402,7 @@ impl Unit {
                     // This would normally happen if two units try to move to the
                     // same tile, so they will bump into each other for one frame.
                     // Not a critical failure, the unit can recover next update.
-                    self.debug.popup_msg_color(Color::yellow(), "Bump!");
+                    debug_popup_msg_color!(self.debug, Color::yellow(), "Bump!");
                 }
 
                 self.update_direction_and_anim(self.find_tile_mut(context), direction);
@@ -414,12 +414,12 @@ impl Unit {
                     // Goal reached, clear current path.
                     // NOTE: Not using follow_path(None) here to preserve the nav goal for unit tasks.
                     self.navigation.reset_path_only();
-                    self.debug.popup_msg_color(Color::green(), "Reached Goal!");
+                    debug_popup_msg_color!(self.debug, Color::green(), "Reached Goal!");
                 } else {
                     // Path was blocked, retry task.
                     self.follow_path(None);
                     self.path_is_blocked = true;
-                    self.debug.popup_msg_color(Color::red(), "Goal Blocked!");
+                    debug_popup_msg_color!(self.debug, Color::red(), "Goal Blocked!");
                 }
 
                 self.idle(context);
@@ -431,7 +431,7 @@ impl Unit {
                 self.follow_path(None);
                 self.idle(context);
                 self.path_is_blocked = true;
-                self.debug.popup_msg_color(Color::red(), "Path Blocked!");
+                debug_popup_msg_color!(self.debug, Color::red(), "Path Blocked!");
             }
         }
     }
@@ -652,11 +652,7 @@ impl Unit {
     }
 
     fn log_going_to(&mut self, goal: &UnitNavGoal) {
-        if !self.debug.show_popups() {
-            return;
-        }
-
-        self.debug.popup_msg(format!("Goto: {} -> {}", goal.origin_debug_name(), goal.destination_debug_name()));
+        debug_popup_msg!(self.debug, "Goto: {} -> {}", goal.origin_debug_name(), goal.destination_debug_name());
     }
 }
 

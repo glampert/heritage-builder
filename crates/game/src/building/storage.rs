@@ -23,7 +23,7 @@ use crate::{
     save_context::PostLoadContext,
     world::stats::WorldStats,
     undo_redo::{GameObjectSavedState, game_object_undo_redo_state},
-    debug::game_object_debug::{GameObjectDebugOptions, GameObjectDebugOptionsExt, game_object_debug_options},
+    debug::game_object_debug::{GameObjectDebugOptions, debug_popup_msg, game_object_debug_options},
     sim::{
         SimCmds,
         resources::{RESOURCE_KIND_COUNT, ResourceKind, ResourceKinds, ResourceStock, StockItem, Workers},
@@ -160,7 +160,7 @@ impl BuildingBehavior for StorageBuilding {
                     let removed_count = unit.remove_resources(item.kind, received_count);
                     debug_assert!(removed_count == received_count);
 
-                    self.debug.popup_msg(format!("{} delivered {} {}", unit.name(), received_count, item.kind));
+                    debug_popup_msg!(self.debug, "{} delivered {} {}", unit.name(), received_count, item.kind);
                     return BuildingVisitResult::Accepted;
                 }
             }
@@ -177,7 +177,7 @@ impl BuildingBehavior for StorageBuilding {
                     unit.receive_resources(item.kind, removed_count);
                     debug_assert!(removed_count == max_fetch_count);
 
-                    self.debug.popup_msg(format!("{} fetched {} {}", unit.name(), max_fetch_count, item.kind));
+                    debug_popup_msg!(self.debug, "{} fetched {} {}", unit.name(), max_fetch_count, item.kind);
                     return BuildingVisitResult::Accepted;
                 }
             }

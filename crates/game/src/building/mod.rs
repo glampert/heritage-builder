@@ -49,7 +49,11 @@ use super::{
 use crate::{
     save_context::*,
     config::GameConfigs,
-    debug::{DebugUiMode, game_object_debug::GameObjectDebugOptions, utils::UpdateTimerDebugUi},
+    debug::{
+        DebugUiMode,
+        game_object_debug::{GameObjectDebugOptions, debug_popup_msg_color},
+        utils::UpdateTimerDebugUi,
+    },
     pathfind::{self, NodeKind as PathNodeKind},
     tile::{
         Tile,
@@ -688,9 +692,11 @@ impl Building {
             }
 
             if workers_added != 0 {
-                self.archetype_mut()
-                    .debug_options()
-                    .popup_msg_color_string(Color::cyan(), format!("+{workers_added} workers").into());
+                debug_popup_msg_color!(
+                    self.archetype_mut().debug_options(),
+                    Color::cyan(),
+                    "+{workers_added} workers"
+                );
             }
         }
         workers_added
@@ -705,9 +711,11 @@ impl Building {
             }
 
             if workers_removed != 0 {
-                self.archetype_mut()
-                    .debug_options()
-                    .popup_msg_color_string(Color::magenta(), format!("-{workers_removed} workers").into());
+                debug_popup_msg_color!(
+                    self.archetype_mut().debug_options(),
+                    Color::magenta(),
+                    "-{workers_removed} workers"
+                );
             }
         }
         workers_removed

@@ -1,9 +1,14 @@
-use std::borrow::Cow;
+use arrayvec::ArrayString;
+use rand::{self, Rng};
+use smallvec::SmallVec;
 
 use common::{self, Color, Vec2, time::Seconds};
 use engine::ui::UiSystem;
-use rand::{self, Rng};
-use smallvec::SmallVec;
+
+// Max length of a popup message text. Debug-only, so we commit to a fixed
+// worst-case size and avoid any heap allocation on the hot path.
+pub const POPUP_MSG_CAP: usize = 128;
+pub type PopupMsgText = ArrayString<POPUP_MSG_CAP>;
 
 // ----------------------------------------------
 // PopupMessages
@@ -18,7 +23,7 @@ pub struct PopupMessages {
 
 impl PopupMessages {
     #[inline]
-    pub fn push_with_args(&mut self, lifetime_secs: Seconds, color: Color, text: impl Into<Cow<'static, str>>) {
+    pub fn push_with_args(&mut self, lifetime_secs: Seconds, color: Color, text: PopupMsgText) {
         self.push_message(PopupMessage::with_random_offset(Some(lifetime_secs), color, text));
     }
 
@@ -115,23 +120,22 @@ impl PopupMessages {
 
 #[derive(Clone)]
 pub struct PopupMessage {
-    // One lifetime reaches zero the message expires.
+    // Once lifetime reaches zero the message expires.
     pub lifetime: Option<(Seconds, Seconds)>, // (lifetime, time_left)
     pub color: Color,
     pub offset: Vec2,
 
-    // Hold either a ref to a static literal string or an owned string
-    // (like from the return of format!()), without performing unnecessary copies.
-    pub text: Cow<'static, str>,
+    // Fixed-capacity inline string. No heap allocation; overflows truncate.
+    pub text: PopupMsgText,
 }
 
 impl PopupMessage {
-    pub fn new(lifetime_secs: Option<Seconds>, color: Color, text: impl Into<Cow<'static, str>>) -> Self {
+    pub fn new(lifetime_secs: Option<Seconds>, color: Color, text: PopupMsgText) -> Self {
         let lifetime = lifetime_secs.map(|seconds| (seconds, seconds));
-        Self { lifetime, color, offset: Vec2::zero(), text: text.into() }
+        Self { lifetime, color, offset: Vec2::zero(), text }
     }
 
-    pub fn with_random_offset(lifetime_secs: Option<Seconds>, color: Color, text: impl Into<Cow<'static, str>>) -> Self {
+    pub fn with_random_offset(lifetime_secs: Option<Seconds>, color: Color, text: PopupMsgText) -> Self {
         let mut message = PopupMessage::new(lifetime_secs, color, text);
 
         // Add a random offset to the message so when we render multiple popups over
