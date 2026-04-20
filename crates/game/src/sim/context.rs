@@ -111,7 +111,7 @@ impl SimContext {
     }
 
     // ----------------------
-    // Public API:
+    // Read-Only (const) API:
     // ----------------------
 
     #[inline(always)]
@@ -130,11 +130,6 @@ impl SimContext {
     }
 
     #[inline(always)]
-    pub fn task_manager_mut(&self) -> &mut UnitTaskManager {
-        self.task_manager.mut_ref_cast()
-    }
-
-    #[inline(always)]
     pub fn graph(&self) -> &Graph {
         &self.graph
     }
@@ -145,47 +140,13 @@ impl SimContext {
     }
 
     #[inline(always)]
-    pub fn world_mut(&self) -> &mut World {
-        self.world.mut_ref_cast()
-    }
-
-    #[inline(always)]
     pub fn tile_map(&self) -> &TileMap {
         &self.tile_map
     }
 
     #[inline(always)]
-    pub fn tile_map_mut(&self) -> &mut TileMap {
-        self.tile_map.mut_ref_cast()
-    }
-
-    #[inline(always)]
     pub fn treasury(&self) -> &GlobalTreasury {
         &self.treasury
-    }
-
-    #[inline(always)]
-    pub fn treasury_mut(&self) -> &mut GlobalTreasury {
-        self.treasury.mut_ref_cast()
-    }
-
-    #[inline(always)]
-    pub fn rng_mut(&self) -> &mut RandomGenerator {
-        self.rng.mut_ref_cast()
-    }
-
-    #[inline(always)]
-    pub fn random_range<T, R>(&self, range: R) -> T
-    where
-        T: SampleUniform,
-        R: SampleRange<T>,
-    {
-        self.rng_mut().random_range(range)
-    }
-
-    #[inline]
-    pub fn set_path_node_kind(&self, node: Node, kind: PathNodeKind) {
-        self.graph.mut_ref_cast().set_node_kind(node, kind);
     }
 
     #[inline]
@@ -202,15 +163,6 @@ impl SimContext {
     pub fn find_tile(&self, cell: Cell, tile_kinds: TileKind) -> Option<&Tile> {
         self.tile_map().find_tile(cell, tile_kinds.layer_kind(), tile_kinds)
     }
-
-    #[inline]
-    pub fn find_tile_mut(&self, cell: Cell, tile_kinds: TileKind) -> Option<&mut Tile> {
-        self.tile_map_mut().find_tile_mut(cell, tile_kinds.layer_kind(), tile_kinds)
-    }
-
-    // ----------------------
-    // World/Map Searches:
-    // ----------------------
 
     #[inline]
     pub fn find_nearest_road_link(&self, start_cells: CellRange) -> Option<Cell> {
@@ -314,23 +266,6 @@ impl SimContext {
             Node::new(start),
             goal_node_kinds,
         )
-    }
-
-    #[inline]
-    pub fn find_nearest_buildings_mut<F>(
-        &self,
-        start: Cell,
-        building_kinds: BuildingKind,
-        traversable_node_kinds: PathNodeKind,
-        max_distance: Option<i32>,
-        visitor_fn: F,
-    ) -> Option<(&mut Building, &Path)>
-    where
-        F: FnMut(&Building, &Path) -> bool,
-    {
-        // Reuse non mutable find_nearest_buildings().
-        self.find_nearest_buildings(start, building_kinds, traversable_node_kinds, max_distance, visitor_fn)
-            .map(|(building, path)| (mem::mut_ref_cast(building), path))
     }
 
     pub fn find_nearest_buildings<F>(
@@ -469,8 +404,11 @@ impl SimContext {
         debug_assert!(!building_kinds.is_empty());
         debug_assert!(effect_radius > 0);
 
-        let traversable_node_kinds =
-            { if connected_to_road_only { PathNodeKind::Road } else { PathNodeKind::EmptyLand | PathNodeKind::Road } };
+        let traversable_node_kinds = if connected_to_road_only {
+            PathNodeKind::Road
+        } else {
+            PathNodeKind::EmptyLand | PathNodeKind::Road
+        };
 
         if !self.graph().node_kind(Node::new(start)).is_some_and(|kind| kind.intersects(traversable_node_kinds)) {
             log::error!(log::channel!("sim"), "Near building search: start cell {start} is not traversable!");
@@ -485,7 +423,71 @@ impl SimContext {
             |_building, _path| {
                 false // Stop iterating, we'll take the first match.
             },
-        )
-        .is_some()
+        ).is_some()
+    }
+
+    // ----------------------
+    // Mutable API:
+    // ----------------------
+
+    #[inline(always)]
+    pub fn task_manager_mut(&self) -> &mut UnitTaskManager {
+        self.task_manager.mut_ref_cast()
+    }
+
+    #[inline(always)]
+    pub fn world_mut(&self) -> &mut World {
+        self.world.mut_ref_cast()
+    }
+
+    #[inline(always)]
+    pub fn tile_map_mut(&self) -> &mut TileMap {
+        self.tile_map.mut_ref_cast()
+    }
+
+    #[inline(always)]
+    pub fn treasury_mut(&self) -> &mut GlobalTreasury {
+        self.treasury.mut_ref_cast()
+    }
+
+    #[inline(always)]
+    pub fn rng_mut(&self) -> &mut RandomGenerator {
+        self.rng.mut_ref_cast()
+    }
+
+    #[inline]
+    pub fn random_range<T, R>(&self, range: R) -> T
+    where
+        T: SampleUniform,
+        R: SampleRange<T>,
+    {
+        self.rng_mut().random_range(range)
+    }
+
+    #[inline]
+    pub fn set_path_node_kind(&self, node: Node, kind: PathNodeKind) {
+        self.graph.mut_ref_cast().set_node_kind(node, kind);
+    }
+
+    #[inline]
+    pub fn find_tile_mut(&self, cell: Cell, tile_kinds: TileKind) -> Option<&mut Tile> {
+        self.tile_map_mut().find_tile_mut(cell, tile_kinds.layer_kind(), tile_kinds)
+    }
+
+    #[inline]
+    pub fn find_nearest_buildings_mut<F>(
+        &self,
+        start: Cell,
+        building_kinds: BuildingKind,
+        traversable_node_kinds: PathNodeKind,
+        max_distance: Option<i32>,
+        visitor_fn: F,
+    ) -> Option<(&mut Building, &Path)>
+    where
+        F: FnMut(&Building, &Path) -> bool,
+    {
+        // Reuse non mutable find_nearest_buildings().
+        self.find_nearest_buildings(start, building_kinds, traversable_node_kinds, max_distance, visitor_fn)
+            .map(|(building, path)| (mem::mut_ref_cast(building), path))
     }
 }
