@@ -63,17 +63,15 @@ struct HarvestablePropState {
 }
 
 // ----------------------------------------------
-// UndoRedoPropSavedState
+// PropUndoRedoSavedState
 // ----------------------------------------------
 
-struct UndoRedoPropSavedState {
+game_object_undo_redo_state! {
+    PropUndoRedoSavedState,
+
     harvestable_amount: u32,
     respawn_countdown: Seconds,
     initial_variation: u32,
-}
-
-game_object_undo_redo_state! {
-    UndoRedoPropSavedState
 }
 
 // ----------------------------------------------
@@ -136,15 +134,15 @@ impl GameObject for Prop {
     }
 
     fn undo_redo_record(&self) -> Option<Box<dyn GameObjectSavedState>> {
-        UndoRedoPropSavedState::new_state(UndoRedoPropSavedState {
+        PropUndoRedoSavedState::new_state(PropUndoRedoSavedState {
             harvestable_amount: self.harvestable.amount,
-            respawn_countdown: self.harvestable.respawn_timer.remaining_secs(),
-            initial_variation: self.harvestable.initial_variation,
+            respawn_countdown:  self.harvestable.respawn_timer.remaining_secs(),
+            initial_variation:  self.harvestable.initial_variation,
         })
     }
 
     fn undo_redo_apply(&mut self, state: &dyn GameObjectSavedState) {
-        let saved_state = UndoRedoPropSavedState::downcast(state);
+        let saved_state = PropUndoRedoSavedState::downcast(state);
         self.harvestable.amount = saved_state.harvestable_amount;
         self.harvestable.respawn_timer.reset(saved_state.respawn_countdown);
         self.harvestable.initial_variation = saved_state.initial_variation;
@@ -176,7 +174,6 @@ impl GameObject for Prop {
         visible_range: CellRange,
     ) {
         debug_assert!(self.is_spawned());
-
         self.debug.draw_popup_messages(self.find_tile(context), ui_sys, transform, visible_range, context.delta_time_secs());
     }
 }

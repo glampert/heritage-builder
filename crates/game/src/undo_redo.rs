@@ -31,7 +31,16 @@ const SUPPORTED_OBJECT_KINDS: TileKind =
 // ----------------------------------------------
 
 macro_rules! game_object_undo_redo_state {
-    ($struct_name:ident) => {
+    (
+        $struct_name:ident,
+        $($field_name:ident : $field_type:ty),* $(,)?
+    ) => {
+        struct $struct_name {
+            $(
+                $field_name: $field_type,
+            )*
+        }
+
         impl $crate::undo_redo::GameObjectSavedState for $struct_name {
             fn as_any(&self) -> &dyn std::any::Any {
                 self
@@ -43,10 +52,9 @@ macro_rules! game_object_undo_redo_state {
                 Some(Box::new(instance))
             }
             fn downcast(state: &dyn $crate::undo_redo::GameObjectSavedState) -> &$struct_name {
-                state
-                    .as_any()
-                    .downcast_ref::<$struct_name>()
-                    .unwrap_or_else(|| panic!("Expected an {} instance!", stringify!($struct_name)))
+                state.as_any()
+                     .downcast_ref::<$struct_name>()
+                     .unwrap_or_else(|| panic!("Expected an {} instance!", stringify!($struct_name)))
             }
         }
     };

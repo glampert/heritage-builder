@@ -223,16 +223,14 @@ game_object_debug_options! {
 }
 
 // ----------------------------------------------
-// UndoRedoHouseSavedState
+// HouseUndoRedoSavedState
 // ----------------------------------------------
 
-struct UndoRedoHouseSavedState {
+game_object_undo_redo_state! {
+    HouseUndoRedoSavedState,
+
     tax_available: u32,
     stock: BuildingStock,
-}
-
-game_object_undo_redo_state! {
-    UndoRedoHouseSavedState
 }
 
 // ----------------------------------------------
@@ -446,14 +444,14 @@ impl BuildingBehavior for HouseBuilding {
     // ----------------------
 
     fn undo_redo_record(&self) -> Option<Box<dyn GameObjectSavedState>> {
-        UndoRedoHouseSavedState::new_state(UndoRedoHouseSavedState {
+        HouseUndoRedoSavedState::new_state(HouseUndoRedoSavedState {
             tax_available: self.tax_available,
             stock: self.stock.clone(),
         })
     }
 
     fn undo_redo_apply(&mut self, state: &dyn GameObjectSavedState) {
-        let saved_state = UndoRedoHouseSavedState::downcast(state);
+        let saved_state = HouseUndoRedoSavedState::downcast(state);
 
         // NOTE: We don't preserve household population and workers on undo/redo.
         // When a house is destroyed, it will evict a settler that carries the house

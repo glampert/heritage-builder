@@ -90,15 +90,13 @@ game_object_debug_options! {
 }
 
 // ----------------------------------------------
-// UndoRedoStorageSavedState
+// StorageUndoRedoSavedState
 // ----------------------------------------------
 
-struct UndoRedoStorageSavedState {
-    storage_slots: StorageSlots,
-}
-
 game_object_undo_redo_state! {
-    UndoRedoStorageSavedState
+    StorageUndoRedoSavedState,
+
+    storage_slots: StorageSlots,
 }
 
 // ----------------------------------------------
@@ -296,13 +294,13 @@ impl BuildingBehavior for StorageBuilding {
     // ----------------------
 
     fn undo_redo_record(&self) -> Option<Box<dyn GameObjectSavedState>> {
-        UndoRedoStorageSavedState::new_state(UndoRedoStorageSavedState {
+        StorageUndoRedoSavedState::new_state(StorageUndoRedoSavedState {
             storage_slots: self.storage_slots.as_ref().clone(),
         })
     }
 
     fn undo_redo_apply(&mut self, state: &dyn GameObjectSavedState) {
-        let saved_state = UndoRedoStorageSavedState::downcast(state);
+        let saved_state = StorageUndoRedoSavedState::downcast(state);
 
         // NOTE: Only stock is preserved on undo/redo. Runners and workers are reset.
         *self.storage_slots = saved_state.storage_slots.clone();

@@ -154,16 +154,14 @@ game_object_debug_options! {
 }
 
 // ----------------------------------------------
-// UndoRedoProducerSavedState
+// ProducerUndoRedoSavedState
 // ----------------------------------------------
 
-struct UndoRedoProducerSavedState {
+game_object_undo_redo_state! {
+    ProducerUndoRedoSavedState,
+
     production_input_stock: ProducerInputsLocalStock,
     production_output_stock: ProducerOutputLocalStock,
-}
-
-game_object_undo_redo_state! {
-    UndoRedoProducerSavedState
 }
 
 // ----------------------------------------------
@@ -437,14 +435,14 @@ impl BuildingBehavior for ProducerBuilding {
     // ----------------------
 
     fn undo_redo_record(&self) -> Option<Box<dyn GameObjectSavedState>> {
-        UndoRedoProducerSavedState::new_state(UndoRedoProducerSavedState {
-            production_input_stock: self.production_input_stock.clone(),
+        ProducerUndoRedoSavedState::new_state(ProducerUndoRedoSavedState {
+            production_input_stock:  self.production_input_stock.clone(),
             production_output_stock: self.production_output_stock.clone(),
         })
     }
 
     fn undo_redo_apply(&mut self, state: &dyn GameObjectSavedState) {
-        let saved_state = UndoRedoProducerSavedState::downcast(state);
+        let saved_state = ProducerUndoRedoSavedState::downcast(state);
 
         // NOTE: Only stocks are preserved on undo/redo. Runners/harvesters and workers are reset.
         self.production_input_stock = saved_state.production_input_stock.clone();

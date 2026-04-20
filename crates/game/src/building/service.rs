@@ -128,15 +128,13 @@ game_object_debug_options! {
 }
 
 // ----------------------------------------------
-// UndoRedoServiceSavedState
+// ServiceUndoRedoSavedState
 // ----------------------------------------------
 
-struct UndoRedoServiceSavedState {
-    stock_or_treasury: StockOrTreasury,
-}
-
 game_object_undo_redo_state! {
-    UndoRedoServiceSavedState
+    ServiceUndoRedoSavedState,
+
+    stock_or_treasury: StockOrTreasury,
 }
 
 // ----------------------------------------------
@@ -428,11 +426,13 @@ impl BuildingBehavior for ServiceBuilding {
     // ----------------------
 
     fn undo_redo_record(&self) -> Option<Box<dyn GameObjectSavedState>> {
-        UndoRedoServiceSavedState::new_state(UndoRedoServiceSavedState { stock_or_treasury: self.stock_or_treasury.clone() })
+        ServiceUndoRedoSavedState::new_state(ServiceUndoRedoSavedState {
+            stock_or_treasury: self.stock_or_treasury.clone(),
+        })
     }
 
     fn undo_redo_apply(&mut self, state: &dyn GameObjectSavedState) {
-        let saved_state = UndoRedoServiceSavedState::downcast(state);
+        let saved_state = ServiceUndoRedoSavedState::downcast(state);
 
         // NOTE: Only stock is preserved on undo/redo. Runners/patrols and workers are reset.
         match &mut self.stock_or_treasury {
