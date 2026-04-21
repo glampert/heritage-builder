@@ -18,7 +18,7 @@ use priority_queue::PriorityQueue;
 use rand::Rng;
 use serde::{Deserialize, Serialize};
 
-use crate::tile::{TileFlags, TileKind, TileMap, TileMapLayerKind};
+use crate::tile::{TileFlags, TileKind, TileMap};
 
 #[cfg(test)]
 mod tests;
@@ -358,7 +358,7 @@ impl Graph {
         // Any building or prop is considered non-traversable.
         // Building tiles are handled specially since we need
         // then for building searches.
-        tile_map.for_each_tile(TileKind::Terrain, |tile| {
+        tile_map.for_each_tile(TileKind::Terrain, |tile_map, tile| {
             let node = Node::new(tile.base_cell());
             let blocker_kinds = TileKind::Building | TileKind::Blocker | TileKind::Rocks | TileKind::Vegetation;
 
@@ -1247,17 +1247,13 @@ pub fn for_each_surrounding_cell(start_cells: CellRange, mut visitor_fn: impl Fn
 
 pub fn highlight_path_tiles(tile_map: &mut TileMap, path: &Path) {
     for node in path {
-        if let Some(tile) = tile_map.try_tile_from_layer_mut(node.cell, TileMapLayerKind::Terrain) {
-            tile.set_flags(TileFlags::Highlighted, true);
-        }
+        tile_map.set_tile_flags(node.cell, TileKind::Terrain, TileFlags::Highlighted, true);
     }
 }
 
 pub fn highlight_building_access_tiles(tile_map: &mut TileMap, start_cells: CellRange) {
     for_each_surrounding_cell(start_cells, |cell| {
-        if let Some(tile) = tile_map.try_tile_from_layer_mut(cell, TileMapLayerKind::Terrain) {
-            tile.set_flags(TileFlags::Invalidated, true);
-        }
+        tile_map.set_tile_flags(cell, TileKind::Terrain, TileFlags::Invalidated, true);
         true
     });
 }

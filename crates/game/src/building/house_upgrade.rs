@@ -613,25 +613,14 @@ pub fn draw_debug_ui(context: &BuildingContext, ui_sys: &UiSystem) {
         let tile_map = context.sim_ctx.tile_map_mut();
 
         for cell in target_rect.iter_cells() {
-            if let Some(tile) = tile_map.try_tile_from_layer_mut(cell, TileMapLayerKind::Terrain) {
-                tile.set_flags(TileFlags::Highlighted, true);
-            }
-
-            if let Some(tile) = tile_map.find_tile_mut(cell, TileKind::Building) {
-                tile.set_flags(TileFlags::Invalidated, true);
-            }
+            tile_map.set_tile_flags(cell, TileKind::Terrain, TileFlags::Highlighted, true);
+            tile_map.set_tile_flags(cell, TileKind::Building, TileFlags::Invalidated, true);
         }
 
         if *HIGHLIGHT_START_CELL {
             let start_cell = Cell::new(target_rect.min_x, target_rect.min_y);
-
-            if let Some(tile) = tile_map.try_tile_from_layer_mut(start_cell, TileMapLayerKind::Terrain) {
-                tile.set_flags(TileFlags::DrawDebugBounds, true);
-            }
-
-            if let Some(tile) = tile_map.find_tile_mut(start_cell, TileKind::Building) {
-                tile.set_flags(TileFlags::DrawDebugBounds, true);
-            }
+            tile_map.set_tile_flags(start_cell, TileKind::Terrain, TileFlags::DrawDebugBounds, true);
+            tile_map.set_tile_flags(start_cell, TileKind::Building, TileFlags::DrawDebugBounds, true);
         }
     }
 }

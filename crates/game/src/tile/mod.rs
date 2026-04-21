@@ -812,12 +812,7 @@ impl Tile {
     }
 
     #[inline]
-    pub fn index(&self) -> TilePoolIndex {
-        self.self_index
-    }
-
-    #[inline]
-    pub fn set_flags(&mut self, new_flags: TileFlags, value: bool) {
+    fn set_flags(&mut self, new_flags: TileFlags, value: bool) {
         self.archetype.set_flags(&mut self.flags, new_flags, value);
         debug_assert!(self.has_flags(new_flags) == value);
     }
@@ -830,6 +825,11 @@ impl Tile {
     #[inline]
     pub fn flags(&self) -> TileFlags {
         self.flags
+    }
+
+    #[inline]
+    pub fn index(&self) -> TilePoolIndex {
+        self.self_index
     }
 
     #[inline]
@@ -990,7 +990,6 @@ impl Tile {
     pub fn is_screen_point_inside_base_cell(&self, screen_point: Vec2, transform: WorldToScreenTransform) -> bool {
         let cell = self.actual_base_cell();
         let tile_size = self.logical_size();
-
         coords::is_screen_point_inside_cell(screen_point, cell, tile_size, transform)
     }
 
@@ -1044,8 +1043,10 @@ impl Tile {
 
     #[inline]
     pub fn set_variation_index(&mut self, index: usize) {
-        self.variation_index =
-            index.min(self.variation_count() - 1).try_into().expect("Value cannot fit into a TileVariationIndex!");
+        self.variation_index = index
+            .min(self.variation_count() - 1)
+            .try_into()
+            .expect("Value cannot fit into a TileVariationIndex!");
 
         // Propagate to owner tile in case this is a blocker.
         self.archetype.set_variation_index(self.variation_index());
@@ -1180,7 +1181,8 @@ impl Tile {
     // ----------------------
 
     // Update cached states when the underlying TileDef is edited.
-    pub fn on_tile_def_edited(&mut self) {
+    #[inline]
+    fn on_tile_def_edited(&mut self) {
         // Re-setting the base cell takes care of updating cached iso coords.
         let base_cell = self.base_cell();
         self.archetype.set_base_cell(base_cell);
@@ -1203,8 +1205,7 @@ impl Tile {
 
     #[inline]
     fn set_base_cell(&mut self, cell: Cell) {
-        // We would have to update all blocker cells here and point its owner cell back
-        // to the new cell.
+        // We would have to update all blocker cells here and point its owner cell back to the new cell.
         assert!(!self.occupies_multiple_cells(), "This does not support multi-cell tiles yet!");
 
         // This will also update the cached iso coords in the archetype.
@@ -1223,9 +1224,7 @@ impl Tile {
 // ----------------------------------------------
 
 #[repr(u8)]
-#[derive(
-    Copy, Clone, PartialEq, Eq, Display, EnumCount, EnumIter, EnumProperty, TryFromPrimitive, Serialize, Deserialize,
-)]
+#[derive(Copy, Clone, PartialEq, Eq, Display, EnumCount, EnumIter, EnumProperty, TryFromPrimitive, Serialize, Deserialize)]
 pub enum TileMapLayerKind {
     #[strum(props(AssetsPath = "tiles/terrain", Name = "terrain"))]
     Terrain,
@@ -2374,6 +2373,27 @@ impl TileMap {
         self.layer_mut(tile_kinds.layer_kind()).find_tile_mut(cell, tile_kinds)
     }
 
+    // Sets the given flags on the tile at `cell` matching `tile_kinds`.
+    // No-op if no matching tile exists.
+    #[inline]
+    pub fn set_tile_flags(&mut self, cell: Cell, tile_kinds: TileKind, flags: TileFlags, value: bool) {
+        if let Some(tile) = self.find_tile_mut(cell, tile_kinds) {
+            tile.set_flags(flags, value);
+        }
+    }
+
+    // Sets the given flags on the tile at the given `index` in `layer_kind`.
+    #[inline]
+    pub fn set_tile_flags_at_index(
+        &mut self,
+        index: TilePoolIndex,
+        layer_kind: TileMapLayerKind,
+        flags: TileFlags,
+        value: bool,
+    ) {
+        self.tile_at_index_mut(index, layer_kind).set_flags(flags, value);
+    }
+
     #[inline]
     pub fn find_exact_cell_for_point(
         &self,
@@ -2389,26 +2409,37 @@ impl TileMap {
     }
 
     #[inline]
-    pub fn for_each_tile<F>(&self, tile_kinds: TileKind, visitor_fn: F)
+    pub fn for_each_tile<F>(&self, tile_kinds: TileKind, mut visitor_fn: F)
     where
-        F: FnMut(&Tile),
+        F: FnMut(&TileMap, &Tile),
     {
         if !self.layers.is_empty() {
             let layer = self.layer(tile_kinds.layer_kind());
-            layer.for_each_tile(tile_kinds, visitor_fn);
+
+            for (_, tile) in &layer.pool.slab {
+                if tile.is(tile_kinds) {
+                    visitor_fn(self, tile);
+                }
+            }
         }
     }
 
     #[inline]
-    pub fn for_each_tile_mut<F>(&mut self, tile_kinds: TileKind, visitor_fn: F)
+    pub fn for_each_tile_mut<F>(&mut self, tile_kinds: TileKind, mut visitor_fn: F)
     where
-        F: FnMut(&mut Tile),
+        F: FnMut(&mut TileMap, &mut Tile),
     {
         debug_assert!(!self.is_locked(), "Cannot mutate locked TileMap!");
 
         if !self.layers.is_empty() {
-            let layer = self.layer_mut(tile_kinds.layer_kind());
-            layer.for_each_tile_mut(tile_kinds, visitor_fn);
+            let mut layers = self.layers_mut();
+            let layer = layers.get(tile_kinds.layer_kind());
+
+            for (_, tile) in &mut layer.pool.slab {
+                if tile.is(tile_kinds) {
+                    visitor_fn(self, tile);
+                }
+            }
         }
     }
 
@@ -2826,6 +2857,10 @@ impl TileMap {
     pub fn set_map_reset_callback(&mut self, callback: Option<TileMapResetCallback>) {
         self.on_map_reset_callback = callback;
     }
+
+    pub fn on_tile_def_edited(&mut self, tile: &mut Tile) {
+        tile.on_tile_def_edited();
+    }
 }
 
 // ----------------------------------------------
@@ -2837,11 +2872,11 @@ impl Save for TileMap {
         debug_assert!(!self.is_locked(), "Map should not be locked while saving!");
 
         // Reset selection state. We don't save TileSelection.
-        self.for_each_tile_mut(TileKind::Terrain, |tile| {
+        self.for_each_tile_mut(TileKind::Terrain, |_tile_map, tile| {
             tile.set_flags(TileFlags::Highlighted | TileFlags::Invalidated, false);
         });
 
-        self.for_each_tile_mut(TileKind::AllObjectKinds, |tile| {
+        self.for_each_tile_mut(TileKind::AllObjectKinds, |_tile_map, tile| {
             tile.set_flags(TileFlags::Highlighted | TileFlags::Invalidated, false);
         });
     }

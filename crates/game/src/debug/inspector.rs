@@ -328,7 +328,12 @@ impl TileInspectorDevMenu {
             ($ui:ident, $tile:ident, $flag_name:ident) => {
                 let mut value = $tile.has_flags(TileFlags::$flag_name);
                 if $ui.checkbox(stringify!($flag_name), &mut value) {
-                    $tile.set_flags(TileFlags::$flag_name, value);
+                    context.tile_map.set_tile_flags_at_index(
+                        tile.index(),
+                        tile.layer_kind(),
+                        TileFlags::$flag_name,
+                        value,
+                    );
                 }
             };
         }
@@ -430,25 +435,48 @@ impl TileInspectorDevMenu {
             return; // collapsed.
         }
 
+        let tile_index = tile.index();
+        let tile_layer = tile.layer_kind();
+
         let mut hide_tile = tile.has_flags(TileFlags::Hidden);
         if ui.checkbox("Hide tile", &mut hide_tile) {
-            tile.set_flags(TileFlags::Hidden, hide_tile);
+            context.tile_map.set_tile_flags_at_index(
+                tile_index,
+                tile_layer,
+                TileFlags::Hidden,
+                hide_tile,
+            );
         }
 
         let mut show_tile_debug = tile.has_flags(TileFlags::DrawDebugInfo);
         if ui.checkbox("Show debug overlay", &mut show_tile_debug) {
-            tile.set_flags(TileFlags::DrawDebugInfo, show_tile_debug);
+            context.tile_map.set_tile_flags_at_index(
+                tile_index,
+                tile_layer,
+                TileFlags::DrawDebugInfo,
+                show_tile_debug,
+            );
         }
 
         let mut show_tile_bounds = tile.has_flags(TileFlags::DrawDebugBounds);
         if ui.checkbox("Show tile bounds", &mut show_tile_bounds) {
-            tile.set_flags(TileFlags::DrawDebugBounds, show_tile_bounds);
+            context.tile_map.set_tile_flags_at_index(
+                tile_index,
+                tile_layer,
+                TileFlags::DrawDebugBounds,
+                show_tile_bounds,
+            );
         }
 
         if tile.is(TileKind::Building) {
             let mut show_building_blockers = tile.has_flags(TileFlags::DrawBlockerInfo);
             if ui.checkbox("Show blocker tiles", &mut show_building_blockers) {
-                tile.set_flags(TileFlags::DrawBlockerInfo, show_building_blockers);
+                context.tile_map.set_tile_flags_at_index(
+                    tile_index,
+                    tile_layer,
+                    TileFlags::DrawBlockerInfo,
+                    show_building_blockers,
+                );
             }
         }
     }
@@ -485,7 +513,7 @@ impl TileInspectorDevMenu {
             if ui::input_f32_xy(ui, "Var Offset:", &mut variation_offset, false, None, None) {
                 if let Some(editable_def) = tile.try_get_editable_tile_def() {
                     editable_def.variations[tile.variation_index()].iso_offset = variation_offset;
-                    tile.on_tile_def_edited();
+                    context.tile_map.on_tile_def_edited(tile);
                 }
             }
         }
@@ -507,7 +535,7 @@ impl TileInspectorDevMenu {
             if let Some(editable_def) = tile.try_get_editable_tile_def() {
                 if draw_size.is_valid() {
                     editable_def.draw_size = draw_size;
-                    tile.on_tile_def_edited();
+                    context.tile_map.on_tile_def_edited(tile);
                 }
             }
         }
@@ -534,7 +562,7 @@ impl TileInspectorDevMenu {
                     && (logical_size.height % BASE_TILE_HEIGHT_I32) == 0
                 {
                     editable_def.logical_size = logical_size;
-                    tile.on_tile_def_edited();
+                    context.tile_map.on_tile_def_edited(tile);
                 }
             }
         }
@@ -543,10 +571,17 @@ impl TileInspectorDevMenu {
 
         let mut occludes_terrain = tile.has_flags(TileFlags::OccludesTerrain);
         if ui.checkbox("Occludes terrain", &mut occludes_terrain) {
+            let tile_index = tile.index();
+            let tile_layer = tile.layer_kind();
             if let Some(editable_def) = tile.try_get_editable_tile_def() {
                 editable_def.occludes_terrain = occludes_terrain;
             }
-            tile.set_flags(TileFlags::OccludesTerrain, occludes_terrain);
+            context.tile_map.set_tile_flags_at_index(
+                tile_index,
+                tile_layer,
+                TileFlags::OccludesTerrain,
+                occludes_terrain,
+            );
         }
     }
 }

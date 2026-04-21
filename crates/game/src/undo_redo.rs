@@ -193,7 +193,7 @@ impl Record {
             if let Some(tile) = context.find_tile_mut(target_cell, tile_def.kind()) {
                 tile.set_variation_index(tile_variation_index as usize);
                 if !tile_flags.is_empty() {
-                    tile.set_flags(tile_flags, true);
+                    context.tile_map_mut().set_tile_flags(target_cell, tile_def.kind(), tile_flags, true);
                 }
                 return Some(tile);
             }

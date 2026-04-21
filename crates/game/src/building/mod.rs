@@ -815,27 +815,23 @@ impl Building {
     }
 
     pub fn is_showing_road_link_debug(&self, context: &SimContext) -> bool {
-        if let Some(road_link_tile) = self.find_road_link_tile_mut(context) {
+        if let Some(road_link_tile) = self.find_road_link_tile(context) {
             return road_link_tile.has_flags(TileFlags::DrawDebugBounds);
         }
         false
     }
 
     pub fn set_show_road_link_debug(&self, context: &SimContext, show: bool) {
-        if let Some(road_link_tile) = self.find_road_link_tile_mut(context) {
-            road_link_tile.set_flags(TileFlags::DrawDebugBounds, show);
+        if let Some(road_link) = self.road_link() {
+            context.tile_map_mut().set_tile_flags(road_link, TileKind::Terrain, TileFlags::DrawDebugBounds, show);
         }
     }
 
-    pub fn find_road_link_tile_mut<'game>(&self, context: &'game SimContext) -> Option<&'game mut Tile> {
+    fn find_road_link_tile<'game>(&self, context: &'game SimContext) -> Option<&'game Tile> {
         if let Some(road_link) = self.road_link() {
-            return Self::find_road_link_tile_for_cell_mut(context, road_link);
+            return context.find_tile(road_link, TileKind::Terrain);
         }
         None
-    }
-
-    fn find_road_link_tile_for_cell_mut(context: &SimContext, road_link: Cell) -> Option<&mut Tile> {
-        context.find_tile_mut(road_link, TileKind::Terrain)
     }
 
     fn update_road_link(&mut self, cmds: &mut SimCmds, context: &SimContext) {
@@ -844,17 +840,15 @@ impl Building {
             let prev_road_link = self.road_link;
 
             cmds.defer_building_update(self.kind_and_id(), move |context, _building| {
+                let tile_map = context.tile_map_mut();
+
                 if new_road_link != prev_road_link && prev_road_link.is_valid() {
                     // Clear previous underlying tile flag:
-                    if let Some(prev_road_link_tile) = Self::find_road_link_tile_for_cell_mut(context, prev_road_link) {
-                        prev_road_link_tile.set_flags(TileFlags::BuildingRoadLink, false);
-                    }
+                    tile_map.set_tile_flags(prev_road_link, TileKind::Terrain, TileFlags::BuildingRoadLink, false);
                 }
 
                 // Set new underlying tile flag:
-                if let Some(new_road_link_tile) = Self::find_road_link_tile_for_cell_mut(context, new_road_link) {
-                    new_road_link_tile.set_flags(TileFlags::BuildingRoadLink, true);
-                }
+                tile_map.set_tile_flags(new_road_link, TileKind::Terrain, TileFlags::BuildingRoadLink, true);
             });
 
             self.road_link = new_road_link;
@@ -866,9 +860,7 @@ impl Building {
 
     fn clear_road_link(&mut self, tile_map: &mut TileMap) {
         if self.road_link.is_valid() {
-            if let Some(road_link_tile) = tile_map.try_tile_from_layer_mut(self.road_link, TileMapLayerKind::Terrain) {
-                road_link_tile.set_flags(TileFlags::BuildingRoadLink, false);
-            }
+            tile_map.set_tile_flags(self.road_link, TileKind::Terrain, TileFlags::BuildingRoadLink, false);
         }
         self.road_link = Cell::invalid();
     }

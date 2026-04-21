@@ -1,3 +1,7 @@
+use rand::Rng;
+use smallvec::SmallVec;
+use strum::{EnumCount, EnumIter, EnumProperty, IntoEnumIterator};
+
 use common::{
     Color,
     Rect,
@@ -15,9 +19,6 @@ use engine::{
     render::texture::{TextureCache, TextureFilter, TextureHandle, TextureSettings, TextureWrapMode},
     ui::{self, UiFontScale, UiStaticVar, UiSystem, sound::UiButtonSoundsEnabled, widgets::*},
 };
-use rand::Rng;
-use smallvec::SmallVec;
-use strum::{EnumCount, EnumIter, EnumProperty, IntoEnumIterator};
 
 use super::{
     TileKind,
@@ -271,13 +272,13 @@ impl MinimapTexture {
     fn post_load(&mut self, tile_map: &TileMap) {
         self.reset(tile_map.size_in_cells(), MinimapTileColor::default);
 
-        tile_map.for_each_tile(TileKind::Terrain, |terrain| {
+        tile_map.for_each_tile(TileKind::Terrain, |_tile_map, terrain| {
             if let Some(color) = MinimapTileColor::from_tile_def(terrain.tile_def()) {
                 self.set_pixel(terrain.base_cell(), color);
             }
         });
 
-        tile_map.for_each_tile(MINIMAP_OBJECT_TILE_KINDS, |object| {
+        tile_map.for_each_tile(MINIMAP_OBJECT_TILE_KINDS, |_tile_map, object| {
             if let Some(color) = MinimapTileColor::from_tile_def(object.tile_def()) {
                 for cell in &object.cell_range() {
                     self.set_pixel(cell, color);

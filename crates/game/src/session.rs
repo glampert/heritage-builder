@@ -433,7 +433,7 @@ impl GameSession {
 
             if reset_map_with_tile_def.is_some() {
                 // Randomize terrain tiles.
-                self.tile_map.for_each_tile_mut(TileKind::Terrain, |terrain| {
+                self.tile_map.for_each_tile_mut(TileKind::Terrain, |_tile_map, terrain| {
                     if terrain.has_flags(TileFlags::RandomizePlacement) {
                         terrain.set_random_variation_index(&mut rand::rng());
                     }
@@ -537,7 +537,7 @@ impl GameSession {
                     hash::fnv1a_from_str(terrain_tile_name),
                 );
 
-                tile_map.for_each_tile_mut(TileKind::Terrain, |terrain| {
+                tile_map.for_each_tile_mut(TileKind::Terrain, |_tile_map, terrain| {
                     if terrain.has_flags(TileFlags::RandomizePlacement) {
                         terrain.set_random_variation_index(&mut rand::rng());
                     }
@@ -545,7 +545,9 @@ impl GameSession {
 
                 tile_map
             }
-            LoadMapSetting::Preset { preset_number } => debug::utils::create_preset_tile_map(world, *preset_number),
+            LoadMapSetting::Preset { preset_number } => {
+                debug::utils::create_preset_tile_map(world, *preset_number)
+            }
             LoadMapSetting::SaveGame { save_file } => {
                 if save_file.to_str().unwrap().is_empty() {
                     log::error!(log::channel!("session"), "LoadMapSetting::SaveGame: No save file path provided!");
