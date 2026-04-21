@@ -248,7 +248,7 @@ impl UnitTask for UnitTaskSettler {
             let destination_cell = unit_goal.tile_destination();
             debug_assert!(destination_cell.is_valid());
 
-            if let Some(tile) = context.tile_map().try_tile_from_layer(destination_cell, TileMapLayerKind::Terrain) {
+            if let Some(tile) = context.try_tile_from_layer(destination_cell, TileMapLayerKind::Terrain) {
                 if tile.path_kind().is_vacant_lot() || tile.has_flags(TileFlags::SettlersSpawnPoint) {
                     // Notify completion:
                     self.notify_completion(unit, tile, context);
@@ -275,7 +275,7 @@ impl UnitTask for UnitTaskSettler {
             debug_assert!(destination_cell.is_valid());
 
             // Visit destination building:
-            if let Some(house_building) = context.world().find_building_for_cell(destination_cell, context.tile_map())
+            if let Some(house_building) = context.find_building_for_cell(destination_cell)
                 && house_building.kind() == destination_kind
             {
                 cmds.visit_building_with_completion(house_building.kind_and_id(), unit.id(),

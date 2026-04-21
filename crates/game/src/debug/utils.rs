@@ -385,7 +385,7 @@ pub fn refresh_cached_tile_visuals(tile_map: &mut TileMap) {
     let mut water_cells = Vec::new();
     let mut port_cells = Vec::new();
 
-    tile_map.for_each_tile_mut(TileMapLayerKind::Terrain, TileKind::Terrain, |tile| {
+    tile_map.for_each_tile_mut(TileKind::Terrain, |tile| {
         tile.on_tile_def_edited();
         if tile.path_kind().is_road() {
             road_cells.push(tile.base_cell());
@@ -396,7 +396,6 @@ pub fn refresh_cached_tile_visuals(tile_map: &mut TileMap) {
     });
 
     tile_map.for_each_tile_mut(
-        TileMapLayerKind::Objects,
         TileKind::Building | TileKind::Unit | TileKind::Rocks | TileKind::Vegetation,
         |tile| {
             tile.on_tile_def_edited();

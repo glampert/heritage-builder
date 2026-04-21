@@ -98,7 +98,7 @@ impl UnitTaskFetchFromStorage {
     }
 
     fn try_return_to_origin(&mut self, unit: &mut Unit, context: &SimContext) -> bool {
-        if context.world().find_building(self.origin_building.kind, self.origin_building.id).is_none() {
+        if context.find_building(self.origin_building.kind, self.origin_building.id).is_none() {
             log::error!(log::channel!("task"), "Origin building is no longer valid! TaskFetchFromStorage will abort.");
             return false;
         }

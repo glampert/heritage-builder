@@ -358,18 +358,18 @@ impl Graph {
         // Any building or prop is considered non-traversable.
         // Building tiles are handled specially since we need
         // then for building searches.
-        tile_map.for_each_tile(TileMapLayerKind::Terrain, TileKind::Terrain, |tile| {
+        tile_map.for_each_tile(TileKind::Terrain, |tile| {
             let node = Node::new(tile.base_cell());
             let blocker_kinds = TileKind::Building | TileKind::Blocker | TileKind::Rocks | TileKind::Vegetation;
 
-            if let Some(blocker_tile) = tile_map.find_tile(node.cell, TileMapLayerKind::Objects, blocker_kinds) {
+            if let Some(blocker_tile) = tile_map.find_tile(node.cell, blocker_kinds) {
                 if blocker_tile.is(TileKind::Building | TileKind::Blocker) {
                     // Buildings have a node kind for building searches, but they are not
                     // traversable.
                     self.set_node_kind_internal(node, NodeKind::Building);
 
                     for_each_surrounding_cell(blocker_tile.cell_range(), |cell| {
-                        if !tile_map.has_tile(cell, TileMapLayerKind::Objects, blocker_kinds)
+                        if !tile_map.has_tile(cell, blocker_kinds)
                             && tile_map.is_cell_within_bounds(cell)
                         {
                             self.node_kinds |= NodeKind::BuildingAccess;

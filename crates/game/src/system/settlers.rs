@@ -131,7 +131,7 @@ impl SettlersSpawnSystem {
     fn find_spawn_point(cmds: &mut SimCmds, context: &SimContext) -> Node {
         context.graph().settlers_spawn_point().unwrap_or_else(|| {
             // Fallback to map playable area top-left corner cell if no spawn point it set.
-            let map_size = context.tile_map().size_in_cells();
+            let map_size = context.map_size_in_cells();
             let x = (map_size.width / 2) - 1;
             let y = map_size.height - 1;
             let default_spawn_point = Cell::new(x, y);

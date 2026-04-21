@@ -134,7 +134,7 @@ where
     debug_assert!(destination_cell.is_valid());
 
     // Visit destination building (deferred):
-    if let Some(destination_building) = context.world().find_building_for_cell(destination_cell, context.tile_map()) {
+    if let Some(destination_building) = context.find_building_for_cell(destination_cell) {
         // NOTE: No need to check for generation match here. If the destination building
         // is still the same kind of building we where looking for, it doesn't matter if
         // it was destroyed and recreated since we started the task.
@@ -166,7 +166,7 @@ where
     F: Fn(&SimContext, &mut Building, &mut Unit) + 'static
 {
     // Deferred execution (non-mutable building access).
-    if let Some(origin_building) = context.world().find_building(origin_building_kind, origin_building_id) {
+    if let Some(origin_building) = context.find_building(origin_building_kind, origin_building_id) {
         // NOTE: Only invoke the completion callback if the original base cell still
         // contains the exact same building that initiated this task. We don't
         // want to accidentally invoke the callback on a different building,
@@ -192,7 +192,7 @@ where
     F: Fn(&SimContext, &mut Building, &mut Unit) + 'static
 {
     // Immediate execution (requires mutable building access).
-    if let Some(origin_building) = context.world_mut().find_building_mut(origin_building_kind, origin_building_id) {
+    if let Some(origin_building) = context.find_building_mut(origin_building_kind, origin_building_id) {
         // See comment above on invoke_completion_callback_deferred.
         debug_assert!(origin_building.kind() == origin_building_kind);
         debug_assert!(origin_building.id()   == origin_building_id);

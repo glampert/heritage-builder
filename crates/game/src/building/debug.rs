@@ -197,7 +197,7 @@ impl Building {
                 };
 
                 if ui.button("Add Worker (+1)") && !self.workers_is_maxed() {
-                    if let Some(building) = context.sim_ctx.world_mut().find_building_mut(source.kind, source.id) {
+                    if let Some(building) = context.sim_ctx.find_building_mut(source.kind, source.id) {
                         let removed_count = building.remove_workers(1, self.kind_and_id());
                         let added_count = self.add_workers(removed_count, source);
                         debug_assert!(removed_count == added_count);
@@ -207,7 +207,7 @@ impl Building {
                 }
 
                 if ui.button("Remove Worker (-1)") && self.workers_count() != 0 {
-                    if let Some(building) = context.sim_ctx.world_mut().find_building_mut(source.kind, source.id) {
+                    if let Some(building) = context.sim_ctx.find_building_mut(source.kind, source.id) {
                         let added_count = building.add_workers(1, self.kind_and_id());
                         let removed_count = self.remove_workers(added_count, source);
                         debug_assert!(added_count == removed_count);

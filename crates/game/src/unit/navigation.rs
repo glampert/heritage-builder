@@ -217,7 +217,7 @@ impl UnitNavGoal {
 
 pub fn is_goal_vacant_lot_tile(goal: &UnitNavGoal, context: &SimContext) -> bool {
     if goal.is_tile() {
-        let maybe_tile = context.tile_map().try_tile_from_layer(goal.tile_destination(), TileMapLayerKind::Terrain);
+        let maybe_tile = context.try_tile_from_layer(goal.tile_destination(), TileMapLayerKind::Terrain);
         return maybe_tile.is_some_and(|tile| tile.path_kind() == PathNodeKind::VacantLot);
     }
     false

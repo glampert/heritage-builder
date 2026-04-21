@@ -322,13 +322,13 @@ pub trait GameMenusSystem: Any + Save + Load {
 
                                 for (&cell, _) in clearable_cells.iter() {
                                     if layers.intersects(EditedLayer::Objects) {
-                                        if let Some(tile) = sim_context.tile_map().try_tile_from_layer(cell, TileMapLayerKind::Objects) {
+                                        if let Some(tile) = sim_context.try_tile_from_layer(cell, TileMapLayerKind::Objects) {
                                             cleared_any |= TilePlacement::clear(&sim_context, tile, false, false).is_ok();
                                         }
                                     }
 
                                     if layers.intersects(EditedLayer::Terrain) {
-                                        if let Some(tile) = sim_context.tile_map().try_tile_from_layer(cell, TileMapLayerKind::Terrain) {
+                                        if let Some(tile) = sim_context.try_tile_from_layer(cell, TileMapLayerKind::Terrain) {
                                             cleared_any |= TilePlacement::clear(&sim_context, tile, false, false).is_ok();
                                         }
                                     }
@@ -509,7 +509,7 @@ impl TilePlacement {
             let camera_transform = context.camera.transform();
             let sim_context = context.new_sim_context();
 
-            if let Some(tile) = sim_context.tile_map().topmost_tile_at_cursor(cursor_screen_pos, camera_transform) {
+            if let Some(tile) = sim_context.topmost_tile_at_cursor(cursor_screen_pos, camera_transform) {
                 return Self::clear(&sim_context, tile, false, true);
             }
         }

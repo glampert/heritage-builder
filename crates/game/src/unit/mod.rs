@@ -272,7 +272,7 @@ impl Unit {
     pub fn patrol_task_origin_building<'game>(&self, context: &'game SimContext) -> Option<&'game mut Building> {
         debug_assert!(self.is_spawned());
         if let Some(task) = self.current_task_as::<UnitTaskRandomizedPatrol>(context.task_manager()) {
-            return context.world_mut().find_building_mut(task.origin_building.kind, task.origin_building.id);
+            return context.find_building_mut(task.origin_building.kind, task.origin_building.id);
         }
         None
     }
@@ -617,14 +617,14 @@ impl Unit {
 
     #[inline]
     fn find_tile<'game>(&self, context: &'game SimContext) -> &'game Tile {
-        let tile = context.tile_map().tile_at_index(self.tile_index, TileMapLayerKind::Objects);
+        let tile = context.tile_at_index(self.tile_index, TileMapLayerKind::Objects);
         debug_assert!(tile.is(TileKind::Unit));
         tile
     }
 
     #[inline]
     fn find_tile_mut<'game>(&self, context: &'game SimContext) -> &'game mut Tile {
-        let tile = context.tile_map_mut().tile_at_index_mut(self.tile_index, TileMapLayerKind::Objects);
+        let tile = context.tile_at_index_mut(self.tile_index, TileMapLayerKind::Objects);
         debug_assert!(tile.is(TileKind::Unit));
         tile
     }
@@ -704,12 +704,12 @@ pub trait UnitTaskHelper: Sized {
 
     #[inline]
     fn try_unit<'game>(&self, context: &'game SimContext) -> Option<&'game Unit> {
-        context.world().find_unit(self.unit_id())
+        context.find_unit(self.unit_id())
     }
 
     #[inline]
     fn try_unit_mut<'game>(&mut self, context: &'game SimContext) -> Option<&'game mut Unit> {
-        context.world_mut().find_unit_mut(self.unit_id())
+        context.find_unit_mut(self.unit_id())
     }
 
     #[inline]

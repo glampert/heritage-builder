@@ -258,7 +258,7 @@ impl UnitTaskRandomizedPatrol {
     }
 
     fn try_return_to_origin(&mut self, unit: &mut Unit, context: &SimContext) -> bool {
-        if context.world().find_building(self.origin_building.kind, self.origin_building.id).is_none() {
+        if context.find_building(self.origin_building.kind, self.origin_building.id).is_none() {
             log::error!(log::channel!("task"), "Origin building is no longer valid! TaskPatrol will abort.");
             return false;
         }
@@ -380,7 +380,7 @@ impl UnitTask for UnitTaskRandomizedPatrol {
                 if node_kind.intersects(PathNodeKind::BuildingRoadLink) {
                     let neighbors = graph.neighbors(current_node, PathNodeKind::Building);
                     for neighbor in neighbors {
-                        if let Some(building) = context.world().find_building_for_cell(neighbor.cell, context.tile_map()) {
+                        if let Some(building) = context.find_building_for_cell(neighbor.cell) {
                             if building.is(buildings_to_visit) {
                                 cmds.visit_building(building.kind_and_id(), unit.id());
                             }

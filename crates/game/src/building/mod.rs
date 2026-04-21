@@ -334,7 +334,7 @@ impl GameObject for Building {
         debug_assert!(kind.is_single_building());
 
         let tile_map = context.tile_map_rc();
-        let tile = tile_map.find_tile(self.base_cell(), TileMapLayerKind::Objects, TileKind::Building).unwrap();
+        let tile = tile_map.find_tile(self.base_cell(), TileKind::Building).unwrap();
         debug_assert!(tile.is_valid());
 
         self.archetype_mut().post_load(context, kind, tile);
@@ -561,7 +561,7 @@ impl Building {
         }
 
         if tile_map.try_move_tile(self.base_cell(), destination_cell, TileMapLayerKind::Objects) {
-            let tile = tile_map.find_tile_mut(destination_cell, TileMapLayerKind::Objects, TileKind::Building).unwrap();
+            let tile = tile_map.find_tile_mut(destination_cell, TileKind::Building).unwrap();
 
             debug_assert!(tile.base_cell() == destination_cell);
             self.map_cells = tile.cell_range();
@@ -1150,7 +1150,7 @@ impl<'game> BuildingContext<'game> {
     #[inline]
     pub fn debug_name(&self) -> &'static str {
         if cfg!(debug_assertions) {
-            if let Some(building) = self.sim_ctx.world().find_building(self.kind, self.id) {
+            if let Some(building) = self.sim_ctx.find_building(self.kind, self.id) {
                 return building.name();
             }
         }

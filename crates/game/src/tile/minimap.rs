@@ -22,7 +22,6 @@ use strum::{EnumCount, EnumIter, EnumProperty, IntoEnumIterator};
 use super::{
     TileKind,
     TileMap,
-    TileMapLayerKind,
     road,
     sets::{TileDef, TileSector},
     water,
@@ -272,13 +271,13 @@ impl MinimapTexture {
     fn post_load(&mut self, tile_map: &TileMap) {
         self.reset(tile_map.size_in_cells(), MinimapTileColor::default);
 
-        tile_map.for_each_tile(TileMapLayerKind::Terrain, TileKind::Terrain, |terrain| {
+        tile_map.for_each_tile(TileKind::Terrain, |terrain| {
             if let Some(color) = MinimapTileColor::from_tile_def(terrain.tile_def()) {
                 self.set_pixel(terrain.base_cell(), color);
             }
         });
 
-        tile_map.for_each_tile(TileMapLayerKind::Objects, MINIMAP_OBJECT_TILE_KINDS, |object| {
+        tile_map.for_each_tile(MINIMAP_OBJECT_TILE_KINDS, |object| {
             if let Some(color) = MinimapTileColor::from_tile_def(object.tile_def()) {
                 for cell in &object.cell_range() {
                     self.set_pixel(cell, color);

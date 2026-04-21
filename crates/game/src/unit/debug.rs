@@ -189,7 +189,7 @@ impl Unit {
         }
 
         if ui.button("Push Minimap Alert") {
-            let minimap = context.tile_map_mut().minimap_mut();
+            let minimap = context.minimap_mut();
             minimap.push_icon(MinimapIcon::Alert, self.cell(), Color::default(), MINIMAP_ICON_DEFAULT_LIFETIME);
         }
 

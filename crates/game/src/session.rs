@@ -23,7 +23,6 @@ use crate::{
         TileFlags,
         TileKind,
         TileMap,
-        TileMapLayerKind,
         rendering::{TileMapRenderFlags, TileMapRenderStats, TileMapRenderer},
         selection::TileSelection,
         sets::TileDef,
@@ -434,7 +433,7 @@ impl GameSession {
 
             if reset_map_with_tile_def.is_some() {
                 // Randomize terrain tiles.
-                self.tile_map.for_each_tile_mut(TileMapLayerKind::Terrain, TileKind::Terrain, |terrain| {
+                self.tile_map.for_each_tile_mut(TileKind::Terrain, |terrain| {
                     if terrain.has_flags(TileFlags::RandomizePlacement) {
                         terrain.set_random_variation_index(&mut rand::rng());
                     }
@@ -538,7 +537,7 @@ impl GameSession {
                     hash::fnv1a_from_str(terrain_tile_name),
                 );
 
-                tile_map.for_each_tile_mut(TileMapLayerKind::Terrain, TileKind::Terrain, |terrain| {
+                tile_map.for_each_tile_mut(TileKind::Terrain, |terrain| {
                     if terrain.has_flags(TileFlags::RandomizePlacement) {
                         terrain.set_random_variation_index(&mut rand::rng());
                     }

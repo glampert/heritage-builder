@@ -611,7 +611,7 @@ impl<'game> Spawner<'game> {
             self.despawn_prop_at_cell(base_cell);
         } else {
             // No GameObject, just remove the tile directly.
-            if let Err(err) = self.context.tile_map_mut().try_clear_tile_from_layer(base_cell, tile.layer_kind()) {
+            if let Err(err) = self.context.try_clear_tile_from_layer(base_cell, tile.layer_kind()) {
                 despawn_error("Tile", &err);
             }
         }
@@ -619,7 +619,7 @@ impl<'game> Spawner<'game> {
 
     pub fn despawn_tile_at_cell(&self, tile_base_cell: Cell, layer_kind: TileMapLayerKind) {
         debug_assert!(tile_base_cell.is_valid());
-        if let Some(tile) = self.context.tile_map().try_tile_from_layer(tile_base_cell, layer_kind) {
+        if let Some(tile) = self.context.try_tile_from_layer(tile_base_cell, layer_kind) {
             self.despawn_tile(tile);
         }
     }
@@ -672,7 +672,7 @@ impl<'game> Spawner<'game> {
     }
 
     pub fn despawn_building_with_id(&self, kind_and_id: BuildingKindAndId) {
-        if let Some(building) = self.context.world_mut().find_building_mut(kind_and_id.kind, kind_and_id.id) {
+        if let Some(building) = self.context.find_building_mut(kind_and_id.kind, kind_and_id.id) {
             self.despawn_building(building);
         }
     }
@@ -736,7 +736,7 @@ impl<'game> Spawner<'game> {
     }
 
     pub fn despawn_unit_with_id(&self, id: UnitId) {
-        if let Some(unit) = self.context.world_mut().find_unit_mut(id) {
+        if let Some(unit) = self.context.find_unit_mut(id) {
             self.despawn_unit(unit);
         }
     }
@@ -786,7 +786,7 @@ impl<'game> Spawner<'game> {
     }
 
     pub fn despawn_prop_with_id(&self, id: PropId) {
-        if let Some(prop) = self.context.world_mut().find_prop_mut(id) {
+        if let Some(prop) = self.context.find_prop_mut(id) {
             self.despawn_prop(prop);
         }
     }
@@ -824,9 +824,9 @@ impl<'game> Spawner<'game> {
         }
 
         let prev_tile_def =
-            self.context.tile_map().try_tile_from_layer(target_cell, tile_def.layer_kind()).map(|tile| tile.tile_def());
+            self.context.try_tile_from_layer(target_cell, tile_def.layer_kind()).map(|tile| tile.tile_def());
 
-        match self.context.tile_map_mut().try_place_tile(target_cell, tile_def) {
+        match self.context.try_place_tile(target_cell, tile_def) {
             Ok(tile) => {
                 self.subtract_tile_cost(tile_def);
 

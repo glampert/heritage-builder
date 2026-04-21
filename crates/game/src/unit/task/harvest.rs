@@ -94,7 +94,7 @@ impl PathFilter for FindHarvestableTreeFilter<'_> {
         // Last node should be our tree prop.
         debug_assert!(goal == *path.last().unwrap());
 
-        if let Some(tree) = self.context.world().find_prop_for_cell(goal.cell, self.context.tile_map()) {
+        if let Some(tree) = self.context.find_prop_for_cell(goal.cell) {
             if !tree.is_being_harvested() && tree.harvestable_amount() != 0 {
                 return true; // Accept path.
             }
@@ -129,7 +129,7 @@ impl UnitTaskHarvestWood {
             // Last node should be our tree prop.
             let tree_cell = path_to_harvestable_tree.last().unwrap().cell;
 
-            if let Some(tree) = context.world().find_prop_for_cell(tree_cell, context.tile_map()) {
+            if let Some(tree) = context.find_prop_for_cell(tree_cell) {
                 // Filter should only accept paths to trees that are not being harvested by another unit.
                 debug_assert!(!tree.is_being_harvested());
 
@@ -166,7 +166,7 @@ impl UnitTaskHarvestWood {
     }
 
     fn try_return_to_origin(&mut self, unit: &mut Unit, context: &SimContext) -> bool {
-        if context.world().find_building(self.origin_building.kind, self.origin_building.id).is_none() {
+        if context.find_building(self.origin_building.kind, self.origin_building.id).is_none() {
             log::warning!(log::channel!("task"), "Origin building is no longer valid! TaskHarvestWood will abort.");
             return false;
         }
@@ -326,7 +326,7 @@ impl UnitTask for UnitTaskHarvestWood {
             }
 
             // Reached the tree we wanted to harvest.
-            if let Some(tree) = context.world().find_prop(self.harvest_target) {
+            if let Some(tree) = context.find_prop(self.harvest_target) {
                 if tree.harvester_unit() == unit.id() {
                     // Once enough time has elapsed, give it the harvested wood.
                     if self.harvest_timer.tick(context.delta_time_secs()) {
@@ -340,7 +340,7 @@ impl UnitTask for UnitTaskHarvestWood {
                             debug_assert!(harvested_resource.kind == ResourceKind::Wood, "Expected to have ResourceKind::Wood");
                             tree.set_harvester_unit(UnitId::invalid());
 
-                            let unit = context.world_mut().find_unit_mut(unit_id)
+                            let unit = context.find_unit_mut(unit_id)
                                 .expect("Expected harvester unit to still be valid!");
                             unit.receive_resources(harvested_resource.kind, harvested_resource.count);
                             unit.follow_path(None);

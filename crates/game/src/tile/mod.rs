@@ -2346,32 +2346,32 @@ impl TileMap {
     }
 
     #[inline]
-    pub fn has_tile(&self, cell: Cell, layer_kind: TileMapLayerKind, tile_kinds: TileKind) -> bool {
+    pub fn has_tile(&self, cell: Cell, tile_kinds: TileKind) -> bool {
         if self.layers.is_empty() {
             return false;
         }
 
-        self.layer(layer_kind).has_tile(cell, tile_kinds)
+        self.layer(tile_kinds.layer_kind()).has_tile(cell, tile_kinds)
     }
 
     #[inline]
-    pub fn find_tile(&self, cell: Cell, layer_kind: TileMapLayerKind, tile_kinds: TileKind) -> Option<&Tile> {
+    pub fn find_tile(&self, cell: Cell, tile_kinds: TileKind) -> Option<&Tile> {
         if self.layers.is_empty() {
             return None;
         }
 
-        self.layer(layer_kind).find_tile(cell, tile_kinds)
+        self.layer(tile_kinds.layer_kind()).find_tile(cell, tile_kinds)
     }
 
     #[inline]
-    pub fn find_tile_mut(&mut self, cell: Cell, layer_kind: TileMapLayerKind, tile_kinds: TileKind) -> Option<&mut Tile> {
+    pub fn find_tile_mut(&mut self, cell: Cell, tile_kinds: TileKind) -> Option<&mut Tile> {
         debug_assert!(!self.is_locked(), "Cannot mutate locked TileMap!");
 
         if self.layers.is_empty() {
             return None;
         }
 
-        self.layer_mut(layer_kind).find_tile_mut(cell, tile_kinds)
+        self.layer_mut(tile_kinds.layer_kind()).find_tile_mut(cell, tile_kinds)
     }
 
     #[inline]
@@ -2389,25 +2389,25 @@ impl TileMap {
     }
 
     #[inline]
-    pub fn for_each_tile<F>(&self, layer_kind: TileMapLayerKind, tile_kinds: TileKind, visitor_fn: F)
+    pub fn for_each_tile<F>(&self, tile_kinds: TileKind, visitor_fn: F)
     where
         F: FnMut(&Tile),
     {
         if !self.layers.is_empty() {
-            let layer = self.layer(layer_kind);
+            let layer = self.layer(tile_kinds.layer_kind());
             layer.for_each_tile(tile_kinds, visitor_fn);
         }
     }
 
     #[inline]
-    pub fn for_each_tile_mut<F>(&mut self, layer_kind: TileMapLayerKind, tile_kinds: TileKind, visitor_fn: F)
+    pub fn for_each_tile_mut<F>(&mut self, tile_kinds: TileKind, visitor_fn: F)
     where
         F: FnMut(&mut Tile),
     {
         debug_assert!(!self.is_locked(), "Cannot mutate locked TileMap!");
 
         if !self.layers.is_empty() {
-            let layer = self.layer_mut(layer_kind);
+            let layer = self.layer_mut(tile_kinds.layer_kind());
             layer.for_each_tile_mut(tile_kinds, visitor_fn);
         }
     }
@@ -2837,11 +2837,11 @@ impl Save for TileMap {
         debug_assert!(!self.is_locked(), "Map should not be locked while saving!");
 
         // Reset selection state. We don't save TileSelection.
-        self.for_each_tile_mut(TileMapLayerKind::Terrain, TileKind::all(), |tile| {
+        self.for_each_tile_mut(TileKind::Terrain, |tile| {
             tile.set_flags(TileFlags::Highlighted | TileFlags::Invalidated, false);
         });
 
-        self.for_each_tile_mut(TileMapLayerKind::Objects, TileKind::all(), |tile| {
+        self.for_each_tile_mut(TileKind::AllObjectKinds, |tile| {
             tile.set_flags(TileFlags::Highlighted | TileFlags::Invalidated, false);
         });
     }

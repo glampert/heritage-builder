@@ -235,7 +235,7 @@ impl World {
         debug_assert!(tile_def.is(TileKind::Building));
 
         // Allocate & place a Tile:
-        match context.tile_map_mut().try_place_tile(tile_base_cell, tile_def) {
+        match context.try_place_tile(tile_base_cell, tile_def) {
             Ok(tile) => {
                 // Instantiate new Building:
                 match BuildingConfigs::get().new_building_archetype_for_tile_def(tile_def, context.rng_mut()) {
@@ -293,7 +293,7 @@ impl World {
         let tile_map = context.tile_map_mut();
 
         // Find and validate associated Tile:
-        let tile = match tile_map.find_tile(tile_base_cell, TileMapLayerKind::Objects, TileKind::Building) {
+        let tile = match tile_map.find_tile(tile_base_cell, TileKind::Building) {
             Some(tile) => tile,
             None => {
                 return placement::err!(Clearing::DespawnFailed, "Building should have an associated Tile in the TileMap!");
@@ -335,8 +335,7 @@ impl World {
         debug_assert!(tile_base_cell.is_valid());
 
         let building = context
-            .world_mut()
-            .find_building_for_cell_mut(tile_base_cell, context.tile_map())
+            .find_building_for_cell_mut(tile_base_cell)
             .expect("Tile cell does not contain a Building!");
 
         self.despawn_building(cmds, context, building)
@@ -384,7 +383,7 @@ impl World {
 
     #[inline]
     pub fn find_building_for_cell(&self, cell: Cell, tile_map: &TileMap) -> Option<&Building> {
-        if let Some(tile) = tile_map.find_tile(cell, TileMapLayerKind::Objects, TileKind::Building | TileKind::Blocker) {
+        if let Some(tile) = tile_map.find_tile(cell, TileKind::Building | TileKind::Blocker) {
             return self.find_building_for_tile(tile);
         }
         None
@@ -393,7 +392,7 @@ impl World {
     #[inline]
     pub fn find_building_for_cell_mut(&mut self, cell: Cell, tile_map: &TileMap) -> Option<&mut Building> {
         debug_assert!(!self.is_locked(), "Cannot mutate locked world!");
-        if let Some(tile) = tile_map.find_tile(cell, TileMapLayerKind::Objects, TileKind::Building | TileKind::Blocker) {
+        if let Some(tile) = tile_map.find_tile(cell, TileKind::Building | TileKind::Blocker) {
             return self.find_building_for_tile_mut(tile);
         }
         None
@@ -505,7 +504,7 @@ impl World {
             config.tile_def_name_hash,
         ) {
             // Allocate & place a Tile:
-            match context.tile_map_mut().try_place_tile(unit_origin, tile_def) {
+            match context.try_place_tile(unit_origin, tile_def) {
                 Ok(tile) => {
                     // Spawn unit:
                     let unit = self.unit_spawn_pool.spawn(cmds, context, |unit, _cmds, _context, id| {
@@ -553,7 +552,7 @@ impl World {
         debug_assert!(tile_def.is(TileKind::Unit));
 
         // Allocate & place a Tile:
-        match context.tile_map_mut().try_place_tile(unit_origin, tile_def) {
+        match context.try_place_tile(unit_origin, tile_def) {
             Ok(tile) => {
                 let config = UnitConfigs::get().find_config_by_hash(tile_def.hash, &tile_def.name);
 
@@ -598,7 +597,7 @@ impl World {
         let mut tiles = SmallVec::<[(TileGameObjectHandle, TilePoolIndex, Cell); 10]>::new();
 
         // Find and validate associated Tile:
-        let tile = match tile_map.find_tile(tile_cell, TileMapLayerKind::Objects, TileKind::Unit) {
+        let tile = match tile_map.find_tile(tile_cell, TileKind::Unit) {
             Some(tile) => tile,
             None => return placement::err!(Clearing::DespawnFailed, "Unit should have an associated Tile in the TileMap!"),
         };
@@ -667,12 +666,12 @@ impl World {
 
         let mut units = SmallVec::<[&mut Unit; 10]>::new();
 
-        let tile = match context.tile_map().find_tile(tile_base_cell, TileMapLayerKind::Objects, TileKind::Unit) {
+        let tile = match context.find_tile(tile_base_cell, TileKind::Unit) {
             Some(tile) => tile,
             None => return placement::err!(Clearing::DespawnFailed, "Tile cell does not contain a Unit!"),
         };
 
-        let unit = match context.world_mut().find_unit_for_tile_mut(tile) {
+        let unit = match context.find_unit_for_tile_mut(tile) {
             Some(unit) => unit,
             None => {
                 return placement::err!(Clearing::DespawnFailed, "Unit tile does not have a valid TileGameObjectHandle!");
@@ -682,9 +681,8 @@ impl World {
         units.push(unit);
 
         if tile.is_stacked() {
-            context.tile_map_mut().visit_next_tiles_mut(tile, |next_tile| {
+            context.visit_next_tiles_mut(tile, |next_tile| {
                 let next_unit = context
-                    .world_mut()
                     .find_unit_for_tile_mut(next_tile)
                     .expect("Next Unit tile does not have a valid TileGameObjectHandle!");
 
@@ -693,7 +691,7 @@ impl World {
         }
 
         // This will take care of removing all tiles stacked at `tile_base_cell`.
-        context.tile_map_mut().try_clear_tile_from_layer(tile_base_cell, TileMapLayerKind::Objects)?;
+        context.try_clear_tile_from_layer(tile_base_cell, TileMapLayerKind::Objects)?;
 
         // Despawn all units at this cell.
         for unit in units {
@@ -737,16 +735,16 @@ impl World {
 
     #[inline]
     pub fn find_unit_for_cell(&self, cell: Cell, tile_map: &TileMap) -> Option<&Unit> {
-        if let Some(tile) = tile_map.find_tile(cell, TileMapLayerKind::Objects, TileKind::Unit) {
+        if let Some(tile) = tile_map.find_tile(cell, TileKind::Unit) {
             return self.find_unit_for_tile(tile);
         }
         None
     }
 
     #[inline]
-    pub fn find_unit_for_cell_mut(&mut self, cell: Cell, tile_map: &mut TileMap) -> Option<&mut Unit> {
+    pub fn find_unit_for_cell_mut(&mut self, cell: Cell, tile_map: &TileMap) -> Option<&mut Unit> {
         debug_assert!(!self.is_locked(), "Cannot mutate locked world!");
-        if let Some(tile) = tile_map.find_tile(cell, TileMapLayerKind::Objects, TileKind::Unit) {
+        if let Some(tile) = tile_map.find_tile(cell, TileKind::Unit) {
             return self.find_unit_for_tile_mut(tile);
         }
         None
@@ -828,7 +826,7 @@ impl World {
         debug_assert!(tile_def.is(TileKind::Prop));
 
         // Allocate & place a Tile:
-        match context.tile_map_mut().try_place_tile(prop_base_cell, tile_def) {
+        match context.try_place_tile(prop_base_cell, tile_def) {
             Ok(tile) => {
                 let config = PropConfigs::get().find_config_by_hash(tile_def.hash, &tile_def.name);
 
@@ -870,7 +868,7 @@ impl World {
         let tile_map = context.tile_map_mut();
 
         // Find and validate associated Tile:
-        let tile = match tile_map.find_tile(tile_base_cell, TileMapLayerKind::Objects, TileKind::Prop) {
+        let tile = match tile_map.find_tile(tile_base_cell, TileKind::Prop) {
             Some(tile) => tile,
             None => return placement::err!(Clearing::DespawnFailed, "Prop should have an associated Tile in the TileMap!"),
         };
@@ -906,8 +904,7 @@ impl World {
         debug_assert!(tile_base_cell.is_valid());
 
         let prop = context
-            .world_mut()
-            .find_prop_for_cell_mut(tile_base_cell, context.tile_map_mut())
+            .find_prop_for_cell_mut(tile_base_cell)
             .expect("Tile cell does not contain a Prop!");
 
         self.despawn_prop(cmds, context, prop)
@@ -947,16 +944,16 @@ impl World {
 
     #[inline]
     pub fn find_prop_for_cell(&self, cell: Cell, tile_map: &TileMap) -> Option<&Prop> {
-        if let Some(tile) = tile_map.find_tile(cell, TileMapLayerKind::Objects, TileKind::Prop) {
+        if let Some(tile) = tile_map.find_tile(cell, TileKind::Prop) {
             return self.find_prop_for_tile(tile);
         }
         None
     }
 
     #[inline]
-    pub fn find_prop_for_cell_mut(&mut self, cell: Cell, tile_map: &mut TileMap) -> Option<&mut Prop> {
+    pub fn find_prop_for_cell_mut(&mut self, cell: Cell, tile_map: &TileMap) -> Option<&mut Prop> {
         debug_assert!(!self.is_locked(), "Cannot mutate locked world!");
-        if let Some(tile) = tile_map.find_tile(cell, TileMapLayerKind::Objects, TileKind::Prop) {
+        if let Some(tile) = tile_map.find_tile(cell, TileKind::Prop) {
             return self.find_prop_for_tile_mut(tile);
         }
         None

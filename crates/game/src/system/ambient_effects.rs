@@ -123,7 +123,7 @@ fn spawn_bird_with_random_flight_path(cmds: &mut SimCmds, context: &SimContext) 
 }
 
 fn make_left_to_right_randomized_path(context: &SimContext) -> Path {
-    let map_size = context.tile_map().size_in_cells();
+    let map_size = context.map_size_in_cells();
 
     let randomized_spawn_point = || {
         let min_cell = Cell::new(0, (map_size.height / 2) - 1);
@@ -158,7 +158,7 @@ fn make_left_to_right_randomized_path(context: &SimContext) -> Path {
 }
 
 fn make_right_to_left_randomized_path(context: &SimContext) -> Path {
-    let map_size = context.tile_map().size_in_cells();
+    let map_size = context.map_size_in_cells();
 
     let randomized_spawn_point = || {
         let min_cell = Cell::new((map_size.width / 2) - 1, 0);

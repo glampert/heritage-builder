@@ -7,7 +7,9 @@ use rand::{
 };
 
 use common::{
-    coords::{Cell, CellRange},
+    Size,
+    Vec2,
+    coords::{Cell, CellRange, WorldToScreenTransform},
     mem::{self, RawPtr},
     hash::StringHash,
     time::Seconds,
@@ -16,9 +18,10 @@ use engine::log;
 
 use super::{GlobalTreasury, RandomGenerator};
 use crate::{
-    world::World,
-    building::{Building, BuildingKind},
-    unit::task::UnitTaskManager,
+    world::{World, object::GameObject},
+    building::{Building, BuildingId, BuildingKind},
+    unit::{Unit, UnitId, task::UnitTaskManager},
+    prop::{Prop, PropId},
     pathfind::{
         self,
         AStarUniformCostHeuristic,
@@ -38,6 +41,9 @@ use crate::{
         TileKind,
         TileMap,
         TileMapLayerKind,
+        TilePoolIndex,
+        minimap::Minimap,
+        placement::{TileClearingErr, TilePlacementErr},
         sets::{TileDef, TileSets},
     },
 };
@@ -190,8 +196,86 @@ impl SimContext {
 
     #[inline]
     pub fn find_tile(&self, cell: Cell, tile_kinds: TileKind) -> Option<&Tile> {
-        self.tile_map().find_tile(cell, tile_kinds.layer_kind(), tile_kinds)
+        self.tile_map().find_tile(cell, tile_kinds)
     }
+
+    #[inline]
+    pub fn try_tile_from_layer(&self, cell: Cell, layer_kind: TileMapLayerKind) -> Option<&Tile> {
+        self.tile_map().try_tile_from_layer(cell, layer_kind)
+    }
+
+    #[inline]
+    pub fn topmost_tile_at_cursor(&self, cursor_screen_pos: Vec2, transform: WorldToScreenTransform) -> Option<&Tile> {
+        self.tile_map().topmost_tile_at_cursor(cursor_screen_pos, transform)
+    }
+
+    #[inline]
+    pub fn tile_at_index(&self, index: TilePoolIndex, layer_kind: TileMapLayerKind) -> &Tile {
+        self.tile_map().tile_at_index(index, layer_kind)
+    }
+
+    #[inline]
+    pub fn map_size_in_cells(&self) -> Size {
+        self.tile_map().size_in_cells()
+    }
+
+    // ----------------------
+    // World API (read-only):
+    // ----------------------
+
+    #[inline]
+    pub fn find_building(&self, kind: BuildingKind, id: BuildingId) -> Option<&Building> {
+        self.world().find_building(kind, id)
+    }
+
+    #[inline]
+    pub fn find_building_for_cell(&self, cell: Cell) -> Option<&Building> {
+        self.world().find_building_for_cell(cell, self.tile_map())
+    }
+
+    #[inline]
+    pub fn find_building_for_tile(&self, tile: &Tile) -> Option<&Building> {
+        self.world().find_building_for_tile(tile)
+    }
+
+    #[inline]
+    pub fn find_unit(&self, id: UnitId) -> Option<&Unit> {
+        self.world().find_unit(id)
+    }
+
+    #[inline]
+    pub fn find_unit_for_cell(&self, cell: Cell) -> Option<&Unit> {
+        self.world().find_unit_for_cell(cell, self.tile_map())
+    }
+
+    #[inline]
+    pub fn find_unit_for_tile(&self, tile: &Tile) -> Option<&Unit> {
+        self.world().find_unit_for_tile(tile)
+    }
+
+    #[inline]
+    pub fn find_prop(&self, id: PropId) -> Option<&Prop> {
+        self.world().find_prop(id)
+    }
+
+    #[inline]
+    pub fn find_prop_for_cell(&self, cell: Cell) -> Option<&Prop> {
+        self.world().find_prop_for_cell(cell, self.tile_map())
+    }
+
+    #[inline]
+    pub fn find_prop_for_tile(&self, tile: &Tile) -> Option<&Prop> {
+        self.world().find_prop_for_tile(tile)
+    }
+
+    #[inline]
+    pub fn find_game_object_for_tile(&self, tile: &Tile) -> Option<&dyn GameObject> {
+        self.world().find_game_object_for_tile(tile)
+    }
+
+    // ----------------------
+    // Pathfind (read-only):
+    // ----------------------
 
     #[inline]
     pub fn find_nearest_road_link(&self, start_cells: CellRange) -> Option<Cell> {
@@ -349,7 +433,7 @@ impl SimContext {
                 let neighbors = self.context.graph().neighbors(goal, PathNodeKind::Building);
 
                 for neighbor in neighbors {
-                    if let Some(building) = self.context.world().find_building_for_cell(neighbor.cell, self.context.tile_map()) {
+                    if let Some(building) = self.context.find_building_for_cell(neighbor.cell) {
                         if building.is(self.building_kinds) {
                             let mut accept_building = false;
 
@@ -493,8 +577,123 @@ impl SimContext {
     #[inline]
     pub fn find_tile_mut(&self, cell: Cell, tile_kinds: TileKind) -> Option<&mut Tile> {
         debug_assert!(!self.is_read_only, "Called mutable method on a read-only SimContext!");
-        self.tile_map_mut().find_tile_mut(cell, tile_kinds.layer_kind(), tile_kinds)
+        self.tile_map_mut().find_tile_mut(cell, tile_kinds)
     }
+
+    #[inline]
+    pub fn try_tile_from_layer_mut(&self, cell: Cell, layer_kind: TileMapLayerKind) -> Option<&mut Tile> {
+        debug_assert!(!self.is_read_only, "Called mutable method on a read-only SimContext!");
+        self.tile_map_mut().try_tile_from_layer_mut(cell, layer_kind)
+    }
+
+    #[inline]
+    pub fn tile_at_index_mut(&self, index: TilePoolIndex, layer_kind: TileMapLayerKind) -> &mut Tile {
+        debug_assert!(!self.is_read_only, "Called mutable method on a read-only SimContext!");
+        self.tile_map_mut().tile_at_index_mut(index, layer_kind)
+    }
+
+    #[inline]
+    pub fn minimap_mut(&self) -> &mut Minimap {
+        debug_assert!(!self.is_read_only, "Called mutable method on a read-only SimContext!");
+        self.tile_map_mut().minimap_mut()
+    }
+
+    #[inline]
+    pub fn try_place_tile(
+        &self,
+        target_cell: Cell,
+        tile_def_to_place: &'static TileDef,
+    ) -> Result<&mut Tile, TilePlacementErr> {
+        debug_assert!(!self.is_read_only, "Called mutable method on a read-only SimContext!");
+        self.tile_map_mut().try_place_tile(target_cell, tile_def_to_place)
+    }
+
+    #[inline]
+    pub fn try_clear_tile_from_layer(
+        &self,
+        target_cell: Cell,
+        layer_kind: TileMapLayerKind,
+    ) -> Result<(), TileClearingErr> {
+        debug_assert!(!self.is_read_only, "Called mutable method on a read-only SimContext!");
+        self.tile_map_mut().try_clear_tile_from_layer(target_cell, layer_kind)
+    }
+
+    #[inline]
+    pub fn visit_next_tiles_mut<F>(&self, tile: &Tile, visitor_fn: F)
+    where
+        F: FnMut(&mut Tile),
+    {
+        debug_assert!(!self.is_read_only, "Called mutable method on a read-only SimContext!");
+        self.tile_map_mut().visit_next_tiles_mut(tile, visitor_fn);
+    }
+
+    // ----------------------
+    // World API (mutable):
+    // ----------------------
+
+    #[inline]
+    pub fn find_building_mut(&self, kind: BuildingKind, id: BuildingId) -> Option<&mut Building> {
+        debug_assert!(!self.is_read_only, "Called mutable method on a read-only SimContext!");
+        self.world_mut().find_building_mut(kind, id)
+    }
+
+    #[inline]
+    pub fn find_building_for_cell_mut(&self, cell: Cell) -> Option<&mut Building> {
+        debug_assert!(!self.is_read_only, "Called mutable method on a read-only SimContext!");
+        self.world_mut().find_building_for_cell_mut(cell, self.tile_map())
+    }
+
+    #[inline]
+    pub fn find_building_for_tile_mut(&self, tile: &Tile) -> Option<&mut Building> {
+        debug_assert!(!self.is_read_only, "Called mutable method on a read-only SimContext!");
+        self.world_mut().find_building_for_tile_mut(tile)
+    }
+
+    #[inline]
+    pub fn find_unit_mut(&self, id: UnitId) -> Option<&mut Unit> {
+        debug_assert!(!self.is_read_only, "Called mutable method on a read-only SimContext!");
+        self.world_mut().find_unit_mut(id)
+    }
+
+    #[inline]
+    pub fn find_unit_for_cell_mut(&self, cell: Cell) -> Option<&mut Unit> {
+        debug_assert!(!self.is_read_only, "Called mutable method on a read-only SimContext!");
+        self.world_mut().find_unit_for_cell_mut(cell, self.tile_map())
+    }
+
+    #[inline]
+    pub fn find_unit_for_tile_mut(&self, tile: &Tile) -> Option<&mut Unit> {
+        debug_assert!(!self.is_read_only, "Called mutable method on a read-only SimContext!");
+        self.world_mut().find_unit_for_tile_mut(tile)
+    }
+
+    #[inline]
+    pub fn find_prop_mut(&self, id: PropId) -> Option<&mut Prop> {
+        debug_assert!(!self.is_read_only, "Called mutable method on a read-only SimContext!");
+        self.world_mut().find_prop_mut(id)
+    }
+
+    #[inline]
+    pub fn find_prop_for_cell_mut(&self, cell: Cell) -> Option<&mut Prop> {
+        debug_assert!(!self.is_read_only, "Called mutable method on a read-only SimContext!");
+        self.world_mut().find_prop_for_cell_mut(cell, self.tile_map())
+    }
+
+    #[inline]
+    pub fn find_prop_for_tile_mut(&self, tile: &Tile) -> Option<&mut Prop> {
+        debug_assert!(!self.is_read_only, "Called mutable method on a read-only SimContext!");
+        self.world_mut().find_prop_for_tile_mut(tile)
+    }
+
+    #[inline]
+    pub fn find_game_object_for_tile_mut(&self, tile: &Tile) -> Option<&mut dyn GameObject> {
+        debug_assert!(!self.is_read_only, "Called mutable method on a read-only SimContext!");
+        self.world_mut().find_game_object_for_tile_mut(tile)
+    }
+
+    // ----------------------
+    // Pathfind (mutable):
+    // ----------------------
 
     #[inline]
     pub fn find_nearest_buildings_mut<F>(

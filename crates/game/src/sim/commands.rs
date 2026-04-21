@@ -717,7 +717,7 @@ impl SimCmds {
                 spawner.despawn_unit_with_id(*id);
             }
             SimCmd::DeferUnitUpdate { id, callback } => {
-                let unit = context.world_mut()
+                let unit = context
                     .find_unit_mut(*id)
                     .unwrap_or_else(|| panic!("SimCmd::DeferUnitUpdate invalid unit id: {id}"));
 
@@ -735,11 +735,11 @@ impl SimCmds {
                 spawner.despawn_building_with_id(*kind_and_id);
             }
             SimCmd::VisitBuilding { kind_and_id, unit_id, on_post_visit } => {
-                let building = context.world_mut()
+                let building = context
                     .find_building_mut(kind_and_id.kind, kind_and_id.id)
                     .unwrap_or_else(|| panic!("SimCmd::VisitBuilding invalid building kind/id: {} {}", kind_and_id.kind, kind_and_id.id));
 
-                let unit = context.world_mut()
+                let unit = context
                     .find_unit_mut(*unit_id)
                     .unwrap_or_else(|| panic!("SimCmd::VisitBuilding invalid unit id: {unit_id}"));
 
@@ -751,11 +751,11 @@ impl SimCmds {
                 }
             }
             SimCmd::DeferBuildingTaskStep { kind_and_id, unit_id, callback, on_complete } => {
-                let building = context.world_mut()
+                let building = context
                     .find_building_mut(kind_and_id.kind, kind_and_id.id)
                     .unwrap_or_else(|| panic!("SimCmd::DeferBuildingTaskStep invalid building kind/id: {} {}", kind_and_id.kind, kind_and_id.id));
 
-                let unit = context.world_mut()
+                let unit = context
                     .find_unit_mut(*unit_id)
                     .unwrap_or_else(|| panic!("SimCmd::DeferBuildingTaskStep invalid unit id: {unit_id}"));
 
@@ -768,7 +768,7 @@ impl SimCmds {
                 }
             }
             SimCmd::DeferBuildingUpdate { kind_and_id, callback } => {
-                let building = context.world_mut()
+                let building = context
                     .find_building_mut(kind_and_id.kind, kind_and_id.id)
                     .unwrap_or_else(|| panic!("SimCmd::DeferBuildingUpdate invalid building kind/id: {} {}", kind_and_id.kind, kind_and_id.id));
 
@@ -779,7 +779,7 @@ impl SimCmds {
                 // referencing nearby houses that will be merged. The first command to execute wins,
                 // merging and despawning the neighboring houses, thus making any remaining commands
                 // no longer valid.
-                if let Some(building) = context.world_mut().find_building_mut(kind_and_id.kind, kind_and_id.id) {
+                if let Some(building) = context.find_building_mut(kind_and_id.kind, kind_and_id.id) {
                     let mut cmds = SimCmds::default();
 
                     let building_ctx = building.new_context(context);
@@ -800,7 +800,7 @@ impl SimCmds {
                 spawner.despawn_prop_with_id(*id);
             }
             SimCmd::DeferPropUpdate { id, callback } => {
-                let prop = context.world_mut()
+                let prop = context
                     .find_prop_mut(*id)
                     .unwrap_or_else(|| panic!("SimCmd::DeferPropUpdate invalid prop id: {id}"));
 

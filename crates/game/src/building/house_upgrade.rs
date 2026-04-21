@@ -144,7 +144,7 @@ pub fn try_replace_tile(
     // We'll have to restore the game object handle on the new tile.
     let (prev_game_object_handle, prev_cell_range, prev_tile_def) = {
         let prev_tile = tile_map
-            .find_tile_mut(dest_house.base_cell(), TileMapLayerKind::Objects, TileKind::Building)
+            .find_tile_mut(dest_house.base_cell(), TileKind::Building)
             .expect("House building should have an associated Tile in the TileMap!");
 
         let game_object_handle = prev_tile.game_object_handle();
@@ -562,22 +562,17 @@ fn destroy_house(context: &BuildingContext, merged_building: &mut Building) {
 type HouseIdsSet = SmallSet<32, BuildingId>;
 
 fn house_for_id<'game>(context: &'game BuildingContext, id: BuildingId) -> &'game Building {
-    let world = context.sim_ctx.world();
-
-    world.find_building(BuildingKind::House, id).expect("Invalid Building id! Expected to have a valid House Building.")
+    context.sim_ctx.find_building(BuildingKind::House, id)
+        .expect("Invalid Building id! Expected to have a valid House Building.")
 }
 
 fn house_for_id_mut<'game>(context: &'game BuildingContext, id: BuildingId) -> &'game mut Building {
-    let world = context.sim_ctx.world_mut();
-
-    world.find_building_mut(BuildingKind::House, id).expect("Invalid Building id! Expected to have a valid House Building.")
+    context.sim_ctx.find_building_mut(BuildingKind::House, id)
+        .expect("Invalid Building id! Expected to have a valid House Building.")
 }
 
 fn find_house_for_cell<'game>(context: &'game BuildingContext, cell: Cell) -> Option<&'game Building> {
-    let world = context.sim_ctx.world();
-    let tile_map = context.sim_ctx.tile_map();
-
-    if let Some(building) = world.find_building_for_cell(cell, tile_map) {
+    if let Some(building) = context.sim_ctx.find_building_for_cell(cell) {
         if building.is(BuildingKind::House) {
             return Some(building);
         }
@@ -622,7 +617,7 @@ pub fn draw_debug_ui(context: &BuildingContext, ui_sys: &UiSystem) {
                 tile.set_flags(TileFlags::Highlighted, true);
             }
 
-            if let Some(tile) = tile_map.find_tile_mut(cell, TileMapLayerKind::Objects, TileKind::Building) {
+            if let Some(tile) = tile_map.find_tile_mut(cell, TileKind::Building) {
                 tile.set_flags(TileFlags::Invalidated, true);
             }
         }
@@ -634,7 +629,7 @@ pub fn draw_debug_ui(context: &BuildingContext, ui_sys: &UiSystem) {
                 tile.set_flags(TileFlags::DrawDebugBounds, true);
             }
 
-            if let Some(tile) = tile_map.find_tile_mut(start_cell, TileMapLayerKind::Objects, TileKind::Building) {
+            if let Some(tile) = tile_map.find_tile_mut(start_cell, TileKind::Building) {
                 tile.set_flags(TileFlags::DrawDebugBounds, true);
             }
         }
