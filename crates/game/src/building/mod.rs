@@ -26,8 +26,10 @@ use config::{BuildingConfig, BuildingConfigs};
 
 use super::{
     sim::{
-        SimCmds,
         SimContext,
+        SimCmds,
+        SimCmdQueue,
+        commands::ImmediateModeSimCmds,
         resources::{
             Population,
             RESOURCE_KIND_COUNT,
@@ -267,7 +269,7 @@ impl GameObject for Building {
         debug_assert!(self.is_spawned());
 
         // Refresh cached road link cell.
-        self.update_road_link(cmds, context);
+        self.update_road_link(Some(cmds), context);
 
         if self.workers_update_timer.tick(context.delta_time_secs()).should_update() {
             self.update_workers(cmds);
@@ -400,7 +402,6 @@ impl Building {
 
     pub fn spawned(
         &mut self,
-        cmds: &mut SimCmds,
         context: &SimContext,
         id: BuildingId,
         kind: BuildingKind,
@@ -418,7 +419,8 @@ impl Building {
         self.workers_update_timer = UpdateTimer::new(GameConfigs::get().sim.workers_update_frequency_secs);
         self.archetype = Some(archetype);
 
-        self.update_road_link(cmds, context);
+        // Spawning usually happens inside a deferred command - execute this immediately.
+        self.update_road_link(None, context);
 
         {
             let context = self.new_context(context);
@@ -426,21 +428,24 @@ impl Building {
         }
     }
 
-    pub fn despawned(&mut self, cmds: &mut SimCmds, context: &SimContext) {
+    pub fn despawned(&mut self, context: &SimContext) {
         debug_assert!(self.is_spawned());
 
         // Don't spawn evicted settlers or perform other cleanups when we are resetting the world/map.
         if !context.is_world_teardown() {
             self.remove_all_workers(context);
-            self.remove_all_population(cmds, context);
-        }
 
-        self.clear_road_link(context.tile_map_mut());
+            // Despawning usually happens inside a deferred command - execute this immediately.
+            let mut cmds = ImmediateModeSimCmds::new(context);
+            self.remove_all_population(&mut cmds, context);
+        }
 
         {
             let context = self.new_context(context);
-            self.archetype_mut().despawned(cmds, &context);
+            self.archetype_mut().despawned(&context);
         }
+
+        self.clear_road_link(context.tile_map_mut());
 
         self.id = BuildingId::default();
         self.map_cells = CellRange::default();
@@ -834,12 +839,12 @@ impl Building {
         None
     }
 
-    fn update_road_link(&mut self, cmds: &mut SimCmds, context: &SimContext) {
+    fn update_road_link(&mut self, opt_cmds: Option<&mut SimCmds>, context: &SimContext) {
         if let Some(new_road_link) = context.find_nearest_road_link(self.cell_range()) {
             debug_assert!(new_road_link.is_valid());
             let prev_road_link = self.road_link;
 
-            cmds.defer_building_update(self.kind_and_id(), move |context, _building| {
+            let set_tile_road_link_flag = move |context: &SimContext, _: &mut Building| {
                 let tile_map = context.tile_map_mut();
 
                 if new_road_link != prev_road_link && prev_road_link.is_valid() {
@@ -849,7 +854,13 @@ impl Building {
 
                 // Set new underlying tile flag:
                 tile_map.set_tile_flags(new_road_link, TileKind::Terrain, TileFlags::BuildingRoadLink, true);
-            });
+            };
+
+            if let Some(cmds) = opt_cmds {
+                cmds.defer_building_update(self.kind_and_id(), set_tile_road_link_flag);
+            } else {
+                set_tile_road_link_flag(context, self);
+            }
 
             self.road_link = new_road_link;
         } else {
@@ -934,7 +945,7 @@ trait BuildingBehavior {
     fn configs(&self) -> &dyn BuildingConfig;
 
     fn spawned(&mut self, _context: &BuildingContext) {}
-    fn despawned(&mut self, _cmds: &mut SimCmds, _context: &BuildingContext);
+    fn despawned(&mut self, _context: &BuildingContext);
 
     fn update(&mut self, cmds: &mut SimCmds, context: &BuildingContext);
     fn visited_by(&mut self, unit: &mut Unit, context: &BuildingContext) -> BuildingVisitResult;

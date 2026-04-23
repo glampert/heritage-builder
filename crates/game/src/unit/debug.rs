@@ -28,8 +28,10 @@ use crate::{
     world::object::GameObject,
     prop::PropId,
     sim::{
-        SimCmds,
         SimContext,
+        SimCmds,
+        SimCmdQueue,
+        commands::ImmediateModeSimCmds,
         resources::{ResourceKind, ShoppingList, StockItem},
     },
     tile::{
@@ -556,9 +558,9 @@ fn unit_debug_settle_task_post_despawn(
                     Ok(building) => {
                         debug_assert!(building.is(BuildingKind::House));
 
-                        let mut cmds = SimCmds::default(); // Already within a deferred command.
+                        // We are already within a deferred command; execute recursive commands immediately.
+                        let mut cmds = ImmediateModeSimCmds::new(context);
                         let population_added = building.add_population(&mut cmds, context, population_to_add);
-                        cmds.execute(context);
 
                         if population_added != population_to_add {
                             log::error!(

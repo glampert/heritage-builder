@@ -8,7 +8,7 @@ use super::despawn::UnitTaskPostDespawnCallback;
 use crate::{
     pathfind::{NodeKind as PathNodeKind, Path},
     world::object::{GameObject, GenerationalIndex},
-    sim::{SimCmds, SimContext, resources::ResourceKind},
+    sim::{SimCmds, SimCmdQueue, SimContext, resources::ResourceKind},
     unit::{Unit, navigation::UnitNavGoal},
     building::{Building, BuildingId, BuildingKind, BuildingVisitResult},
 };

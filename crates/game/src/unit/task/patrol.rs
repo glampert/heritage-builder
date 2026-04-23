@@ -27,7 +27,7 @@ use crate::{
         RandomDirectionalBias,
         SearchResult,
     },
-    sim::{SimCmds, SimContext},
+    sim::{SimCmds, SimCmdQueue, SimContext},
     tile::TileMapLayerKind,
     unit::{Unit, navigation::{self, UnitDirection, UnitNavGoal}},
     building::{Building, BuildingKind, BuildingKindAndId, BuildingTileInfo},

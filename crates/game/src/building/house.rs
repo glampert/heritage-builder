@@ -35,6 +35,8 @@ use crate::{
     },
     sim::{
         SimCmds,
+        SimCmdQueue,
+        commands::ImmediateModeSimCmds,
         RandomGenerator,
         resources::{
             Population,
@@ -277,8 +279,8 @@ impl BuildingBehavior for HouseBuilding {
         self.current_level_config()
     }
 
-    fn despawned(&mut self, cmds: &mut SimCmds, _context: &BuildingContext) {
-        self.ambient_patrol.discard_spawn_promise(cmds);
+    fn despawned(&mut self, context: &BuildingContext) {
+        self.ambient_patrol.discard_spawn_promise(context.sim_ctx.cmds_mut());
     }
 
     fn update(&mut self, cmds: &mut SimCmds, context: &BuildingContext) {
@@ -815,12 +817,11 @@ impl HouseBuilding {
     }
 
     fn visited_by_settler(&mut self, unit: &mut Unit, context: &BuildingContext) -> BuildingVisitResult {
-        let mut cmds = SimCmds::default(); // Already within a VisitBuilding command.
+        // We are already within a VisitBuilding command; execute recursive commands immediately.
+        let mut cmds = ImmediateModeSimCmds::new(context.sim_ctx);
 
         let population_to_add = unit.settler_population(context.sim_ctx);
         let population_added  = self.add_population(&mut cmds, context, population_to_add);
-
-        cmds.execute(context.sim_ctx);
 
         if population_added != 0 {
             BuildingVisitResult::Accepted

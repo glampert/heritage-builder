@@ -15,7 +15,7 @@ use super::{
 use crate::{
     constants::*,
     unit::Unit,
-    sim::{SimCmds, SimContext},
+    sim::{SimCmds, SimCmdQueue, SimContext},
     world::object::GameObject,
 };
 

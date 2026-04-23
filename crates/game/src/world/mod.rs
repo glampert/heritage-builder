@@ -98,15 +98,15 @@ impl World {
         }
     }
 
-    pub fn reset(&mut self, cmds: &mut SimCmds, context: &SimContext) {
+    pub fn reset(&mut self, context: &SimContext) {
         debug_assert!(!self.is_locked(), "Cannot mutate locked world!");
 
         for (_, buildings) in &mut self.building_spawn_pools {
-            buildings.clear(cmds, context, Building::despawned);
+            buildings.clear(context, Building::despawned);
         }
 
-        self.unit_spawn_pool.clear(cmds, context, Unit::despawned);
-        self.prop_spawn_pool.clear(cmds, context, Prop::despawned);
+        self.unit_spawn_pool.clear(context, Unit::despawned);
+        self.prop_spawn_pool.clear(context, Prop::despawned);
     }
 
     pub fn update_unit_navigation(&mut self, context: &SimContext) {
@@ -224,7 +224,6 @@ impl World {
 
     fn try_spawn_building_with_tile_def(
         &mut self,
-        cmds: &mut SimCmds,
         context: &SimContext,
         tile_base_cell: Cell,
         tile_def: &'static TileDef,
@@ -243,8 +242,8 @@ impl World {
                         let archetype_kind = building_archetype.discriminant();
                         let buildings = self.buildings_pool_mut(archetype_kind);
 
-                        let building = buildings.spawn(cmds, context, |building, cmds, context, id| {
-                            building.spawned(cmds, context, id, building_kind, tile.cell_range(), building_archetype);
+                        let building = buildings.spawn(context, |building, context, id| {
+                            building.spawned(context, id, building_kind, tile.cell_range(), building_archetype);
                         });
                         debug_assert!(building.is_spawned());
 
@@ -281,7 +280,6 @@ impl World {
 
     fn despawn_building(
         &mut self,
-        cmds: &mut SimCmds,
         context: &SimContext,
         building: &mut Building,
     ) -> Result<(), TileClearingErr> {
@@ -321,13 +319,12 @@ impl World {
         debug_assert!(pool_index == building.id().index());
 
         // Put the building instance back into the spawn pool.
-        buildings.despawn(building, cmds, context, Building::despawned);
+        buildings.despawn(building, context, Building::despawned);
         Ok(())
     }
 
     fn despawn_building_at_cell(
         &mut self,
-        cmds: &mut SimCmds,
         context: &SimContext,
         tile_base_cell: Cell,
     ) -> Result<(), TileClearingErr> {
@@ -338,7 +335,7 @@ impl World {
             .find_building_for_cell_mut(tile_base_cell)
             .expect("Tile cell does not contain a Building!");
 
-        self.despawn_building(cmds, context, building)
+        self.despawn_building(context, building)
     }
 
     #[inline]
@@ -487,7 +484,6 @@ impl World {
 
     fn try_spawn_unit_with_config(
         &mut self,
-        cmds: &mut SimCmds,
         context: &SimContext,
         unit_origin: Cell,
         unit_config: UnitConfigKey,
@@ -507,7 +503,7 @@ impl World {
             match context.try_place_tile(unit_origin, tile_def) {
                 Ok(tile) => {
                     // Spawn unit:
-                    let unit = self.unit_spawn_pool.spawn(cmds, context, |unit, _cmds, _context, id| {
+                    let unit = self.unit_spawn_pool.spawn(context, |unit, _context, id| {
                         unit.spawned(tile, config, id);
                     });
                     debug_assert!(unit.is_spawned());
@@ -541,7 +537,6 @@ impl World {
 
     fn try_spawn_unit_with_tile_def(
         &mut self,
-        cmds: &mut SimCmds,
         context: &SimContext,
         unit_origin: Cell,
         tile_def: &'static TileDef,
@@ -557,7 +552,7 @@ impl World {
                 let config = UnitConfigs::get().find_config_by_hash(tile_def.hash, &tile_def.name);
 
                 // Spawn unit:
-                let unit = self.unit_spawn_pool.spawn(cmds, context, |unit, _cmds, _context, id| {
+                let unit = self.unit_spawn_pool.spawn(context, |unit, _context, id| {
                     unit.spawned(tile, config, id);
                 });
                 debug_assert!(unit.is_spawned());
@@ -582,7 +577,6 @@ impl World {
 
     fn despawn_unit(
         &mut self,
-        cmds: &mut SimCmds,
         context: &SimContext,
         unit: &mut Unit,
     ) -> Result<(), TileClearingErr> {
@@ -628,7 +622,7 @@ impl World {
                 tile_map.try_clear_tile_from_layer_by_index(*tile_index, tile_cell, TileMapLayerKind::Objects)?;
 
                 // Put the unit instance back into the spawn pool.
-                self.unit_spawn_pool.despawn(unit, cmds, context, Unit::despawned);
+                self.unit_spawn_pool.despawn(unit, context, Unit::despawned);
                 return Ok(());
             }
         }
@@ -657,7 +651,6 @@ impl World {
 
     fn despawn_unit_at_cell(
         &mut self,
-        cmds: &mut SimCmds,
         context: &SimContext,
         tile_base_cell: Cell,
     ) -> Result<(), TileClearingErr> {
@@ -695,7 +688,7 @@ impl World {
 
         // Despawn all units at this cell.
         for unit in units {
-            context.world_mut().unit_spawn_pool.despawn(unit, cmds, context, Unit::despawned);
+            context.world_mut().unit_spawn_pool.despawn(unit, context, Unit::despawned);
         }
 
         Ok(())
@@ -815,7 +808,6 @@ impl World {
 
     fn try_spawn_prop_with_tile_def(
         &mut self,
-        cmds: &mut SimCmds,
         context: &SimContext,
         prop_base_cell: Cell,
         tile_def: &'static TileDef,
@@ -831,7 +823,7 @@ impl World {
                 let config = PropConfigs::get().find_config_by_hash(tile_def.hash, &tile_def.name);
 
                 // Spawn prop:
-                let prop = self.prop_spawn_pool.spawn(cmds, context, |prop, _cmds, _context, id| {
+                let prop = self.prop_spawn_pool.spawn(context, |prop, _context, id| {
                     prop.spawned(tile, config, id);
                 });
                 debug_assert!(prop.is_spawned());
@@ -856,7 +848,6 @@ impl World {
 
     fn despawn_prop(
         &mut self,
-        cmds: &mut SimCmds,
         context: &SimContext,
         prop: &mut Prop,
     ) -> Result<(), TileClearingErr> {
@@ -890,13 +881,12 @@ impl World {
         tile_map.try_clear_tile_from_layer(tile_base_cell, TileMapLayerKind::Objects)?;
 
         // Despawn prop instance:
-        self.prop_spawn_pool.despawn(prop, cmds, context, Prop::despawned);
+        self.prop_spawn_pool.despawn(prop, context, Prop::despawned);
         Ok(())
     }
 
     fn despawn_prop_at_cell(
         &mut self,
-        cmds: &mut SimCmds,
         context: &SimContext,
         tile_base_cell: Cell,
     ) -> Result<(), TileClearingErr> {
@@ -907,7 +897,7 @@ impl World {
             .find_prop_for_cell_mut(tile_base_cell)
             .expect("Tile cell does not contain a Prop!");
 
-        self.despawn_prop(cmds, context, prop)
+        self.despawn_prop(context, prop)
     }
 
     #[inline]

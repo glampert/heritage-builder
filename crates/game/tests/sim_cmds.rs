@@ -3,7 +3,10 @@ use game::{
     world::World,
     config::GameConfigs,
     unit::config::UnitConfigKey,
-    sim::{Simulation, SimContext, SimCmds, commands::{SpawnQueryResult, SpawnReadyResult}},
+    sim::{
+        Simulation, SimContext, SimCmds, SimCmdQueue,
+        commands::{self, SpawnQueryResult, SpawnReadyResult},
+    },
     tile::{
         TileMap, TileMapLayerKind, placement::TilePlacementErrReason,
         sets::{TileSets, TERRAIN_LAND_CATEGORY, OBJECTS_BUILDINGS_CATEGORY, OBJECTS_VEGETATION_CATEGORY},
@@ -49,7 +52,9 @@ impl TestEnvironment {
 fn test_sim_cmd_queue_spawning() {
     let mut test_env = TestEnvironment::new();
     let context = test_env.new_sim_context();
-    let mut cmds = SimCmds::default();
+
+    let mut cmds = SimCmds::default(); // Defaults to deferred.
+    assert!(cmds.is_deferred());
 
     // Push spawn commands:
     let mut tile_promise = cmds.spawn_tile_with_tile_def_promise(
@@ -59,7 +64,7 @@ fn test_sim_cmd_queue_spawning() {
             TERRAIN_LAND_CATEGORY.string,
             "grass",
         ).unwrap(),
-        SimCmds::no_tile_callback(),
+        commands::no_tile_callback(),
     );
 
     let mut building_promise = cmds.spawn_building_with_tile_def_promise(
@@ -69,13 +74,13 @@ fn test_sim_cmd_queue_spawning() {
             OBJECTS_BUILDINGS_CATEGORY.string,
             "small_well",
         ).unwrap(),
-        SimCmds::no_object_callback(),
+        commands::no_object_callback(),
     );
 
     let mut unit_promise = cmds.spawn_unit_with_config_promise(
         Cell::new(2, 2),
         UnitConfigKey::Peasant,
-        SimCmds::no_object_callback(),
+        commands::no_object_callback(),
     );
 
     let mut prop_promise = cmds.spawn_prop_with_tile_def_promise(
@@ -85,7 +90,7 @@ fn test_sim_cmd_queue_spawning() {
             OBJECTS_VEGETATION_CATEGORY.string,
             "tree",
         ).unwrap(),
-        SimCmds::no_object_callback(),
+        commands::no_object_callback(),
     );
 
     // Check pending commands return pending promises:
@@ -171,12 +176,14 @@ fn test_sim_cmd_queue_spawning() {
 fn test_sim_cmd_queue_spawn_failure() {
     let mut test_env = TestEnvironment::new();
     let context = test_env.new_sim_context();
-    let mut cmds = SimCmds::default();
+
+    let mut cmds = SimCmds::default(); // Defaults to deferred.
+    assert!(cmds.is_deferred());
 
     let mut unit_promise = cmds.spawn_unit_with_config_promise(
         Cell::new(999, 999), // Out of bounds cell - must fail.
         UnitConfigKey::Peasant,
-        SimCmds::no_object_callback(),
+        commands::no_object_callback(),
     );
 
     // Check pending commands return pending promises:
@@ -208,7 +215,9 @@ fn test_sim_cmd_queue_spawn_failure() {
 fn test_sim_cmd_queue_spawning_with_callbacks() {
     let mut test_env = TestEnvironment::new();
     let context = test_env.new_sim_context();
-    let mut cmds = SimCmds::default();
+
+    let mut cmds = SimCmds::default(); // Defaults to deferred.
+    assert!(cmds.is_deferred());
 
     struct SpawnResults {
         tile_spawned: bool,

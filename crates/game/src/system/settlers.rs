@@ -12,12 +12,12 @@ use engine::{Engine, log};
 
 use super::GameSystem;
 use crate::{
-    building::BuildingKind,
+    pathfind::Node,
     config::GameConfigs,
     debug::utils::UpdateTimerDebugUi,
-    pathfind::Node,
     save_context::PostLoadContext,
-    sim::{SimCmds, SimContext},
+    building::BuildingKind,
+    sim::{SimCmds, SimContext, SimCmdQueue, commands::ImmediateModeSimCmds},
     tile::{
         TileFlags,
         TileKind,
@@ -217,9 +217,9 @@ impl Settler {
                             debug_assert!(building.is(BuildingKind::House));
                             building.set_random_variation(context);
 
-                            let mut cmds = SimCmds::default(); // Already within a deferred command.
+                            // We are already within a deferred command; execute recursive commands immediately.
+                            let mut cmds = ImmediateModeSimCmds::new(context);
                             let population_added = building.add_population(&mut cmds, context, population_to_add);
-                            cmds.execute(context);
 
                             if population_added != population_to_add {
                                 log::error!(

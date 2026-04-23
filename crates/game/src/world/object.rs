@@ -203,23 +203,23 @@ where
         }
     }
 
-    pub fn clear<F>(&mut self, cmds: &mut SimCmds, context: &SimContext, on_despawned_fn: F)
+    pub fn clear<F>(&mut self, context: &SimContext, on_despawned_fn: F)
     where
-        F: Fn(&mut T, &mut SimCmds, &SimContext),
+        F: Fn(&mut T, &SimContext),
     {
         debug_assert!(self.is_valid());
 
         for instance in self.iter_mut() {
-            on_despawned_fn(instance, cmds, context);
+            on_despawned_fn(instance, context);
         }
 
         self.instances.fill(T::default());
         self.spawned.fill(false);
     }
 
-    pub fn spawn<F>(&mut self, cmds: &mut SimCmds, context: &SimContext, on_spawned_fn: F) -> &mut T
+    pub fn spawn<F>(&mut self, context: &SimContext, on_spawned_fn: F) -> &mut T
     where
-        F: FnOnce(&mut T, &mut SimCmds, &SimContext, GenerationalIndex),
+        F: FnOnce(&mut T, &SimContext, GenerationalIndex),
     {
         debug_assert!(self.is_valid());
 
@@ -231,7 +231,7 @@ where
             let recycled_instance = &mut self.instances[recycled_index];
 
             debug_assert!(!recycled_instance.is_spawned());
-            on_spawned_fn(recycled_instance, cmds, context, GenerationalIndex::new(generation, recycled_index));
+            on_spawned_fn(recycled_instance, context, GenerationalIndex::new(generation, recycled_index));
 
             self.spawned.set(recycled_index, true);
             self.peak = self.peak.max(self.spawned.count_ones());
@@ -244,7 +244,7 @@ where
         let mut new_instance = T::default();
 
         debug_assert!(!new_instance.is_spawned());
-        on_spawned_fn(&mut new_instance, cmds, context, GenerationalIndex::new(generation, new_index));
+        on_spawned_fn(&mut new_instance, context, GenerationalIndex::new(generation, new_index));
 
         self.instances.push(new_instance);
         self.spawned.push(true);
@@ -253,9 +253,9 @@ where
         &mut self.instances[new_index]
     }
 
-    pub fn despawn<F>(&mut self, instance: &mut T, cmds: &mut SimCmds, context: &SimContext, on_despawned_fn: F)
+    pub fn despawn<F>(&mut self, instance: &mut T, context: &SimContext, on_despawned_fn: F)
     where
-        F: FnOnce(&mut T, &mut SimCmds, &SimContext),
+        F: FnOnce(&mut T, &SimContext),
     {
         debug_assert!(self.is_valid());
         debug_assert!(instance.is_spawned());
@@ -264,7 +264,7 @@ where
         debug_assert!(self.spawned[index]);
         debug_assert!(std::ptr::eq(&self.instances[index], instance)); // Ensure addresses are the same.
 
-        on_despawned_fn(instance, cmds, context);
+        on_despawned_fn(instance, context);
         self.spawned.set(index, false);
     }
 
@@ -637,38 +637,27 @@ impl<'game> Spawner<'game> {
             return cost_error(building_tile_def);
         }
 
-        let mut cmds = SimCmds::default();
-
         let result =
-            self.context.world_mut().try_spawn_building_with_tile_def(&mut cmds, self.context, building_base_cell, building_tile_def);
+            self.context.world_mut().try_spawn_building_with_tile_def(self.context, building_base_cell, building_tile_def);
 
         if let Ok(ref building) = result {
             self.subtract_tile_cost(building_tile_def);
             building.set_random_variation(self.context);
         }
 
-        cmds.execute(self.context);
         result
     }
 
     pub fn despawn_building(&self, building: &mut Building) {
-        let mut cmds = SimCmds::default();
-
-        if let Err(err) = self.context.world_mut().despawn_building(&mut cmds, self.context, building) {
+        if let Err(err) = self.context.world_mut().despawn_building(self.context, building) {
             despawn_error("Building", &err);
         }
-
-        cmds.execute(self.context);
     }
 
     pub fn despawn_building_at_cell(&self, building_base_cell: Cell) {
-        let mut cmds = SimCmds::default();
-
-        if let Err(err) = self.context.world_mut().despawn_building_at_cell(&mut cmds, self.context, building_base_cell) {
+        if let Err(err) = self.context.world_mut().despawn_building_at_cell(self.context, building_base_cell) {
             despawn_error("Building", &err);
         }
-
-        cmds.execute(self.context);
     }
 
     pub fn despawn_building_with_id(&self, kind_and_id: BuildingKindAndId) {
@@ -690,14 +679,13 @@ impl<'game> Spawner<'game> {
             return cost_error(unit_tile_def);
         }
 
-        let mut cmds = SimCmds::default();
+        let result =
+            self.context.world_mut().try_spawn_unit_with_tile_def(self.context, unit_origin, unit_tile_def);
 
-        let result = self.context.world_mut().try_spawn_unit_with_tile_def(&mut cmds, self.context, unit_origin, unit_tile_def);
         if result.is_ok() {
             self.subtract_tile_cost(unit_tile_def);
         }
 
-        cmds.execute(self.context);
         result
     }
 
@@ -709,30 +697,19 @@ impl<'game> Spawner<'game> {
         // NOTE: No affordability check needed here. This is only
         // used by dynamically spawned units, which have no cost.
 
-        let mut cmds = SimCmds::default();
-        let result = self.context.world_mut().try_spawn_unit_with_config(&mut cmds, self.context, unit_origin, unit_config_key);
-        cmds.execute(self.context);
-        result
+        self.context.world_mut().try_spawn_unit_with_config(self.context, unit_origin, unit_config_key)
     }
 
     pub fn despawn_unit(&self, unit: &mut Unit) {
-        let mut cmds = SimCmds::default();
-
-        if let Err(err) = self.context.world_mut().despawn_unit(&mut cmds, self.context, unit) {
+        if let Err(err) = self.context.world_mut().despawn_unit(self.context, unit) {
             despawn_error("Unit", &err);
         }
-
-        cmds.execute(self.context);
     }
 
     pub fn despawn_unit_at_cell(&self, unit_base_cell: Cell) {
-        let mut cmds = SimCmds::default();
-
-        if let Err(err) = self.context.world_mut().despawn_unit_at_cell(&mut cmds, self.context, unit_base_cell) {
+        if let Err(err) = self.context.world_mut().despawn_unit_at_cell(self.context, unit_base_cell) {
             despawn_error("Unit", &err);
         }
-
-        cmds.execute(self.context);
     }
 
     pub fn despawn_unit_with_id(&self, id: UnitId) {
@@ -754,35 +731,26 @@ impl<'game> Spawner<'game> {
             return cost_error(prop_tile_def);
         }
 
-        let mut cmds = SimCmds::default();
+        let result =
+            self.context.world_mut().try_spawn_prop_with_tile_def(self.context, prop_base_cell, prop_tile_def);
 
-        let result = self.context.world_mut().try_spawn_prop_with_tile_def(&mut cmds, self.context, prop_base_cell, prop_tile_def);
         if result.is_ok() {
             self.subtract_tile_cost(prop_tile_def);
         }
 
-        cmds.execute(self.context);
         result
     }
 
     pub fn despawn_prop(&self, prop: &mut Prop) {
-        let mut cmds = SimCmds::default();
-
-        if let Err(err) = self.context.world_mut().despawn_prop(&mut cmds, self.context, prop) {
+        if let Err(err) = self.context.world_mut().despawn_prop(self.context, prop) {
             despawn_error("Prop", &err);
         }
-
-        cmds.execute(self.context);
     }
 
     pub fn despawn_prop_at_cell(&self, prop_base_cell: Cell) {
-        let mut cmds = SimCmds::default();
-
-        if let Err(err) = self.context.world_mut().despawn_prop_at_cell(&mut cmds, self.context, prop_base_cell) {
+        if let Err(err) = self.context.world_mut().despawn_prop_at_cell(self.context, prop_base_cell) {
             despawn_error("Prop", &err);
         }
-
-        cmds.execute(self.context);
     }
 
     pub fn despawn_prop_with_id(&self, id: PropId) {

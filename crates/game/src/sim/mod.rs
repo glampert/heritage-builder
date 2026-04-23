@@ -26,7 +26,7 @@ use crate::{
 };
 
 pub mod commands;
-pub use commands::SimCmds;
+pub use commands::{SimCmds, SimCmdQueue};
 
 pub mod context;
 pub use context::SimContext;
@@ -72,7 +72,7 @@ impl Simulation {
             rng: RcMut::new(RandomGenerator::seed_from_u64(configs.sim.random_seed)),
             update_timer: UpdateTimer::new(configs.sim.update_frequency_secs),
             paused_update_timer: UpdateTimer::new(configs.sim.paused_update_frequency_secs),
-            cmds: RcMut::new(SimCmds::new()),
+            cmds: RcMut::new(commands::DeferredSimCmds::new(SIM_CMDS_CAPACITY)),
             task_manager: UnitTaskManager::new(UNIT_TASK_POOL_CAPACITY),
             treasury: GlobalTreasury::new(configs.sim.starting_gold_units),
             search: Search::with_grid_size(map_size_in_cells),
@@ -182,6 +182,8 @@ impl Simulation {
                     let context = context::make_update_context_mut!(self, world_update_delta_time_secs, tile_map, world);
                     self.cmds.execute(&context);
                 }
+
+                debug_assert!(self.cmds.is_empty());
             }
         }
     }
@@ -193,13 +195,9 @@ impl Simulation {
         systems: &mut GameSystems,
         tile_map: &mut TileMap,
     ) {
-        debug_assert!(self.cmds.is_empty());
-
         let context = context::make_world_reset_context!(self, tile_map, world);
-        world.reset(&mut self.cmds, &context);
+        world.reset(&context);
         systems.reset(engine);
-
-        self.cmds.execute(&context);
         self.cmds.reset();
     }
 
@@ -270,12 +268,10 @@ impl Simulation {
         engine: &mut Engine,
         systems: &mut GameSystems,
     ) {
-        debug_assert!(self.cmds.is_empty());
-
         let sim_context = context::make_update_context_mut!(self, context.delta_time_secs, context.tile_map, context.world);
-        systems.draw_debug_ui(engine, &mut self.cmds, &sim_context, context.ui_sys);
+        let mut cmds = commands::ImmediateModeSimCmds::new(&sim_context);
 
-        self.cmds.execute(&sim_context);
+        systems.draw_debug_ui(engine, &mut cmds, &sim_context, context.ui_sys);
     }
 
     // Generic GameObjects:
@@ -302,12 +298,10 @@ impl Simulation {
     }
 
     fn draw_building_debug_ui(&mut self, context: &mut GameUiContext, tile: &Tile, mode: DebugUiMode) {
-        debug_assert!(self.cmds.is_empty());
-
         let sim_context = context::make_update_context_mut!(self, context.delta_time_secs, context.tile_map, context.world);
-        context.world.draw_building_debug_ui(&mut self.cmds, &sim_context, context.ui_sys, tile, mode);
+        let mut cmds = commands::ImmediateModeSimCmds::new(&sim_context);
 
-        self.cmds.execute(&sim_context);
+        context.world.draw_building_debug_ui(&mut cmds, &sim_context, context.ui_sys, tile, mode);
     }
 
     // Units:
@@ -317,12 +311,10 @@ impl Simulation {
     }
 
     fn draw_unit_debug_ui(&mut self, context: &mut GameUiContext, tile: &Tile, mode: DebugUiMode) {
-        debug_assert!(self.cmds.is_empty());
-
         let sim_context = context::make_update_context_mut!(self, context.delta_time_secs, context.tile_map, context.world);
-        context.world.draw_unit_debug_ui(&mut self.cmds, &sim_context, context.ui_sys, tile, mode);
+        let mut cmds = commands::ImmediateModeSimCmds::new(&sim_context);
 
-        self.cmds.execute(&sim_context);
+        context.world.draw_unit_debug_ui(&mut cmds, &sim_context, context.ui_sys, tile, mode);
     }
 
     // Props:
@@ -332,12 +324,10 @@ impl Simulation {
     }
 
     fn draw_prop_debug_ui(&mut self, context: &mut GameUiContext, tile: &Tile, mode: DebugUiMode) {
-        debug_assert!(self.cmds.is_empty());
-
         let sim_context = context::make_update_context_mut!(self, context.delta_time_secs, context.tile_map, context.world);
-        context.world.draw_prop_debug_ui(&mut self.cmds, &sim_context, context.ui_sys, tile, mode);
+        let mut cmds = commands::ImmediateModeSimCmds::new(&sim_context);
 
-        self.cmds.execute(&sim_context);
+        context.world.draw_prop_debug_ui(&mut cmds, &sim_context, context.ui_sys, tile, mode);
     }
 }
 
@@ -351,6 +341,7 @@ impl Save for Simulation {
     }
 
     fn save(&self, state: &mut SaveStateImpl) -> SaveResult {
+        debug_assert!(self.cmds.is_empty(), "Shouldn't have any pending sim commands when saving!");
         state.save(self)
     }
 }

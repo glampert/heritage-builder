@@ -16,7 +16,7 @@ use common::{
 };
 use engine::log;
 
-use super::{GlobalTreasury, RandomGenerator};
+use super::{GlobalTreasury, RandomGenerator, SimCmds};
 use crate::{
     world::{World, object::GameObject},
     building::{Building, BuildingId, BuildingKind},
@@ -76,6 +76,9 @@ pub struct SimContext {
     // World resource stats:
     treasury: RawPtr<GlobalTreasury>,
 
+    // Deferred sim command queue:
+    cmds: RawPtr<SimCmds>,
+
     // Update delta time.
     delta_time_secs: Seconds,
 
@@ -99,6 +102,7 @@ impl SimContext {
         world: &mut World,
         tile_map: &mut TileMap,
         treasury: &mut GlobalTreasury,
+        cmds: &mut SimCmds,
         delta_time_secs: Seconds,
         is_world_teardown: bool,
         is_read_only: bool,
@@ -110,6 +114,7 @@ impl SimContext {
             world: RawPtr::from_ref(world),
             tile_map: RawPtr::from_ref(tile_map),
             treasury: RawPtr::from_ref(treasury),
+            cmds: RawPtr::from_ref(cmds),
             delta_time_secs,
             is_world_teardown,
             is_read_only,
@@ -548,6 +553,12 @@ impl SimContext {
     }
 
     #[inline(always)]
+    pub fn cmds_mut(&self) -> &mut SimCmds {
+        debug_assert!(!self.is_read_only, "Called mutable method on a read-only SimContext!");
+        self.cmds.mut_ref_cast()
+    }
+
+    #[inline(always)]
     pub fn world_mut(&self) -> &mut World {
         debug_assert!(!self.is_read_only, "Called mutable method on a read-only SimContext!");
         self.world.mut_ref_cast()
@@ -719,6 +730,7 @@ macro_rules! make_context {
             $world,
             $tile_map,
             &mut $self.treasury,
+            &mut $self.cmds,
             $delta_time_secs,
             $is_world_teardown,
             $is_read_only,

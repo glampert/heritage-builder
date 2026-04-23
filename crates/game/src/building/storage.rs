@@ -134,7 +134,7 @@ impl BuildingBehavior for StorageBuilding {
         self.config.unwrap()
     }
 
-    fn despawned(&mut self, _cmds: &mut SimCmds, _context: &BuildingContext) {
+    fn despawned(&mut self, _context: &BuildingContext) {
         // Nothing for now.
     }
 

@@ -20,7 +20,7 @@ use crate::{
     tile::{Tile, TileFlags, TileKind, TileMapLayerKind},
     unit::{Unit, navigation::UnitNavGoal},
     building::{BuildingKind, BuildingTileInfo, BuildingVisitResult},
-    sim::{SimCmds, SimContext},
+    sim::{SimCmds, SimCmdQueue, SimContext},
     world::object::GameObject,
 };
 

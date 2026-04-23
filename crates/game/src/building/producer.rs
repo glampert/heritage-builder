@@ -209,10 +209,10 @@ impl BuildingBehavior for ProducerBuilding {
         self.config.unwrap()
     }
 
-    fn despawned(&mut self, cmds: &mut SimCmds, _context: &BuildingContext) {
-        self.runner.discard_spawn_promise(cmds);
-        self.harvester.discard_spawn_promise(cmds);
-        self.ambient_patrol.discard_spawn_promise(cmds);
+    fn despawned(&mut self, context: &BuildingContext) {
+        self.runner.discard_spawn_promise(context.sim_ctx.cmds_mut());
+        self.harvester.discard_spawn_promise(context.sim_ctx.cmds_mut());
+        self.ambient_patrol.discard_spawn_promise(context.sim_ctx.cmds_mut());
     }
 
     fn update(&mut self, cmds: &mut SimCmds, context: &BuildingContext) {

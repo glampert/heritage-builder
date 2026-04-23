@@ -30,7 +30,7 @@ use crate::{
     prop::PropId,
     unit::{Unit, UnitId, navigation::UnitNavGoal},
     building::{Building, BuildingKindAndId, BuildingTileInfo},
-    sim::{SimCmds, SimContext, resources::ResourceKind},
+    sim::{SimCmds, SimCmdQueue, SimContext, resources::ResourceKind},
     world::object::GameObject,
 };
 

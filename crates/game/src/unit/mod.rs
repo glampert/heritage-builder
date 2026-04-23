@@ -18,6 +18,7 @@ use super::{
     building::{Building, BuildingKind},
     sim::{
         SimCmds,
+        SimCmdQueue,
         SimContext,
         commands::{SpawnPromise, SpawnQueryResult, SpawnReadyResult},
         resources::{ResourceKind, StockItem},
@@ -194,7 +195,7 @@ impl Unit {
         self.debug.set_show_popups(crate::debug::show_popup_messages());
     }
 
-    pub fn despawned(&mut self, _cmds: &mut SimCmds, context: &SimContext) {
+    pub fn despawned(&mut self, context: &SimContext) {
         debug_assert!(self.is_spawned());
 
         self.id = UnitId::default();
@@ -490,7 +491,6 @@ impl Unit {
     // Deferred spawn, pushes a command into the sim command queue.
     // Returns a promise that must be polled for completion.
     // Can be called while the world is locked for update.
-    #[must_use]
     pub fn try_spawn_with_task_deferred_promise<Task, F>(
         cmds: &mut SimCmds,
         context: &SimContext,

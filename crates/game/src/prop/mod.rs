@@ -14,6 +14,7 @@ use super::{
     unit::UnitId,
     sim::{
         SimCmds,
+        SimCmdQueue,
         SimContext,
         resources::{ResourceKind, StockItem},
     },
@@ -203,7 +204,7 @@ impl Prop {
         self.harvestable.initial_variation = tile.variation_index().try_into().unwrap();
     }
 
-    pub fn despawned(&mut self, _cmds: &mut SimCmds, _context: &SimContext) {
+    pub fn despawned(&mut self, _context: &SimContext) {
         debug_assert!(self.is_spawned());
 
         self.id = PropId::default();
