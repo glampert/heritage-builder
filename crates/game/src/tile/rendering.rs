@@ -2,12 +2,14 @@
 
 use bitflags::bitflags;
 use smallvec::SmallVec;
+
 use common::{
     Color,
     Vec2,
+    Rect,
     constants::*,
-    coords::{self, CellRange, IsoPointF32, WorldToScreenTransform},
     mem::RawPtr,
+    coords::{self, CellRange, IsoPointF32, WorldToScreenTransform},
 };
 use engine::{
     render::{RenderSystem, debug::DebugDraw},
@@ -15,7 +17,7 @@ use engine::{
 };
 
 use super::{Tile, TileDepthSortOverride, TileFlags, TileKind, TileMap, TileMapLayerKind, road};
-use crate::debug::{self};
+use crate::{debug, pathfind::{Node, NodeKind as PathNodeKind}};
 
 // ----------------------------------------------
 // Constants
@@ -23,7 +25,7 @@ use crate::debug::{self};
 
 pub const HIGHLIGHT_TILE_COLOR: Color = Color::new(0.76, 0.96, 0.39, 1.0); // light green
 pub const INVALID_TILE_COLOR:   Color = Color::new(0.95, 0.60, 0.60, 1.0); // light red
-pub const SELECTION_RECT_COLOR: Color = Color::new(0.7, 0.2, 0.2, 1.0);    // red-ish
+pub const SELECTION_RECT_COLOR: Color = Color::new(0.7,  0.2,  0.2,  1.0); // red-ish
 
 pub const DEFAULT_GRID_COLOR:   Color = Color::white();
 pub const HIGHLIGHT_GRID_COLOR: Color = Color::green();
@@ -69,6 +71,7 @@ bitflags! {
         const DrawUnitsTileDebug      = 1 << 12;
         const DrawVegetationTileDebug = 1 << 13;
         const DrawBlockersTileDebug   = 1 << 14;
+        const DrawSearchGraphDebug    = 1 << 15;
     }
 }
 
@@ -153,9 +156,11 @@ impl TileMapRenderer {
         self.draw_terrain_layer(render_sys, debug_draw, ui_sys, tile_map, transform, visible_range, flags);
 
         if flags.contains(TileMapRenderFlags::DrawGrid) && !flags.contains(TileMapRenderFlags::DrawGridIgnoreDepth) {
-            // Draw the grid now so that lines will be on top of the terrain but not on top
-            // of buildings.
+            // Draw the grid now so that lines will be on top of the terrain but not on top of buildings.
             self.draw_isometric_grid(render_sys, tile_map, transform, visible_range);
+        } else if flags.contains(TileMapRenderFlags::DrawSearchGraphDebug) {
+            // Base terrain search graph debug pass draws with respect to scene depth.
+            self.draw_search_graph_debug_grid(render_sys, tile_map, transform, visible_range, TileMapLayerKind::Terrain);
         }
 
         self.draw_objects_layer(render_sys, debug_draw, ui_sys, tile_map, transform, visible_range, flags);
@@ -164,6 +169,9 @@ impl TileMapRenderer {
             // Allow grid lines to draw later and effectively bypass the draw order
             // and appear on top of everything else (useful for debugging).
             self.draw_isometric_grid(render_sys, tile_map, transform, visible_range);
+        } else if flags.contains(TileMapRenderFlags::DrawSearchGraphDebug) {
+            // Search graph debug objects pass draws on top of everything else.
+            self.draw_search_graph_debug_grid(render_sys, tile_map, transform, visible_range, TileMapLayerKind::Objects);
         }
 
         self.update_stats();
@@ -197,13 +205,10 @@ impl TileMapRenderer {
                 // Terrain tiles size is constrained. Sanity check it:
                 debug_assert!(tile.is(TileKind::Terrain) && tile.logical_size() == BASE_TILE_SIZE_I32);
 
-                // As an optimization, skip drawing terrain tile
-                // if fully occluded by any object.
-                if cull_occluded_terrain {
-                    if let Some(object) = objects.try_tile(cell) {
-                        if object.has_flags(TileFlags::OccludesTerrain) {
-                            continue;
-                        }
+                // As an optimization, skip drawing terrain tile if fully occluded by any object.
+                if cull_occluded_terrain && let Some(object) = objects.try_tile(cell) {
+                    if object.has_flags(TileFlags::OccludesTerrain) {
+                        continue;
                     }
                 }
 
@@ -301,17 +306,7 @@ impl TileMapRenderer {
         transform: WorldToScreenTransform,
         visible_range: CellRange,
     ) {
-        // Returns true only if all points are offscreen.
         let viewport = render_sys.viewport();
-        let is_fully_offscreen = |points: &[Vec2; 4]| {
-            let mut offscreen_count = 0;
-            for pt in points {
-                if pt.x < viewport.min.x || pt.y < viewport.min.y || pt.x > viewport.max.x || pt.y > viewport.max.y {
-                    offscreen_count += 1;
-                }
-            }
-            offscreen_count == points.len()
-        };
 
         let terrain_layer = tile_map.layer(TileMapLayerKind::Terrain);
         let line_thickness = self.grid_line_thickness * transform.scaling;
@@ -321,12 +316,12 @@ impl TileMapRenderer {
 
         for cell in &visible_range {
             let points = coords::cell_to_screen_diamond_points(cell, BASE_TILE_SIZE_I32, transform);
-            if is_fully_offscreen(&points) {
+            if Self::is_fully_offscreen(&viewport, &points) {
                 continue; // Cull if fully offscreen.
             }
 
-            // Save highlighted grid cells for drawing at the end, so they display in the
-            // correct order.
+            // Save highlighted grid cells for drawing at the end,
+            // so they display in the correct order.
             if let Some(tile) = terrain_layer.try_tile(cell) {
                 if tile.has_flags(TileFlags::Highlighted) {
                     highlighted_cells.push(points);
@@ -351,6 +346,85 @@ impl TileMapRenderer {
         for points in &invalidated_cells {
             render_sys.draw_polyline_with_thickness(points, INVALID_GRID_COLOR, line_thickness, true);
         }
+    }
+
+    fn draw_search_graph_debug_grid(
+        &self,
+        render_sys: &mut RenderSystem,
+        tile_map: &TileMap,
+        transform: WorldToScreenTransform,
+        visible_range: CellRange,
+        layer_kind: TileMapLayerKind,
+    ) {
+        let graph = tile_map.graph();
+        let viewport = render_sys.viewport();
+
+        match layer_kind {
+            TileMapLayerKind::Terrain => {
+                let line_thickness = 2.0 * transform.scaling;
+                const OPACITY: f32 = 0.7;
+
+                for cell in &visible_range {
+                    let path_kind = graph.node_kind(Node::new(cell))
+                        .unwrap_or(PathNodeKind::empty());
+
+                    if path_kind.intersects(PathNodeKind::Water) {
+                        let points = coords::cell_to_screen_diamond_points(cell, BASE_TILE_SIZE_I32, transform);
+                        if Self::is_fully_offscreen(&viewport, &points) {
+                            continue; // Cull if fully offscreen.
+                        }
+
+                        let mut color = path_kind.debug_color();
+                        color.a = OPACITY;
+
+                        render_sys.draw_polyline_with_thickness(&points, color, line_thickness, true);
+                    }
+                }
+            }
+            TileMapLayerKind::Objects => {
+                let line_thickness = 5.0 * transform.scaling;
+                const OPACITY: f32 = 0.7;
+
+                let mut nodes = Vec::with_capacity((visible_range.width() * visible_range.height()) as usize);
+
+                for cell in &visible_range {
+                    let path_kind = graph.node_kind(Node::new(cell))
+                        .unwrap_or(PathNodeKind::empty());
+
+                    if !path_kind.intersects(PathNodeKind::EmptyLand | PathNodeKind::Water)
+                        || path_kind.intersects(PathNodeKind::BuildingAccess | PathNodeKind::SettlersSpawnPoint)
+                    {
+                        nodes.push((cell, path_kind));
+                    }
+                }
+
+                nodes.sort_by(|a, b| b.1.cmp(&a.1));
+
+                for (cell, path_kind) in nodes {
+                    let points = coords::cell_to_screen_diamond_points(cell, BASE_TILE_SIZE_I32, transform);
+                    if Self::is_fully_offscreen(&viewport, &points) {
+                        continue; // Cull if fully offscreen.
+                    }
+
+                    let mut color = path_kind.debug_color();
+                    color.a = OPACITY;
+
+                    render_sys.draw_polyline_with_thickness(&points, color, line_thickness, true);
+                }
+            }
+        }
+    }
+
+    // Returns true only if all points are offscreen.
+    #[inline]
+    fn is_fully_offscreen(viewport: &Rect, points: &[Vec2; 4]) -> bool {
+        let mut offscreen_count = 0;
+        for pt in points {
+            if pt.x < viewport.min.x || pt.y < viewport.min.y || pt.x > viewport.max.x || pt.y > viewport.max.y {
+                offscreen_count += 1;
+            }
+        }
+        offscreen_count == points.len()
     }
 
     fn draw_tile(

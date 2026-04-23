@@ -1277,8 +1277,8 @@ impl HouseUpgradeState {
         let prev_level_config = configs.find_house_level_config(prev_level);
 
         if let Some(new_tile_def) = context.find_tile_def(prev_level_config.tile_def_name_hash) {
-            // Try placing new. Should always be able to place a lower-tier (smaller or same
-            // size) house tile.
+            // Try placing new. Should always be able to place a lower-tier
+            // (smaller or same size) house tile.
             if self.try_replace_tile(cmds, context, self.level, prev_level, new_tile_def) {
                 self.level.downgrade();
                 debug_assert!(self.level == prev_level);

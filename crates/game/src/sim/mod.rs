@@ -3,6 +3,7 @@ use rand_pcg::Pcg64;
 use serde::{Deserialize, Serialize};
 
 use common::{
+    Size,
     mem::RcMut,
     coords::CellRange,
     time::{Seconds, UpdateTimer},
@@ -20,7 +21,7 @@ use super::{
 use crate::{
     save_context::*,
     debug::DebugUiMode,
-    pathfind::{Graph, Search},
+    pathfind::Search,
     tile::{Tile, TileKind, TileMap},
 };
 
@@ -57,7 +58,6 @@ pub struct Simulation {
     treasury: GlobalTreasury,
 
     // Path finding:
-    graph: Graph,
     #[serde(skip)]
     search: Search,
 
@@ -67,7 +67,7 @@ pub struct Simulation {
 }
 
 impl Simulation {
-    pub fn new(tile_map: &TileMap, configs: &GameConfigs) -> Self {
+    pub fn new(map_size_in_cells: Size, configs: &GameConfigs) -> Self {
         Self {
             rng: RcMut::new(RandomGenerator::seed_from_u64(configs.sim.random_seed)),
             update_timer: UpdateTimer::new(configs.sim.update_frequency_secs),
@@ -75,8 +75,7 @@ impl Simulation {
             cmds: RcMut::new(SimCmds::new()),
             task_manager: UnitTaskManager::new(UNIT_TASK_POOL_CAPACITY),
             treasury: GlobalTreasury::new(configs.sim.starting_gold_units),
-            graph: Graph::from_tile_map(tile_map),
-            search: Search::with_grid_size(tile_map.size_in_cells()),
+            search: Search::with_grid_size(map_size_in_cells),
             speed: Self::MIN_SIM_SPEED,
             is_paused: false,
         }
@@ -135,15 +134,6 @@ impl Simulation {
         tile_map: &mut TileMap,
         delta_time_secs: Seconds,
     ) {
-        // Rebuild the search graph once every frame so any
-        // add/remove tile changes will be reflected on the graph.
-        //
-        // FIXME (Perf): Should only rebuild the graph if the map was changed.
-        // This can get quite expensive for large maps. Maybe could update
-        // the graph on-the-spot when a change happens instead. Would avoid
-        // this full map update pass altogether.
-        self.graph.rebuild_from_tile_map(tile_map, true);
-
         // Paused simulation update.
         if self.is_paused {
             if self.paused_update_timer.tick(delta_time_secs).should_update() {
@@ -213,9 +203,9 @@ impl Simulation {
         self.cmds.reset();
     }
 
-    pub fn reset_search_graph(&mut self, tile_map: &TileMap) {
-        self.graph  = Graph::from_tile_map(tile_map);
-        self.search = Search::with_graph(&self.graph);
+    pub fn reset_search_graph(&mut self, tile_map: &mut TileMap) {
+        tile_map.reset_search_graph();
+        self.search = Search::with_graph(tile_map.graph());
     }
 
     // ----------------------
@@ -376,7 +366,7 @@ impl Load for Simulation {
     }
 
     fn post_load(&mut self, context: &mut PostLoadContext) {
-        self.search = Search::with_graph(&self.graph);
+        self.search = Search::with_graph(context.tile_map().graph());
         self.update_timer.post_load(context.configs().sim.update_frequency_secs);
         self.paused_update_timer.post_load(context.configs().sim.paused_update_frequency_secs);
         self.task_manager.post_load();

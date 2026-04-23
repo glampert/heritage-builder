@@ -65,8 +65,10 @@ pub struct DebugSettingsDevMenu {
     show_units_debug: bool,
     #[debug_ui(edit)]
     show_vegetation_debug: bool,
-    #[debug_ui(edit, separator)]
+    #[debug_ui(edit)]
     show_blocker_tiles_debug: bool,
+    #[debug_ui(edit, separator)]
+    show_search_graph_debug: bool,
 
     #[debug_ui(edit)]
     show_tile_bounds: bool,
@@ -183,6 +185,9 @@ impl DebugSettingsDevMenu {
         }
         if self.show_blocker_tiles_debug {
             flags.insert(TileMapRenderFlags::DrawBlockersTileDebug);
+        }
+        if self.show_search_graph_debug {
+            flags.insert(TileMapRenderFlags::DrawSearchGraphDebug);
         }
         flags
     }

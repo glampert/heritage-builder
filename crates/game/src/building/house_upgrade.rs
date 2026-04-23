@@ -165,12 +165,12 @@ pub fn try_replace_tile(
     }
 
     // And place the new one:
-    let new_tile = match tile_map.try_place_tile_in_layer(new_cell_range.start, TileMapLayerKind::Objects, target_tile_def) {
+    let new_tile = match tile_map.try_place_tile(new_cell_range.start, target_tile_def) {
         Ok(tile) => tile,
         Err(err) => {
             // Revert back to the previous tile if we've failed.
             let prev_tile =
-                match tile_map.try_place_tile_in_layer(prev_cell_range.start, TileMapLayerKind::Objects, prev_tile_def) {
+                match tile_map.try_place_tile(prev_cell_range.start, prev_tile_def) {
                     Ok(tile) => tile,
                     Err(err) => {
                         log::error!(
@@ -201,18 +201,10 @@ pub fn try_replace_tile(
     new_tile.set_game_object_handle(prev_game_object_handle);
     debug_assert!(new_tile.cell_range() == new_cell_range);
 
+    // Update cell range cached in the building & context:
     if new_cell_range != prev_cell_range {
-        // Update cell range cached in the building & context.
         dest_house.map_cells = new_cell_range;
         context.update_cell_range(new_cell_range);
-
-        // Update path finding graph:
-        for cell in &prev_cell_range {
-            context.sim_ctx.set_path_node_kind_mut(Node::new(cell), PathNodeKind::EmptyLand); // Traversable
-        }
-        for cell in &new_cell_range {
-            context.sim_ctx.set_path_node_kind_mut(Node::new(cell), PathNodeKind::Building); // Not Traversable
-        }
     }
 
     true

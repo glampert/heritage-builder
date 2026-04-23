@@ -64,7 +64,6 @@ pub struct SimContext {
     rng: RawPtr<RandomGenerator>,
 
     // Path finding:
-    graph: RawPtr<Graph>,
     search: RawPtr<Search>,
 
     // Unit tasks:
@@ -93,9 +92,8 @@ impl SimContext {
     // ----------------------
 
     #[inline]
-    pub fn new(
+    pub(super) fn new(
         rng: &mut RandomGenerator,
-        graph: &mut Graph,
         search: &mut Search,
         task_manager: &mut UnitTaskManager,
         world: &mut World,
@@ -107,7 +105,6 @@ impl SimContext {
     ) -> Self {
         Self {
             rng: RawPtr::from_ref(rng),
-            graph: RawPtr::from_ref(graph),
             search: RawPtr::from_ref(search),
             task_manager: RawPtr::from_ref(task_manager),
             world: RawPtr::from_ref(world),
@@ -166,7 +163,7 @@ impl SimContext {
 
     #[inline(always)]
     pub fn graph(&self) -> &Graph {
-        &self.graph
+        self.tile_map.graph()
     }
 
     #[inline(always)]
@@ -569,12 +566,6 @@ impl SimContext {
     }
 
     #[inline]
-    pub fn set_path_node_kind_mut(&self, node: Node, kind: PathNodeKind) {
-        debug_assert!(!self.is_read_only, "Called mutable method on a read-only SimContext!");
-        self.graph.mut_ref_cast().set_node_kind(node, kind);
-    }
-
-    #[inline]
     pub fn find_tile_mut(&self, cell: Cell, tile_kinds: TileKind) -> Option<&mut Tile> {
         debug_assert!(!self.is_read_only, "Called mutable method on a read-only SimContext!");
         self.tile_map_mut().find_tile_mut(cell, tile_kinds)
@@ -723,7 +714,6 @@ macro_rules! make_context {
     ($self:ident, $delta_time_secs:expr, $tile_map:expr, $world:expr, $is_world_teardown:expr, $is_read_only:expr) => {
         $crate::sim::context::SimContext::new(
             &mut $self.rng,
-            &mut $self.graph,
             &mut $self.search,
             &mut $self.task_manager,
             $world,

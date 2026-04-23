@@ -6,19 +6,19 @@ use std::{
     hash::{DefaultHasher, Hash, Hasher},
     ops::{Index, IndexMut},
 };
-
+use rand::Rng;
 use arrayvec::ArrayVec;
+use priority_queue::PriorityQueue;
+use serde::{Deserialize, Serialize};
+
 use common::{
     Size,
+    Color,
     bitflags_with_display,
     coords::{Cell, CellRange},
 };
 use engine::ui::UiSystem;
-use priority_queue::PriorityQueue;
-use rand::Rng;
-use serde::{Deserialize, Serialize};
-
-use crate::tile::{TileFlags, TileKind, TileMap};
+use crate::tile::{TileFlags, TileKind, TileMapLayerKind, TileMap};
 
 #[cfg(test)]
 mod tests;
@@ -34,14 +34,14 @@ mod tests;
 // ----------------------------------------------
 
 bitflags_with_display! {
-    #[derive(Copy, Clone, PartialEq, Eq, Serialize, Deserialize)]
+    #[derive(Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
     pub struct NodeKind: u16 {
         const EmptyLand          = 1 << 0;
         const Road               = 1 << 1;
         const Water              = 1 << 2;
         const Building           = 1 << 3;
-        const BuildingRoadLink   = 1 << 4;
-        const BuildingAccess     = 1 << 5;
+        const BuildingAccess     = 1 << 4;
+        const BuildingRoadLink   = 1 << 5;
         const VacantLot          = 1 << 6;
         const SettlersSpawnPoint = 1 << 7;
         const Rocks              = 1 << 8;
@@ -125,17 +125,15 @@ impl NodeKind {
 
     #[inline]
     pub fn is_flying_object_placeable(self) -> bool {
-        self.intersects(
-            Self::Water
-                | Self::EmptyLand
-                | Self::Road
-                | Self::VacantLot
-                | Self::SettlersSpawnPoint
-                | Self::Building
-                | Self::Vegetation
-                | Self::HarvestableTree
-                | Self::Rocks,
-        )
+        self.intersects(Self::Water
+                      | Self::EmptyLand
+                      | Self::Road
+                      | Self::VacantLot
+                      | Self::SettlersSpawnPoint
+                      | Self::Building
+                      | Self::Vegetation
+                      | Self::HarvestableTree
+                      | Self::Rocks)
     }
 
     #[inline]
@@ -164,6 +162,31 @@ impl NodeKind {
         node_kind_ui_checkbox!(ui, self, Rocks);
         node_kind_ui_checkbox!(ui, self, Vegetation);
         node_kind_ui_checkbox!(ui, self, HarvestableTree);
+    }
+
+    pub fn debug_color(self) -> Color {
+        macro_rules! map_to_color {
+            ($node_kind:ident, $flag_name:ident, $color:expr) => {
+                if $node_kind.intersects(NodeKind::$flag_name) {
+                    return $color;
+                }
+            };
+        }
+
+        // NOTE: If multiple flags are set, higher on this list will match first and win.
+        map_to_color!(self, BuildingAccess,     Color::new(0.50, 0.50, 0.50, 1.0)); // light gray
+        map_to_color!(self, BuildingRoadLink,   Color::new(1.00, 0.00, 0.00, 1.0)); // red
+        map_to_color!(self, Building,           Color::new(0.66, 0.23, 0.74, 1.0)); // purple
+        map_to_color!(self, VacantLot,          Color::new(0.00, 0.90, 0.90, 1.0)); // cyan
+        map_to_color!(self, SettlersSpawnPoint, Color::new(0.66, 0.13, 0.13, 1.0)); // dark red
+        map_to_color!(self, Rocks,              Color::new(0.20, 0.20, 0.20, 1.0)); // dark gray
+        map_to_color!(self, HarvestableTree,    Color::new(0.10, 0.85, 0.15, 1.0)); // green
+        map_to_color!(self, Vegetation,         Color::new(0.00, 0.45, 0.00, 1.0)); // dark green
+        map_to_color!(self, Road,               Color::new(0.60, 0.40, 0.30, 1.0)); // brown
+        map_to_color!(self, EmptyLand,          Color::new(0.82, 0.88, 0.07, 1.0)); // bright yellow
+        map_to_color!(self, Water,              Color::new(0.11, 0.39, 0.45, 1.0)); // dark blue
+
+        Color::black() // fallback: NodeKind::empty()
     }
 }
 
@@ -288,18 +311,26 @@ impl<T> IndexMut<Node> for Grid<T> {
 }
 
 // ----------------------------------------------
+// GraphUpdateAction
+// ----------------------------------------------
+
+pub enum GraphUpdateAction {
+    TilePlaced(CellRange, TileMapLayerKind, NodeKind),
+    TileCleared(CellRange, TileMapLayerKind, TileKind),
+    TileDefEdited(CellRange, TileMapLayerKind, TileKind, NodeKind),
+    TileMoved(CellRange, CellRange, TileMapLayerKind, TileKind, NodeKind),
+    TileFlagsChanged(CellRange, TileFlags, NodeKind),
+}
+
+// ----------------------------------------------
 // Graph
 // ----------------------------------------------
 
-// Our graph is just a 2D grid of Nodes (Cells).
-#[derive(Default, Serialize, Deserialize)]
+// Our search graph is just a 2D grid of Nodes (Cells).
+#[derive(Default)]
 pub struct Graph {
-    grid: Grid<NodeKind>, // WxH nodes.
-
-    #[serde(default)]
-    node_kinds: NodeKind, // Combined flags of all node kinds available.
-
-    #[serde(default)]
+    grid: Grid<NodeKind>,               // WxH nodes grid.
+    vacant_lots: usize,                 // VacantLot count.
     settlers_spawn_point: Option<Node>, // Cached SettlersSpawnPoint for fast query.
 }
 
@@ -309,7 +340,7 @@ impl Graph {
         let node_count = (grid_size.width * grid_size.height) as usize;
         Self {
             grid: Grid::new(grid_size, vec![NodeKind::empty(); node_count]),
-            node_kinds: NodeKind::empty(),
+            vacant_lots: 0,
             settlers_spawn_point: None,
         }
     }
@@ -317,96 +348,181 @@ impl Graph {
     pub fn with_node_kind(grid_size: Size, node_kind: NodeKind) -> Self {
         debug_assert!(grid_size.is_valid());
         debug_assert!(node_kind.is_single_kind(), "Expected single node kind flag!");
+        debug_assert!(!node_kind.intersects(NodeKind::SettlersSpawnPoint), "SettlersSpawnPoint cannot be specified here!");
+
         let node_count = (grid_size.width * grid_size.height) as usize;
-        Self { grid: Grid::new(grid_size, vec![node_kind; node_count]), node_kinds: node_kind, settlers_spawn_point: None }
+        Self {
+            grid: Grid::new(grid_size, vec![node_kind; node_count]),
+            vacant_lots: if node_kind.intersects(NodeKind::VacantLot) { node_count } else { 0 },
+            settlers_spawn_point: None,
+        }
     }
 
     pub fn with_node_grid(grid_size: Size, nodes: Vec<NodeKind>) -> Self {
         debug_assert!(grid_size.is_valid());
         debug_assert!(nodes.len() == (grid_size.width * grid_size.height) as usize);
 
-        let mut node_kinds = NodeKind::empty();
-        for &node_kind in &nodes {
-            node_kinds |= node_kind;
+        let mut vacant_lots = 0;
+        let mut settlers_spawn_point = None;
+
+        for y in 0..grid_size.height {
+            for x in 0..grid_size.width {
+                let node_kind = nodes[(x + (y * grid_size.width)) as usize];
+                if node_kind.intersects(NodeKind::VacantLot) {
+                    vacant_lots += 1;
+                }
+                if node_kind.intersects(NodeKind::SettlersSpawnPoint) {
+                    debug_assert!(settlers_spawn_point.is_none(), "Cannot have multiple SettlersSpawnPoint nodes!");
+                    settlers_spawn_point = Some(Node::new(Cell::new(x, y)));
+                }
+            }
         }
 
-        Self { grid: Grid::new(grid_size, nodes), node_kinds, settlers_spawn_point: None }
+        Self {
+            grid: Grid::new(grid_size, nodes),
+            vacant_lots,
+            settlers_spawn_point,
+        }
     }
 
     pub fn from_tile_map(tile_map: &TileMap) -> Self {
         if tile_map.size_in_cells().is_valid() {
             let mut graph = Self::with_empty_grid(tile_map.size_in_cells());
-            graph.rebuild_from_tile_map(tile_map, false);
+            graph.rebuild_from_tile_map(tile_map);
             graph
         } else {
             Self::default()
         }
     }
 
-    pub fn rebuild_from_tile_map(&mut self, tile_map: &TileMap, full_reset_to_empty: bool) {
-        // We assume size hasn't changed.
-        debug_assert!(self.grid_size() == tile_map.size_in_cells());
-
-        if full_reset_to_empty {
-            self.grid.fill(NodeKind::empty());
-        }
-
-        self.node_kinds = NodeKind::empty();
+    pub fn clear(&mut self) {
+        self.grid.fill(NodeKind::empty());
+        self.vacant_lots = 0;
         self.settlers_spawn_point = None;
+    }
 
-        // Construct our search graph from the terrain tiles.
-        // Any building or prop is considered non-traversable.
-        // Building tiles are handled specially since we need
-        // then for building searches.
+    pub fn rebuild_from_tile_map(&mut self, tile_map: &TileMap) {
+        // We assume size hasn't changed.
+        debug_assert_eq!(self.grid_size(), tile_map.size_in_cells());
+
+        // Terrain layer:
         tile_map.for_each_tile(TileKind::Terrain, |tile_map, tile| {
-            let node = Node::new(tile.base_cell());
-            let blocker_kinds = TileKind::Building | TileKind::Blocker | TileKind::Rocks | TileKind::Vegetation;
+            self.update(tile_map, GraphUpdateAction::TilePlaced(
+                tile.cell_range(),
+                TileMapLayerKind::Terrain,
+                tile.path_kind(),
+            ));
+        });
 
-            if let Some(blocker_tile) = tile_map.find_tile(node.cell, blocker_kinds) {
-                if blocker_tile.is(TileKind::Building | TileKind::Blocker) {
-                    // Buildings have a node kind for building searches, but they are not
-                    // traversable.
-                    self.set_node_kind_internal(node, NodeKind::Building);
-
-                    for_each_surrounding_cell(blocker_tile.cell_range(), |cell| {
-                        if !tile_map.has_tile(cell, blocker_kinds)
-                            && tile_map.is_cell_within_bounds(cell)
-                        {
-                            self.node_kinds |= NodeKind::BuildingAccess;
-                            self.grid[Node::new(cell)] |= NodeKind::BuildingAccess;
-                        }
-                        true
-                    });
-                } else if blocker_tile.is(TileKind::Rocks) {
-                    self.set_node_kind_internal(node, NodeKind::Rocks);
-                } else if blocker_tile.is(TileKind::Vegetation) {
-                    self.set_node_kind_internal(node, NodeKind::Vegetation);
-                    if blocker_tile.path_kind().intersects(NodeKind::HarvestableTree) {
-                        self.set_node_kind_internal(node, NodeKind::HarvestableTree);
-                    }
-                }
-                // Else leave it empty.
-            } else {
-                // If there's no blocker over this cell, set its path kind.
-                let mut path_kind = tile.path_kind();
-                if tile.has_flags(TileFlags::BuildingRoadLink) {
-                    path_kind |= NodeKind::BuildingRoadLink;
-                }
-                if tile.has_flags(TileFlags::SettlersSpawnPoint) {
-                    path_kind |= NodeKind::SettlersSpawnPoint;
-                }
-                self.set_node_kind_internal(node, path_kind);
-            }
+        // Objects layer:
+        tile_map.for_each_tile(Self::OBJECT_KINDS, |tile_map, tile| {
+            self.update(tile_map, GraphUpdateAction::TilePlaced(
+                tile.cell_range(),
+                TileMapLayerKind::Objects,
+                tile.path_kind(),
+            ));
         });
     }
 
-    #[inline(always)]
-    fn set_node_kind_internal(&mut self, node: Node, kind: NodeKind) {
-        self.node_kinds |= kind;
-        self.grid[node] = kind;
-        if kind.intersects(NodeKind::SettlersSpawnPoint) {
-            self.settlers_spawn_point = Some(node);
+    pub fn update(&mut self, tile_map: &TileMap, action: GraphUpdateAction) {
+        fn tile_placed(
+            graph: &mut Graph,
+            tile_map: &TileMap,
+            cell_range: CellRange,
+            layer_kind: TileMapLayerKind,
+            path_kind: NodeKind,
+        ) {
+            match layer_kind {
+                TileMapLayerKind::Terrain => {
+                    // Terrain tiles always occupy a single cell.
+                    graph.set_node_kind(Node::new(cell_range.start), path_kind);
+                }
+                TileMapLayerKind::Objects => {
+                    for cell in &cell_range {
+                        graph.set_node_kind(Node::new(cell), path_kind);
+                    }
+
+                    if path_kind.is_building() {
+                        debug_assert!(layer_kind == TileMapLayerKind::Objects);
+
+                        // Add surrounding building access nodes:
+                        for_each_surrounding_cell(cell_range, |cell| {
+                            if !tile_map.has_tile(cell, Graph::OBJECT_KINDS)
+                                && tile_map.is_cell_within_bounds(cell)
+                            {
+                                graph.append_node_kind_internal(Node::new(cell), NodeKind::BuildingAccess);
+                            }
+                            true // Continue to next.
+                        });
+                    }
+                }
+            }
         }
+
+        fn tile_cleared(
+            graph: &mut Graph,
+            tile_map: &TileMap,
+            cell_range: CellRange,
+            layer_kind: TileMapLayerKind,
+            tile_kind: TileKind,
+        ) {
+            debug_assert!(layer_kind == tile_kind.layer_kind());
+
+            match layer_kind {
+                TileMapLayerKind::Terrain => {
+                    // Terrain tiles always occupy a single cell.
+                    graph.set_node_kind(Node::new(cell_range.start), NodeKind::empty());
+                }
+                TileMapLayerKind::Objects => {
+                    for cell in &cell_range {
+                        graph.set_node_kind(Node::new(cell), NodeKind::EmptyLand);
+                    }
+
+                    if tile_kind.intersects(TileKind::Building | TileKind::Blocker) {
+                        // Clear surrounding building access nodes:
+                        for_each_surrounding_cell(cell_range, |cell| {
+                            if !tile_map.has_tile(cell, Graph::OBJECT_KINDS)
+                                && tile_map.is_cell_within_bounds(cell)
+                            {
+                                graph.clear_node_kind_internal(Node::new(cell), NodeKind::BuildingAccess);
+                            }
+                            true // Continue to next.
+                        });
+                    }
+                }
+            }
+        }
+
+        match action {
+            GraphUpdateAction::TilePlaced(cell_range, layer_kind, path_kind) => {
+                tile_placed(self, tile_map, cell_range, layer_kind, path_kind);
+            }
+            GraphUpdateAction::TileCleared(cell_range, layer_kind, tile_kind) => {
+                tile_cleared(self, tile_map, cell_range, layer_kind, tile_kind);
+            }
+            GraphUpdateAction::TileDefEdited(cell_range, layer_kind, tile_kind, path_kind) => {
+                // NOTE: Simulate TileCleared followed by TilePlaced to refresh the graph state.
+                tile_cleared(self, tile_map, cell_range, layer_kind, tile_kind);
+                tile_placed(self,  tile_map, cell_range, layer_kind, path_kind);
+            }
+            GraphUpdateAction::TileMoved(from_cells, to_cells, layer_kind, tile_kind, path_kind) => {
+                debug_assert!(from_cells.size() == to_cells.size());
+                // NOTE: Same as TileCleared(from_cells) followed by TilePlaced(to_cells).
+                tile_cleared(self, tile_map, from_cells, layer_kind, tile_kind);
+                tile_placed(self,  tile_map, to_cells,   layer_kind, path_kind);
+            }
+            GraphUpdateAction::TileFlagsChanged(cell_range, new_flags, path_kind) => {
+                if Self::tile_flags_affect_node_kind(new_flags) {
+                    self.set_node_kind(Node::new(cell_range.start), path_kind);
+                }
+            }
+        }
+    }
+
+    // True if the given TileFlags affect NodeKind flags and a Graph update should be performed.
+    #[inline]
+    pub fn tile_flags_affect_node_kind(flags: TileFlags) -> bool {
+        flags.intersects(TileFlags::BuildingRoadLink | TileFlags::SettlersSpawnPoint)
     }
 
     #[inline]
@@ -442,35 +558,79 @@ impl Graph {
         nodes
     }
 
-    #[inline] // Linear search on the whole grid. May be expensive!
-    pub fn find_node_with_kinds(&self, kinds: NodeKind) -> Option<Node> {
-        if !self.has_node_with_kinds(kinds) {
-            return None;
-        }
-
-        let width = self.grid.size.width;
-        let height = self.grid.size.height;
-
-        for y in 0..height {
-            for x in 0..width {
-                let node = Node::new(Cell::new(x, y));
-                if self.grid[node].intersects(kinds) {
-                    return Some(node);
-                }
-            }
-        }
-
-        None
-    }
-
     #[inline]
-    pub fn has_node_with_kinds(&self, kinds: NodeKind) -> bool {
-        self.node_kinds.intersects(kinds)
+    pub fn has_vacant_lot_nodes(&self) -> bool {
+        self.vacant_lots != 0
     }
 
     #[inline]
     pub fn settlers_spawn_point(&self) -> Option<Node> {
         self.settlers_spawn_point
+    }
+
+    #[inline]
+    pub fn memory_usage_estimate(&self) -> usize {
+        self.grid.nodes.len() * std::mem::size_of::<NodeKind>()
+    }
+
+    // ----------------------
+    // Internal:
+    // ----------------------
+
+    // We construct our search graph from the terrain tiles.
+    // Any building or prop is considered non-traversable.
+    // Building tiles are handled specially since we need
+    // then for building searches.
+    const OBJECT_KINDS: TileKind = TileKind::from_bits_retain(
+        TileKind::Building.bits() |
+        TileKind::Blocker.bits()  |
+        TileKind::Rocks.bits()    |
+        TileKind::Vegetation.bits()
+    );
+
+    #[inline]
+    fn set_node_kind_internal(&mut self, node: Node, kind: NodeKind) {
+        self.grid[node] = kind; // NOTE: Override previous.
+
+        if kind.intersects(NodeKind::VacantLot) {
+            self.vacant_lots += 1;
+        }
+
+        // We can have a single SettlersSpawnPoint node.
+        if kind.intersects(NodeKind::SettlersSpawnPoint) {
+            debug_assert!(self.settlers_spawn_point.is_none(), "Cannot have multiple SettlersSpawnPoint nodes!");
+            self.settlers_spawn_point = Some(node);
+        }
+    }
+
+    #[inline]
+    fn append_node_kind_internal(&mut self, node: Node, kind: NodeKind) {
+        self.grid[node] |= kind; // NOTE: OR instead of assigning.
+
+        if kind.intersects(NodeKind::VacantLot) {
+            self.vacant_lots += 1;
+        }
+
+        // We can have a single SettlersSpawnPoint node.
+        if kind.intersects(NodeKind::SettlersSpawnPoint) {
+            debug_assert!(self.settlers_spawn_point.is_none(), "Cannot have multiple SettlersSpawnPoint nodes!");
+            self.settlers_spawn_point = Some(node);
+        }
+    }
+
+    #[inline]
+    fn clear_node_kind_internal(&mut self, node: Node, kind: NodeKind) {
+        self.grid[node].remove(kind); // NOTE: Clear flag.
+
+        if kind.intersects(NodeKind::VacantLot) {
+            debug_assert!(self.vacant_lots != 0, "Search Graph does not contain any VacantLot nodes!");
+            self.vacant_lots -= 1;
+        }
+
+        // We can have a single SettlersSpawnPoint node.
+        if kind.intersects(NodeKind::SettlersSpawnPoint) {
+            self.settlers_spawn_point = None;
+        }
     }
 }
 
@@ -520,8 +680,8 @@ impl Heuristic for AStarUniformCostHeuristic {
 pub trait Bias {
     #[inline]
     fn cost_for(&self, _start: Node, _node: Node) -> f32 {
-        0.0
-    } // unbiased default.
+        0.0 // unbiased default.
+    }
 }
 
 pub struct Unbiased;
@@ -742,7 +902,11 @@ pub struct Search {
 
 impl Search {
     pub fn with_graph(graph: &Graph) -> Self {
-        if graph.grid_size().is_valid() { Self::with_grid_size(graph.grid_size()) } else { Self::default() }
+        if graph.grid_size().is_valid() {
+            Self::with_grid_size(graph.grid_size())
+        } else {
+            Self::default()
+        }
     }
 
     pub fn with_grid_size(grid_size: Size) -> Self {

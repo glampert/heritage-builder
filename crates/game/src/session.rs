@@ -377,7 +377,7 @@ impl GameSession {
         let mut world = World::new();
         let tile_map = Self::create_tile_map(&mut world, load_map_setting);
 
-        let sim = Simulation::new(&tile_map, configs);
+        let sim = Simulation::new(tile_map.size_in_cells(), configs);
         let systems = GameSystems::register_all();
 
         let camera = Camera::new(viewport_size, tile_map.size_in_cells(), configs.camera.zoom, configs.camera.offset);
@@ -450,7 +450,7 @@ impl GameSession {
             self.camera.set_map_size_in_cells(self.tile_map.size_in_cells());
         }
 
-        self.sim.reset_search_graph(&self.tile_map);
+        self.sim.reset_search_graph(&mut self.tile_map);
         self.camera.center();
     }
 

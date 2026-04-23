@@ -3,8 +3,7 @@ use game::{
     world::World,
     config::GameConfigs,
     unit::config::UnitConfigKey,
-    debug::utils::DebugSimContextBuilder,
-    sim::commands::{SimCmds, SpawnQueryResult, SpawnReadyResult},
+    sim::{Simulation, SimContext, SimCmds, commands::{SpawnQueryResult, SpawnReadyResult}},
     tile::{
         TileMap, TileMapLayerKind, placement::TilePlacementErrReason,
         sets::{TileSets, TERRAIN_LAND_CATEGORY, OBJECTS_BUILDINGS_CATEGORY, OBJECTS_VEGETATION_CATEGORY},
@@ -28,6 +27,7 @@ fn main() {
 struct TestEnvironment {
     tile_map: TileMap,
     world: World,
+    sim: Simulation,
 }
 
 impl TestEnvironment {
@@ -37,24 +37,18 @@ impl TestEnvironment {
         Self {
             tile_map: TileMap::new(Self::MAP_SIZE_IN_CELLS, None),
             world: World::new(),
+            sim: Simulation::new(Self::MAP_SIZE_IN_CELLS, GameConfigs::get()),
         }
     }
 
-    fn context_builder(&mut self) -> DebugSimContextBuilder<'_> {
-        DebugSimContextBuilder::new(
-            &mut self.world,
-            &mut self.tile_map,
-            Self::MAP_SIZE_IN_CELLS,
-            GameConfigs::get(),
-        )
+    fn new_sim_context(&mut self) -> SimContext {
+        self.sim.new_sim_context(0.0, &mut self.tile_map, &mut self.world)
     }
 }
 
 fn test_sim_cmd_queue_spawning() {
     let mut test_env = TestEnvironment::new();
-    let mut context_builder = test_env.context_builder();
-    let context = context_builder.new_sim_context();
-
+    let context = test_env.new_sim_context();
     let mut cmds = SimCmds::default();
 
     // Push spawn commands:
@@ -176,9 +170,7 @@ fn test_sim_cmd_queue_spawning() {
 
 fn test_sim_cmd_queue_spawn_failure() {
     let mut test_env = TestEnvironment::new();
-    let mut context_builder = test_env.context_builder();
-    let context = context_builder.new_sim_context();
-
+    let context = test_env.new_sim_context();
     let mut cmds = SimCmds::default();
 
     let mut unit_promise = cmds.spawn_unit_with_config_promise(
@@ -215,9 +207,7 @@ fn test_sim_cmd_queue_spawn_failure() {
 
 fn test_sim_cmd_queue_spawning_with_callbacks() {
     let mut test_env = TestEnvironment::new();
-    let mut context_builder = test_env.context_builder();
-    let context = context_builder.new_sim_context();
-
+    let context = test_env.new_sim_context();
     let mut cmds = SimCmds::default();
 
     struct SpawnResults {

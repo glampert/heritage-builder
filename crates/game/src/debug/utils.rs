@@ -1,5 +1,3 @@
-use rand::SeedableRng;
-
 use common::{
     Color,
     Rect,
@@ -16,12 +14,10 @@ use engine::{
 
 use crate::{
     GameLoopStats,
+    sim::Simulation,
     config::GameConfigs,
     cheats::{self, Cheats},
-    pathfind::{Graph, Search},
-    unit::task::UnitTaskManager,
     world::{World, object::{Spawner, SpawnerResult}},
-    sim::{RandomGenerator, SimContext, resources::GlobalTreasury},
     tile::{
         self,
         Tile,
@@ -419,50 +415,6 @@ pub fn refresh_cached_tile_visuals(tile_map: &mut TileMap) {
 }
 
 // ----------------------------------------------
-// DebugSimContextBuilder
-// ----------------------------------------------
-
-// Dummy SimContext for unit tests/debug.
-pub struct DebugSimContextBuilder<'game> {
-    rng: RandomGenerator,
-    graph: Graph,
-    search: Search,
-    task_manager: UnitTaskManager,
-    treasury: GlobalTreasury,
-    world: &'game mut World,
-    tile_map: &'game mut TileMap,
-}
-
-impl<'game> DebugSimContextBuilder<'game> {
-    pub fn new(world: &'game mut World, tile_map: &'game mut TileMap, map_size_in_cells: Size, configs: &GameConfigs) -> Self {
-        Self {
-            rng: RandomGenerator::seed_from_u64(configs.sim.random_seed),
-            graph: Graph::with_empty_grid(map_size_in_cells),
-            search: Search::with_grid_size(map_size_in_cells),
-            task_manager: UnitTaskManager::default(),
-            treasury: GlobalTreasury::new(configs.sim.starting_gold_units),
-            world,
-            tile_map,
-        }
-    }
-
-    pub fn new_sim_context(&mut self) -> SimContext {
-        SimContext::new(
-            &mut self.rng,
-            &mut self.graph,
-            &mut self.search,
-            &mut self.task_manager,
-            self.world,
-            self.tile_map,
-            &mut self.treasury,
-            0.0,
-            false,
-            false,
-        )
-    }
-}
-
-// ----------------------------------------------
 // Built-in preset test TileMaps
 // ----------------------------------------------
 
@@ -672,11 +624,12 @@ mod preset_maps {
         debug_assert!(preset.building_tiles.len() == tile_count);
 
         let configs = GameConfigs::get();
-
         let mut tile_map = TileMap::new(map_size_in_cells, None);
-        let mut builder = DebugSimContextBuilder::new(world, &mut tile_map, map_size_in_cells, configs);
 
-        let context = builder.new_sim_context();
+        // Create a temp Simulation instance so we can create a SimContext to spawn the terrain and building tiles.
+        let mut sim = Simulation::new(map_size_in_cells, configs);
+        let context = sim.new_sim_context(0.0, &mut tile_map, world);
+
         let mut spawner = Spawner::new(&context);
         spawner.set_subtract_tile_cost(false);
 

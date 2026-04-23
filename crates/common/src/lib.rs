@@ -349,7 +349,12 @@ impl Color {
 
     #[inline]
     pub fn clamp(&self) -> Self {
-        Self { r: self.r.clamp(0.0, 1.0), g: self.g.clamp(0.0, 1.0), b: self.b.clamp(0.0, 1.0), a: self.a.clamp(0.0, 1.0) }
+        Self {
+            r: self.r.clamp(0.0, 1.0),
+            g: self.g.clamp(0.0, 1.0),
+            b: self.b.clamp(0.0, 1.0),
+            a: self.a.clamp(0.0, 1.0),
+        }
     }
 }
 

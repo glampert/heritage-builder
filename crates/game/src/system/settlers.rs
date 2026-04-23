@@ -15,7 +15,7 @@ use crate::{
     building::BuildingKind,
     config::GameConfigs,
     debug::utils::UpdateTimerDebugUi,
-    pathfind::{Node, NodeKind as PathNodeKind},
+    pathfind::Node,
     save_context::PostLoadContext,
     sim::{SimCmds, SimContext},
     tile::{
@@ -127,7 +127,7 @@ impl Default for SettlersSpawnSystem {
 impl SettlersSpawnSystem {
     #[inline]
     fn has_vacant_lots(context: &SimContext) -> bool {
-        context.graph().has_node_with_kinds(PathNodeKind::VacantLot)
+        context.graph().has_vacant_lot_nodes()
     }
 
     #[inline]

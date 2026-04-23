@@ -25,7 +25,7 @@ use minimap::Minimap;
 use selection::TileSelection;
 use placement::{Clearing, Placement, TileClearingErr, TilePlacementErr, TilePlacementOp};
 use sets::{SerializableTileDefHandle, TileAnimSet, TileDef, TileIconSprite, TileSets, TileTexInfo};
-use crate::{pathfind::NodeKind as PathNodeKind, save_context::*};
+use crate::{pathfind::{NodeKind as PathNodeKind, Graph, GraphUpdateAction}, save_context::*};
 
 pub mod minimap;
 pub mod placement;
@@ -869,12 +869,21 @@ impl Tile {
 
     #[inline]
     pub fn path_kind(&self) -> PathNodeKind {
-        self.archetype.tile_def().path_kind
+        let mut path_kind = self.tile_def().path_kind;
+
+        path_kind.set(PathNodeKind::BuildingRoadLink,   self.has_flags(TileFlags::BuildingRoadLink));
+        path_kind.set(PathNodeKind::SettlersSpawnPoint, self.has_flags(TileFlags::SettlersSpawnPoint));
+
+        path_kind.set(PathNodeKind::Building,   self.is(TileKind::Building | TileKind::Blocker));
+        path_kind.set(PathNodeKind::Rocks,      self.is(TileKind::Rocks));
+        path_kind.set(PathNodeKind::Vegetation, self.is(TileKind::Vegetation));
+
+        path_kind
     }
 
     #[inline]
     pub fn is_harvestable_prop(&self) -> bool {
-        self.is(TileKind::Prop) && self.archetype.tile_def().is_harvestable_prop()
+        self.is(TileKind::Prop) && self.tile_def().is_harvestable_prop()
     }
 
     #[inline]
@@ -2097,6 +2106,19 @@ pub type TilePlacedCallback   = fn(&mut Tile, bool);
 pub type RemovingTileCallback = fn(&mut Tile);
 pub type TileMapResetCallback = fn(&mut TileMap);
 
+#[derive(Default)]
+struct TileMapEditorCallbacks {
+    // Called *after* a tile is placed with the new tile instance.
+    on_tile_placed: Option<TilePlacedCallback>,
+
+    // Called *before* the tile is removed with the instance about to be removed.
+    on_removing_tile: Option<RemovingTileCallback>,
+
+    // Called *after* the TileMap has been reset. Any existing tile references/cells
+    // are invalidated.
+    on_map_reset: Option<TileMapResetCallback>,
+}
+
 // ----------------------------------------------
 // TileMap
 // ----------------------------------------------
@@ -2118,21 +2140,57 @@ pub struct TileMap {
     #[serde(skip)]
     minimap: Minimap,
 
-    // NOTE: TileMap callbacks are *not* serialized. These must be manually
-    // reset on the user's post_load() after deserialization.
-
-    // Called *after* a tile is placed with the new tile instance.
+    // Not serialized. Search Graph is reconstructed on post_load().
+    // Must be kept in sync with the tile map cell grid state.
     #[serde(skip)]
-    on_tile_placed_callback: Option<TilePlacedCallback>,
+    graph: Graph,
 
-    // Called *before* the tile is removed with the instance about to be removed.
+    // NOTE: TileMap editor callbacks are *not* serialized. These must be
+    // manually reset on the user's post_load() after deserialization.
     #[serde(skip)]
-    on_removing_tile_callback: Option<RemovingTileCallback>,
+    callbacks: TileMapEditorCallbacks,
+}
 
-    // Called *after* the TileMap has been reset. Any existing tile references/cells
-    // are invalidated.
-    #[serde(skip)]
-    on_map_reset_callback: Option<TileMapResetCallback>,
+macro_rules! update_search_graph {
+    // NOTE: Units are skipped here because Units do not alter the search graph.
+    ($self:expr, $graph:expr, $cells:expr, $layer_kind:expr, $tile_kind:expr, TileCleared) => {{
+        if !$tile_kind.intersects(TileKind::Unit) {
+            $graph.update($self, GraphUpdateAction::TileCleared($cells, $layer_kind, $tile_kind));
+        }
+    }};
+    ($self:expr, $graph:expr, $tile:expr, TilePlaced) => {{
+        if !$tile.is(TileKind::Unit) {
+            let cells      = $tile.cell_range();
+            let layer_kind = $tile.layer_kind();
+            let path_kind  = $tile.path_kind();
+            $graph.update($self, GraphUpdateAction::TilePlaced(cells, layer_kind, path_kind));
+        }
+    }};
+    ($self:expr, $graph:expr, $tile:expr, TileDefEdited) => {{
+        if !$tile.is(TileKind::Unit) {
+            let cells      = $tile.cell_range();
+            let layer_kind = $tile.layer_kind();
+            let tile_kind  = $tile.kind();
+            let path_kind  = $tile.path_kind();
+            $graph.update($self, GraphUpdateAction::TileDefEdited(cells, layer_kind, tile_kind, path_kind));
+        }
+    }};
+    ($self:expr, $graph:expr, $tile:expr, TileMoved($from_cells:expr)) => {{
+        if !$tile.is(TileKind::Unit) {
+            let to_cells   = $tile.cell_range();
+            let layer_kind = $tile.layer_kind();
+            let tile_kind  = $tile.kind();
+            let path_kind  = $tile.path_kind();
+            $graph.update($self, GraphUpdateAction::TileMoved($from_cells, to_cells, layer_kind, tile_kind, path_kind));
+        }
+    }};
+    ($self:expr, $graph:expr, $tile:expr, $new_flags:expr, TileFlagsChanged) => {{
+        if !$tile.is(TileKind::Unit) && Graph::tile_flags_affect_node_kind($new_flags) {
+            let cells     = $tile.cell_range();
+            let path_kind = $tile.path_kind();
+            $graph.update($self, GraphUpdateAction::TileFlagsChanged(cells, $new_flags, path_kind));
+        }
+    }};
 }
 
 impl TileMap {
@@ -2145,9 +2203,8 @@ impl TileMap {
             locked: false,
             playable_area: TileMapPlayableArea::with_inner_rect_margin(size_in_cells),
             minimap: Minimap::new(size_in_cells),
-            on_tile_placed_callback: None,
-            on_removing_tile_callback: None,
-            on_map_reset_callback: None,
+            graph: Graph::default(),
+            callbacks: TileMapEditorCallbacks::default(),
         };
 
         tile_map.reset(fill_with_def, None);
@@ -2167,7 +2224,7 @@ impl TileMap {
         self.layers.clear();
         self.minimap.reset(fill_with_def, new_map_size);
 
-        if let Some(callback) = self.on_map_reset_callback {
+        if let Some(callback) = self.callbacks.on_map_reset {
             callback(self);
         }
 
@@ -2195,10 +2252,12 @@ impl TileMap {
                 ALLOW_STACKING,
             ));
         }
+
+        self.graph = Graph::from_tile_map(self);
     }
 
     pub fn memory_usage_estimate(&self) -> usize {
-        let mut estimate = self.minimap.memory_usage_estimate();
+        let mut estimate = self.minimap.memory_usage_estimate() + self.graph.memory_usage_estimate();
         for layer in &self.layers {
             estimate += layer.memory_usage_estimate();
         }
@@ -2377,8 +2436,12 @@ impl TileMap {
     // No-op if no matching tile exists.
     #[inline]
     pub fn set_tile_flags(&mut self, cell: Cell, tile_kinds: TileKind, flags: TileFlags, value: bool) {
+        let mut graph = RawPtr::from_ref(&self.graph);
+
         if let Some(tile) = self.find_tile_mut(cell, tile_kinds) {
             tile.set_flags(flags, value);
+
+            update_search_graph!(self, graph, tile, flags, TileFlagsChanged);
         }
     }
 
@@ -2391,7 +2454,12 @@ impl TileMap {
         flags: TileFlags,
         value: bool,
     ) {
-        self.tile_at_index_mut(index, layer_kind).set_flags(flags, value);
+        let mut graph = RawPtr::from_ref(&self.graph);
+
+        let tile = self.tile_at_index_mut(index, layer_kind);
+        tile.set_flags(flags, value);
+
+        update_search_graph!(self, graph, tile, flags, TileFlagsChanged);
     }
 
     #[inline]
@@ -2462,6 +2530,25 @@ impl TileMap {
             let objects_layer = self.layer_mut(TileMapLayerKind::Objects);
             objects_layer.update_anims(visible_range, delta_time_secs);
         }
+    }
+
+    // ----------------------
+    // Search Graph:
+    // ----------------------
+
+    #[inline]
+    pub fn graph(&self) -> &Graph {
+        &self.graph
+    }
+
+    #[inline]
+    pub fn graph_mut(&mut self) -> &mut Graph {
+        &mut self.graph
+    }
+
+    #[inline]
+    pub fn reset_search_graph(&mut self) {
+        self.graph = Graph::from_tile_map(self);
     }
 
     // ----------------------
@@ -2558,27 +2645,27 @@ impl TileMap {
         // Prevent placing objects/props over non-walkable terrain tiles (water/roads, etc).
         placement::internal::is_placement_on_terrain_valid(self.layers(), target_cell, tile_def_to_place)?;
 
+        // HACK: Deal with borrow conflicts.
+        // Neither minimap nor graph overlap with the Tile instance returned by try_place_tile_in_layer below.
+        let tile_map    = RawPtr::from_ptr(self);
         let mut minimap = RawPtr::from_ref(&self.minimap);
+        let mut graph   = RawPtr::from_ref(&self.graph);
 
-        let tile_placed_callback = self.on_tile_placed_callback;
-        let layer = self.layer_mut(layer_kind);
-        let prev_pool_capacity = layer.pool_capacity();
+        let tile_placed_callback = self.callbacks.on_tile_placed;
+        let prev_pool_capacity = self.layer(layer_kind).pool_capacity();
 
-        let result = placement::internal::try_place_tile_in_layer(layer, target_cell, tile_def_to_place).map(
-            |(tile, new_pool_capacity)| {
+        placement::internal::try_place_tile_in_layer(self.layer_mut(layer_kind), target_cell, tile_def_to_place)
+            .map(|(tile, new_pool_capacity)| {
                 if let Some(callback) = tile_placed_callback {
                     let did_reallocate = new_pool_capacity != prev_pool_capacity;
                     callback(tile, did_reallocate);
                 }
+
+                minimap.place_tile(target_cell, tile_def_to_place);
+                update_search_graph!(&tile_map, graph, tile, TilePlaced);
+
                 tile
-            },
-        );
-
-        if result.is_ok() {
-            minimap.place_tile(target_cell, tile_def_to_place);
-        }
-
-        result
+            })
     }
 
     pub fn try_clear_tile_from_layer(
@@ -2592,22 +2679,29 @@ impl TileMap {
             return placement::err!(Clearing::EmptyMap, "Map has no layers!");
         }
 
-        if let Some(callback) = self.on_removing_tile_callback {
+        if let Some(callback) = self.callbacks.on_removing_tile {
             if let Some(tile) = self.try_tile_from_layer_mut(target_cell, layer_kind) {
                 callback(tile);
             }
         }
 
-        let result = placement::internal::try_clear_tile_from_layer(self.layer_mut(layer_kind), target_cell);
+        let mut graph = RawPtr::from_ref(&self.graph);
+
+        let result =
+            placement::internal::try_clear_tile_from_layer(self.layer_mut(layer_kind), target_cell);
 
         if let Ok(tile_def) = result {
             self.minimap.clear_tile(target_cell, tile_def);
+
+            let tile_cells = tile_def.cell_range(target_cell);
+            let tile_kind  = tile_def.kind();
+
+            update_search_graph!(self, graph, tile_cells, layer_kind, tile_kind, TileCleared);
         }
 
         result.map(|_| ())
     }
 
-    #[inline]
     pub fn try_clear_tile_from_layer_by_index(
         &mut self,
         target_index: TilePoolIndex,
@@ -2621,18 +2715,25 @@ impl TileMap {
             return placement::err!(Clearing::EmptyMap, "Map has no layers!");
         }
 
-        if let Some(callback) = self.on_removing_tile_callback {
+        if let Some(callback) = self.callbacks.on_removing_tile {
             let layer = self.layer_mut(layer_kind);
             if layer.try_tile_mut(target_cell).is_some() {
                 callback(&mut layer[target_index]);
             }
         }
 
+        let mut graph = RawPtr::from_ref(&self.graph);
+
         let result =
             placement::internal::try_clear_tile_from_layer_by_index(self.layer_mut(layer_kind), target_index, target_cell);
 
         if let Ok(tile_def) = result {
             self.minimap.clear_tile(target_cell, tile_def);
+
+            let tile_cells = tile_def.cell_range(target_cell);
+            let tile_kind  = tile_def.kind();
+
+            update_search_graph!(self, graph, tile_cells, layer_kind, tile_kind, TileCleared);
         }
 
         result.map(|_| ())
@@ -2669,21 +2770,23 @@ impl TileMap {
     }
 
     // Move tile from one cell to another if destination is free.
-    pub fn try_move_tile(&mut self, from: Cell, to: Cell, layer_kind: TileMapLayerKind) -> bool {
+    pub fn try_move_tile(&mut self, from_cell: Cell, to_cell: Cell, layer_kind: TileMapLayerKind) -> bool {
         debug_assert!(!self.is_locked(), "Cannot mutate locked TileMap!");
 
         const ALLOW_STACKING: bool = false;
-        if !self.can_move_tile(from, to, layer_kind, ALLOW_STACKING) {
+        if !self.can_move_tile(from_cell, to_cell, layer_kind, ALLOW_STACKING) {
             return false;
         }
 
+        let mut graph = RawPtr::from_ref(&self.graph);
+
         let layer = self.layer_mut(layer_kind);
 
-        let from_cell_index = layer.pool.cell_to_index(from);
+        let from_cell_index = layer.pool.cell_to_index(from_cell);
         let from_slab_index = layer.pool.cell_index_to_slab(from_cell_index);
         debug_assert!(from_slab_index != INVALID_TILE_INDEX); // Can't be empty, we have the 'from' tile.
 
-        let to_cell_index = layer.pool.cell_to_index(to);
+        let to_cell_index = layer.pool.cell_to_index(to_cell);
         let to_slab_index = layer.pool.cell_index_to_slab(to_cell_index);
         debug_assert!(to_slab_index == INVALID_TILE_INDEX); // Should be empty, we've checked the destination is free.
 
@@ -2693,7 +2796,11 @@ impl TileMap {
 
         // Update cached tile states:
         let tile = &mut layer[from_slab_index];
-        tile.set_base_cell(to);
+        let from_cell_range = tile.cell_range();
+
+        tile.set_base_cell(to_cell);
+
+        update_search_graph!(self, graph, tile, TileMoved(from_cell_range));
 
         true
     }
@@ -2713,6 +2820,8 @@ impl TileMap {
         if !self.can_move_tile(from_cell, to_cell, layer_kind, ALLOW_STACKING) {
             return false;
         }
+
+        let mut graph = RawPtr::from_ref(&self.graph);
 
         let layer = self.layer_mut(layer_kind);
 
@@ -2764,11 +2873,16 @@ impl TileMap {
 
             layer.pool.cell_to_slab_idx[to_cell_index.as_usize()] = from_idx;
 
+            // Update cached tile states:
             let from_tile = &mut layer[from_idx];
-            from_tile.set_base_cell(to_cell);
-            from_tile.next_index = to_slab_index;
+            let from_cell_range = from_tile.cell_range();
 
+            from_tile.set_base_cell(to_cell);
+
+            from_tile.next_index = to_slab_index;
             debug_assert!(from_tile.self_index == from_idx);
+
+            update_search_graph!(self, graph, from_tile, TileMoved(from_cell_range));
         }
 
         true
@@ -2793,7 +2907,6 @@ impl TileMap {
         }
 
         let map_size_in_cells = self.size_in_cells();
-
         selection.update(self.layers_mut(), map_size_in_cells, cursor_screen_pos, transform, placement_op);
     }
 
@@ -2831,7 +2944,6 @@ impl TileMap {
         // Find topmost layer tile under the target cell.
         for layer_kind in TileMapLayerKind::iter().rev() {
             let layer = self.layer(layer_kind);
-
             let target_cell = layer.find_exact_cell_for_point(cursor_screen_pos, transform);
 
             let tile = layer.try_tile(target_cell);
@@ -2847,19 +2959,23 @@ impl TileMap {
     // ----------------------
 
     pub fn set_tile_placed_callback(&mut self, callback: Option<TilePlacedCallback>) {
-        self.on_tile_placed_callback = callback;
+        self.callbacks.on_tile_placed = callback;
     }
 
     pub fn set_removing_tile_callback(&mut self, callback: Option<RemovingTileCallback>) {
-        self.on_removing_tile_callback = callback;
+        self.callbacks.on_removing_tile = callback;
     }
 
     pub fn set_map_reset_callback(&mut self, callback: Option<TileMapResetCallback>) {
-        self.on_map_reset_callback = callback;
+        self.callbacks.on_map_reset = callback;
     }
 
     pub fn on_tile_def_edited(&mut self, tile: &mut Tile) {
+        let mut graph = RawPtr::from_ref(&self.graph);
+
         tile.on_tile_def_edited();
+
+        update_search_graph!(self, graph, tile, TileDefEdited);
     }
 }
 
@@ -2903,20 +3019,21 @@ impl Load for TileMap {
         debug_assert!(self.size_in_cells >= Size::zero());
 
         // These are *not* serialized, so should be unset.
-        // TileMap users have to reassign these on their post_load().
-        debug_assert!(self.on_tile_placed_callback.is_none());
-        debug_assert!(self.on_removing_tile_callback.is_none());
-        debug_assert!(self.on_map_reset_callback.is_none());
-
-        if self.size_in_cells.is_valid() {
-            // If not loading into an empty map.
-            self.playable_area = TileMapPlayableArea::with_inner_rect_margin(self.size_in_cells);
-        }
+        // TileMap users have to reassign them on their post_load().
+        debug_assert!(self.callbacks.on_tile_placed.is_none());
+        debug_assert!(self.callbacks.on_removing_tile.is_none());
+        debug_assert!(self.callbacks.on_map_reset.is_none());
 
         for layer in &mut self.layers {
             layer.post_load();
         }
 
         self.minimap.post_load(context);
+
+        // If not loading into an empty map.
+        if self.size_in_cells.is_valid() {
+            self.playable_area = TileMapPlayableArea::with_inner_rect_margin(self.size_in_cells);
+            self.graph = Graph::from_tile_map(self);
+        }
     }
 }
