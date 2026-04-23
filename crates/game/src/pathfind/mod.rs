@@ -236,6 +236,12 @@ impl Node {
     }
 }
 
+impl std::fmt::Display for Node {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        write!(f, "{}", self.cell)
+    }
+}
+
 // ----------------------------------------------
 // Grid
 // ----------------------------------------------
@@ -475,7 +481,15 @@ impl Graph {
                 }
                 TileMapLayerKind::Objects => {
                     for cell in &cell_range {
-                        graph.set_node_kind(Node::new(cell), NodeKind::EmptyLand);
+                        // Restore the underlying Terrain's path_kind so the
+                        // node reflects the true tile-map state (e.g. a
+                        // VacantLot/Road/Water terrain re-emerges when the
+                        // Object above is removed).
+                        let terrain_kind = tile_map
+                            .find_tile(cell, TileKind::Terrain)
+                            .map(|t| t.path_kind())
+                            .unwrap_or(NodeKind::EmptyLand);
+                        graph.set_node_kind(Node::new(cell), terrain_kind);
                     }
 
                     if tile_kind.intersects(TileKind::Building | TileKind::Blocker) {
@@ -564,6 +578,11 @@ impl Graph {
     }
 
     #[inline]
+    pub fn vacant_lot_nodes_count(&self) -> usize {
+        self.vacant_lots
+    }
+
+    #[inline]
     pub fn settlers_spawn_point(&self) -> Option<Node> {
         self.settlers_spawn_point
     }
@@ -590,10 +609,18 @@ impl Graph {
 
     #[inline]
     fn set_node_kind_internal(&mut self, node: Node, kind: NodeKind) {
+        let had_vacant_lot = self.grid[node].intersects(NodeKind::VacantLot);
+        let has_vacant_lot = kind.intersects(NodeKind::VacantLot);
+
         self.grid[node] = kind; // NOTE: Override previous.
 
-        if kind.intersects(NodeKind::VacantLot) {
-            self.vacant_lots += 1;
+        match (had_vacant_lot, has_vacant_lot) {
+            (false, true) => self.vacant_lots += 1,
+            (true, false) => {
+                debug_assert!(self.vacant_lots != 0, "Search Graph does not contain any VacantLot nodes!");
+                self.vacant_lots -= 1;
+            }
+            _ => {}
         }
 
         // We can have a single SettlersSpawnPoint node.
@@ -605,9 +632,11 @@ impl Graph {
 
     #[inline]
     fn append_node_kind_internal(&mut self, node: Node, kind: NodeKind) {
+        let had_vacant_lot = self.grid[node].intersects(NodeKind::VacantLot);
+
         self.grid[node] |= kind; // NOTE: OR instead of assigning.
 
-        if kind.intersects(NodeKind::VacantLot) {
+        if kind.intersects(NodeKind::VacantLot) && !had_vacant_lot {
             self.vacant_lots += 1;
         }
 
@@ -620,9 +649,11 @@ impl Graph {
 
     #[inline]
     fn clear_node_kind_internal(&mut self, node: Node, kind: NodeKind) {
+        let had_vacant_lot = self.grid[node].intersects(NodeKind::VacantLot);
+
         self.grid[node].remove(kind); // NOTE: Clear flag.
 
-        if kind.intersects(NodeKind::VacantLot) {
+        if kind.intersects(NodeKind::VacantLot) && had_vacant_lot {
             debug_assert!(self.vacant_lots != 0, "Search Graph does not contain any VacantLot nodes!");
             self.vacant_lots -= 1;
         }

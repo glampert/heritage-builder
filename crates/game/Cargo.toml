@@ -62,3 +62,7 @@ rayon          = { version = "1.11.0", optional = true }
 [[test]]
 name    = "sim_cmds"
 harness = false
+
+[[test]]
+name    = "search_graph"
+harness = false

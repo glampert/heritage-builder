@@ -13,7 +13,7 @@ use common::{
 };
 use engine::{
     render::{RenderSystem, debug::DebugDraw},
-    ui::UiSystem,
+    ui::{self, UiSystem},
 };
 
 use super::{Tile, TileDepthSortOverride, TileFlags, TileKind, TileMap, TileMapLayerKind, road};
@@ -160,7 +160,7 @@ impl TileMapRenderer {
             self.draw_isometric_grid(render_sys, tile_map, transform, visible_range);
         } else if flags.contains(TileMapRenderFlags::DrawSearchGraphDebug) {
             // Base terrain search graph debug pass draws with respect to scene depth.
-            self.draw_search_graph_debug_grid(render_sys, tile_map, transform, visible_range, TileMapLayerKind::Terrain);
+            self.draw_search_graph_debug_grid(render_sys, ui_sys, tile_map, transform, visible_range, TileMapLayerKind::Terrain);
         }
 
         self.draw_objects_layer(render_sys, debug_draw, ui_sys, tile_map, transform, visible_range, flags);
@@ -171,7 +171,7 @@ impl TileMapRenderer {
             self.draw_isometric_grid(render_sys, tile_map, transform, visible_range);
         } else if flags.contains(TileMapRenderFlags::DrawSearchGraphDebug) {
             // Search graph debug objects pass draws on top of everything else.
-            self.draw_search_graph_debug_grid(render_sys, tile_map, transform, visible_range, TileMapLayerKind::Objects);
+            self.draw_search_graph_debug_grid(render_sys, ui_sys, tile_map, transform, visible_range, TileMapLayerKind::Objects);
         }
 
         self.update_stats();
@@ -351,6 +351,7 @@ impl TileMapRenderer {
     fn draw_search_graph_debug_grid(
         &self,
         render_sys: &mut RenderSystem,
+        ui_sys: &UiSystem,
         tile_map: &TileMap,
         transform: WorldToScreenTransform,
         visible_range: CellRange,
@@ -380,6 +381,12 @@ impl TileMapRenderer {
                         render_sys.draw_polyline_with_thickness(&points, color, line_thickness, true);
                     }
                 }
+
+                let ui = ui_sys.ui();
+                ui::overlay(ui, "Search Graph", Vec2::new(10.0, 30.0), 0.7, || {
+                    ui.text(format!("Vacant Lots: {}", graph.vacant_lot_nodes_count()));
+                    ui.text(format!("Settlers Spawn Point: {}", graph.settlers_spawn_point().unwrap_or(Node::invalid())));
+                });
             }
             TileMapLayerKind::Objects => {
                 let line_thickness = 5.0 * transform.scaling;
