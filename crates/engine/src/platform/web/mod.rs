@@ -7,6 +7,12 @@ mod libc;
 
 mod crash_report;
 
+pub struct DebugBacktrace; // No-op.
+impl DebugBacktrace {
+    pub fn capture() -> Self { Self }
+    pub fn to_string(&self, _skip_top: usize, _skip_bottom: usize) -> String { String::new() }
+}
+
 pub fn initialize_crash_report(set_panic_hook: bool) {
     crash_report::initialize(set_panic_hook);
 }

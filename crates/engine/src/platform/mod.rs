@@ -9,12 +9,12 @@ use crate::{file_sys::paths, log};
 #[cfg(feature = "desktop")]
 mod desktop;
 #[cfg(feature = "desktop")]
-pub use desktop::{initialize_crash_report, is_main_thread, run_environment, set_main_thread};
+pub use desktop::{initialize_crash_report, set_main_thread, is_main_thread, run_environment, DebugBacktrace};
 
 #[cfg(feature = "web")]
 mod web;
 #[cfg(feature = "web")]
-pub use web::{initialize_crash_report, is_main_thread, run_environment, set_main_thread};
+pub use web::{initialize_crash_report, set_main_thread, is_main_thread, run_environment, DebugBacktrace};
 
 // ----------------------------------------------
 // Build Profile / App Bundle Detection
