@@ -1,57 +1,34 @@
-use common::{mem::SingleThreadStatic, coords::Cell, Size};
+use common::{mem::SingleThreadStatic, coords::Cell};
 use game::{
-    world::World,
-    config::GameConfigs,
     unit::config::UnitConfigKey,
     sim::{
-        Simulation, SimContext, SimCmds, SimCmdQueue,
+        SimCmds, SimCmdQueue,
         commands::{self, SpawnQueryResult, SpawnReadyResult},
     },
     tile::{
-        TileMap, TileMapLayerKind, placement::TilePlacementErrReason,
+        TileMapLayerKind, placement::TilePlacementErrReason,
         sets::{TileSets, TERRAIN_LAND_CATEGORY, OBJECTS_BUILDINGS_CATEGORY, OBJECTS_VEGETATION_CATEGORY},
     },
 };
 
 mod test_utils;
+use test_utils::TestEnvironment;
 
 // ----------------------------------------------
 // Integration tests for SimCmds
 // ----------------------------------------------
 
 fn main() {
-    test_utils::run_tests(&[
+    test_utils::run_tests("Sim Cmds", &[
         test_utils::test_fn!(test_sim_cmd_queue_spawning),
         test_utils::test_fn!(test_sim_cmd_queue_spawn_failure),
         test_utils::test_fn!(test_sim_cmd_queue_spawning_with_callbacks),
     ]);
 }
 
-struct TestEnvironment {
-    tile_map: TileMap,
-    world: World,
-    sim: Simulation,
-}
-
-impl TestEnvironment {
-    const MAP_SIZE_IN_CELLS: Size = Size::new(32, 32);
-
-    fn new() -> Self {
-        Self {
-            tile_map: TileMap::new(Self::MAP_SIZE_IN_CELLS, None),
-            world: World::new(),
-            sim: Simulation::new(Self::MAP_SIZE_IN_CELLS, GameConfigs::get()),
-        }
-    }
-
-    fn new_sim_context(&mut self) -> SimContext {
-        self.sim.new_sim_context(0.0, &mut self.tile_map, &mut self.world)
-    }
-}
-
 fn test_sim_cmd_queue_spawning() {
     let mut test_env = TestEnvironment::new();
-    let context = test_env.new_sim_context();
+    let context = test_env.new_sim_context(0.0);
 
     let mut cmds = SimCmds::default(); // Defaults to deferred.
     assert!(cmds.is_deferred());
@@ -175,7 +152,7 @@ fn test_sim_cmd_queue_spawning() {
 
 fn test_sim_cmd_queue_spawn_failure() {
     let mut test_env = TestEnvironment::new();
-    let context = test_env.new_sim_context();
+    let context = test_env.new_sim_context(0.0);
 
     let mut cmds = SimCmds::default(); // Defaults to deferred.
     assert!(cmds.is_deferred());
@@ -214,7 +191,7 @@ fn test_sim_cmd_queue_spawn_failure() {
 
 fn test_sim_cmd_queue_spawning_with_callbacks() {
     let mut test_env = TestEnvironment::new();
-    let context = test_env.new_sim_context();
+    let context = test_env.new_sim_context(0.0);
 
     let mut cmds = SimCmds::default(); // Defaults to deferred.
     assert!(cmds.is_deferred());

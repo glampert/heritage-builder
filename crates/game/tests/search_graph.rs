@@ -4,11 +4,23 @@ use game::{
     tile::{
         TileKind, TileMap, TileMapLayerKind,
         placement::{TileClearingErr, TilePlacementErr},
-        sets::{TileDef, TileSets, TERRAIN_LAND_CATEGORY, OBJECTS_BUILDINGS_CATEGORY},
     },
 };
 
 mod test_utils;
+
+// ----------------------------------------------
+// Integration tests for pathfind::Graph
+// ----------------------------------------------
+
+fn main() {
+    test_utils::run_tests("Search Graph", &[
+        test_utils::test_fn!(test_vacant_lot_lifecycle),
+        test_utils::test_fn!(test_vacant_lot_obstructed_by_building),
+        test_utils::test_fn!(test_non_vacant_terrain_restored_on_object_clear),
+        test_utils::test_fn!(test_vacant_lot_counter_no_underflow),
+    ]);
+}
 
 trait OkOrPanic<T> {
     fn ok_or_panic(self, msg: &str) -> T;
@@ -26,39 +38,14 @@ impl<T> OkOrPanic<T> for Result<T, TileClearingErr> {
     }
 }
 
-// ----------------------------------------------
-// Integration tests for pathfind::Graph
-// ----------------------------------------------
-
-fn main() {
-    test_utils::run_tests(&[
-        test_utils::test_fn!(test_vacant_lot_lifecycle),
-        test_utils::test_fn!(test_vacant_lot_obstructed_by_building),
-        test_utils::test_fn!(test_non_vacant_terrain_restored_on_object_clear),
-        test_utils::test_fn!(test_vacant_lot_counter_no_underflow),
-    ]);
-}
-
 const MAP_SIZE_IN_CELLS: Size = Size::new(32, 32);
-
-fn find_terrain_def(name: &str) -> &'static TileDef {
-    TileSets::get()
-        .find_tile_def_by_name(TileMapLayerKind::Terrain, TERRAIN_LAND_CATEGORY.string, name)
-        .unwrap_or_else(|| panic!("Missing terrain tile def '{name}'"))
-}
-
-fn find_building_def(name: &str) -> &'static TileDef {
-    TileSets::get()
-        .find_tile_def_by_name(TileMapLayerKind::Objects, OBJECTS_BUILDINGS_CATEGORY.string, name)
-        .unwrap_or_else(|| panic!("Missing building tile def '{name}'"))
-}
 
 // Place a VacantLot, confirm the graph reports it; clear the VacantLot,
 // confirm the graph no longer reports it. Guards the basic diff-based
 // counter path (terrain-only, no Object overlay).
 fn test_vacant_lot_lifecycle() {
     let mut tile_map = TileMap::new(MAP_SIZE_IN_CELLS, None);
-    let vacant_lot = find_terrain_def("vacant_lot");
+    let vacant_lot = test_utils::find_terrain_def("vacant_lot");
     let cell = Cell::new(5, 5);
 
     assert!(!tile_map.graph().has_vacant_lot_nodes());
@@ -77,8 +64,8 @@ fn test_vacant_lot_lifecycle() {
 // again report the lot as available once the building is removed.
 fn test_vacant_lot_obstructed_by_building() {
     let mut tile_map = TileMap::new(MAP_SIZE_IN_CELLS, None);
-    let vacant_lot = find_terrain_def("vacant_lot");
-    let house = find_building_def("house0");
+    let vacant_lot = test_utils::find_terrain_def("vacant_lot");
+    let house = test_utils::find_building_def("house0");
     let cell = Cell::new(7, 7);
 
     tile_map.try_place_tile(cell, vacant_lot).ok_or_panic("place vacant_lot");
@@ -106,7 +93,7 @@ fn test_vacant_lot_obstructed_by_building() {
 // link logic; here we just assert path_kind restoration on clear).
 fn test_non_vacant_terrain_restored_on_object_clear() {
     let mut tile_map = TileMap::new(MAP_SIZE_IN_CELLS, None);
-    let dirt_road = find_terrain_def("dirt_road");
+    let dirt_road = test_utils::find_terrain_def("dirt_road");
     let cell = Cell::new(3, 3);
 
     tile_map.try_place_tile(cell, dirt_road).ok_or_panic("place dirt_road");
@@ -120,8 +107,8 @@ fn test_non_vacant_terrain_restored_on_object_clear() {
     // Now exercise Object-layer clear path under a VacantLot and confirm
     // the Terrain's VacantLot flag is restored (not silently replaced
     // with EmptyLand like the old behavior).
-    let vacant_lot = find_terrain_def("vacant_lot");
-    let house = find_building_def("house0");
+    let vacant_lot = test_utils::find_terrain_def("vacant_lot");
+    let house = test_utils::find_building_def("house0");
     let lot_cell = Cell::new(9, 9);
 
     tile_map.try_place_tile(lot_cell, vacant_lot).ok_or_panic("place vacant_lot");
@@ -140,7 +127,7 @@ fn test_non_vacant_terrain_restored_on_object_clear() {
 // counter ever went negative.
 fn test_vacant_lot_counter_no_underflow() {
     let mut tile_map = TileMap::new(MAP_SIZE_IN_CELLS, None);
-    let vacant_lot = find_terrain_def("vacant_lot");
+    let vacant_lot = test_utils::find_terrain_def("vacant_lot");
     let cell = Cell::new(1, 1);
 
     for _ in 0..5 {
