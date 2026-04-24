@@ -1012,7 +1012,25 @@ fn test_graph_settlers_spawn_point() {
     ];
     let mut graph = Graph::with_node_grid(Size::new(4, 4), nodes);
 
-    assert_eq!(graph.settlers_spawn_point(), Some(Node::new(Cell::new(2, 2))));
+    let first = Node::new(Cell::new(2, 2));
+    assert_eq!(graph.settlers_spawn_point(), Some(first));
+
+    // Overwriting the spawn cell with a non-spawn kind clears the cached spawn point.
+    graph.set_node_kind(first, NodeKind::Road);
+    assert_eq!(graph.settlers_spawn_point(), None);
+    assert!(!graph.node_kind(first).unwrap().intersects(NodeKind::SettlersSpawnPoint));
+
+    // Re-setting the same cell restores spawn tracking.
+    graph.set_node_kind(first, NodeKind::SettlersSpawnPoint);
+    assert_eq!(graph.settlers_spawn_point(), Some(first));
+
+    // Moving the spawn to a different cell updates the cache and strips
+    // the SettlersSpawnPoint flag from the old cell (single-spawn invariant).
+    let second = Node::new(Cell::new(1, 1));
+    graph.set_node_kind(second, NodeKind::SettlersSpawnPoint);
+    assert_eq!(graph.settlers_spawn_point(), Some(second));
+    assert!(!graph.node_kind(first).unwrap().intersects(NodeKind::SettlersSpawnPoint));
+    assert!(graph.node_kind(second).unwrap().intersects(NodeKind::SettlersSpawnPoint));
 
     // Graph::clear resets the cached spawn point.
     graph.clear();

@@ -609,8 +609,11 @@ impl Graph {
 
     #[inline]
     fn set_node_kind_internal(&mut self, node: Node, kind: NodeKind) {
-        let had_vacant_lot = self.grid[node].intersects(NodeKind::VacantLot);
-        let has_vacant_lot = kind.intersects(NodeKind::VacantLot);
+        let had_vacant_lot  = self.grid[node].intersects(NodeKind::VacantLot);
+        let has_vacant_lot  = kind.intersects(NodeKind::VacantLot);
+
+        let had_spawn_point = self.grid[node].intersects(NodeKind::SettlersSpawnPoint);
+        let has_spawn_point = kind.intersects(NodeKind::SettlersSpawnPoint);
 
         self.grid[node] = kind; // NOTE: Override previous.
 
@@ -623,10 +626,19 @@ impl Graph {
             _ => {}
         }
 
-        // We can have a single SettlersSpawnPoint node.
-        if kind.intersects(NodeKind::SettlersSpawnPoint) {
-            debug_assert!(self.settlers_spawn_point.is_none(), "Cannot have multiple SettlersSpawnPoint nodes!");
+        // We maintain the invariant of a single SettlersSpawnPoint node in the graph.
+        if has_spawn_point {
+            // Moving the spawn: strip the flag from the previous cell so the grid
+            // state matches the single-spawn invariant.
+            if let Some(prev) = self.settlers_spawn_point {
+                if prev != node {
+                    self.grid[prev].remove(NodeKind::SettlersSpawnPoint);
+                }
+            }
             self.settlers_spawn_point = Some(node);
+        } else if had_spawn_point {
+            // Overwrote the current spawn cell with a non-spawn kind.
+            self.settlers_spawn_point = None;
         }
     }
 
