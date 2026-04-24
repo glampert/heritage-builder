@@ -195,8 +195,10 @@ impl Simulation {
         systems: &mut GameSystems,
         tile_map: &mut TileMap,
     ) {
-        let context = context::make_world_reset_context!(self, tile_map, world);
-        world.reset(&context);
+        {
+            let context = context::make_world_reset_context!(self, tile_map, world);
+            world.reset(&context);
+        }
         systems.reset(engine);
         self.cmds.reset();
     }
