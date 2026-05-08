@@ -9,19 +9,19 @@ use engine::{
 };
 use proc_macros::DrawDebugUi;
 
+use super::{log_viewer, preset_maps};
 use crate::{
-    GameLoop,
-    building::config::BuildingConfigs,
     cheats,
+    GameLoop,
     config::GameConfigs,
-    debug,
+    ui_context::GameUiContext,
+    unit::config::UnitConfigs,
+    building::config::BuildingConfigs,
     prop::config::PropConfigs,
     tile::{
         rendering::{MAX_GRID_LINE_THICKNESS, MIN_GRID_LINE_THICKNESS, TileMapRenderFlags},
         sets::PresetTiles,
     },
-    ui_context::GameUiContext,
-    unit::config::UnitConfigs,
 };
 
 // ----------------------------------------------
@@ -195,7 +195,7 @@ impl DebugSettingsDevMenu {
     pub fn draw(
         &mut self,
         context: &mut GameUiContext,
-        log_viewer: &debug::log_viewer::LogViewer,
+        log_viewer: &log_viewer::LogViewer,
         enable_dev_tile_inspector: &mut bool,
     ) {
         let ui = context.ui_sys.ui();
@@ -227,7 +227,7 @@ impl DebugSettingsDevMenu {
         self.draw_child_windows(context);
     }
 
-    fn menu_bar_text(&self, context: &mut GameUiContext, log_viewer: &debug::log_viewer::LogViewer) {
+    fn menu_bar_text(&self, context: &mut GameUiContext, log_viewer: &log_viewer::LogViewer) {
         let ui = context.ui_sys.ui();
 
         // Log error/warning count:
@@ -297,7 +297,7 @@ impl DebugSettingsDevMenu {
         // Map presets:
         ui.separator();
 
-        let preset_tile_map_names = debug::utils::preset_tile_maps_list();
+        let preset_tile_map_names = preset_maps::preset_tile_maps_list();
 
         if ui.combo_simple_string("Preset Map", &mut self.preset_tile_map_number, &preset_tile_map_names) {
             self.preset_tile_map_number = self.preset_tile_map_number.min(preset_tile_map_names.len());

@@ -5,6 +5,7 @@ use common::{coords::Cell, time::Seconds, Size};
 use engine::{log, render::texture::TextureCache};
 use game::{
     cheats,
+    debug::preset_maps,
     config::GameConfigs,
     world::World,
     prop::{config::PropConfigs, PropId},
@@ -125,6 +126,18 @@ impl TestEnvironment {
             tile_map: TileMap::new(size, None),
             world: World::new(),
             sim: Simulation::new(size, GameConfigs::get()),
+        }
+    }
+
+    pub fn with_preset_map(preset_number: usize) -> Self {
+        let mut world = World::new();
+        let tile_map = preset_maps::create_preset_tile_map(&mut world, preset_number);
+        let map_size_in_cells = tile_map.size_in_cells();
+
+        Self {
+            tile_map,
+            world,
+            sim: Simulation::new(map_size_in_cells, GameConfigs::get()),
         }
     }
 

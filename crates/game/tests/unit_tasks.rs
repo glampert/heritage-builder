@@ -51,17 +51,20 @@ fn main() {
         // UnitTaskDeliverToStorage
         test_utils::test_fn!(test_deliver_transfers_resources_to_storage),
         test_utils::test_fn!(test_deliver_producer_fallback_when_no_storage),
+        test_utils::test_fn!(test_delivery_path_blocked_recovery),
 
         // UnitTaskFetchFromStorage
         test_utils::test_fn!(test_fetch_picks_up_and_returns_with_resource),
+        test_utils::test_fn!(test_fetch_path_blocked_recovery),
+        test_utils::test_fn!(test_fetch_path_blocked_no_recovery),
         test_utils::test_fn!(test_fetch_recovers_by_shipping_back_to_storage_when_origin_unreachable),
         test_utils::test_fn!(test_fetch_recovers_when_unload_at_origin_fails),
         test_utils::test_fn!(test_fetch_recovers_when_origin_destroyed_mid_return),
 
         // UnitTaskHarvestWood
+        test_utils::test_fn!(test_harvest_traverses_off_road),
         test_utils::test_fn!(test_harvest_claims_tree_then_returns_wood),
         test_utils::test_fn!(test_harvest_reroutes_when_tree_already_claimed),
-        test_utils::test_fn!(test_harvest_traverses_off_road),
 
         // UnitTaskSettler
         test_utils::test_fn!(test_settler_prefers_vacant_lot),
@@ -112,18 +115,18 @@ fn despawn_test_callback(
     _unit_prev_goal: Option<UnitNavGoal>,
     extra_args: &[UnitTaskArg],
 ) {
-    *DESPAWN_CALLBACK_FIRED.as_mut() = true;
-    *DESPAWN_CALLBACK_PREV_CELL.as_mut() = unit_prev_cell;
+    DESPAWN_CALLBACK_FIRED.set(true);
+    DESPAWN_CALLBACK_PREV_CELL.set(unit_prev_cell);
     if let Some(arg) = extra_args.first() {
-        *DESPAWN_CALLBACK_ARG.as_mut() = arg.as_i32();
+        DESPAWN_CALLBACK_ARG.set(arg.as_i32());
     }
 }
 
 // Reset the shared callback observables for a fresh assertion.
 fn reset_despawn_callback_observables() {
-    *DESPAWN_CALLBACK_FIRED.as_mut() = false;
-    *DESPAWN_CALLBACK_ARG.as_mut() = 0;
-    *DESPAWN_CALLBACK_PREV_CELL.as_mut() = Cell::invalid();
+    DESPAWN_CALLBACK_FIRED.set(false);
+    DESPAWN_CALLBACK_ARG.set(0);
+    DESPAWN_CALLBACK_PREV_CELL.set(Cell::invalid());
 }
 
 fn register_despawn_test_callback() -> Callback<UnitTaskPostDespawnCallback> {
@@ -262,45 +265,84 @@ fn test_follow_path_chains_to_completion_task() {
 // UnitTaskDeliverToStorage
 // ----------------------------------------------
 
-// Deliver requires: an origin producer building, a storage building with
-// free capacity, a connecting road, and an inventory seeded on the unit.
-// That's a full vertical slice of the world — buildings + road links +
-// inventories + completion callbacks. Deferred until the task-level
-// harness gains a `spawn_linked_producer_and_storage(...)` convenience.
-//
-// Registered so the scenario is visible in test output. The end-to-end
-// assertions are left as TODOs rather than faked out.
+// TODO: New preset maps needed:
+// - 1 lumberyard, 1 storage yard / connecting road between
+// - 1 rice farm, 1 distillery / connecting road between
+
 fn test_deliver_transfers_resources_to_storage() {
-    // TODO: requires producer + storage + road-link setup beyond what the
-    // current scenario builders provide. Exercise:
-    //   1. spawn producer (origin), storage (destination), connecting road
-    //   2. seed unit inventory with N wood
-    //   3. assign UnitTaskDeliverToStorage with resource_kind = Wood, count = N
-    //   4. tick until state == Completed
-    //   5. assert storage received N wood and completion callback fired on origin
-    println!("(scenario pending: producer/storage/road-link setup)");
+    // TODO: requires producer + storage preset map setup.
+    // Exercise:
+    //   1. Load preset map with producer (origin / lumberyard) and storage (destination / storage yard).
+    //   2. Seed producer inventory with N Wood (must set the production output stock).
+    //   2. Tick until producer sends out delivery unit (Runner).
+    //   3. Keep going until Runner unit task is reported completed (runner.is_running_task<Delivery>() == true).
+    //   4. Assert storage received N wood and producer lost the same amount (use building Resources/Stock public API to verify).
+    // NOTES:
+    // - Set production output stock directly on producer via building.as_producer().add_production_output_stock(Wood, N).
+    // - Set "freeze_harvesting" debug option to true to prevent lumberyard from spawning a harvester. See GameObjectDebugOptions::set_debug_option_by_name.
+    println!("(scenario pending: producer/storage setup)");
 }
 
-// As above, with `allow_producer_fallback = true` and no storage on the map.
+// As above but without storage on the map (producer -> producer delivery).
 // The delivery should be accepted by a compatible producer building instead.
+// E.g.: Preset map setup with Rice Farm and Distillery.
 fn test_deliver_producer_fallback_when_no_storage() {
-    // TODO: once the harness grows a producer/storage setup, parametrise
-    // to drop the storage building and set allow_producer_fallback = true,
-    // then assert the delivery landed in the producer.
+    // TODO: Assert the delivery landed in the producer and cleared the origin building's stock.
     println!("(scenario pending: producer fallback setup)");
+}
+
+// Set up a producer and a storage building, send out Runner, modify map to block
+// runner path, preventing the only storage building from being reached. Re-instate the path
+// and verify that the runner has recovered and reaches the destination.
+fn test_delivery_path_blocked_recovery() {
+    // TODO:
+    //   1. Load preset map with producer (farm) and storage (granary).
+    //   2. Tick until producer sends out delivery unit (Runner).
+    //   3. Before runner reaches destination, modify the tile map and block the path to storage.
+    //   4. Assert that runner retains current delivery task in idle state.
+    //   5. Restore path to storage and wait for runner task to complete.
+    //   6. Assert resources where transferred between producer and storage.
+    println!("(scenario pending: delivery recover setup)");
 }
 
 // ----------------------------------------------
 // UnitTaskFetchFromStorage
 // ----------------------------------------------
 
+// TODO: New preset maps needed:
+// - 1 market, 1 granary / connecting road between
+
 fn test_fetch_picks_up_and_returns_with_resource() {
-    // TODO: scenario pending. Needs origin consumer + stocked storage +
-    // road-link. Expected state chain:
+    // TODO: scenario pending. Needs origin consumer + stocked storage
+    // Expected state chain:
     //   MovingToGoal -> PendingBuildingVisit -> ReturningToOrigin
     //   -> PendingCompletionCallback -> Completed
     // Assert origin inventory grew and storage inventory shrank by N.
-    println!("(scenario pending: consumer/storage/road-link setup)");
+    //
+    //   1. Load preset map with a service (e.g. Market) and a storage (Granary).
+    //   2. Seed Granary with units of a resource (e.g. Rice).
+    //   3. Tick until market sends our runner to fetch resources and come back.
+    //   4. Assert resources moved between source and destination.
+    println!("(scenario pending: consumer/storage setup)");
+}
+
+// Similar scenario to test_fetch_picks_up_and_returns_with_resource:
+// - Market dispatches runner to granary;
+// - Path is modified/blocked mid way;
+// - Runner idles;
+// - Path is restored;
+// - Runner recovers and finishes collection, returns to origin.
+fn test_fetch_path_blocked_recovery() {
+    // TODO: Implement as described above.
+    println!("(scenario pending: consumer/storage setup)");
+}
+
+// Same flow as test_fetch_path_blocked_recovery but the path to the storage is never restored.
+// Task should abort and runner return to the origin building empty handed.
+fn test_fetch_path_blocked_no_recovery() {
+    // TODO: Implement as described above.
+    // Assert origin building receives nothing. Unit completes task and despawns.
+    println!("(scenario pending: consumer/storage setup)");
 }
 
 // ---- Placeholders for known-broken recovery paths in fetch.rs ----
@@ -342,17 +384,37 @@ fn test_fetch_recovers_when_origin_destroyed_mid_return() {
 // UnitTaskHarvestWood
 // ----------------------------------------------
 
+// TODO: New preset maps needed:
+// - 1 lumberyard, 1 storage yard / connecting road between, a few tree props
+// - 2 lumberyard + 2 tree props
+
+// Verifies the off-road traversable flags added in harvest.rs:212-220 --
+// harvester should reach a tree placed on EmptyLand without a road.
+// Preset map setup similar to test_harvest_claims_tree_then_returns_wood: LumberYard + tree prop.
+fn test_harvest_traverses_off_road() {
+    // TODO: scenario pending. Needs a tree on EmptyLand/Vegetation with
+    // no road between it and the origin building.
+    println!("(scenario pending: off-road tree setup)");
+}
+
 // Harvest needs an origin building with a road link, a tree prop within
 // pathfinding range, and enough tick budget to cover WOOD_HARVEST_TIME_INTERVAL
-// (20s in harvest.rs) -- feasible but requires real building placement to
-// produce a valid road_link, so registered as a scenario pending.
+// (20s in harvest.rs - can be customized to a smaller value for testing via UnitTaskHarvestWood::set_harvest_time_interval).
 fn test_harvest_claims_tree_then_returns_wood() {
-    // TODO: scenario pending. Needs a LumberYard-like origin + tree prop
-    // + road-link. Expected state chain:
+    // TODO: scenario pending. Needs a LumberYard origin + tree prop + StorageYard.
+    // Create preset tile map for this test (see NOTES below).
+    // Expected state chain:
     //   Running -> PendingHarvest (after harvest_timer elapses)
     //   -> PendingCompletionCallback -> Completed
     // Assert unit carries 1..=WOOD_HARVEST_MAX_AMOUNT wood during return,
     // and that it's deposited at the origin building.
+    // NOTES:
+    // - Load a preset map containing a lumberyard, storage yard and tree prop.
+    // - Assert that resources flow from tree -> harvester unit -> lumberyard -> storage yard.
+    // - Tree harvestable amount decreases.
+    // - Tick until we complete a full harvest cycle:
+    //    lumberyard spawns unit -> unit harvests tree -> unit returns to lumberyard
+    //      -> lumberyard dispatches delivery to storage -> storage receives wood.
     println!("(scenario pending: harvester/tree/road-link setup)");
 }
 
@@ -364,36 +426,36 @@ fn test_harvest_reroutes_when_tree_already_claimed() {
     println!("(scenario pending: multi-harvester tree-claim setup)");
 }
 
-// Verifies the off-road traversable flags added in harvest.rs:212-220 --
-// harvester should reach a tree placed on EmptyLand without a road.
-fn test_harvest_traverses_off_road() {
-    // TODO: scenario pending. Needs a tree on EmptyLand/Vegetation with
-    // no road between it and the origin building.
-    println!("(scenario pending: off-road tree setup)");
-}
-
 // ----------------------------------------------
 // UnitTaskSettler
 // ----------------------------------------------
+
+// TODO: New preset maps needed:
+// - EmptyLand terrain with a vacant lot, settler spawn point and one house level 0.
+// - EmptyLand terrain without any vacant lots, settler spawn point and one house level 0.
+// - EmptyLand terrain without any vacant lots or houses, only a settler spawn point.
 
 // Settler prefers a vacant lot over a house (with `fallback_to_houses_with_room`
 // enabled). Exercises the priority order in settler.rs:164-172.
 fn test_settler_prefers_vacant_lot() {
     // TODO: scenario pending. Needs vacant lot terrain + a house with room +
     // a spawn point + settler-traversable terrain between them.
+    // - Create a new Preset Tile Map covering this setup: Spawn point, vacant lot, house level 0 without population (the default).
     println!("(scenario pending: settler/vacant-lot/house setup)");
 }
 
 // Settler falls back to a house when no vacant lot is available.
 fn test_settler_falls_back_to_house_when_no_lot() {
-    // TODO: scenario pending.
+    // TODO: scenario pending: Preset map with settler spawn point + house level 0 without population (the default).
     println!("(scenario pending: settler fallback-to-house setup)");
 }
 
 // Settler returns to its spawn point (exits) when no settlement is available
-// and `return_to_spawn_point_if_failed = true`.
+// and `return_to_spawn_point_if_failed = true` (the default behavior).
 fn test_settler_returns_to_spawn_when_no_settlement() {
     // TODO: scenario pending.
+    // - Spawn settler mid map; map is empty, containing only one settler spawn point.
+    // - Wait for settler to exit and despawn.
     println!("(scenario pending: settler exit-on-failure setup)");
 }
 
@@ -401,17 +463,28 @@ fn test_settler_returns_to_spawn_when_no_settlement() {
 // UnitTaskRandomizedPatrol
 // ----------------------------------------------
 
+// TODO: New preset maps needed:
+// - Map with a road network going north-south and east-west, intersecting in the middle. Market building at the intersection.
+//   Make the roads long enough so that we can test patrols with a max_distance of a few tiles and different patrol direction.
+//
+// - Expanded version of the above that also includes houses ("house0") along the path, to test building visitation.
+
 // Unit leaves its origin, wanders within `max_distance`, and returns.
 fn test_patrol_leaves_and_returns_to_origin() {
-    // TODO: scenario pending. Needs a patrol origin building (with road_link)
-    // and a connected road network >= max_distance cells.
+    // TODO: scenario pending. Needs a patrol origin building (e.g. Market)
+    // and a connected road network >= max_distance cells. Suppress default patrol
+    // unit by setting the debug option "freeze_patrol" and manually spawn a patrol
+    // unit with custom params instead (see examples in unit/debug.rs).
     println!("(scenario pending: patrol origin + road network setup)");
 }
 
 // Unit visits target buildings along its route when `buildings_to_visit` is set.
 fn test_patrol_visits_target_buildings() {
     // TODO: scenario pending. Needs the above plus target building(s) of
-    // the specified kind adjacent to the patrol route.
+    // the specified kind adjacent to the patrol route (e.g. house level 0).
+    //
+    // NOTE:
+    // - How can we verify that visitation has happened? By storing BuildingVisitResult on the task perhaps?
     println!("(scenario pending: patrol target-building setup)");
 }
 

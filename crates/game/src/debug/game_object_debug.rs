@@ -109,6 +109,35 @@ pub trait GameObjectDebugOptions {
         self.get_popups().clear();
     }
 
+    fn set_debug_option_by_name(&mut self, name: &str, new_value: GameObjectDebugVarRef) -> bool {
+        if let Some(var) = self.get_vars().iter_mut().find(|var| var.name == name) {
+            match &mut var.value {
+                GameObjectDebugVarRef::Bool(value) => {
+                    (**value) = match new_value {
+                        GameObjectDebugVarRef::Bool(b) => *b,
+                        _ => panic!("Expected Bool!")
+                    };
+                }
+                GameObjectDebugVarRef::I32(value) => {
+                    (**value) = match new_value {
+                        GameObjectDebugVarRef::I32(i) => *i,
+                        _ => panic!("Expected I32!")
+                    };
+                }
+                GameObjectDebugVarRef::F32(value) => {
+                    (**value) = match new_value {
+                        GameObjectDebugVarRef::F32(f) => *f,
+                        _ => panic!("Expected F32!")
+                    };
+                }
+            }
+
+            return true;
+        }
+
+        false
+    }
+
     fn draw_debug_ui(&mut self, ui_sys: &UiSystem) {
         let mut vars = self.get_vars();
         if !vars.is_empty() {

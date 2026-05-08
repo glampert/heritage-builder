@@ -14,7 +14,7 @@ use serde::{Deserialize, Serialize};
 use crate::{
     camera::*,
     config::{GameConfigs, LoadMapSetting},
-    debug::{self, DevEditorMenus},
+    debug::{DevEditorMenus, preset_maps},
     menu::{GameMenusInputArgs, GameMenusMode, GameMenusSystem, home::HomeMenus, in_game::InGameMenus},
     save_context::*,
     sim::Simulation,
@@ -546,7 +546,7 @@ impl GameSession {
                 tile_map
             }
             LoadMapSetting::Preset { preset_number } => {
-                debug::utils::create_preset_tile_map(world, *preset_number)
+                preset_maps::create_preset_tile_map(world, *preset_number)
             }
             LoadMapSetting::SaveGame { save_file } => {
                 if save_file.to_str().unwrap().is_empty() {

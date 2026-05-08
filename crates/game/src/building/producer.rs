@@ -365,8 +365,7 @@ impl BuildingBehavior for ProducerBuilding {
         0
     }
 
-    // Returns number of resources it was able to accommodate, which can be less
-    // than `count`.
+    // Returns number of resources it was able to accommodate, which can be less than `count`.
     fn receive_resources(&mut self, kind: ResourceKind, count: u32) -> u32 {
         if count != 0 && self.has_min_required_workers() {
             let received_count = self.production_input_stock.receive_resources(kind, count);
@@ -400,6 +399,10 @@ impl BuildingBehavior for ProducerBuilding {
 
     fn active_patrol(&mut self) -> Option<&mut Patrol> {
         Some(&mut self.ambient_patrol.patrol)
+    }
+
+    fn active_harvester(&mut self) -> Option<&mut Harvester> {
+        Some(&mut self.harvester)
     }
 
     // ----------------------
@@ -445,7 +448,7 @@ impl BuildingBehavior for ProducerBuilding {
         let saved_state = ProducerUndoRedoSavedState::downcast(state);
 
         // NOTE: Only stocks are preserved on undo/redo. Runners/harvesters and workers are reset.
-        self.production_input_stock = saved_state.production_input_stock.clone();
+        self.production_input_stock  = saved_state.production_input_stock.clone();
         self.production_output_stock = saved_state.production_output_stock.clone();
     }
 
@@ -487,6 +490,15 @@ impl ProducerBuilding {
         let _: Callback<UnitTaskDeliveryCompletionCallback> = callback::register!(ProducerBuilding::on_resources_delivered);
         let _: Callback<UnitTaskFetchCompletionCallback>    = callback::register!(ProducerBuilding::on_resources_fetched);
         let _: Callback<UnitTaskFetchCompletionCallback>    = callback::register!(ProducerBuilding::on_resources_harvested);
+    }
+
+    pub fn add_production_output_stock(&mut self, kind: ResourceKind, count: u32) -> bool {
+        if self.production_output_stock.item.kind == kind && !self.production_output_stock.is_full() {
+            self.production_output_stock.store_resources(count);
+            return true;
+        }
+
+        false
     }
 
     fn harvesting_update(&mut self, cmds: &mut SimCmds, context: &BuildingContext) -> bool {

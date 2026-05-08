@@ -32,6 +32,7 @@ use crate::{
 
 pub mod game_object_debug;
 pub mod log_viewer;
+pub mod preset_maps;
 pub mod popups;
 pub mod utils;
 

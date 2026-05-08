@@ -25,6 +25,7 @@ use storage::StorageBuilding;
 use config::{BuildingConfig, BuildingConfigs};
 
 use super::{
+    undo_redo::GameObjectSavedState,
     sim::{
         SimContext,
         SimCmds,
@@ -41,8 +42,12 @@ use super::{
             Workers,
         },
     },
-    undo_redo::GameObjectSavedState,
-    unit::{Unit, patrol::Patrol, runner::Runner},
+    unit::{
+        Unit,
+        patrol::Patrol,
+        runner::Runner,
+        harvester::Harvester,
+    },
     world::{
         object::{GameObject, GenerationalIndex},
         stats::WorldStats,
@@ -496,6 +501,11 @@ impl Building {
     }
 
     #[inline]
+    pub fn debug_options(&mut self) -> &mut dyn GameObjectDebugOptions {
+        self.archetype_mut().debug_options()
+    }
+
+    #[inline]
     pub fn cell_range(&self) -> CellRange {
         self.map_cells
     }
@@ -630,6 +640,11 @@ impl Building {
     #[inline]
     pub fn active_runner(&mut self) -> Option<&mut Runner> {
         self.archetype_mut().active_runner()
+    }
+
+    #[inline]
+    pub fn active_harvester(&mut self) -> Option<&mut Harvester> {
+        self.archetype_mut().active_harvester()
     }
 
     // ----------------------
@@ -996,6 +1011,10 @@ trait BuildingBehavior {
     }
 
     fn active_runner(&mut self) -> Option<&mut Runner> {
+        None
+    }
+
+    fn active_harvester(&mut self) -> Option<&mut Harvester> {
         None
     }
 

@@ -4,6 +4,7 @@ use serde::{Deserialize, Serialize};
 
 use common::{
     callback::Callback,
+    mem::SingleThreadStatic,
     time::{CountdownTimer, Seconds},
 };
 use engine::{log, ui::UiSystem};
@@ -41,10 +42,10 @@ use crate::{
 pub type UnitTaskHarvestCompletionCallback = fn(&SimContext, &mut Building, &mut Unit);
 
 // How long it takes for a unit to complete a harvest once it arrives at a tree.
-const WOOD_HARVEST_TIME_INTERVAL: Seconds = 20.0;
+static WOOD_HARVEST_TIME_INTERVAL: SingleThreadStatic<Seconds> = SingleThreadStatic::new(20.0);
 
 // Take a random range between 1 and this for the amount of wood harvested each time.
-const WOOD_HARVEST_MAX_AMOUNT: u32 = 5;
+static WOOD_HARVEST_MAX_AMOUNT: SingleThreadStatic<u32> = SingleThreadStatic::new(5);
 
 #[derive(Copy, Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
 pub enum UnitTaskHarvestState {
@@ -109,6 +110,14 @@ impl PathFilter for FindHarvestableTreeFilter<'_> {
 }
 
 impl UnitTaskHarvestWood {
+    pub fn set_harvest_time_interval(secs: Seconds) {
+        WOOD_HARVEST_TIME_INTERVAL.set(secs);
+    }
+
+    pub fn set_max_harvest_amount(amount: u32) {
+        WOOD_HARVEST_MAX_AMOUNT.set(amount);
+    }
+
     fn try_find_goal(&mut self, unit: &mut Unit, cmds: &mut SimCmds, context: &SimContext) {
         let start = unit.cell();
         let traversable_node_kinds = unit.traversable_node_kinds();
@@ -153,7 +162,7 @@ impl UnitTaskHarvestWood {
                             self.harvest_target = tree_id;
 
                             // Time it takes to harvest a tree.
-                            self.harvest_timer.reset(WOOD_HARVEST_TIME_INTERVAL);
+                            self.harvest_timer.reset(*WOOD_HARVEST_TIME_INTERVAL);
 
                             unit.move_to_goal(dest_path, UnitNavGoal::tile(start, dest_path));
                             return false; // done
@@ -331,7 +340,7 @@ impl UnitTask for UnitTaskHarvestWood {
                     // Once enough time has elapsed, give it the harvested wood.
                     if self.harvest_timer.tick(context.delta_time_secs()) {
                         // Finished - defer the harvest mutation.
-                        let harvest_amount = context.random_range(1..WOOD_HARVEST_MAX_AMOUNT);
+                        let harvest_amount = context.random_range(1..*WOOD_HARVEST_MAX_AMOUNT);
                         let unit_id = unit.id();
                         let harvest_target = self.harvest_target;
 
