@@ -3,7 +3,8 @@ use game::{
     building::{BuildingKind, BuildingKindAndId},
     debug::{game_object_debug::GameObjectDebugVarRef, preset_maps},
     pathfind::{NodeKind as PathNodeKind, SearchResult},
-    sim::{resources::ResourceKind, SimContext},
+    sim::{resources::ResourceKind, SimCmds, SimCmdQueue, SimContext},
+    system::settlers::Settler,
     unit::{
         UnitId,
         config::UnitConfigKey,
@@ -26,19 +27,6 @@ use test_utils::{
 // ----------------------------------------------
 // Integration tests for UnitTask archetypes
 // ----------------------------------------------
-//
-// Coverage map (one archetype per section):
-//   - UnitTaskDespawn / UnitTaskDespawnWithCallback
-//   - UnitTaskFollowPath
-//   - UnitTaskDeliverToStorage
-//   - UnitTaskFetchFromStorage         -- pending TODOs
-//   - UnitTaskHarvestWood              -- placeholder
-//   - UnitTaskSettler                  -- placeholder
-//   - UnitTaskRandomizedPatrol         -- placeholder
-//
-// Placeholder tests are registered so they show up in the output and serve
-// as a concrete landing pad once the underlying recovery/scenario work is
-// done (see the TODO comments in each).
 
 fn main() {
     test_utils::run_tests("Unit Tasks", &[
@@ -624,7 +612,7 @@ fn test_fetch_path_blocked_no_recovery() {
     assert_eq!(find_building(&env, granary).available_resources(ResourceKind::Rice), N);
 }
 
-// ---- Placeholders for known-broken recovery paths in fetch.rs ----
+// ---- TODO: Placeholders for known-broken recovery paths in fetch.rs ----
 //
 // These track source-level TODOs (crates/game/src/unit/task/fetch.rs).
 // Each pending test body narrates the expected future behavior so that
@@ -709,33 +697,136 @@ fn test_harvest_reroutes_when_tree_already_claimed() {
 // UnitTaskSettler
 // ----------------------------------------------
 
-// TODO: New preset maps needed:
-// - EmptyLand terrain with a vacant lot, settler spawn point and one house level 0.
-// - EmptyLand terrain without any vacant lots, settler spawn point and one house level 0.
-// - EmptyLand terrain without any vacant lots or houses, only a settler spawn point.
+// Coarser delta than the global default -- the settler has to walk a handful
+// of grass cells and we don't want the tests churning for hundreds of ticks.
+const SETTLER_TICK_DELTA_SECS: Seconds = 0.5;
 
-// Settler prefers a vacant lot over a house (with `fallback_to_houses_with_room`
-// enabled). Exercises the priority order in settler.rs:164-172.
+// Spawn a settler via the helper Settler::try_spawn. Routes through a local
+// SimCmds because the spawn command's on_spawned callback (and the chained task allocation)
+// all settle within this execute pass -- no promise survives past the local cmds drop.
+fn spawn_settler(env: &mut TestEnvironment, origin: Cell, population: u32) -> UnitId {
+    let mut cmds = SimCmds::default();
+    {
+        let context = env.new_sim_context(0.0);
+        Settler::try_spawn(&mut cmds, &context, origin, population);
+        cmds.execute(&context);
+    }
+    find_unit_by_config(&env, UnitConfigKey::Settler)
+        .expect("Settler should have been spawned")
+}
+
+// Count buildings of `kind` currently spawned in the world.
+fn count_buildings(env: &TestEnvironment, kind: BuildingKind) -> usize {
+    let mut count = 0;
+    env.world.for_each_building(kind, |_| {
+        count += 1;
+        true
+    });
+    count
+}
+
+// Tick until the settler despawns. Drains the chained UnitTaskDespawn (and
+// the spawn_building command that on_settled queues for vacant-lot goals)
+// so the task / promise pools are empty before TestEnvironment drops.
+fn tick_until_settler_despawned(env: &mut TestEnvironment, settler_id: UnitId, max_ticks: usize) {
+    let ticks = tick_until(env, max_ticks, SETTLER_TICK_DELTA_SECS, |env| {
+        !unit_exists(env, settler_id)
+    });
+    assert!(ticks < max_ticks, "settler should despawn within {max_ticks} ticks");
+}
+
+// Settler with a vacant lot in reach picks the lot over an existing house.
+// After despawn, `Settler::on_settled` spawns a new house at the lot cell and
+// seeds it with the settler's population.
 fn test_settler_prefers_vacant_lot() {
-    // TODO: scenario pending. Needs vacant lot terrain + a house with room +
-    // a spawn point + settler-traversable terrain between them.
-    // - Create a new Preset Tile Map covering this setup: Spawn point, vacant lot, house level 0 without population (the default).
-    println!("(scenario pending: settler/vacant-lot/house setup)");
+    let mut env = TestEnvironment::with_preset_map(
+        preset_maps::PRESET_SETTLER_VACANT_LOT_AND_HOUSE,
+    );
+
+    // NOTE: Cells assumed from the preset map above.
+    let spawn_point     = Cell::new(4, 0);
+    let vacant_lot_cell = Cell::new(4, 3);
+    let original_house  = Cell::new(4, 7);
+
+    // Sanity: a single (empty) house exists at the start.
+    assert_eq!(count_buildings(&env, BuildingKind::House), 1);
+    assert!(env.world.find_building_for_cell(original_house, &env.tile_map).is_some());
+
+    let settler_id = spawn_settler(&mut env, spawn_point, 1);
+
+    // Walk to the lot, complete the settler task, run the chained Despawn, and
+    // let on_settled's queued building spawn flush. ~7 cells at 1.66 t/s + a
+    // few ticks for command execution.
+    tick_until_settler_despawned(&mut env, settler_id, 100);
+
+    // A new house now sits on the vacant lot, populated by the settler.
+    let new_house = env.world
+        .find_building_for_cell(vacant_lot_cell, &env.tile_map)
+        .expect("new house should be placed on the vacant lot");
+    assert!(new_house.is(BuildingKind::House));
+    assert_eq!(new_house.population_count(), 1, "settler should have populated the new house");
+
+    // The pre-existing house is untouched.
+    let original = env.world
+        .find_building_for_cell(original_house, &env.tile_map)
+        .expect("original house should still exist");
+    assert_eq!(original.population_count(), 0);
+
+    assert_eq!(count_buildings(&env, BuildingKind::House), 2);
 }
 
-// Settler falls back to a house when no vacant lot is available.
+// No vacant lot in reach -> settler falls back to the existing house and
+// adds to its population. Exercises the `fallback_to_houses_with_room`
+// branch in settler.rs plus HouseBuilding::visited_by_settler.
 fn test_settler_falls_back_to_house_when_no_lot() {
-    // TODO: scenario pending: Preset map with settler spawn point + house level 0 without population (the default).
-    println!("(scenario pending: settler fallback-to-house setup)");
+    let mut env = TestEnvironment::with_preset_map(
+        preset_maps::PRESET_SETTLER_HOUSE_ONLY,
+    );
+
+    // NOTE: Cells assumed from the preset map above.
+    let spawn_point = Cell::new(4, 0);
+    let house_cell  = Cell::new(4, 4);
+
+    let house_id = find_building_id(&env, BuildingKind::House);
+    assert_eq!(find_building(&env, house_id).population_count(), 0, "house starts empty");
+
+    let settler_id = spawn_settler(&mut env, spawn_point, 1);
+
+    tick_until_settler_despawned(&mut env, settler_id, 100);
+
+    // No new building was created; the existing house gained the settler.
+    assert_eq!(count_buildings(&env, BuildingKind::House), 1);
+    let house = env.world
+        .find_building_for_cell(house_cell, &env.tile_map)
+        .expect("original house should still exist");
+    assert_eq!(house.population_count(), 1, "house should have absorbed the settler");
 }
 
-// Settler returns to its spawn point (exits) when no settlement is available
-// and `return_to_spawn_point_if_failed = true` (the default behavior).
+// No vacant lot, no house -> settler routes back to its spawn point and despawns empty.
+// Exercises the `return_to_spawn_point_if_failed` branch in settler.rs.
 fn test_settler_returns_to_spawn_when_no_settlement() {
-    // TODO: scenario pending.
-    // - Spawn settler mid map; map is empty, containing only one settler spawn point.
-    // - Wait for settler to exit and despawn.
-    println!("(scenario pending: settler exit-on-failure setup)");
+    let mut env = TestEnvironment::with_preset_map(
+        preset_maps::PRESET_SETTLER_SPAWN_POINT_ONLY,
+    );
+
+    // Spawn the settler away from the spawn point so the return walk is
+    // observable (and the test doesn't trivially pass on tick zero).
+    let spawn_point    = Cell::new(4, 0);
+    let settler_origin = Cell::new(4, 4);
+
+    let settler_id = spawn_settler(&mut env, settler_origin, 1);
+
+    tick_until_settler_despawned(&mut env, settler_id, 100);
+
+    // Nothing was built; settler walked off the map via the spawn-point tile.
+    assert_eq!(count_buildings(&env, BuildingKind::House), 0);
+
+    // Sanity: the spawn point tile is still flagged for path-finding.
+    let context = env.new_sim_context(0.0);
+    assert!(
+        context.graph().settlers_spawn_point().is_some_and(|node| node.cell == spawn_point),
+        "spawn point should still be in the search graph",
+    );
 }
 
 // ----------------------------------------------
