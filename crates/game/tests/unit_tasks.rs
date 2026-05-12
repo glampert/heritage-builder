@@ -1,13 +1,16 @@
-use common::{callback::Callback, coords::Cell, mem::SingleThreadStatic};
+use common::{time::Seconds, callback::Callback, coords::Cell, mem::SingleThreadStatic};
 use game::{
+    building::{BuildingKind, BuildingKindAndId},
+    debug::{game_object_debug::GameObjectDebugVarRef, preset_maps},
     pathfind::{NodeKind as PathNodeKind, SearchResult},
-    sim::SimContext,
+    sim::{resources::ResourceKind, SimContext},
     unit::{
+        UnitId,
         config::UnitConfigKey,
         navigation::UnitNavGoal,
         task::{
-            UnitTaskArg, UnitTaskArgs, UnitTaskDespawn, UnitTaskDespawnWithCallback,
-            UnitTaskFollowPath, UnitTaskPostDespawnCallback,
+            UnitTaskArg, UnitTaskArgs, UnitTaskDeliverToStorage, UnitTaskDespawn,
+            UnitTaskDespawnWithCallback, UnitTaskFollowPath, UnitTaskPostDespawnCallback,
         },
     },
 };
@@ -15,7 +18,8 @@ use game::{
 mod test_utils;
 use test_utils::{
     TestEnvironment,
-    assign_task, place_road, spawn_unit, tick, tick_until, find_unit, unit_exists,
+    assign_task, clear_terrain, find_building, find_building_id, find_building_mut,
+    find_unit, find_unit_by_config, place_road, spawn_unit, tick, tick_until, unit_exists,
 };
 
 // ----------------------------------------------
@@ -25,7 +29,7 @@ use test_utils::{
 // Coverage map (one archetype per section):
 //   - UnitTaskDespawn / UnitTaskDespawnWithCallback
 //   - UnitTaskFollowPath
-//   - UnitTaskDeliverToStorage         -- placeholder, see section
+//   - UnitTaskDeliverToStorage
 //   - UnitTaskFetchFromStorage         -- placeholder + source TODOs
 //   - UnitTaskHarvestWood              -- placeholder
 //   - UnitTaskSettler                  -- placeholder
@@ -265,44 +269,192 @@ fn test_follow_path_chains_to_completion_task() {
 // UnitTaskDeliverToStorage
 // ----------------------------------------------
 
-// TODO: New preset maps needed:
-// - 1 lumberyard, 1 storage yard / connecting road between
-// - 1 rice farm, 1 distillery / connecting road between
+// Coarse delta lets the producer's 20s production timer fire in ~20 ticks
+// without us having to fast-forward the timer through internal APIs.
+const DELIVER_TICK_DELTA_SECS: Seconds = 1.0;
 
+// Set a bool debug option (e.g. "freeze_harvesting" / "freeze_production") on a building's
+// archetype-level debug options struct. Used to suppress the producer side-effects we don't
+// want firing during a focused delivery test.
+fn set_building_debug_bool(env: &mut TestEnvironment, handle: BuildingKindAndId, name: &str, mut value: bool) {
+    let ok = find_building_mut(env, handle)
+        .debug_options()
+        .set_debug_option_by_name(name, GameObjectDebugVarRef::Bool(&mut value));
+    assert!(ok, "Building {} does not expose debug option '{}'", handle.kind, name);
+}
+
+// Producer-output-stock seed: lumberyard / rice farm both expose `add_production_output_stock`
+// on their ProducerBuilding archetype, but the Building::as_producer accessor is a pub fn.
+fn seed_producer_output(env: &mut TestEnvironment, handle: BuildingKindAndId, kind: ResourceKind, count: u32) {
+    let producer = find_building_mut(env, handle).as_producer_mut();
+    let stored = producer.add_production_output_stock(kind, count);
+    assert!(stored, "Producer {} refused to store {count} {kind}", handle.kind);
+}
+
+// Tick until the producer dispatches its Runner. Returns the runner's UnitId.
+fn tick_until_runner_spawned(env: &mut TestEnvironment, max_ticks: usize) -> UnitId {
+    tick_until(env, max_ticks, DELIVER_TICK_DELTA_SECS, |env| {
+        find_unit_by_config(env, UnitConfigKey::Runner).is_some()
+    });
+    find_unit_by_config(env, UnitConfigKey::Runner)
+        .expect("Runner should have been dispatched")
+}
+
+// Tick until the runner has finished its task chain and despawned. The chained
+// UnitTaskDespawn that runs after the delivery completion frees both tasks and
+// releases the spawn promise, so this drains the sim's task and promise pools
+// and prevents leak panics on TestEnvironment drop.
+fn tick_until_runner_despawned(env: &mut TestEnvironment, runner_id: UnitId, max_ticks: usize) {
+    let ticks = tick_until(env, max_ticks, DELIVER_TICK_DELTA_SECS, |env| {
+        !unit_exists(env, runner_id)
+    });
+    assert!(ticks < max_ticks, "runner should have despawned within {max_ticks} ticks");
+}
+
+// Lumberyard -> StorageYard: producer dispatches Runner, Runner walks the road
+// network, storage receives the delivery, producer's output stock drained.
 fn test_deliver_transfers_resources_to_storage() {
-    // TODO: requires producer + storage preset map setup.
-    // Exercise:
-    //   1. Load preset map with producer (origin / lumberyard) and storage (destination / storage yard).
-    //   2. Seed producer inventory with N Wood (must set the production output stock).
-    //   2. Tick until producer sends out delivery unit (Runner).
-    //   3. Keep going until Runner unit task is reported completed (runner.is_running_task<Delivery>() == true).
-    //   4. Assert storage received N wood and producer lost the same amount (use building Resources/Stock public API to verify).
-    // NOTES:
-    // - Set production output stock directly on producer via building.as_producer().add_production_output_stock(Wood, N).
-    // - Set "freeze_harvesting" debug option to true to prevent lumberyard from spawning a harvester. See GameObjectDebugOptions::set_debug_option_by_name.
-    println!("(scenario pending: producer/storage setup)");
+    let mut env = TestEnvironment::with_preset_map(
+        preset_maps::PRESET_1_LUMBERYARD_1_STORAGE_YARD,
+    );
+
+    let lumberyard = find_building_id(&env, BuildingKind::Lumberyard);
+    let storage = find_building_id(&env, BuildingKind::StorageYard);
+
+    // Skip the lumberyard's harvester branch -- we seed the output stock directly.
+    set_building_debug_bool(&mut env, lumberyard, "freeze_harvesting", true);
+
+    const N: u32 = 4;
+    seed_producer_output(&mut env, lumberyard, ResourceKind::Wood, N);
+    assert_eq!(find_building(&env, lumberyard).available_resources(ResourceKind::Wood), N);
+
+    // ~20s for the production timer to fire + a few ticks for the runner to traverse.
+    let runner_id = tick_until_runner_spawned(&mut env, 30);
+
+    // Producer's output stock is cleared as soon as the runner is dispatched
+    // (the resources are handed over to the unit).
+    assert_eq!(find_building(&env, lumberyard).available_resources(ResourceKind::Wood), 0);
+
+    // Wait for the runner to finish the delivery: storage gains N wood.
+    let ticks = tick_until(&mut env, 100, DELIVER_TICK_DELTA_SECS, |env| {
+        find_building(env, storage).available_resources(ResourceKind::Wood) >= N
+    });
+    assert!(ticks < 100, "delivery should complete within 100 ticks");
+
+    assert_eq!(find_building(&env, storage).available_resources(ResourceKind::Wood), N);
+    assert_eq!(find_building(&env, lumberyard).available_resources(ResourceKind::Wood), 0);
+
+    // Drain the runner's chained UnitTaskDespawn so the sim's task pool is empty
+    // before TestEnvironment drops. Stop the producer from re-dispatching now
+    // that the storage already accepted the delivery.
+    set_building_debug_bool(&mut env, lumberyard, "freeze_storage_delivery", true);
+    tick_until_runner_despawned(&mut env, runner_id, 20);
 }
 
-// As above but without storage on the map (producer -> producer delivery).
-// The delivery should be accepted by a compatible producer building instead.
-// E.g.: Preset map setup with Rice Farm and Distillery.
+// Rice farm -> Distillery (producer fallback): no Granary on the map, so the
+// runner's primary delivery search fails and the fallback routes to a producer
+// that consumes Rice as a raw material (Distillery -> Wine).
 fn test_deliver_producer_fallback_when_no_storage() {
-    // TODO: Assert the delivery landed in the producer and cleared the origin building's stock.
-    println!("(scenario pending: producer fallback setup)");
+    let mut env = TestEnvironment::with_preset_map(
+        preset_maps::PRESET_1_FARM_1_DISTILLERY,
+    );
+
+    let rice_farm  = find_building_id(&env, BuildingKind::Farm);
+    let distillery = find_building_id(&env, BuildingKind::Factory);
+
+    // Pin the rice farm's output to exactly N -- with freeze_production set, the
+    // production timer won't add more to the stock before delivery dispatch.
+    set_building_debug_bool(&mut env, rice_farm, "freeze_production", true);
+
+    const N: u32 = 4;
+    seed_producer_output(&mut env, rice_farm, ResourceKind::Rice, N);
+
+    // Distillery starts empty: capacity - receivable_resources gives current input stock.
+    let initial_capacity = find_building(&env, distillery).receivable_resources(ResourceKind::Rice);
+    assert!(initial_capacity >= N, "Distillery should have room for {N} Rice");
+
+    let runner_id = tick_until_runner_spawned(&mut env, 30);
+    assert_eq!(find_building(&env, rice_farm).available_resources(ResourceKind::Rice), 0);
+
+    // Wait for the distillery's input stock to grow by N.
+    let ticks = tick_until(&mut env, 100, DELIVER_TICK_DELTA_SECS, |env| {
+        let now_capacity = find_building(env, distillery).receivable_resources(ResourceKind::Rice);
+        initial_capacity - now_capacity >= N
+    });
+    assert!(ticks < 100, "producer fallback delivery should complete within 100 ticks");
+
+    let final_capacity = find_building(&env, distillery).receivable_resources(ResourceKind::Rice);
+    assert_eq!(initial_capacity - final_capacity, N, "distillery should have absorbed exactly {N} Rice units");
+    assert_eq!(find_building(&env, rice_farm).available_resources(ResourceKind::Rice), 0);
+
+    // Drain the runner's task chain so the pools are empty before drop.
+    set_building_debug_bool(&mut env, rice_farm, "freeze_storage_delivery", true);
+    tick_until_runner_despawned(&mut env, runner_id, 20);
 }
 
-// Set up a producer and a storage building, send out Runner, modify map to block
-// runner path, preventing the only storage building from being reached. Re-instate the path
-// and verify that the runner has recovered and reaches the destination.
+// Lumberyard -> StorageYard with the road torn out mid-delivery. Runner should
+// idle (still owns the task, but no goal/path), then recover once the road is
+// restored and finish the delivery.
 fn test_delivery_path_blocked_recovery() {
-    // TODO:
-    //   1. Load preset map with producer (farm) and storage (granary).
-    //   2. Tick until producer sends out delivery unit (Runner).
-    //   3. Before runner reaches destination, modify the tile map and block the path to storage.
-    //   4. Assert that runner retains current delivery task in idle state.
-    //   5. Restore path to storage and wait for runner task to complete.
-    //   6. Assert resources where transferred between producer and storage.
-    println!("(scenario pending: delivery recover setup)");
+    let mut env = TestEnvironment::with_preset_map(
+        preset_maps::PRESET_1_LUMBERYARD_1_STORAGE_YARD,
+    );
+
+    let lumberyard = find_building_id(&env, BuildingKind::Lumberyard);
+    let storage = find_building_id(&env, BuildingKind::StorageYard);
+
+    set_building_debug_bool(&mut env, lumberyard, "freeze_harvesting", true);
+
+    const N: u32 = 3;
+    seed_producer_output(&mut env, lumberyard, ResourceKind::Wood, N);
+
+    let runner_id = tick_until_runner_spawned(&mut env, 30);
+
+    // Let the runner advance a few cells along the ring road before we tear out
+    // the storage's only road links. Storage_yard 3x3 at (4,5)..(6,7) has its
+    // adjacent road tiles on the bottom ring road row (cols 4..=6, row 8).
+    let storage_road_cells = [Cell::new(4, 8), Cell::new(5, 8), Cell::new(6, 8)];
+    for _ in 0..3 {
+        tick(&mut env, DELIVER_TICK_DELTA_SECS);
+    }
+    clear_terrain(&mut env, &storage_road_cells);
+
+    // Tick until the runner detects its path is blocked. The runner walks toward
+    // the storage's road link; nav goes PathBlocked when it tries to step onto the
+    // first removed cell, after which the delivery task can't pathfind to storage
+    // (the building is no longer road-linked) so it idles.
+    let ticks_to_block = tick_until(&mut env, 60, DELIVER_TICK_DELTA_SECS, |env| {
+        find_unit(env, runner_id).path_is_blocked()
+    });
+    assert!(ticks_to_block < 60, "runner should detect path blocked within 60 ticks");
+
+    // Runner is still alive, still owns its delivery task, and the storage
+    // hasn't received anything because no route exists.
+    assert!(unit_exists(&env, runner_id));
+    {
+        let runner = find_unit(&env, runner_id);
+        let task_manager = env.sim.task_manager();
+        assert!(
+            runner.is_running_task::<UnitTaskDeliverToStorage>(task_manager),
+            "runner should still own the delivery task while idle",
+        );
+    }
+    assert_eq!(find_building(&env, storage).available_resources(ResourceKind::Wood), 0);
+
+    // Restore the road and the runner should re-route on its next task tick.
+    place_road(&mut env, &storage_road_cells);
+
+    let ticks = tick_until(&mut env, 100, DELIVER_TICK_DELTA_SECS, |env| {
+        find_building(env, storage).available_resources(ResourceKind::Wood) >= N
+    });
+    assert!(ticks < 100, "delivery should complete within 100 ticks after road restored");
+
+    assert_eq!(find_building(&env, storage).available_resources(ResourceKind::Wood), N);
+    assert_eq!(find_building(&env, lumberyard).available_resources(ResourceKind::Wood), 0);
+
+    // Drain the runner's task chain so the pools are empty before drop.
+    set_building_debug_bool(&mut env, lumberyard, "freeze_storage_delivery", true);
+    tick_until_runner_despawned(&mut env, runner_id, 20);
 }
 
 // ----------------------------------------------

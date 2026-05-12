@@ -7,7 +7,7 @@ use game::{
     cheats,
     debug::preset_maps,
     config::GameConfigs,
-    world::World,
+    world::{World, object::GameObject},
     prop::{config::PropConfigs, PropId},
     sim::{
         commands::{self, SimCmdQueue, SpawnQueryResult, SpawnReadyResult},
@@ -19,7 +19,7 @@ use game::{
     },
     building::{
         config::BuildingConfigs,
-        BuildingKindAndId,
+        Building, BuildingKind, BuildingKindAndId,
     },
     unit::{
         config::{UnitConfigKey, UnitConfigs},
@@ -46,6 +46,10 @@ fn setup(test_suite_name: &str) {
     UnitConfigs::load();
     PropConfigs::load();
     BuildingConfigs::load();
+
+    // Register the runner/harvester/patrol completion callbacks so that producer
+    // dispatch -> task -> on-completion routing works end-to-end in tests.
+    Simulation::register_callbacks();
 
     cheats::initialize();
     cheats::get_mut().ignore_tile_cost = true; // So we can spawn anything...
@@ -211,6 +215,15 @@ pub fn place_road(env: &mut TestEnvironment, cells: &[Cell]) {
     }
 }
 
+// Despawn the terrain tile at each cell (e.g. tear out a road segment to break a path).
+pub fn clear_terrain(env: &mut TestEnvironment, cells: &[Cell]) {
+    let mut cmds = SimCmds::default();
+    for cell in cells {
+        cmds.despawn_tile_at_cell(*cell, TileMapLayerKind::Terrain);
+    }
+    execute_cmds(env, &mut cmds);
+}
+
 pub fn spawn_unit(env: &mut TestEnvironment, origin: Cell, config: UnitConfigKey) -> UnitId {
     let mut cmds = SimCmds::default();
     let promise = cmds.spawn_unit_with_config_promise(origin, config, commands::no_object_callback());
@@ -281,12 +294,19 @@ where
 // spawned unit/prop/building, then flush any deferred SimCmds the tasks
 // produced. This intentionally bypasses Simulation::update / GameLoop,
 // both of which require an Engine and GameSystems we don't have in tests.
+//
+// IMPORTANT: routes deferred work through the simulation's long-lived
+// `SimCmds` (same instance across ticks). SpawnPromises survive past
+// the current tick -- e.g., a producer dispatches its Runner one tick
+// and polls the resulting SpawnPromise on the next. A per-tick local
+// `SimCmds` would drop the promise pool while the producer still holds
+// a reference to it, tripping the leak panic in `SpawnPromisePool::drop`.
 pub fn tick(env: &mut TestEnvironment, delta_time_secs: Seconds) {
-    let mut cmds = SimCmds::default();
     let context = env.new_sim_context(delta_time_secs);
+    let cmds = context.cmds_mut();
 
     context.world_mut().update_unit_navigation(&context);
-    context.world_mut().update(&mut cmds, &context);
+    context.world_mut().update(cmds, &context);
 
     cmds.execute(&context);
 }
@@ -329,6 +349,42 @@ pub fn find_unit<'world>(env: &'world TestEnvironment, id: UnitId) -> &'world Un
 
 pub fn unit_exists(env: &TestEnvironment, id: UnitId) -> bool {
     env.world.find_unit(id).is_some()
+}
+
+// Find the first spawned unit matching `config` (e.g. UnitConfigKey::Runner).
+pub fn find_unit_by_config(env: &TestEnvironment, config: UnitConfigKey) -> Option<UnitId> {
+    let mut found: Option<UnitId> = None;
+    env.world.for_each_unit(|unit| {
+        if unit.is(config) {
+            found = Some(unit.id());
+            false
+        } else {
+            true
+        }
+    });
+    found
+}
+
+// Find the first spawned building matching `kind` and return a (kind, id) handle.
+// Tests look up the building again via `world.find_building*` to get a live ref,
+// which avoids holding a borrow across mutations.
+pub fn find_building_id(env: &TestEnvironment, kind: BuildingKind) -> BuildingKindAndId {
+    let mut found: Option<BuildingKindAndId> = None;
+    env.world.for_each_building(kind, |building| {
+        found = Some(building.kind_and_id());
+        false
+    });
+    found.unwrap_or_else(|| panic!("No building of kind {kind} found in world"))
+}
+
+pub fn find_building<'world>(env: &'world TestEnvironment, handle: BuildingKindAndId) -> &'world Building {
+    env.world.find_building(handle.kind, handle.id)
+        .unwrap_or_else(|| panic!("Building {} #{} not found", handle.kind, handle.id))
+}
+
+pub fn find_building_mut<'world>(env: &'world mut TestEnvironment, handle: BuildingKindAndId) -> &'world mut Building {
+    env.world.find_building_mut(handle.kind, handle.id)
+        .unwrap_or_else(|| panic!("Building {} #{} not found", handle.kind, handle.id))
 }
 
 // ----------------------------------------------
