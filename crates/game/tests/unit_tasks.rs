@@ -10,7 +10,8 @@ use game::{
         navigation::UnitNavGoal,
         task::{
             UnitTaskArg, UnitTaskArgs, UnitTaskDeliverToStorage, UnitTaskDespawn,
-            UnitTaskDespawnWithCallback, UnitTaskFollowPath, UnitTaskPostDespawnCallback,
+            UnitTaskDespawnWithCallback, UnitTaskFetchFromStorage, UnitTaskFollowPath,
+            UnitTaskPostDespawnCallback,
         },
     },
 };
@@ -30,7 +31,7 @@ use test_utils::{
 //   - UnitTaskDespawn / UnitTaskDespawnWithCallback
 //   - UnitTaskFollowPath
 //   - UnitTaskDeliverToStorage
-//   - UnitTaskFetchFromStorage         -- placeholder + source TODOs
+//   - UnitTaskFetchFromStorage         -- pending TODOs
 //   - UnitTaskHarvestWood              -- placeholder
 //   - UnitTaskSettler                  -- placeholder
 //   - UnitTaskRandomizedPatrol         -- placeholder
@@ -461,40 +462,166 @@ fn test_delivery_path_blocked_recovery() {
 // UnitTaskFetchFromStorage
 // ----------------------------------------------
 
-// TODO: New preset maps needed:
-// - 1 market, 1 granary / connecting road between
+// Helper: seed a storage building (granary / storage_yard) so its
+// `available_resources(kind)` returns `count`. The cheat
+// `ignore_worker_requirements` (set in test_utils setup) makes this work
+// even though the storage has no workers in tests.
+//
+// `Building::receive_resources` only fills one storage slot per call (slots
+// are 4 wide on both granary and storage yard), so we loop until we've
+// deposited `count`.
+fn seed_storage(env: &mut TestEnvironment, handle: BuildingKindAndId, kind: ResourceKind, count: u32) {
+    let mut remaining = count;
+    while remaining > 0 {
+        let received = find_building_mut(env, handle).receive_resources(kind, remaining);
+        assert!(received != 0, "Storage {} refused to store {kind} ({remaining} remaining)", handle.kind);
+        remaining -= received;
+    }
+}
 
+// Market -> Granary fetch cycle: stock_update timer fires, runner is dispatched
+// to the granary, picks up rice, returns home, callback deposits rice into the
+// market's stock.
 fn test_fetch_picks_up_and_returns_with_resource() {
-    // TODO: scenario pending. Needs origin consumer + stocked storage
-    // Expected state chain:
-    //   MovingToGoal -> PendingBuildingVisit -> ReturningToOrigin
-    //   -> PendingCompletionCallback -> Completed
-    // Assert origin inventory grew and storage inventory shrank by N.
-    //
-    //   1. Load preset map with a service (e.g. Market) and a storage (Granary).
-    //   2. Seed Granary with units of a resource (e.g. Rice).
-    //   3. Tick until market sends our runner to fetch resources and come back.
-    //   4. Assert resources moved between source and destination.
-    println!("(scenario pending: consumer/storage setup)");
+    let mut env = TestEnvironment::with_preset_map(
+        preset_maps::PRESET_1_MARKET_1_GRANARY,
+    );
+
+    let market  = find_building_id(&env, BuildingKind::Market);
+    let granary = find_building_id(&env, BuildingKind::Granary);
+
+    // Suppress the market's Vendor patrol unit -- we only care about the runner.
+    set_building_debug_bool(&mut env, market, "freeze_patrol", true);
+
+    // Seed the granary with rice so the market has something to fetch. The
+    // granary's slot capacity is 4, and `StorageSlots::available_resources`
+    // reports a single slot, so we keep N within one slot for clean assertions.
+    const N: u32 = 4;
+    seed_storage(&mut env, granary, ResourceKind::Rice, N);
+    assert_eq!(find_building(&env, granary).available_resources(ResourceKind::Rice), N);
+
+    // ~20s for the market's stock_update timer to fire and dispatch a runner.
+    let runner_id = tick_until_runner_spawned(&mut env, 30);
+
+    // Pin to a single dispatch -- the market would otherwise keep sending out
+    // runners while there are empty slots for other resources, leaking tasks
+    // when the test ends.
+    set_building_debug_bool(&mut env, market, "freeze_stock_update", true);
+
+    // Wait for the full fetch cycle: market receives rice from granary.
+    let ticks = tick_until(&mut env, 200, DELIVER_TICK_DELTA_SECS, |env| {
+        find_building(env, market).available_resources(ResourceKind::Rice) >= N
+    });
+    assert!(ticks < 200, "fetch should complete within 200 ticks");
+
+    assert_eq!(find_building(&env, market).available_resources(ResourceKind::Rice), N);
+    assert_eq!(find_building(&env, granary).available_resources(ResourceKind::Rice), 0);
+
+    // Drain the runner's chained UnitTaskDespawn so the sim's task and promise
+    // pools are empty before TestEnvironment drops.
+    tick_until_runner_despawned(&mut env, runner_id, 30);
 }
 
-// Similar scenario to test_fetch_picks_up_and_returns_with_resource:
-// - Market dispatches runner to granary;
-// - Path is modified/blocked mid way;
-// - Runner idles;
-// - Path is restored;
-// - Runner recovers and finishes collection, returns to origin.
+// Market dispatches its runner to fetch from the granary, we tear out the
+// granary's nearest road link mid-route; with two other road links still on
+// row 8 the granary remains reachable, so the fetch task's `try_find_goal`
+// succeeds with a longer path and the runner reroutes around the ring road.
+// Restoring the cleared cell lets the runner walk back via the short path on
+// the return leg.
 fn test_fetch_path_blocked_recovery() {
-    // TODO: Implement as described above.
-    println!("(scenario pending: consumer/storage setup)");
+    let mut env = TestEnvironment::with_preset_map(
+        preset_maps::PRESET_1_MARKET_1_GRANARY,
+    );
+
+    let market  = find_building_id(&env, BuildingKind::Market);
+    let granary = find_building_id(&env, BuildingKind::Granary);
+
+    set_building_debug_bool(&mut env, market, "freeze_patrol", true);
+
+    const N: u32 = 4;
+    seed_storage(&mut env, granary, ResourceKind::Rice, N);
+
+    let runner_id = tick_until_runner_spawned(&mut env, 30);
+
+    // Pin to a single dispatch.
+    set_building_debug_bool(&mut env, market, "freeze_stock_update", true);
+
+    // Let the runner advance a few cells, then remove the granary's currently
+    // assigned road link. With (5,8) and (6,8) still present, the granary
+    // is still road-linked, so the task can find a fresh path the long way
+    // around the ring road.
+    let blocked_cell = Cell::new(4, 8);
+    for _ in 0..5 {
+        tick(&mut env, DELIVER_TICK_DELTA_SECS);
+    }
+    clear_terrain(&mut env, &[blocked_cell]);
+
+    // Runner reroutes -- task stays in MovingToGoal with a new (longer) path
+    // and the storage building remains reachable.
+    assert!(unit_exists(&env, runner_id));
+    {
+        let runner = find_unit(&env, runner_id);
+        let task_manager = env.sim.task_manager();
+        assert!(
+            runner.is_running_task::<UnitTaskFetchFromStorage>(task_manager),
+            "runner should still own the fetch task",
+        );
+    }
+
+    // Restore the short path. The runner may have already started rerouting
+    // around the ring; restoration just guarantees the return trip is short.
+    place_road(&mut env, &[blocked_cell]);
+
+    let ticks = tick_until(&mut env, 300, DELIVER_TICK_DELTA_SECS, |env| {
+        find_building(env, market).available_resources(ResourceKind::Rice) >= N
+    });
+    assert!(ticks < 300, "fetch should complete within 300 ticks despite reroute");
+
+    assert_eq!(find_building(&env, market).available_resources(ResourceKind::Rice), N);
+    assert_eq!(find_building(&env, granary).available_resources(ResourceKind::Rice), 0);
+
+    tick_until_runner_despawned(&mut env, runner_id, 30);
 }
 
-// Same flow as test_fetch_path_blocked_recovery but the path to the storage is never restored.
-// Task should abort and runner return to the origin building empty handed.
+// Same dispatch as the recovery test, but we tear out *all three* of the
+// granary's road links. With the granary fully disconnected, `try_find_goal`
+// can't find a candidate (storage filtered by `is_linked_to_road`), so the
+// fetch task gives up and transitions to ReturningToOrigin. The runner walks
+// home empty-handed and despawns.
 fn test_fetch_path_blocked_no_recovery() {
-    // TODO: Implement as described above.
-    // Assert origin building receives nothing. Unit completes task and despawns.
-    println!("(scenario pending: consumer/storage setup)");
+    let mut env = TestEnvironment::with_preset_map(
+        preset_maps::PRESET_1_MARKET_1_GRANARY,
+    );
+
+    let market  = find_building_id(&env, BuildingKind::Market);
+    let granary = find_building_id(&env, BuildingKind::Granary);
+
+    set_building_debug_bool(&mut env, market, "freeze_patrol", true);
+
+    const N: u32 = 4;
+    seed_storage(&mut env, granary, ResourceKind::Rice, N);
+
+    let runner_id = tick_until_runner_spawned(&mut env, 30);
+
+    // Let the runner advance a few cells, then disconnect the granary entirely.
+    let granary_road_cells = [Cell::new(4, 8), Cell::new(5, 8), Cell::new(6, 8)];
+    for _ in 0..3 {
+        tick(&mut env, DELIVER_TICK_DELTA_SECS);
+    }
+    clear_terrain(&mut env, &granary_road_cells);
+
+    // Stop further stock_update dispatches -- once this runner gives up and
+    // despawns, the market would otherwise dispatch another that gets stuck
+    // the same way.
+    set_building_debug_bool(&mut env, market, "freeze_stock_update", true);
+
+    // Runner should head home empty and despawn within a generous window
+    // (it has to detect path-blocked, walk back, then run the chained Despawn).
+    tick_until_runner_despawned(&mut env, runner_id, 200);
+
+    // Market got nothing; granary's stock is untouched.
+    assert_eq!(find_building(&env, market).available_resources(ResourceKind::Rice), 0);
+    assert_eq!(find_building(&env, granary).available_resources(ResourceKind::Rice), N);
 }
 
 // ---- Placeholders for known-broken recovery paths in fetch.rs ----
