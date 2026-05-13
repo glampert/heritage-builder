@@ -1,19 +1,22 @@
+use arrayvec::ArrayVec;
 use common::{time::Seconds, callback::Callback, coords::Cell, mem::SingleThreadStatic};
 use game::{
-    building::{BuildingKind, BuildingKindAndId},
+    building::{Building, BuildingKind, BuildingKindAndId, BuildingTileInfo},
     debug::{game_object_debug::GameObjectDebugVarRef, preset_maps},
     pathfind::{NodeKind as PathNodeKind, SearchResult},
     sim::{resources::ResourceKind, SimCmds, SimCmdQueue, SimContext},
     system::settlers::Settler,
     tile::TileKind,
     unit::{
+        Unit,
         UnitId,
         config::UnitConfigKey,
         navigation::UnitNavGoal,
         task::{
-            UnitTaskArg, UnitTaskArgs, UnitTaskDeliverToStorage, UnitTaskDespawn,
-            UnitTaskDespawnWithCallback, UnitTaskFetchFromStorage, UnitTaskFollowPath,
-            UnitTaskHarvestWood, UnitTaskPostDespawnCallback,
+            UnitPatrolPathRecord, UnitTaskArg, UnitTaskArgs, UnitTaskDeliverToStorage,
+            UnitTaskDespawn, UnitTaskDespawnWithCallback, UnitTaskFetchFromStorage,
+            UnitTaskFollowPath, UnitTaskHarvestWood, UnitTaskPatrolCompletionCallback,
+            UnitTaskPatrolState, UnitTaskPostDespawnCallback, UnitTaskRandomizedPatrol,
         },
     },
 };
@@ -970,34 +973,178 @@ fn test_settler_returns_to_spawn_when_no_settlement() {
 // UnitTaskRandomizedPatrol
 // ----------------------------------------------
 
-// TODO: New preset maps needed:
-// - Map with a road network going north-south and east-west, intersecting in the middle. Market building at the intersection.
-//   Make the roads long enough so that we can test patrols with a max_distance of a few tiles and different patrol direction.
-//
-// - Expanded version of the above that also includes houses ("house0") along the path, to test building visitation.
+// 0.5s ticks give the Peasant (1.66 t/s) enough granularity to advance by ~one
+// cell per tick during the outbound + return legs.
+const PATROL_TICK_DELTA_SECS: Seconds = 0.5;
 
-// Unit leaves its origin, wanders within `max_distance`, and returns.
+// UnitTaskRandomizedPatrol's completed() path expects a registered completion
+// callback when the unit reaches origin (patrol.rs). Production code
+// uses Patrol::on_randomized_patrol_completed, but that callback asserts the
+// building owns a `Patrol` helper with state -- which we bypass when assigning
+// the task manually. So we register a no-op here just to satisfy the callback
+// invocation path; the test doesn't observe anything via this callback.
+fn patrol_test_callback(_context: &SimContext, _building: &mut Building, _unit: &mut Unit) {
+}
+
+fn register_patrol_test_callback() -> Callback<UnitTaskPatrolCompletionCallback> {
+    common::callback::register!(patrol_test_callback)
+}
+
+// Spawn a Peasant at the given building's road link and assign a manually-built
+// UnitTaskRandomizedPatrol with a chained UnitTaskDespawn. Returns the unit's id.
+fn spawn_patrol_from_building(
+    env: &mut TestEnvironment,
+    origin_building: BuildingKindAndId,
+    max_distance: i32,
+    buildings_to_visit: Option<BuildingKind>,
+) -> (UnitId, Cell) {
+    let (road_link, base_cell) = {
+        let b = find_building(env, origin_building);
+        (b.road_link().expect("origin building should be road-linked"), b.base_cell())
+    };
+
+    let unit_id = spawn_unit(env, road_link, UnitConfigKey::Peasant);
+
+    let completion_task = env.sim.task_manager_mut().new_task(UnitTaskDespawn);
+
+    let task = UnitTaskRandomizedPatrol {
+        origin_building,
+        origin_building_tile: BuildingTileInfo { road_link, base_cell },
+        max_distance,
+        path_bias_min: 0.1,
+        path_bias_max: 0.5,
+        path_record: UnitPatrolPathRecord::default(),
+        buildings_to_visit,
+        completion_callback: register_patrol_test_callback(),
+        completion_task,
+        idle_countdown: None,
+        internal_state: UnitTaskPatrolState::default(),
+        visited_buildings: ArrayVec::new(),
+    };
+    assign_task(env, unit_id, task);
+
+    (unit_id, road_link)
+}
+
+// Patrol unit leaves its origin road link, wanders out to a waypoint, then
+// returns home -- the chained UnitTaskDespawn fires once the patrol task ends.
 fn test_patrol_leaves_and_returns_to_origin() {
-    // TODO: scenario pending. Needs a patrol origin building (e.g. Market)
-    // and a connected road network >= max_distance cells. Suppress default patrol
-    // unit by setting the debug option "freeze_patrol" and manually spawn a patrol
-    // unit with custom params instead (see examples in unit/debug.rs).
-    println!("(scenario pending: patrol origin + road network setup)");
+    let mut env = TestEnvironment::with_preset_map(
+        preset_maps::PRESET_PATROL_CROSSROADS_MARKET,
+    );
+
+    let market = find_building_id(&env, BuildingKind::Market);
+
+    // Stop the market's default Vendor patrol from being dispatched concurrently.
+    set_building_debug_bool(&mut env, market, "freeze_patrol", true);
+
+    let (unit_id, origin) = spawn_patrol_from_building(&mut env, market, 10, None);
+
+    // Unit should step off the origin within a handful of ticks.
+    let ticks = tick_until(&mut env, 50, PATROL_TICK_DELTA_SECS, |env| {
+        unit_exists(env, unit_id) && find_unit(env, unit_id).cell() != origin
+    });
+    assert!(ticks < 50, "unit should leave the origin road link within 50 ticks");
+
+    // ...and despawn once it returns and the chained UnitTaskDespawn fires.
+    let ticks = tick_until(&mut env, 200, PATROL_TICK_DELTA_SECS, |env| {
+        !unit_exists(env, unit_id)
+    });
+    assert!(ticks < 200, "unit should return and despawn within 200 ticks");
 }
 
-// Unit visits target buildings along its route when `buildings_to_visit` is set.
+// With buildings_to_visit set, the patrol must record at least one target
+// building it queued a visit for while walking past it on the road. Preset 13
+// places houses immediately off the crossroads so the unit can hardly avoid
+// passing at least one BuildingRoadLink node next to a house.
 fn test_patrol_visits_target_buildings() {
-    // TODO: scenario pending. Needs the above plus target building(s) of
-    // the specified kind adjacent to the patrol route (e.g. house level 0).
-    //
-    // NOTE:
-    // - How can we verify that visitation has happened? By storing BuildingVisitResult on the task perhaps?
-    println!("(scenario pending: patrol target-building setup)");
+    let mut env = TestEnvironment::with_preset_map(
+        preset_maps::PRESET_PATROL_CROSSROADS_MARKET_WITH_HOUSES,
+    );
+
+    let market = find_building_id(&env, BuildingKind::Market);
+    set_building_debug_bool(&mut env, market, "freeze_patrol", true);
+
+    let (unit_id, _) = spawn_patrol_from_building(
+        &mut env,
+        market,
+        10,
+        Some(BuildingKind::House),
+    );
+
+    // Tick until the patrol records at least one visit. We poll the task's
+    // visited_buildings list (populated in patrol.rs each time the
+    // unit stands on a BuildingRoadLink next to a House).
+    let ticks = tick_until(&mut env, 100, PATROL_TICK_DELTA_SECS, |env| {
+        if !unit_exists(env, unit_id) {
+            return false;
+        }
+        let unit = find_unit(env, unit_id);
+        let task = unit.current_task_as::<UnitTaskRandomizedPatrol>(env.sim.task_manager());
+        task.is_some_and(|t| !t.visited_buildings.is_empty())
+    });
+    assert!(ticks < 100, "patrol should visit at least one target building within 100 ticks");
+
+    // Every recorded visit should be a House -- the patrol filter must respect `buildings_to_visit`.
+    let visits: Vec<BuildingKindAndId> = {
+        let unit = find_unit(&env, unit_id);
+        let task = unit.current_task_as::<UnitTaskRandomizedPatrol>(env.sim.task_manager())
+            .expect("patrol should still own its task");
+        task.visited_buildings.iter().copied().collect()
+    };
+    assert!(!visits.is_empty(), "expected at least one visited building");
+    for v in &visits {
+        assert!(
+            v.kind == BuildingKind::House,
+            "patrol visited a non-House building: kind={} id={}", v.kind, v.id,
+        );
+    }
+
+    // Drain: let the patrol finish so the task pool is empty before drop.
+    let ticks = tick_until(&mut env, 300, PATROL_TICK_DELTA_SECS, |env| {
+        !unit_exists(env, unit_id)
+    });
+    assert!(ticks < 300, "patrol should despawn within 300 ticks");
 }
 
-// No waypoint chosen should be farther than `max_distance` cells from origin.
+// The patrol picks a waypoint within `max_distance` manhattan cells of the
+// unit's current position (in pathfind/mod.rs), and then returns to origin,
+// so at no point during the run should the unit be farther than
+// `max_distance` from the origin road link.
 fn test_patrol_respects_max_distance() {
-    // TODO: scenario pending. Track unit's cell at each tick, assert
-    // max |cell - origin| <= max_distance.
-    println!("(scenario pending: patrol max_distance instrumentation)");
+    let mut env = TestEnvironment::with_preset_map(
+        preset_maps::PRESET_PATROL_CROSSROADS_MARKET,
+    );
+
+    let market = find_building_id(&env, BuildingKind::Market);
+    set_building_debug_bool(&mut env, market, "freeze_patrol", true);
+
+    const MAX_DISTANCE: i32 = 6; // > PATROL_MIN_PREFERRED_PATH_LEN (=4)
+    let (unit_id, origin) = spawn_patrol_from_building(&mut env, market, MAX_DISTANCE, None);
+
+    // Sample the unit's cell each tick until it despawns. Predicate-style loop
+    // so we can both bound the iteration count and observe the trajectory.
+    let mut max_observed = 0i32;
+    let max_ticks = 200;
+    let mut ticks_used = 0;
+    for _ in 0..max_ticks {
+        if !unit_exists(&env, unit_id) {
+            break;
+        }
+        let cell = find_unit(&env, unit_id).cell();
+        max_observed = max_observed.max(cell.manhattan_distance(origin));
+        tick(&mut env, PATROL_TICK_DELTA_SECS);
+        ticks_used += 1;
+    }
+
+    assert!(
+        ticks_used < max_ticks,
+        "patrol should have despawned within {max_ticks} ticks (used {ticks_used})",
+    );
+    assert!(
+        max_observed <= MAX_DISTANCE,
+        "patrol drifted {max_observed} cells from origin (max_distance={MAX_DISTANCE})",
+    );
+    // Also confirm we actually saw movement -- otherwise the assertion is vacuous.
+    assert!(max_observed > 0, "patrol should have moved at least one cell from origin");
 }

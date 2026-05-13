@@ -1,4 +1,5 @@
 use std::any::Any;
+use arrayvec::ArrayVec;
 use rand::{Rng, seq::SliceRandom};
 use serde::{Deserialize, Serialize};
 
@@ -202,6 +203,11 @@ pub enum UnitTaskPatrolState {
     Completed,
 }
 
+// Max unique buildings recorded in `UnitTaskRandomizedPatrol::visited_buildings`.
+// Patrols rarely walk past more than a handful of target buildings in one run;
+// 32 leaves headroom without inflating the task struct too much.
+pub const MAX_PATROL_VISITED_BUILDINGS: usize = 32;
+
 // - Unit walks up to a certain distance away from the origin.
 // - Once max distance is reached, start walking back to origin.
 // - Visit any buildings it is interested on along the way.
@@ -235,6 +241,12 @@ pub struct UnitTaskRandomizedPatrol {
     // Deserialize uses Default if missing to retain backwards compatibility with older save files.
     #[serde(default)]
     pub internal_state: UnitTaskPatrolState,
+
+    // Unique buildings this patrol has queued visits to during its current run.
+    // Capped at MAX_PATROL_VISITED_BUILDINGS -- further matches are silently
+    // ignored. Visible to tests/debug UI; not used by the task logic itself.
+    #[serde(skip)]
+    pub visited_buildings: ArrayVec<BuildingKindAndId, MAX_PATROL_VISITED_BUILDINGS>,
 }
 
 impl UnitTaskRandomizedPatrol {
@@ -382,7 +394,14 @@ impl UnitTask for UnitTaskRandomizedPatrol {
                     for neighbor in neighbors {
                         if let Some(building) = context.find_building_for_cell(neighbor.cell) {
                             if building.is(buildings_to_visit) {
-                                cmds.visit_building(building.kind_and_id(), unit.id());
+                                let kind_and_id = building.kind_and_id();
+                                cmds.visit_building(kind_and_id, unit.id());
+
+                                // Track unique buildings the patrol has queued visits to.
+                                // The ArrayVec is capped; once full, additional matches are dropped.
+                                if !self.visited_buildings.contains(&kind_and_id) {
+                                    let _ = self.visited_buildings.try_push(kind_and_id);
+                                }
                             }
                         }
                     }
@@ -448,7 +467,7 @@ impl UnitTask for UnitTaskRandomizedPatrol {
                 unit.follow_path(None);
             }
         } else {
-            // Reached end of path, reroute bach to origin.
+            // Reached end of path, reroute back to origin.
             unit.follow_path(None);
 
             if !self.try_return_to_origin(unit, context) {

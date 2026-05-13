@@ -319,6 +319,7 @@ impl Unit {
                         completion_task,
                         idle_countdown: None,
                         internal_state: UnitTaskPatrolState::default(),
+                        visited_buildings: arrayvec::ArrayVec::new(),
                     });
                     self.assign_task(task_manager, task);
                 }

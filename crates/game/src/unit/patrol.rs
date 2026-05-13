@@ -1,6 +1,7 @@
 #![allow(clippy::too_many_arguments)]
 
 use rand::Rng;
+use arrayvec::ArrayVec;
 use serde::{Deserialize, Serialize};
 
 use common::{
@@ -139,6 +140,7 @@ impl Patrol {
                 completion_task: context.sim_ctx.task_manager_mut().new_task(UnitTaskDespawn),
                 idle_countdown: idle_countdown_secs.map(|countdown| (CountdownTimer::new(countdown), countdown)),
                 internal_state: UnitTaskPatrolState::default(),
+                visited_buildings: ArrayVec::new(),
             });
     }
 
