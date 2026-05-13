@@ -5,6 +5,7 @@ use game::{
     pathfind::{NodeKind as PathNodeKind, SearchResult},
     sim::{resources::ResourceKind, SimCmds, SimCmdQueue, SimContext},
     system::settlers::Settler,
+    tile::TileKind,
     unit::{
         UnitId,
         config::UnitConfigKey,
@@ -12,7 +13,7 @@ use game::{
         task::{
             UnitTaskArg, UnitTaskArgs, UnitTaskDeliverToStorage, UnitTaskDespawn,
             UnitTaskDespawnWithCallback, UnitTaskFetchFromStorage, UnitTaskFollowPath,
-            UnitTaskPostDespawnCallback,
+            UnitTaskHarvestWood, UnitTaskPostDespawnCallback,
         },
     },
 };
@@ -625,7 +626,7 @@ fn test_fetch_path_blocked_no_recovery() {
 fn test_fetch_recovers_by_shipping_back_to_storage_when_origin_unreachable() {
     // TODO(crates/game/src/unit/task/fetch.rs:178-181): implement once
     // the recovery path lands in source. Until then this passes trivially.
-    println!("(pending fix for fetch.rs:178)");
+    print!("TODO (pending fix for fetch.rs:178) ");
 }
 
 // Covers fetch.rs:246-250 and fetch.rs:298-302 -- unit returns to origin
@@ -635,7 +636,7 @@ fn test_fetch_recovers_by_shipping_back_to_storage_when_origin_unreachable() {
 fn test_fetch_recovers_when_unload_at_origin_fails() {
     // TODO(crates/game/src/unit/task/fetch.rs:246 + 298): implement once
     // the recovery path lands.
-    println!("(pending fix for fetch.rs:246,298)");
+    print!("TODO (pending fix for fetch.rs:246,298) ");
 }
 
 // Covers fetch.rs:332-336 -- origin building is despawned while the unit
@@ -644,53 +645,189 @@ fn test_fetch_recovers_when_unload_at_origin_fails() {
 fn test_fetch_recovers_when_origin_destroyed_mid_return() {
     // TODO(crates/game/src/unit/task/fetch.rs:332-336): implement once
     // the recovery path lands.
-    println!("(pending fix for fetch.rs:332)");
+    print!("TODO (pending fix for fetch.rs:332) ");
 }
 
 // ----------------------------------------------
 // UnitTaskHarvestWood
 // ----------------------------------------------
 
-// TODO: New preset maps needed:
-// - 1 lumberyard, 1 storage yard / connecting road between, a few tree props
-// - 2 lumberyard + 2 tree props
+// 1s ticks: the lumberyard's 20s production timer fires in ~20 ticks, and a
+// 1s harvest timer (set below) wraps up in one extra tick.
+const HARVEST_TICK_DELTA_SECS: Seconds = 1.0;
 
-// Verifies the off-road traversable flags added in harvest.rs:212-220 --
-// harvester should reach a tree placed on EmptyLand without a road.
-// Preset map setup similar to test_harvest_claims_tree_then_returns_wood: LumberYard + tree prop.
+// Shrink the harvest timer (default 20s, harvest.rs) to a single tick.
+// The static lingers across tests within the suite, but nothing else in this
+// file exercises harvesting, so idempotent reapplication is fine.
+fn set_short_harvest_interval() {
+    UnitTaskHarvestWood::set_harvest_time_interval(1.0);
+}
+
+// Tick until a unit of the given config exists; return its id.
+fn tick_until_unit_of_config_spawned(env: &mut TestEnvironment, config: UnitConfigKey, max_ticks: usize) -> UnitId {
+    let ticks = tick_until(env, max_ticks, HARVEST_TICK_DELTA_SECS, |env| {
+        find_unit_by_config(env, config).is_some()
+    });
+    assert!(ticks < max_ticks, "{config:?} should have spawned within {max_ticks} ticks");
+    find_unit_by_config(env, config).expect("unit should be spawned")
+}
+
+// Drain in-flight units of `config` -- caller should set the appropriate
+// freeze_* flags first or the producer will just dispatch another one.
+fn tick_until_no_units_of_config(env: &mut TestEnvironment, config: UnitConfigKey, max_ticks: usize) {
+    let ticks = tick_until(env, max_ticks, HARVEST_TICK_DELTA_SECS, |env| {
+        find_unit_by_config(env, config).is_none()
+    });
+    assert!(ticks < max_ticks, "all {config:?} units should have despawned within {max_ticks} ticks");
+}
+
+// Stop the lumberyard from dispatching new harvesters/runners, then wait for
+// any in-flight ones to finish. Leaves the sim's task/promise pools empty so
+// TestEnvironment can drop without a leak panic.
+fn drain_harvest_pipeline(env: &mut TestEnvironment, lumberyards: &[BuildingKindAndId], max_ticks: usize) {
+    for &lumberyard in lumberyards {
+        set_building_debug_bool(env, lumberyard, "freeze_harvesting", true);
+        set_building_debug_bool(env, lumberyard, "freeze_storage_delivery", true);
+    }
+    tick_until_no_units_of_config(env, UnitConfigKey::Peasant, max_ticks);
+    tick_until_no_units_of_config(env, UnitConfigKey::Runner, max_ticks);
+}
+
+// The harvester gains EmptyLand/VacantLot/SettlersSpawnPoint traversal in
+// UnitTaskHarvestWood::initialize (harvest.rs). Preset 7 places its
+// trees on grass with no road in between, so reaching a tree at all proves
+// the off-road flags are in effect.
 fn test_harvest_traverses_off_road() {
-    // TODO: scenario pending. Needs a tree on EmptyLand/Vegetation with
-    // no road between it and the origin building.
-    println!("(scenario pending: off-road tree setup)");
+    set_short_harvest_interval();
+
+    let mut env = TestEnvironment::with_preset_map(
+        preset_maps::PRESET_1_LUMBERYARD_1_STORAGE_YARD_WITH_TREES,
+    );
+
+    let lumberyard = find_building_id(&env, BuildingKind::Lumberyard);
+
+    let harvester_id = tick_until_unit_of_config_spawned(&mut env, UnitConfigKey::Peasant, 30);
+
+    // tick_until returns the tick *after* the unit was spawned, but the task
+    // hasn't been ticked yet -- initialize() (which expands the traversable
+    // kinds at harvest.rs and assigns a goal via try_find_goal) runs
+    // on the first task update. Tick once more so initialization has happened
+    // before we read state from the unit.
+    tick(&mut env, HARVEST_TICK_DELTA_SECS);
+
+    // After initialize() the unit traversable kinds must include EmptyLand --
+    // the Peasant config defaults to Road-only.
+    let traversable = find_unit(&env, harvester_id).traversable_node_kinds();
+    assert!(
+        traversable.intersects(PathNodeKind::EmptyLand),
+        "harvester should have EmptyLand traversable kind, got {traversable}",
+    );
+
+    // The goal cell (a tree-adjacent neighbor, from harvest.rs) sits on
+    // EmptyLand grass -- preset 7 has trees at (5,3)/(6,4)/(4,5), all interior
+    // cells with no road in reach. If the off-road flags hadn't been added in
+    // initialize(), pathfinding from the road link would have failed and the
+    // goal would remain unset.
+    let goal_cell = find_unit(&env, harvester_id)
+        .goal()
+        .expect("harvester should have a goal after task initialization")
+        .destination_cell();
+    let goal_path_kind = env.tile_map
+        .find_tile(goal_cell, TileKind::Terrain)
+        .expect("goal cell should have a terrain tile")
+        .path_kind();
+    assert!(
+        goal_path_kind.intersects(PathNodeKind::EmptyLand),
+        "harvester goal should be on grass (off-road), got {goal_path_kind}",
+    );
+
+    drain_harvest_pipeline(&mut env, &[lumberyard], 100);
 }
 
-// Harvest needs an origin building with a road link, a tree prop within
-// pathfinding range, and enough tick budget to cover WOOD_HARVEST_TIME_INTERVAL
-// (20s in harvest.rs - can be customized to a smaller value for testing via UnitTaskHarvestWood::set_harvest_time_interval).
+// Full harvest cycle: harvester claims a tree, harvest_timer elapses, the
+// deferred prop_update credits the unit with wood, the unit walks back, and
+// `ProducerBuilding::on_resources_harvested` deposits the wood into the
+// lumberyard's output stock. Also verifies the tree's harvestable amount drops.
 fn test_harvest_claims_tree_then_returns_wood() {
-    // TODO: scenario pending. Needs a LumberYard origin + tree prop + StorageYard.
-    // Create preset tile map for this test (see NOTES below).
-    // Expected state chain:
-    //   Running -> PendingHarvest (after harvest_timer elapses)
-    //   -> PendingCompletionCallback -> Completed
-    // Assert unit carries 1..=WOOD_HARVEST_MAX_AMOUNT wood during return,
-    // and that it's deposited at the origin building.
-    // NOTES:
-    // - Load a preset map containing a lumberyard, storage yard and tree prop.
-    // - Assert that resources flow from tree -> harvester unit -> lumberyard -> storage yard.
-    // - Tree harvestable amount decreases.
-    // - Tick until we complete a full harvest cycle:
-    //    lumberyard spawns unit -> unit harvests tree -> unit returns to lumberyard
-    //      -> lumberyard dispatches delivery to storage -> storage receives wood.
-    println!("(scenario pending: harvester/tree/road-link setup)");
+    set_short_harvest_interval();
+
+    let mut env = TestEnvironment::with_preset_map(
+        preset_maps::PRESET_1_LUMBERYARD_1_STORAGE_YARD_WITH_TREES,
+    );
+
+    let lumberyard = find_building_id(&env, BuildingKind::Lumberyard);
+    assert_eq!(find_building(&env, lumberyard).available_resources(ResourceKind::Wood), 0);
+
+    // Total harvestable wood across the three trees on the map before the cycle.
+    let tree_cells = [Cell::new(5, 3), Cell::new(6, 4), Cell::new(4, 5)];
+    let total_wood_pre: u32 = tree_cells
+        .iter()
+        .filter_map(|c| env.world.find_prop_for_cell(*c, &env.tile_map))
+        .map(|p| p.harvestable_amount())
+        .sum();
+
+    let harvester_id = tick_until_unit_of_config_spawned(&mut env, UnitConfigKey::Peasant, 30);
+
+    // Full cycle: walk -> claim -> harvest -> return -> deposit -> despawn.
+    // The deposit (on_resources_harvested, producer.rs) happens before the
+    // chained UnitTaskDespawn fires, so once the unit is gone the stock is non-zero.
+    let _ = harvester_id; // keep ID for assertion ergonomics; presence already validated
+    tick_until_no_units_of_config(&mut env, UnitConfigKey::Peasant, 100);
+
+    let wood_in_stock = find_building(&env, lumberyard).available_resources(ResourceKind::Wood);
+    assert!(wood_in_stock != 0, "lumberyard should have received wood, got {wood_in_stock}");
+
+    // Harvest amount is random in 1..WOOD_HARVEST_MAX_AMOUNT (=5).
+    assert!(wood_in_stock < 5, "single harvest should yield 1..=4 wood, got {wood_in_stock}");
+
+    // Some tree on the map lost exactly `wood_in_stock` wood. (We can't pin
+    // *which* tree without re-deriving the RNG path -- the harvester picks
+    // randomly from accepting candidates, harvest.rs)
+    let total_wood_post: u32 = tree_cells
+        .iter()
+        .filter_map(|c| env.world.find_prop_for_cell(*c, &env.tile_map))
+        .map(|p| p.harvestable_amount())
+        .sum();
+    assert_eq!(
+        total_wood_pre - total_wood_post, wood_in_stock,
+        "wood removed from tree(s) should equal wood deposited in the lumberyard",
+    );
+
+    drain_harvest_pipeline(&mut env, &[lumberyard], 100);
 }
 
-// Exercises the reroute branch at harvest.rs:323-365 -- a second harvester
-// arriving at a tree already claimed by another unit picks a different one.
+// Two lumberyards + two trees -> harvesters race for claims. Both end up with
+// wood, which can only happen if (a) the path filter rejects already-claimed
+// trees and/or (b) the reroute branch in harvest.rs reassigns a unit whose
+// tree got claimed away by another harvester.
 fn test_harvest_reroutes_when_tree_already_claimed() {
-    // TODO: scenario pending. Needs 2x harvester origin + 2x tree props +
-    // deterministic turn ordering so the claim race is observable.
-    println!("(scenario pending: multi-harvester tree-claim setup)");
+    set_short_harvest_interval();
+
+    let mut env = TestEnvironment::with_preset_map(
+        preset_maps::PRESET_2_LUMBERYARDS_2_TREES,
+    );
+
+    // Collect both lumberyard handles.
+    let mut lumberyard_ids = Vec::new();
+    env.world.for_each_building(BuildingKind::Lumberyard, |b| {
+        lumberyard_ids.push(b.kind_and_id());
+        true
+    });
+    assert_eq!(lumberyard_ids.len(), 2, "preset should expose two lumberyards");
+
+    // Tick until both lumberyards have at least one unit of wood.
+    let ticks = tick_until(&mut env, 200, HARVEST_TICK_DELTA_SECS, |env| {
+        lumberyard_ids
+            .iter()
+            .all(|id| find_building(env, *id).available_resources(ResourceKind::Wood) != 0)
+    });
+    assert!(ticks < 200, "both lumberyards should have wood within 200 ticks");
+
+    for id in &lumberyard_ids {
+        assert!(find_building(&env, *id).available_resources(ResourceKind::Wood) != 0);
+    }
+
+    drain_harvest_pipeline(&mut env, &lumberyard_ids, 100);
 }
 
 // ----------------------------------------------
