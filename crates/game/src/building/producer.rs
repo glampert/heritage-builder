@@ -646,13 +646,13 @@ impl ProducerBuilding {
     }
 
     fn on_resources_fetched(context: &SimContext, this_building: &mut Building, runner_unit: &mut Unit) {
-        let this_building_kind = this_building.kind();
         let this_producer = this_building.as_producer_mut();
 
         debug_assert!(this_producer.is_runner_fetching_resources(context), "No Runner was sent out by this building!");
         debug_assert!(this_producer.runner.unit_id() == runner_unit.id());
 
-        // Try unload cargo:
+        // Try unload cargo. Any surplus stays in the runner's inventory -- the fetch
+        // task's recovery path will ship it to a storage that can accept it.
         if let Some(item) = runner_unit.peek_inventory() {
             debug_assert!(item.count != 0, "{item}");
             debug_assert!(item.count <= this_producer.production_input_stock.capacity(), "{item}");
@@ -661,19 +661,6 @@ impl ProducerBuilding {
             if received_count != 0 {
                 let removed_count = runner_unit.remove_resources(item.kind, received_count);
                 debug_assert!(removed_count == received_count);
-            }
-
-            if !runner_unit.inventory_is_empty() {
-                // TODO: We have to ship back to storage if we couldn't receive everything!
-                log::error!(
-                    log::channel!("TODO"),
-                    "{} - '{}': Couldn't receive all resources from runner. Implement fallback task for this!",
-                    this_building_kind,
-                    this_producer.name()
-                );
-
-                // For now we just drop the remaining resources.
-                runner_unit.clear_inventory();
             }
         }
 

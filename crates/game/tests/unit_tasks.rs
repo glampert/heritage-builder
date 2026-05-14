@@ -4,7 +4,10 @@ use game::{
     building::{Building, BuildingKind, BuildingKindAndId, BuildingTileInfo},
     debug::{game_object_debug::GameObjectDebugVarRef, preset_maps},
     pathfind::{NodeKind as PathNodeKind, SearchResult},
-    sim::{resources::ResourceKind, SimCmds, SimCmdQueue, SimContext},
+    sim::{
+        resources::{ResourceKind, ShoppingList, StockItem},
+        SimCmds, SimCmdQueue, SimContext,
+    },
     system::settlers::Settler,
     tile::TileKind,
     unit::{
@@ -15,8 +18,9 @@ use game::{
         task::{
             UnitPatrolPathRecord, UnitTaskArg, UnitTaskArgs, UnitTaskDeliverToStorage,
             UnitTaskDespawn, UnitTaskDespawnWithCallback, UnitTaskFetchFromStorage,
-            UnitTaskFollowPath, UnitTaskHarvestWood, UnitTaskPatrolCompletionCallback,
-            UnitTaskPatrolState, UnitTaskPostDespawnCallback, UnitTaskRandomizedPatrol,
+            UnitTaskFetchState, UnitTaskFollowPath, UnitTaskHarvestWood,
+            UnitTaskPatrolCompletionCallback, UnitTaskPatrolState,
+            UnitTaskPostDespawnCallback, UnitTaskRandomizedPatrol,
         },
     },
 };
@@ -24,8 +28,9 @@ use game::{
 mod test_utils;
 use test_utils::{
     TestEnvironment,
-    assign_task, clear_terrain, find_building, find_building_id, find_building_mut,
-    find_unit, find_unit_by_config, place_road, spawn_unit, tick, tick_until, unit_exists,
+    assign_task, clear_terrain, despawn_building, find_building, find_building_id,
+    find_building_mut, find_unit, find_unit_by_config, place_road, spawn_unit, tick,
+    tick_until, unit_exists,
 };
 
 // ----------------------------------------------
@@ -616,39 +621,201 @@ fn test_fetch_path_blocked_no_recovery() {
     assert_eq!(find_building(&env, granary).available_resources(ResourceKind::Rice), N);
 }
 
-// ---- TODO: Placeholders for known-broken recovery paths in fetch.rs ----
-//
-// These track source-level TODOs (crates/game/src/unit/task/fetch.rs).
-// Each pending test body narrates the expected future behavior so that
-// when the fix lands, the test body itself is the spec.
+// ---- Recovery paths in fetch.rs ----
 
-// Covers fetch.rs:178-181 -- unit finishes pickup, then loses its path
-// back to the origin building. Today the task logs a warning, clears the
-// inventory, and ends. Expected future behavior: unit reroutes to an
-// alternate storage and deposits.
+// When a fetch runner cannot deliver its cargo back to its origin building
+// (origin unreachable, destroyed, or refusing the delivery), the task routes
+// the surplus to any storage that will accept it instead of dropping the cargo.
+
+// Sum the rice held across all storage buildings on the map (used to assert
+// "rice ended up *somewhere*" without depending on which storage the surplus
+// recovery happened to pick).
+fn total_rice_in_storages(env: &TestEnvironment) -> u32 {
+    let mut total = 0u32;
+    env.world.for_each_building(BuildingKind::storage(), |b| {
+        total += b.available_resources(ResourceKind::Rice);
+        true
+    });
+    total
+}
+
+// Covers fetch.rs's "unit finishes pickup, then loses its path back to origin"
+// path: after pickup, the market's road link cells are torn out. The runner's
+// return path is blocked, try_return_to_origin fails on the next task tick,
+// and the recovery routes the surplus to a storage building instead.
 fn test_fetch_recovers_by_shipping_back_to_storage_when_origin_unreachable() {
-    // TODO(crates/game/src/unit/task/fetch.rs:178-181): implement once
-    // the recovery path lands in source. Until then this passes trivially.
-    print!("TODO (pending fix for fetch.rs:178) ");
+    let mut env = TestEnvironment::with_preset_map(
+        preset_maps::PRESET_1_MARKET_1_GRANARY_1_STORAGE_YARD,
+    );
+
+    let market       = find_building_id(&env, BuildingKind::Market);
+    let granary      = find_building_id(&env, BuildingKind::Granary);
+    let storage_yard = find_building_id(&env, BuildingKind::StorageYard);
+
+    set_building_debug_bool(&mut env, market, "freeze_patrol", true);
+
+    const N: u32 = 4;
+    seed_storage(&mut env, granary, ResourceKind::Rice, N);
+    assert_eq!(find_building(&env, granary).available_resources(ResourceKind::Rice), N);
+
+    let runner_id = tick_until_runner_spawned(&mut env, 30);
+
+    // Pin to a single dispatch so the test doesn't leak follow-up runners.
+    set_building_debug_bool(&mut env, market, "freeze_stock_update", true);
+
+    // Wait until the runner has rice on board -- it has finished the deferred
+    // visit at the granary and is now in the ReturningToOrigin state.
+    let ticks = tick_until(&mut env, 200, DELIVER_TICK_DELTA_SECS, |env| {
+        let unit = find_unit(env, runner_id);
+        !unit.inventory_is_empty()
+    });
+    assert!(ticks < 200, "runner should have picked up rice within 200 ticks");
+    assert_eq!(find_building(&env, granary).available_resources(ResourceKind::Rice), 0);
+
+    // Tear out *every* road tile adjacent to the market so the runner's return
+    // path is unrecoverable. (Market 2x2 at (1,1)-(2,2); its only road
+    // neighbours are the top-left corner of the ring road.)
+    let market_road_cells = [
+        Cell::new(0, 1), Cell::new(0, 2),
+        Cell::new(1, 0), Cell::new(2, 0),
+    ];
+    clear_terrain(&mut env, &market_road_cells);
+
+    // Recovery: the runner reroutes to a storage that will accept rice
+    // (granary or storage_yard -- whichever is nearest from where the path
+    // blocked). After the surplus is deposited, the runner runs its chained
+    // UnitTaskDespawn and despawns.
+    tick_until_runner_despawned(&mut env, runner_id, 300);
+
+    // Market got nothing -- its road link is gone.
+    assert_eq!(find_building(&env, market).available_resources(ResourceKind::Rice), 0);
+
+    // No rice was abandoned: it ended up in granary, storage_yard, or some mix.
+    assert_eq!(
+        total_rice_in_storages(&env), N,
+        "surplus rice should have been deposited at a storage, not dropped",
+    );
+
+    let granary_rice = find_building(&env, granary).available_resources(ResourceKind::Rice);
+    let storage_yard_rice = find_building(&env, storage_yard).available_resources(ResourceKind::Rice);
+    assert_eq!(granary_rice + storage_yard_rice, N);
 }
 
-// Covers fetch.rs:246-250 and fetch.rs:298-302 -- unit returns to origin
-// but the deferred unload fails (e.g. inventory full, building destroyed
-// before callback). Today the task clears the unit's inventory. Expected
-// future behavior: ship surplus to a storage.
+// Covers fetch.rs's "origin unload fails after return" paths. We manually
+// assign a UnitTaskFetchFromStorage with no completion callback so the
+// origin's deferred-unload step is skipped. The task then hits the recovery
+// branch in completed() with a non-empty inventory and ships the surplus
+// to a storage instead of dropping the cargo.
 fn test_fetch_recovers_when_unload_at_origin_fails() {
-    // TODO(crates/game/src/unit/task/fetch.rs:246 + 298): implement once
-    // the recovery path lands.
-    print!("TODO (pending fix for fetch.rs:246,298) ");
+    let mut env = TestEnvironment::with_preset_map(
+        preset_maps::PRESET_1_MARKET_1_GRANARY_1_STORAGE_YARD,
+    );
+
+    let market       = find_building_id(&env, BuildingKind::Market);
+    let granary      = find_building_id(&env, BuildingKind::Granary);
+    let storage_yard = find_building_id(&env, BuildingKind::StorageYard);
+
+    // Stop the market from dispatching its own runner -- we drive the fetch
+    // ourselves with a custom task wired with no completion callback.
+    set_building_debug_bool(&mut env, market, "freeze_patrol", true);
+    set_building_debug_bool(&mut env, market, "freeze_stock_update", true);
+
+    const N: u32 = 4;
+    seed_storage(&mut env, granary, ResourceKind::Rice, N);
+
+    let (market_road_link, market_base_cell) = {
+        let b = find_building(&env, market);
+        (b.road_link().expect("market should be road-linked"), b.base_cell())
+    };
+
+    let unit_id = spawn_unit(&mut env, market_road_link, UnitConfigKey::Peasant);
+
+    let despawn_task_id = env.sim.task_manager_mut().new_task(UnitTaskDespawn)
+        .expect("task pool full");
+
+    let task = UnitTaskFetchFromStorage {
+        origin_building: market,
+        origin_building_tile: BuildingTileInfo {
+            road_link: market_road_link,
+            base_cell: market_base_cell,
+        },
+        storage_buildings_accepted: BuildingKind::storage(),
+        resources_to_fetch: ShoppingList::from_items(&[
+            StockItem { kind: ResourceKind::Rice, count: N },
+        ]),
+        // No completion callback -- forces the task into the recovery branch
+        // (no deferred unload at origin) after the unit reaches the market.
+        completion_callback: Callback::default(),
+        completion_task: Some(despawn_task_id),
+        internal_state: UnitTaskFetchState::default(),
+    };
+    assign_task(&mut env, unit_id, task);
+
+    // Walk to the granary, pick up, walk back to the market road link.
+    // No completion callback fires, so completed() drops into the recovery
+    // path and ships the rice to a storage that will accept it.
+    tick_until(&mut env, 300, DELIVER_TICK_DELTA_SECS, |env| !unit_exists(env, unit_id));
+
+    assert_eq!(find_building(&env, market).available_resources(ResourceKind::Rice), 0);
+    assert_eq!(
+        total_rice_in_storages(&env), N,
+        "surplus rice should have been deposited at a storage, not dropped",
+    );
+
+    let granary_rice = find_building(&env, granary).available_resources(ResourceKind::Rice);
+    let storage_yard_rice = find_building(&env, storage_yard).available_resources(ResourceKind::Rice);
+    assert_eq!(granary_rice + storage_yard_rice, N);
 }
 
-// Covers fetch.rs:332-336 -- origin building is despawned while the unit
-// is returning with the fetched resource. Today the task clears the
-// inventory and ends. Expected future behavior: route to another storage.
+// Covers fetch.rs's "origin destroyed mid-trip" path: the market is despawned
+// while the runner is still walking toward the granary. On arrival the runner
+// picks up the rice, try_return_to_origin fails (origin no longer exists),
+// and the in-callback recovery routes the surplus to a storage instead.
 fn test_fetch_recovers_when_origin_destroyed_mid_return() {
-    // TODO(crates/game/src/unit/task/fetch.rs:332-336): implement once
-    // the recovery path lands.
-    print!("TODO (pending fix for fetch.rs:332) ");
+    let mut env = TestEnvironment::with_preset_map(
+        preset_maps::PRESET_1_MARKET_1_GRANARY_1_STORAGE_YARD,
+    );
+
+    let market       = find_building_id(&env, BuildingKind::Market);
+    let granary      = find_building_id(&env, BuildingKind::Granary);
+    let storage_yard = find_building_id(&env, BuildingKind::StorageYard);
+
+    set_building_debug_bool(&mut env, market, "freeze_patrol", true);
+
+    const N: u32 = 4;
+    seed_storage(&mut env, granary, ResourceKind::Rice, N);
+
+    let runner_id = tick_until_runner_spawned(&mut env, 30);
+
+    // Pin to a single dispatch.
+    set_building_debug_bool(&mut env, market, "freeze_stock_update", true);
+
+    // Let the runner take a few steps toward the granary, then despawn the
+    // market. By the time the runner reaches the granary, picks up, and tries
+    // to route home, the origin building is gone.
+    for _ in 0..3 {
+        tick(&mut env, DELIVER_TICK_DELTA_SECS);
+    }
+    despawn_building(&mut env, market);
+    assert!(
+        env.world.find_building(market.kind, market.id).is_none(),
+        "market should be despawned before the runner reaches the granary",
+    );
+
+    // Recovery: the runner picks up at the granary, finds the market gone,
+    // and routes the surplus to a storage instead of dropping it.
+    tick_until_runner_despawned(&mut env, runner_id, 300);
+
+    // No market remains; no rice was abandoned.
+    assert!(env.world.find_building(market.kind, market.id).is_none());
+    assert_eq!(
+        total_rice_in_storages(&env), N,
+        "surplus rice should have been deposited at a storage, not dropped",
+    );
+
+    let granary_rice = find_building(&env, granary).available_resources(ResourceKind::Rice);
+    let storage_yard_rice = find_building(&env, storage_yard).available_resources(ResourceKind::Rice);
+    assert_eq!(granary_rice + storage_yard_rice, N);
 }
 
 // ----------------------------------------------

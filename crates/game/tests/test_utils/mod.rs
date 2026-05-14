@@ -254,6 +254,15 @@ pub fn spawn_building(env: &mut TestEnvironment, base_cell: Cell, name: &str) ->
     }
 }
 
+// Queue a despawn of `handle` and flush it through the sim command pipeline.
+// Tile graph / world arena bookkeeping is kept consistent because this routes
+// through the same SimCmd path the game uses.
+pub fn despawn_building(env: &mut TestEnvironment, handle: BuildingKindAndId) {
+    let mut cmds = SimCmds::default();
+    cmds.despawn_building_with_id(handle);
+    execute_cmds(env, &mut cmds);
+}
+
 pub fn spawn_tree(env: &mut TestEnvironment, cell: Cell) -> PropId {
     let tile_def = find_vegetation_def("tree");
     let mut cmds = SimCmds::default();

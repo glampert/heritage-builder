@@ -12,6 +12,7 @@ use super::{
     UnitTaskState,
     common::{
         PathFindResult,
+        find_delivery_candidate,
         find_storage_fetch_candidate,
         visit_destination_deferred,
         invoke_completion_callback_immediate,
@@ -41,6 +42,10 @@ pub enum UnitTaskFetchState {
     PendingBuildingVisit,
     ReturningToOrigin,
     PendingCompletionCallback,
+    // Recovery: origin is unreachable / destroyed / refused the delivery, so
+    // the unit is walking the surplus inventory to any storage that will take it.
+    ReturningSurplusToStorage,
+    PendingSurplusUnload,
     Completed,
 }
 
@@ -97,9 +102,39 @@ impl UnitTaskFetchFromStorage {
         false
     }
 
+    // Recovery: if the unit is holding goods but can't return them to the
+    // origin building, look for any storage that will receive the surplus.
+    // On success, the unit's nav goal is set and `internal_state` advances
+    // to `ReturningSurplusToStorage`.
+    fn try_route_surplus_to_storage(&mut self, unit: &mut Unit, context: &SimContext) -> bool {
+        let Some(item) = unit.peek_inventory() else {
+            return false;
+        };
+
+        let origin_cell = unit.cell();
+        let traversable_node_kinds = unit.traversable_node_kinds();
+
+        let path_find_result = find_delivery_candidate(
+            context,
+            self.origin_building.kind,
+            origin_cell,
+            traversable_node_kinds,
+            self.storage_buildings_accepted,
+            item.kind,
+        );
+
+        if let PathFindResult::Success { path, goal } = path_find_result {
+            unit.move_to_goal(path, goal);
+            self.internal_state = UnitTaskFetchState::ReturningSurplusToStorage;
+            return true;
+        }
+
+        false
+    }
+
     fn try_return_to_origin(&mut self, unit: &mut Unit, context: &SimContext) -> bool {
         if context.find_building(self.origin_building.kind, self.origin_building.id).is_none() {
-            log::error!(log::channel!("task"), "Origin building is no longer valid! TaskFetchFromStorage will abort.");
+            log::info!(log::channel!("task"), "Origin building no longer valid; TaskFetchFromStorage will attempt surplus recovery.");
             return false;
         }
 
@@ -120,9 +155,9 @@ impl UnitTaskFetchFromStorage {
                 true
             }
             SearchResult::PathNotFound => {
-                log::error!(
+                log::info!(
                     log::channel!("task"),
-                    "Origin building is no longer reachable! (no road access?) TaskFetchFromStorage will abort."
+                    "Origin building unreachable (no road access); TaskFetchFromStorage will attempt surplus recovery."
                 );
                 false
             }
@@ -175,10 +210,14 @@ impl UnitTask for UnitTaskFetchFromStorage {
             UnitTaskFetchState::ReturningToOrigin => {
                 if unit.goal().is_none() {
                     if !self.try_return_to_origin(unit, context) {
-                        // TODO: We can recover from this and ship the resources back to storage.
+                        // Origin building unreachable. Try to ship surplus to any storage that will accept it.
+                        if self.try_route_surplus_to_storage(unit, context) {
+                            return UnitTaskState::Running;
+                        }
+
                         log::error!(
-                            log::channel!("TODO"),
-                            "Aborting TaskFetchFromStorage. Unable to return to origin building..."
+                            log::channel!("task"),
+                            "Aborting TaskFetchFromStorage. Origin unreachable and no storage will accept the surplus."
                         );
                         unit.clear_inventory();
 
@@ -214,7 +253,27 @@ impl UnitTask for UnitTaskFetchFromStorage {
                     }
                 }
             }
-            UnitTaskFetchState::PendingBuildingVisit | UnitTaskFetchState::PendingCompletionCallback => {
+            UnitTaskFetchState::ReturningSurplusToStorage => {
+                if unit.goal().is_none() {
+                    // Lost the path to the chosen storage. Retry routing to a different one;
+                    // if nothing accepts the surplus, drop it and end the task.
+                    if !self.try_route_surplus_to_storage(unit, context) {
+                        log::error!(
+                            log::channel!("task"),
+                            "Aborting TaskFetchFromStorage. No storage will accept the surplus inventory."
+                        );
+                        unit.clear_inventory();
+
+                        debug_assert_ne!(self.internal_state, UnitTaskFetchState::Completed);
+                        self.internal_state = UnitTaskFetchState::Completed;
+
+                        return UnitTaskState::Completed;
+                    }
+                }
+            }
+            UnitTaskFetchState::PendingBuildingVisit
+            | UnitTaskFetchState::PendingCompletionCallback
+            | UnitTaskFetchState::PendingSurplusUnload => {
                 // Wait for deferred callback to be invoked.
                 return UnitTaskState::Running;
             }
@@ -241,16 +300,50 @@ impl UnitTask for UnitTaskFetchFromStorage {
         };
 
         // If the deferred completion callback has already run, finalize the task.
+        // If origin couldn't accept the whole delivery, try to ship the surplus
+        // to any storage that will take it before giving up.
         if self.internal_state == UnitTaskFetchState::Completed {
             if !unit.inventory_is_empty() {
-                // TODO: We can recover from this and ship the resources back to storage.
+                if self.try_route_surplus_to_storage(unit, context) {
+                    return UnitTaskResult::Retry;
+                }
+
                 log::error!(
-                    log::channel!("TODO"),
-                    "TaskFetchFromStorage: Failed to unload all resources. Src building destroyed?"
+                    log::channel!("task"),
+                    "TaskFetchFromStorage: Failed to unload at origin and no storage will accept the surplus."
                 );
                 unit.clear_inventory();
             }
             return UnitTaskResult::completed_with(&mut self.completion_task);
+        }
+
+        // We've reached the recovery storage. Defer the visit so the destination
+        // building can receive the surplus inventory.
+        if self.internal_state == UnitTaskFetchState::ReturningSurplusToStorage {
+            let destination_exists = visit_destination_deferred(unit, cmds, context, |context, _building, unit, _result| {
+                let task = unit.current_task_as_mut::<Self>(context.task_manager_mut())
+                    .expect("Expected unit to be running UnitTaskFetchFromStorage!");
+
+                debug_assert_eq!(task.internal_state, UnitTaskFetchState::PendingSurplusUnload);
+
+                if unit.inventory_is_empty() {
+                    // Surplus fully deposited. End the task.
+                    task.internal_state = UnitTaskFetchState::Completed;
+                } else {
+                    // Visit refused (no slot). Try another storage on the next tick.
+                    task.internal_state = UnitTaskFetchState::ReturningSurplusToStorage;
+                }
+            });
+
+            if destination_exists {
+                self.internal_state = UnitTaskFetchState::PendingSurplusUnload;
+            } else {
+                // Destination disappeared between routing and arrival. Retry routing.
+                self.internal_state = UnitTaskFetchState::ReturningSurplusToStorage;
+            }
+
+            unit.follow_path(None);
+            return UnitTaskResult::Retry;
         }
 
         let task_completed = if self.internal_state == UnitTaskFetchState::ReturningToOrigin || goal_is_origin_building(unit) {
@@ -289,16 +382,21 @@ impl UnitTask for UnitTaskFetchFromStorage {
                 }
             }
 
+            // Either no completion callback or origin building no longer exists.
+            // If we're holding surplus, try to ship it to a storage as recovery.
+            if !unit.inventory_is_empty() && self.try_route_surplus_to_storage(unit, context) {
+                return UnitTaskResult::Retry;
+            }
+
             debug_assert_ne!(self.internal_state, UnitTaskFetchState::Completed);
             self.internal_state = UnitTaskFetchState::Completed;
 
             unit.follow_path(None);
 
             if !unit.inventory_is_empty() {
-                // TODO: We can recover from this and ship the resources back to storage.
                 log::error!(
-                    log::channel!("TODO"),
-                    "TaskFetchFromStorage: Failed to unload all resources. Src building destroyed?"
+                    log::channel!("task"),
+                    "TaskFetchFromStorage: Failed to unload at origin and no storage will accept the surplus."
                 );
                 unit.clear_inventory();
             }
@@ -326,13 +424,14 @@ impl UnitTask for UnitTaskFetchFromStorage {
                     );
 
                     // If we couldn't find a path back to the origin, maybe because the origin
-                    // building was destroyed, we'll have to abort the task. Any
-                    // resources collected will be lost.
-                    if !task.try_return_to_origin(unit, context) {
-                        // TODO: We can recover from this and ship the resources back to storage.
+                    // building was destroyed, try to ship the cargo to any storage that
+                    // will accept it. If no storage is reachable either, drop the cargo.
+                    if !task.try_return_to_origin(unit, context)
+                        && !task.try_route_surplus_to_storage(unit, context)
+                    {
                         log::error!(
-                            log::channel!("TODO"),
-                            "Aborting TaskFetchFromStorage. Unable to return to origin building..."
+                            log::channel!("task"),
+                            "Aborting TaskFetchFromStorage. Origin unreachable and no storage will accept the cargo."
                         );
                         unit.clear_inventory();
 
@@ -353,7 +452,9 @@ impl UnitTask for UnitTaskFetchFromStorage {
 
                     debug_assert!(matches!(
                         task.internal_state,
-                        UnitTaskFetchState::ReturningToOrigin | UnitTaskFetchState::Completed
+                        UnitTaskFetchState::ReturningToOrigin
+                            | UnitTaskFetchState::ReturningSurplusToStorage
+                            | UnitTaskFetchState::Completed
                     ));
                 } else {
                     // Destination didn't have the resources we wanted. Try again elsewhere.

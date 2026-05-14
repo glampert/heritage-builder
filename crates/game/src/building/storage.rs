@@ -167,7 +167,22 @@ impl BuildingBehavior for StorageBuilding {
         } else if let Some(task) = unit.current_task_as::<UnitTaskFetchFromStorage>(task_manager) {
             debug_assert!(context.kind.intersects(task.storage_buildings_accepted));
 
-            // Try give resources:
+            // Recovery path: the fetch task could not return to its origin (origin
+            // unreachable, destroyed, or unable to accept the delivery), so the unit
+            // is depositing its cargo at any storage that will take it.
+            if let Some(item) = unit.peek_inventory() {
+                let received_count = self.receive_resources(item.kind, item.count);
+                if received_count != 0 {
+                    let removed_count = unit.remove_resources(item.kind, received_count);
+                    debug_assert!(removed_count == received_count);
+
+                    debug_popup_msg!(self.debug, "{} deposited surplus {} {}", unit.name(), received_count, item.kind);
+                    return BuildingVisitResult::Accepted;
+                }
+                return BuildingVisitResult::Refused;
+            }
+
+            // Normal path: try give resources from this storage to the unit.
             for item in task.resources_to_fetch.iter() {
                 let available_count = self.available_resources(item.kind);
                 if available_count != 0 {

@@ -651,7 +651,45 @@ const PRESET_TILES_13: PresetTiles = PresetTiles {
     })
 };
 
-const PRESET_TILES: [&PresetTiles; 14] = [
+// 1 market + 1 granary (source) + 1 storage yard (recovery sink).
+// Used by the fetch-recovery tests: the market dispatches a runner to fetch
+// from the granary; when the runner can't deliver back to the market, the
+// storage yard accepts the surplus. All three buildings are road-linked via
+// the ring road so the runner can reach any of them.
+pub const PRESET_1_MARKET_1_GRANARY_1_STORAGE_YARD: usize = 14;
+const PRESET_TILES_14: PresetTiles = PresetTiles {
+    preset_name: "[14] - 1 market, 1 granary (src), 1 storage yard (sink) | 9x9",
+    map_size_in_cells: Size::new(9, 9),
+    terrain_tiles: &[
+        R,R,R,R,R,R,R,R,R,
+        R,G,G,G,G,G,G,G,R,
+        R,G,G,G,G,G,G,G,R,
+        R,G,G,G,G,G,G,G,R,
+        R,G,G,G,G,G,G,G,R,
+        R,G,G,G,G,G,G,G,R,
+        R,G,G,G,G,G,G,G,R,
+        R,G,G,G,G,G,G,G,R,
+        R,R,R,R,R,R,R,R,R,
+    ],
+    building_tiles: &[
+        X,X,X,X,X,X,X,X,X,
+        X,M,X,X,X,S,X,X,X, // market 2x2 at (1,1); granary 3x3 at (5,1)
+        X,X,X,X,X,X,X,X,X,
+        X,X,X,X,X,X,X,X,X,
+        X,X,X,X,X,X,X,X,X,
+        X,X,X,X,X,Y,X,X,X, // storage_yard 3x3 at (5,5)
+        X,X,X,X,X,X,X,X,X,
+        X,X,X,X,X,X,X,X,X,
+        X,X,X,X,X,X,X,X,X,
+    ],
+    prop_tiles: &[],
+    settler_spawn_points: &[],
+    enable_cheats_fn: Some(|cheats| {
+        cheats.ignore_worker_requirements = true
+    })
+};
+
+const PRESET_TILES: [&PresetTiles; 15] = [
     &PRESET_TILES_0,
     &PRESET_TILES_1,
     &PRESET_TILES_2,
@@ -666,6 +704,7 @@ const PRESET_TILES: [&PresetTiles; 14] = [
     &PRESET_TILES_11,
     &PRESET_TILES_12,
     &PRESET_TILES_13,
+    &PRESET_TILES_14,
 ];
 
 const PRESET_TILE_MAP_COUNT: usize = PRESET_TILES.len();
