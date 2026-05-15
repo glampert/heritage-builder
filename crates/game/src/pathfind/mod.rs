@@ -983,6 +983,7 @@ impl Search {
     // A* graph search for the shortest path to goal.
     // Only nodes of `traversable_node_kinds` will be considered by the search.
     // Anything else is assumed not traversable and ignored.
+    #[inline]
     pub fn find_path(
         &mut self,
         graph: &Graph,
@@ -991,36 +992,20 @@ impl Search {
         start: Node,
         goal: Node,
     ) -> SearchResult<'_> {
-        debug_assert!(!traversable_node_kinds.is_empty());
-
-        if !Self::validate_endpoints(graph, traversable_node_kinds, start, Some(goal)) {
-            return SearchResult::PathNotFound;
-        }
-
-        self.reset(start);
-
-        while let Some((current, _)) = self.frontier.pop() {
-            if current == goal {
-                // Found a path! We're done.
-                return self.reconstruct_path(start, goal);
-            }
-
-            let neighbors = graph.neighbors(current, traversable_node_kinds);
-
-            for neighbor in neighbors {
-                let movement_cost = heuristic.movement_cost(graph, current, neighbor);
-                if let Some(new_cost) = self.relax_neighbor(current, neighbor, movement_cost, false) {
-                    let priority = new_cost + heuristic.estimate_cost_to_goal(graph, neighbor, goal);
-                    self.frontier.push(neighbor, Reverse(priority));
-                }
-            }
-        }
-
-        SearchResult::PathNotFound
+        self.find_paths_internal::<DefaultPathFilter, false>(
+            graph,
+            heuristic,
+            &mut DefaultPathFilter::new(),
+            1, // max_paths
+            traversable_node_kinds,
+            start,
+            goal,
+        )
     }
 
     // Searches for all paths leading to the goal.
     // Returns the first path which PathFilter accepts.
+    #[inline]
     pub fn find_paths<Filter>(
         &mut self,
         graph: &Graph,
@@ -1034,47 +1019,15 @@ impl Search {
     where
         Filter: PathFilter,
     {
-        debug_assert!(!traversable_node_kinds.is_empty());
-
-        if !Self::validate_endpoints(graph, traversable_node_kinds, start, Some(goal)) {
-            return SearchResult::PathNotFound;
-        }
-
-        self.reset(start);
-
-        let mut paths_found: usize = 0;
-
-        while let Some((current, _)) = self.frontier.pop() {
-            // Found a viable path.
-            if current == goal {
-                if self.try_accept_candidate(path_filter, &mut paths_found, start, goal) {
-                    return SearchResult::PathFound(&self.path);
-                }
-                if paths_found >= max_paths {
-                    break;
-                }
-                continue;
-            }
-
-            let neighbors = graph.neighbors(current, traversable_node_kinds);
-
-            for neighbor in neighbors {
-                let movement_cost = heuristic.movement_cost(graph, current, neighbor);
-                // Force re-enqueueing the goal so alternative routes can be explored.
-                let force_relax = neighbor == goal;
-                if let Some(new_cost) = self.relax_neighbor(current, neighbor, movement_cost, force_relax) {
-                    let priority = new_cost + heuristic.estimate_cost_to_goal(graph, neighbor, goal);
-                    self.frontier.push(neighbor, Reverse(priority));
-                }
-            }
-        }
-
-        // There is at least one viable path but the filter predicate refused all paths.
-        if Filter::TAKE_FALLBACK_PATH && paths_found != 0 {
-            return self.reconstruct_path(start, goal);
-        }
-
-        SearchResult::PathNotFound
+        self.find_paths_internal::<Filter, true>(
+            graph,
+            heuristic,
+            path_filter,
+            max_paths,
+            traversable_node_kinds,
+            start,
+            goal,
+        )
     }
 
     // Finds any destination within the given max distance.
@@ -1123,6 +1076,7 @@ impl Search {
 
             for neighbor in neighbors {
                 let movement_cost = heuristic.movement_cost(graph, current, neighbor);
+
                 if let Some(new_cost) = self.relax_neighbor(current, neighbor, movement_cost, false) {
                     // Apply optional directional bias. With no bias this is Dijkstra's
                     // search using only node cost (no heuristic / explicit goal).
@@ -1147,6 +1101,7 @@ impl Search {
         for (index, node) in self.possible_waypoints.iter().enumerate() {
             let valid_path = Self::try_reconstruct_path(
                 &mut self.path, &self.came_from, self.generation, start, *node);
+
             if valid_path && path_filter.accepts(index, &self.path, *node) {
                 return SearchResult::PathFound(&self.path);
             }
@@ -1178,14 +1133,7 @@ impl Search {
     where
         Filter: PathFilter,
     {
-        debug_assert!(!traversable_node_kinds.is_empty());
         debug_assert!(max_distance > 0);
-
-        if !Self::validate_endpoints(graph, traversable_node_kinds, start, None) {
-            return SearchResult::PathNotFound;
-        }
-
-        self.reset(start);
 
         let mut destination_kinds = NodeKind::empty();
         if traversable_node_kinds.intersects(NodeKind::Road) {
@@ -1196,48 +1144,23 @@ impl Search {
             // Empty land paths:
             destination_kinds |= NodeKind::BuildingAccess;
         }
-
         debug_assert!(!destination_kinds.is_empty(), "Unsupported traversable node kinds: {traversable_node_kinds}");
 
-        let wanted_neighbor_kinds = traversable_node_kinds | destination_kinds;
-        let mut paths_found: usize = 0;
-
-        while let Some((current, _)) = self.frontier.pop() {
-            let dist_from_start = current.manhattan_distance(start);
-
-            // Skip if already beyond allowed range.
-            if dist_from_start > max_distance {
-                continue;
-            }
-
-            let current_node_kind = graph.node_kind(current).unwrap();
-
-            // Found a possible building or its road link/access tile.
-            if current_node_kind.intersects(destination_kinds)
-                && self.try_accept_candidate(path_filter, &mut paths_found, start, current)
-            {
-                return SearchResult::PathFound(&self.path);
-            }
-
-            let mut neighbors = graph.neighbors(current, wanted_neighbor_kinds);
-            path_filter.shuffle(&mut neighbors);
-
-            for neighbor in neighbors {
-                let movement_cost = heuristic.movement_cost(graph, current, neighbor);
-                if let Some(new_cost) = self.relax_neighbor(current, neighbor, movement_cost, false) {
-                    // Apply optional directional bias. With no bias this is Dijkstra's
-                    // search using only node cost (no heuristic / explicit goal).
-                    let bias_amount = bias.cost_for(start, neighbor);
-                    let priority = ((new_cost as f32) + bias_amount).round() as i32;
-                    self.frontier.push(neighbor, Reverse(priority));
-                }
-            }
-        }
-
-        SearchResult::PathNotFound
+        self.find_path_to_node_internal::<Filter, true>(
+            graph,
+            heuristic,
+            bias,
+            path_filter,
+            traversable_node_kinds,
+            destination_kinds,
+            destination_kinds, // also widen the traversal so we can stand on the destination tiles
+            start,
+            max_distance,
+        )
     }
 
     // Find path to nodes matching any of the NodeKinds.
+    #[inline]
     pub fn find_path_to_node<Filter>(
         &mut self,
         graph: &Graph,
@@ -1251,10 +1174,46 @@ impl Search {
     where
         Filter: PathFilter,
     {
-        debug_assert!(!traversable_node_kinds.is_empty());
         debug_assert!(!goal_node_kinds.is_empty() && goal_node_kinds.intersects(traversable_node_kinds));
 
-        if !Self::validate_endpoints(graph, traversable_node_kinds, start, None) {
+        self.find_path_to_node_internal::<Filter, false>(
+            graph,
+            heuristic,
+            bias,
+            path_filter,
+            traversable_node_kinds,
+            goal_node_kinds,
+            NodeKind::empty(), // no extra neighbor kinds
+            start,
+            0, // max_distance ignored when HAS_MAX_DIST = false
+        )
+    }
+
+    // ----------------------
+    // Internal:
+    // ----------------------
+
+    // A* graph search shared by `find_path` and `find_paths`.
+    // `ALLOW_GOAL_REENTRY` controls whether the goal is force-relaxed during
+    // neighbor expansion (so the goal can be popped multiple times to surface
+    // alternative routes). It's a const generic so the per-neighbor branch
+    // folds away in the `find_path` monomorphization.
+    fn find_paths_internal<Filter, const ALLOW_GOAL_REENTRY: bool>(
+        &mut self,
+        graph: &Graph,
+        heuristic: &impl Heuristic,
+        path_filter: &mut Filter,
+        max_paths: usize,
+        traversable_node_kinds: NodeKind,
+        start: Node,
+        goal: Node,
+    ) -> SearchResult<'_>
+    where
+        Filter: PathFilter,
+    {
+        debug_assert!(!traversable_node_kinds.is_empty());
+
+        if !Self::validate_endpoints(graph, traversable_node_kinds, start, Some(goal)) {
             return SearchResult::PathNotFound;
         }
 
@@ -1263,20 +1222,90 @@ impl Search {
         let mut paths_found: usize = 0;
 
         while let Some((current, _)) = self.frontier.pop() {
+            if current == goal {
+                if self.try_accept_candidate(path_filter, &mut paths_found, start, goal) {
+                    return SearchResult::PathFound(&self.path);
+                }
+                if paths_found >= max_paths {
+                    break;
+                }
+                continue;
+            }
+
+            let neighbors = graph.neighbors(current, traversable_node_kinds);
+
+            for neighbor in neighbors {
+                let movement_cost = heuristic.movement_cost(graph, current, neighbor);
+
+                // Re-enqueue the goal so alternative routes can be explored.
+                let force_relax = ALLOW_GOAL_REENTRY && neighbor == goal;
+                if let Some(new_cost) = self.relax_neighbor(current, neighbor, movement_cost, force_relax) {
+                    let priority = new_cost + heuristic.estimate_cost_to_goal(graph, neighbor, goal);
+                    self.frontier.push(neighbor, Reverse(priority));
+                }
+            }
+        }
+
+        // There is at least one viable path but the filter predicate refused all paths.
+        if Filter::TAKE_FALLBACK_PATH && paths_found != 0 {
+            return self.reconstruct_path(start, goal);
+        }
+
+        SearchResult::PathNotFound
+    }
+
+    // Biased Dijkstra search shared by `find_buildings` and `find_path_to_node`.
+    // `goal_kinds` is the destination predicate. `extra_neighbor_kinds` lets the
+    // traversal step onto destination tiles even when they're not in
+    // `traversable_node_kinds` (used by `find_buildings` to walk onto BuildingAccess
+    // / BuildingRoadLink). `HAS_MAX_DIST` folds away the distance check in
+    // monomorphizations that don't need it.
+    fn find_path_to_node_internal<Filter, const HAS_MAX_DIST: bool>(
+        &mut self,
+        graph: &Graph,
+        heuristic: &impl Heuristic,
+        bias: &impl Bias,
+        path_filter: &mut Filter,
+        traversable_node_kinds: NodeKind,
+        goal_kinds: NodeKind,
+        extra_neighbor_kinds: NodeKind,
+        start: Node,
+        max_distance: i32,
+    ) -> SearchResult<'_>
+    where
+        Filter: PathFilter,
+    {
+        debug_assert!(!traversable_node_kinds.is_empty());
+        debug_assert!(!goal_kinds.is_empty());
+
+        if !Self::validate_endpoints(graph, traversable_node_kinds, start, None) {
+            return SearchResult::PathNotFound;
+        }
+
+        self.reset(start);
+
+        let wanted_neighbor_kinds = traversable_node_kinds | extra_neighbor_kinds;
+        let mut paths_found: usize = 0;
+
+        while let Some((current, _)) = self.frontier.pop() {
+            if HAS_MAX_DIST && current.manhattan_distance(start) > max_distance {
+                continue;
+            }
+
             let current_node_kind = graph.node_kind(current).unwrap();
 
-            // Found a desired goal node kind:
-            if current_node_kind.intersects(goal_node_kinds)
+            if current_node_kind.intersects(goal_kinds)
                 && self.try_accept_candidate(path_filter, &mut paths_found, start, current)
             {
                 return SearchResult::PathFound(&self.path);
             }
 
-            let mut neighbors = graph.neighbors(current, traversable_node_kinds);
+            let mut neighbors = graph.neighbors(current, wanted_neighbor_kinds);
             path_filter.shuffle(&mut neighbors);
 
             for neighbor in neighbors {
                 let movement_cost = heuristic.movement_cost(graph, current, neighbor);
+
                 if let Some(new_cost) = self.relax_neighbor(current, neighbor, movement_cost, false) {
                     // Apply optional directional bias. With no bias this is Dijkstra's
                     // search using only node cost (no heuristic / explicit goal).
@@ -1289,10 +1318,6 @@ impl Search {
 
         SearchResult::PathNotFound
     }
-
-    // ----------------------
-    // Internal:
-    // ----------------------
 
     fn reset(&mut self, start: Node) {
         self.path.clear();
