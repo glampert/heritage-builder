@@ -916,13 +916,24 @@ pub enum SearchResult<'search> {
 
 impl SearchResult<'_> {
     #[inline]
-    fn found(&self) -> bool {
+    pub fn found(&self) -> bool {
         matches!(self, Self::PathFound(_))
     }
+
     #[inline]
-    fn not_found(&self) -> bool {
+    pub fn not_found(&self) -> bool {
         matches!(self, Self::PathNotFound)
     }
+}
+
+// Per-cell payload tagged with a generation counter. Cells whose
+// `generation` doesn't match the current `Search::generation` are
+// treated as uninitialized, so `reset()` can bump the counter
+// instead of doing an O(W*H) fill of the grids on every search.
+#[derive(Copy, Clone, Default)]
+struct Versioned<T: Default> {
+    generation: u32,
+    value: T,
 }
 
 #[derive(Default)]
@@ -934,13 +945,15 @@ pub struct Search {
     // but we want nodes with smallest cost first, so reverse
     // the cost order.
     frontier: PriorityQueue<Node, Reverse<NodeCost>>,
-    came_from: Grid<Node>,
-    cost_so_far: Grid<NodeCost>,
+    came_from: Grid<Versioned<Node>>,
+    cost_so_far: Grid<Versioned<NodeCost>>,
+
+    // Bumped by `reset()`; entries with a stale generation are
+    // ignored, avoiding the per-search fill of `came_from`/`cost_so_far`.
+    generation: u32,
 
     // Scratchpad for find_waypoints.
     possible_waypoints: Vec<Node>,
-
-    first_run: bool,
 }
 
 impl Search {
@@ -954,13 +967,16 @@ impl Search {
 
     pub fn with_grid_size(grid_size: Size) -> Self {
         let node_count = (grid_size.width * grid_size.height) as usize;
+        // Grids are initialized with generation=0. `reset()` bumps the
+        // current generation, so all entries start out "stale" and read
+        // back as `INFINITE`/`Node::invalid()` without any explicit fill.
         Self {
             path: Path::new(),
             frontier: PriorityQueue::new(),
-            came_from: Grid::new(grid_size, vec![Node::invalid(); node_count]),
-            cost_so_far: Grid::new(grid_size, vec![NODE_COST_INFINITE; node_count]),
+            came_from: Grid::new(grid_size, vec![Versioned::<Node>::default(); node_count]),
+            cost_so_far: Grid::new(grid_size, vec![Versioned::<NodeCost>::default(); node_count]),
+            generation: 0,
             possible_waypoints: Vec::with_capacity(64),
-            first_run: true,
         }
     }
 
@@ -977,10 +993,7 @@ impl Search {
     ) -> SearchResult<'_> {
         debug_assert!(!traversable_node_kinds.is_empty());
 
-        if !graph.node_kind(start).is_some_and(|kind| kind.intersects(traversable_node_kinds))
-            || !graph.node_kind(goal).is_some_and(|kind| kind.intersects(traversable_node_kinds))
-        {
-            // Start/end nodes are invalid or not traversable!
+        if !Self::validate_endpoints(graph, traversable_node_kinds, start, Some(goal)) {
             return SearchResult::PathNotFound;
         }
 
@@ -995,18 +1008,10 @@ impl Search {
             let neighbors = graph.neighbors(current, traversable_node_kinds);
 
             for neighbor in neighbors {
-                let new_cost = self.cost_so_far[current] + heuristic.movement_cost(graph, current, neighbor);
-
-                // If neighbor cost in INF, we haven't visited it yet, or if it is a cheaper
-                // node to explore, we'll visit it.
-                if self.cost_so_far[neighbor] == NODE_COST_INFINITE || new_cost < self.cost_so_far[neighbor] {
-                    self.cost_so_far[neighbor] = new_cost;
-
+                let movement_cost = heuristic.movement_cost(graph, current, neighbor);
+                if let Some(new_cost) = self.relax_neighbor(current, neighbor, movement_cost, false) {
                     let priority = new_cost + heuristic.estimate_cost_to_goal(graph, neighbor, goal);
                     self.frontier.push(neighbor, Reverse(priority));
-
-                    // Remember how we got here so we can backtrack.
-                    self.came_from[neighbor] = current;
                 }
             }
         }
@@ -1031,10 +1036,7 @@ impl Search {
     {
         debug_assert!(!traversable_node_kinds.is_empty());
 
-        if !graph.node_kind(start).is_some_and(|kind| kind.intersects(traversable_node_kinds))
-            || !graph.node_kind(goal).is_some_and(|kind| kind.intersects(traversable_node_kinds))
-        {
-            // Start/end nodes are invalid or not traversable!
+        if !Self::validate_endpoints(graph, traversable_node_kinds, start, Some(goal)) {
             return SearchResult::PathNotFound;
         }
 
@@ -1045,39 +1047,24 @@ impl Search {
         while let Some((current, _)) = self.frontier.pop() {
             // Found a viable path.
             if current == goal {
-                let valid_path = Self::try_reconstruct_path(&mut self.path, &self.came_from, start, goal);
-                if valid_path && path_filter.accepts(paths_found, &self.path, goal) {
-                    // Filter accepted this path, we're done.
+                if self.try_accept_candidate(path_filter, &mut paths_found, start, goal) {
                     return SearchResult::PathFound(&self.path);
                 }
-
-                // Else try a different path.
-                self.path.clear();
-
-                paths_found += 1;
                 if paths_found >= max_paths {
                     break;
                 }
-
                 continue;
             }
 
             let neighbors = graph.neighbors(current, traversable_node_kinds);
 
             for neighbor in neighbors {
-                let new_cost = self.cost_so_far[current] + heuristic.movement_cost(graph, current, neighbor);
-
-                if neighbor == goal
-                    || self.cost_so_far[neighbor] == NODE_COST_INFINITE
-                    || new_cost < self.cost_so_far[neighbor]
-                {
-                    self.cost_so_far[neighbor] = new_cost;
-
+                let movement_cost = heuristic.movement_cost(graph, current, neighbor);
+                // Force re-enqueueing the goal so alternative routes can be explored.
+                let force_relax = neighbor == goal;
+                if let Some(new_cost) = self.relax_neighbor(current, neighbor, movement_cost, force_relax) {
                     let priority = new_cost + heuristic.estimate_cost_to_goal(graph, neighbor, goal);
                     self.frontier.push(neighbor, Reverse(priority));
-
-                    // Remember how we got here so we can backtrack.
-                    self.came_from[neighbor] = current;
                 }
             }
         }
@@ -1110,8 +1097,7 @@ impl Search {
         debug_assert!(!traversable_node_kinds.is_empty());
         debug_assert!(max_distance > 0);
 
-        if !graph.node_kind(start).is_some_and(|kind| kind.intersects(traversable_node_kinds)) {
-            // Start node is invalid or not traversable!
+        if !Self::validate_endpoints(graph, traversable_node_kinds, start, None) {
             return SearchResult::PathNotFound;
         }
 
@@ -1136,24 +1122,13 @@ impl Search {
             path_filter.shuffle(&mut neighbors);
 
             for neighbor in neighbors {
-                let new_cost = self.cost_so_far[current] + heuristic.movement_cost(graph, current, neighbor);
-
-                // If neighbor cost in INF, we haven't visited it yet, or if it is a cheaper
-                // node to explore, we'll visit it.
-                if self.cost_so_far[neighbor] == NODE_COST_INFINITE || new_cost < self.cost_so_far[neighbor] {
-                    self.cost_so_far[neighbor] = new_cost;
-
-                    // Apply optional directional bias:
-                    // If no bias uses only node cost, i.e. Dijkstra's search, no heuristic /
-                    // explicit goal.
+                let movement_cost = heuristic.movement_cost(graph, current, neighbor);
+                if let Some(new_cost) = self.relax_neighbor(current, neighbor, movement_cost, false) {
+                    // Apply optional directional bias. With no bias this is Dijkstra's
+                    // search using only node cost (no heuristic / explicit goal).
                     let bias_amount = bias.cost_for(start, neighbor);
-                    let biased_priority = (new_cost as f32) + bias_amount;
-                    let priority = biased_priority.round() as i32;
-
+                    let priority = ((new_cost as f32) + bias_amount).round() as i32;
                     self.frontier.push(neighbor, Reverse(priority));
-
-                    // Remember how we got here so we can backtrack.
-                    self.came_from[neighbor] = current;
                 }
             }
         }
@@ -1165,14 +1140,16 @@ impl Search {
         // Put most distant nodes first.
         self.possible_waypoints.sort_by_key(|node| Reverse(start.manhattan_distance(*node)));
 
+        // NOTE: Can't use `try_accept_candidate` here because iterating
+        // `self.possible_waypoints` would conflict with the `&mut self`
+        // borrow it requires. Inline the same logic instead — the field
+        // splits keep the borrow checker happy.
         for (index, node) in self.possible_waypoints.iter().enumerate() {
-            let valid_path = Self::try_reconstruct_path(&mut self.path, &self.came_from, start, *node);
+            let valid_path = Self::try_reconstruct_path(
+                &mut self.path, &self.came_from, self.generation, start, *node);
             if valid_path && path_filter.accepts(index, &self.path, *node) {
-                // Filter accepted this path, we're done.
                 return SearchResult::PathFound(&self.path);
             }
-
-            // Else try a different path.
             self.path.clear();
         }
 
@@ -1204,8 +1181,7 @@ impl Search {
         debug_assert!(!traversable_node_kinds.is_empty());
         debug_assert!(max_distance > 0);
 
-        if !graph.node_kind(start).is_some_and(|kind| kind.intersects(traversable_node_kinds)) {
-            // Start node is invalid or not traversable!
+        if !Self::validate_endpoints(graph, traversable_node_kinds, start, None) {
             return SearchResult::PathNotFound;
         }
 
@@ -1237,39 +1213,23 @@ impl Search {
             let current_node_kind = graph.node_kind(current).unwrap();
 
             // Found a possible building or its road link/access tile.
-            if current_node_kind.intersects(destination_kinds) {
-                let valid_path = Self::try_reconstruct_path(&mut self.path, &self.came_from, start, current);
-                if valid_path && path_filter.accepts(paths_found, &self.path, current) {
-                    // Filter accepted this path, we're done.
-                    return SearchResult::PathFound(&self.path);
-                }
-
-                paths_found += 1;
-                self.path.clear(); // Else keep searching.
+            if current_node_kind.intersects(destination_kinds)
+                && self.try_accept_candidate(path_filter, &mut paths_found, start, current)
+            {
+                return SearchResult::PathFound(&self.path);
             }
 
             let mut neighbors = graph.neighbors(current, wanted_neighbor_kinds);
             path_filter.shuffle(&mut neighbors);
 
             for neighbor in neighbors {
-                let new_cost = self.cost_so_far[current] + heuristic.movement_cost(graph, current, neighbor);
-
-                // If neighbor cost in INF, we haven't visited it yet, or if it is a cheaper
-                // node to explore, we'll visit it.
-                if self.cost_so_far[neighbor] == NODE_COST_INFINITE || new_cost < self.cost_so_far[neighbor] {
-                    self.cost_so_far[neighbor] = new_cost;
-
-                    // Apply optional directional bias:
-                    // If no bias uses only node cost, i.e. Dijkstra's search, no heuristic /
-                    // explicit goal.
+                let movement_cost = heuristic.movement_cost(graph, current, neighbor);
+                if let Some(new_cost) = self.relax_neighbor(current, neighbor, movement_cost, false) {
+                    // Apply optional directional bias. With no bias this is Dijkstra's
+                    // search using only node cost (no heuristic / explicit goal).
                     let bias_amount = bias.cost_for(start, neighbor);
-                    let biased_priority = (new_cost as f32) + bias_amount;
-                    let priority = biased_priority.round() as i32;
-
+                    let priority = ((new_cost as f32) + bias_amount).round() as i32;
                     self.frontier.push(neighbor, Reverse(priority));
-
-                    // Remember how we got here so we can backtrack.
-                    self.came_from[neighbor] = current;
                 }
             }
         }
@@ -1294,8 +1254,7 @@ impl Search {
         debug_assert!(!traversable_node_kinds.is_empty());
         debug_assert!(!goal_node_kinds.is_empty() && goal_node_kinds.intersects(traversable_node_kinds));
 
-        if !graph.node_kind(start).is_some_and(|kind| kind.intersects(traversable_node_kinds)) {
-            // Start node is invalid or not traversable!
+        if !Self::validate_endpoints(graph, traversable_node_kinds, start, None) {
             return SearchResult::PathNotFound;
         }
 
@@ -1307,39 +1266,23 @@ impl Search {
             let current_node_kind = graph.node_kind(current).unwrap();
 
             // Found a desired goal node kind:
-            if current_node_kind.intersects(goal_node_kinds) {
-                let valid_path = Self::try_reconstruct_path(&mut self.path, &self.came_from, start, current);
-                if valid_path && path_filter.accepts(paths_found, &self.path, current) {
-                    // Filter accepted this path, we're done.
-                    return SearchResult::PathFound(&self.path);
-                }
-
-                paths_found += 1;
-                self.path.clear(); // Else keep searching.
+            if current_node_kind.intersects(goal_node_kinds)
+                && self.try_accept_candidate(path_filter, &mut paths_found, start, current)
+            {
+                return SearchResult::PathFound(&self.path);
             }
 
             let mut neighbors = graph.neighbors(current, traversable_node_kinds);
             path_filter.shuffle(&mut neighbors);
 
             for neighbor in neighbors {
-                let new_cost = self.cost_so_far[current] + heuristic.movement_cost(graph, current, neighbor);
-
-                // If neighbor cost in INF, we haven't visited it yet, or if it is a cheaper
-                // node to explore, we'll visit it.
-                if self.cost_so_far[neighbor] == NODE_COST_INFINITE || new_cost < self.cost_so_far[neighbor] {
-                    self.cost_so_far[neighbor] = new_cost;
-
-                    // Apply optional directional bias:
-                    // If no bias uses only node cost, i.e. Dijkstra's search, no heuristic /
-                    // explicit goal.
+                let movement_cost = heuristic.movement_cost(graph, current, neighbor);
+                if let Some(new_cost) = self.relax_neighbor(current, neighbor, movement_cost, false) {
+                    // Apply optional directional bias. With no bias this is Dijkstra's
+                    // search using only node cost (no heuristic / explicit goal).
                     let bias_amount = bias.cost_for(start, neighbor);
-                    let biased_priority = (new_cost as f32) + bias_amount;
-                    let priority = biased_priority.round() as i32;
-
+                    let priority = ((new_cost as f32) + bias_amount).round() as i32;
                     self.frontier.push(neighbor, Reverse(priority));
-
-                    // Remember how we got here so we can backtrack.
-                    self.came_from[neighbor] = current;
                 }
             }
         }
@@ -1352,32 +1295,138 @@ impl Search {
     // ----------------------
 
     fn reset(&mut self, start: Node) {
-        if !self.first_run {
-            // If we're reusing the Search instance, reset these to defaults.
-            self.path.clear();
-            self.frontier.clear();
-            self.came_from.fill(Node::invalid());
-            self.cost_so_far.fill(NODE_COST_INFINITE);
-            self.possible_waypoints.clear();
+        self.path.clear();
+        self.frontier.clear();
+        self.possible_waypoints.clear();
+
+        // Bump the generation so every existing cell becomes stale.
+        // On rollover (every ~4 billion searches) do one real fill so
+        // a wrap to 0 can't collide with the grids' initial gen=0 entries.
+        self.generation = self.generation.wrapping_add(1);
+        if self.generation == 0 {
+            self.came_from.fill(Versioned::<Node>::default());
+            self.cost_so_far.fill(Versioned::<NodeCost>::default());
+            self.generation = 1;
         }
-        self.first_run = false;
 
         self.frontier.push(start, Reverse(NODE_COST_ZERO));
-        self.came_from[start] = start;
-        self.cost_so_far[start] = NODE_COST_ZERO;
+        self.set_came_from(start, start);
+        self.set_cost(start, NODE_COST_ZERO);
     }
 
-    fn try_reconstruct_path(path: &mut Path, came_from: &Grid<Node>, start: Node, goal: Node) -> bool {
+    // Validates that `start` (and `goal`, if provided) are in-bounds and
+    // traversable. Replaces the 5 copies of the same guard at the top of
+    // each public search method.
+    #[inline]
+    fn validate_endpoints(
+        graph: &Graph,
+        traversable: NodeKind,
+        start: Node,
+        goal: Option<Node>,
+    ) -> bool {
+        if !graph.node_kind(start).is_some_and(|k| k.intersects(traversable)) {
+            return false;
+        }
+        if let Some(goal) = goal {
+            if !graph.node_kind(goal).is_some_and(|k| k.intersects(traversable)) {
+                return false;
+            }
+        }
+        true
+    }
+
+    // Read `cost_so_far[node]`, returning INFINITE for stale entries.
+    #[inline]
+    fn cost_at(&self, node: Node) -> NodeCost {
+        let v = &self.cost_so_far[node];
+        if v.generation == self.generation { v.value } else { NODE_COST_INFINITE }
+    }
+
+    #[inline]
+    fn set_cost(&mut self, node: Node, value: NodeCost) {
+        self.cost_so_far[node] = Versioned { generation: self.generation, value };
+    }
+
+    #[inline]
+    fn set_came_from(&mut self, node: Node, value: Node) {
+        self.came_from[node] = Versioned { generation: self.generation, value };
+    }
+
+    // Shared inner-loop body for all 5 search methods:
+    // compute the candidate cost via `movement_cost`, and if `neighbor` is
+    // either unvisited (stale entry), strictly cheaper, or `force_relax`,
+    // update its bookkeeping and return the new cost so the caller can
+    // compute and push its priority.
+    //
+    // `force_relax` is the `find_paths` "re-enqueue the goal to find
+    // alternative routes" case — kept as a parameter so it doesn't leak
+    // into the other methods.
+    #[inline]
+    fn relax_neighbor(
+        &mut self,
+        current: Node,
+        neighbor: Node,
+        movement_cost: NodeCost,
+        force_relax: bool,
+    ) -> Option<NodeCost> {
+        let new_cost = self.cost_at(current) + movement_cost;
+        let neighbor_cost = self.cost_at(neighbor);
+        if force_relax || neighbor_cost == NODE_COST_INFINITE || new_cost < neighbor_cost {
+            self.set_cost(neighbor, new_cost);
+            self.set_came_from(neighbor, current);
+            Some(new_cost)
+        } else {
+            None
+        }
+    }
+
+    // Shared "candidate goal node" handling for the 4 methods that consult a
+    // `PathFilter`. Reconstructs the path to `candidate` and asks the filter
+    // to accept it.
+    //
+    // Returns `true` when the filter accepts (caller should return PathFound).
+    // On reject, increments `paths_found` and clears the in-progress `path`
+    // so the search can continue.
+    #[inline]
+    fn try_accept_candidate<F: PathFilter>(
+        &mut self,
+        filter: &mut F,
+        paths_found: &mut usize,
+        start: Node,
+        candidate: Node,
+    ) -> bool {
+        let valid = Self::try_reconstruct_path(
+            &mut self.path, &self.came_from, self.generation, start, candidate);
+
+        if valid && filter.accepts(*paths_found, &self.path, candidate) {
+            return true;
+        }
+
+        *paths_found += 1;
+        self.path.clear();
+        false
+    }
+
+    fn try_reconstruct_path(
+        path: &mut Path,
+        came_from: &Grid<Versioned<Node>>,
+        generation: u32,
+        start: Node,
+        goal: Node,
+    ) -> bool {
         debug_assert!(path.is_empty());
 
-        if !came_from[goal].is_valid() {
+        let goal_entry = &came_from[goal];
+        if goal_entry.generation != generation || !goal_entry.value.is_valid() {
             return false;
         }
 
         let mut current = goal;
         while current != start {
             path.push(current);
-            current = came_from[current];
+            let entry = &came_from[current];
+            debug_assert!(entry.generation == generation);
+            current = entry.value;
         }
 
         path.push(start);
@@ -1387,7 +1436,7 @@ impl Search {
 
     #[inline]
     fn reconstruct_path(&mut self, start: Node, goal: Node) -> SearchResult<'_> {
-        if Self::try_reconstruct_path(&mut self.path, &self.came_from, start, goal) {
+        if Self::try_reconstruct_path(&mut self.path, &self.came_from, self.generation, start, goal) {
             SearchResult::PathFound(&self.path)
         } else {
             SearchResult::PathNotFound
