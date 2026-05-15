@@ -1474,31 +1474,15 @@ impl Search {
 // ----------------------------------------------
 
 pub fn find_nearest_road_link(graph: &Graph, start_cells: CellRange) -> Option<Cell> {
-    let start_x = start_cells.start.x - 1;
-    let start_y = start_cells.start.y - 1;
-    let end_x = start_cells.end.x + 1;
-    let end_y = start_cells.end.y + 1;
-    let expanded_range = CellRange::new(Cell::new(start_x, start_y), Cell::new(end_x, end_y));
-
-    for cell in &expanded_range {
-        // Skip diagonal corners.
-        let is_corner = (cell.x == start_x && cell.y == start_y)
-            || (cell.x == start_x && cell.y == end_y)
-            || (cell.x == end_x && cell.y == start_y)
-            || (cell.x == end_x && cell.y == end_y);
-
-        if is_corner {
-            continue;
+    let mut found = None;
+    for_each_surrounding_cell(start_cells, |cell| {
+        if graph.node_kind(Node::new(cell)).is_some_and(|k| k.intersects(NodeKind::Road)) {
+            found = Some(cell);
+            return false; // Stop iteration.
         }
-
-        if let Some(node_kind) = graph.node_kind(Node::new(cell)) {
-            if node_kind.intersects(NodeKind::Road) {
-                return Some(cell);
-            }
-        }
-    }
-
-    None
+        true // Continue to next cell.
+    });
+    found
 }
 
 // Visits each cell around the center cell block, skipping the diagonal corners.
