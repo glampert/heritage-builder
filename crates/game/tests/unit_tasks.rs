@@ -1,4 +1,3 @@
-use arrayvec::ArrayVec;
 use common::{time::Seconds, callback::Callback, coords::Cell, mem::SingleThreadStatic};
 use game::{
     building::{Building, BuildingKind, BuildingKindAndId, BuildingTileInfo},
@@ -1186,7 +1185,7 @@ fn spawn_patrol_from_building(
         completion_task,
         idle_countdown: None,
         internal_state: UnitTaskPatrolState::default(),
-        visited_buildings: ArrayVec::new(),
+        visited_buildings: Some(Vec::new()),
     };
     assign_task(env, unit_id, task);
 
@@ -1248,7 +1247,7 @@ fn test_patrol_visits_target_buildings() {
         }
         let unit = find_unit(env, unit_id);
         let task = unit.current_task_as::<UnitTaskRandomizedPatrol>(env.sim.task_manager());
-        task.is_some_and(|t| !t.visited_buildings.is_empty())
+        task.is_some_and(|t| !t.visited_buildings.as_ref().unwrap().is_empty())
     });
     assert!(ticks < 100, "patrol should visit at least one target building within 100 ticks");
 
@@ -1257,7 +1256,7 @@ fn test_patrol_visits_target_buildings() {
         let unit = find_unit(&env, unit_id);
         let task = unit.current_task_as::<UnitTaskRandomizedPatrol>(env.sim.task_manager())
             .expect("patrol should still own its task");
-        task.visited_buildings.iter().copied().collect()
+        task.visited_buildings.as_ref().unwrap().iter().copied().collect()
     };
     assert!(!visits.is_empty(), "expected at least one visited building");
     for v in &visits {

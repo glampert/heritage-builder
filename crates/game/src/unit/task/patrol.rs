@@ -1,5 +1,4 @@
 use std::any::Any;
-use arrayvec::ArrayVec;
 use rand::{Rng, seq::SliceRandom};
 use serde::{Deserialize, Serialize};
 
@@ -246,7 +245,7 @@ pub struct UnitTaskRandomizedPatrol {
     // Capped at MAX_PATROL_VISITED_BUILDINGS -- further matches are silently
     // ignored. Visible to tests/debug UI; not used by the task logic itself.
     #[serde(skip)]
-    pub visited_buildings: ArrayVec<BuildingKindAndId, MAX_PATROL_VISITED_BUILDINGS>,
+    pub visited_buildings: Option<Vec<BuildingKindAndId>>,
 }
 
 impl UnitTaskRandomizedPatrol {
@@ -398,9 +397,13 @@ impl UnitTask for UnitTaskRandomizedPatrol {
                                 cmds.visit_building(kind_and_id, unit.id());
 
                                 // Track unique buildings the patrol has queued visits to.
-                                // The ArrayVec is capped; once full, additional matches are dropped.
-                                if !self.visited_buildings.contains(&kind_and_id) {
-                                    let _ = self.visited_buildings.try_push(kind_and_id);
+                                // The Vec is capped; once full, additional matches are dropped.
+                                if let Some(visited_buildings) = &mut self.visited_buildings {
+                                    if visited_buildings.len() < MAX_PATROL_VISITED_BUILDINGS
+                                        && !visited_buildings.contains(&kind_and_id)
+                                    {
+                                        visited_buildings.push(kind_and_id);
+                                    }
                                 }
                             }
                         }
