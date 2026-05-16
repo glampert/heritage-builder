@@ -785,9 +785,8 @@ pub trait PathFilter {
         // no shuffling.
     }
 
-    // true  = If accept() rejects all paths Search still tries to return a
-    // fallback. false = If accept() rejects all paths Search returns
-    // PathNotFound.
+    // true  = If accept() rejects all paths Search still tries to return a fallback.
+    // false = If accept() rejects all paths Search returns PathNotFound.
     const TAKE_FALLBACK_PATH: bool = false;
 
     // Choose a fallback node from the list or None. This is called once by
@@ -1496,9 +1495,9 @@ pub fn for_each_surrounding_cell(start_cells: CellRange, mut visitor_fn: impl Fn
     for cell in &expanded_range {
         // Skip diagonal corners.
         let is_corner = (cell.x == start_x && cell.y == start_y)
-            || (cell.x == start_x && cell.y == end_y)
-            || (cell.x == end_x && cell.y == start_y)
-            || (cell.x == end_x && cell.y == end_y);
+                     || (cell.x == start_x && cell.y == end_y)
+                     || (cell.x == end_x   && cell.y == start_y)
+                     || (cell.x == end_x   && cell.y == end_y);
 
         if is_corner {
             continue;
