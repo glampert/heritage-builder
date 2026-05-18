@@ -664,7 +664,7 @@ impl GameSession {
         true
     }
 
-    fn load_save_game(&mut self, engine: &mut Engine, configs: &'static GameConfigs, save_file: PathRef) -> bool {
+    pub(crate) fn load_save_game(&mut self, engine: &mut Engine, configs: &'static GameConfigs, save_file: PathRef) -> bool {
         log::info!(log::channel!("session"), "Loading save game '{save_file}' ...");
 
         let session = match save::storage::load_save_file(save_file) {
@@ -674,6 +674,14 @@ impl GameSession {
                 return false;
             }
         };
+
+        // Tear down the current session before its data is replaced. Dropping a
+        // live, still-ticking session leaves in-flight deferred state (e.g. spawn
+        // promises) that trips the pool leak checks. Skipped on the initial load
+        // into a freshly-created session, which has no map yet.
+        if self.tile_map.size_in_cells().is_valid() {
+            self.reset(engine, configs, false, None, None, false);
+        }
 
         self.pre_load(&mut PreLoadContext::new(engine));
         *self = session;

@@ -1,3 +1,5 @@
+use std::path::PathBuf;
+
 use common::{
     Size,
     Vec2,
@@ -58,6 +60,30 @@ pub struct GameLoopStats {
 }
 
 // ----------------------------------------------
+// SaveSmokeTest
+// ----------------------------------------------
+
+// Debug run mode enabled with the `--smoke-test-saves` command line argument.
+// Loads every save file in the saves directory in sequence, ticking the
+// simulation for a fixed duration on each before moving on to the next.
+// A failed load panics so a broken save is immediately obvious.
+const SMOKE_TEST_SECS_PER_SAVE: Seconds = 10.0;
+
+struct SaveSmokeTest {
+    pending: Vec<PathBuf>,    // Saves still to load (consumed back-to-front).
+    current: Option<PathBuf>, // Save currently being ticked.
+    elapsed_secs: Seconds,    // Time spent ticking the current save.
+}
+
+impl SaveSmokeTest {
+    fn new() -> Self {
+        let pending = save::storage::list_save_files();
+        log::info!(log::channel!("game"), "--- Save smoke test: {} save(s) queued ---", pending.len());
+        Self { pending, current: None, elapsed_secs: 0.0 }
+    }
+}
+
+// ----------------------------------------------
 // GameLoop
 // ----------------------------------------------
 
@@ -70,6 +96,8 @@ pub struct GameLoop {
 
     autosave_timer: UpdateTimer,
     enable_autosave: bool,
+
+    smoke_test: Option<SaveSmokeTest>,
 
     stats: GameLoopStats,
 }
@@ -93,6 +121,11 @@ impl RunLoop for GameLoop {
         Simulation::register_callbacks();
         debug::set_show_popup_messages(configs.debug.show_popups);
 
+        // Optional save-load smoke test run mode:
+        let smoke_test = std::env::args()
+            .any(|arg| arg == "--smoke-test-saves")
+            .then(SaveSmokeTest::new);
+
         // Create Session and GameLoop:
         let session = session::create(engine, configs, None);
         let game_loop = Self {
@@ -101,7 +134,9 @@ impl RunLoop for GameLoop {
             session: Box::new(session),
             session_cmd_queue: GameSessionCmdQueue::new(),
             autosave_timer: UpdateTimer::new(configs.save.autosave_frequency_secs),
-            enable_autosave: configs.save.enable_autosave,
+            // Never autosave during the smoke test - it would overwrite the saves under test.
+            enable_autosave: configs.save.enable_autosave && smoke_test.is_none(),
+            smoke_test,
             stats: GameLoopStats::default(),
         };
 
@@ -135,6 +170,10 @@ impl RunLoop for GameLoop {
 
         self.update_autosave();
         self.session_cmd_queue.execute(&mut self.session, self.engine, self.configs);
+
+        if self.smoke_test.is_some() {
+            self.update_smoke_test(delta_time_secs);
+        }
 
         // Input Events:
         for event in self.engine.app_events().clone() {
@@ -349,6 +388,48 @@ impl GameLoop {
 
         if self.autosave_timer.tick(delta_time_secs).should_update() {
             self.save_game(save::storage::AUTOSAVE_FILE_NAME);
+        }
+    }
+
+    // Drives the `--smoke-test-saves` run mode: loads each save in turn,
+    // ticks it for SMOKE_TEST_SECS_PER_SAVE, then quits once all have loaded.
+    fn update_smoke_test(&mut self, delta_time_secs: Seconds) {
+        // Advance to the next save once the current one has ticked long enough.
+        let advance = {
+            let test = self.smoke_test.as_mut().unwrap();
+            if test.current.is_none() {
+                true // First save not loaded yet.
+            } else {
+                test.elapsed_secs += delta_time_secs;
+                test.elapsed_secs >= SMOKE_TEST_SECS_PER_SAVE
+            }
+        };
+
+        if !advance {
+            return;
+        }
+
+        match self.smoke_test.as_mut().unwrap().pending.pop() {
+            Some(save_file) => {
+                log::info!(log::channel!("game"), "Save smoke test: loading '{}' ...", save_file.display());
+
+                let loaded = self.session.load_save_game(self.engine, self.configs, PathRef::from_path(&save_file));
+                if !loaded {
+                    panic!("Save smoke test: FAILED to load save '{}'!", save_file.display());
+                }
+
+                // Ensure the simulation ticks regardless of the start_paused config.
+                self.session.sim_mut().resume();
+
+                let test = self.smoke_test.as_mut().unwrap();
+                test.current = Some(save_file);
+                test.elapsed_secs = 0.0;
+            }
+            None => {
+                log::info!(log::channel!("game"), "--- Save smoke test: all saves loaded successfully ---");
+                self.smoke_test = None;
+                self.quit_game();
+            }
         }
     }
 
