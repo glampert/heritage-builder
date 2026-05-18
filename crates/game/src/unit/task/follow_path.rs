@@ -5,15 +5,16 @@ use common::callback::Callback;
 use engine::ui::UiSystem;
 
 use super::{
+    TaskContext,
+    TaskState,
+    Transition,
     UnitTask,
     UnitTaskId,
     UnitTaskPool,
-    UnitTaskResult,
-    UnitTaskState,
 };
 use crate::{
     pathfind::Path,
-    sim::{SimCmds, SimContext},
+    sim::SimContext,
     unit::{Unit, navigation::UnitNavGoal},
 };
 
@@ -22,6 +23,14 @@ use crate::{
 // ----------------------------------------------
 
 pub type UnitTaskFollowPathCompletionCallback = fn(&mut Unit, &SimContext);
+
+#[derive(Copy, Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub enum UnitTaskFollowPathState {
+    // Following the path; completes once the goal is reached (or the unit gets
+    // stuck, if `terminate_if_stuck` is set).
+    #[default]
+    Following,
+}
 
 #[derive(Serialize, Deserialize)]
 pub struct UnitTaskFollowPath {
@@ -37,23 +46,62 @@ pub struct UnitTaskFollowPath {
     // If the unit gets stuck, terminate the task and run the completion callback/task.
     #[serde(default)]
     pub terminate_if_stuck: bool,
+
+    #[serde(default)]
+    pub state: UnitTaskFollowPathState,
+}
+
+impl TaskState for UnitTaskFollowPathState {
+    type Task = UnitTaskFollowPath;
+
+    fn update(self, task: &mut UnitTaskFollowPath, ctx: &mut TaskContext) -> Transition<Self> {
+        let reached_goal = ctx.unit.has_reached_goal();
+        let stuck = ctx.unit.path_is_blocked() && task.terminate_if_stuck;
+
+        if !reached_goal && !stuck {
+            return Transition::Stay;
+        }
+
+        if !ctx.unit.path_is_blocked() {
+            ctx.unit.goal().expect("Expected unit to have an active goal!");
+            debug_assert!(
+                ctx.unit.cell() == task.path.last().unwrap().cell,
+                "Unit has not reached its goal yet!"
+            );
+        }
+
+        if let Some(completion_callback) = task.completion_callback.try_get() {
+            completion_callback(ctx.unit, ctx.sim_context);
+        }
+
+        ctx.unit.follow_path(None);
+
+        Transition::Done
+    }
 }
 
 impl UnitTask for UnitTaskFollowPath {
+    type State = UnitTaskFollowPathState;
+
     fn as_any(&self) -> &dyn Any {
         self
     }
 
-    fn post_load(&mut self) {
-        self.completion_callback.post_load();
+    fn state(&mut self) -> &mut Self::State {
+        &mut self.state
     }
 
-    fn initialize(&mut self, unit: &mut Unit, _cmds: &mut SimCmds, _context: &SimContext) {
+    fn initialize(&mut self, ctx: &mut TaskContext) {
         // Sanity check:
-        debug_assert!(unit.goal().is_none());
+        debug_assert!(ctx.unit.goal().is_none());
         debug_assert!(!self.path.is_empty());
 
-        unit.move_to_goal(&self.path, UnitNavGoal::tile(unit.cell(), &self.path));
+        let start = ctx.unit.cell();
+        ctx.unit.move_to_goal(&self.path, UnitNavGoal::tile(start, &self.path));
+    }
+
+    fn completion_task(&mut self) -> Option<UnitTaskId> {
+        self.completion_task.take()
     }
 
     fn terminate(&mut self, task_pool: &mut UnitTaskPool) {
@@ -62,30 +110,11 @@ impl UnitTask for UnitTaskFollowPath {
         }
     }
 
-    fn update(&mut self, unit: &mut Unit, _cmds: &mut SimCmds, _context: &SimContext) -> UnitTaskState {
-        if unit.has_reached_goal() || (unit.path_is_blocked() && self.terminate_if_stuck) {
-            UnitTaskState::Completed
-        } else {
-            UnitTaskState::Running
-        }
+    fn post_load(&mut self) {
+        self.completion_callback.post_load();
     }
 
-    fn completed(&mut self, unit: &mut Unit, _cmds: &mut SimCmds, context: &SimContext) -> UnitTaskResult {
-        if !unit.path_is_blocked() {
-            unit.goal().expect("Expected unit to have an active goal!");
-            debug_assert!(unit.cell() == self.path.last().unwrap().cell, "Unit has not reached its goal yet!");
-        }
-
-        if let Some(completion_callback) = self.completion_callback.try_get() {
-            completion_callback(unit, context);
-        }
-
-        unit.follow_path(None);
-
-        UnitTaskResult::completed_with(&mut self.completion_task)
-    }
-
-    fn draw_debug_ui(&mut self, _unit: &mut Unit, _context: &SimContext, ui_sys: &UiSystem) {
+    fn draw_debug_ui(&mut self, _unit: &mut Unit, _sim_context: &SimContext, ui_sys: &UiSystem) {
         let ui = ui_sys.ui();
 
         let start = self.path.first().unwrap().cell;

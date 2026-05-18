@@ -1,9 +1,16 @@
 use std::any::Any;
 use serde::{Deserialize, Serialize};
 
-use common::{callback::Callback, coords::Cell};
+use common::coords::Cell;
 
-use super::{UnitTask, UnitTaskArg, UnitTaskArgs, UnitTaskState};
+use super::{
+    PostDespawn,
+    TaskContext,
+    TaskState,
+    Transition,
+    UnitTask,
+    UnitTaskArg,
+};
 use crate::{
     sim::{SimCmds, SimContext},
     unit::{Unit, navigation::UnitNavGoal},
@@ -13,20 +20,36 @@ use crate::{
 // UnitTaskDespawn
 // ----------------------------------------------
 
-#[derive(Serialize, Deserialize)]
-pub struct UnitTaskDespawn;
+#[derive(Copy, Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub enum UnitTaskDespawnState {
+    #[default]
+    Despawning,
+}
+
+#[derive(Default, Serialize, Deserialize)]
+pub struct UnitTaskDespawn {
+    #[serde(default)]
+    pub state: UnitTaskDespawnState,
+}
+
+impl TaskState for UnitTaskDespawnState {
+    type Task = UnitTaskDespawn;
+
+    fn update(self, _task: &mut UnitTaskDespawn, ctx: &mut TaskContext) -> Transition<Self> {
+        debug_assert_unit_ready_to_despawn(ctx.unit);
+        Transition::Despawn(PostDespawn::none())
+    }
+}
 
 impl UnitTask for UnitTaskDespawn {
+    type State = UnitTaskDespawnState;
+
     fn as_any(&self) -> &dyn Any {
         self
     }
 
-    fn update(&mut self, unit: &mut Unit, _cmds: &mut SimCmds, context: &SimContext) -> UnitTaskState {
-        check_unit_despawn_state::<UnitTaskDespawn>(unit, context);
-        UnitTaskState::TerminateAndDespawn {
-            post_despawn_callback: Callback::default(),
-            callback_extra_args: UnitTaskArgs::empty(),
-        }
+    fn state(&mut self) -> &mut Self::State {
+        &mut self.state
     }
 }
 
@@ -34,43 +57,55 @@ impl UnitTask for UnitTaskDespawn {
 // UnitTaskDespawnWithCallback
 // ----------------------------------------------
 
+// Callback invoked *after* the unit has despawned.
+// |cmds, context, unit_prev_cell, unit_prev_goal, extra_args|
 pub type UnitTaskPostDespawnCallback = fn(&mut SimCmds, &SimContext, Cell, Option<UnitNavGoal>, &[UnitTaskArg]);
+
+#[derive(Copy, Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub enum UnitTaskDespawnWithCallbackState {
+    #[default]
+    Despawning,
+}
 
 #[derive(Serialize, Deserialize)]
 pub struct UnitTaskDespawnWithCallback {
-    // Callback invoked *after* the unit has despawned.
-    // |cmds, context, unit_prev_cell, unit_prev_goal, extra_args|
-    pub post_despawn_callback: Callback<UnitTaskPostDespawnCallback>,
+    // Callback + extra args invoked once the unit has despawned.
+    pub post_despawn: PostDespawn,
 
-    // Extra arguments for the callback.
-    pub callback_extra_args: UnitTaskArgs,
+    #[serde(default)]
+    pub state: UnitTaskDespawnWithCallbackState,
+}
+
+impl TaskState for UnitTaskDespawnWithCallbackState {
+    type Task = UnitTaskDespawnWithCallback;
+
+    fn update(self, task: &mut UnitTaskDespawnWithCallback, ctx: &mut TaskContext) -> Transition<Self> {
+        debug_assert_unit_ready_to_despawn(ctx.unit);
+        Transition::Despawn(task.post_despawn)
+    }
 }
 
 impl UnitTask for UnitTaskDespawnWithCallback {
+    type State = UnitTaskDespawnWithCallbackState;
+
     fn as_any(&self) -> &dyn Any {
         self
     }
 
-    fn post_load(&mut self) {
-        self.post_despawn_callback.post_load();
+    fn state(&mut self) -> &mut Self::State {
+        &mut self.state
     }
 
-    fn update(&mut self, unit: &mut Unit, _cmds: &mut SimCmds, context: &SimContext) -> UnitTaskState {
-        check_unit_despawn_state::<UnitTaskDespawnWithCallback>(unit, context);
-        UnitTaskState::TerminateAndDespawn {
-            post_despawn_callback: self.post_despawn_callback,
-            callback_extra_args: self.callback_extra_args,
-        }
+    fn post_load(&mut self) {
+        self.post_despawn.callback.post_load();
     }
 }
 
-fn check_unit_despawn_state<Task>(unit: &Unit, context: &SimContext)
-where
-    Task: UnitTask + 'static,
-{
-    let current_task = unit.current_task().expect("Unit should have a despawn task!");
-    debug_assert!(context.task_manager().is_task::<Task>(current_task), "Unit should have a despawn task!");
+// ----------------------------------------------
+// Helpers
+// ----------------------------------------------
 
+fn debug_assert_unit_ready_to_despawn(unit: &Unit) {
     debug_assert!(
         unit.inventory_is_empty(),
         "Unit inventory should be empty before despawning! Contains {}",
