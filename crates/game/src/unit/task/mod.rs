@@ -19,6 +19,7 @@ mod harvest;
 mod manager;
 mod patrol;
 mod settler;
+mod state_machine;
 
 pub use common::*;
 pub use despawn::*;
@@ -29,6 +30,7 @@ pub use harvest::*;
 pub use manager::*;
 pub use patrol::*;
 pub use settler::*;
+pub use state_machine::*;
 
 // ----------------------------------------------
 // UnitTask
