@@ -5,12 +5,11 @@ use common::{Color, mem::{self, RawPtr}};
 use engine::{log, ui::UiSystem};
 
 use super::{
+    TaskContext,
+    TaskFlow,
     UnitTask,
     UnitTaskArchetype,
-    UnitTaskArg,
     UnitTaskId,
-    UnitTaskResult,
-    UnitTaskState,
 };
 use crate::{
     constants::*,
@@ -26,49 +25,30 @@ use crate::{
 #[derive(Serialize, Deserialize)]
 struct UnitTaskInstance {
     id: UnitTaskId,
-    state: UnitTaskState,
+
+    // False until `initialize()` has run.
+    #[serde(default)]
+    started: bool,
+
     archetype: UnitTaskArchetype,
 }
 
 impl UnitTaskInstance {
     fn new(id: UnitTaskId, archetype: UnitTaskArchetype) -> Self {
         debug_assert!(id.is_valid());
-        Self { id, state: UnitTaskState::Uninitialized, archetype }
+        Self { id, started: false, archetype }
     }
 
-    fn update(&mut self, unit: &mut Unit, cmds: &mut SimCmds, context: &SimContext) -> UnitTaskResult {
-        debug_assert!(matches!(self.state, UnitTaskState::Uninitialized | UnitTaskState::Running));
+    fn run(&mut self, unit: &mut Unit, cmds: &mut SimCmds, context: &SimContext) -> TaskFlow {
+        let mut ctx = TaskContext { unit, sim_cmds: cmds, sim_context: context };
 
-        // First update?
-        if matches!(self.state, UnitTaskState::Uninitialized) {
-            self.archetype.initialize(unit, cmds, context);
-            self.state = UnitTaskState::Running;
+        // First run? Perform one-time initialization before the first state update.
+        if !self.started {
+            self.archetype.initialize(&mut ctx);
+            self.started = true;
         }
 
-        self.state = self.archetype.update(unit, cmds, context);
-
-        match self.state {
-            UnitTaskState::Running => UnitTaskResult::Running,
-            UnitTaskState::Completed => {
-                // Completed may ask for a retry, in which case we revert back to Running.
-                match self.archetype.completed(unit, cmds, context) {
-                    UnitTaskResult::Retry => {
-                        self.state = UnitTaskState::Running;
-                        UnitTaskResult::Running
-                    }
-                    completed @ UnitTaskResult::Completed { .. } => completed,
-                    invalid => {
-                        panic!("Invalid task completion result: {}", invalid);
-                    }
-                }
-            }
-            UnitTaskState::TerminateAndDespawn { post_despawn_callback, callback_extra_args } => {
-                UnitTaskResult::TerminateAndDespawn { post_despawn_callback, callback_extra_args }
-            }
-            UnitTaskState::Uninitialized => {
-                panic!("Invalid task state: Uninitialized");
-            }
-        }
+        self.archetype.run(&mut ctx)
     }
 
     fn post_load(&mut self) {
@@ -78,17 +58,13 @@ impl UnitTaskInstance {
     fn draw_debug_ui(&mut self, unit: &mut Unit, context: &SimContext, ui_sys: &UiSystem) {
         let ui = ui_sys.ui();
 
-        let status_color = match self.state {
-            UnitTaskState::Uninitialized => Color::yellow(),
-            UnitTaskState::Running => Color::green(),
-            UnitTaskState::Completed => Color::magenta(),
-            UnitTaskState::TerminateAndDespawn { .. } => Color::red(),
+        let (status_color, status_text) = if self.started {
+            (Color::green(), "Status : Running")
+        } else {
+            (Color::yellow(), "Status : Not started")
         };
 
-        let archetype_text = format!("Task   : {}", self.archetype);
-        let status_text    = format!("Status : {}", self.state);
-
-        ui.text(archetype_text);
+        ui.text(format!("Task   : {}", self.archetype));
         ui.text_colored(status_color.to_array(), status_text);
 
         ui.separator();
@@ -200,7 +176,7 @@ impl UnitTaskPool {
         log::error!("-----------------------");
 
         for (index, task) in &self.tasks {
-            log::error!("Leaked Task[{index}]: {}, {}, {}", task.archetype, task.id, task.state);
+            log::error!("Leaked Task[{index}]: {}, {}", task.archetype, task.id);
         }
 
         if cfg!(debug_assertions) {
@@ -282,22 +258,22 @@ impl UnitTaskManager {
     }
 
     #[inline]
-    pub fn try_get_task_archetype_and_state(&self, task_id: UnitTaskId) -> Option<(&UnitTaskArchetype, &UnitTaskState)> {
+    pub fn try_get_task_archetype_and_started(&self, task_id: UnitTaskId) -> Option<(&UnitTaskArchetype, bool)> {
         let task = self.task_pool.try_get(task_id)?;
-        Some((&task.archetype, &task.state))
+        Some((&task.archetype, task.started))
     }
 
     pub fn run_unit_tasks(&mut self, unit: &mut Unit, cmds: &mut SimCmds, context: &SimContext) {
         if let Some(current_task_id) = unit.current_task() {
             if let Some(task) = self.task_pool.try_get_mut(current_task_id) {
-                match task.update(unit, cmds, context) {
-                    UnitTaskResult::Running => {
+                match task.run(unit, cmds, context) {
+                    TaskFlow::Running => {
                         // Stay on current task and run it again next update.
                     }
-                    UnitTaskResult::Completed { next_task } => {
-                        unit.assign_task(self, next_task.0);
+                    TaskFlow::Completed { next_task } => {
+                        unit.assign_task(self, next_task);
                     }
-                    UnitTaskResult::TerminateAndDespawn { post_despawn_callback, callback_extra_args } => {
+                    TaskFlow::Despawn(post_despawn) => {
                         let unit_prev_cell = unit.cell();
                         let unit_prev_goal = unit.goal().cloned();
 
@@ -306,19 +282,10 @@ impl UnitTaskManager {
                         // Push deferred despawn command. Completes after world update.
                         cmds.despawn_unit_with_id(unit.id());
 
-                        if post_despawn_callback.is_valid() {
-                            let callback = post_despawn_callback.get();
-
-                            let args: &[UnitTaskArg] = callback_extra_args.args
-                                .as_ref()
-                                .map(|arr| &arr[..])
-                                .unwrap_or(&[]);
-
-                            callback(cmds, context, unit_prev_cell, unit_prev_goal, args);
+                        if post_despawn.callback.is_valid() {
+                            let callback = post_despawn.callback.get();
+                            callback(cmds, context, unit_prev_cell, unit_prev_goal, post_despawn.args.as_slice());
                         }
-                    }
-                    invalid => {
-                        panic!("Invalid task completion result: {}", invalid);
                     }
                 }
             } else if cfg!(debug_assertions) {

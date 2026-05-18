@@ -109,7 +109,7 @@ pub trait UnitTask: Sized + 'static {
     fn post_load(&mut self) {}
 
     // Optional ImGui debug panel.
-    fn draw_debug_ui(&mut self, _ctx: &mut TaskContext, _ui: &UiSystem) {}
+    fn draw_debug_ui(&mut self, _unit: &mut Unit, _sim_context: &SimContext, _ui: &UiSystem) {}
 }
 
 // ----------------------------------------------
@@ -128,20 +128,25 @@ pub enum TaskFlow {
 // UnitTaskRunner
 // ----------------------------------------------
 
-// Type-erased driver trait. `enum_dispatch` dispatches this over
-// `UnitTaskArchetype` the blanket impl below drives
-// the FSM for every concrete `UnitTask`.
+// Type-erased driver trait, implemented for every concrete `UnitTask` by the
+// blanket impl below (which drives the FSM). `UnitTaskArchetype` forwards to it
+// per variant.
 pub trait UnitTaskRunner {
+    fn initialize(&mut self, ctx: &mut TaskContext);
     fn run(&mut self, ctx: &mut TaskContext) -> TaskFlow;
     fn terminate(&mut self, pool: &mut UnitTaskPool);
     fn post_load(&mut self);
-    fn draw_debug_ui(&mut self, ctx: &mut TaskContext, ui: &UiSystem);
+    fn draw_debug_ui(&mut self, unit: &mut Unit, sim_context: &SimContext, ui: &UiSystem);
     fn as_any(&self) -> &dyn Any;
 }
 
 // The whole task executor: read the current state, run it, apply the
 // transition (firing exit/enter hooks), report the outcome.
 impl<T: UnitTask> UnitTaskRunner for T {
+    fn initialize(&mut self, ctx: &mut TaskContext) {
+        UnitTask::initialize(self, ctx);
+    }
+
     fn run(&mut self, ctx: &mut TaskContext) -> TaskFlow {
         let state = *self.state();
         match state.update(self, ctx) {
@@ -165,8 +170,8 @@ impl<T: UnitTask> UnitTaskRunner for T {
         UnitTask::post_load(self);
     }
 
-    fn draw_debug_ui(&mut self, ctx: &mut TaskContext, ui: &UiSystem) {
-        UnitTask::draw_debug_ui(self, ctx, ui);
+    fn draw_debug_ui(&mut self, unit: &mut Unit, sim_context: &SimContext, ui: &UiSystem) {
+        UnitTask::draw_debug_ui(self, unit, sim_context, ui);
     }
 
     fn as_any(&self) -> &dyn Any {

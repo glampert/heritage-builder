@@ -1,12 +1,11 @@
 use std::any::Any;
 use strum::Display;
-use enum_dispatch::enum_dispatch;
 use serde::{Deserialize, Serialize};
 
 use engine::ui::UiSystem;
 
 use crate::{
-    sim::{SimCmds, SimContext},
+    sim::SimContext,
     unit::Unit,
 };
 
@@ -33,46 +32,87 @@ pub use settler::*;
 pub use state_machine::*;
 
 // ----------------------------------------------
-// UnitTask
-// ----------------------------------------------
-
-#[enum_dispatch(UnitTaskArchetype)]
-pub trait UnitTask: Any {
-    fn as_any(&self) -> &dyn Any;
-
-    // Optional post-deserialization pointer fixups for the task callbacks.
-    fn post_load(&mut self) {}
-
-    // Performs one time initialization before the task is first run.
-    fn initialize(&mut self, _unit: &mut Unit, _cmds: &mut SimCmds, _context: &SimContext) {}
-
-    // Cleans up any other task handles this task may have.
-    // Called just before the task instance is freed.
-    fn terminate(&mut self, _task_pool: &mut UnitTaskPool) {}
-
-    // Returns the next state to move to.
-    fn update(&mut self, _unit: &mut Unit, _cmds: &mut SimCmds, _context: &SimContext) -> UnitTaskState {
-        UnitTaskState::Completed
-    }
-
-    // Logic to execute once the task is marked as completed.
-    // Returns the next task to run when completed or `None` if the task chain is over.
-    fn completed(&mut self, _unit: &mut Unit, _cmds: &mut SimCmds, _context: &SimContext) -> UnitTaskResult {
-        UnitTaskResult::Completed { next_task: UnitTaskForwarded(None) }
-    }
-
-    // Task ImGui debug. Optional override.
-    fn draw_debug_ui(&mut self, _unit: &mut Unit, _context: &SimContext, _ui_sys: &UiSystem) {}
-}
-
-// ----------------------------------------------
 // UnitTaskArchetype
 // ----------------------------------------------
 
-#[enum_dispatch]
+// One variant per concrete task type. Serializes as `{ "UnitTaskXxx": <task> }`.
 #[derive(Display, Serialize, Deserialize)]
 #[allow(clippy::enum_variant_names)]
 pub enum UnitTaskArchetype {
+    UnitTaskDespawn(UnitTaskDespawn),
+    UnitTaskDespawnWithCallback(UnitTaskDespawnWithCallback),
+    UnitTaskRandomizedPatrol(UnitTaskRandomizedPatrol),
+    UnitTaskDeliverToStorage(UnitTaskDeliverToStorage),
+    UnitTaskFetchFromStorage(UnitTaskFetchFromStorage),
+    UnitTaskSettler(UnitTaskSettler),
+    UnitTaskHarvestWood(UnitTaskHarvestWood),
+    UnitTaskFollowPath(UnitTaskFollowPath),
+}
+
+// Dispatches a method call to the wrapped concrete task, for every variant.
+macro_rules! archetype_dispatch {
+    ($self:expr, $task:ident => $body:expr) => {
+        match $self {
+            UnitTaskArchetype::UnitTaskDespawn($task) => $body,
+            UnitTaskArchetype::UnitTaskDespawnWithCallback($task) => $body,
+            UnitTaskArchetype::UnitTaskRandomizedPatrol($task) => $body,
+            UnitTaskArchetype::UnitTaskDeliverToStorage($task) => $body,
+            UnitTaskArchetype::UnitTaskFetchFromStorage($task) => $body,
+            UnitTaskArchetype::UnitTaskSettler($task) => $body,
+            UnitTaskArchetype::UnitTaskHarvestWood($task) => $body,
+            UnitTaskArchetype::UnitTaskFollowPath($task) => $body,
+        }
+    };
+}
+
+// Type-erased forwarding to the wrapped task's `UnitTaskRunner` impl.
+impl UnitTaskArchetype {
+    #[inline]
+    pub fn initialize(&mut self, ctx: &mut TaskContext) {
+        archetype_dispatch!(self, task => UnitTaskRunner::initialize(task, ctx))
+    }
+
+    #[inline]
+    pub fn run(&mut self, ctx: &mut TaskContext) -> TaskFlow {
+        archetype_dispatch!(self, task => UnitTaskRunner::run(task, ctx))
+    }
+
+    #[inline]
+    pub fn terminate(&mut self, pool: &mut UnitTaskPool) {
+        archetype_dispatch!(self, task => UnitTaskRunner::terminate(task, pool))
+    }
+
+    #[inline]
+    pub fn post_load(&mut self) {
+        archetype_dispatch!(self, task => UnitTaskRunner::post_load(task))
+    }
+
+    #[inline]
+    pub fn draw_debug_ui(&mut self, unit: &mut Unit, context: &SimContext, ui: &UiSystem) {
+        archetype_dispatch!(self, task => UnitTaskRunner::draw_debug_ui(task, unit, context, ui))
+    }
+
+    #[inline]
+    pub fn as_any(&self) -> &dyn Any {
+        archetype_dispatch!(self, task => UnitTaskRunner::as_any(task))
+    }
+}
+
+// `From<Task>` for each variant, so `UnitTaskManager::new_task` can wrap a task.
+macro_rules! archetype_from {
+    ($($variant:ident),+ $(,)?) => {
+        $(
+            impl From<$variant> for UnitTaskArchetype {
+                #[inline]
+                fn from(task: $variant) -> Self {
+                    UnitTaskArchetype::$variant(task)
+                }
+            }
+        )+
+    };
+}
+
+archetype_from!(
     UnitTaskDespawn,
     UnitTaskDespawnWithCallback,
     UnitTaskRandomizedPatrol,
@@ -81,4 +121,4 @@ pub enum UnitTaskArchetype {
     UnitTaskSettler,
     UnitTaskHarvestWood,
     UnitTaskFollowPath,
-}
+);

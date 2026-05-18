@@ -58,8 +58,9 @@ impl Unit {
         ui.bullet_text(format!("Anim: {} (dir: {})", self.anim_sets.current_anim_name(), self.direction));
 
         if let Some(task_id) = self.current_task() {
-            if let Some((archetype, state)) = context.task_manager().try_get_task_archetype_and_state(task_id) {
-                ui.bullet_text(format!("Task: {archetype} | {state}"));
+            if let Some((archetype, started)) = context.task_manager().try_get_task_archetype_and_started(task_id) {
+                let status = if started { "running" } else { "starting" };
+                ui.bullet_text(format!("Task: {archetype} | {status}"));
             }
         }
 

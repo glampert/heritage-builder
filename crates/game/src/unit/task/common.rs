@@ -1,10 +1,9 @@
 use serde::{Deserialize, Serialize};
-use strum::Display;
 
-use common::{callback::Callback, coords::Cell};
+use common::coords::Cell;
 use engine::log;
 
-use super::despawn::UnitTaskPostDespawnCallback;
+use super::UnitTask;
 use crate::{
     pathfind::{NodeKind as PathNodeKind, Path},
     world::object::{GameObject, GenerationalIndex},
@@ -18,39 +17,6 @@ use crate::{
 // ----------------------------------------------
 
 pub type UnitTaskId = GenerationalIndex;
-
-#[derive(Display, Serialize, Deserialize)]
-pub enum UnitTaskState {
-    Uninitialized,
-    Running,
-    Completed,
-    TerminateAndDespawn {
-        post_despawn_callback: Callback<UnitTaskPostDespawnCallback>,
-        callback_extra_args: UnitTaskArgs,
-    },
-}
-
-#[derive(Display)]
-pub enum UnitTaskResult {
-    Running,
-    Retry,
-    Completed {
-        next_task: UnitTaskForwarded, // Optional next task to run.
-    },
-    TerminateAndDespawn {
-        post_despawn_callback: Callback<UnitTaskPostDespawnCallback>,
-        callback_extra_args: UnitTaskArgs,
-    },
-}
-
-impl UnitTaskResult {
-    #[inline]
-    pub(super) fn completed_with(completion_task: &mut Option<UnitTaskId>) -> Self {
-        Self::Completed { next_task: UnitTaskForwarded(completion_task.take()) }
-    }
-}
-
-pub struct UnitTaskForwarded(pub(super) Option<UnitTaskId>);
 
 #[derive(Copy, Clone, Serialize, Deserialize)]
 pub enum UnitTaskArg {
@@ -112,11 +78,27 @@ impl UnitTaskArgs {
 
         Self { args: Some(arr) }
     }
+
+    #[inline]
+    pub fn as_slice(&self) -> &[UnitTaskArg] {
+        self.args.as_ref().map(|arr| &arr[..]).unwrap_or(&[])
+    }
 }
 
 // ----------------------------------------------
 // Task helpers:
 // ----------------------------------------------
+
+// Resolves the unit's current task as the given task type and hands it to the
+// callback. Used by deferred callbacks to write their outcome back onto the
+// task so the waiting state can pick it up. Panics if the unit is not running
+// a task of type `T` (a logic error - the callback was scheduled by that task).
+pub(super) fn with_task<T: UnitTask>(unit: &mut Unit, context: &SimContext, f: impl FnOnce(&mut T)) {
+    let task = unit
+        .current_task_as_mut::<T>(context.task_manager_mut())
+        .expect("Deferred callback expected the unit to be running its owning task type!");
+    f(task);
+}
 
 pub(super) fn visit_destination_deferred<F>(
     unit: &mut Unit,
