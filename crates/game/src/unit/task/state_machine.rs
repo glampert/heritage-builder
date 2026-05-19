@@ -16,28 +16,28 @@ use crate::{
 };
 
 // ----------------------------------------------
-// TaskContext
+// UnitTaskContext
 // ----------------------------------------------
 
 // Bundle of everything a task touches during one tick.
-pub struct TaskContext<'a> {
+pub struct UnitTaskContext<'a> {
     pub unit: &'a mut Unit,
     pub sim_cmds: &'a mut SimCmds,
     pub sim_context: &'a SimContext,
 }
 
 // ----------------------------------------------
-// PostDespawn
+// UnitPostDespawnCb
 // ----------------------------------------------
 
 // A despawn callback paired with its extra arguments.
 #[derive(Copy, Clone, Serialize, Deserialize)]
-pub struct PostDespawn {
+pub struct UnitPostDespawnCb {
     pub callback: Callback<UnitTaskPostDespawnCallback>,
     pub args: UnitTaskArgs,
 }
 
-impl PostDespawn {
+impl UnitPostDespawnCb {
     #[inline]
     pub fn none() -> Self {
         Self { callback: Callback::default(), args: UnitTaskArgs::empty() }
@@ -45,11 +45,11 @@ impl PostDespawn {
 }
 
 // ----------------------------------------------
-// Transition
+// UnitTaskTransition
 // ----------------------------------------------
 
 // What a state handler returns to the FSM driver.
-pub enum Transition<S> {
+pub enum UnitTaskTransition<S> {
     // Stay in the current state; run it again next tick.
     Stay,
 
@@ -60,26 +60,26 @@ pub enum Transition<S> {
     Done,
 
     // Task finished; despawn the unit.
-    Despawn(PostDespawn),
+    Despawn(UnitPostDespawnCb),
 }
 
 // ----------------------------------------------
-// TaskState
+// UnitTaskState
 // ----------------------------------------------
 
 // Implemented by each task's own state enum. The `update` impl is the single
 // dispatch point - one match arm per state, each delegating to a handler.
-pub trait TaskState: Copy + Default + Serialize + DeserializeOwned + 'static {
+pub trait UnitTaskState: Copy + Default + Serialize + DeserializeOwned + 'static {
     type Task: UnitTask<State = Self>;
 
     // Run the active state for one tick.
-    fn update(self, task: &mut Self::Task, ctx: &mut TaskContext) -> Transition<Self>;
+    fn update(self, task: &mut Self::Task, ctx: &mut UnitTaskContext) -> UnitTaskTransition<Self>;
 
     // Optional hook run when this state becomes active (via `Goto`).
-    fn on_enter(self, _task: &mut Self::Task, _ctx: &mut TaskContext) {}
+    fn on_enter(self, _task: &mut Self::Task, _ctx: &mut UnitTaskContext) {}
 
     // Optional hook run when leaving this state (via `Goto`).
-    fn on_exit(self, _task: &mut Self::Task, _ctx: &mut TaskContext) {}
+    fn on_exit(self, _task: &mut Self::Task, _ctx: &mut UnitTaskContext) {}
 }
 
 // ----------------------------------------------
@@ -87,12 +87,12 @@ pub trait TaskState: Copy + Default + Serialize + DeserializeOwned + 'static {
 // ----------------------------------------------
 
 // Implemented by each concrete task struct. The task owns its `State` field;
-// the FSM driver (the blanket `UnitTaskRunner` impl) advances it.
+// the FSM driver (the blanket `UnitTaskFsm` impl) advances it.
 pub trait UnitTask: Sized + 'static {
-    type State: TaskState<Task = Self>;
+    type State: UnitTaskState<Task = Self>;
 
     // One-time setup, run once before the first state update.
-    fn initialize(&mut self, _ctx: &mut TaskContext) {}
+    fn initialize(&mut self, _ctx: &mut UnitTaskContext) {}
 
     // Cleans up any other task handles this task owns, before it is freed.
     fn terminate(&mut self, _pool: &mut UnitTaskPool) {}
@@ -114,28 +114,28 @@ pub trait UnitTask: Sized + 'static {
 }
 
 // ----------------------------------------------
-// TaskFlow
+// UnitTaskFlow
 // ----------------------------------------------
 
 // The type-erased result of running a task for one tick, consumed by the
 // task executor in `UnitTaskManager`.
-pub enum TaskFlow {
+pub enum UnitTaskFlow {
     Running,
     Completed { next_task: Option<UnitTaskId> },
-    Despawn(PostDespawn),
+    Despawn(UnitPostDespawnCb),
 }
 
 // ----------------------------------------------
-// UnitTaskRunner
+// UnitTaskFsm - Finite State Machine Executor
 // ----------------------------------------------
 
 // Type-erased driver trait, implemented for every concrete `UnitTask` by the
 // blanket impl below (which drives the FSM). `UnitTaskArchetype` forwards to it
 // per variant.
-pub trait UnitTaskRunner {
-    fn initialize(&mut self, ctx: &mut TaskContext);
-    fn run(&mut self, ctx: &mut TaskContext) -> TaskFlow;
+pub trait UnitTaskFsm {
+    fn initialize(&mut self, ctx: &mut UnitTaskContext);
     fn terminate(&mut self, pool: &mut UnitTaskPool);
+    fn run(&mut self, ctx: &mut UnitTaskContext) -> UnitTaskFlow;
     fn post_load(&mut self);
     fn draw_debug_ui(&mut self, unit: &mut Unit, sim_context: &SimContext, ui: &UiSystem);
     fn as_any(&self) -> &dyn Any;
@@ -143,8 +143,8 @@ pub trait UnitTaskRunner {
 
 // The whole task executor: read the current state, run it, apply the
 // transition (firing exit/enter hooks), report the outcome.
-impl<T: UnitTask> UnitTaskRunner for T {
-    fn initialize(&mut self, ctx: &mut TaskContext) {
+impl<T: UnitTask> UnitTaskFsm for T {
+    fn initialize(&mut self, ctx: &mut UnitTaskContext) {
         UnitTask::initialize(self, ctx);
     }
 
@@ -152,18 +152,18 @@ impl<T: UnitTask> UnitTaskRunner for T {
         UnitTask::terminate(self, pool);
     }
 
-    fn run(&mut self, ctx: &mut TaskContext) -> TaskFlow {
+    fn run(&mut self, ctx: &mut UnitTaskContext) -> UnitTaskFlow {
         let state = *self.state();
         match state.update(self, ctx) {
-            Transition::Stay => TaskFlow::Running,
-            Transition::Goto(next) => {
+            UnitTaskTransition::Stay => UnitTaskFlow::Running,
+            UnitTaskTransition::Goto(next) => {
                 state.on_exit(self, ctx);
                 *self.state() = next;
                 next.on_enter(self, ctx);
-                TaskFlow::Running
+                UnitTaskFlow::Running
             }
-            Transition::Done => TaskFlow::Completed { next_task: self.completion_task() },
-            Transition::Despawn(action) => TaskFlow::Despawn(action),
+            UnitTaskTransition::Done => UnitTaskFlow::Completed { next_task: self.completion_task() },
+            UnitTaskTransition::Despawn(action) => UnitTaskFlow::Despawn(action),
         }
     }
 

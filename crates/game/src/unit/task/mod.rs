@@ -65,36 +65,36 @@ macro_rules! archetype_dispatch {
     };
 }
 
-// Type-erased forwarding to the wrapped task's `UnitTaskRunner` impl.
+// Type-erased forwarding to the wrapped task's `UnitTaskFsm` impl.
 impl UnitTaskArchetype {
     #[inline]
-    pub fn initialize(&mut self, ctx: &mut TaskContext) {
-        archetype_dispatch!(self, task => UnitTaskRunner::initialize(task, ctx))
+    pub fn initialize(&mut self, ctx: &mut UnitTaskContext) {
+        archetype_dispatch!(self, task => UnitTaskFsm::initialize(task, ctx))
     }
 
     #[inline]
     pub fn terminate(&mut self, pool: &mut UnitTaskPool) {
-        archetype_dispatch!(self, task => UnitTaskRunner::terminate(task, pool))
+        archetype_dispatch!(self, task => UnitTaskFsm::terminate(task, pool))
     }
 
     #[inline]
-    pub fn run(&mut self, ctx: &mut TaskContext) -> TaskFlow {
-        archetype_dispatch!(self, task => UnitTaskRunner::run(task, ctx))
+    pub fn run(&mut self, ctx: &mut UnitTaskContext) -> UnitTaskFlow {
+        archetype_dispatch!(self, task => UnitTaskFsm::run(task, ctx))
     }
 
     #[inline]
     pub fn post_load(&mut self) {
-        archetype_dispatch!(self, task => UnitTaskRunner::post_load(task))
+        archetype_dispatch!(self, task => UnitTaskFsm::post_load(task))
     }
 
     #[inline]
     pub fn draw_debug_ui(&mut self, unit: &mut Unit, context: &SimContext, ui: &UiSystem) {
-        archetype_dispatch!(self, task => UnitTaskRunner::draw_debug_ui(task, unit, context, ui))
+        archetype_dispatch!(self, task => UnitTaskFsm::draw_debug_ui(task, unit, context, ui))
     }
 
     #[inline]
     pub fn as_any(&self) -> &dyn Any {
-        archetype_dispatch!(self, task => UnitTaskRunner::as_any(task))
+        archetype_dispatch!(self, task => UnitTaskFsm::as_any(task))
     }
 }
 

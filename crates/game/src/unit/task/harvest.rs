@@ -10,9 +10,9 @@ use common::{
 use engine::{log, ui::UiSystem};
 
 use super::{
-    TaskContext,
-    TaskState,
-    Transition,
+    UnitTaskContext,
+    UnitTaskState,
+    UnitTaskTransition,
     UnitTask,
     UnitTaskId,
     UnitTaskPool,
@@ -143,7 +143,7 @@ impl UnitTaskHarvestWood {
 
     // Finds a harvestable tree, calls dibs on it (deferred) and routes the unit
     // to a traversable cell next to it. Returns false if none was found.
-    fn try_find_goal(&mut self, ctx: &mut TaskContext) -> bool {
+    fn try_find_goal(&mut self, ctx: &mut UnitTaskContext) -> bool {
         let sim_context = ctx.sim_context;
         let start = ctx.unit.cell();
         let traversable_node_kinds = ctx.unit.traversable_node_kinds();
@@ -212,7 +212,7 @@ impl UnitTaskHarvestWood {
         true
     }
 
-    fn try_return_to_origin(&mut self, ctx: &mut TaskContext) -> bool {
+    fn try_return_to_origin(&mut self, ctx: &mut UnitTaskContext) -> bool {
         let sim_context = ctx.sim_context;
 
         if sim_context.find_building(self.origin_building.kind, self.origin_building.id).is_none() {
@@ -244,7 +244,7 @@ impl UnitTaskHarvestWood {
 
     // Schedules the deferred harvest mutation: the timer has elapsed,
     // so the tree is harvested and the wood handed to the unit.
-    fn schedule_harvest(&mut self, ctx: &mut TaskContext) {
+    fn schedule_harvest(&mut self, ctx: &mut UnitTaskContext) {
         let harvest_amount = ctx.sim_context.random_range(1..*WOOD_HARVEST_MAX_AMOUNT);
         let unit_id = ctx.unit.id();
         let harvest_target = self.harvest_target;
@@ -266,7 +266,7 @@ impl UnitTaskHarvestWood {
     }
 
     // Schedules the deferred completion callback on the origin building.
-    fn schedule_completion_callback(&mut self, ctx: &mut TaskContext) -> bool {
+    fn schedule_completion_callback(&mut self, ctx: &mut UnitTaskContext) -> bool {
         invoke_completion_callback_deferred(
             ctx.unit,
             ctx.sim_cmds,
@@ -282,29 +282,29 @@ impl UnitTaskHarvestWood {
         )
     }
 
-    fn update_searching(&mut self, ctx: &mut TaskContext) -> Transition<UnitTaskHarvestState> {
+    fn update_searching(&mut self, ctx: &mut UnitTaskContext) -> UnitTaskTransition<UnitTaskHarvestState> {
         if self.try_find_goal(ctx) {
-            Transition::Goto(UnitTaskHarvestState::MovingToTree)
+            UnitTaskTransition::Goto(UnitTaskHarvestState::MovingToTree)
         } else {
-            Transition::Stay
+            UnitTaskTransition::Stay
         }
     }
 
-    fn update_moving_to_tree(&mut self, ctx: &mut TaskContext) -> Transition<UnitTaskHarvestState> {
+    fn update_moving_to_tree(&mut self, ctx: &mut UnitTaskContext) -> UnitTaskTransition<UnitTaskHarvestState> {
         if ctx.unit.goal().is_none() {
             // Lost the path; find another tree.
             self.harvest_target = PropId::invalid();
-            return Transition::Goto(UnitTaskHarvestState::Searching);
+            return UnitTaskTransition::Goto(UnitTaskHarvestState::Searching);
         }
 
         if ctx.unit.has_reached_goal() {
-            Transition::Goto(UnitTaskHarvestState::Harvesting)
+            UnitTaskTransition::Goto(UnitTaskHarvestState::Harvesting)
         } else {
-            Transition::Stay
+            UnitTaskTransition::Stay
         }
     }
 
-    fn update_harvesting(&mut self, ctx: &mut TaskContext) -> Transition<UnitTaskHarvestState> {
+    fn update_harvesting(&mut self, ctx: &mut UnitTaskContext) -> UnitTaskTransition<UnitTaskHarvestState> {
         // Is the tree still valid and still ours to harvest?
         let unit_id = ctx.unit.id();
         let tree_ok = ctx.sim_context
@@ -315,41 +315,41 @@ impl UnitTaskHarvestWood {
             // Tree was removed or claimed by someone else; find another.
             ctx.unit.follow_path(None);
             self.harvest_target = PropId::invalid();
-            return Transition::Goto(UnitTaskHarvestState::Searching);
+            return UnitTaskTransition::Goto(UnitTaskHarvestState::Searching);
         }
 
         // Once enough time has elapsed, harvest the tree.
         if self.harvest_timer.tick(ctx.sim_context.delta_time_secs()) {
             self.schedule_harvest(ctx);
-            Transition::Goto(UnitTaskHarvestState::PendingHarvest)
+            UnitTaskTransition::Goto(UnitTaskHarvestState::PendingHarvest)
         } else {
-            Transition::Stay
+            UnitTaskTransition::Stay
         }
     }
 
-    fn update_pending_harvest(&mut self, _ctx: &mut TaskContext) -> Transition<UnitTaskHarvestState> {
+    fn update_pending_harvest(&mut self, _ctx: &mut UnitTaskContext) -> UnitTaskTransition<UnitTaskHarvestState> {
         if self.harvest_done {
-            Transition::Goto(UnitTaskHarvestState::ReturningToOrigin)
+            UnitTaskTransition::Goto(UnitTaskHarvestState::ReturningToOrigin)
         } else {
-            Transition::Stay
+            UnitTaskTransition::Stay
         }
     }
 
-    fn update_returning(&mut self, ctx: &mut TaskContext) -> Transition<UnitTaskHarvestState> {
+    fn update_returning(&mut self, ctx: &mut UnitTaskContext) -> UnitTaskTransition<UnitTaskHarvestState> {
         if ctx.unit.goal().is_none() {
             if self.try_return_to_origin(ctx) {
-                return Transition::Stay;
+                return UnitTaskTransition::Stay;
             }
 
             // Origin building is gone or unreachable; drop the wood and finish.
             log::warning!(log::channel!("task"), "Aborting TaskHarvestWood. Unable to return to origin building...");
             ctx.unit.clear_inventory();
 
-            return Transition::Goto(UnitTaskHarvestState::Done);
+            return UnitTaskTransition::Goto(UnitTaskHarvestState::Done);
         }
 
         if !ctx.unit.has_reached_goal() {
-            return Transition::Stay;
+            return UnitTaskTransition::Stay;
         }
 
         // Reached the origin building with the harvested wood.
@@ -358,34 +358,34 @@ impl UnitTaskHarvestWood {
         ctx.unit.follow_path(None);
 
         if self.completion_callback.is_valid() && self.schedule_completion_callback(ctx) {
-            Transition::Goto(UnitTaskHarvestState::DeliveringToOrigin)
+            UnitTaskTransition::Goto(UnitTaskHarvestState::DeliveringToOrigin)
         } else {
             // No callback, or origin building no longer exists.
-            Transition::Goto(UnitTaskHarvestState::Done)
+            UnitTaskTransition::Goto(UnitTaskHarvestState::Done)
         }
     }
 
-    fn update_delivering(&mut self, _ctx: &mut TaskContext) -> Transition<UnitTaskHarvestState> {
+    fn update_delivering(&mut self, _ctx: &mut UnitTaskContext) -> UnitTaskTransition<UnitTaskHarvestState> {
         if self.completion_callback_done {
-            Transition::Goto(UnitTaskHarvestState::Done)
+            UnitTaskTransition::Goto(UnitTaskHarvestState::Done)
         } else {
-            Transition::Stay
+            UnitTaskTransition::Stay
         }
     }
 
-    fn update_done(&mut self, ctx: &mut TaskContext) -> Transition<UnitTaskHarvestState> {
+    fn update_done(&mut self, ctx: &mut UnitTaskContext) -> UnitTaskTransition<UnitTaskHarvestState> {
         if !ctx.unit.inventory_is_empty() {
             log::warning!(log::channel!("task"), "TaskHarvestWood: Failed to unload all resources.");
             ctx.unit.clear_inventory();
         }
-        Transition::Done
+        UnitTaskTransition::Done
     }
 }
 
-impl TaskState for UnitTaskHarvestState {
+impl UnitTaskState for UnitTaskHarvestState {
     type Task = UnitTaskHarvestWood;
 
-    fn update(self, task: &mut UnitTaskHarvestWood, ctx: &mut TaskContext) -> Transition<Self> {
+    fn update(self, task: &mut UnitTaskHarvestWood, ctx: &mut UnitTaskContext) -> UnitTaskTransition<Self> {
         match self {
             Self::Searching          => task.update_searching(ctx),
             Self::MovingToTree       => task.update_moving_to_tree(ctx),
@@ -401,7 +401,7 @@ impl TaskState for UnitTaskHarvestState {
 impl UnitTask for UnitTaskHarvestWood {
     type State = UnitTaskHarvestState;
 
-    fn initialize(&mut self, ctx: &mut TaskContext) {
+    fn initialize(&mut self, ctx: &mut UnitTaskContext) {
         debug_assert!(!self.harvest_target.is_valid());
 
         // Harvesters can go off-road.

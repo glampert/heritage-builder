@@ -6,9 +6,9 @@ use engine::ui::UiSystem;
 
 use super::{
     PathFindResult,
-    TaskContext,
-    TaskState,
-    Transition,
+    UnitTaskContext,
+    UnitTaskState,
+    UnitTaskTransition,
     UnitTask,
     UnitTaskId,
     UnitTaskPool,
@@ -81,7 +81,7 @@ pub struct UnitTaskDeliverToStorage {
 }
 
 impl UnitTaskDeliverToStorage {
-    fn try_find_goal(&mut self, ctx: &mut TaskContext) -> bool {
+    fn try_find_goal(&mut self, ctx: &mut UnitTaskContext) -> bool {
         let origin_kind = self.origin_building.kind;
         let origin_base_cell = ctx.unit.cell();
         let traversable_node_kinds = ctx.unit.traversable_node_kinds();
@@ -119,7 +119,7 @@ impl UnitTaskDeliverToStorage {
 
     // Schedules the deferred building visit.
     // Returns false if the destination building is no longer valid.
-    fn try_visit_storage(&mut self, ctx: &mut TaskContext) -> bool {
+    fn try_visit_storage(&mut self, ctx: &mut UnitTaskContext) -> bool {
         visit_destination_deferred(ctx.unit, ctx.sim_cmds, ctx.sim_context, |context, _building, unit, _result| {
             with_task::<Self>(unit, context, |task, unit| {
                 if unit.inventory_is_empty() {
@@ -143,22 +143,22 @@ impl UnitTaskDeliverToStorage {
         })
     }
 
-    fn update_searching(&mut self, ctx: &mut TaskContext) -> Transition<UnitTaskDeliveryState> {
+    fn update_searching(&mut self, ctx: &mut UnitTaskContext) -> UnitTaskTransition<UnitTaskDeliveryState> {
         if self.try_find_goal(ctx) {
-            Transition::Goto(UnitTaskDeliveryState::MovingToStorage)
+            UnitTaskTransition::Goto(UnitTaskDeliveryState::MovingToStorage)
         } else {
-            Transition::Stay
+            UnitTaskTransition::Stay
         }
     }
 
-    fn update_moving_to_storage(&mut self, ctx: &mut TaskContext) -> Transition<UnitTaskDeliveryState> {
+    fn update_moving_to_storage(&mut self, ctx: &mut UnitTaskContext) -> UnitTaskTransition<UnitTaskDeliveryState> {
         if ctx.unit.goal().is_none() {
             // Lost the path to the storage; search again.
-            return Transition::Goto(UnitTaskDeliveryState::Searching);
+            return UnitTaskTransition::Goto(UnitTaskDeliveryState::Searching);
         }
 
         if !ctx.unit.has_reached_goal() {
-            return Transition::Stay;
+            return UnitTaskTransition::Stay;
         }
 
         // Reached the storage building. Schedule the deferred visit.
@@ -166,31 +166,31 @@ impl UnitTaskDeliverToStorage {
         ctx.unit.follow_path(None);
 
         if scheduled {
-            Transition::Goto(UnitTaskDeliveryState::VisitingStorage)
+            UnitTaskTransition::Goto(UnitTaskDeliveryState::VisitingStorage)
         } else {
             // Destination building no longer valid (might have been destroyed).
-            Transition::Goto(UnitTaskDeliveryState::Searching)
+            UnitTaskTransition::Goto(UnitTaskDeliveryState::Searching)
         }
     }
 
-    fn update_visiting_storage(&mut self, _ctx: &mut TaskContext) -> Transition<UnitTaskDeliveryState> {
+    fn update_visiting_storage(&mut self, _ctx: &mut UnitTaskContext) -> UnitTaskTransition<UnitTaskDeliveryState> {
         match self.visit_delivered.take() {
-            None        => Transition::Stay,                                   // Deferred visit not resolved yet.
-            Some(true)  => Transition::Goto(UnitTaskDeliveryState::Done),      // Delivered.
-            Some(false) => Transition::Goto(UnitTaskDeliveryState::Searching), // Refused; try elsewhere.
+            None        => UnitTaskTransition::Stay,                                   // Deferred visit not resolved yet.
+            Some(true)  => UnitTaskTransition::Goto(UnitTaskDeliveryState::Done),      // Delivered.
+            Some(false) => UnitTaskTransition::Goto(UnitTaskDeliveryState::Searching), // Refused; try elsewhere.
         }
     }
 }
 
-impl TaskState for UnitTaskDeliveryState {
+impl UnitTaskState for UnitTaskDeliveryState {
     type Task = UnitTaskDeliverToStorage;
 
-    fn update(self, task: &mut UnitTaskDeliverToStorage, ctx: &mut TaskContext) -> Transition<Self> {
+    fn update(self, task: &mut UnitTaskDeliverToStorage, ctx: &mut UnitTaskContext) -> UnitTaskTransition<Self> {
         match self {
             Self::Searching       => task.update_searching(ctx),
             Self::MovingToStorage => task.update_moving_to_storage(ctx),
             Self::VisitingStorage => task.update_visiting_storage(ctx),
-            Self::Done            => Transition::Done,
+            Self::Done            => UnitTaskTransition::Done,
         }
     }
 }
@@ -198,7 +198,7 @@ impl TaskState for UnitTaskDeliveryState {
 impl UnitTask for UnitTaskDeliverToStorage {
     type State = UnitTaskDeliveryState;
 
-    fn initialize(&mut self, ctx: &mut TaskContext) {
+    fn initialize(&mut self, ctx: &mut UnitTaskContext) {
         // Sanity check:
         debug_assert!(ctx.unit.goal().is_none());
         debug_assert!(ctx.unit.inventory_is_empty());

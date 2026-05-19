@@ -9,9 +9,9 @@ use common::{
 use engine::{log, ui::UiSystem};
 
 use super::{
-    TaskContext,
-    TaskState,
-    Transition,
+    UnitTaskContext,
+    UnitTaskState,
+    UnitTaskTransition,
     UnitTask,
     UnitTaskId,
     UnitTaskPool,
@@ -326,7 +326,7 @@ impl UnitTaskRandomizedPatrol {
 
     // Ticks the optional idle countdown. Returns true when the unit is free to
     // move on (countdown elapsed, or there is no countdown); false while idling.
-    fn tick_idle(&mut self, ctx: &mut TaskContext) -> bool {
+    fn tick_idle(&mut self, ctx: &mut UnitTaskContext) -> bool {
         let Some((idle_countdown, _)) = &mut self.idle_countdown else {
             return true;
         };
@@ -345,7 +345,7 @@ impl UnitTaskRandomizedPatrol {
     }
 
     // Queues deferred visits to any target buildings adjacent to the unit's current cell.
-    fn visit_buildings_along_way(&mut self, ctx: &mut TaskContext) {
+    fn visit_buildings_along_way(&mut self, ctx: &mut UnitTaskContext) {
         let Some(buildings_to_visit) = self.buildings_to_visit else {
             return;
         };
@@ -389,7 +389,7 @@ impl UnitTaskRandomizedPatrol {
     }
 
     // Schedules the deferred completion callback on the origin building.
-    fn schedule_completion_callback(&mut self, ctx: &mut TaskContext) -> bool {
+    fn schedule_completion_callback(&mut self, ctx: &mut UnitTaskContext) -> bool {
         invoke_completion_callback_deferred(
             ctx.unit,
             ctx.sim_cmds,
@@ -405,84 +405,84 @@ impl UnitTaskRandomizedPatrol {
         )
     }
 
-    fn update_patrolling(&mut self, ctx: &mut TaskContext) -> Transition<UnitTaskPatrolState> {
+    fn update_patrolling(&mut self, ctx: &mut UnitTaskContext) -> UnitTaskTransition<UnitTaskPatrolState> {
         if ctx.unit.goal().is_none() {
             // Wait out the idle countdown, then find the next waypoint.
             if self.tick_idle(ctx) {
                 self.try_find_goal(ctx.unit, ctx.sim_context);
             }
-            return Transition::Stay;
+            return UnitTaskTransition::Stay;
         }
 
         self.visit_buildings_along_way(ctx);
 
         if !ctx.unit.has_reached_goal() {
-            return Transition::Stay;
+            return UnitTaskTransition::Stay;
         }
 
         // Reached the waypoint. Idle here until the countdown elapses, then head home.
         if !self.tick_idle(ctx) {
-            return Transition::Stay;
+            return UnitTaskTransition::Stay;
         }
 
         ctx.unit.follow_path(None);
 
         if self.try_return_to_origin(ctx.unit, ctx.sim_context) {
-            Transition::Goto(UnitTaskPatrolState::ReturningToOrigin)
+            UnitTaskTransition::Goto(UnitTaskPatrolState::ReturningToOrigin)
         } else {
             // Can't get back to origin; abort.
-            Transition::Goto(UnitTaskPatrolState::Done)
+            UnitTaskTransition::Goto(UnitTaskPatrolState::Done)
         }
     }
 
-    fn update_returning(&mut self, ctx: &mut TaskContext) -> Transition<UnitTaskPatrolState> {
+    fn update_returning(&mut self, ctx: &mut UnitTaskContext) -> UnitTaskTransition<UnitTaskPatrolState> {
         if ctx.unit.goal().is_none() {
             // No path home yet; try to (re)route.
             if !self.try_return_to_origin(ctx.unit, ctx.sim_context) {
-                return Transition::Goto(UnitTaskPatrolState::Done);
+                return UnitTaskTransition::Goto(UnitTaskPatrolState::Done);
             }
-            return Transition::Stay;
+            return UnitTaskTransition::Stay;
         }
 
         self.visit_buildings_along_way(ctx);
 
         if !ctx.unit.has_reached_goal() {
-            return Transition::Stay;
+            return UnitTaskTransition::Stay;
         }
 
         // Reached origin. Idle out the countdown, then run the completion callback.
         if !self.tick_idle(ctx) {
-            return Transition::Stay;
+            return UnitTaskTransition::Stay;
         }
 
         ctx.unit.follow_path(None);
 
         if self.completion_callback.is_valid() && self.schedule_completion_callback(ctx) {
-            Transition::Goto(UnitTaskPatrolState::DeliveringToOrigin)
+            UnitTaskTransition::Goto(UnitTaskPatrolState::DeliveringToOrigin)
         } else {
             // No completion callback, or origin building no longer exists.
-            Transition::Goto(UnitTaskPatrolState::Done)
+            UnitTaskTransition::Goto(UnitTaskPatrolState::Done)
         }
     }
 
-    fn update_delivering(&mut self, _ctx: &mut TaskContext) -> Transition<UnitTaskPatrolState> {
+    fn update_delivering(&mut self, _ctx: &mut UnitTaskContext) -> UnitTaskTransition<UnitTaskPatrolState> {
         if self.completion_callback_done {
-            Transition::Goto(UnitTaskPatrolState::Done)
+            UnitTaskTransition::Goto(UnitTaskPatrolState::Done)
         } else {
-            Transition::Stay
+            UnitTaskTransition::Stay
         }
     }
 }
 
-impl TaskState for UnitTaskPatrolState {
+impl UnitTaskState for UnitTaskPatrolState {
     type Task = UnitTaskRandomizedPatrol;
 
-    fn update(self, task: &mut UnitTaskRandomizedPatrol, ctx: &mut TaskContext) -> Transition<Self> {
+    fn update(self, task: &mut UnitTaskRandomizedPatrol, ctx: &mut UnitTaskContext) -> UnitTaskTransition<Self> {
         match self {
             Self::Patrolling         => task.update_patrolling(ctx),
             Self::ReturningToOrigin  => task.update_returning(ctx),
             Self::DeliveringToOrigin => task.update_delivering(ctx),
-            Self::Done               => Transition::Done,
+            Self::Done               => UnitTaskTransition::Done,
         }
     }
 }
@@ -490,7 +490,7 @@ impl TaskState for UnitTaskPatrolState {
 impl UnitTask for UnitTaskRandomizedPatrol {
     type State = UnitTaskPatrolState;
 
-    fn initialize(&mut self, ctx: &mut TaskContext) {
+    fn initialize(&mut self, ctx: &mut UnitTaskContext) {
         // Sanity check:
         debug_assert!(ctx.unit.goal().is_none());
         debug_assert_eq!(ctx.unit.cell(), self.origin_building_tile.road_link); // We start at the nearest building road link.

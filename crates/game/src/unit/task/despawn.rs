@@ -4,10 +4,10 @@ use serde::{Deserialize, Serialize};
 use common::coords::Cell;
 
 use super::{
-    PostDespawn,
-    TaskContext,
-    TaskState,
-    Transition,
+    UnitPostDespawnCb,
+    UnitTaskContext,
+    UnitTaskState,
+    UnitTaskTransition,
     UnitTask,
     UnitTaskArg,
 };
@@ -32,12 +32,12 @@ pub struct UnitTaskDespawn {
     pub state: UnitTaskDespawnState,
 }
 
-impl TaskState for UnitTaskDespawnState {
+impl UnitTaskState for UnitTaskDespawnState {
     type Task = UnitTaskDespawn;
 
-    fn update(self, _task: &mut UnitTaskDespawn, ctx: &mut TaskContext) -> Transition<Self> {
+    fn update(self, _task: &mut UnitTaskDespawn, ctx: &mut UnitTaskContext) -> UnitTaskTransition<Self> {
         debug_assert_unit_ready_to_despawn(ctx.unit);
-        Transition::Despawn(PostDespawn::none())
+        UnitTaskTransition::Despawn(UnitPostDespawnCb::none())
     }
 }
 
@@ -70,18 +70,18 @@ pub enum UnitTaskDespawnWithCallbackState {
 #[derive(Serialize, Deserialize)]
 pub struct UnitTaskDespawnWithCallback {
     // Callback + extra args invoked once the unit has despawned.
-    pub post_despawn: PostDespawn,
+    pub post_despawn: UnitPostDespawnCb,
 
     #[serde(default)]
     pub state: UnitTaskDespawnWithCallbackState,
 }
 
-impl TaskState for UnitTaskDespawnWithCallbackState {
+impl UnitTaskState for UnitTaskDespawnWithCallbackState {
     type Task = UnitTaskDespawnWithCallback;
 
-    fn update(self, task: &mut UnitTaskDespawnWithCallback, ctx: &mut TaskContext) -> Transition<Self> {
+    fn update(self, task: &mut UnitTaskDespawnWithCallback, ctx: &mut UnitTaskContext) -> UnitTaskTransition<Self> {
         debug_assert_unit_ready_to_despawn(ctx.unit);
-        Transition::Despawn(task.post_despawn)
+        UnitTaskTransition::Despawn(task.post_despawn)
     }
 }
 

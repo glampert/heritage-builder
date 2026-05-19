@@ -439,7 +439,7 @@ impl Unit {
             // NOTE: We have to spawn the house building *after* the unit has
             // despawned since we can't place a building over the unit tile.
             let completion_task = task_manager.new_task(UnitTaskDespawnWithCallback {
-                post_despawn: PostDespawn {
+                post_despawn: UnitPostDespawnCb {
                     callback: callback::create!(unit_debug_settle_task_post_despawn),
                     args: UnitTaskArgs::new(&[UnitTaskArg::U32(1)]), // population_to_add
                 },

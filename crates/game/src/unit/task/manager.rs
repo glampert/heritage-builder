@@ -5,8 +5,8 @@ use common::{Color, mem::{self, RawPtr}};
 use engine::{log, ui::UiSystem};
 
 use super::{
-    TaskContext,
-    TaskFlow,
+    UnitTaskContext,
+    UnitTaskFlow,
     UnitTask,
     UnitTaskArchetype,
     UnitTaskId,
@@ -39,8 +39,8 @@ impl UnitTaskInstance {
         Self { id, started: false, archetype }
     }
 
-    fn run(&mut self, unit: &mut Unit, cmds: &mut SimCmds, context: &SimContext) -> TaskFlow {
-        let mut ctx = TaskContext { unit, sim_cmds: cmds, sim_context: context };
+    fn run(&mut self, unit: &mut Unit, cmds: &mut SimCmds, context: &SimContext) -> UnitTaskFlow {
+        let mut ctx = UnitTaskContext { unit, sim_cmds: cmds, sim_context: context };
 
         // First run? Perform one-time initialization before the first state update.
         if !self.started {
@@ -267,13 +267,13 @@ impl UnitTaskManager {
         if let Some(current_task_id) = unit.current_task() {
             if let Some(task) = self.task_pool.try_get_mut(current_task_id) {
                 match task.run(unit, cmds, context) {
-                    TaskFlow::Running => {
+                    UnitTaskFlow::Running => {
                         // Stay on current task and run it again next update.
                     }
-                    TaskFlow::Completed { next_task } => {
+                    UnitTaskFlow::Completed { next_task } => {
                         unit.assign_task(self, next_task);
                     }
-                    TaskFlow::Despawn(post_despawn) => {
+                    UnitTaskFlow::Despawn(post_despawn) => {
                         let unit_prev_cell = unit.cell();
                         let unit_prev_goal = unit.goal().cloned();
 

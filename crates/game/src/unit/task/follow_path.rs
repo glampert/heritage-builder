@@ -5,9 +5,9 @@ use common::callback::Callback;
 use engine::ui::UiSystem;
 
 use super::{
-    TaskContext,
-    TaskState,
-    Transition,
+    UnitTaskContext,
+    UnitTaskState,
+    UnitTaskTransition,
     UnitTask,
     UnitTaskId,
     UnitTaskPool,
@@ -51,15 +51,15 @@ pub struct UnitTaskFollowPath {
     pub state: UnitTaskFollowPathState,
 }
 
-impl TaskState for UnitTaskFollowPathState {
+impl UnitTaskState for UnitTaskFollowPathState {
     type Task = UnitTaskFollowPath;
 
-    fn update(self, task: &mut UnitTaskFollowPath, ctx: &mut TaskContext) -> Transition<Self> {
+    fn update(self, task: &mut UnitTaskFollowPath, ctx: &mut UnitTaskContext) -> UnitTaskTransition<Self> {
         let reached_goal = ctx.unit.has_reached_goal();
         let stuck = ctx.unit.path_is_blocked() && task.terminate_if_stuck;
 
         if !reached_goal && !stuck {
-            return Transition::Stay;
+            return UnitTaskTransition::Stay;
         }
 
         if !ctx.unit.path_is_blocked() {
@@ -76,14 +76,14 @@ impl TaskState for UnitTaskFollowPathState {
 
         ctx.unit.follow_path(None);
 
-        Transition::Done
+        UnitTaskTransition::Done
     }
 }
 
 impl UnitTask for UnitTaskFollowPath {
     type State = UnitTaskFollowPathState;
 
-    fn initialize(&mut self, ctx: &mut TaskContext) {
+    fn initialize(&mut self, ctx: &mut UnitTaskContext) {
         // Sanity check:
         debug_assert!(ctx.unit.goal().is_none());
         debug_assert!(!self.path.is_empty());

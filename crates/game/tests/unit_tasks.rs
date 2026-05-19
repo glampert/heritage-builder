@@ -21,7 +21,7 @@ use game::{
             UnitTaskPatrolCompletionCallback, UnitTaskPatrolState,
             UnitTaskPostDespawnCallback, UnitTaskRandomizedPatrol,
             UnitTaskFollowPathState, UnitTaskDespawnWithCallbackState,
-            PostDespawn,
+            UnitPostDespawnCb,
         },
     },
 };
@@ -148,7 +148,7 @@ fn test_despawn_with_callback_fires_callback() {
 
     let cb = register_despawn_test_callback();
     let task = UnitTaskDespawnWithCallback {
-        post_despawn: PostDespawn { callback: cb, args: UnitTaskArgs::empty() },
+        post_despawn: UnitPostDespawnCb { callback: cb, args: UnitTaskArgs::empty() },
         state: UnitTaskDespawnWithCallbackState::default(),
     };
     assign_task(&mut env, unit_id, task);
@@ -169,7 +169,7 @@ fn test_despawn_with_callback_passes_extra_arg() {
 
     let cb = register_despawn_test_callback();
     let task = UnitTaskDespawnWithCallback {
-        post_despawn: PostDespawn { callback: cb, args: UnitTaskArgs::new(&[UnitTaskArg::I32(42)]) },
+        post_despawn: UnitPostDespawnCb { callback: cb, args: UnitTaskArgs::new(&[UnitTaskArg::I32(42)]) },
         state: UnitTaskDespawnWithCallbackState::default(),
     };
     assign_task(&mut env, unit_id, task);

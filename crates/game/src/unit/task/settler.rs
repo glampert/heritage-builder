@@ -5,9 +5,9 @@ use common::callback::Callback;
 use engine::ui::UiSystem;
 
 use super::{
-    TaskContext,
-    TaskState,
-    Transition,
+    UnitTaskContext,
+    UnitTaskState,
+    UnitTaskTransition,
     UnitTask,
     UnitTaskId,
     UnitTaskPool,
@@ -83,7 +83,7 @@ pub struct UnitTaskSettler {
 }
 
 impl UnitTaskSettler {
-    fn try_find_goal(&mut self, ctx: &mut TaskContext) -> Option<UnitTaskSettlerGoal> {
+    fn try_find_goal(&mut self, ctx: &mut UnitTaskContext) -> Option<UnitTaskSettlerGoal> {
         let sim_context = ctx.sim_context;
         let start = ctx.unit.cell();
         let traversable_node_kinds = ctx.unit.traversable_node_kinds();
@@ -150,7 +150,7 @@ impl UnitTaskSettler {
     }
 
     // Schedules the deferred house visit. Returns false if the house is no longer valid.
-    fn try_visit_house(&mut self, ctx: &mut TaskContext) -> bool {
+    fn try_visit_house(&mut self, ctx: &mut UnitTaskContext) -> bool {
         let unit_goal = ctx.unit.goal().expect("Expected unit to have an active goal!");
         let (destination_kind, destination_cell) = unit_goal.building_destination();
 
@@ -182,21 +182,21 @@ impl UnitTaskSettler {
         }
     }
 
-    fn update_searching(&mut self, ctx: &mut TaskContext) -> Transition<UnitTaskSettlerState> {
+    fn update_searching(&mut self, ctx: &mut UnitTaskContext) -> UnitTaskTransition<UnitTaskSettlerState> {
         match self.try_find_goal(ctx) {
-            Some(goal) => Transition::Goto(UnitTaskSettlerState::MovingTo(goal)),
-            None => Transition::Stay,
+            Some(goal) => UnitTaskTransition::Goto(UnitTaskSettlerState::MovingTo(goal)),
+            None => UnitTaskTransition::Stay,
         }
     }
 
-    fn update_moving(&mut self, goal: UnitTaskSettlerGoal, ctx: &mut TaskContext) -> Transition<UnitTaskSettlerState> {
+    fn update_moving(&mut self, goal: UnitTaskSettlerGoal, ctx: &mut UnitTaskContext) -> UnitTaskTransition<UnitTaskSettlerState> {
         if ctx.unit.goal().is_none() {
             // Lost the path to the destination; search again.
-            return Transition::Goto(UnitTaskSettlerState::Searching);
+            return UnitTaskTransition::Goto(UnitTaskSettlerState::Searching);
         }
 
         if !ctx.unit.has_reached_goal() {
-            return Transition::Stay;
+            return UnitTaskTransition::Stay;
         }
 
         match goal {
@@ -205,17 +205,17 @@ impl UnitTaskSettler {
             }
             UnitTaskSettlerGoal::House => {
                 if self.try_visit_house(ctx) {
-                    Transition::Goto(UnitTaskSettlerState::VisitingHouse)
+                    UnitTaskTransition::Goto(UnitTaskSettlerState::VisitingHouse)
                 } else {
                     // House no longer valid; search for another destination.
                     ctx.unit.follow_path(None);
-                    Transition::Goto(UnitTaskSettlerState::Searching)
+                    UnitTaskTransition::Goto(UnitTaskSettlerState::Searching)
                 }
             }
         }
     }
 
-    fn finish_at_tile(&mut self, ctx: &mut TaskContext) -> Transition<UnitTaskSettlerState> {
+    fn finish_at_tile(&mut self, ctx: &mut UnitTaskContext) -> UnitTaskTransition<UnitTaskSettlerState> {
         let sim_context = ctx.sim_context;
 
         let destination_cell = ctx.unit.goal()
@@ -226,18 +226,18 @@ impl UnitTaskSettler {
         if let Some(tile) = sim_context.try_tile_from_layer(destination_cell, TileMapLayerKind::Terrain) {
             if tile.path_kind().is_vacant_lot() || tile.has_flags(TileFlags::SettlersSpawnPoint) {
                 self.notify_completion(ctx.unit, sim_context, tile);
-                return Transition::Goto(UnitTaskSettlerState::Done);
+                return UnitTaskTransition::Goto(UnitTaskSettlerState::Done);
             }
         }
 
         // Destination tile is no longer a vacant lot / spawn point; search again.
         ctx.unit.follow_path(None);
-        Transition::Goto(UnitTaskSettlerState::Searching)
+        UnitTaskTransition::Goto(UnitTaskSettlerState::Searching)
     }
 
-    fn update_visiting_house(&mut self, ctx: &mut TaskContext) -> Transition<UnitTaskSettlerState> {
+    fn update_visiting_house(&mut self, ctx: &mut UnitTaskContext) -> UnitTaskTransition<UnitTaskSettlerState> {
         match self.visit_outcome.take() {
-            None => Transition::Stay, // Deferred visit not resolved yet.
+            None => UnitTaskTransition::Stay, // Deferred visit not resolved yet.
             Some(true) => {
                 // House accepted the settler.
                 let sim_context = ctx.sim_context;
@@ -249,26 +249,26 @@ impl UnitTaskSettler {
                 if let Some(house_tile) = sim_context.find_tile(destination_cell, TileKind::Building) {
                     self.notify_completion(ctx.unit, sim_context, house_tile);
                 }
-                Transition::Goto(UnitTaskSettlerState::Done)
+                UnitTaskTransition::Goto(UnitTaskSettlerState::Done)
             }
             Some(false) => {
                 // House refused the settler; search for another destination.
                 ctx.unit.follow_path(None);
-                Transition::Goto(UnitTaskSettlerState::Searching)
+                UnitTaskTransition::Goto(UnitTaskSettlerState::Searching)
             }
         }
     }
 }
 
-impl TaskState for UnitTaskSettlerState {
+impl UnitTaskState for UnitTaskSettlerState {
     type Task = UnitTaskSettler;
 
-    fn update(self, task: &mut UnitTaskSettler, ctx: &mut TaskContext) -> Transition<Self> {
+    fn update(self, task: &mut UnitTaskSettler, ctx: &mut UnitTaskContext) -> UnitTaskTransition<Self> {
         match self {
             Self::Searching      => task.update_searching(ctx),
             Self::MovingTo(goal) => task.update_moving(goal, ctx),
             Self::VisitingHouse  => task.update_visiting_house(ctx),
-            Self::Done           => Transition::Done,
+            Self::Done           => UnitTaskTransition::Done,
         }
     }
 }
@@ -276,7 +276,7 @@ impl TaskState for UnitTaskSettlerState {
 impl UnitTask for UnitTaskSettler {
     type State = UnitTaskSettlerState;
 
-    fn initialize(&mut self, ctx: &mut TaskContext) {
+    fn initialize(&mut self, ctx: &mut UnitTaskContext) {
         debug_assert_ne!(self.population_to_add, 0);
 
         // Settlers can go off-road.
