@@ -575,7 +575,7 @@ fn unit_debug_settle_task_post_despawn(
                         let population_added = building.add_population(&mut cmds, context, population_to_add);
 
                         if population_added != population_to_add {
-                            log::error!(
+                            log::warning!(
                                 log::channel!("unit"),
                                 "Settler carried population of {population_to_add} but house accommodated {population_added}."
                             );
