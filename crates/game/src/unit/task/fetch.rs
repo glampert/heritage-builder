@@ -5,19 +5,18 @@ use common::callback::Callback;
 use engine::{log, ui::UiSystem};
 
 use super::{
+    PathFindResult,
+    TaskContext,
+    TaskState,
+    Transition,
     UnitTask,
     UnitTaskId,
     UnitTaskPool,
-    UnitTaskResult,
-    UnitTaskState,
-    common::{
-        PathFindResult,
-        find_delivery_candidate,
-        find_storage_fetch_candidate,
-        visit_destination_deferred,
-        invoke_completion_callback_immediate,
-        invoke_completion_callback_deferred,
-    },
+    find_delivery_candidate,
+    find_storage_fetch_candidate,
+    invoke_completion_callback_deferred,
+    visit_destination_deferred,
+    with_task,
 };
 use crate::{
     debug,
@@ -25,7 +24,7 @@ use crate::{
     tile::TileMapLayerKind,
     unit::{Unit, navigation::UnitNavGoal},
     building::{Building, BuildingKind, BuildingKindAndId, BuildingTileInfo},
-    sim::{SimCmds, SimContext, resources::ShoppingList},
+    sim::{SimContext, resources::ShoppingList},
 };
 
 // ----------------------------------------------
@@ -36,17 +35,31 @@ pub type UnitTaskFetchCompletionCallback = fn(&SimContext, &mut Building, &mut U
 
 #[derive(Copy, Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
 pub enum UnitTaskFetchState {
+    // Looking for a storage that has one of the wanted resources.
     #[default]
-    Idle,
-    MovingToGoal,
-    PendingBuildingVisit,
+    Searching,
+
+    // Walking to the chosen storage.
+    MovingToStorage,
+
+    // At the storage, waiting for the deferred fetch visit to resolve.
+    VisitingStorage,
+
+    // Walking back to the origin building.
     ReturningToOrigin,
-    PendingCompletionCallback,
-    // Recovery: origin is unreachable / destroyed / refused the delivery, so
-    // the unit is walking the surplus inventory to any storage that will take it.
-    ReturningSurplusToStorage,
-    PendingSurplusUnload,
-    Completed,
+
+    // At the origin, waiting for the deferred completion callback.
+    DeliveringToOrigin,
+
+    // Recovery: the origin is unreachable, so the cargo is being routed
+    // to any storage that will take it.
+    RoutingSurplus,
+
+    // At a recovery storage, waiting for the deferred surplus unload.
+    UnloadingSurplus,
+
+    // Terminal state.
+    Done,
 }
 
 // Fetch goods from a storage building.
@@ -59,7 +72,9 @@ pub struct UnitTaskFetchFromStorage {
 
     // Resources to fetch:
     pub storage_buildings_accepted: BuildingKind,
-    pub resources_to_fetch: ShoppingList, // Will fetch at most *one* of these. This is a list of desired options.
+
+    // Will fetch at most *one* of these. This is a list of desired options.
+    pub resources_to_fetch: ShoppingList,
 
     // Called on the origin building once the unit has returned with resources.
     // `|context, origin_building, runner_unit|`
@@ -68,22 +83,29 @@ pub struct UnitTaskFetchFromStorage {
     // Optional completion task to run after this task.
     pub completion_task: Option<UnitTaskId>,
 
-    // Current internal task state. Should start as Idle.
-    // Deserialize uses Default if missing to retain backwards compatibility with older save files.
     #[serde(default)]
-    pub internal_state: UnitTaskFetchState,
+    pub state: UnitTaskFetchState,
+
+    // Outcome of a deferred building visit (`VisitingStorage` / `UnloadingSurplus`):
+    // `Some(true)` good, `Some(false)` retry elsewhere.
+    #[serde(skip)]
+    pub visit_outcome: Option<bool>,
+
+    // Set by the deferred completion callback; consumed by `DeliveringToOrigin`.
+    #[serde(skip)]
+    pub completion_callback_done: bool,
 }
 
 impl UnitTaskFetchFromStorage {
-    fn try_find_goal(&mut self, unit: &mut Unit, context: &SimContext) -> bool {
-        let origin_cell = unit.cell();
-        let traversable_node_kinds = unit.traversable_node_kinds();
+    fn try_find_goal(&mut self, ctx: &mut TaskContext) -> bool {
+        let origin_cell = ctx.unit.cell();
+        let traversable_node_kinds = ctx.unit.traversable_node_kinds();
 
         for resource_to_fetch in self.resources_to_fetch.iter() {
             debug_assert!(resource_to_fetch.kind.is_single_resource());
 
             let path_find_result = find_storage_fetch_candidate(
-                context,
+                ctx.sim_context,
                 self.origin_building.kind,
                 origin_cell,
                 traversable_node_kinds,
@@ -92,57 +114,28 @@ impl UnitTaskFetchFromStorage {
             );
 
             if let PathFindResult::Success { path, goal } = path_find_result {
-                unit.move_to_goal(path, goal);
-                self.internal_state = UnitTaskFetchState::MovingToGoal;
+                ctx.unit.move_to_goal(path, goal);
                 return true;
             }
-            // Else no path or Storage building found. Try again.
+            // Else no path or Storage building found. Try the next resource.
         }
 
         false
     }
 
-    // Recovery: if the unit is holding goods but can't return them to the
-    // origin building, look for any storage that will receive the surplus.
-    // On success, the unit's nav goal is set and `internal_state` advances
-    // to `ReturningSurplusToStorage`.
-    fn try_route_surplus_to_storage(&mut self, unit: &mut Unit, context: &SimContext) -> bool {
-        let Some(item) = unit.peek_inventory() else {
-            return false;
-        };
+    fn try_return_to_origin(&mut self, ctx: &mut TaskContext) -> bool {
+        let sim_context = ctx.sim_context;
 
-        let origin_cell = unit.cell();
-        let traversable_node_kinds = unit.traversable_node_kinds();
-
-        let path_find_result = find_delivery_candidate(
-            context,
-            self.origin_building.kind,
-            origin_cell,
-            traversable_node_kinds,
-            self.storage_buildings_accepted,
-            item.kind,
-        );
-
-        if let PathFindResult::Success { path, goal } = path_find_result {
-            unit.move_to_goal(path, goal);
-            self.internal_state = UnitTaskFetchState::ReturningSurplusToStorage;
-            return true;
-        }
-
-        false
-    }
-
-    fn try_return_to_origin(&mut self, unit: &mut Unit, context: &SimContext) -> bool {
-        if context.find_building(self.origin_building.kind, self.origin_building.id).is_none() {
+        if sim_context.find_building(self.origin_building.kind, self.origin_building.id).is_none() {
             log::info!(log::channel!("task"), "Origin building no longer valid; TaskFetchFromStorage will attempt surplus recovery.");
             return false;
         }
 
-        let start = unit.cell();
-        let goal = self.origin_building_tile.road_link;
-        let traversable_node_kinds = unit.traversable_node_kinds();
+        let start = ctx.unit.cell();
+        let goal_cell = self.origin_building_tile.road_link;
+        let traversable_node_kinds = ctx.unit.traversable_node_kinds();
 
-        match context.find_path(traversable_node_kinds, start, goal) {
+        match sim_context.find_path(traversable_node_kinds, start, goal_cell) {
             SearchResult::PathFound(path) => {
                 let goal = UnitNavGoal::building(
                     self.origin_building.kind,
@@ -150,8 +143,7 @@ impl UnitTaskFetchFromStorage {
                     self.origin_building.kind,
                     self.origin_building_tile,
                 );
-                unit.move_to_goal(path, goal);
-                self.internal_state = UnitTaskFetchState::ReturningToOrigin;
+                ctx.unit.move_to_goal(path, goal);
                 true
             }
             SearchResult::PathNotFound => {
@@ -163,21 +155,226 @@ impl UnitTaskFetchFromStorage {
             }
         }
     }
+
+    // Recovery: look for any storage that will receive the surplus cargo.
+    fn try_route_surplus_to_storage(&mut self, ctx: &mut TaskContext) -> bool {
+        let Some(item) = ctx.unit.peek_inventory() else { return false; };
+        let item_kind = item.kind;
+
+        let origin_cell = ctx.unit.cell();
+        let traversable_node_kinds = ctx.unit.traversable_node_kinds();
+
+        let path_find_result = find_delivery_candidate(
+            ctx.sim_context,
+            self.origin_building.kind,
+            origin_cell,
+            traversable_node_kinds,
+            self.storage_buildings_accepted,
+            item_kind,
+        );
+
+        if let PathFindResult::Success { path, goal } = path_find_result {
+            ctx.unit.move_to_goal(path, goal);
+            true
+        } else {
+            false
+        }
+    }
+
+    // Schedules the deferred storage visit (collect a resource).
+    fn try_visit_storage(&mut self, ctx: &mut TaskContext) -> bool {
+        visit_destination_deferred(ctx.unit, ctx.sim_cmds, ctx.sim_context, |context, _building, unit, _result| {
+            with_task::<Self>(unit, context, |task, unit| {
+                // Did we collect a resource from this storage?
+                task.visit_outcome = Some(!unit.inventory_is_empty());
+            });
+        })
+    }
+
+    // Schedules the deferred surplus unload visit.
+    fn try_visit_for_surplus(&mut self, ctx: &mut TaskContext) -> bool {
+        visit_destination_deferred(ctx.unit, ctx.sim_cmds, ctx.sim_context, |context, _building, unit, _result| {
+            with_task::<Self>(unit, context, |task, unit| {
+                // Surplus fully deposited?
+                task.visit_outcome = Some(unit.inventory_is_empty());
+            });
+        })
+    }
+
+    // Schedules the deferred completion callback on the origin building.
+    fn schedule_completion_callback(&mut self, ctx: &mut TaskContext) -> bool {
+        invoke_completion_callback_deferred(
+            ctx.unit,
+            ctx.sim_cmds,
+            ctx.sim_context,
+            self.origin_building.kind,
+            self.origin_building.id,
+            self.completion_callback.get(),
+            |context, _building, unit| {
+                with_task::<Self>(unit, context, |task, _unit| {
+                    task.completion_callback_done = true;
+                });
+            },
+        )
+    }
+
+    fn update_searching(&mut self, ctx: &mut TaskContext) -> Transition<UnitTaskFetchState> {
+        if self.try_find_goal(ctx) {
+            Transition::Goto(UnitTaskFetchState::MovingToStorage)
+        } else {
+            // No storage has what we want; head home empty-handed.
+            Transition::Goto(UnitTaskFetchState::ReturningToOrigin)
+        }
+    }
+
+    fn update_moving_to_storage(&mut self, ctx: &mut TaskContext) -> Transition<UnitTaskFetchState> {
+        if ctx.unit.goal().is_none() {
+            return Transition::Goto(UnitTaskFetchState::Searching);
+        }
+
+        if !ctx.unit.has_reached_goal() {
+            return Transition::Stay;
+        }
+
+        let scheduled = self.try_visit_storage(ctx);
+        ctx.unit.follow_path(None);
+
+        if scheduled {
+            Transition::Goto(UnitTaskFetchState::VisitingStorage)
+        } else {
+            // Destination storage no longer valid; find another.
+            Transition::Goto(UnitTaskFetchState::Searching)
+        }
+    }
+
+    fn update_visiting_storage(&mut self, _ctx: &mut TaskContext) -> Transition<UnitTaskFetchState> {
+        match self.visit_outcome.take() {
+            None        => Transition::Stay,                                        // Deferred visit not resolved yet.
+            Some(true)  => Transition::Goto(UnitTaskFetchState::ReturningToOrigin), // Collected a resource.
+            Some(false) => Transition::Goto(UnitTaskFetchState::Searching),         // Nothing here; try elsewhere.
+        }
+    }
+
+    fn update_returning(&mut self, ctx: &mut TaskContext) -> Transition<UnitTaskFetchState> {
+        if ctx.unit.goal().is_none() {
+            if self.try_return_to_origin(ctx) {
+                return Transition::Stay;
+            }
+
+            // Origin unreachable; try to route the cargo to any storage.
+            return Transition::Goto(UnitTaskFetchState::RoutingSurplus);
+        }
+
+        if !ctx.unit.has_reached_goal() {
+            return Transition::Stay;
+        }
+
+        // Reached the origin building.
+        ctx.unit.follow_path(None);
+
+        if self.completion_callback.is_valid() && self.schedule_completion_callback(ctx) {
+            Transition::Goto(UnitTaskFetchState::DeliveringToOrigin)
+        } else if !ctx.unit.inventory_is_empty() {
+            // No callback / origin gone, but still holding cargo: route it as surplus.
+            Transition::Goto(UnitTaskFetchState::RoutingSurplus)
+        } else {
+            Transition::Goto(UnitTaskFetchState::Done)
+        }
+    }
+
+    fn update_delivering(&mut self, ctx: &mut TaskContext) -> Transition<UnitTaskFetchState> {
+        if !self.completion_callback_done {
+            return Transition::Stay;
+        }
+
+        // The origin building may not have taken the whole delivery.
+        if !ctx.unit.inventory_is_empty() {
+            Transition::Goto(UnitTaskFetchState::RoutingSurplus)
+        } else {
+            Transition::Goto(UnitTaskFetchState::Done)
+        }
+    }
+
+    fn update_routing_surplus(&mut self, ctx: &mut TaskContext) -> Transition<UnitTaskFetchState> {
+        if ctx.unit.goal().is_none() {
+            if self.try_route_surplus_to_storage(ctx) {
+                return Transition::Stay;
+            }
+
+            // Nothing will take the surplus (or the unit is empty-handed); finish.
+            if !ctx.unit.inventory_is_empty() {
+                log::error!(
+                    log::channel!("task"),
+                    "Aborting TaskFetchFromStorage. No storage will accept the surplus cargo."
+                );
+                ctx.unit.clear_inventory();
+            }
+
+            return Transition::Goto(UnitTaskFetchState::Done);
+        }
+
+        if !ctx.unit.has_reached_goal() {
+            return Transition::Stay;
+        }
+
+        // Reached the recovery storage. Schedule the unload visit.
+        let scheduled = self.try_visit_for_surplus(ctx);
+        ctx.unit.follow_path(None);
+
+        if scheduled {
+            Transition::Goto(UnitTaskFetchState::UnloadingSurplus)
+        } else {
+            // Destination disappeared; re-route.
+            Transition::Goto(UnitTaskFetchState::RoutingSurplus)
+        }
+    }
+
+    fn update_unloading_surplus(&mut self, _ctx: &mut TaskContext) -> Transition<UnitTaskFetchState> {
+        match self.visit_outcome.take() {
+            None        => Transition::Stay,                                     // Deferred visit not resolved yet.
+            Some(true)  => Transition::Goto(UnitTaskFetchState::Done),           // Surplus deposited.
+            Some(false) => Transition::Goto(UnitTaskFetchState::RoutingSurplus), // Refused; try another storage.
+        }
+    }
+
+    fn update_done(&mut self, ctx: &mut TaskContext) -> Transition<UnitTaskFetchState> {
+        if !ctx.unit.inventory_is_empty() {
+            log::error!(log::channel!("task"), "TaskFetchFromStorage: dropping undeliverable cargo.");
+            ctx.unit.clear_inventory();
+        }
+        Transition::Done
+    }
+}
+
+impl TaskState for UnitTaskFetchState {
+    type Task = UnitTaskFetchFromStorage;
+
+    fn update(self, task: &mut UnitTaskFetchFromStorage, ctx: &mut TaskContext) -> Transition<Self> {
+        match self {
+            Self::Searching          => task.update_searching(ctx),
+            Self::MovingToStorage    => task.update_moving_to_storage(ctx),
+            Self::VisitingStorage    => task.update_visiting_storage(ctx),
+            Self::ReturningToOrigin  => task.update_returning(ctx),
+            Self::DeliveringToOrigin => task.update_delivering(ctx),
+            Self::RoutingSurplus     => task.update_routing_surplus(ctx),
+            Self::UnloadingSurplus   => task.update_unloading_surplus(ctx),
+            Self::Done               => task.update_done(ctx),
+        }
+    }
 }
 
 impl UnitTask for UnitTaskFetchFromStorage {
-    fn initialize(&mut self, unit: &mut Unit, _cmds: &mut SimCmds, context: &SimContext) {
+    type State = UnitTaskFetchState;
+
+    fn initialize(&mut self, ctx: &mut TaskContext) {
         // Sanity check:
-        debug_assert!(unit.goal().is_none());
-        debug_assert!(unit.inventory_is_empty());
-        debug_assert!(unit.cell() == self.origin_building_tile.road_link); // We start at the nearest building road link.
+        debug_assert!(ctx.unit.goal().is_none());
+        debug_assert!(ctx.unit.inventory_is_empty());
+        debug_assert_eq!(ctx.unit.cell(), self.origin_building_tile.road_link); // We start at the nearest building road link.
         debug_assert!(self.origin_building.is_valid());
         debug_assert!(self.origin_building_tile.is_valid());
         debug_assert!(!self.storage_buildings_accepted.is_empty());
         debug_assert!(!self.resources_to_fetch.is_empty());
-        debug_assert_eq!(self.internal_state, UnitTaskFetchState::Idle);
-
-        self.try_find_goal(unit, context);
     }
 
     fn terminate(&mut self, task_pool: &mut UnitTaskPool) {
@@ -190,309 +387,19 @@ impl UnitTask for UnitTaskFetchFromStorage {
         self
     }
 
+    fn state(&mut self) -> &mut Self::State {
+        &mut self.state
+    }
+
+    fn completion_task(&mut self) -> Option<UnitTaskId> {
+        self.completion_task.take()
+    }
+
     fn post_load(&mut self) {
         self.completion_callback.post_load();
     }
 
-    fn update(&mut self, unit: &mut Unit, cmds: &mut SimCmds, context: &SimContext) -> UnitTaskState {
-        // If we have a goal we're already moving somewhere,
-        // otherwise we may need to pathfind again.
-        match self.internal_state {
-            UnitTaskFetchState::Idle | UnitTaskFetchState::MovingToGoal => {
-                if unit.goal().is_none() {
-                    if !self.try_find_goal(unit, context) {
-                        // No storage buildings available. Return home.
-                        self.internal_state = UnitTaskFetchState::ReturningToOrigin;
-                        return UnitTaskState::Running;
-                    }
-                }
-            }
-            UnitTaskFetchState::ReturningToOrigin => {
-                if unit.goal().is_none() {
-                    if !self.try_return_to_origin(unit, context) {
-                        // Origin building unreachable. Try to ship surplus to any storage that will accept it.
-                        if self.try_route_surplus_to_storage(unit, context) {
-                            return UnitTaskState::Running;
-                        }
-
-                        log::error!(
-                            log::channel!("task"),
-                            "Aborting TaskFetchFromStorage. Origin unreachable and no storage will accept the surplus."
-                        );
-                        unit.clear_inventory();
-
-                        if self.completion_callback.is_valid() {
-                            let scheduled = invoke_completion_callback_deferred(
-                                unit,
-                                cmds,
-                                context,
-                                self.origin_building.kind,
-                                self.origin_building.id,
-                                self.completion_callback.get(),
-                                |context, _building, unit| {
-                                    let task = unit.current_task_as_mut::<Self>(context.task_manager_mut())
-                                        .expect("Expected unit to be running UnitTaskFetchFromStorage!");
-
-                                    debug_assert_eq!(task.internal_state, UnitTaskFetchState::PendingCompletionCallback);
-                                    task.internal_state = UnitTaskFetchState::Completed;
-                                },
-                            );
-
-                            if scheduled {
-                                // Wait for deferred callback to run before ending the task.
-                                debug_assert_ne!(self.internal_state, UnitTaskFetchState::PendingCompletionCallback);
-                                self.internal_state = UnitTaskFetchState::PendingCompletionCallback;
-                                return UnitTaskState::Running;
-                            }
-                        }
-
-                        debug_assert_ne!(self.internal_state, UnitTaskFetchState::Completed);
-                        self.internal_state = UnitTaskFetchState::Completed;
-
-                        return UnitTaskState::Completed;
-                    }
-                }
-            }
-            UnitTaskFetchState::ReturningSurplusToStorage => {
-                if unit.goal().is_none() {
-                    // Lost the path to the chosen storage. Retry routing to a different one;
-                    // if nothing accepts the surplus, drop it and end the task.
-                    if !self.try_route_surplus_to_storage(unit, context) {
-                        log::error!(
-                            log::channel!("task"),
-                            "Aborting TaskFetchFromStorage. No storage will accept the surplus inventory."
-                        );
-                        unit.clear_inventory();
-
-                        debug_assert_ne!(self.internal_state, UnitTaskFetchState::Completed);
-                        self.internal_state = UnitTaskFetchState::Completed;
-
-                        return UnitTaskState::Completed;
-                    }
-                }
-            }
-            UnitTaskFetchState::PendingBuildingVisit
-            | UnitTaskFetchState::PendingCompletionCallback
-            | UnitTaskFetchState::PendingSurplusUnload => {
-                // Wait for deferred callback to be invoked.
-                return UnitTaskState::Running;
-            }
-            UnitTaskFetchState::Completed => {
-                // Task completed or aborted.
-                return UnitTaskState::Completed;
-            }
-        }
-
-        if unit.has_reached_goal() {
-            UnitTaskState::Completed
-        } else {
-            UnitTaskState::Running
-        }
-    }
-
-    fn completed(&mut self, unit: &mut Unit, cmds: &mut SimCmds, context: &SimContext) -> UnitTaskResult {
-        // NOTE: For backwards compatibility with old saves that didn't have internal_state.
-        let goal_is_origin_building = |unit: &Unit| -> bool {
-            unit.goal().is_some_and(|goal| {
-                goal.is_building()
-                    && goal.building_destination() == (self.origin_building.kind, self.origin_building_tile.base_cell)
-            })
-        };
-
-        // If the deferred completion callback has already run, finalize the task.
-        // If origin couldn't accept the whole delivery, try to ship the surplus
-        // to any storage that will take it before giving up.
-        if self.internal_state == UnitTaskFetchState::Completed {
-            if !unit.inventory_is_empty() {
-                if self.try_route_surplus_to_storage(unit, context) {
-                    return UnitTaskResult::Retry;
-                }
-
-                log::error!(
-                    log::channel!("task"),
-                    "TaskFetchFromStorage: Failed to unload at origin and no storage will accept the surplus."
-                );
-                unit.clear_inventory();
-            }
-            return UnitTaskResult::completed_with(&mut self.completion_task);
-        }
-
-        // We've reached the recovery storage. Defer the visit so the destination
-        // building can receive the surplus inventory.
-        if self.internal_state == UnitTaskFetchState::ReturningSurplusToStorage {
-            let destination_exists = visit_destination_deferred(unit, cmds, context, |context, _building, unit, _result| {
-                let task = unit.current_task_as_mut::<Self>(context.task_manager_mut())
-                    .expect("Expected unit to be running UnitTaskFetchFromStorage!");
-
-                debug_assert_eq!(task.internal_state, UnitTaskFetchState::PendingSurplusUnload);
-
-                if unit.inventory_is_empty() {
-                    // Surplus fully deposited. End the task.
-                    task.internal_state = UnitTaskFetchState::Completed;
-                } else {
-                    // Visit refused (no slot). Try another storage on the next tick.
-                    task.internal_state = UnitTaskFetchState::ReturningSurplusToStorage;
-                }
-            });
-
-            if destination_exists {
-                self.internal_state = UnitTaskFetchState::PendingSurplusUnload;
-            } else {
-                // Destination disappeared between routing and arrival. Retry routing.
-                self.internal_state = UnitTaskFetchState::ReturningSurplusToStorage;
-            }
-
-            unit.follow_path(None);
-            return UnitTaskResult::Retry;
-        }
-
-        let task_completed = if self.internal_state == UnitTaskFetchState::ReturningToOrigin || goal_is_origin_building(unit) {
-            // We've reached our origin building with the resources we were supposed to
-            // fetch. Invoke the completion callback and end the task.
-            if !unit.inventory_is_empty() {
-                // If the unit inventory is not empty then we should have one of the items we were looking for.
-                // If the inventory is empty it means we failed to find a storage building and are coming back
-                // home empty handed.
-                debug_assert!(self.resources_to_fetch.iter().any(|entry| entry.kind == unit.peek_inventory().unwrap().kind));
-            }
-
-            if self.completion_callback.is_valid() {
-                let scheduled = invoke_completion_callback_deferred(
-                    unit,
-                    cmds,
-                    context,
-                    self.origin_building.kind,
-                    self.origin_building.id,
-                    self.completion_callback.get(),
-                    |context, _building, unit| {
-                        let task = unit.current_task_as_mut::<Self>(context.task_manager_mut())
-                            .expect("Expected unit to be running UnitTaskFetchFromStorage!");
-
-                        debug_assert_eq!(task.internal_state, UnitTaskFetchState::PendingCompletionCallback);
-                        task.internal_state = UnitTaskFetchState::Completed;
-                    },
-                );
-
-                if scheduled {
-                    // Wait for deferred callback to run before ending the task.
-                    debug_assert_ne!(self.internal_state, UnitTaskFetchState::PendingCompletionCallback);
-                    self.internal_state = UnitTaskFetchState::PendingCompletionCallback;
-                    unit.follow_path(None);
-                    return UnitTaskResult::Retry;
-                }
-            }
-
-            // Either no completion callback or origin building no longer exists.
-            // If we're holding surplus, try to ship it to a storage as recovery.
-            if !unit.inventory_is_empty() && self.try_route_surplus_to_storage(unit, context) {
-                return UnitTaskResult::Retry;
-            }
-
-            debug_assert_ne!(self.internal_state, UnitTaskFetchState::Completed);
-            self.internal_state = UnitTaskFetchState::Completed;
-
-            unit.follow_path(None);
-
-            if !unit.inventory_is_empty() {
-                log::error!(
-                    log::channel!("task"),
-                    "TaskFetchFromStorage: Failed to unload at origin and no storage will accept the surplus."
-                );
-                unit.clear_inventory();
-            }
-
-            true // Task completed.
-        } else if self.internal_state == UnitTaskFetchState::MovingToGoal || (unit.goal().is_some() && !goal_is_origin_building(unit)) {
-            // We've reached a destination to visit and attempt to fetch some resources.
-            // We may fail and try again with another building or start returning to the origin.
-            debug_assert!(unit.inventory_is_empty());
-
-            let destination_exists = visit_destination_deferred(unit, cmds, context, |context, _building, unit, _result| {
-                let task = unit.current_task_as_mut::<Self>(context.task_manager_mut())
-                    .expect("Expected unit to be running UnitTaskFetchFromStorage!");
-
-                debug_assert_eq!(task.internal_state, UnitTaskFetchState::PendingBuildingVisit);
-
-                // If we've collected resources from the visited destination
-                // we are done and can return to our origin building.
-                if let Some(item) = unit.peek_inventory() {
-                    debug_assert!(item.count != 0, "Expected nonzero item count: {item}");
-                    debug_assert!(
-                        task.resources_to_fetch.iter().any(|entry| entry.kind == item.kind),
-                        "Expected to have item kind {}",
-                        item.kind
-                    );
-
-                    // If we couldn't find a path back to the origin, maybe because the origin
-                    // building was destroyed, try to ship the cargo to any storage that
-                    // will accept it. If no storage is reachable either, drop the cargo.
-                    if !task.try_return_to_origin(unit, context)
-                        && !task.try_route_surplus_to_storage(unit, context)
-                    {
-                        log::error!(
-                            log::channel!("task"),
-                            "Aborting TaskFetchFromStorage. Origin unreachable and no storage will accept the cargo."
-                        );
-                        unit.clear_inventory();
-
-                        // NOTE: Invoke callback immediately; we are already inside a deferred callback.
-                        if task.completion_callback.is_valid() {
-                            invoke_completion_callback_immediate(
-                                unit,
-                                context,
-                                task.origin_building.kind,
-                                task.origin_building.id,
-                                task.completion_callback.get(),
-                            );
-                        }
-
-                        debug_assert_ne!(task.internal_state, UnitTaskFetchState::Completed);
-                        task.internal_state = UnitTaskFetchState::Completed;
-                    }
-
-                    debug_assert!(matches!(
-                        task.internal_state,
-                        UnitTaskFetchState::ReturningToOrigin
-                            | UnitTaskFetchState::ReturningSurplusToStorage
-                            | UnitTaskFetchState::Completed
-                    ));
-                } else {
-                    // Destination didn't have the resources we wanted. Try again elsewhere.
-                    task.internal_state = UnitTaskFetchState::Idle;
-                }
-            });
-
-            if destination_exists {
-                // Building visitation is deferred, so we must wait for it to complete.
-                self.internal_state = UnitTaskFetchState::PendingBuildingVisit;
-            } else {
-                // Destination building no longer valid (might have been destroyed).
-                self.internal_state = UnitTaskFetchState::Idle;
-            }
-
-            unit.follow_path(None);
-
-            false // Task pending.
-        } else {
-            if self.internal_state != UnitTaskFetchState::Completed {
-                log::error!(
-                    log::channel!("task"),
-                    "Unexpected UnitTaskFetchFromStorage state. Expected Completed, found: {:?}",
-                    self.internal_state,
-                );
-            }
-
-            true // Task completed.
-        };
-
-        if task_completed {
-            UnitTaskResult::completed_with(&mut self.completion_task)
-        } else {
-            UnitTaskResult::Retry
-        }
-    }
-
-    fn draw_debug_ui(&mut self, _unit: &mut Unit, _context: &SimContext, ui_sys: &UiSystem) {
+    fn draw_debug_ui(&mut self, _unit: &mut Unit, _sim_context: &SimContext, ui_sys: &UiSystem) {
         let ui = ui_sys.ui();
 
         let building_kind = self.origin_building.kind;
@@ -500,7 +407,7 @@ impl UnitTask for UnitTaskFetchFromStorage {
         let building_name = debug::tile_name_at(building_cell, TileMapLayerKind::Objects);
 
         ui.text(format!("Origin Building            : {}, '{}', {}", building_kind, building_name, building_cell));
-        ui.text(format!("Internal State             : {:?}", self.internal_state));
+        ui.text(format!("State                      : {:?}", self.state));
         ui.separator();
         ui.text(format!("Storage Buildings Accepted : {}", self.storage_buildings_accepted));
         ui.text(format!("Resources To Fetch         : {}", self.resources_to_fetch));

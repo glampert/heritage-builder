@@ -9,15 +9,17 @@ use common::{
 use engine::{log, ui::UiSystem};
 
 use super::{
+    TaskContext,
+    TaskState,
+    Transition,
     UnitTask,
     UnitTaskId,
     UnitTaskPool,
-    UnitTaskResult,
-    UnitTaskState,
-    common::invoke_completion_callback_deferred,
+    invoke_completion_callback_deferred,
+    with_task,
 };
 use crate::{
-    debug::{self},
+    debug,
     pathfind::{
         Node,
         NodeKind as PathNodeKind,
@@ -27,7 +29,7 @@ use crate::{
         RandomDirectionalBias,
         SearchResult,
     },
-    sim::{SimCmds, SimCmdQueue, SimContext},
+    sim::{SimCmdQueue, SimContext},
     tile::TileMapLayerKind,
     unit::{Unit, navigation::{self, UnitDirection, UnitNavGoal}},
     building::{Building, BuildingKind, BuildingKindAndId, BuildingTileInfo},
@@ -74,7 +76,7 @@ impl UnitPatrolPathRecord {
 
 fn path_direction(path: &Path) -> UnitDirection {
     let start = path.first().unwrap();
-    let goal = path.last().unwrap();
+    let goal  = path.last().unwrap();
     navigation::direction_between(start.cell, goal.cell)
 }
 
@@ -83,7 +85,7 @@ fn path_direction(path: &Path) -> UnitDirection {
 // ----------------------------------------------
 
 const PATROL_MIN_PREFERRED_PATH_LEN: i32 = 4;
-const PATROL_MAX_REPEATED_DIR_AXIS: i32 = 2;
+const PATROL_MAX_REPEATED_DIR_AXIS:  i32 = 2;
 
 struct UnitPatrolWaypointFilter<'task, R: Rng> {
     rng: &'task mut R,
@@ -107,7 +109,7 @@ impl<R: Rng> PathFilter for UnitPatrolWaypointFilter<'_, R> {
         }
 
         let prev_direction = self.path_record.current_direction;
-        let new_direction = path_direction(path);
+        let new_direction  = path_direction(path);
 
         // Try picking a different direction.
         if new_direction == prev_direction {
@@ -196,10 +198,18 @@ pub type UnitTaskPatrolCompletionCallback = fn(&SimContext, &mut Building, &mut 
 
 #[derive(Copy, Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
 pub enum UnitTaskPatrolState {
+    // Walking out to randomized waypoints, visiting buildings along the way.
     #[default]
-    Running,
-    PendingCompletionCallback,
-    Completed,
+    Patrolling,
+
+    // Walking back to the origin building.
+    ReturningToOrigin,
+
+    // At the origin, waiting for the deferred completion callback.
+    DeliveringToOrigin,
+
+    // Terminal state.
+    Done,
 }
 
 // Max unique buildings recorded in `UnitTaskRandomizedPatrol::visited_buildings`.
@@ -236,10 +246,12 @@ pub struct UnitTaskRandomizedPatrol {
     // Optional idle timeout between goals.
     pub idle_countdown: Option<(CountdownTimer, Seconds)>,
 
-    // Current internal completion state. Should start as Running.
-    // Deserialize uses Default if missing to retain backwards compatibility with older save files.
     #[serde(default)]
-    pub internal_state: UnitTaskPatrolState,
+    pub state: UnitTaskPatrolState,
+
+    // Set by the deferred completion callback; consumed by `DeliveringToOrigin`.
+    #[serde(skip)]
+    pub completion_callback_done: bool,
 
     // Unique buildings this patrol has queued visits to during its current run.
     // Capped at MAX_PATROL_VISITED_BUILDINGS -- further matches are silently
@@ -249,14 +261,14 @@ pub struct UnitTaskRandomizedPatrol {
 }
 
 impl UnitTaskRandomizedPatrol {
-    fn try_find_goal(&mut self, unit: &mut Unit, context: &SimContext) {
+    fn try_find_goal(&mut self, unit: &mut Unit, sim_context: &SimContext) {
         let start = unit.cell();
         let traversable_node_kinds = unit.traversable_node_kinds();
 
-        let bias = RandomDirectionalBias::new(context.rng_mut(), self.path_bias_min, self.path_bias_max);
-        let mut filter = UnitPatrolWaypointFilter::new(context.rng_mut(), &self.path_record);
+        let bias = RandomDirectionalBias::new(sim_context.rng_mut(), self.path_bias_min, self.path_bias_max);
+        let mut filter = UnitPatrolWaypointFilter::new(sim_context.rng_mut(), &self.path_record);
 
-        match context.find_waypoints(&bias, &mut filter, traversable_node_kinds, start, self.max_distance) {
+        match sim_context.find_waypoints(&bias, &mut filter, traversable_node_kinds, start, self.max_distance) {
             SearchResult::PathFound(path) => {
                 unit.move_to_goal(path, UnitNavGoal::tile(start, path));
                 self.path_record.update(path); // Path taken.
@@ -268,14 +280,14 @@ impl UnitTaskRandomizedPatrol {
         }
     }
 
-    fn try_return_to_origin(&mut self, unit: &mut Unit, context: &SimContext) -> bool {
-        if context.find_building(self.origin_building.kind, self.origin_building.id).is_none() {
+    fn try_return_to_origin(&mut self, unit: &mut Unit, sim_context: &SimContext) -> bool {
+        if sim_context.find_building(self.origin_building.kind, self.origin_building.id).is_none() {
             log::error!(log::channel!("task"), "Origin building is no longer valid! TaskPatrol will abort.");
             return false;
         }
 
         let start = unit.cell();
-        let goal = self.origin_building_tile.road_link;
+        let goal_cell = self.origin_building_tile.road_link;
         let traversable_node_kinds = unit.traversable_node_kinds();
 
         // Try up to two paths, one of them should be a different path from the one we
@@ -284,7 +296,7 @@ impl UnitTaskRandomizedPatrol {
         const MAX_PATHS: usize = 2;
         let mut filter = UnitPatrolReturnPathFilter::new(&self.path_record);
 
-        match context.find_paths(&mut filter, MAX_PATHS, traversable_node_kinds, start, goal) {
+        match sim_context.find_paths(&mut filter, MAX_PATHS, traversable_node_kinds, start, goal_cell) {
             SearchResult::PathFound(path) => {
                 let goal = UnitNavGoal::building(
                     self.origin_building.kind,
@@ -306,34 +318,186 @@ impl UnitTaskRandomizedPatrol {
         }
     }
 
-    fn is_returning_to_origin(&self, unit_goal: &UnitNavGoal) -> bool {
-        if unit_goal.is_building() {
-            unit_goal.building_destination() == (self.origin_building.kind, self.origin_building_tile.base_cell)
-        } else {
-            false
-        }
-    }
-
     fn reset_idle_countdown(&mut self) {
         if let Some((idle_countdown, countdown)) = &mut self.idle_countdown {
             idle_countdown.reset(*countdown);
         }
     }
+
+    // Ticks the optional idle countdown. Returns true when the unit is free to
+    // move on (countdown elapsed, or there is no countdown); false while idling.
+    fn tick_idle(&mut self, ctx: &mut TaskContext) -> bool {
+        let Some((idle_countdown, _)) = &mut self.idle_countdown else {
+            return true;
+        };
+
+        if idle_countdown.tick(ctx.sim_context.delta_time_secs()) {
+            true
+        } else {
+            // NOTE: idle() changes the anim in the underlying Tile instance,
+            // so it must be deferred to post-update.
+            let unit_id = ctx.unit.id();
+            ctx.sim_cmds.defer_unit_update(unit_id, |context, unit| {
+                unit.idle(context);
+            });
+            false
+        }
+    }
+
+    // Queues deferred visits to any target buildings adjacent to the unit's current cell.
+    fn visit_buildings_along_way(&mut self, ctx: &mut TaskContext) {
+        let Some(buildings_to_visit) = self.buildings_to_visit else {
+            return;
+        };
+
+        let sim_context = ctx.sim_context;
+        let current_node = Node::new(ctx.unit.cell());
+        let unit_id = ctx.unit.id();
+
+        let graph = sim_context.graph();
+        let Some(node_kind) = graph.node_kind(current_node) else {
+            return;
+        };
+
+        if !node_kind.intersects(PathNodeKind::BuildingRoadLink) {
+            return;
+        }
+
+        let neighbors = graph.neighbors(current_node, PathNodeKind::Building);
+        for neighbor in neighbors {
+            let Some(building) = sim_context.find_building_for_cell(neighbor.cell) else {
+                continue;
+            };
+
+            if !building.is(buildings_to_visit) {
+                continue;
+            }
+
+            let kind_and_id = building.kind_and_id();
+            ctx.sim_cmds.visit_building(kind_and_id, unit_id);
+
+            // Track unique buildings the patrol has queued visits to.
+            // The Vec is capped; once full, additional matches are dropped.
+            if let Some(visited_buildings) = &mut self.visited_buildings {
+                if visited_buildings.len() < MAX_PATROL_VISITED_BUILDINGS
+                    && !visited_buildings.contains(&kind_and_id)
+                {
+                    visited_buildings.push(kind_and_id);
+                }
+            }
+        }
+    }
+
+    // Schedules the deferred completion callback on the origin building.
+    fn schedule_completion_callback(&mut self, ctx: &mut TaskContext) -> bool {
+        invoke_completion_callback_deferred(
+            ctx.unit,
+            ctx.sim_cmds,
+            ctx.sim_context,
+            self.origin_building.kind,
+            self.origin_building.id,
+            self.completion_callback.get(),
+            |context, _building, unit| {
+                with_task::<UnitTaskRandomizedPatrol>(unit, context, |task, _unit| {
+                    task.completion_callback_done = true;
+                });
+            },
+        )
+    }
+
+    fn update_patrolling(&mut self, ctx: &mut TaskContext) -> Transition<UnitTaskPatrolState> {
+        if ctx.unit.goal().is_none() {
+            // Wait out the idle countdown, then find the next waypoint.
+            if self.tick_idle(ctx) {
+                self.try_find_goal(ctx.unit, ctx.sim_context);
+            }
+            return Transition::Stay;
+        }
+
+        self.visit_buildings_along_way(ctx);
+
+        if !ctx.unit.has_reached_goal() {
+            return Transition::Stay;
+        }
+
+        // Reached the waypoint. Idle here until the countdown elapses, then head home.
+        if !self.tick_idle(ctx) {
+            return Transition::Stay;
+        }
+
+        ctx.unit.follow_path(None);
+
+        if self.try_return_to_origin(ctx.unit, ctx.sim_context) {
+            Transition::Goto(UnitTaskPatrolState::ReturningToOrigin)
+        } else {
+            // Can't get back to origin; abort.
+            Transition::Goto(UnitTaskPatrolState::Done)
+        }
+    }
+
+    fn update_returning(&mut self, ctx: &mut TaskContext) -> Transition<UnitTaskPatrolState> {
+        if ctx.unit.goal().is_none() {
+            // No path home yet; try to (re)route.
+            if !self.try_return_to_origin(ctx.unit, ctx.sim_context) {
+                return Transition::Goto(UnitTaskPatrolState::Done);
+            }
+            return Transition::Stay;
+        }
+
+        self.visit_buildings_along_way(ctx);
+
+        if !ctx.unit.has_reached_goal() {
+            return Transition::Stay;
+        }
+
+        // Reached origin. Idle out the countdown, then run the completion callback.
+        if !self.tick_idle(ctx) {
+            return Transition::Stay;
+        }
+
+        ctx.unit.follow_path(None);
+
+        if self.completion_callback.is_valid() && self.schedule_completion_callback(ctx) {
+            Transition::Goto(UnitTaskPatrolState::DeliveringToOrigin)
+        } else {
+            // No completion callback, or origin building no longer exists.
+            Transition::Goto(UnitTaskPatrolState::Done)
+        }
+    }
+
+    fn update_delivering(&mut self, _ctx: &mut TaskContext) -> Transition<UnitTaskPatrolState> {
+        if self.completion_callback_done {
+            Transition::Goto(UnitTaskPatrolState::Done)
+        } else {
+            Transition::Stay
+        }
+    }
+}
+
+impl TaskState for UnitTaskPatrolState {
+    type Task = UnitTaskRandomizedPatrol;
+
+    fn update(self, task: &mut UnitTaskRandomizedPatrol, ctx: &mut TaskContext) -> Transition<Self> {
+        match self {
+            Self::Patrolling         => task.update_patrolling(ctx),
+            Self::ReturningToOrigin  => task.update_returning(ctx),
+            Self::DeliveringToOrigin => task.update_delivering(ctx),
+            Self::Done               => Transition::Done,
+        }
+    }
 }
 
 impl UnitTask for UnitTaskRandomizedPatrol {
-    fn initialize(&mut self, unit: &mut Unit, _cmds: &mut SimCmds, context: &SimContext) {
+    type State = UnitTaskPatrolState;
+
+    fn initialize(&mut self, ctx: &mut TaskContext) {
         // Sanity check:
-        debug_assert!(unit.goal().is_none());
-        debug_assert!(unit.cell() == self.origin_building_tile.road_link); // We start at the nearest building road link.
+        debug_assert!(ctx.unit.goal().is_none());
+        debug_assert_eq!(ctx.unit.cell(), self.origin_building_tile.road_link); // We start at the nearest building road link.
         debug_assert!(self.origin_building.is_valid());
         debug_assert!(self.origin_building_tile.is_valid());
         debug_assert!(self.max_distance > PATROL_MIN_PREFERRED_PATH_LEN);
         debug_assert!(self.path_bias_min <= self.path_bias_max);
-
-        if self.idle_countdown.is_none() {
-            self.try_find_goal(unit, context);
-        }
     }
 
     fn terminate(&mut self, task_pool: &mut UnitTaskPool) {
@@ -346,147 +510,19 @@ impl UnitTask for UnitTaskRandomizedPatrol {
         self
     }
 
+    fn state(&mut self) -> &mut Self::State {
+        &mut self.state
+    }
+
+    fn completion_task(&mut self) -> Option<UnitTaskId> {
+        self.completion_task.take()
+    }
+
     fn post_load(&mut self) {
         self.completion_callback.post_load();
     }
 
-    fn update(&mut self, unit: &mut Unit, cmds: &mut SimCmds, context: &SimContext) -> UnitTaskState {
-        match self.internal_state {
-            UnitTaskPatrolState::PendingCompletionCallback => {
-                // Wait for the deferred completion callback to be executed.
-                return UnitTaskState::Running;
-            }
-            UnitTaskPatrolState::Completed => {
-                // Deferred completion callback has run; end the task.
-                return UnitTaskState::Completed;
-            }
-            UnitTaskPatrolState::Running => {}
-        }
-
-        // If we have a goal we're already moving somewhere,
-        // otherwise we may need to pathfind again.
-        if unit.goal().is_none() {
-            // If we have an idle countdown, only transition to the next goal when it has elapsed.
-            if let Some((idle_countdown, _)) = &mut self.idle_countdown {
-                if idle_countdown.tick(context.delta_time_secs()) {
-                    self.try_find_goal(unit, context);
-                } else {
-                    cmds.defer_unit_update(unit.id(), |context, unit| {
-                        // NOTE: idle() changes the anim in the underlying
-                        // Tile instance, so must be deferred to post update.
-                        unit.idle(context);
-                    });
-                }
-            } else {
-                // Move to goal immediately.
-                self.try_find_goal(unit, context);
-            }
-        }
-
-        if let Some(buildings_to_visit) = self.buildings_to_visit {
-            let current_node = Node::new(unit.cell());
-            let graph = context.graph();
-
-            if let Some(node_kind) = graph.node_kind(current_node) {
-                if node_kind.intersects(PathNodeKind::BuildingRoadLink) {
-                    let neighbors = graph.neighbors(current_node, PathNodeKind::Building);
-                    for neighbor in neighbors {
-                        if let Some(building) = context.find_building_for_cell(neighbor.cell) {
-                            if building.is(buildings_to_visit) {
-                                let kind_and_id = building.kind_and_id();
-                                cmds.visit_building(kind_and_id, unit.id());
-
-                                // Track unique buildings the patrol has queued visits to.
-                                // The Vec is capped; once full, additional matches are dropped.
-                                if let Some(visited_buildings) = &mut self.visited_buildings {
-                                    if visited_buildings.len() < MAX_PATROL_VISITED_BUILDINGS
-                                        && !visited_buildings.contains(&kind_and_id)
-                                    {
-                                        visited_buildings.push(kind_and_id);
-                                    }
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-        }
-
-        if unit.has_reached_goal() {
-            if let Some((idle_countdown, _)) = &mut self.idle_countdown {
-                if idle_countdown.tick(context.delta_time_secs()) {
-                    return UnitTaskState::Completed;
-                } else {
-                    cmds.defer_unit_update(unit.id(), |context, unit| {
-                        // NOTE: idle() changes the anim in the underlying
-                        // Tile instance, so must be deferred to post update.
-                        unit.idle(context);
-                    });
-                    return UnitTaskState::Running;
-                }
-            }
-            UnitTaskState::Completed
-        } else {
-            UnitTaskState::Running
-        }
-    }
-
-    fn completed(&mut self, unit: &mut Unit, cmds: &mut SimCmds, context: &SimContext) -> UnitTaskResult {
-        // If the deferred completion callback has already run, finalize the task.
-        if self.internal_state == UnitTaskPatrolState::Completed {
-            return UnitTaskResult::completed_with(&mut self.completion_task);
-        }
-
-        let unit_goal = unit.goal().expect("Expected unit to have an active goal!");
-        let mut task_completed = false;
-
-        if self.is_returning_to_origin(unit_goal) {
-            if self.completion_callback.is_valid() {
-                let scheduled = invoke_completion_callback_deferred(
-                    unit,
-                    cmds,
-                    context,
-                    self.origin_building.kind,
-                    self.origin_building.id,
-                    self.completion_callback.get(),
-                    |context, _building, unit| {
-                        let task = unit.current_task_as_mut::<Self>(context.task_manager_mut())
-                            .expect("Expected unit to be running UnitTaskRandomizedPatrol!");
-
-                        debug_assert_eq!(task.internal_state, UnitTaskPatrolState::PendingCompletionCallback);
-                        task.internal_state = UnitTaskPatrolState::Completed;
-                    },
-                );
-
-                if scheduled {
-                    // Wait for deferred callback to complete before ending the task.
-                    self.internal_state = UnitTaskPatrolState::PendingCompletionCallback;
-                    unit.follow_path(None);
-                    return UnitTaskResult::Retry;
-                }
-
-                // Origin building no longer exists; end the task without invoking the callback.
-                task_completed = true;
-                unit.follow_path(None);
-            }
-        } else {
-            // Reached end of path, reroute back to origin.
-            unit.follow_path(None);
-
-            if !self.try_return_to_origin(unit, context) {
-                log::error!(log::channel!("task"), "Aborting TaskPatrol. Unable to return to origin building...");
-                task_completed = true;
-            }
-        }
-
-        if task_completed {
-            UnitTaskResult::completed_with(&mut self.completion_task)
-        } else {
-            UnitTaskResult::Retry
-        }
-    }
-
-    fn draw_debug_ui(&mut self, unit: &mut Unit, context: &SimContext, ui_sys: &UiSystem) {
+    fn draw_debug_ui(&mut self, unit: &mut Unit, sim_context: &SimContext, ui_sys: &UiSystem) {
         let ui = ui_sys.ui();
 
         let building_kind = self.origin_building.kind;
@@ -494,7 +530,7 @@ impl UnitTask for UnitTaskRandomizedPatrol {
         let building_name = debug::tile_name_at(building_cell, TileMapLayerKind::Objects);
 
         ui.text(format!("Origin Building         : {}, '{}', {}", building_kind, building_name, building_cell));
-        ui.text(format!("Internal State          : {:?}", self.internal_state));
+        ui.text(format!("State                   : {:?}", self.state));
         ui.text(format!("Max Distance            : {}", self.max_distance));
         ui.text(format!("Min Path Bias           : {}", self.path_bias_min));
         ui.text(format!("Max Path Bias           : {}", self.path_bias_max));
@@ -510,12 +546,12 @@ impl UnitTask for UnitTaskRandomizedPatrol {
 
         if ui.button("Return to Origin") {
             unit.follow_path(None);
-            self.try_return_to_origin(unit, context);
+            self.try_return_to_origin(unit, sim_context);
         }
 
         if ui.button("Find New Goal") {
             unit.follow_path(None);
-            self.try_find_goal(unit, context);
+            self.try_find_goal(unit, sim_context);
         }
 
         if let Some((idle_countdown, countdown)) = &mut self.idle_countdown {
