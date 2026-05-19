@@ -20,6 +20,8 @@ use game::{
             UnitTaskFetchState, UnitTaskFollowPath, UnitTaskHarvestWood,
             UnitTaskPatrolCompletionCallback, UnitTaskPatrolState,
             UnitTaskPostDespawnCallback, UnitTaskRandomizedPatrol,
+            UnitTaskFollowPathState, UnitTaskDespawnWithCallbackState,
+            PostDespawn,
         },
     },
 };
@@ -91,7 +93,7 @@ fn test_despawn_removes_unit_from_world() {
     let unit_id = spawn_unit(&mut env, Cell::new(5, 5), UnitConfigKey::Peasant);
     assert!(unit_exists(&env, unit_id));
 
-    let task_id = assign_task(&mut env, unit_id, UnitTaskDespawn);
+    let task_id = assign_task(&mut env, unit_id, UnitTaskDespawn::default());
     assert!(task_id.is_valid());
 
     // A single tick should run the task, queue the despawn, and flush it.
@@ -146,8 +148,8 @@ fn test_despawn_with_callback_fires_callback() {
 
     let cb = register_despawn_test_callback();
     let task = UnitTaskDespawnWithCallback {
-        post_despawn_callback: cb,
-        callback_extra_args: UnitTaskArgs::empty(),
+        post_despawn: PostDespawn { callback: cb, args: UnitTaskArgs::empty() },
+        state: UnitTaskDespawnWithCallbackState::default(),
     };
     assign_task(&mut env, unit_id, task);
 
@@ -167,8 +169,8 @@ fn test_despawn_with_callback_passes_extra_arg() {
 
     let cb = register_despawn_test_callback();
     let task = UnitTaskDespawnWithCallback {
-        post_despawn_callback: cb,
-        callback_extra_args: UnitTaskArgs::new(&[UnitTaskArg::I32(42)]),
+        post_despawn: PostDespawn { callback: cb, args: UnitTaskArgs::new(&[UnitTaskArg::I32(42)]) },
+        state: UnitTaskDespawnWithCallbackState::default(),
     };
     assign_task(&mut env, unit_id, task);
 
@@ -219,6 +221,7 @@ fn test_follow_path_reaches_goal() {
         completion_callback: Callback::default(),
         completion_task: None,
         terminate_if_stuck: false,
+        state: UnitTaskFollowPathState::default(),
     };
     assign_task(&mut env, unit_id, task);
 
@@ -245,7 +248,7 @@ fn test_follow_path_chains_to_completion_task() {
     let unit_id = spawn_unit(&mut env, start, UnitConfigKey::Peasant);
 
     // Pre-allocate the follow-up despawn task and wire it in.
-    let despawn_task_id = env.sim.task_manager_mut().new_task(UnitTaskDespawn)
+    let despawn_task_id = env.sim.task_manager_mut().new_task(UnitTaskDespawn::default())
         .expect("task pool full");
 
     let task = UnitTaskFollowPath {
@@ -253,6 +256,7 @@ fn test_follow_path_chains_to_completion_task() {
         completion_callback: Callback::default(),
         completion_task: Some(despawn_task_id),
         terminate_if_stuck: false,
+        state: UnitTaskFollowPathState::default(),
     };
     assign_task(&mut env, unit_id, task);
 
@@ -729,7 +733,7 @@ fn test_fetch_recovers_when_unload_at_origin_fails() {
 
     let unit_id = spawn_unit(&mut env, market_road_link, UnitConfigKey::Peasant);
 
-    let despawn_task_id = env.sim.task_manager_mut().new_task(UnitTaskDespawn)
+    let despawn_task_id = env.sim.task_manager_mut().new_task(UnitTaskDespawn::default())
         .expect("task pool full");
 
     let task = UnitTaskFetchFromStorage {
@@ -746,7 +750,9 @@ fn test_fetch_recovers_when_unload_at_origin_fails() {
         // (no deferred unload at origin) after the unit reaches the market.
         completion_callback: Callback::default(),
         completion_task: Some(despawn_task_id),
-        internal_state: UnitTaskFetchState::default(),
+        state: UnitTaskFetchState::default(),
+        visit_outcome: None,
+        completion_callback_done: false,
     };
     assign_task(&mut env, unit_id, task);
 
@@ -1171,7 +1177,7 @@ fn spawn_patrol_from_building(
 
     let unit_id = spawn_unit(env, road_link, UnitConfigKey::Peasant);
 
-    let completion_task = env.sim.task_manager_mut().new_task(UnitTaskDespawn);
+    let completion_task = env.sim.task_manager_mut().new_task(UnitTaskDespawn::default());
 
     let task = UnitTaskRandomizedPatrol {
         origin_building,
@@ -1184,7 +1190,8 @@ fn spawn_patrol_from_building(
         completion_callback: register_patrol_test_callback(),
         completion_task,
         idle_countdown: None,
-        internal_state: UnitTaskPatrolState::default(),
+        state: UnitTaskPatrolState::default(),
+        completion_callback_done: false,
         visited_buildings: Some(Vec::new()),
     };
     assign_task(env, unit_id, task);
