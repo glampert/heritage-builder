@@ -2,17 +2,19 @@ use std::{collections::VecDeque, path::PathBuf};
 
 use common::{Size, Vec2, coords::CellRange, hash, mem::RcMut, time::Seconds};
 use engine::{
-    Engine,
-    app::input::{InputAction, InputKey, InputModifiers, MouseButton},
-    file_sys::paths::PathRef,
     log,
-    save::{self, LoadResult, SaveResult, SaveState, SaveStateImpl},
+    Engine,
     ui::UiInputEvent,
+    file_sys::paths::PathRef,
+    app::input::{InputAction, InputKey, InputModifiers, MouseButton},
+    save::{self, LoadResult, SaveResult, SaveState, SaveStateImpl},
 };
 use serde::{Deserialize, Serialize};
 
 use crate::{
     camera::*,
+    undo_redo,
+    world::World,
     config::{GameConfigs, LoadMapSetting},
     debug::{DevEditorMenus, preset_maps},
     menu::{GameMenusInputArgs, GameMenusMode, GameMenusSystem, home::HomeMenus, in_game::InGameMenus},
@@ -27,8 +29,6 @@ use crate::{
         selection::TileSelection,
         sets::TileDef,
     },
-    undo_redo,
-    world::World,
 };
 
 // ----------------------------------------------
@@ -223,6 +223,12 @@ macro_rules! make_ui_widget_context {
 
 #[derive(Serialize, Deserialize)]
 pub struct GameSession {
+    // Save format version. `#[serde(default)]` so pre-versioning (v0) saves
+    // deserialize to 0 and are caught by the load-time version check.
+    // Expected to match CURRENT_SAVE_VERSION on load.
+    #[serde(default)]
+    save_version: u32,
+
     tile_map: RcMut<TileMap>,
     world: World,
     sim: Simulation,
@@ -383,6 +389,7 @@ impl GameSession {
         let camera = Camera::new(viewport_size, tile_map.size_in_cells(), configs.camera.zoom, configs.camera.offset);
 
         let mut session = Self {
+            save_version: CURRENT_SAVE_VERSION,
             tile_map,
             world,
             sim,
@@ -643,6 +650,18 @@ impl Load for GameSession {
 // Save/Load Game
 // ----------------------------------------------
 
+// Save file format version. Bumped whenever the serialized layout changes in a
+// way that older saves cannot be deserialized directly. Old saves must be run
+// through the matching script in crates/tools/save_migration_scripts/.
+const CURRENT_SAVE_VERSION: u32 = 1;
+
+// Minimal struct to read just the save version ahead of a full deserialize.
+#[derive(Deserialize)]
+struct SaveVersionProbe {
+    #[serde(default)]
+    save_version: u32,
+}
+
 impl GameSession {
     fn save_game(&mut self, save_file: PathRef) -> bool {
         log::info!(log::channel!("session"), "Saving game '{save_file}' ...");
@@ -651,6 +670,8 @@ impl GameSession {
             log::error!(log::channel!("session"), "Save game file path '{save_file}' is not accessible!");
             return false;
         }
+
+        self.save_version = CURRENT_SAVE_VERSION;
 
         self.pre_save(&mut PreSaveContext::new(self.sim.cmds().clone()));
         let save_result = save::storage::write_save_file(save_file, self);
@@ -666,6 +687,27 @@ impl GameSession {
 
     pub(crate) fn load_save_game(&mut self, engine: &mut Engine, configs: &'static GameConfigs, save_file: PathRef) -> bool {
         log::info!(log::channel!("session"), "Loading save game '{save_file}' ...");
+
+        // Check the save version before the full load. A version mismatch means
+        // the full deserialize would fail with an opaque error, so probe the
+        // version first and report it clearly.
+        match save::storage::load_save_file::<SaveVersionProbe>(save_file) {
+            Ok(probe) if probe.save_version == CURRENT_SAVE_VERSION => {}
+            Ok(probe) => {
+                log::error!(
+                    log::channel!("session"),
+                    "Cannot load '{save_file}': save version {} is incompatible (expected {}). \
+                     Run it through crates/tools/save_migration_scripts/.",
+                    probe.save_version,
+                    CURRENT_SAVE_VERSION
+                );
+                return false;
+            }
+            Err(err) => {
+                log::error!(log::channel!("session"), "{err}");
+                return false;
+            }
+        }
 
         let session = match save::storage::load_save_file(save_file) {
             Ok(session) => session,
