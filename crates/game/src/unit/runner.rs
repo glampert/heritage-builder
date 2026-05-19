@@ -86,10 +86,11 @@ impl Runner {
                 resource_kind_to_deliver,
                 resource_count,
                 completion_callback,
-                completion_task: context.sim_ctx.task_manager_mut().new_task(UnitTaskDespawn),
+                completion_task: context.sim_ctx.task_manager_mut().new_task(UnitTaskDespawn::default()),
                 // If we can't find a Storage that will take our goods, try delivering directly to other Producers.
                 allow_producer_fallback: true,
-                internal_state: UnitTaskDeliveryState::default(),
+                state: UnitTaskDeliveryState::default(),
+                visit_delivered: None,
             },
         );
     }
@@ -115,8 +116,10 @@ impl Runner {
                 storage_buildings_accepted,
                 resources_to_fetch,
                 completion_callback,
-                completion_task: context.sim_ctx.task_manager_mut().new_task(UnitTaskDespawn),
-                internal_state: UnitTaskFetchState::default(),
+                completion_task: context.sim_ctx.task_manager_mut().new_task(UnitTaskDespawn::default()),
+                state: UnitTaskFetchState::default(),
+                visit_outcome: None,
+                completion_callback_done: false,
             },
         );
     }

@@ -19,7 +19,7 @@ use crate::{
         Unit,
         anim::UnitAnimSets,
         config::UnitConfigKey,
-        task::{UnitTaskDespawn, UnitTaskFollowPath},
+        task::{UnitTaskDespawn, UnitTaskFollowPath, UnitTaskFollowPathState},
     },
 };
 
@@ -101,8 +101,9 @@ fn spawn_bird(cmds: &mut SimCmds, context: &SimContext, flight_path: BirdFlightP
     Unit::try_spawn_with_task_deferred_cb(cmds, context, path.first().unwrap().cell, UnitConfigKey::Bird, UnitTaskFollowPath {
         path,
         completion_callback: Callback::default(),
-        completion_task: context.task_manager_mut().new_task(UnitTaskDespawn),
+        completion_task: context.task_manager_mut().new_task(UnitTaskDespawn::default()),
         terminate_if_stuck: true,
+        state: UnitTaskFollowPathState::default(),
     },
     move |context, result| {
         match result {

@@ -215,7 +215,7 @@ impl Unit {
         }
 
         if ui.button("Give Despawn Task") {
-            let task = context.task_manager_mut().new_task(UnitTaskDespawn);
+            let task = context.task_manager_mut().new_task(UnitTaskDespawn::default());
             self.assign_task(context.task_manager_mut(), task);
         }
 
@@ -239,7 +239,7 @@ impl Unit {
             if let Some(building) = world.find_building_by_name("Market", BuildingKind::Market) {
                 let start_cell = building.road_link().unwrap_or_default();
                 if self.teleport(context.tile_map_mut(), start_cell) {
-                    let completion_task = task_manager.new_task(UnitTaskDespawn);
+                    let completion_task = task_manager.new_task(UnitTaskDespawn::default());
                     let task = task_manager.new_task(UnitTaskDeliverToStorage {
                         origin_building: BuildingKindAndId { kind: building.kind(), id: building.id() },
                         origin_building_tile: BuildingTileInfo { road_link: start_cell, base_cell: building.base_cell() },
@@ -249,7 +249,8 @@ impl Unit {
                         completion_callback: callback::create!(unit_debug_delivery_task_completed),
                         completion_task,
                         allow_producer_fallback: true,
-                        internal_state: UnitTaskDeliveryState::default(),
+                        state: UnitTaskDeliveryState::default(),
+                        visit_delivered: None,
                     });
                     self.assign_task(task_manager, task);
                 }
@@ -267,7 +268,7 @@ impl Unit {
                 }]);
                 let start_cell = building.road_link().unwrap_or_default();
                 if self.teleport(context.tile_map_mut(), start_cell) {
-                    let completion_task = task_manager.new_task(UnitTaskDespawn);
+                    let completion_task = task_manager.new_task(UnitTaskDespawn::default());
                     let task = task_manager.new_task(UnitTaskFetchFromStorage {
                         origin_building: BuildingKindAndId { kind: building.kind(), id: building.id() },
                         origin_building_tile: BuildingTileInfo { road_link: start_cell, base_cell: building.base_cell() },
@@ -275,7 +276,9 @@ impl Unit {
                         resources_to_fetch,
                         completion_callback: callback::create!(unit_debug_fetch_task_completed),
                         completion_task,
-                        internal_state: UnitTaskFetchState::default(),
+                        state: UnitTaskFetchState::default(),
+                        visit_outcome: None,
+                        completion_callback_done: false,
                     });
                     self.assign_task(task_manager, task);
                 }
@@ -307,7 +310,7 @@ impl Unit {
             if let Some(building) = world.find_building_by_name("Market", BuildingKind::Market) {
                 let start_cell = building.road_link().unwrap_or_default();
                 if self.teleport(context.tile_map_mut(), start_cell) {
-                    let completion_task = task_manager.new_task(UnitTaskDespawn);
+                    let completion_task = task_manager.new_task(UnitTaskDespawn::default());
                     let task = task_manager.new_task(UnitTaskRandomizedPatrol {
                         origin_building: BuildingKindAndId { kind: building.kind(), id: building.id() },
                         origin_building_tile: BuildingTileInfo { road_link: start_cell, base_cell: building.base_cell() },
@@ -319,7 +322,8 @@ impl Unit {
                         completion_callback: callback::create!(unit_debug_patrol_task_completed),
                         completion_task,
                         idle_countdown: None,
-                        internal_state: UnitTaskPatrolState::default(),
+                        state: UnitTaskPatrolState::default(),
+                        completion_callback_done: false,
                         visited_buildings: None,
                     });
                     self.assign_task(task_manager, task);
@@ -414,7 +418,7 @@ impl Unit {
         if ui.button("Find Vacant House Lot") && !traversable_node_kinds.is_empty() {
             self.set_traversable_node_kinds(traversable_node_kinds);
 
-            let completion_task = task_manager.new_task(UnitTaskDespawn);
+            let completion_task = task_manager.new_task(UnitTaskDespawn::default());
 
             let task = task_manager.new_task(UnitTaskSettler {
                 completion_callback: callback::create!(unit_debug_find_vacant_lot_task_completed),
@@ -422,7 +426,8 @@ impl Unit {
                 fallback_to_houses_with_room: false,
                 return_to_spawn_point_if_failed: false,
                 population_to_add: 1,
-                internal_state: UnitTaskSettlerState::default(),
+                state: UnitTaskSettlerState::default(),
+                visit_outcome: None,
             });
 
             self.assign_task(task_manager, task);
@@ -434,8 +439,11 @@ impl Unit {
             // NOTE: We have to spawn the house building *after* the unit has
             // despawned since we can't place a building over the unit tile.
             let completion_task = task_manager.new_task(UnitTaskDespawnWithCallback {
-                post_despawn_callback: callback::create!(unit_debug_settle_task_post_despawn),
-                callback_extra_args: UnitTaskArgs::new(&[UnitTaskArg::U32(1)]), // population_to_add
+                post_despawn: PostDespawn {
+                    callback: callback::create!(unit_debug_settle_task_post_despawn),
+                    args: UnitTaskArgs::new(&[UnitTaskArg::U32(1)]), // population_to_add
+                },
+                state: UnitTaskDespawnWithCallbackState::default(),
             });
 
             let task = task_manager.new_task(UnitTaskSettler {
@@ -444,7 +452,8 @@ impl Unit {
                 fallback_to_houses_with_room: true,
                 return_to_spawn_point_if_failed: false,
                 population_to_add: 1,
-                internal_state: UnitTaskSettlerState::default(),
+                state: UnitTaskSettlerState::default(),
+                visit_outcome: None,
             });
 
             self.assign_task(task_manager, task);
@@ -466,7 +475,7 @@ impl Unit {
             if let Some(building) = world.find_building_by_name("Lumberyard", BuildingKind::Lumberyard) {
                 let start_cell = building.road_link().unwrap_or_default();
                 if self.teleport(context.tile_map_mut(), start_cell) {
-                    let completion_task = task_manager.new_task(UnitTaskDespawn);
+                    let completion_task = task_manager.new_task(UnitTaskDespawn::default());
                     let task = task_manager.new_task(UnitTaskHarvestWood {
                         origin_building: BuildingKindAndId { kind: building.kind(), id: building.id() },
                         origin_building_tile: BuildingTileInfo { road_link: start_cell, base_cell: building.base_cell() },
@@ -474,8 +483,9 @@ impl Unit {
                         completion_task,
                         harvest_timer: CountdownTimer::default(),
                         harvest_target: PropId::default(),
-                        is_returning_to_origin: false,
-                        internal_state: UnitTaskHarvestState::default(),
+                        state: UnitTaskHarvestState::default(),
+                        harvest_done: false,
+                        completion_callback_done: false,
                     });
                     self.assign_task(task_manager, task);
                 }

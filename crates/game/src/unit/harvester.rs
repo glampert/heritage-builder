@@ -71,11 +71,12 @@ impl Harvester {
                 origin_building: context.kind_and_id(),
                 origin_building_tile: context.tile_info(),
                 completion_callback,
-                completion_task: context.sim_ctx.task_manager_mut().new_task(UnitTaskDespawn),
+                completion_task: context.sim_ctx.task_manager_mut().new_task(UnitTaskDespawn::default()),
                 harvest_timer: CountdownTimer::default(),
                 harvest_target: PropId::default(),
-                is_returning_to_origin: false,
-                internal_state: UnitTaskHarvestState::default(),
+                state: UnitTaskHarvestState::default(),
+                harvest_done: false,
+                completion_callback_done: false,
             },
         );
     }

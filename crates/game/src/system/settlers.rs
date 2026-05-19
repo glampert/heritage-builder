@@ -29,9 +29,11 @@ use crate::{
         config::UnitConfigKey,
         navigation::{self, UnitNavGoal},
         task::{
+            PostDespawn,
             UnitTaskArg,
             UnitTaskArgs,
             UnitTaskDespawnWithCallback,
+            UnitTaskDespawnWithCallbackState,
             UnitTaskPostDespawnCallback,
             UnitTaskSettler,
             UnitTaskSettlerState,
@@ -176,13 +178,17 @@ impl Settler {
                 completion_task: context.task_manager_mut().new_task(UnitTaskDespawnWithCallback {
                     // NOTE: We have to spawn the house building *after* the unit has
                     // despawned since we can't place a building over the unit tile.
-                    post_despawn_callback: callback::create!(Settler::on_settled),
-                    callback_extra_args: UnitTaskArgs::new(&[UnitTaskArg::U32(population_to_add)]),
+                    post_despawn: PostDespawn {
+                        callback: callback::create!(Settler::on_settled),
+                        args: UnitTaskArgs::new(&[UnitTaskArg::U32(population_to_add)]),
+                    },
+                    state: UnitTaskDespawnWithCallbackState::default(),
                 }),
                 fallback_to_houses_with_room: true,
                 return_to_spawn_point_if_failed: true,
                 population_to_add,
-                internal_state: UnitTaskSettlerState::default(),
+                state: UnitTaskSettlerState::default(),
+                visit_outcome: None,
             },
             |_context, result| {
                 if let Err(err) = result {

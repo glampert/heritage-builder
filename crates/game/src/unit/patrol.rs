@@ -136,9 +136,10 @@ impl Patrol {
                 path_record,
                 buildings_to_visit,
                 completion_callback: callback::create!(Patrol::on_randomized_patrol_completed),
-                completion_task: context.sim_ctx.task_manager_mut().new_task(UnitTaskDespawn),
+                completion_task: context.sim_ctx.task_manager_mut().new_task(UnitTaskDespawn::default()),
                 idle_countdown: idle_countdown_secs.map(|countdown| (CountdownTimer::new(countdown), countdown)),
-                internal_state: UnitTaskPatrolState::default(),
+                state: UnitTaskPatrolState::default(),
+                completion_callback_done: false,
                 visited_buildings: None,
             });
     }
