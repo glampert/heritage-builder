@@ -83,14 +83,6 @@ impl TaskState for UnitTaskFollowPathState {
 impl UnitTask for UnitTaskFollowPath {
     type State = UnitTaskFollowPathState;
 
-    fn as_any(&self) -> &dyn Any {
-        self
-    }
-
-    fn state(&mut self) -> &mut Self::State {
-        &mut self.state
-    }
-
     fn initialize(&mut self, ctx: &mut TaskContext) {
         // Sanity check:
         debug_assert!(ctx.unit.goal().is_none());
@@ -100,14 +92,22 @@ impl UnitTask for UnitTaskFollowPath {
         ctx.unit.move_to_goal(&self.path, UnitNavGoal::tile(start, &self.path));
     }
 
-    fn completion_task(&mut self) -> Option<UnitTaskId> {
-        self.completion_task.take()
-    }
-
     fn terminate(&mut self, task_pool: &mut UnitTaskPool) {
         if let Some(task_id) = self.completion_task {
             task_pool.free(task_id);
         }
+    }
+
+    fn as_any(&self) -> &dyn Any {
+        self
+    }
+
+    fn state(&mut self) -> &mut Self::State {
+        &mut self.state
+    }
+
+    fn completion_task(&mut self) -> Option<UnitTaskId> {
+        self.completion_task.take()
     }
 
     fn post_load(&mut self) {

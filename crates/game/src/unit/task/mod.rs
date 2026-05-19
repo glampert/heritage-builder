@@ -73,13 +73,13 @@ impl UnitTaskArchetype {
     }
 
     #[inline]
-    pub fn run(&mut self, ctx: &mut TaskContext) -> TaskFlow {
-        archetype_dispatch!(self, task => UnitTaskRunner::run(task, ctx))
+    pub fn terminate(&mut self, pool: &mut UnitTaskPool) {
+        archetype_dispatch!(self, task => UnitTaskRunner::terminate(task, pool))
     }
 
     #[inline]
-    pub fn terminate(&mut self, pool: &mut UnitTaskPool) {
-        archetype_dispatch!(self, task => UnitTaskRunner::terminate(task, pool))
+    pub fn run(&mut self, ctx: &mut TaskContext) -> TaskFlow {
+        archetype_dispatch!(self, task => UnitTaskRunner::run(task, ctx))
     }
 
     #[inline]

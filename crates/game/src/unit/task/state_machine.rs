@@ -91,19 +91,20 @@ pub trait TaskState: Copy + Default + Serialize + DeserializeOwned + 'static {
 pub trait UnitTask: Sized + 'static {
     type State: TaskState<Task = Self>;
 
+    // One-time setup, run once before the first state update.
+    fn initialize(&mut self, _ctx: &mut TaskContext) {}
+
+    // Cleans up any other task handles this task owns, before it is freed.
+    fn terminate(&mut self, _pool: &mut UnitTaskPool) {}
+
+    // Type-erased reference to the task as Any.
     fn as_any(&self) -> &dyn Any;
 
     // Mutable access to the task's current state field.
     fn state(&mut self) -> &mut Self::State;
 
-    // One-time setup, run once before the first state update.
-    fn initialize(&mut self, _ctx: &mut TaskContext) {}
-
     // Optional task to run after this one; taken when the task reaches `Done`.
     fn completion_task(&mut self) -> Option<UnitTaskId> { None }
-
-    // Cleans up any other task handles this task owns, before it is freed.
-    fn terminate(&mut self, _pool: &mut UnitTaskPool) {}
 
     // Optional post-deserialization fixups (e.g. callback pointers).
     fn post_load(&mut self) {}
@@ -147,6 +148,10 @@ impl<T: UnitTask> UnitTaskRunner for T {
         UnitTask::initialize(self, ctx);
     }
 
+    fn terminate(&mut self, pool: &mut UnitTaskPool) {
+        UnitTask::terminate(self, pool);
+    }
+
     fn run(&mut self, ctx: &mut TaskContext) -> TaskFlow {
         let state = *self.state();
         match state.update(self, ctx) {
@@ -160,10 +165,6 @@ impl<T: UnitTask> UnitTaskRunner for T {
             Transition::Done => TaskFlow::Completed { next_task: self.completion_task() },
             Transition::Despawn(action) => TaskFlow::Despawn(action),
         }
-    }
-
-    fn terminate(&mut self, pool: &mut UnitTaskPool) {
-        UnitTask::terminate(self, pool);
     }
 
     fn post_load(&mut self) {

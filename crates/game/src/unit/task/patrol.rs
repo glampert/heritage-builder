@@ -322,14 +322,6 @@ impl UnitTaskRandomizedPatrol {
 }
 
 impl UnitTask for UnitTaskRandomizedPatrol {
-    fn as_any(&self) -> &dyn Any {
-        self
-    }
-
-    fn post_load(&mut self) {
-        self.completion_callback.post_load();
-    }
-
     fn initialize(&mut self, unit: &mut Unit, _cmds: &mut SimCmds, context: &SimContext) {
         // Sanity check:
         debug_assert!(unit.goal().is_none());
@@ -348,6 +340,14 @@ impl UnitTask for UnitTaskRandomizedPatrol {
         if let Some(task_id) = self.completion_task {
             task_pool.free(task_id);
         }
+    }
+
+    fn as_any(&self) -> &dyn Any {
+        self
+    }
+
+    fn post_load(&mut self) {
+        self.completion_callback.post_load();
     }
 
     fn update(&mut self, unit: &mut Unit, cmds: &mut SimCmds, context: &SimContext) -> UnitTaskState {

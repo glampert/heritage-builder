@@ -93,11 +93,11 @@ impl UnitTaskArgs {
 // callback. Used by deferred callbacks to write their outcome back onto the
 // task so the waiting state can pick it up. Panics if the unit is not running
 // a task of type `T` (a logic error - the callback was scheduled by that task).
-pub(super) fn with_task<T: UnitTask>(unit: &mut Unit, context: &SimContext, f: impl FnOnce(&mut T)) {
+pub(super) fn with_task<T: UnitTask>(unit: &mut Unit, context: &SimContext, f: impl FnOnce(&mut T, &mut Unit)) {
     let task = unit
         .current_task_as_mut::<T>(context.task_manager_mut())
         .expect("Deferred callback expected the unit to be running its owning task type!");
-    f(task);
+    f(task, unit);
 }
 
 pub(super) fn visit_destination_deferred<F>(

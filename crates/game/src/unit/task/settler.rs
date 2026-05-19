@@ -2,14 +2,16 @@ use std::any::Any;
 use serde::{Deserialize, Serialize};
 
 use common::callback::Callback;
-use engine::{log, ui::UiSystem};
+use engine::ui::UiSystem;
 
 use super::{
+    TaskContext,
+    TaskState,
+    Transition,
     UnitTask,
     UnitTaskId,
     UnitTaskPool,
-    UnitTaskResult,
-    UnitTaskState,
+    with_task,
 };
 use crate::{
     pathfind::{
@@ -20,7 +22,7 @@ use crate::{
     tile::{Tile, TileFlags, TileKind, TileMapLayerKind},
     unit::{Unit, navigation::UnitNavGoal},
     building::{BuildingKind, BuildingTileInfo, BuildingVisitResult},
-    sim::{SimCmds, SimCmdQueue, SimContext},
+    sim::{SimCmdQueue, SimContext},
     world::object::GameObject,
 };
 
@@ -39,12 +41,18 @@ pub enum UnitTaskSettlerGoal {
 
 #[derive(Copy, Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
 pub enum UnitTaskSettlerState {
+    // Looking for a vacant lot, a house with room, or the spawn point exit.
     #[default]
-    Idle,
-    MovingToGoal(UnitTaskSettlerGoal),
-    PendingBuildingVisit,
-    BuildingVisited { settler_accepted: bool },
-    Completed,
+    Searching,
+
+    // Walking to the chosen destination.
+    MovingTo(UnitTaskSettlerGoal),
+
+    // At a house, waiting for the deferred visit to resolve.
+    VisitingHouse,
+
+    // Settled (or left via the spawn point); terminal state.
+    Done,
 }
 
 #[derive(Serialize, Deserialize)]
@@ -65,33 +73,36 @@ pub struct UnitTaskSettler {
     // Amount to add once settled into a new lot or house.
     pub population_to_add: u32,
 
-    // Current internal settler task state. Should start as Idle.
-    // Deserialize uses Default if missing to retain backwards compatibility with older save files.
     #[serde(default)]
-    pub internal_state: UnitTaskSettlerState,
+    pub state: UnitTaskSettlerState,
+
+    // Outcome of the deferred house visit, written by the visit callback and
+    // consumed by `VisitingHouse`: `Some(true)` accepted, `Some(false)` refused.
+    #[serde(skip)]
+    pub visit_outcome: Option<bool>,
 }
 
 impl UnitTaskSettler {
-    fn try_find_goal(&mut self, unit: &mut Unit, context: &SimContext) {
-        let start = unit.cell();
-        let traversable_node_kinds = unit.traversable_node_kinds();
-        let bias = RandomDirectionalBias::new(context.rng_mut(), 0.1, 0.5);
+    fn try_find_goal(&mut self, ctx: &mut TaskContext) -> Option<UnitTaskSettlerGoal> {
+        let sim_context = ctx.sim_context;
+        let start = ctx.unit.cell();
+        let traversable_node_kinds = ctx.unit.traversable_node_kinds();
+        let bias = RandomDirectionalBias::new(sim_context.rng_mut(), 0.1, 0.5);
 
         // First try to find an empty lot we can settle:
         {
             let result =
-                context.find_path_to_node(&bias, traversable_node_kinds, start, PathNodeKind::VacantLot);
+                sim_context.find_path_to_node(&bias, traversable_node_kinds, start, PathNodeKind::VacantLot);
 
             if let SearchResult::PathFound(path) = result {
-                unit.move_to_goal(path, UnitNavGoal::tile(start, path));
-                self.internal_state = UnitTaskSettlerState::MovingToGoal(UnitTaskSettlerGoal::VacantLot);
-                return;
+                ctx.unit.move_to_goal(path, UnitNavGoal::tile(start, path));
+                return Some(UnitTaskSettlerGoal::VacantLot);
             }
         }
 
         // Alternatively try to find a house with room that can take this settler.
         if self.fallback_to_houses_with_room {
-            let result = context.find_nearest_buildings(
+            let result = sim_context.find_nearest_buildings(
                 start,
                 BuildingKind::House,
                 traversable_node_kinds,
@@ -107,7 +118,7 @@ impl UnitTaskSettler {
             );
 
             if let Some((building, path)) = result {
-                unit.move_to_goal(
+                ctx.unit.move_to_goal(
                     path,
                     UnitNavGoal::building(
                         BuildingKind::empty(), // Unused.
@@ -120,58 +131,163 @@ impl UnitTaskSettler {
                         },
                     ),
                 );
-                self.internal_state = UnitTaskSettlerState::MovingToGoal(UnitTaskSettlerGoal::House);
-                return;
+                return Some(UnitTaskSettlerGoal::House);
             }
         }
 
         // If we can't find any viable destination, move back to the settler spawn point and abort.
         if self.return_to_spawn_point_if_failed {
             let result =
-                context.find_path_to_node(&bias, traversable_node_kinds, start, PathNodeKind::SettlersSpawnPoint);
+                sim_context.find_path_to_node(&bias, traversable_node_kinds, start, PathNodeKind::SettlersSpawnPoint);
 
             if let SearchResult::PathFound(path) = result {
-                unit.move_to_goal(path, UnitNavGoal::tile(start, path));
-                self.internal_state = UnitTaskSettlerState::MovingToGoal(UnitTaskSettlerGoal::SpawnPointExit);
+                ctx.unit.move_to_goal(path, UnitNavGoal::tile(start, path));
+                return Some(UnitTaskSettlerGoal::SpawnPointExit);
+            }
+        }
+
+        None
+    }
+
+    // Schedules the deferred house visit. Returns false if the house is no longer valid.
+    fn try_visit_house(&mut self, ctx: &mut TaskContext) -> bool {
+        let unit_goal = ctx.unit.goal().expect("Expected unit to have an active goal!");
+        let (destination_kind, destination_cell) = unit_goal.building_destination();
+
+        debug_assert!(destination_kind == BuildingKind::House);
+        debug_assert!(destination_cell.is_valid());
+
+        if let Some(house) = ctx.sim_context.find_building_for_cell(destination_cell)
+            && house.kind() == destination_kind
+        {
+            let house_id = house.kind_and_id();
+            let unit_id = ctx.unit.id();
+
+            ctx.sim_cmds.visit_building_with_completion(house_id, unit_id, |context, _building, unit, result| {
+                let accepted = result == BuildingVisitResult::Accepted;
+                with_task::<UnitTaskSettler>(unit, context, |task, _unit| {
+                    task.visit_outcome = Some(accepted);
+                });
+            });
+            true
+        } else {
+            false
+        }
+    }
+
+    fn notify_completion(&self, unit: &mut Unit, sim_context: &SimContext, tile: &Tile) {
+        if self.completion_callback.is_valid() {
+            let callback = self.completion_callback.get();
+            callback(sim_context, unit, tile, self.population_to_add);
+        }
+    }
+
+    fn update_searching(&mut self, ctx: &mut TaskContext) -> Transition<UnitTaskSettlerState> {
+        match self.try_find_goal(ctx) {
+            Some(goal) => Transition::Goto(UnitTaskSettlerState::MovingTo(goal)),
+            None => Transition::Stay,
+        }
+    }
+
+    fn update_moving(&mut self, goal: UnitTaskSettlerGoal, ctx: &mut TaskContext) -> Transition<UnitTaskSettlerState> {
+        if ctx.unit.goal().is_none() {
+            // Lost the path to the destination; search again.
+            return Transition::Goto(UnitTaskSettlerState::Searching);
+        }
+
+        if !ctx.unit.has_reached_goal() {
+            return Transition::Stay;
+        }
+
+        match goal {
+            UnitTaskSettlerGoal::VacantLot | UnitTaskSettlerGoal::SpawnPointExit => {
+                self.finish_at_tile(ctx)
+            }
+            UnitTaskSettlerGoal::House => {
+                if self.try_visit_house(ctx) {
+                    Transition::Goto(UnitTaskSettlerState::VisitingHouse)
+                } else {
+                    // House no longer valid; search for another destination.
+                    ctx.unit.follow_path(None);
+                    Transition::Goto(UnitTaskSettlerState::Searching)
+                }
             }
         }
     }
 
-    fn notify_completion(&mut self, unit: &mut Unit, tile: &Tile, context: &SimContext) {
-        if self.completion_callback.is_valid() {
-            let callback = self.completion_callback.get();
-            callback(context, unit, tile, self.population_to_add);
+    fn finish_at_tile(&mut self, ctx: &mut TaskContext) -> Transition<UnitTaskSettlerState> {
+        let sim_context = ctx.sim_context;
+
+        let destination_cell = ctx.unit.goal()
+            .expect("Expected unit to have an active goal!")
+            .tile_destination();
+        debug_assert!(destination_cell.is_valid());
+
+        if let Some(tile) = sim_context.try_tile_from_layer(destination_cell, TileMapLayerKind::Terrain) {
+            if tile.path_kind().is_vacant_lot() || tile.has_flags(TileFlags::SettlersSpawnPoint) {
+                self.notify_completion(ctx.unit, sim_context, tile);
+                return Transition::Goto(UnitTaskSettlerState::Done);
+            }
         }
 
-        debug_assert_ne!(self.internal_state, UnitTaskSettlerState::Completed);
-        self.internal_state = UnitTaskSettlerState::Completed;
+        // Destination tile is no longer a vacant lot / spawn point; search again.
+        ctx.unit.follow_path(None);
+        Transition::Goto(UnitTaskSettlerState::Searching)
+    }
+
+    fn update_visiting_house(&mut self, ctx: &mut TaskContext) -> Transition<UnitTaskSettlerState> {
+        match self.visit_outcome.take() {
+            None => Transition::Stay, // Deferred visit not resolved yet.
+            Some(true) => {
+                // House accepted the settler.
+                let sim_context = ctx.sim_context;
+                let destination_cell = ctx.unit.goal()
+                    .expect("Expected unit to have an active goal!")
+                    .building_destination()
+                    .1;
+
+                if let Some(house_tile) = sim_context.find_tile(destination_cell, TileKind::Building) {
+                    self.notify_completion(ctx.unit, sim_context, house_tile);
+                }
+                Transition::Goto(UnitTaskSettlerState::Done)
+            }
+            Some(false) => {
+                // House refused the settler; search for another destination.
+                ctx.unit.follow_path(None);
+                Transition::Goto(UnitTaskSettlerState::Searching)
+            }
+        }
+    }
+}
+
+impl TaskState for UnitTaskSettlerState {
+    type Task = UnitTaskSettler;
+
+    fn update(self, task: &mut UnitTaskSettler, ctx: &mut TaskContext) -> Transition<Self> {
+        match self {
+            Self::Searching      => task.update_searching(ctx),
+            Self::MovingTo(goal) => task.update_moving(goal, ctx),
+            Self::VisitingHouse  => task.update_visiting_house(ctx),
+            Self::Done           => Transition::Done,
+        }
     }
 }
 
 impl UnitTask for UnitTaskSettler {
-    fn as_any(&self) -> &dyn Any {
-        self
-    }
+    type State = UnitTaskSettlerState;
 
-    fn post_load(&mut self) {
-        self.completion_callback.post_load();
-    }
-
-    fn initialize(&mut self, unit: &mut Unit, _cmds: &mut SimCmds, context: &SimContext) {
-        debug_assert!(self.population_to_add != 0);
-        debug_assert_eq!(self.internal_state, UnitTaskSettlerState::Idle);
+    fn initialize(&mut self, ctx: &mut TaskContext) {
+        debug_assert_ne!(self.population_to_add, 0);
 
         // Settlers can go off-road.
-        let current_node_kinds = unit.traversable_node_kinds();
-        unit.set_traversable_node_kinds(
+        let current_node_kinds = ctx.unit.traversable_node_kinds();
+        ctx.unit.set_traversable_node_kinds(
             current_node_kinds
-                | PathNodeKind::EmptyLand
-                | PathNodeKind::Road
-                | PathNodeKind::VacantLot
-                | PathNodeKind::SettlersSpawnPoint,
+            | PathNodeKind::EmptyLand
+            | PathNodeKind::Road
+            | PathNodeKind::VacantLot
+            | PathNodeKind::SettlersSpawnPoint
         );
-
-        self.try_find_goal(unit, context);
     }
 
     fn terminate(&mut self, task_pool: &mut UnitTaskPool) {
@@ -180,134 +296,27 @@ impl UnitTask for UnitTaskSettler {
         }
     }
 
-    fn update(&mut self, unit: &mut Unit, _cmds: &mut SimCmds, context: &SimContext) -> UnitTaskState {
-        match self.internal_state {
-            UnitTaskSettlerState::Idle | UnitTaskSettlerState::MovingToGoal(_) => {
-                if unit.goal().is_none() {
-                    self.try_find_goal(unit, context);
-                }
-
-                if unit.has_reached_goal() {
-                    UnitTaskState::Completed
-                } else {
-                    UnitTaskState::Running
-                }
-            }
-            UnitTaskSettlerState::PendingBuildingVisit => {
-                // Wait for building visited callback to be invoked.
-                UnitTaskState::Running
-            }
-            UnitTaskSettlerState::BuildingVisited { settler_accepted } => {
-                if settler_accepted {
-                    // House accepted the setter. Task finished.
-                    UnitTaskState::Completed
-                } else {
-                    // Else we have to try another house.
-                    unit.follow_path(None);
-                    self.internal_state = UnitTaskSettlerState::Idle;
-                    UnitTaskState::Running
-                }
-            }
-            UnitTaskSettlerState::Completed => {
-                // Shouldn't ever be reached. We won't update the task if state == Completed.
-                panic!("Unexpected UnitTaskSettlerState: Completed");
-            }
-        }
+    fn as_any(&self) -> &dyn Any {
+        self
     }
 
-    fn completed(&mut self, unit: &mut Unit, cmds: &mut SimCmds, context: &SimContext) -> UnitTaskResult {
-        let unit_goal = unit.goal().expect("Expected unit to have an active goal!");
-
-        if let UnitTaskSettlerState::BuildingVisited { settler_accepted } = self.internal_state {
-            // Completed a deferred Building::visited_by command.
-            // If the house accepted the settler we finish the task.
-            if settler_accepted {
-                let (destination_kind, destination_cell) = unit_goal.building_destination();
-                debug_assert!(destination_kind == BuildingKind::House);
-                debug_assert!(destination_cell.is_valid());
-
-                if let Some(house_tile) = context.find_tile(destination_cell, TileKind::Building) {
-                    self.notify_completion(unit, house_tile, context);
-                    return UnitTaskResult::completed_with(&mut self.completion_task);
-                }
-            }
-        } else if unit_goal.is_tile() {
-            // Moving to a vacant lot or back to spawn point:
-            if !matches!(self.internal_state,
-                UnitTaskSettlerState::Idle | // NOTE: Allow Idle for backwards compatibility with old saves that don't have internal_state.
-                UnitTaskSettlerState::MovingToGoal(UnitTaskSettlerGoal::VacantLot) |
-                UnitTaskSettlerState::MovingToGoal(UnitTaskSettlerGoal::SpawnPointExit)
-            ) {
-                log::error!(
-                    log::channel!("task"),
-                    "Expected UnitTaskSettlerState to be MovingToGoal(VacantLot | SpawnPointExit), found: {:?}",
-                    self.internal_state,
-                );
-            }
-
-            let destination_cell = unit_goal.tile_destination();
-            debug_assert!(destination_cell.is_valid());
-
-            if let Some(tile) = context.try_tile_from_layer(destination_cell, TileMapLayerKind::Terrain) {
-                if tile.path_kind().is_vacant_lot() || tile.has_flags(TileFlags::SettlersSpawnPoint) {
-                    // Notify completion:
-                    self.notify_completion(unit, tile, context);
-                    return UnitTaskResult::completed_with(&mut self.completion_task);
-                }
-            }
-        } else if unit_goal.is_building() {
-            // Moving to a house with room to take a new settler:
-            debug_assert!(self.fallback_to_houses_with_room);
-
-            if !matches!(self.internal_state,
-                UnitTaskSettlerState::Idle | // NOTE: Allow Idle for backwards compatibility with old saves that don't have internal_state.
-                UnitTaskSettlerState::MovingToGoal(UnitTaskSettlerGoal::House)
-            ) {
-                log::error!(
-                    log::channel!("task"),
-                    "Expected UnitTaskSettlerState to be MovingToGoal(House), found: {:?}",
-                    self.internal_state,
-                );
-            }
-
-            let (destination_kind, destination_cell) = unit_goal.building_destination();
-            debug_assert!(destination_kind == BuildingKind::House);
-            debug_assert!(destination_cell.is_valid());
-
-            // Visit destination building:
-            if let Some(house_building) = context.find_building_for_cell(destination_cell)
-                && house_building.kind() == destination_kind
-            {
-                cmds.visit_building_with_completion(house_building.kind_and_id(), unit.id(),
-                    |context, _building, unit, result| {
-                        // House accepted the setter. Task will complete.
-                        let settler_accepted = result == BuildingVisitResult::Accepted;
-
-                        let task = unit.current_task_as_mut::<Self>(context.task_manager_mut())
-                            .expect("Expected unit to be running UnitTaskSettler!");
-
-                        debug_assert_eq!(task.internal_state, UnitTaskSettlerState::PendingBuildingVisit);
-                        task.internal_state = UnitTaskSettlerState::BuildingVisited { settler_accepted };
-                    });
-
-                // Waiting to complete a building visit or not reached a valid goal yet; Retry.
-                self.internal_state = UnitTaskSettlerState::PendingBuildingVisit;
-                return UnitTaskResult::Retry;
-            }
-        }
-
-        // Failed; Retry.
-        unit.follow_path(None);
-        self.internal_state = UnitTaskSettlerState::Idle;
-
-        UnitTaskResult::Retry
+    fn state(&mut self) -> &mut Self::State {
+        &mut self.state
     }
 
-    fn draw_debug_ui(&mut self, unit: &mut Unit, _context: &SimContext, ui_sys: &UiSystem) {
+    fn completion_task(&mut self) -> Option<UnitTaskId> {
+        self.completion_task.take()
+    }
+
+    fn post_load(&mut self) {
+        self.completion_callback.post_load();
+    }
+
+    fn draw_debug_ui(&mut self, unit: &mut Unit, _sim_context: &SimContext, ui_sys: &UiSystem) {
         let ui = ui_sys.ui();
 
         ui.text(format!("Population To Add               : {}", self.population_to_add));
-        ui.text(format!("Internal State                  : {:?}", self.internal_state));
+        ui.text(format!("State                           : {:?}", self.state));
         ui.separator();
         ui.text(format!("Fallback To Houses With Room    : {}", self.fallback_to_houses_with_room));
         ui.text(format!("Return To Spawn Point If Failed : {}", self.return_to_spawn_point_if_failed));
