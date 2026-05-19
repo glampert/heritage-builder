@@ -62,7 +62,10 @@ pub fn save_files_path() -> FixedPath {
 
 #[inline]
 pub fn list_save_files() -> Vec<PathBuf> {
-    SaveGameStorageBackendImpl::get().list_save_files()
+    let mut saves = SaveGameStorageBackendImpl::get().list_save_files();
+    // Return the save files list deterministically sorted.
+    saves.sort();
+    saves
 }
 
 #[inline]
