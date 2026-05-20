@@ -1279,8 +1279,7 @@ impl TileMapLayerKind {
 // TileMapLayerRefs / TileMapLayerMutRefs
 // ----------------------------------------------
 
-// These are bound to the TileMap's lifetime (which in turn is bound to the
-// TileSets).
+// These are bound to the TileMap's lifetime (which in turn is bound to the TileSets).
 #[derive(Copy, Clone)]
 pub struct TileMapLayerRefs {
     ptrs: [RawPtr<TileMapLayer>; TILE_MAP_LAYER_COUNT],
@@ -1295,6 +1294,33 @@ impl TileMapLayerRefs {
     #[inline(always)]
     pub fn get(&self, kind: TileMapLayerKind) -> &TileMapLayer {
         self.ptrs[kind as usize].as_ref()
+    }
+
+    #[inline]
+    pub fn has_tile(&self, cell: Cell, tile_kinds: TileKind) -> bool {
+        self.get(tile_kinds.layer_kind()).has_tile(cell, tile_kinds)
+    }
+
+    #[inline]
+    pub fn find_tile(&self, cell: Cell, tile_kinds: TileKind) -> Option<&Tile> {
+        self.get(tile_kinds.layer_kind()).find_tile(cell, tile_kinds)
+    }
+
+    #[inline]
+    pub fn is_cell_within_bounds(&self, cell: Cell) -> bool {
+        // Both layers share the same size, so checking either is sufficient.
+        self.get(TileMapLayerKind::Terrain).is_cell_within_bounds(cell)
+    }
+
+    #[inline]
+    pub fn for_each_tile<F>(&self, tile_kinds: TileKind, mut visitor_fn: F)
+    where
+        F: FnMut(TileMapLayerRefs, &Tile),
+    {
+        let layers = *self;
+        self.get(tile_kinds.layer_kind()).for_each_tile(tile_kinds, |tile| {
+            visitor_fn(layers, tile);
+        });
     }
 }
 
@@ -2153,42 +2179,43 @@ pub struct TileMap {
 
 macro_rules! update_search_graph {
     // NOTE: Units are skipped here because Units do not alter the search graph.
-    ($self:expr, $graph:expr, $cells:expr, $layer_kind:expr, $tile_kind:expr, TileCleared) => {{
+    // `$layers` is a `TileMapLayerRefs` (Copy), forwarded to `Graph::update`.
+    ($layers:expr, $graph:expr, $cells:expr, $layer_kind:expr, $tile_kind:expr, TileCleared) => {{
         if !$tile_kind.intersects(TileKind::Unit) {
-            $graph.update($self, GraphUpdateAction::TileCleared($cells, $layer_kind, $tile_kind));
+            $graph.update($layers, GraphUpdateAction::TileCleared($cells, $layer_kind, $tile_kind));
         }
     }};
-    ($self:expr, $graph:expr, $tile:expr, TilePlaced) => {{
+    ($layers:expr, $graph:expr, $tile:expr, TilePlaced) => {{
         if !$tile.is(TileKind::Unit) {
             let cells      = $tile.cell_range();
             let layer_kind = $tile.layer_kind();
             let path_kind  = $tile.path_kind();
-            $graph.update($self, GraphUpdateAction::TilePlaced(cells, layer_kind, path_kind));
+            $graph.update($layers, GraphUpdateAction::TilePlaced(cells, layer_kind, path_kind));
         }
     }};
-    ($self:expr, $graph:expr, $tile:expr, TileDefEdited) => {{
+    ($layers:expr, $graph:expr, $tile:expr, TileDefEdited) => {{
         if !$tile.is(TileKind::Unit) {
             let cells      = $tile.cell_range();
             let layer_kind = $tile.layer_kind();
             let tile_kind  = $tile.kind();
             let path_kind  = $tile.path_kind();
-            $graph.update($self, GraphUpdateAction::TileDefEdited(cells, layer_kind, tile_kind, path_kind));
+            $graph.update($layers, GraphUpdateAction::TileDefEdited(cells, layer_kind, tile_kind, path_kind));
         }
     }};
-    ($self:expr, $graph:expr, $tile:expr, TileMoved($from_cells:expr)) => {{
+    ($layers:expr, $graph:expr, $tile:expr, TileMoved($from_cells:expr)) => {{
         if !$tile.is(TileKind::Unit) {
             let to_cells   = $tile.cell_range();
             let layer_kind = $tile.layer_kind();
             let tile_kind  = $tile.kind();
             let path_kind  = $tile.path_kind();
-            $graph.update($self, GraphUpdateAction::TileMoved($from_cells, to_cells, layer_kind, tile_kind, path_kind));
+            $graph.update($layers, GraphUpdateAction::TileMoved($from_cells, to_cells, layer_kind, tile_kind, path_kind));
         }
     }};
-    ($self:expr, $graph:expr, $tile:expr, $new_flags:expr, TileFlagsChanged) => {{
+    ($layers:expr, $graph:expr, $tile:expr, $new_flags:expr, TileFlagsChanged) => {{
         if !$tile.is(TileKind::Unit) && Graph::tile_flags_affect_node_kind($new_flags) {
             let cells     = $tile.cell_range();
             let path_kind = $tile.path_kind();
-            $graph.update($self, GraphUpdateAction::TileFlagsChanged(cells, $new_flags, path_kind));
+            $graph.update($layers, GraphUpdateAction::TileFlagsChanged(cells, $new_flags, path_kind));
         }
     }};
 }
@@ -2436,12 +2463,13 @@ impl TileMap {
     // No-op if no matching tile exists.
     #[inline]
     pub fn set_tile_flags(&mut self, cell: Cell, tile_kinds: TileKind, flags: TileFlags, value: bool) {
+        let layers = self.layers();
         let mut graph = RawPtr::from_ref(&self.graph);
 
         if let Some(tile) = self.find_tile_mut(cell, tile_kinds) {
             tile.set_flags(flags, value);
 
-            update_search_graph!(self, graph, tile, flags, TileFlagsChanged);
+            update_search_graph!(layers, graph, tile, flags, TileFlagsChanged);
         }
     }
 
@@ -2454,12 +2482,13 @@ impl TileMap {
         flags: TileFlags,
         value: bool,
     ) {
+        let layers = self.layers();
         let mut graph = RawPtr::from_ref(&self.graph);
 
         let tile = self.tile_at_index_mut(index, layer_kind);
         tile.set_flags(flags, value);
 
-        update_search_graph!(self, graph, tile, flags, TileFlagsChanged);
+        update_search_graph!(layers, graph, tile, flags, TileFlagsChanged);
     }
 
     #[inline]
@@ -2645,16 +2674,17 @@ impl TileMap {
         // Prevent placing objects/props over non-walkable terrain tiles (water/roads, etc).
         placement::internal::is_placement_on_terrain_valid(self.layers(), target_cell, tile_def_to_place)?;
 
-        // HACK: Deal with borrow conflicts.
-        // Neither minimap nor graph overlap with the Tile instance returned by try_place_tile_in_layer below.
-        let tile_map    = RawPtr::from_ptr(self);
-        let mut minimap = RawPtr::from_ref(&self.minimap);
-        let mut graph   = RawPtr::from_ref(&self.graph);
-
+        // Capture a Copy view of all layers before destructuring `self`. Disjoint
+        // field borrows below let us hold `&mut layer` alongside `&mut minimap`
+        // and `&mut graph` without aliasing.
+        let layer_refs = self.layers();
         let tile_placed_callback = self.callbacks.on_tile_placed;
         let prev_pool_capacity = self.layer(layer_kind).pool_capacity();
 
-        placement::internal::try_place_tile_in_layer(self.layer_mut(layer_kind), target_cell, tile_def_to_place)
+        let Self { layers, minimap, graph, .. } = self;
+        let layer = &mut *layers[layer_kind as usize];
+
+        placement::internal::try_place_tile_in_layer(layer, target_cell, tile_def_to_place)
             .map(|(tile, new_pool_capacity)| {
                 if let Some(callback) = tile_placed_callback {
                     let did_reallocate = new_pool_capacity != prev_pool_capacity;
@@ -2662,7 +2692,7 @@ impl TileMap {
                 }
 
                 minimap.place_tile(target_cell, tile_def_to_place);
-                update_search_graph!(&tile_map, graph, tile, TilePlaced);
+                update_search_graph!(layer_refs, graph, tile, TilePlaced);
 
                 tile
             })
@@ -2685,7 +2715,7 @@ impl TileMap {
             }
         }
 
-        let mut graph = RawPtr::from_ref(&self.graph);
+        let layers = self.layers();
 
         let result =
             placement::internal::try_clear_tile_from_layer(self.layer_mut(layer_kind), target_cell);
@@ -2696,7 +2726,7 @@ impl TileMap {
             let tile_cells = tile_def.cell_range(target_cell);
             let tile_kind  = tile_def.kind();
 
-            update_search_graph!(self, graph, tile_cells, layer_kind, tile_kind, TileCleared);
+            update_search_graph!(layers, self.graph, tile_cells, layer_kind, tile_kind, TileCleared);
         }
 
         result.map(|_| ())
@@ -2722,7 +2752,7 @@ impl TileMap {
             }
         }
 
-        let mut graph = RawPtr::from_ref(&self.graph);
+        let layers = self.layers();
 
         let result =
             placement::internal::try_clear_tile_from_layer_by_index(self.layer_mut(layer_kind), target_index, target_cell);
@@ -2733,7 +2763,7 @@ impl TileMap {
             let tile_cells = tile_def.cell_range(target_cell);
             let tile_kind  = tile_def.kind();
 
-            update_search_graph!(self, graph, tile_cells, layer_kind, tile_kind, TileCleared);
+            update_search_graph!(layers, self.graph, tile_cells, layer_kind, tile_kind, TileCleared);
         }
 
         result.map(|_| ())
@@ -2778,8 +2808,7 @@ impl TileMap {
             return false;
         }
 
-        let mut graph = RawPtr::from_ref(&self.graph);
-
+        let layers = self.layers();
         let layer = self.layer_mut(layer_kind);
 
         let from_cell_index = layer.pool.cell_to_index(from_cell);
@@ -2800,7 +2829,7 @@ impl TileMap {
 
         tile.set_base_cell(to_cell);
 
-        update_search_graph!(self, graph, tile, TileMoved(from_cell_range));
+        update_search_graph!(layers, self.graph, tile, TileMoved(from_cell_range));
 
         true
     }
@@ -2821,8 +2850,7 @@ impl TileMap {
             return false;
         }
 
-        let mut graph = RawPtr::from_ref(&self.graph);
-
+        let layers = self.layers();
         let layer = self.layer_mut(layer_kind);
 
         // from cell: either becomes empty or pops one from the stack.
@@ -2882,7 +2910,7 @@ impl TileMap {
             from_tile.next_index = to_slab_index;
             debug_assert!(from_tile.self_index == from_idx);
 
-            update_search_graph!(self, graph, from_tile, TileMoved(from_cell_range));
+            update_search_graph!(layers, self.graph, from_tile, TileMoved(from_cell_range));
         }
 
         true
@@ -2971,11 +2999,11 @@ impl TileMap {
     }
 
     pub fn on_tile_def_edited(&mut self, tile: &mut Tile) {
-        let mut graph = RawPtr::from_ref(&self.graph);
+        let layers = self.layers();
 
         tile.on_tile_def_edited();
 
-        update_search_graph!(self, graph, tile, TileDefEdited);
+        update_search_graph!(layers, self.graph, tile, TileDefEdited);
     }
 }
 

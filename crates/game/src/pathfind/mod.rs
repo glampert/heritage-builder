@@ -18,7 +18,7 @@ use common::{
     coords::{Cell, CellRange},
 };
 use engine::ui::UiSystem;
-use crate::tile::{TileFlags, TileKind, TileMapLayerKind, TileMap};
+use crate::tile::{TileFlags, TileKind, TileMap, TileMapLayerKind, TileMapLayerRefs};
 
 #[cfg(test)]
 mod tests;
@@ -411,9 +411,11 @@ impl Graph {
         // We assume size hasn't changed.
         debug_assert_eq!(self.grid_size(), tile_map.size_in_cells());
 
+        let layers = tile_map.layers();
+
         // Terrain layer:
-        tile_map.for_each_tile(TileKind::Terrain, |tile_map, tile| {
-            self.update(tile_map, GraphUpdateAction::TilePlaced(
+        layers.for_each_tile(TileKind::Terrain, |layers, tile| {
+            self.update(layers, GraphUpdateAction::TilePlaced(
                 tile.cell_range(),
                 TileMapLayerKind::Terrain,
                 tile.path_kind(),
@@ -421,8 +423,8 @@ impl Graph {
         });
 
         // Objects layer:
-        tile_map.for_each_tile(Self::OBJECT_KINDS, |tile_map, tile| {
-            self.update(tile_map, GraphUpdateAction::TilePlaced(
+        layers.for_each_tile(Self::OBJECT_KINDS, |layers, tile| {
+            self.update(layers, GraphUpdateAction::TilePlaced(
                 tile.cell_range(),
                 TileMapLayerKind::Objects,
                 tile.path_kind(),
@@ -430,10 +432,10 @@ impl Graph {
         });
     }
 
-    pub fn update(&mut self, tile_map: &TileMap, action: GraphUpdateAction) {
+    pub fn update(&mut self, layers: TileMapLayerRefs, action: GraphUpdateAction) {
         fn tile_placed(
             graph: &mut Graph,
-            tile_map: &TileMap,
+            layers: TileMapLayerRefs,
             cell_range: CellRange,
             layer_kind: TileMapLayerKind,
             path_kind: NodeKind,
@@ -453,8 +455,8 @@ impl Graph {
 
                         // Add surrounding building access nodes:
                         for_each_surrounding_cell(cell_range, |cell| {
-                            if !tile_map.has_tile(cell, Graph::OBJECT_KINDS)
-                                && tile_map.is_cell_within_bounds(cell)
+                            if !layers.has_tile(cell, Graph::OBJECT_KINDS)
+                                && layers.is_cell_within_bounds(cell)
                             {
                                 graph.append_node_kind_internal(Node::new(cell), NodeKind::BuildingAccess);
                             }
@@ -467,7 +469,7 @@ impl Graph {
 
         fn tile_cleared(
             graph: &mut Graph,
-            tile_map: &TileMap,
+            layers: TileMapLayerRefs,
             cell_range: CellRange,
             layer_kind: TileMapLayerKind,
             tile_kind: TileKind,
@@ -485,7 +487,7 @@ impl Graph {
                         // node reflects the true tile-map state (e.g. a
                         // VacantLot/Road/Water terrain re-emerges when the
                         // Object above is removed).
-                        let terrain_kind = tile_map
+                        let terrain_kind = layers
                             .find_tile(cell, TileKind::Terrain)
                             .map(|t| t.path_kind())
                             .unwrap_or(NodeKind::EmptyLand);
@@ -495,8 +497,8 @@ impl Graph {
                     if tile_kind.intersects(TileKind::Building | TileKind::Blocker) {
                         // Clear surrounding building access nodes:
                         for_each_surrounding_cell(cell_range, |cell| {
-                            if !tile_map.has_tile(cell, Graph::OBJECT_KINDS)
-                                && tile_map.is_cell_within_bounds(cell)
+                            if !layers.has_tile(cell, Graph::OBJECT_KINDS)
+                                && layers.is_cell_within_bounds(cell)
                             {
                                 graph.clear_node_kind_internal(Node::new(cell), NodeKind::BuildingAccess);
                             }
@@ -509,21 +511,21 @@ impl Graph {
 
         match action {
             GraphUpdateAction::TilePlaced(cell_range, layer_kind, path_kind) => {
-                tile_placed(self, tile_map, cell_range, layer_kind, path_kind);
+                tile_placed(self, layers, cell_range, layer_kind, path_kind);
             }
             GraphUpdateAction::TileCleared(cell_range, layer_kind, tile_kind) => {
-                tile_cleared(self, tile_map, cell_range, layer_kind, tile_kind);
+                tile_cleared(self, layers, cell_range, layer_kind, tile_kind);
             }
             GraphUpdateAction::TileDefEdited(cell_range, layer_kind, tile_kind, path_kind) => {
                 // NOTE: Simulate TileCleared followed by TilePlaced to refresh the graph state.
-                tile_cleared(self, tile_map, cell_range, layer_kind, tile_kind);
-                tile_placed(self,  tile_map, cell_range, layer_kind, path_kind);
+                tile_cleared(self, layers, cell_range, layer_kind, tile_kind);
+                tile_placed(self,  layers, cell_range, layer_kind, path_kind);
             }
             GraphUpdateAction::TileMoved(from_cells, to_cells, layer_kind, tile_kind, path_kind) => {
                 debug_assert!(from_cells.size() == to_cells.size());
                 // NOTE: Same as TileCleared(from_cells) followed by TilePlaced(to_cells).
-                tile_cleared(self, tile_map, from_cells, layer_kind, tile_kind);
-                tile_placed(self,  tile_map, to_cells,   layer_kind, path_kind);
+                tile_cleared(self, layers, from_cells, layer_kind, tile_kind);
+                tile_placed(self,  layers, to_cells,   layer_kind, path_kind);
             }
             GraphUpdateAction::TileFlagsChanged(cell_range, new_flags, path_kind) => {
                 if Self::tile_flags_affect_node_kind(new_flags) {
