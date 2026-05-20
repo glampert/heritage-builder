@@ -589,12 +589,12 @@ impl ProducerBuilding {
 
         // We've handed over our resources to the spawned unit, clear the stock.
         //
-        // TODO: If by any reason the unit fails to spawn, the resources handed to the task would lost.
+        // TODO: If by any reason the unit fails to spawn, the resources handed to the task would be lost.
         // A unit spawn failure would be a bug (e.g., missing TileDef / invalid spawn point), which
         // shouldn't happen during normal gameplay, so maybe not worthwhile fixing this?
         //
         let removed_count = self.remove_resources(resource_kind_to_deliver, resource_count);
-        debug_assert!(removed_count == resource_count);
+        debug_assert_eq!(removed_count, resource_count);
     }
 
     fn fetch_from_storage(&mut self, cmds: &mut SimCmds, context: &BuildingContext) {
