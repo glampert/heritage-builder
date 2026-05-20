@@ -13,7 +13,6 @@ use proc_macros::DrawDebugUi;
 
 use super::{
     Building,
-    BuildingVisitResult,
     BuildingBehavior,
     BuildingContext,
     BuildingKind,
@@ -208,11 +207,6 @@ impl BuildingBehavior for ServiceBuilding {
         {
             self.send_out_patrol_unit(cmds, context);
         }
-    }
-
-    fn visited_by(&mut self, _unit: &mut Unit, _context: &BuildingContext) -> BuildingVisitResult {
-        // TODO: Do we need anything here? Deliveries are handled by the task completion callback...
-        unimplemented!("ServiceBuilding::visited_by() not yet implemented!");
     }
 
     fn pre_save(&mut self, cmds: &mut SimCmds) {

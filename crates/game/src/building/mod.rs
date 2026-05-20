@@ -963,7 +963,9 @@ trait BuildingBehavior {
     fn despawned(&mut self, _context: &BuildingContext);
 
     fn update(&mut self, cmds: &mut SimCmds, context: &BuildingContext);
-    fn visited_by(&mut self, unit: &mut Unit, context: &BuildingContext) -> BuildingVisitResult;
+    fn visited_by(&mut self, _unit: &mut Unit, _context: &BuildingContext) -> BuildingVisitResult {
+        BuildingVisitResult::Refused
+    }
 
     fn pre_save(&mut self, cmds: &mut SimCmds);
     fn post_save(&mut self);
