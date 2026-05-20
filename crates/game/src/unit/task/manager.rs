@@ -1,7 +1,7 @@
 use slab::Slab;
 use serde::{Deserialize, Serialize};
 
-use common::{Color, mem::{self, RawPtr}};
+use common::{Color, mem};
 use engine::{log, ui::UiSystem};
 
 use super::{
@@ -100,7 +100,7 @@ impl UnitTaskPool {
         let id = UnitTaskId::new(generation, self.tasks.vacant_key());
         let index = self.tasks.insert(UnitTaskInstance::new(id, archetype));
 
-        debug_assert!(id == self.tasks[index].id);
+        debug_assert_eq!(id, self.tasks[index].id);
         id
     }
 
@@ -111,24 +111,20 @@ impl UnitTaskPool {
 
         let index = task_id.index();
 
-        // Handle freeing an invalid handle gracefully.
-        // This will also avoid any invalid frees thanks to the generation check.
-        match self.tasks.get(index) {
-            Some(task) => {
-                if task.id != task_id {
-                    return; // Slot reused, not same item.
-                }
-
-                // HACK: Borrow checker bypass so we can pass self to terminate()...
-                let task_ptr = RawPtr::from_ref(task);
-                task_ptr.mut_ref_cast().archetype.terminate(self);
-            }
-            None => return, // Already free.
+        // Handle freeing an invalid handle gracefully (already free or slot reused).
+        // The generation check on `task.id` prevents double-frees of stale handles.
+        if !matches!(self.tasks.get(index), Some(task) if task.id == task_id) {
+            return;
         }
 
-        if self.tasks.try_remove(index).is_none() {
-            panic!("Failed to free task slot [{index}]!");
-        }
+        // Remove before terminate: `terminate()` may recursively call `self.free()`
+        // on a completion task, so the entry we are freeing must already be out of
+        // the slab to avoid aliasing through `&mut self`.
+        let mut task = self.tasks
+            .try_remove(index)
+            .expect("Task slot was just verified to be occupied!");
+
+        task.archetype.terminate(self);
     }
 
     fn try_get(&self, task_id: UnitTaskId) -> Option<&UnitTaskInstance> {
