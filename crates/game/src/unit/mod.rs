@@ -90,8 +90,6 @@ pub struct Unit {
     inventory: UnitInventory,
     navigation: UnitNavigation,
     current_task_id: UnitTaskId, // invalid if no task.
-
-    #[serde(default)]
     path_is_blocked: bool,
 
     #[serde(skip)]
@@ -880,8 +878,8 @@ impl Drop for SpawnedUnitWithTask {
     }
 }
 
-// This keeps backwards compatibility with the existing save format.
-// Previous UnitTaskHelpers saved a single `unit_id` field.
+// `SpawnedUnitWithTask` persists only its unit id; the spawn promise and
+// transient spawn states are not saved.
 #[derive(Serialize, Deserialize)]
 struct SpawnedUnitWithTaskSerializedData {
     unit_id: UnitId,

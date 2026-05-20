@@ -246,7 +246,6 @@ pub struct UnitTaskRandomizedPatrol {
     // Optional idle timeout between goals.
     pub idle_countdown: Option<(CountdownTimer, Seconds)>,
 
-    #[serde(default)]
     pub state: UnitTaskPatrolState,
 
     // Set by the deferred completion callback; consumed by `DeliveringToOrigin`.

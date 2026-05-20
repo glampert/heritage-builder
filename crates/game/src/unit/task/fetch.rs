@@ -83,7 +83,6 @@ pub struct UnitTaskFetchFromStorage {
     // Optional completion task to run after this task.
     pub completion_task: Option<UnitTaskId>,
 
-    #[serde(default)]
     pub state: UnitTaskFetchState,
 
     // Outcome of a deferred building visit (`VisitingStorage` / `UnloadingSurplus`):

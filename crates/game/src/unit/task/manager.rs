@@ -27,7 +27,6 @@ struct UnitTaskInstance {
     id: UnitTaskId,
 
     // False until `initialize()` has run.
-    #[serde(default)]
     started: bool,
 
     archetype: UnitTaskArchetype,

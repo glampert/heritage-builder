@@ -22,7 +22,6 @@ use crate::{
 
 #[derive(Clone, Default, Serialize, Deserialize)]
 pub struct Harvester {
-    #[serde(flatten)] // Preserve backwards compatibility with old save files. Previously `unit_id: UnitId`.
     unit: SpawnedUnitWithTask,
 }
 

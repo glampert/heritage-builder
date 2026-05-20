@@ -71,7 +71,6 @@ pub struct UnitTaskDeliverToStorage {
     // E.g.: Deliver directly to a Producer building instead.
     pub allow_producer_fallback: bool,
 
-    #[serde(default)]
     pub state: UnitTaskDeliveryState,
 
     // Outcome of the deferred storage visit, written by the visit callback and

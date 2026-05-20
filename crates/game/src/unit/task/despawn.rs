@@ -28,7 +28,6 @@ pub enum UnitTaskDespawnState {
 
 #[derive(Default, Serialize, Deserialize)]
 pub struct UnitTaskDespawn {
-    #[serde(default)]
     pub state: UnitTaskDespawnState,
 }
 
@@ -72,7 +71,6 @@ pub struct UnitTaskDespawnWithCallback {
     // Callback + extra args invoked once the unit has despawned.
     pub post_despawn: UnitPostDespawnCb,
 
-    #[serde(default)]
     pub state: UnitTaskDespawnWithCallbackState,
 }
 

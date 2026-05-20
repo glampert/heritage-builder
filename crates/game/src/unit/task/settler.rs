@@ -73,7 +73,6 @@ pub struct UnitTaskSettler {
     // Amount to add once settled into a new lot or house.
     pub population_to_add: u32,
 
-    #[serde(default)]
     pub state: UnitTaskSettlerState,
 
     // Outcome of the deferred house visit, written by the visit callback and

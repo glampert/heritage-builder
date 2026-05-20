@@ -91,7 +91,6 @@ pub struct UnitTaskHarvestWood {
     pub harvest_timer: CountdownTimer,
     pub harvest_target: PropId,
 
-    #[serde(default)]
     pub state: UnitTaskHarvestState,
 
     // Set by the deferred harvest mutation; consumed by `PendingHarvest`.

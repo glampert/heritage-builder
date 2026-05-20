@@ -69,7 +69,6 @@ impl PatrolInternalState {
 
 #[derive(Clone, Default, Serialize, Deserialize)]
 pub struct Patrol {
-    #[serde(flatten)] // Preserve backwards compatibility with old save files. Previously `unit_id: UnitId`.
     unit: SpawnedUnitWithTask,
     state: Option<Box<PatrolInternalState>>, // Lazily initialized.
 }
