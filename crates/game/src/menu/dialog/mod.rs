@@ -560,7 +560,7 @@ const DEFAULT_DIALOG_MENU_FLAGS: UiMenuFlags = UiMenuFlags::from_bits_retain(
 static GLOBAL_DIALOG_MENU_FLAGS: UiStaticVar<UiMenuFlags> = UiStaticVar::new(DEFAULT_DIALOG_MENU_FLAGS);
 
 fn default_dialog_menu_size(context: &GameUiContext) -> Vec2 {
-    Vec2::new(550.0, context.viewport_size.height as f32 - 150.0)
+    Vec2::new(550.0, context.viewport_size.height as f32 - 120.0)
 }
 
 fn make_default_layout_dialog_menu(
