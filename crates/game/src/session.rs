@@ -15,6 +15,7 @@ use crate::{
     camera::*,
     undo_redo,
     world::World,
+    campaign::{self, CampaignProgress},
     config::{GameConfigs, LoadMapSetting},
     debug::{DevEditorMenus, preset_maps},
     menu::{GameMenusInputArgs, GameMenusMode, GameMenusSystem, home::HomeMenus, in_game::InGameMenus},
@@ -124,6 +125,17 @@ impl GameSessionCmdQueue {
     // ----------------------
 
     fn cmd_quit_to_main_menu(&mut self, session: &mut GameSession, engine: &mut Engine, configs: &'static GameConfigs) {
+        // Reset campaign progress here, at the command site, rather than inside
+        // GameSession::reset (or a CampaignSystem::reset). GameSession::reset --
+        // and systems.reset() with it -- also runs while tearing down the session
+        // during a campaign-driven mission load (cmd_load_preset / load_save_game),
+        // where the active mission must be PRESERVED across the session swap.
+        // Only the explicit "abandon the campaign" intents -- quitting to the main
+        // menu (here) and starting a fresh sandbox game (cmd_reset_session) --
+        // should clear it. The load paths keep the campaign instead, via the
+        // suppress flag / restore_snapshot in campaign::restore_snapshot.
+        campaign::reset();
+
         destroy(session, engine, configs);
         *session = create(engine, configs, None);
     }
@@ -140,6 +152,10 @@ impl GameSessionCmdQueue {
         reset_map_with_tile_def: Option<&'static TileDef>,
         new_map_size: Option<Size>,
     ) {
+        // Starting a fresh sandbox game abandons any active campaign. See
+        // cmd_quit_to_main_menu for why this is reset here, not in GameSession::reset.
+        campaign::reset();
+
         let reset_map = true;
         let home_menu = false;
         session.reset(engine, configs, reset_map, reset_map_with_tile_def, new_map_size, home_menu);
@@ -234,6 +250,11 @@ pub struct GameSession {
     sim: Simulation,
     systems: GameSystems,
     camera: Camera,
+
+    // Snapshot of the campaign manager's progress, so a mid-mission save resumes
+    // the campaign on load. `#[serde(default)]` keeps older saves loadable.
+    #[serde(default)]
+    campaign_progress: CampaignProgress,
 
     // NOTE: The following members are not serialized on save games.
     // We only need to invoke pre_load/post_load on them.
@@ -395,6 +416,7 @@ impl GameSession {
             sim,
             systems,
             camera,
+            campaign_progress: CampaignProgress::default(),
             tile_selection: TileSelection::default(),
             tile_map_renderer: TileMapRenderer::new(configs.engine.grid_color, configs.engine.grid_line_thickness),
             menus: None,
@@ -574,6 +596,9 @@ impl GameSession {
 
 impl Save for GameSession {
     fn pre_save(&mut self, context: &mut PreSaveContext) {
+        // Capture campaign progress so it is serialized with the session.
+        self.campaign_progress = campaign::capture_snapshot();
+
         self.tile_map.pre_save(context);
         self.world.pre_save(context);
         self.sim.pre_save(context);
@@ -643,6 +668,10 @@ impl Load for GameSession {
         } else {
             self.sim.resume();
         }
+
+        // Restore campaign progress into the manager. No-op for campaign-driven
+        // mission loads (the manager keeps its intended active mission instead).
+        campaign::restore_snapshot(self.campaign_progress.clone());
     }
 }
 
