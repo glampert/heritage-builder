@@ -6,6 +6,7 @@
 // Core game modules:
 pub mod building;
 pub mod camera;
+pub mod campaign;
 pub mod cheats;
 pub mod config;
 pub mod constants;

@@ -1,0 +1,42 @@
+{
+  "campaigns": [
+    {
+      "name": "The Dragon Legacy",
+      "missions": [
+        {
+          "name": "A Humble Beginning",
+          "description": "Establish your first settlement and grow its population.",
+          "map": { "SaveGame": { "save_file": "tiny_island" } },
+          "requirements": {
+            "goals": [
+              { "Population": { "min": 20 } }
+            ]
+          }
+        },
+        {
+          "name": "A Thriving Town",
+          "description": "Put your citizens to work and build up your reserves.",
+          "map": { "SaveGame": { "save_file": "test_map_64x64" } },
+          "requirements": {
+            "goals": [
+              { "Population": { "min": 50 } },
+              { "Employment": { "min_employed": 30 } },
+              { "Treasury": { "min_gold": 1000 } }
+            ]
+          }
+        },
+        {
+          "name": "Master of the Realm",
+          "description": "Amass wealth and population to complete your legacy.",
+          "map": { "SaveGame": { "save_file": "test_map_96x96" } },
+          "requirements": {
+            "goals": [
+              { "Population": { "min": 100 } },
+              { "Treasury": { "min_gold": 5000 } }
+            ]
+          }
+        }
+      ]
+    }
+  ]
+}

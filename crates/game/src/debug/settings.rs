@@ -18,6 +18,7 @@ use crate::{
     unit::config::UnitConfigs,
     building::config::BuildingConfigs,
     prop::config::PropConfigs,
+    campaign::config::CampaignConfigs,
     tile::{
         rendering::{MAX_GRID_LINE_THICKNESS, MIN_GRID_LINE_THICKNESS, TileMapRenderFlags},
         sets::PresetTiles,
@@ -497,6 +498,9 @@ impl DebugSettingsDevMenu {
                     }
                     if let Some(_tab) = ui.tab_item("Props") {
                         PropConfigs::get().draw_debug_ui(context.ui_sys);
+                    }
+                    if let Some(_tab) = ui.tab_item("Campaigns") {
+                        CampaignConfigs::get().draw_debug_ui(context.ui_sys);
                     }
                     if let Some(_tab) = ui.tab_item("Ui Text") {
                         ui::text::draw_debug_ui(context.ui_sys);
