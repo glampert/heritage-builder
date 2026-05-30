@@ -11,6 +11,7 @@ use palette::{TilePaletteMenu, TilePaletteMenuRcMut};
 
 use super::{GameMenusInputArgs, GameMenusMode, GameMenusSystem, TileInspector, TilePalette, TilePlacement, dialog};
 use crate::{
+    campaign::{self, CampaignPrompt},
     save_context::{Load, PreLoadContext, Save},
     tile::minimap::{InGameUiMinimapRenderer, MinimapRenderer},
     ui_context::GameUiContext,
@@ -89,6 +90,22 @@ impl GameMenusSystem for InGameMenus {
         self.tile_palette.draw(context);
         self.menu_bars.draw(context);
         self.tile_inspector.draw(context);
+
+        // Open a pending campaign prompt, but only when no other dialog is open
+        // (don't interrupt the pause menu, etc.). The prompt stays pending until
+        // then, so it is taken only when it is actually shown.
+        if dialog::current().is_none() {
+            match campaign::take_pending_prompt() {
+                Some(CampaignPrompt::MissionComplete) => {
+                    dialog::open(dialog::DialogMenuKind::MissionComplete, false, context);
+                }
+                Some(CampaignPrompt::CampaignComplete) => {
+                    dialog::open(dialog::DialogMenuKind::CampaignComplete, false, context);
+                }
+                None => {}
+            }
+        }
+
         dialog::draw_current(context);
     }
 }

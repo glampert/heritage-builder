@@ -16,7 +16,7 @@ use enum_dispatch::enum_dispatch;
 use strum::{Display, EnumCount, EnumDiscriminants, EnumIter, IntoEnumIterator};
 
 use super::LARGE_HORIZONTAL_SEPARATOR_SPRITE;
-use crate::{menu::ButtonDef, ui_context::GameUiContext};
+use crate::{menu::ButtonDef, ui_context::GameUiContext, campaign::config::MissionMap};
 
 mod home;
 use home::*;
@@ -38,6 +38,12 @@ use city_management::*;
 
 mod settings;
 use settings::*;
+
+mod mission_complete;
+use mission_complete::*;
+
+mod campaign_complete;
+use campaign_complete::*;
 
 // ----------------------------------------------
 // Macro: dialog_menu_factories
@@ -82,6 +88,10 @@ pub enum DialogMenuImpl {
     GameSettings,
     SoundSettings,
     GraphicsSettings,
+
+    // Campaign progression menus:
+    MissionComplete,
+    CampaignComplete,
 }
 
 const DIALOG_MENU_FACTORIES: [DialogMenuFactoryFn; DIALOG_MENU_COUNT] = dialog_menu_factories![
@@ -103,6 +113,9 @@ const DIALOG_MENU_FACTORIES: [DialogMenuFactoryFn; DIALOG_MENU_COUNT] = dialog_m
     GameSettings,
     SoundSettings,
     GraphicsSettings,
+
+    MissionComplete,
+    CampaignComplete,
 ];
 
 impl DialogMenuKind {
@@ -177,6 +190,17 @@ pub fn set_global_menu_flags(flags: UiMenuFlags) {
 pub fn set_bg_dim_alpha(context: &mut GameUiContext, alpha: f32) {
     debug_assert!((0.0..=1.0).contains(&alpha));
     context.ui_sys.set_style_color(imgui::StyleColor::ModalWindowDimBg, Color::new(0.0, 0.0, 0.0, alpha));
+}
+
+// Load the starting map for a campaign mission. Routes through the GameLoop
+// session command queue (deferred). This is the UI-side glue that the
+// GameLoop-free campaign manager deliberately does not perform itself.
+fn load_mission_map(map: &MissionMap) {
+    let game_loop = crate::GameLoop::get_mut();
+    match map {
+        MissionMap::SaveGame { save_file }     => game_loop.load_save_game(PathRef::from_str(save_file)),
+        MissionMap::Preset   { preset_number } => game_loop.load_preset_map(*preset_number),
+    }
 }
 
 // ----------------------------------------------
