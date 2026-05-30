@@ -28,9 +28,10 @@ use crate::{
     unit::config::UnitConfigs,
     building::config::BuildingConfigs,
     prop::config::PropConfigs,
-    session::{self, GameSession, GameSessionCmdQueue},
     sim::Simulation,
     system::GameSystems,
+    session::{self, GameSession, GameSessionCmdQueue},
+    campaign::{self, config::CampaignConfigs},
     tile::{
         rendering::{TileMapRenderFlags, TileMapRenderStats},
         sets::{TileDef, TileSets},
@@ -117,6 +118,7 @@ impl RunLoop for GameLoop {
 
         // Global initialization:
         cheats::initialize();
+        campaign::initialize();
         undo_redo::initialize();
         Simulation::register_callbacks();
         debug::set_show_popup_messages(configs.debug.show_popups);
@@ -318,6 +320,9 @@ impl GameLoop {
         PropConfigs::load();
         log::info!(log::channel!("game"), "PropConfigs loaded.");
 
+        CampaignConfigs::load();
+        log::info!(log::channel!("game"), "CampaignConfigs loaded.");
+
         let tex_cache = engine.texture_cache_mut();
         TileSets::load(tex_cache, configs.engine.use_packed_texture_atlas, configs.debug.skip_loading_tile_sets, false);
         log::info!(log::channel!("game"), "TileSets loaded.");
@@ -328,6 +333,7 @@ impl GameLoop {
 
     fn unload_assets() {
         TileSets::terminate();
+        CampaignConfigs::terminate();
         PropConfigs::terminate();
         UnitConfigs::terminate();
         BuildingConfigs::terminate();
