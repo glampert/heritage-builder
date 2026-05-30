@@ -1,7 +1,8 @@
+use engine::log;
 use strum::{EnumCount, EnumIter, EnumProperty};
 
 use super::*;
-use crate::{GameLoop, menu::ButtonDef};
+use crate::{GameLoop, campaign, menu::ButtonDef};
 
 // ----------------------------------------------
 // HomeButtonKind
@@ -13,6 +14,9 @@ const HOME_BUTTON_COUNT: usize = HomeButtonKind::COUNT;
 enum HomeButtonKind {
     #[strum(props(Label = "New Game"))]
     NewGame,
+
+    #[strum(props(Label = "Campaign"))]
+    Campaign,
 
     #[strum(props(Label = "Continue", Enabled = false))]
     Continue,
@@ -38,6 +42,7 @@ impl ButtonDef for HomeButtonKind {
         const CLOSE_ALL_OTHERS: bool = false;
         match self {
             Self::NewGame    => super::open(DialogMenuKind::NewGame, CLOSE_ALL_OTHERS, context),
+            Self::Campaign   => Self::on_campaign(),
             Self::Continue   => false, // TODO: Continue last save game.
             Self::LoadGame   => super::open(DialogMenuKind::LoadGame, CLOSE_ALL_OTHERS, context),
             Self::CustomGame => false, // TODO: Play custom game/map.
@@ -52,6 +57,22 @@ impl HomeButtonKind {
     fn on_quit() -> bool {
         GameLoop::get_mut().quit_game();
         true
+    }
+
+    // Start the first campaign (placeholder: campaign 0) by loading its first
+    // mission's map. The mission map load transitions out of the home menu.
+    fn on_campaign() -> bool {
+        const FIRST_CAMPAIGN_ID: usize = 0;
+        match campaign::start_campaign(FIRST_CAMPAIGN_ID) {
+            Some(map) => {
+                super::load_mission_map(&map);
+                true
+            }
+            None => {
+                log::error!(log::channel!("campaign"), "No campaign configured to start!");
+                false
+            }
+        }
     }
 }
 
