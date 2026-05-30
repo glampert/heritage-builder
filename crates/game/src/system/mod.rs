@@ -29,6 +29,9 @@ use ambient_music::AmbientMusicSystem;
 pub mod ambient_sounds;
 use ambient_sounds::AmbientSoundsSystem;
 
+pub mod campaign;
+use self::campaign::CampaignSystem;
+
 // ----------------------------------------------
 // GameSystem
 // ----------------------------------------------
@@ -60,6 +63,7 @@ pub enum GameSystemImpl {
     AmbientEffectsSystem,
     AmbientMusicSystem,
     AmbientSoundsSystem,
+    CampaignSystem,
 }
 
 // ----------------------------------------------
