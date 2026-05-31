@@ -44,8 +44,7 @@ fn add_workers(env: &mut TestEnvironment, handle: BuildingKindAndId, count: u32,
 }
 
 // Toggle one of the house debug `freeze_*` flags via the public debug-options API.
-fn set_house_freeze(env: &mut TestEnvironment, handle: BuildingKindAndId, option_name: &str, value: bool) {
-    let mut value = value;
+fn set_house_freeze(env: &mut TestEnvironment, handle: BuildingKindAndId, option_name: &str, mut value: bool) {
     let building = test_utils::find_building_mut(env, handle);
     let applied = building
         .debug_options()
@@ -89,7 +88,7 @@ fn house_level_name(env: &TestEnvironment, cell: Cell) -> &'static str {
 }
 
 // ----------------------------------------------
-// TODO 5: Worker efficiency
+// Worker efficiency
 // ----------------------------------------------
 
 // A producer staffed below its maximum runs at reduced efficiency, scaling
@@ -117,7 +116,7 @@ fn test_under_staffed_building_runs_at_reduced_efficiency() {
 }
 
 // ----------------------------------------------
-// TODO 1 + 2: Per-resource, per-day, occupancy-scaled consumption
+// Per-resource, per-day, occupancy-scaled consumption
 // ----------------------------------------------
 
 // Houses consume food over time at a rate proportional to their occupancy: a
@@ -129,8 +128,8 @@ fn test_house_consumption_scales_with_occupancy() {
 
     // Three Level 1 houses (which require food) at increasing occupancy.
     let crowded = test_utils::spawn_building(&mut env, Cell::new(1, 1), "house1");
-    let sparse = test_utils::spawn_building(&mut env, Cell::new(4, 4), "house1");
-    let empty = test_utils::spawn_building(&mut env, Cell::new(7, 7), "house1");
+    let sparse  = test_utils::spawn_building(&mut env, Cell::new(4, 4), "house1");
+    let empty   = test_utils::spawn_building(&mut env, Cell::new(7, 7), "house1");
 
     // Freeze upgrade (which would otherwise downgrade these service-less houses)
     // and population growth so occupancy stays fixed and the test is deterministic.
@@ -165,7 +164,7 @@ fn test_house_consumption_scales_with_occupancy() {
 }
 
 // ----------------------------------------------
-// TODO 4: Deprivation grace vs. immediate downgrade
+// Deprivation grace vs. immediate downgrade
 // ----------------------------------------------
 
 // A house missing a *non-basic* requirement (here: no Market access) still
