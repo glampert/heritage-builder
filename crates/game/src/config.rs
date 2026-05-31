@@ -133,6 +133,10 @@ pub struct SimConfigs {
     pub starting_gold_units: u32,
     pub start_paused: bool,
 
+    // Length of one in-game day, in simulation seconds. Lets rates (e.g. house
+    // resource consumption) be expressed in intuitive units-per-day.
+    pub seconds_per_day: Seconds,
+
     // Workers/Population:
     pub workers_search_radius: i32,
     pub workers_update_frequency_secs: Seconds,
@@ -152,6 +156,7 @@ impl Default for SimConfigs {
             paused_update_frequency_secs: 0.5,
             starting_gold_units: 0,
             start_paused: false,
+            seconds_per_day: 600.0,
             // Workers/Population:
             workers_search_radius: 20,
             workers_update_frequency_secs: 20.0,

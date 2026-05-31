@@ -268,6 +268,11 @@ pub struct HouseBuilding {
     stock_update_timer: UpdateTimer,
     stock: BuildingStock,
 
+    // Fractional resource consumption carried between stock updates, per ResourceKind.
+    // Whole units are removed from stock once an entry reaches >= 1.0.
+    #[serde(default)]
+    consumption_accumulator: [f32; RESOURCE_KIND_COUNT],
+
     upgrade_update_timer: UpdateTimer,
     upgrade_state: HouseUpgradeState,
 
@@ -528,6 +533,7 @@ impl HouseBuilding {
             population: Population::new(0, upgrade_state.curr_level_config.unwrap().max_population),
             stock_update_timer: UpdateTimer::new(house_config.stock_update_frequency_secs),
             stock,
+            consumption_accumulator: [0.0; RESOURCE_KIND_COUNT],
             upgrade_update_timer: UpdateTimer::new(house_config.upgrade_update_frequency_secs),
             upgrade_state,
             generate_tax_timer: UpdateTimer::new(house_config.generate_tax_frequency_secs),
@@ -554,18 +560,49 @@ impl HouseBuilding {
     // ----------------------
 
     fn stock_update(&mut self) {
-        // Consume resources from the stock periodically:
-        let curr_level_resources_required = &self.upgrade_state.curr_level_config.unwrap().resources_required;
+        // Each required resource is consumed at its own rate, expressed in units
+        // per day and scaled by the current household occupancy (per resident).
+        // Fractional amounts are carried in `consumption_accumulator` so whole
+        // units are only removed once a full unit's worth has been consumed.
+        let resources_required = &self.upgrade_state.curr_level_config.unwrap().resources_required;
 
-        // Consume one of each resources this level uses.
-        curr_level_resources_required.for_each(|resource| {
-            if self.remove_resources(resource, 1) != 0 {
-                // We consumed one, done.
-                // E.g.: resource = Meat|Fish, consume one of either.
-                return false;
+        let house_config = BuildingConfigs::get().house_config();
+        let seconds_per_day = crate::config::GameConfigs::get().sim.seconds_per_day;
+
+        // Fraction of a day elapsed since the last stock update.
+        let day_frac = if seconds_per_day > 0.0 {
+            house_config.stock_update_frequency_secs / seconds_per_day
+        } else {
+            0.0
+        };
+        let population = self.population.count() as f32;
+
+        // `iter()` yields combined OR-group flags (e.g. `Meat | Fish`), so we
+        // consume a single member per group: whichever one is currently stocked.
+        for group in resources_required.iter() {
+            let member = match group.iter().find(|&kind| self.stock.available_resources(kind) != 0) {
+                Some(kind) => kind,
+                None => continue, // Nothing of this group in stock; nothing to consume.
+            };
+
+            let index = member.index();
+            let rate = house_config.consumption_rate_table[index]; // units/day per resident.
+
+            self.consumption_accumulator[index] += rate * population * day_frac;
+
+            let whole_units = self.consumption_accumulator[index].floor();
+            if whole_units >= 1.0 {
+                let removed = self.remove_resources(member, whole_units as u32);
+                self.consumption_accumulator[index] -= removed as f32;
             }
-            true
-        });
+
+            // Cap carried-over debt at ~one day's worth so a long shortage can't
+            // drain a freshly restocked house all at once.
+            let max_owed = rate * population;
+            if self.consumption_accumulator[index] > max_owed {
+                self.consumption_accumulator[index] = max_owed;
+            }
+        }
     }
 
     fn visited_by_market_vendor(&mut self, unit: &mut Unit, context: &BuildingContext) -> BuildingVisitResult {
