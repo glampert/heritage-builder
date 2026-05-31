@@ -1673,5 +1673,37 @@ impl HouseBuilding {
 
     fn draw_debug_ui_stock(&mut self, _context: &BuildingContext, ui_sys: &UiSystem) {
         self.stock.draw_debug_ui("Stock", ui_sys);
+
+        let ui = ui_sys.ui();
+        if !ui.collapsing_header("Consumption", imgui::TreeNodeFlags::empty()) {
+            return; // collapsed.
+        }
+
+        let config = BuildingConfigs::get().house_config();
+
+        // Deprivation timer: how long this house has gone without a basic need.
+        let grace = config.deprivation_grace_secs;
+        let timer = self.deprivation_timer_secs;
+        let deprivation_text = format!("Deprivation : {:.0}s / {:.0}s", timer, grace);
+        if timer > 0.0 {
+            ui.text_colored(Color::red().to_array(), deprivation_text);
+        } else {
+            ui.text(deprivation_text);
+        }
+
+        // Per-resource fractional consumption carried between stock updates.
+        ui.text("Accumulators:");
+        let mut any_shown = false;
+        for kind in ResourceKind::all().iter() {
+            let accumulated = self.consumption_accumulator[kind.index()];
+            if accumulated != 0.0 {
+                let rate = config.consumption_rate_table[kind.index()];
+                ui.text(format!("  {}: {:.2} ({:.2}/day/resident)", kind, accumulated, rate));
+                any_shown = true;
+            }
+        }
+        if !any_shown {
+            ui.text("  <none>");
+        }
     }
 }
