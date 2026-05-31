@@ -191,10 +191,15 @@ impl BuildingBehavior for ServiceBuilding {
         let has_stock_requirements = self.stock_or_treasury.is_stock_and_requires_resources();
         let has_patrol_unit = self.has_patrol_unit();
 
+        // Under-staffed services run slower: stock procurement and patrol dispatch
+        // advance proportionally to how staffed the building is. The hard
+        // min-worker gate still halts them entirely below the minimum.
+        let service_delta_secs = delta_time_secs * self.work_efficiency();
+
         // Procure resources from storage periodically if we need them.
         if has_stock_requirements && has_min_required_workers && !self.debug.freeze_stock_update() {
             if let StockOrTreasury::Stock { update_timer, .. } = &mut self.stock_or_treasury {
-                if update_timer.tick(delta_time_secs).should_update() {
+                if update_timer.tick(service_delta_secs).should_update() {
                     self.stock_update(cmds, context);
                 }
             }
@@ -203,7 +208,7 @@ impl BuildingBehavior for ServiceBuilding {
         if has_patrol_unit
             && has_min_required_workers
             && !self.debug.freeze_patrol()
-            && self.patrol_timer.tick(delta_time_secs).should_update()
+            && self.patrol_timer.tick(service_delta_secs).should_update()
         {
             self.send_out_patrol_unit(cmds, context);
         }
@@ -477,6 +482,16 @@ impl ServiceBuilding {
     pub fn register_callbacks() {
         let _: Callback<UnitTaskFetchCompletionCallback> = callback::register!(ServiceBuilding::on_resources_fetched);
         let _: Callback<PatrolCompletionCallback> = callback::register!(ServiceBuilding::on_patrol_completed);
+    }
+
+    // Fraction [0,1] the building runs at, based on how staffed it is relative to
+    // max workers. The cheat forces full efficiency.
+    #[inline]
+    fn work_efficiency(&self) -> f32 {
+        if cheats::get().ignore_worker_requirements {
+            return 1.0;
+        }
+        self.workers.as_employer().unwrap().work_efficiency()
     }
 
     // ----------------------

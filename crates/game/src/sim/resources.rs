@@ -413,6 +413,17 @@ impl Employer {
         self.employee_count >= self.min_employees
     }
 
+    // Fraction [0,1] of the workforce relative to maximum capacity. Buildings use
+    // this to scale how fast they run when below max workers. An employer that
+    // needs no workers at all (max_employees == 0) is considered fully efficient.
+    #[inline]
+    pub fn work_efficiency(&self) -> f32 {
+        if self.max_employees == 0 {
+            return 1.0;
+        }
+        (self.employee_count as f32 / self.max_employees as f32).clamp(0.0, 1.0)
+    }
+
     pub fn for_each_employee_household<F>(&self, world: &mut World, mut visitor_fn: F)
     where
         F: FnMut(&mut Building, u32) -> bool,
@@ -531,6 +542,7 @@ impl Employer {
         ui.text(format!("Workers Employed : {}", self.employee_count));
         ui.text(format!("Min Required     : {}", self.min_employees));
         ui.text(format!("Max Employed     : {}", self.max_employees));
+        ui.text(format!("Work Efficiency  : {:.0}%", self.work_efficiency() * 100.0));
 
         if cheats::get().ignore_worker_requirements {
             ui.text_colored(Color::green().to_array(), "CHEAT ignore_worker_requirements ON");

@@ -223,8 +223,13 @@ impl BuildingBehavior for ProducerBuilding {
         self.harvester.update(cmds);
         self.ambient_patrol.update(cmds);
 
+        // Under-staffed producers run slower: the production cycle advances at a
+        // rate proportional to how staffed the building is (the hard min-worker
+        // gate below still halts it entirely if it drops under the minimum).
+        let production_delta_secs = delta_time_secs * self.work_efficiency();
+
         // Update producer states:
-        if self.production_update_timer.tick(delta_time_secs).should_update() && self.has_min_required_workers() {
+        if self.production_update_timer.tick(production_delta_secs).should_update() && self.has_min_required_workers() {
             let is_harvester_building = self.is_harvester_building();
 
             if !self.debug.freeze_harvesting() && is_harvester_building {
@@ -484,6 +489,16 @@ impl ProducerBuilding {
             ambient_patrol: TimedAmbientPatrol::new(rng, config.ambient_patrol.spawn_frequency_secs),
             debug: ProducerDebug::default(),
         }
+    }
+
+    // Fraction [0,1] the building runs at, based on how staffed it is relative to
+    // max workers. The cheat forces full efficiency.
+    #[inline]
+    fn work_efficiency(&self) -> f32 {
+        if cheats::get().ignore_worker_requirements {
+            return 1.0;
+        }
+        self.workers.as_employer().unwrap().work_efficiency()
     }
 
     pub fn register_callbacks() {
