@@ -70,3 +70,7 @@ harness = false
 [[test]]
 name    = "unit_tasks"
 harness = false
+
+[[test]]
+name    = "campaign"
+harness = false
