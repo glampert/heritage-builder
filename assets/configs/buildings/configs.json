@@ -5,6 +5,13 @@
     "upgrade_update_frequency_secs": 10.0,
     "generate_tax_frequency_secs": 60.0,
     "shop_batch_size": 4,
+    "consumption_rates": [
+      ["Rice", 1.0],
+      ["Meat", 0.5],
+      ["Fish", 0.5],
+      ["Wine", 0.25],
+      ["Pottery", 0.2]
+    ],
     "ambient_patrol": {
       "unit": "Dog",
       "spawn_frequency_secs": [80.0, 120.0],

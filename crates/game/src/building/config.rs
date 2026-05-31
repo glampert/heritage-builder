@@ -14,7 +14,7 @@ use super::{
     storage::{StorageBuilding, StorageConfig},
 };
 use crate::{
-    sim::{RandomGenerator, resources::ServiceKind},
+    sim::{RandomGenerator, resources::{RESOURCE_KIND_COUNT, ServiceKind}},
     tile::sets::TileDef,
 };
 
@@ -269,6 +269,21 @@ impl BuildingConfigs {
     fn post_load(&'static mut self) {
         self.house_config.kind = BuildingKind::House;
         self.house_config.post_load(0);
+
+        // Build the per-resource consumption rate lookup. Kinds not listed in
+        // `consumption_rates` keep the default rate of 1.0 unit/day.
+        self.house_config.consumption_rate_table = [1.0; RESOURCE_KIND_COUNT];
+        for &(kind, rate) in &self.house_config.consumption_rates {
+            if !kind.is_single_resource() {
+                log::error!(
+                    log::channel!("config"),
+                    "HouseConfig consumption_rates: '{}' is not a single resource kind; ignored.",
+                    kind
+                );
+                continue;
+            }
+            self.house_config.consumption_rate_table[kind.index()] = rate;
+        }
 
         if self.house_levels.len() != HouseLevel::count() {
             log::error!(

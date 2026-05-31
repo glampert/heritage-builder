@@ -102,6 +102,17 @@ pub struct HouseConfig {
     // Max units of each resource a house will buy per market vendor visit.
     pub shop_batch_size: u32,
 
+    // Base consumption rate per resident, in units per day, keyed by ResourceKind.
+    // Kinds not listed here default to 1.0 unit/day (see `consumption_rate_table`).
+    #[debug_ui(skip)]
+    pub consumption_rates: Vec<(ResourceKind, f32)>,
+
+    // Runtime lookup built from `consumption_rates` in BuildingConfigs::post_load.
+    // Indexed by ResourceKind::index(); unset kinds default to 1.0 unit/day.
+    #[debug_ui(skip)]
+    #[serde(skip)]
+    pub consumption_rate_table: [f32; RESOURCE_KIND_COUNT],
+
     #[debug_ui(nested)]
     pub ambient_patrol: AmbientPatrolConfig,
 }
@@ -119,6 +130,14 @@ impl Default for HouseConfig {
             upgrade_update_frequency_secs: 10.0,
             generate_tax_frequency_secs: 60.0,
             shop_batch_size: 4,
+            consumption_rates: vec![
+                (ResourceKind::Rice, 1.0),
+                (ResourceKind::Meat, 0.5),
+                (ResourceKind::Fish, 0.5),
+                (ResourceKind::Wine, 0.25),
+                (ResourceKind::Pottery, 0.2),
+            ],
+            consumption_rate_table: [1.0; RESOURCE_KIND_COUNT],
             ambient_patrol: AmbientPatrolConfig {
                 unit: Some(UnitConfigKey::Dog),
                 spawn_frequency_secs: [80.0, 120.0],

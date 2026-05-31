@@ -101,6 +101,13 @@ impl ResourceKind {
         all.remove(exclude);
         all
     }
+
+    // Index of a single-resource flag, for use with `[_; RESOURCE_KIND_COUNT]` arrays.
+    #[inline]
+    pub fn index(self) -> usize {
+        debug_assert!(self.is_single_resource());
+        self.bits().trailing_zeros() as usize
+    }
 }
 
 pub const RESOURCE_KIND_COUNT: usize = ResourceKind::count();
