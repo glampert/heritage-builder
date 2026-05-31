@@ -4,6 +4,7 @@
     "stock_update_frequency_secs": 160.0,
     "upgrade_update_frequency_secs": 10.0,
     "generate_tax_frequency_secs": 60.0,
+    "shop_batch_size": 4,
     "ambient_patrol": {
       "unit": "Dog",
       "spawn_frequency_secs": [80.0, 120.0],

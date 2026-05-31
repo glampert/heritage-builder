@@ -99,6 +99,9 @@ pub struct HouseConfig {
     pub upgrade_update_frequency_secs: Seconds,
     pub generate_tax_frequency_secs: Seconds,
 
+    // Max units of each resource a house will buy per market vendor visit.
+    pub shop_batch_size: u32,
+
     #[debug_ui(nested)]
     pub ambient_patrol: AmbientPatrolConfig,
 }
@@ -115,6 +118,7 @@ impl Default for HouseConfig {
             stock_update_frequency_secs: 60.0,
             upgrade_update_frequency_secs: 10.0,
             generate_tax_frequency_secs: 60.0,
+            shop_batch_size: 4,
             ambient_patrol: AmbientPatrolConfig {
                 unit: Some(UnitConfigKey::Dog),
                 spawn_frequency_secs: [80.0, 120.0],
@@ -608,11 +612,41 @@ impl HouseBuilding {
             }
         }
 
-        shopping_list.for_each(|resource| {
-            let removed_count = market.remove_resources(resource, 1);
-            self.receive_resources(resource, removed_count);
-            true
-        });
+        // Buy up to our remaining capacity (capped per visit). For OR-groups we
+        // stock only a single member so we don't over-stock the whole group:
+        // prefer topping up a member we already hold, otherwise pick the first
+        // one the market can supply.
+        let shop_batch_size = BuildingConfigs::get().house_config().shop_batch_size;
+
+        for wanted_resources in shopping_list.iter() {
+            let mut target = None;
+
+            // Prefer a member already in stock so we keep building one buffer.
+            for single_resource in wanted_resources.iter() {
+                if self.available_resources(single_resource) != 0 {
+                    target = Some(single_resource);
+                    break;
+                }
+            }
+
+            // Otherwise take the first member the market has available.
+            if target.is_none() {
+                for single_resource in wanted_resources.iter() {
+                    if market.available_resources(single_resource) != 0 {
+                        target = Some(single_resource);
+                        break;
+                    }
+                }
+            }
+
+            if let Some(resource) = target {
+                let want = self.receivable_resources(resource).min(shop_batch_size);
+                if want != 0 {
+                    let removed_count = market.remove_resources(resource, want);
+                    self.receive_resources(resource, removed_count);
+                }
+            }
+        }
     }
 
     #[inline]
