@@ -58,25 +58,6 @@ use crate::{
 };
 
 // ----------------------------------------------
-// TODO List For Houses / Buildings:
-// ----------------------------------------------
-
-// - Resources should have individual rates of consumption. Some kinds of
-//   resources are consumed slower/faster than others.
-//
-// - Resources consumption rate should be expressed in units per day. The house
-//   occupancy should also influence the resources consumption rate.
-//
-// - Allow houses to stock up on more than 1 unit of each kind of resources?
-//   Could allow stocking up to a maximum number of units.
-//
-// - If houses stay without access to basic resources for too long (food/water),
-//   settlers may decide to leave (house may downgrade back to vacant lot).
-//
-// - Buildings that require workers should run slower if they are below max
-//   workers.
-
-// ----------------------------------------------
 // HouseConfig
 // ----------------------------------------------
 

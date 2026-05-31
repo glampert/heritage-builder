@@ -74,3 +74,7 @@ harness = false
 [[test]]
 name    = "campaign"
 harness = false
+
+[[test]]
+name    = "house_consumption"
+harness = false
