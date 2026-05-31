@@ -102,6 +102,13 @@ pub struct HouseConfig {
     // Max units of each resource a house will buy per market vendor visit.
     pub shop_batch_size: u32,
 
+    // How long (secs) a house tolerates lacking a basic need (food/water) before
+    // residents start leaving.
+    pub deprivation_grace_secs: Seconds,
+
+    // Number of residents evicted each time the deprivation grace window elapses.
+    pub eviction_batch_size: u32,
+
     // Base consumption rate per resident, in units per day, keyed by ResourceKind.
     // Kinds not listed here default to 1.0 unit/day (see `consumption_rate_table`).
     #[debug_ui(skip)]
@@ -130,6 +137,8 @@ impl Default for HouseConfig {
             upgrade_update_frequency_secs: 10.0,
             generate_tax_frequency_secs: 60.0,
             shop_batch_size: 4,
+            deprivation_grace_secs: 300.0,
+            eviction_batch_size: 2,
             consumption_rates: vec![
                 (ResourceKind::Rice, 1.0),
                 (ResourceKind::Meat, 0.5),
@@ -241,6 +250,9 @@ game_object_debug_options! {
 
     // Stops tax income from being generated.
     freeze_tax_generation: bool,
+
+    // Stops the deprivation timer from evicting settlers when basic needs go unmet.
+    freeze_deprivation: bool,
 }
 
 // ----------------------------------------------
@@ -275,6 +287,11 @@ pub struct HouseBuilding {
 
     upgrade_update_timer: UpdateTimer,
     upgrade_state: HouseUpgradeState,
+
+    // Continuous time (secs) the house has lacked a required basic need (food/water).
+    // Resets to zero once basics are satisfied; drives progressive eviction.
+    #[serde(default)]
+    deprivation_timer_secs: Seconds,
 
     generate_tax_timer: UpdateTimer,
     tax_available: u32,
@@ -536,6 +553,7 @@ impl HouseBuilding {
             consumption_accumulator: [0.0; RESOURCE_KIND_COUNT],
             upgrade_update_timer: UpdateTimer::new(house_config.upgrade_update_frequency_secs),
             upgrade_state,
+            deprivation_timer_secs: 0.0,
             generate_tax_timer: UpdateTimer::new(house_config.generate_tax_frequency_secs),
             tax_available: 0,
             ambient_patrol: TimedAmbientPatrol::new(rng, house_config.ambient_patrol.spawn_frequency_secs),
@@ -714,15 +732,60 @@ impl HouseBuilding {
     // Upgrade Update:
     // ----------------------
 
-    fn upgrade_update(&self, cmds: &mut SimCmds, context: &BuildingContext) {
+    fn upgrade_update(&mut self, cmds: &mut SimCmds, context: &BuildingContext) {
         debug_assert!(self.upgrade_state.curr_level_config.is_some());
         debug_assert!(self.upgrade_state.next_level_config.is_some());
 
-        // Attempt to upgrade or downgrade based on services and resources availability.
+        // Upgrade if we meet the next level's services and resources requirements.
         if self.upgrade_state.can_upgrade(context, &self.stock) {
             cmds.upgrade_house(context.kind_and_id(), HouseUpgradeDirection::Upgrade);
-        } else if self.upgrade_state.can_downgrade(context, &self.stock) {
+            self.deprivation_timer_secs = 0.0;
+            return;
+        }
+
+        // Evaluate the current level requirements for downgrade / deprivation.
+        let curr_level_requirements =
+            HouseLevelRequirements::new(context, self.upgrade_state.curr_level_config.unwrap(), &self.stock);
+
+        let has_deficiency = !self.level().is_min()
+            && (!curr_level_requirements.has_required_services() || !curr_level_requirements.has_required_resources());
+
+        let only_basic_deficiency = curr_level_requirements.is_only_basic_deficiency();
+
+        // Missing non-basic requirements (luxuries/extra services) downgrades the
+        // house immediately, as before.
+        if has_deficiency && !only_basic_deficiency {
             cmds.upgrade_house(context.kind_and_id(), HouseUpgradeDirection::Downgrade);
+        }
+
+        // Lacking only basic needs (food/water) instead drives the slower
+        // deprivation timer: settlers start leaving once the grace period elapses.
+        self.deprivation_update(cmds, context, only_basic_deficiency);
+    }
+
+    // Tracks how long a house has gone without a required basic need (food/water)
+    // and progressively evicts residents once the configured grace period elapses.
+    // Driven on the upgrade update cadence to reuse the already-computed
+    // requirements and avoid per-frame service proximity queries.
+    fn deprivation_update(&mut self, cmds: &mut SimCmds, context: &BuildingContext, deprived: bool) {
+        if self.debug.freeze_deprivation() {
+            return;
+        }
+
+        if !deprived {
+            self.deprivation_timer_secs = 0.0;
+            return;
+        }
+
+        let config = BuildingConfigs::get().house_config();
+        self.deprivation_timer_secs += config.upgrade_update_frequency_secs;
+
+        if self.deprivation_timer_secs >= config.deprivation_grace_secs {
+            let evicted = self.remove_population(cmds, context, config.eviction_batch_size);
+            if evicted != 0 {
+                debug_popup_msg_color!(self.debug, Color::red(), "Settlers left (no food/water)");
+            }
+            self.deprivation_timer_secs = 0.0; // Re-arm the grace window.
         }
     }
 
@@ -1249,6 +1312,24 @@ impl HouseLevelRequirements {
         }
 
         missing
+    }
+
+    // True if the level has unmet requirements and they consist solely of basic
+    // needs (food and/or well water). Such deficiencies are handled by the slower
+    // deprivation/eviction path instead of an immediate downgrade.
+    pub fn is_only_basic_deficiency(&self) -> bool {
+        let missing_resources = self.resources_missing();
+        let missing_services = self.services_missing();
+
+        if missing_resources.is_empty() && missing_services.is_empty() {
+            return false; // Nothing missing.
+        }
+
+        let wells = ServiceKind::SmallWell | ServiceKind::LargeWell;
+        let non_basic_resources = missing_resources.difference(ResourceKind::foods());
+        let non_basic_services = missing_services.difference(wells);
+
+        non_basic_resources.is_empty() && non_basic_services.is_empty()
     }
 }
 
