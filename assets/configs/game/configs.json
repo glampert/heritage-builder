@@ -19,7 +19,8 @@
   },
   "sim": {
     "starting_gold_units": 100,
-    "settlers_spawn_frequency_secs": 10.0
+    "settlers_spawn_frequency_secs": 10.0,
+    "seconds_per_day": 600.0
   },
   "save": {
     "enable_autosave": true,
