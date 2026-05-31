@@ -73,10 +73,6 @@ use crate::{
 // - If houses stay without access to basic resources for too long (food/water),
 //   settlers may decide to leave (house may downgrade back to vacant lot).
 //
-// - Should we make house access to services depend on it being visited by the
-//   service patrol unit? Right now access to a service is simply based on
-//   proximity to the building, measured from the house's road link tile.
-//
 // - Buildings that require workers should run slower if they are below max
 //   workers.
 
@@ -1076,10 +1072,17 @@ pub struct HouseLevelRequirements {
 
 impl HouseLevelRequirements {
     fn new(context: &BuildingContext, level_config: &'static HouseLevelConfig, stock: &BuildingStock) -> Self {
-        let mut reqs =
-            Self { level_config, services_available: ServiceKind::empty(), resources_available: ResourceKind::empty() };
+        let mut reqs = Self {
+            level_config,
+            services_available: ServiceKind::empty(),
+            resources_available: ResourceKind::empty(),
+        };
 
         level_config.services_required.for_each(|service| {
+            // TODO:
+            // Should we make house access to services depend on it being visited by the
+            // service patrol unit? Right now access to a service is simply based on
+            // proximity to the building, measured from the house's road link tile.
             if context.has_access_to_service(service) {
                 reqs.services_available.insert(service);
             }
