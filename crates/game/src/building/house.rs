@@ -83,11 +83,11 @@ pub struct HouseConfig {
     // Max units of each resource a house will buy per market vendor visit.
     pub shop_batch_size: u32,
 
-    // How long (secs) a house tolerates lacking a basic need (food/water) before
-    // residents start leaving.
+    // How long (secs) a Level 0 house tolerates lacking access to food and water
+    // before its residents start leaving the city.
     pub deprivation_grace_secs: Seconds,
 
-    // Number of residents evicted each time the deprivation grace window elapses.
+    // Number of residents that leave the city each time the deprivation grace window elapses.
     pub eviction_batch_size: u32,
 
     // Base consumption rate per resident, in units per day, keyed by ResourceKind.
@@ -118,7 +118,7 @@ impl Default for HouseConfig {
             upgrade_update_frequency_secs: 10.0,
             generate_tax_frequency_secs: 60.0,
             shop_batch_size: 4,
-            deprivation_grace_secs: 300.0,
+            deprivation_grace_secs: 200.0,
             eviction_batch_size: 2,
             consumption_rates: vec![
                 (ResourceKind::Rice, 1.0),
@@ -269,8 +269,9 @@ pub struct HouseBuilding {
     upgrade_update_timer: UpdateTimer,
     upgrade_state: HouseUpgradeState,
 
-    // Continuous time (secs) the house has lacked a required basic need (food/water).
-    // Resets to zero once basics are satisfied; drives progressive eviction.
+    // Continuous time (secs) a Level 0 house has lacked access to food and water.
+    // Resets to zero once access is restored; once it exceeds the configured grace
+    // it drives progressive emigration and blocks organic population growth.
     #[serde(default)]
     deprivation_timer_secs: Seconds,
 
@@ -447,7 +448,7 @@ impl BuildingBehavior for HouseBuilding {
     fn remove_population(&mut self, cmds: &mut SimCmds, context: &BuildingContext, count: u32) -> u32 {
         if count != 0 && self.population.count() != 0 {
             let amount_removed = self.population.remove(count);
-            self.evict_population(cmds, context, amount_removed);
+            self.evict_population(cmds, context, amount_removed, false);
             cmds.defer_building_update(context.kind_and_id(), |sim_ctx, building| {
                 let context = building.new_context(sim_ctx);
                 building.as_house_mut().adjust_workers_available(&context);
@@ -717,43 +718,34 @@ impl HouseBuilding {
         debug_assert!(self.upgrade_state.curr_level_config.is_some());
         debug_assert!(self.upgrade_state.next_level_config.is_some());
 
-        // Upgrade if we meet the next level's services and resources requirements.
+        // Attempt to upgrade or downgrade based on services and resources availability.
         if self.upgrade_state.can_upgrade(context, &self.stock) {
             cmds.upgrade_house(context.kind_and_id(), HouseUpgradeDirection::Upgrade);
-            self.deprivation_timer_secs = 0.0;
-            return;
-        }
-
-        // Evaluate the current level requirements for downgrade / deprivation.
-        let curr_level_requirements =
-            HouseLevelRequirements::new(context, self.upgrade_state.curr_level_config.unwrap(), &self.stock);
-
-        let has_deficiency = !self.level().is_min()
-            && (!curr_level_requirements.has_required_services() || !curr_level_requirements.has_required_resources());
-
-        let only_basic_deficiency = curr_level_requirements.is_only_basic_deficiency();
-
-        // Missing non-basic requirements (luxuries/extra services) downgrades the
-        // house immediately, as before.
-        if has_deficiency && !only_basic_deficiency {
+        } else if self.upgrade_state.can_downgrade(context, &self.stock) {
             cmds.upgrade_house(context.kind_and_id(), HouseUpgradeDirection::Downgrade);
         }
 
-        // Lacking only basic needs (food/water) instead drives the slower
-        // deprivation timer: settlers start leaving once the grace period elapses.
-        self.deprivation_update(cmds, context, only_basic_deficiency);
+        // Base-level (Level 0) houses that go without access to food and water for
+        // too long gradually lose their residents to emigration. Higher-level houses
+        // instead downgrade (above) as their requirements go unmet, eventually
+        // reaching Level 0 where this kicks in.
+        if self.level().is_min() {
+            self.basic_needs_deprivation_update(cmds, context);
+        } else {
+            self.deprivation_timer_secs = 0.0; // Only tracked while at Level 0.
+        }
     }
 
-    // Tracks how long a house has gone without a required basic need (food/water)
-    // and progressively evicts residents once the configured grace period elapses.
-    // Driven on the upgrade update cadence to reuse the already-computed
-    // requirements and avoid per-frame service proximity queries.
-    fn deprivation_update(&mut self, cmds: &mut SimCmds, context: &BuildingContext, deprived: bool) {
+    // A Level 0 house left without access to food and water for too long gradually
+    // evicts its residents toward the map exit (they leave the city rather than
+    // resettle), and won't grow its population while deprived. This lets a city
+    // left without basic needs met lose its population over time.
+    fn basic_needs_deprivation_update(&mut self, cmds: &mut SimCmds, context: &BuildingContext) {
         if self.debug.freeze_deprivation() {
             return;
         }
 
-        if !deprived {
+        if self.has_basic_needs_access(context) {
             self.deprivation_timer_secs = 0.0;
             return;
         }
@@ -762,12 +754,23 @@ impl HouseBuilding {
         self.deprivation_timer_secs += config.upgrade_update_frequency_secs;
 
         if self.deprivation_timer_secs >= config.deprivation_grace_secs {
-            let evicted = self.remove_population(cmds, context, config.eviction_batch_size);
-            if evicted != 0 {
-                debug_popup_msg_color!(self.debug, Color::red(), "Settlers left (no food/water)");
+            // Cap so it keeps firing each update for as long as the house stays deprived.
+            self.deprivation_timer_secs = config.deprivation_grace_secs;
+
+            let emigrated = self.emigrate_population(cmds, context, config.eviction_batch_size);
+            if emigrated != 0 {
+                debug_popup_msg_color!(self.debug, Color::red(), "{emigrated} settlers leaving the city");
             }
-            self.deprivation_timer_secs = 0.0; // Re-arm the grace window.
         }
+    }
+
+    // A house has its basic needs met when it has access to both a source of water
+    // (a well) and a source of food (a market).
+    fn has_basic_needs_access(&self, context: &BuildingContext) -> bool {
+        let has_water = context.has_access_to_service(BuildingKind::SmallWell)
+                           || context.has_access_to_service(BuildingKind::LargeWell);
+        let has_food = context.has_access_to_service(BuildingKind::Market);
+        has_water && has_food
     }
 
     pub fn is_upgrade_available(&self, context: &BuildingContext) -> bool {
@@ -856,7 +859,7 @@ impl HouseBuilding {
         // residents first.
         if new_population > new_max_population {
             let amount_to_evict = new_population - new_max_population;
-            self.evict_population(cmds, context, amount_to_evict);
+            self.evict_population(cmds, context, amount_to_evict, false);
             new_population -= amount_to_evict;
         }
 
@@ -936,6 +939,11 @@ impl HouseBuilding {
             return;
         }
 
+        // No organic growth while the house is deprived of basic needs (food/water).
+        if self.deprivation_timer_secs > 0.0 {
+            return;
+        }
+
         let rng = context.sim_ctx.rng_mut();
         let chance = self.current_level_config().population_increase_chance.min(100);
         let increase_population = rng.random_ratio(chance, 100);
@@ -961,16 +969,38 @@ impl HouseBuilding {
         }
     }
 
-    fn evict_population(&mut self, cmds: &mut SimCmds, context: &BuildingContext, amount_to_evict: u32) {
+    // Evicts residents from the house. When `emigrate` is true the evicted settlers
+    // head for the map exit and leave the city; otherwise they look for somewhere
+    // else to settle.
+    fn evict_population(&mut self, cmds: &mut SimCmds, context: &BuildingContext, amount_to_evict: u32, emigrate: bool) {
         let unit_origin = context.road_link_or_building_access_tile();
         if !unit_origin.is_valid() {
             log::error!(log::channel!("house"), "Failed to find a vacant cell to spawn evicted unit!");
             return;
         }
 
-        Settler::try_spawn(cmds, context.sim_ctx, unit_origin, amount_to_evict);
+        if emigrate {
+            Settler::try_emigrate(cmds, context.sim_ctx, unit_origin, amount_to_evict);
+        } else {
+            Settler::try_spawn(cmds, context.sim_ctx, unit_origin, amount_to_evict);
+        }
 
         debug_popup_msg_color!(self.debug, Color::red(), "Evicted {amount_to_evict} residents");
+    }
+
+    // Like remove_population, but the evicted residents leave the city (head for the
+    // map exit) instead of trying to resettle elsewhere.
+    fn emigrate_population(&mut self, cmds: &mut SimCmds, context: &BuildingContext, count: u32) -> u32 {
+        if count != 0 && self.population.count() != 0 {
+            let amount_removed = self.population.remove(count);
+            self.evict_population(cmds, context, amount_removed, true);
+            cmds.defer_building_update(context.kind_and_id(), |sim_ctx, building| {
+                let context = building.new_context(sim_ctx);
+                building.as_house_mut().adjust_workers_available(&context);
+            });
+            return amount_removed;
+        }
+        0
     }
 
     fn adjust_population(&mut self, cmds: &mut SimCmds, context: &BuildingContext, new_population: u32, new_max: u32) {
@@ -982,7 +1012,7 @@ impl HouseBuilding {
 
             if curr_population < prev_population {
                 let amount_to_evict = prev_population - curr_population;
-                self.evict_population(cmds, context, amount_to_evict);
+                self.evict_population(cmds, context, amount_to_evict, false);
             }
         }
     }
@@ -1293,24 +1323,6 @@ impl HouseLevelRequirements {
         }
 
         missing
-    }
-
-    // True if the level has unmet requirements and they consist solely of basic
-    // needs (food and/or well water). Such deficiencies are handled by the slower
-    // deprivation/eviction path instead of an immediate downgrade.
-    pub fn is_only_basic_deficiency(&self) -> bool {
-        let missing_resources = self.resources_missing();
-        let missing_services = self.services_missing();
-
-        if missing_resources.is_empty() && missing_services.is_empty() {
-            return false; // Nothing missing.
-        }
-
-        let wells = ServiceKind::SmallWell | ServiceKind::LargeWell;
-        let non_basic_resources = missing_resources.difference(ResourceKind::foods());
-        let non_basic_services = missing_services.difference(wells);
-
-        non_basic_resources.is_empty() && non_basic_services.is_empty()
     }
 }
 

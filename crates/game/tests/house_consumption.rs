@@ -3,6 +3,8 @@ use game::{
     building::BuildingKindAndId,
     debug::game_object_debug::GameObjectDebugVarRef,
     sim::{resources::ResourceKind, SimCmdQueue},
+    tile::{TileFlags, TileKind},
+    unit::config::UnitConfigKey,
 };
 
 mod test_utils;
@@ -18,7 +20,8 @@ fn main() {
     test_utils::run_tests("House Consumption", &[
         test_utils::test_fn!(test_under_staffed_building_runs_at_reduced_efficiency),
         test_utils::test_fn!(test_house_consumption_scales_with_occupancy),
-        test_utils::test_fn!(test_non_basic_deficiency_downgrades_house_immediately),
+        test_utils::test_fn!(test_house_downgrades_when_requirements_unmet),
+        test_utils::test_fn!(test_deprived_level0_house_loses_population_to_emigration),
     ]);
 }
 
@@ -164,13 +167,12 @@ fn test_house_consumption_scales_with_occupancy() {
 }
 
 // ----------------------------------------------
-// Deprivation grace vs. immediate downgrade
+// Downgrade when requirements are unmet
 // ----------------------------------------------
 
-// A house missing a *non-basic* requirement (here: no Market access) still
-// downgrades immediately rather than waiting out the deprivation grace window,
-// which only covers basic needs (food/water).
-fn test_non_basic_deficiency_downgrades_house_immediately() {
+// A house whose level requirements (services/resources) go unmet downgrades on the
+// next upgrade tick, walking back down toward the base Level 0.
+fn test_house_downgrades_when_requirements_unmet() {
     let mut env = TestEnvironment::with_map_size(Size::new(12, 12));
     test_utils::fill_terrain(&mut env, "grass");
 
@@ -178,14 +180,49 @@ fn test_non_basic_deficiency_downgrades_house_immediately() {
     let _house = test_utils::spawn_building(&mut env, cell, "house1");
     assert_eq!(house_level_name(&env, cell), "House Level 1", "should spawn as Level 1");
 
-    // No food, no nearby services -> the missing Market is a non-basic requirement,
-    // so the house should downgrade on the next upgrade tick (every 10s) rather
-    // than entering the slow deprivation/eviction path.
+    // No food and no nearby services means the Level 1 requirements can't be met,
+    // so the house should downgrade on the next upgrade tick (every 10s).
     test_utils::tick_n(&mut env, 6, 5.0); // ~30s
 
     assert_eq!(
         house_level_name(&env, cell),
         "House Level 0",
-        "missing a non-basic requirement should downgrade the house immediately"
+        "a house that can't meet its level requirements should downgrade"
+    );
+}
+
+// ----------------------------------------------
+// Level 0 basic-needs deprivation -> emigration
+// ----------------------------------------------
+
+// A Level 0 house left without access to food and water (no nearby market/well)
+// for long enough loses all of its residents to emigration.
+fn test_deprived_level0_house_loses_population_to_emigration() {
+    let mut env = TestEnvironment::with_map_size(Size::new(12, 12));
+    test_utils::fill_terrain(&mut env, "grass");
+
+    // A map exit (spawn point) so the evicted settlers can actually leave the map.
+    env.tile_map.set_tile_flags(Cell::new(0, 0), TileKind::Terrain, TileFlags::SettlersSpawnPoint, true);
+
+    let cell = Cell::new(5, 5);
+    let house = test_utils::spawn_building(&mut env, cell, "house0");
+
+    // Give it residents. With no well or market nearby it has access to neither
+    // water nor food, so it is deprived of its basic needs.
+    add_house_population(&mut env, house, 2);
+    assert_eq!(test_utils::find_building(&env, house).population_count(), 2, "house should start populated");
+
+    // Over time the deprived house should evict its residents (toward the map exit)
+    // until it is empty, and must not regrow while deprived. Tick until both the
+    // house is empty and the emigrating settler has left the map.
+    test_utils::tick_until(&mut env, 2000, 10.0, |env| {
+        test_utils::find_building(env, house).population_count() == 0
+            && test_utils::find_unit_by_config(env, UnitConfigKey::Settler).is_none()
+    });
+
+    assert_eq!(
+        test_utils::find_building(&env, house).population_count(),
+        0,
+        "a Level 0 house without food/water access should lose all its population"
     );
 }

@@ -186,6 +186,7 @@ impl Settler {
                 }),
                 fallback_to_houses_with_room: true,
                 return_to_spawn_point_if_failed: true,
+                emigrate: false,
                 population_to_add,
                 state: UnitTaskSettlerState::default(),
                 visit_outcome: None,
@@ -193,6 +194,39 @@ impl Settler {
             |_context, result| {
                 if let Err(err) = result {
                     log::error!(log::channel!("unit"), "SettlersSpawnSystem: {}", err.message);
+                }
+            },
+        );
+    }
+
+    // Spawns a settler that carries `population_leaving` residents straight to the
+    // map exit (spawn point) and leaves, without trying to settle a lot or house.
+    // Used to evict residents from houses left without basic needs for too long.
+    pub fn try_emigrate(cmds: &mut SimCmds, context: &SimContext, unit_origin: Cell, population_leaving: u32) {
+        debug_assert!(unit_origin.is_valid());
+        debug_assert!(population_leaving != 0);
+
+        Unit::try_spawn_with_task_deferred_cb(cmds, context, unit_origin, UnitConfigKey::Settler,
+            UnitTaskSettler {
+                completion_callback: Callback::default(),
+                completion_task: context.task_manager_mut().new_task(UnitTaskDespawnWithCallback {
+                    post_despawn: UnitPostDespawnCb {
+                        // Reuses on_settled, which is a no-op when the unit leaves via the spawn point exit.
+                        callback: callback::create!(Settler::on_settled),
+                        args: UnitTaskArgs::new(&[UnitTaskArg::U32(population_leaving)]),
+                    },
+                    state: UnitTaskDespawnWithCallbackState::default(),
+                }),
+                fallback_to_houses_with_room: false,
+                return_to_spawn_point_if_failed: true,
+                emigrate: true,
+                population_to_add: population_leaving,
+                state: UnitTaskSettlerState::default(),
+                visit_outcome: None,
+            },
+            |_context, result| {
+                if let Err(err) = result {
+                    log::error!(log::channel!("unit"), "Settler emigration: {}", err.message);
                 }
             },
         );

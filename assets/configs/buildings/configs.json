@@ -5,7 +5,7 @@
     "upgrade_update_frequency_secs": 10.0,
     "generate_tax_frequency_secs": 60.0,
     "shop_batch_size": 4,
-    "deprivation_grace_secs": 300.0,
+    "deprivation_grace_secs": 200.0,
     "eviction_batch_size": 2,
     "consumption_rates": [
       ["Rice", 1.0],

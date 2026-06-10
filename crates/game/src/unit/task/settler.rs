@@ -70,6 +70,11 @@ pub struct UnitTaskSettler {
     // If we can't find either an empty lot or a house, find a way back to the spawn point and leave.
     pub return_to_spawn_point_if_failed: bool,
 
+    // If true, the settler does not attempt to settle anywhere: it heads straight
+    // for the spawn point exit and leaves the map (used for evicted/emigrating residents).
+    #[serde(default)]
+    pub emigrate: bool,
+
     // Amount to add once settled into a new lot or house.
     pub population_to_add: u32,
 
@@ -88,54 +93,58 @@ impl UnitTaskSettler {
         let traversable_node_kinds = ctx.unit.traversable_node_kinds();
         let bias = RandomDirectionalBias::new(sim_context.rng_mut(), 0.1, 0.5);
 
-        // First try to find an empty lot we can settle:
-        {
-            let result =
-                sim_context.find_path_to_node(&bias, traversable_node_kinds, start, PathNodeKind::VacantLot);
+        // Emigrating settlers don't settle anywhere; they head straight for the exit.
+        if !self.emigrate {
+            // First try to find an empty lot we can settle:
+            {
+                let result =
+                    sim_context.find_path_to_node(&bias, traversable_node_kinds, start, PathNodeKind::VacantLot);
 
-            if let SearchResult::PathFound(path) = result {
-                ctx.unit.move_to_goal(path, UnitNavGoal::tile(start, path));
-                return Some(UnitTaskSettlerGoal::VacantLot);
+                if let SearchResult::PathFound(path) = result {
+                    ctx.unit.move_to_goal(path, UnitNavGoal::tile(start, path));
+                    return Some(UnitTaskSettlerGoal::VacantLot);
+                }
             }
-        }
 
-        // Alternatively try to find a house with room that can take this settler.
-        if self.fallback_to_houses_with_room {
-            let result = sim_context.find_nearest_buildings(
-                start,
-                BuildingKind::House,
-                traversable_node_kinds,
-                None,
-                |building, _path| {
-                    if let Some(population) = building.population() {
-                        if !population.is_max() {
-                            return false; // Accept this building and end the search.
+            // Alternatively try to find a house with room that can take this settler.
+            if self.fallback_to_houses_with_room {
+                let result = sim_context.find_nearest_buildings(
+                    start,
+                    BuildingKind::House,
+                    traversable_node_kinds,
+                    None,
+                    |building, _path| {
+                        if let Some(population) = building.population() {
+                            if !population.is_max() {
+                                return false; // Accept this building and end the search.
+                            }
                         }
-                    }
-                    true // Continue search.
-                },
-            );
-
-            if let Some((building, path)) = result {
-                ctx.unit.move_to_goal(
-                    path,
-                    UnitNavGoal::building(
-                        BuildingKind::empty(), // Unused.
-                        start,
-                        building.kind(),
-                        BuildingTileInfo {
-                            // NOTE: Always use path goal cell; house may not be connected to a road, so we use any available access tile.
-                            road_link: path.last().unwrap().cell,
-                            base_cell: building.base_cell(),
-                        },
-                    ),
+                        true // Continue search.
+                    },
                 );
-                return Some(UnitTaskSettlerGoal::House);
+
+                if let Some((building, path)) = result {
+                    ctx.unit.move_to_goal(
+                        path,
+                        UnitNavGoal::building(
+                            BuildingKind::empty(), // Unused.
+                            start,
+                            building.kind(),
+                            BuildingTileInfo {
+                                // NOTE: Always use path goal cell; house may not be connected to a road, so we use any available access tile.
+                                road_link: path.last().unwrap().cell,
+                                base_cell: building.base_cell(),
+                            },
+                        ),
+                    );
+                    return Some(UnitTaskSettlerGoal::House);
+                }
             }
         }
 
-        // If we can't find any viable destination, move back to the settler spawn point and abort.
-        if self.return_to_spawn_point_if_failed {
+        // If we're emigrating, or we couldn't find any viable destination, move back
+        // to the settler spawn point and leave the map.
+        if self.emigrate || self.return_to_spawn_point_if_failed {
             let result =
                 sim_context.find_path_to_node(&bias, traversable_node_kinds, start, PathNodeKind::SettlersSpawnPoint);
 
@@ -319,6 +328,7 @@ impl UnitTask for UnitTaskSettler {
         ui.separator();
         ui.text(format!("Fallback To Houses With Room    : {}", self.fallback_to_houses_with_room));
         ui.text(format!("Return To Spawn Point If Failed : {}", self.return_to_spawn_point_if_failed));
+        ui.text(format!("Emigrate (leave map)            : {}", self.emigrate));
         ui.text(format!("Traversable Node Kinds          : {}", unit.traversable_node_kinds()));
     }
 }
