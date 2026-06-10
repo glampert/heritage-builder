@@ -60,7 +60,7 @@ impl GameSystem for SettlersSpawnSystem {
         if self.spawn_timer.tick(context.delta_time_secs()).should_update() {
             // Only attempt to spawn if we have any empty housing lots available.
             if Self::has_vacant_lots(context) {
-                self.try_spawn(cmds, context);
+                self.spawn_settler(cmds, context);
             }
         }
     }
@@ -98,7 +98,7 @@ impl GameSystem for SettlersSpawnSystem {
         }
 
         if ui.button("Force Spawn Now") {
-            self.try_spawn(cmds, context);
+            self.spawn_settler(cmds, context);
         }
 
         if ui.button("Highlight Spawn Point") {
@@ -132,7 +132,6 @@ impl SettlersSpawnSystem {
         context.graph().has_vacant_lot_nodes()
     }
 
-    #[inline]
     fn find_spawn_point(cmds: &mut SimCmds, context: &SimContext) -> Node {
         context.graph().settlers_spawn_point().unwrap_or_else(|| {
             // Fallback to map playable area top-left corner cell if no spawn point it set.
@@ -155,9 +154,9 @@ impl SettlersSpawnSystem {
         })
     }
 
-    fn try_spawn(&self, cmds: &mut SimCmds, context: &SimContext) {
+    fn spawn_settler(&self, cmds: &mut SimCmds, context: &SimContext) {
         let spawn_point = Self::find_spawn_point(cmds, context);
-        Settler::try_spawn(cmds, context, spawn_point.cell, self.population_per_settler_unit);
+        Settler::spawn(cmds, context, spawn_point.cell, self.population_per_settler_unit);
     }
 }
 
@@ -168,7 +167,7 @@ impl SettlersSpawnSystem {
 pub struct Settler;
 
 impl Settler {
-    pub fn try_spawn(cmds: &mut SimCmds, context: &SimContext, unit_origin: Cell, population_to_add: u32) {
+    pub fn spawn(cmds: &mut SimCmds, context: &SimContext, unit_origin: Cell, population_to_add: u32) {
         debug_assert!(unit_origin.is_valid());
         debug_assert!(population_to_add != 0);
 
@@ -202,7 +201,7 @@ impl Settler {
     // Spawns a settler that carries `population_leaving` residents straight to the
     // map exit (spawn point) and leaves, without trying to settle a lot or house.
     // Used to evict residents from houses left without basic needs for too long.
-    pub fn try_emigrate(cmds: &mut SimCmds, context: &SimContext, unit_origin: Cell, population_leaving: u32) {
+    pub fn emigrate(cmds: &mut SimCmds, context: &SimContext, unit_origin: Cell, population_leaving: u32) {
         debug_assert!(unit_origin.is_valid());
         debug_assert!(population_leaving != 0);
 

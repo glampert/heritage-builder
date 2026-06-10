@@ -980,9 +980,9 @@ impl HouseBuilding {
         }
 
         if emigrate {
-            Settler::try_emigrate(cmds, context.sim_ctx, unit_origin, amount_to_evict);
+            Settler::emigrate(cmds, context.sim_ctx, unit_origin, amount_to_evict);
         } else {
-            Settler::try_spawn(cmds, context.sim_ctx, unit_origin, amount_to_evict);
+            Settler::spawn(cmds, context.sim_ctx, unit_origin, amount_to_evict);
         }
 
         debug_popup_msg_color!(self.debug, Color::red(), "Evicted {amount_to_evict} residents");

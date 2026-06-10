@@ -1020,7 +1020,7 @@ fn spawn_settler(env: &mut TestEnvironment, origin: Cell, population: u32) -> Un
     let mut cmds = SimCmds::default();
     {
         let context = env.new_sim_context(0.0);
-        Settler::try_spawn(&mut cmds, &context, origin, population);
+        Settler::spawn(&mut cmds, &context, origin, population);
         cmds.execute(&context);
     }
     find_unit_by_config(&env, UnitConfigKey::Settler)
