@@ -28,6 +28,11 @@ Tests — the only integration test uses a **custom harness** (`harness = false`
 - Integration tests: edit the `test_utils::run_tests(&[...])` list in e.g.: [sim_cmds.rs](crates/game/tests/sim_cmds.rs). The harness does not accept filter args.
 - The harness calls `setup()` once on the main thread because several globals use `SingleThreadStatic` and will assert if touched from a different thread. Do not parallelize tests.
 
+Save-load smoke test (verifies save-file compatibility):
+- `cargo run -p HeritageBuilder -- --smoke-test-saves`
+- Run mode of the game binary (see `SaveSmokeTest` in [game_loop.rs](crates/game/src/game_loop.rs)): loads every file in `saves/` in sequence, ticks each ~10s, **panics on any failed load**, then quits with exit 0 on success. Autosave is disabled in this mode so saves aren't overwritten.
+- Run it after changing any serialized type (`GameSession` and its fields). Preserve save compatibility with `#[serde(default)]` / `#[serde(skip)]` on new fields.
+
 ## Workspace layout
 
 - `crates/launcher` — binary crate `HeritageBuilder`; `main()` is just `runner::run::<GameLoop>()`. This is the only executable target for the game.
