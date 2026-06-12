@@ -1,5 +1,5 @@
 use common::hash::{self, PreHashedKeyMap, StringHash};
-use engine::{log, ui::UiSystem};
+use engine::{log, ui::{DrawDebugUi, UiSystem}};
 use num_enum::TryFromPrimitive;
 use proc_macros::DrawDebugUi;
 use serde::{Deserialize, Serialize};
@@ -35,7 +35,7 @@ pub enum UnitConfigKey {
 // UnitConfig
 // ----------------------------------------------
 
-#[derive(DrawDebugUi, Serialize, Deserialize)]
+#[derive(Clone, DrawDebugUi, Serialize, Deserialize)]
 pub struct UnitConfig {
     pub name: String,
     pub tile_def_name: String,
@@ -158,9 +158,10 @@ impl UnitConfigs {
         }
     }
 
-    fn draw_debug_ui_with_header(&'static self, _header: &str, ui_sys: &UiSystem) {
-        for config in &self.configs {
-            config.draw_debug_ui_with_header(&config.name, ui_sys);
+    pub fn draw_debug_ui_with_header(&mut self, _header: &str, ui_sys: &UiSystem) {
+        for config in &mut self.configs {
+            let name = config.name.clone();
+            config.draw_debug_ui_with_header(&name, ui_sys);
         }
     }
 }

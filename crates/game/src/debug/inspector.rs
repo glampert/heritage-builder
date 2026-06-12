@@ -1,6 +1,6 @@
 use arrayvec::ArrayString;
 use common::{Color, Size, Vec2, constants::*, coords::Cell, format_fixed_string, mem::RawPtr, time::Seconds};
-use engine::ui::{self, UiSystem};
+use engine::ui::{self, DrawDebugUi};
 use proc_macros::DrawDebugUi;
 use strum::{VariantArray, VariantNames};
 
@@ -238,7 +238,7 @@ impl TileInspectorDevMenu {
             color: Color,
         }
 
-        let debug_vars = DrawDebugUiVariables {
+        let mut debug_vars = DrawDebugUiVariables {
             name: tile.name(),
             category: tile.category_name(),
             kind: tile.kind(),
@@ -413,7 +413,7 @@ impl TileInspectorDevMenu {
             frame_play_time_secs: Seconds,
         }
 
-        let debug_vars = DrawDebugUiVariables {
+        let mut debug_vars = DrawDebugUiVariables {
             anim_set_count,
             anim_frames_count: tile.anim_frames_count(),
             anim_duration_secs: anim_set.anim_duration_secs(),

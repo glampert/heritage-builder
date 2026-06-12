@@ -2,7 +2,6 @@ use serde::{Deserialize, Serialize};
 use strum::Display;
 
 use common::{coords::Cell, time::Seconds};
-use engine::ui::UiSystem;
 use proc_macros::DrawDebugUi;
 
 use super::anim::{UnitAnimSetKey, UnitAnimSets};

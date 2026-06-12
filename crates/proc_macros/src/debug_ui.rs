@@ -164,16 +164,6 @@ fn calc_field_name_padding(fields: &Punctuated<Field, Comma>) -> usize {
     longest_field_name + 1
 }
 
-fn has_any_edit_attr(fields: &Punctuated<Field, Comma>) -> bool {
-    for field in fields.iter() {
-        let attrs = parse_debug_ui_attrs(&field.attrs);
-        if attrs.edit.is_some() {
-            return true;
-        }
-    }
-    false
-}
-
 fn snake_case_to_title(s: &str) -> String {
     s.split('_')
         .map(|word| {
@@ -204,7 +194,6 @@ pub fn draw_debug_ui_proc_macro_impl(input: proc_macro::TokenStream) -> proc_mac
     };
 
     let field_name_padding = calc_field_name_padding(&fields);
-    let has_any_edit_attr = has_any_edit_attr(&fields);
 
     let field_lines = fields.iter().map(|field| {
         let attrs = parse_debug_ui_attrs(&field.attrs);
@@ -359,7 +348,10 @@ pub fn draw_debug_ui_proc_macro_impl(input: proc_macro::TokenStream) -> proc_mac
                 FieldKind::Unknown => {
                     if attrs.nested {
                         // Nested structure with its own draw_debug_ui method.
-                        quote! { self.#field_name.draw_debug_ui_with_header(stringify!(#field_name), ui_sys); }
+                        quote! {
+                            ::engine::ui::DrawDebugUi::draw_debug_ui_with_header(
+                                &mut self.#field_name, stringify!(#field_name), ui_sys);
+                        }
                     } else {
                         // Fallback: Try format Display text.
                         quote! { ui.text(format!(#format_str_lit, self.#field_name)); }
@@ -371,7 +363,8 @@ pub fn draw_debug_ui_proc_macro_impl(input: proc_macro::TokenStream) -> proc_mac
         } else if attrs.nested {
             // Nested structure with its own draw_debug_ui method.
             tokens.extend(quote! {
-                self.#field_name.draw_debug_ui_with_header(stringify!(#field_name), ui_sys);
+                ::engine::ui::DrawDebugUi::draw_debug_ui_with_header(
+                    &mut self.#field_name, stringify!(#field_name), ui_sys);
             });
         } else {
             // Read only text field.
@@ -389,29 +382,18 @@ pub fn draw_debug_ui_proc_macro_impl(input: proc_macro::TokenStream) -> proc_mac
         tokens.into()
     });
 
-    // If we have edit widgets we need mut self, else just self is fine.
-    let self_argument = {
-        if has_any_edit_attr {
-            quote! { &mut self }
-        } else {
-            quote! { &self }
-        }
-    };
-
     // Add all generics, lifetimes, etc to the impl block.
     let (impl_generics, ty_generics, where_clause) = input.generics.split_for_impl();
 
+    // Implement the unified `engine::ui::DrawDebugUi` trait. The receiver is always
+    // `&mut self` (the trait signature); `draw_debug_ui_with_header` comes from the
+    // trait's default method. Paths are fully-qualified so the generated code resolves
+    // identically in the engine crate (via `extern crate self as engine;`) and game crate.
     let output = quote! {
-        impl #impl_generics #struct_name #ty_generics #where_clause {
-            pub fn draw_debug_ui(#self_argument, ui_sys: &UiSystem) {
+        impl #impl_generics ::engine::ui::DrawDebugUi for #struct_name #ty_generics #where_clause {
+            fn draw_debug_ui(&mut self, ui_sys: &::engine::ui::UiSystem) {
                 let ui = ui_sys.ui();
                 #(#field_lines)*
-            }
-            pub fn draw_debug_ui_with_header(#self_argument, header: &str, ui_sys: &UiSystem) {
-                let ui = ui_sys.ui();
-                if ui.collapsing_header(header, imgui::TreeNodeFlags::empty()) {
-                    self.draw_debug_ui(ui_sys);
-                }
             }
         }
     };

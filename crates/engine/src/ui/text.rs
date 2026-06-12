@@ -3,7 +3,7 @@ use common::hash::{self, NULL_HASH, PreHashedKeyMap, StringHash};
 use serde::{Deserialize, Serialize};
 use strum::EnumCount;
 
-use crate::{config::Configs, configurations, log, ui::UiSystem};
+use crate::{configurations, log, ui::UiSystem};
 
 // ----------------------------------------------
 // Public API
@@ -27,7 +27,8 @@ pub fn find_str(category: UiTextCategory, key: UiTextKey) -> Option<&'static str
 }
 
 pub fn draw_debug_ui(ui_sys: &UiSystem) {
-    UiTextStoreSingleton::get().draw_debug_ui(ui_sys);
+    use crate::ui::DrawDebugUi;
+    UiTextStoreSingleton::get_mut().draw_debug_ui(ui_sys);
 }
 
 // ----------------------------------------------
@@ -35,11 +36,11 @@ pub fn draw_debug_ui(ui_sys: &UiSystem) {
 // ----------------------------------------------
 
 #[derive(Default, Serialize, Deserialize)]
-struct UiKeyedString {
+pub(crate) struct UiKeyedString {
     #[serde(skip)]
     key_hash: UiTextKey,
-    key: String,
-    text: String,
+    pub(crate) key: String,
+    pub(crate) text: String,
 }
 
 // ----------------------------------------------
@@ -49,9 +50,9 @@ struct UiKeyedString {
 const UI_TEXT_CATEGORY_COUNT: usize = UiTextCategory::COUNT;
 
 #[derive(Serialize, Deserialize)]
-struct UiTextCategoryEntry {
-    category: UiTextCategory,
-    strings: Vec<UiKeyedString>,
+pub(crate) struct UiTextCategoryEntry {
+    pub(crate) category: UiTextCategory,
+    pub(crate) strings: Vec<UiKeyedString>,
 
     // Runtime lookup, patched on post_load.
     #[serde(skip)]
@@ -101,7 +102,7 @@ impl UiTextCategoryEntry {
 
 // Localized UI strings global store.
 #[derive(Default, Serialize, Deserialize)]
-struct UiTextStoreSingleton {
+pub(crate) struct UiTextStoreSingleton {
     categories: ArrayVec<UiTextCategoryEntry, UI_TEXT_CATEGORY_COUNT>,
 }
 
@@ -134,22 +135,9 @@ impl UiTextStoreSingleton {
         }
     }
 
-    fn draw_debug_ui_with_header(&'static self, _header: &str, ui_sys: &UiSystem) {
-        let ui = ui_sys.ui();
-
-        if ui.collapsing_header("Categories", imgui::TreeNodeFlags::empty()) {
-            ui.indent_by(10.0);
-            for entry in &self.categories {
-                if ui.collapsing_header(format!("{:?}", entry.category), imgui::TreeNodeFlags::empty()) {
-                    ui.indent_by(10.0);
-                    for (index, string) in entry.strings.iter().enumerate() {
-                        ui.text(format!("[{}]: key:'{}', text:'{}'", index, string.key, string.text));
-                    }
-                    ui.unindent_by(10.0);
-                }
-            }
-            ui.unindent_by(10.0);
-        }
+    // Borrowed categories for the debug UI (see `engine::debug`).
+    pub(crate) fn categories(&self) -> &[UiTextCategoryEntry] {
+        self.categories.as_slice()
     }
 }
 

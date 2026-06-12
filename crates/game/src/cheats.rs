@@ -1,5 +1,4 @@
 use common::hash::{self, PreHashedKeyMap, StringHash};
-use engine::ui::UiSystem;
 use proc_macros::DrawDebugUi;
 
 // ----------------------------------------------

@@ -9,7 +9,7 @@ use common::{
     hash::{self, StringHash},
     time::{Seconds, UpdateTimer},
 };
-use engine::{log, ui::UiSystem};
+use engine::{log, ui::{DrawDebugUi, UiSystem}};
 use proc_macros::DrawDebugUi;
 
 use super::{
@@ -26,10 +26,7 @@ use crate::{
     save_context::PostLoadContext,
     world::{object::GameObject, stats::WorldStats},
     undo_redo::{GameObjectSavedState, game_object_undo_redo_state},
-    debug::{
-        game_object_debug::{GameObjectDebugOptions, debug_popup_msg, debug_popup_msg_color, game_object_debug_options},
-        utils::UpdateTimerDebugUi,
-    },
+    debug::game_object_debug::{GameObjectDebugOptions, debug_popup_msg, debug_popup_msg_color, game_object_debug_options},
     sim::{
         SimCmds,
         SimContext,
@@ -57,7 +54,7 @@ use crate::{
 // ProducerConfig
 // ----------------------------------------------
 
-#[derive(DrawDebugUi, Serialize, Deserialize)]
+#[derive(Clone, DrawDebugUi, Serialize, Deserialize)]
 pub struct ProducerConfig {
     pub kind: BuildingKind,
 
@@ -1076,7 +1073,7 @@ impl ProducerBuilding {
             }
         }
 
-        self.production_update_timer.draw_debug_ui("Update", 0, ui_sys);
+        self.production_update_timer.draw_debug_ui_with_header("Update", ui_sys);
         self.production_output_stock.draw_debug_ui(ui_sys);
 
         if ui.button("Fill Stock##_fill_output_stock") {
@@ -1094,7 +1091,7 @@ impl ProducerBuilding {
             return; // collapsed.
         }
 
-        self.ambient_patrol.spawn_timer.draw_debug_ui("Spawn Patrol", 0, ui_sys);
+        self.ambient_patrol.spawn_timer.draw_debug_ui_with_header("Spawn Patrol", ui_sys);
 
         if ui.button("Force Spawn Ambient Patrol") {
             self.spawn_ambient_patrol(cmds, context, true);

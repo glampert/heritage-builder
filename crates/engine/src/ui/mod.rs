@@ -29,11 +29,14 @@ use crate::{
     },
 };
 
+pub mod debug_ui;
 pub mod icons;
 pub mod sound;
 pub mod tests;
 pub mod text;
 pub mod widgets;
+
+pub use debug_ui::DrawDebugUi;
 
 // Internal implementation.
 mod internal;

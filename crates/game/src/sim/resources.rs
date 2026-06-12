@@ -1094,7 +1094,7 @@ impl<'de> Deserialize<'de> for ResourceStock {
 // ResourceList
 // ----------------------------------------------
 
-#[derive(Default, Serialize, Deserialize)]
+#[derive(Clone, Default, Serialize, Deserialize)]
 pub struct ResourceList<T, const CAPACITY: usize> {
     kinds: ArrayVec<T, CAPACITY>, // Each item can be a single bitflag or multiple ORed together.
 }

@@ -1,7 +1,7 @@
 use std::any::Any;
 
 use common::{callback::Callback, coords::Cell, time::UpdateTimer};
-use engine::{Engine, log};
+use engine::{Engine, log, ui::DrawDebugUi};
 use rand::seq::{IndexedRandom, IteratorRandom};
 use serde::{Deserialize, Serialize};
 use smallvec::SmallVec;
@@ -10,7 +10,6 @@ use strum::{EnumIter, IntoEnumIterator};
 use super::GameSystem;
 use crate::{
     config::GameConfigs,
-    debug::utils::UpdateTimerDebugUi,
     pathfind::{Node, Path},
     save_context::PostLoadContext,
     sim::{SimCmds, SimContext},
@@ -52,7 +51,7 @@ impl GameSystem for AmbientEffectsSystem {
     }
 
     fn draw_debug_ui(&mut self, engine: &mut Engine, cmds: &mut SimCmds, context: &SimContext) {
-        self.bird_spawn_timer.draw_debug_ui("Bird Spawn", 0, engine.ui_system());
+        self.bird_spawn_timer.draw_debug_ui_with_header("Bird Spawn", engine.ui_system());
 
         let ui = engine.ui_system().ui();
 

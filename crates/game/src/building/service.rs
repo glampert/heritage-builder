@@ -8,7 +8,7 @@ use common::{
     hash::{self, StringHash},
     time::{Seconds, UpdateTimer},
 };
-use engine::{log, ui::UiSystem};
+use engine::{log, ui::{DrawDebugUi, UiSystem}};
 use proc_macros::DrawDebugUi;
 
 use super::{
@@ -25,10 +25,7 @@ use crate::{
     save_context::PostLoadContext,
     world::{object::GameObject, stats::WorldStats},
     undo_redo::{GameObjectSavedState, game_object_undo_redo_state},
-    debug::{
-        game_object_debug::{GameObjectDebugOptions, debug_popup_msg_color, game_object_debug_options},
-        utils::UpdateTimerDebugUi,
-    },
+    debug::game_object_debug::{GameObjectDebugOptions, debug_popup_msg_color, game_object_debug_options},
     sim::{
         SimCmds,
         SimContext,
@@ -48,7 +45,7 @@ use crate::{
 // ServiceConfig
 // ----------------------------------------------
 
-#[derive(DrawDebugUi, Serialize, Deserialize)]
+#[derive(Clone, DrawDebugUi, Serialize, Deserialize)]
 pub struct ServiceConfig {
     pub kind: BuildingKind,
 
@@ -750,7 +747,7 @@ impl ServiceBuilding {
         }
 
         if let StockOrTreasury::Stock { update_timer, stock } = &mut self.stock_or_treasury {
-            update_timer.draw_debug_ui("Update", 0, ui_sys);
+            update_timer.draw_debug_ui_with_header("Update", ui_sys);
 
             if ui.button("Fill Stock") {
                 // Set all to capacity.
@@ -786,7 +783,7 @@ impl ServiceBuilding {
             }
         }
 
-        self.patrol_timer.draw_debug_ui("Patrol", 0, ui_sys);
+        self.patrol_timer.draw_debug_ui_with_header("Patrol", ui_sys);
 
         ui.text(format!("Spawn State: {:?}", self.patrol.spawn_state()));
 

@@ -9,7 +9,7 @@ use common::{
     hash::{self, StringHash},
     time::{Seconds, UpdateTimer},
 };
-use engine::{log, ui::UiSystem};
+use engine::{log, ui::{DrawDebugUi, UiSystem}};
 use proc_macros::DrawDebugUi;
 
 use super::{
@@ -29,10 +29,7 @@ use crate::{
     system::settlers::Settler,
     tile::{Tile, sets::TileDef},
     undo_redo::{GameObjectSavedState, game_object_undo_redo_state},
-    debug::{
-        utils::UpdateTimerDebugUi,
-        game_object_debug::{GameObjectDebugOptions, debug_popup_msg, debug_popup_msg_color, game_object_debug_options},
-    },
+    debug::game_object_debug::{GameObjectDebugOptions, debug_popup_msg, debug_popup_msg_color, game_object_debug_options},
     sim::{
         SimCmds,
         SimCmdQueue,
@@ -61,7 +58,7 @@ use crate::{
 // HouseConfig
 // ----------------------------------------------
 
-#[derive(DrawDebugUi, Serialize, Deserialize)]
+#[derive(Clone, DrawDebugUi, Serialize, Deserialize)]
 #[serde(default)] // Default all fields.
 pub struct HouseConfig {
     #[serde(skip)] // BuildingKind::House implied.
@@ -146,7 +143,7 @@ building_config! {
 // HouseLevelConfig
 // ----------------------------------------------
 
-#[derive(DrawDebugUi, Serialize, Deserialize)]
+#[derive(Clone, DrawDebugUi, Serialize, Deserialize)]
 pub struct HouseLevelConfig {
     #[serde(skip)] // BuildingKind::House implied.
     pub kind: BuildingKind,
@@ -1649,11 +1646,11 @@ impl HouseBuilding {
             return; // collapsed.
         }
 
-        self.population_update_timer.draw_debug_ui("Population Update", 0, ui_sys);
-        self.upgrade_update_timer.draw_debug_ui("Upgrade Update", 1, ui_sys);
-        self.stock_update_timer.draw_debug_ui("Stock Update", 2, ui_sys);
-        self.generate_tax_timer.draw_debug_ui("Gen Tax", 3, ui_sys);
-        self.ambient_patrol.spawn_timer.draw_debug_ui("Spawn Patrol", 4, ui_sys);
+        self.population_update_timer.draw_debug_ui_with_header("Population Update", ui_sys);
+        self.upgrade_update_timer.draw_debug_ui_with_header("Upgrade Update", ui_sys);
+        self.stock_update_timer.draw_debug_ui_with_header("Stock Update", ui_sys);
+        self.generate_tax_timer.draw_debug_ui_with_header("Gen Tax", ui_sys);
+        self.ambient_patrol.spawn_timer.draw_debug_ui_with_header("Spawn Patrol", ui_sys);
 
         if ui.button("Force Spawn Ambient Patrol") {
             self.spawn_ambient_patrol(cmds, context, true);

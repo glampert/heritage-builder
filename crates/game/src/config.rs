@@ -1,7 +1,7 @@
 use std::path::PathBuf;
 
 use common::{Size, time::Seconds};
-use engine::{config::EngineConfigs, runner::RunLoopConfigs, ui::UiSystem};
+use engine::{config::EngineConfigs, runner::RunLoopConfigs};
 use proc_macros::DrawDebugUi;
 use serde::{Deserialize, Serialize};
 use strum::Display;

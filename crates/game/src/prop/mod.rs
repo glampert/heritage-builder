@@ -7,7 +7,7 @@ use common::{
     hash::{self, StrHashPair, StringHash},
     time::{CountdownTimer, Seconds},
 };
-use engine::ui::{UiFontScale, UiStaticVar, UiSystem};
+use engine::ui::{DrawDebugUi, UiFontScale, UiStaticVar, UiSystem};
 
 use super::{
     undo_redo::GameObjectSavedState,
@@ -381,7 +381,9 @@ impl Prop {
     fn draw_debug_ui_detailed(&mut self, context: &SimContext, ui_sys: &UiSystem) {
         let ui = ui_sys.ui();
 
-        self.config.unwrap().draw_debug_ui_with_header("Config", ui_sys);
+        // Configs are static & read-only; clone to a local for the &mut display path.
+        let mut config = self.config.unwrap().clone();
+        config.draw_debug_ui_with_header("Config", ui_sys);
 
         // NOTE: Use the special ##id here so we don't collide with Tile/Properties.
         if !ui.collapsing_header("Properties##_prop_properties", imgui::TreeNodeFlags::empty()) {
@@ -397,7 +399,7 @@ impl Prop {
             harvestable_amount: u32,
             is_being_harvested: bool,
         }
-        let debug_vars = DrawDebugUiVariables {
+        let mut debug_vars = DrawDebugUiVariables {
             name: self.name(),
             cell: self.cell(),
             id: self.id(),

@@ -1,11 +1,10 @@
 use common::{Color, Size};
 use engine::{
     Engine,
-    config::Configs,
     file_sys::paths::PathRef,
     log,
     save,
-    ui::{self, UiStaticVar, UiSystem},
+    ui::{self, DrawDebugUi, UiStaticVar},
 };
 use proc_macros::DrawDebugUi;
 
@@ -488,19 +487,19 @@ impl DebugSettingsDevMenu {
             .build(|| {
                 if let Some(_tab_bar) = ui.tab_bar("Configs Tab Bar") {
                     if let Some(_tab) = ui.tab_item("Engine/Game") {
-                        GameConfigs::get().draw_debug_ui(context.ui_sys);
+                        GameConfigs::get_mut().draw_debug_ui_with_header("GameConfigs", context.ui_sys);
                     }
                     if let Some(_tab) = ui.tab_item("Buildings") {
-                        BuildingConfigs::get().draw_debug_ui(context.ui_sys);
+                        BuildingConfigs::get_mut().draw_debug_ui_with_header("BuildingConfigs", context.ui_sys);
                     }
                     if let Some(_tab) = ui.tab_item("Units") {
-                        UnitConfigs::get().draw_debug_ui(context.ui_sys);
+                        UnitConfigs::get_mut().draw_debug_ui_with_header("UnitConfigs", context.ui_sys);
                     }
                     if let Some(_tab) = ui.tab_item("Props") {
-                        PropConfigs::get().draw_debug_ui(context.ui_sys);
+                        PropConfigs::get_mut().draw_debug_ui_with_header("PropConfigs", context.ui_sys);
                     }
                     if let Some(_tab) = ui.tab_item("Campaigns") {
-                        CampaignConfigs::get().draw_debug_ui(context.ui_sys);
+                        CampaignConfigs::get_mut().draw_debug_ui_with_header("CampaignConfigs", context.ui_sys);
                     }
                     if let Some(_tab) = ui.tab_item("Ui Text") {
                         ui::text::draw_debug_ui(context.ui_sys);

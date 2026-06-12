@@ -1,7 +1,7 @@
 use std::collections::HashMap;
 
 use common::hash::{self, PreHashedKeyMap, StringHash};
-use engine::{log, ui::UiSystem};
+use engine::{log, ui::{DrawDebugUi, UiSystem}};
 use serde::{Deserialize, Serialize};
 
 use super::{
@@ -75,10 +75,13 @@ macro_rules! building_config {
                 true
             }
 
-            // This requires that the config struct derives from DrawDebugUi
-            // or that it provides a draw_debug_ui_with_header() function.
+            // Config structs are static & read-only, so clone into a local mutable
+            // copy to satisfy the `&mut self` DrawDebugUi display path (nothing is
+            // actually mutated when displaying read-only fields). Requires the config
+            // struct to derive `DrawDebugUi` and `Clone`.
             fn draw_debug_ui(&self, ui_sys: &engine::ui::UiSystem) {
-                self.draw_debug_ui_with_header("Config", ui_sys);
+                let mut config_copy = self.clone();
+                engine::ui::DrawDebugUi::draw_debug_ui_with_header(&mut config_copy, "Config", ui_sys);
             }
         }
     };
@@ -425,39 +428,43 @@ impl BuildingConfigs {
         }
     }
 
-    fn draw_debug_ui_with_header(&'static self, _header: &str, ui_sys: &UiSystem) {
+    pub fn draw_debug_ui_with_header(&mut self, _header: &str, ui_sys: &UiSystem) {
         let ui = ui_sys.ui();
 
         self.house_config.draw_debug_ui_with_header("House", ui_sys);
 
         if ui.collapsing_header("House Levels", imgui::TreeNodeFlags::empty()) {
             ui.indent_by(10.0);
-            for config in &self.house_levels {
-                config.draw_debug_ui_with_header(&config.name, ui_sys);
+            for config in &mut self.house_levels {
+                let name = config.name.clone();
+                config.draw_debug_ui_with_header(&name, ui_sys);
             }
             ui.unindent_by(10.0);
         }
 
         if ui.collapsing_header("Producers", imgui::TreeNodeFlags::empty()) {
             ui.indent_by(10.0);
-            for config in &self.producer_configs {
-                config.draw_debug_ui_with_header(&config.name, ui_sys);
+            for config in &mut self.producer_configs {
+                let name = config.name.clone();
+                config.draw_debug_ui_with_header(&name, ui_sys);
             }
             ui.unindent_by(10.0);
         }
 
         if ui.collapsing_header("Services", imgui::TreeNodeFlags::empty()) {
             ui.indent_by(10.0);
-            for config in &self.service_configs {
-                config.draw_debug_ui_with_header(&config.name, ui_sys);
+            for config in &mut self.service_configs {
+                let name = config.name.clone();
+                config.draw_debug_ui_with_header(&name, ui_sys);
             }
             ui.unindent_by(10.0);
         }
 
         if ui.collapsing_header("Storage", imgui::TreeNodeFlags::empty()) {
             ui.indent_by(10.0);
-            for config in &self.storage_configs {
-                config.draw_debug_ui_with_header(&config.name, ui_sys);
+            for config in &mut self.storage_configs {
+                let name = config.name.clone();
+                config.draw_debug_ui_with_header(&name, ui_sys);
             }
             ui.unindent_by(10.0);
         }

@@ -11,7 +11,7 @@ use common::{
 };
 use engine::{
     log,
-    ui::{self, UiDPadDirection, UiFontScale, UiStaticVar, UiSystem},
+    ui::{self, DrawDebugUi, UiDPadDirection, UiFontScale, UiStaticVar, UiSystem},
 };
 use proc_macros::DrawDebugUi;
 
@@ -104,7 +104,7 @@ impl Unit {
             id: UnitId,
             tile_index: TilePoolIndex,
         }
-        let debug_vars = DrawDebugUiVariables {
+        let mut debug_vars = DrawDebugUiVariables {
             name: self.name(),
             cell: self.cell(),
             id: self.id(),
@@ -115,6 +115,8 @@ impl Unit {
 
     fn draw_debug_ui_config(&mut self, ui_sys: &UiSystem) {
         if let Some(config) = self.config {
+            // Configs are static & read-only; clone to a local for the &mut display path.
+            let mut config = config.clone();
             config.draw_debug_ui_with_header("Config", ui_sys);
         }
     }

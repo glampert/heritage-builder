@@ -7,11 +7,10 @@ use common::{
 };
 use engine::{
     log,
-    ui::{UiFontScale, UiStaticVar, UiSystem},
+    ui::{DrawDebugUi, UiFontScale, UiStaticVar, UiSystem},
 };
 
 use super::*;
-use crate::debug::utils::UpdateTimerDebugUi;
 
 // ----------------------------------------------
 // Building Debug UI
@@ -122,7 +121,7 @@ impl Building {
                 road_link: Cell,
                 id: BuildingId,
             }
-            let debug_vars = DrawDebugUiVariables {
+            let mut debug_vars = DrawDebugUiVariables {
                 name: self.name(),
                 kind: self.kind(),
                 archetype: self.archetype_kind(),
@@ -135,7 +134,7 @@ impl Building {
 
         self.configs().draw_debug_ui(ui_sys);
 
-        if let Some(population) = self.archetype().population() {
+        if let Some(mut population) = self.archetype().population() {
             if ui.collapsing_header("Population", imgui::TreeNodeFlags::empty()) {
                 population.draw_debug_ui(ui_sys);
 
@@ -222,7 +221,7 @@ impl Building {
 
                 if is_employer {
                     // Only employers need to search for workers.
-                    self.workers_update_timer.draw_debug_ui("Update", 0, ui_sys);
+                    self.workers_update_timer.draw_debug_ui_with_header("Update", ui_sys);
                 }
             }
         }

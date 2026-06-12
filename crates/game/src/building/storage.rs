@@ -38,7 +38,7 @@ use crate::{
 // StorageConfig
 // ----------------------------------------------
 
-#[derive(DrawDebugUi, Serialize, Deserialize)]
+#[derive(Clone, DrawDebugUi, Serialize, Deserialize)]
 pub struct StorageConfig {
     pub kind: BuildingKind,
 

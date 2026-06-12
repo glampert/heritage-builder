@@ -2,7 +2,7 @@ use common::{
     hash::{self, PreHashedKeyMap, StringHash},
     time::Seconds,
 };
-use engine::{log, ui::UiSystem};
+use engine::{log, ui::{DrawDebugUi, UiSystem}};
 use proc_macros::DrawDebugUi;
 use serde::{Deserialize, Serialize};
 
@@ -12,7 +12,7 @@ use crate::sim::resources::ResourceKind;
 // PropConfig
 // ----------------------------------------------
 
-#[derive(DrawDebugUi, Serialize, Deserialize)]
+#[derive(Clone, DrawDebugUi, Serialize, Deserialize)]
 pub struct PropConfig {
     pub name: String,
     pub tile_def_name: String,
@@ -126,9 +126,10 @@ impl PropConfigs {
         }
     }
 
-    fn draw_debug_ui_with_header(&'static self, _header: &str, ui_sys: &UiSystem) {
-        for config in &self.configs {
-            config.draw_debug_ui_with_header(&config.name, ui_sys);
+    pub fn draw_debug_ui_with_header(&mut self, _header: &str, ui_sys: &UiSystem) {
+        for config in &mut self.configs {
+            let name = config.name.clone();
+            config.draw_debug_ui_with_header(&name, ui_sys);
         }
     }
 }

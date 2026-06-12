@@ -8,7 +8,7 @@ use common::{
     callback::{self, Callback},
     time::{CountdownTimer, Seconds, UpdateTimer},
 };
-use engine::ui::UiSystem;
+use engine::ui::{DrawDebugUi, UiSystem};
 use proc_macros::DrawDebugUi;
 
 use super::{
@@ -223,7 +223,7 @@ impl Patrol {
 // AmbientPatrolConfig
 // ----------------------------------------------
 
-#[derive(Default, DrawDebugUi, Serialize, Deserialize)]
+#[derive(Clone, Default, DrawDebugUi, Serialize, Deserialize)]
 #[serde(default)] // Default all fields.
 pub struct AmbientPatrolConfig {
     #[debug_ui(format = "Patrol Unit : {:?}")]

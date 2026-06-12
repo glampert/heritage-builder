@@ -8,13 +8,12 @@ use common::{
     time::UpdateTimer,
     callback::{self, Callback},
 };
-use engine::{Engine, log};
+use engine::{Engine, log, ui::DrawDebugUi};
 
 use super::GameSystem;
 use crate::{
     pathfind::Node,
     config::GameConfigs,
-    debug::utils::UpdateTimerDebugUi,
     save_context::PostLoadContext,
     building::BuildingKind,
     sim::{SimCmds, SimContext, SimCmdQueue, commands::ImmediateModeSimCmds},
@@ -74,7 +73,7 @@ impl GameSystem for SettlersSpawnSystem {
     }
 
     fn draw_debug_ui(&mut self, engine: &mut Engine, cmds: &mut SimCmds, context: &SimContext) {
-        self.spawn_timer.draw_debug_ui("Settler Spawn", 0, engine.ui_system());
+        self.spawn_timer.draw_debug_ui_with_header("Settler Spawn", engine.ui_system());
 
         let ui = engine.ui_system().ui();
 
