@@ -2,7 +2,8 @@ use std::any::Any;
 use serde::{Deserialize, Serialize};
 
 use common::callback::Callback;
-use engine::ui::UiSystem;
+use engine::ui::{DrawDebugUi, UiSystem};
+use proc_macros::DrawDebugUi;
 
 use super::{
     UnitTaskContext,
@@ -113,13 +114,21 @@ impl UnitTask for UnitTaskFollowPath {
     }
 
     fn draw_debug_ui(&mut self, _unit: &mut Unit, _sim_context: &SimContext, ui_sys: &UiSystem) {
-        let ui = ui_sys.ui();
-
         let start = self.path.first().unwrap().cell;
         let end   = self.path.last().unwrap().cell;
 
-        ui.text(format!("Path Start/End          : {start},{end}"));
-        ui.text(format!("Has Completion Callback : {}", self.completion_callback.is_valid()));
-        ui.text(format!("Has Completion Task     : {}", self.completion_task.is_some()));
+        #[derive(DrawDebugUi)]
+        struct View {
+            #[debug_ui(label = "Path Start/End")]
+            path_start_end: String,
+            has_completion_callback: bool,
+            has_completion_task: bool,
+        }
+        View {
+            path_start_end: format!("{start},{end}"),
+            has_completion_callback: self.completion_callback.is_valid(),
+            has_completion_task: self.completion_task.is_some(),
+        }
+        .draw_debug_ui(ui_sys);
     }
 }

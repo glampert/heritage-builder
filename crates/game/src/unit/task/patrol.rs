@@ -6,9 +6,11 @@ use common::{
     callback::Callback,
     time::{CountdownTimer, Seconds},
 };
-use engine::{log, ui::UiSystem};
+use engine::{log, ui::{DrawDebugUi, UiSystem}};
+use proc_macros::DrawDebugUi;
 
 use super::{
+    UnitTaskOriginBuildingDebug,
     UnitTaskContext,
     UnitTaskState,
     UnitTaskTransition,
@@ -19,7 +21,6 @@ use super::{
     with_task,
 };
 use crate::{
-    debug,
     pathfind::{
         Node,
         NodeKind as PathNodeKind,
@@ -30,7 +31,6 @@ use crate::{
         SearchResult,
     },
     sim::{SimCmdQueue, SimContext},
-    tile::TileMapLayerKind,
     unit::{Unit, navigation::{self, UnitDirection, UnitNavGoal}},
     building::{Building, BuildingKind, BuildingKindAndId, BuildingTileInfo},
     world::object::GameObject,
@@ -40,11 +40,15 @@ use crate::{
 // UnitPatrolPathRecord
 // ----------------------------------------------
 
-#[derive(Clone, Default, Serialize, Deserialize)]
+#[derive(Clone, Default, DrawDebugUi, Serialize, Deserialize)]
 pub struct UnitPatrolPathRecord {
+    #[debug_ui(label = "Previous Path Hashes")]
     history: PathHistory,
+    #[debug_ui(label = "Current Path Length")]
     current_length: u32,
+    #[debug_ui(label = "Current Path Direction")]
     current_direction: UnitDirection,
+    #[debug_ui(label = "Path History Same Axis")]
     repeated_axis_count: i32,
 }
 
@@ -63,14 +67,6 @@ impl UnitPatrolPathRecord {
 
         self.current_length = path.len() as u32;
         self.current_direction = new_direction;
-    }
-
-    pub fn draw_debug_ui(&self, ui_sys: &UiSystem) {
-        let ui = ui_sys.ui();
-        ui.text(format!("Previous Path Hashes    : {}", self.history));
-        ui.text(format!("Current Path Length     : {}", self.current_length));
-        ui.text(format!("Current Path Direction  : {}", self.current_direction));
-        ui.text(format!("Path History Same Axis  : {}", self.repeated_axis_count));
     }
 }
 
@@ -524,22 +520,37 @@ impl UnitTask for UnitTaskRandomizedPatrol {
     fn draw_debug_ui(&mut self, unit: &mut Unit, sim_context: &SimContext, ui_sys: &UiSystem) {
         let ui = ui_sys.ui();
 
-        let building_kind = self.origin_building.kind;
-        let building_cell = self.origin_building_tile.base_cell;
-        let building_name = debug::tile_name_at(building_cell, TileMapLayerKind::Objects);
-
-        ui.text(format!("Origin Building         : {}, '{}', {}", building_kind, building_name, building_cell));
-        ui.text(format!("State                   : {:?}", self.state));
-        ui.text(format!("Max Distance            : {}", self.max_distance));
-        ui.text(format!("Min Path Bias           : {}", self.path_bias_min));
-        ui.text(format!("Max Path Bias           : {}", self.path_bias_max));
+        #[derive(DrawDebugUi)]
+        struct View {
+            #[debug_ui(label = "Origin Building")]
+            origin_building: UnitTaskOriginBuildingDebug,
+            #[debug_ui(debug)]
+            state: UnitTaskPatrolState,
+            max_distance: i32,
+            #[debug_ui(label = "Min Path Bias")]
+            path_bias_min: f32,
+            #[debug_ui(label = "Max Path Bias")]
+            path_bias_max: f32,
+            buildings_to_visit: BuildingKind,
+            has_completion_callback: bool,
+            has_completion_task: bool,
+            #[debug_ui(label = "Idle Countdown Timer")]
+            idle_countdown_timer: f32,
+        }
+        View {
+            origin_building: UnitTaskOriginBuildingDebug::new(self.origin_building, self.origin_building_tile),
+            state: self.state,
+            max_distance: self.max_distance,
+            path_bias_min: self.path_bias_min,
+            path_bias_max: self.path_bias_max,
+            buildings_to_visit: self.buildings_to_visit.unwrap_or(BuildingKind::empty()),
+            has_completion_callback: self.completion_callback.is_valid(),
+            has_completion_task: self.completion_task.is_some(),
+            idle_countdown_timer: self.idle_countdown.as_ref().map_or(0.0, |(countdown, _)| countdown.remaining_secs()),
+        }
+        .draw_debug_ui(ui_sys);
 
         self.path_record.draw_debug_ui(ui_sys);
-
-        ui.text(format!("Buildings To Visit      : {}", self.buildings_to_visit.unwrap_or(BuildingKind::empty())));
-        ui.text(format!("Has Completion Callback : {}", self.completion_callback.is_valid()));
-        ui.text(format!("Has Completion Task     : {}", self.completion_task.is_some()));
-        ui.text(format!("Idle Countdown Timer    : {:.2}", self.idle_countdown.as_ref().map_or(0.0, |(countdown, _)| countdown.remaining_secs())));
 
         ui.separator();
 

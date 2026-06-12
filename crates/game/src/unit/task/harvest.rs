@@ -7,9 +7,11 @@ use common::{
     mem::SingleThreadStatic,
     time::{CountdownTimer, Seconds},
 };
-use engine::{log, ui::UiSystem};
+use engine::{log, ui::{DrawDebugUi, UiSystem}};
+use proc_macros::DrawDebugUi;
 
 use super::{
+    UnitTaskOriginBuildingDebug,
     UnitTaskContext,
     UnitTaskState,
     UnitTaskTransition,
@@ -20,7 +22,6 @@ use super::{
     with_task,
 };
 use crate::{
-    debug,
     pathfind::{
         self,
         Node,
@@ -29,7 +30,6 @@ use crate::{
         PathFilter,
         SearchResult,
     },
-    tile::TileMapLayerKind,
     prop::PropId,
     unit::{Unit, UnitId, navigation::UnitNavGoal},
     building::{Building, BuildingKindAndId, BuildingTileInfo},
@@ -437,19 +437,25 @@ impl UnitTask for UnitTaskHarvestWood {
     }
 
     fn draw_debug_ui(&mut self, _unit: &mut Unit, _sim_context: &SimContext, ui_sys: &UiSystem) {
-        let ui = ui_sys.ui();
-
-        let building_kind = self.origin_building.kind;
-        let building_cell = self.origin_building_tile.base_cell;
-        let building_name = debug::tile_name_at(building_cell, TileMapLayerKind::Objects);
-
-        ui.text(format!("Origin Building         : {}, '{}', {}", building_kind, building_name, building_cell));
-        ui.text(format!("State                   : {:?}", self.state));
-        ui.separator();
-        ui.text(format!("Harvest Target          : {}", self.harvest_target));
-        ui.text(format!("Harvest Countdown Timer : {:.2}", self.harvest_timer.remaining_secs()));
-        ui.separator();
-        ui.text(format!("Has Completion Callback : {}", self.completion_callback.is_valid()));
-        ui.text(format!("Has Completion Task     : {}", self.completion_task.is_some()));
+        #[derive(DrawDebugUi)]
+        struct View {
+            origin_building: UnitTaskOriginBuildingDebug,
+            #[debug_ui(debug, separator)]
+            state: UnitTaskHarvestState,
+            harvest_target: PropId,
+            #[debug_ui(separator)]
+            harvest_countdown_timer: f32,
+            has_completion_callback: bool,
+            has_completion_task: bool,
+        }
+        View {
+            origin_building: UnitTaskOriginBuildingDebug::new(self.origin_building, self.origin_building_tile),
+            state: self.state,
+            harvest_target: self.harvest_target,
+            harvest_countdown_timer: self.harvest_timer.remaining_secs(),
+            has_completion_callback: self.completion_callback.is_valid(),
+            has_completion_task: self.completion_task.is_some(),
+        }
+        .draw_debug_ui(ui_sys);
     }
 }

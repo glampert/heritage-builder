@@ -2,7 +2,8 @@ use std::any::Any;
 use serde::{Deserialize, Serialize};
 
 use common::callback::Callback;
-use engine::ui::UiSystem;
+use engine::ui::{DrawDebugUi, UiSystem};
+use proc_macros::DrawDebugUi;
 
 use super::{
     UnitTaskContext,
@@ -321,14 +322,25 @@ impl UnitTask for UnitTaskSettler {
     }
 
     fn draw_debug_ui(&mut self, unit: &mut Unit, _sim_context: &SimContext, ui_sys: &UiSystem) {
-        let ui = ui_sys.ui();
-
-        ui.text(format!("Population To Add               : {}", self.population_to_add));
-        ui.text(format!("State                           : {:?}", self.state));
-        ui.separator();
-        ui.text(format!("Fallback To Houses With Room    : {}", self.fallback_to_houses_with_room));
-        ui.text(format!("Return To Spawn Point If Failed : {}", self.return_to_spawn_point_if_failed));
-        ui.text(format!("Emigrate (leave map)            : {}", self.emigrate));
-        ui.text(format!("Traversable Node Kinds          : {}", unit.traversable_node_kinds()));
+        #[derive(DrawDebugUi)]
+        struct View {
+            population_to_add: u32,
+            #[debug_ui(debug, separator)]
+            state: UnitTaskSettlerState,
+            fallback_to_houses_with_room: bool,
+            return_to_spawn_point_if_failed: bool,
+            #[debug_ui(label = "Emigrate (leave map)")]
+            emigrate: bool,
+            traversable_node_kinds: PathNodeKind,
+        }
+        View {
+            population_to_add: self.population_to_add,
+            state: self.state,
+            fallback_to_houses_with_room: self.fallback_to_houses_with_room,
+            return_to_spawn_point_if_failed: self.return_to_spawn_point_if_failed,
+            emigrate: self.emigrate,
+            traversable_node_kinds: unit.traversable_node_kinds(),
+        }
+        .draw_debug_ui(ui_sys);
     }
 }

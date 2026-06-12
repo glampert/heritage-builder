@@ -1,11 +1,16 @@
 use std::any::Any;
+use std::fmt;
 use strum::Display;
 use serde::{Deserialize, Serialize};
 
+use ::common::coords::Cell;
 use engine::ui::UiSystem;
 
 use crate::{
+    debug,
+    building::{BuildingKind, BuildingKindAndId, BuildingTileInfo},
     sim::SimContext,
+    tile::TileMapLayerKind,
     unit::Unit,
 };
 
@@ -30,6 +35,33 @@ pub use manager::*;
 pub use patrol::*;
 pub use settler::*;
 pub use state_machine::*;
+
+// ----------------------------------------------
+// UnitTaskOriginBuildingDebug
+// ----------------------------------------------
+
+// Debug-only `Display` helper bundling a task's origin-building info (kind, name
+// and base cell) into a single line. Shared by the task `draw_debug_ui` view
+// structs so the repeated "Origin Building : Kind, 'Name', Cell" block is
+// expressed once and rendered automatically by `#[derive(DrawDebugUi)]`.
+pub(crate) struct UnitTaskOriginBuildingDebug {
+    kind: BuildingKind,
+    base_cell: Cell,
+}
+
+impl UnitTaskOriginBuildingDebug {
+    #[inline]
+    pub(crate) fn new(kind_and_id: BuildingKindAndId, tile: BuildingTileInfo) -> Self {
+        Self { kind: kind_and_id.kind, base_cell: tile.base_cell }
+    }
+}
+
+impl fmt::Display for UnitTaskOriginBuildingDebug {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        let name = debug::tile_name_at(self.base_cell, TileMapLayerKind::Objects);
+        write!(f, "{}, '{}', {}", self.kind, name, self.base_cell)
+    }
+}
 
 // ----------------------------------------------
 // UnitTaskArchetype

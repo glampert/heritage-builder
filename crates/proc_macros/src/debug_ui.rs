@@ -19,14 +19,15 @@ use syn::{
 // -------------------------------------------------------
 
 /*
-| Attribute                   | Effect                    |
-| --------------------------- | ------------------------- |
-| #[debug_ui(skip)]           | Skip the field entirely   |
-| #[debug_ui(separator)]      | Add ui.separator() after  |
-| #[debug_ui(nested)]         | Nested struct with own fn |
-| #[debug_ui(label = "...")]  | Override default label    |
-| #[debug_ui(format = "...")] | Use custom format string  |
-| #[debug_ui(edit = "...")]   | Use imgui edit widget     |
+| Attribute                   | Effect                         |
+| --------------------------- | ------------------------------ |
+| #[debug_ui(skip)]           | Skip the field entirely        |
+| #[debug_ui(separator)]      | Add ui.separator() after       |
+| #[debug_ui(nested)]         | Nested struct with own fn      |
+| #[debug_ui(debug)]          | Format value with {:?} (Debug) |
+| #[debug_ui(label = "...")]  | Override default label         |
+| #[debug_ui(format = "...")] | Use custom format string       |
+| #[debug_ui(edit = "...")]   | Use imgui edit widget          |
 
 | Only meaningful when used together with `edit`:
 | ----------------------------------- | -------------------------------- |
@@ -42,6 +43,7 @@ struct DebugUiAttrs {
     skip: bool,
     separator: bool,
     nested: bool,
+    debug: bool,
     label: Option<String>,
     format: Option<String>,
     edit: Option<String>,
@@ -67,6 +69,8 @@ fn parse_debug_ui_attrs(attrs: &[Attribute]) -> DebugUiAttrs {
                 result.separator = true;
             } else if meta.path.is_ident("nested") {
                 result.nested = true;
+            } else if meta.path.is_ident("debug") {
+                result.debug = true;
             } else if meta.path.is_ident("label") {
                 let value = meta.value()?;
                 let label: LitStr = value.parse()?;
@@ -213,6 +217,8 @@ pub fn draw_debug_ui_proc_macro_impl(input: proc_macro::TokenStream) -> proc_mac
         let format_str = attrs.format.unwrap_or_else(|| {
             let value_format_specifier = if field_kind == FieldKind::Float {
                 "{:.2}" // Use 2 decimal digits only for float variables.
+            } else if attrs.debug {
+                "{:?}" // Debug format (e.g. for enums that only derive Debug).
             } else {
                 "{}" // Default Display format.
             };

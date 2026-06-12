@@ -2,10 +2,12 @@ use std::any::Any;
 use serde::{Deserialize, Serialize};
 
 use common::callback::Callback;
-use engine::ui::UiSystem;
+use engine::ui::{DrawDebugUi, UiSystem};
+use proc_macros::DrawDebugUi;
 
 use super::{
     PathFindResult,
+    UnitTaskOriginBuildingDebug,
     UnitTaskContext,
     UnitTaskState,
     UnitTaskTransition,
@@ -18,8 +20,6 @@ use super::{
     with_task,
 };
 use crate::{
-    debug,
-    tile::TileMapLayerKind,
     sim::{SimContext, resources::ResourceKind},
     building::{Building, BuildingKind, BuildingKindAndId, BuildingTileInfo},
     unit::Unit,
@@ -236,21 +236,29 @@ impl UnitTask for UnitTaskDeliverToStorage {
     }
 
     fn draw_debug_ui(&mut self, _unit: &mut Unit, _sim_context: &SimContext, ui_sys: &UiSystem) {
-        let ui = ui_sys.ui();
-
-        let building_kind = self.origin_building.kind;
-        let building_cell = self.origin_building_tile.base_cell;
-        let building_name = debug::tile_name_at(building_cell, TileMapLayerKind::Objects);
-
-        ui.text(format!("Origin Building            : {}, '{}', {}", building_kind, building_name, building_cell));
-        ui.text(format!("State                      : {:?}", self.state));
-        ui.separator();
-        ui.text(format!("Storage Buildings Accepted : {}", self.storage_buildings_accepted));
-        ui.text(format!("Resource Kind To Deliver   : {}", self.resource_kind_to_deliver));
-        ui.text(format!("Resource Count             : {}", self.resource_count));
-        ui.separator();
-        ui.text(format!("Has Completion Callback    : {}", self.completion_callback.is_valid()));
-        ui.text(format!("Has Completion Task        : {}", self.completion_task.is_some()));
-        ui.text(format!("Allow Producer Fallback    : {}", self.allow_producer_fallback));
+        #[derive(DrawDebugUi)]
+        struct View {
+            origin_building: UnitTaskOriginBuildingDebug,
+            #[debug_ui(debug, separator)]
+            state: UnitTaskDeliveryState,
+            storage_buildings_accepted: BuildingKind,
+            resource_kind_to_deliver: ResourceKind,
+            #[debug_ui(separator)]
+            resource_count: u32,
+            has_completion_callback: bool,
+            has_completion_task: bool,
+            allow_producer_fallback: bool,
+        }
+        View {
+            origin_building: UnitTaskOriginBuildingDebug::new(self.origin_building, self.origin_building_tile),
+            state: self.state,
+            storage_buildings_accepted: self.storage_buildings_accepted,
+            resource_kind_to_deliver: self.resource_kind_to_deliver,
+            resource_count: self.resource_count,
+            has_completion_callback: self.completion_callback.is_valid(),
+            has_completion_task: self.completion_task.is_some(),
+            allow_producer_fallback: self.allow_producer_fallback,
+        }
+        .draw_debug_ui(ui_sys);
     }
 }
