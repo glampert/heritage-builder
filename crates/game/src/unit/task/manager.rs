@@ -1,8 +1,8 @@
 use slab::Slab;
 use serde::{Deserialize, Serialize};
 
-use common::{Color, mem};
-use engine::{log, ui::UiSystem};
+use common::mem;
+use engine::log;
 
 use super::{
     UnitTaskContext,
@@ -52,23 +52,6 @@ impl UnitTaskInstance {
 
     fn post_load(&mut self) {
         self.archetype.post_load();
-    }
-
-    fn draw_debug_ui(&mut self, unit: &mut Unit, context: &SimContext, ui_sys: &UiSystem) {
-        let ui = ui_sys.ui();
-
-        let (status_color, status_text) = if self.started {
-            (Color::green(), "Status : Running")
-        } else {
-            (Color::yellow(), "Status : Not started")
-        };
-
-        ui.text(format!("Task   : {}", self.archetype));
-        ui.text_colored(status_color.to_array(), status_text);
-
-        ui.separator();
-
-        self.archetype.draw_debug_ui(unit, context, ui_sys);
     }
 }
 
@@ -258,6 +241,17 @@ impl UnitTaskManager {
         Some((&task.archetype, task.started))
     }
 
+    // Mutable counterpart of `try_get_task_archetype_and_started`, used by the
+    // debug UI (see `crate::debug::unit`) to render the task's own panel.
+    #[inline]
+    pub(crate) fn try_get_task_archetype_and_started_mut(
+        &mut self,
+        task_id: UnitTaskId,
+    ) -> Option<(&mut UnitTaskArchetype, bool)> {
+        let task = self.task_pool.try_get_mut(task_id)?;
+        Some((&mut task.archetype, task.started))
+    }
+
     pub fn run_unit_tasks(&mut self, unit: &mut Unit, cmds: &mut SimCmds, context: &SimContext) {
         if let Some(current_task_id) = unit.current_task() {
             if let Some(task) = self.task_pool.try_get_mut(current_task_id) {
@@ -295,23 +289,5 @@ impl UnitTaskManager {
 
     pub fn post_load(&mut self) {
         self.task_pool.post_load();
-    }
-
-    pub fn draw_tasks_debug_ui(&mut self, unit: &mut Unit, context: &SimContext, ui_sys: &UiSystem) {
-        let ui = ui_sys.ui();
-
-        if !ui.collapsing_header("Tasks", imgui::TreeNodeFlags::empty()) {
-            return; // collapsed.
-        }
-
-        if let Some(current_task_id) = unit.current_task() {
-            if let Some(task) = self.task_pool.try_get_mut(current_task_id) {
-                task.draw_debug_ui(unit, context, ui_sys);
-            } else if cfg!(debug_assertions) {
-                panic!("Unit '{}' current TaskId is invalid: {}", unit.name(), current_task_id);
-            }
-        } else {
-            ui.text("<no task>");
-        }
     }
 }

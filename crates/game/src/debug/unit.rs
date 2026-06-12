@@ -150,7 +150,33 @@ impl Unit {
     }
 
     fn draw_debug_ui_tasks(&mut self, context: &SimContext, ui_sys: &UiSystem) {
-        context.task_manager_mut().draw_tasks_debug_ui(self, context, ui_sys);
+        let ui = ui_sys.ui();
+
+        if !ui.collapsing_header("Tasks", imgui::TreeNodeFlags::empty()) {
+            return; // collapsed.
+        }
+
+        if let Some(current_task_id) = self.current_task() {
+            if let Some((archetype, started)) =
+                context.task_manager_mut().try_get_task_archetype_and_started_mut(current_task_id)
+            {
+                let (status_color, status_text) = if started {
+                    (Color::green(), "Status : Running")
+                } else {
+                    (Color::yellow(), "Status : Not started")
+                };
+
+                ui.text(format!("Task   : {}", archetype));
+                ui.text_colored(status_color.to_array(), status_text);
+                ui.separator();
+
+                archetype.draw_debug_ui(self, context, ui_sys);
+            } else if cfg!(debug_assertions) {
+                panic!("Unit '{}' current TaskId is invalid: {}", self.name(), current_task_id);
+            }
+        } else {
+            ui.text("<no task>");
+        }
     }
 
     fn draw_debug_ui_navigation(&mut self, context: &SimContext, ui_sys: &UiSystem) {
