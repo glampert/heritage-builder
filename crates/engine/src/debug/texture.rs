@@ -1,6 +1,6 @@
-use common::format_fixed_string;
 use num_enum::TryFromPrimitive;
 use strum::VariantArray;
+use common::format_small;
 
 use crate::{
     render::texture::{TextureCache, TextureFilter, TextureSettings, TextureWrapMode},
@@ -59,7 +59,7 @@ fn draw_loaded_textures(cache: &TextureCache, ui: &imgui::Ui) {
         if val { "yes" } else { "no" }
     };
 
-    ui.text(format_fixed_string!(64, "Loaded Count: {}", cache.loaded_textures_count()));
+    ui.text(format_small!("Loaded Count: {}", cache.loaded_textures_count()));
     ui.separator();
 
     // Set number of rows (emulated with columns):
@@ -77,13 +77,13 @@ fn draw_loaded_textures(cache: &TextureCache, ui: &imgui::Ui) {
     ui.separator();
 
     for info in cache.loaded_textures_debug_info() {
-        table_col(&format_fixed_string!(64, "{}", info.index));
+        table_col(&format_small!("{}", info.index));
         table_col(info.name);
-        table_col(&format_fixed_string!(64, "{}x{}", info.size.width, info.size.height));
+        table_col(&format_small!("{}x{}", info.size.width, info.size.height));
         table_col(bool_str(info.allow_settings_change));
         table_col(bool_str(info.has_mipmaps));
-        table_col(&format_fixed_string!(64, "{}", info.filter));
-        table_col(&format_fixed_string!(64, "{}", info.wrap_mode));
+        table_col(&format_small!("{}", info.filter));
+        table_col(&format_small!("{}", info.wrap_mode));
     }
 
     // Return to single column.

@@ -38,6 +38,7 @@ pub mod utils;
 
 mod inspector;
 mod palette;
+mod prop;
 mod settings;
 
 // ----------------------------------------------

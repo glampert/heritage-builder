@@ -1,5 +1,4 @@
 use serde::{Deserialize, Serialize};
-use proc_macros::DrawDebugUi;
 
 use common::{
     Color,
@@ -7,7 +6,7 @@ use common::{
     hash::{self, StrHashPair, StringHash},
     time::{CountdownTimer, Seconds},
 };
-use engine::ui::{DrawDebugUi, UiFontScale, UiStaticVar, UiSystem};
+use engine::ui::UiSystem;
 
 use super::{
     undo_redo::GameObjectSavedState,
@@ -151,22 +150,9 @@ impl GameObject for Prop {
         self.harvestable.initial_variation = saved_state.initial_variation;
     }
 
-    fn draw_debug_ui(&mut self, _cmds: &mut SimCmds, context: &SimContext, ui_sys: &UiSystem, mode: DebugUiMode) {
-        debug_assert!(self.is_spawned());
-
-        match mode {
-            DebugUiMode::Overview => {
-                self.draw_debug_ui_overview(context, ui_sys);
-            }
-            DebugUiMode::Detailed => {
-                let ui = ui_sys.ui();
-                if ui.collapsing_header("Prop", imgui::TreeNodeFlags::empty()) {
-                    ui.indent_by(10.0);
-                    self.draw_debug_ui_detailed(context, ui_sys);
-                    ui.unindent_by(10.0);
-                }
-            }
-        }
+    fn draw_debug_ui(&mut self, cmds: &mut SimCmds, context: &SimContext, ui_sys: &UiSystem, mode: DebugUiMode) {
+        // Debug-UI drawing lives in `crate::debug::prop`.
+        self.draw_debug_ui_dispatch(cmds, context, ui_sys, mode);
     }
 
     fn draw_debug_popups(
@@ -264,6 +250,17 @@ impl Prop {
         self.harvestable.harvester_unit.is_valid()
     }
 
+    // Accessors for the debug UI (see `crate::debug::prop`).
+    #[inline]
+    pub(crate) fn harvestable_respawn_remaining_secs(&self) -> Seconds {
+        self.harvestable.respawn_timer.remaining_secs()
+    }
+
+    #[inline]
+    pub(crate) fn config(&self) -> &'static PropConfig {
+        self.config.expect("Prop config not set!")
+    }
+
     #[inline]
     pub fn harvester_unit(&self) -> UnitId {
         debug_assert!(self.is_spawned());
@@ -298,7 +295,7 @@ impl Prop {
         StockItem { kind: resource, count: amount_harvested }
     }
 
-    fn respawn_harvestable(&mut self, context: &SimContext) {
+    pub(crate) fn respawn_harvestable(&mut self, context: &SimContext) {
         let config = self.config.unwrap();
         self.harvestable.amount = config.harvestable_amount;
         self.harvestable.respawn_timer.reset(config.respawn_time_secs);
@@ -354,76 +351,4 @@ impl Prop {
             .expect("Prop should have an associated Tile in the TileMap!")
     }
 
-    // ----------------------
-    // Debug UI:
-    // ----------------------
-
-    fn draw_debug_ui_overview(&mut self, _context: &SimContext, ui_sys: &UiSystem) {
-        let ui = ui_sys.ui();
-
-        ui_sys.set_window_font_scale(UiFontScale(1.2));
-        ui.text(format!("{} | ID{} @{}", self.name(), self.id(), self.cell()));
-        ui_sys.set_window_font_scale(UiFontScale::default());
-
-        let color_bullet_text = |label: &str, value: u32| {
-            ui.bullet_text(format!("{label}:"));
-            ui.same_line();
-            if value == 0 {
-                ui.text_colored(Color::red().to_array(), format!("{value}"));
-            } else {
-                ui.text(format!("{value}"));
-            }
-        };
-
-        color_bullet_text(&format!("Harvestable {}", self.harvestable.resource), self.harvestable.amount);
-    }
-
-    fn draw_debug_ui_detailed(&mut self, context: &SimContext, ui_sys: &UiSystem) {
-        let ui = ui_sys.ui();
-
-        // Configs are static & read-only; clone to a local for the &mut display path.
-        let mut config = self.config.unwrap().clone();
-        config.draw_debug_ui_with_header("Config", ui_sys);
-
-        // NOTE: Use the special ##id here so we don't collide with Tile/Properties.
-        if !ui.collapsing_header("Properties##_prop_properties", imgui::TreeNodeFlags::empty()) {
-            return; // collapsed.
-        }
-
-        #[derive(DrawDebugUi)]
-        struct DrawDebugUiVariables<'a> {
-            name: &'a str,
-            cell: Cell,
-            id: PropId,
-            harvestable_resource: ResourceKind,
-            harvestable_amount: u32,
-            is_being_harvested: bool,
-        }
-        let mut debug_vars = DrawDebugUiVariables {
-            name: self.name(),
-            cell: self.cell(),
-            id: self.id(),
-            harvestable_resource: self.harvestable.resource,
-            harvestable_amount: self.harvestable.amount,
-            is_being_harvested: self.is_being_harvested(),
-        };
-        debug_vars.draw_debug_ui(ui_sys);
-
-        if self.is_harvestable() {
-            if self.harvestable.amount == 0 {
-                ui.text(format!("Time Until Respawn   : {:.2}", self.harvestable.respawn_timer.remaining_secs()));
-            }
-
-            static HARVEST_AMOUNT: UiStaticVar<u32> = UiStaticVar::new(1);
-            ui.input_scalar("Harvest Amount", HARVEST_AMOUNT.as_mut()).step(1).build();
-
-            if ui.button("Harvest") {
-                self.harvest(context, *HARVEST_AMOUNT);
-            }
-
-            if ui.button("Respawn Now") {
-                self.respawn_harvestable(context);
-            }
-        }
-    }
 }

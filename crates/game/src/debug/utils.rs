@@ -112,47 +112,47 @@ pub fn draw_render_perf_stats(ui_sys: &UiSystem, render_sys_stats: &RenderStats,
     ui::overlay(ui, "Render Stats", position, 0.8, || {
         ui.text_colored(Color::yellow().to_array(),
             format_small!("Render submit     : {:.2}ms",
-                               render_sys_stats.render_submit_time_ms));
+                          render_sys_stats.render_submit_time_ms));
 
         ui.text_colored(Color::yellow().to_array(),
             format_small!("Tiles drawn       : {} | Peak: {}",
-                               tile_render_stats.tiles_drawn,
-                               tile_render_stats.peak_tiles_drawn));
+                          tile_render_stats.tiles_drawn,
+                          tile_render_stats.peak_tiles_drawn));
 
         ui.text_colored(Color::yellow().to_array(),
             format_small!("Triangles drawn   : {} | Peak: {}",
-                               render_sys_stats.triangles_drawn,
-                               render_sys_stats.peak_triangles_drawn));
+                          render_sys_stats.triangles_drawn,
+                          render_sys_stats.peak_triangles_drawn));
 
         ui.text_colored(Color::yellow().to_array(),
             format_small!("Texture changes   : {} | Peak: {}",
-                               render_sys_stats.texture_changes,
-                               render_sys_stats.peak_texture_changes));
+                          render_sys_stats.texture_changes,
+                          render_sys_stats.peak_texture_changes));
 
         ui.text_colored(Color::yellow().to_array(),
             format_small!("Draw calls        : {} | Peak: {}",
-                               render_sys_stats.draw_calls,
-                               render_sys_stats.peak_draw_calls));
+                          render_sys_stats.draw_calls,
+                          render_sys_stats.peak_draw_calls));
 
         ui.text(format_small!("Tile sort list    : {} | Peak: {}",
-                             tile_render_stats.tile_sort_list_len,
-                             tile_render_stats.peak_tile_sort_list_len));
+                              tile_render_stats.tile_sort_list_len,
+                              tile_render_stats.peak_tile_sort_list_len));
 
         ui.text(format_small!("Tiles highlighted : {} | Peak: {}",
-                             tile_render_stats.tiles_drawn_highlighted,
-                             tile_render_stats.peak_tiles_drawn_highlighted));
+                              tile_render_stats.tiles_drawn_highlighted,
+                              tile_render_stats.peak_tiles_drawn_highlighted));
 
         ui.text(format_small!("Tiles invalidated : {} | Peak: {}",
-                             tile_render_stats.tiles_drawn_invalidated,
-                             tile_render_stats.peak_tiles_drawn_invalidated));
+                              tile_render_stats.tiles_drawn_invalidated,
+                              tile_render_stats.peak_tiles_drawn_invalidated));
 
         ui.text(format_small!("Lines drawn       : {} | Peak: {}",
-                             render_sys_stats.lines_drawn,
-                             render_sys_stats.peak_lines_drawn));
+                              render_sys_stats.lines_drawn,
+                              render_sys_stats.peak_lines_drawn));
 
         ui.text(format_small!("Points drawn      : {} | Peak: {}",
-                             render_sys_stats.points_drawn,
-                             render_sys_stats.peak_points_drawn));
+                              render_sys_stats.points_drawn,
+                              render_sys_stats.peak_points_drawn));
     });
 }
 
