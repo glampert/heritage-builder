@@ -9,7 +9,6 @@ use serde::{Deserialize, Serialize};
 
 use anim::*;
 use config::*;
-use inventory::*;
 use navigation::*;
 use patrol::*;
 use task::*;
@@ -55,8 +54,8 @@ pub mod patrol;
 pub mod runner;
 pub mod task;
 
-mod debug;
 mod inventory;
+pub(crate) use inventory::UnitInventory;
 
 // ----------------------------------------------
 // UnitDebug
@@ -139,21 +138,8 @@ impl GameObject for Unit {
     }
 
     fn draw_debug_ui(&mut self, cmds: &mut SimCmds, context: &SimContext, ui_sys: &UiSystem, mode: DebugUiMode) {
-        debug_assert!(self.is_spawned());
-
-        match mode {
-            DebugUiMode::Overview => {
-                self.draw_debug_ui_overview(context, ui_sys);
-            }
-            DebugUiMode::Detailed => {
-                let ui = ui_sys.ui();
-                if ui.collapsing_header("Unit", imgui::TreeNodeFlags::empty()) {
-                    ui.indent_by(10.0);
-                    self.draw_debug_ui_detailed(cmds, context, ui_sys);
-                    ui.unindent_by(10.0);
-                }
-            }
-        }
+        // Debug-UI drawing lives in `crate::debug::unit`.
+        self.draw_debug_ui_dispatch(cmds, context, ui_sys, mode);
     }
 
     fn draw_debug_popups(
@@ -233,6 +219,42 @@ impl Unit {
     pub fn tile_index(&self) -> TilePoolIndex {
         debug_assert!(self.is_spawned());
         self.tile_index
+    }
+
+    // Accessors for the debug UI (see `crate::debug::unit`).
+    #[inline]
+    pub(crate) fn config(&self) -> &'static UnitConfig {
+        self.config.expect("Unit config not set!")
+    }
+
+    #[inline]
+    pub(crate) fn direction(&self) -> UnitDirection {
+        self.direction
+    }
+
+    #[inline]
+    pub(crate) fn current_anim_name(&self) -> &'static str {
+        self.anim_sets.current_anim_name()
+    }
+
+    #[inline]
+    pub(crate) fn navigation(&self) -> &UnitNavigation {
+        &self.navigation
+    }
+
+    #[inline]
+    pub(crate) fn navigation_mut(&mut self) -> &mut UnitNavigation {
+        &mut self.navigation
+    }
+
+    #[inline]
+    pub(crate) fn inventory_mut(&mut self) -> &mut UnitInventory {
+        &mut self.inventory
+    }
+
+    #[inline]
+    pub(crate) fn debug_mut(&mut self) -> &mut UnitDebug {
+        &mut self.debug
     }
 
     // Teleports to new tile cell and updates direction and animation.
@@ -605,7 +627,7 @@ impl Unit {
     // ----------------------
 
     pub fn register_callbacks() {
-        debug::register_callbacks();
+        Self::register_debug_callbacks();
         Patrol::register_callbacks();
     }
 
@@ -614,7 +636,7 @@ impl Unit {
     // ----------------------
 
     #[inline]
-    fn find_tile<'game>(&self, context: &'game SimContext) -> &'game Tile {
+    pub(crate) fn find_tile<'game>(&self, context: &'game SimContext) -> &'game Tile {
         let tile = context.tile_at_index(self.tile_index, TileMapLayerKind::Objects);
         debug_assert!(tile.is(TileKind::Unit));
         tile
@@ -627,7 +649,7 @@ impl Unit {
         tile
     }
 
-    fn idle(&mut self, context: &SimContext) {
+    pub(crate) fn idle(&mut self, context: &SimContext) {
         if self.direction != UnitDirection::Idle {
             let idle_anim_set_key = navigation::idle_anim_set_for_direction(self.direction);
 

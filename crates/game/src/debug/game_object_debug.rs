@@ -229,7 +229,7 @@ macro_rules! game_object_debug_options {
     ) => {
         paste::paste! {
             #[derive(Clone, Default)]
-            struct $struct_name {
+            pub(crate) struct $struct_name {
                 popups: $crate::debug::game_object_debug::GameObjectDebugPopups,
                 $(
                     [<opt_ $field_name>] : $field_type,

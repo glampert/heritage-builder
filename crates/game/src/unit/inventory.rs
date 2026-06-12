@@ -1,5 +1,3 @@
-use engine::ui::UiSystem;
-use rand::{self, Rng};
 use serde::{Deserialize, Serialize};
 
 use crate::sim::resources::{ResourceKind, StockItem};
@@ -84,34 +82,5 @@ impl UnitInventory {
             }
         }
         0
-    }
-
-    pub fn draw_debug_ui(&mut self, ui_sys: &UiSystem) {
-        let ui = ui_sys.ui();
-
-        if !ui.collapsing_header("Inventory", imgui::TreeNodeFlags::empty()) {
-            return; // collapsed.
-        }
-
-        if ui.button("Give Random Item") {
-            let item = StockItem {
-                kind: ResourceKind::random(&mut rand::rng()),
-                count: rand::rng().random_range(1..10),
-            };
-            self.item = Some(item);
-        }
-
-        ui.same_line();
-
-        if ui.button("Clear") {
-            self.item = None;
-        }
-
-        if let Some(item) = self.item {
-            ui.text(format!("Item  : {}", item.kind));
-            ui.text(format!("Count : {}", item.count));
-        } else {
-            ui.text("<empty>");
-        }
     }
 }

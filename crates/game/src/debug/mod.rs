@@ -40,6 +40,7 @@ mod inspector;
 mod palette;
 mod prop;
 mod settings;
+mod unit;
 
 // ----------------------------------------------
 // DebugUiMode

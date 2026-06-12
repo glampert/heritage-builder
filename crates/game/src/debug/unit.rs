@@ -1,4 +1,4 @@
-use rand::Rng;
+use rand::{self, Rng};
 use bitflags::Flags;
 use smallvec::SmallVec;
 
@@ -15,22 +15,18 @@ use engine::{
 };
 use proc_macros::DrawDebugUi;
 
-use super::{
-    Unit,
-    UnitId,
-    navigation::{self, *},
-    task::*,
-};
 use crate::{
     building::{Building, BuildingKind, BuildingKindAndId, BuildingTileInfo},
-    debug::game_object_debug::{GameObjectDebugOptions, debug_popup_msg, debug_popup_msg_color},
+    debug::{
+        DebugUiMode,
+        game_object_debug::{GameObjectDebugOptions, debug_popup_msg, debug_popup_msg_color},
+    },
     pathfind::{self, NodeKind as PathNodeKind, Path},
-    world::object::GameObject,
     prop::PropId,
     sim::{
-        SimContext,
         SimCmds,
         SimCmdQueue,
+        SimContext,
         commands::ImmediateModeSimCmds,
         resources::{ResourceKind, ShoppingList, StockItem},
     },
@@ -41,21 +37,55 @@ use crate::{
         TilePoolIndex,
         minimap::{MINIMAP_ICON_DEFAULT_LIFETIME, MinimapIcon},
     },
+    unit::{
+        Unit,
+        UnitId,
+        UnitInventory,
+        navigation::{self, UnitNavGoal, UnitNavStatus},
+        task::*,
+    },
+    world::object::GameObject,
 };
 
 // ----------------------------------------------
 // Unit Debug UI
 // ----------------------------------------------
 
+// All ImGui debug-UI drawing for `Unit`, relocated here from `unit/debug.rs`.
+// The `GameObject::draw_debug_ui` method on `Unit` is a thin forward into this.
 impl Unit {
-    pub(super) fn draw_debug_ui_overview(&mut self, context: &SimContext, ui_sys: &UiSystem) {
+    pub(crate) fn draw_debug_ui_dispatch(
+        &mut self,
+        cmds: &mut SimCmds,
+        context: &SimContext,
+        ui_sys: &UiSystem,
+        mode: DebugUiMode,
+    ) {
+        debug_assert!(self.is_spawned());
+
+        match mode {
+            DebugUiMode::Overview => {
+                self.draw_debug_ui_overview(context, ui_sys);
+            }
+            DebugUiMode::Detailed => {
+                let ui = ui_sys.ui();
+                if ui.collapsing_header("Unit", imgui::TreeNodeFlags::empty()) {
+                    ui.indent_by(10.0);
+                    self.draw_debug_ui_detailed(cmds, context, ui_sys);
+                    ui.unindent_by(10.0);
+                }
+            }
+        }
+    }
+
+    fn draw_debug_ui_overview(&mut self, context: &SimContext, ui_sys: &UiSystem) {
         let ui = ui_sys.ui();
 
         ui_sys.set_window_font_scale(UiFontScale(1.2));
         ui.text(format!("{} | ID{} @{}", self.name(), self.id(), self.cell()));
         ui_sys.set_window_font_scale(UiFontScale::default());
 
-        ui.bullet_text(format!("Anim: {} (dir: {})", self.anim_sets.current_anim_name(), self.direction));
+        ui.bullet_text(format!("Anim: {} (dir: {})", self.current_anim_name(), self.direction()));
 
         if let Some(task_id) = self.current_task() {
             if let Some((archetype, started)) = context.task_manager().try_get_task_archetype_and_started(task_id) {
@@ -68,9 +98,9 @@ impl Unit {
             ui.bullet_text(format!("Traversable: {}", self.traversable_node_kinds()));
             ui.bullet_text(format!("Goal: {}", goal.destination_debug_name()));
             if self.has_reached_goal() {
-                ui.bullet_text(format!("Reached: yes (nav: {:?})", self.navigation.status()));
+                ui.bullet_text(format!("Reached: yes (nav: {:?})", self.navigation().status()));
             } else {
-                ui.bullet_text(format!("Reached: no (nav: {:?})", self.navigation.status()));
+                ui.bullet_text(format!("Reached: no (nav: {:?})", self.navigation().status()));
             }
         }
 
@@ -79,11 +109,11 @@ impl Unit {
         }
     }
 
-    pub(super) fn draw_debug_ui_detailed(&mut self, cmds: &mut SimCmds, context: &SimContext, ui_sys: &UiSystem) {
+    fn draw_debug_ui_detailed(&mut self, cmds: &mut SimCmds, context: &SimContext, ui_sys: &UiSystem) {
         self.draw_debug_ui_properties(ui_sys);
         self.draw_debug_ui_config(ui_sys);
-        self.debug.draw_debug_ui(ui_sys);
-        self.inventory.draw_debug_ui(ui_sys);
+        self.debug_mut().draw_debug_ui(ui_sys);
+        draw_inventory_debug_ui(self.inventory_mut(), ui_sys);
         self.draw_debug_ui_tasks(context, ui_sys);
         self.draw_debug_ui_navigation(context, ui_sys);
         self.draw_debug_ui_misc(cmds, context, ui_sys);
@@ -114,11 +144,9 @@ impl Unit {
     }
 
     fn draw_debug_ui_config(&mut self, ui_sys: &UiSystem) {
-        if let Some(config) = self.config {
-            // Configs are static & read-only; clone to a local for the &mut display path.
-            let mut config = config.clone();
-            config.draw_debug_ui_with_header("Config", ui_sys);
-        }
+        // Configs are static & read-only; clone to a local for the &mut display path.
+        let mut config = self.config().clone();
+        config.draw_debug_ui_with_header("Config", ui_sys);
     }
 
     fn draw_debug_ui_tasks(&mut self, context: &SimContext, ui_sys: &UiSystem) {
@@ -154,8 +182,8 @@ impl Unit {
 
         ui.text(format!("Cell       : {}", self.cell()));
         ui.text(format!("Iso Coords : {}", self.find_tile(context).iso_coords()));
-        ui.text(format!("Direction  : {}", self.direction));
-        ui.text(format!("Anim       : {}", self.anim_sets.current_anim_name()));
+        ui.text(format!("Direction  : {}", self.direction()));
+        ui.text(format!("Anim       : {}", self.current_anim_name()));
 
         if ui.button("Force Idle Anim") {
             self.idle(context);
@@ -163,24 +191,24 @@ impl Unit {
 
         ui.separator();
 
-        if self.path_is_blocked {
+        if self.path_is_blocked() {
             ui.text_colored(Color::red().to_array(), "PATH BLOCKED!");
         } else {
-            let color = match self.navigation.status() {
+            let color = match self.navigation().status() {
                 UnitNavStatus::Idle => Color::yellow(),
                 UnitNavStatus::Paused => Color::red(),
                 UnitNavStatus::Moving => Color::green(),
             };
 
-            ui.text_colored(color.to_array(), format!("Path Navigation Status: {:?}", self.navigation.status()));
+            ui.text_colored(color.to_array(), format!("Path Navigation Status: {:?}", self.navigation().status()));
         }
 
-        if let Some(goal) = self.navigation.goal() {
+        if let Some(goal) = self.navigation().goal() {
             ui.text(format!("Start Tile : {}, {}", goal.origin_cell(), goal.origin_debug_name()));
             ui.text(format!("Dest  Tile : {}, {}", goal.destination_cell(), goal.destination_debug_name()));
         }
 
-        self.navigation.draw_debug_ui(ui_sys);
+        self.navigation_mut().draw_debug_ui(ui_sys);
     }
 
     fn draw_debug_ui_misc(&mut self, cmds: &mut SimCmds, context: &SimContext, ui_sys: &UiSystem) {
@@ -190,7 +218,7 @@ impl Unit {
         }
 
         if ui.button("Say Hello") {
-            debug_popup_msg!(self.debug, "Hello!");
+            debug_popup_msg!(self.debug_mut(), "Hello!");
         }
 
         if ui.button("Push Minimap Alert") {
@@ -407,9 +435,9 @@ impl Unit {
                 context.is_near_building(self.cell(), search_building_kind, connected_to_road_only, max_search_distance);
 
             if is_near {
-                debug_popup_msg_color!(self.debug, Color::green(), "{}: Near {}!", self.cell(), search_building_kind);
+                debug_popup_msg_color!(self.debug_mut(), Color::green(), "{}: Near {}!", self.cell(), search_building_kind);
             } else {
-                debug_popup_msg_color!(self.debug, Color::red(), "{}: Not near {}!", self.cell(), search_building_kind);
+                debug_popup_msg_color!(self.debug_mut(), Color::red(), "{}: Not near {}!", self.cell(), search_building_kind);
             }
         }
 
@@ -499,24 +527,57 @@ impl Unit {
 }
 
 // ----------------------------------------------
+// UnitInventory Debug UI
+// ----------------------------------------------
+
+// Relocated from `unit/inventory.rs`; operates through the inventory's public API.
+fn draw_inventory_debug_ui(inventory: &mut UnitInventory, ui_sys: &UiSystem) {
+    let ui = ui_sys.ui();
+
+    if !ui.collapsing_header("Inventory", imgui::TreeNodeFlags::empty()) {
+        return; // collapsed.
+    }
+
+    if ui.button("Give Random Item") {
+        inventory.clear();
+        inventory.receive_resources(ResourceKind::random(&mut rand::rng()), rand::rng().random_range(1..10));
+    }
+
+    ui.same_line();
+
+    if ui.button("Clear") {
+        inventory.clear();
+    }
+
+    if let Some(item) = inventory.peek() {
+        ui.text(format!("Item  : {}", item.kind));
+        ui.text(format!("Count : {}", item.count));
+    } else {
+        ui.text("<empty>");
+    }
+}
+
+// ----------------------------------------------
 // Debug callbacks
 // ----------------------------------------------
 
-pub(super) fn register_callbacks() {
-    let _: Callback<UnitTaskDeliveryCompletionCallback> =
-        callback::register!(unit_debug_delivery_task_completed);
-    let _: Callback<UnitTaskFetchCompletionCallback> =
-        callback::register!(unit_debug_fetch_task_completed);
-    let _: Callback<UnitTaskPatrolCompletionCallback> =
-        callback::register!(unit_debug_patrol_task_completed);
-    let _: Callback<UnitTaskSettlerCompletionCallback> =
-        callback::register!(unit_debug_find_vacant_lot_task_completed);
-    let _: Callback<UnitTaskSettlerCompletionCallback> =
-        callback::register!(unit_debug_settle_task_completed);
-    let _: Callback<UnitTaskPostDespawnCallback> =
-        callback::register!(unit_debug_settle_task_post_despawn);
-    let _: Callback<UnitTaskHarvestCompletionCallback> =
-        callback::register!(unit_debug_harvest_wood_task_completed);
+impl Unit {
+    pub(crate) fn register_debug_callbacks() {
+        let _: Callback<UnitTaskDeliveryCompletionCallback> =
+            callback::register!(unit_debug_delivery_task_completed);
+        let _: Callback<UnitTaskFetchCompletionCallback> =
+            callback::register!(unit_debug_fetch_task_completed);
+        let _: Callback<UnitTaskPatrolCompletionCallback> =
+            callback::register!(unit_debug_patrol_task_completed);
+        let _: Callback<UnitTaskSettlerCompletionCallback> =
+            callback::register!(unit_debug_find_vacant_lot_task_completed);
+        let _: Callback<UnitTaskSettlerCompletionCallback> =
+            callback::register!(unit_debug_settle_task_completed);
+        let _: Callback<UnitTaskPostDespawnCallback> =
+            callback::register!(unit_debug_settle_task_post_despawn);
+        let _: Callback<UnitTaskHarvestCompletionCallback> =
+            callback::register!(unit_debug_harvest_wood_task_completed);
+    }
 }
 
 fn unit_debug_patrol_task_completed(_: &SimContext, building: &mut Building, unit: &mut Unit) {
@@ -528,7 +589,7 @@ fn unit_debug_delivery_task_completed(_: &SimContext, building: &mut Building, u
 }
 
 fn unit_debug_fetch_task_completed(_: &SimContext, building: &mut Building, unit: &mut Unit) {
-    let item = unit.inventory.peek().unwrap();
+    let item = unit.peek_inventory().unwrap();
     log::info!(
         "Unit {}: Fetch Resources from: {}. Task Completed. Got: {}, {}",
         unit.name(),
@@ -536,18 +597,18 @@ fn unit_debug_fetch_task_completed(_: &SimContext, building: &mut Building, unit
         item.kind,
         item.count
     );
-    unit.inventory.clear();
+    unit.clear_inventory();
 }
 
 fn unit_debug_find_vacant_lot_task_completed(_: &SimContext, unit: &mut Unit, dest_tile: &Tile, _: u32) {
     log::info!("Unit {} reached {}.", unit.name(), dest_tile.name());
-    debug_popup_msg!(unit.debug, "Reached {}", dest_tile.name());
+    debug_popup_msg!(unit.debug_mut(), "Reached {}", dest_tile.name());
 }
 
 fn unit_debug_settle_task_completed(_: &SimContext, unit: &mut Unit, dest_tile: &Tile, population_to_add: u32) {
     debug_assert!(population_to_add == 1);
     log::info!("Unit {} reached {}.", unit.name(), dest_tile.name());
-    debug_popup_msg!(unit.debug, "Reached {}", dest_tile.name());
+    debug_popup_msg!(unit.debug_mut(), "Reached {}", dest_tile.name());
 }
 
 fn unit_debug_settle_task_post_despawn(
@@ -599,7 +660,7 @@ fn unit_debug_settle_task_post_despawn(
 }
 
 fn unit_debug_harvest_wood_task_completed(_: &SimContext, building: &mut Building, unit: &mut Unit) {
-    let item = unit.inventory.peek().unwrap();
+    let item = unit.peek_inventory().unwrap();
     log::info!(
         "Unit {}: Harvested for: {}. Task Completed. Got: {}, {}",
         unit.name(),
@@ -607,5 +668,5 @@ fn unit_debug_harvest_wood_task_completed(_: &SimContext, building: &mut Buildin
         item.kind,
         item.count
     );
-    unit.inventory.clear();
+    unit.clear_inventory();
 }
