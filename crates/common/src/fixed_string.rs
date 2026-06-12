@@ -82,6 +82,15 @@ macro_rules! format_fixed_string_trunc {
     }};
 }
 
+// Format small strings (128 chars max) without allocating.
+// NOTE: Truncates strings longer than 128 characters.
+#[macro_export]
+macro_rules! format_small {
+    ($($arg:tt)*) => {{
+        $crate::format_fixed_string_trunc!(128, $($arg)*)
+    }};
+}
+
 // Clears an existing `ArrayString` and writes formatted data into it.
 // Panics if capacity is exceeded.
 // Intended for per-frame buffer reuse.

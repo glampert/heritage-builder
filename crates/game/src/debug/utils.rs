@@ -2,6 +2,7 @@ use common::{
     Color,
     Rect,
     Vec2,
+    format_small,
     coords::{self, CellRange, WorldToScreenTransform},
 };
 use engine::{
@@ -27,13 +28,6 @@ use crate::{
 // ----------------------------------------------
 // Debug Draw Helpers
 // ----------------------------------------------
-
-// Format small strings (128 bytes max) without allocating.
-macro_rules! format_fast {
-    ($($arg:tt)*) => {
-        common::format_fixed_string_trunc!(128, $($arg)*)
-    };
-}
 
 pub fn draw_tile_debug(
     debug_draw: &mut DebugDraw,
@@ -85,9 +79,9 @@ pub fn draw_cursor_overlay(
             let cursor_iso_pos = coords::screen_to_iso_point(cursor_screen_pos, transform);
             let cursor_approx_cell = coords::iso_to_cell(cursor_iso_pos);
 
-            ui.text(format_fast!("C:{},{}", cursor_approx_cell.x, cursor_approx_cell.y));
-            ui.text(format_fast!("S:{:.1},{:.1}", cursor_screen_pos.x, cursor_screen_pos.y));
-            ui.text(format_fast!("I:{},{}", cursor_iso_pos.x, cursor_iso_pos.y));
+            ui.text(format_small!("C:{},{}", cursor_approx_cell.x, cursor_approx_cell.y));
+            ui.text(format_small!("S:{:.1},{:.1}", cursor_screen_pos.x, cursor_screen_pos.y));
+            ui.text(format_small!("I:{},{}", cursor_iso_pos.x, cursor_iso_pos.y));
         }
     });
 }
@@ -117,46 +111,46 @@ pub fn draw_render_perf_stats(ui_sys: &UiSystem, render_sys_stats: &RenderStats,
 
     ui::overlay(ui, "Render Stats", position, 0.8, || {
         ui.text_colored(Color::yellow().to_array(),
-            format_fast!("Render submit     : {:.2}ms",
+            format_small!("Render submit     : {:.2}ms",
                                render_sys_stats.render_submit_time_ms));
 
         ui.text_colored(Color::yellow().to_array(),
-            format_fast!("Tiles drawn       : {} | Peak: {}",
+            format_small!("Tiles drawn       : {} | Peak: {}",
                                tile_render_stats.tiles_drawn,
                                tile_render_stats.peak_tiles_drawn));
 
         ui.text_colored(Color::yellow().to_array(),
-            format_fast!("Triangles drawn   : {} | Peak: {}",
+            format_small!("Triangles drawn   : {} | Peak: {}",
                                render_sys_stats.triangles_drawn,
                                render_sys_stats.peak_triangles_drawn));
 
         ui.text_colored(Color::yellow().to_array(),
-            format_fast!("Texture changes   : {} | Peak: {}",
+            format_small!("Texture changes   : {} | Peak: {}",
                                render_sys_stats.texture_changes,
                                render_sys_stats.peak_texture_changes));
 
         ui.text_colored(Color::yellow().to_array(),
-            format_fast!("Draw calls        : {} | Peak: {}",
+            format_small!("Draw calls        : {} | Peak: {}",
                                render_sys_stats.draw_calls,
                                render_sys_stats.peak_draw_calls));
 
-        ui.text(format_fast!("Tile sort list    : {} | Peak: {}",
+        ui.text(format_small!("Tile sort list    : {} | Peak: {}",
                              tile_render_stats.tile_sort_list_len,
                              tile_render_stats.peak_tile_sort_list_len));
 
-        ui.text(format_fast!("Tiles highlighted : {} | Peak: {}",
+        ui.text(format_small!("Tiles highlighted : {} | Peak: {}",
                              tile_render_stats.tiles_drawn_highlighted,
                              tile_render_stats.peak_tiles_drawn_highlighted));
 
-        ui.text(format_fast!("Tiles invalidated : {} | Peak: {}",
+        ui.text(format_small!("Tiles invalidated : {} | Peak: {}",
                              tile_render_stats.tiles_drawn_invalidated,
                              tile_render_stats.peak_tiles_drawn_invalidated));
 
-        ui.text(format_fast!("Lines drawn       : {} | Peak: {}",
+        ui.text(format_small!("Lines drawn       : {} | Peak: {}",
                              render_sys_stats.lines_drawn,
                              render_sys_stats.peak_lines_drawn));
 
-        ui.text(format_fast!("Points drawn      : {} | Peak: {}",
+        ui.text(format_small!("Points drawn      : {} | Peak: {}",
                              render_sys_stats.points_drawn,
                              render_sys_stats.peak_points_drawn));
     });
@@ -181,30 +175,30 @@ pub fn draw_world_perf_stats(
         let map_mem_usage_bytes = tile_map.memory_usage_estimate();
 
         ui.text("Game Objects:");
-        ui.text(format_fast!("- Buildings  : {buildings_spawned} | Peak: {peak_buildings_spawned}"));
-        ui.text(format_fast!("- Units      : {units_spawned} | Peak: {peak_units_spawned}"));
-        ui.text(format_fast!("- Props      : {props_spawned} | Peak: {peak_props_spawned}"));
+        ui.text(format_small!("- Buildings  : {buildings_spawned} | Peak: {peak_buildings_spawned}"));
+        ui.text(format_small!("- Units      : {units_spawned} | Peak: {peak_units_spawned}"));
+        ui.text(format_small!("- Props      : {props_spawned} | Peak: {peak_props_spawned}"));
         ui.text("Tile Map:");
-        ui.text(format_fast!("- Terrain    : {}", map_stats.terrain_tiles));
-        ui.text(format_fast!("- Buildings  : {}", map_stats.building_tiles));
-        ui.text(format_fast!("- Blockers   : {}", map_stats.blocker_tiles));
-        ui.text(format_fast!("- Units      : {}", map_stats.unit_tiles));
-        ui.text(format_fast!("- Vegetation : {}", map_stats.vegetation_tiles));
-        ui.text(format_fast!("- Rocks      : {}", map_stats.rock_tiles));
-        ui.text(format_fast!("- Memory     : {}kb", map_mem_usage_bytes / 1024));
+        ui.text(format_small!("- Terrain    : {}", map_stats.terrain_tiles));
+        ui.text(format_small!("- Buildings  : {}", map_stats.building_tiles));
+        ui.text(format_small!("- Blockers   : {}", map_stats.blocker_tiles));
+        ui.text(format_small!("- Units      : {}", map_stats.unit_tiles));
+        ui.text(format_small!("- Vegetation : {}", map_stats.vegetation_tiles));
+        ui.text(format_small!("- Rocks      : {}", map_stats.rock_tiles));
+        ui.text(format_small!("- Memory     : {}kb", map_mem_usage_bytes / 1024));
         ui.text("Vis Cells:");
-        ui.text(format_fast!("- Start      : [{},{}]", visible_range.x(), visible_range.y()));
-        ui.text(format_fast!("- Count      : {}x{}", visible_range.width(), visible_range.height()));
+        ui.text(format_small!("- Start      : [{},{}]", visible_range.x(), visible_range.y()));
+        ui.text(format_small!("- Count      : {}x{}", visible_range.width(), visible_range.height()));
         ui.text("Frame Times:");
-        ui.text(format_fast!("- FPS        : {:.1}", game_stats.fps));
-        ui.text(format_fast!("- Frame      : {:.2}ms", game_stats.total_frame_time_ms));
-        ui.text(format_fast!("- Sim        : {:.2}ms", game_stats.sim_frame_time_ms));
-        ui.text(format_fast!("- Anim       : {:.2}ms", game_stats.anim_frame_time_ms));
-        ui.text(format_fast!("- Sound      : {:.2}ms", game_stats.sound_frame_time_ms));
-        ui.text(format_fast!("- Draw World : {:.2}ms", game_stats.draw_world_frame_time_ms));
-        ui.text(format_fast!("- Ui B/E     : {:.2}ms/{:.2}ms", game_stats.ui_begin_frame_time_ms, game_stats.ui_end_frame_time_ms));
-        ui.text(format_fast!("- Engine B/E : {:.2}ms/{:.2}ms", game_stats.engine_begin_frame_time_ms, game_stats.engine_end_frame_time_ms));
-        ui.text(format_fast!("- Present    : {:.2}ms", game_stats.present_frame_time_ms));
+        ui.text(format_small!("- FPS        : {:.1}", game_stats.fps));
+        ui.text(format_small!("- Frame      : {:.2}ms", game_stats.total_frame_time_ms));
+        ui.text(format_small!("- Sim        : {:.2}ms", game_stats.sim_frame_time_ms));
+        ui.text(format_small!("- Anim       : {:.2}ms", game_stats.anim_frame_time_ms));
+        ui.text(format_small!("- Sound      : {:.2}ms", game_stats.sound_frame_time_ms));
+        ui.text(format_small!("- Draw World : {:.2}ms", game_stats.draw_world_frame_time_ms));
+        ui.text(format_small!("- Ui B/E     : {:.2}ms/{:.2}ms", game_stats.ui_begin_frame_time_ms, game_stats.ui_end_frame_time_ms));
+        ui.text(format_small!("- Engine B/E : {:.2}ms/{:.2}ms", game_stats.engine_begin_frame_time_ms, game_stats.engine_end_frame_time_ms));
+        ui.text(format_small!("- Present    : {:.2}ms", game_stats.present_frame_time_ms));
     });
 }
 
@@ -216,7 +210,7 @@ fn draw_tile_overlay_text(ui_sys: &UiSystem, debug_overlay_pos: Vec2, tile_scree
     // NOTE: Label has to be unique for each tile because it will be used as the
     // ImGui ID for this widget.
     let cell = tile.actual_base_cell();
-    let label = format_fast!("{}_{}_{}", tile.name(), cell.x, cell.y);
+    let label = format_small!("{}_{}_{}", tile.name(), cell.x, cell.y);
 
     let bg_color = {
         if tile.is(TileKind::Blocker) {
@@ -253,9 +247,9 @@ fn draw_tile_overlay_text(ui_sys: &UiSystem, debug_overlay_pos: Vec2, tile_scree
         ui_sys.set_window_font_scale(UiFontScale(0.8));
 
         let tile_iso_pos = tile.iso_coords_f32();
-        ui.text(format_fast!("C:{},{}", cell.x, cell.y)); // Cell position
-        ui.text(format_fast!("S:{:.1},{:.1}", tile_screen_pos.x, tile_screen_pos.y)); // 2D screen position
-        ui.text(format_fast!("I:{:.1},{:.1}", tile_iso_pos.0.x, tile_iso_pos.0.y)); // 2D isometric position
+        ui.text(format_small!("C:{},{}", cell.x, cell.y)); // Cell position
+        ui.text(format_small!("S:{:.1},{:.1}", tile_screen_pos.x, tile_screen_pos.y)); // 2D screen position
+        ui.text(format_small!("I:{:.1},{:.1}", tile_iso_pos.0.x, tile_iso_pos.0.y)); // 2D isometric position
 
         // Z/Depth sorting:
         match tile.depth_sort_override() {
