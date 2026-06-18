@@ -369,19 +369,10 @@ impl GameObject for Building {
         visible_range: CellRange,
     ) {
         debug_assert!(self.is_spawned());
-
-        let tile = context.find_tile(
-            self.base_cell(),
-            TileKind::Building)
-            .unwrap();
-
-        self.archetype_mut().debug_options().draw_popup_messages(
-            tile,
-            ui_sys,
-            transform,
-            visible_range,
-            context.delta_time_secs(),
-        );
+        let tile = self.find_tile(context);
+        self.archetype_mut()
+            .debug_options()
+            .draw_popup_messages(tile, ui_sys, transform, visible_range, context.delta_time_secs());
     }
 }
 
@@ -580,6 +571,20 @@ impl Building {
     pub fn set_random_variation(&self, context: &SimContext) {
         let context = self.new_context(context);
         context.set_random_building_variation();
+    }
+
+    #[inline]
+    fn find_tile<'game>(&self, context: &'game SimContext) -> &'game Tile {
+        context
+            .find_tile(self.base_cell(), TileKind::Building)
+            .expect("Building should have an associated Tile in the TileMap!")
+    }
+
+    #[inline]
+    fn find_tile_mut<'game>(&self, context: &'game SimContext) -> &'game mut Tile {
+        context
+            .find_tile_mut(self.base_cell(), TileKind::Building)
+            .expect("Building should have an associated Tile in the TileMap!")
     }
 
     // ----------------------

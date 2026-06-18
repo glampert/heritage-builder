@@ -350,5 +350,4 @@ impl Prop {
             .find_tile_mut(self.cell(), TileKind::Prop)
             .expect("Prop should have an associated Tile in the TileMap!")
     }
-
 }
