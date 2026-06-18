@@ -17,7 +17,6 @@ use engine::{
     log,
     ui::UiSystem,
 };
-use proc_macros::DrawDebugUi;
 use house::HouseBuilding;
 use producer::ProducerBuilding;
 use service::ServiceBuilding;
@@ -80,7 +79,6 @@ mod house_upgrade;
 mod producer;
 mod service;
 mod storage;
-mod debug;
 
 // ----------------------------------------------
 // BuildingKind
@@ -359,21 +357,8 @@ impl GameObject for Building {
     }
 
     fn draw_debug_ui(&mut self, cmds: &mut SimCmds, context: &SimContext, ui_sys: &UiSystem, mode: DebugUiMode) {
-        debug_assert!(self.is_spawned());
-
-        match mode {
-            DebugUiMode::Overview => {
-                self.draw_debug_ui_overview(&self.new_context(context), ui_sys);
-            }
-            DebugUiMode::Detailed => {
-                let ui = ui_sys.ui();
-                if ui.collapsing_header("Building", imgui::TreeNodeFlags::empty()) {
-                    ui.indent_by(10.0);
-                    self.draw_debug_ui_detailed(cmds, &self.new_context(context), ui_sys);
-                    ui.unindent_by(10.0);
-                }
-            }
-        }
+        // Debug-UI drawing lives in `crate::debug::building`.
+        self.draw_debug_ui_dispatch(cmds, context, ui_sys, mode);
     }
 
     fn draw_debug_popups(
@@ -476,13 +461,19 @@ impl Building {
     }
 
     #[inline]
-    fn archetype(&self) -> &BuildingArchetype {
+    pub(crate) fn archetype(&self) -> &BuildingArchetype {
         self.archetype.as_ref().unwrap()
     }
 
     #[inline]
-    fn archetype_mut(&mut self) -> &mut BuildingArchetype {
+    pub(crate) fn archetype_mut(&mut self) -> &mut BuildingArchetype {
         self.archetype.as_mut().unwrap()
+    }
+
+    // Accessor for the debug UI (see `crate::debug::building`).
+    #[inline]
+    pub(crate) fn workers_update_timer_mut(&mut self) -> &mut UpdateTimer {
+        &mut self.workers_update_timer
     }
 
     building_type_casts! { producer, ProducerBuilding } // as_producer()
@@ -681,7 +672,7 @@ impl Building {
     }
 
     #[inline]
-    fn remove_all_population(&mut self, cmds: &mut SimCmds, context: &SimContext) {
+    pub(crate) fn remove_all_population(&mut self, cmds: &mut SimCmds, context: &SimContext) {
         self.remove_population(cmds, context, self.population_count());
     }
 
@@ -743,7 +734,7 @@ impl Building {
         workers_removed
     }
 
-    fn remove_all_workers(&mut self, context: &SimContext) {
+    pub(crate) fn remove_all_workers(&mut self, context: &SimContext) {
         if let Some(workers) = self.archetype().workers() {
             if let Some(employer) = workers.as_employer() {
                 employer.for_each_employee_household(context.world_mut(), |household, employee_count| {
@@ -951,7 +942,7 @@ pub const BUILDING_ARCHETYPE_COUNT: usize = BuildingArchetypeKind::COUNT;
 
 // Common behavior for all Building archetypes.
 #[enum_dispatch(BuildingArchetype)]
-trait BuildingBehavior {
+pub(crate) trait BuildingBehavior {
     // ----------------------
     // World Callbacks:
     // ----------------------

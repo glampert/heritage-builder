@@ -36,6 +36,7 @@ pub mod preset_maps;
 pub mod popups;
 pub mod utils;
 
+mod building;
 mod inspector;
 mod palette;
 mod prop;

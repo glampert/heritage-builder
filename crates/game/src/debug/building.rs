@@ -9,15 +9,56 @@ use engine::{
     log,
     ui::{DrawDebugUi, UiFontScale, UiStaticVar, UiSystem},
 };
+use proc_macros::DrawDebugUi;
 
-use super::*;
+use crate::{
+    building::{
+        Building,
+        BuildingArchetypeKind,
+        BuildingBehavior,
+        BuildingContext,
+        BuildingId,
+        BuildingKind,
+        BuildingKindAndId,
+    },
+    pathfind,
+    debug::DebugUiMode,
+    sim::{SimCmds, SimContext},
+    world::object::GameObject,
+};
 
 // ----------------------------------------------
 // Building Debug UI
 // ----------------------------------------------
 
+// All ImGui debug-UI drawing for `Building`.
+// The `GameObject::draw_debug_ui` method on `Building` is a thin forward into this.
 impl Building {
-    pub(super) fn draw_debug_ui_overview(&mut self, context: &BuildingContext, ui_sys: &UiSystem) {
+    pub(crate) fn draw_debug_ui_dispatch(
+        &mut self,
+        cmds: &mut SimCmds,
+        context: &SimContext,
+        ui_sys: &UiSystem,
+        mode: DebugUiMode,
+    ) {
+        debug_assert!(self.is_spawned());
+
+        match mode {
+            DebugUiMode::Overview => {
+                self.draw_debug_ui_overview(&self.new_context(context), ui_sys);
+            }
+            DebugUiMode::Detailed => {
+                let ui = ui_sys.ui();
+                if ui.collapsing_header("Building", imgui::TreeNodeFlags::empty()) {
+                    ui.indent_by(10.0);
+                    self.draw_debug_ui_detailed(cmds, &self.new_context(context), ui_sys);
+                    ui.unindent_by(10.0);
+                }
+            }
+        }
+    }
+
+    fn draw_debug_ui_overview(&mut self, context: &BuildingContext, ui_sys: &UiSystem) {
         let ui = ui_sys.ui();
 
         let color_bullet_bool = |label: &str, value: bool| {
@@ -107,7 +148,7 @@ impl Building {
         }
     }
 
-    pub(super) fn draw_debug_ui_detailed(&mut self, cmds: &mut SimCmds, context: &BuildingContext, ui_sys: &UiSystem) {
+    fn draw_debug_ui_detailed(&mut self, cmds: &mut SimCmds, context: &BuildingContext, ui_sys: &UiSystem) {
         let ui = ui_sys.ui();
 
         // NOTE: Use the special ##id here so we don't collide with Tile/Properties.
@@ -221,7 +262,7 @@ impl Building {
 
                 if is_employer {
                     // Only employers need to search for workers.
-                    self.workers_update_timer.draw_debug_ui_with_header("Update", ui_sys);
+                    self.workers_update_timer_mut().draw_debug_ui_with_header("Update", ui_sys);
                 }
             }
         }
