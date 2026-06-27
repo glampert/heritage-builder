@@ -553,7 +553,7 @@ impl Camera {
 
         const CAMERA_RELATIVE: bool = true; // Use camera-relative space for rendering.
         let constraints = self.build_constraints(CAMERA_RELATIVE);
-        constraints.debug_draw(debug_draw, self);
+        constraints.draw_debug(debug_draw, self);
 
         // Camera center point, in screen/render space:
         let camera_center = self.viewport_center();
@@ -603,7 +603,7 @@ trait CameraConstraints {
     fn clamp_point(&self, p: Vec2) -> Vec2;
 
     // Draw constraint debug shapes.
-    fn debug_draw(&self, debug_draw: &mut DebugDraw, camera: &Camera);
+    fn draw_debug(&self, debug_draw: &mut DebugDraw, camera: &Camera);
 }
 
 // ----------------------------------------------
@@ -687,7 +687,7 @@ impl CameraConstraints for CameraConstraintsInnerRect {
         p
     }
 
-    fn debug_draw(&self, debug_draw: &mut DebugDraw, camera: &Camera) {
+    fn draw_debug(&self, debug_draw: &mut DebugDraw, camera: &Camera) {
         // Whole map diamond bounds and inward-facing normals:
         {
             const CAMERA_RELATIVE: bool = true;
@@ -894,7 +894,7 @@ impl CameraConstraints for CameraConstraintsIsoDiamond {
         p
     }
 
-    fn debug_draw(&self, debug_draw: &mut DebugDraw, camera: &Camera) {
+    fn draw_debug(&self, debug_draw: &mut DebugDraw, camera: &Camera) {
         const CAMERA_RELATIVE: bool = true;
 
         // Map diamond bounds and inward-facing normals:
