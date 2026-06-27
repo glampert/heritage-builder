@@ -6,10 +6,8 @@ use serde::{Deserialize, Serialize};
 use common::{
     coords::Cell,
     callback::{self, Callback},
-    format_small,
     time::{CountdownTimer, Seconds, UpdateTimer},
 };
-use engine::ui::{DrawDebugUi, UiSystem};
 use proc_macros::DrawDebugUi;
 
 use super::{
@@ -41,7 +39,7 @@ use crate::{
 pub type PatrolCompletionCallback = fn(&SimContext, &mut Building, &mut Unit);
 
 #[derive(Clone, DrawDebugUi, Serialize, Deserialize)]
-struct PatrolInternalState {
+pub(crate) struct PatrolInternalState {
     // Patrol task tunable parameters:
     #[debug_ui(edit)]
     max_distance: i32,
@@ -51,7 +49,7 @@ struct PatrolInternalState {
     path_bias_max: f32,
 
     #[debug_ui(skip)]
-    path_record: UnitPatrolPathRecord,
+    pub(crate) path_record: UnitPatrolPathRecord,
 
     #[debug_ui(skip)]
     completion_callback: Callback<PatrolCompletionCallback>,
@@ -160,18 +158,6 @@ impl Patrol {
         }
     }
 
-    pub fn draw_debug_ui(&mut self, label: &str, ui_sys: &UiSystem) {
-        let unit_id = self.unit_id();
-        if let Some(state) = self.try_get_state_mut() {
-            let ui = ui_sys.ui();
-            if ui.collapsing_header(label, imgui::TreeNodeFlags::empty()) {
-                ui.text(format_small!("Unit Id : {}", unit_id));
-                state.path_record.draw_debug_ui(ui_sys);
-                state.draw_debug_ui(ui_sys);
-            }
-        }
-    }
-
     fn on_randomized_patrol_completed(context: &SimContext, origin_building: &mut Building, patrol_unit: &mut Unit) {
         let patrol_task = patrol_unit
             .current_task_as::<UnitTaskRandomizedPatrol>(context.task_manager())
@@ -212,7 +198,7 @@ impl Patrol {
     }
 
     #[inline]
-    fn try_get_state_mut(&mut self) -> Option<&mut PatrolInternalState> {
+    pub(crate) fn try_get_state_mut(&mut self) -> Option<&mut PatrolInternalState> {
         match &mut self.state {
             Some(state) => Some(state.as_mut()),
             None => None,

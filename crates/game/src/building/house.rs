@@ -1663,7 +1663,7 @@ impl HouseBuilding {
     }
 
     fn draw_debug_ui_stock(&mut self, _context: &BuildingContext, ui_sys: &UiSystem) {
-        self.stock.draw_debug_ui("Stock", ui_sys);
+        self.stock.draw_debug_ui_with_header("Stock", ui_sys);
 
         let ui = ui_sys.ui();
         if !ui.collapsing_header("Consumption", imgui::TreeNodeFlags::empty()) {

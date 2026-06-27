@@ -10,7 +10,7 @@ use std::{
 use arrayvec::ArrayVec;
 use bitflags::Flags;
 use common::bitflags_with_display;
-use engine::{log, ui::UiSystem};
+use engine::log;
 use proc_macros::DrawDebugUi;
 use rand::{Rng, seq::IteratorRandom};
 use serde::{Deserialize, Deserializer, Serialize, de};
@@ -982,19 +982,6 @@ impl ResourceStock {
         }
     }
 
-    // Read-only debug display.
-    pub fn draw_debug_ui(&self, label: &str, ui_sys: &UiSystem) {
-        let ui = ui_sys.ui();
-        if ui.collapsing_header(label, imgui::TreeNodeFlags::empty()) {
-            ui.indent_by(5.0);
-            self.for_each(|index, item| {
-                ui.input_text(common::format_small!("{}##_stock_item_{}", item.kind, index), &mut format!("{}", item.count))
-                    .read_only(true)
-                    .build();
-            });
-            ui.unindent_by(5.0);
-        }
-    }
 }
 
 impl Display for StockItem {

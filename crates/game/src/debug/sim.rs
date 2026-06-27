@@ -1,12 +1,30 @@
 use common::{Color, format_small};
-use engine::ui::UiSystem;
+use engine::ui::{DrawDebugUi, UiSystem};
 
 use crate::{
     building::BuildingKind,
     cheats,
-    sim::resources::{Employer, HouseholdWorkerPool, Workers},
+    sim::resources::{Employer, HouseholdWorkerPool, ResourceStock, Workers},
     world::{World, object::GameObject},
 };
+
+// ----------------------------------------------
+// ResourceStock Debug UI
+// ----------------------------------------------
+
+impl DrawDebugUi for ResourceStock {
+    // Read-only debug display.
+    fn draw_debug_ui(&mut self, ui_sys: &UiSystem) {
+        let ui = ui_sys.ui();
+        ui.indent_by(5.0);
+        self.for_each(|index, item| {
+            ui.input_text(format_small!("{}##_stock_item_{}", item.kind, index), &mut format!("{}", item.count))
+                .read_only(true)
+                .build();
+        });
+        ui.unindent_by(5.0);
+    }
+}
 
 // ----------------------------------------------
 // Workers Debug UI

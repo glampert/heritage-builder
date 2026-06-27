@@ -1250,8 +1250,8 @@ impl<'game> BuildingContext<'game> {
 
 #[derive(Clone, Serialize)]
 pub struct BuildingStock {
-    resources: ResourceStock,
-    capacities: [u8; RESOURCE_KIND_COUNT],
+    pub(crate) resources: ResourceStock,
+    pub(crate) capacities: [u8; RESOURCE_KIND_COUNT],
 }
 
 impl BuildingStock {
@@ -1401,32 +1401,6 @@ impl BuildingStock {
         F: FnMut(usize, &StockItem),
     {
         self.resources.for_each(visitor_fn);
-    }
-
-    fn draw_debug_ui(&mut self, label: &str, ui_sys: &UiSystem) {
-        let ui = ui_sys.ui();
-        if !ui.collapsing_header(label, imgui::TreeNodeFlags::empty()) {
-            return; // collapsed.
-        }
-
-        self.resources.for_each_mut(|index, item| {
-            let item_label = common::format_small!("{}##_stock_item_{}", item.kind, index);
-            let item_capacity = self.capacities[index] as u32;
-
-            if ui.input_scalar(item_label, &mut item.count).step(1).build() {
-                item.count = item.count.min(item_capacity);
-            }
-
-            let capacity_left = item_capacity - item.count;
-            let is_full = item.count >= item_capacity;
-
-            ui.same_line();
-            if is_full {
-                ui.text_colored(Color::red().to_array(), "(full)");
-            } else {
-                ui.text(common::format_small!("({} left)", capacity_left));
-            }
-        });
     }
 }
 

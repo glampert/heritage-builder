@@ -42,7 +42,9 @@ use crate::{
         Unit,
         UnitId,
         UnitInventory,
+        UnitTaskHelper,
         navigation::{self, UnitNavGoal, UnitNavStatus},
+        patrol::Patrol,
         task::*,
     },
     world::object::GameObject,
@@ -696,4 +698,20 @@ fn unit_debug_harvest_wood_task_completed(_: &SimContext, building: &mut Buildin
         item.count
     );
     unit.clear_inventory();
+}
+
+// ----------------------------------------------
+// Patrol Debug UI
+// ----------------------------------------------
+
+impl DrawDebugUi for Patrol {
+    fn draw_debug_ui(&mut self, ui_sys: &UiSystem) {
+        let unit_id = self.unit_id();
+        if let Some(state) = self.try_get_state_mut() {
+            let ui = ui_sys.ui();
+            ui.text(format_small!("Unit Id : {}", unit_id));
+            state.path_record.draw_debug_ui(ui_sys);
+            state.draw_debug_ui(ui_sys);
+        }
+    }
 }

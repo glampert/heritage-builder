@@ -21,6 +21,7 @@ use crate::{
         BuildingId,
         BuildingKind,
         BuildingKindAndId,
+        BuildingStock,
     },
     pathfind,
     debug::DebugUiMode,
@@ -289,5 +290,33 @@ impl Building {
 
         self.archetype_mut().debug_options().draw_debug_ui(ui_sys);
         self.archetype_mut().draw_debug_ui(cmds, context, ui_sys);
+    }
+}
+
+// ----------------------------------------------
+// BuildingStock Debug UI
+// ----------------------------------------------
+
+impl DrawDebugUi for BuildingStock {
+    fn draw_debug_ui(&mut self, ui_sys: &UiSystem) {
+        let ui = ui_sys.ui();
+        self.resources.for_each_mut(|index, item| {
+            let item_label = format_small!("{}##_stock_item_{}", item.kind, index);
+            let item_capacity = self.capacities[index] as u32;
+
+            if ui.input_scalar(item_label, &mut item.count).step(1).build() {
+                item.count = item.count.min(item_capacity);
+            }
+
+            let capacity_left = item_capacity - item.count;
+            let is_full = item.count >= item_capacity;
+
+            ui.same_line();
+            if is_full {
+                ui.text_colored(Color::red().to_array(), "(full)");
+            } else {
+                ui.text(format_small!("({} left)", capacity_left));
+            }
+        });
     }
 }

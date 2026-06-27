@@ -1,5 +1,5 @@
 use common::{Color, format_small};
-use engine::ui::{UiStaticVar, UiSystem};
+use engine::ui::{DrawDebugUi, UiStaticVar, UiSystem};
 
 use crate::{
     sim::resources::GlobalTreasury,
@@ -11,16 +11,16 @@ use crate::{
 // ----------------------------------------------
 
 impl World {
-    pub(crate) fn draw_debug_ui(&self, treasury: &mut GlobalTreasury, ui_sys: &UiSystem) {
+    pub(crate) fn draw_debug_ui(&mut self, treasury: &mut GlobalTreasury, ui_sys: &UiSystem) {
         let ui = ui_sys.ui();
         if let Some(_tab_bar) = ui.tab_bar("World Stats Tab Bar") {
-            self.stats().draw_debug_ui(treasury, ui_sys);
+            self.stats_mut().draw_debug_ui(treasury, ui_sys);
         }
     }
 }
 
 impl WorldStats {
-    pub(crate) fn draw_debug_ui(&self, treasury: &mut GlobalTreasury, ui_sys: &UiSystem) {
+    pub(crate) fn draw_debug_ui(&mut self, treasury: &mut GlobalTreasury, ui_sys: &UiSystem) {
         let ui = ui_sys.ui();
 
         let highlight_zero_value = |label: &str, value: u32, color: Color| {
@@ -114,27 +114,27 @@ impl WorldStats {
         }
 
         if let Some(_tab) = ui.tab_item("Resources") {
-            let resources = &self.resources;
-            resources.all.draw_debug_ui("All Resources", ui_sys);
+            let resources = &mut self.resources;
+            resources.all.draw_debug_ui_with_header("All Resources", ui_sys);
 
             ui.separator();
 
             ui.text("In Storage:");
-            resources.storage_yards.draw_debug_ui("Storage Yards", ui_sys);
-            resources.granaries.draw_debug_ui("Granaries", ui_sys);
+            resources.storage_yards.draw_debug_ui_with_header("Storage Yards", ui_sys);
+            resources.granaries.draw_debug_ui_with_header("Granaries", ui_sys);
 
             ui.separator();
 
             ui.text("Buildings:");
-            resources.houses.draw_debug_ui("Houses", ui_sys);
-            resources.producers.draw_debug_ui("Producers", ui_sys);
-            resources.services.draw_debug_ui("Services", ui_sys);
+            resources.houses.draw_debug_ui_with_header("Houses", ui_sys);
+            resources.producers.draw_debug_ui_with_header("Producers", ui_sys);
+            resources.services.draw_debug_ui_with_header("Services", ui_sys);
 
             ui.separator();
 
             ui.text("Other:");
-            resources.units.draw_debug_ui("Units", ui_sys);
-            resources.markets.draw_debug_ui("Markets", ui_sys);
+            resources.units.draw_debug_ui_with_header("Units", ui_sys);
+            resources.markets.draw_debug_ui_with_header("Markets", ui_sys);
         }
     }
 }

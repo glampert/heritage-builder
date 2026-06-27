@@ -759,7 +759,7 @@ impl ServiceBuilding {
                 stock.clear();
             }
 
-            stock.draw_debug_ui("Resources", ui_sys);
+            stock.draw_debug_ui_with_header("Resources", ui_sys);
         }
     }
 
@@ -788,7 +788,7 @@ impl ServiceBuilding {
 
         ui.text(format_small!("Spawn State: {:?}", self.patrol.spawn_state()));
 
-        self.patrol.draw_debug_ui("Patrol Params", ui_sys);
+        self.patrol.draw_debug_ui_with_header("Patrol Params", ui_sys);
     }
 
     fn draw_debug_ui_treasury(&mut self, ui_sys: &UiSystem) {
