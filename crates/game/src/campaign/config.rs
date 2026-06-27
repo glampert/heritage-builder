@@ -1,4 +1,3 @@
-use engine::ui::UiSystem;
 use serde::{Deserialize, Serialize};
 
 use crate::{sim::resources::ResourceKind, world::stats::WorldStats};
@@ -88,80 +87,6 @@ impl CampaignConfigs {
         self.campaign(campaign_id)?.missions.get(mission_index)
     }
 
-    // ----------------------
-    // Debug UI:
-    // ----------------------
-
-    // Hand-written to mirror the shape of `#[derive(DrawDebugUi)]`, which can't
-    // render the `Vec<CampaignDef>` field. This lets us keep using the
-    // `engine::configurations!` macro (it calls `draw_debug_ui_with_header`).
-    pub fn draw_debug_ui(&self, ui_sys: &UiSystem) {
-        let ui = ui_sys.ui();
-
-        if self.campaigns.is_empty() {
-            ui.text("No campaigns loaded.");
-            return;
-        }
-
-        for (campaign_id, campaign) in self.campaigns.iter().enumerate() {
-            let campaign_header = format!("[{campaign_id}] {} ({} missions)", campaign.name, campaign.missions.len());
-            if ui.collapsing_header(&campaign_header, imgui::TreeNodeFlags::empty()) {
-                ui.indent_by(10.0);
-
-                for (mission_index, mission) in campaign.missions.iter().enumerate() {
-                    // Indices keep the collapsing_header id unique across missions
-                    // (even when two missions share the same name).
-                    let mission_header = format!(
-                        "[{campaign_id}.{mission_index}] {} ({} goals)",
-                        mission.name,
-                        mission.requirements.goals.len()
-                    );
-
-                    if ui.collapsing_header(&mission_header, imgui::TreeNodeFlags::empty()) {
-                        ui.indent_by(10.0);
-                        Self::draw_mission_def_debug_ui(ui_sys, mission);
-                        ui.unindent_by(10.0);
-                    }
-                }
-
-                ui.unindent_by(10.0);
-            }
-        }
-    }
-
-    // Render all members of a single MissionDef.
-    fn draw_mission_def_debug_ui(ui_sys: &UiSystem, mission: &MissionDef) {
-        let ui = ui_sys.ui();
-
-        ui.text(format!("Name: {}", mission.name));
-        ui.text(format!("Description: {}", mission.description));
-
-        match &mission.map {
-            MissionMap::SaveGame { save_file }     => ui.text(format!("Map: save game '{save_file}'")),
-            MissionMap::Preset   { preset_number } => ui.text(format!("Map: preset #{preset_number}")),
-        }
-
-        if mission.requirements.goals.is_empty() {
-            ui.text("Requirements: none");
-        } else {
-            ui.text("Requirements:");
-            for goal in &mission.requirements.goals {
-                match goal {
-                    MissionGoal::Population { min }          => ui.bullet_text(format!("Population >= {min}")),
-                    MissionGoal::Employment { min_employed } => ui.bullet_text(format!("Employment >= {min_employed}")),
-                    MissionGoal::Treasury   { min_gold }     => ui.bullet_text(format!("Treasury >= {min_gold} gold")),
-                    MissionGoal::Resource   { kind, min }    => ui.bullet_text(format!("Resource {kind} >= {min}")),
-                }
-            }
-        }
-    }
-
-    pub fn draw_debug_ui_with_header(&self, header: &str, ui_sys: &UiSystem) {
-        let ui = ui_sys.ui();
-        if ui.collapsing_header(header, imgui::TreeNodeFlags::empty()) {
-            self.draw_debug_ui(ui_sys);
-        }
-    }
 }
 
 // ----------------------------------------------

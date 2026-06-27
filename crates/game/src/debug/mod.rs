@@ -38,6 +38,7 @@ pub mod utils;
 
 mod building;
 mod inspector;
+mod misc;
 mod palette;
 mod prop;
 mod settings;

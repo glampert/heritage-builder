@@ -17,7 +17,6 @@ use common::{
     bitflags_with_display,
     coords::{Cell, CellRange},
 };
-use engine::ui::UiSystem;
 use crate::tile::{TileFlags, TileKind, TileMap, TileMapLayerKind, TileMapLayerRefs};
 
 #[cfg(test)]
@@ -139,29 +138,6 @@ impl NodeKind {
     #[inline]
     pub fn is_object_placeable(self) -> bool {
         self.intersects(Self::EmptyLand)
-    }
-
-    pub fn draw_debug_ui(&mut self, ui_sys: &UiSystem) {
-        macro_rules! node_kind_ui_checkbox {
-            ($ui:ident, $node_kind:ident, $flag_name:ident) => {
-                let mut value = $node_kind.intersects(NodeKind::$flag_name);
-                $ui.checkbox(stringify!($flag_name), &mut value);
-                $node_kind.set(NodeKind::$flag_name, value);
-            };
-        }
-
-        let ui = ui_sys.ui();
-        node_kind_ui_checkbox!(ui, self, EmptyLand);
-        node_kind_ui_checkbox!(ui, self, Road);
-        node_kind_ui_checkbox!(ui, self, Water);
-        node_kind_ui_checkbox!(ui, self, Building);
-        node_kind_ui_checkbox!(ui, self, BuildingRoadLink);
-        node_kind_ui_checkbox!(ui, self, BuildingAccess);
-        node_kind_ui_checkbox!(ui, self, VacantLot);
-        node_kind_ui_checkbox!(ui, self, SettlersSpawnPoint);
-        node_kind_ui_checkbox!(ui, self, Rocks);
-        node_kind_ui_checkbox!(ui, self, Vegetation);
-        node_kind_ui_checkbox!(ui, self, HarvestableTree);
     }
 
     pub fn debug_color(self) -> Color {

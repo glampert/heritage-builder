@@ -1,5 +1,5 @@
 use common::hash::{self, PreHashedKeyMap, StringHash};
-use engine::{log, ui::{DrawDebugUi, UiSystem}};
+use engine::log;
 use num_enum::TryFromPrimitive;
 use proc_macros::DrawDebugUi;
 use serde::{Deserialize, Serialize};
@@ -158,11 +158,8 @@ impl UnitConfigs {
         }
     }
 
-    pub fn draw_debug_ui_with_header(&mut self, _header: &str, ui_sys: &UiSystem) {
-        for config in &mut self.configs {
-            let name = config.name.clone();
-            config.draw_debug_ui_with_header(&name, ui_sys);
-        }
+    pub(crate) fn configs_mut(&mut self) -> &mut [UnitConfig] {
+        &mut self.configs
     }
 }
 

@@ -1,7 +1,7 @@
 use std::collections::HashMap;
 
 use common::hash::{self, PreHashedKeyMap, StringHash};
-use engine::{log, ui::{DrawDebugUi, UiSystem}};
+use engine::{log, ui::UiSystem};
 use serde::{Deserialize, Serialize};
 
 use super::{
@@ -428,46 +428,24 @@ impl BuildingConfigs {
         }
     }
 
-    pub fn draw_debug_ui_with_header(&mut self, _header: &str, ui_sys: &UiSystem) {
-        let ui = ui_sys.ui();
+    pub(crate) fn house_config_mut(&mut self) -> &mut HouseConfig {
+        &mut self.house_config
+    }
 
-        self.house_config.draw_debug_ui_with_header("House", ui_sys);
+    pub(crate) fn house_levels_mut(&mut self) -> &mut [HouseLevelConfig] {
+        &mut self.house_levels
+    }
 
-        if ui.collapsing_header("House Levels", imgui::TreeNodeFlags::empty()) {
-            ui.indent_by(10.0);
-            for config in &mut self.house_levels {
-                let name = config.name.clone();
-                config.draw_debug_ui_with_header(&name, ui_sys);
-            }
-            ui.unindent_by(10.0);
-        }
+    pub(crate) fn producer_configs_mut(&mut self) -> &mut [ProducerConfig] {
+        &mut self.producer_configs
+    }
 
-        if ui.collapsing_header("Producers", imgui::TreeNodeFlags::empty()) {
-            ui.indent_by(10.0);
-            for config in &mut self.producer_configs {
-                let name = config.name.clone();
-                config.draw_debug_ui_with_header(&name, ui_sys);
-            }
-            ui.unindent_by(10.0);
-        }
+    pub(crate) fn service_configs_mut(&mut self) -> &mut [ServiceConfig] {
+        &mut self.service_configs
+    }
 
-        if ui.collapsing_header("Services", imgui::TreeNodeFlags::empty()) {
-            ui.indent_by(10.0);
-            for config in &mut self.service_configs {
-                let name = config.name.clone();
-                config.draw_debug_ui_with_header(&name, ui_sys);
-            }
-            ui.unindent_by(10.0);
-        }
-
-        if ui.collapsing_header("Storage", imgui::TreeNodeFlags::empty()) {
-            ui.indent_by(10.0);
-            for config in &mut self.storage_configs {
-                let name = config.name.clone();
-                config.draw_debug_ui_with_header(&name, ui_sys);
-            }
-            ui.unindent_by(10.0);
-        }
+    pub(crate) fn storage_configs_mut(&mut self) -> &mut [StorageConfig] {
+        &mut self.storage_configs
     }
 }
 
