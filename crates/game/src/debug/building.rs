@@ -198,7 +198,7 @@ impl Building {
                 let is_household_worker_pool = workers.is_household_worker_pool();
                 let is_employer = workers.is_employer();
 
-                workers.draw_debug_ui(context.sim_ctx.world(), ui_sys);
+                super::sim::draw_workers_debug_ui(workers, context.sim_ctx.world(), ui_sys);
                 ui.separator();
 
                 let source = {

@@ -41,7 +41,9 @@ mod inspector;
 mod palette;
 mod prop;
 mod settings;
+mod sim;
 mod unit;
+mod world;
 
 // ----------------------------------------------
 // DebugUiMode

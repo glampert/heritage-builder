@@ -9,7 +9,7 @@ use std::{
 
 use arrayvec::ArrayVec;
 use bitflags::Flags;
-use common::{Color, bitflags_with_display};
+use common::bitflags_with_display;
 use engine::{log, ui::UiSystem};
 use proc_macros::DrawDebugUi;
 use rand::{Rng, seq::IteratorRandom};
@@ -19,7 +19,7 @@ use smallvec::SmallVec;
 use crate::{
     building::{Building, BuildingId, BuildingKind, BuildingKindAndId},
     cheats,
-    world::{World, object::GameObject, stats::WorldStats},
+    world::{World, stats::WorldStats},
 };
 
 // ----------------------------------------------
@@ -332,32 +332,9 @@ impl HouseholdWorkerPool {
         true
     }
 
-    pub fn draw_debug_ui(&self, world: &World, ui_sys: &UiSystem) {
-        let ui = ui_sys.ui();
-        ui.text(format!("Employed   : {}", self.employed_count));
-        ui.text(format!("Unemployed : {}", self.unemployed_count));
-        ui.text(format!("Total      : {}", self.total_workers()));
-
-        if !self.employers.is_empty() {
-            ui.text("Employers:");
-            ui.indent_by(10.0);
-
-            for (employer_info, employed_count) in &self.employers {
-                if let Some(employer) = world.find_building(employer_info.kind, employer_info.id) {
-                    ui.text(format!(
-                        "- {} cell={} id={}: {}",
-                        employer.name(),
-                        employer.base_cell(),
-                        employer.id(),
-                        employed_count
-                    ));
-                } else {
-                    ui.text_colored(Color::red().to_array(), "<unknown employer record>");
-                }
-            }
-
-            ui.unindent_by(10.0);
-        }
+    // Iterator over (employer, employed_count) pairs, for the debug UI (see `crate::debug::sim`).
+    pub(crate) fn employers_iter(&self) -> impl Iterator<Item = (BuildingKindAndId, u32)> + '_ {
+        self.employers.iter().map(|(info, count)| (*info, *count))
     }
 }
 
@@ -537,35 +514,9 @@ impl Employer {
         true
     }
 
-    pub fn draw_debug_ui(&self, world: &World, ui_sys: &UiSystem) {
-        let ui = ui_sys.ui();
-        ui.text(format!("Workers Employed : {}", self.employee_count));
-        ui.text(format!("Min Required     : {}", self.min_employees));
-        ui.text(format!("Max Employed     : {}", self.max_employees));
-        ui.text(format!("Work Efficiency  : {:.0}%", self.work_efficiency() * 100.0));
-
-        if cheats::get().ignore_worker_requirements {
-            ui.text_colored(Color::green().to_array(), "CHEAT ignore_worker_requirements ON");
-        } else if self.is_below_min_required() {
-            ui.text_colored(Color::red().to_array(), "Below Min Required Workers");
-        } else if self.is_at_max_capacity() {
-            ui.text_colored(Color::green().to_array(), "Has All Required Workers");
-        }
-
-        if !self.employee_households.is_empty() {
-            ui.text("Worker Households:");
-            ui.indent_by(10.0);
-
-            for (house_id, employee_count) in &self.employee_households {
-                if let Some(house) = world.find_building(BuildingKind::House, *house_id) {
-                    ui.text(format!("- {} cell={} id={}: {}", house.name(), house.base_cell(), house.id(), employee_count));
-                } else {
-                    ui.text_colored(Color::red().to_array(), "<unknown employee household>");
-                }
-            }
-
-            ui.unindent_by(10.0);
-        }
+    // Iterator over (household_id, employed_count) pairs, for the debug UI (see `crate::debug::sim`).
+    pub(crate) fn employee_households_iter(&self) -> impl Iterator<Item = (BuildingId, u32)> + '_ {
+        self.employee_households.iter().map(|(id, count)| (*id, *count))
     }
 }
 
@@ -675,12 +626,6 @@ impl Workers {
         }
     }
 
-    pub fn draw_debug_ui(&self, world: &World, ui_sys: &UiSystem) {
-        match self {
-            Self::HouseholdWorkerPool(inner) => inner.draw_debug_ui(world, ui_sys),
-            Self::Employer(inner) => inner.draw_debug_ui(world, ui_sys),
-        }
-    }
 }
 
 // ----------------------------------------------
