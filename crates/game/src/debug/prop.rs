@@ -1,4 +1,4 @@
-use common::Color;
+use common::{Color, format_small};
 use engine::ui::{DrawDebugUi, UiFontScale, UiStaticVar, UiSystem};
 use proc_macros::DrawDebugUi;
 
@@ -40,20 +40,20 @@ impl Prop {
         let ui = ui_sys.ui();
 
         ui_sys.set_window_font_scale(UiFontScale(1.2));
-        ui.text(format!("{} | ID{} @{}", self.name(), self.id(), self.cell()));
+        ui.text(format_small!("{} | ID{} @{}", self.name(), self.id(), self.cell()));
         ui_sys.set_window_font_scale(UiFontScale::default());
 
         let color_bullet_text = |label: &str, value: u32| {
-            ui.bullet_text(format!("{label}:"));
+            ui.bullet_text(format_small!("{label}:"));
             ui.same_line();
             if value == 0 {
-                ui.text_colored(Color::red().to_array(), format!("{value}"));
+                ui.text_colored(Color::red().to_array(), format_small!("{value}"));
             } else {
-                ui.text(format!("{value}"));
+                ui.text(format_small!("{value}"));
             }
         };
 
-        color_bullet_text(&format!("Harvestable {}", self.harvestable_resource()), self.harvestable_amount());
+        color_bullet_text(&format_small!("Harvestable {}", self.harvestable_resource()), self.harvestable_amount());
     }
 
     fn draw_debug_ui_detailed(&mut self, context: &SimContext, ui_sys: &UiSystem) {
@@ -89,7 +89,7 @@ impl Prop {
 
         if self.is_harvestable() {
             if self.harvestable_amount() == 0 {
-                ui.text(format!("Time Until Respawn   : {:.2}", self.harvestable_respawn_remaining_secs()));
+                ui.text(format_small!("Time Until Respawn   : {:.2}", self.harvestable_respawn_remaining_secs()));
             }
 
             static HARVEST_AMOUNT: UiStaticVar<u32> = UiStaticVar::new(1);

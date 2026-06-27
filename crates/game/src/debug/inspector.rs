@@ -1,5 +1,5 @@
 use arrayvec::ArrayString;
-use common::{Color, Size, Vec2, constants::*, coords::Cell, format_fixed_string, mem::RawPtr, time::Seconds};
+use common::{Color, Size, Vec2, constants::*, coords::Cell, format_fixed_string, format_small, mem::RawPtr, time::Seconds};
 use engine::ui::{self, DrawDebugUi};
 use proc_macros::DrawDebugUi;
 use strum::{VariantArray, VariantNames};
@@ -309,7 +309,7 @@ impl TileInspectorDevMenu {
             let mut maybe_next_tile: Option<&Tile> = Some(tile);
 
             while let Some(next_tile) = maybe_next_tile {
-                ui.text(format!("{} {} ->", next_tile.name(), next_tile.base_cell()));
+                ui.text(format_small!("{} {} ->", next_tile.name(), next_tile.base_cell()));
                 ui.same_line();
                 maybe_next_tile = context.tile_map.next_tile(next_tile);
             }
@@ -367,8 +367,8 @@ impl TileInspectorDevMenu {
             tile.set_variation_index(variation_index);
         }
 
-        ui.text(format!("Variations    : {}", tile.variation_count()));
-        ui.text(format!("Variation idx : {}, {}", tile.variation_index(), tile.variation_name()));
+        ui.text(format_small!("Variations    : {}", tile.variation_count()));
+        ui.text(format_small!("Variation idx : {}, {}", tile.variation_index(), tile.variation_name()));
     }
 
     fn tile_animations_dropdown(context: &mut GameUiContext, tile: &mut Tile) {

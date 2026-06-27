@@ -1,4 +1,4 @@
-use common::Color;
+use common::{Color, format_small};
 use engine::ui::UiSystem;
 
 use crate::{
@@ -22,9 +22,9 @@ pub(crate) fn draw_workers_debug_ui(workers: &Workers, world: &World, ui_sys: &U
 
 fn draw_household_worker_pool_debug_ui(pool: &HouseholdWorkerPool, world: &World, ui_sys: &UiSystem) {
     let ui = ui_sys.ui();
-    ui.text(format!("Employed   : {}", pool.employed_count()));
-    ui.text(format!("Unemployed : {}", pool.unemployed_count()));
-    ui.text(format!("Total      : {}", pool.total_workers()));
+    ui.text(format_small!("Employed   : {}", pool.employed_count()));
+    ui.text(format_small!("Unemployed : {}", pool.unemployed_count()));
+    ui.text(format_small!("Total      : {}", pool.total_workers()));
 
     let mut employers = pool.employers_iter().peekable();
     if employers.peek().is_some() {
@@ -33,7 +33,7 @@ fn draw_household_worker_pool_debug_ui(pool: &HouseholdWorkerPool, world: &World
 
         for (employer_info, employed_count) in employers {
             if let Some(employer) = world.find_building(employer_info.kind, employer_info.id) {
-                ui.text(format!(
+                ui.text(format_small!(
                     "- {} cell={} id={}: {}",
                     employer.name(),
                     employer.base_cell(),
@@ -51,10 +51,10 @@ fn draw_household_worker_pool_debug_ui(pool: &HouseholdWorkerPool, world: &World
 
 fn draw_employer_debug_ui(employer: &Employer, world: &World, ui_sys: &UiSystem) {
     let ui = ui_sys.ui();
-    ui.text(format!("Workers Employed : {}", employer.employee_count()));
-    ui.text(format!("Min Required     : {}", employer.min_employees()));
-    ui.text(format!("Max Employed     : {}", employer.max_employees()));
-    ui.text(format!("Work Efficiency  : {:.0}%", employer.work_efficiency() * 100.0));
+    ui.text(format_small!("Workers Employed : {}", employer.employee_count()));
+    ui.text(format_small!("Min Required     : {}", employer.min_employees()));
+    ui.text(format_small!("Max Employed     : {}", employer.max_employees()));
+    ui.text(format_small!("Work Efficiency  : {:.0}%", employer.work_efficiency() * 100.0));
 
     if cheats::get().ignore_worker_requirements {
         ui.text_colored(Color::green().to_array(), "CHEAT ignore_worker_requirements ON");
@@ -71,7 +71,7 @@ fn draw_employer_debug_ui(employer: &Employer, world: &World, ui_sys: &UiSystem)
 
         for (house_id, employee_count) in households {
             if let Some(house) = world.find_building(BuildingKind::House, house_id) {
-                ui.text(format!("- {} cell={} id={}: {}", house.name(), house.base_cell(), house.id(), employee_count));
+                ui.text(format_small!("- {} cell={} id={}: {}", house.name(), house.base_cell(), house.id(), employee_count));
             } else {
                 ui.text_colored(Color::red().to_array(), "<unknown employee household>");
             }

@@ -988,7 +988,7 @@ impl ResourceStock {
         if ui.collapsing_header(label, imgui::TreeNodeFlags::empty()) {
             ui.indent_by(5.0);
             self.for_each(|index, item| {
-                ui.input_text(format!("{}##_stock_item_{}", item.kind, index), &mut format!("{}", item.count))
+                ui.input_text(common::format_small!("{}##_stock_item_{}", item.kind, index), &mut format!("{}", item.count))
                     .read_only(true)
                     .build();
             });

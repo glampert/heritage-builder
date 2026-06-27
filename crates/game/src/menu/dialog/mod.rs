@@ -526,7 +526,7 @@ impl DialogMenusSingleton {
             let position = Vec2::new(context.viewport_size.width as f32 - 350.0, 100.0);
             ui::overlay(ui, "Dialog Menu Stack Debug", position, 1.0, || {
                 for (index, kind) in self.menu_stack.iter().enumerate() {
-                    ui.text(format!("[{index}]: {kind}"));
+                    ui.text(common::format_small!("[{index}]: {kind}"));
                 }
             });
         }

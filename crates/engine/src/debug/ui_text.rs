@@ -8,7 +8,7 @@ impl DrawDebugUi for UiTextStoreSingleton {
         if ui.collapsing_header("Categories", imgui::TreeNodeFlags::empty()) {
             ui.indent_by(10.0);
             for entry in self.categories() {
-                if ui.collapsing_header(format!("{:?}", entry.category), imgui::TreeNodeFlags::empty()) {
+                if ui.collapsing_header(common::format_small!("{:?}", entry.category), imgui::TreeNodeFlags::empty()) {
                     ui.indent_by(10.0);
                     for (index, string) in entry.strings.iter().enumerate() {
                         ui.text(format!("[{}]: key:'{}', text:'{}'", index, string.key, string.text));

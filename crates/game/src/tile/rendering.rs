@@ -384,8 +384,8 @@ impl TileMapRenderer {
 
                 let ui = ui_sys.ui();
                 ui::overlay(ui, "Search Graph", Vec2::new(10.0, 30.0), 0.7, || {
-                    ui.text(format!("Vacant Lots: {}", graph.vacant_lot_nodes_count()));
-                    ui.text(format!("Settlers Spawn Point: {}", graph.settlers_spawn_point().unwrap_or(Node::invalid())));
+                    ui.text(common::format_small!("Vacant Lots: {}", graph.vacant_lot_nodes_count()));
+                    ui.text(common::format_small!("Settlers Spawn Point: {}", graph.settlers_spawn_point().unwrap_or(Node::invalid())));
                 });
             }
             TileMapLayerKind::Objects => {

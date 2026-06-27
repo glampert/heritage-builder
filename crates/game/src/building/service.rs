@@ -5,6 +5,7 @@ use serde::{Deserialize, Serialize};
 use common::{
     Color,
     callback::{self, Callback},
+    format_small,
     hash::{self, StringHash},
     time::{Seconds, UpdateTimer},
 };
@@ -785,7 +786,7 @@ impl ServiceBuilding {
 
         self.patrol_timer.draw_debug_ui_with_header("Patrol", ui_sys);
 
-        ui.text(format!("Spawn State: {:?}", self.patrol.spawn_state()));
+        ui.text(format_small!("Spawn State: {:?}", self.patrol.spawn_state()));
 
         self.patrol.draw_debug_ui("Patrol Params", ui_sys);
     }

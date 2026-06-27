@@ -6,6 +6,7 @@ use common::{
     Color,
     callback::{self, Callback},
     coords::Cell,
+    format_small,
     hash,
     time::CountdownTimer,
 };
@@ -82,30 +83,30 @@ impl Unit {
         let ui = ui_sys.ui();
 
         ui_sys.set_window_font_scale(UiFontScale(1.2));
-        ui.text(format!("{} | ID{} @{}", self.name(), self.id(), self.cell()));
+        ui.text(format_small!("{} | ID{} @{}", self.name(), self.id(), self.cell()));
         ui_sys.set_window_font_scale(UiFontScale::default());
 
-        ui.bullet_text(format!("Anim: {} (dir: {})", self.current_anim_name(), self.direction()));
+        ui.bullet_text(format_small!("Anim: {} (dir: {})", self.current_anim_name(), self.direction()));
 
         if let Some(task_id) = self.current_task() {
             if let Some((archetype, started)) = context.task_manager().try_get_task_archetype_and_started(task_id) {
                 let status = if started { "running" } else { "starting" };
-                ui.bullet_text(format!("Task: {archetype} | {status}"));
+                ui.bullet_text(format_small!("Task: {archetype} | {status}"));
             }
         }
 
         if let Some(goal) = self.goal() {
-            ui.bullet_text(format!("Traversable: {}", self.traversable_node_kinds()));
-            ui.bullet_text(format!("Goal: {}", goal.destination_debug_name()));
+            ui.bullet_text(format_small!("Traversable: {}", self.traversable_node_kinds()));
+            ui.bullet_text(format_small!("Goal: {}", goal.destination_debug_name()));
             if self.has_reached_goal() {
-                ui.bullet_text(format!("Reached: yes (nav: {:?})", self.navigation().status()));
+                ui.bullet_text(format_small!("Reached: yes (nav: {:?})", self.navigation().status()));
             } else {
-                ui.bullet_text(format!("Reached: no (nav: {:?})", self.navigation().status()));
+                ui.bullet_text(format_small!("Reached: no (nav: {:?})", self.navigation().status()));
             }
         }
 
         if let Some(item) = self.peek_inventory() {
-            ui.bullet_text(format!("Inventory: {} ({})", item.kind, item.count));
+            ui.bullet_text(format_small!("Inventory: {} ({})", item.kind, item.count));
         }
     }
 
@@ -166,7 +167,7 @@ impl Unit {
                     (Color::yellow(), "Status : Not started")
                 };
 
-                ui.text(format!("Task   : {}", archetype));
+                ui.text(format_small!("Task   : {}", archetype));
                 ui.text_colored(status_color.to_array(), status_text);
                 ui.separator();
 
@@ -206,10 +207,10 @@ impl Unit {
 
         ui.separator();
 
-        ui.text(format!("Cell       : {}", self.cell()));
-        ui.text(format!("Iso Coords : {}", self.find_tile(context).iso_coords()));
-        ui.text(format!("Direction  : {}", self.direction()));
-        ui.text(format!("Anim       : {}", self.current_anim_name()));
+        ui.text(format_small!("Cell       : {}", self.cell()));
+        ui.text(format_small!("Iso Coords : {}", self.find_tile(context).iso_coords()));
+        ui.text(format_small!("Direction  : {}", self.direction()));
+        ui.text(format_small!("Anim       : {}", self.current_anim_name()));
 
         if ui.button("Force Idle Anim") {
             self.idle(context);
@@ -226,12 +227,12 @@ impl Unit {
                 UnitNavStatus::Moving => Color::green(),
             };
 
-            ui.text_colored(color.to_array(), format!("Path Navigation Status: {:?}", self.navigation().status()));
+            ui.text_colored(color.to_array(), format_small!("Path Navigation Status: {:?}", self.navigation().status()));
         }
 
         if let Some(goal) = self.navigation().goal() {
-            ui.text(format!("Start Tile : {}, {}", goal.origin_cell(), goal.origin_debug_name()));
-            ui.text(format!("Dest  Tile : {}, {}", goal.destination_cell(), goal.destination_debug_name()));
+            ui.text(format_small!("Start Tile : {}, {}", goal.origin_cell(), goal.origin_debug_name()));
+            ui.text(format_small!("Dest  Tile : {}, {}", goal.destination_cell(), goal.destination_debug_name()));
         }
 
         self.navigation_mut().draw_debug_ui(ui_sys);
@@ -423,7 +424,7 @@ impl Unit {
             (traversable_node_kinds, *MAX_SEARCH_DISTANCE, *BuildingKind::FLAGS[*BUILDING_KIND_IDX].value())
         };
 
-        if ui.button(format!("Path To Nearest Building ({})", search_building_kind)) && !traversable_node_kinds.is_empty() {
+        if ui.button(format_small!("Path To Nearest Building ({})", search_building_kind)) && !traversable_node_kinds.is_empty() {
             let start = self.cell();
             self.set_traversable_node_kinds(traversable_node_kinds);
 
@@ -453,7 +454,7 @@ impl Unit {
             );
         }
 
-        if ui.button(format!("Test Is Near Building ({})", search_building_kind)) && !traversable_node_kinds.is_empty() {
+        if ui.button(format_small!("Test Is Near Building ({})", search_building_kind)) && !traversable_node_kinds.is_empty() {
             let connected_to_road_only = traversable_node_kinds.intersects(PathNodeKind::Road)
                 && !traversable_node_kinds.intersects(PathNodeKind::EmptyLand);
 
@@ -576,8 +577,8 @@ fn draw_inventory_debug_ui(inventory: &mut UnitInventory, ui_sys: &UiSystem) {
     }
 
     if let Some(item) = inventory.peek() {
-        ui.text(format!("Item  : {}", item.kind));
-        ui.text(format!("Count : {}", item.count));
+        ui.text(format_small!("Item  : {}", item.kind));
+        ui.text(format_small!("Count : {}", item.count));
     } else {
         ui.text("<empty>");
     }

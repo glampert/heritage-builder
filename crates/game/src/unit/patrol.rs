@@ -6,6 +6,7 @@ use serde::{Deserialize, Serialize};
 use common::{
     coords::Cell,
     callback::{self, Callback},
+    format_small,
     time::{CountdownTimer, Seconds, UpdateTimer},
 };
 use engine::ui::{DrawDebugUi, UiSystem};
@@ -164,7 +165,7 @@ impl Patrol {
         if let Some(state) = self.try_get_state_mut() {
             let ui = ui_sys.ui();
             if ui.collapsing_header(label, imgui::TreeNodeFlags::empty()) {
-                ui.text(format!("Unit Id : {}", unit_id));
+                ui.text(format_small!("Unit Id : {}", unit_id));
                 state.path_record.draw_debug_ui(ui_sys);
                 state.draw_debug_ui(ui_sys);
             }

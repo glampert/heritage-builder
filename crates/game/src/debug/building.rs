@@ -4,6 +4,7 @@ use bitflags::Flags;
 use common::{
     Color,
     coords::{Cell, CellRange},
+    format_small,
 };
 use engine::{
     log,
@@ -62,7 +63,7 @@ impl Building {
         let ui = ui_sys.ui();
 
         let color_bullet_bool = |label: &str, value: bool| {
-            ui.bullet_text(format!("{label}:"));
+            ui.bullet_text(format_small!("{label}:"));
             ui.same_line();
             if value {
                 ui.text("yes");
@@ -72,20 +73,20 @@ impl Building {
         };
 
         let color_bullet_text = |label: &str, value: &str| {
-            ui.bullet_text(format!("{label}:"));
+            ui.bullet_text(format_small!("{label}:"));
             ui.same_line();
             ui.text_colored(Color::red().to_array(), value);
         };
 
         ui_sys.set_window_font_scale(UiFontScale(1.2));
-        ui.text(format!("{} | ID{} @{}", self.name(), self.id(), self.base_cell()));
+        ui.text(format_small!("{} | ID{} @{}", self.name(), self.id(), self.base_cell()));
         ui_sys.set_window_font_scale(UiFontScale::default());
 
         color_bullet_bool("Linked to road", self.is_linked_to_road());
 
         if self.archetype_kind() == BuildingArchetypeKind::HouseBuilding {
             let house = self.as_house();
-            ui.bullet_text(format!("Tax: (generated: {}, avail: {})", house.tax_generated(), house.tax_available()));
+            ui.bullet_text(format_small!("Tax: (generated: {}, avail: {})", house.tax_generated(), house.tax_available()));
 
             if !house.level().is_max() {
                 let upgrade_requirements = house.upgrade_requirements(context);
@@ -116,12 +117,12 @@ impl Building {
         }
 
         if let Some(population) = self.archetype().population() {
-            ui.bullet_text(format!("Population: {} (max: {})", population.count(), population.max()));
+            ui.bullet_text(format_small!("Population: {} (max: {})", population.count(), population.max()));
         }
 
         if let Some(workers) = self.archetype().workers() {
             if let Some(worker_pool) = workers.as_household_worker_pool() {
-                ui.bullet_text(format!(
+                ui.bullet_text(format_small!(
                     "Workers: {} (employed: {}, unemployed: {})",
                     worker_pool.total_workers(),
                     worker_pool.employed_count(),
@@ -133,11 +134,11 @@ impl Building {
                 if employer.is_below_min_required() {
                     ui.bullet_text("Workers:");
                     ui.same_line();
-                    ui.text_colored(Color::red().to_array(), format!("{}", employer.employee_count()));
+                    ui.text_colored(Color::red().to_array(), format_small!("{}", employer.employee_count()));
                     ui.same_line();
-                    ui.text(format!("(min: {}, max: {})", employer.min_employees(), employer.max_employees()));
+                    ui.text(format_small!("(min: {}, max: {})", employer.min_employees(), employer.max_employees()));
                 } else {
-                    ui.bullet_text(format!(
+                    ui.bullet_text(format_small!(
                         "Workers: {} (min: {}, max: {})",
                         employer.employee_count(),
                         employer.min_employees(),
@@ -274,7 +275,7 @@ impl Building {
                 ui.text_colored(Color::red().to_array(), "No road access!");
             }
 
-            ui.text(format!("Road Link Tile : {}", self.road_link().unwrap_or_default()));
+            ui.text(format_small!("Road Link Tile : {}", self.road_link().unwrap_or_default()));
 
             let mut show_road_link = self.is_showing_road_link_debug(context.sim_ctx);
             if ui.checkbox("Show Road Link", &mut show_road_link) {

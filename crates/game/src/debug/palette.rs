@@ -218,8 +218,13 @@ impl TilePaletteDevMenu {
             let ui_texture = ui_sys.to_ui_texture(tile_sprite.texture);
 
             let btn_id = common::fixed_string::snake_case_to_title::<64>(&tile_def.name);
-            let btn_tooltip =
-                if tile_def.cost != 0 { &format!("{}\nCost: {} gold", btn_id, tile_def.cost) } else { btn_id.as_str() };
+            let btn_tooltip_buf;
+            let btn_tooltip = if tile_def.cost != 0 {
+                btn_tooltip_buf = common::format_small!("{}\nCost: {} gold", btn_id, tile_def.cost);
+                btn_tooltip_buf.as_str()
+            } else {
+                btn_id.as_str()
+            };
 
             let btn_params = ui::UiImageButtonParams {
                 id: &btn_id,

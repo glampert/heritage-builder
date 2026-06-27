@@ -1,6 +1,6 @@
 use std::any::Any;
 
-use common::Color;
+use common::{Color, format_small};
 use engine::{
     Engine,
     file_sys::paths::PathRef,
@@ -147,12 +147,12 @@ impl GameSystem for AmbientMusicSystem {
         }
 
         if let Some(key) = self.current_track_playing {
-            ui.text(format!("Current Track Playing: {} ('{}')", key, key.track_path()));
+            ui.text(format_small!("Current Track Playing: {} ('{}')", key, key.track_path()));
         } else {
             ui.text("Current Track Playing: None");
         }
 
-        ui.text(format!("Current Game State: {}", self.current_game_state));
+        ui.text(format_small!("Current Game State: {}", self.current_game_state));
         ui.separator();
 
         if ui.button("Reset Track") {

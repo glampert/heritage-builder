@@ -1410,7 +1410,7 @@ impl BuildingStock {
         }
 
         self.resources.for_each_mut(|index, item| {
-            let item_label = format!("{}##_stock_item_{}", item.kind, index);
+            let item_label = common::format_small!("{}##_stock_item_{}", item.kind, index);
             let item_capacity = self.capacities[index] as u32;
 
             if ui.input_scalar(item_label, &mut item.count).step(1).build() {
@@ -1424,7 +1424,7 @@ impl BuildingStock {
             if is_full {
                 ui.text_colored(Color::red().to_array(), "(full)");
             } else {
-                ui.text(format!("({} left)", capacity_left));
+                ui.text(common::format_small!("({} left)", capacity_left));
             }
         });
     }

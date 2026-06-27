@@ -1,4 +1,4 @@
-use common::coords::Cell;
+use common::{coords::Cell, format_small};
 use engine::ui::{self, DrawDebugUi, UiStaticVar, UiSystem};
 
 use crate::{
@@ -205,20 +205,20 @@ impl CampaignConfigs {
         }
 
         for (campaign_id, campaign) in self.campaigns.iter().enumerate() {
-            let campaign_header = format!("[{campaign_id}] {} ({} missions)", campaign.name, campaign.missions.len());
-            if ui.collapsing_header(&campaign_header, imgui::TreeNodeFlags::empty()) {
+            let campaign_header = format_small!("[{campaign_id}] {} ({} missions)", campaign.name, campaign.missions.len());
+            if ui.collapsing_header(campaign_header, imgui::TreeNodeFlags::empty()) {
                 ui.indent_by(10.0);
 
                 for (mission_index, mission) in campaign.missions.iter().enumerate() {
                     // Indices keep the collapsing_header id unique across missions
                     // (even when two missions share the same name).
-                    let mission_header = format!(
+                    let mission_header = format_small!(
                         "[{campaign_id}.{mission_index}] {} ({} goals)",
                         mission.name,
                         mission.requirements.goals.len()
                     );
 
-                    if ui.collapsing_header(&mission_header, imgui::TreeNodeFlags::empty()) {
+                    if ui.collapsing_header(mission_header, imgui::TreeNodeFlags::empty()) {
                         ui.indent_by(10.0);
                         Self::draw_mission_def_debug_ui(ui_sys, mission);
                         ui.unindent_by(10.0);
@@ -234,12 +234,12 @@ impl CampaignConfigs {
     fn draw_mission_def_debug_ui(ui_sys: &UiSystem, mission: &MissionDef) {
         let ui = ui_sys.ui();
 
-        ui.text(format!("Name: {}", mission.name));
-        ui.text(format!("Description: {}", mission.description));
+        ui.text(format_small!("Name: {}", mission.name));
+        ui.text(format_small!("Description: {}", mission.description));
 
         match &mission.map {
-            MissionMap::SaveGame { save_file }     => ui.text(format!("Map: save game '{save_file}'")),
-            MissionMap::Preset   { preset_number } => ui.text(format!("Map: preset #{preset_number}")),
+            MissionMap::SaveGame { save_file }     => ui.text(format_small!("Map: save game '{save_file}'")),
+            MissionMap::Preset   { preset_number } => ui.text(format_small!("Map: preset #{preset_number}")),
         }
 
         if mission.requirements.goals.is_empty() {
@@ -248,10 +248,10 @@ impl CampaignConfigs {
             ui.text("Requirements:");
             for goal in &mission.requirements.goals {
                 match goal {
-                    MissionGoal::Population { min }          => ui.bullet_text(format!("Population >= {min}")),
-                    MissionGoal::Employment { min_employed } => ui.bullet_text(format!("Employment >= {min_employed}")),
-                    MissionGoal::Treasury   { min_gold }     => ui.bullet_text(format!("Treasury >= {min_gold} gold")),
-                    MissionGoal::Resource   { kind, min }    => ui.bullet_text(format!("Resource {kind} >= {min}")),
+                    MissionGoal::Population { min }          => ui.bullet_text(format_small!("Population >= {min}")),
+                    MissionGoal::Employment { min_employed } => ui.bullet_text(format_small!("Employment >= {min_employed}")),
+                    MissionGoal::Treasury   { min_gold }     => ui.bullet_text(format_small!("Treasury >= {min_gold} gold")),
+                    MissionGoal::Resource   { kind, min }    => ui.bullet_text(format_small!("Resource {kind} >= {min}")),
                 }
             }
         }

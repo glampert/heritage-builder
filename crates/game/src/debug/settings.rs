@@ -1,4 +1,4 @@
-use common::{Color, Size};
+use common::{Color, Size, format_small};
 use engine::{
     Engine,
     file_sys::paths::PathRef,
@@ -236,8 +236,8 @@ impl DebugSettingsDevMenu {
 
             if log_error_count != 0 || log_warning_count != 0 {
                 ui.separator();
-                ui.text_colored(Color::red().to_array(), format!(" Errs: {log_error_count} "));
-                ui.text_colored(Color::yellow().to_array(), format!("Warns: {log_warning_count} "));
+                ui.text_colored(Color::red().to_array(), format_small!(" Errs: {log_error_count} "));
+                ui.text_colored(Color::yellow().to_array(), format_small!("Warns: {log_warning_count} "));
             }
         }
 
@@ -246,7 +246,7 @@ impl DebugSettingsDevMenu {
             ui.separator();
 
             let gold_units_total = context.world.stats().treasury.gold_units_total;
-            let gold_units_text = format!(" Gold: {gold_units_total} ");
+            let gold_units_text = format_small!(" Gold: {gold_units_total} ");
 
             if gold_units_total == 0 {
                 ui.text_colored(Color::red().to_array(), gold_units_text);
@@ -255,7 +255,7 @@ impl DebugSettingsDevMenu {
             }
 
             let population = context.world.stats().population.total;
-            ui.text(format!("Pop: {population} "));
+            ui.text(format_small!("Pop: {population} "));
         }
     }
 
@@ -352,7 +352,7 @@ impl DebugSettingsDevMenu {
         if context.sim.is_paused() {
             ui.text_colored(Color::red().to_array(), "Paused");
         } else {
-            ui.text(format!("Speed: {:1}x", context.sim.speed()));
+            ui.text(format_small!("Speed: {:1}x", context.sim.speed()));
         }
     }
 

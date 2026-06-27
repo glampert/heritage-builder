@@ -6,6 +6,7 @@ use strum::{Display, EnumCount, EnumIter};
 
 use common::{
     Color,
+    format_small,
     hash::{self, StringHash},
     time::{Seconds, UpdateTimer},
 };
@@ -1538,25 +1539,25 @@ impl HouseBuilding {
             ui.separator();
             ui.text(label);
 
-            ui.text(format!(
+            ui.text(format_small!(
                 "  Resources avail : {} (req: {})",
                 level_requirements.resources_available_count(),
                 level_requirements.level_config.resources_required.len()
             ));
-            ui.text(format!(
+            ui.text(format_small!(
                 "  Services avail  : {} (req: {})",
                 level_requirements.services_available_count(),
                 level_requirements.level_config.services_required.len()
             ));
 
-            if ui.collapsing_header(format!("Resources##_building_resources_{}", imgui_id), imgui::TreeNodeFlags::empty()) {
+            if ui.collapsing_header(format_small!("Resources##_building_resources_{}", imgui_id), imgui::TreeNodeFlags::empty()) {
                 if !level_requirements.level_config.resources_required.is_empty() {
                     ui.text("Available:");
                     if level_requirements.resources_available.is_empty() {
                         ui.text("  <none>");
                     }
                     for resource in level_requirements.resources_available.iter() {
-                        ui.text(format!("  {}", resource));
+                        ui.text(format_small!("  {}", resource));
                     }
                 }
 
@@ -1565,18 +1566,18 @@ impl HouseBuilding {
                     ui.text("  <none>");
                 }
                 for resource in level_requirements.level_config.resources_required.iter() {
-                    ui.text(format!("  {}", resource));
+                    ui.text(format_small!("  {}", resource));
                 }
             }
 
-            if ui.collapsing_header(format!("Services##_building_services_{}", imgui_id), imgui::TreeNodeFlags::empty()) {
+            if ui.collapsing_header(format_small!("Services##_building_services_{}", imgui_id), imgui::TreeNodeFlags::empty()) {
                 if !level_requirements.level_config.services_required.is_empty() {
                     ui.text("Available:");
                     if level_requirements.services_available.is_empty() {
                         ui.text("  <none>");
                     }
                     for service in level_requirements.services_available.iter() {
-                        ui.text(format!("  {}", service));
+                        ui.text(format_small!("  {}", service));
                     }
                 }
 
@@ -1585,7 +1586,7 @@ impl HouseBuilding {
                     ui.text("  <none>");
                 }
                 for service in level_requirements.level_config.services_required.iter() {
-                    ui.text(format!("  {}", service));
+                    ui.text(format_small!("  {}", service));
                 }
             }
         };
@@ -1628,11 +1629,11 @@ impl HouseBuilding {
         color_text(" - Has resources   :", next_level_requirements.has_required_resources());
         color_text(" - Has road access :", context.is_linked_to_road());
 
-        draw_level_requirements(&format!("Curr level reqs ({}):", upgrade_state.level), &curr_level_requirements, 0);
+        draw_level_requirements(&format_small!("Curr level reqs ({}):", upgrade_state.level), &curr_level_requirements, 0);
 
         if !upgrade_state.level.is_max() {
             draw_level_requirements(
-                &format!("Next level reqs ({}):", upgrade_state.level.next()),
+                &format_small!("Next level reqs ({}):", upgrade_state.level.next()),
                 &next_level_requirements,
                 1,
             );
@@ -1674,7 +1675,7 @@ impl HouseBuilding {
         // Deprivation timer: how long this house has gone without a basic need.
         let grace = config.deprivation_grace_secs;
         let timer = self.deprivation_timer_secs;
-        let deprivation_text = format!("Deprivation : {:.0}s / {:.0}s", timer, grace);
+        let deprivation_text = format_small!("Deprivation : {:.0}s / {:.0}s", timer, grace);
         if timer > 0.0 {
             ui.text_colored(Color::red().to_array(), deprivation_text);
         } else {
@@ -1688,7 +1689,7 @@ impl HouseBuilding {
             let accumulated = self.consumption_accumulator[kind.index()];
             if accumulated != 0.0 {
                 let rate = config.consumption_rate_table[kind.index()];
-                ui.text(format!("  {}: {:.2} ({:.2}/day/resident)", kind, accumulated, rate));
+                ui.text(format_small!("  {}: {:.2} ({:.2}/day/resident)", kind, accumulated, rate));
                 any_shown = true;
             }
         }

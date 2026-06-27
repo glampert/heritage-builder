@@ -6,6 +6,7 @@ use serde::{Deserialize, Serialize};
 use common::{
     Color,
     callback::{self, Callback},
+    format_small,
     hash::{self, StringHash},
     time::{Seconds, UpdateTimer},
 };
@@ -960,7 +961,7 @@ impl ProducerOutputLocalStock {
         let ui = ui_sys.ui();
         ui.text("Local Stock:");
 
-        if ui.input_scalar(format!("{}", self.item.kind), &mut self.item.count).step(1).build() {
+        if ui.input_scalar(format_small!("{}", self.item.kind), &mut self.item.count).step(1).build() {
             self.item.count = self.item.count.min(self.capacity);
         }
 
@@ -983,7 +984,7 @@ impl ProducerInputsLocalStock {
             let capacity = self.capacity;
 
             for (index, item) in self.slots.iter_mut().enumerate() {
-                let label = format!("{}##_stock_item_{}", item.kind, index);
+                let label = format_small!("{}##_stock_item_{}", item.kind, index);
 
                 if ui.input_scalar(label, &mut item.count).step(1).build() {
                     item.count = item.count.min(capacity);
@@ -996,7 +997,7 @@ impl ProducerInputsLocalStock {
                 if is_full {
                     ui.text_colored(Color::red().to_array(), "(full)");
                 } else {
-                    ui.text(format!("({} left)", capacity_left));
+                    ui.text(format_small!("({} left)", capacity_left));
                 }
             }
         }

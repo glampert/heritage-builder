@@ -15,9 +15,9 @@ impl DrawDebugUi for SoundSystem {
             return;
         }
 
-        ui.text(format!("Listener Pos   : {}", self.listener_position()));
-        ui.text(format!("Sounds Playing : {}", self.sounds_playing()));
-        ui.text(format!("Sounds Loaded  : {}", self.sounds_loaded()));
+        ui.text(common::format_small!("Listener Pos   : {}", self.listener_position()));
+        ui.text(common::format_small!("Sounds Playing : {}", self.sounds_playing()));
+        ui.text(common::format_small!("Sounds Loaded  : {}", self.sounds_loaded()));
 
         ui.separator();
 

@@ -1,6 +1,6 @@
 use std::any::Any;
 
-use common::Color;
+use common::{Color, format_small};
 use engine::{
     Engine,
     file_sys::paths::PathRef,
@@ -124,7 +124,7 @@ impl GameSystem for AmbientSoundsSystem {
         }
 
         if let Some(key) = self.current_sound_playing {
-            ui.text(format!("Current Ambient Sound Playing: {} ('{}')", key, key.sound_path()));
+            ui.text(format_small!("Current Ambient Sound Playing: {} ('{}')", key, key.sound_path()));
         } else {
             ui.text("Current Ambient Sound Playing: None");
         }

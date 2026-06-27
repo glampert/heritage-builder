@@ -1,4 +1,4 @@
-use common::Color;
+use common::{Color, format_small};
 use engine::ui::{UiStaticVar, UiSystem};
 
 use crate::{
@@ -25,25 +25,25 @@ impl WorldStats {
 
         let highlight_zero_value = |label: &str, value: u32, color: Color| {
             if value == 0 {
-                ui.text(format!("{label} :"));
+                ui.text(format_small!("{label} :"));
                 ui.same_line();
-                ui.text_colored(color.to_array(), format!("{value}"));
+                ui.text_colored(color.to_array(), format_small!("{value}"));
             } else {
-                ui.text(format!("{label} :"));
+                ui.text(format_small!("{label} :"));
                 ui.same_line();
-                ui.text(format!("{value}"));
+                ui.text(format_small!("{value}"));
             }
         };
 
         let highlight_nonzero_value = |label: &str, value: u32, color: Color| {
             if value != 0 {
-                ui.text(format!("{label} :"));
+                ui.text(format_small!("{label} :"));
                 ui.same_line();
-                ui.text_colored(color.to_array(), format!("{value}"));
+                ui.text_colored(color.to_array(), format_small!("{value}"));
             } else {
-                ui.text(format!("{label} :"));
+                ui.text(format_small!("{label} :"));
                 ui.same_line();
-                ui.text(format!("{value}"));
+                ui.text(format_small!("{value}"));
             }
         };
 
@@ -54,23 +54,23 @@ impl WorldStats {
                 let employment_percent = self.population.employment_ratio() * 100.0;
                 let unemployment_percent = self.population.unemployment_ratio() * 100.0;
 
-                ui.text(format!("Total : {}", self.population.total));
+                ui.text(format_small!("Total : {}", self.population.total));
                 ui.spacing();
-                ui.text(format!("Employed : {}", self.population.employed));
-                ui.text(format!("Employment : {employment_percent:.2}%"));
+                ui.text(format_small!("Employed : {}", self.population.employed));
+                ui.text(format_small!("Employment : {employment_percent:.2}%"));
                 ui.spacing();
-                ui.text(format!("Unemployed : {}", self.population.unemployed));
-                ui.text(format!("Unemployment : {unemployment_percent:.2}%"));
+                ui.text(format_small!("Unemployed : {}", self.population.unemployed));
+                ui.text(format_small!("Unemployment : {unemployment_percent:.2}%"));
             }
             ui.separator();
 
             ui.bullet_text("Workers:");
             ui.spacing();
             {
-                ui.text(format!("Total : {}", self.workers.total));
+                ui.text(format_small!("Total : {}", self.workers.total));
                 ui.spacing();
-                ui.text(format!("Min Required : {}", self.workers.min_required));
-                ui.text(format!("Max Employed : {}", self.workers.max_employed));
+                ui.text(format_small!("Min Required : {}", self.workers.min_required));
+                ui.text(format_small!("Max Employed : {}", self.workers.max_employed));
                 ui.spacing();
                 highlight_nonzero_value("Buildings Below Min", self.workers.buildings_below_min, Color::red());
                 highlight_nonzero_value("Buildings Below Max", self.workers.buildings_below_max, Color::yellow());
@@ -80,9 +80,9 @@ impl WorldStats {
             if self.houses.total != 0 {
                 ui.bullet_text("Housing:");
                 ui.spacing();
-                ui.text(format!("Number Of Houses    : {}", self.houses.total));
-                ui.text(format!("Lowest House Level  : {}", self.houses.lowest_level as u32));
-                ui.text(format!("Highest House Level : {}", self.houses.highest_level as u32));
+                ui.text(format_small!("Number Of Houses    : {}", self.houses.total));
+                ui.text(format_small!("Lowest House Level  : {}", self.houses.lowest_level as u32));
+                ui.text(format_small!("Highest House Level : {}", self.houses.highest_level as u32));
             }
         }
 

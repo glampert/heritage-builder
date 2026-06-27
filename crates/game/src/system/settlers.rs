@@ -5,6 +5,7 @@ use common::{
     Color,
     hash,
     coords::Cell,
+    format_small,
     time::UpdateTimer,
     callback::{self, Callback},
 };
@@ -90,7 +91,7 @@ impl GameSystem for SettlersSpawnSystem {
         color_text("Has vacant lots:", Self::has_vacant_lots(context));
 
         let spawn_point = Self::find_spawn_point(cmds, context);
-        ui.text(format!("Spawn Point: {}", spawn_point.cell));
+        ui.text(format_small!("Spawn Point: {}", spawn_point.cell));
 
         if ui.input_scalar("Population Per Settler Unit", &mut self.population_per_settler_unit).step(1).build() {
             self.population_per_settler_unit = self.population_per_settler_unit.max(1);

@@ -120,12 +120,12 @@ impl UnitTask for UnitTaskFollowPath {
         #[derive(DrawDebugUi)]
         struct View {
             #[debug_ui(label = "Path Start/End")]
-            path_start_end: String,
+            path_start_end: arrayvec::ArrayString<32>,
             has_completion_callback: bool,
             has_completion_task: bool,
         }
         View {
-            path_start_end: format!("{start},{end}"),
+            path_start_end: common::format_fixed_string_trunc!(32, "{start},{end}"),
             has_completion_callback: self.completion_callback.is_valid(),
             has_completion_task: self.completion_task.is_some(),
         }

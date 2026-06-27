@@ -5,6 +5,7 @@ use rand::seq::IteratorRandom;
 
 use common::{
     Color,
+    format_small,
     hash::{self, StringHash},
 };
 use engine::ui::UiSystem;
@@ -688,17 +689,17 @@ impl StorageSlots {
         for (slot_index, slot) in display_slots.iter().enumerate() {
             let slot_label = {
                 if self.is_slot_free(slot_index) {
-                    format!("Slot {} (Free)", slot_index)
+                    format_small!("Slot {} (Free)", slot_index)
                 } else {
-                    format!("Slot {} ({})", slot_index, display_slots[slot_index].last().unwrap())
+                    format_small!("Slot {} ({})", slot_index, display_slots[slot_index].last().unwrap())
                 }
             };
 
-            let header_label = format!("{}##_stock_slot_{}", slot_label, slot_index);
+            let header_label = format_small!("{}##_stock_slot_{}", slot_label, slot_index);
 
             if ui.collapsing_header(header_label, imgui::TreeNodeFlags::DEFAULT_OPEN) {
                 for (res_index, res_kind) in slot.iter().enumerate() {
-                    let res_label = format!("{}##_stock_item_{}_slot_{}", res_kind, res_index, slot_index);
+                    let res_label = format_small!("{}##_stock_item_{}_slot_{}", res_kind, res_index, slot_index);
 
                     let prev_count = self.slot_resource_count(slot_index, *res_kind);
                     let mut new_count = prev_count;
@@ -724,7 +725,7 @@ impl StorageSlots {
                     if is_full {
                         ui.text_colored(Color::red().to_array(), "(full)");
                     } else {
-                        ui.text(format!("({} left)", capacity_left));
+                        ui.text(format_small!("({} left)", capacity_left));
                     }
                 }
             }
