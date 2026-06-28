@@ -1,5 +1,6 @@
 [
   "assets/configs/buildings/configs.json",
+  "assets/configs/game/campaigns.json",
   "assets/configs/game/configs.json",
   "assets/configs/props/configs.json",
   "assets/configs/ui/text.json",
