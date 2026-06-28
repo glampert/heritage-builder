@@ -2,14 +2,12 @@ use std::any::Any;
 use serde::{Deserialize, Serialize};
 
 use common::{
-    Color,
     hash,
     coords::Cell,
-    format_small,
     time::UpdateTimer,
     callback::{self, Callback},
 };
-use engine::{Engine, log, ui::DrawDebugUi};
+use engine::{Engine, log};
 
 use super::GameSystem;
 use crate::{
@@ -47,8 +45,8 @@ use crate::{
 
 #[derive(Serialize, Deserialize)]
 pub struct SettlersSpawnSystem {
-    spawn_timer: UpdateTimer,
-    population_per_settler_unit: u32,
+    pub(crate) spawn_timer: UpdateTimer,
+    pub(crate) population_per_settler_unit: u32,
 }
 
 impl GameSystem for SettlersSpawnSystem {
@@ -74,41 +72,8 @@ impl GameSystem for SettlersSpawnSystem {
     }
 
     fn draw_debug_ui(&mut self, engine: &mut Engine, cmds: &mut SimCmds, context: &SimContext) {
-        self.spawn_timer.draw_debug_ui_with_header("Settler Spawn", engine.ui_system());
-
-        let ui = engine.ui_system().ui();
-
-        let color_text = |text: &str, cond: bool| {
-            ui.text(text);
-            ui.same_line();
-            if cond {
-                ui.text_colored(Color::green().to_array(), "yes");
-            } else {
-                ui.text_colored(Color::red().to_array(), "no");
-            }
-        };
-
-        color_text("Has vacant lots:", Self::has_vacant_lots(context));
-
-        let spawn_point = Self::find_spawn_point(cmds, context);
-        ui.text(format_small!("Spawn Point: {}", spawn_point.cell));
-
-        if ui.input_scalar("Population Per Settler Unit", &mut self.population_per_settler_unit).step(1).build() {
-            self.population_per_settler_unit = self.population_per_settler_unit.max(1);
-        }
-
-        if ui.button("Force Spawn Now") {
-            self.spawn_settler(cmds, context);
-        }
-
-        if ui.button("Highlight Spawn Point") {
-            context.tile_map_mut().set_tile_flags(
-                spawn_point.cell,
-                TileKind::Terrain,
-                TileFlags::Highlighted | TileFlags::DrawDebugBounds,
-                true,
-            );
-        }
+        // Debug-UI drawing lives in `crate::debug::systems`.
+        self.draw_debug_ui_dispatch(engine, cmds, context);
     }
 
     fn register_callbacks(&self) {
@@ -128,11 +93,11 @@ impl Default for SettlersSpawnSystem {
 
 impl SettlersSpawnSystem {
     #[inline]
-    fn has_vacant_lots(context: &SimContext) -> bool {
+    pub(crate) fn has_vacant_lots(context: &SimContext) -> bool {
         context.graph().has_vacant_lot_nodes()
     }
 
-    fn find_spawn_point(cmds: &mut SimCmds, context: &SimContext) -> Node {
+    pub(crate) fn find_spawn_point(cmds: &mut SimCmds, context: &SimContext) -> Node {
         context.graph().settlers_spawn_point().unwrap_or_else(|| {
             // Fallback to map playable area top-left corner cell if no spawn point it set.
             let map_size = context.map_size_in_cells();
@@ -154,7 +119,7 @@ impl SettlersSpawnSystem {
         })
     }
 
-    fn spawn_settler(&self, cmds: &mut SimCmds, context: &SimContext) {
+    pub(crate) fn spawn_settler(&self, cmds: &mut SimCmds, context: &SimContext) {
         let spawn_point = Self::find_spawn_point(cmds, context);
         Settler::spawn(cmds, context, spawn_point.cell, self.population_per_settler_unit);
     }

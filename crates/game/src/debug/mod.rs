@@ -43,6 +43,7 @@ mod palette;
 mod prop;
 mod settings;
 mod sim;
+mod systems;
 mod unit;
 mod world;
 

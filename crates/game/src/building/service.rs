@@ -5,11 +5,10 @@ use serde::{Deserialize, Serialize};
 use common::{
     Color,
     callback::{self, Callback},
-    format_small,
     hash::{self, StringHash},
     time::{Seconds, UpdateTimer},
 };
-use engine::{log, ui::{DrawDebugUi, UiSystem}};
+use engine::{log, ui::UiSystem};
 use proc_macros::DrawDebugUi;
 
 use super::{
@@ -146,11 +145,11 @@ pub struct ServiceBuilding {
     workers: Workers,
 
     // Stock of required resources for this service or a treasury for a TaxOffice.
-    stock_or_treasury: StockOrTreasury,
+    pub(crate) stock_or_treasury: StockOrTreasury,
 
-    runner: Runner,            // Runner Unit we may send out to fetch resources from storage.
-    patrol: Patrol,            // Unit we may send out on patrol to provide the service.
-    patrol_timer: UpdateTimer, // Min time before we can send out a new patrol unit.
+    pub(crate) runner: Runner,            // Runner Unit we may send out to fetch resources from storage.
+    pub(crate) patrol: Patrol,            // Unit we may send out on patrol to provide the service.
+    pub(crate) patrol_timer: UpdateTimer, // Min time before we can send out a new patrol unit.
 
     #[serde(skip)]
     debug: ServiceDebug,
@@ -453,10 +452,9 @@ impl BuildingBehavior for ServiceBuilding {
         &mut self.debug
     }
 
-    fn draw_debug_ui(&mut self, _cmds: &mut SimCmds, context: &BuildingContext, ui_sys: &UiSystem) {
-        self.draw_debug_ui_resources_stock(context, ui_sys);
-        self.draw_debug_ui_patrol(ui_sys);
-        self.draw_debug_ui_treasury(ui_sys);
+    fn draw_debug_ui(&mut self, cmds: &mut SimCmds, context: &BuildingContext, ui_sys: &UiSystem) {
+        // Debug-UI drawing lives in `crate::debug::building`.
+        self.draw_debug_ui_dispatch(cmds, context, ui_sys);
     }
 }
 
@@ -534,12 +532,12 @@ impl ServiceBuilding {
     }
 
     #[inline]
-    fn is_waiting_on_runner(&self) -> bool {
+    pub(crate) fn is_waiting_on_runner(&self) -> bool {
         self.runner.is_spawned_or_pending_spawn()
     }
 
     #[inline]
-    fn is_runner_fetching_resources(&self, context: &SimContext) -> bool {
+    pub(crate) fn is_runner_fetching_resources(&self, context: &SimContext) -> bool {
         self.runner.is_running_task::<UnitTaskFetchFromStorage>(context)
     }
 
@@ -617,12 +615,12 @@ impl ServiceBuilding {
     }
 
     #[inline]
-    fn has_patrol_unit(&self) -> bool {
+    pub(crate) fn has_patrol_unit(&self) -> bool {
         self.config.unwrap().has_patrol_unit
     }
 
     #[inline]
-    fn is_waiting_on_patrol(&self) -> bool {
+    pub(crate) fn is_waiting_on_patrol(&self) -> bool {
         self.patrol.is_spawned_or_pending_spawn()
     }
 
@@ -668,7 +666,7 @@ impl ServiceBuilding {
 // ----------------------------------------------
 
 #[derive(Clone, Serialize, Deserialize)]
-enum StockOrTreasury {
+pub(crate) enum StockOrTreasury {
     None,
     Stock {
         update_timer: UpdateTimer,
@@ -694,7 +692,7 @@ impl StockOrTreasury {
         }
     }
 
-    fn is_stock_and_requires_resources(&self) -> bool {
+    pub(crate) fn is_stock_and_requires_resources(&self) -> bool {
         match self {
             Self::Stock { stock, .. } => stock.accepts_any(),
             _ => false,
@@ -716,87 +714,3 @@ impl StockOrTreasury {
     }
 }
 
-// ----------------------------------------------
-// Debug UI
-// ----------------------------------------------
-
-impl ServiceBuilding {
-    fn draw_debug_ui_resources_stock(&mut self, context: &BuildingContext, ui_sys: &UiSystem) {
-        if !self.stock_or_treasury.is_stock_and_requires_resources() {
-            return;
-        }
-
-        let ui = ui_sys.ui();
-        if !ui.collapsing_header("Stock", imgui::TreeNodeFlags::empty()) {
-            return; // collapsed.
-        }
-
-        if self.runner.failed_to_spawn() {
-            ui.text_colored(Color::red().to_array(), "Failed to spawn last Runner!");
-        }
-
-        if self.is_waiting_on_runner() {
-            if self.is_runner_fetching_resources(context.sim_ctx) {
-                ui.text_colored(Color::yellow().to_array(), "Runner sent on Fetch Task.");
-            } else {
-                ui.text_colored(Color::yellow().to_array(), "Runner sent out. Waiting...");
-            }
-
-            if ui.button("Forget Runner") {
-                self.runner.reset();
-            }
-        }
-
-        if let StockOrTreasury::Stock { update_timer, stock } = &mut self.stock_or_treasury {
-            update_timer.draw_debug_ui_with_header("Update", ui_sys);
-
-            if ui.button("Fill Stock") {
-                // Set all to capacity.
-                stock.fill();
-            }
-            ui.same_line();
-            if ui.button("Clear Stock") {
-                stock.clear();
-            }
-
-            stock.draw_debug_ui_with_header("Resources", ui_sys);
-        }
-    }
-
-    fn draw_debug_ui_patrol(&mut self, ui_sys: &UiSystem) {
-        if !self.has_patrol_unit() {
-            return;
-        }
-
-        let ui = ui_sys.ui();
-        if !ui.collapsing_header("Patrol", imgui::TreeNodeFlags::empty()) {
-            return; // collapsed.
-        }
-
-        if self.patrol.failed_to_spawn() {
-            ui.text_colored(Color::red().to_array(), "Failed to spawn last Patrol!");
-        }
-
-        if self.is_waiting_on_patrol() {
-            ui.text_colored(Color::yellow().to_array(), "Patrol sent out. Waiting...");
-            if ui.button("Forget Patrol") {
-                self.patrol.reset();
-            }
-        }
-
-        self.patrol_timer.draw_debug_ui_with_header("Patrol", ui_sys);
-
-        ui.text(format_small!("Spawn State: {:?}", self.patrol.spawn_state()));
-
-        self.patrol.draw_debug_ui_with_header("Patrol Params", ui_sys);
-    }
-
-    fn draw_debug_ui_treasury(&mut self, ui_sys: &UiSystem) {
-        if let StockOrTreasury::Treasury { gold_units } = &mut self.stock_or_treasury {
-            let ui = ui_sys.ui();
-            if ui.collapsing_header("Treasury", imgui::TreeNodeFlags::empty()) {
-                ui.input_scalar("Gold Units", gold_units).step(1).build();
-            }
-        }
-    }
-}

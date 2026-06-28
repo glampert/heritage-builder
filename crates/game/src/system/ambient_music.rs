@@ -1,6 +1,5 @@
 use std::any::Any;
 
-use common::{Color, format_small};
 use engine::{
     Engine,
     file_sys::paths::PathRef,
@@ -18,7 +17,7 @@ use crate::{GameLoop, config::GameConfigs, save_context::PostLoadContext, sim::{
 // ----------------------------------------------
 
 #[derive(Copy, Clone, PartialEq, Eq, Display, EnumCount, EnumProperty, EnumIter)]
-enum MusicTrackKey {
+pub(crate) enum MusicTrackKey {
     // Home menu track.
     #[strum(props(TrackPath = "dynastys_legacy_1.mp3"))]
     HomeMenu,
@@ -29,7 +28,7 @@ enum MusicTrackKey {
 }
 
 impl MusicTrackKey {
-    fn track_path(self) -> PathRef<'static> {
+    pub(crate) fn track_path(self) -> PathRef<'static> {
         PathRef::from_str(self.get_str("TrackPath").unwrap())
     }
 }
@@ -77,7 +76,7 @@ impl MusicTrack {
 // ----------------------------------------------
 
 #[derive(Copy, Clone, Default, PartialEq, Eq, Display)]
-enum GameState {
+pub(crate) enum GameState {
     #[default]
     Unknown,
     HomeMenu,
@@ -138,32 +137,25 @@ impl GameSystem for AmbientMusicSystem {
         self.reset(context.engine_mut());
     }
 
-    fn draw_debug_ui(&mut self, engine: &mut Engine, _cmds: &mut SimCmds, _context: &SimContext) {
-        let ui = engine.ui_system().ui();
-
-        if !self.is_enabled() {
-            ui.text_colored(Color::red().to_array(), "AmbientMusicSystem DISABLED.");
-            return;
-        }
-
-        if let Some(key) = self.current_track_playing {
-            ui.text(format_small!("Current Track Playing: {} ('{}')", key, key.track_path()));
-        } else {
-            ui.text("Current Track Playing: None");
-        }
-
-        ui.text(format_small!("Current Game State: {}", self.current_game_state));
-        ui.separator();
-
-        if ui.button("Reset Track") {
-            self.reset(engine);
-        }
+    fn draw_debug_ui(&mut self, engine: &mut Engine, cmds: &mut SimCmds, context: &SimContext) {
+        // Debug-UI drawing lives in `crate::debug::systems`.
+        self.draw_debug_ui_dispatch(engine, cmds, context);
     }
 }
 
 impl AmbientMusicSystem {
     #[inline]
-    fn is_enabled(&self) -> bool {
+    pub(crate) fn current_track_playing(&self) -> Option<MusicTrackKey> {
+        self.current_track_playing
+    }
+
+    #[inline]
+    pub(crate) fn current_game_state(&self) -> GameState {
+        self.current_game_state
+    }
+
+    #[inline]
+    pub(crate) fn is_enabled(&self) -> bool {
         !GameConfigs::get().debug.disable_ambient_music
     }
 

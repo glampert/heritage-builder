@@ -4,7 +4,6 @@ use common::mem;
 use engine::{
     Engine,
     save::*,
-    ui::{UiStaticVar, UiSystem},
 };
 use enum_dispatch::enum_dispatch;
 use serde::{Deserialize, Serialize};
@@ -73,14 +72,14 @@ pub enum GameSystemImpl {
 pub type GameSystemId = GenerationalIndex;
 
 #[derive(Serialize, Deserialize)]
-struct GameSystemEntry {
-    system: GameSystemImpl,
+pub(crate) struct GameSystemEntry {
+    pub(crate) system: GameSystemImpl,
     generation: u32,
 }
 
 #[derive(Serialize, Deserialize)]
 pub struct GameSystems {
-    systems: Vec<GameSystemEntry>,
+    pub(crate) systems: Vec<GameSystemEntry>,
     generation: u32,
 }
 
@@ -177,35 +176,7 @@ impl GameSystems {
         }
     }
 
-    // ----------------------
-    // Debug UI:
-    // ----------------------
-
-    pub fn draw_debug_ui(&mut self, engine: &mut Engine, cmds: &mut SimCmds, context: &SimContext, ui_sys: &UiSystem) {
-        let ui = ui_sys.ui();
-        if let Some(_tab_bar) = ui.tab_bar("Game Systems Tab Bar") {
-            for entry in &mut self.systems {
-                if let Some(_tab) = ui.tab_item(entry.system.to_string()) {
-                    entry.system.draw_debug_ui(engine, cmds, context);
-                }
-            }
-
-            if let Some(_tab) = ui.tab_item("Create Systems") {
-                ui.text("Create and register system if not already created.");
-
-                static SYSTEM_INDEX: UiStaticVar<usize> = UiStaticVar::new(0);
-                ui.combo_simple_string("Systems", SYSTEM_INDEX.as_mut(), GameSystemImpl::VARIANTS);
-
-                if ui.button("Create") {
-                    if let Some(system) = GameSystemImpl::iter().nth(*SYSTEM_INDEX) {
-                        if !self.has(system.as_any().type_id()) {
-                            self.register(system);
-                        }
-                    }
-                }
-            }
-        }
-    }
+    // NOTE: `GameSystems::draw_debug_ui` lives in `crate::debug::systems`.
 
     // ----------------------
     // Callbacks:

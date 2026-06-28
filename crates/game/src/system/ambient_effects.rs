@@ -1,7 +1,7 @@
 use std::any::Any;
 
 use common::{callback::Callback, coords::Cell, time::UpdateTimer};
-use engine::{Engine, log, ui::DrawDebugUi};
+use engine::{Engine, log};
 use rand::seq::{IndexedRandom, IteratorRandom};
 use serde::{Deserialize, Serialize};
 use smallvec::SmallVec;
@@ -28,7 +28,7 @@ use crate::{
 
 #[derive(Serialize, Deserialize)]
 pub struct AmbientEffectsSystem {
-    bird_spawn_timer: UpdateTimer,
+    pub(crate) bird_spawn_timer: UpdateTimer,
 }
 
 impl GameSystem for AmbientEffectsSystem {
@@ -51,23 +51,8 @@ impl GameSystem for AmbientEffectsSystem {
     }
 
     fn draw_debug_ui(&mut self, engine: &mut Engine, cmds: &mut SimCmds, context: &SimContext) {
-        self.bird_spawn_timer.draw_debug_ui_with_header("Bird Spawn", engine.ui_system());
-
-        let ui = engine.ui_system().ui();
-
-        if ui.button("Spawn Bird (left-to-right path") {
-            spawn_bird(cmds, context, BirdFlightPath::LeftToRight);
-        }
-
-        if ui.button("Spawn Bird (right-to-left path)") {
-            spawn_bird(cmds, context, BirdFlightPath::RightToLeft);
-        }
-
-        if ui.button("Spawn Big Flock") {
-            for _ in 0..50 {
-                spawn_bird_with_random_flight_path(cmds, context);
-            }
-        }
+        // Debug-UI drawing lives in `crate::debug::systems`.
+        self.draw_debug_ui_dispatch(engine, cmds, context);
     }
 }
 
@@ -84,12 +69,12 @@ impl Default for AmbientEffectsSystem {
 
 #[repr(u32)]
 #[derive(Copy, Clone, EnumIter)]
-enum BirdFlightPath {
+pub(crate) enum BirdFlightPath {
     LeftToRight,
     RightToLeft,
 }
 
-fn spawn_bird(cmds: &mut SimCmds, context: &SimContext, flight_path: BirdFlightPath) {
+pub(crate) fn spawn_bird(cmds: &mut SimCmds, context: &SimContext, flight_path: BirdFlightPath) {
     let (path, anim_set_key) = {
         match flight_path {
             BirdFlightPath::LeftToRight => (make_left_to_right_randomized_path(context), UnitAnimSets::WALK_SE),
@@ -117,7 +102,7 @@ fn spawn_bird(cmds: &mut SimCmds, context: &SimContext, flight_path: BirdFlightP
     });
 }
 
-fn spawn_bird_with_random_flight_path(cmds: &mut SimCmds, context: &SimContext) {
+pub(crate) fn spawn_bird_with_random_flight_path(cmds: &mut SimCmds, context: &SimContext) {
     let flight_path = BirdFlightPath::iter().choose(context.rng_mut()).unwrap();
     spawn_bird(cmds, context, flight_path);
 }

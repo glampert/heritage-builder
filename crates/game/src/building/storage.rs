@@ -1,13 +1,7 @@
 use arrayvec::ArrayVec;
-use smallvec::{SmallVec, smallvec};
 use serde::{Deserialize, Serialize};
-use rand::seq::IteratorRandom;
 
-use common::{
-    Color,
-    format_small,
-    hash::{self, StringHash},
-};
+use common::hash::{self, StringHash};
 use engine::ui::UiSystem;
 use proc_macros::DrawDebugUi;
 
@@ -112,7 +106,7 @@ pub struct StorageBuilding {
     workers: Workers,
 
     // Stockpiles:
-    storage_slots: Box<StorageSlots>,
+    pub(crate) storage_slots: Box<StorageSlots>,
 
     #[serde(skip)]
     debug: StorageDebug,
@@ -330,8 +324,9 @@ impl BuildingBehavior for StorageBuilding {
         &mut self.debug
     }
 
-    fn draw_debug_ui(&mut self, _cmds: &mut SimCmds, _context: &BuildingContext, ui_sys: &UiSystem) {
-        self.storage_slots.draw_debug_ui("Stock Slots", ui_sys);
+    fn draw_debug_ui(&mut self, cmds: &mut SimCmds, context: &BuildingContext, ui_sys: &UiSystem) {
+        // Debug-UI drawing lives in `crate::debug::building`.
+        self.draw_debug_ui_dispatch(cmds, context, ui_sys);
     }
 }
 
@@ -356,17 +351,17 @@ impl StorageBuilding {
 // StorageSlots
 // ----------------------------------------------
 
-const MAX_STORAGE_SLOTS: usize = 8;
+pub(crate) const MAX_STORAGE_SLOTS: usize = 8;
 
 #[derive(Clone, Serialize, Deserialize)]
-struct StorageSlot {
+pub(crate) struct StorageSlot {
     stock: ResourceStock,
     allocated_resource_kind: Option<ResourceKind>,
 }
 
 #[derive(Clone, Serialize, Deserialize)]
-struct StorageSlots {
-    slots: ArrayVec<StorageSlot, MAX_STORAGE_SLOTS>,
+pub(crate) struct StorageSlots {
+    pub(crate) slots: ArrayVec<StorageSlot, MAX_STORAGE_SLOTS>,
     slot_capacity: u32,
 }
 
@@ -374,6 +369,16 @@ impl StorageSlot {
     #[inline]
     fn is_free(&self) -> bool {
         self.allocated_resource_kind.is_none()
+    }
+
+    #[inline]
+    pub(crate) fn allocated_resource_kind(&self) -> Option<ResourceKind> {
+        self.allocated_resource_kind
+    }
+
+    #[inline]
+    pub(crate) fn accepted_kinds(&self) -> ResourceKind {
+        self.stock.accepted_kinds()
     }
 
     fn is_full(&self, slot_capacity: u32) -> bool {
@@ -395,7 +400,7 @@ impl StorageSlot {
         slot_capacity // free
     }
 
-    fn clear(&mut self) {
+    pub(crate) fn clear(&mut self) {
         self.stock.clear();
         self.allocated_resource_kind = None;
     }
@@ -412,7 +417,7 @@ impl StorageSlot {
         self.stock.set(index, StockItem { kind, count });
     }
 
-    fn increment_resource_count(&mut self, kind: ResourceKind, add_amount: u32, slot_capacity: u32) -> u32 {
+    pub(crate) fn increment_resource_count(&mut self, kind: ResourceKind, add_amount: u32, slot_capacity: u32) -> u32 {
         let (index, mut count) = self.resource_index_and_count(kind);
 
         let prev_count = count;
@@ -456,7 +461,7 @@ impl StorageSlot {
         count
     }
 
-    fn for_each_accepted_resource<F>(&self, mut visitor_fn: F)
+    pub(crate) fn for_each_accepted_resource<F>(&self, mut visitor_fn: F)
     where
         F: FnMut(ResourceKind),
     {
@@ -485,7 +490,12 @@ impl StorageSlots {
     }
 
     #[inline]
-    fn is_slot_free(&self, slot_index: usize) -> bool {
+    pub(crate) fn slot_capacity(&self) -> u32 {
+        self.slot_capacity
+    }
+
+    #[inline]
+    pub(crate) fn is_slot_free(&self, slot_index: usize) -> bool {
         self.slots[slot_index].is_free()
     }
 
@@ -495,19 +505,19 @@ impl StorageSlots {
     }
 
     #[inline]
-    fn slot_resource_count(&self, slot_index: usize, kind: ResourceKind) -> u32 {
+    pub(crate) fn slot_resource_count(&self, slot_index: usize, kind: ResourceKind) -> u32 {
         debug_assert!(kind.is_single_resource());
         self.slots[slot_index].resource_index_and_count(kind).1
     }
 
     #[inline]
-    fn increment_slot_resource_count(&mut self, slot_index: usize, kind: ResourceKind, add_amount: u32) -> u32 {
+    pub(crate) fn increment_slot_resource_count(&mut self, slot_index: usize, kind: ResourceKind, add_amount: u32) -> u32 {
         debug_assert!(kind.is_single_resource());
         self.slots[slot_index].increment_resource_count(kind, add_amount, self.slot_capacity)
     }
 
     #[inline]
-    fn decrement_slot_resource_count(&mut self, slot_index: usize, kind: ResourceKind, sub_amount: u32) -> u32 {
+    pub(crate) fn decrement_slot_resource_count(&mut self, slot_index: usize, kind: ResourceKind, sub_amount: u32) -> u32 {
         debug_assert!(kind.is_single_resource());
         self.slots[slot_index].decrement_resource_count(kind, sub_amount)
     }
@@ -621,115 +631,5 @@ impl StorageSlots {
                 visitor_fn(&item);
             }
         }
-    }
-}
-
-// ----------------------------------------------
-// Debug UI
-// ----------------------------------------------
-
-impl StorageSlots {
-    fn draw_debug_ui(&mut self, label: &str, ui_sys: &UiSystem) {
-        if self.slots.is_empty() {
-            return;
-        }
-
-        let ui = ui_sys.ui();
-        if !ui.collapsing_header(label, imgui::TreeNodeFlags::empty()) {
-            return; // collapsed.
-        }
-
-        if ui.button("Fill up all slots") {
-            let add_amount = self.slot_capacity;
-            let slot_capacity = self.slot_capacity;
-
-            for slot in &mut self.slots {
-                if let Some(allocated_kind) = slot.allocated_resource_kind {
-                    // Fill up slot with existing resource.
-                    slot.increment_resource_count(allocated_kind, add_amount, slot_capacity);
-                } else {
-                    let accepted_kinds = slot.stock.accepted_kinds();
-
-                    // Pick a random resource kind from the accepted kinds.
-                    let mut rng = rand::rng();
-                    let random_kind = accepted_kinds.iter().choose(&mut rng).unwrap_or(ResourceKind::Rice);
-
-                    slot.increment_resource_count(random_kind, add_amount, slot_capacity);
-                }
-            }
-        }
-
-        ui.same_line();
-
-        if ui.button("Clear all slots") {
-            for slot in &mut self.slots {
-                slot.clear();
-            }
-        }
-
-        ui.separator();
-
-        let mut display_slots: SmallVec<[SmallVec<[ResourceKind; 8]>; MAX_STORAGE_SLOTS]> =
-            smallvec![SmallVec::new(); MAX_STORAGE_SLOTS];
-
-        for (slot_index, slot) in self.slots.iter().enumerate() {
-            if let Some(allocated_kind) = slot.allocated_resource_kind {
-                // Display only the allocated resource kind.
-                display_slots[slot_index].push(allocated_kind);
-            } else {
-                // No resource allocated for the slot, display all possible resource kinds
-                // accepted.
-                slot.for_each_accepted_resource(|kind| {
-                    display_slots[slot_index].push(kind);
-                });
-            }
-        }
-
-        ui.indent_by(10.0);
-        for (slot_index, slot) in display_slots.iter().enumerate() {
-            let slot_label = {
-                if self.is_slot_free(slot_index) {
-                    format_small!("Slot {} (Free)", slot_index)
-                } else {
-                    format_small!("Slot {} ({})", slot_index, display_slots[slot_index].last().unwrap())
-                }
-            };
-
-            let header_label = format_small!("{}##_stock_slot_{}", slot_label, slot_index);
-
-            if ui.collapsing_header(header_label, imgui::TreeNodeFlags::DEFAULT_OPEN) {
-                for (res_index, res_kind) in slot.iter().enumerate() {
-                    let res_label = format_small!("{}##_stock_item_{}_slot_{}", res_kind, res_index, slot_index);
-
-                    let prev_count = self.slot_resource_count(slot_index, *res_kind);
-                    let mut new_count = prev_count;
-
-                    if ui.input_scalar(res_label, &mut new_count).step(1).build() {
-                        match new_count.cmp(&prev_count) {
-                            std::cmp::Ordering::Greater => {
-                                new_count =
-                                    self.increment_slot_resource_count(slot_index, *res_kind, new_count - prev_count);
-                            }
-                            std::cmp::Ordering::Less => {
-                                new_count =
-                                    self.decrement_slot_resource_count(slot_index, *res_kind, prev_count - new_count);
-                            }
-                            std::cmp::Ordering::Equal => {} // nothing
-                        }
-                    }
-
-                    let capacity_left = self.slot_capacity - new_count;
-                    let is_full = new_count >= self.slot_capacity;
-
-                    ui.same_line();
-                    if is_full {
-                        ui.text_colored(Color::red().to_array(), "(full)");
-                    } else {
-                        ui.text(format_small!("({} left)", capacity_left));
-                    }
-                }
-            }
-        }
-        ui.unindent_by(10.0);
     }
 }

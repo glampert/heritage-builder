@@ -6,11 +6,10 @@ use serde::{Deserialize, Serialize};
 use common::{
     Color,
     callback::{self, Callback},
-    format_small,
     hash::{self, StringHash},
     time::{Seconds, UpdateTimer},
 };
-use engine::{log, ui::{DrawDebugUi, UiSystem}};
+use engine::{log, ui::UiSystem};
 use proc_macros::DrawDebugUi;
 
 use super::{
@@ -173,18 +172,18 @@ pub struct ProducerBuilding {
 
     workers: Workers,
 
-    production_update_timer: UpdateTimer,
-    production_input_stock: ProducerInputsLocalStock, // Local stock of required raw materials.
-    production_output_stock: ProducerOutputLocalStock, // Local production output storage.
+    pub(crate) production_update_timer: UpdateTimer,
+    pub(crate) production_input_stock: ProducerInputsLocalStock, // Local stock of required raw materials.
+    pub(crate) production_output_stock: ProducerOutputLocalStock, // Local production output storage.
 
     // Runner Unit we may send out to deliver our production or fetch raw materials.
-    runner: Runner,
+    pub(crate) runner: Runner,
 
     // Harvester for buildings that spawn one (e.g. lumberyards).
-    harvester: Harvester,
+    pub(crate) harvester: Harvester,
 
     // Optional ambient patrol unit to wander around the vicinity.
-    ambient_patrol: TimedAmbientPatrol,
+    pub(crate) ambient_patrol: TimedAmbientPatrol,
 
     #[serde(skip)]
     debug: ProducerDebug,
@@ -464,9 +463,8 @@ impl BuildingBehavior for ProducerBuilding {
     }
 
     fn draw_debug_ui(&mut self, cmds: &mut SimCmds, context: &BuildingContext, ui_sys: &UiSystem) {
-        self.draw_debug_ui_input_stock(ui_sys);
-        self.draw_debug_ui_production_output(context, ui_sys);
-        self.draw_debug_ui_ambient_patrol(cmds, context, ui_sys);
+        // Debug-UI drawing lives in `crate::debug::building`.
+        self.draw_debug_ui_dispatch(cmds, context, ui_sys);
     }
 }
 
@@ -711,27 +709,27 @@ impl ProducerBuilding {
     }
 
     #[inline]
-    fn is_waiting_on_harvester(&self) -> bool {
+    pub(crate) fn is_waiting_on_harvester(&self) -> bool {
         self.harvester.is_spawned_or_pending_spawn()
     }
 
     #[inline]
-    fn is_waiting_on_runner(&self) -> bool {
+    pub(crate) fn is_waiting_on_runner(&self) -> bool {
         self.runner.is_spawned_or_pending_spawn()
     }
 
     #[inline]
-    fn is_runner_delivering_resources(&self, context: &SimContext) -> bool {
+    pub(crate) fn is_runner_delivering_resources(&self, context: &SimContext) -> bool {
         self.runner.is_running_task::<UnitTaskDeliverToStorage>(context)
     }
 
     #[inline]
-    fn is_runner_fetching_resources(&self, context: &SimContext) -> bool {
+    pub(crate) fn is_runner_fetching_resources(&self, context: &SimContext) -> bool {
         self.runner.is_running_task::<UnitTaskFetchFromStorage>(context)
     }
 
     #[inline]
-    fn is_harvester_fetching_resources(&self, context: &SimContext) -> bool {
+    pub(crate) fn is_harvester_fetching_resources(&self, context: &SimContext) -> bool {
         self.harvester.is_running_task::<UnitTaskHarvestWood>(context)
     }
 
@@ -739,7 +737,7 @@ impl ProducerBuilding {
     // Ambient Patrol Unit:
     // ----------------------
 
-    fn spawn_ambient_patrol(&mut self, cmds: &mut SimCmds, context: &BuildingContext, force_spawn: bool) {
+    pub(crate) fn spawn_ambient_patrol(&mut self, cmds: &mut SimCmds, context: &BuildingContext, force_spawn: bool) {
         let tile_def = context.find_tile().tile_def();
 
         let config = BuildingConfigs::get()
@@ -768,8 +766,8 @@ impl ProducerBuilding {
 // ----------------------------------------------
 
 #[derive(Clone, Serialize, Deserialize)]
-struct ProducerOutputLocalStock {
-    item: StockItem,
+pub(crate) struct ProducerOutputLocalStock {
+    pub(crate) item: StockItem,
     capacity: u32,
 }
 
@@ -779,17 +777,22 @@ impl ProducerOutputLocalStock {
         Self { item: StockItem { kind: output_kind, count: 0 }, capacity }
     }
 
-    fn fill(&mut self) {
+    pub(crate) fn fill(&mut self) {
         self.item.count = self.capacity;
     }
 
-    fn clear(&mut self) {
+    pub(crate) fn clear(&mut self) {
         self.item.count = 0;
     }
 
     #[inline]
-    fn is_full(&self) -> bool {
+    pub(crate) fn is_full(&self) -> bool {
         self.item.count >= self.capacity
+    }
+
+    #[inline]
+    pub(crate) fn capacity(&self) -> u32 {
+        self.capacity
     }
 
     #[inline]
@@ -837,8 +840,8 @@ impl ProducerOutputLocalStock {
 // ----------------------------------------------
 
 #[derive(Clone, Serialize, Deserialize)]
-struct ProducerInputsLocalStock {
-    slots: SmallVec<[StockItem; 1]>,
+pub(crate) struct ProducerInputsLocalStock {
+    pub(crate) slots: SmallVec<[StockItem; 1]>,
     capacity: u32, // Capacity for each resource kind.
 }
 
@@ -852,13 +855,13 @@ impl ProducerInputsLocalStock {
         Self { slots, capacity }
     }
 
-    fn fill(&mut self) {
+    pub(crate) fn fill(&mut self) {
         for slot in &mut self.slots {
             slot.count = self.capacity;
         }
     }
 
-    fn clear(&mut self) {
+    pub(crate) fn clear(&mut self) {
         for slot in &mut self.slots {
             slot.count = 0;
         }
@@ -885,7 +888,7 @@ impl ProducerInputsLocalStock {
     }
 
     #[inline]
-    fn capacity(&self) -> u32 {
+    pub(crate) fn capacity(&self) -> u32 {
         self.capacity
     }
 
@@ -903,12 +906,12 @@ impl ProducerInputsLocalStock {
     }
 
     #[inline]
-    fn requires_any_resource(&self) -> bool {
+    pub(crate) fn requires_any_resource(&self) -> bool {
         !self.slots.is_empty()
     }
 
     #[inline]
-    fn has_required_resources(&self) -> bool {
+    pub(crate) fn has_required_resources(&self) -> bool {
         for slot in &self.slots {
             if slot.count == 0 {
                 return false;
@@ -952,154 +955,3 @@ impl ProducerInputsLocalStock {
     }
 }
 
-// ----------------------------------------------
-// Debug UI
-// ----------------------------------------------
-
-impl ProducerOutputLocalStock {
-    fn draw_debug_ui(&mut self, ui_sys: &UiSystem) {
-        let ui = ui_sys.ui();
-        ui.text("Local Stock:");
-
-        if ui.input_scalar(format_small!("{}", self.item.kind), &mut self.item.count).step(1).build() {
-            self.item.count = self.item.count.min(self.capacity);
-        }
-
-        ui.text("Is full:");
-        ui.same_line();
-        if self.is_full() {
-            ui.text_colored(Color::red().to_array(), "yes");
-        } else {
-            ui.text("no");
-        }
-    }
-}
-
-impl ProducerInputsLocalStock {
-    fn draw_debug_ui(&mut self, ui_sys: &UiSystem) {
-        let ui = ui_sys.ui();
-        if self.slots.is_empty() {
-            ui.text("<none>");
-        } else {
-            let capacity = self.capacity;
-
-            for (index, item) in self.slots.iter_mut().enumerate() {
-                let label = format_small!("{}##_stock_item_{}", item.kind, index);
-
-                if ui.input_scalar(label, &mut item.count).step(1).build() {
-                    item.count = item.count.min(capacity);
-                }
-
-                let capacity_left = capacity - item.count;
-                let is_full = item.count >= capacity;
-
-                ui.same_line();
-                if is_full {
-                    ui.text_colored(Color::red().to_array(), "(full)");
-                } else {
-                    ui.text(format_small!("({} left)", capacity_left));
-                }
-            }
-        }
-    }
-}
-
-impl ProducerBuilding {
-    fn draw_debug_ui_input_stock(&mut self, ui_sys: &UiSystem) {
-        if self.production_input_stock.requires_any_resource() {
-            let ui = ui_sys.ui();
-            if ui.collapsing_header("Raw Materials In Stock", imgui::TreeNodeFlags::empty()) {
-                self.production_input_stock.draw_debug_ui(ui_sys);
-
-                if ui.button("Fill Stock##_fill_input_stock") {
-                    self.production_input_stock.fill();
-                }
-                ui.same_line();
-                if ui.button("Clear Stock##_clear_input_stock") {
-                    self.production_input_stock.clear();
-                }
-            }
-        }
-    }
-
-    fn draw_debug_ui_production_output(&mut self, context: &BuildingContext, ui_sys: &UiSystem) {
-        let ui = ui_sys.ui();
-        if !ui.collapsing_header("Production Output", imgui::TreeNodeFlags::empty()) {
-            return; // collapsed.
-        }
-
-        if self.is_production_halted() {
-            ui.text_colored(Color::red().to_array(), "Production Halted:");
-            ui.same_line();
-            if self.production_output_stock.is_full() {
-                ui.text_colored(Color::red().to_array(), "Local Stock Full!");
-            } else if self.production_input_stock.requires_any_resource()
-                && !self.production_input_stock.has_required_resources()
-            {
-                ui.text_colored(Color::red().to_array(), "Missing Resources!");
-            } else {
-                ui.text_colored(Color::red().to_array(), "Production Frozen.");
-            }
-        }
-
-        if self.runner.failed_to_spawn() {
-            ui.text_colored(Color::red().to_array(), "Failed to spawn last Runner!");
-        }
-
-        if self.harvester.failed_to_spawn() {
-            ui.text_colored(Color::red().to_array(), "Failed to spawn last Harvester!");
-        }
-
-        if self.is_waiting_on_runner() {
-            if self.is_runner_delivering_resources(context.sim_ctx) {
-                ui.text_colored(Color::yellow().to_array(), "Runner sent on Delivery Task.");
-            } else if self.is_runner_fetching_resources(context.sim_ctx) {
-                ui.text_colored(Color::yellow().to_array(), "Runner sent on Fetch Task.");
-            } else {
-                ui.text_colored(Color::yellow().to_array(), "Runner sent out. Waiting...");
-            }
-
-            if ui.button("Forget Runner") {
-                self.runner.reset();
-            }
-        }
-
-        if self.is_waiting_on_harvester() {
-            if self.is_harvester_fetching_resources(context.sim_ctx) {
-                ui.text_colored(Color::yellow().to_array(), "Harvester sent out. Waiting...");
-            }
-
-            if ui.button("Forget Harvester") {
-                self.harvester.reset();
-            }
-        }
-
-        self.production_update_timer.draw_debug_ui_with_header("Update", ui_sys);
-        self.production_output_stock.draw_debug_ui(ui_sys);
-
-        if ui.button("Fill Stock##_fill_output_stock") {
-            self.production_output_stock.fill();
-        }
-        ui.same_line();
-        if ui.button("Clear Stock##_clear_output_stock") {
-            self.production_output_stock.clear();
-        }
-    }
-
-    fn draw_debug_ui_ambient_patrol(&mut self, cmds: &mut SimCmds, context: &BuildingContext, ui_sys: &UiSystem) {
-        let ui = ui_sys.ui();
-        if !ui.collapsing_header("Ambient Patrol", imgui::TreeNodeFlags::empty()) {
-            return; // collapsed.
-        }
-
-        self.ambient_patrol.spawn_timer.draw_debug_ui_with_header("Spawn Patrol", ui_sys);
-
-        if ui.button("Force Spawn Ambient Patrol") {
-            self.spawn_ambient_patrol(cmds, context, true);
-        }
-
-        if self.ambient_patrol.patrol.is_spawned_or_pending_spawn() {
-            ui.text_colored(Color::yellow().to_array(), "Ambient Patrol Spawned...");
-        }
-    }
-}

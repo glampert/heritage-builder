@@ -1,6 +1,5 @@
 use std::any::Any;
 
-use common::{Color, format_small};
 use engine::{
     Engine,
     file_sys::paths::PathRef,
@@ -18,13 +17,13 @@ use crate::{config::GameConfigs, save_context::PostLoadContext, sim::{SimCmds, S
 // ----------------------------------------------
 
 #[derive(Copy, Clone, PartialEq, Eq, Display, EnumCount, EnumProperty, EnumIter)]
-enum AmbientSoundKey {
+pub(crate) enum AmbientSoundKey {
     #[strum(props(SoundPath = "birds_chirping.mp3"))]
     BirdsChirping,
 }
 
 impl AmbientSoundKey {
-    fn sound_path(self) -> PathRef<'static> {
+    pub(crate) fn sound_path(self) -> PathRef<'static> {
         PathRef::from_str(self.get_str("SoundPath").unwrap())
     }
 }
@@ -115,29 +114,20 @@ impl GameSystem for AmbientSoundsSystem {
         self.reset(context.engine_mut());
     }
 
-    fn draw_debug_ui(&mut self, engine: &mut Engine, _cmds: &mut SimCmds, _context: &SimContext) {
-        let ui = engine.ui_system().ui();
-
-        if !self.is_enabled() {
-            ui.text_colored(Color::red().to_array(), "AmbientSoundsSystem DISABLED.");
-            return;
-        }
-
-        if let Some(key) = self.current_sound_playing {
-            ui.text(format_small!("Current Ambient Sound Playing: {} ('{}')", key, key.sound_path()));
-        } else {
-            ui.text("Current Ambient Sound Playing: None");
-        }
-
-        if ui.button("Reset Ambient Sounds") {
-            self.reset(engine);
-        }
+    fn draw_debug_ui(&mut self, engine: &mut Engine, cmds: &mut SimCmds, context: &SimContext) {
+        // Debug-UI drawing lives in `crate::debug::systems`.
+        self.draw_debug_ui_dispatch(engine, cmds, context);
     }
 }
 
 impl AmbientSoundsSystem {
     #[inline]
-    fn is_enabled(&self) -> bool {
+    pub(crate) fn current_sound_playing(&self) -> Option<AmbientSoundKey> {
+        self.current_sound_playing
+    }
+
+    #[inline]
+    pub(crate) fn is_enabled(&self) -> bool {
         !GameConfigs::get().debug.disable_ambient_sounds
     }
 

@@ -74,11 +74,11 @@ use crate::{
 pub mod config;
 pub use house::{HouseLevel, HouseUpgradeDirection};
 
-mod house;
-mod house_upgrade;
-mod producer;
-mod service;
-mod storage;
+pub(crate) mod house;
+pub(crate) mod house_upgrade;
+pub(crate) mod producer;
+pub(crate) mod service;
+pub(crate) mod storage;
 
 // ----------------------------------------------
 // BuildingKind
@@ -1384,12 +1384,12 @@ impl BuildingStock {
     }
 
     #[inline]
-    fn clear(&mut self) {
+    pub(crate) fn clear(&mut self) {
         self.resources.clear();
     }
 
     #[inline]
-    fn fill(&mut self) {
+    pub(crate) fn fill(&mut self) {
         self.resources.for_each_mut(|index, item| {
             item.count = self.capacities[index] as u32;
         });

@@ -6,11 +6,10 @@ use strum::{Display, EnumCount, EnumIter};
 
 use common::{
     Color,
-    format_small,
     hash::{self, StringHash},
     time::{Seconds, UpdateTimer},
 };
-use engine::{log, ui::{DrawDebugUi, UiSystem}};
+use engine::{log, ui::UiSystem};
 use proc_macros::DrawDebugUi;
 
 use super::{
@@ -253,18 +252,18 @@ game_object_undo_redo_state! {
 pub struct HouseBuilding {
     workers: Workers, // Workers this household provides (employed + unemployed).
 
-    population_update_timer: UpdateTimer,
+    pub(crate) population_update_timer: UpdateTimer,
     population: Population,
 
-    stock_update_timer: UpdateTimer,
-    stock: BuildingStock,
+    pub(crate) stock_update_timer: UpdateTimer,
+    pub(crate) stock: BuildingStock,
 
     // Fractional resource consumption carried between stock updates, per ResourceKind.
     // Whole units are removed from stock once an entry reaches >= 1.0.
     #[serde(default)]
     consumption_accumulator: [f32; RESOURCE_KIND_COUNT],
 
-    upgrade_update_timer: UpdateTimer,
+    pub(crate) upgrade_update_timer: UpdateTimer,
     upgrade_state: HouseUpgradeState,
 
     // Continuous time (secs) a Level 0 house has lacked access to food and water.
@@ -273,11 +272,11 @@ pub struct HouseBuilding {
     #[serde(default)]
     deprivation_timer_secs: Seconds,
 
-    generate_tax_timer: UpdateTimer,
+    pub(crate) generate_tax_timer: UpdateTimer,
     tax_available: u32,
 
     // House may spawn an ambient patrol unit every once in a while to wander around the neighborhood.
-    ambient_patrol: TimedAmbientPatrol,
+    pub(crate) ambient_patrol: TimedAmbientPatrol,
 
     #[serde(skip)]
     debug: HouseDebug,
@@ -499,10 +498,8 @@ impl BuildingBehavior for HouseBuilding {
     }
 
     fn draw_debug_ui(&mut self, cmds: &mut SimCmds, context: &BuildingContext, ui_sys: &UiSystem) {
-        house_upgrade::draw_debug_ui(context, ui_sys);
-        self.draw_debug_ui_timers(cmds, context, ui_sys);
-        self.draw_debug_ui_stock(context, ui_sys);
-        self.draw_debug_ui_upgrade_state(cmds, context, ui_sys);
+        // Debug-UI drawing lives in `crate::debug::building`.
+        self.draw_debug_ui_dispatch(cmds, context, ui_sys);
     }
 }
 
@@ -511,6 +508,22 @@ impl BuildingBehavior for HouseBuilding {
 // ----------------------------------------------
 
 impl HouseBuilding {
+    // Read-only accessors used by the debug UI (see `crate::debug::building`).
+    #[inline]
+    pub(crate) fn upgrade_state(&self) -> &HouseUpgradeState {
+        &self.upgrade_state
+    }
+
+    #[inline]
+    pub(crate) fn deprivation_timer_secs(&self) -> Seconds {
+        self.deprivation_timer_secs
+    }
+
+    #[inline]
+    pub(crate) fn consumption_accumulator(&self) -> &[f32; RESOURCE_KIND_COUNT] {
+        &self.consumption_accumulator
+    }
+
     pub fn new(
         level: HouseLevel,
         house_config: &'static HouseConfig,
@@ -1115,7 +1128,7 @@ impl HouseBuilding {
     // Ambient Patrol Unit:
     // ----------------------
 
-    fn spawn_ambient_patrol(&mut self, cmds: &mut SimCmds, context: &BuildingContext, force_spawn: bool) {
+    pub(crate) fn spawn_ambient_patrol(&mut self, cmds: &mut SimCmds, context: &BuildingContext, force_spawn: bool) {
         let config = BuildingConfigs::get().house_config();
 
         if let Some(unit_config) = config.ambient_patrol.unit {
@@ -1227,13 +1240,13 @@ impl HouseLevel {
 // ----------------------------------------------
 
 pub struct HouseLevelRequirements {
-    level_config: &'static HouseLevelConfig,
-    services_available: ServiceKind, // From the level requirements, which ones we have access to.
-    resources_available: ResourceKind, // From the level requirements, which ones we have in stock.
+    pub(crate) level_config: &'static HouseLevelConfig,
+    pub(crate) services_available: ServiceKind, // From the level requirements, which ones we have access to.
+    pub(crate) resources_available: ResourceKind, // From the level requirements, which ones we have in stock.
 }
 
 impl HouseLevelRequirements {
-    fn new(context: &BuildingContext, level_config: &'static HouseLevelConfig, stock: &BuildingStock) -> Self {
+    pub(crate) fn new(context: &BuildingContext, level_config: &'static HouseLevelConfig, stock: &BuildingStock) -> Self {
         let mut reqs = Self {
             level_config,
             services_available: ServiceKind::empty(),
@@ -1262,12 +1275,12 @@ impl HouseLevelRequirements {
     }
 
     #[inline]
-    fn services_available_count(&self) -> usize {
+    pub(crate) fn services_available_count(&self) -> usize {
         self.services_available.bits().count_ones() as usize
     }
 
     #[inline]
-    fn resources_available_count(&self) -> usize {
+    pub(crate) fn resources_available_count(&self) -> usize {
         self.resources_available.bits().count_ones() as usize
     }
 
@@ -1339,14 +1352,14 @@ pub enum HouseUpgradeDirection {
 // ----------------------------------------------
 
 #[derive(Clone, Serialize, Deserialize)]
-struct HouseUpgradeState {
-    level: HouseLevel,
+pub(crate) struct HouseUpgradeState {
+    pub(crate) level: HouseLevel,
     #[serde(skip)]
-    curr_level_config: Option<&'static HouseLevelConfig>,
+    pub(crate) curr_level_config: Option<&'static HouseLevelConfig>,
     #[serde(skip)]
-    next_level_config: Option<&'static HouseLevelConfig>,
+    pub(crate) next_level_config: Option<&'static HouseLevelConfig>,
     #[serde(skip)]
-    has_room_to_upgrade: bool, // [Debug] Result of last attempt to expand the house.
+    pub(crate) has_room_to_upgrade: bool, // [Debug] Result of last attempt to expand the house.
 }
 
 impl HouseUpgradeState {
@@ -1520,181 +1533,5 @@ impl HouseUpgradeState {
         // Check if we have enough space to expand this house to a larger tile size
         // (possibly merging with others).
         house_upgrade::can_expand_house(context, context.id, current_level, target_level)
-    }
-}
-
-// ----------------------------------------------
-// Debug UI
-// ----------------------------------------------
-
-impl HouseBuilding {
-    fn draw_debug_ui_upgrade_state(&mut self, cmds: &mut SimCmds, context: &BuildingContext, ui_sys: &UiSystem) {
-        let ui = ui_sys.ui();
-
-        if !ui.collapsing_header("Upgrade", imgui::TreeNodeFlags::empty()) {
-            return; // collapsed.
-        }
-
-        let draw_level_requirements = |label: &str, level_requirements: &HouseLevelRequirements, imgui_id: u32| {
-            ui.separator();
-            ui.text(label);
-
-            ui.text(format_small!(
-                "  Resources avail : {} (req: {})",
-                level_requirements.resources_available_count(),
-                level_requirements.level_config.resources_required.len()
-            ));
-            ui.text(format_small!(
-                "  Services avail  : {} (req: {})",
-                level_requirements.services_available_count(),
-                level_requirements.level_config.services_required.len()
-            ));
-
-            if ui.collapsing_header(format_small!("Resources##_building_resources_{}", imgui_id), imgui::TreeNodeFlags::empty()) {
-                if !level_requirements.level_config.resources_required.is_empty() {
-                    ui.text("Available:");
-                    if level_requirements.resources_available.is_empty() {
-                        ui.text("  <none>");
-                    }
-                    for resource in level_requirements.resources_available.iter() {
-                        ui.text(format_small!("  {}", resource));
-                    }
-                }
-
-                ui.text("Required:");
-                if level_requirements.level_config.resources_required.is_empty() {
-                    ui.text("  <none>");
-                }
-                for resource in level_requirements.level_config.resources_required.iter() {
-                    ui.text(format_small!("  {}", resource));
-                }
-            }
-
-            if ui.collapsing_header(format_small!("Services##_building_services_{}", imgui_id), imgui::TreeNodeFlags::empty()) {
-                if !level_requirements.level_config.services_required.is_empty() {
-                    ui.text("Available:");
-                    if level_requirements.services_available.is_empty() {
-                        ui.text("  <none>");
-                    }
-                    for service in level_requirements.services_available.iter() {
-                        ui.text(format_small!("  {}", service));
-                    }
-                }
-
-                ui.text("Required:");
-                if level_requirements.level_config.services_required.is_empty() {
-                    ui.text("  <none>");
-                }
-                for service in level_requirements.level_config.services_required.iter() {
-                    ui.text(format_small!("  {}", service));
-                }
-            }
-        };
-
-        let color_text = |text: &str, value: bool| {
-            ui.text(text);
-            ui.same_line();
-            if value {
-                ui.text("yes");
-            } else {
-                ui.text_colored(Color::red().to_array(), "no");
-            }
-        };
-
-        let mut level_num: u8 = self.upgrade_state.level.into();
-        if ui.input_scalar("Level", &mut level_num).step(1).build() {
-            if let Ok(level) = HouseLevel::try_from_primitive(level_num) {
-                match level.cmp(&self.upgrade_state.level) {
-                    std::cmp::Ordering::Greater => {
-                        self.perform_upgrade(cmds, context, HouseUpgradeDirection::Upgrade);
-                    }
-                    std::cmp::Ordering::Less => {
-                        self.perform_upgrade(cmds, context, HouseUpgradeDirection::Downgrade);
-                    }
-                    std::cmp::Ordering::Equal => {} // nothing
-                }
-            }
-        }
-
-        let upgrade_state = &self.upgrade_state;
-
-        let curr_level_requirements =
-            HouseLevelRequirements::new(context, upgrade_state.curr_level_config.unwrap(), &self.stock);
-
-        let next_level_requirements =
-            HouseLevelRequirements::new(context, upgrade_state.next_level_config.unwrap(), &self.stock);
-
-        color_text(" - Has room        :", upgrade_state.has_room_to_upgrade);
-        color_text(" - Has services    :", next_level_requirements.has_required_services());
-        color_text(" - Has resources   :", next_level_requirements.has_required_resources());
-        color_text(" - Has road access :", context.is_linked_to_road());
-
-        draw_level_requirements(&format_small!("Curr level reqs ({}):", upgrade_state.level), &curr_level_requirements, 0);
-
-        if !upgrade_state.level.is_max() {
-            draw_level_requirements(
-                &format_small!("Next level reqs ({}):", upgrade_state.level.next()),
-                &next_level_requirements,
-                1,
-            );
-        }
-    }
-
-    fn draw_debug_ui_timers(&mut self, cmds: &mut SimCmds, context: &BuildingContext, ui_sys: &UiSystem) {
-        let ui = ui_sys.ui();
-
-        if !ui.collapsing_header("Timers", imgui::TreeNodeFlags::empty()) {
-            return; // collapsed.
-        }
-
-        self.population_update_timer.draw_debug_ui_with_header("Population Update", ui_sys);
-        self.upgrade_update_timer.draw_debug_ui_with_header("Upgrade Update", ui_sys);
-        self.stock_update_timer.draw_debug_ui_with_header("Stock Update", ui_sys);
-        self.generate_tax_timer.draw_debug_ui_with_header("Gen Tax", ui_sys);
-        self.ambient_patrol.spawn_timer.draw_debug_ui_with_header("Spawn Patrol", ui_sys);
-
-        if ui.button("Force Spawn Ambient Patrol") {
-            self.spawn_ambient_patrol(cmds, context, true);
-        }
-
-        if self.ambient_patrol.patrol.is_spawned_or_pending_spawn() {
-            ui.text_colored(Color::yellow().to_array(), "Ambient Patrol Spawned...");
-        }
-    }
-
-    fn draw_debug_ui_stock(&mut self, _context: &BuildingContext, ui_sys: &UiSystem) {
-        self.stock.draw_debug_ui_with_header("Stock", ui_sys);
-
-        let ui = ui_sys.ui();
-        if !ui.collapsing_header("Consumption", imgui::TreeNodeFlags::empty()) {
-            return; // collapsed.
-        }
-
-        let config = BuildingConfigs::get().house_config();
-
-        // Deprivation timer: how long this house has gone without a basic need.
-        let grace = config.deprivation_grace_secs;
-        let timer = self.deprivation_timer_secs;
-        let deprivation_text = format_small!("Deprivation : {:.0}s / {:.0}s", timer, grace);
-        if timer > 0.0 {
-            ui.text_colored(Color::red().to_array(), deprivation_text);
-        } else {
-            ui.text(deprivation_text);
-        }
-
-        // Per-resource fractional consumption carried between stock updates.
-        ui.text("Accumulators:");
-        let mut any_shown = false;
-        for kind in ResourceKind::all().iter() {
-            let accumulated = self.consumption_accumulator[kind.index()];
-            if accumulated != 0.0 {
-                let rate = config.consumption_rate_table[kind.index()];
-                ui.text(format_small!("  {}: {:.2} ({:.2}/day/resident)", kind, accumulated, rate));
-                any_shown = true;
-            }
-        }
-        if !any_shown {
-            ui.text("  <none>");
-        }
     }
 }
