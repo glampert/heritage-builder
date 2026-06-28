@@ -6,10 +6,7 @@ use common::{
     coords::{Cell, CellRange},
     hash::SmallSet,
 };
-use engine::{
-    log,
-    ui::{UiStaticVar, UiSystem},
-};
+use engine::log;
 
 use super::{
     Building,
@@ -23,7 +20,7 @@ use crate::{
     sim::SimCmds,
     world::object::{GameObject, Spawner},
     pathfind::{Node, NodeKind as PathNodeKind},
-    tile::{TileFlags, TileKind, TileMapLayerKind, sets::TileDef},
+    tile::{TileKind, TileMapLayerKind, sets::TileDef},
 };
 
 // ----------------------------------------------
@@ -380,7 +377,7 @@ fn collect_merge_candidates(
 }
 
 #[derive(Copy, Clone, Debug)]
-struct CellRect {
+pub(crate) struct CellRect {
     min_x: i32,
     min_y: i32,
     max_x: i32,
@@ -388,6 +385,16 @@ struct CellRect {
 }
 
 impl CellRect {
+    // Read-only accessors used by the debug UI (see `crate::debug::building`).
+    #[inline]
+    pub(crate) fn min_x(&self) -> i32 {
+        self.min_x
+    }
+    #[inline]
+    pub(crate) fn min_y(&self) -> i32 {
+        self.min_y
+    }
+
     #[inline]
     fn width(&self) -> i32 {
         self.max_x - self.min_x + 1
@@ -419,14 +426,14 @@ impl CellRect {
     }
 
     #[inline]
-    fn iter_cells(&self) -> impl Iterator<Item = Cell> {
+    pub(crate) fn iter_cells(&self) -> impl Iterator<Item = Cell> {
         (self.min_x..=self.max_x).flat_map(move |x| (self.min_y..=self.max_y).map(move |y| Cell::new(x, y)))
     }
 }
 
-const CANDIDATE_RECTS_COUNT: usize = 4;
+pub(crate) const CANDIDATE_RECTS_COUNT: usize = 4;
 
-fn candidate_target_rects(current_cell_range: CellRange) -> [CellRect; CANDIDATE_RECTS_COUNT] {
+pub(crate) fn candidate_target_rects(current_cell_range: CellRange) -> [CellRect; CANDIDATE_RECTS_COUNT] {
     let rect = CellRect {
         min_x: current_cell_range.start.x,
         min_y: current_cell_range.start.y,
@@ -576,43 +583,4 @@ fn find_house_for_cell<'game>(context: &'game BuildingContext, cell: Cell) -> Op
 fn find_tile_def_for_level(context: &BuildingContext, level: HouseLevel) -> Option<&'static TileDef> {
     let level_config = BuildingConfigs::get().find_house_level_config(level);
     context.find_tile_def(level_config.tile_def_name_hash)
-}
-
-// ----------------------------------------------
-// Debug UI
-// ----------------------------------------------
-
-pub fn draw_debug_ui(context: &BuildingContext, ui_sys: &UiSystem) {
-    let ui = ui_sys.ui();
-
-    if !ui.collapsing_header("Merge Debug", imgui::TreeNodeFlags::empty()) {
-        return; // collapsed.
-    }
-
-    static HIGHLIGHT_START_CELL: UiStaticVar<bool> = UiStaticVar::new(false);
-    static CANDIDATE_RECT_IDX: UiStaticVar<usize> = UiStaticVar::new(0);
-
-    ui.checkbox("Mark Start Cell", HIGHLIGHT_START_CELL.as_mut());
-
-    if ui.input_scalar("Candidate Rect", CANDIDATE_RECT_IDX.as_mut()).step(1).build() {
-        CANDIDATE_RECT_IDX.set((*CANDIDATE_RECT_IDX).min(CANDIDATE_RECTS_COUNT - 1));
-    }
-
-    if ui.button("Visualize Merge Candidate Cells") {
-        let candidate_rects = candidate_target_rects(context.cell_range());
-        let target_rect = candidate_rects[*CANDIDATE_RECT_IDX];
-
-        let tile_map = context.sim_ctx.tile_map_mut();
-
-        for cell in target_rect.iter_cells() {
-            tile_map.set_tile_flags(cell, TileKind::Terrain, TileFlags::Highlighted, true);
-            tile_map.set_tile_flags(cell, TileKind::Building, TileFlags::Invalidated, true);
-        }
-
-        if *HIGHLIGHT_START_CELL {
-            let start_cell = Cell::new(target_rect.min_x, target_rect.min_y);
-            tile_map.set_tile_flags(start_cell, TileKind::Terrain, TileFlags::DrawDebugBounds, true);
-            tile_map.set_tile_flags(start_cell, TileKind::Building, TileFlags::DrawDebugBounds, true);
-        }
-    }
 }

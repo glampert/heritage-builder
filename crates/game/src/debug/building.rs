@@ -26,7 +26,7 @@ use crate::{
         BuildingStock,
         config::BuildingConfigs,
         house::{HouseBuilding, HouseLevel, HouseLevelRequirements, HouseUpgradeDirection},
-        house_upgrade,
+        house_upgrade::{CANDIDATE_RECTS_COUNT, candidate_target_rects},
         producer::{ProducerBuilding, ProducerInputsLocalStock, ProducerOutputLocalStock},
         service::{ServiceBuilding, StockOrTreasury},
         storage::{MAX_STORAGE_SLOTS, StorageBuilding, StorageSlots},
@@ -34,6 +34,7 @@ use crate::{
     pathfind,
     debug::DebugUiMode,
     sim::{SimCmds, SimContext, resources::ResourceKind},
+    tile::{TileFlags, TileKind},
     unit::UnitTaskHelper,
     world::object::GameObject,
 };
@@ -706,7 +707,7 @@ impl ServiceBuilding {
 
 impl HouseBuilding {
     pub(crate) fn draw_debug_ui_dispatch(&mut self, cmds: &mut SimCmds, context: &BuildingContext, ui_sys: &UiSystem) {
-        house_upgrade::draw_debug_ui(context, ui_sys);
+        draw_house_merge_debug_ui(context, ui_sys);
         self.draw_debug_ui_timers(cmds, context, ui_sys);
         self.draw_debug_ui_stock(context, ui_sys);
         self.draw_debug_ui_upgrade_state(cmds, context, ui_sys);
@@ -879,6 +880,45 @@ impl HouseBuilding {
         }
         if !any_shown {
             ui.text("  <none>");
+        }
+    }
+}
+
+// ----------------------------------------------
+// House merge Debug UI
+// ----------------------------------------------
+
+fn draw_house_merge_debug_ui(context: &BuildingContext, ui_sys: &UiSystem) {
+    let ui = ui_sys.ui();
+
+    if !ui.collapsing_header("Merge Debug", imgui::TreeNodeFlags::empty()) {
+        return; // collapsed.
+    }
+
+    static HIGHLIGHT_START_CELL: UiStaticVar<bool> = UiStaticVar::new(false);
+    static CANDIDATE_RECT_IDX: UiStaticVar<usize> = UiStaticVar::new(0);
+
+    ui.checkbox("Mark Start Cell", HIGHLIGHT_START_CELL.as_mut());
+
+    if ui.input_scalar("Candidate Rect", CANDIDATE_RECT_IDX.as_mut()).step(1).build() {
+        CANDIDATE_RECT_IDX.set((*CANDIDATE_RECT_IDX).min(CANDIDATE_RECTS_COUNT - 1));
+    }
+
+    if ui.button("Visualize Merge Candidate Cells") {
+        let candidate_rects = candidate_target_rects(context.cell_range());
+        let target_rect = candidate_rects[*CANDIDATE_RECT_IDX];
+
+        let tile_map = context.sim_ctx.tile_map_mut();
+
+        for cell in target_rect.iter_cells() {
+            tile_map.set_tile_flags(cell, TileKind::Terrain, TileFlags::Highlighted, true);
+            tile_map.set_tile_flags(cell, TileKind::Building, TileFlags::Invalidated, true);
+        }
+
+        if *HIGHLIGHT_START_CELL {
+            let start_cell = Cell::new(target_rect.min_x(), target_rect.min_y());
+            tile_map.set_tile_flags(start_cell, TileKind::Terrain, TileFlags::DrawDebugBounds, true);
+            tile_map.set_tile_flags(start_cell, TileKind::Building, TileFlags::DrawDebugBounds, true);
         }
     }
 }
