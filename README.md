@@ -222,6 +222,19 @@ is disabled so nothing is overwritten). Preserve save compatibility by adding `#
 
 ---
 
+## Screenshots
+
+#### Main Menu
+![Main Menu](https://github.com/glampert/heritage-builder/blob/master/assets/screenshots/prototype_apr_2026_1.jpg)
+
+#### Tiny Island (Sample Map)
+![Tiny Island](https://github.com/glampert/heritage-builder/blob/master/assets/screenshots/prototype_apr_2026_2.jpg)
+
+#### City Closeup
+![City Closeup](https://github.com/glampert/heritage-builder/blob/master/assets/screenshots/prototype_apr_2026_3.jpg)
+
+---
+
 ## License
 
 Released under the [MIT License](LICENSE). Copyright © 2026 Guilherme R. Lampert.
