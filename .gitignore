@@ -15,7 +15,11 @@ Cargo.lock
 HeritageBuilder.js
 HeritageBuilder_bg.wasm
 
-# Local logs, save games & runtime cache
+# Local logs & runtime cache
 /logs/
-/saves/
 /cache/
+
+# Save games are local runtime state — ignore everything under saves/,
+# except the committed sample-maps archive.
+/saves/*
+!/saves/sample_saves.zip
