@@ -153,6 +153,8 @@ crates/
   tools/
     bundler/         Driver for `cargo bundle` + assets (used by bundle.sh).
     web-builder/     WASM build driver (used by web.sh).
+    save_migration_scripts/  Python scripts that migrate save files between format versions.
+    debug/           macOS heap-corruption debugging wrapper script.
 assets/              configs/, tiles/, sounds/, fonts/, ui/ — copied into the bundle.
 saves/               Save games and sample maps (git-ignored).
 web/                 WASM host page (index.html, JS glue, asset manifest).
@@ -173,33 +175,52 @@ web/                 WASM host page (index.html, JS glue, asset manifest).
   pathfinding graph.
 
 For a deeper tour of the runtime architecture, deferred-command queues, configs, and the save system, see
-[`CLAUDE.md`](CLAUDE.md).
+[`AGENTS.md`](AGENTS.md).
 
 ---
 
 ## Testing
 
-The single integration test uses a **custom harness** (`harness = false`):
+The integration tests in [`crates/game/tests/`](crates/game/tests/) (`sim_cmds`, `search_graph`,
+`unit_tasks`, `campaign`, `house_consumption`) all use a **custom harness** (`harness = false`):
 
 ```bash
-cargo test -p game --test sim_cmds
+cargo test -p game                   # all of them
+cargo test -p game --test sim_cmds   # just one
 ```
 
-Add cases by editing the `test_utils::run_tests(&[...])` list in
+Add cases by editing the `test_utils::run_tests(&[...])` list in the relevant file, e.g.
 [`crates/game/tests/sim_cmds.rs`](crates/game/tests/sim_cmds.rs). The harness runs everything on the main
 thread (several globals are single-thread statics) and does **not** accept filter arguments.
 
 ### Save-compatibility smoke test
 
-After changing any serialized type, verify existing saves still load:
+After changing any serialized type, verify existing saves still load. Extract the sample saves first if
+you haven't (see [Sample maps](#sample-maps)):
 
 ```bash
+unzip saves/sample_saves.zip
 cargo run -p HeritageBuilder -- --smoke-test-saves
 ```
 
 This loads every file in `saves/` in turn, ticks each for ~10s, and **panics on any failed load** (autosave
-is disabled so nothing is overwritten). Preserve save compatibility by adding `#[serde(default)]` /
-`#[serde(skip)]` to new fields on serializable types.
+is disabled so nothing is overwritten).
+
+### Save format versioning
+
+Save files carry a `save_version`, and the game refuses to load any save whose version doesn't match
+`CURRENT_SAVE_VERSION` in [`crates/game/src/session.rs`](crates/game/src/session.rs). When a change alters
+the serialized layout so older saves no longer deserialize as-is:
+
+1. Bump `CURRENT_SAVE_VERSION`.
+2. Add a `v<N>_to_v<N+1>.py` migration script to
+   [`crates/tools/save_migration_scripts/`](crates/tools/save_migration_scripts/), modeled on the existing
+   ones (idempotent, rewrites `saves/*.json` in place).
+3. Migrate your local `saves/`, run the smoke test, then regenerate `saves/sample_saves.zip` from the
+   migrated files.
+
+Don't add `#[serde(default)]` to save-state fields to paper over layout changes. Write a migration
+instead. `#[serde(skip)]` is still the right choice for runtime-only state that is rebuilt after loading.
 
 ---
 
