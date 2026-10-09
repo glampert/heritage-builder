@@ -110,7 +110,7 @@ jobs:
       - name: DEBUG surface log tail
         if: failure()
         run: |
-          tail -n 80 "$RUNNER_TEMP/web.log" | sed 's/\x1b\[[0-9;]*m//g' > "$RUNNER_TEMP/tail.log" || true
+          sed 's/\x1b\[[0-9;]*m//g' "$RUNNER_TEMP/web.log" | grep -v '"rust-lld" "-flavor"' | cut -c1-400 | tail -n 80 > "$RUNNER_TEMP/tail.log" || true
           msg=$(sed ':a;N;$!ba;s/%/%25/g;s/\r/%0D/g;s/\n/%0A/g' "$RUNNER_TEMP/tail.log")
           echo "::error title=web build log tail::$msg"
 
