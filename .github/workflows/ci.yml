@@ -92,9 +92,8 @@ jobs:
       - name: Resolve wasm-bindgen version
         id: wasm-bindgen
         run: |
-          set -o pipefail
-          cargo generate-lockfile 2>&1 | tee -a "$RUNNER_TEMP/web.log"
-          version=$(cargo pkgid wasm-bindgen 2>>"$RUNNER_TEMP/web.log" | sed 's/.*@//')
+          cargo generate-lockfile
+          version=$(cargo pkgid wasm-bindgen | sed 's/.*@//')
           echo "Resolved wasm-bindgen $version"
           echo "version=$version" >> "$GITHUB_OUTPUT"
 
@@ -103,16 +102,7 @@ jobs:
           tool: wasm-bindgen@${{ steps.wasm-bindgen.outputs.version }}
 
       - name: Build web (release)
-        run: |
-          set -o pipefail
-          cargo run -p web-builder -- release 2>&1 | tee -a "$RUNNER_TEMP/web.log"
-
-      - name: DEBUG surface log tail
-        if: failure()
-        run: |
-          sed 's/\x1b\[[0-9;]*m//g' "$RUNNER_TEMP/web.log" | grep -v '"rust-lld" "-flavor"' | cut -c1-400 | tail -n 80 > "$RUNNER_TEMP/tail.log" || true
-          msg=$(sed ':a;N;$!ba;s/%/%25/g;s/\r/%0D/g;s/\n/%0A/g' "$RUNNER_TEMP/tail.log")
-          echo "::error title=web build log tail::$msg"
+        run: cargo run -p web-builder -- release
 
       - name: Check build outputs
         run: |

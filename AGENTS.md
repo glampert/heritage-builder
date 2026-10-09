@@ -22,12 +22,16 @@ Web / WASM:
 - `./web.sh --build [release] --serve` (release adds `wasm-opt`)
 - Equivalent: `cargo run -p web-builder [-- release]`, then `cd web && python3 -m http.server 8080`
 - Requires switching features: crates are `default = ["desktop"]`; the `web-builder` tool drives the `web` feature.
+- Toolchain for imgui-sys: Homebrew `llvm` + `wasi-libc` on MacOS, or set `WASI_SDK_PATH` to a wasi-sdk 30–32 install (Linux/CI; 33+ headers reject `wasm32-unknown-unknown`).
+- `crates/launcher/build.rs` passes `--allow-undefined` to the wasm linker: imgui-sys's C library symbols are imported from `env` (provided by `web/libc.js`), and Rust 1.96+ no longer allows undefined symbols by default. Don't remove it.
 - `web-builder` regenerates `web/asset_manifest.json` from `assets/`. The web runner preloads only the files listed there, so after adding or removing assets, rebuild web and commit the updated manifest.
 
 Tests — every integration test in `crates/game/tests/` (`sim_cmds`, `search_graph`, `unit_tasks`, `campaign`, `house_consumption`) uses a **custom harness** (`harness = false`):
 - `cargo test -p game --test <name>` runs one file; `cargo test -p game` runs them all.
 - Add cases by editing the `test_utils::run_tests(&[...])` list in the relevant file, e.g. [sim_cmds.rs](crates/game/tests/sim_cmds.rs). The harness does not accept filter args.
 - The harness calls `setup()` once on the main thread because several globals use `SingleThreadStatic` and will assert if touched from a different thread. Do not parallelize tests.
+
+CI — [.github/workflows/ci.yml](.github/workflows/ci.yml) on every push/PR: desktop build + `cargo test --workspace` on Ubuntu and macOS, plus a release web build via `web-builder`. Latest stable Rust; warnings don't fail the build. The Ubuntu job installs ALSA, X11 and Wayland dev packages for glfw/kira.
 
 Save-load smoke test (verifies save-file compatibility):
 - Sample saves are committed only as `saves/sample_saves.zip`; run `unzip saves/sample_saves.zip` first to extract them into `saves/`.
