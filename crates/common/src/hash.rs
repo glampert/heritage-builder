@@ -134,3 +134,126 @@ pub const fn fnv1a_from_str(s: &str) -> FNV1aHash {
 
     hash
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_fnv1a_empty_is_null() {
+        assert_eq!(fnv1a_from_str(""), NULL_HASH);
+    }
+
+    #[test]
+    fn test_fnv1a_known_values() {
+        // Reference 64-bit FNV-1a test vectors.
+        assert_eq!(fnv1a_from_str("a"), 0xaf63dc4c8601ec8c);
+        assert_eq!(fnv1a_from_str("foobar"), 0x85944171f73967e8);
+    }
+
+    #[test]
+    fn test_fnv1a_distinct_inputs() {
+        assert_ne!(fnv1a_from_str("house"), fnv1a_from_str("House"));
+        assert_ne!(fnv1a_from_str("ab"), fnv1a_from_str("ba"));
+        assert_eq!(fnv1a_from_str("house"), fnv1a_from_str("house"));
+    }
+
+    #[test]
+    fn test_fnv1a_const_eval() {
+        const HASH: FNV1aHash = fnv1a_from_str("granary");
+        assert_eq!(HASH, fnv1a_from_str("granary"));
+    }
+
+    #[test]
+    fn test_str_hash_pair() {
+        let empty = StrHashPair::empty();
+        assert_eq!(empty.string, "");
+        assert!(!empty.is_valid());
+
+        // Default should match empty().
+        let default = StrHashPair::default();
+        assert_eq!(default.hash, NULL_HASH);
+        assert!(!default.is_valid());
+
+        let pair = StrHashPair::from_str("well");
+        assert_eq!(pair.string, "well");
+        assert_eq!(pair.hash, fnv1a_from_str("well"));
+        assert!(pair.is_valid());
+
+        // Empty string hashes to NULL_HASH, so it is not valid.
+        assert!(!StrHashPair::from_str("").is_valid());
+    }
+
+    #[test]
+    fn test_identity_hasher() {
+        let mut hasher = IdentityHasher::default();
+        assert_eq!(hasher.finish(), 0);
+
+        hasher.write_u64(0x1234_5678_9abc_def0);
+        assert_eq!(hasher.finish(), 0x1234_5678_9abc_def0);
+
+        // Last write wins.
+        hasher.write_u64(42);
+        assert_eq!(hasher.finish(), 42);
+    }
+
+    #[test]
+    #[should_panic]
+    fn test_identity_hasher_write_bytes_panics() {
+        let mut hasher = IdentityHasher::default();
+        hasher.write(&[1, 2, 3]);
+    }
+
+    #[test]
+    fn test_pre_hashed_key_map() {
+        let mut map: PreHashedKeyMap<StringHash, i32> = new_const_hash_map();
+        assert!(map.is_empty());
+
+        map.insert(fnv1a_from_str("house"), 1);
+        map.insert(fnv1a_from_str("farm"), 2);
+        assert_eq!(map.len(), 2);
+        assert_eq!(map.get(&fnv1a_from_str("house")), Some(&1));
+        assert_eq!(map.get(&fnv1a_from_str("farm")), Some(&2));
+        assert_eq!(map.get(&fnv1a_from_str("well")), None);
+
+        // Overwrite existing key.
+        map.insert(fnv1a_from_str("house"), 3);
+        assert_eq!(map.len(), 2);
+        assert_eq!(map.get(&fnv1a_from_str("house")), Some(&3));
+    }
+
+    #[test]
+    fn test_small_set() {
+        let mut set = SmallSet::<4, u32>::new();
+        assert!(set.is_empty());
+        assert_eq!(set.len(), 0);
+
+        set.insert(1);
+        set.insert(2);
+        assert!(set.contains(&1));
+        assert!(set.contains(&2));
+        assert!(!set.contains(&3));
+        assert_eq!(set.len(), 2);
+
+        // Duplicate insert is a no-op.
+        set.insert(1);
+        assert_eq!(set.len(), 2);
+    }
+
+    #[test]
+    fn test_small_set_grows_past_inline_capacity() {
+        let mut set = SmallSet::<2, u32>::new();
+        for i in 0..10 {
+            set.insert(i);
+        }
+
+        assert_eq!(set.len(), 10);
+        for i in 0..10 {
+            assert!(set.contains(&i));
+        }
+
+        let mut keys: Vec<u32> = set.iter().map(|(k, _)| *k).collect();
+        keys.sort();
+        assert_eq!(keys, (0..10).collect::<Vec<_>>());
+    }
+}
