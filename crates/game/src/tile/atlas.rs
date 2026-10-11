@@ -121,8 +121,10 @@ impl TextureAtlas for RuntimePackedTextureAtlas {
     #[cfg(feature = "desktop")]
     fn save_textures_to_file(&self, base_path: PathRef) {
         let save_path = paths::base_path().join(base_path).join("atlas").join(self.layer.lowercase_name());
+        let metadata_file_path = save_path.join("atlas_meta.json");
 
-        let _ = file_sys::create_path(&save_path);
+        // Creates save_path itself: create_path() makes the directories leading to a file.
+        let _ = file_sys::create_path(&metadata_file_path);
 
         log::info!(log::channel!("atlas"), "Saving texture atlas {} with {} pages...", save_path, self.packer.page_count());
 
@@ -137,7 +139,6 @@ impl TextureAtlas for RuntimePackedTextureAtlas {
             save_sprite_metadata_file((&metadata_file_path).into(), &page.sprites, page_size);
         });
 
-        let metadata_file_path = save_path.join("atlas_meta.json");
         save_atlas_metadata_file((&metadata_file_path).into(), self.packer.page_count(), self.layer);
     }
 

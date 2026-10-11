@@ -93,7 +93,8 @@ pub fn remove_file(path: impl AsRef<Path>) -> io::Result<()> {
     FileSystemBackendImpl::get().remove_file(path)
 }
 
-// Creates a directory (and all parent directories).
+// Creates the directories leading to a file path, so the file can then be written.
+// Pass the file's path: the last component is treated as the file name and isn't created.
 #[inline]
 pub fn create_path(path: impl AsRef<Path>) -> io::Result<()> {
     FileSystemBackendImpl::get().create_path(path)

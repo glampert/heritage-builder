@@ -36,14 +36,14 @@ impl io::Write for LogOutput {
 
 fn init_log_output() -> LogOutput {
     if REDIRECT_TO_FILE.load(Ordering::Relaxed) {
-        let logs_path = super::logs_path();
-        let _ = file_sys::create_path(&logs_path);
+        let log_file_path = super::logs_path().join(LOG_FILENAME);
+        let _ = file_sys::create_path(&log_file_path);
 
         if let Ok(file) = std::fs::OpenOptions::new()
             .create(true)
             .write(true)
             .truncate(true)
-            .open(logs_path.join(LOG_FILENAME))
+            .open(&log_file_path)
         {
             super::enable_tty_colors(false);
             LogOutput::File(file)

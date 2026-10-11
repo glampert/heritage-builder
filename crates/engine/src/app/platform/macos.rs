@@ -149,8 +149,8 @@ where
 
     use libc::{STDERR_FILENO, close, dup, dup2};
 
-    let logs_path = log::logs_path();
-    let _ = file_sys::create_path(&logs_path);
+    let log_file_path = log::logs_path().join(filename);
+    let _ = file_sys::create_path(&log_file_path);
 
     unsafe {
         let saved_fd = dup(STDERR_FILENO);
@@ -158,7 +158,7 @@ where
             .create(true)
             .write(true)
             .truncate(true)
-            .open(logs_path.join(filename))
+            .open(&log_file_path)
             .expect("Failed to open stderr log file!");
         dup2(file.as_raw_fd(), STDERR_FILENO);
         let result = f();
