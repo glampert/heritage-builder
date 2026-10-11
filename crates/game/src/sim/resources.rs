@@ -2,7 +2,7 @@
 
 use core::slice::Iter;
 use std::{
-    collections::{HashMap, hash_map::Entry},
+    collections::{BTreeMap, btree_map::Entry},
     fmt::Display,
     ops::{Deref, DerefMut},
 };
@@ -123,20 +123,24 @@ pub const SERVICE_KIND_COUNT: usize = ServiceKind::services_count();
 pub type ServiceKinds = ResourceList<ServiceKind, SERVICE_KIND_COUNT>;
 
 // ----------------------------------------------
-// Custom Serde Serialization for HashMap
+// Custom Serde Serialization for BTreeMap
 // ----------------------------------------------
 
 // serde_json does not support maps indexed by structure (json maps must be
 // keyed by a string). This converts a map into a Vec of pairs when serializing
 // and builds back a map during deserialization.
-mod serialize_hash_map_as_pairs {
-    use std::{collections::HashMap, hash::Hash};
+//
+// The worker maps below are BTreeMaps rather than HashMaps so that iterating them
+// (often with an early exit) visits entries in the same order on every run, which
+// keeps the simulation deterministic for a given random seed.
+mod serialize_map_as_pairs {
+    use std::collections::BTreeMap;
 
     use serde::{Deserialize, Deserializer, Serialize, Serializer};
 
-    pub fn serialize<K, V, S>(map: &HashMap<K, V>, ser: S) -> Result<S::Ok, S::Error>
+    pub fn serialize<K, V, S>(map: &BTreeMap<K, V>, ser: S) -> Result<S::Ok, S::Error>
     where
-        K: Serialize + Eq + Hash,
+        K: Serialize + Ord,
         V: Serialize,
         S: Serializer,
     {
@@ -145,9 +149,9 @@ mod serialize_hash_map_as_pairs {
         vec.serialize(ser)
     }
 
-    pub fn deserialize<'de, K, V, D>(de: D) -> Result<HashMap<K, V>, D::Error>
+    pub fn deserialize<'de, K, V, D>(de: D) -> Result<BTreeMap<K, V>, D::Error>
     where
-        K: Deserialize<'de> + Eq + Hash,
+        K: Deserialize<'de> + Ord,
         V: Deserialize<'de>,
         D: Deserializer<'de>,
     {
@@ -167,14 +171,14 @@ pub struct HouseholdWorkerPool {
     unemployed_count: u32,
 
     // NOTE: Convert to Vec of pairs when serializing to support json format.
-    #[serde(with = "serialize_hash_map_as_pairs")]
-    employers: HashMap<BuildingKindAndId, u32>,
+    #[serde(with = "serialize_map_as_pairs")]
+    employers: BTreeMap<BuildingKindAndId, u32>,
 }
 
 impl HouseholdWorkerPool {
     #[inline]
     pub fn new(employed_count: u32, unemployed_count: u32) -> Self {
-        Self { employed_count, unemployed_count, employers: HashMap::new() }
+        Self { employed_count, unemployed_count, employers: BTreeMap::new() }
     }
 
     #[inline]
@@ -349,15 +353,15 @@ pub struct Employer {
     max_employees: u32,  // Maximum number of workers it can employ (to run at full capacity).
 
     // NOTE: Convert to Vec of pairs when serializing to support json format.
-    #[serde(with = "serialize_hash_map_as_pairs")]
-    employee_households: HashMap<BuildingId, u32>, // Households we source our workers from.
+    #[serde(with = "serialize_map_as_pairs")]
+    employee_households: BTreeMap<BuildingId, u32>, // Households we source our workers from.
 }
 
 impl Employer {
     #[inline]
     pub fn new(min_employees: u32, max_employees: u32) -> Self {
         debug_assert!(min_employees <= max_employees);
-        Self { employee_count: 0, min_employees, max_employees, employee_households: HashMap::new() }
+        Self { employee_count: 0, min_employees, max_employees, employee_households: BTreeMap::new() }
     }
 
     #[inline]

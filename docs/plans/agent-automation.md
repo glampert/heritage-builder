@@ -1,6 +1,6 @@
 # Agent automation and in-game screenshots
 
-**Status:** Approved 2026-10-11. Implementation not started.
+**Status:** Approved 2026-10-11. Phase 0 done; Phase 1 (screenshots) is next.
 
 This plan lets AI agents launch the game, drive it, inspect it and debug it. It also adds framebuffer screenshots, which ship to players as well. It was researched against commit `9f26ef8` on the `claude` branch. File and line references point at that commit, so re-check them before relying on them.
 
@@ -284,7 +284,7 @@ Road placement today is driven by the menus' `TilePlacement::update_road_segment
 
 ### Phase 0: Foundations (small)
 
-- [ ] Command-line module in the engine. Desktop reads `std::env::args`; web returns defaults for now (URL query parameters can come later). Flags:
+- [x] Command-line module in the engine. Desktop reads `std::env::args`; web returns defaults for now (URL query parameters can come later). Flags:
   - `--fixed-dt SECONDS`
   - `--seed N`
   - `--window-size WxH`
@@ -293,15 +293,33 @@ Road placement today is driven by the menus' `TilePlacement::update_road_segment
   - `--skip-home-menu`
 
   Move `--smoke-test-saves` into it.
-- [ ] Fixed-delta mode on `FrameClock` (`Engine::set_fixed_delta_time`), and a frame counter.
-- [ ] Log fan-out with multiple listeners, sequence numbers, and a recent-records ring buffer. Update `debug/log_viewer.rs` to the new API.
-- [ ] Deterministic maps in `sim/resources.rs`, and a sweep of other iterated std hash containers in simulation code.
+- [x] Fixed-delta mode on `FrameClock` (`Engine::set_fixed_delta_time`), and a frame counter.
+- [x] Log fan-out with multiple listeners, sequence numbers, and a recent-records ring buffer. Update `debug/log_viewer.rs` to the new API.
+- [x] Deterministic maps in `sim/resources.rs`, and a sweep of other iterated std hash containers in simulation code.
 
 Done when:
 - `cargo test --workspace` passes, and desktop and web build.
 - A unit test shows `FrameClock` returns the fixed delta when set.
 - A unit test shows two log listeners both receive a record.
 - `--smoke-test-saves` still works through the new module.
+
+Notes (2026-10-11):
+- **Command line.** `engine::cli` parses `--name`, `--name=value` and `--name value` against option tables: `ENGINE_CLI_OPTIONS`, plus the run loop's through the new `RunLoop::cli_options`. Both runners call `cli::initialize` right after `platform::initialize()`, because the first log line decides where log output goes. Unknown options and missing values exit with status 2 and list the options; `--help` lists them and exits 0. Single-dash launcher arguments (macOS `-psn_...`) are ignored with a warning.
+- **Game options** live in `game::launch` (`LaunchOptions`). Also added `--map empty:WxH`.
+- **Deviation:** options are applied where they're used (`session::create_initial`, `Simulation::new`, the desktop runner, `Engine::start`), not written into `GameConfigs`. The settings dialog saves the whole configs struct to `configs.json`, which would persist them. The start map applies only to the first session, so "quit to main menu" still shows the home menu. `--load-save` with a save that fails to load exits with status 2.
+- **FPS display.** It now uses `FrameClock::real_delta_time()`, so it stays accurate under `--fixed-dt`.
+- **Determinism sweep** found more than the plan listed:
+  - The worker maps are now `BTreeMap`s, with `Ord` derived on `BuildingKind`, `BuildingKindAndId` and `GenerationalIndex`.
+  - `common::hash::SmallSet` uses a fixed-key hasher for its heap storage (house merging iterates it).
+  - New maps randomized their cosmetic terrain variations with the unseeded thread RNG. Those variations are saved, so they now use the game seed.
+  - Saves keep the same format, so no version bump.
+- **Shutdown crash fixed.** Exiting the game segfaulted on Linux/Mesa, so even a successful smoke test exited with status 139. `Engine` dropped its `Application` (window and GL context) before the render system, which then called GL with no context. `app` is now the last field of `Engine`, so it drops last.
+- **Verified:**
+  - `cargo test --workspace` passes.
+  - Desktop and web builds pass (web with wasi-sdk 32, as in CI).
+  - `--smoke-test-saves` loads all 11 sample saves and exits 0 under `xvfb-run`.
+  - Two runs of `--load-save test_save_2 --fixed-dt 0.016667` (51 worker assignments by then) wrote byte-identical first autosaves, and so did two runs of `--map preset:2 --seed 7 --fixed-dt 0.016667`.
+- Found in passing and fixed in a separate commit: the texture atlas cache was never written on a fresh checkout.
 
 ### Phase 1: Screenshots (medium)
 

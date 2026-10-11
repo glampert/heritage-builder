@@ -19,6 +19,7 @@ use super::{
     unit::task::UnitTaskManager,
 };
 use crate::{
+    launch,
     save_context::*,
     debug::DebugUiMode,
     pathfind::Search,
@@ -68,7 +69,7 @@ pub struct Simulation {
 impl Simulation {
     pub fn new(map_size_in_cells: Size, configs: &GameConfigs) -> Self {
         Self {
-            rng: RcMut::new(RandomGenerator::seed_from_u64(configs.sim.random_seed)),
+            rng: RcMut::new(RandomGenerator::seed_from_u64(launch::get().random_seed(configs))),
             update_timer: UpdateTimer::new(configs.sim.update_frequency_secs),
             paused_update_timer: UpdateTimer::new(configs.sim.paused_update_frequency_secs),
             cmds: RcMut::new(commands::DeferredSimCmds::new(SIM_CMDS_CAPACITY)),

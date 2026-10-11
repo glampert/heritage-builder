@@ -85,7 +85,7 @@ pub(crate) mod storage;
 // ----------------------------------------------
 
 bitflags_with_display! {
-    #[derive(Copy, Clone, Default, PartialEq, Eq, Hash, Serialize, Deserialize)]
+    #[derive(Copy, Clone, Default, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
     pub struct BuildingKind: u32 {
         // Archetype: House
         const House          = 1 << 0;
@@ -1075,7 +1075,8 @@ pub(crate) trait BuildingBehavior {
 // BuildingKindAndId / BuildingTileInfo
 // ----------------------------------------------
 
-#[derive(Copy, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
+// Ord gives maps keyed by building a stable iteration order (see sim/resources.rs).
+#[derive(Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
 pub struct BuildingKindAndId {
     pub kind: BuildingKind,
     pub id: BuildingId,

@@ -13,6 +13,15 @@ Desktop build/run (default feature set):
 - `cargo run -p HeritageBuilder --release`
 - `cargo build -p HeritageBuilder --release`
 
+Command-line options (`cargo run -p HeritageBuilder -- --help` lists them all):
+- `--map preset:N`, `--map empty:WxH` or `--load-save NAME` start in-game on that map; `--skip-home-menu` starts in-game on the map from `configs.json`.
+- `--seed N` sets the random seed for new games and `--fixed-dt SECONDS` advances every frame by a fixed step. Together they make runs repeatable.
+- `--window-size WxH` overrides the window size.
+- Unknown options exit with status 2. Options are declared in `engine::cli::ENGINE_CLI_OPTIONS` ([cli.rs](crates/engine/src/cli.rs)) and `game::launch::GAME_CLI_OPTIONS` ([launch.rs](crates/game/src/launch.rs)).
+- Apply an option where its value is used. Don't write it into `GameConfigs`: the settings dialog saves the whole struct back to `configs.json`.
+
+Headless Linux (CI, cloud agent sessions): install the packages from the CI Ubuntu job plus `xvfb`, then `LIBGL_ALWAYS_SOFTWARE=1 xvfb-run -a cargo run -p HeritageBuilder -- <options>` runs the game on Mesa's software OpenGL. Without a sound device, audio init logs an error and the game runs silently.
+
 MacOS `.app` bundle (wraps `cargo bundle` + asset copy):
 - `./bundle.sh` / `./bundle.sh release`
 - `./bundle.sh --install [release]` installs `cargo-bundle` first

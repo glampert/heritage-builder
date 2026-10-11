@@ -1,6 +1,6 @@
 use std::{
     collections::HashMap,
-    hash::{BuildHasherDefault, Hash, Hasher},
+    hash::{BuildHasherDefault, DefaultHasher, Hash, Hasher},
 };
 
 use small_map::SmallMap;
@@ -46,7 +46,9 @@ pub const fn new_const_hash_map<K, V>() -> PreHashedKeyMap<K, V> {
 // SmallMap starts with a fixed-size buffer but can expand into the heap.
 // This allows us to mostly stay on the stack and avoid any allocations.
 // We only care about the key being present or not, so value is an empty type.
-pub struct SmallSet<const N: usize, T>(SmallMap<N, T, ()>);
+// The heap storage uses a fixed-key hasher instead of the default randomly seeded one,
+// so iteration order is the same on every run (the simulation iterates these sets).
+pub struct SmallSet<const N: usize, T>(SmallMap<N, T, (), BuildHasherDefault<DefaultHasher>>);
 
 impl<const N: usize, T> SmallSet<N, T>
 where

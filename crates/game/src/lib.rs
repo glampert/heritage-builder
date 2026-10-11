@@ -11,6 +11,7 @@ pub mod cheats;
 pub mod config;
 pub mod constants;
 pub mod debug;
+pub mod launch;
 pub mod menu;
 pub mod pathfind;
 pub mod prop;
