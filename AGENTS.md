@@ -115,3 +115,7 @@ Topic notes live in `.claude/rules/`. Claude Code loads them automatically; othe
 - [.claude/rules/rendering.md](.claude/rules/rendering.md) — renderer internals: backend selection, batching, offscreen target, texture cache, culling.
 
 When you learn something durable about the codebase, add it here or to a `.claude/rules/` file (and list new files above) so every agent picks it up.
+
+## Plans in progress
+
+- [docs/plans/agent-automation.md](docs/plans/agent-automation.md) — approved plan for agent automation (command system, script mode, control server, simulated input, UI automation) and in-game screenshots. Work through its phases in order and keep its progress checkboxes current.
