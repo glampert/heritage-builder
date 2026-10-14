@@ -7,7 +7,7 @@ import init, { heritageExec } from "./pkg/HeritageBuilder.js";
 
 // Automation bridge: `await window.heritage.exec("session.state")` runs a game command and
 // resolves with its result, or rejects with { code, message }. `help` lists the commands.
-// Playwright drives the web build through it (see crates/tools/web_smoke/).
+// Playwright drives the web build through it (see crates/tools/web-smoke/).
 window.heritage = {
     exec: (method, params = {}) => heritageExec(method, params),
 };

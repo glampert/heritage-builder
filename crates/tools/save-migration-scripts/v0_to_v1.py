@@ -12,7 +12,7 @@ v1 reworks the unit task system:
   - A `save_version` field is added at the save root.
 
 Usage:
-    python3 crates/tools/save_migration_scripts/v0_to_v1.py [save.json ...]
+    python3 crates/tools/save-migration-scripts/v0_to_v1.py [save.json ...]
 
 With no arguments, migrates every saves/*.json. Files are rewritten in place.
 The migration is idempotent: each field is transformed only if still in the v0

@@ -17,7 +17,7 @@ migration path exists:
   - `save_version` is bumped to 2.
 
 Usage:
-    python3 crates/tools/save_migration_scripts/v1_to_v2.py [save.json ...]
+    python3 crates/tools/save-migration-scripts/v1_to_v2.py [save.json ...]
 
 With no arguments, migrates every saves/*.json. Files are rewritten in place.
 The migration is idempotent: each field is transformed only if still in the v1

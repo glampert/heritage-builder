@@ -158,7 +158,9 @@ crates/
   tools/
     bundler/         Driver for `cargo bundle` + assets (used by bundle.sh).
     web-builder/     WASM build driver (used by web.sh).
-    save_migration_scripts/  Python scripts that migrate save files between format versions.
+    hb-ctl/          CLI client for the automation server: launch and drive the game, MCP server.
+    web-smoke/       Playwright smoke test for the web build.
+    save-migration-scripts/  Python scripts that migrate save files between format versions.
     debug/           macOS heap-corruption debugging wrapper script.
 assets/              configs/, tiles/, sounds/, fonts/, ui/ — copied into the bundle.
 saves/               Save games and sample maps (git-ignored).
@@ -229,7 +231,7 @@ the serialized layout so older saves no longer deserialize as-is:
 
 1. Bump `CURRENT_SAVE_VERSION`.
 2. Add a `v<N>_to_v<N+1>.py` migration script to
-   [`crates/tools/save_migration_scripts/`](crates/tools/save_migration_scripts/), modeled on the existing
+   [`crates/tools/save-migration-scripts/`](crates/tools/save-migration-scripts/), modeled on the existing
    ones (idempotent, rewrites `saves/*.json` in place).
 3. Migrate your local `saves/`, run the smoke test, then regenerate `saves/sample_saves.zip` from the
    migrated files.

@@ -778,7 +778,7 @@ impl Load for GameSession {
 
 // Save file format version. Bumped whenever the serialized layout changes in a
 // way that older saves cannot be deserialized directly. Old saves must be run
-// through the matching script in crates/tools/save_migration_scripts/.
+// through the matching script in crates/tools/save-migration-scripts/.
 const CURRENT_SAVE_VERSION: u32 = 2;
 
 // Minimal struct to read just the save version ahead of a full deserialize.
@@ -823,7 +823,7 @@ impl GameSession {
             Ok(probe) => {
                 return Err(log_session_error(format!(
                     "Cannot load '{save_file}': save version {} is incompatible (expected {}). \
-                     Run it through crates/tools/save_migration_scripts/.",
+                     Run it through crates/tools/save-migration-scripts/.",
                     probe.save_version, CURRENT_SAVE_VERSION
                 )));
             }

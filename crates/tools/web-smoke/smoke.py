@@ -7,7 +7,7 @@ a screenshot through the game (base64 PNG) and one through Playwright to compare
 
 Build the web target first, then from the repository root:
     pip install playwright && playwright install chromium
-    python3 crates/tools/web_smoke/smoke.py [--out out/web] [--timeout 180] [--headed] [--swiftshader]
+    python3 crates/tools/web-smoke/smoke.py [--out out/web] [--timeout 180] [--headed] [--swiftshader]
 
 Prints one JSON line per step and exits with status 0 if every step passed, 1 if not.
 """

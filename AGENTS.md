@@ -79,7 +79,7 @@ Web / WASM:
 - `crates/launcher/build.rs` passes `--allow-undefined` to the wasm linker: imgui-sys's C library symbols are imported from `env` (provided by `web/libc.js`), and Rust 1.96+ no longer allows undefined symbols by default. Don't remove it.
 - `web-builder` regenerates `web/asset_manifest.json` from `assets/`. The web runner preloads only the files listed there, so after adding or removing assets, rebuild web and commit the updated manifest.
 - Automation on web: the page exposes `await window.heritage.exec(method, params)` ([web/bootstrap.js](web/bootstrap.js) over [automation/web.rs](crates/engine/src/automation/web.rs)), which resolves with a command's result or rejects with `{code, message}` (`NotReady` while loading). Screenshots come back as base64 PNG (`png_base64`); a screenshot "file" on web, like the F12 hotkey's, is a browser download.
-- Web smoke test: `python3 crates/tools/web_smoke/smoke.py [--swiftshader]` serves `web/`, opens the game in headless Chromium with Playwright (`pip install playwright && playwright install chromium`) and drives it through the bridge. It needs Playwright's full Chromium (it uses the `chromium` channel): the separate headless shell's WebGPU rejects buffer maps, so captures fail there. `--swiftshader` renders on the CPU, for machines without a GPU.
+- Web smoke test: `python3 crates/tools/web-smoke/smoke.py [--swiftshader]` serves `web/`, opens the game in headless Chromium with Playwright (`pip install playwright && playwright install chromium`) and drives it through the bridge. It needs Playwright's full Chromium (it uses the `chromium` channel): the separate headless shell's WebGPU rejects buffer maps, so captures fail there. `--swiftshader` renders on the CPU, for machines without a GPU.
 
 Tests — every integration test in `crates/game/tests/` (`sim_cmds`, `search_graph`, `unit_tasks`, `campaign`, `house_consumption`) uses a **custom harness** (`harness = false`):
 - `cargo test -p game --test <name>` runs one file; `cargo test -p game` runs them all.
@@ -106,8 +106,8 @@ Save-load smoke test (verifies save-file compatibility):
 - `crates/tools/bundler` — driver for `cargo bundle` + assets (used by `bundle.sh`).
 - `crates/tools/hb-ctl` — CLI client for the automation server (`--automation`): launch the game, run commands, take screenshots, follow logs, and serve the commands over MCP (`hb-ctl mcp`). Std and `serde_json` only.
 - `crates/tools/web-builder` — WASM build driver (used by `web.sh`).
-- `crates/tools/save_migration_scripts` — Python scripts (`v<N>_to_v<N+1>.py`) that migrate save JSON between format versions. Not a Cargo crate.
-- `crates/tools/web_smoke` — Playwright smoke test for the web build (`smoke.py`). Not a Cargo crate.
+- `crates/tools/save-migration-scripts` — Python scripts (`v<N>_to_v<N+1>.py`) that migrate save JSON between format versions. Not a Cargo crate.
+- `crates/tools/web-smoke` — Playwright smoke test for the web build (`smoke.py`). Not a Cargo crate.
 - `crates/tools/debug` — `macos_run_heap_debug.sh`, a MacOS heap-corruption debugging wrapper. Not a Cargo crate.
 - `assets/` — `configs/{game,units,props,buildings,ui}`, `tiles/`, `sounds/`, `fonts/`, `ui/`. Copied into bundle.
 - `saves/` — Save games (serde JSON), including `autosave.json`. Git-ignored except `sample_saves.zip` (sample maps such as `test_map_64x64.json`, `test_map_128x128.json`, `tiny_island.json`).
@@ -154,7 +154,7 @@ If you're tempted to mutate the world inside a system callback, queue it instead
 - Saves are versioned: `GameSession::save_version` must equal `CURRENT_SAVE_VERSION` ([session.rs](crates/game/src/session.rs)). `load_save_game` probes the version before the full deserialize and refuses any mismatch.
 - When a change alters the serialized layout so older saves no longer deserialize as-is:
   1. Bump `CURRENT_SAVE_VERSION`.
-  2. Add `crates/tools/save_migration_scripts/v<N>_to_v<N+1>.py`, modeled on the existing scripts (idempotent, rewrites `saves/*.json` in place, rejects saves from older versions).
+  2. Add `crates/tools/save-migration-scripts/v<N>_to_v<N+1>.py`, modeled on the existing scripts (idempotent, rewrites `saves/*.json` in place, rejects saves from older versions).
   3. Migrate the local `saves/`, run the smoke test, and regenerate `saves/sample_saves.zip` from the migrated files (entries are stored with their `saves/` prefix).
 - Don't add `#[serde(default)]` to save-state fields as a compatibility shim. Save format v2 deliberately removed those shims because they risk silent corruption. `#[serde(skip)]` is still right for runtime-only state that is rebuilt in `post_load` (e.g. the pathfinding graph on `TileMap`).
 
