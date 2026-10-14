@@ -18,6 +18,7 @@ pub mod platform;
 pub mod render;
 pub mod runner;
 pub mod save;
+pub mod screenshot;
 pub mod sound;
 pub mod ui;
 

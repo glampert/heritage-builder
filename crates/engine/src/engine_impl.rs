@@ -1,3 +1,5 @@
+use std::path::PathBuf;
+
 use common::{
     Rect,
     Vec2,
@@ -8,10 +10,11 @@ use common::{
 
 use crate::{
     app::{Application, ApplicationEvent, ApplicationEventList, input::*},
-    cli,
+    cli::{self, OneShotScreenshotOptions},
     config::EngineConfigs,
     log,
-    render::{RenderStats, RenderSystem, debug::DebugDraw, texture::TextureCache},
+    render::{RenderStats, RenderSystem, capture::CaptureRequest, debug::DebugDraw, texture::TextureCache},
+    screenshot::{self, ScreenshotId, ScreenshotOutput, ScreenshotRequest, ScreenshotResult, ScreenshotSystem},
     sound::SoundSystem,
     ui::UiSystem,
 };
@@ -42,6 +45,12 @@ pub struct Engine {
 
     frame_clock: FrameClock,
     frame_events: ApplicationEventList,
+
+    screenshots: ScreenshotSystem,
+    screenshot_name: String, // File name prefix, from the window title.
+    one_shot_screenshot: Option<OneShotScreenshot>,
+
+    exit_code: i32,
 
     // Declared last so it's dropped last: it owns the window and graphics context,
     // which the render resources above still need while they're being destroyed.
@@ -147,6 +156,44 @@ impl Engine {
         !self.app.should_quit()
     }
 
+    // Quits after this frame. On desktop, the process exits with `exit_code` once the engine has
+    // shut down. A non-zero code isn't overwritten by a later request.
+    pub fn request_exit(&mut self, exit_code: i32) {
+        if self.exit_code == 0 {
+            self.exit_code = exit_code;
+        }
+        self.app.request_quit();
+    }
+
+    #[inline]
+    pub fn exit_code(&self) -> i32 {
+        self.exit_code
+    }
+
+    // ----------------------
+    // Screenshots:
+    // ----------------------
+
+    // Captures the frame being drawn and saves it as a PNG (see screenshot.rs). Poll
+    // take_screenshot_result: the result is ready once the PNG is written, usually after a frame.
+    pub fn request_screenshot(&mut self, request: ScreenshotRequest) -> ScreenshotId {
+        let id = self.render_system.request_capture(CaptureRequest { include_ui: request.include_ui });
+        self.screenshots.add_request(id, request.output);
+        id
+    }
+
+    // Each result is returned once.
+    #[inline]
+    pub fn take_screenshot_result(&mut self, id: ScreenshotId) -> Option<ScreenshotResult> {
+        self.screenshots.take_result(id)
+    }
+
+    // A path for a new screenshot in screenshots/, named after the game and the local time.
+    #[inline]
+    pub fn new_screenshot_path(&self) -> PathBuf {
+        self.screenshots.new_screenshot_path(&self.screenshot_name)
+    }
+
     #[inline]
     pub fn app_events(&self) -> &ApplicationEventList {
         &self.frame_events
@@ -175,12 +222,23 @@ impl Engine {
     pub fn end_frame(&mut self) -> (Milliseconds, Milliseconds) {
         let end_frame_timer = PerfTimer::begin();
 
-        let mut ui_frame_bundle = self.ui_system.end_frame(self.render_system.clone());
+        self.request_one_shot_screenshot();
+
+        // Keep toasts out of screenshots.
+        let draw_toasts = !self.render_system.has_pending_ui_capture();
+
+        let mut ui_frame_bundle = self.ui_system.end_frame(self.render_system.clone(), draw_toasts);
         self.render_stats = self.render_system.end_frame(&mut ui_frame_bundle);
 
         let present_timer = PerfTimer::begin();
         self.app.present();
         let present_frame_time_ms = present_timer.end();
+
+        for (id, result) in self.render_system.take_finished_captures() {
+            self.screenshots.on_capture_finished(id, result);
+        }
+        self.screenshots.update();
+        self.finish_one_shot_screenshot();
 
         self.frame_events.clear();
         self.frame_clock.end_frame();
@@ -205,6 +263,9 @@ impl Engine {
             log::info!(log::channel!("engine"), "Using a fixed frame time step of {fixed_delta_time}s.");
             engine.set_fixed_delta_time(Some(fixed_delta_time));
         }
+
+        engine.one_shot_screenshot =
+            cli::one_shot_screenshot().map(|options| OneShotScreenshot { options, id: None });
 
         // Set global instance:
         Self::initialize(engine);
@@ -241,6 +302,10 @@ impl Engine {
             debug_draw,
             frame_clock: FrameClock::new(),
             frame_events: ApplicationEventList::new(),
+            screenshots: ScreenshotSystem::new(),
+            screenshot_name: configs.window_title.clone(),
+            one_shot_screenshot: None,
+            exit_code: 0,
         }
     }
 
@@ -264,7 +329,10 @@ impl Engine {
                     events_forwarded.push(event);
                 }
                 ApplicationEvent::KeyInput(key, action, modifiers) => {
-                    if self.ui_system.on_key_input(key, action, modifiers).not_handled() {
+                    let ui_input = self.ui_system.on_key_input(key, action, modifiers);
+
+                    // Screenshot keys reach the run loop even while the UI has keyboard focus.
+                    if ui_input.not_handled() || screenshot::is_hotkey(key) {
                         events_forwarded.push(event);
                     }
                 }
@@ -288,6 +356,54 @@ impl Engine {
 
         events_forwarded
     }
+
+    // `--screenshot-after-frames`: requests the capture on the chosen frame...
+    fn request_one_shot_screenshot(&mut self) {
+        let frame_number = self.frame_clock.frame_number();
+
+        let request = match &self.one_shot_screenshot {
+            Some(shot) if shot.id.is_none() && frame_number >= shot.options.after_frames => ScreenshotRequest {
+                include_ui: shot.options.include_ui,
+                output: ScreenshotOutput::File(shot.options.path.clone()),
+            },
+            _ => return,
+        };
+
+        let id = self.request_screenshot(request);
+        if let Some(shot) = &mut self.one_shot_screenshot {
+            shot.id = Some(id);
+        }
+    }
+
+    // ...and quits once the PNG is written.
+    fn finish_one_shot_screenshot(&mut self) {
+        let Some(id) = self.one_shot_screenshot.as_ref().and_then(|shot| shot.id) else {
+            return;
+        };
+
+        let Some(result) = self.screenshots.take_result(id) else {
+            return;
+        };
+
+        self.one_shot_screenshot = None;
+
+        match result {
+            Ok(screenshot) => {
+                let path = screenshot.path.unwrap_or_default();
+                log::info!(log::channel!("engine"), "Saved screenshot {} ({}).", path.display(), screenshot.size);
+                self.request_exit(0);
+            }
+            Err(err) => {
+                log::error!(log::channel!("engine"), "--screenshot-after-frames failed: {err}");
+                self.request_exit(1);
+            }
+        }
+    }
+}
+
+struct OneShotScreenshot {
+    options: OneShotScreenshotOptions,
+    id: Option<ScreenshotId>, // Set once requested.
 }
 
 // ----------------------------------------------

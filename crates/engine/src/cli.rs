@@ -5,7 +5,12 @@
 // adds its own through `RunLoop::cli_options`. Desktop reads the process arguments; the web
 // build has none.
 
-use std::{fmt::Display, str::FromStr, sync::OnceLock};
+use std::{
+    fmt::Display,
+    path::{Path, PathBuf},
+    str::FromStr,
+    sync::OnceLock,
+};
 
 use common::{Size, time::Seconds};
 
@@ -30,6 +35,17 @@ pub const ENGINE_CLI_OPTIONS: &[CliOption] = &[
         help: "Advance every frame by this time step instead of the measured frame time, so runs repeat exactly.",
     },
     CliOption { name: "window-size", value_name: Some("WxH"), help: "Initial window size, e.g. 1280x720." },
+    CliOption {
+        name: "screenshot-after-frames",
+        value_name: Some("N"),
+        help: "Save a screenshot to --screenshot-out after N frames, then quit. Exits with status 1 if it fails.",
+    },
+    CliOption {
+        name: "screenshot-out",
+        value_name: Some("PATH"),
+        help: "PNG file for --screenshot-after-frames. Relative to the directory the game was started from.",
+    },
+    CliOption { name: "screenshot-no-ui", value_name: None, help: "Leave the UI out of --screenshot-after-frames." },
 ];
 
 // ----------------------------------------------
@@ -155,6 +171,7 @@ pub fn parse_size(text: &str) -> Result<Size, String> {
 // ----------------------------------------------
 
 static COMMAND_LINE: OnceLock<CommandLine> = OnceLock::new();
+static LAUNCH_DIR: OnceLock<PathBuf> = OnceLock::new();
 
 // Parses the process arguments against the engine's options plus `run_loop_options`.
 // Called once by the runner. `--help` logs the options and exits; bad input logs the
@@ -162,6 +179,12 @@ static COMMAND_LINE: OnceLock<CommandLine> = OnceLock::new();
 pub fn initialize(run_loop_options: &'static [CliOption]) {
     #[cfg(feature = "desktop")]
     let args: Vec<String> = std::env::args().skip(1).collect();
+
+    // The runner changes the working directory next, so remember where we were started from.
+    #[cfg(feature = "desktop")]
+    if let Ok(current_dir) = std::env::current_dir() {
+        let _ = LAUNCH_DIR.set(current_dir);
+    }
 
     #[cfg(not(feature = "desktop"))]
     let args: Vec<String> = Vec::new();
@@ -193,6 +216,19 @@ pub fn get() -> &'static CommandLine {
     COMMAND_LINE.get().unwrap_or(&EMPTY)
 }
 
+// A path option's value. Relative paths are resolved against the directory the game was started
+// from, not the working directory the runner switches to.
+pub fn path_value(name: &str) -> Option<PathBuf> {
+    get().value(name).map(|value| resolve_launch_path(Path::new(value)))
+}
+
+fn resolve_launch_path(path: &Path) -> PathBuf {
+    match LAUNCH_DIR.get() {
+        Some(launch_dir) if path.is_relative() => launch_dir.join(path),
+        _ => path.to_path_buf(),
+    }
+}
+
 // Ends the process for a command-line value that the game can't use, e.g. a map preset that
 // doesn't exist. Logs `message` and the option list, then exits with status 2.
 pub fn fail(message: &str) -> ! {
@@ -216,6 +252,29 @@ fn exit_process(code: i32) -> ! {
 // `--window-size`, if given.
 pub fn window_size() -> Option<Size> {
     get().value("window-size").map(|value| parse_size(value).unwrap_or_else(|err| fail(&format!("--window-size: {err}"))))
+}
+
+pub struct OneShotScreenshotOptions {
+    pub after_frames: u64,
+    pub path: PathBuf,
+    pub include_ui: bool,
+}
+
+// `--screenshot-after-frames N` with `--screenshot-out PATH` and `--screenshot-no-ui`, if given.
+pub fn one_shot_screenshot() -> Option<OneShotScreenshotOptions> {
+    let command_line = get();
+    let after_frames = command_line.parse_value::<u64>("screenshot-after-frames").unwrap_or_else(|err| fail(&err));
+
+    let Some(after_frames) = after_frames else {
+        if command_line.has("screenshot-out") || command_line.has("screenshot-no-ui") {
+            fail("--screenshot-out and --screenshot-no-ui need --screenshot-after-frames.");
+        }
+        return None;
+    };
+
+    let path = path_value("screenshot-out").unwrap_or_else(|| fail("--screenshot-after-frames needs --screenshot-out PATH."));
+
+    Some(OneShotScreenshotOptions { after_frames, path, include_ui: !command_line.has("screenshot-no-ui") })
 }
 
 // `--fixed-dt`, if given.

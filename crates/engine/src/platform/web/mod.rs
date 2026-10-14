@@ -26,6 +26,22 @@ pub fn run_environment() -> RunEnvironment {
 }
 
 // ----------------------------------------------
+// Local Date / Time
+// ----------------------------------------------
+
+pub fn local_date_time() -> Option<LocalDateTime> {
+    let now = js_sys::Date::new_0();
+    Some(LocalDateTime {
+        year: now.get_full_year() as i32,
+        month: now.get_month() + 1, // JS months start at 0.
+        day: now.get_date(),
+        hour: now.get_hours(),
+        minute: now.get_minutes(),
+        second: now.get_seconds(),
+    })
+}
+
+// ----------------------------------------------
 // Main Thread Detection
 // ----------------------------------------------
 

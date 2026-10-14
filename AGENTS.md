@@ -17,10 +17,15 @@ Command-line options (`cargo run -p HeritageBuilder -- --help` lists them all):
 - `--map preset:N`, `--map empty:WxH` or `--load-save NAME` start in-game on that map; `--skip-home-menu` starts in-game on the map from `configs.json`.
 - `--seed N` sets the random seed for new games and `--fixed-dt SECONDS` advances every frame by a fixed step. Together they make runs repeatable.
 - `--window-size WxH` overrides the window size.
+- `--screenshot-after-frames N --screenshot-out PATH` saves a PNG of frame N and quits: status 0 if it was written, 1 if not. Add `--screenshot-no-ui` to leave the UI out. A relative `PATH` is relative to the directory the game was started from, not `base_path`.
 - Unknown options exit with status 2. Options are declared in `engine::cli::ENGINE_CLI_OPTIONS` ([cli.rs](crates/engine/src/cli.rs)) and `game::launch::GAME_CLI_OPTIONS` ([launch.rs](crates/game/src/launch.rs)).
 - Apply an option where its value is used. Don't write it into `GameConfigs`: the settings dialog saves the whole struct back to `configs.json`.
 
-Headless Linux (CI, cloud agent sessions): install the packages from the CI Ubuntu job plus `xvfb`, then `LIBGL_ALWAYS_SOFTWARE=1 xvfb-run -a cargo run -p HeritageBuilder -- <options>` runs the game on Mesa's software OpenGL. Without a sound device, audio init logs an error and the game runs silently.
+Headless Linux (CI, cloud agent sessions): install the packages from the CI Ubuntu job plus `xvfb`, then `LIBGL_ALWAYS_SOFTWARE=1 xvfb-run -a -s "-screen 0 1920x1080x24" cargo run -p HeritageBuilder -- <options>` runs the game on Mesa's software OpenGL. Without a sound device, audio init logs an error and the game runs silently.
+- The Winit app backend (needed for `"render_api": "Wgpu"`) also needs `libxkbcommon-x11-0`, and Wgpu needs a Vulkan driver: `mesa-vulkan-drivers` provides lavapipe.
+- To look at the game, take a screenshot with `--screenshot-after-frames` and read the PNG. `xdotool` can send real key presses to the window, e.g. `xdotool key F12`.
+
+Screenshots: PrintScreen or F12 saves `screenshots/<window title> <local date and time>.png` next to `saves/`; Shift leaves the UI out. A toast reports the file name. Code: `Engine::request_screenshot` ([screenshot.rs](crates/engine/src/screenshot.rs)) on top of `RenderSystem::request_capture` ([capture.rs](crates/engine/src/render/capture.rs)).
 
 MacOS `.app` bundle (wraps `cargo bundle` + asset copy):
 - `./bundle.sh` / `./bundle.sh release`

@@ -41,7 +41,9 @@ pub use debug_ui::DrawDebugUi;
 // Internal implementation.
 mod internal;
 mod renderer;
+mod toast;
 use renderer::UiRenderer;
+use toast::UiToasts;
 
 // usize::MAX == invalid/unset
 pub const INVALID_UI_TEXTURE_HANDLE: UiTextureHandle = UiTextureHandle::new(usize::MAX);
@@ -107,6 +109,8 @@ struct UiSystemInner {
     current_theme: UiTheme,
     current_font_scale: Option<UiFontScale>,
     show_ui_debug_menu: bool,
+    toasts: UiToasts,
+    delta_time_secs: Seconds,
 }
 
 impl UiSystem {
@@ -119,6 +123,8 @@ impl UiSystem {
             current_theme: UiTheme::Dev,
             current_font_scale: None,
             show_ui_debug_menu: false,
+            toasts: UiToasts::default(),
+            delta_time_secs: 0.0,
         };
 
         inner.context.set_dev_ui_theme(); // Start in developer mode.
@@ -137,11 +143,18 @@ impl UiSystem {
         internal::push_font(ui, theme_font_handle);
 
         self.inner.ui_ptr = Some(RawPtr::from_ref(ui));
+        self.inner.delta_time_secs = delta_time_secs;
     }
 
+    // `draw_toasts` false keeps toasts off this frame, e.g. while it's being captured.
     #[inline]
-    pub fn end_frame(&mut self, render_sys: RcMut<RenderSystem>) -> UiRenderFrameBundle<'_> {
+    pub fn end_frame(&mut self, render_sys: RcMut<RenderSystem>, draw_toasts: bool) -> UiRenderFrameBundle<'_> {
         debug_assert!(self.frame_started());
+
+        // Last, so toasts draw over everything else. Uses the theme font, which is still pushed.
+        let ui_ptr = self.inner.ui_ptr.unwrap(); // A copy, so `toasts` can be borrowed mutably.
+        let delta_time_secs = self.inner.delta_time_secs;
+        self.inner.toasts.update(ui_ptr.as_ref(), delta_time_secs, draw_toasts);
 
         internal::pop_font(self.ui());
 
@@ -160,6 +173,12 @@ impl UiSystem {
     #[inline]
     pub fn frame_started(&self) -> bool {
         self.inner.ui_ptr.is_some()
+    }
+
+    // Shows a short message at the bottom of the screen for a few seconds.
+    #[inline]
+    pub fn show_toast(&self, text: impl Into<String>) {
+        self.inner.as_mut().toasts.push(text.into());
     }
 
     #[inline]

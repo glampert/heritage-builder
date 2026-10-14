@@ -19,6 +19,10 @@ HeritageBuilder_bg.wasm
 /logs/
 /cache/
 
+# Screenshots (hotkey) and one-off output such as --screenshot-out images
+/screenshots/
+/out/
+
 # Save games are local runtime state — ignore everything under saves/,
 # except the committed sample-maps archive.
 /saves/*

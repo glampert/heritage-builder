@@ -11,7 +11,13 @@ use vertex::*;
 
 pub use texture::OpenGlTexture;
 
-use super::{RenderApi, RenderStats, RenderSystemBackend, RenderSystemInitParams};
+use super::{
+    RenderApi,
+    RenderStats,
+    RenderSystemBackend,
+    RenderSystemInitParams,
+    capture::{self, CaptureQueue, CaptureResult, CapturedImage},
+};
 use crate::{log, ui::UiRenderFrameBundle};
 
 mod batch;
@@ -100,6 +106,32 @@ impl OpenGlSystemState {
         self.points_batch.sync();
         self.points_batch.draw_fast(&mut self.render_context, &self.points_shader.program);
         self.points_batch.clear();
+    }
+
+    // Reads back what has been drawn to the screen's back buffer so far.
+    fn read_screen_pixels(&self) -> CaptureResult {
+        let size = self.framebuffer_size;
+        let row_bytes = size.width as usize * 4;
+        let mut pixels = vec![0u8; row_bytes * size.height as usize];
+
+        // Errors from earlier in the frame would otherwise be blamed on the readback.
+        panic_if_gl_error();
+
+        unsafe {
+            gl::BindFramebuffer(gl::READ_FRAMEBUFFER, buffer::NULL_BUFFER_HANDLE);
+            gl::PixelStorei(gl::PACK_ALIGNMENT, 1);
+            gl::ReadPixels(0, 0, size.width, size.height, gl::RGBA, gl::UNSIGNED_BYTE, pixels.as_mut_ptr().cast());
+
+            let error_code = gl::GetError();
+            if error_code != gl::NO_ERROR {
+                return Err(format!("glReadPixels failed: {} (0x{:X})", gl_error_to_string(error_code), error_code));
+            }
+        }
+
+        capture::flip_rows(&mut pixels, row_bytes);
+        capture::make_opaque(&mut pixels);
+
+        Ok(CapturedImage { size, scale: capture::content_scale(size, self.viewport), pixels })
     }
 }
 
@@ -202,11 +234,13 @@ impl RenderSystemBackend for OpenGlRenderSystemBackend {
         &mut self,
         ui_frame_bundle: &mut UiRenderFrameBundle,
         tex_cache: &mut super::texture::TextureCache,
+        captures: &mut CaptureQueue,
     ) -> RenderStats {
         let s = self.state_mut();
         debug_assert!(s.framebuffer_size.is_valid());
 
         let render_submit_timer = PerfTimer::begin();
+        let pending_captures = captures.take_pending();
 
         s.flush_sprites(tex_cache);
         s.flush_lines();
@@ -218,8 +252,17 @@ impl RenderSystemBackend for OpenGlRenderSystemBackend {
         // Reset viewport to default screen framebuffer size.
         s.render_context.set_viewport(Rect::from_pos_and_size(Vec2::zero(), s.framebuffer_size.to_vec2()));
 
+        // The back buffer now holds the scene alone, at screen resolution.
+        if !pending_captures.scene.is_empty() {
+            captures.finish(&pending_captures.scene, s.read_screen_pixels());
+        }
+
         // Render UI last so it will draw over the tile map.
         ui_frame_bundle.render();
+
+        if !pending_captures.with_ui.is_empty() {
+            captures.finish(&pending_captures.with_ui, s.read_screen_pixels());
+        }
 
         s.render_context.end_frame();
         s.frame_started = false;

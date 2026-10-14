@@ -14,6 +14,7 @@ use engine::{
     ui::UiInputEvent,
     runner::RunLoop,
     file_sys::paths::PathRef,
+    screenshot::{self, ScreenshotId, ScreenshotOutput, ScreenshotRequest},
     app::{
         ApplicationEvent,
         input::{InputAction, InputKey, InputModifiers, MouseButton},
@@ -102,6 +103,9 @@ pub struct GameLoop {
 
     smoke_test: Option<SaveSmokeTest>,
 
+    // Taken with the screenshot hotkey and not yet written.
+    pending_screenshots: Vec<ScreenshotId>,
+
     stats: GameLoopStats,
 }
 
@@ -146,6 +150,7 @@ impl RunLoop for GameLoop {
             // Never autosave during the smoke test - it would overwrite the saves under test.
             enable_autosave: configs.save.enable_autosave && smoke_test.is_none(),
             smoke_test,
+            pending_screenshots: Vec::new(),
             stats: GameLoopStats::default(),
         };
 
@@ -181,6 +186,7 @@ impl RunLoop for GameLoop {
         self.stats.fps = if real_delta_time_secs > 0.0 { 1.0 / real_delta_time_secs } else { 0.0 };
 
         self.update_autosave();
+        self.update_screenshots();
         self.session_cmd_queue.execute(&mut self.session, self.engine, self.configs);
 
         if self.smoke_test.is_some() {
@@ -407,6 +413,38 @@ impl GameLoop {
         }
     }
 
+    // Saves the current frame to screenshots/. A toast reports the result once it's written.
+    fn take_screenshot(&mut self, include_ui: bool) {
+        let path = self.engine.new_screenshot_path();
+        let id = self.engine.request_screenshot(ScreenshotRequest { include_ui, output: ScreenshotOutput::File(path) });
+        self.pending_screenshots.push(id);
+    }
+
+    fn update_screenshots(&mut self) {
+        let engine = &mut *self.engine;
+
+        self.pending_screenshots.retain(|id| {
+            let Some(result) = engine.take_screenshot_result(*id) else {
+                return true; // Still being written.
+            };
+
+            match result {
+                Ok(screenshot) => {
+                    let path = screenshot.path.unwrap_or_default();
+                    let file_name = path.file_name().unwrap_or_default().to_string_lossy();
+                    log::info!(log::channel!("game"), "Saved screenshot: {}", path.display());
+                    engine.ui_system().show_toast(format!("Screenshot saved: {file_name}"));
+                }
+                Err(err) => {
+                    log::error!(log::channel!("game"), "Screenshot failed: {err}");
+                    engine.ui_system().show_toast(format!("Screenshot failed: {err}"));
+                }
+            }
+
+            false
+        });
+    }
+
     // Drives the `--smoke-test-saves` run mode: loads each save in turn,
     // ticks it for SMOKE_TEST_SECS_PER_SAVE, then quits once all have loaded.
     fn update_smoke_test(&mut self, delta_time_secs: Seconds) {
@@ -466,6 +504,12 @@ impl GameLoop {
                 log::info!(log::channel!("game"), "Resized Window: {window_size}, Framebuffer: {framebuffer_size}");
             }
             ApplicationEvent::KeyInput(key, action, modifiers) => {
+                // PrintScreen / F12, with [SHIFT] to leave out the UI.
+                if let Some(hotkey) = screenshot::match_hotkey(key, action, modifiers) {
+                    self.take_screenshot(hotkey.include_ui);
+                    return;
+                }
+
                 let mut input_event = if self.is_in_game() {
                     self.session.camera_mut().on_key_input(key, action, modifiers)
                 } else {
