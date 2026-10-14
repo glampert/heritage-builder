@@ -510,6 +510,9 @@ impl GameSession {
             session.sim.resume();
         }
 
+        // Otherwise the HUD reads zero gold until the first simulation step.
+        session.refresh_world_stats();
+
         new_generation();
         session
     }
@@ -832,6 +835,9 @@ impl GameSession {
         self.pre_load(&mut PreLoadContext::new(engine));
         *self = session;
         self.post_load(&mut PostLoadContext::new(engine, configs, self.sim.rng().clone(), self.tile_map.clone()));
+
+        // World stats aren't saved; count them now instead of at the first simulation step.
+        self.refresh_world_stats();
 
         new_generation();
         Ok(())

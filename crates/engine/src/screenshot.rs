@@ -37,14 +37,24 @@ pub enum ScreenshotOutput {
     Memory,        // Return the PNG bytes in Screenshot::png.
 }
 
+// Size of the saved image.
+#[derive(Copy, Clone, Debug, PartialEq, Default)]
+pub enum ScreenshotScale {
+    #[default]
+    Pixels,      // Framebuffer resolution.
+    Points,      // Window points: half the pixels each way on a 2x HiDPI screen. Matches input coordinates.
+    Factor(f32), // Framebuffer resolution times this, from 0 (exclusive) to 1.
+}
+
 pub struct ScreenshotRequest {
     pub include_ui: bool, // False saves the scene only, without menus or other UI.
+    pub scale: ScreenshotScale,
     pub output: ScreenshotOutput,
 }
 
 pub struct Screenshot {
-    pub size: Size,            // In framebuffer pixels.
-    pub scale: Vec2,           // Framebuffer pixels per window point. Above 1 on HiDPI screens.
+    pub size: Size,            // In image pixels.
+    pub scale: Vec2,           // Image pixels per window point. Above 1 on HiDPI screens, unless scaled down.
     pub path: Option<PathBuf>, // Set for ScreenshotOutput::File.
     pub png: Option<Vec<u8>>,  // Set for ScreenshotOutput::Memory.
 }
@@ -109,11 +119,39 @@ pub fn encode_png(image: &CapturedImage) -> Result<Vec<u8>, String> {
     Ok(png)
 }
 
-fn save_screenshot(image: CapturedImage, output: ScreenshotOutput) -> ScreenshotResult {
+// Scales a capture down for ScreenshotScale::Points or Factor. Never scales up.
+pub fn scale_image(image: CapturedImage, scale: ScreenshotScale) -> Result<CapturedImage, String> {
+    let factor = match scale {
+        ScreenshotScale::Pixels => return Ok(image),
+        ScreenshotScale::Points => 1.0 / image.scale.x.max(image.scale.y).max(1.0),
+        ScreenshotScale::Factor(factor) => factor,
+    };
+
+    if factor.is_nan() || factor <= 0.0 || factor >= 1.0 {
+        return Ok(image);
+    }
+
+    let (width, height) = (image.size.width as u32, image.size.height as u32);
+    let new_width = ((width as f32 * factor).round() as u32).max(1);
+    let new_height = ((height as f32 * factor).round() as u32).max(1);
+
+    let buffer = image::RgbaImage::from_raw(width, height, image.pixels)
+        .ok_or_else(|| format!("Captured image data doesn't match its {width}x{height} size."))?;
+    let scaled = image::imageops::resize(&buffer, new_width, new_height, image::imageops::FilterType::Triangle);
+
+    Ok(CapturedImage {
+        size: Size::new(new_width as i32, new_height as i32),
+        scale: Vec2::new(image.scale.x * new_width as f32 / width as f32, image.scale.y * new_height as f32 / height as f32),
+        pixels: scaled.into_raw(),
+    })
+}
+
+fn save_screenshot(image: CapturedImage, scale: ScreenshotScale, output: ScreenshotOutput) -> ScreenshotResult {
     if cfg!(not(feature = "desktop")) && matches!(output, ScreenshotOutput::File(_)) {
         return Err("Saving screenshots to files isn't supported on the web build yet.".into());
     }
 
+    let image = scale_image(image, scale)?;
     let png = encode_png(&image)?;
     let CapturedImage { size, scale, .. } = image;
 
@@ -135,7 +173,7 @@ fn save_screenshot(image: CapturedImage, output: ScreenshotOutput) -> Screenshot
 
 // Owned by the Engine. Matches finished captures with their requests and saves them.
 pub(crate) struct ScreenshotSystem {
-    waiting_for_capture: Vec<(ScreenshotId, ScreenshotOutput)>,
+    waiting_for_capture: Vec<(ScreenshotId, ScreenshotScale, ScreenshotOutput)>,
     paths_in_use: Vec<(ScreenshotId, PathBuf)>, // Not yet written. New file names avoid them.
     writers: Vec<JoinHandle<()>>,
     results_sender: mpsc::Sender<(ScreenshotId, ScreenshotResult)>,
@@ -156,33 +194,33 @@ impl ScreenshotSystem {
         }
     }
 
-    pub fn add_request(&mut self, id: ScreenshotId, output: ScreenshotOutput) {
+    pub fn add_request(&mut self, id: ScreenshotId, scale: ScreenshotScale, output: ScreenshotOutput) {
         if let ScreenshotOutput::File(path) = &output {
             self.paths_in_use.push((id, path.clone()));
         }
-        self.waiting_for_capture.push((id, output));
+        self.waiting_for_capture.push((id, scale, output));
     }
 
     pub fn on_capture_finished(&mut self, id: ScreenshotId, result: CaptureResult) {
-        let Some(index) = self.waiting_for_capture.iter().position(|(waiting_id, _)| *waiting_id == id) else {
+        let Some(index) = self.waiting_for_capture.iter().position(|(waiting_id, ..)| *waiting_id == id) else {
             log::warning!(log::channel!("screenshot"), "Dropping capture {id:?}: no screenshot requested it.");
             return;
         };
 
-        let (_, output) = self.waiting_for_capture.swap_remove(index);
+        let (_, scale, output) = self.waiting_for_capture.swap_remove(index);
 
         match result {
-            Ok(image) => self.save(id, image, output),
+            Ok(image) => self.save(id, image, scale, output),
             Err(err) => self.finish(id, Err(err)),
         }
     }
 
     #[cfg(feature = "desktop")]
-    fn save(&mut self, id: ScreenshotId, image: CapturedImage, output: ScreenshotOutput) {
+    fn save(&mut self, id: ScreenshotId, image: CapturedImage, scale: ScreenshotScale, output: ScreenshotOutput) {
         let results_sender = self.results_sender.clone();
         let spawn_result = std::thread::Builder::new().name("screenshot".into()).spawn(move || {
             // The receiver only goes away when the engine shuts down, after joining this thread.
-            let _ = results_sender.send((id, save_screenshot(image, output)));
+            let _ = results_sender.send((id, save_screenshot(image, scale, output)));
         });
 
         match spawn_result {
@@ -192,8 +230,8 @@ impl ScreenshotSystem {
     }
 
     #[cfg(not(feature = "desktop"))]
-    fn save(&mut self, id: ScreenshotId, image: CapturedImage, output: ScreenshotOutput) {
-        let result = save_screenshot(image, output);
+    fn save(&mut self, id: ScreenshotId, image: CapturedImage, scale: ScreenshotScale, output: ScreenshotOutput) {
+        let result = save_screenshot(image, scale, output);
         self.finish(id, result);
     }
 
@@ -303,6 +341,24 @@ mod tests {
     }
 
     #[test]
+    fn test_scale_image() {
+        let mut hidpi = test_image(8, 4);
+        hidpi.scale = Vec2::new(2.0, 2.0);
+
+        let points = scale_image(hidpi, ScreenshotScale::Points).unwrap();
+        assert_eq!(points.size, Size::new(4, 2));
+        assert_eq!(points.scale, Vec2::new(1.0, 1.0));
+        assert_eq!(points.pixels.len(), 4 * 2 * 4);
+
+        let quarter = scale_image(test_image(8, 4), ScreenshotScale::Factor(0.25)).unwrap();
+        assert_eq!(quarter.size, Size::new(2, 1));
+
+        // Never scales up, and Points is a no-op without HiDPI.
+        assert_eq!(scale_image(test_image(8, 4), ScreenshotScale::Factor(2.0)).unwrap().size, Size::new(8, 4));
+        assert_eq!(scale_image(test_image(8, 4), ScreenshotScale::Points).unwrap().size, Size::new(8, 4));
+    }
+
+    #[test]
     fn test_encode_png_rejects_wrong_size() {
         let mut image = test_image(2, 2);
         image.pixels.pop();
@@ -311,14 +367,15 @@ mod tests {
 
     #[test]
     fn test_save_to_memory_and_file() {
-        let screenshot = save_screenshot(test_image(2, 2), ScreenshotOutput::Memory).unwrap();
+        let screenshot = save_screenshot(test_image(2, 2), ScreenshotScale::Pixels, ScreenshotOutput::Memory).unwrap();
         assert_eq!(screenshot.size, Size::new(2, 2));
         assert!(screenshot.path.is_none() && screenshot.png.is_some());
 
         let dir = std::env::temp_dir().join(format!("heritage_screenshot_test_{}", std::process::id()));
         let path = dir.join("nested").join("shot.png");
 
-        let screenshot = save_screenshot(test_image(4, 1), ScreenshotOutput::File(path.clone())).unwrap();
+        let screenshot =
+            save_screenshot(test_image(4, 1), ScreenshotScale::Pixels, ScreenshotOutput::File(path.clone())).unwrap();
         assert_eq!(screenshot.path.as_deref(), Some(path.as_path()));
         assert_eq!(image::open(&path).unwrap().to_rgba8().dimensions(), (4, 1));
 
@@ -333,7 +390,7 @@ mod tests {
         let id = queue.request(crate::render::capture::CaptureRequest { include_ui: true });
         let unknown = queue.request(crate::render::capture::CaptureRequest { include_ui: true });
 
-        system.add_request(id, ScreenshotOutput::Memory);
+        system.add_request(id, ScreenshotScale::Pixels, ScreenshotOutput::Memory);
         system.on_capture_finished(unknown, Ok(test_image(1, 1))); // Ignored.
         system.on_capture_finished(id, Ok(test_image(1, 1)));
 
@@ -357,7 +414,7 @@ mod tests {
         let mut queue = crate::render::capture::CaptureQueue::default();
         let id = queue.request(crate::render::capture::CaptureRequest { include_ui: false });
 
-        system.add_request(id, ScreenshotOutput::File(PathBuf::from("unused.png")));
+        system.add_request(id, ScreenshotScale::Pixels, ScreenshotOutput::File(PathBuf::from("unused.png")));
         assert!(system.is_path_in_use(Path::new("unused.png")));
 
         system.on_capture_finished(id, Err("GPU on fire".into()));

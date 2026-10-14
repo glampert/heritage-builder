@@ -157,6 +157,11 @@ impl Client {
         }
     }
 
+    // Notifications received so far while waiting for responses, oldest first.
+    pub fn take_notifications(&mut self) -> Vec<Value> {
+        self.notifications.drain(..).collect()
+    }
+
     // The next notification (a message with a method and no id), waiting for one if needed.
     pub fn next_notification(&mut self) -> Result<Value, RpcError> {
         loop {

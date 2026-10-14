@@ -8,7 +8,7 @@ use serde_json::{Value, json};
 use engine::{
     cli,
     log,
-    screenshot::{ScreenshotOutput, ScreenshotRequest},
+    screenshot::{ScreenshotOutput, ScreenshotRequest, ScreenshotScale},
 };
 
 use crate::{
@@ -28,6 +28,12 @@ pub(super) const COMMANDS: &[CommandDef] = &[
                 help: "PNG file, relative to the directory the game was started from. Default: a new file in screenshots/.",
             },
             ParamDef { name: "include_ui", kind: "bool", required: false, help: "False leaves the UI out. Default true." },
+            ParamDef {
+                name: "scale",
+                kind: "number|string",
+                required: false,
+                help: "\"points\" for one image pixel per window point (what input coordinates use), or a factor from 0 to 1. Default 1: framebuffer pixels.",
+            },
         ],
         run: cmd_screenshot,
     },
@@ -64,6 +70,7 @@ fn cmd_screenshot(context: &mut CommandContext, params: Value) -> CommandResult 
         path: Option<PathBuf>,
         #[serde(default = "default_include_ui")]
         include_ui: bool,
+        scale: Option<Value>,
     }
 
     fn default_include_ui() -> bool {
@@ -72,14 +79,29 @@ fn cmd_screenshot(context: &mut CommandContext, params: Value) -> CommandResult 
 
     let params: Params = parse_params(params)?;
 
+    let scale = match &params.scale {
+        None => ScreenshotScale::Pixels,
+        Some(Value::String(scale)) if scale == "points" => ScreenshotScale::Points,
+        Some(Value::Number(factor)) if factor.as_f64().is_some_and(|factor| factor > 0.0 && factor <= 1.0) => {
+            ScreenshotScale::Factor(factor.as_f64().unwrap_or(1.0) as f32)
+        }
+        Some(other) => {
+            return Err(CommandError::invalid_params(format!(
+                "scale must be \"points\" or a number more than 0 and at most 1, got {other}."
+            )));
+        }
+    };
+
     let path = match params.path {
         Some(path) => cli::resolve_launch_path(&path),
         None => context.engine.new_screenshot_path(),
     };
 
-    let id = context
-        .engine
-        .request_screenshot(ScreenshotRequest { include_ui: params.include_ui, output: ScreenshotOutput::File(path) });
+    let id = context.engine.request_screenshot(ScreenshotRequest {
+        include_ui: params.include_ui,
+        scale,
+        output: ScreenshotOutput::File(path),
+    });
 
     pending(move |context| {
         let result = context.engine.take_screenshot_result(id)?;

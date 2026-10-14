@@ -14,6 +14,7 @@ use std::{
 use serde_json::{Value, json};
 
 mod client;
+mod mcp;
 mod text;
 
 use client::{Client, Instance};
@@ -38,6 +39,7 @@ Commands:
                             Run a script file (one command per line, as --script takes) against
                             the running game, printing a JSON result line per command.
   quit [EXIT_CODE]          Quit the game and wait for it to exit.
+  mcp                       Serve the game's commands as MCP tools over stdio (see .mcp.json).
 
 Options:
   --dir DIR        The game's base directory, with logs/ and assets/. Default: the repository
@@ -53,6 +55,7 @@ Options:
 // Options
 // ----------------------------------------------
 
+#[derive(Clone)]
 pub struct Options {
     pub game_dir: PathBuf,
     pub pid: Option<u32>,
@@ -160,6 +163,7 @@ fn main() -> ExitCode {
             "logs" => cmd_logs(&options, &args),
             "script" => cmd_script(&options, &args),
             "quit" => cmd_quit(&options, &args),
+            "mcp" => mcp::run(&options),
             "help" => {
                 print!("{USAGE}");
                 Ok(0)
@@ -209,36 +213,61 @@ fn split_flags(args: &[String], with_values: &[&str]) -> Result<(Vec<Flag>, Vec<
 // launch
 // ----------------------------------------------
 
+pub struct LaunchArgs {
+    pub release: bool,
+    pub build: bool,
+    pub wait: Duration,
+    pub game_args: Vec<String>,
+}
+
+pub struct Launched {
+    pub instance: Instance,
+    pub client: Client,
+    pub log_path: PathBuf,
+    pub frame: Option<u64>,
+}
+
 fn cmd_launch(options: &Options, args: &[String]) -> Result<u8, String> {
-    let mut release = false;
-    let mut build = true;
-    let mut wait = Duration::from_secs(300);
-    let mut game_args = Vec::new();
+    let mut launch_args = LaunchArgs { release: false, build: true, wait: Duration::from_secs(300), game_args: Vec::new() };
 
     let mut args = args.iter();
     while let Some(arg) = args.next() {
         match arg.as_str() {
-            "--release" => release = true,
-            "--no-build" => build = false,
+            "--release" => launch_args.release = true,
+            "--no-build" => launch_args.build = false,
             "--wait" => {
                 let secs: u64 = args.next().and_then(|secs| secs.parse().ok()).ok_or("--wait takes a number of seconds.")?;
-                wait = Duration::from_secs(secs);
+                launch_args.wait = Duration::from_secs(secs);
             }
             "--" => {
-                game_args.extend(args.by_ref().cloned());
+                launch_args.game_args.extend(args.by_ref().cloned());
                 break;
             }
-            _ => game_args.push(arg.clone()), // Everything else goes to the game.
+            _ => launch_args.game_args.push(arg.clone()), // Everything else goes to the game.
         }
     }
 
-    let game_dir = &options.game_dir;
-    let profile = if release { "release" } else { "debug" };
+    let launched = launch(options, &launch_args)?;
 
-    if build {
+    options.print(&json!({
+        "pid": launched.instance.pid,
+        "port": launched.instance.port,
+        "log": launched.log_path.display().to_string(),
+        "frame": launched.frame,
+    }));
+    Ok(0)
+}
+
+// Builds the game (unless told not to), starts it with --automation=0, and waits until it answers.
+pub fn launch(options: &Options, args: &LaunchArgs) -> Result<Launched, String> {
+    let game_dir = &options.game_dir;
+    let profile = if args.release { "release" } else { "debug" };
+
+    if args.build {
         let mut cargo = Command::new(std::env::var("CARGO").unwrap_or_else(|_| "cargo".into()));
+        // Build output goes to stderr; stdout carries this tool's results (or MCP messages).
         cargo.args(["build", "-q", "-p", "HeritageBuilder"]).current_dir(game_dir).stdout(Stdio::null());
-        if release {
+        if args.release {
             cargo.arg("--release");
         }
 
@@ -264,7 +293,7 @@ fn cmd_launch(options: &Options, args: &[String]) -> Result<u8, String> {
 
     let mut child = Command::new(&binary)
         .arg("--automation=0")
-        .args(&game_args)
+        .args(&args.game_args)
         .current_dir(game_dir)
         .stdin(Stdio::null())
         .stdout(log_file)
@@ -282,7 +311,7 @@ fn cmd_launch(options: &Options, args: &[String]) -> Result<u8, String> {
 
     // The game writes its instance file once the engine is up, then answers once it's loaded.
     let instance_path = client::instance_file(game_dir, pid);
-    let deadline = Instant::now() + wait;
+    let deadline = Instant::now() + args.wait;
 
     let instance = loop {
         if let Ok(Some(status)) = child.try_wait() {
@@ -294,7 +323,7 @@ fn cmd_launch(options: &Options, args: &[String]) -> Result<u8, String> {
             }
         }
         if Instant::now() > deadline {
-            return Err(format!("The game didn't start within {}s. See {}.", wait.as_secs(), log_path.display()));
+            return Err(format!("The game didn't start within {}s. See {}.", args.wait.as_secs(), log_path.display()));
         }
         std::thread::sleep(Duration::from_millis(100));
     };
@@ -302,14 +331,9 @@ fn cmd_launch(options: &Options, args: &[String]) -> Result<u8, String> {
     let remaining = deadline.saturating_duration_since(Instant::now()).max(Duration::from_secs(1));
     let mut client = Client::connect(&instance, Some(remaining))?;
     let reply = client.call("ping", json!({})).map_err(|err| format!("The game didn't answer: {err}"))?;
+    client.set_timeout(options.timeout);
 
-    options.print(&json!({
-        "pid": pid,
-        "port": instance.port,
-        "log": log_path.display().to_string(),
-        "frame": reply.frame,
-    }));
-    Ok(0)
+    Ok(Launched { instance, client, log_path, frame: reply.frame })
 }
 
 // ----------------------------------------------

@@ -1,6 +1,6 @@
 # Agent automation and in-game screenshots
 
-**Status (2026-10-14):** Approved 2026-10-11. Phase 0 done (merged with PR #1). Phases 1–3 done on the `claude` branch: screenshots, the command registry with script mode and the in-game console, and the live control server with `hb-ctl`. Phases 4–7 are next. See [Handoff](#handoff-2026-10-14) for the move to a local machine.
+**Status (2026-10-14):** Approved 2026-10-11. Phase 0 done (merged with PR #1). Phases 1–4 done on the `claude` branch: screenshots, the command registry with script mode and the in-game console, the live control server with `hb-ctl`, and the MCP server with its agent skill. Phases 5–7 are next. See [Handoff](#handoff-2026-10-14) for the move to a local machine.
 
 This plan lets AI agents launch the game, drive it, inspect it and debug it. It also adds framebuffer screenshots, which ship to players as well. It was researched against commit `9f26ef8` on the `claude` branch. File and line references point at that commit, so re-check them before relying on them.
 
@@ -450,10 +450,17 @@ Done when:
 
 Moved ahead of simulated input and UI automation (Q2). It needs only Phase 3's server and Phase 2's `help`.
 
-- [ ] `hb-ctl mcp`: stdio MCP server with `initialize`, `tools/list` and `tools/call`. It maps each registry command to a tool using the schemas from `help`, and `screenshot` returns image content. Add a project `.mcp.json` so Claude Code picks it up.
-- [ ] `.claude/skills/drive-game/SKILL.md`: launching, driving, screenshots, and common debugging recipes. List it in AGENTS.md.
+- [x] `hb-ctl mcp`: stdio MCP server with `initialize`, `tools/list` and `tools/call`. It maps each registry command to a tool using the schemas from `help`, and `screenshot` returns image content. Add a project `.mcp.json` so Claude Code picks it up.
+- [x] `.claude/skills/drive-game/SKILL.md`: launching, driving, screenshots, and common debugging recipes. List it in AGENTS.md.
 
 Done when: a local Claude Code session lists the game's tools over MCP, and can take a screenshot and place a building through them.
+
+Notes (2026-10-14, local Mac):
+- **Tools.** Three always: `game_launch` (builds and starts the game, like `hb-ctl launch`), `game_connect` and `game_call` (any command by name, for clients that don't refresh their list). Once a game is connected, one tool per command (dots become underscores, since MCP tool names can't hold dots), and the server sends `notifications/tools/list_changed`. A game that `game_launch` started gets `quit` when the client disconnects.
+- **Screenshots.** The `screenshot` tool saves to a temporary file, returns the PNG as image content, and deletes the file unless a `path` was given. It defaults to `scale: "points"`, which the screenshot command gained here (`ScreenshotScale::Points` / `Factor` in the engine, scaled on the writer thread): on a 2x screen the image is 1440x792 instead of 2880x1584, about 300 KB, and its pixels are window points, the units input coordinates use.
+- **Crashes.** A failed call includes any `panic` notification the game sent: the message, location and crash file.
+- **Found in passing:** the HUD showed 0 gold until the first simulation step after a load. Sessions now recount the world stats when created or loaded; the determinism checksum is unchanged.
+- **Verified** with a scripted MCP client over stdio (`initialize`, `tools/list` before and after `game_launch`, `list_changed`, `screenshot` image content, `world_place`, `game_call`, `session_state`, quit on disconnect). Not yet checked: a real Claude Code session using `.mcp.json`; the server needs approval the first time Claude Code sees the project config.
 
 ### Phase 5: Simulated input and UI automation (large)
 

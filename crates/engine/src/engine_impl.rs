@@ -16,7 +16,7 @@ use crate::{
     log,
     platform,
     render::{RenderStats, RenderSystem, capture::CaptureRequest, debug::DebugDraw, texture::TextureCache},
-    screenshot::{self, ScreenshotId, ScreenshotOutput, ScreenshotRequest, ScreenshotResult, ScreenshotSystem},
+    screenshot::{self, ScreenshotId, ScreenshotOutput, ScreenshotRequest, ScreenshotResult, ScreenshotScale, ScreenshotSystem},
     sound::SoundSystem,
     ui::UiSystem,
 };
@@ -200,7 +200,7 @@ impl Engine {
     // take_screenshot_result: the result is ready once the PNG is written, usually after a frame.
     pub fn request_screenshot(&mut self, request: ScreenshotRequest) -> ScreenshotId {
         let id = self.render_system.request_capture(CaptureRequest { include_ui: request.include_ui });
-        self.screenshots.add_request(id, request.output);
+        self.screenshots.add_request(id, request.scale, request.output);
         id
     }
 
@@ -433,6 +433,7 @@ impl Engine {
         let request = match &self.one_shot_screenshot {
             Some(shot) if shot.id.is_none() && frame_number >= shot.options.after_frames => ScreenshotRequest {
                 include_ui: shot.options.include_ui,
+                scale: ScreenshotScale::Pixels,
                 output: ScreenshotOutput::File(shot.options.path.clone()),
             },
             _ => return,

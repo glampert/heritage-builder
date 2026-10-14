@@ -52,6 +52,8 @@ Console and automation commands: the [`] key opens the log viewer, whose input f
 - Also `hb-ctl screenshot out/x.png [--no-ui]`, `logs [--follow] [--level L]`, `script FILE` (same output as `--script`) and `quit`. Options go before the command: `--pid PID` picks an instance when several run, and `--dir DIR` points at a game directory other than the repository root.
 - Protocol: newline-delimited JSON-RPC 2.0 on 127.0.0.1 ([server.rs](crates/engine/src/automation/server.rs)). A connection first sends `auth` with the token from `logs/automation.json`, which also holds the pid and port (`logs/automation-<pid>.json` names one instance; both are removed on exit). Responses carry the frame they finished on, and errors carry the game's code in `error.data.code`. The server answers `logs.subscribe` / `logs.unsubscribe` itself and sends notifications: `log`, `session.changed` and `panic`.
 - Every desktop panic writes `logs/crash-<timestamp>.txt` with the message, backtrace, frame and recent log records. `debug.panic` crashes the game on purpose to test this.
+- MCP: `hb-ctl mcp` serves the commands as MCP tools over stdio, and the project's [.mcp.json](.mcp.json) registers it with Claude Code as `heritage-builder`. Tools: `game_launch` (quit again when the client disconnects), `game_connect`, `game_call`, and one per command with dots as underscores (`world_place`), listed once a game is connected. `screenshot` returns the image, at window-point resolution unless `scale` says otherwise.
+- The [drive-game skill](.claude/skills/drive-game/SKILL.md) has recipes for launching, driving, screenshots and debugging.
 
 MacOS `.app` bundle (wraps `cargo bundle` + asset copy):
 - `./bundle.sh` / `./bundle.sh release`
@@ -87,7 +89,7 @@ Save-load smoke test (verifies save-file compatibility):
 - `crates/game` — all gameplay: simulation, world, tilemap, units, buildings, props, pathfind, menus, debug.
 - `crates/proc_macros` — `#[derive(DrawDebugUi)]` for auto-generating ImGui debug panels on config structs.
 - `crates/tools/bundler` — driver for `cargo bundle` + assets (used by `bundle.sh`).
-- `crates/tools/hb-ctl` — CLI client for the automation server (`--automation`): launch the game, run commands, take screenshots, follow logs. Std and `serde_json` only.
+- `crates/tools/hb-ctl` — CLI client for the automation server (`--automation`): launch the game, run commands, take screenshots, follow logs, and serve the commands over MCP (`hb-ctl mcp`). Std and `serde_json` only.
 - `crates/tools/web-builder` — WASM build driver (used by `web.sh`).
 - `crates/tools/save_migration_scripts` — Python scripts (`v<N>_to_v<N+1>.py`) that migrate save JSON between format versions. Not a Cargo crate.
 - `crates/tools/debug` — `macos_run_heap_debug.sh`, a MacOS heap-corruption debugging wrapper. Not a Cargo crate.
@@ -154,6 +156,9 @@ If you're tempted to mutate the world inside a system callback, queue it instead
 Topic notes live in `.claude/rules/`. Claude Code loads them automatically; other agents should read the relevant file before working in that area.
 - [.claude/rules/known-issues.md](.claude/rules/known-issues.md) — unfinished features, open TODOs, and failure-handling gaps.
 - [.claude/rules/rendering.md](.claude/rules/rendering.md) — renderer internals: backend selection, batching, offscreen target, texture cache, culling.
+
+Skills live in `.claude/skills/`:
+- [.claude/skills/drive-game/SKILL.md](.claude/skills/drive-game/SKILL.md) — launch, drive, screenshot and debug the running game through MCP, `hb-ctl` or `--script`.
 
 When you learn something durable about the codebase, add it here or to a `.claude/rules/` file (and list new files above) so every agent picks it up.
 

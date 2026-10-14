@@ -14,7 +14,7 @@ use engine::{
     ui::UiInputEvent,
     runner::RunLoop,
     file_sys::paths::PathRef,
-    screenshot::{self, ScreenshotId, ScreenshotOutput, ScreenshotRequest},
+    screenshot::{self, ScreenshotId, ScreenshotOutput, ScreenshotRequest, ScreenshotScale},
     app::{
         ApplicationEvent,
         input::{InputAction, InputKey, InputModifiers, MouseButton},
@@ -479,7 +479,11 @@ impl GameLoop {
     // Saves the current frame to screenshots/. A toast reports the result once it's written.
     fn take_screenshot(&mut self, include_ui: bool) {
         let path = self.engine.new_screenshot_path();
-        let id = self.engine.request_screenshot(ScreenshotRequest { include_ui, output: ScreenshotOutput::File(path) });
+        let id = self.engine.request_screenshot(ScreenshotRequest {
+            include_ui,
+            scale: ScreenshotScale::Pixels,
+            output: ScreenshotOutput::File(path),
+        });
         self.pending_screenshots.push(id);
     }
 
