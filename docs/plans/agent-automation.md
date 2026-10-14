@@ -1,6 +1,6 @@
 # Agent automation and in-game screenshots
 
-**Status (2026-10-14):** Approved 2026-10-11. Phase 0 done (merged with PR #1). Phase 1 (screenshots) done. Phase 2 is in progress: the command registry core, 25 starter commands and the in-game console are done. Next is script mode and the remaining commands. Phases 3–7 haven't started. See [Handoff](#handoff-2026-10-14) for where things stand.
+**Status (2026-10-14):** Approved 2026-10-11. Phase 0 done (merged with PR #1). Phases 1–3 done on the `claude` branch: screenshots, the command registry with script mode and the in-game console, and the live control server with `hb-ctl`. Phases 4–7 are next. See [Handoff](#handoff-2026-10-14) for the move to a local machine.
 
 This plan lets AI agents launch the game, drive it, inspect it and debug it. It also adds framebuffer screenshots, which ship to players as well. It was researched against commit `9f26ef8` on the `claude` branch. File and line references point at that commit, so re-check them before relying on them.
 
@@ -425,12 +425,20 @@ Done when:
 
 ### Phase 3: Live control server (medium)
 
-- [ ] `crates/engine/src/automation/server.rs` (desktop only): loopback listener, per-connection reader and writer threads, newline-delimited JSON-RPC 2.0, `auth` handshake, port and token files in `logs/`. If an explicitly requested port is taken, fail fast with a clear message.
-- [ ] Main thread drains the channel into the Phase 2 dispatcher. Pending replies keep their connection's reply sender.
-- [ ] Notifications: `logs.subscribe` (through a log listener), `panic`, session changes.
-- [ ] Extend the crash reporter hook: write `logs/crash-<timestamp>.txt` with the message, backtrace, recent log records and frame number, and send a `panic` notification before exit.
-- [ ] `crates/tools/hb-ctl` (add to workspace members): `launch`, `call`, `screenshot`, `logs`, `script`, `quit`. Uses std networking and `serde_json` only.
-- [ ] AGENTS.md: how to launch and drive a live instance.
+- [x] `crates/engine/src/automation/server.rs` (desktop only): loopback listener, per-connection reader and writer threads, newline-delimited JSON-RPC 2.0, `auth` handshake, port and token files in `logs/`. If an explicitly requested port is taken, fail fast with a clear message.
+- [x] Main thread drains the channel into the Phase 2 dispatcher. Pending replies keep their connection's reply sender.
+- [x] Notifications: `logs.subscribe` (through a log listener), `panic`, session changes.
+- [x] Extend the crash reporter hook: write `logs/crash-<timestamp>.txt` with the message, backtrace, recent log records and frame number, and send a `panic` notification before exit.
+- [x] `crates/tools/hb-ctl` (add to workspace members): `launch`, `call`, `screenshot`, `logs`, `script`, `quit`. Uses std networking and `serde_json` only.
+- [x] AGENTS.md: how to launch and drive a live instance.
+
+Notes (2026-10-14, local Mac):
+- **Discovery files.** Deviation: instead of `logs/automation.port` and `logs/automation.token`, one JSON file `{pid, port, token}`, written twice: `logs/automation.json` for the latest instance, and `logs/automation-<pid>.json`, which `hb-ctl launch` waits for so several instances can run side by side. Both are mode 0600 and removed on exit, and also when the main thread panics (the process then ends without dropping the server).
+- **Ports.** `--automation=PORT` that's taken exits with status 2 and suggests `=0`. Plain `--automation` falls back to a free port with a warning when 7878 is taken. The CLI parser gained optional values: a bracketed placeholder (`[PORT]`) means the value only comes from the `--name=value` form.
+- **Server.** Reader threads poll a stop flag every 50 ms; writer threads own the socket writes, so a client that stops reading never blocks the main thread. On shutdown the server waits up to a second for queued writes, so the response to `quit` gets out. Requests without an id run without a response (JSON-RPC notifications); batches are rejected.
+- **Crash reports.** The desktop panic hook is now always installed. It writes the crash file, notifies listeners (the server sends `panic` straight to each socket, since the process may end before the writer threads run), then logs the panic (bundles) or hands it to Rust's default hook (terminal runs). `log::try_recent_records` never waits on the logger's lock inside the hook. `debug.panic` crashes on purpose.
+- **Session events.** `session::generation()` changes when a session is created, loaded or reset to a new map; the GameLoop sends `session.changed` after the dispatch point.
+- **Verified** on macOS: `hb-ctl launch` (about 9 s in debug), `call`, `commands`, `screenshot --no-ui`, `logs`, `logs --follow` (log records, `session.changed`, `panic`), `script smoke.jsonl` and `quit`; requests before `auth` and with a wrong token are refused; JSON-RPC errors (parse, batch, unknown method, invalid params); `debug.panic` wrote a crash file, the follower got `panic`, and the pending call got `Cancelled`; a taken explicit port exits 2; the web build still compiles.
 
 Done when:
 - `hb-ctl launch`, then `hb-ctl call ping`, works. `hb-ctl screenshot` writes a PNG, and `hb-ctl logs --follow` streams.

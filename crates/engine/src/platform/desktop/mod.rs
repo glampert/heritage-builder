@@ -7,10 +7,15 @@ use super::*;
 // ----------------------------------------------
 
 mod crash_report;
-pub use crash_report::DebugBacktrace;
+pub use crash_report::{DebugBacktrace, PanicReport, add_panic_listener};
 
-pub fn initialize_crash_report(set_panic_hook: bool) {
-    crash_report::initialize(set_panic_hook);
+pub fn initialize_crash_report(log_panics: bool) {
+    crash_report::initialize(log_panics);
+}
+
+#[inline]
+pub fn set_crash_report_frame(frame: u64) {
+    crash_report::set_current_frame(frame);
 }
 
 // ----------------------------------------------

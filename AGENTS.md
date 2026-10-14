@@ -19,6 +19,7 @@ Command-line options (`cargo run -p HeritageBuilder -- --help` lists them all):
 - `--window-size WxH` overrides the window size.
 - `--screenshot-after-frames N --screenshot-out PATH` saves a PNG of frame N and quits: status 0 if it was written, 1 if not. Add `--screenshot-no-ui` to leave the UI out. A relative `PATH` is relative to the directory the game was started from, not `base_path`.
 - `--script FILE` runs automation commands from a file and quits: status 0 if all succeeded, 1 if not, 2 if the file can't be read or has invalid lines. See [Script mode](#script-mode).
+- `--automation[=PORT]` accepts commands from outside tools over localhost. See [Live control](#live-control).
 - Unknown options exit with status 2. Options are declared in `engine::cli::ENGINE_CLI_OPTIONS` ([cli.rs](crates/engine/src/cli.rs)) and `game::launch::GAME_CLI_OPTIONS` ([launch.rs](crates/game/src/launch.rs)).
 - Apply an option where its value is used. Don't write it into `GameConfigs`: the settings dialog saves the whole struct back to `configs.json`.
 
@@ -42,6 +43,15 @@ Console and automation commands: the [`] key opens the log viewer, whose input f
 - Assertions are commands: `assert.eq|ne|gt|ge|lt|le|exists` run a query command (e.g. `sim.state`) and compare the value at a JSON pointer (`path`). `wait.until` polls the same way.
 - Repeatable runs: set `time.fixed_dt`, start with `session.new_map`, `session.load_preset` or `session.load_save`, and use `time.fast_forward` for long stretches. `session.checksum` hashes the game state as a save would store it.
 - Sample scenarios live in [crates/game/tests/scenarios/](crates/game/tests/scenarios/): `smoke.jsonl` builds a settlement and checks settlers move in; `determinism.jsonl` must print the same checksum and write the same `saves/determinism.json` on two runs with the same `--seed`.
+
+### Live control
+
+`hb-ctl` ([crates/tools/hb-ctl](crates/tools/hb-ctl/)) drives a running game through its automation server, so there's no socket code to write:
+- `cargo run -q -p hb-ctl -- launch --map preset:2 --fixed-dt 0.016667` builds the game, starts it with `--automation=0`, waits until it answers, and prints its pid, port and log file (`logs/game-<pid>.log`). Arguments other than `--release`, `--no-build` and `--wait SECS` go to the game.
+- `hb-ctl call world.place tile=small_well 'cell=[5,5]'` (or a JSON object) prints the result as JSON; status 1 if the game reports an error, 2 if it can't be reached. `hb-ctl commands [NAME]` lists the commands.
+- Also `hb-ctl screenshot out/x.png [--no-ui]`, `logs [--follow] [--level L]`, `script FILE` (same output as `--script`) and `quit`. Options go before the command: `--pid PID` picks an instance when several run, and `--dir DIR` points at a game directory other than the repository root.
+- Protocol: newline-delimited JSON-RPC 2.0 on 127.0.0.1 ([server.rs](crates/engine/src/automation/server.rs)). A connection first sends `auth` with the token from `logs/automation.json`, which also holds the pid and port (`logs/automation-<pid>.json` names one instance; both are removed on exit). Responses carry the frame they finished on, and errors carry the game's code in `error.data.code`. The server answers `logs.subscribe` / `logs.unsubscribe` itself and sends notifications: `log`, `session.changed` and `panic`.
+- Every desktop panic writes `logs/crash-<timestamp>.txt` with the message, backtrace, frame and recent log records. `debug.panic` crashes the game on purpose to test this.
 
 MacOS `.app` bundle (wraps `cargo bundle` + asset copy):
 - `./bundle.sh` / `./bundle.sh release`
@@ -77,6 +87,7 @@ Save-load smoke test (verifies save-file compatibility):
 - `crates/game` — all gameplay: simulation, world, tilemap, units, buildings, props, pathfind, menus, debug.
 - `crates/proc_macros` — `#[derive(DrawDebugUi)]` for auto-generating ImGui debug panels on config structs.
 - `crates/tools/bundler` — driver for `cargo bundle` + assets (used by `bundle.sh`).
+- `crates/tools/hb-ctl` — CLI client for the automation server (`--automation`): launch the game, run commands, take screenshots, follow logs. Std and `serde_json` only.
 - `crates/tools/web-builder` — WASM build driver (used by `web.sh`).
 - `crates/tools/save_migration_scripts` — Python scripts (`v<N>_to_v<N+1>.py`) that migrate save JSON between format versions. Not a Cargo crate.
 - `crates/tools/debug` — `macos_run_heap_debug.sh`, a MacOS heap-corruption debugging wrapper. Not a Cargo crate.

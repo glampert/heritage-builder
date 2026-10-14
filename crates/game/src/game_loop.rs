@@ -110,6 +110,7 @@ pub struct GameLoop {
     // Runs automation commands: the console's (the log viewer), a script's, outside tools'.
     automation: Automation,
     frame_control: FrameControl,
+    session_generation: u64, // Last session::generation() automation clients were told about.
     log_viewer: LogViewer,
 
     stats: GameLoopStats,
@@ -173,6 +174,7 @@ impl RunLoop for GameLoop {
             pending_screenshots: Vec::new(),
             automation: Automation::new(script),
             frame_control: FrameControl::default(),
+            session_generation: session::generation(),
             log_viewer: LogViewer::new(),
             stats: GameLoopStats::default(),
         };
@@ -221,6 +223,8 @@ impl RunLoop for GameLoop {
             frame_control: &mut self.frame_control,
             stats: &self.stats,
         });
+
+        self.notify_session_change();
 
         if self.smoke_test.is_some() {
             self.update_smoke_test(delta_time_secs);
@@ -453,6 +457,23 @@ impl GameLoop {
         if self.autosave_timer.tick(delta_time_secs).should_update() {
             self.save_game(save::storage::AUTOSAVE_FILE_NAME);
         }
+    }
+
+    // Tells automation clients (see engine::automation::server) when the session became a different
+    // game. Session changes happen in the session command queue and in automation commands.
+    fn notify_session_change(&mut self) {
+        let generation = session::generation();
+        if generation == self.session_generation {
+            return;
+        }
+        self.session_generation = generation;
+
+        let map_size = self.session.tile_map().size_in_cells();
+        self.engine.send_automation_event("session.changed", serde_json::json!({
+            "menus_mode": self.session.current_menus_mode().map(|mode| format!("{mode:?}")),
+            "map_size": [map_size.width, map_size.height],
+            "frame": self.engine.frame_clock().frame_number(),
+        }));
     }
 
     // Saves the current frame to screenshots/. A toast reports the result once it's written.

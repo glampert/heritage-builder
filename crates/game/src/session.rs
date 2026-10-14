@@ -1,4 +1,8 @@
-use std::{collections::VecDeque, path::PathBuf};
+use std::{
+    collections::VecDeque,
+    path::PathBuf,
+    sync::atomic::{AtomicU64, Ordering},
+};
 
 use common::{Size, Vec2, coords::CellRange, hash, mem::RcMut, time::Seconds};
 use engine::{
@@ -190,6 +194,24 @@ impl GameSessionCmdQueue {
         debug_assert!(!save_file.is_empty());
         let _ = session.save_game(save_file); // Failures are logged.
     }
+}
+
+// ----------------------------------------------
+// Session generation
+// ----------------------------------------------
+
+// Changes whenever the session becomes a different game: created, loaded, or reset to a new map.
+// Lets the GameLoop tell automation clients (see GameLoop::update).
+static SESSION_GENERATION: AtomicU64 = AtomicU64::new(0);
+
+#[inline]
+pub fn generation() -> u64 {
+    SESSION_GENERATION.load(Ordering::Relaxed)
+}
+
+#[inline]
+fn new_generation() {
+    SESSION_GENERATION.fetch_add(1, Ordering::Relaxed);
 }
 
 // ----------------------------------------------
@@ -488,6 +510,7 @@ impl GameSession {
             session.sim.resume();
         }
 
+        new_generation();
         session
     }
 
@@ -532,6 +555,7 @@ impl GameSession {
             );
 
             self.camera.set_map_size_in_cells(self.tile_map.size_in_cells());
+            new_generation();
         }
 
         self.sim.reset_search_graph(&mut self.tile_map);
@@ -809,6 +833,7 @@ impl GameSession {
         *self = session;
         self.post_load(&mut PostLoadContext::new(engine, configs, self.sim.rng().clone(), self.tile_map.clone()));
 
+        new_generation();
         Ok(())
     }
 

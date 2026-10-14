@@ -14,6 +14,7 @@ use crate::{
     cli::{self, OneShotScreenshotOptions},
     config::EngineConfigs,
     log,
+    platform,
     render::{RenderStats, RenderSystem, capture::CaptureRequest, debug::DebugDraw, texture::TextureCache},
     screenshot::{self, ScreenshotId, ScreenshotOutput, ScreenshotRequest, ScreenshotResult, ScreenshotSystem},
     sound::SoundSystem,
@@ -52,6 +53,9 @@ pub struct Engine {
     one_shot_screenshot: Option<OneShotScreenshot>,
 
     automation_requests: RequestQueue,
+
+    #[cfg(feature = "desktop")]
+    automation_server: Option<crate::automation::server::AutomationServer>,
 
     exit_code: i32,
 
@@ -228,6 +232,18 @@ impl Engine {
         self.automation_requests.take_requests()
     }
 
+    // Notifies the clients of the automation server (--automation) of a game event, such as
+    // "session.changed". Does nothing without a server.
+    pub fn send_automation_event(&self, method: &str, params: serde_json::Value) {
+        #[cfg(feature = "desktop")]
+        if let Some(server) = &self.automation_server {
+            server.send_event(method, params);
+        }
+
+        #[cfg(not(feature = "desktop"))]
+        let _ = (method, params);
+    }
+
     #[inline]
     pub fn app_events(&self) -> &ApplicationEventList {
         &self.frame_events
@@ -241,6 +257,8 @@ impl Engine {
         let begin_frame_timer = PerfTimer::begin();
 
         self.frame_clock.begin_frame();
+        platform::set_crash_report_frame(self.frame_clock.frame_number());
+
         self.frame_events = self.poll_app_events();
 
         let input_sys = self.app.input_system();
@@ -301,6 +319,20 @@ impl Engine {
         engine.one_shot_screenshot =
             cli::one_shot_screenshot().map(|options| OneShotScreenshot { options, id: None });
 
+        #[cfg(feature = "desktop")]
+        if let Some(port) = cli::automation_port() {
+            let server = crate::automation::server::AutomationServer::start(port, engine.automation_requests.sender())
+                .unwrap_or_else(|err| cli::exit_with_error(&err));
+
+            log::info!(
+                log::channel!("engine"),
+                "Automation server listening on 127.0.0.1:{} (details in {}).",
+                server.port(),
+                server.info_file().display()
+            );
+            engine.automation_server = Some(server);
+        }
+
         // Set global instance:
         Self::initialize(engine);
         Self::get_mut()
@@ -340,6 +372,8 @@ impl Engine {
             screenshot_name: configs.window_title.clone(),
             one_shot_screenshot: None,
             automation_requests: RequestQueue::new(),
+            #[cfg(feature = "desktop")]
+            automation_server: None,
             exit_code: 0,
         }
     }

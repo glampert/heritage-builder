@@ -21,9 +21,20 @@ use crate::log;
 // ----------------------------------------------
 
 pub struct CliOption {
-    pub name: &'static str,               // Without the leading dashes.
-    pub value_name: Option<&'static str>, // Value placeholder shown in the usage text. None for flags.
+    pub name: &'static str, // Without the leading dashes.
+
+    // Value placeholder shown in the usage text. None for flags. In brackets ("[PORT]"), the value
+    // is optional and only given in the `--name=value` form.
+    pub value_name: Option<&'static str>,
+
     pub help: &'static str,
+}
+
+impl CliOption {
+    #[inline]
+    fn has_optional_value(&self) -> bool {
+        self.value_name.is_some_and(|value_name| value_name.starts_with('['))
+    }
 }
 
 // Options handled by the engine.
@@ -46,6 +57,12 @@ pub const ENGINE_CLI_OPTIONS: &[CliOption] = &[
         help: "PNG file for --screenshot-after-frames. Relative to the directory the game was started from.",
     },
     CliOption { name: "screenshot-no-ui", value_name: None, help: "Leave the UI out of --screenshot-after-frames." },
+    CliOption {
+        name: "automation",
+        value_name: Some("[PORT]"),
+        help: "Accept automation commands over a localhost connection, on PORT (default 7878; 0 picks a free one). \
+               The port and an access token go to logs/automation.json.",
+    },
 ];
 
 // ----------------------------------------------
@@ -88,6 +105,7 @@ impl CommandLine {
 
             let value = match (option.value_name, inline_value) {
                 (Some(_), Some(value)) => Some(value),
+                (Some(_), None) if option.has_optional_value() => None,
                 (Some(value_name), None) => {
                     // `--name value` form. The value can't look like another option.
                     let value = args.next_if(|next| !next.starts_with("--"));
@@ -140,6 +158,9 @@ fn log_usage<'a>(options: impl Iterator<Item = &'a CliOption>) {
 
     for option in options {
         let usage = match option.value_name {
+            Some(value_name) if option.has_optional_value() => {
+                format!("--{}[={}]", option.name, value_name.trim_start_matches('[').trim_end_matches(']'))
+            }
             Some(value_name) => format!("--{} {}", option.name, value_name),
             None => format!("--{}", option.name),
         };
@@ -284,6 +305,15 @@ pub fn one_shot_screenshot() -> Option<OneShotScreenshotOptions> {
     Some(OneShotScreenshotOptions { after_frames, path, include_ui: !command_line.has("screenshot-no-ui") })
 }
 
+// `--automation[=PORT]`: None without the option, Some(None) for the default port.
+pub fn automation_port() -> Option<Option<u16>> {
+    let command_line = get();
+    if !command_line.has("automation") {
+        return None;
+    }
+    Some(command_line.parse_value::<u16>("automation").unwrap_or_else(|err| fail(&err)))
+}
+
 // `--fixed-dt`, if given.
 pub fn fixed_delta_time() -> Option<Seconds> {
     let fixed_delta_time = get().parse_value::<Seconds>("fixed-dt").unwrap_or_else(|err| fail(&err))?;
@@ -307,6 +337,7 @@ mod tests {
         CliOption { name: "flag", value_name: None, help: "A flag." },
         CliOption { name: "count", value_name: Some("N"), help: "A number." },
         CliOption { name: "name", value_name: Some("TEXT"), help: "Some text." },
+        CliOption { name: "port", value_name: Some("[PORT]"), help: "An optional number." },
     ];
 
     fn parse(args: &[&str]) -> Result<CommandLine, String> {
@@ -331,6 +362,22 @@ mod tests {
         assert_eq!(cli.parse_value::<u32>("count"), Ok(Some(3)));
         assert_eq!(cli.parse_value::<u32>("missing"), Ok(None));
         assert!(!cli.has("missing"));
+    }
+
+    #[test]
+    fn test_optional_value() {
+        let cli = parse(&["--port", "--flag"]).unwrap();
+        assert!(cli.has("port") && cli.has("flag"));
+        assert_eq!(cli.value("port"), None);
+
+        let cli = parse(&["--port=0"]).unwrap();
+        assert_eq!(cli.parse_value::<u16>("port"), Ok(Some(0)));
+
+        // The value only comes from the `=` form: a following argument isn't taken (it's ignored
+        // like any argument that isn't an option).
+        let cli = parse(&["--port", "7878"]).unwrap();
+        assert!(cli.has("port"));
+        assert_eq!(cli.value("port"), None);
     }
 
     #[test]

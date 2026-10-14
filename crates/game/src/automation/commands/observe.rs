@@ -49,6 +49,12 @@ pub(super) const COMMANDS: &[CommandDef] = &[
         run: cmd_debug_stats,
     },
     CommandDef { name: "console.clear", help: "Clear the console and log view.", params: &[], run: cmd_console_clear },
+    CommandDef {
+        name: "debug.panic",
+        help: "Crash the game on purpose, to test crash reports (logs/crash-*.txt) and the panic notification.",
+        params: &[ParamDef { name: "message", kind: "string", required: false, help: "Panic message." }],
+        run: cmd_debug_panic,
+    },
 ];
 
 fn cmd_screenshot(context: &mut CommandContext, params: Value) -> CommandResult {
@@ -189,4 +195,15 @@ fn cmd_debug_stats(context: &mut CommandContext, _params: Value) -> CommandResul
 fn cmd_console_clear(_context: &mut CommandContext, _params: Value) -> CommandResult {
     LogViewer::clear();
     done(Value::Null)
+}
+
+fn cmd_debug_panic(_context: &mut CommandContext, params: Value) -> CommandResult {
+    #[derive(Deserialize)]
+    #[serde(deny_unknown_fields)]
+    struct Params {
+        message: Option<String>,
+    }
+
+    let params: Params = parse_params(params)?;
+    panic!("{}", params.message.as_deref().unwrap_or("Panic requested by debug.panic."));
 }

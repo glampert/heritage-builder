@@ -132,6 +132,17 @@ pub fn recent_records(after_seq: u64) -> Vec<Record> {
     recent.records.iter().filter(|record| record.seq > after_seq).cloned().collect()
 }
 
+// Like recent_records(), but None instead of waiting if another thread is logging. For the panic
+// hook, which can run while the panicking code holds the lock.
+pub fn try_recent_records(after_seq: u64) -> Option<Vec<Record>> {
+    let recent = match RECENT_RECORDS.try_lock() {
+        Ok(recent) => recent,
+        Err(std::sync::TryLockError::Poisoned(poisoned)) => poisoned.into_inner(),
+        Err(std::sync::TryLockError::WouldBlock) => return None,
+    };
+    Some(recent.records.iter().filter(|record| record.seq > after_seq).cloned().collect())
+}
+
 // Number of records kept for recent_records().
 pub const RECENT_RECORDS_CAPACITY: usize = 256;
 

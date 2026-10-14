@@ -17,6 +17,10 @@ pub fn initialize_crash_report(set_panic_hook: bool) {
     crash_report::initialize(set_panic_hook);
 }
 
+// Crash reports don't name the frame on web.
+#[inline]
+pub fn set_crash_report_frame(_frame: u64) {}
+
 // ----------------------------------------------
 // Run Env / App Bundle Detection
 // ----------------------------------------------
