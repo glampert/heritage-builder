@@ -30,6 +30,7 @@ impl Runner for DesktopRunner {
             game.update();
         }
 
+        Engine::get_mut().finish_run();
         let exit_code = Engine::get().exit_code();
 
         GameLoop::shutdown();

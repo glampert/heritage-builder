@@ -170,6 +170,21 @@ impl Engine {
         self.exit_code
     }
 
+    // Called by the runner once the run loop has stopped, before it reads exit_code().
+    pub fn finish_run(&mut self) {
+        // A run that quit before `--screenshot-after-frames` saved its PNG failed, even if
+        // something else (the window closing, the smoke test ending) asked to quit.
+        if self.one_shot_screenshot.is_some() {
+            self.screenshots.wait_for_writes();
+            self.finish_one_shot_screenshot();
+
+            if self.one_shot_screenshot.take().is_some() {
+                log::error!(log::channel!("engine"), "--screenshot-after-frames: quit before the screenshot was saved.");
+                self.request_exit(1);
+            }
+        }
+    }
+
     // ----------------------
     // Screenshots:
     // ----------------------

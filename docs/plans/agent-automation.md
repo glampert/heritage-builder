@@ -1,6 +1,6 @@
 # Agent automation and in-game screenshots
 
-**Status:** Approved 2026-10-11. Phase 0 done (merged with PR #1). Open decisions answered 2026-10-14 and phases reordered so MCP comes before UI automation. Phase 1 (screenshots) is next.
+**Status:** Approved 2026-10-11. Phase 0 done (merged with PR #1). Open decisions answered 2026-10-14 and phases reordered so MCP comes before UI automation. Phase 1 (screenshots) done; Phase 2 (command registry, script mode and console) is next.
 
 This plan lets AI agents launch the game, drive it, inspect it and debug it. It also adds framebuffer screenshots, which ship to players as well. It was researched against commit `9f26ef8` on the `claude` branch. File and line references point at that commit, so re-check them before relying on them.
 
@@ -243,7 +243,7 @@ In `OpenGlRenderSystem::end_frame`, after `ui_frame_bundle.render()` (`render/op
 ### As a player feature
 
 - PrintScreen (and F12, since Mac keyboards lack PrintScreen) saves `screenshots/Heritage Builder 2026-10-10 14-03-22.png` next to `saves/`, then shows a short message with the file name. There's no toast widget yet; build a small timed one on `ui::overlay`.
-- Handle the key in `GameLoop::handle_app_event`. Key events reach it only if ImGui didn't consume them, so typing in a text field won't trigger a capture.
+- Handle the key in `GameLoop::handle_app_event`. The engine forwards PrintScreen and F12 even while ImGui has keyboard focus (`screenshot::is_hotkey` in `Engine::poll_app_events`), so a screenshot can be taken with a dialog open. Neither is a text-input key, so typing isn't affected.
 - There's no date-time crate in the workspace. To build the file name, either format UTC from `SystemTime` with a small civil-date helper, use `libc::localtime_r` (`libc` is already a desktop dependency of the engine), or add a crate such as `time`.
 - Encode and write the PNG on a background thread on desktop, so the hotkey never causes a frame hitch.
 - Optional: a Settings toggle for "hide interface in screenshots".
@@ -324,16 +324,28 @@ Notes (2026-10-11):
 
 ### Phase 1: Screenshots (medium)
 
-- [ ] `render/capture.rs`: `CaptureRequest { include_ui }` and `CapturedImage { size, scale, pixels }` (RGBA8, top-left origin), plus `RenderSystem::request_capture` and `take_capture`, backed by new `RenderSystemBackend` methods.
-- [ ] OpenGL readback (back buffer, plus offscreen target for scene-only).
-- [ ] Wgpu readback on desktop (capture texture, padded copy, map, swizzle). It should compile for web, but web testing waits for Phase 6.
-- [ ] PrintScreen / F12 hotkey, `screenshots/` folder, timed message, PNG encoding off the main thread. Add `/screenshots/` and `/out/` to `.gitignore`.
-- [ ] One-shot mode: `--screenshot-after-frames N --screenshot-out PATH` captures after N frames, writes the PNG, and quits with status 0.
+- [x] `render/capture.rs`: `CaptureRequest { include_ui }` and `CapturedImage { size, scale, pixels }` (RGBA8, top-left origin), plus `RenderSystem::request_capture` and `take_finished_captures`. Backends get the `CaptureQueue` through `end_frame`.
+- [x] OpenGL readback (back buffer, plus offscreen target for scene-only).
+- [x] Wgpu readback on desktop (capture texture, padded copy, map, swizzle). It should compile for web, but web testing waits for Phase 6.
+- [x] PrintScreen / F12 hotkey, `screenshots/` folder, timed message, PNG encoding off the main thread. Add `/screenshots/` and `/out/` to `.gitignore`.
+- [x] One-shot mode: `--screenshot-after-frames N --screenshot-out PATH` captures after N frames, writes the PNG, and quits with status 0.
 
 Done when:
 - The hotkey writes a PNG that matches the screen, UI included, on OpenGL (the shipped config) and on Wgpu (`engine.render_api = "Wgpu"`), at framebuffer resolution on a HiDPI Mac.
 - `include_ui: false` produces a scene-only image.
 - `cargo run -p HeritageBuilder -- --skip-home-menu --map preset:1 --fixed-dt 0.016667 --screenshot-after-frames 120 --screenshot-out out/shot.png` writes the image and exits 0.
+
+Notes (2026-10-14):
+- **API.** `Engine::request_screenshot(ScreenshotRequest { include_ui, output })` returns an id; poll `Engine::take_screenshot_result(id)`. Output is a file or the PNG bytes in memory. `engine::screenshot` owns encoding, the background writer threads and timestamped file names. The engine drains `RenderSystem::take_finished_captures` itself every frame.
+- **Deviation: scene-only on OpenGL** reads the back buffer right after the scene blit, before the UI draws, instead of reading the offscreen target. It comes out at framebuffer size, like a full capture; the offscreen target can be larger.
+- **Wgpu** re-encodes the blit and UI passes into a capture texture on capture frames (the surface can't be a copy source). Desktop waits on the device, so the capture is ready that frame. Web will finish it a frame or more later, from the map callback.
+- **Hotkey.** PrintScreen fires on release (Windows reports only the release), F12 on press, and Shift leaves the UI out. The engine forwards these keys even while ImGui has keyboard focus. The hotkey is desktop-only until the web download lands in Phase 6. Toasts (`UiSystem::show_toast`) are new, and hidden on capture frames so they never show up in screenshots.
+- **File names** use local time from `platform::local_date_time()`: `libc::localtime_r` on desktop, `js_sys::Date` on web. No date crate was added. Names get " (2)", " (3)", ... when taken.
+- **Exit codes** (moved up from Phase 2): `Engine::request_exit(code)`, and the desktop runner exits with `Engine::exit_code()` after a clean shutdown. A one-shot run that quits before its PNG is written exits 1. Relative `--screenshot-out` paths are resolved against the directory the game was started from (`cli::path_value`).
+- **Verified** under `xvfb-run` on Mesa:
+  - OpenGL/GLFW and Wgpu/Winit (Vulkan via lavapipe, BGRA surface) both produce correct images, with and without UI. The two backends differ in 13 pixels scene-only, and in about 0.4% of pixels with UI (text antialiasing).
+  - `xdotool` key presses for F12, Shift+F12 and PrintScreen saved files on both app backends, and the toast showed on screen but not in the files.
+  - Not verified: a HiDPI Mac.
 
 ### Phase 2: Command registry and script mode (medium)
 

@@ -1,8 +1,9 @@
 // Screenshots: saves frame captures (see render/capture.rs) as PNG images.
 //
 // Request one with Engine::request_screenshot. Players press PrintScreen or F12 (see
-// match_hotkey), and `--screenshot-after-frames N` takes one and quits. On desktop the PNG is
-// encoded and written on a background thread, so a screenshot doesn't stall the frame. Web has
+// match_hotkey), and `--screenshot-after-frames N` takes one and quits. The GPU readback runs on
+// the main thread at the end of the frame (see render/capture.rs). On desktop the PNG is then
+// encoded and written on a background thread, so the frame doesn't also wait for that. Web has
 // no threads and no writable file system: it encodes in place and can only return the PNG bytes.
 
 use std::{
@@ -60,8 +61,12 @@ pub struct ScreenshotHotkey {
 
 // PrintScreen or F12 takes a screenshot; holding Shift leaves the UI out. PrintScreen fires on
 // release because Windows reports only its release. F12 is there because Mac keyboards have no
-// PrintScreen key.
+// PrintScreen key. Desktop only for now: the web build can't save files yet.
 pub fn match_hotkey(key: InputKey, action: InputAction, modifiers: InputModifiers) -> Option<ScreenshotHotkey> {
+    if !is_hotkey(key) {
+        return None;
+    }
+
     let fires = match key {
         InputKey::PrintScreen => action == InputAction::Release,
         InputKey::F12 => action == InputAction::Press,
@@ -75,7 +80,7 @@ pub fn match_hotkey(key: InputKey, action: InputAction, modifiers: InputModifier
 // keyboard focus, so a screenshot can be taken with a dialog open.
 #[inline]
 pub fn is_hotkey(key: InputKey) -> bool {
-    matches!(key, InputKey::PrintScreen | InputKey::F12)
+    cfg!(feature = "desktop") && matches!(key, InputKey::PrintScreen | InputKey::F12)
 }
 
 // ----------------------------------------------
@@ -105,15 +110,15 @@ pub fn encode_png(image: &CapturedImage) -> Result<Vec<u8>, String> {
 }
 
 fn save_screenshot(image: CapturedImage, output: ScreenshotOutput) -> ScreenshotResult {
+    if cfg!(not(feature = "desktop")) && matches!(output, ScreenshotOutput::File(_)) {
+        return Err("Saving screenshots to files isn't supported on the web build yet.".into());
+    }
+
     let png = encode_png(&image)?;
     let CapturedImage { size, scale, .. } = image;
 
     match output {
         ScreenshotOutput::File(path) => {
-            if cfg!(not(feature = "desktop")) {
-                return Err("Saving screenshots to files isn't supported on the web build yet.".into());
-            }
-
             file_sys::create_path(&path)
                 .map_err(|err| format!("Failed to create the folder for '{}': {err}", path.display()))?;
             file_sys::write_file(&path, &png).map_err(|err| format!("Failed to write '{}': {err}", path.display()))?;
@@ -203,6 +208,14 @@ impl ScreenshotSystem {
             self.finish(id, result);
         }
         self.writers.retain(|writer| !writer.is_finished());
+    }
+
+    // Waits for the background writes still running, then collects their results.
+    pub fn wait_for_writes(&mut self) {
+        for writer in self.writers.drain(..) {
+            let _ = writer.join(); // Each writer sends its result before it ends.
+        }
+        self.update();
     }
 
     pub fn take_result(&mut self, id: ScreenshotId) -> Option<ScreenshotResult> {
