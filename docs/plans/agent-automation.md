@@ -1,6 +1,6 @@
 # Agent automation and in-game screenshots
 
-**Status:** Approved 2026-10-11. Phase 0 done; Phase 1 (screenshots) is next.
+**Status:** Approved 2026-10-11. Phase 0 done (merged with PR #1). Open decisions answered 2026-10-14 and phases reordered so MCP comes before UI automation. Phase 1 (screenshots) is next.
 
 This plan lets AI agents launch the game, drive it, inspect it and debug it. It also adds framebuffer screenshots, which ship to players as well. It was researched against commit `9f26ef8` on the `claude` branch. File and line references point at that commit, so re-check them before relying on them.
 
@@ -18,6 +18,7 @@ This plan lets AI agents launch the game, drive it, inspect it and debug it. It 
 ### Working agreements
 
 - After finishing a task and pushing, check CI once and report the result. Don't keep polling. (User preference, 2026-10-11.)
+- Commit each phase to the `claude` branch as it lands. Open one PR once all remaining phases (1–7) are done. (User request, 2026-10-14.)
 
 ## Goals
 
@@ -70,7 +71,7 @@ flowchart LR
     A["--script file.jsonl"]
     B["hb-ctl / MCP"]
     C["Playwright"]
-    D["In-game console (optional)"]
+    D["In-game console (LogViewer)"]
   end
   B -- "JSON-RPC over TCP 127.0.0.1" --> T["Server thread (parse only)"]
   C -- "window.heritage.exec()" --> W["wasm_bindgen export"]
@@ -102,7 +103,7 @@ Drain the queue in `GameLoop::update` right after `self.session_cmd_queue.execut
 
 ## Command system
 
-One registry, shared by every transport and by an optional in-game developer console:
+One registry, shared by every transport and by the in-game console (an input field in the debug LogViewer):
 
 ```rust
 pub type CommandFn = fn(&mut CommandContext, serde_json::Value) -> CommandResult;
@@ -140,7 +141,7 @@ const COMMANDS: &[CommandDef] = &[
 
 ### Script mode (first)
 
-`HeritageBuilder --script scenarios/smoke.jsonl` reads one command per line and runs them in order. Each line waits for the previous one to finish. Results go to stdout as JSON lines. The process exits with status 0 if every command succeeded and every assertion passed, and 1 otherwise. This copies the `--smoke-test-saves` pattern. It needs no networking and works the same in CI and in an agent session. Assertions are ordinary commands, such as `assert.gt` on a query result.
+`HeritageBuilder --script crates/game/tests/scenarios/smoke.jsonl` reads one command per line and runs them in order. Each line waits for the previous one to finish. Results go to stdout as JSON lines. The process exits with status 0 if every command succeeded and every assertion passed, and 1 otherwise. This copies the `--smoke-test-saves` pattern. It needs no networking and works the same in CI and in an agent session. Assertions are ordinary commands, such as `assert.gt` on a query result.
 
 ```jsonl
 {"method":"session.load_preset","params":{"preset":2}}
@@ -166,7 +167,7 @@ Script result lines are machine-readable output written straight to stdout, not 
   - `hb-ctl launch [-- game args]` starts the game with `--automation=0`, waits for `ping`, and prints the port and PID.
   - `hb-ctl call world.place '{"tile":"well","cell":[4,4]}'` prints the result, exiting with status 1 on error.
   - `hb-ctl screenshot out.png [--no-ui]`, `hb-ctl logs [--follow]`, `hb-ctl script FILE`, `hb-ctl quit`.
-- Later, `hb-ctl mcp` runs as a stdio MCP server that exposes the same registry as tools (Phase 6).
+- Later, `hb-ctl mcp` runs as a stdio MCP server that exposes the same registry as tools (Phase 4).
 
 ### Web bridge (third)
 
@@ -246,7 +247,7 @@ In `OpenGlRenderSystem::end_frame`, after `ui_frame_bundle.render()` (`render/op
 - There's no date-time crate in the workspace. To build the file name, either format UTC from `SystemTime` with a small civil-date helper, use `libc::localtime_r` (`libc` is already a desktop dependency of the engine), or add a crate such as `time`.
 - Encode and write the PNG on a background thread on desktop, so the hotkey never causes a frame hitch.
 - Optional: a Settings toggle for "hide interface in screenshots".
-- On web, the PNG downloads through a Blob and an anchor element created by the page. That needs extra `web-sys` features (`Blob`, `BlobPropertyBag`, `Url`, `HtmlAnchorElement`), so it lands in Phase 5.
+- On web, the PNG downloads through a Blob and an anchor element created by the page. That needs extra `web-sys` features (`Blob`, `BlobPropertyBag`, `Url`, `HtmlAnchorElement`), so it lands in Phase 6.
 
 ## State, logs, stats
 
@@ -325,7 +326,7 @@ Notes (2026-10-11):
 
 - [ ] `render/capture.rs`: `CaptureRequest { include_ui }` and `CapturedImage { size, scale, pixels }` (RGBA8, top-left origin), plus `RenderSystem::request_capture` and `take_capture`, backed by new `RenderSystemBackend` methods.
 - [ ] OpenGL readback (back buffer, plus offscreen target for scene-only).
-- [ ] Wgpu readback on desktop (capture texture, padded copy, map, swizzle). It should compile for web, but web testing waits for Phase 5.
+- [ ] Wgpu readback on desktop (capture texture, padded copy, map, swizzle). It should compile for web, but web testing waits for Phase 6.
 - [ ] PrintScreen / F12 hotkey, `screenshots/` folder, timed message, PNG encoding off the main thread. Add `/screenshots/` and `/out/` to `.gitignore`.
 - [ ] One-shot mode: `--screenshot-after-frames N --screenshot-out PATH` captures after N frames, writes the PNG, and quits with status 0.
 
@@ -337,17 +338,17 @@ Done when:
 ### Phase 2: Command registry and script mode (medium)
 
 - [ ] `crates/game/src/automation/`: `CommandRegistry`, `CommandContext`, `CommandResult`, `CommandError`, `PendingCommand`, dispatch at the execution point above.
-- [ ] Engine-side request queue and reply targets, shaped so Phase 3's channel and Phase 5's web bridge slot in.
+- [ ] Engine-side request queue and reply targets, shaped so Phase 3's channel and Phase 6's web bridge slot in.
 - [ ] `GameSession` helpers for building a `SimContext` / `GameUiContext`, and `pub(crate)` save/load that report their result.
 - [ ] Commands: meta, time, session, sim, cheats, config, world, camera, observe (`screenshot`, `logs.tail`, `debug.stats`) and assert.
 - [ ] `--script FILE`: JSON lines in (blank lines and `#` comments allowed), JSON lines out, stop at the first failure (`--script-continue-on-error` to keep going), exit status 0/1. Autosave off in this mode, as in the smoke test.
 - [ ] Exit-code plumbing: the desktop runner currently returns `()`. Add a way for the run loop to report an exit code (for example `RunLoop::exit_code()`), and call `std::process::exit` after a clean shutdown.
-- [ ] Sample scenarios in `scenarios/`: `smoke.jsonl` (load, place, fast-forward, assert, screenshot) and `determinism.jsonl`.
-- [ ] Optional in-game console (see open decision Q3).
+- [ ] Sample scenarios in `crates/game/tests/scenarios/`: `smoke.jsonl` (load, place, fast-forward, assert, screenshot) and `determinism.jsonl`.
+- [ ] In-game console: an input field in the debug LogViewer (`debug/log_viewer.rs`) that runs registry commands, prints each result into the log view, and keeps a command history (up/down arrows). See Q3.
 - [ ] AGENTS.md: document `--script`, the scenario format, `help`, and the stdout exception to the logging rule.
 
 Done when:
-- `cargo run -p HeritageBuilder -- --script scenarios/smoke.jsonl` exits 0 and prints JSON lines; a failing assertion exits 1.
+- `cargo run -p HeritageBuilder -- --script crates/game/tests/scenarios/smoke.jsonl` exits 0 and prints JSON lines; a failing assertion exits 1.
 - `help` lists every command with its description and parameters.
 - Malformed parameters return `InvalidParams` and never panic.
 - Running `determinism.jsonl` twice with the same `--seed` and `--fixed-dt` produces byte-identical saves.
@@ -368,7 +369,16 @@ Done when:
 - A forced panic produces a crash file and a `panic` notification.
 - The web build is unaffected.
 
-### Phase 4: Simulated input and UI automation (large)
+### Phase 4: MCP server and agent skill (small to medium)
+
+Moved ahead of simulated input and UI automation (Q2). It needs only Phase 3's server and Phase 2's `help`.
+
+- [ ] `hb-ctl mcp`: stdio MCP server with `initialize`, `tools/list` and `tools/call`. It maps each registry command to a tool using the schemas from `help`, and `screenshot` returns image content. Add a project `.mcp.json` so Claude Code picks it up.
+- [ ] `.claude/skills/drive-game/SKILL.md`: launching, driving, screenshots, and common debugging recipes. List it in AGENTS.md.
+
+Done when: a local Claude Code session lists the game's tools over MCP, and can take a screenshot and place a building through them.
+
+### Phase 5: Simulated input and UI automation (large)
 
 - [ ] `VirtualInput` in `InputSystem`, `Application::push_synthetic_event`, and input capture mode with the badge.
 - [ ] Engine input timeline applied at the start of `Engine::begin_frame`. Gestures: click, drag, key, type, scroll.
@@ -382,7 +392,7 @@ Done when:
 - Real mouse movement has no effect while capture is on, and turning capture off restores normal input.
 - `ui.tree` rects line up with what screenshots show.
 
-### Phase 5: Web and CI (medium)
+### Phase 6: Web and CI (medium)
 
 - [ ] `window.heritage.exec` bridge (`wasm_bindgen` export, plus glue in `web/bootstrap.js`), feeding the same queue. Replies resolve promises by request ID.
 - [ ] Verify Wgpu capture on web, including the asynchronous map. Screenshots return base64.
@@ -391,28 +401,26 @@ Done when:
 - [ ] CI job on Ubuntu:
   - Install Xvfb and Mesa.
   - Build release.
-  - Run `xvfb-run -a cargo run -p HeritageBuilder --release -- --script scenarios/smoke.jsonl`.
+  - Run `xvfb-run -a cargo run -p HeritageBuilder --release -- --script crates/game/tests/scenarios/smoke.jsonl`.
   - Upload `out/*.png` as a workflow artifact.
 
 Done when:
 - The Playwright script gets a screenshot from the web build.
 - The CI job runs the scenarios green and uploads screenshots.
 
-### Phase 6: Agent ergonomics (small to medium)
+### Phase 7: Record, replay and image checks (small to medium)
 
-- [ ] `hb-ctl mcp`: stdio MCP server with `initialize`, `tools/list` and `tools/call`. It maps each registry command to a tool using the schemas from `help`, and `screenshot` returns image content. Add a project `.mcp.json` so Claude Code picks it up.
-- [ ] `.claude/skills/drive-game/SKILL.md`: launching, driving, screenshots, and common debugging recipes. List it in AGENTS.md.
 - [ ] `--record FILE` / `--replay FILE`: real input events and commands per frame as JSON lines, replayed with fixed delta and seed. Useful for bug reports.
 - [ ] Optional `assert.image {path, golden, tolerance}`, for same-machine, same-backend comparisons only.
 
-Done when: a local Claude Code session lists the game's tools over MCP, and can take a screenshot and place a building through them.
+Done when: a recorded session replays with the same seed and fixed delta and ends in a byte-identical save.
 
 ## Risks
 
 | Risk | Mitigation |
 | --- | --- |
 | The server thread touches a `SingleThreadStatic` and asserts. | The thread only parses JSON and moves owned strings across channels. Every handler runs on the main thread. Add a debug assert on `is_main_thread()` in the dispatcher. |
-| The automation port is a remote-control surface in shipped builds. | Off by default. Loopback only, with a per-launch token. Behind an `automation` cargo feature that release bundles can leave out (see Q1). Screenshots don't need the server and always ship. |
+| The automation port is a remote-control surface in shipped builds. | Off by default. Loopback only, with a per-launch token. Ships in release builds, but stays off unless `--automation` is passed (Q1). Screenshots don't need the server and always ship. |
 | CI has no GPU or display. | `xvfb-run` with Mesa llvmpipe for OpenGL, or lavapipe for Wgpu. Audio init already fails gracefully. Where no display is available, fall back to script mode with `time.fast_forward` and no screenshots. |
 | Golden screenshots differ across GPUs and drivers. | Only compare images from the same machine and backend, with a tolerance. Prefer state assertions in CI, and use screenshots for agents and humans to look at. |
 | Frame rate is capped by vsync (Wgpu uses `PresentMode::Fifo`; GL depends on the driver's default swap interval). | Use `time.fast_forward` for long stretches. Optionally add `--no-vsync` for automation runs. |
@@ -426,9 +434,13 @@ Each has a default to use until the user decides otherwise. Record answers here.
 
 - **Q1. Shipping scope of the server.** Should the live control server ship in release builds behind a flag, for modders and support, or stay dev-only?
   *Default:* compile it into desktop builds behind an `automation` cargo feature that is on by default, and keep it off at runtime unless `--automation` is passed. Release bundles can turn the feature off. Screenshots ship either way.
+  **Decided (2026-10-14):** ship it in release builds behind the runtime flag, as in the default.
 - **Q2. MCP priority.** Should `hb-ctl mcp` move ahead of UI automation? It makes the biggest difference to how Claude Code uses the game, and it only needs Phase 3 (the server and `help`).
   *Default:* keep it in Phase 6, but it may start any time after Phase 3.
+  **Decided (2026-10-14):** move it ahead. It is now Phase 4, before simulated input and UI automation (now Phase 5).
 - **Q3. Console UI.** Should Phase 2 include a visible in-game developer console on the same registry?
   *Default:* no. Revisit after Phase 3; the registry makes it cheap to add later.
+  **Decided (2026-10-14):** yes, in Phase 2. Extend the debug LogViewer widget with an input field that runs commands, making it an interactive in-game console.
 - **Q4. Where scenarios live.** A top-level `scenarios/` folder, or `crates/game/tests/scenarios/` next to the integration tests?
   *Default:* top-level `scenarios/`, since the game binary runs them, not `cargo test`.
+  **Decided (2026-10-14):** `crates/game/tests/scenarios/`.
