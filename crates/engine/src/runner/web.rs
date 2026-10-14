@@ -32,6 +32,7 @@ use crate::{
         ApplicationInitParams,
         winit::input, // Re-use winit input conversion helpers.
     },
+    cli,
     config::EngineConfigs,
     engine::Engine,
     file_sys::{self, paths},
@@ -79,6 +80,7 @@ impl Runner for WebRunner {
         // Early initialization:
         GameLoop::on_early_init();
         platform::initialize();
+        cli::initialize(GameLoop::cli_options()); // Web has no command-line arguments, so no options are set.
         paths::set_working_directory(paths::base_path());
 
         let event_loop = EventLoop::new().expect("Failed to create Winit event loop!");

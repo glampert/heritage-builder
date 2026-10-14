@@ -39,7 +39,7 @@ use crate::{
 // GenerationalIndex
 // ----------------------------------------------
 
-#[derive(Copy, Clone, Debug, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[derive(Copy, Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
 pub struct GenerationalIndex {
     generation: u32,
     index: u32, // Index into spawn pool; u32::MAX = invalid.

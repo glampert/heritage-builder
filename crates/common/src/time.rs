@@ -29,12 +29,19 @@ pub fn elapsed_seconds(a: Instant, b: Instant) -> Seconds {
 pub struct FrameClock {
     last_frame_time: Instant,
     delta_time: Duration,
+
+    // When set, delta_time() reports this value every frame instead of the measured frame
+    // time, so frame-driven timers advance the same way on every run regardless of frame rate.
+    fixed_delta_time: Option<Seconds>,
+
+    // Index of the current frame, starting at 0. Advances in end_frame().
+    frame_number: u64,
 }
 
 impl FrameClock {
     #[inline]
     pub fn new() -> Self {
-        Self { last_frame_time: Instant::now(), delta_time: Duration::ZERO }
+        Self { last_frame_time: Instant::now(), delta_time: Duration::ZERO, fixed_delta_time: None, frame_number: 0 }
     }
 
     #[inline]
@@ -45,12 +52,40 @@ impl FrameClock {
         let time_now = Instant::now();
         self.delta_time = time_now - self.last_frame_time;
         self.last_frame_time = time_now;
+        self.frame_number += 1;
+    }
+
+    // Time step to advance the game by this frame: the fixed delta when one is set,
+    // otherwise the measured duration of the previous frame.
+    #[inline]
+    #[must_use]
+    pub fn delta_time(&self) -> Seconds {
+        self.fixed_delta_time.unwrap_or_else(|| self.real_delta_time())
+    }
+
+    // Measured duration of the previous frame, ignoring any fixed delta (for frame rate display).
+    #[inline]
+    #[must_use]
+    pub fn real_delta_time(&self) -> Seconds {
+        self.delta_time.as_secs_f32()
+    }
+
+    #[inline]
+    pub fn set_fixed_delta_time(&mut self, fixed_delta_time: Option<Seconds>) {
+        debug_assert!(fixed_delta_time.is_none_or(|dt| dt > 0.0), "Fixed delta time must be positive!");
+        self.fixed_delta_time = fixed_delta_time;
     }
 
     #[inline]
     #[must_use]
-    pub fn delta_time(&self) -> Seconds {
-        self.delta_time.as_secs_f32()
+    pub fn fixed_delta_time(&self) -> Option<Seconds> {
+        self.fixed_delta_time
+    }
+
+    #[inline]
+    #[must_use]
+    pub fn frame_number(&self) -> u64 {
+        self.frame_number
     }
 }
 
@@ -189,5 +224,46 @@ impl PerfTimer {
     #[must_use]
     pub fn end(self) -> Milliseconds {
         self.0.elapsed().as_secs_f32() * 1000.0
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_frame_clock_fixed_delta() {
+        let mut clock = FrameClock::new();
+        assert_eq!(clock.fixed_delta_time(), None);
+
+        clock.set_fixed_delta_time(Some(1.0 / 60.0));
+        assert_eq!(clock.fixed_delta_time(), Some(1.0 / 60.0));
+
+        // The fixed delta is reported regardless of how long frames actually take.
+        for _ in 0..3 {
+            clock.begin_frame();
+            std::thread::sleep(Duration::from_millis(2));
+            clock.end_frame();
+            assert_eq!(clock.delta_time(), 1.0 / 60.0);
+        }
+
+        // The measured frame time is still available.
+        assert!(clock.real_delta_time() > 0.0);
+
+        // Clearing the fixed delta goes back to the measured frame time.
+        clock.set_fixed_delta_time(None);
+        assert_eq!(clock.delta_time(), clock.real_delta_time());
+    }
+
+    #[test]
+    fn test_frame_clock_frame_number() {
+        let mut clock = FrameClock::new();
+        assert_eq!(clock.frame_number(), 0);
+
+        for expected in 1..=5 {
+            clock.begin_frame();
+            clock.end_frame();
+            assert_eq!(clock.frame_number(), expected);
+        }
     }
 }

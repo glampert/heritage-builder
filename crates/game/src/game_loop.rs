@@ -10,6 +10,7 @@ use engine::{
     log,
     save,
     Engine,
+    cli::{self, CliOption},
     ui::UiInputEvent,
     runner::RunLoop,
     file_sys::paths::PathRef,
@@ -22,6 +23,7 @@ use engine::{
 use crate::{
     cheats,
     debug,
+    launch,
     undo_redo,
     menu::GameMenusMode,
     config::GameConfigs,
@@ -110,6 +112,10 @@ impl RunLoop for GameLoop {
         debug::log_viewer::LogViewer::initialize();
     }
 
+    fn cli_options() -> &'static [CliOption] {
+        launch::GAME_CLI_OPTIONS
+    }
+
     fn start(engine: &'static mut Engine, configs: &'static Self::Configs) -> &'static mut Self {
         log::info!(log::channel!("game"), "--- GameLoop Initialization ---");
 
@@ -123,13 +129,14 @@ impl RunLoop for GameLoop {
         Simulation::register_callbacks();
         debug::set_show_popup_messages(configs.debug.show_popups);
 
+        // Command-line options (--map, --seed, ...):
+        let launch_options = launch::initialize(configs);
+
         // Optional save-load smoke test run mode:
-        let smoke_test = std::env::args()
-            .any(|arg| arg == "--smoke-test-saves")
-            .then(SaveSmokeTest::new);
+        let smoke_test = launch_options.smoke_test_saves.then(SaveSmokeTest::new);
 
         // Create Session and GameLoop:
-        let session = session::create(engine, configs, None);
+        let session = session::create_initial(engine, configs, launch_options).unwrap_or_else(|err| cli::fail(&err));
         let game_loop = Self {
             engine,
             configs,
@@ -168,7 +175,10 @@ impl RunLoop for GameLoop {
         let frame_timer = PerfTimer::begin();
 
         let (delta_time_secs, cursor_screen_pos, begin_frame_time_ms) = self.engine.begin_frame();
-        self.stats.fps = if delta_time_secs > 0.0 { 1.0 / delta_time_secs } else { 0.0 };
+
+        // From the measured frame time, which differs from delta_time_secs under --fixed-dt.
+        let real_delta_time_secs = self.engine.frame_clock().real_delta_time();
+        self.stats.fps = if real_delta_time_secs > 0.0 { 1.0 / real_delta_time_secs } else { 0.0 };
 
         self.update_autosave();
         self.session_cmd_queue.execute(&mut self.session, self.engine, self.configs);

@@ -168,10 +168,10 @@ fn init_log_viewer_singleton_once() {
 
     LOG_VIEWER_SINGLETON.set(Mutex::new(viewer)).unwrap_or_else(|_| panic!("LogViewerSingleton already initialized!"));
 
-    log::set_listener(|line| {
+    log::add_listener(|record| {
         let mut viewer = log_viewer_singleton().lock().unwrap();
 
-        viewer.push_line(line);
+        viewer.push_line(record.clone());
     });
 }
 

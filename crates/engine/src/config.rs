@@ -34,9 +34,9 @@ pub trait Configs {
 
         let config_json_path = configs_path().join(config_file_name).with_extension("json");
 
-        // First make sure the save directory exists. Ignore any errors since
+        // First make sure the configs directory exists. Ignore any errors since
         // this function might fail if any element of the path already exists.
-        let _ = file_sys::create_path(configs_path());
+        let _ = file_sys::create_path(&config_json_path);
 
         let mut state = save::new_json_save_state(true);
 

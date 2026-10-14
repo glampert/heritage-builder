@@ -1,0 +1,309 @@
+// Command-line options, parsed once at startup by the runner.
+//
+// Options take the forms `--name` (a flag), `--name=value` or `--name value`. Each crate declares
+// the options it understands in a `CliOption` table: the engine's are below, and the run loop
+// adds its own through `RunLoop::cli_options`. Desktop reads the process arguments; the web
+// build has none.
+
+use std::{fmt::Display, str::FromStr, sync::OnceLock};
+
+use common::{Size, time::Seconds};
+
+use crate::log;
+
+// ----------------------------------------------
+// CliOption
+// ----------------------------------------------
+
+pub struct CliOption {
+    pub name: &'static str,               // Without the leading dashes.
+    pub value_name: Option<&'static str>, // Value placeholder shown in the usage text. None for flags.
+    pub help: &'static str,
+}
+
+// Options handled by the engine.
+pub const ENGINE_CLI_OPTIONS: &[CliOption] = &[
+    CliOption { name: "help", value_name: None, help: "List the command-line options and exit." },
+    CliOption {
+        name: "fixed-dt",
+        value_name: Some("SECONDS"),
+        help: "Advance every frame by this time step instead of the measured frame time, so runs repeat exactly.",
+    },
+    CliOption { name: "window-size", value_name: Some("WxH"), help: "Initial window size, e.g. 1280x720." },
+];
+
+// ----------------------------------------------
+// CommandLine
+// ----------------------------------------------
+
+#[derive(Default)]
+pub struct CommandLine {
+    options: Vec<(&'static str, Option<String>)>, // In command-line order.
+    known_options: Vec<&'static CliOption>,
+}
+
+impl CommandLine {
+    // Parses `args` (without the program name) against the known options.
+    pub fn parse<I>(args: I, known_options: &[&'static [CliOption]]) -> Result<Self, String>
+    where
+        I: IntoIterator<Item = String>,
+    {
+        let known_options: Vec<&'static CliOption> = known_options.iter().flat_map(|options| options.iter()).collect();
+
+        let mut options = Vec::new();
+        let mut args = args.into_iter().peekable();
+
+        while let Some(arg) = args.next() {
+            let Some(name_and_value) = arg.strip_prefix("--") else {
+                // Some launchers pass extra arguments (e.g. MacOS's -psn_...), so this isn't fatal.
+                log::warning!(log::channel!("cli"), "Ignoring unexpected command-line argument '{arg}'.");
+                continue;
+            };
+
+            let (name, inline_value) = match name_and_value.split_once('=') {
+                Some((name, value)) => (name, Some(value.to_string())),
+                None => (name_and_value, None),
+            };
+
+            let option = known_options
+                .iter()
+                .find(|option| option.name == name)
+                .ok_or_else(|| format!("Unknown option '--{name}'."))?;
+
+            let value = match (option.value_name, inline_value) {
+                (Some(_), Some(value)) => Some(value),
+                (Some(value_name), None) => {
+                    // `--name value` form. The value can't look like another option.
+                    let value = args.next_if(|next| !next.starts_with("--"));
+                    Some(value.ok_or_else(|| format!("Option '--{name}' needs a value: --{name} {value_name}"))?)
+                }
+                (None, Some(_)) => return Err(format!("Option '--{name}' doesn't take a value.")),
+                (None, None) => None,
+            };
+
+            options.push((option.name, value));
+        }
+
+        Ok(Self { options, known_options })
+    }
+
+    #[inline]
+    pub fn has(&self, name: &str) -> bool {
+        self.options.iter().any(|(option_name, _)| *option_name == name)
+    }
+
+    // Value of an option. The last occurrence wins if it's given more than once.
+    #[inline]
+    pub fn value(&self, name: &str) -> Option<&str> {
+        self.options.iter().rev().find(|(option_name, _)| *option_name == name).and_then(|(_, value)| value.as_deref())
+    }
+
+    // Value of an option converted to T. A value that doesn't convert is an error.
+    pub fn parse_value<T>(&self, name: &str) -> Result<Option<T>, String>
+    where
+        T: FromStr,
+        T::Err: Display,
+    {
+        match self.value(name) {
+            Some(value) => {
+                value.parse::<T>().map(Some).map_err(|err| format!("Invalid value '{value}' for '--{name}': {err}"))
+            }
+            None => Ok(None),
+        }
+    }
+
+    // Logs each known option, one per line.
+    #[inline]
+    pub fn log_usage(&self) {
+        log_usage(self.known_options.iter().copied());
+    }
+}
+
+fn log_usage<'a>(options: impl Iterator<Item = &'a CliOption>) {
+    log::info!(log::channel!("cli"), "Command-line options:");
+
+    for option in options {
+        let usage = match option.value_name {
+            Some(value_name) => format!("--{} {}", option.name, value_name),
+            None => format!("--{}", option.name),
+        };
+        log::info!(log::channel!("cli"), "  {usage:<34} {}", option.help);
+    }
+}
+
+// ----------------------------------------------
+// Value parsing helpers
+// ----------------------------------------------
+
+// Parses a size written as WIDTHxHEIGHT, e.g. "1280x720". Both dimensions must be positive.
+pub fn parse_size(text: &str) -> Result<Size, String> {
+    let error = || format!("Expected WIDTHxHEIGHT with positive numbers (e.g. 1280x720), got '{text}'.");
+
+    let (width, height) = text.split_once(['x', 'X']).ok_or_else(error)?;
+    let width = width.trim().parse::<i32>().map_err(|_| error())?;
+    let height = height.trim().parse::<i32>().map_err(|_| error())?;
+
+    if width <= 0 || height <= 0 {
+        return Err(error());
+    }
+
+    Ok(Size::new(width, height))
+}
+
+// ----------------------------------------------
+// Global instance
+// ----------------------------------------------
+
+static COMMAND_LINE: OnceLock<CommandLine> = OnceLock::new();
+
+// Parses the process arguments against the engine's options plus `run_loop_options`.
+// Called once by the runner. `--help` logs the options and exits; bad input logs the
+// problem with the options and exits with status 2.
+pub fn initialize(run_loop_options: &'static [CliOption]) {
+    #[cfg(feature = "desktop")]
+    let args: Vec<String> = std::env::args().skip(1).collect();
+
+    #[cfg(not(feature = "desktop"))]
+    let args: Vec<String> = Vec::new();
+
+    let known_options = [ENGINE_CLI_OPTIONS, run_loop_options];
+
+    let command_line = match CommandLine::parse(args, &known_options) {
+        Ok(command_line) => command_line,
+        Err(err) => {
+            log::error!(log::channel!("cli"), "{err}");
+            log_usage(known_options.iter().flat_map(|options| options.iter()));
+            exit_process(2);
+        }
+    };
+
+    if command_line.has("help") {
+        command_line.log_usage();
+        exit_process(0);
+    }
+
+    if COMMAND_LINE.set(command_line).is_err() {
+        panic!("Command line already initialized!");
+    }
+}
+
+// The parsed command line. Empty if initialize() hasn't run (in tests, for instance).
+pub fn get() -> &'static CommandLine {
+    static EMPTY: CommandLine = CommandLine { options: Vec::new(), known_options: Vec::new() };
+    COMMAND_LINE.get().unwrap_or(&EMPTY)
+}
+
+// Ends the process for a command-line value that the game can't use, e.g. a map preset that
+// doesn't exist. Logs `message` and the option list, then exits with status 2.
+pub fn fail(message: &str) -> ! {
+    log::error!(log::channel!("cli"), "{message}");
+    get().log_usage();
+    exit_process(2);
+}
+
+fn exit_process(code: i32) -> ! {
+    #[cfg(feature = "desktop")]
+    std::process::exit(code);
+
+    #[cfg(not(feature = "desktop"))]
+    panic!("Command-line exit with status {code}.");
+}
+
+// ----------------------------------------------
+// Engine options
+// ----------------------------------------------
+
+// `--window-size`, if given.
+pub fn window_size() -> Option<Size> {
+    get().value("window-size").map(|value| parse_size(value).unwrap_or_else(|err| fail(&format!("--window-size: {err}"))))
+}
+
+// `--fixed-dt`, if given.
+pub fn fixed_delta_time() -> Option<Seconds> {
+    let fixed_delta_time = get().parse_value::<Seconds>("fixed-dt").unwrap_or_else(|err| fail(&err))?;
+
+    if !(fixed_delta_time > 0.0 && fixed_delta_time.is_finite()) {
+        fail(&format!("--fixed-dt must be a positive number of seconds, got {fixed_delta_time}."));
+    }
+
+    Some(fixed_delta_time)
+}
+
+// ----------------------------------------------
+// Unit Tests
+// ----------------------------------------------
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    const TEST_OPTIONS: &[CliOption] = &[
+        CliOption { name: "flag", value_name: None, help: "A flag." },
+        CliOption { name: "count", value_name: Some("N"), help: "A number." },
+        CliOption { name: "name", value_name: Some("TEXT"), help: "Some text." },
+    ];
+
+    fn parse(args: &[&str]) -> Result<CommandLine, String> {
+        CommandLine::parse(args.iter().map(|arg| arg.to_string()), &[TEST_OPTIONS])
+    }
+
+    fn parse_error(args: &[&str]) -> String {
+        match parse(args) {
+            Ok(_) => panic!("Expected {args:?} to fail parsing."),
+            Err(err) => err,
+        }
+    }
+
+    #[test]
+    fn test_parse_forms() {
+        let cli = parse(&["--flag", "--count=3", "--name", "hello"]).unwrap();
+
+        assert!(cli.has("flag"));
+        assert_eq!(cli.value("flag"), None);
+        assert_eq!(cli.value("count"), Some("3"));
+        assert_eq!(cli.value("name"), Some("hello"));
+        assert_eq!(cli.parse_value::<u32>("count"), Ok(Some(3)));
+        assert_eq!(cli.parse_value::<u32>("missing"), Ok(None));
+        assert!(!cli.has("missing"));
+    }
+
+    #[test]
+    fn test_last_value_wins() {
+        let cli = parse(&["--count", "1", "--count=2"]).unwrap();
+        assert_eq!(cli.value("count"), Some("2"));
+    }
+
+    #[test]
+    fn test_empty() {
+        let cli = parse(&[]).unwrap();
+        assert!(!cli.has("flag"));
+        assert_eq!(cli.value("count"), None);
+    }
+
+    #[test]
+    fn test_errors() {
+        assert!(parse_error(&["--unknown"]).contains("--unknown"));
+        assert!(parse_error(&["--count"]).contains("needs a value"));
+        assert!(parse_error(&["--count", "--flag"]).contains("needs a value"));
+        assert!(parse_error(&["--flag=yes"]).contains("doesn't take a value"));
+
+        let cli = parse(&["--count", "abc"]).unwrap();
+        assert!(cli.parse_value::<u32>("count").unwrap_err().contains("abc"));
+    }
+
+    #[test]
+    fn test_non_option_arguments_are_ignored() {
+        let cli = parse(&["-psn_0_12345", "--flag"]).unwrap();
+        assert!(cli.has("flag"));
+    }
+
+    #[test]
+    fn test_parse_size() {
+        assert_eq!(parse_size("1280x720"), Ok(Size::new(1280, 720)));
+        assert_eq!(parse_size("64X32"), Ok(Size::new(64, 32)));
+        assert!(parse_size("1280").is_err());
+        assert!(parse_size("0x720").is_err());
+        assert!(parse_size("-5x5").is_err());
+        assert!(parse_size("axb").is_err());
+    }
+}

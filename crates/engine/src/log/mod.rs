@@ -1,8 +1,12 @@
 use std::{
+    cell::Cell,
+    collections::VecDeque,
     fmt,
     hash::{Hash, Hasher},
     sync::{
-        OnceLock,
+        Mutex,
+        PoisonError,
+        RwLock,
         atomic::{AtomicBool, AtomicU32, Ordering},
     },
 };
@@ -95,24 +99,95 @@ macro_rules! log_channel {
 }
 
 // ----------------------------------------------
-// Log Listener
+// Log Records & Listeners
 // ----------------------------------------------
 
+#[derive(Clone)]
 pub struct Record {
+    pub seq: u64, // Increases by one per record, starting at 1. Unique within the process.
     pub level: Level,
     pub channel: Option<Channel>,
     pub location: Location,
     pub message: String,
 }
 
-// One global listener, set once.
-static LISTENER: OnceLock<Box<dyn Fn(Record) + Send + Sync>> = OnceLock::new();
+type ListenerFn = Box<dyn Fn(&Record) + Send + Sync>;
 
-pub fn set_listener<F>(listener_fn: F)
+static LISTENERS: RwLock<Vec<ListenerFn>> = RwLock::new(Vec::new());
+
+// Registers a function that receives every record at or above the current log level,
+// on the thread that logged it. Records logged from inside a listener are printed but
+// not passed to listeners again, so a listener that logs can't recurse or deadlock.
+pub fn add_listener<F>(listener_fn: F)
 where
-    F: Fn(Record) + Send + Sync + 'static,
+    F: Fn(&Record) + Send + Sync + 'static,
 {
-    LISTENER.set(Box::new(listener_fn)).unwrap_or_else(|_| panic!("Log listener can only be set once!"));
+    LISTENERS.write().unwrap_or_else(PoisonError::into_inner).push(Box::new(listener_fn));
+}
+
+// Copies of the most recent records with a sequence number greater than `after_seq`,
+// oldest first. Pass 0 to get everything still in the buffer.
+pub fn recent_records(after_seq: u64) -> Vec<Record> {
+    let recent = RECENT_RECORDS.lock().unwrap_or_else(PoisonError::into_inner);
+    recent.records.iter().filter(|record| record.seq > after_seq).cloned().collect()
+}
+
+// Number of records kept for recent_records().
+pub const RECENT_RECORDS_CAPACITY: usize = 256;
+
+struct RecentRecords {
+    next_seq: u64,
+    records: VecDeque<Record>,
+}
+
+impl RecentRecords {
+    const fn new() -> Self {
+        Self { next_seq: 1, records: VecDeque::new() }
+    }
+
+    // Assigns the next sequence number, keeps a copy (evicting the oldest when full)
+    // and returns the new record.
+    fn push(&mut self, level: Level, channel: Option<Channel>, location: &Location, message: String) -> Record {
+        let record = Record { seq: self.next_seq, level, channel, location: *location, message };
+        self.next_seq += 1;
+
+        if self.records.len() == RECENT_RECORDS_CAPACITY {
+            self.records.pop_front();
+        }
+        self.records.push_back(record.clone());
+
+        record
+    }
+}
+
+// Sequence numbers are assigned under this lock, so the buffer is always in sequence order,
+// even when several threads log at once.
+static RECENT_RECORDS: Mutex<RecentRecords> = Mutex::new(RecentRecords::new());
+
+thread_local! {
+    static IS_DISPATCHING: Cell<bool> = const { Cell::new(false) };
+}
+
+fn dispatch_record(level: Level, channel: Option<Channel>, location: &Location, message: String) {
+    let record = RECENT_RECORDS.lock().unwrap_or_else(PoisonError::into_inner).push(level, channel, location, message);
+
+    // Skip listeners for records logged by a listener (see add_listener).
+    if IS_DISPATCHING.with(|dispatching| dispatching.replace(true)) {
+        return;
+    }
+
+    // Resets the flag even if a listener panics.
+    struct ResetDispatching;
+    impl Drop for ResetDispatching {
+        fn drop(&mut self) {
+            IS_DISPATCHING.with(|dispatching| dispatching.set(false));
+        }
+    }
+    let _reset = ResetDispatching;
+
+    for listener in LISTENERS.read().unwrap_or_else(PoisonError::into_inner).iter() {
+        listener(&record);
+    }
 }
 
 // ----------------------------------------------
@@ -160,15 +235,16 @@ pub fn print_internal(level: Level, channel: Option<Channel>, location: &Locatio
         return;
     }
 
+    // Format once; the output backends and the record share the string.
+    let message = args.to_string();
+
     #[cfg(feature = "desktop")]
-    desktop::output_log(level, channel, location, args);
+    desktop::output_log(level, channel, location, format_args!("{message}"));
 
     #[cfg(feature = "web")]
-    web::output_log(level, channel, location, args);
+    web::output_log(level, channel, location, format_args!("{message}"));
 
-    if let Some(listener) = LISTENER.get() {
-        listener(Record { level, channel, location: *location, message: args.to_string() });
-    }
+    dispatch_record(level, channel, location, message);
 }
 
 // Shared helper used by all logging macros.
@@ -244,3 +320,114 @@ pub use crate::{
     log_error         as error,
     log_print_message as print_message,
 };
+
+// ----------------------------------------------
+// Unit Tests
+// ----------------------------------------------
+
+#[cfg(test)]
+mod tests {
+    use std::sync::{Arc, Mutex};
+
+    use super::*;
+
+    // Tests run in parallel and share the global listener list and record buffer,
+    // so every test only looks at records carrying its own marker string.
+
+    #[test]
+    fn test_multiple_listeners_receive_records() {
+        const MARKER: &str = "log-test-two-listeners";
+
+        let received_a = Arc::new(Mutex::new(Vec::new()));
+        let received_b = Arc::new(Mutex::new(Vec::new()));
+
+        let sink_a = received_a.clone();
+        add_listener(move |record| {
+            if record.message.contains(MARKER) {
+                sink_a.lock().unwrap().push((record.seq, record.message.clone()));
+            }
+        });
+
+        let sink_b = received_b.clone();
+        add_listener(move |record| {
+            if record.message.contains(MARKER) {
+                sink_b.lock().unwrap().push((record.seq, record.message.clone()));
+            }
+        });
+
+        crate::log::info!("{MARKER} first");
+        crate::log::warning!(crate::log::channel!("test"), "{MARKER} second");
+
+        let received_a = received_a.lock().unwrap();
+        let received_b = received_b.lock().unwrap();
+
+        assert_eq!(received_a.len(), 2);
+        assert_eq!(*received_a, *received_b);
+        assert_eq!(received_a[0].1, format!("{MARKER} first"));
+        assert_eq!(received_a[1].1, format!("{MARKER} second"));
+        assert!(received_a[0].0 < received_a[1].0);
+    }
+
+    #[test]
+    fn test_recent_records() {
+        const MARKER: &str = "log-test-recent-records";
+
+        let before = recent_records(0).last().map_or(0, |record| record.seq);
+
+        for i in 0..3 {
+            crate::log::info!("{MARKER} {i}");
+        }
+
+        let mine: Vec<Record> =
+            recent_records(before).into_iter().filter(|record| record.message.contains(MARKER)).collect();
+
+        assert_eq!(mine.len(), 3);
+        assert!(mine.windows(2).all(|pair| pair[0].seq < pair[1].seq));
+        assert_eq!(mine[2].message, format!("{MARKER} 2"));
+        assert_eq!(mine[2].level, Level::Info);
+    }
+
+    #[test]
+    fn test_recent_records_capacity() {
+        // Uses a local buffer; flooding the global one could evict other tests' records.
+        let mut recent = RecentRecords::new();
+        let location = Location { file: file!(), line: line!(), module: module_path!() };
+
+        let total = RECENT_RECORDS_CAPACITY + 10;
+        for i in 0..total {
+            let record = recent.push(Level::Info, None, &location, format!("record {i}"));
+            assert_eq!(record.seq, i as u64 + 1);
+        }
+
+        // Only the newest records are kept, in sequence order.
+        assert_eq!(recent.records.len(), RECENT_RECORDS_CAPACITY);
+        assert_eq!(recent.records.front().unwrap().seq, (total - RECENT_RECORDS_CAPACITY) as u64 + 1);
+        assert_eq!(recent.records.back().unwrap().seq, total as u64);
+        assert_eq!(recent.records.back().unwrap().message, format!("record {}", total - 1));
+    }
+
+    #[test]
+    fn test_listener_that_logs_does_not_recurse() {
+        const MARKER: &str = "log-test-reentrant";
+        const NESTED: &str = "log-test-reentrant-nested";
+
+        let nested_seen = Arc::new(Mutex::new(0));
+
+        let seen = nested_seen.clone();
+        add_listener(move |record| {
+            if record.message.contains(NESTED) {
+                *seen.lock().unwrap() += 1;
+            } else if record.message.contains(MARKER) {
+                // Logging from a listener must neither deadlock nor reach listeners again.
+                crate::log::info!("{NESTED}");
+            }
+        });
+
+        crate::log::info!("{MARKER}");
+
+        assert_eq!(*nested_seen.lock().unwrap(), 0);
+
+        // The nested record still lands in the recent records buffer.
+        assert!(recent_records(0).iter().any(|record| record.message == NESTED));
+    }
+}

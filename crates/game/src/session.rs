@@ -9,10 +9,12 @@ use engine::{
     app::input::{InputAction, InputKey, InputModifiers, MouseButton},
     save::{self, LoadResult, SaveResult, SaveState, SaveStateImpl},
 };
+use rand::SeedableRng;
 use serde::{Deserialize, Serialize};
 
 use crate::{
     camera::*,
+    launch::{self, LaunchOptions},
     undo_redo,
     world::World,
     campaign::{self, CampaignProgress},
@@ -20,7 +22,7 @@ use crate::{
     debug::{DevEditorMenus, preset_maps},
     menu::{GameMenusInputArgs, GameMenusMode, GameMenusSystem, home::HomeMenus, in_game::InGameMenus},
     save_context::*,
-    sim::Simulation,
+    sim::{RandomGenerator, Simulation},
     system::GameSystems,
     tile::{
         TileFlags,
@@ -208,6 +210,32 @@ pub fn create(engine: &mut Engine, configs: &'static GameConfigs, preset_number:
 
     log::info!(log::channel!("session"), "--- Game Session Created ---");
     session
+}
+
+// Creates the first session of a run. A start map from the command line (--map, --load-save)
+// or --skip-home-menu goes straight in-game; otherwise this is the same as create(None).
+pub fn create_initial(
+    engine: &mut Engine,
+    configs: &'static GameConfigs,
+    launch_options: &LaunchOptions,
+) -> Result<GameSession, String> {
+    let load_map_setting = match &launch_options.start_map {
+        Some(start_map) => start_map,
+        None if launch_options.skip_home_menu => &configs.save.load_map_setting,
+        None => return Ok(create(engine, configs, None)),
+    };
+
+    let session = GameSession::create_with_settings(engine, configs, load_map_setting, false);
+
+    // A save that fails to load leaves the empty placeholder map in place.
+    if let LoadMapSetting::SaveGame { save_file } = load_map_setting {
+        if !session.tile_map().size_in_cells().is_valid() {
+            return Err(format!("Failed to load save game '{}'. See the log above for details.", save_file.display()));
+        }
+    }
+
+    log::info!(log::channel!("session"), "--- Game Session Created ({load_map_setting}) ---");
+    Ok(session)
 }
 
 pub fn destroy(session: &mut GameSession, engine: &mut Engine, configs: &'static GameConfigs) {
@@ -402,7 +430,7 @@ impl GameSession {
         }
 
         let mut world = World::new();
-        let tile_map = Self::create_tile_map(&mut world, load_map_setting);
+        let tile_map = Self::create_tile_map(&mut world, configs, load_map_setting);
 
         let sim = Simulation::new(tile_map.size_in_cells(), configs);
         let systems = GameSystems::register_all();
@@ -462,9 +490,10 @@ impl GameSession {
 
             if reset_map_with_tile_def.is_some() {
                 // Randomize terrain tiles.
+                let mut rng = Self::new_terrain_variation_rng(configs);
                 self.tile_map.for_each_tile_mut(TileKind::Terrain, |_tile_map, terrain| {
                     if terrain.has_flags(TileFlags::RandomizePlacement) {
-                        terrain.set_random_variation_index(&mut rand::rng());
+                        terrain.set_random_variation_index(&mut rng);
                     }
                 });
             }
@@ -542,7 +571,13 @@ impl GameSession {
     // Tile Map Setup:
     // ----------------------
 
-    fn create_tile_map(world: &mut World, load_map_setting: &LoadMapSetting) -> RcMut<TileMap> {
+    // Random generator for the cosmetic terrain variations of a new map. The variations are
+    // saved with the map, so seeding from the game seed keeps runs with the same seed identical.
+    fn new_terrain_variation_rng(configs: &GameConfigs) -> RandomGenerator {
+        RandomGenerator::seed_from_u64(launch::get().random_seed(configs))
+    }
+
+    fn create_tile_map(world: &mut World, configs: &GameConfigs, load_map_setting: &LoadMapSetting) -> RcMut<TileMap> {
         RcMut::new(match load_map_setting {
             LoadMapSetting::None => {
                 TileMap::default() // Empty dummy map.
@@ -566,9 +601,10 @@ impl GameSession {
                     hash::fnv1a_from_str(terrain_tile_name),
                 );
 
+                let mut rng = Self::new_terrain_variation_rng(configs);
                 tile_map.for_each_tile_mut(TileKind::Terrain, |_tile_map, terrain| {
                     if terrain.has_flags(TileFlags::RandomizePlacement) {
-                        terrain.set_random_variation_index(&mut rand::rng());
+                        terrain.set_random_variation_index(&mut rng);
                     }
                 });
 

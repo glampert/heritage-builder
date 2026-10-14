@@ -3,6 +3,7 @@ use common::time::PerfTimer;
 use super::*;
 use crate::{
     app::{Application, ApplicationApi, ApplicationInitParams},
+    cli,
     engine::Engine,
     file_sys::paths,
     log,
@@ -41,6 +42,10 @@ impl DesktopRunner {
         // Early initialization:
         GameLoop::on_early_init();
         platform::initialize();
+
+        // After platform::initialize(), which decides where log output goes.
+        cli::initialize(GameLoop::cli_options());
+
         paths::set_working_directory(paths::base_path());
 
         log::info!(log::channel!("engine"), "--- Engine Initialization ---");
@@ -64,7 +69,7 @@ impl DesktopRunner {
             app_api,
             render_api,
             window_title: &engine_configs.window_title,
-            window_size: engine_configs.window_size,
+            window_size: cli::window_size().unwrap_or(engine_configs.window_size),
             window_mode: engine_configs.window_mode,
             content_scale: engine_configs.content_scale,
             resizable_window: engine_configs.resizable_window,

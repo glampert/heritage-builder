@@ -10,12 +10,13 @@ Written from the ground up in the [Rust](https://www.rust-lang.org/) programming
 
 ## Platform support
 
-The engine is designed to be portable, but only two targets are actively tested today:
+The engine is designed to be portable, but only macOS and the web are actively tested today:
 
 | Target              | Renderer | Windowing   | Audio    | Status              |
 | ------------------- | -------- | ----------- | -------- | ------------------- |
 | **macOS (desktop)** | OpenGL   | GLFW        | Kira     | ✅ Tested            |
 | **Web browser**     | Wgpu     | Winit/WASM  | WebAudio | ✅ Tested            |
+| **Linux (desktop)** | OpenGL   | GLFW        | Kira     | 🟡 Builds & tests pass in CI, not play-tested |
 
 ---
 
@@ -62,6 +63,10 @@ python3 --version
 > for `wasm32`. If either is missing the build prints a warning telling you what to install. Paths are
 > Homebrew/Apple-Silicon defaults — adjust in [`crates/tools/web-builder/src/main.rs`](crates/tools/web-builder/src/main.rs)
 > if yours differ.
+>
+> **On Linux (or anywhere without Homebrew)**, download a [wasi-sdk](https://github.com/WebAssembly/wasi-sdk/releases)
+> release and set `WASI_SDK_PATH` to its root; web-builder then uses its `clang++`, `llvm-ar` and sysroot instead.
+> Use **wasi-sdk 30–32**: the headers in 33+ refuse to compile for `wasm32-unknown-unknown`. This is what CI does.
 
 ---
 
@@ -192,6 +197,16 @@ cargo test -p game --test sim_cmds   # just one
 Add cases by editing the `test_utils::run_tests(&[...])` list in the relevant file, e.g.
 [`crates/game/tests/sim_cmds.rs`](crates/game/tests/sim_cmds.rs). The harness runs everything on the main
 thread (several globals are single-thread statics) and does **not** accept filter arguments.
+
+### Continuous integration
+
+[`.github/workflows/ci.yml`](.github/workflows/ci.yml) runs on every push and pull request:
+
+- **Desktop** (Ubuntu and macOS): `cargo build --workspace --all-targets` + `cargo test --workspace`.
+- **Web**: `cargo run -p web-builder -- release` using wasi-sdk, a `wasm-bindgen-cli` matching the resolved
+  `wasm-bindgen` crate, and `wasm-opt`. It also warns if `web/asset_manifest.json` is out of date.
+
+CI uses the latest stable Rust and treats compiler warnings as warnings, not errors.
 
 ### Save-compatibility smoke test
 

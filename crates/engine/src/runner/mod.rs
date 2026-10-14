@@ -1,4 +1,4 @@
-use crate::{config::EngineConfigs, engine::Engine};
+use crate::{cli::CliOption, config::EngineConfigs, engine::Engine};
 
 #[cfg(feature = "desktop")]
 mod desktop;
@@ -44,6 +44,11 @@ pub trait RunLoop: Sized {
     // Called by the runner before engine initialization.
     // Override to perform early setup (e.g., log viewer, debug tools).
     fn on_early_init() {}
+
+    // Command-line options the run loop understands, in addition to the engine's (see engine::cli).
+    fn cli_options() -> &'static [CliOption] {
+        &[]
+    }
 }
 
 // ----------------------------------------------

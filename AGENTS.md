@@ -13,6 +13,15 @@ Desktop build/run (default feature set):
 - `cargo run -p HeritageBuilder --release`
 - `cargo build -p HeritageBuilder --release`
 
+Command-line options (`cargo run -p HeritageBuilder -- --help` lists them all):
+- `--map preset:N`, `--map empty:WxH` or `--load-save NAME` start in-game on that map; `--skip-home-menu` starts in-game on the map from `configs.json`.
+- `--seed N` sets the random seed for new games and `--fixed-dt SECONDS` advances every frame by a fixed step. Together they make runs repeatable.
+- `--window-size WxH` overrides the window size.
+- Unknown options exit with status 2. Options are declared in `engine::cli::ENGINE_CLI_OPTIONS` ([cli.rs](crates/engine/src/cli.rs)) and `game::launch::GAME_CLI_OPTIONS` ([launch.rs](crates/game/src/launch.rs)).
+- Apply an option where its value is used. Don't write it into `GameConfigs`: the settings dialog saves the whole struct back to `configs.json`.
+
+Headless Linux (CI, cloud agent sessions): install the packages from the CI Ubuntu job plus `xvfb`, then `LIBGL_ALWAYS_SOFTWARE=1 xvfb-run -a cargo run -p HeritageBuilder -- <options>` runs the game on Mesa's software OpenGL. Without a sound device, audio init logs an error and the game runs silently.
+
 MacOS `.app` bundle (wraps `cargo bundle` + asset copy):
 - `./bundle.sh` / `./bundle.sh release`
 - `./bundle.sh --install [release]` installs `cargo-bundle` first
@@ -22,12 +31,16 @@ Web / WASM:
 - `./web.sh --build [release] --serve` (release adds `wasm-opt`)
 - Equivalent: `cargo run -p web-builder [-- release]`, then `cd web && python3 -m http.server 8080`
 - Requires switching features: crates are `default = ["desktop"]`; the `web-builder` tool drives the `web` feature.
+- Toolchain for imgui-sys: Homebrew `llvm` + `wasi-libc` on MacOS, or set `WASI_SDK_PATH` to a wasi-sdk 30–32 install (Linux/CI; 33+ headers reject `wasm32-unknown-unknown`).
+- `crates/launcher/build.rs` passes `--allow-undefined` to the wasm linker: imgui-sys's C library symbols are imported from `env` (provided by `web/libc.js`), and Rust 1.96+ no longer allows undefined symbols by default. Don't remove it.
 - `web-builder` regenerates `web/asset_manifest.json` from `assets/`. The web runner preloads only the files listed there, so after adding or removing assets, rebuild web and commit the updated manifest.
 
 Tests — every integration test in `crates/game/tests/` (`sim_cmds`, `search_graph`, `unit_tasks`, `campaign`, `house_consumption`) uses a **custom harness** (`harness = false`):
 - `cargo test -p game --test <name>` runs one file; `cargo test -p game` runs them all.
 - Add cases by editing the `test_utils::run_tests(&[...])` list in the relevant file, e.g. [sim_cmds.rs](crates/game/tests/sim_cmds.rs). The harness does not accept filter args.
 - The harness calls `setup()` once on the main thread because several globals use `SingleThreadStatic` and will assert if touched from a different thread. Do not parallelize tests.
+
+CI — [.github/workflows/ci.yml](.github/workflows/ci.yml) on every push/PR: desktop build + `cargo test --workspace` on Ubuntu and macOS, plus a release web build via `web-builder`. Latest stable Rust; warnings don't fail the build. The Ubuntu job installs ALSA, X11 and Wayland dev packages for glfw/kira.
 
 Save-load smoke test (verifies save-file compatibility):
 - Sample saves are committed only as `saves/sample_saves.zip`; run `unzip saves/sample_saves.zip` first to extract them into `saves/`.
@@ -111,3 +124,7 @@ Topic notes live in `.claude/rules/`. Claude Code loads them automatically; othe
 - [.claude/rules/rendering.md](.claude/rules/rendering.md) — renderer internals: backend selection, batching, offscreen target, texture cache, culling.
 
 When you learn something durable about the codebase, add it here or to a `.claude/rules/` file (and list new files above) so every agent picks it up.
+
+## Plans in progress
+
+- [docs/plans/agent-automation.md](docs/plans/agent-automation.md) — approved plan for agent automation (command system, script mode, control server, simulated input, UI automation) and in-game screenshots. Work through its phases in order and keep its progress checkboxes current.

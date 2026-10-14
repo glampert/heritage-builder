@@ -8,6 +8,7 @@ use common::{
 
 use crate::{
     app::{Application, ApplicationEvent, ApplicationEventList, input::*},
+    cli,
     config::EngineConfigs,
     log,
     render::{RenderStats, RenderSystem, debug::DebugDraw, texture::TextureCache},
@@ -32,8 +33,6 @@ pub struct EngineSystemsMutRefs<'engine> {
 // ----------------------------------------------
 
 pub struct Engine {
-    app: RcMut<Application>,
-
     render_system: RcMut<RenderSystem>,
     render_stats: RenderStats,
 
@@ -43,6 +42,10 @@ pub struct Engine {
 
     frame_clock: FrameClock,
     frame_events: ApplicationEventList,
+
+    // Declared last so it's dropped last: it owns the window and graphics context,
+    // which the render resources above still need while they're being destroyed.
+    app: RcMut<Application>,
 }
 
 impl Engine {
@@ -109,6 +112,13 @@ impl Engine {
     #[inline]
     pub fn frame_clock(&self) -> &FrameClock {
         &self.frame_clock
+    }
+
+    // Makes every frame advance by a fixed time step instead of the measured frame time,
+    // so frame-driven updates repeat exactly from run to run. None goes back to real time.
+    #[inline]
+    pub fn set_fixed_delta_time(&mut self, fixed_delta_time: Option<Seconds>) {
+        self.frame_clock.set_fixed_delta_time(fixed_delta_time);
     }
 
     #[inline]
@@ -189,7 +199,12 @@ impl Engine {
         app: RcMut<Application>,
         render_system: RcMut<RenderSystem>,
     ) -> &'static mut Engine {
-        let engine = Self::new(configs, app, render_system);
+        let mut engine = Self::new(configs, app, render_system);
+
+        if let Some(fixed_delta_time) = cli::fixed_delta_time() {
+            log::info!(log::channel!("engine"), "Using a fixed frame time step of {fixed_delta_time}s.");
+            engine.set_fixed_delta_time(Some(fixed_delta_time));
+        }
 
         // Set global instance:
         Self::initialize(engine);
