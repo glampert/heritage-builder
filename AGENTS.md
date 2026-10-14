@@ -27,6 +27,11 @@ Headless Linux (CI, cloud agent sessions): install the packages from the CI Ubun
 
 Screenshots: PrintScreen or F12 saves `screenshots/<window title> <local date and time>.png` next to `saves/`; Shift leaves the UI out. A toast reports the file name. Code: `Engine::request_screenshot` ([screenshot.rs](crates/engine/src/screenshot.rs)) on top of `RenderSystem::request_capture` ([capture.rs](crates/engine/src/render/capture.rs)).
 
+Console and automation commands: the [`] key opens the log viewer, whose input field runs commands, in any menus mode. `help` lists them, and `help command=NAME` describes one. Lines take the form `name`, `name key=value ...` (values are JSON or plain text) or `name {json}`.
+- Commands live in `crate::automation` ([automation/mod.rs](crates/game/src/automation/mod.rs)): one `CommandDef` table per area in `automation/commands/`, listed in `COMMAND_GROUPS`. Script mode and the control server will reuse them (see the plan below).
+- They run once per frame, right after the session command queue, where the world is unlocked and no `SimContext` is live. Commands that span frames return `pending(..)` and must keep ids, not references: a session load replaces the world.
+- Parse params with `parse_params` into a `#[serde(deny_unknown_fields)]` struct, and validate before calling anything that panics or asserts on bad input (cell bounds, preset numbers, save names). The console only queues typed lines; never run commands from inside UI drawing.
+
 MacOS `.app` bundle (wraps `cargo bundle` + asset copy):
 - `./bundle.sh` / `./bundle.sh release`
 - `./bundle.sh --install [release]` installs `cargo-bundle` first

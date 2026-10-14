@@ -332,6 +332,16 @@ impl Camera {
         self.transform.scaling = new_zoom;
     }
 
+    // Zooms at once instead of smoothly. set_zoom alone would be undone by a smooth zoom in
+    // progress, or by the next save load, which restores target_zoom.
+    pub fn snap_zoom(&mut self, zoom: f32) {
+        let new_zoom = zoom.clamp(CameraZoom::MIN, CameraZoom::MAX);
+        self.current_zoom = new_zoom;
+        self.target_zoom = new_zoom;
+        self.is_zooming = false;
+        self.set_zoom(new_zoom);
+    }
+
     #[inline]
     pub fn request_zoom(&mut self, zoom: CameraZoom) {
         match zoom {

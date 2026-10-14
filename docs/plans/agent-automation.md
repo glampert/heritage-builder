@@ -1,6 +1,6 @@
 # Agent automation and in-game screenshots
 
-**Status:** Approved 2026-10-11. Phase 0 done (merged with PR #1). Open decisions answered 2026-10-14 and phases reordered so MCP comes before UI automation. Phase 1 (screenshots) done; Phase 2 (command registry, script mode and console) is next.
+**Status:** Approved 2026-10-11. Phase 0 done (merged with PR #1). Open decisions answered 2026-10-14 and phases reordered so MCP comes before UI automation. Phase 1 (screenshots) done. From Phase 2, the in-game console and the registry core are done (pulled ahead as their own change); the rest of Phase 2 (script mode, the remaining commands) is next.
 
 This plan lets AI agents launch the game, drive it, inspect it and debug it. It also adds framebuffer screenshots, which ship to players as well. It was researched against commit `9f26ef8` on the `claude` branch. File and line references point at that commit, so re-check them before relying on them.
 
@@ -349,14 +349,29 @@ Notes (2026-10-14):
 
 ### Phase 2: Command registry and script mode (medium)
 
-- [ ] `crates/game/src/automation/`: `CommandRegistry`, `CommandContext`, `CommandResult`, `CommandError`, `PendingCommand`, dispatch at the execution point above.
+- [x] `crates/game/src/automation/`: `CommandRegistry`, `CommandContext`, `CommandResult`, `CommandError`, `PendingCommand`, dispatch at the execution point above.
 - [ ] Engine-side request queue and reply targets, shaped so Phase 3's channel and Phase 6's web bridge slot in.
 - [ ] `GameSession` helpers for building a `SimContext` / `GameUiContext`, and `pub(crate)` save/load that report their result.
 - [ ] Commands: meta, time, session, sim, cheats, config, world, camera, observe (`screenshot`, `logs.tail`, `debug.stats`) and assert.
 - [ ] `--script FILE`: JSON lines in (blank lines and `#` comments allowed), JSON lines out, stop at the first failure (`--script-continue-on-error` to keep going), exit status 0/1. Autosave off in this mode, as in the smoke test.
 - [ ] Exit-code plumbing: the desktop runner currently returns `()`. Add a way for the run loop to report an exit code (for example `RunLoop::exit_code()`), and call `std::process::exit` after a clean shutdown.
 - [ ] Sample scenarios in `crates/game/tests/scenarios/`: `smoke.jsonl` (load, place, fast-forward, assert, screenshot) and `determinism.jsonl`.
-- [ ] In-game console: an input field in the debug LogViewer (`debug/log_viewer.rs`) that runs registry commands, prints each result into the log view, and keeps a command history (up/down arrows). See Q3.
+- [x] In-game console: an input field in the debug LogViewer (`debug/log_viewer.rs`) that runs registry commands, prints each result into the log view, and keeps a command history (up/down arrows). See Q3.
+
+Console notes (2026-10-14, done ahead of the rest of Phase 2 as one change):
+- **Registry core.** `crate::automation`: `CommandDef { name, help, params, run }` tables per area in `automation/commands/`, registered in `COMMAND_GROUPS`. A handler is `fn(&mut CommandContext, Value) -> CommandResult`, where `CommandResult = Result<Outcome, CommandError>` and `Outcome` is `Done(Value)` or `Pending(Box<dyn PendingCommand>)` (`pending(closure)` builds one). `parse_params` deserializes typed params, and `{}` stands in for missing params. `Automation::update` runs at the dispatch point (right after `session_cmd_queue.execute`). It polls pending commands first, then runs new console lines. There's no separate `CommandRegistry` type: the static tables are the registry.
+- **Starter commands:**
+  - `help`, `ping`, `version`, `quit`
+  - `session.state`, `session.list_presets`, `session.load_preset`, `session.list_saves`, `session.load_save`, `session.save`, `session.quit_to_menu`
+  - `sim.pause`, `sim.resume`, `sim.speed`, `cheats.list`, `cheats.set`
+  - `time.fixed_dt`, `wait.frames`
+  - `camera.state`, `camera.teleport`, `camera.zoom`
+  - `screenshot`, `console.clear`
+  - New supporting APIs: `Simulation::set_speed` / `speed_limits`, `Camera::snap_zoom`, `cli::resolve_launch_path`; `GameSession::save_game` is now `pub(crate)`.
+  - Still to do in Phase 2: the world, config, logs, stats, assert and remaining time commands; `save_game` / `load_save_game` returning the error text instead of `bool` (the commands point at the log for now).
+- **Console UI.** The text forms (`automation/text.rs`) are `name`, `name key=value ...` (values are JSON, or else plain text), `name {json}` or `{"method": .., "params": {..}}`. Results print under a `[console]` channel without being logged, so they don't count as errors or warnings. Lines typed into the field are queued in the viewer and run at the dispatch point, never inside the draw: the viewer holds its lock for the whole draw, and commands log.
+- **Access.** The [`] key opens and closes the viewer in every menus mode. It now draws from `GameLoop::menus_end_frame` instead of the DevEditor menus, with the dev font; the DevEditor "Show Log Viewer Window" checkbox stays in sync with it.
+- **Verified** under Xvfb with `xdotool`: typed commands in the HUD mode ran `help`, `sim.speed`, `session.load_preset` (pending, one frame), `session.state`, `screenshot` (pending, wrote the PNG), `camera.teleport` and `cheats.set`. An unknown command printed an error, and the up arrow recalled history. Headless runs flood the view with verbose ambient-sound lines (no audio device); filter them with Filter → Channels.
 - [ ] AGENTS.md: document `--script`, the scenario format, `help`, and the stdout exception to the logging rule.
 
 Implementation notes from the Phase 2 code survey (2026-10-14, against `8494da9`):

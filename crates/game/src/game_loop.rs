@@ -22,8 +22,9 @@ use engine::{
 };
 
 use crate::{
+    automation::{Automation, CommandContext},
     cheats,
-    debug,
+    debug::{self, log_viewer::LogViewer},
     launch,
     undo_redo,
     menu::GameMenusMode,
@@ -106,6 +107,10 @@ pub struct GameLoop {
     // Taken with the screenshot hotkey and not yet written.
     pending_screenshots: Vec<ScreenshotId>,
 
+    // Runs commands typed into the console (the log viewer).
+    automation: Automation,
+    log_viewer: LogViewer,
+
     stats: GameLoopStats,
 }
 
@@ -151,6 +156,8 @@ impl RunLoop for GameLoop {
             enable_autosave: configs.save.enable_autosave && smoke_test.is_none(),
             smoke_test,
             pending_screenshots: Vec::new(),
+            automation: Automation::default(),
+            log_viewer: LogViewer::new(),
             stats: GameLoopStats::default(),
         };
 
@@ -188,6 +195,14 @@ impl RunLoop for GameLoop {
         self.update_autosave();
         self.update_screenshots();
         self.session_cmd_queue.execute(&mut self.session, self.engine, self.configs);
+
+        // Automation commands run here: the world is unlocked and no SimContext is live.
+        self.automation.update(&mut CommandContext {
+            engine: self.engine,
+            session: &mut self.session,
+            session_cmds: &mut self.session_cmd_queue,
+            configs: self.configs,
+        });
 
         if self.smoke_test.is_some() {
             self.update_smoke_test(delta_time_secs);
@@ -526,6 +541,17 @@ impl GameLoop {
                     input_event = UiInputEvent::Handled;
                 }
 
+                // [`]: Open or close the console (log viewer), in any menus mode.
+                if input_event.not_handled()
+                    && action == InputAction::Press
+                    && key == InputKey::GraveAccent
+                    && !modifiers.intersects(InputModifiers::Control | InputModifiers::Alt | InputModifiers::Super)
+                {
+                    let is_open = self.log_viewer.is_open();
+                    self.log_viewer.show(!is_open);
+                    input_event = UiInputEvent::Handled;
+                }
+
                 if input_event.not_handled() {
                     self.menus_on_key_input(key, action, modifiers);
                 }
@@ -563,6 +589,7 @@ impl GameLoop {
     fn menus_end_frame(&mut self, visible_range: CellRange) {
         let ui_end_timer = PerfTimer::begin();
         self.session.menus_end_frame(self.engine, visible_range);
+        self.log_viewer.draw(self.engine.ui_system()); // Over the menus, in every mode.
         self.stats.ui_end_frame_time_ms = ui_end_timer.end();
     }
 

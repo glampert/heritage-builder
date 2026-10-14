@@ -179,18 +179,20 @@ impl DevEditorMenusSingleton {
         let show_render_perf_stats = self.debug_settings_menu.show_render_perf_stats();
         let show_world_perf_stats = self.debug_settings_menu.show_world_perf_stats();
         let show_selection_bounds = self.debug_settings_menu.show_selection_bounds();
-        let show_log_viewer_window = self.debug_settings_menu.show_log_viewer_window();
-
         let engine = Engine::get_mut();
-
-        if *show_log_viewer_window {
-            self.log_viewer.show(true);
-            *show_log_viewer_window = self.log_viewer.draw(context.ui_sys);
-        }
 
         self.tile_palette_menu.draw(context, engine.debug_draw_mut(), show_selection_bounds);
 
+        // The log viewer draws in every menus mode (GameLoop::menus_end_frame), and the [`] key
+        // or its close button can change it. Keep the checkbox in sync both ways.
+        *self.debug_settings_menu.show_log_viewer_window() = self.log_viewer.is_open();
+
         self.debug_settings_menu.draw(context, &self.log_viewer, &mut self.enable_dev_tile_inspector);
+
+        let show_log_viewer_window = *self.debug_settings_menu.show_log_viewer_window();
+        if show_log_viewer_window != self.log_viewer.is_open() {
+            self.log_viewer.show(show_log_viewer_window);
+        }
 
         if self.enable_dev_tile_inspector {
             self.tile_inspector_menu.draw(context);

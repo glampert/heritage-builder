@@ -222,7 +222,8 @@ pub fn path_value(name: &str) -> Option<PathBuf> {
     get().value(name).map(|value| resolve_launch_path(Path::new(value)))
 }
 
-fn resolve_launch_path(path: &Path) -> PathBuf {
+// Resolves a relative path against the directory the game was started from.
+pub fn resolve_launch_path(path: &Path) -> PathBuf {
     match LAUNCH_DIR.get() {
         Some(launch_dir) if path.is_relative() => launch_dir.join(path),
         _ => path.to_path_buf(),

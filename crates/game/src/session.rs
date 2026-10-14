@@ -728,7 +728,7 @@ struct SaveVersionProbe {
 }
 
 impl GameSession {
-    fn save_game(&mut self, save_file: PathRef) -> bool {
+    pub(crate) fn save_game(&mut self, save_file: PathRef) -> bool {
         log::info!(log::channel!("session"), "Saving game '{save_file}' ...");
 
         if !save::storage::can_write_save_file(save_file) {

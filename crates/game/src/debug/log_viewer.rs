@@ -1,3 +1,8 @@
+// Log viewer and in-game console. The window lists recent log lines, and its input field runs
+// automation commands (see crate::automation). Typed commands are queued here and run by the
+// GameLoop at its command dispatch point, never while the window draws: the viewer's lock is
+// held for the whole draw, and commands log.
+
 use std::{
     collections::{HashMap, VecDeque},
     sync::{Mutex, OnceLock},
@@ -6,6 +11,11 @@ use std::{
 use arrayvec::ArrayString;
 use common::format_fixed_string;
 use engine::{log, ui::UiSystem};
+
+// Console input and command results are shown under this channel. They aren't logged.
+const CONSOLE_CHANNEL: log::Channel = log::channel!("console");
+
+const MAX_CONSOLE_HISTORY: usize = 64;
 
 // ----------------------------------------------
 // LogViewerSingleton
@@ -20,6 +30,14 @@ struct LogViewerSingleton {
     max_lines: usize,
     lines: VecDeque<log::Record>,
     channel_filter: HashMap<log::Channel, bool>,
+
+    // Console:
+    console_input: String,
+    console_history: Vec<String>, // Oldest first.
+    console_history_pos: Option<usize>,
+    console_queue: Vec<String>, // Submitted, waiting for the GameLoop to run them.
+    scroll_to_bottom: bool,
+    focus_console_input: bool,
 }
 
 impl LogViewerSingleton {
@@ -33,6 +51,12 @@ impl LogViewerSingleton {
             max_lines,
             lines: VecDeque::with_capacity(max_lines),
             channel_filter: HashMap::new(),
+            console_input: String::new(),
+            console_history: Vec::new(),
+            console_history_pos: None,
+            console_queue: Vec::new(),
+            scroll_to_bottom: false,
+            focus_console_input: start_open,
         }
     }
 
@@ -50,12 +74,50 @@ impl LogViewerSingleton {
             _ => {}
         }
 
+        self.append_line(line);
+        self.auto_scroll = true;
+    }
+
+    // Console lines don't count towards the error and warning totals.
+    fn push_console_line(&mut self, level: log::Level, message: String) {
+        self.channel_filter.entry(CONSOLE_CHANNEL).or_insert(true);
+
+        self.append_line(log::Record {
+            seq: 0,
+            level,
+            channel: Some(CONSOLE_CHANNEL),
+            location: log::Location { file: file!(), line: line!(), module: module_path!() },
+            message,
+        });
+
+        self.scroll_to_bottom = true;
+    }
+
+    fn append_line(&mut self, line: log::Record) {
         if self.lines.len() == self.max_lines {
             self.lines.pop_front();
         }
-
         self.lines.push_back(line);
-        self.auto_scroll = true;
+    }
+
+    fn submit_console_input(&mut self) {
+        let text = self.console_input.trim().to_string();
+        self.console_input.clear();
+        self.console_history_pos = None;
+
+        if text.is_empty() {
+            return;
+        }
+
+        if self.console_history.last() != Some(&text) {
+            if self.console_history.len() == MAX_CONSOLE_HISTORY {
+                self.console_history.remove(0);
+            }
+            self.console_history.push(text.clone());
+        }
+
+        self.push_console_line(log::Level::Info, format!("> {text}"));
+        self.console_queue.push(text);
     }
 
     fn is_channel_enabled(&self, channel: &Option<log::Channel>) -> bool {
@@ -75,6 +137,9 @@ impl LogViewerSingleton {
     }
 
     fn show(&mut self, show: bool) {
+        if show && !self.is_window_open {
+            self.focus_console_input = true;
+        }
         self.is_window_open = show;
     }
 
@@ -86,11 +151,13 @@ impl LogViewerSingleton {
 
         let ui = ui_sys.ui();
 
+        // The viewer draws in every menus mode; keep the dev font so lines stay compact.
+        let _font = ui.push_font(ui_sys.fonts().dev_monospace);
+
         ui.window("Log Viewer")
             .opened(&mut is_window_open)
             .position([10.0, 20.0], imgui::Condition::FirstUseEver)
             .size([550.0, 350.0], imgui::Condition::FirstUseEver)
-            .horizontal_scrollbar(true)
             .menu_bar(true)
             .build(|| {
                 // Draw menu bar:
@@ -102,23 +169,32 @@ impl LogViewerSingleton {
                     }
                 }
 
-                // Draw log lines:
-                for line in &self.lines {
-                    if !self.is_channel_enabled(&line.channel) {
-                        continue;
+                // Checked before the child window, which takes focus from this one.
+                let is_window_focused = ui.is_window_focused_with_flags(imgui::WindowFocusedFlags::ROOT_AND_CHILD_WINDOWS);
+
+                // Log lines, in a child window above the console input.
+                let footer_height = ui.clone_style().item_spacing[1] + ui.frame_height_with_spacing();
+                ui.child_window("##log_lines").size([0.0, -footer_height]).horizontal_scrollbar(true).build(|| {
+                    for line in &self.lines {
+                        if !self.is_channel_enabled(&line.channel) {
+                            continue;
+                        }
+
+                        let color = line.level.color();
+                        ui.text_colored(color.to_array(), Self::line_prefix(line));
+                        ui.same_line();
+                        ui.text(&line.message);
                     }
 
-                    let color = line.level.color();
-                    ui.text_colored(color.to_array(), Self::line_prefix(line));
-                    ui.same_line();
-                    ui.text(&line.message);
-                }
+                    // Auto-scroll to bottom if we just added something.
+                    if self.scroll_to_bottom || (is_window_focused && self.auto_scroll) {
+                        ui.set_scroll_here_y_with_ratio(1.0);
+                        self.auto_scroll = false;
+                        self.scroll_to_bottom = false;
+                    }
+                });
 
-                // Auto-scroll to bottom if we just added something.
-                if ui.is_window_focused() && self.auto_scroll {
-                    ui.set_scroll_here_y_with_ratio(1.0);
-                    self.auto_scroll = false;
-                }
+                self.draw_console_input(ui);
 
                 if self.is_channel_filter_window_open {
                     self.draw_channel_filter_child_window(ui);
@@ -131,6 +207,30 @@ impl LogViewerSingleton {
 
         self.is_window_open = is_window_open;
         is_window_open
+    }
+
+    fn draw_console_input(&mut self, ui: &imgui::Ui) {
+        if self.focus_console_input {
+            ui.set_keyboard_focus_here();
+            self.focus_console_input = false;
+        }
+
+        ui.set_next_item_width(-1.0);
+
+        let entered = ui
+            .input_text("##console_input", &mut self.console_input)
+            .hint("Command, e.g. help, or help command=sim.speed")
+            .enter_returns_true(true)
+            .callback(
+                imgui::InputTextCallback::HISTORY,
+                ConsoleHistory { history: &self.console_history, position: &mut self.console_history_pos },
+            )
+            .build();
+
+        if entered {
+            self.submit_console_input();
+            self.focus_console_input = true; // Enter takes focus away from the field.
+        }
     }
 
     fn line_prefix(line: &log::Record) -> ArrayString<128> {
@@ -147,6 +247,37 @@ impl LogViewerSingleton {
                     ui.checkbox(channel.name, is_enabled);
                 }
             });
+    }
+}
+
+// ----------------------------------------------
+// ConsoleHistory
+// ----------------------------------------------
+
+// Up and down arrows in the console input step through earlier commands.
+// Runs inside the input widget, under the viewer's lock, so it must not log.
+struct ConsoleHistory<'a> {
+    history: &'a [String],
+    position: &'a mut Option<usize>, // None while editing a new line.
+}
+
+impl imgui::InputTextCallbackHandler for ConsoleHistory<'_> {
+    fn on_history(&mut self, direction: imgui::HistoryDirection, mut data: imgui::TextCallbackData) {
+        let previous = *self.position;
+
+        *self.position = match (direction, previous) {
+            (imgui::HistoryDirection::Up, None) => self.history.len().checked_sub(1),
+            (imgui::HistoryDirection::Up, Some(index)) => Some(index.saturating_sub(1)),
+            (imgui::HistoryDirection::Down, Some(index)) if index + 1 < self.history.len() => Some(index + 1),
+            (imgui::HistoryDirection::Down, _) => None,
+        };
+
+        if *self.position != previous {
+            data.clear();
+            if let Some(index) = *self.position {
+                data.push_str(&self.history[index]);
+            }
+        }
     }
 }
 
@@ -205,6 +336,34 @@ impl LogViewer {
         let mut viewer = log_viewer_singleton().lock().unwrap();
 
         viewer.show(show);
+    }
+
+    pub fn is_open(&self) -> bool {
+        let viewer = log_viewer_singleton().lock().unwrap();
+
+        viewer.is_window_open
+    }
+
+    // Commands typed into the console since the last call, oldest first.
+    // Empty if the viewer was never initialized (in tests, for instance).
+    pub fn take_console_input() -> Vec<String> {
+        LOG_VIEWER_SINGLETON
+            .get()
+            .map(|viewer| std::mem::take(&mut viewer.lock().unwrap().console_queue))
+            .unwrap_or_default()
+    }
+
+    // Shows a command result in the console. Must not be called while the viewer draws.
+    pub fn print_console_output(level: log::Level, text: &str) {
+        if let Some(viewer) = LOG_VIEWER_SINGLETON.get() {
+            viewer.lock().unwrap().push_console_line(level, text.to_string());
+        }
+    }
+
+    pub fn clear() {
+        if let Some(viewer) = LOG_VIEWER_SINGLETON.get() {
+            viewer.lock().unwrap().lines.clear();
+        }
     }
 
     pub fn set_enabled_channels(&mut self, channels: &[(log::Channel, bool)]) {

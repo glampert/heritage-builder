@@ -245,6 +245,17 @@ impl Simulation {
         self.speed = (self.speed - 1.0).max(Self::MIN_SIM_SPEED);
     }
 
+    #[inline]
+    pub fn speed_limits(&self) -> (f32, f32) {
+        (Self::MIN_SIM_SPEED, Self::MAX_SIM_SPEED)
+    }
+
+    // Clamped to speed_limits().
+    #[inline]
+    pub fn set_speed(&mut self, speed: f32) {
+        self.speed = speed.clamp(Self::MIN_SIM_SPEED, Self::MAX_SIM_SPEED);
+    }
+
     // ----------------------
     // Callbacks:
     // ----------------------
