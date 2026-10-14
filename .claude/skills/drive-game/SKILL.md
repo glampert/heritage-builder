@@ -31,6 +31,17 @@ All three run the same commands with the same JSON parameters and results.
 - Screenshots: the MCP `screenshot` tool returns the image at window-point resolution. `hb-ctl screenshot out/x.png`, or `screenshot path=out/x.png` in a script. `include_ui=false` shows the scene only. `camera.teleport cell=[x,y]` and `camera.zoom zoom=2` frame the shot.
 - Coordinates: cells are `[x, y]` map cells. `camera.cell_to_screen` and `camera.screen_to_cell` convert to and from window points (the units of point-resolution screenshots).
 
+## Play through the UI
+
+To test what a player sees, drive the menus and the map with the simulated mouse and keyboard:
+- `ui.tree` lists the widgets on screen with their paths and rects (`filter=...` narrows it). `ui.click path="New Game"` clicks one by path, label or tooltip; `ui.set path="New Map Width" value=64` sets inputs, checkboxes, sliders, dropdowns and lists.
+- Build palette: `ui.click path=Services`, then `ui.click path=Apothecary`, then `input.click cell=[8,8]`. Roads: `ui.click path=Roads`, `ui.click path="Dirt Road"`, `input.drag from=[5,5] to=[5,12] cells=true`. `input.key key=Escape` drops the tool.
+- `input.click point=[x,y]` clicks a window point (from `ui.tree` or a points screenshot); `input.key key=Slash modifiers=["ctrl"]` sends shortcuts; `input.type text=...` types into the focused field.
+- Gestures ignore the real mouse and keyboard while they run (input capture). A person at the machine gets them back with Shift+Esc, or you with `input.capture on=false`.
+- `dialog.open name=LoadGame` / `dialog.close` jump straight to a dialog.
+- After clicks the cursor stays put, and the tile under it is highlighted. `input.move park=true` before a screenshot.
+- Examples: `crates/game/tests/scenarios/ui_new_game.jsonl` and `ui_build.jsonl`.
+
 ## Check and debug
 
 - Logs: `logs.tail min_level=Warning` (MCP), or `hb-ctl logs --follow` (prints `panic` and `session.changed` too).

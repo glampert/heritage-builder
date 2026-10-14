@@ -1,6 +1,6 @@
 # Agent automation and in-game screenshots
 
-**Status (2026-10-14):** Approved 2026-10-11. Phase 0 done (merged with PR #1). Phases 1–4 done on the `claude` branch: screenshots, the command registry with script mode and the in-game console, the live control server with `hb-ctl`, and the MCP server with its agent skill. Phases 5–7 are next. See [Handoff](#handoff-2026-10-14) for the move to a local machine.
+**Status (2026-10-14):** Approved 2026-10-11. Phase 0 done (merged with PR #1). Phases 1–5 done on the `claude` branch: screenshots, the command registry with script mode and the in-game console, the live control server with `hb-ctl`, the MCP server with its agent skill, and simulated input with UI automation. Phases 6–7 are next. See [Handoff](#handoff-2026-10-14) for the move to a local machine.
 
 This plan lets AI agents launch the game, drive it, inspect it and debug it. It also adds framebuffer screenshots, which ship to players as well. It was researched against commit `9f26ef8` on the `claude` branch. File and line references point at that commit, so re-check them before relying on them.
 
@@ -464,17 +464,30 @@ Notes (2026-10-14, local Mac):
 
 ### Phase 5: Simulated input and UI automation (large)
 
-- [ ] `VirtualInput` in `InputSystem`, `Application::push_synthetic_event`, and input capture mode with the badge.
-- [ ] Engine input timeline applied at the start of `Engine::begin_frame`. Gestures: click, drag, key, type, scroll.
-- [ ] `camera.cell_to_screen` / `camera.screen_to_cell`, and `cell` targets on input commands.
-- [ ] Widget registry in `UiSystem`, leaf-widget recording, and path segments in menus and groups.
-- [ ] `ui.tree`, `ui.click`, `ui.set`, `dialog.open` / `dialog.close` / `dialog.current`.
+- [x] `VirtualInput` in `InputSystem`, `Application::push_synthetic_event`, and input capture mode with the badge.
+- [x] Engine input timeline applied at the start of `Engine::begin_frame`. Gestures: click, drag, key, type, scroll.
+- [x] `camera.cell_to_screen` / `camera.screen_to_cell`, and `cell` targets on input commands.
+- [x] Widget registry in `UiSystem`, leaf-widget recording, and path segments in menus and groups.
+- [x] `ui.tree`, `ui.click`, `ui.set`, `dialog.open` / `dialog.close` / `dialog.current`.
 
 Done when:
 - A script starts a new game from the home menu using only `ui.click`.
 - A script picks a building in the HUD palette with `ui.click` and places it with `input.click {cell}`.
 - Real mouse movement has no effect while capture is on, and turning capture off restores normal input.
 - `ui.tree` rects line up with what screenshots show.
+
+Notes (2026-10-14, local Mac):
+- **Simulated input.** `VirtualInput` replaces the backends' answers in `InputSystem` while capture is on. Deviation: no `Application::push_synthetic_event`; the engine's input timeline returns each frame's events and `Engine::poll_app_events` merges them after filtering the real ones, which keeps routing unchanged. Each gesture ends with one idle frame, so its command finishes after the game has handled it.
+- **Capture** pauses cursor confinement in both app backends (`pause_cursor_confinement`). `--capture-input` starts with it on; script mode and `hb-ctl launch` use it, so a person's mouse can't scroll the map in the middle of a run. A real Shift+Esc gives input back (added: otherwise a person couldn't even reach the console). The badge draws on the foreground draw list, like toasts, and stays out of captures.
+- **Camera edge scrolling** now ignores cursors outside the window: the parked virtual cursor sits off-window, and a real cursor over another app no longer scrolls the map either.
+- **Cell targets** center the camera on the cell unless it's already in the middle 60% of the window, clear of the HUD panels along the edges and of the edge-scroll margin.
+- **Widget registry** ([ui/registry.rs](../../crates/engine/src/ui/registry.rs)). Paths: menu labels, labeled-group labels, then the widget's label; sprite buttons use their sprite's file name (`TilePaletteMenu/housing`), and ImGui id suffixes and slashes are cleaned out. Text labels and headings are recorded too, so `ui.tree` shows what dialogs say. `ui.set` values are queued and applied by the widget's next draw through its own update callback; unclaimed ones expire after two frames.
+- **Timing fixes found while testing:**
+  - After a session switch, the old menus' modal popup stays in ImGui's popup stack for two frames and takes the mouse; a scroll sent then was lost. Session commands now finish two frames after the switch.
+  - Widgets of a dialog opened by a click appear one frame later. `ui.click` finishes one frame after its gesture, and `ui.click` / `ui.set` wait up to 30 frames for a missing widget.
+  - Scaling screenshots with `imageops::resize` took over a second in debug builds (generic code compiles in the engine, unoptimized). `DynamicImage::resize_exact` is compiled in the optimized `image` crate: 7 frames instead of 90.
+- **Verified** on macOS: `ui_new_game.jsonl` (home menu to a 64x96 dirt map through the New Game dialog) and `ui_build.jsonl` (palette, map click, road drag, Undo button) pass; HUD point clicks paused and resumed the simulation; Ctrl+/ toggled the menus; wheel zoom works when the config allows it (the default config turns it off). `ui.tree` rects match the screenshots (e.g. "Start New Game" at [151, 382, 165, 28]).
+- **Not verified:** real mouse movement while captured; there's no way to post real mouse events on this machine. By construction, every cursor, button and key query goes through `VirtualInput` while captured, and real input events other than quit and resize are dropped before routing.
 
 ### Phase 6: Web and CI (medium)
 

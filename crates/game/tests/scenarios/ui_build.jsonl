@@ -1,0 +1,19 @@
+# Builds through the HUD as a player would: picks tools in the build palette with ui.click, clicks
+# a map cell to place a building, and drags to draw a road. From the repository root:
+#   cargo run -p HeritageBuilder -- --script crates/game/tests/scenarios/ui_build.jsonl
+{"method": "time.fixed_dt", "params": {"dt": 0.016667}}
+{"method": "session.new_map", "params": {"size": [16, 16]}}
+{"method": "ui.click", "params": {"path": "Services"}}
+{"method": "ui.click", "params": {"path": "Apothecary"}}
+{"method": "input.click", "params": {"cell": [8, 8]}}
+{"method": "assert.eq", "params": {"query": "world.building_at", "args": {"cell": [8, 8]}, "path": "/kind", "value": "Apothecary"}}
+{"method": "ui.click", "params": {"path": "Roads"}}
+{"method": "ui.click", "params": {"path": "Dirt Road"}}
+{"method": "input.drag", "params": {"from": [5, 5], "to": [5, 12], "cells": true}}
+{"method": "assert.eq", "params": {"query": "tile.at", "args": {"cell": [5, 9]}, "path": "/terrain/name", "value": "dirt_road"}}
+{"method": "assert.eq", "params": {"query": "sim.state", "path": "/gold", "value": 88}}
+{"method": "input.key", "params": {"key": "Escape"}}
+{"method": "ui.click", "params": {"path": "Undo"}}
+{"method": "assert.eq", "params": {"query": "tile.at", "args": {"cell": [5, 9]}, "path": "/terrain/name", "value": "grass"}}
+{"method": "input.move", "params": {"park": true}}
+{"method": "screenshot", "params": {"path": "out/ui_build.png", "scale": "points"}}

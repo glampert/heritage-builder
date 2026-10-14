@@ -58,6 +58,12 @@ pub const ENGINE_CLI_OPTIONS: &[CliOption] = &[
     },
     CliOption { name: "screenshot-no-ui", value_name: None, help: "Leave the UI out of --screenshot-after-frames." },
     CliOption {
+        name: "capture-input",
+        value_name: None,
+        help: "Start with input capture on: the game ignores the real mouse and keyboard and takes simulated \
+               input from automation commands (input.*, ui.click).",
+    },
+    CliOption {
         name: "automation",
         value_name: Some("[PORT]"),
         help: "Accept automation commands over a localhost connection, on PORT (default 7878; 0 picks a free one). \

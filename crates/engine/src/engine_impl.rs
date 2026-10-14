@@ -10,7 +10,12 @@ use common::{
 
 use crate::{
     app::{Application, ApplicationEvent, ApplicationEventList, input::*},
-    automation::{Request, RequestQueue, RequestSender},
+    automation::{
+        Request,
+        RequestQueue,
+        RequestSender,
+        input::{GestureId, InputStep, InputTimeline},
+    },
     cli::{self, OneShotScreenshotOptions},
     config::EngineConfigs,
     log,
@@ -56,6 +61,10 @@ pub struct Engine {
 
     #[cfg(feature = "desktop")]
     automation_server: Option<crate::automation::server::AutomationServer>,
+
+    // Simulated input (see automation/input.rs).
+    input_captured: bool,
+    input_timeline: InputTimeline,
 
     exit_code: i32,
 
@@ -244,6 +253,44 @@ impl Engine {
         let _ = (method, params);
     }
 
+    // Lets automation drive the input: the InputSystem reports a virtual mouse and keyboard, real
+    // input is ignored (except quitting and resizing), and cursor confinement stops moving the real
+    // cursor. Turning it off drops unfinished gestures and gives the real devices back.
+    pub fn set_input_capture(&mut self, capture: bool) {
+        if capture == self.input_captured {
+            return;
+        }
+
+        self.input_captured = capture;
+
+        if capture {
+            self.app.input_system_mut().set_virtual_input(Some(VirtualInput::new()));
+        } else {
+            self.input_timeline.cancel();
+            self.app.input_system_mut().set_virtual_input(None);
+        }
+
+        self.app.pause_cursor_confinement(capture);
+        log::info!(log::channel!("engine"), "Input capture {}.", if capture { "on" } else { "off" });
+    }
+
+    #[inline]
+    pub fn is_input_captured(&self) -> bool {
+        self.input_captured
+    }
+
+    // Plays a gesture (see automation/input.rs) on the virtual input, starting next frame. Turns
+    // input capture on.
+    pub fn queue_input_gesture(&mut self, steps: Vec<InputStep>) -> GestureId {
+        self.set_input_capture(true);
+        self.input_timeline.push_gesture(steps)
+    }
+
+    #[inline]
+    pub fn is_input_gesture_done(&self, id: GestureId) -> bool {
+        self.input_timeline.is_gesture_done(id)
+    }
+
     #[inline]
     pub fn app_events(&self) -> &ApplicationEventList {
         &self.frame_events
@@ -259,7 +306,13 @@ impl Engine {
         self.frame_clock.begin_frame();
         platform::set_crash_report_frame(self.frame_clock.frame_number());
 
-        self.frame_events = self.poll_app_events();
+        // Simulated input first, so this frame's events and ImGui see it.
+        let simulated_events = match self.app.input_system_mut().virtual_input_mut() {
+            Some(virtual_input) => self.input_timeline.apply_frame(virtual_input),
+            None => ApplicationEventList::new(),
+        };
+
+        self.frame_events = self.poll_app_events(simulated_events);
 
         let input_sys = self.app.input_system();
 
@@ -276,10 +329,11 @@ impl Engine {
 
         self.request_one_shot_screenshot();
 
-        // Keep toasts out of screenshots.
-        let draw_toasts = !self.render_system.has_pending_ui_capture();
+        // Keep toasts and the input capture badge out of screenshots.
+        let draw_overlays = !self.render_system.has_pending_ui_capture();
+        let badge = self.input_captured.then_some("AUTOMATION: input captured. Shift+Esc to take over");
 
-        let mut ui_frame_bundle = self.ui_system.end_frame(self.render_system.clone(), draw_toasts);
+        let mut ui_frame_bundle = self.ui_system.end_frame(self.render_system.clone(), draw_overlays, badge);
         self.render_stats = self.render_system.end_frame(&mut ui_frame_bundle);
 
         let present_timer = PerfTimer::begin();
@@ -318,6 +372,10 @@ impl Engine {
 
         engine.one_shot_screenshot =
             cli::one_shot_screenshot().map(|options| OneShotScreenshot { options, id: None });
+
+        if cli::get().has("capture-input") {
+            engine.set_input_capture(true);
+        }
 
         #[cfg(feature = "desktop")]
         if let Some(port) = cli::automation_port() {
@@ -374,6 +432,8 @@ impl Engine {
             automation_requests: RequestQueue::new(),
             #[cfg(feature = "desktop")]
             automation_server: None,
+            input_captured: false,
+            input_timeline: InputTimeline::default(),
             exit_code: 0,
         }
     }
@@ -383,10 +443,32 @@ impl Engine {
     // ----------------------
 
     #[must_use]
-    fn poll_app_events(&mut self) -> ApplicationEventList {
+    fn poll_app_events(&mut self, simulated_events: ApplicationEventList) -> ApplicationEventList {
         let mut events_forwarded = ApplicationEventList::new();
 
-        for event in self.app.poll_events() {
+        let real_events = self.app.poll_events();
+
+        // While automation drives the input, real input events only quit or resize, except for
+        // Shift+Esc, which lets a person take over.
+        if self.input_captured {
+            let take_over = real_events.iter().any(|event| {
+                matches!(event, ApplicationEvent::KeyInput(InputKey::Escape, InputAction::Press, modifiers)
+                    if modifiers.intersects(InputModifiers::Shift))
+            });
+            if take_over {
+                log::info!(log::channel!("engine"), "Shift+Esc: taking input back from automation.");
+                self.set_input_capture(false);
+            }
+        }
+
+        let input_captured = self.input_captured;
+        let events: ApplicationEventList = real_events
+            .into_iter()
+            .filter(|event| !input_captured || matches!(event, ApplicationEvent::Quit | ApplicationEvent::WindowResize { .. }))
+            .chain(simulated_events)
+            .collect();
+
+        for event in events {
             match event {
                 ApplicationEvent::Quit => {
                     self.app.request_quit();

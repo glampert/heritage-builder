@@ -41,8 +41,11 @@ pub use debug_ui::DrawDebugUi;
 // Internal implementation.
 mod internal;
 mod renderer;
+mod registry;
 mod toast;
 use renderer::UiRenderer;
+use registry::UiWidgetRegistry;
+pub use registry::UiWidgetInfo;
 use toast::UiToasts;
 
 // usize::MAX == invalid/unset
@@ -110,6 +113,7 @@ struct UiSystemInner {
     current_font_scale: Option<UiFontScale>,
     show_ui_debug_menu: bool,
     toasts: UiToasts,
+    widget_registry: UiWidgetRegistry,
     delta_time_secs: Seconds,
 }
 
@@ -124,6 +128,7 @@ impl UiSystem {
             current_font_scale: None,
             show_ui_debug_menu: false,
             toasts: UiToasts::default(),
+            widget_registry: UiWidgetRegistry::default(),
             delta_time_secs: 0.0,
         };
 
@@ -138,6 +143,8 @@ impl UiSystem {
 
         let theme_font_handle = self.inner.context.fonts.front_for_theme(self.inner.current_theme);
 
+        self.inner.widget_registry.begin_frame();
+
         let ui = self.inner.context.begin_frame(app, input_sys, delta_time_secs);
 
         internal::push_font(ui, theme_font_handle);
@@ -146,15 +153,25 @@ impl UiSystem {
         self.inner.delta_time_secs = delta_time_secs;
     }
 
-    // `draw_toasts` false keeps toasts off this frame, e.g. while it's being captured.
+    // `draw_overlays` false keeps toasts and the badge off this frame, e.g. while it's being
+    // captured. `badge`: a status line at the top of the screen, such as automation's.
     #[inline]
-    pub fn end_frame(&mut self, render_sys: RcMut<RenderSystem>, draw_toasts: bool) -> UiRenderFrameBundle<'_> {
+    pub fn end_frame(
+        &mut self,
+        render_sys: RcMut<RenderSystem>,
+        draw_overlays: bool,
+        badge: Option<&str>,
+    ) -> UiRenderFrameBundle<'_> {
         debug_assert!(self.frame_started());
 
         // Last, so toasts draw over everything else. Uses the theme font, which is still pushed.
         let ui_ptr = self.inner.ui_ptr.unwrap(); // A copy, so `toasts` can be borrowed mutably.
         let delta_time_secs = self.inner.delta_time_secs;
-        self.inner.toasts.update(ui_ptr.as_ref(), delta_time_secs, draw_toasts);
+        self.inner.toasts.update(ui_ptr.as_ref(), delta_time_secs, draw_overlays);
+
+        if let Some(badge) = badge.filter(|_| draw_overlays) {
+            toast::draw_badge(ui_ptr.as_ref(), badge);
+        }
 
         internal::pop_font(self.ui());
 
@@ -179,6 +196,76 @@ impl UiSystem {
     #[inline]
     pub fn show_toast(&self, text: impl Into<String>) {
         self.inner.as_mut().toasts.push(text.into());
+    }
+
+    // ----------------------
+    // Widget registry (UI automation, see registry.rs):
+    // ----------------------
+
+    #[inline]
+    pub fn set_widget_registry_enabled(&self, enabled: bool) {
+        self.inner.as_mut().widget_registry.set_enabled(enabled);
+    }
+
+    #[inline]
+    pub fn is_widget_registry_enabled(&self) -> bool {
+        self.inner.widget_registry.is_enabled()
+    }
+
+    // The widgets drawn last frame, in drawing order. Empty while the registry is off.
+    #[inline]
+    pub fn widgets(&self) -> &[UiWidgetInfo] {
+        self.inner.widget_registry.widgets()
+    }
+
+    // Sets a widget's value on its next draw, through its own update callback (ui.set).
+    #[inline]
+    pub fn queue_widget_value(&self, path: String, value: serde_json::Value) {
+        self.inner.as_mut().widget_registry.queue_value(path, value);
+    }
+
+    #[inline]
+    pub(crate) fn push_widget_path(&self, segment: &str) {
+        self.inner.as_mut().widget_registry.push_path(segment);
+    }
+
+    #[inline]
+    pub(crate) fn pop_widget_path(&self) {
+        self.inner.as_mut().widget_registry.pop_path();
+    }
+
+    // Records the last ImGui item as a widget and returns its path, or None while the registry is off.
+    pub(crate) fn record_widget(
+        &self,
+        kind: &'static str,
+        label: &str,
+        tooltip: Option<&str>,
+        enabled: bool,
+        value: Option<serde_json::Value>,
+    ) -> Option<String> {
+        if !self.is_widget_registry_enabled() {
+            return None;
+        }
+
+        let ui = self.ui();
+        let rect = Rect::from_pos_and_size(Vec2::from_array(ui.item_rect_min()), Vec2::from_array(ui.item_rect_size()));
+
+        self.inner.as_mut().widget_registry.record(UiWidgetInfo {
+            path: String::new(),
+            kind,
+            label: label.to_string(),
+            tooltip: tooltip.map(str::to_string),
+            rect,
+            enabled,
+            hovered: ui.is_item_hovered(),
+            value,
+        })
+    }
+
+    // A value queued for the widget at `path` by ui.set.
+    #[inline]
+    pub(crate) fn take_widget_value(&self, path: &str) -> Option<serde_json::Value> {
+        self.inner.as_mut().widget_registry.take_value(path)
     }
 
     #[inline]

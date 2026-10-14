@@ -77,6 +77,21 @@ pub(super) const COMMANDS: &[CommandDef] = &[
 
 // Map sizes session.new_map accepts, in cells per side.
 const NEW_MAP_SIZE_LIMITS: (i32, i32) = (8, 512);
+
+// Frames session changes wait before they finish. The old menus' popups stay open in ImGui for a
+// couple of frames after a switch, and take the mouse until they close; input gestures sent
+// before then would be lost.
+const SESSION_SETTLE_FRAMES: u64 = 2;
+
+// Finishes `settle` frames after the session command queue has run (it runs at the start of the
+// next frame), with `reply_fn`'s result.
+fn after_session_settles<F>(context: &CommandContext, queued: bool, mut reply_fn: F) -> CommandResult
+where
+    F: FnMut(&mut CommandContext) -> Value + 'static,
+{
+    let done_frame = context.frame() + u64::from(queued) + SESSION_SETTLE_FRAMES;
+    pending(move |context| (context.frame() >= done_frame).then(|| Ok(reply_fn(context))))
+}
 const DEFAULT_NEW_MAP_TERRAIN: &str = "grass";
 
 #[derive(Deserialize)]
@@ -152,7 +167,8 @@ fn cmd_new_map(context: &mut CommandContext, params: Value) -> CommandResult {
     campaign::reset();
     session::replace_with_new_game(context.session, context.engine, context.configs, &load_map_setting);
 
-    done(json!({ "map_size": [size.width, size.height], "terrain": terrain_tile_def.name }))
+    let reply = json!({ "map_size": [size.width, size.height], "terrain": terrain_tile_def.name });
+    after_session_settles(context, false, move |_| reply.clone())
 }
 
 fn cmd_list_presets(_context: &mut CommandContext, _params: Value) -> CommandResult {
@@ -188,13 +204,9 @@ fn cmd_load_preset(context: &mut CommandContext, params: Value) -> CommandResult
     campaign::reset();
     context.session_cmds.push_load_preset_map(params.preset);
 
-    // The session command queue runs at the start of the next frame, before this is polled.
-    let requested_frame = context.frame();
-    pending(move |context| {
-        (context.frame() > requested_frame).then(|| {
-            let map_size = context.session.tile_map().size_in_cells();
-            Ok(json!({ "preset": params.preset, "name": preset_name, "map_size": [map_size.width, map_size.height] }))
-        })
+    after_session_settles(context, true, move |context| {
+        let map_size = context.session.tile_map().size_in_cells();
+        json!({ "preset": params.preset, "name": preset_name, "map_size": [map_size.width, map_size.height] })
     })
 }
 
@@ -216,7 +228,8 @@ fn cmd_load_save(context: &mut CommandContext, params: Value) -> CommandResult {
         .map_err(CommandError::failed)?;
 
     let map_size = context.session.tile_map().size_in_cells();
-    done(json!({ "name": params.name, "map_size": [map_size.width, map_size.height] }))
+    let reply = json!({ "name": params.name, "map_size": [map_size.width, map_size.height] });
+    after_session_settles(context, false, move |_| reply.clone())
 }
 
 fn cmd_save(context: &mut CommandContext, params: Value) -> CommandResult {
@@ -239,9 +252,7 @@ fn cmd_checksum(context: &mut CommandContext, _params: Value) -> CommandResult {
 
 fn cmd_quit_to_menu(context: &mut CommandContext, _params: Value) -> CommandResult {
     context.session_cmds.push_quit_to_main_menu();
-
-    let requested_frame = context.frame();
-    pending(move |context| (context.frame() > requested_frame).then_some(Ok(Value::Null)))
+    after_session_settles(context, true, |_| Value::Null)
 }
 
 #[derive(Copy, Clone, PartialEq, Eq, Display, EnumString, Deserialize)]

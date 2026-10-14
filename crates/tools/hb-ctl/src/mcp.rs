@@ -220,6 +220,7 @@ impl McpServer<'_> {
         let launch_args = LaunchArgs {
             release: arguments["release"].as_bool().unwrap_or(false),
             build: true,
+            capture_input: true,
             wait: Duration::from_secs(600),
             game_args,
         };

@@ -20,6 +20,7 @@ Command-line options (`cargo run -p HeritageBuilder -- --help` lists them all):
 - `--screenshot-after-frames N --screenshot-out PATH` saves a PNG of frame N and quits: status 0 if it was written, 1 if not. Add `--screenshot-no-ui` to leave the UI out. A relative `PATH` is relative to the directory the game was started from, not `base_path`.
 - `--script FILE` runs automation commands from a file and quits: status 0 if all succeeded, 1 if not, 2 if the file can't be read or has invalid lines. See [Script mode](#script-mode).
 - `--automation[=PORT]` accepts commands from outside tools over localhost. See [Live control](#live-control).
+- `--capture-input` starts with input capture on: the game ignores the real mouse and keyboard and takes simulated input. See [Simulated input and UI automation](#simulated-input-and-ui-automation).
 - Unknown options exit with status 2. Options are declared in `engine::cli::ENGINE_CLI_OPTIONS` ([cli.rs](crates/engine/src/cli.rs)) and `game::launch::GAME_CLI_OPTIONS` ([launch.rs](crates/game/src/launch.rs)).
 - Apply an option where its value is used. Don't write it into `GameConfigs`: the settings dialog saves the whole struct back to `configs.json`.
 
@@ -33,7 +34,7 @@ Console and automation commands: the [`] key opens the log viewer, whose input f
 - Commands live in `crate::automation` ([automation/mod.rs](crates/game/src/automation/mod.rs)): one `CommandDef` table per area in `automation/commands/`, listed in `COMMAND_GROUPS`. The console, script mode and outside tools (through the engine's request queue, `engine::automation`) all run them.
 - They run once per frame, right after the session command queue, where the world is unlocked and no `SimContext` is live. Commands that span frames return `pending(..)` and must keep ids, not references: a session load replaces the world.
 - Parse params with `parse_params` into a `#[serde(deny_unknown_fields)]` struct, and validate before calling anything that panics or asserts on bad input (cell bounds, preset numbers, save names). The console only queues typed lines; never run commands from inside UI drawing.
-- World edits go through `GameSession::with_sim_context` and the player's own paths (`TilePlacement::place`, `clear`, `place_road_segment`). The world stats (treasury, population) are only recounted on simulation steps, so they read zero right after a load; commands that place or report them call `refresh_world_stats` first.
+- World edits go through `GameSession::with_sim_context` and the player's own paths (`TilePlacement::place`, `clear`, `place_road_segment`). The world stats (treasury, population) are recounted on simulation steps and when a session is created or loaded, not after an edit; commands that place or report them call `refresh_world_stats` first.
 
 ### Script mode
 
@@ -54,6 +55,16 @@ Console and automation commands: the [`] key opens the log viewer, whose input f
 - Every desktop panic writes `logs/crash-<timestamp>.txt` with the message, backtrace, frame and recent log records. `debug.panic` crashes the game on purpose to test this.
 - MCP: `hb-ctl mcp` serves the commands as MCP tools over stdio, and the project's [.mcp.json](.mcp.json) registers it with Claude Code as `heritage-builder`. Tools: `game_launch` (quit again when the client disconnects), `game_connect`, `game_call`, and one per command with dots as underscores (`world_place`), listed once a game is connected. `screenshot` returns the image, at window-point resolution unless `scale` says otherwise.
 - The [drive-game skill](.claude/skills/drive-game/SKILL.md) has recipes for launching, driving, screenshots and debugging.
+
+### Simulated input and UI automation
+
+- `input.move|click|drag|key|type|scroll` play gestures on a virtual mouse and keyboard over several frames, since input is polled once a frame: a click is a hover, a press on the next frame and a release on the one after. Targets are window points, or map cells (the camera centers on the cell first unless it's in the middle of the screen). The timeline is [automation/input.rs](crates/engine/src/automation/input.rs); `VirtualInput` lives in [app/input.rs](crates/engine/src/app/input.rs).
+- Input capture: while on, the `InputSystem` reports the virtual state, real input events are dropped (except quitting and resizing), and cursor confinement stops moving the real cursor. Gestures turn it on; `input.capture on=false` turns it off, and so does a real Shift+Esc. Script mode and `hb-ctl launch` start with it on (`--capture-input`). A badge says so on screen, but not in screenshots.
+- `ui.tree` lists the retained widgets drawn last frame: path (menu and labeled-group labels, then the widget's own), kind, rect in window points, enabled, value. Widgets record themselves in their `draw` through `UiSystem::record_widget` ([ui/registry.rs](crates/engine/src/ui/registry.rs)); the registry is off until a `ui.*` command turns it on.
+- `ui.click path=...` takes a full path, the end of one ("Start New Game"), a label or a tooltip, waits up to 30 frames for the widget to appear, and finishes once the click's result has drawn once. `ui.set` sets checkboxes, sliders, number and text inputs, dropdowns and lists through the widget's own update callback. `dialog.list|current|open|close` wrap `menu::dialog`.
+- Session switches (`session.load_preset`, `new_map`, `load_save`, `quit_to_menu`) finish two frames late: the old menus' ImGui popups take the mouse until they close, and gestures sent before then are lost.
+- Camera edge scrolling ignores a cursor outside the window, such as the virtual cursor parked by `input.move park=true`. Park it before screenshots so no tile shows the hover highlight.
+- Developer menus (DevEditor, debug windows) are immediate-mode ImGui and don't record widgets; drive them with point clicks and screenshots.
 
 MacOS `.app` bundle (wraps `cargo bundle` + asset copy):
 - `./bundle.sh` / `./bundle.sh release`

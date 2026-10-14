@@ -132,4 +132,8 @@ impl ApplicationBackend for GlfwApplicationBackend {
     fn content_scale(&self) -> Vec2 {
         self.window_manager.content_scale()
     }
+
+    fn pause_cursor_confinement(&mut self, paused: bool) {
+        self.window_manager.pause_cursor_confinement(paused);
+    }
 }

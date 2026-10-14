@@ -161,6 +161,11 @@ impl RunLoop for GameLoop {
         // Scripts save when they mean to, and an autosave would make their runs differ.
         let enable_autosave = configs.save.enable_autosave && smoke_test.is_none() && script.is_none();
 
+        // Scripts drive the input: the real mouse mustn't scroll the map in the middle of one.
+        if script.is_some() {
+            engine.set_input_capture(true);
+        }
+
         // Create Session and GameLoop:
         let session = session::create_initial(engine, configs, launch_options).unwrap_or_else(|err| cli::fail(&err));
         let game_loop = Self {

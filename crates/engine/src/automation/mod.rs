@@ -9,6 +9,8 @@ use std::sync::mpsc;
 
 use serde_json::Value;
 
+pub mod input;
+
 #[cfg(feature = "desktop")]
 pub mod server;
 

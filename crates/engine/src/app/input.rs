@@ -1,7 +1,7 @@
 use bitflags::bitflags;
 use common::Vec2;
 use enum_dispatch::enum_dispatch;
-use strum::EnumCount;
+use strum::{EnumCount, EnumString};
 
 // ----------------------------------------------
 // Internal backend implementations
@@ -32,26 +32,52 @@ pub(super) trait InputSystemBackend: Sized {
 
 pub struct InputSystem {
     backend: InputSystemBackendImpl,
+    virtual_input: Option<VirtualInput>, // Replaces the real devices while set (automation).
 }
 
 impl InputSystem {
     pub(super) fn new(backend: InputSystemBackendImpl) -> Self {
-        Self { backend }
+        Self { backend, virtual_input: None }
     }
 
     #[inline]
     pub fn cursor_pos(&self) -> Vec2 {
-        self.backend.cursor_pos()
+        match &self.virtual_input {
+            Some(virtual_input) => virtual_input.cursor_pos,
+            None => self.backend.cursor_pos(),
+        }
     }
 
     #[inline]
     pub fn mouse_button_state(&self, button: MouseButton) -> InputAction {
-        self.backend.mouse_button_state(button)
+        match &self.virtual_input {
+            Some(virtual_input) => InputAction::from_pressed(virtual_input.is_mouse_button_pressed(button)),
+            None => self.backend.mouse_button_state(button),
+        }
     }
 
     #[inline]
     pub fn key_state(&self, key: InputKey) -> InputAction {
-        self.backend.key_state(key)
+        match &self.virtual_input {
+            Some(virtual_input) => InputAction::from_pressed(virtual_input.is_key_pressed(key)),
+            None => self.backend.key_state(key),
+        }
+    }
+
+    // Set while automation drives the input (see Engine::set_input_capture).
+    #[inline]
+    pub fn virtual_input(&self) -> Option<&VirtualInput> {
+        self.virtual_input.as_ref()
+    }
+
+    #[inline]
+    pub(crate) fn virtual_input_mut(&mut self) -> Option<&mut VirtualInput> {
+        self.virtual_input.as_mut()
+    }
+
+    #[inline]
+    pub(crate) fn set_virtual_input(&mut self, virtual_input: Option<VirtualInput>) {
+        self.virtual_input = virtual_input;
     }
 
     // Direct backend access for platform-specific input mutation (e.g. WebRunner).
@@ -59,6 +85,74 @@ impl InputSystem {
     #[inline]
     pub(crate) fn backend_mut(&mut self) -> &mut InputSystemBackendImpl {
         &mut self.backend
+    }
+}
+
+// ----------------------------------------------
+// VirtualInput
+// ----------------------------------------------
+
+// A simulated mouse and keyboard, driven by automation's input timeline (automation/input.rs).
+#[derive(Clone)]
+pub struct VirtualInput {
+    pub cursor_pos: Vec2,
+    mouse_buttons: [bool; MouseButton::COUNT],
+    keys: [bool; InputKey::COUNT],
+}
+
+impl VirtualInput {
+    // Off the window: hovers nothing, and doesn't scroll the map.
+    pub const PARKED_CURSOR_POS: Vec2 = Vec2 { x: -1000.0, y: -1000.0 };
+
+    pub fn new() -> Self {
+        Self {
+            cursor_pos: Self::PARKED_CURSOR_POS,
+            mouse_buttons: [false; MouseButton::COUNT],
+            keys: [false; InputKey::COUNT],
+        }
+    }
+
+    #[inline]
+    pub fn is_mouse_button_pressed(&self, button: MouseButton) -> bool {
+        self.mouse_buttons[button as usize]
+    }
+
+    #[inline]
+    pub fn set_mouse_button(&mut self, button: MouseButton, pressed: bool) {
+        self.mouse_buttons[button as usize] = pressed;
+    }
+
+    #[inline]
+    pub fn is_key_pressed(&self, key: InputKey) -> bool {
+        self.keys[key as usize]
+    }
+
+    #[inline]
+    pub fn set_key(&mut self, key: InputKey, pressed: bool) {
+        self.keys[key as usize] = pressed;
+    }
+
+    // Modifiers from the modifier keys held down.
+    pub fn modifiers(&self) -> InputModifiers {
+        let mut modifiers = InputModifiers::empty();
+        let held = |keys: [InputKey; 2]| keys.iter().any(|key| self.is_key_pressed(*key));
+
+        modifiers.set(InputModifiers::Shift, held([InputKey::LeftShift, InputKey::RightShift]));
+        modifiers.set(InputModifiers::Control, held([InputKey::LeftControl, InputKey::RightControl]));
+        modifiers.set(InputModifiers::Alt, held([InputKey::LeftAlt, InputKey::RightAlt]));
+        modifiers.set(InputModifiers::Super, held([InputKey::LeftSuper, InputKey::RightSuper]));
+        modifiers
+    }
+
+    pub fn release_all(&mut self) {
+        self.mouse_buttons = [false; MouseButton::COUNT];
+        self.keys = [false; InputKey::COUNT];
+    }
+}
+
+impl Default for VirtualInput {
+    fn default() -> Self {
+        Self::new()
     }
 }
 
@@ -72,6 +166,13 @@ pub enum InputAction {
     Release,
     Repeat,
     Press,
+}
+
+impl InputAction {
+    #[inline]
+    pub fn from_pressed(pressed: bool) -> Self {
+        if pressed { Self::Press } else { Self::Release }
+    }
 }
 
 // ----------------------------------------------
@@ -94,7 +195,8 @@ bitflags! {
 // MouseButton
 // ----------------------------------------------
 
-#[derive(Copy, Clone, Debug, PartialEq, Eq, Hash, EnumCount)]
+#[derive(Copy, Clone, Debug, PartialEq, Eq, Hash, EnumCount, EnumString)]
+#[strum(ascii_case_insensitive)]
 pub enum MouseButton {
     Left,
     Right,
@@ -108,7 +210,9 @@ pub enum MouseButton {
 // InputKey
 // ----------------------------------------------
 
-#[derive(Copy, Clone, Debug, PartialEq, Eq, Hash, EnumCount)]
+// Names parse case-insensitively from the variant names, e.g. "Escape", "f12", "LeftShift".
+#[derive(Copy, Clone, Debug, PartialEq, Eq, Hash, EnumCount, EnumString)]
+#[strum(ascii_case_insensitive)]
 pub enum InputKey {
     Unknown,
 

@@ -14,11 +14,13 @@ use crate::{
 mod assert;
 mod camera;
 mod config;
+mod input;
 mod meta;
 mod observe;
 mod session;
 mod sim;
 mod time;
+mod ui;
 mod world;
 
 pub(super) const COMMAND_GROUPS: &[&[CommandDef]] = &[
@@ -28,6 +30,8 @@ pub(super) const COMMAND_GROUPS: &[&[CommandDef]] = &[
     time::COMMANDS,
     world::COMMANDS,
     camera::COMMANDS,
+    input::COMMANDS,
+    ui::COMMANDS,
     config::COMMANDS,
     observe::COMMANDS,
     assert::COMMANDS,

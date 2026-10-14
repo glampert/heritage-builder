@@ -25,10 +25,11 @@ hb-ctl: drive a running Heritage Builder through its automation server.
 Usage: hb-ctl [OPTIONS] COMMAND [ARGS]
 
 Commands:
-  launch [--release] [--no-build] [--wait SECS] [GAME_ARGS...]
+  launch [--release] [--no-build] [--no-capture] [--wait SECS] [GAME_ARGS...]
                             Build the game, start it with --automation=0 and wait until it
                             answers. Prints its pid, port and log file. GAME_ARGS go to the game,
-                            e.g. --map preset:2 --fixed-dt 0.016667.
+                            e.g. --map preset:2 --fixed-dt 0.016667. The game ignores the real
+                            mouse and keyboard (--capture-input) unless --no-capture is given.
   call METHOD [PARAMS]      Run a game command and print its result. PARAMS is a JSON object or
                             key=value pairs (values are JSON or plain text).
   commands [NAME]           List the game's commands with their parameters, or describe one.
@@ -216,6 +217,7 @@ fn split_flags(args: &[String], with_values: &[&str]) -> Result<(Vec<Flag>, Vec<
 pub struct LaunchArgs {
     pub release: bool,
     pub build: bool,
+    pub capture_input: bool, // Passes --capture-input: the game ignores the real mouse and keyboard.
     pub wait: Duration,
     pub game_args: Vec<String>,
 }
@@ -228,13 +230,20 @@ pub struct Launched {
 }
 
 fn cmd_launch(options: &Options, args: &[String]) -> Result<u8, String> {
-    let mut launch_args = LaunchArgs { release: false, build: true, wait: Duration::from_secs(300), game_args: Vec::new() };
+    let mut launch_args = LaunchArgs {
+        release: false,
+        build: true,
+        capture_input: true,
+        wait: Duration::from_secs(300),
+        game_args: Vec::new(),
+    };
 
     let mut args = args.iter();
     while let Some(arg) = args.next() {
         match arg.as_str() {
             "--release" => launch_args.release = true,
             "--no-build" => launch_args.build = false,
+            "--no-capture" => launch_args.capture_input = false,
             "--wait" => {
                 let secs: u64 = args.next().and_then(|secs| secs.parse().ok()).ok_or("--wait takes a number of seconds.")?;
                 launch_args.wait = Duration::from_secs(secs);
@@ -291,8 +300,13 @@ pub fn launch(options: &Options, args: &LaunchArgs) -> Result<Launched, String> 
     let log_file = File::create(&log_path).map_err(|err| format!("Can't create {}: {err}", log_path.display()))?;
     let log_file_for_stderr = log_file.try_clone().map_err(|err| err.to_string())?;
 
-    let mut child = Command::new(&binary)
-        .arg("--automation=0")
+    let mut command = Command::new(&binary);
+    command.arg("--automation=0");
+    if args.capture_input {
+        command.arg("--capture-input");
+    }
+
+    let mut child = command
         .args(&args.game_args)
         .current_dir(game_dir)
         .stdin(Stdio::null())

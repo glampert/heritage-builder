@@ -346,6 +346,36 @@ pub trait UiWidget: Any {
 }
 
 // ----------------------------------------------
+// Widget registry helpers (UI automation)
+// ----------------------------------------------
+
+// Records the widget just drawn (see UiSystem::record_widget) and returns a value ui.set queued
+// for it, which the widget then applies through its own update callback.
+fn record_settable(
+    context: &mut dyn UiWidgetContext,
+    kind: &'static str,
+    label: &str,
+    value: serde_json::Value,
+) -> Option<serde_json::Value> {
+    let ui_sys = context.ui_sys();
+    if !ui_sys.is_widget_registry_enabled() {
+        return None;
+    }
+
+    let path = ui_sys.record_widget(kind, label, None, true, Some(value))?;
+    ui_sys.take_widget_value(&path)
+}
+
+// An item of a list or dropdown, given by text or index.
+fn list_index(value: &serde_json::Value, items: &[String]) -> Option<usize> {
+    match value {
+        serde_json::Value::String(text) => items.iter().position(|item| item == text),
+        serde_json::Value::Number(index) => index.as_u64().map(|index| index as usize).filter(|index| *index < items.len()),
+        _ => None,
+    }
+}
+
+// ----------------------------------------------
 // UiWidgetImpl
 // ----------------------------------------------
 
@@ -742,7 +772,9 @@ impl UiMenu {
                 .build(|| {
                     context.begin_widget_window();
                     draw_background(ui, self.background);
+                    context.ui_sys().push_widget_path(&self.label);
                     on_draw_contents(self, context);
+                    context.ui_sys().pop_widget_path();
                     context.end_widget_window();
 
                     close_on_escape_pressed && ui.is_window_focused() && ui.is_key_pressed(imgui::Key::Escape)
@@ -760,7 +792,9 @@ impl UiMenu {
                 .build(|| {
                     context.begin_widget_window();
                     draw_background(ui, self.background);
+                    context.ui_sys().push_widget_path(&self.label);
                     on_draw_contents(self, context);
+                    context.ui_sys().pop_widget_path();
                     context.end_widget_window();
                 });
         }
@@ -936,6 +970,12 @@ impl UiWidget for UiMenuHeading {
         let group =
             internal::draw_centered_text_group(context, &self.lines, self.center_vertically, self.center_horizontally);
 
+        if context.ui_sys().is_widget_registry_enabled() {
+            let text: Vec<&str> =
+                self.lines.iter().map(|line| line.string.as_str()).filter(|line| !line.is_empty()).collect();
+            context.ui_sys().record_widget("heading", &text.join(" "), None, true, None);
+        }
+
         if let Some(separator) = self.separator
             && group.is_valid()
         {
@@ -1088,6 +1128,8 @@ impl UiWidget for UiSizedTextLabel {
         // Render a button with only the text label visible.
         // It will be centered to the button rectangle by default.
         ui.button_with_size(&self.label, self.size.to_array());
+
+        context.ui_sys().record_widget("text", &self.label, None, true, None);
     }
 
     fn measure(&self, context: &dyn UiWidgetContext) -> Vec2 {
@@ -1685,6 +1727,9 @@ impl UiWidget for UiTextButton {
         }
         self.hovered = hovered;
 
+        let tooltip = self.tooltip.as_ref().map(|tooltip| tooltip.text.as_str());
+        context.ui_sys().record_widget("text_button", &self.label, tooltip, self.is_enabled(), None);
+
         // Invoke on pressed callback.
         if pressed && self.is_enabled() {
             if self.sounds_enabled.intersects(UiButtonSoundsEnabled::Pressed) {
@@ -1814,6 +1859,14 @@ impl UiWidget for UiSpriteButton {
         // NOTE: Only left click counts as "pressed".
         let delta_time_secs = context.delta_time_secs();
         self.update_state(context, hovered, left_click, right_click, delta_time_secs);
+
+        if context.ui_sys().is_widget_registry_enabled() {
+            // The label is a sprite path, e.g. "palette/housing"; its last part names the button.
+            let name = self.label.rsplit('/').next().unwrap_or(&self.label);
+            let tooltip = self.tooltip.as_ref().map(|tooltip| tooltip.text.as_str());
+            let pressed = Some(serde_json::Value::Bool(self.is_pressed()));
+            context.ui_sys().record_widget("sprite_button", name, tooltip, true, pressed);
+        }
 
         if let Some(tooltip) = &self.tooltip {
             let show_tooltip = hovered && (!self.is_pressed() || self.show_tooltip_when_pressed);
@@ -2364,6 +2417,11 @@ impl UiWidget for UiSlider {
                 if value_changed {
                     on_update_value.invoke(self, context, value.clamp(*min, *max));
                 }
+
+                let set_value = record_settable(context, "slider", &self.label, serde_json::json!(value));
+                if let Some(new_value) = set_value.and_then(|value| value.as_i64()) {
+                    on_update_value.invoke(self, context, new_value.clamp(i64::from(*min), i64::from(*max)) as i32);
+                }
             }
             UiSliderValue::U32 { min, max, on_read_value, on_update_value } => {
                 let mut value = on_read_value.invoke(self, context).unwrap_or_default();
@@ -2375,6 +2433,11 @@ impl UiWidget for UiSlider {
 
                 if value_changed {
                     on_update_value.invoke(self, context, value.clamp(*min, *max));
+                }
+
+                let set_value = record_settable(context, "slider", &self.label, serde_json::json!(value));
+                if let Some(new_value) = set_value.and_then(|value| value.as_u64()) {
+                    on_update_value.invoke(self, context, new_value.clamp(u64::from(*min), u64::from(*max)) as u32);
                 }
             }
             UiSliderValue::F32 { min, max, on_read_value, on_update_value } => {
@@ -2389,6 +2452,11 @@ impl UiWidget for UiSlider {
 
                 if value_changed {
                     on_update_value.invoke(self, context, value.clamp(*min, *max));
+                }
+
+                let set_value = record_settable(context, "slider", &self.label, serde_json::json!(value));
+                if let Some(new_value) = set_value.and_then(|value| value.as_f64()) {
+                    on_update_value.invoke(self, context, (new_value as f32).clamp(*min, *max));
                 }
             }
         }
@@ -2521,6 +2589,11 @@ impl UiWidget for UiCheckbox {
         if value_changed {
             self.on_update_value.invoke(self, context, value);
         }
+
+        let set_value = record_settable(context, "checkbox", &self.label, serde_json::Value::Bool(value));
+        if let Some(new_value) = set_value.and_then(|value| value.as_bool()) {
+            self.on_update_value.invoke(self, context, new_value);
+        }
     }
 
     fn measure(&self, context: &dyn UiWidgetContext) -> Vec2 {
@@ -2617,6 +2690,12 @@ impl UiWidget for UiIntInput {
             value = value.clamp(self.min, self.max);
             self.on_update_value.invoke(self, context, value);
         }
+
+        let set_value = record_settable(context, "int_input", &self.label, serde_json::json!(value));
+        if let Some(new_value) = set_value.and_then(|value| value.as_i64()) {
+            let new_value = new_value.clamp(i64::from(self.min), i64::from(self.max)) as i32;
+            self.on_update_value.invoke(self, context, new_value);
+        }
     }
 
     fn measure(&self, context: &dyn UiWidgetContext) -> Vec2 {
@@ -2700,6 +2779,13 @@ impl UiWidget for UiTextInput {
         let value_changed = input.build();
 
         if value_changed {
+            self.on_update_value.invoke(self, context, &self.buffer);
+        }
+
+        let set_value = record_settable(context, "text_input", &self.label, serde_json::json!(self.buffer));
+        if let Some(new_value) = set_value.as_ref().and_then(|value| value.as_str()) {
+            self.buffer.clear();
+            self.buffer.push_str(new_value);
             self.on_update_value.invoke(self, context, &self.buffer);
         }
     }
@@ -2791,6 +2877,13 @@ impl UiWidget for UiDropdown {
         let (selection_changed, _group) = internal::combo_with_left_label(ui, label, &mut self.current_item, &self.items);
 
         if selection_changed {
+            self.on_selection_changed.invoke(self, context);
+        }
+
+        let current = self.items.get(self.current_item).cloned().unwrap_or_default();
+        let set_value = record_settable(context, "dropdown", &self.label, serde_json::Value::String(current));
+        if let Some(index) = set_value.and_then(|value| list_index(&value, &self.items)) {
+            self.current_item = index;
             self.on_selection_changed.invoke(self, context);
         }
     }
@@ -2996,6 +3089,8 @@ impl UiWidget for UiItemList {
             .build(|| {
                 let mut selection_changed = false;
 
+                context.ui_sys().push_widget_path(&self.label);
+
                 for (index, item) in self.items.iter().enumerate() {
                     let is_selected = self.current_item == Some(index);
 
@@ -3005,17 +3100,24 @@ impl UiWidget for UiItemList {
                             selection_changed = true;
                         }
                     }
+
+                    context.ui_sys().record_widget("list_item", item, None, true, Some(serde_json::Value::Bool(is_selected)));
                 }
+
+                context.ui_sys().pop_widget_path();
 
                 if selection_changed && let Some(selected_index) = self.current_item {
-                    if let Some(text_input_field_buffer) = &mut self.text_input_field_buffer {
-                        text_input_field_buffer.clear();
-                        text_input_field_buffer.push_str(&self.items[selected_index]);
-                    }
-
-                    self.on_selection_changed.invoke(self, context);
+                    self.select_item(context, selected_index);
                 }
             });
+
+        // ui.set on the list selects an item, by text or index.
+        let current = self.current_item.and_then(|index| self.items.get(index)).cloned();
+        let set_value = record_settable(context, "item_list", &self.label, current.map_or(serde_json::Value::Null, serde_json::Value::String));
+        if let Some(index) = set_value.and_then(|value| list_index(&value, &self.items)) {
+            self.current_item = Some(index);
+            self.select_item(context, index);
+        }
     }
 
     fn measure(&self, context: &dyn UiWidgetContext) -> Vec2 {
@@ -3049,6 +3151,15 @@ impl UiWidget for UiItemList {
 }
 
 impl UiItemList {
+    fn select_item(&mut self, context: &mut dyn UiWidgetContext, index: usize) {
+        if let Some(text_input_field_buffer) = &mut self.text_input_field_buffer {
+            text_input_field_buffer.clear();
+            text_input_field_buffer.push_str(&self.items[index]);
+        }
+
+        self.on_selection_changed.invoke(self, context);
+    }
+
     pub fn new(context: &mut dyn UiWidgetContext, params: UiItemListParams<String>) -> Self {
         Self::with_strings(context, params)
     }

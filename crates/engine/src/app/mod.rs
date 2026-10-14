@@ -54,6 +54,9 @@ trait ApplicationBackend: Sized {
     fn window_size(&self) -> Size;
     fn framebuffer_size(&self) -> Size;
     fn content_scale(&self) -> Vec2;
+
+    // Stops cursor confinement from moving the real cursor, e.g. while automation drives the input.
+    fn pause_cursor_confinement(&mut self, paused: bool);
 }
 
 // ----------------------------------------------
@@ -172,6 +175,11 @@ impl Application {
     #[inline]
     pub fn content_scale(&self) -> Vec2 {
         self.backend.content_scale()
+    }
+
+    #[inline]
+    pub fn pause_cursor_confinement(&mut self, paused: bool) {
+        self.backend.pause_cursor_confinement(paused);
     }
 
     #[inline]

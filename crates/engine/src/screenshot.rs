@@ -137,7 +137,12 @@ pub fn scale_image(image: CapturedImage, scale: ScreenshotScale) -> Result<Captu
 
     let buffer = image::RgbaImage::from_raw(width, height, image.pixels)
         .ok_or_else(|| format!("Captured image data doesn't match its {width}x{height} size."))?;
-    let scaled = image::imageops::resize(&buffer, new_width, new_height, image::imageops::FilterType::Triangle);
+
+    // Through DynamicImage, whose resize is compiled (optimized) in the image crate. The generic
+    // imageops::resize would be compiled here, unoptimized in debug builds, and take seconds.
+    let scaled = image::DynamicImage::ImageRgba8(buffer)
+        .resize_exact(new_width, new_height, image::imageops::FilterType::Triangle)
+        .into_rgba8();
 
     Ok(CapturedImage {
         size: Size::new(new_width as i32, new_height as i32),

@@ -968,6 +968,14 @@ fn calc_visible_cells_range(map_size_in_cells: Size, viewport_size: Size, transf
 fn calc_scroll_delta(cursor_screen_pos: Vec2, viewport_size: Size, scroll_margin: f32) -> Vec2 {
     let mut scroll_delta = Vec2::zero();
 
+    // A cursor outside the window doesn't scroll: one over another app, or automation's parked
+    // cursor. A confined cursor stays on the window's edge, which still scrolls.
+    let inside_window = (0.0..=viewport_size.width as f32).contains(&cursor_screen_pos.x)
+        && (0.0..=viewport_size.height as f32).contains(&cursor_screen_pos.y);
+    if !inside_window {
+        return scroll_delta;
+    }
+
     if cursor_screen_pos.x < scroll_margin {
         scroll_delta.x += 1.0;
     } else if cursor_screen_pos.x > (viewport_size.width as f32) - scroll_margin {
@@ -1051,4 +1059,28 @@ fn clamp_to_map_bounds(map_size_in_cells: Size, scaling: f32, viewport_size: Siz
     let off_y = offset.y.clamp(bounds.min.y, bounds.max.y);
 
     Vec2::new(off_x, off_y)
+}
+
+// ----------------------------------------------
+// Unit Tests
+// ----------------------------------------------
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_edge_scrolling_needs_the_cursor_in_the_window() {
+        let viewport = Size::new(800, 600);
+        let margin = 20.0;
+
+        assert_eq!(calc_scroll_delta(Vec2::new(400.0, 300.0), viewport, margin), Vec2::zero());
+        assert_eq!(calc_scroll_delta(Vec2::new(0.0, 300.0), viewport, margin), Vec2::new(1.0, 0.0));
+        assert_eq!(calc_scroll_delta(Vec2::new(800.0, 600.0), viewport, margin), Vec2::new(-1.0, -1.0));
+
+        // Outside the window: no scrolling.
+        assert_eq!(calc_scroll_delta(Vec2::new(-5.0, 300.0), viewport, margin), Vec2::zero());
+        assert_eq!(calc_scroll_delta(Vec2::new(-1000.0, -1000.0), viewport, margin), Vec2::zero());
+        assert_eq!(calc_scroll_delta(Vec2::new(400.0, 601.0), viewport, margin), Vec2::zero());
+    }
 }

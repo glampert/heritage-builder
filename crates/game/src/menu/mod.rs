@@ -51,7 +51,7 @@ use crate::{
     },
 };
 
-mod dialog;
+pub(crate) mod dialog;
 pub mod home;
 pub mod in_game;
 

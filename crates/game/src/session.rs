@@ -25,6 +25,7 @@ use crate::{
     config::{GameConfigs, LoadMapSetting},
     debug::{DevEditorMenus, preset_maps},
     menu::{GameMenusInputArgs, GameMenusMode, GameMenusSystem, home::HomeMenus, in_game::InGameMenus},
+    ui_context::GameUiContext,
     save_context::*,
     sim::{RandomGenerator, SimContext, Simulation},
     system::GameSystems,
@@ -389,6 +390,13 @@ impl GameSession {
     #[inline]
     pub fn current_menus_mode(&self) -> Option<GameMenusMode> {
         self.menus.as_ref().map(|menus| menus.mode())
+    }
+
+    // Runs `ui_fn` with a GameUiContext over this session, e.g. to open a dialog from an
+    // automation command. Never keep the context.
+    pub(crate) fn with_ui_context<R>(&mut self, engine: &mut Engine, ui_fn: impl FnOnce(&mut GameUiContext) -> R) -> R {
+        let mut context = make_ui_widget_context!(self, engine);
+        ui_fn(&mut context)
     }
 
     // Recounts the world stats from the current state (see World::refresh_stats).

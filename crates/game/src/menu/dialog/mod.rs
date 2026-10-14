@@ -142,6 +142,11 @@ pub fn reset() {
     DialogMenusSingleton::get_mut().reset();
 }
 
+// Dialogs exist once the home or in-game menus have set them up (not in the dev editor alone).
+pub fn is_initialized() -> bool {
+    DialogMenusSingleton::is_initialized()
+}
+
 pub fn is_open(dialog_menu_kind: DialogMenuKind) -> bool {
     // Only the current stack top is considered "open" here.
     current().is_some_and(|dialog| dialog == dialog_menu_kind)

@@ -1,0 +1,15 @@
+# Starts a new game from the home menu the way a player would: clicking menu buttons with the
+# simulated mouse (ui.click) and filling in the New Game dialog (ui.set). From the repository root:
+#   cargo run -p HeritageBuilder -- --script crates/game/tests/scenarios/ui_new_game.jsonl
+{"method": "time.fixed_dt", "params": {"dt": 0.016667}}
+{"method": "assert.eq", "params": {"query": "session.state", "path": "/menus_mode", "value": "Home"}}
+{"method": "ui.click", "params": {"path": "New Game"}}
+{"method": "assert.eq", "params": {"query": "dialog.current", "path": "/current", "value": "NewGame"}}
+{"method": "ui.set", "params": {"path": "New Map Width", "value": 64}}
+{"method": "ui.set", "params": {"path": "New Map Height", "value": 96}}
+{"method": "ui.set", "params": {"path": "Terrain Kind", "value": "Dirt"}}
+{"method": "ui.click", "params": {"path": "Start New Game"}}
+{"method": "wait.until", "params": {"query": "session.state", "path": "/menus_mode", "op": "eq", "value": "InGame", "timeout_frames": 60}}
+{"method": "assert.eq", "params": {"query": "session.state", "path": "/map_size", "value": [64, 96]}}
+# New maps keep only the playable diamond: corner cells such as [10, 10] have no terrain.
+{"method": "assert.eq", "params": {"query": "tile.at", "args": {"cell": [32, 48]}, "path": "/terrain/name", "value": "dirt"}}

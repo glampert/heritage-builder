@@ -68,3 +68,19 @@ impl UiToasts {
         }
     }
 }
+
+// A status line at the top center of the screen, over everything else, e.g. while automation
+// drives the input.
+pub(super) fn draw_badge(ui: &imgui::Ui, text: &str) {
+    let [screen_width, _] = ui.io().display_size;
+    let [text_width, text_height] = ui.calc_text_size(text);
+
+    let min = [((screen_width - text_width) * 0.5 - PADDING[0]).max(0.0), BADGE_TOP_MARGIN];
+    let max = [min[0] + text_width + PADDING[0] * 2.0, min[1] + text_height + PADDING[1] * 2.0];
+
+    let draw_list = ui.get_foreground_draw_list();
+    draw_list.add_rect(min, max, imgui::ImColor32::from_rgba_f32s(0.6, 0.1, 0.1, 0.85)).filled(true).rounding(6.0).build();
+    draw_list.add_text([min[0] + PADDING[0], min[1] + PADDING[1]], imgui::ImColor32::WHITE, text);
+}
+
+const BADGE_TOP_MARGIN: f32 = 60.0; // Below the HUD's top bar.
