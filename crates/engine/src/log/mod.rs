@@ -196,6 +196,7 @@ fn dispatch_record(level: Level, channel: Option<Channel>, location: &Location, 
 
 static MIN_LOG_LEVEL:       AtomicU32  = AtomicU32::new(Level::Verbose as u32);
 static REDIRECT_TO_FILE:    AtomicBool = AtomicBool::new(false);
+static REDIRECT_TO_STDERR:  AtomicBool = AtomicBool::new(false);
 static ENABLE_SRC_LOCATION: AtomicBool = AtomicBool::new(false);
 static ENABLE_TTY_COLORS:   AtomicBool = AtomicBool::new(true);
 
@@ -205,6 +206,13 @@ pub fn set_level(level: Level) {
 
 pub fn redirect_to_file(redirect: bool) {
     REDIRECT_TO_FILE.store(redirect, Ordering::Relaxed);
+}
+
+// Desktop: writes log output to stderr instead of stdout, for runs whose stdout carries
+// machine-readable output (e.g. script mode). Takes effect only if called before the first
+// log line, and redirect_to_file wins over it.
+pub fn redirect_to_stderr(redirect: bool) {
+    REDIRECT_TO_STDERR.store(redirect, Ordering::Relaxed);
 }
 
 pub fn enable_source_location(enable: bool) {

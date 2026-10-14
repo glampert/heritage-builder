@@ -1,0 +1,19 @@
+# Smoke test: start a game, build a small settlement as a player would, run two simulated
+# minutes, check that settlers moved in, and take a screenshot. From the repository root:
+#   cargo run -p HeritageBuilder -- --script crates/game/tests/scenarios/smoke.jsonl
+# Prints one JSON line per command and exits 0 if they all succeed.
+{"method": "time.fixed_dt", "params": {"dt": 0.016667}}
+{"method": "session.new_map", "params": {"size": [16, 16]}}
+{"method": "world.road", "params": {"from": [7, 15], "to": [7, 3]}}
+{"method": "world.road", "params": {"from": [2, 6], "to": [12, 6]}}
+{"method": "world.place", "params": {"tile": "vacant_lot", "cell": [8, 7]}}
+{"method": "world.place", "params": {"tile": "vacant_lot", "cell": [9, 7]}}
+{"method": "world.place", "params": {"tile": "small_well", "cell": [6, 7]}}
+{"method": "world.place", "params": {"tile": "rice_farm", "cell": [3, 7]}}
+{"method": "assert.eq", "params": {"query": "world.list", "args": {"type": "building"}, "path": "/total", "value": 2}}
+{"method": "time.fast_forward", "params": {"sim_secs": 120}}
+{"method": "assert.gt", "params": {"query": "sim.state", "path": "/population", "value": 0}}
+{"method": "assert.eq", "params": {"query": "world.building_at", "args": {"cell": [8, 7]}, "path": "/kind", "value": "House"}}
+{"method": "camera.teleport", "params": {"cell": [7, 7]}}
+{"method": "camera.zoom", "params": {"zoom": 2}}
+{"method": "screenshot", "params": {"path": "out/smoke.png"}}

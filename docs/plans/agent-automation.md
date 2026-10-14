@@ -363,12 +363,12 @@ Notes (2026-10-14):
 ### Phase 2: Command registry and script mode (medium)
 
 - [x] `crates/game/src/automation/`: `CommandRegistry`, `CommandContext`, `CommandResult`, `CommandError`, `PendingCommand`, dispatch at the execution point above.
-- [ ] Engine-side request queue and reply targets, shaped so Phase 3's channel and Phase 6's web bridge slot in.
-- [ ] `GameSession` helpers for building a `SimContext` / `GameUiContext`, and `pub(crate)` save/load that report their result. (Partly done: `save_game` and `load_save_game` are `pub(crate)` but still return `bool`.)
-- [ ] Commands: meta, time, session, sim, cheats, config, world, camera, observe (`screenshot`, `logs.tail`, `debug.stats`) and assert. (Partly done: the 25 starter commands listed in the console notes. Remaining: `world.*`, `tile.at`, `undo`/`redo`, `config.get`/`config.set`, `logs.tail`, `debug.stats`, `assert.*`, `time.fast_forward`, `wait.sim_seconds`, `wait.until`, `frame.hold`/`frame.step`, `session.new_map`, `menus.mode`, camera coordinate conversions.)
-- [ ] `--script FILE`: JSON lines in (blank lines and `#` comments allowed), JSON lines out, stop at the first failure (`--script-continue-on-error` to keep going), exit status 0/1. Autosave off in this mode, as in the smoke test.
+- [x] Engine-side request queue and reply targets, shaped so Phase 3's channel and Phase 6's web bridge slot in.
+- [x] `GameSession` helpers for building a `SimContext` / `GameUiContext`, and `pub(crate)` save/load that report their result. (`with_sim_context` only; the `GameUiContext` helper waits for the dialog commands in Phase 5.)
+- [x] Commands: meta, time, session, sim, cheats, config, world, camera, observe (`screenshot`, `logs.tail`, `debug.stats`) and assert.
+- [x] `--script FILE`: JSON lines in (blank lines and `#` comments allowed), JSON lines out, stop at the first failure (`--script-continue-on-error` to keep going), exit status 0/1. Autosave off in this mode, as in the smoke test.
 - [x] Exit-code plumbing: the desktop runner currently returns `()`. Add a way for the run loop to report an exit code (for example `RunLoop::exit_code()`), and call `std::process::exit` after a clean shutdown. (Done in Phase 1 as `Engine::request_exit(code)`; the desktop runner exits with `Engine::exit_code()`. The `quit` command takes an `exit_code`.)
-- [ ] Sample scenarios in `crates/game/tests/scenarios/`: `smoke.jsonl` (load, place, fast-forward, assert, screenshot) and `determinism.jsonl`.
+- [x] Sample scenarios in `crates/game/tests/scenarios/`: `smoke.jsonl` (load, place, fast-forward, assert, screenshot) and `determinism.jsonl`.
 - [x] In-game console: an input field in the debug LogViewer (`debug/log_viewer.rs`) that runs registry commands, prints each result into the log view, and keeps a command history (up/down arrows). See Q3.
 
 Console notes (2026-10-14, done ahead of the rest of Phase 2 as one change):
@@ -385,7 +385,24 @@ Console notes (2026-10-14, done ahead of the rest of Phase 2 as one change):
 - **Console UI.** The text forms (`automation/text.rs`) are `name`, `name key=value ...` (values are JSON, or else plain text), `name {json}` or `{"method": .., "params": {..}}`. Results print under a `[console]` channel without being logged, so they don't count as errors or warnings. Lines typed into the field are queued in the viewer and run at the dispatch point, never inside the draw: the viewer holds its lock for the whole draw, and commands log.
 - **Access.** The [`] key opens and closes the viewer in every menus mode. It now draws from `GameLoop::menus_end_frame` instead of the DevEditor menus, with the dev font; the DevEditor "Show Log Viewer Window" checkbox stays in sync with it.
 - **Verified** under Xvfb with `xdotool`: typed commands in the HUD mode ran `help`, `sim.speed`, `session.load_preset` (pending, one frame), `session.state`, `screenshot` (pending, wrote the PNG), `camera.teleport` and `cheats.set`. An unknown command printed an error, and the up arrow recalled history. Headless runs flood the view with verbose ambient-sound lines (no audio device); filter them with Filter → Channels.
-- [ ] AGENTS.md: document `--script`, the scenario format, `help`, and the stdout exception to the logging rule.
+- [x] AGENTS.md: document `--script`, the scenario format, `help`, and the stdout exception to the logging rule.
+
+Phase 2 completion notes (2026-10-14, local Mac):
+- **Request queue.** `engine::automation`: transports queue a `Request { method, params, responder }` through a cloneable `RequestSender`, from any thread; `Engine::take_automation_requests` drains them. A `Responder` answers once, and one dropped unanswered (the game quit) answers `Cancelled`. Every response carries the frame it finished on. The game's `ReplyTo` is `Console`, `Script { line }` or `Remote(Responder)`.
+- **Commands** (58 in all; `help` lists them). New in this change: `session.new_map` (a fresh simulation seeded like `--map`, unlike the new-game dialog's reset, which keeps the old one), `session.checksum`, `menus.mode`; `sim.state`; `time.fast_forward`, `wait.sim_seconds`, `wait.until`, `frame.hold`, `frame.step`; `tiles.list`, `world.place|clear|road|spawn_unit|despawn|list|building_at|inspect|stats`, `tile.at`, `undo`, `redo`; `camera.cell_to_screen|screen_to_cell`; `config.get|set`; `logs.tail`, `debug.stats`; `assert.eq|ne|gt|ge|lt|le|exists`.
+- **Deviations:**
+  - `help` with no arguments lists every command with its parameters (agents need the schemas); the console prints it as text, one line per command.
+  - Object ids are strings, `pool:index:generation`, where the pool is `house`, `producer`, `storage`, `service`, `unit` or `prop`. Building lookups need the pool because each archetype has its own index space.
+  - `world.place` always pays, as the player does; tests that need money turn on the `ignore_tile_cost` cheat.
+  - A script with unreadable or invalid lines exits with status 2 before running anything, like other bad command-line input, and reports each bad line as a JSON line.
+  - Logs move to stderr in script mode (`log::redirect_to_stderr`, set in `GameLoop::on_early_init` from the raw arguments).
+  - `time.fast_forward` runs at most 600 steps per frame (a count, so runs split the same way every time), and its `sim_secs` includes the frames' own updates while it runs.
+- **Found in passing:**
+  - The treasury reads zero until the first simulation step after a load (world stats are only recounted on steps), so placement right after a load failed with "can't afford". `World::refresh_stats` recounts without updating; commands call it before placing and reporting.
+  - `SpawnPool::try_get` panicked on out-of-range indices; it checks the bounds now.
+  - Debug builds took seconds to PNG-encode a screenshot. The workspace now builds the PNG crates at `opt-level = 3` in the dev profile: a full-screen screenshot takes about a second instead of six, and asset loading drops from 2.2 s to 0.4 s.
+  - `TileCategory::find_tile_def_by_name` logs an error when the name is missing, so name searches across categories compare names instead.
+- **Verified** on macOS (Apple Silicon, HiDPI 2x, OpenGL/GLFW): `smoke.jsonl` exits 0 and its screenshot shows the settlement; a failing assertion exits 1; `quit exit_code=3` exits 3; two `determinism.jsonl` runs with `--seed 7` print the same checksum and write byte-identical saves, and `--seed 8` gives a different one; 20 malformed or out-of-range commands each returned a clean error.
 
 Implementation notes from the Phase 2 code survey (2026-10-14, against `8494da9`). Items marked *(done)* landed with the console change (`38e0190`):
 - **Dispatch point** is right after `self.session_cmd_queue.execute(...)` in `GameLoop::update` (game_loop.rs:190 at that commit). `GameLoop` fields are private, so build `CommandContext` there with split borrows. `Engine::request_exit` and the desktop exit code already exist (Phase 1).

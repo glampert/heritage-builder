@@ -10,6 +10,7 @@ use common::{
 
 use crate::{
     app::{Application, ApplicationEvent, ApplicationEventList, input::*},
+    automation::{Request, RequestQueue, RequestSender},
     cli::{self, OneShotScreenshotOptions},
     config::EngineConfigs,
     log,
@@ -49,6 +50,8 @@ pub struct Engine {
     screenshots: ScreenshotSystem,
     screenshot_name: String, // File name prefix, from the window title.
     one_shot_screenshot: Option<OneShotScreenshot>,
+
+    automation_requests: RequestQueue,
 
     exit_code: i32,
 
@@ -209,6 +212,22 @@ impl Engine {
         self.screenshots.new_screenshot_path(&self.screenshot_name)
     }
 
+    // ----------------------
+    // Automation:
+    // ----------------------
+
+    // For transports that send automation requests to the game (see automation/mod.rs).
+    #[inline]
+    pub fn automation_request_sender(&self) -> RequestSender {
+        self.automation_requests.sender()
+    }
+
+    // Automation requests queued since the last call, oldest first.
+    #[inline]
+    pub fn take_automation_requests(&mut self) -> Vec<Request> {
+        self.automation_requests.take_requests()
+    }
+
     #[inline]
     pub fn app_events(&self) -> &ApplicationEventList {
         &self.frame_events
@@ -320,6 +339,7 @@ impl Engine {
             screenshots: ScreenshotSystem::new(),
             screenshot_name: configs.window_title.clone(),
             one_shot_screenshot: None,
+            automation_requests: RequestQueue::new(),
             exit_code: 0,
         }
     }

@@ -1,0 +1,25 @@
+# Determinism check: the same seed must give the same game. Builds a settlement, runs five
+# simulated minutes in fixed steps, saves it as saves/determinism.json and prints a checksum of
+# the game state. Run it twice; both runs must print the same checksum and write the same save:
+#   cargo run -p HeritageBuilder -- --seed 7 --script crates/game/tests/scenarios/determinism.jsonl
+{"method": "time.fixed_dt", "params": {"dt": 0.016667}}
+{"method": "session.new_map", "params": {"size": [24, 24]}}
+{"method": "cheats.set", "params": {"name": "ignore_tile_cost", "value": true}}
+{"method": "world.road", "params": {"from": [11, 23], "to": [11, 2]}}
+{"method": "world.road", "params": {"from": [3, 8], "to": [20, 8]}}
+{"method": "world.road", "params": {"from": [3, 16], "to": [20, 16]}}
+{"method": "world.place", "params": {"tile": "vacant_lot", "cell": [12, 9]}}
+{"method": "world.place", "params": {"tile": "vacant_lot", "cell": [13, 9]}}
+{"method": "world.place", "params": {"tile": "vacant_lot", "cell": [14, 9]}}
+{"method": "world.place", "params": {"tile": "vacant_lot", "cell": [12, 15]}}
+{"method": "world.place", "params": {"tile": "vacant_lot", "cell": [13, 15]}}
+{"method": "world.place", "params": {"tile": "vacant_lot", "cell": [14, 15]}}
+{"method": "world.place", "params": {"tile": "small_well", "cell": [10, 9]}}
+{"method": "world.place", "params": {"tile": "rice_farm", "cell": [4, 9]}}
+{"method": "world.place", "params": {"tile": "granary", "cell": [16, 9]}}
+{"method": "world.place", "params": {"tile": "market", "cell": [8, 9]}}
+{"method": "world.place", "params": {"tile": "tree", "cell": [18, 20]}}
+{"method": "time.fast_forward", "params": {"sim_secs": 300}}
+{"method": "assert.gt", "params": {"query": "sim.state", "path": "/population", "value": 0}}
+{"method": "session.save", "params": {"name": "determinism"}}
+{"method": "session.checksum"}

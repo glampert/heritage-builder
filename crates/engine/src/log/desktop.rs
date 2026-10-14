@@ -1,10 +1,10 @@
 use std::{
     fmt,
-    io,
+    io::{self, IsTerminal},
     sync::{LazyLock, RwLock, atomic::Ordering},
 };
 
-use super::{Channel, ENABLE_SRC_LOCATION, ENABLE_TTY_COLORS, Level, Location, REDIRECT_TO_FILE};
+use super::{Channel, ENABLE_SRC_LOCATION, ENABLE_TTY_COLORS, Level, Location, REDIRECT_TO_FILE, REDIRECT_TO_STDERR};
 use crate::file_sys;
 
 // ----------------------------------------------
@@ -15,6 +15,7 @@ const LOG_FILENAME: &str = "runtime.log";
 
 enum LogOutput {
     Stdout(io::Stdout),
+    Stderr(io::Stderr),
     File(std::fs::File),
 }
 
@@ -22,6 +23,7 @@ impl io::Write for LogOutput {
     fn write(&mut self, buf: &[u8]) -> io::Result<usize> {
         match self {
             Self::Stdout(stdout) => stdout.write(buf),
+            Self::Stderr(stderr) => stderr.write(buf),
             Self::File(file) => file.write(buf),
         }
     }
@@ -29,6 +31,7 @@ impl io::Write for LogOutput {
     fn flush(&mut self) -> io::Result<()> {
         match self {
             Self::Stdout(stdout) => stdout.flush(),
+            Self::Stderr(stderr) => stderr.flush(),
             Self::File(file) => file.flush(),
         }
     }
@@ -51,6 +54,12 @@ fn init_log_output() -> LogOutput {
             // Fallback to TTY
             LogOutput::Stdout(io::stdout())
         }
+    } else if REDIRECT_TO_STDERR.load(Ordering::Relaxed) {
+        // Color codes only help a terminal; they'd clutter a log captured to a file.
+        if !io::stderr().is_terminal() {
+            super::enable_tty_colors(false);
+        }
+        LogOutput::Stderr(io::stderr())
     } else {
         // TTY
         LogOutput::Stdout(io::stdout())

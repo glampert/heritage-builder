@@ -131,6 +131,14 @@ const MAX_OUTPUT_LINES: usize = 40;
 
 // One-line JSON when it's short, indented JSON otherwise, cut at MAX_OUTPUT_LINES.
 pub fn format_output(name: &str, output: &CommandOutput) -> String {
+    if name == "help" {
+        if let Ok(value) = output {
+            if let Some(text) = format_help(value) {
+                return text;
+            }
+        }
+    }
+
     match output {
         Ok(Value::Null) => format!("{name}: ok"),
         Ok(value) => {
@@ -152,6 +160,45 @@ pub fn format_output(name: &str, output: &CommandOutput) -> String {
         Err(err) if name.is_empty() => format!("{}: {}", err.code, err.message),
         Err(err) => format!("{name}: {}: {}", err.code, err.message),
     }
+}
+
+// `help` reads better as text: one line per command, or one command with its parameters.
+fn format_help(value: &Value) -> Option<String> {
+    // "name param [optional_param] - help"
+    fn command_line(command: &Value) -> Option<String> {
+        let name = command.get("name")?.as_str()?;
+        let help = command.get("help")?.as_str()?;
+
+        let mut line = name.to_string();
+        for param in command.get("params")?.as_array()? {
+            let param_name = param.get("name")?.as_str()?;
+            if param.get("required")?.as_bool()? {
+                line += &format!(" {param_name}");
+            } else {
+                line += &format!(" [{param_name}]");
+            }
+        }
+
+        Some(format!("{line} - {help}"))
+    }
+
+    if let Some(commands) = value.get("commands").and_then(Value::as_array) {
+        let lines: Option<Vec<String>> = commands.iter().map(command_line).collect();
+        return Some(format!("help: commands, then help command=NAME for details\n  {}", lines?.join("\n  ")));
+    }
+
+    let mut text = command_line(value)?;
+    for param in value.get("params")?.as_array()? {
+        let required = if param.get("required")?.as_bool()? { "" } else { ", optional" };
+        text += &format!(
+            "\n  {}: {}{required} - {}",
+            param.get("name")?.as_str()?,
+            param.get("type")?.as_str()?,
+            param.get("help")?.as_str()?
+        );
+    }
+
+    Some(text)
 }
 
 // ----------------------------------------------
@@ -214,5 +261,23 @@ mod tests {
         let text = format_output("big", &Ok(json!(long)));
         assert!(text.starts_with("big:\n["));
         assert!(text.ends_with("(62 more lines)"));
+    }
+
+    #[test]
+    fn test_format_help() {
+        let command = json!({
+            "name": "world.place",
+            "help": "Place a tile.",
+            "params": [
+                {"name": "tile", "type": "string", "required": true, "help": "Tile name."},
+                {"name": "undo", "type": "bool", "required": false, "help": "Record undo."},
+            ],
+        });
+
+        let text = format_output("help", &Ok(command.clone()));
+        assert_eq!(text, "world.place tile [undo] - Place a tile.\n  tile: string - Tile name.\n  undo: bool, optional - Record undo.");
+
+        let text = format_output("help", &Ok(json!({ "commands": [command] })));
+        assert!(text.ends_with("\n  world.place tile [undo] - Place a tile."));
     }
 }

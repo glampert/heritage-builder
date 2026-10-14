@@ -4,7 +4,7 @@ use common::mem::{RcMut, WeakMut};
 use engine::log;
 
 use super::*;
-use crate::{config::GameConfigs, menu::TEXT_BUTTON_HOVERED_SPRITE};
+use crate::menu::TEXT_BUTTON_HOVERED_SPRITE;
 
 mod main;
 pub use main::MainSettings;
@@ -257,7 +257,8 @@ impl SettingsCategory {
         }
 
         if any_commited {
-            GameConfigs::save();
+            // Leaves out runtime changes made by automation commands (config.set).
+            crate::automation::save_game_configs();
             log::info!(log::channel!("settings"), "GameConfigs saved successfully.");
         }
     }

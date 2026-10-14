@@ -22,7 +22,7 @@ use crate::{
     debug::{DevEditorMenus, preset_maps},
     menu::{GameMenusInputArgs, GameMenusMode, GameMenusSystem, home::HomeMenus, in_game::InGameMenus},
     save_context::*,
-    sim::{RandomGenerator, Simulation},
+    sim::{RandomGenerator, SimContext, Simulation},
     system::GameSystems,
     tile::{
         TileFlags,
@@ -183,12 +183,12 @@ impl GameSessionCmdQueue {
         save_file: PathRef,
     ) {
         debug_assert!(!save_file.is_empty());
-        session.load_save_game(engine, configs, save_file);
+        let _ = session.load_save_game(engine, configs, save_file); // Failures are logged.
     }
 
     fn cmd_save_game(&mut self, session: &mut GameSession, save_file: PathRef) {
         debug_assert!(!save_file.is_empty());
-        session.save_game(save_file);
+        let _ = session.save_game(save_file); // Failures are logged.
     }
 }
 
@@ -241,6 +241,19 @@ pub fn create_initial(
 pub fn destroy(session: &mut GameSession, engine: &mut Engine, configs: &'static GameConfigs) {
     session.reset(engine, configs, false, None, None, false);
     log::info!(log::channel!("session"), "--- Game Session Destroyed ---");
+}
+
+// Replaces the session with a new game on `load_map_setting`, the way --map starts one: a fresh
+// simulation seeded from the game seed, in-game menus. Doesn't touch the campaign.
+pub(crate) fn replace_with_new_game(
+    session: &mut GameSession,
+    engine: &mut Engine,
+    configs: &'static GameConfigs,
+    load_map_setting: &LoadMapSetting,
+) {
+    destroy(session, engine, configs);
+    *session = GameSession::create_with_settings(engine, configs, load_map_setting, false);
+    log::info!(log::channel!("session"), "--- Game Session Created ({load_map_setting}) ---");
 }
 
 // ----------------------------------------------
@@ -356,6 +369,19 @@ impl GameSession {
         self.menus.as_ref().map(|menus| menus.mode())
     }
 
+    // Recounts the world stats from the current state (see World::refresh_stats).
+    pub(crate) fn refresh_world_stats(&mut self) {
+        self.world.refresh_stats(self.sim.treasury());
+    }
+
+    // Runs `edit_fn` with a SimContext over this session, for world edits made outside the
+    // simulation update (automation commands, for instance). Never keep the context: it holds
+    // raw pointers into the session.
+    pub(crate) fn with_sim_context<R>(&mut self, delta_time_secs: Seconds, edit_fn: impl FnOnce(&SimContext) -> R) -> R {
+        let context = self.sim.new_sim_context(delta_time_secs, &mut self.tile_map, &mut self.world);
+        edit_fn(&context)
+    }
+
     #[inline]
     pub fn tile_map_render_stats(&self) -> &TileMapRenderStats {
         self.tile_map_renderer.stats()
@@ -453,7 +479,7 @@ impl GameSession {
         session.menus = Some(session.create_game_menus_from_config(engine, configs, home_menu));
 
         if let LoadMapSetting::SaveGame { save_file } = load_map_setting {
-            session.load_save_game(engine, configs, PathRef::from_path(save_file));
+            let _ = session.load_save_game(engine, configs, PathRef::from_path(save_file)); // Failures are logged.
         }
 
         if configs.sim.start_paused {
@@ -516,7 +542,7 @@ impl GameSession {
     // Game Menus Setup:
     // ----------------------
 
-    fn toggle_menus_mode(&mut self, engine: &mut Engine) {
+    pub(crate) fn toggle_menus_mode(&mut self, engine: &mut Engine) {
         if let Some(mode) = self.current_menus_mode() {
             match mode {
                 GameMenusMode::DevEditor => {
@@ -728,12 +754,12 @@ struct SaveVersionProbe {
 }
 
 impl GameSession {
-    pub(crate) fn save_game(&mut self, save_file: PathRef) -> bool {
+    // Logs and returns the reason on failure.
+    pub(crate) fn save_game(&mut self, save_file: PathRef) -> Result<(), String> {
         log::info!(log::channel!("session"), "Saving game '{save_file}' ...");
 
         if !save::storage::can_write_save_file(save_file) {
-            log::error!(log::channel!("session"), "Save game file path '{save_file}' is not accessible!");
-            return false;
+            return Err(log_session_error(format!("Save game file path '{save_file}' is not accessible!")));
         }
 
         self.save_version = CURRENT_SAVE_VERSION;
@@ -742,15 +768,16 @@ impl GameSession {
         let save_result = save::storage::write_save_file(save_file, self);
         self.post_save(&mut PostSaveContext::new());
 
-        if let Err(err) = save_result {
-            log::error!(log::channel!("session"), "{err}");
-            return false;
-        }
-
-        true
+        save_result.map_err(log_session_error)
     }
 
-    pub(crate) fn load_save_game(&mut self, engine: &mut Engine, configs: &'static GameConfigs, save_file: PathRef) -> bool {
+    // Logs and returns the reason on failure. A failed load leaves the session as it was.
+    pub(crate) fn load_save_game(
+        &mut self,
+        engine: &mut Engine,
+        configs: &'static GameConfigs,
+        save_file: PathRef,
+    ) -> Result<(), String> {
         log::info!(log::channel!("session"), "Loading save game '{save_file}' ...");
 
         // Check the save version before the full load. A version mismatch means
@@ -759,28 +786,16 @@ impl GameSession {
         match save::storage::load_save_file::<SaveVersionProbe>(save_file) {
             Ok(probe) if probe.save_version == CURRENT_SAVE_VERSION => {}
             Ok(probe) => {
-                log::error!(
-                    log::channel!("session"),
+                return Err(log_session_error(format!(
                     "Cannot load '{save_file}': save version {} is incompatible (expected {}). \
                      Run it through crates/tools/save_migration_scripts/.",
-                    probe.save_version,
-                    CURRENT_SAVE_VERSION
-                );
-                return false;
+                    probe.save_version, CURRENT_SAVE_VERSION
+                )));
             }
-            Err(err) => {
-                log::error!(log::channel!("session"), "{err}");
-                return false;
-            }
+            Err(err) => return Err(log_session_error(err)),
         }
 
-        let session = match save::storage::load_save_file(save_file) {
-            Ok(session) => session,
-            Err(err) => {
-                log::error!(log::channel!("session"), "{err}");
-                return false;
-            }
-        };
+        let session = save::storage::load_save_file(save_file).map_err(log_session_error)?;
 
         // Tear down the current session before its data is replaced. Dropping a
         // live, still-ticking session leaves in-flight deferred state (e.g. spawn
@@ -794,8 +809,24 @@ impl GameSession {
         *self = session;
         self.post_load(&mut PostLoadContext::new(engine, configs, self.sim.rng().clone(), self.tile_map.clone()));
 
-        true
+        Ok(())
     }
+
+    // The session serialized as a save game would be (as compact JSON), without writing a file.
+    pub(crate) fn save_to_string(&mut self) -> Result<String, String> {
+        self.save_version = CURRENT_SAVE_VERSION;
+
+        self.pre_save(&mut PreSaveContext::new(self.sim.cmds().clone()));
+        let json = serde_json::to_string(&*self).map_err(|err| err.to_string());
+        self.post_save(&mut PostSaveContext::new());
+
+        json
+    }
+}
+
+fn log_session_error(message: String) -> String {
+    log::error!(log::channel!("session"), "{message}");
+    message
 }
 
 // ----------------------------------------------

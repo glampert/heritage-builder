@@ -1,16 +1,20 @@
-// Simulation, cheats and time commands.
+// Simulation and cheats commands.
 
 use serde::Deserialize;
 use serde_json::{Map, Value, json};
 
-use common::time::Seconds;
-
 use crate::{
-    automation::{CommandContext, CommandDef, CommandError, CommandResult, ParamDef, done, parse_params, pending},
+    automation::{CommandContext, CommandDef, CommandError, CommandResult, ParamDef, done, parse_params},
     cheats::{self, CheatsLookup},
 };
 
 pub(super) const COMMANDS: &[CommandDef] = &[
+    CommandDef {
+        name: "sim.state",
+        help: "Paused, speed, simulated time, treasury and population.",
+        params: &[],
+        run: cmd_state,
+    },
     CommandDef { name: "sim.pause", help: "Pause the simulation.", params: &[], run: cmd_pause },
     CommandDef { name: "sim.resume", help: "Resume the simulation.", params: &[], run: cmd_resume },
     CommandDef {
@@ -29,19 +33,27 @@ pub(super) const COMMANDS: &[CommandDef] = &[
         ],
         run: cmd_cheats_set,
     },
-    CommandDef {
-        name: "time.fixed_dt",
-        help: "Advance every frame by a fixed time step, or by the measured frame time again.",
-        params: &[ParamDef { name: "dt", kind: "number", required: false, help: "Seconds per frame. Omit for real time." }],
-        run: cmd_fixed_dt,
-    },
-    CommandDef {
-        name: "wait.frames",
-        help: "Finish after this many frames.",
-        params: &[ParamDef { name: "frames", kind: "int", required: true, help: "Frames to wait." }],
-        run: cmd_wait_frames,
-    },
 ];
+
+fn cmd_state(context: &mut CommandContext, _params: Value) -> CommandResult {
+    context.require_map()?;
+    super::refresh_world_stats(context);
+
+    let sim = context.session.sim();
+    let stats = context.session.world().stats();
+
+    done(json!({
+        "paused": sim.is_paused(),
+        "speed": sim.speed(),
+        "sim_time": sim.elapsed_secs(),
+        "gold": stats.treasury.gold_units_total,
+        "population": stats.population.total,
+        "employed": stats.population.employed,
+        "houses": stats.houses.total,
+        "frame": context.frame(),
+        "frame_held": context.frame_control.is_holding(),
+    }))
+}
 
 fn cmd_pause(context: &mut CommandContext, _params: Value) -> CommandResult {
     context.require_map()?;
@@ -99,36 +111,4 @@ fn cmd_cheats_set(_context: &mut CommandContext, params: Value) -> CommandResult
         .map_err(|_| CommandError::invalid_params(format!("No cheat named '{}'. See cheats.list.", params.name)))?;
 
     done(json!({ params.name: params.value }))
-}
-
-fn cmd_fixed_dt(context: &mut CommandContext, params: Value) -> CommandResult {
-    #[derive(Deserialize)]
-    #[serde(deny_unknown_fields)]
-    struct Params {
-        dt: Option<Seconds>,
-    }
-
-    let params: Params = parse_params(params)?;
-
-    if let Some(dt) = params.dt {
-        if !(dt > 0.0 && dt <= 1.0) {
-            return Err(CommandError::invalid_params(format!("dt must be more than 0 and at most 1 second, got {dt}.")));
-        }
-    }
-
-    context.engine.set_fixed_delta_time(params.dt);
-    done(json!({ "dt": params.dt }))
-}
-
-fn cmd_wait_frames(context: &mut CommandContext, params: Value) -> CommandResult {
-    #[derive(Deserialize)]
-    #[serde(deny_unknown_fields)]
-    struct Params {
-        frames: u64,
-    }
-
-    let params: Params = parse_params(params)?;
-    let target_frame = context.frame().saturating_add(params.frames);
-
-    pending(move |context| (context.frame() >= target_frame).then(|| Ok(json!({ "frame": context.frame() }))))
 }

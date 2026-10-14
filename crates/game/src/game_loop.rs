@@ -22,7 +22,7 @@ use engine::{
 };
 
 use crate::{
-    automation::{Automation, CommandContext},
+    automation::{Automation, CommandContext, FrameControl, ScriptRunner},
     cheats,
     debug::{self, log_viewer::LogViewer},
     launch,
@@ -107,8 +107,9 @@ pub struct GameLoop {
     // Taken with the screenshot hotkey and not yet written.
     pending_screenshots: Vec<ScreenshotId>,
 
-    // Runs commands typed into the console (the log viewer).
+    // Runs automation commands: the console's (the log viewer), a script's, outside tools'.
     automation: Automation,
+    frame_control: FrameControl,
     log_viewer: LogViewer,
 
     stats: GameLoopStats,
@@ -118,6 +119,12 @@ impl RunLoop for GameLoop {
     type Configs = GameConfigs;
 
     fn on_early_init() {
+        // Script results go to stdout, so the log moves to stderr. This has to happen before the
+        // first log line, which is before the command line is parsed.
+        if launch::script_mode_requested() {
+            log::redirect_to_stderr(true);
+        }
+
         debug::log_viewer::LogViewer::initialize();
     }
 
@@ -144,6 +151,15 @@ impl RunLoop for GameLoop {
         // Optional save-load smoke test run mode:
         let smoke_test = launch_options.smoke_test_saves.then(SaveSmokeTest::new);
 
+        // Optional script run mode:
+        let script = launch_options.script.as_ref().map(|options| {
+            ScriptRunner::load(&options.path, options.continue_on_error).unwrap_or_else(|err| cli::exit_with_error(&err))
+        });
+
+        // Never autosave during the smoke test - it would overwrite the saves under test.
+        // Scripts save when they mean to, and an autosave would make their runs differ.
+        let enable_autosave = configs.save.enable_autosave && smoke_test.is_none() && script.is_none();
+
         // Create Session and GameLoop:
         let session = session::create_initial(engine, configs, launch_options).unwrap_or_else(|err| cli::fail(&err));
         let game_loop = Self {
@@ -152,11 +168,11 @@ impl RunLoop for GameLoop {
             session: Box::new(session),
             session_cmd_queue: GameSessionCmdQueue::new(),
             autosave_timer: UpdateTimer::new(configs.save.autosave_frequency_secs),
-            // Never autosave during the smoke test - it would overwrite the saves under test.
-            enable_autosave: configs.save.enable_autosave && smoke_test.is_none(),
+            enable_autosave,
             smoke_test,
             pending_screenshots: Vec::new(),
-            automation: Automation::default(),
+            automation: Automation::new(script),
+            frame_control: FrameControl::default(),
             log_viewer: LogViewer::new(),
             stats: GameLoopStats::default(),
         };
@@ -202,6 +218,8 @@ impl RunLoop for GameLoop {
             session: &mut self.session,
             session_cmds: &mut self.session_cmd_queue,
             configs: self.configs,
+            frame_control: &mut self.frame_control,
+            stats: &self.stats,
         });
 
         if self.smoke_test.is_some() {
@@ -235,6 +253,10 @@ impl RunLoop for GameLoop {
     #[inline]
     fn is_running(&self) -> bool {
         self.engine.is_running()
+    }
+
+    fn finish_run(&mut self) {
+        self.automation.finish_run(self.engine);
     }
 }
 
@@ -382,6 +404,11 @@ impl GameLoop {
 
         let visible_range = self.update_camera(cursor_screen_pos, delta_time_secs);
 
+        // Automation can hold the simulation still while rendering goes on (frame.hold).
+        if !self.frame_control.should_update_simulation() {
+            return visible_range;
+        }
+
         let sim_update_timer = PerfTimer::begin();
         self.session.update_simulation(self.engine, delta_time_secs);
         self.stats.sim_frame_time_ms = sim_update_timer.end();
@@ -483,8 +510,8 @@ impl GameLoop {
                 log::info!(log::channel!("game"), "Save smoke test: loading '{}' ...", save_file.display());
 
                 let loaded = self.session.load_save_game(self.engine, self.configs, PathRef::from_path(&save_file));
-                if !loaded {
-                    panic!("Save smoke test: FAILED to load save '{}'!", save_file.display());
+                if let Err(err) = loaded {
+                    panic!("Save smoke test: FAILED to load save '{}': {err}", save_file.display());
                 }
 
                 // Ensure the simulation ticks regardless of the start_paused config.

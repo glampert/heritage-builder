@@ -20,7 +20,7 @@ use crate::{
     save_context::*,
     debug::DebugUiMode,
     prop::{Prop, PropId, config::PropConfigs},
-    sim::{SimCmds, SimContext},
+    sim::{GlobalTreasury, SimCmds, SimContext},
     tile::{
         Tile,
         TileKind,
@@ -134,6 +134,29 @@ impl World {
             for building in buildings.iter_mut() {
                 debug_assert!(building.archetype_kind() == *archetype_kind);
                 building.update(cmds, context);
+                building.tally(&mut self.stats);
+            }
+        }
+    }
+
+    // Recounts the stats from the current state without updating anything. update() recounts
+    // them on every simulation step; this is for reads in between, such as right after a load,
+    // when the treasury still reads zero until the first step.
+    pub fn refresh_stats(&mut self, treasury: &GlobalTreasury) {
+        self.stats.reset();
+
+        treasury.tally(&mut self.stats);
+
+        for unit in self.unit_spawn_pool.iter() {
+            unit.tally(&mut self.stats);
+        }
+
+        for prop in self.prop_spawn_pool.iter() {
+            prop.tally(&mut self.stats);
+        }
+
+        for (_, buildings) in &self.building_spawn_pools {
+            for building in buildings.iter() {
                 building.tally(&mut self.stats);
             }
         }

@@ -3,18 +3,37 @@
 use serde::Deserialize;
 use serde_json::{Value, json};
 
-use common::coords::Cell;
+use common::{Size, coords::Cell};
 
-use super::{CommandDef, CommandError};
+use super::{CommandContext, CommandError};
+use crate::{
+    building::{BuildingArchetypeKind, BuildingKind},
+    world::object::GenerationalIndex,
+};
 
+mod assert;
 mod camera;
+mod config;
 mod meta;
 mod observe;
 mod session;
 mod sim;
+mod time;
+mod world;
 
-pub(super) const COMMAND_GROUPS: &[&[CommandDef]] =
-    &[meta::COMMANDS, session::COMMANDS, sim::COMMANDS, camera::COMMANDS, observe::COMMANDS];
+pub(super) const COMMAND_GROUPS: &[&[CommandDef]] = &[
+    meta::COMMANDS,
+    session::COMMANDS,
+    sim::COMMANDS,
+    time::COMMANDS,
+    world::COMMANDS,
+    camera::COMMANDS,
+    config::COMMANDS,
+    observe::COMMANDS,
+    assert::COMMANDS,
+];
+
+use super::CommandDef;
 
 // ----------------------------------------------
 // Parameter helpers
@@ -47,6 +66,31 @@ pub(super) fn cell_json(cell: Cell) -> Value {
     json!([cell.x, cell.y])
 }
 
+// A size parameter, written as [width, height] or "WIDTHxHEIGHT". Both must be positive.
+#[derive(Copy, Clone, Deserialize)]
+#[serde(try_from = "Value")]
+pub(super) struct SizeParam(pub Size);
+
+impl TryFrom<Value> for SizeParam {
+    type Error = String;
+
+    fn try_from(value: Value) -> Result<Self, Self::Error> {
+        let dimension = |value: &Value| value.as_i64().and_then(|dimension| i32::try_from(dimension).ok());
+
+        let size = match &value {
+            Value::Array(dimensions) if dimensions.len() == 2 => {
+                dimension(&dimensions[0]).zip(dimension(&dimensions[1])).map(|(width, height)| Size::new(width, height))
+            }
+            Value::String(text) => engine::cli::parse_size(text).ok(),
+            _ => None,
+        };
+
+        size.filter(|size| size.width > 0 && size.height > 0)
+            .map(SizeParam)
+            .ok_or_else(|| format!("expected a size as [width, height] or \"WxH\", both positive, got {value}"))
+    }
+}
+
 // Save names are file names inside saves/, without the extension.
 pub(super) fn validate_save_name(name: &str) -> Result<(), CommandError> {
     let is_valid = !name.is_empty()
@@ -59,6 +103,91 @@ pub(super) fn validate_save_name(name: &str) -> Result<(), CommandError> {
         Ok(())
     } else {
         Err(CommandError::invalid_params(format!("'{name}' isn't a valid save name. Use a plain file name, without folders.")))
+    }
+}
+
+// Recounts the world stats (treasury, population, ...) from the current state. They're only
+// recounted on simulation steps otherwise, so they read zero right after a load, and placement
+// checks the treasury through them.
+pub(super) fn refresh_world_stats(context: &mut CommandContext) {
+    context.session.refresh_world_stats();
+}
+
+// ----------------------------------------------
+// ObjectId
+// ----------------------------------------------
+
+// Ids of buildings, units and props in command results and parameters: "<pool>:<index>:<generation>",
+// where the pool is house, producer, storage or service for buildings, or unit or prop.
+#[derive(Copy, Clone, PartialEq, Eq, Debug)]
+pub(super) enum ObjectId {
+    Building(BuildingArchetypeKind, GenerationalIndex),
+    Unit(GenerationalIndex),
+    Prop(GenerationalIndex),
+}
+
+const BUILDING_POOLS: [(&str, BuildingArchetypeKind); 4] = [
+    ("house", BuildingArchetypeKind::HouseBuilding),
+    ("producer", BuildingArchetypeKind::ProducerBuilding),
+    ("storage", BuildingArchetypeKind::StorageBuilding),
+    ("service", BuildingArchetypeKind::ServiceBuilding),
+];
+
+impl ObjectId {
+    pub fn parse(text: &str) -> Result<Self, CommandError> {
+        let error = || {
+            CommandError::invalid_params(format!(
+                "'{text}' isn't an object id. Ids look like unit:12:40 (pool:index:generation); \
+                 world.list and world.building_at return them."
+            ))
+        };
+
+        let mut parts = text.split(':');
+        let (Some(pool), Some(index), Some(generation), None) = (parts.next(), parts.next(), parts.next(), parts.next())
+        else {
+            return Err(error());
+        };
+
+        let index = index.parse::<u32>().ok().filter(|index| *index < u32::MAX).ok_or_else(error)?;
+        let generation = generation.parse::<u32>().ok().filter(|generation| *generation < u32::MAX).ok_or_else(error)?;
+        let id = GenerationalIndex::new(generation, index as usize);
+
+        match pool {
+            "unit" => Ok(Self::Unit(id)),
+            "prop" => Ok(Self::Prop(id)),
+            _ => BUILDING_POOLS
+                .iter()
+                .find(|(name, _)| *name == pool)
+                .map(|(_, archetype)| Self::Building(*archetype, id))
+                .ok_or_else(error),
+        }
+    }
+
+    pub fn building(archetype: BuildingArchetypeKind, id: GenerationalIndex) -> Self {
+        Self::Building(archetype, id)
+    }
+
+    pub fn to_json(self) -> Value {
+        let (pool, id) = match self {
+            Self::Building(archetype, id) => {
+                let pool = BUILDING_POOLS.iter().find(|(_, kind)| *kind == archetype).map_or("building", |(name, _)| name);
+                (pool, id)
+            }
+            Self::Unit(id) => ("unit", id),
+            Self::Prop(id) => ("prop", id),
+        };
+
+        Value::String(format!("{pool}:{}:{}", id.index(), id.generation()))
+    }
+}
+
+// BuildingKinds of one archetype, for World lookups that pick the pool from a kind.
+pub(super) fn archetype_building_kinds(archetype: BuildingArchetypeKind) -> BuildingKind {
+    match archetype {
+        BuildingArchetypeKind::HouseBuilding => BuildingKind::House,
+        BuildingArchetypeKind::ProducerBuilding => BuildingKind::producers(),
+        BuildingArchetypeKind::StorageBuilding => BuildingKind::storage(),
+        BuildingArchetypeKind::ServiceBuilding => BuildingKind::services(),
     }
 }
 
@@ -84,12 +213,38 @@ mod tests {
     }
 
     #[test]
+    fn test_size_param() {
+        let size = |value: Value| SizeParam::try_from(value).map(|param| param.0);
+
+        assert_eq!(size(json!([64, 32])), Ok(Size::new(64, 32)));
+        assert_eq!(size(json!("128x96")), Ok(Size::new(128, 96)));
+        assert!(size(json!([0, 32])).is_err());
+        assert!(size(json!("12")).is_err());
+        assert!(size(json!(64)).is_err());
+    }
+
+    #[test]
     fn test_validate_save_name() {
         assert!(validate_save_name("my save 2").is_ok());
         assert!(validate_save_name("autosave").is_ok());
 
         for bad in ["", ".hidden", "../escape", "dir/save", "dir\\save", "c:save", "a..b"] {
             assert!(validate_save_name(bad).is_err(), "'{bad}' should be rejected.");
+        }
+    }
+
+    #[test]
+    fn test_object_ids() {
+        let unit = ObjectId::parse("unit:12:40").unwrap();
+        assert_eq!(unit, ObjectId::Unit(GenerationalIndex::new(40, 12)));
+        assert_eq!(unit.to_json(), json!("unit:12:40"));
+
+        let house = ObjectId::parse("house:3:7").unwrap();
+        assert_eq!(house, ObjectId::Building(BuildingArchetypeKind::HouseBuilding, GenerationalIndex::new(7, 3)));
+        assert_eq!(house.to_json(), json!("house:3:7"));
+
+        for bad in ["", "unit", "unit:1", "unit:1:2:3", "tree:1:2", "unit:-1:2", "unit:4294967295:2", "unit:a:b"] {
+            assert!(ObjectId::parse(bad).is_err(), "'{bad}' should be rejected.");
         }
     }
 }

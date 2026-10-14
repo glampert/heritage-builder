@@ -238,6 +238,12 @@ pub fn fail(message: &str) -> ! {
     exit_process(2);
 }
 
+// Like fail(), without the option list, for problems inside a file an option names.
+pub fn exit_with_error(message: &str) -> ! {
+    log::error!(log::channel!("cli"), "{message}");
+    exit_process(2);
+}
+
 fn exit_process(code: i32) -> ! {
     #[cfg(feature = "desktop")]
     std::process::exit(code);

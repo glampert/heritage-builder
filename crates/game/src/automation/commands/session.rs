@@ -1,16 +1,22 @@
-// Session commands: game state, preset maps, saves.
+// Session commands: game state, new games, preset maps, saves, menus mode.
 
 use serde::Deserialize;
 use serde_json::{Value, json};
+use strum::{Display, EnumString};
 
+use common::hash;
 use engine::{file_sys::paths::PathRef, save};
 
-use super::validate_save_name;
+use super::{SizeParam, validate_save_name, world::find_tile_def};
 use crate::{
     automation::{CommandContext, CommandDef, CommandError, CommandResult, ParamDef, done, parse_params, pending},
     campaign::{self, config::CampaignConfigs},
+    config::LoadMapSetting,
     debug::preset_maps,
     launch,
+    menu::GameMenusMode,
+    session,
+    tile::TileMapLayerKind,
 };
 
 pub(super) const COMMANDS: &[CommandDef] = &[
@@ -19,6 +25,15 @@ pub(super) const COMMANDS: &[CommandDef] = &[
         help: "Menus mode, map size, simulation state, seed and campaign mission.",
         params: &[],
         run: cmd_state,
+    },
+    CommandDef {
+        name: "session.new_map",
+        help: "Start a new game on an empty map, seeded like --map: the same seed gives the same game. Ends any campaign.",
+        params: &[
+            ParamDef { name: "size", kind: "size", required: true, help: "[width, height] or \"WxH\", from 8 to 512 cells." },
+            ParamDef { name: "terrain", kind: "string", required: false, help: "Terrain tile: grass (default), dirt or water." },
+        ],
+        run: cmd_new_map,
     },
     CommandDef { name: "session.list_presets", help: "List the debug preset maps.", params: &[], run: cmd_list_presets },
     CommandDef {
@@ -41,12 +56,28 @@ pub(super) const COMMANDS: &[CommandDef] = &[
         run: cmd_save,
     },
     CommandDef {
+        name: "session.checksum",
+        help: "Hash of the game state as a save would store it. Equal across runs means the runs matched.",
+        params: &[],
+        run: cmd_checksum,
+    },
+    CommandDef {
         name: "session.quit_to_menu",
         help: "Leave the game for the home menu. Ends any campaign.",
         params: &[],
         run: cmd_quit_to_menu,
     },
+    CommandDef {
+        name: "menus.mode",
+        help: "Get or set the menus: InGame (the player's HUD) or DevEditor.",
+        params: &[ParamDef { name: "mode", kind: "string", required: false, help: "InGame or DevEditor." }],
+        run: cmd_menus_mode,
+    },
 ];
+
+// Map sizes session.new_map accepts, in cells per side.
+const NEW_MAP_SIZE_LIMITS: (i32, i32) = (8, 512);
+const DEFAULT_NEW_MAP_TERRAIN: &str = "grass";
 
 #[derive(Deserialize)]
 #[serde(deny_unknown_fields)]
@@ -55,6 +86,8 @@ struct SaveNameParams {
 }
 
 fn cmd_state(context: &mut CommandContext, _params: Value) -> CommandResult {
+    super::refresh_world_stats(context);
+
     let session = &*context.session;
     let sim = session.sim();
     let stats = session.world().stats();
@@ -75,12 +108,51 @@ fn cmd_state(context: &mut CommandContext, _params: Value) -> CommandResult {
         "map_size": [map_size.width, map_size.height],
         "paused": sim.is_paused(),
         "speed": sim.speed(),
+        "sim_time": sim.elapsed_secs(),
         "gold": stats.treasury.gold_units_total,
         "population": stats.population.total,
         "seed": launch::get().random_seed(context.configs),
         "frame": context.frame(),
         "campaign": campaign,
     }))
+}
+
+fn cmd_new_map(context: &mut CommandContext, params: Value) -> CommandResult {
+    #[derive(Deserialize)]
+    #[serde(deny_unknown_fields)]
+    struct Params {
+        size: SizeParam,
+        terrain: Option<String>,
+    }
+
+    let params: Params = parse_params(params)?;
+    let size = params.size.0;
+
+    let (min_size, max_size) = NEW_MAP_SIZE_LIMITS;
+    if !(min_size..=max_size).contains(&size.width) || !(min_size..=max_size).contains(&size.height) {
+        return Err(CommandError::invalid_params(format!(
+            "Map sides go from {min_size} to {max_size} cells, got {}x{}.",
+            size.width, size.height
+        )));
+    }
+
+    let terrain_name = params.terrain.as_deref().unwrap_or(DEFAULT_NEW_MAP_TERRAIN);
+    let (terrain_tile_def, terrain_category) = find_tile_def(terrain_name, Some(TileMapLayerKind::Terrain))?;
+
+    if terrain_tile_def.is_road() || terrain_tile_def.is_vacant_lot() {
+        return Err(CommandError::invalid_params(format!("'{terrain_name}' can't fill a map. Use grass, dirt or water.")));
+    }
+
+    let load_map_setting = LoadMapSetting::EmptyMap {
+        size_in_cells: size,
+        terrain_tile_category: terrain_category.name.clone(),
+        terrain_tile_name: terrain_tile_def.name.clone(),
+    };
+
+    campaign::reset();
+    session::replace_with_new_game(context.session, context.engine, context.configs, &load_map_setting);
+
+    done(json!({ "map_size": [size.width, size.height], "terrain": terrain_tile_def.name }))
 }
 
 fn cmd_list_presets(_context: &mut CommandContext, _params: Value) -> CommandResult {
@@ -138,9 +210,10 @@ fn cmd_load_save(context: &mut CommandContext, params: Value) -> CommandResult {
     validate_save_name(&params.name)?;
 
     // Safe to load right away: this runs at the same point as the session command queue.
-    if !context.session.load_save_game(context.engine, context.configs, PathRef::from_str(&params.name)) {
-        return Err(CommandError::failed(format!("Couldn't load '{}'. The log has the details.", params.name)));
-    }
+    context
+        .session
+        .load_save_game(context.engine, context.configs, PathRef::from_str(&params.name))
+        .map_err(CommandError::failed)?;
 
     let map_size = context.session.tile_map().size_in_cells();
     done(json!({ "name": params.name, "map_size": [map_size.width, map_size.height] }))
@@ -151,16 +224,54 @@ fn cmd_save(context: &mut CommandContext, params: Value) -> CommandResult {
     validate_save_name(&params.name)?;
     context.require_map()?;
 
-    if !context.session.save_game(PathRef::from_str(&params.name)) {
-        return Err(CommandError::failed(format!("Couldn't save '{}'. The log has the details.", params.name)));
-    }
+    context.session.save_game(PathRef::from_str(&params.name)).map_err(CommandError::failed)?;
 
-    done(json!({ "name": params.name }))
+    let path = save::storage::save_files_path().join(&params.name).with_extension("json");
+    done(json!({ "name": params.name, "path": path.to_string() }))
+}
+
+fn cmd_checksum(context: &mut CommandContext, _params: Value) -> CommandResult {
+    context.require_map()?;
+
+    let state = context.session.save_to_string().map_err(CommandError::failed)?;
+    done(json!({ "checksum": format!("{:016x}", hash::fnv1a_from_str(&state)), "bytes": state.len() }))
 }
 
 fn cmd_quit_to_menu(context: &mut CommandContext, _params: Value) -> CommandResult {
     context.session_cmds.push_quit_to_main_menu();
 
     let requested_frame = context.frame();
-    pending(move |context| (context.frame() > requested_frame).then(|| Ok(Value::Null)))
+    pending(move |context| (context.frame() > requested_frame).then_some(Ok(Value::Null)))
+}
+
+#[derive(Copy, Clone, PartialEq, Eq, Display, EnumString, Deserialize)]
+enum MenusModeParam {
+    InGame,
+    DevEditor,
+}
+
+fn cmd_menus_mode(context: &mut CommandContext, params: Value) -> CommandResult {
+    #[derive(Deserialize)]
+    #[serde(deny_unknown_fields)]
+    struct Params {
+        mode: Option<MenusModeParam>,
+    }
+
+    let params: Params = parse_params(params)?;
+
+    if let Some(mode) = params.mode {
+        context.require_map()?;
+
+        let wanted = match mode {
+            MenusModeParam::InGame => GameMenusMode::InGame,
+            MenusModeParam::DevEditor => GameMenusMode::DevEditor,
+        };
+
+        // The session can only toggle between the two.
+        if context.session.current_menus_mode() != Some(wanted) {
+            context.session.toggle_menus_mode(context.engine);
+        }
+    }
+
+    done(json!({ "mode": context.session.current_menus_mode().map(|mode| format!("{mode:?}")) }))
 }

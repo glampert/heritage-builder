@@ -9,6 +9,7 @@
 extern crate self as engine;
 
 pub mod app;
+pub mod automation;
 pub mod cli;
 pub mod config;
 pub mod debug;

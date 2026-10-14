@@ -1,27 +1,38 @@
 // Automation commands: named commands that take JSON parameters and return JSON results.
 //
 // Commands run on the main thread at one point in GameLoop::update, right after the session
-// command queue, where the world is unlocked and no SimContext is live. The in-game console
-// (an input field in the debug LogViewer) is the first way in; script mode and the control
-// server will feed the same registry (see docs/plans/agent-automation.md).
+// command queue, where the world is unlocked and no SimContext is live. They come from the
+// in-game console (an input field in the debug LogViewer), from a script file (--script), and
+// from outside tools through the engine's request queue (see engine::automation). See
+// docs/plans/agent-automation.md.
 
 use serde::de::DeserializeOwned;
 use serde_json::Value;
 use strum::Display;
 
 use common::coords::Cell;
-use engine::{Engine, log};
+use engine::{
+    Engine,
+    automation::{Responder, Response, ResponseError},
+    log,
+};
 
 use crate::{
     config::GameConfigs,
     debug::log_viewer::LogViewer,
+    game_loop::GameLoopStats,
     menu::GameMenusMode,
     session::{GameSession, GameSessionCmdQueue},
 };
 
 mod commands;
+mod config_patches;
+mod query;
+mod script;
 mod text;
 
+pub use config_patches::save_game_configs;
+pub use script::ScriptRunner;
 pub use text::{format_output, parse_command_text};
 
 // ----------------------------------------------
@@ -35,6 +46,8 @@ pub enum ErrorCode {
     NotInGame, // Needs a map: not available at the home menu.
     NotFound,
     Failed,
+    AssertionFailed,
+    Timeout,
 }
 
 #[derive(Debug)]
@@ -50,6 +63,10 @@ impl CommandError {
 
     pub fn invalid_params(message: impl Into<String>) -> Self {
         Self::new(ErrorCode::InvalidParams, message)
+    }
+
+    pub fn not_found(message: impl Into<String>) -> Self {
+        Self::new(ErrorCode::NotFound, message)
     }
 
     pub fn failed(message: impl Into<String>) -> Self {
@@ -93,12 +110,56 @@ pub fn done(value: Value) -> CommandResult {
     Ok(Outcome::Done(value))
 }
 
+// The first poll happens right away, in the same frame, so a command can finish at once.
 #[inline]
 pub fn pending<F>(poll_fn: F) -> CommandResult
 where
     F: FnMut(&mut CommandContext) -> Option<CommandOutput> + 'static,
 {
     Ok(Outcome::Pending(Box::new(PendingFn(poll_fn))))
+}
+
+// ----------------------------------------------
+// FrameControl
+// ----------------------------------------------
+
+// Holds the simulation and animations still between commands (frame.hold), or lets them run for
+// a number of frames (frame.step). Rendering goes on, so screenshots still work. Owned by the
+// GameLoop, which asks it once per frame whether to update the simulation.
+#[derive(Default)]
+pub struct FrameControl {
+    hold: bool,
+    steps_left: u64,
+}
+
+impl FrameControl {
+    #[inline]
+    pub fn is_holding(&self) -> bool {
+        self.hold
+    }
+
+    pub fn set_hold(&mut self, hold: bool) {
+        self.hold = hold;
+        self.steps_left = 0;
+    }
+
+    // Runs `frames` more frames, then holds.
+    pub fn step(&mut self, frames: u64) {
+        self.hold = true;
+        self.steps_left = self.steps_left.saturating_add(frames);
+    }
+
+    // Called once per frame. False skips the simulation update this frame.
+    pub fn should_update_simulation(&mut self) -> bool {
+        if !self.hold {
+            return true;
+        }
+        if self.steps_left > 0 {
+            self.steps_left -= 1;
+            return true;
+        }
+        false
+    }
 }
 
 // ----------------------------------------------
@@ -110,6 +171,8 @@ pub struct CommandContext<'game> {
     pub session: &'game mut GameSession,
     pub session_cmds: &'game mut GameSessionCmdQueue,
     pub configs: &'static GameConfigs,
+    pub frame_control: &'game mut FrameControl,
+    pub stats: &'game GameLoopStats,
 }
 
 impl CommandContext<'_> {
@@ -171,10 +234,14 @@ pub fn find_command(name: &str) -> Option<&'static CommandDef> {
     all_commands().find(|command| command.name == name)
 }
 
+pub fn unknown_command_error(name: &str) -> CommandError {
+    CommandError::new(ErrorCode::UnknownCommand, format!("Unknown command '{name}'. Try 'help'."))
+}
+
 pub fn run_command(context: &mut CommandContext, name: &str, params: Value) -> CommandResult {
     match find_command(name) {
         Some(command) => (command.run)(context, params),
-        None => Err(CommandError::new(ErrorCode::UnknownCommand, format!("Unknown command '{name}'. Try 'help'."))),
+        None => Err(unknown_command_error(name)),
     }
 }
 
@@ -189,9 +256,10 @@ pub fn parse_params<T: DeserializeOwned>(params: Value) -> Result<T, CommandErro
 // ----------------------------------------------
 
 // Where a command's result goes.
-#[derive(Copy, Clone)]
 enum ReplyTo {
     Console,
+    Script { line: usize },
+    Remote(Responder), // A transport's request (see engine::automation).
 }
 
 struct InFlightCommand {
@@ -204,57 +272,112 @@ struct InFlightCommand {
 #[derive(Default)]
 pub struct Automation {
     in_flight: Vec<InFlightCommand>,
+    script: Option<ScriptRunner>,
 }
 
 impl Automation {
+    pub fn new(script: Option<ScriptRunner>) -> Self {
+        Self { in_flight: Vec::new(), script }
+    }
+
+    #[inline]
+    pub fn is_running_script(&self) -> bool {
+        self.script.is_some()
+    }
+
     pub fn update(&mut self, context: &mut CommandContext) {
-        self.in_flight.retain_mut(|in_flight| match in_flight.command.poll(context) {
-            Some(output) => {
-                reply(in_flight.reply_to, in_flight.name, output);
-                false
+        debug_assert!(engine::platform::is_main_thread());
+
+        // Finish pending commands first, in the order they started.
+        for mut in_flight in std::mem::take(&mut self.in_flight) {
+            match in_flight.command.poll(context) {
+                Some(output) => self.reply(context, in_flight.reply_to, in_flight.name, output),
+                None => self.in_flight.push(in_flight),
             }
-            None => true,
-        });
+        }
 
         for line in LogViewer::take_console_input() {
             self.run_text(context, &line, ReplyTo::Console);
         }
+
+        for request in context.engine.take_automation_requests() {
+            self.run(context, &request.method, request.params, ReplyTo::Remote(request.responder));
+        }
+
+        self.update_script(context);
+    }
+
+    // Called once the game loop has stopped. A script that hadn't finished fails.
+    pub fn finish_run(&mut self, engine: &mut Engine) {
+        if let Some(script) = &mut self.script {
+            script.finish_interrupted(engine);
+        }
+    }
+
+    // Runs script lines until one is pending or the script ends.
+    fn update_script(&mut self, context: &mut CommandContext) {
+        loop {
+            let Some(script) = &mut self.script else {
+                return;
+            };
+
+            // Lines run one at a time.
+            if script.is_waiting() || script.is_finished() {
+                return;
+            }
+
+            let Some(line) = script.start_next_line() else {
+                script.finish(context.engine, context.frame());
+                return;
+            };
+
+            self.run(context, &line.name, line.params, ReplyTo::Script { line: line.number });
+        }
     }
 
     fn run_text(&mut self, context: &mut CommandContext, text: &str, reply_to: ReplyTo) {
-        let (name, params) = match parse_command_text(text) {
-            Ok(parsed) => parsed,
-            Err(err) => {
-                reply(reply_to, "", Err(CommandError::invalid_params(err)));
-                return;
-            }
-        };
+        match parse_command_text(text) {
+            Ok((name, params)) => self.run(context, &name, params, reply_to),
+            Err(err) => self.reply(context, reply_to, "", Err(CommandError::invalid_params(err))),
+        }
+    }
 
-        let Some(command) = find_command(&name) else {
-            let err = CommandError::new(ErrorCode::UnknownCommand, format!("Unknown command '{name}'. Try 'help'."));
-            reply(reply_to, "", Err(err));
+    fn run(&mut self, context: &mut CommandContext, name: &str, params: Value, reply_to: ReplyTo) {
+        let Some(command) = find_command(name) else {
+            self.reply(context, reply_to, name, Err(unknown_command_error(name)));
             return;
         };
 
         match (command.run)(context, params) {
-            Ok(Outcome::Done(value)) => reply(reply_to, command.name, Ok(value)),
-            Err(err) => reply(reply_to, command.name, Err(err)),
+            Ok(Outcome::Done(value)) => self.reply(context, reply_to, command.name, Ok(value)),
+            Err(err) => self.reply(context, reply_to, command.name, Err(err)),
             Ok(Outcome::Pending(mut pending)) => {
                 // Some finish right away, e.g. waiting zero frames.
                 match pending.poll(context) {
-                    Some(output) => reply(reply_to, command.name, output),
+                    Some(output) => self.reply(context, reply_to, command.name, output),
                     None => self.in_flight.push(InFlightCommand { name: command.name, reply_to, command: pending }),
                 }
             }
         }
     }
-}
 
-fn reply(reply_to: ReplyTo, name: &str, output: CommandOutput) {
-    match reply_to {
-        ReplyTo::Console => {
-            let level = if output.is_ok() { log::Level::Info } else { log::Level::Error };
-            LogViewer::print_console_output(level, &format_output(name, &output));
+    fn reply(&mut self, context: &CommandContext, reply_to: ReplyTo, name: &str, output: CommandOutput) {
+        match reply_to {
+            ReplyTo::Console => {
+                let level = if output.is_ok() { log::Level::Info } else { log::Level::Error };
+                LogViewer::print_console_output(level, &format_output(name, &output));
+            }
+            ReplyTo::Script { line } => {
+                if let Some(script) = &mut self.script {
+                    script.on_line_finished(line, name, output, context.frame());
+                }
+            }
+            ReplyTo::Remote(responder) => {
+                responder.respond(Response {
+                    frame: Some(context.frame()),
+                    result: output.map_err(|err| ResponseError { code: err.code.to_string(), message: err.message }),
+                });
+            }
         }
     }
 }
@@ -301,5 +424,25 @@ mod tests {
         let err = parse_params::<Params>(serde_json::json!({"cuont": 3})).unwrap_err();
         assert_eq!(err.code, ErrorCode::InvalidParams);
         assert!(err.message.contains("cuont"));
+    }
+
+    #[test]
+    fn test_frame_control() {
+        let mut frames = FrameControl::default();
+        assert!(frames.should_update_simulation());
+
+        frames.set_hold(true);
+        assert!(!frames.should_update_simulation());
+
+        frames.step(2);
+        assert!(frames.should_update_simulation());
+        assert!(frames.should_update_simulation());
+        assert!(!frames.should_update_simulation());
+        assert!(frames.is_holding());
+
+        frames.step(5);
+        frames.set_hold(false);
+        assert!(frames.should_update_simulation());
+        assert!(!frames.is_holding());
     }
 }

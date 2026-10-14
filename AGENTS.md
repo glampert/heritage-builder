@@ -18,6 +18,7 @@ Command-line options (`cargo run -p HeritageBuilder -- --help` lists them all):
 - `--seed N` sets the random seed for new games and `--fixed-dt SECONDS` advances every frame by a fixed step. Together they make runs repeatable.
 - `--window-size WxH` overrides the window size.
 - `--screenshot-after-frames N --screenshot-out PATH` saves a PNG of frame N and quits: status 0 if it was written, 1 if not. Add `--screenshot-no-ui` to leave the UI out. A relative `PATH` is relative to the directory the game was started from, not `base_path`.
+- `--script FILE` runs automation commands from a file and quits: status 0 if all succeeded, 1 if not, 2 if the file can't be read or has invalid lines. See [Script mode](#script-mode).
 - Unknown options exit with status 2. Options are declared in `engine::cli::ENGINE_CLI_OPTIONS` ([cli.rs](crates/engine/src/cli.rs)) and `game::launch::GAME_CLI_OPTIONS` ([launch.rs](crates/game/src/launch.rs)).
 - Apply an option where its value is used. Don't write it into `GameConfigs`: the settings dialog saves the whole struct back to `configs.json`.
 
@@ -27,10 +28,20 @@ Headless Linux (CI, cloud agent sessions): install the packages from the CI Ubun
 
 Screenshots: PrintScreen or F12 saves `screenshots/<window title> <local date and time>.png` next to `saves/`; Shift leaves the UI out. A toast reports the file name. Code: `Engine::request_screenshot` ([screenshot.rs](crates/engine/src/screenshot.rs)) on top of `RenderSystem::request_capture` ([capture.rs](crates/engine/src/render/capture.rs)).
 
-Console and automation commands: the [`] key opens the log viewer, whose input field runs commands, in any menus mode. `help` lists them, and `help command=NAME` describes one. Lines take the form `name`, `name key=value ...` (values are JSON or plain text) or `name {json}`.
-- Commands live in `crate::automation` ([automation/mod.rs](crates/game/src/automation/mod.rs)): one `CommandDef` table per area in `automation/commands/`, listed in `COMMAND_GROUPS`. Script mode and the control server will reuse them (see the plan below).
+Console and automation commands: the [`] key opens the log viewer, whose input field runs commands, in any menus mode. `help` lists them with their parameters, and `help command=NAME` describes one. Lines take the form `name`, `name key=value ...` (values are JSON or plain text), `name {json}` or `{"method": "name", "params": {...}}`.
+- Commands live in `crate::automation` ([automation/mod.rs](crates/game/src/automation/mod.rs)): one `CommandDef` table per area in `automation/commands/`, listed in `COMMAND_GROUPS`. The console, script mode and outside tools (through the engine's request queue, `engine::automation`) all run them.
 - They run once per frame, right after the session command queue, where the world is unlocked and no `SimContext` is live. Commands that span frames return `pending(..)` and must keep ids, not references: a session load replaces the world.
 - Parse params with `parse_params` into a `#[serde(deny_unknown_fields)]` struct, and validate before calling anything that panics or asserts on bad input (cell bounds, preset numbers, save names). The console only queues typed lines; never run commands from inside UI drawing.
+- World edits go through `GameSession::with_sim_context` and the player's own paths (`TilePlacement::place`, `clear`, `place_road_segment`). The world stats (treasury, population) are only recounted on simulation steps, so they read zero right after a load; commands that place or report them call `refresh_world_stats` first.
+
+### Script mode
+
+`cargo run -p HeritageBuilder -- --script crates/game/tests/scenarios/smoke.jsonl` runs one command per line, each once the line before it has finished, and prints one JSON result line per command to stdout, then a summary line. Logs go to stderr in this mode, so `2>/dev/null` leaves only the results. It stops at the first failure unless `--script-continue-on-error` is given. Autosave is off.
+- Lines use any console form; files usually hold `{"method": ..., "params": {...}}`. Blank lines and lines starting with `#` are skipped. Invalid lines and unknown commands are reported before anything runs.
+- Results: `{"line": 3, "command": "world.place", "ok": true, "result": {...}, "frame": 12}`, or `"ok": false` with `"error": {"code": ..., "message": ...}`. The summary has `ok`, `succeeded`, `failed` and `skipped`.
+- Assertions are commands: `assert.eq|ne|gt|ge|lt|le|exists` run a query command (e.g. `sim.state`) and compare the value at a JSON pointer (`path`). `wait.until` polls the same way.
+- Repeatable runs: set `time.fixed_dt`, start with `session.new_map`, `session.load_preset` or `session.load_save`, and use `time.fast_forward` for long stretches. `session.checksum` hashes the game state as a save would store it.
+- Sample scenarios live in [crates/game/tests/scenarios/](crates/game/tests/scenarios/): `smoke.jsonl` builds a settlement and checks settlers move in; `determinism.jsonl` must print the same checksum and write the same `saves/determinism.json` on two runs with the same `--seed`.
 
 MacOS `.app` bundle (wraps `cargo bundle` + asset copy):
 - `./bundle.sh` / `./bundle.sh release`
@@ -124,7 +135,7 @@ If you're tempted to mutate the world inside a system callback, queue it instead
 - Many hot data structures prefer stack allocation: `arrayvec`, `smallvec`, `small-map`, `smallbox`, `slab`, `bitvec`. Prefer these over `Vec`/`HashMap` when capacity is bounded.
 - `#[enum_dispatch]` is used for polymorphism over variant sets (e.g. building archetypes) instead of `dyn Trait`.
 - Bitflag types are declared with the `bitflags_with_display!` macro from `common` so they format nicely in logs and debug UI.
-- Use `engine::log` (channel-based logger), not `println!` / `eprintln!`, except in tools/bundler.
+- Use `engine::log` (channel-based logger), not `println!` / `eprintln!`, except in tools/bundler and for script mode's result lines, which are the run's machine-readable output on stdout (`game::automation::script`).
 - The engine's path types (`FixedPathBuf`/`FixedPath`/`AssetPath`/`PathRef` in `engine/src/file_sys/paths.rs`) differ from `std::path`: `join`/`push` with a path that starts with a separator appends it instead of replacing the base.
 
 ## More project knowledge

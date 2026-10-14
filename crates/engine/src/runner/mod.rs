@@ -41,6 +41,10 @@ pub trait RunLoop: Sized {
     fn update(&mut self);
     fn is_running(&self) -> bool;
 
+    // Called by the desktop runner once the loop has stopped, before it shuts down and reads
+    // Engine::exit_code(). Override to report work that the quit cut short.
+    fn finish_run(&mut self) {}
+
     // Called by the runner before engine initialization.
     // Override to perform early setup (e.g., log viewer, debug tools).
     fn on_early_init() {}
