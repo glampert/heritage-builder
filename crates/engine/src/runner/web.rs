@@ -395,6 +395,10 @@ impl<GameLoop: RunLoop + 'static> WebEventHandler<GameLoop> {
         set_loading_progress(100, "Ready!");
         hide_loading_screen();
 
+        // Start the frame loop. Each frame requests the next one, but nothing requests the
+        // first: without this, the game waits for an input or resize event to start.
+        window.request_redraw();
+
         self.state = WebRunnerState::Running { window };
 
         log::info!(log::channel!("runner"), "Web Runner: Game initialized and running!");

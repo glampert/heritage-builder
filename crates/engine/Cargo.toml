@@ -111,6 +111,10 @@ features = [
     "GainOptions",
     "StereoPannerNode",
     "StereoPannerOptions",
+    "Blob",
+    "BlobPropertyBag",
+    "Url",
+    "HtmlAnchorElement",
 ]
 
 # ----------------------------

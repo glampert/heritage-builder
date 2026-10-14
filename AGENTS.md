@@ -43,7 +43,7 @@ Console and automation commands: the [`] key opens the log viewer, whose input f
 - Results: `{"line": 3, "command": "world.place", "ok": true, "result": {...}, "frame": 12}`, or `"ok": false` with `"error": {"code": ..., "message": ...}`. The summary has `ok`, `succeeded`, `failed` and `skipped`.
 - Assertions are commands: `assert.eq|ne|gt|ge|lt|le|exists` run a query command (e.g. `sim.state`) and compare the value at a JSON pointer (`path`). `wait.until` polls the same way.
 - Repeatable runs: set `time.fixed_dt`, start with `session.new_map`, `session.load_preset` or `session.load_save`, and use `time.fast_forward` for long stretches. `session.checksum` hashes the game state as a save would store it.
-- Sample scenarios live in [crates/game/tests/scenarios/](crates/game/tests/scenarios/): `smoke.jsonl` builds a settlement and checks settlers move in; `determinism.jsonl` must print the same checksum and write the same `saves/determinism.json` on two runs with the same `--seed`.
+- Sample scenarios live in [crates/game/tests/scenarios/](crates/game/tests/scenarios/): `smoke.jsonl` builds a settlement and checks settlers move in; `determinism.jsonl` must print the same checksum and write the same `saves/determinism.json` on two runs with the same `--seed`; `ui_new_game.jsonl` and `ui_build.jsonl` play through the menus and HUD. Determinism holds between runs of the same build: debug and release builds give different checksums.
 
 ### Live control
 
@@ -78,6 +78,8 @@ Web / WASM:
 - Toolchain for imgui-sys: Homebrew `llvm` + `wasi-libc` on MacOS, or set `WASI_SDK_PATH` to a wasi-sdk 30–32 install (Linux/CI; 33+ headers reject `wasm32-unknown-unknown`).
 - `crates/launcher/build.rs` passes `--allow-undefined` to the wasm linker: imgui-sys's C library symbols are imported from `env` (provided by `web/libc.js`), and Rust 1.96+ no longer allows undefined symbols by default. Don't remove it.
 - `web-builder` regenerates `web/asset_manifest.json` from `assets/`. The web runner preloads only the files listed there, so after adding or removing assets, rebuild web and commit the updated manifest.
+- Automation on web: the page exposes `await window.heritage.exec(method, params)` ([web/bootstrap.js](web/bootstrap.js) over [automation/web.rs](crates/engine/src/automation/web.rs)), which resolves with a command's result or rejects with `{code, message}` (`NotReady` while loading). Screenshots come back as base64 PNG (`png_base64`); a screenshot "file" on web, like the F12 hotkey's, is a browser download.
+- Web smoke test: `python3 crates/tools/web_smoke/smoke.py [--swiftshader]` serves `web/`, opens the game in headless Chromium with Playwright (`pip install playwright && playwright install chromium`) and drives it through the bridge. It needs Playwright's full Chromium (it uses the `chromium` channel): the separate headless shell's WebGPU rejects buffer maps, so captures fail there. `--swiftshader` renders on the CPU, for machines without a GPU.
 
 Tests — every integration test in `crates/game/tests/` (`sim_cmds`, `search_graph`, `unit_tasks`, `campaign`, `house_consumption`) uses a **custom harness** (`harness = false`):
 - `cargo test -p game --test <name>` runs one file; `cargo test -p game` runs them all.
@@ -85,6 +87,8 @@ Tests — every integration test in `crates/game/tests/` (`sim_cmds`, `search_gr
 - The harness calls `setup()` once on the main thread because several globals use `SingleThreadStatic` and will assert if touched from a different thread. Do not parallelize tests.
 
 CI — [.github/workflows/ci.yml](.github/workflows/ci.yml) on every push/PR: desktop build + `cargo test --workspace` on Ubuntu and macOS, plus a release web build via `web-builder`. Latest stable Rust; warnings don't fail the build. The Ubuntu job installs ALSA, X11 and Wayland dev packages for glfw/kira.
+- The `scenarios` job runs the script scenarios under Xvfb (Mesa software OpenGL), runs `determinism.jsonl` twice and diffs the outputs and saves, and uploads `out/` and `logs/` as an artifact.
+- The web job runs the Playwright smoke test on the release build with SwiftShader and uploads `out/web/`.
 
 Save-load smoke test (verifies save-file compatibility):
 - Sample saves are committed only as `saves/sample_saves.zip`; run `unzip saves/sample_saves.zip` first to extract them into `saves/`.
@@ -103,6 +107,7 @@ Save-load smoke test (verifies save-file compatibility):
 - `crates/tools/hb-ctl` — CLI client for the automation server (`--automation`): launch the game, run commands, take screenshots, follow logs, and serve the commands over MCP (`hb-ctl mcp`). Std and `serde_json` only.
 - `crates/tools/web-builder` — WASM build driver (used by `web.sh`).
 - `crates/tools/save_migration_scripts` — Python scripts (`v<N>_to_v<N+1>.py`) that migrate save JSON between format versions. Not a Cargo crate.
+- `crates/tools/web_smoke` — Playwright smoke test for the web build (`smoke.py`). Not a Cargo crate.
 - `crates/tools/debug` — `macos_run_heap_debug.sh`, a MacOS heap-corruption debugging wrapper. Not a Cargo crate.
 - `assets/` — `configs/{game,units,props,buildings,ui}`, `tiles/`, `sounds/`, `fonts/`, `ui/`. Copied into bundle.
 - `saves/` — Save games (serde JSON), including `autosave.json`. Git-ignored except `sample_saves.zip` (sample maps such as `test_map_64x64.json`, `test_map_128x128.json`, `tiny_island.json`).

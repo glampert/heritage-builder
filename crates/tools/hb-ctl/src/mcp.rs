@@ -12,7 +12,7 @@
 
 use std::{
     io::{BufRead, Write},
-    time::{Duration, SystemTime, UNIX_EPOCH},
+    time::Duration,
 };
 
 use serde_json::{Map, Value, json};
@@ -266,14 +266,12 @@ impl McpServer<'_> {
 // Screenshots
 // ----------------------------------------------
 
-// Saves the screenshot to a file (the one given, or a temporary one) and returns the image.
+// Returns the image: inline from the game, or read back from the file when a path was given.
 fn screenshot(client: &mut Client, mut params: Value) -> Value {
-    let keep_file = params.get("path").is_some();
+    let path = params.get("path").and_then(Value::as_str).map(str::to_string);
 
-    if !keep_file {
-        let millis = SystemTime::now().duration_since(UNIX_EPOCH).map_or(0, |since| since.as_millis());
-        let path = std::env::temp_dir().join(format!("hb-ctl-screenshot-{}-{millis}.png", std::process::id()));
-        params["path"] = json!(path.display().to_string());
+    if path.is_none() {
+        params["inline"] = json!(true);
     }
     if params.get("scale").is_none() {
         params["scale"] = json!("points");
@@ -284,26 +282,21 @@ fn screenshot(client: &mut Client, mut params: Value) -> Value {
         Err(err) => return tool_error(&describe_error(client, &err)),
     };
 
-    let path = reply.result["path"].as_str().unwrap_or_default().to_string();
-    let png = match std::fs::read(&path) {
-        Ok(png) => png,
-        Err(err) => return tool_error(&format!("The game saved {path}, but it can't be read: {err}")),
-    };
-
-    if !keep_file {
-        let _ = std::fs::remove_file(&path);
-    }
-
-    let mut info = reply.result.clone();
-    if !keep_file {
-        if let Some(info) = info.as_object_mut() {
-            info.remove("path");
+    let mut info = reply.result;
+    let data = match info.as_object_mut().and_then(|info| info.remove("png_base64")) {
+        Some(Value::String(data)) => data,
+        _ => {
+            let path = info["path"].as_str().unwrap_or_default().to_string();
+            match std::fs::read(&path) {
+                Ok(png) => base64(&png),
+                Err(err) => return tool_error(&format!("The game saved {path}, but it can't be read: {err}")),
+            }
         }
-    }
+    };
 
     json!({
         "content": [
-            { "type": "image", "data": base64(&png), "mimeType": "image/png" },
+            { "type": "image", "data": data, "mimeType": "image/png" },
             { "type": "text", "text": info.to_string() },
         ],
         "isError": false,

@@ -82,6 +82,18 @@ pub trait Configs {
     }
 }
 
+// A value this build can't represent (e.g. a desktop-only enum variant on the web) reads as the
+// default instead of failing the whole configs file.
+#[cfg(feature = "web")]
+fn deserialize_or_default<'de, D, T>(deserializer: D) -> Result<T, D::Error>
+where
+    D: serde::Deserializer<'de>,
+    T: DeserializeOwned + Default,
+{
+    let value = serde_json::Value::deserialize(deserializer)?;
+    Ok(serde_json::from_value(value).unwrap_or_default())
+}
+
 // ----------------------------------------------
 // Macro: configurations
 // ----------------------------------------------
@@ -121,9 +133,14 @@ pub struct EngineConfigs {
     pub resizable_window: bool,
     pub confine_cursor_to_window: bool,
     pub content_scale: ApplicationContentScale, // Optional override. Defaults to System.
+
+    // The web build always runs Winit and Wgpu, and lacks the desktop-only values (Glfw, OpenGl):
+    // it reads those as the defaults, so the rest of configs.json still loads.
+    #[cfg_attr(feature = "web", serde(deserialize_with = "deserialize_or_default"))]
     pub app_api: ApplicationApi,
 
     // Graphics:
+    #[cfg_attr(feature = "web", serde(deserialize_with = "deserialize_or_default"))]
     pub render_api: RenderApi,
     pub use_packed_texture_atlas: bool,
     #[debug_ui(nested)]

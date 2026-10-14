@@ -14,6 +14,9 @@ pub mod input;
 #[cfg(feature = "desktop")]
 pub mod server;
 
+#[cfg(feature = "web")]
+pub mod web;
+
 // ----------------------------------------------
 // Request / Response
 // ----------------------------------------------

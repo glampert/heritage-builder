@@ -8,7 +8,7 @@ use serde_json::{Value, json};
 use engine::{
     cli,
     log,
-    screenshot::{ScreenshotOutput, ScreenshotRequest, ScreenshotScale},
+    screenshot::{self, ScreenshotOutput, ScreenshotRequest, ScreenshotScale},
 };
 
 use crate::{
@@ -33,6 +33,12 @@ pub(super) const COMMANDS: &[CommandDef] = &[
                 kind: "number|string",
                 required: false,
                 help: "\"points\" for one image pixel per window point (what input coordinates use), or a factor from 0 to 1. Default 1: framebuffer pixels.",
+            },
+            ParamDef {
+                name: "inline",
+                kind: "bool",
+                required: false,
+                help: "True returns the PNG as base64 (png_base64) instead of writing a file. The web build's default.",
             },
         ],
         run: cmd_screenshot,
@@ -71,6 +77,7 @@ fn cmd_screenshot(context: &mut CommandContext, params: Value) -> CommandResult 
         #[serde(default = "default_include_ui")]
         include_ui: bool,
         scale: Option<Value>,
+        inline: Option<bool>,
     }
 
     fn default_include_ui() -> bool {
@@ -78,6 +85,12 @@ fn cmd_screenshot(context: &mut CommandContext, params: Value) -> CommandResult 
     }
 
     let params: Params = parse_params(params)?;
+
+    // Web can't write files (a "file" there is a download), so inline is its default.
+    let inline = params.inline.unwrap_or(cfg!(not(feature = "desktop")) && params.path.is_none());
+    if inline && params.path.is_some() {
+        return Err(CommandError::invalid_params("Give either a path or inline=true, not both."));
+    }
 
     let scale = match &params.scale {
         None => ScreenshotScale::Pixels,
@@ -92,26 +105,29 @@ fn cmd_screenshot(context: &mut CommandContext, params: Value) -> CommandResult 
         }
     };
 
-    let path = match params.path {
-        Some(path) => cli::resolve_launch_path(&path),
-        None => context.engine.new_screenshot_path(),
+    let output = match (inline, params.path) {
+        (true, _) => ScreenshotOutput::Memory,
+        (false, Some(path)) => ScreenshotOutput::File(cli::resolve_launch_path(&path)),
+        (false, None) => ScreenshotOutput::File(context.engine.new_screenshot_path()),
     };
 
-    let id = context.engine.request_screenshot(ScreenshotRequest {
-        include_ui: params.include_ui,
-        scale,
-        output: ScreenshotOutput::File(path),
-    });
+    let id = context.engine.request_screenshot(ScreenshotRequest { include_ui: params.include_ui, scale, output });
 
     pending(move |context| {
         let result = context.engine.take_screenshot_result(id)?;
 
         Some(result.map_err(CommandError::failed).map(|screenshot| {
-            json!({
-                "path": screenshot.path.map(|path| path.display().to_string()),
+            let mut reply = json!({
                 "size": [screenshot.size.width, screenshot.size.height],
                 "scale": [screenshot.scale.x, screenshot.scale.y],
-            })
+            });
+            if let Some(path) = &screenshot.path {
+                reply["path"] = json!(path.display().to_string());
+            }
+            if let Some(png) = &screenshot.png {
+                reply["png_base64"] = json!(screenshot::base64_encode(png));
+            }
+            reply
         }))
     })
 }

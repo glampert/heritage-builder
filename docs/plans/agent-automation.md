@@ -1,6 +1,6 @@
 # Agent automation and in-game screenshots
 
-**Status (2026-10-14):** Approved 2026-10-11. Phase 0 done (merged with PR #1). Phases 1–5 done on the `claude` branch: screenshots, the command registry with script mode and the in-game console, the live control server with `hb-ctl`, the MCP server with its agent skill, and simulated input with UI automation. Phases 6–7 are next. See [Handoff](#handoff-2026-10-14) for the move to a local machine.
+**Status (2026-10-15):** Approved 2026-10-11. Phase 0 done (merged with PR #1). Phases 1–6 done on the `claude` branch: screenshots, the command registry with script mode and the in-game console, the live control server with `hb-ctl`, the MCP server with its agent skill, simulated input with UI automation, and the web bridge with CI scenarios. Phase 7 is next. See [Handoff](#handoff-2026-10-14) for the move to a local machine.
 
 This plan lets AI agents launch the game, drive it, inspect it and debug it. It also adds framebuffer screenshots, which ship to players as well. It was researched against commit `9f26ef8` on the `claude` branch. File and line references point at that commit, so re-check them before relying on them.
 
@@ -491,11 +491,11 @@ Notes (2026-10-14, local Mac):
 
 ### Phase 6: Web and CI (medium)
 
-- [ ] `window.heritage.exec` bridge (`wasm_bindgen` export, plus glue in `web/bootstrap.js`), feeding the same queue. Replies resolve promises by request ID.
-- [ ] Verify Wgpu capture on web, including the asynchronous map. Screenshots return base64.
-- [ ] Web screenshot hotkey through a Blob download (add the `web-sys` features).
-- [ ] Playwright smoke script: serve `web/`, wait for the game, call `ping`, load a preset, take a screenshot. Chromium is preinstalled in Claude Code cloud sessions (`/opt/pw-browsers`); locally, run `npx playwright install chromium`.
-- [ ] CI job on Ubuntu:
+- [x] `window.heritage.exec` bridge (`wasm_bindgen` export, plus glue in `web/bootstrap.js`), feeding the same queue. Replies resolve promises by request ID.
+- [x] Verify Wgpu capture on web, including the asynchronous map. Screenshots return base64.
+- [x] Web screenshot hotkey through a Blob download (add the `web-sys` features).
+- [x] Playwright smoke script: serve `web/`, wait for the game, call `ping`, load a preset, take a screenshot. Chromium is preinstalled in Claude Code cloud sessions (`/opt/pw-browsers`); locally, run `npx playwright install chromium`.
+- [x] CI job on Ubuntu:
   - Install Xvfb and Mesa.
   - Build release.
   - Run `xvfb-run -a cargo run -p HeritageBuilder --release -- --script crates/game/tests/scenarios/smoke.jsonl`.
@@ -504,6 +504,17 @@ Notes (2026-10-14, local Mac):
 Done when:
 - The Playwright script gets a screenshot from the web build.
 - The CI job runs the scenarios green and uploads screenshots.
+
+Notes (2026-10-15, local Mac):
+- **Bridge.** `heritageExec(method, params)` ([automation/web.rs](../../crates/engine/src/automation/web.rs)) returns a promise. Its `Responder` resolves it with the result, or rejects it with `{code, message}`: `NotReady` before the engine starts, `InvalidParams` for params that aren't an object. No request ids are needed: each promise carries its own responder. `bootstrap.js` exposes it as `window.heritage.exec`.
+- **Screenshots on web.** `screenshot` gained `inline: true`, returning `png_base64` (`screenshot::base64_encode`), which is the web default without a path. A "file" on web is a browser download (`platform::download_file`: Blob, object URL, anchor), so the F12 / PrintScreen hotkey works there too. `hb-ctl mcp` now asks for inline screenshots instead of reading back a temporary file.
+- **Smoke test.** Deviation: Python Playwright (`crates/tools/web_smoke/smoke.py`), not Node: this machine has no Node, and the repo's other tool scripts are Python. It serves `web/`, waits for `ping`, then checks `version`, `session.load_preset`, `session.state`, `world.list`, `world.place`, a bridge screenshot, Playwright's own page screenshot, and the F12 download. It runs Playwright's full Chromium in headless mode with `--enable-unsafe-webgpu`, plus `--use-webgpu-adapter=swiftshader` for GPU-less machines (`--swiftshader`).
+- **Found in passing (web):**
+  - The web game could hang after "Game initialized and running!": nothing requested the first redraw, so frames only began once an input or resize event happened to wake the event loop. Headless Chromium often sent none. `finish_init` now requests the first redraw.
+  - On web, `configs.json` never loaded: its `"app_api": "Glfw"` and `"render_api": "OpenGl"` are desktop-only enum variants, so the whole file failed to deserialize and the web build ran on default configs. Those two fields now read unknown values as defaults on web.
+  - Playwright's Chromium headless shell rejects `mapAsync` ("A valid external Instance reference no longer exists"), so captures fail there; full Chromium, on Metal or SwiftShader, maps fine. Keeping the `wgpu::Instance` and `Adapter` alive made no difference, so that change was dropped.
+- **CI.** A new `scenarios` job builds release, runs `smoke`, `ui_new_game` and `ui_build` under Xvfb with Mesa software OpenGL, runs `determinism.jsonl` twice and diffs the outputs and saves, and uploads `out/` and `logs/`. The web job runs the smoke test on the release build with SwiftShader and uploads `out/web/`.
+- **Verified** on macOS: the smoke test passes on Metal and on SwiftShader (load in about 4 s, debug build), and the bridge screenshot matches Playwright's page screenshot. The CI job's commands pass locally on a release build (macOS, no Xvfb). Release and debug builds give different determinism checksums; each is stable between its own runs. **Not verified:** the workflow itself, which runs once the branch is pushed.
 
 ### Phase 7: Record, replay and image checks (small to medium)
 

@@ -4,7 +4,8 @@
 // match_hotkey), and `--screenshot-after-frames N` takes one and quits. The GPU readback runs on
 // the main thread at the end of the frame (see render/capture.rs). On desktop the PNG is then
 // encoded and written on a background thread, so the frame doesn't also wait for that. Web has
-// no threads and no writable file system: it encodes in place and can only return the PNG bytes.
+// no threads and no writable file system: it encodes in place, and "saving a file" hands the PNG
+// to the browser as a download.
 
 use std::{
     path::{Path, PathBuf},
@@ -33,7 +34,7 @@ use crate::{
 pub type ScreenshotId = CaptureId;
 
 pub enum ScreenshotOutput {
-    File(PathBuf), // Write a PNG file. Relative paths are relative to paths::base_path().
+    File(PathBuf), // Write a PNG file (desktop; relative to paths::base_path()), or download it (web).
     Memory,        // Return the PNG bytes in Screenshot::png.
 }
 
@@ -71,7 +72,7 @@ pub struct ScreenshotHotkey {
 
 // PrintScreen or F12 takes a screenshot; holding Shift leaves the UI out. PrintScreen fires on
 // release because Windows reports only its release. F12 is there because Mac keyboards have no
-// PrintScreen key. Desktop only for now: the web build can't save files yet.
+// PrintScreen key. On web the PNG downloads, if the browser lets the key through.
 pub fn match_hotkey(key: InputKey, action: InputAction, modifiers: InputModifiers) -> Option<ScreenshotHotkey> {
     if !is_hotkey(key) {
         return None;
@@ -90,7 +91,7 @@ pub fn match_hotkey(key: InputKey, action: InputAction, modifiers: InputModifier
 // keyboard focus, so a screenshot can be taken with a dialog open.
 #[inline]
 pub fn is_hotkey(key: InputKey) -> bool {
-    cfg!(feature = "desktop") && matches!(key, InputKey::PrintScreen | InputKey::F12)
+    matches!(key, InputKey::PrintScreen | InputKey::F12)
 }
 
 // ----------------------------------------------
@@ -100,6 +101,23 @@ pub fn is_hotkey(key: InputKey) -> bool {
 // Where screenshots taken with the hotkey go, next to saves/.
 pub fn screenshots_path() -> FixedPath {
     paths::base_path().join("screenshots")
+}
+
+// Standard base64 with padding, e.g. for returning a PNG inside JSON.
+pub fn base64_encode(bytes: &[u8]) -> String {
+    const TABLE: &[u8; 64] = b"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
+
+    let mut out = String::with_capacity(bytes.len().div_ceil(3) * 4);
+    for chunk in bytes.chunks(3) {
+        let triple = [chunk[0], chunk.get(1).copied().unwrap_or(0), chunk.get(2).copied().unwrap_or(0)];
+        let bits = (u32::from(triple[0]) << 16) | (u32::from(triple[1]) << 8) | u32::from(triple[2]);
+
+        out.push(TABLE[(bits >> 18) as usize & 63] as char);
+        out.push(TABLE[(bits >> 12) as usize & 63] as char);
+        out.push(if chunk.len() > 1 { TABLE[(bits >> 6) as usize & 63] as char } else { '=' });
+        out.push(if chunk.len() > 2 { TABLE[bits as usize & 63] as char } else { '=' });
+    }
+    out
 }
 
 pub fn encode_png(image: &CapturedImage) -> Result<Vec<u8>, String> {
@@ -152,24 +170,30 @@ pub fn scale_image(image: CapturedImage, scale: ScreenshotScale) -> Result<Captu
 }
 
 fn save_screenshot(image: CapturedImage, scale: ScreenshotScale, output: ScreenshotOutput) -> ScreenshotResult {
-    if cfg!(not(feature = "desktop")) && matches!(output, ScreenshotOutput::File(_)) {
-        return Err("Saving screenshots to files isn't supported on the web build yet.".into());
-    }
-
     let image = scale_image(image, scale)?;
     let png = encode_png(&image)?;
     let CapturedImage { size, scale, .. } = image;
 
     match output {
         ScreenshotOutput::File(path) => {
-            file_sys::create_path(&path)
-                .map_err(|err| format!("Failed to create the folder for '{}': {err}", path.display()))?;
-            file_sys::write_file(&path, &png).map_err(|err| format!("Failed to write '{}': {err}", path.display()))?;
-
+            write_png(&path, &png)?;
             Ok(Screenshot { size, scale, path: Some(path), png: None })
         }
         ScreenshotOutput::Memory => Ok(Screenshot { size, scale, path: None, png: Some(png) }),
     }
+}
+
+#[cfg(feature = "desktop")]
+fn write_png(path: &Path, png: &[u8]) -> Result<(), String> {
+    file_sys::create_path(path).map_err(|err| format!("Failed to create the folder for '{}': {err}", path.display()))?;
+    file_sys::write_file(path, png).map_err(|err| format!("Failed to write '{}': {err}", path.display()))
+}
+
+// The browser saves it to its downloads, under the file name.
+#[cfg(not(feature = "desktop"))]
+fn write_png(path: &Path, png: &[u8]) -> Result<(), String> {
+    let file_name = path.file_name().map(|name| name.to_string_lossy().into_owned()).unwrap_or_else(|| "screenshot.png".into());
+    platform::download_file(&file_name, png, "image/png")
 }
 
 // ----------------------------------------------
@@ -333,6 +357,15 @@ mod tests {
         assert!(shift.is_some_and(|hotkey| !hotkey.include_ui));
 
         assert!(is_hotkey(InputKey::PrintScreen) && is_hotkey(InputKey::F12) && !is_hotkey(InputKey::A));
+    }
+
+    #[test]
+    fn test_base64_encode() {
+        assert_eq!(base64_encode(b""), "");
+        assert_eq!(base64_encode(b"f"), "Zg==");
+        assert_eq!(base64_encode(b"fo"), "Zm8=");
+        assert_eq!(base64_encode(b"foobar"), "Zm9vYmFy");
+        assert_eq!(base64_encode(&[0xff, 0xfe, 0x00]), "//4A");
     }
 
     #[test]

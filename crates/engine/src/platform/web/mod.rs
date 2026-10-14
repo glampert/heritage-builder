@@ -57,3 +57,42 @@ pub fn is_main_thread() -> bool {
     // No user threads in Web/WASM - always "main thread".
     true
 }
+
+// ----------------------------------------------
+// File downloads
+// ----------------------------------------------
+
+// Hands `bytes` to the browser as a file download named `file_name`, the web build's way of
+// saving a file (e.g. a screenshot).
+pub fn download_file(file_name: &str, bytes: &[u8], mime_type: &str) -> Result<(), String> {
+    use wasm_bindgen::{JsCast, closure::Closure};
+
+    let window = web_sys::window().ok_or("No browser window.")?;
+    let document = window.document().ok_or("No document.")?;
+
+    let parts = js_sys::Array::of1(&js_sys::Uint8Array::from(bytes));
+    let options = web_sys::BlobPropertyBag::new();
+    options.set_type(mime_type);
+
+    let blob = web_sys::Blob::new_with_u8_array_sequence_and_options(&parts, &options)
+        .map_err(|err| format!("Can't make a blob: {err:?}"))?;
+    let url = web_sys::Url::create_object_url_with_blob(&blob).map_err(|err| format!("Can't make a blob URL: {err:?}"))?;
+
+    let anchor: web_sys::HtmlAnchorElement = document
+        .create_element("a")
+        .map_err(|err| format!("Can't make a link: {err:?}"))?
+        .dyn_into()
+        .map_err(|_| "Not a link element.".to_string())?;
+
+    anchor.set_href(&url);
+    anchor.set_download(file_name);
+    anchor.click();
+
+    // Free the blob once the browser has had time to start the download.
+    let revoke = Closure::once_into_js(move || {
+        let _ = web_sys::Url::revoke_object_url(&url);
+    });
+    let _ = window.set_timeout_with_callback_and_timeout_and_arguments_0(revoke.unchecked_ref(), 10_000);
+
+    Ok(())
+}

@@ -25,6 +25,7 @@ pub use desktop::{
 mod web;
 #[cfg(feature = "web")]
 pub use web::{
+    download_file,
     initialize_crash_report,
     set_crash_report_frame,
     set_main_thread,
