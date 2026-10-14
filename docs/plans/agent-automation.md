@@ -1,6 +1,6 @@
 # Agent automation and in-game screenshots
 
-**Status:** Approved 2026-10-11. Phase 0 done (merged with PR #1). Open decisions answered 2026-10-14 and phases reordered so MCP comes before UI automation. Phase 1 (screenshots) done. From Phase 2, the in-game console and the registry core are done (pulled ahead as their own change); the rest of Phase 2 (script mode, the remaining commands) is next.
+**Status (2026-10-14):** Approved 2026-10-11. Phase 0 done (merged with PR #1). Phase 1 (screenshots) done. Phase 2 is in progress: the command registry core, 25 starter commands and the in-game console are done. Next is script mode and the remaining commands. Phases 3–7 haven't started. See [Handoff](#handoff-2026-10-14) for where things stand.
 
 This plan lets AI agents launch the game, drive it, inspect it and debug it. It also adds framebuffer screenshots, which ship to players as well. It was researched against commit `9f26ef8` on the `claude` branch. File and line references point at that commit, so re-check them before relying on them.
 
@@ -19,6 +19,19 @@ This plan lets AI agents launch the game, drive it, inspect it and debug it. It 
 
 - After finishing a task and pushing, check CI once and report the result. Don't keep polling. (User preference, 2026-10-11.)
 - Commit each phase to the `claude` branch as it lands. Open one PR once all remaining phases (1–7) are done. (User request, 2026-10-14.)
+
+### Handoff (2026-10-14)
+
+Work moves from a Claude Code cloud session to a local machine here.
+
+- **Branch:** `claude`, pushed, last commit `38e0190` ("In-game console: run automation commands from the log viewer"). PR #1 (Phase 0) was merged into `main`. Phase 1 and the console are on `claude` only, not yet in a PR, per the working agreement above.
+- **Verified in the cloud session** (Linux, Xvfb, Mesa software rendering): `cargo test --workspace` passes, and the web build compiles with no warnings. The screenshot and console checks are in the Phase 1 and console notes below. Nothing from that session lives outside the repo: its scratch notes are folded into this file.
+- **Still to check on real hardware:**
+  - Phase 1 done-when: on a HiDPI Mac, a screenshot comes out at framebuffer resolution and matches the screen, on OpenGL and on Wgpu (`"render_api": "Wgpu"` with `"app_api": "Winit"`).
+  - Mac keys: F12 needs Fn unless function keys are set as standard keys. GLFW maps the PC-style PrintScreen key to `PrintScreen`; winit reports it as F13, which isn't bound.
+  - The console's [`] key on non-US keyboard layouts.
+- **Next task:** the rest of Phase 2. Start with script mode (`--script`): it gives every later phase a way to test itself. Then add the remaining commands, using the implementation notes under Phase 2 (they flag the APIs that panic on bad input). Then add the sample scenarios.
+- **Local setup:** macOS needs none of the cloud-only packages (`xvfb`, `mesa-vulkan-drivers`, `libxkbcommon-x11-0`, `xdotool`). Run the game directly. For agent-style checks, use `--screenshot-after-frames N --screenshot-out out/x.png` and read the PNG. The web build uses Homebrew `llvm` + `wasi-libc` (see AGENTS.md).
 
 ## Goals
 
@@ -351,10 +364,10 @@ Notes (2026-10-14):
 
 - [x] `crates/game/src/automation/`: `CommandRegistry`, `CommandContext`, `CommandResult`, `CommandError`, `PendingCommand`, dispatch at the execution point above.
 - [ ] Engine-side request queue and reply targets, shaped so Phase 3's channel and Phase 6's web bridge slot in.
-- [ ] `GameSession` helpers for building a `SimContext` / `GameUiContext`, and `pub(crate)` save/load that report their result.
-- [ ] Commands: meta, time, session, sim, cheats, config, world, camera, observe (`screenshot`, `logs.tail`, `debug.stats`) and assert.
+- [ ] `GameSession` helpers for building a `SimContext` / `GameUiContext`, and `pub(crate)` save/load that report their result. (Partly done: `save_game` and `load_save_game` are `pub(crate)` but still return `bool`.)
+- [ ] Commands: meta, time, session, sim, cheats, config, world, camera, observe (`screenshot`, `logs.tail`, `debug.stats`) and assert. (Partly done: the 25 starter commands listed in the console notes. Remaining: `world.*`, `tile.at`, `undo`/`redo`, `config.get`/`config.set`, `logs.tail`, `debug.stats`, `assert.*`, `time.fast_forward`, `wait.sim_seconds`, `wait.until`, `frame.hold`/`frame.step`, `session.new_map`, `menus.mode`, camera coordinate conversions.)
 - [ ] `--script FILE`: JSON lines in (blank lines and `#` comments allowed), JSON lines out, stop at the first failure (`--script-continue-on-error` to keep going), exit status 0/1. Autosave off in this mode, as in the smoke test.
-- [ ] Exit-code plumbing: the desktop runner currently returns `()`. Add a way for the run loop to report an exit code (for example `RunLoop::exit_code()`), and call `std::process::exit` after a clean shutdown.
+- [x] Exit-code plumbing: the desktop runner currently returns `()`. Add a way for the run loop to report an exit code (for example `RunLoop::exit_code()`), and call `std::process::exit` after a clean shutdown. (Done in Phase 1 as `Engine::request_exit(code)`; the desktop runner exits with `Engine::exit_code()`. The `quit` command takes an `exit_code`.)
 - [ ] Sample scenarios in `crates/game/tests/scenarios/`: `smoke.jsonl` (load, place, fast-forward, assert, screenshot) and `determinism.jsonl`.
 - [x] In-game console: an input field in the debug LogViewer (`debug/log_viewer.rs`) that runs registry commands, prints each result into the log view, and keeps a command history (up/down arrows). See Q3.
 
@@ -374,16 +387,16 @@ Console notes (2026-10-14, done ahead of the rest of Phase 2 as one change):
 - **Verified** under Xvfb with `xdotool`: typed commands in the HUD mode ran `help`, `sim.speed`, `session.load_preset` (pending, one frame), `session.state`, `screenshot` (pending, wrote the PNG), `camera.teleport` and `cheats.set`. An unknown command printed an error, and the up arrow recalled history. Headless runs flood the view with verbose ambient-sound lines (no audio device); filter them with Filter → Channels.
 - [ ] AGENTS.md: document `--script`, the scenario format, `help`, and the stdout exception to the logging rule.
 
-Implementation notes from the Phase 2 code survey (2026-10-14, against `8494da9`):
+Implementation notes from the Phase 2 code survey (2026-10-14, against `8494da9`). Items marked *(done)* landed with the console change (`38e0190`):
 - **Dispatch point** is right after `self.session_cmd_queue.execute(...)` in `GameLoop::update` (game_loop.rs:190 at that commit). `GameLoop` fields are private, so build `CommandContext` there with split borrows. `Engine::request_exit` and the desktop exit code already exist (Phase 1).
 - **Contexts.** `GameSession` fields are private and `make_ui_widget_context!` / the `SimContext` macros are module-private. Add closure-scoped helpers in session.rs (`with_sim_context`, `with_ui_context`) built on `Simulation::new_sim_context`. Never store a `SimContext` or `&Tile` in a pending command: loads replace the world.
-- **Save/load results.** `GameSession::save_game` is private and returns `bool`; make it and `load_save_game` `pub(crate)` and return `Result<(), String>`. Call them directly at the dispatch point, as the smoke test does. Validate save names (no separators or `..`).
-- **Session commands.** Preset numbers are silently clamped (validate against `preset_maps::preset_tile_maps_list().len()`). `load_preset` doesn't reset the campaign (call `campaign::reset()`), and some presets turn cheats on globally. `reset` keeps the `Simulation` (RNG, gold, speed), so `--map` / `load_preset` / `load_save` are the deterministic starts. `menus.mode` must compare before pushing the toggle.
+- **Save/load results.** Both are now `pub(crate)` and called directly at the dispatch point, and save names are validated *(done)*. Still to do: return `Result<(), String>` instead of `bool`, so commands can report the reason.
+- **Session commands.** Preset numbers are silently clamped (validate against `preset_maps::preset_tile_maps_list().len()`). `load_preset` doesn't reset the campaign (call `campaign::reset()`). Both are handled by `session.load_preset` *(done)*. Some presets turn cheats on globally. `reset` keeps the `Simulation` (RNG, gold, speed), so `--map` / `load_preset` / `load_save` are the deterministic starts. `menus.mode` must compare before pushing the toggle.
 - **World edits.** `TilePlacement::place/clear(&SimContext, ...)` are associated functions; `Failed` drops the error message (add a field). There is no public road-segment placement (factor it out of `try_place_road_segment`). Use `ImmediateModeSimCmds` / `Spawner`, never the sim's deferred queue (`Simulation::update` asserts it's empty). Check `is_cell_within_bounds` before any placement: negative cells and huge road spans assert or allocate.
 - **Panics to pre-empt.** `SpawnPool::try_get` / `try_get_mut` index without a bounds check (fix with `spawned.get(index)`). `BuildingKind::archetype_kind()` panics on empty kinds, and `find_building` searches only the first matching archetype. Serializing a `Building` with a pending spawn promise debug-asserts: run its `pre_save` first, or build summaries by hand. `set_fixed_delta_time` debug-asserts dt > 0. Camera commands need a valid map (the home session's camera asserts on an empty map).
-- **Missing pieces.** No `Simulation::set_speed` (speed is 1-10 via speedup/slowdown), no sim-time counter (add a `#[serde(skip)]` f64), and `Camera::set_zoom` is undone by the smooth-zoom state (add a snap that also sets `current_zoom` and `target_zoom`). `TileDef`, `GameLoopStats`, `RenderStats`, `WorldStats` and `log::Record` aren't `Serialize`; build JSON by hand. `Cell` serializes as `{x, y}`, so accept `[x, y]` too.
+- **Missing pieces.** `Simulation::set_speed` and `Camera::snap_zoom` *(done)*. Still missing: a sim-time counter (add a `#[serde(skip)]` f64). `TileDef`, `GameLoopStats`, `RenderStats`, `WorldStats` and `log::Record` aren't `Serialize`; build JSON by hand. `Cell` serializes as `{x, y}`, so accept `[x, y]` too.
 - **Configs.** `GameConfigs::get_mut()` exists. `config.set` must patch through a JSON round trip of the whole struct, because `#[serde(default)]` resets missing fields. Keep the originals, and write them back around the settings dialog's `GameConfigs::save()` in `menu/dialog/settings/mod.rs`, so runtime patches never reach configs.json.
-- **Console.** The LogViewer holds its mutex for the whole draw, and it draws inside `session.menus`. So the input field only queues lines in `LogViewerSingleton`; the dispatcher drains them at the dispatch point and pushes results back without logging. imgui-rs 0.12 has `input_text(..).enter_returns_true(true).callback(InputTextCallback::HISTORY, handler)` for history. The viewer only shows in DevEditor mode today.
+- **Console** *(done)*. The LogViewer holds its mutex for the whole draw, so the input field only queues lines; the dispatcher drains them and prints results without logging. The viewer now draws from the GameLoop in every menus mode.
 - **Script output.** Logs go to stdout, so in script mode switch logging to stderr before the first log line. `RunLoop::on_early_init` runs before platform init and can check `std::env::args()` for `--script`.
 
 Done when:
@@ -436,7 +449,7 @@ Done when:
 - [ ] `window.heritage.exec` bridge (`wasm_bindgen` export, plus glue in `web/bootstrap.js`), feeding the same queue. Replies resolve promises by request ID.
 - [ ] Verify Wgpu capture on web, including the asynchronous map. Screenshots return base64.
 - [ ] Web screenshot hotkey through a Blob download (add the `web-sys` features).
-- [ ] Playwright smoke script: serve `web/`, wait for the game, call `ping`, load a preset, take a screenshot. Chromium is preinstalled in Claude Code cloud sessions (`/opt/pw-browsers`).
+- [ ] Playwright smoke script: serve `web/`, wait for the game, call `ping`, load a preset, take a screenshot. Chromium is preinstalled in Claude Code cloud sessions (`/opt/pw-browsers`); locally, run `npx playwright install chromium`.
 - [ ] CI job on Ubuntu:
   - Install Xvfb and Mesa.
   - Build release.
