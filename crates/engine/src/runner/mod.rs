@@ -53,6 +53,12 @@ pub trait RunLoop: Sized {
     fn cli_options() -> &'static [CliOption] {
         &[]
     }
+
+    // Names of run loop options that a recording (--record) leaves out, so its replay doesn't get
+    // them: run modes whose commands the recording holds, such as a script.
+    fn cli_options_not_recorded() -> &'static [&'static str] {
+        &[]
+    }
 }
 
 // ----------------------------------------------

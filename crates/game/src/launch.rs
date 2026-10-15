@@ -46,6 +46,10 @@ pub const GAME_CLI_OPTIONS: &[CliOption] = &[
     },
 ];
 
+// Options a recording (--record) leaves out: it holds the script's commands, and its replay runs
+// them on the frames they ran on.
+pub const GAME_CLI_OPTIONS_NOT_RECORDED: &[&str] = &["script", "script-continue-on-error"];
+
 // True if the process arguments ask for script mode. For the early log setup, which runs before
 // the command line is parsed (see GameLoop::on_early_init).
 pub fn script_mode_requested() -> bool {

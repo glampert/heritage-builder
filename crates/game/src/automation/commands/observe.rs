@@ -92,18 +92,7 @@ fn cmd_screenshot(context: &mut CommandContext, params: Value) -> CommandResult 
         return Err(CommandError::invalid_params("Give either a path or inline=true, not both."));
     }
 
-    let scale = match &params.scale {
-        None => ScreenshotScale::Pixels,
-        Some(Value::String(scale)) if scale == "points" => ScreenshotScale::Points,
-        Some(Value::Number(factor)) if factor.as_f64().is_some_and(|factor| factor > 0.0 && factor <= 1.0) => {
-            ScreenshotScale::Factor(factor.as_f64().unwrap_or(1.0) as f32)
-        }
-        Some(other) => {
-            return Err(CommandError::invalid_params(format!(
-                "scale must be \"points\" or a number more than 0 and at most 1, got {other}."
-            )));
-        }
-    };
+    let scale = screenshot_scale(params.scale.as_ref())?;
 
     let output = match (inline, params.path) {
         (true, _) => ScreenshotOutput::Memory,
@@ -130,6 +119,20 @@ fn cmd_screenshot(context: &mut CommandContext, params: Value) -> CommandResult 
             reply
         }))
     })
+}
+
+// The `scale` parameter of screenshot and assert.image.
+pub(super) fn screenshot_scale(scale: Option<&Value>) -> Result<ScreenshotScale, CommandError> {
+    match scale {
+        None => Ok(ScreenshotScale::Pixels),
+        Some(Value::String(scale)) if scale == "points" => Ok(ScreenshotScale::Points),
+        Some(Value::Number(factor)) if factor.as_f64().is_some_and(|factor| factor > 0.0 && factor <= 1.0) => {
+            Ok(ScreenshotScale::Factor(factor.as_f64().unwrap_or(1.0) as f32))
+        }
+        Some(other) => Err(CommandError::invalid_params(format!(
+            "scale must be \"points\" or a number more than 0 and at most 1, got {other}."
+        ))),
+    }
 }
 
 // Channel names are stored as " [name]".

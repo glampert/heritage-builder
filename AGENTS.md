@@ -21,6 +21,7 @@ Command-line options (`cargo run -p HeritageBuilder -- --help` lists them all):
 - `--script FILE` runs automation commands from a file and quits: status 0 if all succeeded, 1 if not, 2 if the file can't be read or has invalid lines. See [Script mode](#script-mode).
 - `--automation[=PORT]` accepts commands from outside tools over localhost. See [Live control](#live-control).
 - `--capture-input` starts with input capture on: the game ignores the real mouse and keyboard and takes simulated input. See [Simulated input and UI automation](#simulated-input-and-ui-automation).
+- `--record FILE` records the run, and `--replay FILE` plays a recording back, then exits: status 0 if it ended in the same state, 1 if not. See [Record and replay](#record-and-replay).
 - Unknown options exit with status 2. Options are declared in `engine::cli::ENGINE_CLI_OPTIONS` ([cli.rs](crates/engine/src/cli.rs)) and `game::launch::GAME_CLI_OPTIONS` ([launch.rs](crates/game/src/launch.rs)).
 - Apply an option where its value is used. Don't write it into `GameConfigs`: the settings dialog saves the whole struct back to `configs.json`.
 
@@ -42,8 +43,9 @@ Console and automation commands: the [`] key opens the log viewer, whose input f
 - Lines use any console form; files usually hold `{"method": ..., "params": {...}}`. Blank lines and lines starting with `#` are skipped. Invalid lines and unknown commands are reported before anything runs.
 - Results: `{"line": 3, "command": "world.place", "ok": true, "result": {...}, "frame": 12}`, or `"ok": false` with `"error": {"code": ..., "message": ...}`. The summary has `ok`, `succeeded`, `failed` and `skipped`.
 - Assertions are commands: `assert.eq|ne|gt|ge|lt|le|exists` run a query command (e.g. `sim.state`) and compare the value at a JSON pointer (`path`). `wait.until` polls the same way.
+- `assert.image golden=FILE` compares a screenshot with a PNG, pixel by pixel (`tolerance` per channel, `max_diff_pixels`); `update=true` saves the screenshot as the golden, and `path` saves it with a `-diff.png` beside it that marks differing pixels in red. Goldens only hold on the machine and render backend that made them, so CI checks state, not images.
 - Repeatable runs: set `time.fixed_dt`, start with `session.new_map`, `session.load_preset` or `session.load_save`, and use `time.fast_forward` for long stretches. `session.checksum` hashes the game state as a save would store it.
-- Sample scenarios live in [crates/game/tests/scenarios/](crates/game/tests/scenarios/): `smoke.jsonl` builds a settlement and checks settlers move in; `determinism.jsonl` must print the same checksum and write the same `saves/determinism.json` on two runs with the same `--seed`; `ui_new_game.jsonl` and `ui_build.jsonl` play through the menus and HUD. Determinism holds between runs of the same build: debug and release builds give different checksums.
+- Sample scenarios live in [crates/game/tests/scenarios/](crates/game/tests/scenarios/): `smoke.jsonl` builds a settlement and checks settlers move in; `determinism.jsonl` must print the same checksum and write the same `saves/determinism.json` on two runs with the same `--seed`; `ui_new_game.jsonl` and `ui_build.jsonl` play through the menus and HUD. The window size is part of the game state (the camera's viewport), so give `--window-size` when comparing runs: macOS shrinks a window that doesn't fit the screen by a pixel more or less from run to run. Debug and release builds give the same checksums.
 
 ### Live control
 
@@ -66,6 +68,16 @@ Console and automation commands: the [`] key opens the log viewer, whose input f
 - Camera edge scrolling ignores a cursor outside the window, such as the virtual cursor parked by `input.move park=true`. Park it before screenshots so no tile shows the hover highlight.
 - Developer menus (DevEditor, debug windows) are immediate-mode ImGui and don't record widgets; drive them with point clicks and screenshots.
 
+### Record and replay
+
+`--record FILE` writes the run as JSON lines as it goes, and `--replay FILE` plays it back, e.g. to reproduce a bug report. Code: [engine automation/recording.rs](crates/engine/src/automation/recording.rs), driven from `Engine::begin_frame` and `Engine::finish_run`, and the game's part in [game automation/recording.rs](crates/game/src/automation/recording.rs).
+- A recording holds what the game can't recompute: each frame's time step, the real mouse and keyboard (sampled once a frame, below input capture, so simulated input comes from the replayed commands), and the automation commands from scripts and outside tools, on the frames they started. Console commands are left out, since the replayed typing runs them again.
+- The header holds the command-line options, the window size, the input capture state, and the game's version, autosave setting and `GameConfigs`. Options for run modes that the recording covers (`--script`, `--automation`, `--screenshot-*`) are left out. The last line holds the frame count and the final state's checksum, as `session.checksum` hashes it.
+- A replay runs with the recorded options, window size and configs. Options given with `--replay` come after the recorded ones and win, so `--automation` lets `hb-ctl` watch it, but commands sent then change the run. Real input is ignored, except quitting and Shift+Esc, which stops the replay and gives the input back. At the end, the replay compares the frame count and checksum: exit status 0 if they match, 1 if not.
+- Each line is written as it happens, so a crash leaves a recording without its last line. Replaying it crashes the same way, or gives the input back after the last recorded frame.
+- Saving changes the game state: `pre_save` resolves pending spawns early. That's why a replay autosaves exactly when the recorded run did, and why `session.checksum` counts as a save.
+- Limits: the window size and display scale must match the recording, and warnings say when they don't. The window size is part of the state, so record with `--window-size` if the window might not fit another screen. A replay can't resize the window. `--load-save` needs the same save file. A replay repeats the run's side effects: saves, screenshots and autosaves.
+
 MacOS `.app` bundle (wraps `cargo bundle` + asset copy):
 - `./bundle.sh` / `./bundle.sh release`
 - `./bundle.sh --install [release]` installs `cargo-bundle` first
@@ -87,7 +99,7 @@ Tests — every integration test in `crates/game/tests/` (`sim_cmds`, `search_gr
 - The harness calls `setup()` once on the main thread because several globals use `SingleThreadStatic` and will assert if touched from a different thread. Do not parallelize tests.
 
 CI — [.github/workflows/ci.yml](.github/workflows/ci.yml) on every push/PR: desktop build + `cargo test --workspace` on Ubuntu and macOS, plus a release web build via `web-builder`. Latest stable Rust; warnings don't fail the build. The Ubuntu job installs ALSA, X11 and Wayland dev packages for glfw/kira.
-- The `scenarios` job runs the script scenarios under Xvfb (Mesa software OpenGL), runs `determinism.jsonl` twice and diffs the outputs and saves, and uploads `out/` and `logs/` as an artifact.
+- The `scenarios` job runs the script scenarios under Xvfb (Mesa software OpenGL), runs `determinism.jsonl` twice and diffs the outputs and saves, records `ui_build` and `determinism` and replays them, and uploads `out/` and `logs/` as an artifact.
 - The web job runs the Playwright smoke test on the release build with SwiftShader and uploads `out/web/`.
 
 Save-load smoke test (verifies save-file compatibility):
@@ -178,6 +190,6 @@ Skills live in `.claude/skills/`:
 
 When you learn something durable about the codebase, add it here or to a `.claude/rules/` file (and list new files above) so every agent picks it up.
 
-## Plans in progress
+## Plans
 
-- [docs/plans/agent-automation.md](docs/plans/agent-automation.md) — approved plan for agent automation (command system, script mode, control server, simulated input, UI automation) and in-game screenshots. Work through its phases in order and keep its progress checkboxes current.
+- [docs/plans/agent-automation.md](docs/plans/agent-automation.md) — agent automation (command system, script mode, control server, MCP, simulated input, UI automation, web bridge, record and replay) and in-game screenshots. All phases are done; its notes record what was built, the deviations, and what was verified.

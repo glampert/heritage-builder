@@ -34,6 +34,10 @@ pub struct FrameClock {
     // time, so frame-driven timers advance the same way on every run regardless of frame rate.
     fixed_delta_time: Option<Seconds>,
 
+    // Set by a replay (--replay) to the recorded run's time step for the frame. Wins over the
+    // fixed delta.
+    replay_delta_time: Option<Seconds>,
+
     // Index of the current frame, starting at 0. Advances in end_frame().
     frame_number: u64,
 }
@@ -41,7 +45,13 @@ pub struct FrameClock {
 impl FrameClock {
     #[inline]
     pub fn new() -> Self {
-        Self { last_frame_time: Instant::now(), delta_time: Duration::ZERO, fixed_delta_time: None, frame_number: 0 }
+        Self {
+            last_frame_time: Instant::now(),
+            delta_time: Duration::ZERO,
+            fixed_delta_time: None,
+            replay_delta_time: None,
+            frame_number: 0,
+        }
     }
 
     #[inline]
@@ -55,12 +65,12 @@ impl FrameClock {
         self.frame_number += 1;
     }
 
-    // Time step to advance the game by this frame: the fixed delta when one is set,
-    // otherwise the measured duration of the previous frame.
+    // Time step to advance the game by this frame: the replayed one during a replay, else the
+    // fixed delta when one is set, otherwise the measured duration of the previous frame.
     #[inline]
     #[must_use]
     pub fn delta_time(&self) -> Seconds {
-        self.fixed_delta_time.unwrap_or_else(|| self.real_delta_time())
+        self.replay_delta_time.or(self.fixed_delta_time).unwrap_or_else(|| self.real_delta_time())
     }
 
     // Measured duration of the previous frame, ignoring any fixed delta (for frame rate display).
@@ -80,6 +90,11 @@ impl FrameClock {
     #[must_use]
     pub fn fixed_delta_time(&self) -> Option<Seconds> {
         self.fixed_delta_time
+    }
+
+    #[inline]
+    pub fn set_replay_delta_time(&mut self, replay_delta_time: Option<Seconds>) {
+        self.replay_delta_time = replay_delta_time;
     }
 
     #[inline]

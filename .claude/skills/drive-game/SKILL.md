@@ -47,7 +47,8 @@ To test what a player sees, drive the menus and the map with the simulated mouse
 - Logs: `logs.tail min_level=Warning` (MCP), or `hb-ctl logs --follow` (prints `panic` and `session.changed` too).
 - Crashes: each desktop panic writes `logs/crash-<timestamp>.txt` (message, backtrace, frame, recent log lines). After a crash the MCP tools report the panic and its crash file; launch again to continue.
 - Reproduce a bug: put the steps in a script with `time.fixed_dt` and a fixed `--seed`. The same script and seed give the same game, byte for byte; `session.checksum` compares states, and `session.save name=...` keeps one to inspect.
-- Assertions (scripts): `assert.gt query=sim.state path=/population value=0`; also `eq`, `ne`, `ge`, `lt`, `le` and `exists`.
+- Bugs found by playing: the person runs the game with `--record FILE`, and `--replay FILE` repeats that run frame for frame, including a crash. Add `--automation` (`hb-ctl launch --replay FILE`) to inspect it as it plays; commands sent then change the run, so stick to queries. Exit status 1 means the replay ended differently from the recording, e.g. in a window of another size.
+- Assertions (scripts): `assert.gt query=sim.state path=/population value=0`; also `eq`, `ne`, `ge`, `lt`, `le` and `exists`. `assert.image golden=FILE` compares a screenshot with a PNG made on the same machine (`update=true` makes it).
 
 ## Scripts
 

@@ -52,7 +52,7 @@ impl DesktopRunner {
         platform::initialize();
 
         // After platform::initialize(), which decides where log output goes.
-        cli::initialize(GameLoop::cli_options());
+        cli::initialize(GameLoop::cli_options(), GameLoop::cli_options_not_recorded());
 
         paths::set_working_directory(paths::base_path());
 

@@ -22,7 +22,7 @@ use engine::{
 };
 
 use crate::{
-    automation::{Automation, CommandContext, FrameControl, ScriptRunner},
+    automation::{self, Automation, CommandContext, FrameControl, ScriptRunner},
     cheats,
     debug::{self, log_viewer::LogViewer},
     launch,
@@ -133,8 +133,15 @@ impl RunLoop for GameLoop {
         launch::GAME_CLI_OPTIONS
     }
 
+    fn cli_options_not_recorded() -> &'static [&'static str] {
+        launch::GAME_CLI_OPTIONS_NOT_RECORDED
+    }
+
     fn start(engine: &'static mut Engine, configs: &'static Self::Configs) -> &'static mut Self {
         log::info!(log::channel!("game"), "--- GameLoop Initialization ---");
+
+        // A replay runs with the configs it was recorded with.
+        automation::recording::use_recorded_configs(engine);
 
         // Load configs / tile sets:
         Self::load_assets(engine, configs);
@@ -160,6 +167,10 @@ impl RunLoop for GameLoop {
         // Never autosave during the smoke test - it would overwrite the saves under test.
         // Scripts save when they mean to, and an autosave would make their runs differ.
         let enable_autosave = configs.save.enable_autosave && smoke_test.is_none() && script.is_none();
+
+        // A replay autosaves when the recorded run did, since saving changes the state.
+        let enable_autosave = automation::recording::recorded_autosave(engine).unwrap_or(enable_autosave);
+        automation::recording::record_game_info(engine, enable_autosave);
 
         // Scripts drive the input: the real mouse mustn't scroll the map in the middle of one.
         if script.is_some() {
@@ -266,6 +277,12 @@ impl RunLoop for GameLoop {
 
     fn finish_run(&mut self) {
         self.automation.finish_run(self.engine);
+
+        // A recording stores the final state's checksum, and a replay must end with the same.
+        if self.engine.needs_final_checksum() {
+            let checksum = automation::recording::final_state_checksum(&mut self.session);
+            self.engine.set_final_checksum(checksum);
+        }
     }
 }
 

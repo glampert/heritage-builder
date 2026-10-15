@@ -1,6 +1,6 @@
 # Agent automation and in-game screenshots
 
-**Status (2026-10-15):** Approved 2026-10-11. Phase 0 done (merged with PR #1). Phases 1–6 done on the `claude` branch: screenshots, the command registry with script mode and the in-game console, the live control server with `hb-ctl`, the MCP server with its agent skill, simulated input with UI automation, and the web bridge with CI scenarios. Phase 7 is next. See [Handoff](#handoff-2026-10-14) for the move to a local machine.
+**Status (2026-10-15):** Approved 2026-10-11. Phase 0 done (merged with PR #1). Phases 1–7 done on the `claude` branch: screenshots, the command registry with script mode and the in-game console, the live control server with `hb-ctl`, the MCP server with its agent skill, simulated input with UI automation, the web bridge with CI scenarios, and record and replay with image assertions. All phases are done. See [Handoff](#handoff-2026-10-14) for the move to a local machine.
 
 This plan lets AI agents launch the game, drive it, inspect it and debug it. It also adds framebuffer screenshots, which ship to players as well. It was researched against commit `9f26ef8` on the `claude` branch. File and line references point at that commit, so re-check them before relying on them.
 
@@ -514,14 +514,49 @@ Notes (2026-10-15, local Mac):
   - On web, `configs.json` never loaded: its `"app_api": "Glfw"` and `"render_api": "OpenGl"` are desktop-only enum variants, so the whole file failed to deserialize and the web build ran on default configs. Those two fields now read unknown values as defaults on web.
   - Playwright's Chromium headless shell rejects `mapAsync` ("A valid external Instance reference no longer exists"), so captures fail there; full Chromium, on Metal or SwiftShader, maps fine. Keeping the `wgpu::Instance` and `Adapter` alive made no difference, so that change was dropped.
 - **CI.** A new `scenarios` job builds release, runs `smoke`, `ui_new_game` and `ui_build` under Xvfb with Mesa software OpenGL, runs `determinism.jsonl` twice and diffs the outputs and saves, and uploads `out/` and `logs/`. The web job runs the smoke test on the release build with SwiftShader and uploads `out/web/`.
-- **Verified** on macOS: the smoke test passes on Metal and on SwiftShader (load in about 4 s, debug build), and the bridge screenshot matches Playwright's page screenshot. The CI job's commands pass locally on a release build (macOS, no Xvfb). Release and debug builds give different determinism checksums; each is stable between its own runs. **Not verified:** the workflow itself, which runs once the branch is pushed.
+- **Verified** on macOS: the smoke test passes on Metal and on SwiftShader (load in about 4 s, debug build), and the bridge screenshot matches Playwright's page screenshot. The CI job's commands pass locally on a release build (macOS, no Xvfb). (Corrected in Phase 7: these notes said release and debug builds give different determinism checksums. The difference was the window size, which is part of the saved state: the configured 1440x800 window doesn't fit this screen, and macOS shrinks it to 795 or 796 points high. With `--window-size`, debug and release give the same checksum.) **Not verified:** the workflow itself, which runs once the branch is pushed.
 
 ### Phase 7: Record, replay and image checks (small to medium)
 
-- [ ] `--record FILE` / `--replay FILE`: real input events and commands per frame as JSON lines, replayed with fixed delta and seed. Useful for bug reports.
-- [ ] Optional `assert.image {path, golden, tolerance}`, for same-machine, same-backend comparisons only.
+- [x] `--record FILE` / `--replay FILE`: real input events and commands per frame as JSON lines, replayed with fixed delta and seed. Useful for bug reports.
+- [x] Optional `assert.image {path, golden, tolerance}`, for same-machine, same-backend comparisons only.
 
 Done when: a recorded session replays with the same seed and fixed delta and ends in a byte-identical save.
+
+Notes (2026-10-15, local Mac):
+- **Format** ([automation/recording.rs](../../crates/engine/src/automation/recording.rs)). JSON lines:
+  - A header: format version, build profile (for reference), command-line options, window size, display scale, input capture, and the run loop's details.
+  - Frame lines with only what changed: the time step, the cursor, the buttons and keys held, and input events.
+  - Command lines, written as each command starts.
+  - An end line: the frame count and the final state's checksum.
+
+  Floats are written as f64, so the f32 values read back exactly. Lines are written unbuffered, so a crash leaves a usable recording.
+- **Deviation: real devices below capture, commands above it.** The recording holds the real devices, sampled below input capture, plus the commands from scripts and outside tools. Simulated input comes back when the replay runs the commands that made it (gestures, `ui.click`). Console commands are left out, since the replayed typing runs them again. Replayed commands go through the engine's request queue on their recorded frames, not after the previous command finishes. So timing that depends on threads, such as screenshot writes, doesn't matter.
+- **Deviation: no fixed delta needed.** Each frame's time step is recorded (`FrameClock::set_replay_delta_time`), so runs in real time replay exactly too. The seed comes from the recorded options and configs.
+- **Device snapshot.** While recording or replaying, the `InputSystem` reads the real devices from a snapshot taken once a frame (`device_state`). Every read in a frame then agrees with the recording; GLFW otherwise reads the cursor live.
+- **Game side** ([automation/recording.rs](../../crates/game/src/automation/recording.rs)).
+  - The header holds the game's version, its autosave setting and `GameConfigs`.
+  - A replay applies the recorded configs the way `config.set` does, so `configs.json` keeps its own values.
+  - A replay autosaves when the recorded run did, because saving changes the state: `pre_save` resolves pending spawns.
+  - The final checksum is `session.checksum`'s hash, or none at the home menu.
+- **Options left out of recordings:** `--script` (its commands are recorded), `--automation`, and `--screenshot-*`, which quits after a varying number of frames; the end line already says when the run ended. The game names its own through `RunLoop::cli_options_not_recorded`. Options given with `--replay` come after the recorded ones.
+- **Replay controls.** Real input is ignored, except quitting and Shift+Esc, which stops the replay and gives the input back. A badge shows the frame. A recording without an end line gives the input back after its last frame.
+- **`assert.image`** (`screenshot::compare_png`) compares an in-memory screenshot with a golden PNG, channel by channel, with `tolerance` and `max_diff_pixels`. `update=true` writes the golden; `path` saves the screenshot and a `-diff.png` beside it.
+- **Found in passing:**
+  - `key_state(InputKey::Unknown)` on GLFW hit its invalid-key error, which panics inside the callback and aborts. It now returns Release.
+  - Determinism runs on this Mac alternated between two checksums. The camera's viewport is part of the saved state, and macOS shrinks the configured 1440x800 window to 795 or 796 points high. The determinism scenario and CI now pass `--window-size 1280x720`. A replay asks for the recorded window size and warns if it gets another.
+- **CI.** The scenarios job records `ui_build` and `determinism`, replays both, and checks that the replayed save matches the determinism runs' save. Its commands pass locally (macOS, without Xvfb).
+- **Verified** on macOS, release build:
+  - All four scenarios replay with matching checksums (exit 0), and the determinism replay writes a byte-identical save.
+  - An edited command fails the replay: exit 1, with both checksums in the log.
+  - A hand-written recording that clicks through the home menu with device-level mouse input (capture off) replays the same way twice.
+  - An `hb-ctl` session in real time replays exactly: variable time steps, remote commands, `quit`, and even the same ambient-effect warnings.
+  - A crashing run (`debug.panic`) crashes again on replay, and a recording cut short gives the input back.
+  - `hb-ctl launch --replay` takes queries while the replay runs.
+  - `assert.image` matches, fails with a diff image, and reports a missing golden.
+  - The web build compiles, and its smoke test passes.
+
+  **Not verified:** recording real mouse and keyboard input, which needs OS-level input events this machine can't send without accessibility permission; Shift+Esc during a replay; and the CI step itself.
 
 ## Risks
 

@@ -15,7 +15,7 @@ use crate::{
     debug::preset_maps,
     launch,
     menu::GameMenusMode,
-    session,
+    session::{self, GameSession},
     tile::TileMapLayerKind,
 };
 
@@ -246,8 +246,14 @@ fn cmd_save(context: &mut CommandContext, params: Value) -> CommandResult {
 fn cmd_checksum(context: &mut CommandContext, _params: Value) -> CommandResult {
     context.require_map()?;
 
-    let state = context.session.save_to_string().map_err(CommandError::failed)?;
-    done(json!({ "checksum": format!("{:016x}", hash::fnv1a_from_str(&state)), "bytes": state.len() }))
+    let (checksum, bytes) = state_checksum(context.session).map_err(CommandError::failed)?;
+    done(json!({ "checksum": checksum, "bytes": bytes }))
+}
+
+// Hash of the game state as a save would store it, and the state's size in bytes.
+pub fn state_checksum(session: &mut GameSession) -> Result<(String, usize), String> {
+    let state = session.save_to_string()?;
+    Ok((format!("{:016x}", hash::fnv1a_from_str(&state)), state.len()))
 }
 
 fn cmd_quit_to_menu(context: &mut CommandContext, _params: Value) -> CommandResult {

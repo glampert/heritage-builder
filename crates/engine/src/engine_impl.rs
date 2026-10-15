@@ -14,7 +14,9 @@ use crate::{
         Request,
         RequestQueue,
         RequestSender,
+        Responder,
         input::{GestureId, InputStep, InputTimeline},
+        recording::{Recorder, RecordingEnd, Replay},
     },
     cli::{self, OneShotScreenshotOptions},
     config::EngineConfigs,
@@ -65,6 +67,11 @@ pub struct Engine {
     // Simulated input (see automation/input.rs).
     input_captured: bool,
     input_timeline: InputTimeline,
+
+    // --record and --replay (see automation/recording.rs).
+    recorder: Option<Recorder>,
+    replay: Option<Replay>,
+    final_checksum: Option<String>, // From the run loop, for the recording's end.
 
     exit_code: i32,
 
@@ -199,6 +206,21 @@ impl Engine {
                 self.request_exit(1);
             }
         }
+
+        let frames = self.frame_clock.frame_number();
+        let checksum = self.final_checksum.take();
+
+        if let Some(recorder) = &mut self.recorder {
+            if !recorder.has_started() {
+                recorder.start(self.app.window_size(), self.app.content_scale(), self.input_captured);
+            }
+            recorder.finish(RecordingEnd { frames, checksum: checksum.clone() });
+            log::info!(log::channel!("engine"), "Recorded {frames} frames to {}.", recorder.path().display());
+        }
+
+        if let Some(replay) = self.replay.take() {
+            self.finish_replay(&replay, frames, checksum);
+        }
     }
 
     // ----------------------
@@ -270,7 +292,7 @@ impl Engine {
             self.app.input_system_mut().set_virtual_input(None);
         }
 
-        self.app.pause_cursor_confinement(capture);
+        self.app.pause_cursor_confinement(capture || self.replay.is_some());
         log::info!(log::channel!("engine"), "Input capture {}.", if capture { "on" } else { "off" });
     }
 
@@ -297,6 +319,53 @@ impl Engine {
     }
 
     // ----------------------
+    // Record and replay:
+    // ----------------------
+
+    #[inline]
+    pub fn is_recording(&self) -> bool {
+        self.recorder.is_some()
+    }
+
+    #[inline]
+    pub fn is_replaying(&self) -> bool {
+        self.replay.is_some()
+    }
+
+    // --record: adds run loop details to the recording's header, such as its configs. Call
+    // before the first frame.
+    pub fn set_recording_info(&mut self, key: &str, value: serde_json::Value) {
+        if let Some(recorder) = &mut self.recorder {
+            recorder.set_info(key, value);
+        }
+    }
+
+    // --replay: details the run loop added to the recording (see set_recording_info).
+    pub fn replay_info(&self, key: &str) -> Option<&serde_json::Value> {
+        self.replay.as_ref()?.header().info.get(key)
+    }
+
+    // --record: notes an automation command as it starts. Only commands from outside the game's
+    // input: one typed into the game's UI comes back when the replay types it again.
+    pub fn record_command(&mut self, method: &str, params: &serde_json::Value) {
+        if let Some(recorder) = &mut self.recorder {
+            recorder.record_command(self.frame_clock.frame_number(), method, params);
+        }
+    }
+
+    // True when the run loop should hand its final state checksum to set_final_checksum.
+    #[inline]
+    pub fn needs_final_checksum(&self) -> bool {
+        self.recorder.is_some() || self.replay.is_some()
+    }
+
+    // The run loop's hash of its state once the loop has stopped (before finish_run). A
+    // recording stores it; a replay must end with the same one.
+    pub fn set_final_checksum(&mut self, checksum: Option<String>) {
+        self.final_checksum = checksum;
+    }
+
+    // ----------------------
     // Begin/End Frame:
     // ----------------------
 
@@ -304,15 +373,24 @@ impl Engine {
         let begin_frame_timer = PerfTimer::begin();
 
         self.frame_clock.begin_frame();
-        platform::set_crash_report_frame(self.frame_clock.frame_number());
+        let frame = self.frame_clock.frame_number();
+        platform::set_crash_report_frame(frame);
 
-        // Simulated input first, so this frame's events and ImGui see it.
+        // A replay sets the frame's time step, devices and commands first.
+        let replayed_events = self.begin_replay_frame(frame);
+
+        // Simulated input next, so this frame's events and ImGui see it.
         let simulated_events = match self.app.input_system_mut().virtual_input_mut() {
             Some(virtual_input) => self.input_timeline.apply_frame(virtual_input),
             None => ApplicationEventList::new(),
         };
 
-        self.frame_events = self.poll_app_events(simulated_events);
+        let device_events = match replayed_events {
+            Some(events) => events,
+            None => self.poll_device_events(frame),
+        };
+
+        self.frame_events = self.handle_app_events(device_events, simulated_events);
 
         let input_sys = self.app.input_system();
 
@@ -329,11 +407,11 @@ impl Engine {
 
         self.request_one_shot_screenshot();
 
-        // Keep toasts and the input capture badge out of screenshots.
+        // Keep toasts and the badge out of screenshots.
         let draw_overlays = !self.render_system.has_pending_ui_capture();
-        let badge = self.input_captured.then_some("AUTOMATION: input captured. Shift+Esc to take over");
+        let badge = self.badge_text();
 
-        let mut ui_frame_bundle = self.ui_system.end_frame(self.render_system.clone(), draw_overlays, badge);
+        let mut ui_frame_bundle = self.ui_system.end_frame(self.render_system.clone(), draw_overlays, badge.as_deref());
         self.render_stats = self.render_system.end_frame(&mut ui_frame_bundle);
 
         let present_timer = PerfTimer::begin();
@@ -375,6 +453,16 @@ impl Engine {
 
         if cli::get().has("capture-input") {
             engine.set_input_capture(true);
+        }
+
+        if let Some(path) = cli::path_value("record") {
+            let recorder = Recorder::create(&path, cli::recording_args()).unwrap_or_else(|err| cli::exit_with_error(&err));
+            log::info!(log::channel!("engine"), "Recording the run to {}.", path.display());
+            engine.recorder = Some(recorder);
+        }
+
+        if let Some(replay) = cli::take_replay() {
+            engine.start_replay(replay);
         }
 
         #[cfg(feature = "desktop")]
@@ -434,6 +522,9 @@ impl Engine {
             automation_server: None,
             input_captured: false,
             input_timeline: InputTimeline::default(),
+            recorder: None,
+            replay: None,
+            final_checksum: None,
             exit_code: 0,
         }
     }
@@ -442,19 +533,37 @@ impl Engine {
     // Internal:
     // ----------------------
 
-    #[must_use]
-    fn poll_app_events(&mut self, simulated_events: ApplicationEventList) -> ApplicationEventList {
-        let mut events_forwarded = ApplicationEventList::new();
+    // The real devices' events. While recording, also samples the devices' state for the frame,
+    // so every read this frame sees the same state, and records both.
+    fn poll_device_events(&mut self, frame: u64) -> ApplicationEventList {
+        let events = self.app.poll_events();
 
-        let real_events = self.app.poll_events();
+        if let Some(recorder) = &mut self.recorder {
+            if !recorder.has_started() {
+                recorder.start(self.app.window_size(), self.app.content_scale(), self.input_captured);
+            }
+
+            let devices = self.app.input_system().sample_devices();
+            recorder.record_frame(frame, self.frame_clock.delta_time(), &devices, &events);
+            self.app.input_system_mut().set_device_state(Some(devices));
+        }
+
+        events
+    }
+
+    // Forwards this frame's events: from the real devices (or a replay's recording) and simulated.
+    #[must_use]
+    fn handle_app_events(
+        &mut self,
+        real_events: ApplicationEventList,
+        simulated_events: ApplicationEventList,
+    ) -> ApplicationEventList {
+        let mut events_forwarded = ApplicationEventList::new();
 
         // While automation drives the input, real input events only quit or resize, except for
         // Shift+Esc, which lets a person take over.
         if self.input_captured {
-            let take_over = real_events.iter().any(|event| {
-                matches!(event, ApplicationEvent::KeyInput(InputKey::Escape, InputAction::Press, modifiers)
-                    if modifiers.intersects(InputModifiers::Shift))
-            });
+            let take_over = real_events.iter().any(is_take_over_key);
             if take_over {
                 log::info!(log::channel!("engine"), "Shift+Esc: taking input back from automation.");
                 self.set_input_capture(false);
@@ -508,6 +617,171 @@ impl Engine {
         events_forwarded
     }
 
+    fn start_replay(&mut self, replay: Replay) {
+        let header = replay.header();
+        let channel = log::channel!("engine");
+
+        match replay.end() {
+            Some(end) => log::info!(channel, "Replaying {} ({} frames).", replay.path().display(), end.frames),
+            None => log::warning!(
+                channel,
+                "Replaying {}. It has no end line: the recorded run crashed or was killed. The input comes back to you after its last frame.",
+                replay.path().display()
+            ),
+        }
+
+        let window_size = self.app.window_size();
+        if [window_size.width, window_size.height] != header.window_size {
+            log::warning!(
+                channel,
+                "The window is {window_size}, not the recorded {}x{}. The window size is part of the game state, so the replay will differ.",
+                header.window_size[0],
+                header.window_size[1]
+            );
+        }
+
+        let content_scale = self.app.content_scale();
+        if [content_scale.x, content_scale.y] != header.content_scale {
+            log::warning!(
+                channel,
+                "The display scale is {content_scale}, not the recorded {:?}: the UI is laid out differently, so recorded clicks may land elsewhere.",
+                header.content_scale
+            );
+        }
+
+        self.replay = Some(replay);
+        self.app.input_system_mut().set_device_state(Some(VirtualInput::new()));
+        self.app.pause_cursor_confinement(true);
+    }
+
+    // --replay: sets this frame's recorded time step and device state, queues its commands, and
+    // returns its events. Real input is ignored, except quitting, resizing, and Shift+Esc, which
+    // stops the replay. None when not replaying.
+    fn begin_replay_frame(&mut self, frame: u64) -> Option<ApplicationEventList> {
+        let mut replay = self.replay.take()?;
+        let channel = log::channel!("engine");
+
+        let real_events = self.app.poll_events();
+
+        if real_events.iter().any(is_take_over_key) {
+            log::info!(channel, "Shift+Esc: replay stopped at frame {frame}. The input is yours.");
+            self.stop_replay();
+            return Some(real_events);
+        }
+
+        // A recording without an end line: after its last frame, the input comes back.
+        if replay.end().is_none() && replay.last_frame().is_none_or(|last_frame| frame > last_frame) {
+            log::warning!(channel, "Replay done at frame {frame}, where the recording ends. The input is yours.");
+            self.stop_replay();
+            return Some(real_events);
+        }
+
+        if frame == 0 {
+            self.set_input_capture(replay.header().input_captured);
+        }
+
+        let replay_frame = replay.next_frame(frame);
+        self.frame_clock.set_replay_delta_time(replay_frame.dt);
+        self.app.input_system_mut().set_device_state(Some(replay_frame.devices));
+
+        for (method, params) in replay_frame.commands {
+            let responder = {
+                let method = method.clone();
+                Responder::new(move |response| {
+                    // Cancelled: the game stopped first.
+                    if let Err(err) = response.result
+                        && response.frame.is_some()
+                    {
+                        log::warning!(log::channel!("engine"), "Replayed command '{method}' failed: {}: {}", err.code, err.message);
+                    }
+                })
+            };
+            self.automation_requests.sender().send(Request { method, params, responder });
+        }
+
+        let mut events = ApplicationEventList::new();
+
+        for event in real_events {
+            match event {
+                ApplicationEvent::Quit => events.push(event),
+                ApplicationEvent::WindowResize { window_size, .. } => {
+                    log::warning!(channel, "The window was resized to {window_size} during the replay, so it may differ from here on.");
+                    events.push(event);
+                }
+                _ => {}
+            }
+        }
+
+        for event in replay_frame.events {
+            if let ApplicationEvent::WindowResize { window_size, .. } = event {
+                log::warning!(
+                    channel,
+                    "The recorded run resized the window to {window_size} at frame {frame}, which a replay can't do. It may differ from here on."
+                );
+                continue;
+            }
+            events.push(event);
+        }
+
+        // Quit after the recorded run's last frame.
+        if replay.end().is_some_and(|end| frame + 1 >= end.frames) {
+            self.request_exit(0);
+        }
+
+        self.replay = Some(replay);
+        Some(events)
+    }
+
+    // Gives the input back to the real devices.
+    fn stop_replay(&mut self) {
+        self.replay = None;
+        self.frame_clock.set_replay_delta_time(None);
+        self.app.input_system_mut().set_device_state(None);
+        self.set_input_capture(false);
+        self.app.pause_cursor_confinement(self.input_captured);
+    }
+
+    // Exit status 0 if the replay ended like the recorded run, 1 if not.
+    fn finish_replay(&mut self, replay: &Replay, frames: u64, checksum: Option<String>) {
+        let Some(end) = replay.end() else {
+            return; // Nothing to compare with.
+        };
+
+        let channel = log::channel!("engine");
+        let show = |checksum: &Option<String>| checksum.clone().unwrap_or_else(|| "none".into());
+
+        if frames == end.frames && checksum == end.checksum {
+            log::info!(channel, "Replay matched the recording: {frames} frames, final state checksum {}.", show(&checksum));
+            self.exit_code = 0;
+            return;
+        }
+
+        if frames != end.frames {
+            log::error!(channel, "Replay ran {frames} frames, but the recorded run lasted {}.", end.frames);
+        }
+        if checksum != end.checksum {
+            log::error!(
+                channel,
+                "Replay ended in a different state: checksum {} instead of the recorded {}.",
+                show(&checksum),
+                show(&end.checksum)
+            );
+        }
+        self.exit_code = 1;
+    }
+
+    fn badge_text(&self) -> Option<String> {
+        if let Some(replay) = &self.replay {
+            let frame = self.frame_clock.frame_number();
+            return Some(match replay.end() {
+                Some(end) => format!("REPLAY: frame {frame} of {}. Shift+Esc to stop", end.frames),
+                None => format!("REPLAY: frame {frame}. Shift+Esc to stop"),
+            });
+        }
+
+        self.input_captured.then(|| "AUTOMATION: input captured. Shift+Esc to take over".to_string())
+    }
+
     // `--screenshot-after-frames`: requests the capture on the chosen frame...
     fn request_one_shot_screenshot(&mut self) {
         let frame_number = self.frame_clock.frame_number();
@@ -556,6 +830,12 @@ impl Engine {
 struct OneShotScreenshot {
     options: OneShotScreenshotOptions,
     id: Option<ScreenshotId>, // Set once requested.
+}
+
+// Shift+Esc takes the input back from automation, and stops a replay.
+fn is_take_over_key(event: &ApplicationEvent) -> bool {
+    matches!(event, ApplicationEvent::KeyInput(InputKey::Escape, InputAction::Press, modifiers)
+        if modifiers.intersects(InputModifiers::Shift))
 }
 
 // ----------------------------------------------

@@ -98,19 +98,41 @@ jobs:
           done
 
       # The same seed must give the same game: both runs print the same lines and write the same save.
+      # The window size is part of the state, so it's fixed too.
       - name: Determinism
         env:
           LIBGL_ALWAYS_SOFTWARE: "1"
         run: |
           for run in 1 2; do
             xvfb-run -a -s "-screen 0 1920x1080x24" \
-              target/release/HeritageBuilder --seed 7 --script crates/game/tests/scenarios/determinism.jsonl \
+              target/release/HeritageBuilder --seed 7 --window-size 1280x720 \
+              --script crates/game/tests/scenarios/determinism.jsonl \
               > "logs/determinism-$run.jsonl" 2> "logs/determinism-$run.log"
             cp saves/determinism.json "logs/determinism-$run.json"
           done
           grep '"session.checksum"' logs/determinism-1.jsonl
           diff logs/determinism-1.jsonl logs/determinism-2.jsonl
           cmp logs/determinism-1.json logs/determinism-2.json
+
+      # A recorded run must replay to the same final state (the replay exits 1 if not), and the
+      # replayed determinism run must write the same save as the runs above.
+      - name: Record and replay
+        env:
+          LIBGL_ALWAYS_SOFTWARE: "1"
+        run: |
+          for scenario in ui_build determinism; do
+            echo "::group::$scenario"
+            xvfb-run -a -s "-screen 0 1920x1080x24" \
+              target/release/HeritageBuilder --seed 7 --window-size 1280x720 \
+              --script "crates/game/tests/scenarios/$scenario.jsonl" \
+              --record "logs/$scenario.rec.jsonl" > /dev/null 2> "logs/$scenario-record.log"
+            xvfb-run -a -s "-screen 0 1920x1080x24" \
+              target/release/HeritageBuilder --replay "logs/$scenario.rec.jsonl" > "logs/$scenario-replay.log" 2>&1 \
+              || { tail -n 20 "logs/$scenario-replay.log"; exit 1; }
+            grep 'Replay matched' "logs/$scenario-replay.log"
+            echo "::endgroup::"
+          done
+          cmp saves/determinism.json logs/determinism-1.json
 
       - name: Upload screenshots and logs
         if: always()

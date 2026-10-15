@@ -137,6 +137,65 @@ pub fn encode_png(image: &CapturedImage) -> Result<Vec<u8>, String> {
     Ok(png)
 }
 
+// ----------------------------------------------
+// Image comparison
+// ----------------------------------------------
+
+#[derive(Debug)]
+pub enum ImageComparison {
+    SizeMismatch { actual: Size, expected: Size },
+    Compared {
+        diff_pixels: u64,          // Pixels with a channel off by more than the tolerance.
+        max_channel_diff: u8,      // The largest channel difference anywhere.
+        diff_png: Option<Vec<u8>>, // If any pixels differ: those in red, over the dimmed image.
+    },
+}
+
+// Compares two PNG images pixel by pixel. A pixel differs when one of its channels is off by more
+// than `tolerance`. Meant for images from the same machine and render backend: GPUs and drivers
+// render slightly differently.
+pub fn compare_png(actual: &[u8], expected: &[u8], tolerance: u8) -> Result<ImageComparison, String> {
+    let decode = |png: &[u8], what: &str| {
+        image::load_from_memory_with_format(png, image::ImageFormat::Png)
+            .map(|image| image.to_rgba8())
+            .map_err(|err| format!("Can't decode the {what} PNG: {err}"))
+    };
+
+    let actual = decode(actual, "captured")?;
+    let expected = decode(expected, "golden")?;
+
+    let size_of = |image: &image::RgbaImage| Size::new(image.width() as i32, image.height() as i32);
+    if actual.dimensions() != expected.dimensions() {
+        return Ok(ImageComparison::SizeMismatch { actual: size_of(&actual), expected: size_of(&expected) });
+    }
+
+    let mut diff_pixels = 0;
+    let mut max_channel_diff = 0;
+    let mut diff_image = Vec::with_capacity(actual.as_raw().len());
+
+    for (actual_pixel, expected_pixel) in actual.pixels().zip(expected.pixels()) {
+        let pixel_diff = (0..4).map(|channel| actual_pixel[channel].abs_diff(expected_pixel[channel])).max().unwrap_or(0);
+        max_channel_diff = max_channel_diff.max(pixel_diff);
+
+        if pixel_diff > tolerance {
+            diff_pixels += 1;
+            diff_image.extend_from_slice(&[0xFF, 0, 0, 0xFF]);
+        } else {
+            let [r, g, b, _] = actual_pixel.0;
+            diff_image.extend_from_slice(&[r / 3, g / 3, b / 3, 0xFF]);
+        }
+    }
+
+    let diff_png = if diff_pixels > 0 {
+        let image = CapturedImage { size: size_of(&actual), scale: Vec2::new(1.0, 1.0), pixels: diff_image };
+        Some(encode_png(&image)?)
+    } else {
+        None
+    };
+
+    Ok(ImageComparison::Compared { diff_pixels, max_channel_diff, diff_png })
+}
+
 // Scales a capture down for ScreenshotScale::Points or Factor. Never scales up.
 pub fn scale_image(image: CapturedImage, scale: ScreenshotScale) -> Result<CapturedImage, String> {
     let factor = match scale {
@@ -376,6 +435,37 @@ mod tests {
         let decoded = image::load_from_memory(&png).unwrap().to_rgba8();
         assert_eq!(decoded.dimensions(), (3, 2));
         assert_eq!(decoded.into_raw(), image.pixels);
+    }
+
+    #[test]
+    fn test_compare_png() {
+        let image = test_image(3, 2);
+        let png = encode_png(&image).unwrap();
+
+        let Ok(ImageComparison::Compared { diff_pixels: 0, max_channel_diff: 0, diff_png: None }) = compare_png(&png, &png, 0)
+        else {
+            panic!("An image should match itself.");
+        };
+
+        // One pixel off by 4 in one channel: within a tolerance of 4, not of 3.
+        let mut changed = test_image(3, 2);
+        changed.pixels[5] += 4;
+        let changed_png = encode_png(&changed).unwrap();
+
+        assert!(matches!(compare_png(&changed_png, &png, 4), Ok(ImageComparison::Compared { diff_pixels: 0, .. })));
+
+        let Ok(ImageComparison::Compared { diff_pixels: 1, max_channel_diff: 4, diff_png: Some(diff_png) }) =
+            compare_png(&changed_png, &png, 3)
+        else {
+            panic!("Expected one differing pixel.");
+        };
+        let diff = image::load_from_memory(&diff_png).unwrap().to_rgba8();
+        assert_eq!(diff.get_pixel(1, 0).0, [0xFF, 0, 0, 0xFF]); // The changed pixel, in red.
+        assert_ne!(diff.get_pixel(0, 0).0, [0xFF, 0, 0, 0xFF]);
+
+        let smaller = encode_png(&test_image(2, 2)).unwrap();
+        assert!(matches!(compare_png(&smaller, &png, 0), Ok(ImageComparison::SizeMismatch { .. })));
+        assert!(compare_png(b"not a png", &png, 0).unwrap_err().contains("captured"));
     }
 
     #[test]

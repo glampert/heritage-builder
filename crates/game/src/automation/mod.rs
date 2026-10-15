@@ -28,6 +28,7 @@ use crate::{
 mod commands;
 mod config_patches;
 mod query;
+pub mod recording;
 mod script;
 mod text;
 
@@ -183,13 +184,7 @@ impl CommandContext<'_> {
 
     // Commands that touch the map or the simulation need a game in progress.
     pub fn require_map(&self) -> Result<(), CommandError> {
-        if self.session.current_menus_mode() == Some(GameMenusMode::Home) {
-            return Err(CommandError::new(ErrorCode::NotInGame, "Not available at the home menu."));
-        }
-        if !self.session.tile_map().size_in_cells().is_valid() {
-            return Err(CommandError::new(ErrorCode::NotInGame, "No map is loaded."));
-        }
-        Ok(())
+        require_map(self.session)
     }
 
     pub fn require_cell_in_map(&self, cell: Cell) -> Result<(), CommandError> {
@@ -249,6 +244,16 @@ pub fn run_command(context: &mut CommandContext, name: &str, params: Value) -> C
 pub fn parse_params<T: DeserializeOwned>(params: Value) -> Result<T, CommandError> {
     let params = if params.is_null() { Value::Object(Default::default()) } else { params };
     serde_json::from_value(params).map_err(|err| CommandError::invalid_params(err.to_string()))
+}
+
+pub fn require_map(session: &GameSession) -> Result<(), CommandError> {
+    if session.current_menus_mode() == Some(GameMenusMode::Home) {
+        return Err(CommandError::new(ErrorCode::NotInGame, "Not available at the home menu."));
+    }
+    if !session.tile_map().size_in_cells().is_valid() {
+        return Err(CommandError::new(ErrorCode::NotInGame, "No map is loaded."));
+    }
+    Ok(())
 }
 
 // ----------------------------------------------
@@ -347,6 +352,11 @@ impl Automation {
             self.reply(context, reply_to, name, Err(unknown_command_error(name)));
             return;
         };
+
+        // --record: console commands are left out, since replaying the typing runs them again.
+        if !matches!(reply_to, ReplyTo::Console) {
+            context.engine.record_command(command.name, &params);
+        }
 
         match (command.run)(context, params) {
             Ok(Outcome::Done(value)) => self.reply(context, reply_to, command.name, Ok(value)),

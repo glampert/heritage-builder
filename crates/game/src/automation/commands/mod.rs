@@ -23,6 +23,8 @@ mod time;
 mod ui;
 mod world;
 
+pub(super) use session::state_checksum;
+
 pub(super) const COMMAND_GROUPS: &[&[CommandDef]] = &[
     meta::COMMANDS,
     session::COMMANDS,

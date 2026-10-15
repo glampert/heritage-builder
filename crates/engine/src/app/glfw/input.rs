@@ -42,6 +42,11 @@ impl InputSystemBackend for GlfwInputSystemBackend {
 
     #[inline]
     fn key_state(&self, key: InputKey) -> InputAction {
+        // GLFW reports an error (fatal in its callback) for its Unknown key.
+        if key == InputKey::Unknown {
+            return InputAction::Release;
+        }
+
         let glfw_key = input_key_to_glfw(key);
         glfw_action_to_input_action(self.window_manager.window().get_key(glfw_key))
     }

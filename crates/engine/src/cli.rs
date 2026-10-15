@@ -9,12 +9,12 @@ use std::{
     fmt::Display,
     path::{Path, PathBuf},
     str::FromStr,
-    sync::OnceLock,
+    sync::{Mutex, OnceLock},
 };
 
 use common::{Size, time::Seconds};
 
-use crate::log;
+use crate::{automation::recording::Replay, log};
 
 // ----------------------------------------------
 // CliOption
@@ -69,7 +69,25 @@ pub const ENGINE_CLI_OPTIONS: &[CliOption] = &[
         help: "Accept automation commands over a localhost connection, on PORT (default 7878; 0 picks a free one). \
                The port and an access token go to logs/automation.json.",
     },
+    CliOption {
+        name: "record",
+        value_name: Some("FILE"),
+        help: "Record the run to FILE (JSON lines): each frame's time step, the real mouse and keyboard, and \
+               automation commands from scripts and outside tools. --replay plays it back.",
+    },
+    CliOption {
+        name: "replay",
+        value_name: Some("FILE"),
+        help: "Play back a run recorded with --record, with its options and window size, then exit: status 0 if \
+               it ended in the same state, 1 if not. Options given here are added to the recorded ones.",
+    },
 ];
+
+// Engine options a recording leaves out (see recording_args). --screenshot-after-frames quits once
+// its PNG is written, which takes a varying number of frames; the recording's end says when the
+// run ended.
+const ENGINE_OPTIONS_NOT_RECORDED: &[&str] =
+    &["help", "record", "replay", "automation", "screenshot-after-frames", "screenshot-out", "screenshot-no-ui"];
 
 // ----------------------------------------------
 // CommandLine
@@ -79,6 +97,7 @@ pub const ENGINE_CLI_OPTIONS: &[CliOption] = &[
 pub struct CommandLine {
     options: Vec<(&'static str, Option<String>)>, // In command-line order.
     known_options: Vec<&'static CliOption>,
+    not_recorded: Vec<&'static str>,
 }
 
 impl CommandLine {
@@ -124,7 +143,19 @@ impl CommandLine {
             options.push((option.name, value));
         }
 
-        Ok(Self { options, known_options })
+        Ok(Self { options, known_options, not_recorded: Vec::new() })
+    }
+
+    // The options, as arguments, except for `excluded` ones.
+    pub fn to_args(&self, excluded: &[&str]) -> Vec<String> {
+        self.options
+            .iter()
+            .filter(|(name, _)| !excluded.contains(name))
+            .map(|(name, value)| match value {
+                Some(value) => format!("--{name}={value}"),
+                None => format!("--{name}"),
+            })
+            .collect()
     }
 
     #[inline]
@@ -199,11 +230,16 @@ pub fn parse_size(text: &str) -> Result<Size, String> {
 
 static COMMAND_LINE: OnceLock<CommandLine> = OnceLock::new();
 static LAUNCH_DIR: OnceLock<PathBuf> = OnceLock::new();
+static REPLAY: Mutex<Option<Replay>> = Mutex::new(None);
 
 // Parses the process arguments against the engine's options plus `run_loop_options`.
 // Called once by the runner. `--help` logs the options and exits; bad input logs the
 // problem with the options and exits with status 2.
-pub fn initialize(run_loop_options: &'static [CliOption]) {
+//
+// With `--replay FILE`, the recording's options come first, then its window size, then the
+// process arguments, so options given on the command line win. `run_loop_not_recorded` names
+// run loop options that --record leaves out, such as run modes whose commands the recording holds.
+pub fn initialize(run_loop_options: &'static [CliOption], run_loop_not_recorded: &'static [&'static str]) {
     #[cfg(feature = "desktop")]
     let args: Vec<String> = std::env::args().skip(1).collect();
 
@@ -218,7 +254,7 @@ pub fn initialize(run_loop_options: &'static [CliOption]) {
 
     let known_options = [ENGINE_CLI_OPTIONS, run_loop_options];
 
-    let command_line = match CommandLine::parse(args, &known_options) {
+    let mut command_line = match CommandLine::parse(args.clone(), &known_options) {
         Ok(command_line) => command_line,
         Err(err) => {
             log::error!(log::channel!("cli"), "{err}");
@@ -232,6 +268,28 @@ pub fn initialize(run_loop_options: &'static [CliOption]) {
         exit_process(0);
     }
 
+    if let Some(path) = command_line.value("replay") {
+        if command_line.has("record") {
+            exit_with_error("Use either --record or --replay, not both.");
+        }
+
+        let path = resolve_launch_path(Path::new(path));
+        let replay = Replay::load(&path).unwrap_or_else(|err| exit_with_error(&err));
+
+        let [width, height] = replay.header().window_size;
+        let mut replay_args = replay.header().args.clone();
+        replay_args.push(format!("--window-size={width}x{height}"));
+        replay_args.extend(args);
+
+        command_line = CommandLine::parse(replay_args, &known_options).unwrap_or_else(|err| {
+            exit_with_error(&format!("--replay: {}: the recorded options don't work with this build: {err}", path.display()))
+        });
+
+        *REPLAY.lock().unwrap() = Some(replay);
+    }
+
+    command_line.not_recorded = ENGINE_OPTIONS_NOT_RECORDED.iter().chain(run_loop_not_recorded).copied().collect();
+
     if COMMAND_LINE.set(command_line).is_err() {
         panic!("Command line already initialized!");
     }
@@ -239,8 +297,19 @@ pub fn initialize(run_loop_options: &'static [CliOption]) {
 
 // The parsed command line. Empty if initialize() hasn't run (in tests, for instance).
 pub fn get() -> &'static CommandLine {
-    static EMPTY: CommandLine = CommandLine { options: Vec::new(), known_options: Vec::new() };
+    static EMPTY: CommandLine = CommandLine { options: Vec::new(), known_options: Vec::new(), not_recorded: Vec::new() };
     COMMAND_LINE.get().unwrap_or(&EMPTY)
+}
+
+// The options a recording (--record) stores for its replay, as arguments.
+pub fn recording_args() -> Vec<String> {
+    let command_line = get();
+    command_line.to_args(&command_line.not_recorded)
+}
+
+// The recording given with --replay, loaded by initialize(). Taken once, by the engine.
+pub(crate) fn take_replay() -> Option<Replay> {
+    REPLAY.lock().unwrap().take()
 }
 
 // A path option's value. Relative paths are resolved against the directory the game was started
@@ -408,6 +477,17 @@ mod tests {
 
         let cli = parse(&["--count", "abc"]).unwrap();
         assert!(cli.parse_value::<u32>("count").unwrap_err().contains("abc"));
+    }
+
+    #[test]
+    fn test_to_args() {
+        let cli = parse(&["--flag", "--count", "3", "--port", "--name=a b"]).unwrap();
+        assert_eq!(cli.to_args(&[]), ["--flag", "--count=3", "--port", "--name=a b"]);
+        assert_eq!(cli.to_args(&["count", "port"]), ["--flag", "--name=a b"]);
+
+        // The arguments parse back to the same options.
+        let reparsed = CommandLine::parse(cli.to_args(&[]), &[TEST_OPTIONS]).unwrap();
+        assert_eq!(reparsed.to_args(&[]), cli.to_args(&[]));
     }
 
     #[test]

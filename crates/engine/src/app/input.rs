@@ -1,7 +1,7 @@
 use bitflags::bitflags;
 use common::Vec2;
 use enum_dispatch::enum_dispatch;
-use strum::{EnumCount, EnumString};
+use strum::{EnumCount, EnumIter, EnumString, IntoEnumIterator, IntoStaticStr};
 
 // ----------------------------------------------
 // Internal backend implementations
@@ -33,35 +33,63 @@ pub(super) trait InputSystemBackend: Sized {
 pub struct InputSystem {
     backend: InputSystemBackendImpl,
     virtual_input: Option<VirtualInput>, // Replaces the real devices while set (automation).
+
+    // The real devices' state for the frame, while --record or --replay runs: sampled from the
+    // backend once a frame, or read from the recording. Every read in a frame sees the same state.
+    device_state: Option<VirtualInput>,
 }
 
 impl InputSystem {
     pub(super) fn new(backend: InputSystemBackendImpl) -> Self {
-        Self { backend, virtual_input: None }
+        Self { backend, virtual_input: None, device_state: None }
     }
 
     #[inline]
     pub fn cursor_pos(&self) -> Vec2 {
-        match &self.virtual_input {
-            Some(virtual_input) => virtual_input.cursor_pos,
+        match self.input_state() {
+            Some(state) => state.cursor_pos,
             None => self.backend.cursor_pos(),
         }
     }
 
     #[inline]
     pub fn mouse_button_state(&self, button: MouseButton) -> InputAction {
-        match &self.virtual_input {
-            Some(virtual_input) => InputAction::from_pressed(virtual_input.is_mouse_button_pressed(button)),
+        match self.input_state() {
+            Some(state) => InputAction::from_pressed(state.is_mouse_button_pressed(button)),
             None => self.backend.mouse_button_state(button),
         }
     }
 
     #[inline]
     pub fn key_state(&self, key: InputKey) -> InputAction {
-        match &self.virtual_input {
-            Some(virtual_input) => InputAction::from_pressed(virtual_input.is_key_pressed(key)),
+        match self.input_state() {
+            Some(state) => InputAction::from_pressed(state.is_key_pressed(key)),
             None => self.backend.key_state(key),
         }
+    }
+
+    #[inline]
+    fn input_state(&self) -> Option<&VirtualInput> {
+        self.virtual_input.as_ref().or(self.device_state.as_ref())
+    }
+
+    // The real mouse and keyboard as the backend reports them now.
+    pub(crate) fn sample_devices(&self) -> VirtualInput {
+        let mut state = VirtualInput::new();
+        state.cursor_pos = self.backend.cursor_pos();
+
+        for button in MouseButton::iter() {
+            state.set_mouse_button(button, self.backend.mouse_button_state(button) != InputAction::Release);
+        }
+        for key in InputKey::iter() {
+            state.set_key(key, self.backend.key_state(key) != InputAction::Release);
+        }
+        state
+    }
+
+    #[inline]
+    pub(crate) fn set_device_state(&mut self, device_state: Option<VirtualInput>) {
+        self.device_state = device_state;
     }
 
     // Set while automation drives the input (see Engine::set_input_capture).
@@ -93,7 +121,8 @@ impl InputSystem {
 // ----------------------------------------------
 
 // A simulated mouse and keyboard, driven by automation's input timeline (automation/input.rs).
-#[derive(Clone)]
+// Also holds a snapshot of the real devices while a run is recorded or replayed.
+#[derive(Clone, PartialEq)]
 pub struct VirtualInput {
     pub cursor_pos: Vec2,
     mouse_buttons: [bool; MouseButton::COUNT],
@@ -148,6 +177,14 @@ impl VirtualInput {
         self.mouse_buttons = [false; MouseButton::COUNT];
         self.keys = [false; InputKey::COUNT];
     }
+
+    pub fn pressed_mouse_buttons(&self) -> impl Iterator<Item = MouseButton> + '_ {
+        MouseButton::iter().filter(|button| self.is_mouse_button_pressed(*button))
+    }
+
+    pub fn pressed_keys(&self) -> impl Iterator<Item = InputKey> + '_ {
+        InputKey::iter().filter(|key| self.is_key_pressed(*key))
+    }
 }
 
 impl Default for VirtualInput {
@@ -160,7 +197,8 @@ impl Default for VirtualInput {
 // InputAction
 // ----------------------------------------------
 
-#[derive(Copy, Clone, Debug, Default, PartialEq, Eq, Hash)]
+#[derive(Copy, Clone, Debug, Default, PartialEq, Eq, Hash, EnumString, IntoStaticStr)]
+#[strum(serialize_all = "lowercase")]
 pub enum InputAction {
     #[default]
     Release,
@@ -180,7 +218,8 @@ impl InputAction {
 // ----------------------------------------------
 
 bitflags! {
-    #[derive(Copy, Clone, Debug, Default, PartialEq, Eq, Hash)]
+    // Serializes as names, e.g. "Shift | Control".
+    #[derive(Copy, Clone, Debug, Default, PartialEq, Eq, Hash, serde::Serialize, serde::Deserialize)]
     pub struct InputModifiers: u8 {
         const Shift    = 1 << 0;
         const Control  = 1 << 1;
@@ -195,7 +234,7 @@ bitflags! {
 // MouseButton
 // ----------------------------------------------
 
-#[derive(Copy, Clone, Debug, PartialEq, Eq, Hash, EnumCount, EnumString)]
+#[derive(Copy, Clone, Debug, PartialEq, Eq, Hash, EnumCount, EnumIter, EnumString, IntoStaticStr)]
 #[strum(ascii_case_insensitive)]
 pub enum MouseButton {
     Left,
@@ -211,7 +250,7 @@ pub enum MouseButton {
 // ----------------------------------------------
 
 // Names parse case-insensitively from the variant names, e.g. "Escape", "f12", "LeftShift".
-#[derive(Copy, Clone, Debug, PartialEq, Eq, Hash, EnumCount, EnumString)]
+#[derive(Copy, Clone, Debug, PartialEq, Eq, Hash, EnumCount, EnumIter, EnumString, IntoStaticStr)]
 #[strum(ascii_case_insensitive)]
 pub enum InputKey {
     Unknown,

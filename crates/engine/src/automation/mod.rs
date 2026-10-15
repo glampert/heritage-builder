@@ -10,6 +10,7 @@ use std::sync::mpsc;
 use serde_json::Value;
 
 pub mod input;
+pub mod recording;
 
 #[cfg(feature = "desktop")]
 pub mod server;
