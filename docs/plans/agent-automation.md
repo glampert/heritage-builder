@@ -1,8 +1,26 @@
 # Agent automation and in-game screenshots
 
-**Status (2026-10-15):** Approved 2026-10-11. Phase 0 done (merged with PR #1). Phases 1–7 done on the `claude` branch: screenshots, the command registry with script mode and the in-game console, the live control server with `hb-ctl`, the MCP server with its agent skill, simulated input with UI automation, the web bridge with CI scenarios, and record and replay with image assertions. All phases are done. See [Handoff](#handoff-2026-10-14) for the move to a local machine.
+**Status (2026-10-15): Complete.** Approved 2026-10-11. Phase 0 was merged with PR #1. Phases 1–7 are done on the `claude` branch, to be merged into `main` in one PR:
+- screenshots;
+- the command registry, with script mode and the in-game console;
+- the live control server and `hb-ctl`;
+- the MCP server and its agent skill;
+- simulated input and UI automation;
+- the web bridge and CI scenarios;
+- record and replay, with image assertions.
+
+Every task is ticked and every open decision is answered. A few checks need a person or CI; see [Remaining checks](#remaining-checks). See [Handoff](#handoff-2026-10-14) for the move to a local machine.
 
 This plan lets AI agents launch the game, drive it, inspect it and debug it. It also adds framebuffer screenshots, which ship to players as well. It was researched against commit `9f26ef8` on the `claude` branch. File and line references point at that commit, so re-check them before relying on them.
+
+## Remaining checks
+
+Everything below is built, and was tested as far as possible without a person at the keyboard or a CI run:
+- **Phase 4:** a real Claude Code session using the project's `.mcp.json`. A scripted MCP client was checked; Claude Code asks for approval the first time it sees the project's servers.
+- **Phase 5:** real mouse movement has no effect while input capture is on, and Shift+Esc takes the input back. No real input events could be sent on the test machine.
+- **Phase 6:** the CI workflow, including the new scenario and record-and-replay steps. It runs once the branch is pushed.
+- **Phase 7:** recording real mouse and keyboard input and replaying it, and Shift+Esc during a replay. To check: `cargo run -p HeritageBuilder --release -- --record out/me.rec.jsonl`, play and quit, then run with `--replay out/me.rec.jsonl`. It should log "Replay matched" and exit 0.
+- **From the handoff:** the console's [`] key on non-US keyboard layouts.
 
 ## How to resume this work
 
@@ -22,7 +40,7 @@ This plan lets AI agents launch the game, drive it, inspect it and debug it. It 
 
 ### Handoff (2026-10-14)
 
-Work moves from a Claude Code cloud session to a local machine here.
+Work moves from a Claude Code cloud session to a local machine here. (Kept for history: the work finished locally on 2026-10-15. Phase 1's hardware check passed; the console key on non-US layouts is in [Remaining checks](#remaining-checks).)
 
 - **Branch:** `claude`, pushed, last commit `38e0190` ("In-game console: run automation commands from the log viewer"). PR #1 (Phase 0) was merged into `main`. Phase 1 and the console are on `claude` only, not yet in a PR, per the working agreement above.
 - **Verified in the cloud session** (Linux, Xvfb, Mesa software rendering): `cargo test --workspace` passes, and the web build compiles with no warnings. The screenshot and console checks are in the Phase 1 and console notes below. Nothing from that session lives outside the repo: its scratch notes are folded into this file.
@@ -358,7 +376,10 @@ Notes (2026-10-14):
 - **Verified** under `xvfb-run` on Mesa:
   - OpenGL/GLFW and Wgpu/Winit (Vulkan via lavapipe, BGRA surface) both produce correct images, with and without UI. The two backends differ in 13 pixels scene-only, and in about 0.4% of pixels with UI (text antialiasing).
   - `xdotool` key presses for F12, Shift+F12 and PrintScreen saved files on both app backends, and the toast showed on screen but not in the files.
-  - Not verified: a HiDPI Mac.
+- **Verified on a HiDPI Mac** (2026-10-15, Apple Silicon, content scale 2). The done-when command with `--window-size 1280x720` ran on OpenGL/GLFW and on Wgpu/Winit (Metal). The Wgpu run used a throwaway `.app` copy with its own `configs.json`, so the repo's config stayed as it is.
+  - Both captures are 2560x1440 (framebuffer resolution), show the same frame, and exit 0.
+  - `--screenshot-no-ui` on Wgpu leaves the UI out.
+  - F12, sent as simulated input (`input.key`), saved a 2560x1440 PNG to `screenshots/` on both backends.
 
 ### Phase 2: Command registry and script mode (medium)
 
