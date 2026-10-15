@@ -334,7 +334,10 @@ pub fn draw_centered_labeled_widget_group(
                 None
             };
 
+            // The group's label names the widget for UI automation.
+            context.ui_sys().push_widget_path(label);
             widget.draw(context);
+            context.ui_sys().pop_widget_path();
         }
 
         offset_y += widget_size.y;

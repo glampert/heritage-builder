@@ -14,6 +14,7 @@ use engine::{
     ui::UiInputEvent,
     runner::RunLoop,
     file_sys::paths::PathRef,
+    screenshot::{self, ScreenshotId, ScreenshotOutput, ScreenshotRequest, ScreenshotScale},
     app::{
         ApplicationEvent,
         input::{InputAction, InputKey, InputModifiers, MouseButton},
@@ -21,8 +22,9 @@ use engine::{
 };
 
 use crate::{
+    automation::{self, Automation, CommandContext, FrameControl, ScriptRunner},
     cheats,
-    debug,
+    debug::{self, log_viewer::LogViewer},
     launch,
     undo_redo,
     menu::GameMenusMode,
@@ -102,6 +104,15 @@ pub struct GameLoop {
 
     smoke_test: Option<SaveSmokeTest>,
 
+    // Taken with the screenshot hotkey and not yet written.
+    pending_screenshots: Vec<ScreenshotId>,
+
+    // Runs automation commands: the console's (the log viewer), a script's, outside tools'.
+    automation: Automation,
+    frame_control: FrameControl,
+    session_generation: u64, // Last session::generation() automation clients were told about.
+    log_viewer: LogViewer,
+
     stats: GameLoopStats,
 }
 
@@ -109,6 +120,12 @@ impl RunLoop for GameLoop {
     type Configs = GameConfigs;
 
     fn on_early_init() {
+        // Script results go to stdout, so the log moves to stderr. This has to happen before the
+        // first log line, which is before the command line is parsed.
+        if launch::script_mode_requested() {
+            log::redirect_to_stderr(true);
+        }
+
         debug::log_viewer::LogViewer::initialize();
     }
 
@@ -116,8 +133,15 @@ impl RunLoop for GameLoop {
         launch::GAME_CLI_OPTIONS
     }
 
+    fn cli_options_not_recorded() -> &'static [&'static str] {
+        launch::GAME_CLI_OPTIONS_NOT_RECORDED
+    }
+
     fn start(engine: &'static mut Engine, configs: &'static Self::Configs) -> &'static mut Self {
         log::info!(log::channel!("game"), "--- GameLoop Initialization ---");
+
+        // A replay runs with the configs it was recorded with.
+        automation::recording::use_recorded_configs(engine);
 
         // Load configs / tile sets:
         Self::load_assets(engine, configs);
@@ -135,6 +159,24 @@ impl RunLoop for GameLoop {
         // Optional save-load smoke test run mode:
         let smoke_test = launch_options.smoke_test_saves.then(SaveSmokeTest::new);
 
+        // Optional script run mode:
+        let script = launch_options.script.as_ref().map(|options| {
+            ScriptRunner::load(&options.path, options.continue_on_error).unwrap_or_else(|err| cli::exit_with_error(&err))
+        });
+
+        // Never autosave during the smoke test - it would overwrite the saves under test.
+        // Scripts save when they mean to, and an autosave would make their runs differ.
+        let enable_autosave = configs.save.enable_autosave && smoke_test.is_none() && script.is_none();
+
+        // A replay autosaves when the recorded run did, since saving changes the state.
+        let enable_autosave = automation::recording::recorded_autosave(engine).unwrap_or(enable_autosave);
+        automation::recording::record_game_info(engine, enable_autosave);
+
+        // Scripts drive the input: the real mouse mustn't scroll the map in the middle of one.
+        if script.is_some() {
+            engine.set_input_capture(true);
+        }
+
         // Create Session and GameLoop:
         let session = session::create_initial(engine, configs, launch_options).unwrap_or_else(|err| cli::fail(&err));
         let game_loop = Self {
@@ -143,9 +185,13 @@ impl RunLoop for GameLoop {
             session: Box::new(session),
             session_cmd_queue: GameSessionCmdQueue::new(),
             autosave_timer: UpdateTimer::new(configs.save.autosave_frequency_secs),
-            // Never autosave during the smoke test - it would overwrite the saves under test.
-            enable_autosave: configs.save.enable_autosave && smoke_test.is_none(),
+            enable_autosave,
             smoke_test,
+            pending_screenshots: Vec::new(),
+            automation: Automation::new(script),
+            frame_control: FrameControl::default(),
+            session_generation: session::generation(),
+            log_viewer: LogViewer::new(),
             stats: GameLoopStats::default(),
         };
 
@@ -181,7 +227,20 @@ impl RunLoop for GameLoop {
         self.stats.fps = if real_delta_time_secs > 0.0 { 1.0 / real_delta_time_secs } else { 0.0 };
 
         self.update_autosave();
+        self.update_screenshots();
         self.session_cmd_queue.execute(&mut self.session, self.engine, self.configs);
+
+        // Automation commands run here: the world is unlocked and no SimContext is live.
+        self.automation.update(&mut CommandContext {
+            engine: self.engine,
+            session: &mut self.session,
+            session_cmds: &mut self.session_cmd_queue,
+            configs: self.configs,
+            frame_control: &mut self.frame_control,
+            stats: &self.stats,
+        });
+
+        self.notify_session_change();
 
         if self.smoke_test.is_some() {
             self.update_smoke_test(delta_time_secs);
@@ -214,6 +273,16 @@ impl RunLoop for GameLoop {
     #[inline]
     fn is_running(&self) -> bool {
         self.engine.is_running()
+    }
+
+    fn finish_run(&mut self) {
+        self.automation.finish_run(self.engine);
+
+        // A recording stores the final state's checksum, and a replay must end with the same.
+        if self.engine.needs_final_checksum() {
+            let checksum = automation::recording::final_state_checksum(&mut self.session);
+            self.engine.set_final_checksum(checksum);
+        }
     }
 }
 
@@ -361,6 +430,11 @@ impl GameLoop {
 
         let visible_range = self.update_camera(cursor_screen_pos, delta_time_secs);
 
+        // Automation can hold the simulation still while rendering goes on (frame.hold).
+        if !self.frame_control.should_update_simulation() {
+            return visible_range;
+        }
+
         let sim_update_timer = PerfTimer::begin();
         self.session.update_simulation(self.engine, delta_time_secs);
         self.stats.sim_frame_time_ms = sim_update_timer.end();
@@ -407,6 +481,59 @@ impl GameLoop {
         }
     }
 
+    // Tells automation clients (see engine::automation::server) when the session became a different
+    // game. Session changes happen in the session command queue and in automation commands.
+    fn notify_session_change(&mut self) {
+        let generation = session::generation();
+        if generation == self.session_generation {
+            return;
+        }
+        self.session_generation = generation;
+
+        let map_size = self.session.tile_map().size_in_cells();
+        self.engine.send_automation_event("session.changed", serde_json::json!({
+            "menus_mode": self.session.current_menus_mode().map(|mode| format!("{mode:?}")),
+            "map_size": [map_size.width, map_size.height],
+            "frame": self.engine.frame_clock().frame_number(),
+        }));
+    }
+
+    // Saves the current frame to screenshots/. A toast reports the result once it's written.
+    fn take_screenshot(&mut self, include_ui: bool) {
+        let path = self.engine.new_screenshot_path();
+        let id = self.engine.request_screenshot(ScreenshotRequest {
+            include_ui,
+            scale: ScreenshotScale::Pixels,
+            output: ScreenshotOutput::File(path),
+        });
+        self.pending_screenshots.push(id);
+    }
+
+    fn update_screenshots(&mut self) {
+        let engine = &mut *self.engine;
+
+        self.pending_screenshots.retain(|id| {
+            let Some(result) = engine.take_screenshot_result(*id) else {
+                return true; // Still being written.
+            };
+
+            match result {
+                Ok(screenshot) => {
+                    let path = screenshot.path.unwrap_or_default();
+                    let file_name = path.file_name().unwrap_or_default().to_string_lossy();
+                    log::info!(log::channel!("game"), "Saved screenshot: {}", path.display());
+                    engine.ui_system().show_toast(format!("Screenshot saved: {file_name}"));
+                }
+                Err(err) => {
+                    log::error!(log::channel!("game"), "Screenshot failed: {err}");
+                    engine.ui_system().show_toast(format!("Screenshot failed: {err}"));
+                }
+            }
+
+            false
+        });
+    }
+
     // Drives the `--smoke-test-saves` run mode: loads each save in turn,
     // ticks it for SMOKE_TEST_SECS_PER_SAVE, then quits once all have loaded.
     fn update_smoke_test(&mut self, delta_time_secs: Seconds) {
@@ -430,8 +557,8 @@ impl GameLoop {
                 log::info!(log::channel!("game"), "Save smoke test: loading '{}' ...", save_file.display());
 
                 let loaded = self.session.load_save_game(self.engine, self.configs, PathRef::from_path(&save_file));
-                if !loaded {
-                    panic!("Save smoke test: FAILED to load save '{}'!", save_file.display());
+                if let Err(err) = loaded {
+                    panic!("Save smoke test: FAILED to load save '{}': {err}", save_file.display());
                 }
 
                 // Ensure the simulation ticks regardless of the start_paused config.
@@ -466,6 +593,12 @@ impl GameLoop {
                 log::info!(log::channel!("game"), "Resized Window: {window_size}, Framebuffer: {framebuffer_size}");
             }
             ApplicationEvent::KeyInput(key, action, modifiers) => {
+                // PrintScreen / F12, with [SHIFT] to leave out the UI.
+                if let Some(hotkey) = screenshot::match_hotkey(key, action, modifiers) {
+                    self.take_screenshot(hotkey.include_ui);
+                    return;
+                }
+
                 let mut input_event = if self.is_in_game() {
                     self.session.camera_mut().on_key_input(key, action, modifiers)
                 } else {
@@ -479,6 +612,17 @@ impl GameLoop {
                     && modifiers.intersects(InputModifiers::Control)
                 {
                     self.session_cmd_queue.push_toggle_menus_mode();
+                    input_event = UiInputEvent::Handled;
+                }
+
+                // [`]: Open or close the console (log viewer), in any menus mode.
+                if input_event.not_handled()
+                    && action == InputAction::Press
+                    && key == InputKey::GraveAccent
+                    && !modifiers.intersects(InputModifiers::Control | InputModifiers::Alt | InputModifiers::Super)
+                {
+                    let is_open = self.log_viewer.is_open();
+                    self.log_viewer.show(!is_open);
                     input_event = UiInputEvent::Handled;
                 }
 
@@ -519,6 +663,7 @@ impl GameLoop {
     fn menus_end_frame(&mut self, visible_range: CellRange) {
         let ui_end_timer = PerfTimer::begin();
         self.session.menus_end_frame(self.engine, visible_range);
+        self.log_viewer.draw(self.engine.ui_system()); // Over the menus, in every mode.
         self.stats.ui_end_frame_time_ms = ui_end_timer.end();
     }
 

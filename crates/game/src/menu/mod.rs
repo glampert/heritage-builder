@@ -51,7 +51,7 @@ use crate::{
     },
 };
 
-mod dialog;
+pub(crate) mod dialog;
 pub mod home;
 pub mod in_game;
 
@@ -187,7 +187,7 @@ pub trait GameMenusSystem: Any + Save + Load {
                         PlacementResult::PlacedTile
                     }
                 }
-                PlaceOrClearResult::Failed { placement_attempt_tile_def, obstructing_tile_def } => {
+                PlaceOrClearResult::Failed { placement_attempt_tile_def, obstructing_tile_def, .. } => {
                     PlacementResult::Failed { placement_attempt_tile_def, obstructing_tile_def }
                 }
             };
@@ -385,6 +385,7 @@ pub enum PlaceOrClearResult {
     Failed {
         placement_attempt_tile_def: Option<&'static TileDef>, // Tile we've failed to place. None for a tile clear op.
         obstructing_tile_def: Option<&'static TileDef>,       // Tile that prevented placement, if any.
+        message: String,                                      // Why it failed.
     },
 }
 
@@ -406,6 +407,23 @@ enum PlaceRoadSegmentResult {
     Empty,
 }
 
+#[derive(Debug)]
+pub enum RoadSegmentError {
+    Empty,
+    Blocked,
+    CannotAffordCost(u32),
+}
+
+impl std::fmt::Display for RoadSegmentError {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        match self {
+            Self::Empty => write!(f, "The road segment is empty."),
+            Self::Blocked => write!(f, "Something blocks every route for the road segment."),
+            Self::CannotAffordCost(cost) => write!(f, "Cannot afford the road segment. Cost: {cost} gold"),
+        }
+    }
+}
+
 pub struct TilePlacement {
     current_road_segment: RoadSegment, // For road placement.
 }
@@ -419,32 +437,8 @@ impl TilePlacement {
         let road_segment_is_empty = self.current_road_segment.is_empty();
 
         // Place road segment if valid & we can afford it:
-        let is_valid_road_placement = !road_segment_is_empty
-            && self.current_road_segment.is_valid
-            && can_afford_cost(context, self.current_road_segment.cost());
-
-        if is_valid_road_placement {
-            let sim_context = context.new_sim_context();
-            let spawner = Spawner::new(&sim_context);
-
-            // Place tiles:
-            for cell in &self.current_road_segment.path {
-                spawner.try_spawn_tile_with_def(*cell, self.current_road_segment.tile_def());
-            }
-
-            // Update road junctions (each junction is a different variation of the same tile).
-            for cell in &self.current_road_segment.path {
-                road::update_junctions(context.tile_map, *cell);
-            }
-
-            undo_redo::record(
-                EditAction::PlacedTiles,
-                &self.current_road_segment.path,
-                EditedLayer::Terrain,
-                context.tile_map,
-                context.world,
-            );
-        }
+        let is_valid_road_placement =
+            Self::place_road_segment(&context.new_sim_context(), &self.current_road_segment, true).is_ok();
 
         // Clear road segment highlight:
         if !road_segment_is_empty {
@@ -460,6 +454,38 @@ impl TilePlacement {
         } else {
             PlaceRoadSegmentResult::Failed
         }
+    }
+
+    // Places a road segment from road::build_segment, as a player's drag does: every cell of the
+    // segment, or none of them if it's blocked or the treasury can't pay for all of it.
+    pub fn place_road_segment(context: &SimContext, segment: &RoadSegment, undo_redo: bool) -> Result<(), RoadSegmentError> {
+        if segment.is_empty() {
+            return Err(RoadSegmentError::Empty);
+        }
+        if !segment.is_valid {
+            return Err(RoadSegmentError::Blocked);
+        }
+        if !context.treasury().can_afford(context.world(), segment.cost()) {
+            return Err(RoadSegmentError::CannotAffordCost(segment.cost()));
+        }
+
+        let spawner = Spawner::new(context);
+
+        // Place tiles:
+        for cell in &segment.path {
+            spawner.try_spawn_tile_with_def(*cell, segment.tile_def());
+        }
+
+        // Update road junctions (each junction is a different variation of the same tile).
+        for cell in &segment.path {
+            road::update_junctions(context.tile_map_mut(), *cell);
+        }
+
+        if undo_redo {
+            undo_redo::record(EditAction::PlacedTiles, &segment.path, EditedLayer::Terrain, context.tile_map(), context.world());
+        }
+
+        Ok(())
     }
 
     fn update_road_segment(&mut self, road_kind: RoadKind, start: Cell, end: Cell, context: &mut GameUiContext) {
@@ -514,7 +540,11 @@ impl TilePlacement {
             }
         }
 
-        PlaceOrClearResult::Failed { placement_attempt_tile_def: None, obstructing_tile_def: None }
+        PlaceOrClearResult::Failed {
+            placement_attempt_tile_def: None,
+            obstructing_tile_def: None,
+            message: "Nothing to place or clear under the cursor.".into(),
+        }
     }
 
     pub fn place(
@@ -549,7 +579,11 @@ impl TilePlacement {
                     }
                 };
 
-                return PlaceOrClearResult::Failed { placement_attempt_tile_def: Some(tile_def), obstructing_tile_def };
+                return PlaceOrClearResult::Failed {
+                    placement_attempt_tile_def: Some(tile_def),
+                    obstructing_tile_def,
+                    message: err.message.clone(),
+                };
             }
             _ => {}
         }
@@ -606,10 +640,14 @@ impl TilePlacement {
             return PlaceOrClearResult::ClearedTile(tile_def);
         }
 
-        PlaceOrClearResult::Failed { placement_attempt_tile_def: None, obstructing_tile_def: None }
+        PlaceOrClearResult::Failed {
+            placement_attempt_tile_def: None,
+            obstructing_tile_def: None,
+            message: format!("Terrain tile '{}' can't be cleared. Only roads and vacant lots can.", tile_def.name),
+        }
     }
 
-    fn can_clear(tile: &Tile) -> bool {
+    pub fn can_clear(tile: &Tile) -> bool {
         let tile_def = tile.tile_def();
 
         let is_terrain = tile.is(TileKind::Terrain);

@@ -19,6 +19,7 @@ pub struct GlfwWindowManager {
     window_mode: ApplicationWindowMode,
     resizable_window: bool,
     confine_cursor: bool,
+    confine_cursor_paused: bool,
     content_scale: ApplicationContentScale,
     window: glfw::PWindow,
     event_receiver: GlfwEventReceiver,
@@ -62,6 +63,7 @@ impl GlfwWindowManager {
             window_mode: params.window_mode,
             resizable_window: params.resizable_window,
             confine_cursor: params.confine_cursor,
+            confine_cursor_paused: false,
             content_scale: params.content_scale,
             window,
             event_receiver,
@@ -97,8 +99,13 @@ impl GlfwWindowManager {
         GlfwWindowManagerRcMut::new(manager)
     }
 
+    #[inline]
+    pub fn pause_cursor_confinement(&mut self, paused: bool) {
+        self.confine_cursor_paused = paused;
+    }
+
     pub fn confine_cursor_to_window(&mut self) {
-        if !self.confine_cursor {
+        if !self.confine_cursor || self.confine_cursor_paused {
             return;
         }
 

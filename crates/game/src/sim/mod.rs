@@ -64,6 +64,11 @@ pub struct Simulation {
     // Sim speed:
     speed: f32,
     is_paused: bool,
+
+    // Simulated seconds since this game started or was loaded: frame time scaled by the speed,
+    // not counting pauses. Runtime only (automation waits on it), so it isn't saved.
+    #[serde(skip)]
+    elapsed_secs: f64,
 }
 
 impl Simulation {
@@ -78,6 +83,7 @@ impl Simulation {
             search: Search::with_grid_size(map_size_in_cells),
             speed: Self::MIN_SIM_SPEED,
             is_paused: false,
+            elapsed_secs: 0.0,
         }
     }
 
@@ -143,6 +149,8 @@ impl Simulation {
             return; // Early out.
         }
 
+        self.elapsed_secs += f64::from(delta_time_secs * self.speed);
+
         // Units movement needs to be smooth, so it updates every frame.
         {
             let scaled_delta_time_secs = delta_time_secs * self.speed;
@@ -201,6 +209,7 @@ impl Simulation {
         }
         systems.reset(engine);
         self.cmds.reset();
+        self.elapsed_secs = 0.0;
     }
 
     pub fn reset_search_graph(&mut self, tile_map: &mut TileMap) {
@@ -243,6 +252,23 @@ impl Simulation {
     #[inline]
     pub fn slowdown(&mut self) {
         self.speed = (self.speed - 1.0).max(Self::MIN_SIM_SPEED);
+    }
+
+    #[inline]
+    pub fn speed_limits(&self) -> (f32, f32) {
+        (Self::MIN_SIM_SPEED, Self::MAX_SIM_SPEED)
+    }
+
+    // Clamped to speed_limits().
+    #[inline]
+    pub fn set_speed(&mut self, speed: f32) {
+        self.speed = speed.clamp(Self::MIN_SIM_SPEED, Self::MAX_SIM_SPEED);
+    }
+
+    // Simulated seconds since this game started or was loaded (see `elapsed_secs`).
+    #[inline]
+    pub fn elapsed_secs(&self) -> f64 {
+        self.elapsed_secs
     }
 
     // ----------------------

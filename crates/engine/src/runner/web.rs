@@ -80,7 +80,7 @@ impl Runner for WebRunner {
         // Early initialization:
         GameLoop::on_early_init();
         platform::initialize();
-        cli::initialize(GameLoop::cli_options()); // Web has no command-line arguments, so no options are set.
+        cli::initialize(GameLoop::cli_options(), GameLoop::cli_options_not_recorded()); // Web has no command-line arguments, so no options are set.
         paths::set_working_directory(paths::base_path());
 
         let event_loop = EventLoop::new().expect("Failed to create Winit event loop!");
@@ -394,6 +394,10 @@ impl<GameLoop: RunLoop + 'static> WebEventHandler<GameLoop> {
         // Hide the browser loading screen — game is fully initialized.
         set_loading_progress(100, "Ready!");
         hide_loading_screen();
+
+        // Start the frame loop. Each frame requests the next one, but nothing requests the
+        // first: without this, the game waits for an input or resize event to start.
+        window.request_redraw();
 
         self.state = WebRunnerState::Running { window };
 

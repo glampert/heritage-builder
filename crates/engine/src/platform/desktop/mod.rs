@@ -7,10 +7,15 @@ use super::*;
 // ----------------------------------------------
 
 mod crash_report;
-pub use crash_report::DebugBacktrace;
+pub use crash_report::{DebugBacktrace, PanicReport, add_panic_listener};
 
-pub fn initialize_crash_report(set_panic_hook: bool) {
-    crash_report::initialize(set_panic_hook);
+pub fn initialize_crash_report(log_panics: bool) {
+    crash_report::initialize(log_panics);
+}
+
+#[inline]
+pub fn set_crash_report_frame(frame: u64) {
+    crash_report::set_current_frame(frame);
 }
 
 // ----------------------------------------------
@@ -39,6 +44,32 @@ pub fn run_environment() -> RunEnvironment {
 }
 
 // ----------------------------------------------
+// Local Date / Time
+// ----------------------------------------------
+
+// None if the C library can't convert the current time.
+pub fn local_date_time() -> Option<LocalDateTime> {
+    // SAFETY: localtime_r is the thread-safe variant and only writes to `tm`.
+    let tm = unsafe {
+        let now = libc::time(std::ptr::null_mut());
+        let mut tm: libc::tm = std::mem::zeroed();
+        if libc::localtime_r(&now, &mut tm).is_null() {
+            return None;
+        }
+        tm
+    };
+
+    Some(LocalDateTime {
+        year: tm.tm_year + 1900,
+        month: (tm.tm_mon + 1) as u32,
+        day: tm.tm_mday as u32,
+        hour: tm.tm_hour as u32,
+        minute: tm.tm_min as u32,
+        second: tm.tm_sec as u32,
+    })
+}
+
+// ----------------------------------------------
 // Main Thread Detection
 // ----------------------------------------------
 
@@ -59,6 +90,14 @@ pub fn is_main_thread() -> bool {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn local_date_time_is_plausible() {
+        let now = local_date_time().unwrap();
+        assert!(now.year >= 2024);
+        assert!((1..=12).contains(&now.month) && (1..=31).contains(&now.day));
+        assert!(now.hour < 24 && now.minute < 60 && now.second < 61); // 60 is a leap second.
+    }
 
     #[test]
     fn main_thread_check() {

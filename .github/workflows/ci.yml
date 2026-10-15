@@ -55,6 +55,99 @@ jobs:
         run: cargo test --workspace
 
   # ----------------------------------------------------------
+  # Scenarios: run the game's automation scripts (--script) on a
+  # virtual display, check determinism, keep the screenshots.
+  # ----------------------------------------------------------
+  scenarios:
+    name: Scenarios (Linux, Xvfb)
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Install Linux system dependencies
+        run: |
+          sudo apt-get update
+          # Build deps as in the desktop job, plus Xvfb and Mesa's software OpenGL to run the game.
+          sudo apt-get install -y --no-install-recommends \
+            libasound2-dev \
+            libx11-dev libxrandr-dev libxinerama-dev libxcursor-dev libxi-dev \
+            libxkbcommon-dev libwayland-dev wayland-protocols \
+            libgl1-mesa-dev libgl1-mesa-dri xvfb
+
+      - uses: actions-rust-lang/setup-rust-toolchain@v2
+        with:
+          toolchain: stable
+          build-warnings: warn
+
+      - name: Build (release)
+        run: cargo build --release -p HeritageBuilder
+
+      # One X server for the whole job. xvfb-run would run each command with 2>&1, which mixes
+      # the game's log into the script results on stdout.
+      - name: Start Xvfb
+        run: |
+          Xvfb :99 -screen 0 1920x1080x24 &
+          for _ in $(seq 50); do [ -e /tmp/.X11-unix/X99 ] && break; sleep 0.1; done
+          echo "DISPLAY=:99" >> "$GITHUB_ENV"
+
+      # Each script prints a JSON line per command and exits 1 if any fails. Logs go to stderr.
+      - name: Run scenarios
+        env:
+          LIBGL_ALWAYS_SOFTWARE: "1"
+        run: |
+          mkdir -p logs
+          for scenario in smoke ui_new_game ui_build; do
+            echo "::group::$scenario"
+            target/release/HeritageBuilder --script "crates/game/tests/scenarios/$scenario.jsonl" \
+              2> "logs/$scenario.log"
+            echo "::endgroup::"
+          done
+
+      # The same seed must give the same game: both runs print the same lines and write the same save.
+      # The window size is part of the state, so it's fixed too.
+      - name: Determinism
+        env:
+          LIBGL_ALWAYS_SOFTWARE: "1"
+        run: |
+          for run in 1 2; do
+            target/release/HeritageBuilder --seed 7 --window-size 1280x720 \
+              --script crates/game/tests/scenarios/determinism.jsonl \
+              > "logs/determinism-$run.jsonl" 2> "logs/determinism-$run.log"
+            cp saves/determinism.json "logs/determinism-$run.json"
+          done
+          grep '"session.checksum"' logs/determinism-1.jsonl
+          diff logs/determinism-1.jsonl logs/determinism-2.jsonl
+          cmp logs/determinism-1.json logs/determinism-2.json
+
+      # A recorded run must replay to the same final state (the replay exits 1 if not), and the
+      # replayed determinism run must write the same save as the runs above.
+      - name: Record and replay
+        env:
+          LIBGL_ALWAYS_SOFTWARE: "1"
+        run: |
+          for scenario in ui_build determinism; do
+            echo "::group::$scenario"
+            target/release/HeritageBuilder --seed 7 --window-size 1280x720 \
+              --script "crates/game/tests/scenarios/$scenario.jsonl" \
+              --record "logs/$scenario.rec.jsonl" > /dev/null 2> "logs/$scenario-record.log"
+            target/release/HeritageBuilder --replay "logs/$scenario.rec.jsonl" > "logs/$scenario-replay.log" 2>&1 \
+              || { tail -n 20 "logs/$scenario-replay.log"; exit 1; }
+            grep 'Replay matched' "logs/$scenario-replay.log"
+            echo "::endgroup::"
+          done
+          cmp saves/determinism.json logs/determinism-1.json
+
+      - name: Upload screenshots and logs
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: scenarios
+          path: |
+            out/
+            logs/
+
+  # ----------------------------------------------------------
   # Web: build the wasm32 target via the web-builder tool.
   # ----------------------------------------------------------
   web:
@@ -113,3 +206,24 @@ jobs:
           # Warning only for now; switch to a hard failure once the manifest is in sync.
           git diff --exit-code -- web/asset_manifest.json \
             || echo "::warning file=web/asset_manifest.json::asset_manifest.json is out of date with assets/. Rebuild the web target and commit the updated manifest."
+
+      # Drives the release build in headless Chromium through window.heritage.exec, rendering
+      # WebGPU on the CPU (SwiftShader). See crates/tools/web-smoke/smoke.py.
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.12"
+
+      - name: Install Playwright
+        run: |
+          pip install playwright
+          playwright install --with-deps chromium
+
+      - name: Web smoke test
+        run: python3 crates/tools/web-smoke/smoke.py --swiftshader --timeout 240
+
+      - name: Upload web smoke screenshots
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: web-smoke
+          path: out/web/

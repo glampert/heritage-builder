@@ -30,8 +30,16 @@ impl Runner for DesktopRunner {
             game.update();
         }
 
+        game.finish_run();
+        Engine::get_mut().finish_run();
+        let exit_code = Engine::get().exit_code();
+
         GameLoop::shutdown();
         Engine::shutdown();
+
+        if exit_code != 0 {
+            std::process::exit(exit_code);
+        }
     }
 }
 
@@ -44,7 +52,7 @@ impl DesktopRunner {
         platform::initialize();
 
         // After platform::initialize(), which decides where log output goes.
-        cli::initialize(GameLoop::cli_options());
+        cli::initialize(GameLoop::cli_options(), GameLoop::cli_options_not_recorded());
 
         paths::set_working_directory(paths::base_path());
 

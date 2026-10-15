@@ -33,7 +33,28 @@ pub const GAME_CLI_OPTIONS: &[CliOption] = &[
         value_name: None,
         help: "Load every save in saves/, tick each for 10 seconds, then exit. Panics on a failed load.",
     },
+    CliOption {
+        name: "script",
+        value_name: Some("FILE"),
+        help: "Run the automation commands in FILE, one per line, printing results to stdout as JSON lines, then \
+               exit: status 0 if all succeeded, 1 if not. Logs go to stderr.",
+    },
+    CliOption {
+        name: "script-continue-on-error",
+        value_name: None,
+        help: "With --script, keep going after a command fails. The exit status is still 1.",
+    },
 ];
+
+// Options a recording (--record) leaves out: it holds the script's commands, and its replay runs
+// them on the frames they ran on.
+pub const GAME_CLI_OPTIONS_NOT_RECORDED: &[&str] = &["script", "script-continue-on-error"];
+
+// True if the process arguments ask for script mode. For the early log setup, which runs before
+// the command line is parsed (see GameLoop::on_early_init).
+pub fn script_mode_requested() -> bool {
+    std::env::args().skip(1).any(|arg| arg == "--script" || arg.starts_with("--script="))
+}
 
 // Terrain for `--map empty:WxH` when configs.json doesn't set up an empty map.
 const DEFAULT_EMPTY_MAP_TERRAIN_TILE: &str = "grass";
@@ -42,12 +63,18 @@ const DEFAULT_EMPTY_MAP_TERRAIN_TILE: &str = "grass";
 // LaunchOptions
 // ----------------------------------------------
 
+pub struct ScriptOptions {
+    pub path: PathBuf,           // --script, relative to the directory the game was started from.
+    pub continue_on_error: bool, // --script-continue-on-error
+}
+
 #[derive(Default)]
 pub struct LaunchOptions {
     pub seed: Option<u64>,                 // --seed
     pub start_map: Option<LoadMapSetting>, // --map or --load-save
     pub skip_home_menu: bool,              // --skip-home-menu
     pub smoke_test_saves: bool,            // --smoke-test-saves
+    pub script: Option<ScriptOptions>,     // --script
 }
 
 impl LaunchOptions {
@@ -67,11 +94,22 @@ impl LaunchOptions {
             cli::fail("Use either --map or --load-save, not both.");
         }
 
+        let script =
+            cli::path_value("script").map(|path| ScriptOptions { path, continue_on_error: command_line.has("script-continue-on-error") });
+
+        if script.is_none() && command_line.has("script-continue-on-error") {
+            cli::fail("--script-continue-on-error needs --script.");
+        }
+        if script.is_some() && command_line.has("smoke-test-saves") {
+            cli::fail("Use either --script or --smoke-test-saves, not both.");
+        }
+
         Self {
             seed,
             start_map: map.or(load_save),
             skip_home_menu: command_line.has("skip-home-menu"),
             smoke_test_saves: command_line.has("smoke-test-saves"),
+            script,
         }
     }
 
@@ -129,6 +167,6 @@ pub fn initialize(configs: &GameConfigs) -> &'static LaunchOptions {
 // Options for this run. All defaults if initialize() hasn't run (in tests, for instance).
 pub fn get() -> &'static LaunchOptions {
     static DEFAULT: LaunchOptions =
-        LaunchOptions { seed: None, start_map: None, skip_home_menu: false, smoke_test_saves: false };
+        LaunchOptions { seed: None, start_map: None, skip_home_menu: false, smoke_test_saves: false, script: None };
     LAUNCH_OPTIONS.get().unwrap_or(&DEFAULT)
 }

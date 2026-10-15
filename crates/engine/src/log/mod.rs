@@ -132,6 +132,17 @@ pub fn recent_records(after_seq: u64) -> Vec<Record> {
     recent.records.iter().filter(|record| record.seq > after_seq).cloned().collect()
 }
 
+// Like recent_records(), but None instead of waiting if another thread is logging. For the panic
+// hook, which can run while the panicking code holds the lock.
+pub fn try_recent_records(after_seq: u64) -> Option<Vec<Record>> {
+    let recent = match RECENT_RECORDS.try_lock() {
+        Ok(recent) => recent,
+        Err(std::sync::TryLockError::Poisoned(poisoned)) => poisoned.into_inner(),
+        Err(std::sync::TryLockError::WouldBlock) => return None,
+    };
+    Some(recent.records.iter().filter(|record| record.seq > after_seq).cloned().collect())
+}
+
 // Number of records kept for recent_records().
 pub const RECENT_RECORDS_CAPACITY: usize = 256;
 
@@ -196,6 +207,7 @@ fn dispatch_record(level: Level, channel: Option<Channel>, location: &Location, 
 
 static MIN_LOG_LEVEL:       AtomicU32  = AtomicU32::new(Level::Verbose as u32);
 static REDIRECT_TO_FILE:    AtomicBool = AtomicBool::new(false);
+static REDIRECT_TO_STDERR:  AtomicBool = AtomicBool::new(false);
 static ENABLE_SRC_LOCATION: AtomicBool = AtomicBool::new(false);
 static ENABLE_TTY_COLORS:   AtomicBool = AtomicBool::new(true);
 
@@ -205,6 +217,13 @@ pub fn set_level(level: Level) {
 
 pub fn redirect_to_file(redirect: bool) {
     REDIRECT_TO_FILE.store(redirect, Ordering::Relaxed);
+}
+
+// Desktop: writes log output to stderr instead of stdout, for runs whose stdout carries
+// machine-readable output (e.g. script mode). Takes effect only if called before the first
+// log line, and redirect_to_file wins over it.
+pub fn redirect_to_stderr(redirect: bool) {
+    REDIRECT_TO_STDERR.store(redirect, Ordering::Relaxed);
 }
 
 pub fn enable_source_location(enable: bool) {

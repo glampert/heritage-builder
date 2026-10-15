@@ -1,3 +1,5 @@
+use std::sync::{Arc, Mutex};
+
 use arrayvec::ArrayVec;
 use common::{Color, Rect, RectTexCoords, Size, Vec2, time::PerfTimer};
 use batch::*;
@@ -7,7 +9,11 @@ use vertex::*;
 
 pub use texture::WgpuTexture;
 
-use super::{RenderStats, RenderSystemBackend};
+use super::{
+    RenderStats,
+    RenderSystemBackend,
+    capture::{self, CaptureId, CaptureQueue, CaptureResult, CapturedImage},
+};
 use crate::{log, ui::UiRenderFrameBundle};
 
 mod batch;
@@ -75,6 +81,9 @@ struct WgpuSystemState {
     ui_base_vertex: i32,
     ui_index_offset: u32,
 
+    // Frame captures waiting for their readback buffer to be mapped.
+    captures_in_flight: Vec<CaptureReadback>,
+
     // Frame state.
     frame_started: bool,
     viewport: Rect,
@@ -111,6 +120,235 @@ impl WgpuSystemState {
             }
         }
     }
+
+    // Draws the offscreen RT over all of `target`. Returns the number of draw calls.
+    fn encode_blit_pass(&self, encoder: &mut wgpu::CommandEncoder, target: &wgpu::TextureView) -> u32 {
+        let mut pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
+            label: Some("blit_pass"),
+            color_attachments: &[Some(wgpu::RenderPassColorAttachment {
+                view: target,
+                depth_slice: None,
+                resolve_target: None,
+                ops: wgpu::Operations { load: wgpu::LoadOp::Clear(wgpu::Color::BLACK), store: wgpu::StoreOp::Store },
+            })],
+            depth_stencil_attachment: None,
+            ..Default::default()
+        });
+
+        pass.set_pipeline(&self.blit_pipeline);
+        pass.set_bind_group(0, Some(self.offscreen_render_target.bind_group()), &[]);
+        pass.draw(0..3, 0..1); // Fullscreen triangle, no vertex buffer.
+        1
+    }
+
+    // Draws the UI recorded this frame on top of `target`, which must be framebuffer-sized.
+    // Returns the number of draw calls.
+    fn encode_ui_pass(
+        &self,
+        encoder: &mut wgpu::CommandEncoder,
+        target: &wgpu::TextureView,
+        tex_cache: &mut super::texture::TextureCache,
+    ) -> u32 {
+        if self.ui_draw_commands.is_empty() || self.ui_batch.is_empty() {
+            return 0;
+        }
+
+        let mut pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
+            label: Some("ui_pass"),
+            color_attachments: &[Some(wgpu::RenderPassColorAttachment {
+                view: target,
+                depth_slice: None,
+                resolve_target: None,
+                ops: wgpu::Operations {
+                    load: wgpu::LoadOp::Load, // Preserve blit result.
+                    store: wgpu::StoreOp::Store,
+                },
+            })],
+            depth_stencil_attachment: None,
+            ..Default::default()
+        });
+
+        pass.set_pipeline(&self.ui_pipeline);
+        pass.set_bind_group(0, Some(&self.uniform_bind_group), &[]);
+        self.ui_gpu.bind_to_render_pass(&mut pass, vertex::size_to_index_format::<super::UiDrawIndex>());
+
+        let fb_w = self.framebuffer_size.width as u32;
+        let fb_h = self.framebuffer_size.height as u32;
+        let mut draw_calls = 0;
+
+        for cmd in &self.ui_draw_commands {
+            // Clip rect is in top-left origin (ImGui convention), matching wgpu's scissor.
+            let x = (cmd.clip_rect.x() as u32).min(fb_w);
+            let y = (cmd.clip_rect.y() as u32).min(fb_h);
+            let w = (cmd.clip_rect.width() as u32).min(fb_w.saturating_sub(x));
+            let h = (cmd.clip_rect.height() as u32).min(fb_h.saturating_sub(y));
+
+            if w == 0 || h == 0 {
+                continue;
+            }
+
+            pass.set_scissor_rect(x, y, w, h);
+
+            let bg = tex_cache.texture_for_handle(cmd.texture).as_wgpu().bind_group();
+            pass.set_bind_group(1, Some(bg), &[]);
+
+            pass.draw_indexed(cmd.first_index..cmd.first_index + cmd.index_count, cmd.base_vertex, 0..1);
+            draw_calls += 1;
+        }
+
+        draw_calls
+    }
+
+    // Draws the frame again into a capture texture and copies it into a readback buffer.
+    // The surface can't be a copy source: surfaces are configured for RENDER_ATTACHMENT only,
+    // which is all that some backends (web among them) allow.
+    fn encode_capture(
+        &self,
+        encoder: &mut wgpu::CommandEncoder,
+        tex_cache: &mut super::texture::TextureCache,
+        include_ui: bool,
+        ids: Vec<CaptureId>,
+    ) -> CaptureReadback {
+        let size = self.framebuffer_size;
+        let extent = wgpu::Extent3d { width: size.width as u32, height: size.height as u32, depth_or_array_layers: 1 };
+
+        // Same format as the surface, so the blit and UI pipelines can draw into it unchanged.
+        let texture = self.device.create_texture(&wgpu::TextureDescriptor {
+            label: Some("capture_target"),
+            size: extent,
+            mip_level_count: 1,
+            sample_count: 1,
+            dimension: wgpu::TextureDimension::D2,
+            format: self.surface_format,
+            usage: wgpu::TextureUsages::RENDER_ATTACHMENT | wgpu::TextureUsages::COPY_SRC,
+            view_formats: &[],
+        });
+        let view = texture.create_view(&wgpu::TextureViewDescriptor::default());
+
+        self.encode_blit_pass(encoder, &view);
+        if include_ui {
+            self.encode_ui_pass(encoder, &view, tex_cache);
+        }
+
+        // Buffer copy rows must be a multiple of 256 bytes.
+        let row_bytes = extent.width * 4;
+        let padded_row_bytes = row_bytes.next_multiple_of(wgpu::COPY_BYTES_PER_ROW_ALIGNMENT);
+
+        let buffer = self.device.create_buffer(&wgpu::BufferDescriptor {
+            label: Some("capture_readback"),
+            size: padded_row_bytes as u64 * extent.height as u64,
+            usage: wgpu::BufferUsages::MAP_READ | wgpu::BufferUsages::COPY_DST,
+            mapped_at_creation: false,
+        });
+
+        encoder.copy_texture_to_buffer(
+            wgpu::TexelCopyTextureInfo {
+                texture: &texture,
+                mip_level: 0,
+                origin: wgpu::Origin3d::ZERO,
+                aspect: wgpu::TextureAspect::All,
+            },
+            wgpu::TexelCopyBufferInfo {
+                buffer: &buffer,
+                layout: wgpu::TexelCopyBufferLayout {
+                    offset: 0,
+                    bytes_per_row: Some(padded_row_bytes),
+                    rows_per_image: Some(extent.height),
+                },
+            },
+            extent,
+        );
+
+        CaptureReadback {
+            ids,
+            size,
+            scale: capture::content_scale(size, self.viewport),
+            padded_row_bytes: padded_row_bytes as usize,
+            swap_red_blue: is_bgra_format(self.surface_format),
+            _texture: texture,
+            buffer,
+            map_result: Arc::new(Mutex::new(None)),
+        }
+    }
+
+    // Completes the captures whose readback buffers have been mapped.
+    fn finish_mapped_captures(&mut self, captures: &mut CaptureQueue) {
+        if self.captures_in_flight.is_empty() {
+            return;
+        }
+
+        // Runs map callbacks on desktop. On web they run from the browser's event loop instead.
+        if let Err(err) = self.device.poll(wgpu::PollType::Poll) {
+            log::error!(log::channel!("render"), "Wgpu device poll failed: {err}");
+        }
+
+        self.captures_in_flight.retain(|readback| match readback.try_read() {
+            Some(result) => {
+                captures.finish(&readback.ids, result);
+                false
+            }
+            None => true,
+        });
+    }
+}
+
+// ----------------------------------------------
+// CaptureReadback
+// ----------------------------------------------
+
+// A frame capture copied into a buffer, waiting for the buffer to be mapped.
+struct CaptureReadback {
+    ids: Vec<CaptureId>, // Requests completed by this capture.
+    size: Size,
+    scale: Vec2,
+    padded_row_bytes: usize,
+    swap_red_blue: bool,
+    _texture: wgpu::Texture, // Kept until the copy is done.
+    buffer: wgpu::Buffer,
+    map_result: Arc<Mutex<Option<Result<(), wgpu::BufferAsyncError>>>>, // Set by the map callback.
+}
+
+impl CaptureReadback {
+    // Call after the copy has been submitted.
+    fn start_map(&self) {
+        let map_result = self.map_result.clone();
+        self.buffer.slice(..).map_async(wgpu::MapMode::Read, move |result| {
+            *map_result.lock().unwrap() = Some(result);
+        });
+    }
+
+    // The captured image once the buffer is mapped, or None while it's still pending.
+    fn try_read(&self) -> Option<CaptureResult> {
+        let map_result = self.map_result.lock().unwrap().clone();
+        match map_result {
+            None => None,
+            Some(Err(err)) => Some(Err(format!("Failed to map the Wgpu capture buffer: {err}"))),
+            Some(Ok(())) => {
+                let row_bytes = self.size.width as usize * 4;
+                let mut pixels = {
+                    let mapped = self.buffer.slice(..).get_mapped_range();
+                    capture::remove_row_padding(&mapped, row_bytes, self.padded_row_bytes, self.size.height as usize)
+                };
+                self.buffer.unmap();
+
+                if self.swap_red_blue {
+                    capture::swap_red_blue(&mut pixels);
+                }
+                capture::make_opaque(&mut pixels);
+
+                Some(Ok(CapturedImage { size: self.size, scale: self.scale, pixels }))
+            }
+        }
+    }
+}
+
+// Captures are read back as 8-bit RGBA or BGRA, so other surface formats aren't supported.
+fn capture_format_is_supported(format: wgpu::TextureFormat) -> bool {
+    matches!(format.remove_srgb_suffix(), wgpu::TextureFormat::Rgba8Unorm | wgpu::TextureFormat::Bgra8Unorm)
+}
+
+fn is_bgra_format(format: wgpu::TextureFormat) -> bool {
+    format.remove_srgb_suffix() == wgpu::TextureFormat::Bgra8Unorm
 }
 
 // ----------------------------------------------
@@ -324,6 +562,8 @@ impl WgpuRenderSystemBackend {
             ui_base_vertex: 0,
             ui_index_offset: 0,
 
+            captures_in_flight: Vec::new(),
+
             frame_started: false,
             viewport: Rect::from_pos_and_size(Vec2::zero(), viewport_size.to_vec2()),
             framebuffer_size,
@@ -371,6 +611,7 @@ impl RenderSystemBackend for WgpuRenderSystemBackend {
         &mut self,
         ui_frame_bundle: &mut UiRenderFrameBundle,
         tex_cache: &mut super::texture::TextureCache,
+        captures: &mut CaptureQueue,
     ) -> RenderStats {
         let render_submit_timer = PerfTimer::begin();
 
@@ -463,73 +704,50 @@ impl RenderSystemBackend for WgpuRenderSystemBackend {
         }
 
         // ---- Pass 2: Blit offscreen RT to surface ----
-        {
-            let mut pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
-                label: Some("blit_pass"),
-                color_attachments: &[Some(wgpu::RenderPassColorAttachment {
-                    view: &surface_view,
-                    depth_slice: None,
-                    resolve_target: None,
-                    ops: wgpu::Operations { load: wgpu::LoadOp::Clear(wgpu::Color::BLACK), store: wgpu::StoreOp::Store },
-                })],
-                depth_stencil_attachment: None,
-                ..Default::default()
-            });
-
-            pass.set_pipeline(&s.blit_pipeline);
-            pass.set_bind_group(0, Some(s.offscreen_render_target.bind_group()), &[]);
-            pass.draw(0..3, 0..1); // Fullscreen triangle, no vertex buffer.
-            s.stats.draw_calls += 1;
-        }
+        s.stats.draw_calls += s.encode_blit_pass(&mut encoder, &surface_view);
 
         // ---- Pass 3: UI on top of surface ----
-        if !s.ui_draw_commands.is_empty() && !s.ui_batch.is_empty() {
-            let mut pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
-                label: Some("ui_pass"),
-                color_attachments: &[Some(wgpu::RenderPassColorAttachment {
-                    view: &surface_view,
-                    depth_slice: None,
-                    resolve_target: None,
-                    ops: wgpu::Operations {
-                        load: wgpu::LoadOp::Load, // Preserve blit result.
-                        store: wgpu::StoreOp::Store,
-                    },
-                })],
-                depth_stencil_attachment: None,
-                ..Default::default()
-            });
+        s.stats.draw_calls += s.encode_ui_pass(&mut encoder, &surface_view, tex_cache);
 
-            pass.set_pipeline(&s.ui_pipeline);
-            pass.set_bind_group(0, Some(&s.uniform_bind_group), &[]);
-            s.ui_gpu.bind_to_render_pass(&mut pass, vertex::size_to_index_format::<super::UiDrawIndex>());
+        // ---- Frame captures: draw passes 2 and 3 again into capture textures ----
+        let pending_captures = captures.take_pending();
+        let mut readbacks: ArrayVec<CaptureReadback, 2> = ArrayVec::new();
 
-            let fb_w = s.framebuffer_size.width as u32;
-            let fb_h = s.framebuffer_size.height as u32;
-
-            for cmd in &s.ui_draw_commands {
-                // Clip rect is in top-left origin (ImGui convention), matching wgpu's scissor.
-                let x = (cmd.clip_rect.x() as u32).min(fb_w);
-                let y = (cmd.clip_rect.y() as u32).min(fb_h);
-                let w = (cmd.clip_rect.width() as u32).min(fb_w.saturating_sub(x));
-                let h = (cmd.clip_rect.height() as u32).min(fb_h.saturating_sub(y));
-
-                if w == 0 || h == 0 {
-                    continue;
+        if !pending_captures.is_empty() {
+            if capture_format_is_supported(s.surface_format) {
+                if !pending_captures.scene.is_empty() {
+                    readbacks.push(s.encode_capture(&mut encoder, tex_cache, false, pending_captures.scene));
                 }
-
-                pass.set_scissor_rect(x, y, w, h);
-
-                let bg = tex_cache.texture_for_handle(cmd.texture).as_wgpu().bind_group();
-                pass.set_bind_group(1, Some(bg), &[]);
-
-                pass.draw_indexed(cmd.first_index..cmd.first_index + cmd.index_count, cmd.base_vertex, 0..1);
-                s.stats.draw_calls += 1;
+                if !pending_captures.with_ui.is_empty() {
+                    readbacks.push(s.encode_capture(&mut encoder, tex_cache, true, pending_captures.with_ui));
+                }
+            } else {
+                let error = format!("Frame capture doesn't support the surface format {:?}.", s.surface_format);
+                captures.finish(&pending_captures.scene, Err(error.clone()));
+                captures.finish(&pending_captures.with_ui, Err(error));
             }
         }
 
         // Submit and present.
         s.queue.submit(std::iter::once(encoder.finish()));
         output.present();
+
+        // Buffers can be mapped only once the copies into them are submitted.
+        for readback in readbacks {
+            readback.start_map();
+            s.captures_in_flight.push(readback);
+        }
+
+        // Desktop waits for the copies so captures finish this frame. Web can't block,
+        // so its captures finish in a later frame, once the browser has mapped the buffers.
+        #[cfg(feature = "desktop")]
+        if !s.captures_in_flight.is_empty() {
+            if let Err(err) = s.device.poll(wgpu::PollType::wait_indefinitely()) {
+                log::error!(log::channel!("render"), "Wgpu device poll failed: {err}");
+            }
+        }
+
+        s.finish_mapped_captures(captures);
 
         // Clear batches for next frame.
         s.sprites_batch.clear();

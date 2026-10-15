@@ -4,6 +4,7 @@
 #![allow(dead_code)]
 
 // Core game modules:
+pub mod automation;
 pub mod building;
 pub mod camera;
 pub mod campaign;

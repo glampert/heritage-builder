@@ -5,6 +5,7 @@ use strum::Display;
 
 use crate::ui::{UiDrawIndex, UiDrawVertex, UiRenderFrameBundle};
 
+pub mod capture;
 pub mod debug;
 pub mod texture;
 
@@ -43,8 +44,13 @@ trait RenderSystemBackend: Sized {
     // Begin/End frame:
     fn begin_frame(&mut self, viewport_size: Size, framebuffer_size: Size);
 
-    fn end_frame(&mut self, ui_frame_bundle: &mut UiRenderFrameBundle, tex_cache: &mut texture::TextureCache)
-    -> RenderStats;
+    // Also fills in the captures requested during the frame, and any earlier ones still in flight.
+    fn end_frame(
+        &mut self,
+        ui_frame_bundle: &mut UiRenderFrameBundle,
+        tex_cache: &mut texture::TextureCache,
+        captures: &mut capture::CaptureQueue,
+    ) -> RenderStats;
 
     // Viewport/Framebuffer:
     fn viewport(&self) -> Rect;
@@ -171,6 +177,7 @@ pub struct RenderSystem {
     render_api: RenderApi,
     backend: RenderSystemBackendImpl,
     tex_cache: texture::TextureCache,
+    captures: capture::CaptureQueue,
 }
 
 impl RenderSystem {
@@ -208,7 +215,7 @@ impl RenderSystem {
             let tex_cache =
                 texture::TextureCache::new(render_system, params.tex_cache_initial_capacity, params.texture_settings);
 
-            Self { render_api: params.render_api, backend, tex_cache }
+            Self { render_api: params.render_api, backend, tex_cache, captures: capture::CaptureQueue::default() }
         });
 
         render_system.tex_cache.create_default_textures();
@@ -226,7 +233,29 @@ impl RenderSystem {
 
     #[inline]
     pub fn end_frame(&mut self, ui_frame_bundle: &mut UiRenderFrameBundle) -> RenderStats {
-        self.backend.end_frame(ui_frame_bundle, &mut self.tex_cache)
+        self.backend.end_frame(ui_frame_bundle, &mut self.tex_cache, &mut self.captures)
+    }
+
+    // ----------------------
+    // Frame capture:
+    // ----------------------
+
+    // Captures the frame being drawn, at the end of the frame. See capture.rs.
+    #[inline]
+    pub fn request_capture(&mut self, request: capture::CaptureRequest) -> capture::CaptureId {
+        self.captures.request(request)
+    }
+
+    // True if this frame will be captured with its UI.
+    #[inline]
+    pub fn has_pending_ui_capture(&self) -> bool {
+        self.captures.has_pending_with_ui()
+    }
+
+    // Captures completed since the last call, in completion order.
+    #[inline]
+    pub fn take_finished_captures(&mut self) -> Vec<(capture::CaptureId, capture::CaptureResult)> {
+        self.captures.take_finished()
     }
 
     // ----------------------

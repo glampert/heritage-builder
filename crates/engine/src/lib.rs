@@ -9,6 +9,7 @@
 extern crate self as engine;
 
 pub mod app;
+pub mod automation;
 pub mod cli;
 pub mod config;
 pub mod debug;
@@ -18,6 +19,7 @@ pub mod platform;
 pub mod render;
 pub mod runner;
 pub mod save;
+pub mod screenshot;
 pub mod sound;
 pub mod ui;
 

@@ -22,6 +22,7 @@ desktop = [
     "dep:libc",
     "dep:backtrace",
     "dep:pollster",
+    "dep:getrandom",
 ]
 web = [
     "common/web",
@@ -71,6 +72,7 @@ glutin-winit = { version = "0.5",    optional = true }
 kira         = { version = "0.11.0", optional = true }
 libc         = { version = "0.2",    optional = true }
 backtrace    = { version = "0.3.76", optional = true }
+getrandom    = { version = "0.3",    optional = true }
 
 # ----------------------------
 #   Web/WASM-only (optional)
@@ -109,6 +111,10 @@ features = [
     "GainOptions",
     "StereoPannerNode",
     "StereoPannerOptions",
+    "Blob",
+    "BlobPropertyBag",
+    "Url",
+    "HtmlAnchorElement",
 ]
 
 # ----------------------------

@@ -3,7 +3,14 @@
 // Loads the WASM module and starts the game. The Rust code handles
 // asset loading via the asset manifest after wgpu initialization.
 
-import init from "./pkg/HeritageBuilder.js";
+import init, { heritageExec } from "./pkg/HeritageBuilder.js";
+
+// Automation bridge: `await window.heritage.exec("session.state")` runs a game command and
+// resolves with its result, or rejects with { code, message }. `help` lists the commands.
+// Playwright drives the web build through it (see crates/tools/web-smoke/).
+window.heritage = {
+    exec: (method, params = {}) => heritageExec(method, params),
+};
 
 const loadingBar    = document.getElementById("loading-bar");
 const loadingStatus = document.getElementById("loading-status");

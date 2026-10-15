@@ -301,8 +301,9 @@ where
             return None;
         }
 
+        // Ids can come from outside (automation commands), so check the bounds.
         let index = id.index();
-        if !self.spawned[index] {
+        if !self.spawned.get(index).is_some_and(|spawned| *spawned) {
             return None;
         }
 
@@ -325,7 +326,7 @@ where
         }
 
         let index = id.index();
-        if !self.spawned[index] {
+        if !self.spawned.get(index).is_some_and(|spawned| *spawned) {
             return None;
         }
 

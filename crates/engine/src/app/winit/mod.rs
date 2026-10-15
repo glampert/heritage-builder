@@ -71,6 +71,7 @@ pub struct WinitApplicationBackend {
     content_scale: ApplicationContentScale,
     resizable_window: bool,
     confine_cursor: bool,
+    confine_cursor_paused: bool,
 }
 
 impl WinitApplicationBackend {
@@ -90,7 +91,13 @@ impl WinitApplicationBackend {
             content_scale: params.content_scale,
             resizable_window: params.resizable_window,
             confine_cursor: params.confine_cursor,
+            confine_cursor_paused: false,
         }
+    }
+
+    #[inline]
+    fn is_confining_cursor(&self) -> bool {
+        self.confine_cursor && !self.confine_cursor_paused
     }
 
     fn new_window_manager(params: &ApplicationInitParams) -> RcMut<WinitWindowManagerImpl> {
@@ -195,7 +202,7 @@ impl WinitApplicationBackend {
                 events.push(ApplicationEvent::Scroll(scroll));
             }
             WindowEvent::CursorLeft { .. } => {
-                if self.confine_cursor {
+                if self.is_confining_cursor() {
                     // When confinement is enabled: the title bar is outside the content
                     // view, so winit stops sending CursorMoved once the cursor enters it
                     // and clamping never triggers. Warp back to the last known in-bounds
@@ -250,7 +257,7 @@ impl ApplicationBackend for WinitApplicationBackend {
         });
 
         // Clamp cursor to window bounds.
-        if self.confine_cursor {
+        if self.is_confining_cursor() {
             self.confine_cursor_to_window();
         }
 
@@ -292,6 +299,11 @@ impl ApplicationBackend for WinitApplicationBackend {
             }
             ApplicationContentScale::Custom(scale) => Vec2::new(scale, scale),
         }
+    }
+
+    #[inline]
+    fn pause_cursor_confinement(&mut self, paused: bool) {
+        self.confine_cursor_paused = paused;
     }
 }
 

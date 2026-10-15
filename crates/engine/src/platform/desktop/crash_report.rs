@@ -1,6 +1,17 @@
-use std::{fmt::Write as _, panic, path::Path};
+use std::{
+    fmt::Write as _,
+    panic,
+    path::{Path, PathBuf},
+    sync::{
+        Mutex,
+        PoisonError,
+        atomic::{AtomicU64, Ordering},
+    },
+};
+
 use backtrace::Backtrace;
-use crate::log;
+
+use crate::{file_sys, log, platform};
 
 // ----------------------------------------------
 // DebugBacktrace
@@ -48,18 +59,50 @@ impl DebugBacktrace {
 }
 
 // ----------------------------------------------
+// Panic reports
+// ----------------------------------------------
+
+pub struct PanicReport<'a> {
+    pub message: &'a str,
+    pub location: &'a str,
+    pub frame: u64,                    // Frame the panic happened on.
+    pub crash_file: Option<&'a Path>,  // logs/crash-<timestamp>.txt, if it could be written.
+}
+
+type PanicListenerFn = Box<dyn Fn(&PanicReport) + Send + Sync>;
+
+static PANIC_LISTENERS: Mutex<Vec<PanicListenerFn>> = Mutex::new(Vec::new());
+static CURRENT_FRAME: AtomicU64 = AtomicU64::new(0);
+
+// Called by the panic hook, on the panicking thread, after the crash file is written. Listeners
+// must not panic, and shouldn't block for long.
+pub fn add_panic_listener<F>(listener_fn: F)
+where
+    F: Fn(&PanicReport) + Send + Sync + 'static,
+{
+    PANIC_LISTENERS.lock().unwrap_or_else(PoisonError::into_inner).push(Box::new(listener_fn));
+}
+
+// The engine updates this every frame so crash reports can name the frame.
+#[inline]
+pub fn set_current_frame(frame: u64) {
+    CURRENT_FRAME.store(frame, Ordering::Relaxed);
+}
+
+// ----------------------------------------------
 // initialize()
 // ----------------------------------------------
 
-pub fn initialize(set_panic_hook: bool) {
-    if !set_panic_hook {
-        return;
-    }
+// Every panic writes logs/crash-<timestamp>.txt (message, backtrace, frame, recent log records)
+// and notifies the panic listeners. With `log_panics`, the panic and its backtrace also go to the
+// log, for runs whose log goes to a file; otherwise Rust's default hook prints the panic.
+pub fn initialize(log_panics: bool) {
+    log::info!(log::channel!("crash_report"), "Setting panic hook ...");
 
-    log::info!(log::channel!("crash_report"), "Setting debug panic hook ...");
+    let default_hook = panic::take_hook();
 
     panic::set_hook(Box::new(move |panic_info| {
-        let error_message = panic_info
+        let message = panic_info
             .payload()
             .downcast_ref::<&str>()
             .copied()
@@ -71,18 +114,78 @@ pub fn initialize(set_panic_hook: bool) {
             .map(|loc| format!("{}:{}", loc.file(), loc.line()))
             .unwrap_or_else(|| "<unknown>".to_string());
 
-        log::error!("==========================");
-        log::error!("         PANIC'D          ");
-        log::error!("==========================");
-        log::error!("");
-        log::error!("Message  : {error_message}");
-        log::error!("Location : {location}");
-        log::error!("");
-        log::error!("==========================");
-        log::error!("         BACKTRACE        ");
-        log::error!("==========================");
+        let frame = CURRENT_FRAME.load(Ordering::Relaxed);
+        let backtrace = DebugBacktrace::capture().to_string(0, 0);
 
-        let backtrace = DebugBacktrace::capture();
-        log::error!("\n{}\n", backtrace.to_string(0, 0));
+        let crash_file = write_crash_file(message, &location, frame, &backtrace);
+
+        // A listener that panics would land back here; try_lock keeps that from deadlocking.
+        if let Ok(listeners) = PANIC_LISTENERS.try_lock() {
+            let report = PanicReport { message, location: &location, frame, crash_file: crash_file.as_deref() };
+            for listener in listeners.iter() {
+                listener(&report);
+            }
+        }
+
+        if log_panics {
+            log::error!("==========================");
+            log::error!("         PANIC'D          ");
+            log::error!("==========================");
+            log::error!("");
+            log::error!("Message  : {message}");
+            log::error!("Location : {location}");
+            log::error!("");
+            log::error!("==========================");
+            log::error!("         BACKTRACE        ");
+            log::error!("==========================");
+            log::error!("\n{backtrace}\n");
+        } else {
+            default_hook(panic_info);
+        }
     }));
+}
+
+// Writes the crash report file. Must not panic: it runs inside the panic hook.
+fn write_crash_file(message: &str, location: &str, frame: u64, backtrace: &str) -> Option<PathBuf> {
+    let stamp = platform::local_date_time()
+        .map(|now| {
+            format!(
+                "{:04}-{:02}-{:02}-{:02}-{:02}-{:02}",
+                now.year, now.month, now.day, now.hour, now.minute, now.second
+            )
+        })
+        .unwrap_or_else(|| "unknown-time".to_string());
+
+    let logs_path = log::logs_path();
+    let path = (1..100)
+        .map(|n| {
+            let file_name = if n == 1 { format!("crash-{stamp}.txt") } else { format!("crash-{stamp}-{n}.txt") };
+            logs_path.as_path().join(file_name)
+        })
+        .find(|path| !path.exists())?;
+
+    let mut report = String::new();
+    let _ = writeln!(report, "Message  : {message}");
+    let _ = writeln!(report, "Location : {location}");
+    let _ = writeln!(report, "Frame    : {frame}");
+    let _ = writeln!(report, "Thread   : {}", std::thread::current().name().unwrap_or("<unnamed>"));
+    let _ = writeln!(report, "\nBacktrace:\n{backtrace}");
+
+    // The logger's locks can be held by the code that panicked, so this never waits for them.
+    match log::try_recent_records(0) {
+        Some(records) => {
+            let _ = writeln!(report, "Recent log records (oldest first):");
+            for record in &records {
+                let channel = record.channel.map(|channel| channel.name).unwrap_or_default();
+                let _ = writeln!(report, "  #{} [{:?}]{} {}", record.seq, record.level, channel, record.message);
+            }
+        }
+        None => {
+            let _ = writeln!(report, "Recent log records: unavailable (the logger was busy).");
+        }
+    }
+
+    file_sys::create_path(&path).ok()?;
+    file_sys::write_file(&path, report).ok()?;
+    Some(path)
 }

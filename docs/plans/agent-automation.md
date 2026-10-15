@@ -1,8 +1,31 @@
 # Agent automation and in-game screenshots
 
-**Status:** Approved 2026-10-11. Phase 0 done; Phase 1 (screenshots) is next.
+**Status (2026-10-15): Complete.** Approved 2026-10-11. Phase 0 was merged with PR #1. Phases 1–7 are done on the `claude` branch, to be merged into `main` in one PR:
+- screenshots;
+- the command registry, with script mode and the in-game console;
+- the live control server and `hb-ctl`;
+- the MCP server and its agent skill;
+- simulated input and UI automation;
+- the web bridge and CI scenarios;
+- record and replay, with image assertions.
+
+Every task is ticked, every open decision is answered, and CI passes on the PR branch. See [Remaining checks](#remaining-checks) for the one item left. See [Handoff](#handoff-2026-10-14) for the move to a local machine.
 
 This plan lets AI agents launch the game, drive it, inspect it and debug it. It also adds framebuffer screenshots, which ship to players as well. It was researched against commit `9f26ef8` on the `claude` branch. File and line references point at that commit, so re-check them before relying on them.
+
+## Remaining checks
+
+- **From the handoff:** the console's [`] key on keyboard layouts other than the one tested below.
+
+Checked by hand on 2026-10-15 (macOS):
+- Recording real play and replaying it works.
+- Real mouse input is ignored during a replay and with `--capture-input`, and Shift+Esc gives the controls back in both cases.
+- The [`] key opens the console.
+- A Claude Code session used the MCP tools; see the Phase 4 notes.
+
+CI passed on 2026-10-15 ([run 38676139637](https://github.com/glampert/heritage-builder/actions/runs/38676139637)): both desktop jobs, the scenarios with determinism and record-and-replay, and the web smoke test. Getting there took two fixes:
+- `xvfb-run` merged the game's stderr into stdout, so log lines broke the determinism diff. The checksums matched. The scenarios job now runs one Xvfb server.
+- Headless Linux Chrome needed Vulkan for WebGPU; until then the canvas stayed blank and capture maps failed. The smoke test turns Vulkan on with SwiftShader on Linux.
 
 ## How to resume this work
 
@@ -18,6 +41,20 @@ This plan lets AI agents launch the game, drive it, inspect it and debug it. It 
 ### Working agreements
 
 - After finishing a task and pushing, check CI once and report the result. Don't keep polling. (User preference, 2026-10-11.)
+- Commit each phase to the `claude` branch as it lands. Open one PR once all remaining phases (1–7) are done. (User request, 2026-10-14.)
+
+### Handoff (2026-10-14)
+
+Work moves from a Claude Code cloud session to a local machine here. (Kept for history: the work finished locally on 2026-10-15. Phase 1's hardware check passed; the console key on non-US layouts is in [Remaining checks](#remaining-checks).)
+
+- **Branch:** `claude`, pushed, last commit `38e0190` ("In-game console: run automation commands from the log viewer"). PR #1 (Phase 0) was merged into `main`. Phase 1 and the console are on `claude` only, not yet in a PR, per the working agreement above.
+- **Verified in the cloud session** (Linux, Xvfb, Mesa software rendering): `cargo test --workspace` passes, and the web build compiles with no warnings. The screenshot and console checks are in the Phase 1 and console notes below. Nothing from that session lives outside the repo: its scratch notes are folded into this file.
+- **Still to check on real hardware:**
+  - Phase 1 done-when: on a HiDPI Mac, a screenshot comes out at framebuffer resolution and matches the screen, on OpenGL and on Wgpu (`"render_api": "Wgpu"` with `"app_api": "Winit"`).
+  - Mac keys: F12 needs Fn unless function keys are set as standard keys. GLFW maps the PC-style PrintScreen key to `PrintScreen`; winit reports it as F13, which isn't bound.
+  - The console's [`] key on non-US keyboard layouts.
+- **Next task:** the rest of Phase 2. Start with script mode (`--script`): it gives every later phase a way to test itself. Then add the remaining commands, using the implementation notes under Phase 2 (they flag the APIs that panic on bad input). Then add the sample scenarios.
+- **Local setup:** macOS needs none of the cloud-only packages (`xvfb`, `mesa-vulkan-drivers`, `libxkbcommon-x11-0`, `xdotool`). Run the game directly. For agent-style checks, use `--screenshot-after-frames N --screenshot-out out/x.png` and read the PNG. The web build uses Homebrew `llvm` + `wasi-libc` (see AGENTS.md).
 
 ## Goals
 
@@ -70,7 +107,7 @@ flowchart LR
     A["--script file.jsonl"]
     B["hb-ctl / MCP"]
     C["Playwright"]
-    D["In-game console (optional)"]
+    D["In-game console (LogViewer)"]
   end
   B -- "JSON-RPC over TCP 127.0.0.1" --> T["Server thread (parse only)"]
   C -- "window.heritage.exec()" --> W["wasm_bindgen export"]
@@ -102,7 +139,7 @@ Drain the queue in `GameLoop::update` right after `self.session_cmd_queue.execut
 
 ## Command system
 
-One registry, shared by every transport and by an optional in-game developer console:
+One registry, shared by every transport and by the in-game console (an input field in the debug LogViewer):
 
 ```rust
 pub type CommandFn = fn(&mut CommandContext, serde_json::Value) -> CommandResult;
@@ -140,7 +177,7 @@ const COMMANDS: &[CommandDef] = &[
 
 ### Script mode (first)
 
-`HeritageBuilder --script scenarios/smoke.jsonl` reads one command per line and runs them in order. Each line waits for the previous one to finish. Results go to stdout as JSON lines. The process exits with status 0 if every command succeeded and every assertion passed, and 1 otherwise. This copies the `--smoke-test-saves` pattern. It needs no networking and works the same in CI and in an agent session. Assertions are ordinary commands, such as `assert.gt` on a query result.
+`HeritageBuilder --script crates/game/tests/scenarios/smoke.jsonl` reads one command per line and runs them in order. Each line waits for the previous one to finish. Results go to stdout as JSON lines. The process exits with status 0 if every command succeeded and every assertion passed, and 1 otherwise. This copies the `--smoke-test-saves` pattern. It needs no networking and works the same in CI and in an agent session. Assertions are ordinary commands, such as `assert.gt` on a query result.
 
 ```jsonl
 {"method":"session.load_preset","params":{"preset":2}}
@@ -166,7 +203,7 @@ Script result lines are machine-readable output written straight to stdout, not 
   - `hb-ctl launch [-- game args]` starts the game with `--automation=0`, waits for `ping`, and prints the port and PID.
   - `hb-ctl call world.place '{"tile":"well","cell":[4,4]}'` prints the result, exiting with status 1 on error.
   - `hb-ctl screenshot out.png [--no-ui]`, `hb-ctl logs [--follow]`, `hb-ctl script FILE`, `hb-ctl quit`.
-- Later, `hb-ctl mcp` runs as a stdio MCP server that exposes the same registry as tools (Phase 6).
+- Later, `hb-ctl mcp` runs as a stdio MCP server that exposes the same registry as tools (Phase 4).
 
 ### Web bridge (third)
 
@@ -242,11 +279,11 @@ In `OpenGlRenderSystem::end_frame`, after `ui_frame_bundle.render()` (`render/op
 ### As a player feature
 
 - PrintScreen (and F12, since Mac keyboards lack PrintScreen) saves `screenshots/Heritage Builder 2026-10-10 14-03-22.png` next to `saves/`, then shows a short message with the file name. There's no toast widget yet; build a small timed one on `ui::overlay`.
-- Handle the key in `GameLoop::handle_app_event`. Key events reach it only if ImGui didn't consume them, so typing in a text field won't trigger a capture.
+- Handle the key in `GameLoop::handle_app_event`. The engine forwards PrintScreen and F12 even while ImGui has keyboard focus (`screenshot::is_hotkey` in `Engine::poll_app_events`), so a screenshot can be taken with a dialog open. Neither is a text-input key, so typing isn't affected.
 - There's no date-time crate in the workspace. To build the file name, either format UTC from `SystemTime` with a small civil-date helper, use `libc::localtime_r` (`libc` is already a desktop dependency of the engine), or add a crate such as `time`.
 - Encode and write the PNG on a background thread on desktop, so the hotkey never causes a frame hitch.
 - Optional: a Settings toggle for "hide interface in screenshots".
-- On web, the PNG downloads through a Blob and an anchor element created by the page. That needs extra `web-sys` features (`Blob`, `BlobPropertyBag`, `Url`, `HtmlAnchorElement`), so it lands in Phase 5.
+- On web, the PNG downloads through a Blob and an anchor element created by the page. That needs extra `web-sys` features (`Blob`, `BlobPropertyBag`, `Url`, `HtmlAnchorElement`), so it lands in Phase 6.
 
 ## State, logs, stats
 
@@ -323,31 +360,90 @@ Notes (2026-10-11):
 
 ### Phase 1: Screenshots (medium)
 
-- [ ] `render/capture.rs`: `CaptureRequest { include_ui }` and `CapturedImage { size, scale, pixels }` (RGBA8, top-left origin), plus `RenderSystem::request_capture` and `take_capture`, backed by new `RenderSystemBackend` methods.
-- [ ] OpenGL readback (back buffer, plus offscreen target for scene-only).
-- [ ] Wgpu readback on desktop (capture texture, padded copy, map, swizzle). It should compile for web, but web testing waits for Phase 5.
-- [ ] PrintScreen / F12 hotkey, `screenshots/` folder, timed message, PNG encoding off the main thread. Add `/screenshots/` and `/out/` to `.gitignore`.
-- [ ] One-shot mode: `--screenshot-after-frames N --screenshot-out PATH` captures after N frames, writes the PNG, and quits with status 0.
+- [x] `render/capture.rs`: `CaptureRequest { include_ui }` and `CapturedImage { size, scale, pixels }` (RGBA8, top-left origin), plus `RenderSystem::request_capture` and `take_finished_captures`. Backends get the `CaptureQueue` through `end_frame`.
+- [x] OpenGL readback (back buffer, plus offscreen target for scene-only).
+- [x] Wgpu readback on desktop (capture texture, padded copy, map, swizzle). It should compile for web, but web testing waits for Phase 6.
+- [x] PrintScreen / F12 hotkey, `screenshots/` folder, timed message, PNG encoding off the main thread. Add `/screenshots/` and `/out/` to `.gitignore`.
+- [x] One-shot mode: `--screenshot-after-frames N --screenshot-out PATH` captures after N frames, writes the PNG, and quits with status 0.
 
 Done when:
 - The hotkey writes a PNG that matches the screen, UI included, on OpenGL (the shipped config) and on Wgpu (`engine.render_api = "Wgpu"`), at framebuffer resolution on a HiDPI Mac.
 - `include_ui: false` produces a scene-only image.
 - `cargo run -p HeritageBuilder -- --skip-home-menu --map preset:1 --fixed-dt 0.016667 --screenshot-after-frames 120 --screenshot-out out/shot.png` writes the image and exits 0.
 
+Notes (2026-10-14):
+- **API.** `Engine::request_screenshot(ScreenshotRequest { include_ui, output })` returns an id; poll `Engine::take_screenshot_result(id)`. Output is a file or the PNG bytes in memory. `engine::screenshot` owns encoding, the background writer threads and timestamped file names. The engine drains `RenderSystem::take_finished_captures` itself every frame.
+- **Deviation: scene-only on OpenGL** reads the back buffer right after the scene blit, before the UI draws, instead of reading the offscreen target. It comes out at framebuffer size, like a full capture; the offscreen target can be larger.
+- **Wgpu** re-encodes the blit and UI passes into a capture texture on capture frames (the surface can't be a copy source). Desktop waits on the device, so the capture is ready that frame. Web will finish it a frame or more later, from the map callback.
+- **Hotkey.** PrintScreen fires on release (Windows reports only the release), F12 on press, and Shift leaves the UI out. The engine forwards these keys even while ImGui has keyboard focus. The hotkey is desktop-only until the web download lands in Phase 6. Toasts (`UiSystem::show_toast`) are new, and hidden on capture frames so they never show up in screenshots.
+- **File names** use local time from `platform::local_date_time()`: `libc::localtime_r` on desktop, `js_sys::Date` on web. No date crate was added. Names get " (2)", " (3)", ... when taken.
+- **Exit codes** (moved up from Phase 2): `Engine::request_exit(code)`, and the desktop runner exits with `Engine::exit_code()` after a clean shutdown. A one-shot run that quits before its PNG is written exits 1. Relative `--screenshot-out` paths are resolved against the directory the game was started from (`cli::path_value`).
+- **Verified** under `xvfb-run` on Mesa:
+  - OpenGL/GLFW and Wgpu/Winit (Vulkan via lavapipe, BGRA surface) both produce correct images, with and without UI. The two backends differ in 13 pixels scene-only, and in about 0.4% of pixels with UI (text antialiasing).
+  - `xdotool` key presses for F12, Shift+F12 and PrintScreen saved files on both app backends, and the toast showed on screen but not in the files.
+- **Verified on a HiDPI Mac** (2026-10-15, Apple Silicon, content scale 2). The done-when command with `--window-size 1280x720` ran on OpenGL/GLFW and on Wgpu/Winit (Metal). The Wgpu run used a throwaway `.app` copy with its own `configs.json`, so the repo's config stayed as it is.
+  - Both captures are 2560x1440 (framebuffer resolution), show the same frame, and exit 0.
+  - `--screenshot-no-ui` on Wgpu leaves the UI out.
+  - F12, sent as simulated input (`input.key`), saved a 2560x1440 PNG to `screenshots/` on both backends.
+
 ### Phase 2: Command registry and script mode (medium)
 
-- [ ] `crates/game/src/automation/`: `CommandRegistry`, `CommandContext`, `CommandResult`, `CommandError`, `PendingCommand`, dispatch at the execution point above.
-- [ ] Engine-side request queue and reply targets, shaped so Phase 3's channel and Phase 5's web bridge slot in.
-- [ ] `GameSession` helpers for building a `SimContext` / `GameUiContext`, and `pub(crate)` save/load that report their result.
-- [ ] Commands: meta, time, session, sim, cheats, config, world, camera, observe (`screenshot`, `logs.tail`, `debug.stats`) and assert.
-- [ ] `--script FILE`: JSON lines in (blank lines and `#` comments allowed), JSON lines out, stop at the first failure (`--script-continue-on-error` to keep going), exit status 0/1. Autosave off in this mode, as in the smoke test.
-- [ ] Exit-code plumbing: the desktop runner currently returns `()`. Add a way for the run loop to report an exit code (for example `RunLoop::exit_code()`), and call `std::process::exit` after a clean shutdown.
-- [ ] Sample scenarios in `scenarios/`: `smoke.jsonl` (load, place, fast-forward, assert, screenshot) and `determinism.jsonl`.
-- [ ] Optional in-game console (see open decision Q3).
-- [ ] AGENTS.md: document `--script`, the scenario format, `help`, and the stdout exception to the logging rule.
+- [x] `crates/game/src/automation/`: `CommandRegistry`, `CommandContext`, `CommandResult`, `CommandError`, `PendingCommand`, dispatch at the execution point above.
+- [x] Engine-side request queue and reply targets, shaped so Phase 3's channel and Phase 6's web bridge slot in.
+- [x] `GameSession` helpers for building a `SimContext` / `GameUiContext`, and `pub(crate)` save/load that report their result. (`with_sim_context` only; the `GameUiContext` helper waits for the dialog commands in Phase 5.)
+- [x] Commands: meta, time, session, sim, cheats, config, world, camera, observe (`screenshot`, `logs.tail`, `debug.stats`) and assert.
+- [x] `--script FILE`: JSON lines in (blank lines and `#` comments allowed), JSON lines out, stop at the first failure (`--script-continue-on-error` to keep going), exit status 0/1. Autosave off in this mode, as in the smoke test.
+- [x] Exit-code plumbing: the desktop runner currently returns `()`. Add a way for the run loop to report an exit code (for example `RunLoop::exit_code()`), and call `std::process::exit` after a clean shutdown. (Done in Phase 1 as `Engine::request_exit(code)`; the desktop runner exits with `Engine::exit_code()`. The `quit` command takes an `exit_code`.)
+- [x] Sample scenarios in `crates/game/tests/scenarios/`: `smoke.jsonl` (load, place, fast-forward, assert, screenshot) and `determinism.jsonl`.
+- [x] In-game console: an input field in the debug LogViewer (`debug/log_viewer.rs`) that runs registry commands, prints each result into the log view, and keeps a command history (up/down arrows). See Q3.
+
+Console notes (2026-10-14, done ahead of the rest of Phase 2 as one change):
+- **Registry core.** `crate::automation`: `CommandDef { name, help, params, run }` tables per area in `automation/commands/`, registered in `COMMAND_GROUPS`. A handler is `fn(&mut CommandContext, Value) -> CommandResult`, where `CommandResult = Result<Outcome, CommandError>` and `Outcome` is `Done(Value)` or `Pending(Box<dyn PendingCommand>)` (`pending(closure)` builds one). `parse_params` deserializes typed params, and `{}` stands in for missing params. `Automation::update` runs at the dispatch point (right after `session_cmd_queue.execute`). It polls pending commands first, then runs new console lines. There's no separate `CommandRegistry` type: the static tables are the registry.
+- **Starter commands:**
+  - `help`, `ping`, `version`, `quit`
+  - `session.state`, `session.list_presets`, `session.load_preset`, `session.list_saves`, `session.load_save`, `session.save`, `session.quit_to_menu`
+  - `sim.pause`, `sim.resume`, `sim.speed`, `cheats.list`, `cheats.set`
+  - `time.fixed_dt`, `wait.frames`
+  - `camera.state`, `camera.teleport`, `camera.zoom`
+  - `screenshot`, `console.clear`
+  - New supporting APIs: `Simulation::set_speed` / `speed_limits`, `Camera::snap_zoom`, `cli::resolve_launch_path`; `GameSession::save_game` is now `pub(crate)`.
+  - Still to do in Phase 2: the world, config, logs, stats, assert and remaining time commands; `save_game` / `load_save_game` returning the error text instead of `bool` (the commands point at the log for now).
+- **Console UI.** The text forms (`automation/text.rs`) are `name`, `name key=value ...` (values are JSON, or else plain text), `name {json}` or `{"method": .., "params": {..}}`. Results print under a `[console]` channel without being logged, so they don't count as errors or warnings. Lines typed into the field are queued in the viewer and run at the dispatch point, never inside the draw: the viewer holds its lock for the whole draw, and commands log.
+- **Access.** The [`] key opens and closes the viewer in every menus mode. It now draws from `GameLoop::menus_end_frame` instead of the DevEditor menus, with the dev font; the DevEditor "Show Log Viewer Window" checkbox stays in sync with it.
+- **Verified** under Xvfb with `xdotool`: typed commands in the HUD mode ran `help`, `sim.speed`, `session.load_preset` (pending, one frame), `session.state`, `screenshot` (pending, wrote the PNG), `camera.teleport` and `cheats.set`. An unknown command printed an error, and the up arrow recalled history. Headless runs flood the view with verbose ambient-sound lines (no audio device); filter them with Filter → Channels.
+- [x] AGENTS.md: document `--script`, the scenario format, `help`, and the stdout exception to the logging rule.
+
+Phase 2 completion notes (2026-10-14, local Mac):
+- **Request queue.** `engine::automation`: transports queue a `Request { method, params, responder }` through a cloneable `RequestSender`, from any thread; `Engine::take_automation_requests` drains them. A `Responder` answers once, and one dropped unanswered (the game quit) answers `Cancelled`. Every response carries the frame it finished on. The game's `ReplyTo` is `Console`, `Script { line }` or `Remote(Responder)`.
+- **Commands** (58 in all; `help` lists them). New in this change: `session.new_map` (a fresh simulation seeded like `--map`, unlike the new-game dialog's reset, which keeps the old one), `session.checksum`, `menus.mode`; `sim.state`; `time.fast_forward`, `wait.sim_seconds`, `wait.until`, `frame.hold`, `frame.step`; `tiles.list`, `world.place|clear|road|spawn_unit|despawn|list|building_at|inspect|stats`, `tile.at`, `undo`, `redo`; `camera.cell_to_screen|screen_to_cell`; `config.get|set`; `logs.tail`, `debug.stats`; `assert.eq|ne|gt|ge|lt|le|exists`.
+- **Deviations:**
+  - `help` with no arguments lists every command with its parameters (agents need the schemas); the console prints it as text, one line per command.
+  - Object ids are strings, `pool:index:generation`, where the pool is `house`, `producer`, `storage`, `service`, `unit` or `prop`. Building lookups need the pool because each archetype has its own index space.
+  - `world.place` always pays, as the player does; tests that need money turn on the `ignore_tile_cost` cheat.
+  - A script with unreadable or invalid lines exits with status 2 before running anything, like other bad command-line input, and reports each bad line as a JSON line.
+  - Logs move to stderr in script mode (`log::redirect_to_stderr`, set in `GameLoop::on_early_init` from the raw arguments).
+  - `time.fast_forward` runs at most 600 steps per frame (a count, so runs split the same way every time), and its `sim_secs` includes the frames' own updates while it runs.
+- **Found in passing:**
+  - The treasury reads zero until the first simulation step after a load (world stats are only recounted on steps), so placement right after a load failed with "can't afford". `World::refresh_stats` recounts without updating; commands call it before placing and reporting.
+  - `SpawnPool::try_get` panicked on out-of-range indices; it checks the bounds now.
+  - Debug builds took seconds to PNG-encode a screenshot. The workspace now builds the PNG crates at `opt-level = 3` in the dev profile: a full-screen screenshot takes about a second instead of six, and asset loading drops from 2.2 s to 0.4 s.
+  - `TileCategory::find_tile_def_by_name` logs an error when the name is missing, so name searches across categories compare names instead.
+- **Verified** on macOS (Apple Silicon, HiDPI 2x, OpenGL/GLFW): `smoke.jsonl` exits 0 and its screenshot shows the settlement; a failing assertion exits 1; `quit exit_code=3` exits 3; two `determinism.jsonl` runs with `--seed 7` print the same checksum and write byte-identical saves, and `--seed 8` gives a different one; 20 malformed or out-of-range commands each returned a clean error.
+
+Implementation notes from the Phase 2 code survey (2026-10-14, against `8494da9`). Items marked *(done)* landed with the console change (`38e0190`):
+- **Dispatch point** is right after `self.session_cmd_queue.execute(...)` in `GameLoop::update` (game_loop.rs:190 at that commit). `GameLoop` fields are private, so build `CommandContext` there with split borrows. `Engine::request_exit` and the desktop exit code already exist (Phase 1).
+- **Contexts.** `GameSession` fields are private and `make_ui_widget_context!` / the `SimContext` macros are module-private. Add closure-scoped helpers in session.rs (`with_sim_context`, `with_ui_context`) built on `Simulation::new_sim_context`. Never store a `SimContext` or `&Tile` in a pending command: loads replace the world.
+- **Save/load results.** Both are now `pub(crate)` and called directly at the dispatch point, and save names are validated *(done)*. Still to do: return `Result<(), String>` instead of `bool`, so commands can report the reason.
+- **Session commands.** Preset numbers are silently clamped (validate against `preset_maps::preset_tile_maps_list().len()`). `load_preset` doesn't reset the campaign (call `campaign::reset()`). Both are handled by `session.load_preset` *(done)*. Some presets turn cheats on globally. `reset` keeps the `Simulation` (RNG, gold, speed), so `--map` / `load_preset` / `load_save` are the deterministic starts. `menus.mode` must compare before pushing the toggle.
+- **World edits.** `TilePlacement::place/clear(&SimContext, ...)` are associated functions; `Failed` drops the error message (add a field). There is no public road-segment placement (factor it out of `try_place_road_segment`). Use `ImmediateModeSimCmds` / `Spawner`, never the sim's deferred queue (`Simulation::update` asserts it's empty). Check `is_cell_within_bounds` before any placement: negative cells and huge road spans assert or allocate.
+- **Panics to pre-empt.** `SpawnPool::try_get` / `try_get_mut` index without a bounds check (fix with `spawned.get(index)`). `BuildingKind::archetype_kind()` panics on empty kinds, and `find_building` searches only the first matching archetype. Serializing a `Building` with a pending spawn promise debug-asserts: run its `pre_save` first, or build summaries by hand. `set_fixed_delta_time` debug-asserts dt > 0. Camera commands need a valid map (the home session's camera asserts on an empty map).
+- **Missing pieces.** `Simulation::set_speed` and `Camera::snap_zoom` *(done)*. Still missing: a sim-time counter (add a `#[serde(skip)]` f64). `TileDef`, `GameLoopStats`, `RenderStats`, `WorldStats` and `log::Record` aren't `Serialize`; build JSON by hand. `Cell` serializes as `{x, y}`, so accept `[x, y]` too.
+- **Configs.** `GameConfigs::get_mut()` exists. `config.set` must patch through a JSON round trip of the whole struct, because `#[serde(default)]` resets missing fields. Keep the originals, and write them back around the settings dialog's `GameConfigs::save()` in `menu/dialog/settings/mod.rs`, so runtime patches never reach configs.json.
+- **Console** *(done)*. The LogViewer holds its mutex for the whole draw, so the input field only queues lines; the dispatcher drains them and prints results without logging. The viewer now draws from the GameLoop in every menus mode.
+- **Script output.** Logs go to stdout, so in script mode switch logging to stderr before the first log line. `RunLoop::on_early_init` runs before platform init and can check `std::env::args()` for `--script`.
 
 Done when:
-- `cargo run -p HeritageBuilder -- --script scenarios/smoke.jsonl` exits 0 and prints JSON lines; a failing assertion exits 1.
+- `cargo run -p HeritageBuilder -- --script crates/game/tests/scenarios/smoke.jsonl` exits 0 and prints JSON lines; a failing assertion exits 1.
 - `help` lists every command with its description and parameters.
 - Malformed parameters return `InvalidParams` and never panic.
 - Running `determinism.jsonl` twice with the same `--seed` and `--fixed-dt` produces byte-identical saves.
@@ -355,12 +451,20 @@ Done when:
 
 ### Phase 3: Live control server (medium)
 
-- [ ] `crates/engine/src/automation/server.rs` (desktop only): loopback listener, per-connection reader and writer threads, newline-delimited JSON-RPC 2.0, `auth` handshake, port and token files in `logs/`. If an explicitly requested port is taken, fail fast with a clear message.
-- [ ] Main thread drains the channel into the Phase 2 dispatcher. Pending replies keep their connection's reply sender.
-- [ ] Notifications: `logs.subscribe` (through a log listener), `panic`, session changes.
-- [ ] Extend the crash reporter hook: write `logs/crash-<timestamp>.txt` with the message, backtrace, recent log records and frame number, and send a `panic` notification before exit.
-- [ ] `crates/tools/hb-ctl` (add to workspace members): `launch`, `call`, `screenshot`, `logs`, `script`, `quit`. Uses std networking and `serde_json` only.
-- [ ] AGENTS.md: how to launch and drive a live instance.
+- [x] `crates/engine/src/automation/server.rs` (desktop only): loopback listener, per-connection reader and writer threads, newline-delimited JSON-RPC 2.0, `auth` handshake, port and token files in `logs/`. If an explicitly requested port is taken, fail fast with a clear message.
+- [x] Main thread drains the channel into the Phase 2 dispatcher. Pending replies keep their connection's reply sender.
+- [x] Notifications: `logs.subscribe` (through a log listener), `panic`, session changes.
+- [x] Extend the crash reporter hook: write `logs/crash-<timestamp>.txt` with the message, backtrace, recent log records and frame number, and send a `panic` notification before exit.
+- [x] `crates/tools/hb-ctl` (add to workspace members): `launch`, `call`, `screenshot`, `logs`, `script`, `quit`. Uses std networking and `serde_json` only.
+- [x] AGENTS.md: how to launch and drive a live instance.
+
+Notes (2026-10-14, local Mac):
+- **Discovery files.** Deviation: instead of `logs/automation.port` and `logs/automation.token`, one JSON file `{pid, port, token}`, written twice: `logs/automation.json` for the latest instance, and `logs/automation-<pid>.json`, which `hb-ctl launch` waits for so several instances can run side by side. Both are mode 0600 and removed on exit, and also when the main thread panics (the process then ends without dropping the server).
+- **Ports.** `--automation=PORT` that's taken exits with status 2 and suggests `=0`. Plain `--automation` falls back to a free port with a warning when 7878 is taken. The CLI parser gained optional values: a bracketed placeholder (`[PORT]`) means the value only comes from the `--name=value` form.
+- **Server.** Reader threads poll a stop flag every 50 ms; writer threads own the socket writes, so a client that stops reading never blocks the main thread. On shutdown the server waits up to a second for queued writes, so the response to `quit` gets out. Requests without an id run without a response (JSON-RPC notifications); batches are rejected.
+- **Crash reports.** The desktop panic hook is now always installed. It writes the crash file, notifies listeners (the server sends `panic` straight to each socket, since the process may end before the writer threads run), then logs the panic (bundles) or hands it to Rust's default hook (terminal runs). `log::try_recent_records` never waits on the logger's lock inside the hook. `debug.panic` crashes on purpose.
+- **Session events.** `session::generation()` changes when a session is created, loaded or reset to a new map; the GameLoop sends `session.changed` after the dispatch point.
+- **Verified** on macOS: `hb-ctl launch` (about 9 s in debug), `call`, `commands`, `screenshot --no-ui`, `logs`, `logs --follow` (log records, `session.changed`, `panic`), `script smoke.jsonl` and `quit`; requests before `auth` and with a wrong token are refused; JSON-RPC errors (parse, batch, unknown method, invalid params); `debug.panic` wrote a crash file, the follower got `panic`, and the pending call got `Cancelled`; a taken explicit port exits 2; the web build still compiles.
 
 Done when:
 - `hb-ctl launch`, then `hb-ctl call ping`, works. `hb-ctl screenshot` writes a PNG, and `hb-ctl logs --follow` streams.
@@ -368,13 +472,36 @@ Done when:
 - A forced panic produces a crash file and a `panic` notification.
 - The web build is unaffected.
 
-### Phase 4: Simulated input and UI automation (large)
+### Phase 4: MCP server and agent skill (small to medium)
 
-- [ ] `VirtualInput` in `InputSystem`, `Application::push_synthetic_event`, and input capture mode with the badge.
-- [ ] Engine input timeline applied at the start of `Engine::begin_frame`. Gestures: click, drag, key, type, scroll.
-- [ ] `camera.cell_to_screen` / `camera.screen_to_cell`, and `cell` targets on input commands.
-- [ ] Widget registry in `UiSystem`, leaf-widget recording, and path segments in menus and groups.
-- [ ] `ui.tree`, `ui.click`, `ui.set`, `dialog.open` / `dialog.close` / `dialog.current`.
+Moved ahead of simulated input and UI automation (Q2). It needs only Phase 3's server and Phase 2's `help`.
+
+- [x] `hb-ctl mcp`: stdio MCP server with `initialize`, `tools/list` and `tools/call`. It maps each registry command to a tool using the schemas from `help`, and `screenshot` returns image content. Add a project `.mcp.json` so Claude Code picks it up.
+- [x] `.claude/skills/drive-game/SKILL.md`: launching, driving, screenshots, and common debugging recipes. List it in AGENTS.md.
+
+Done when: a local Claude Code session lists the game's tools over MCP, and can take a screenshot and place a building through them.
+
+Notes (2026-10-14, local Mac):
+- **Tools.** Three always: `game_launch` (builds and starts the game, like `hb-ctl launch`), `game_connect` and `game_call` (any command by name, for clients that don't refresh their list). Once a game is connected, one tool per command (dots become underscores, since MCP tool names can't hold dots), and the server sends `notifications/tools/list_changed`. A game that `game_launch` started gets `quit` when the client disconnects.
+- **Screenshots.** The `screenshot` tool saves to a temporary file, returns the PNG as image content, and deletes the file unless a `path` was given. It defaults to `scale: "points"`, which the screenshot command gained here (`ScreenshotScale::Points` / `Factor` in the engine, scaled on the writer thread): on a 2x screen the image is 1440x792 instead of 2880x1584, about 300 KB, and its pixels are window points, the units input coordinates use.
+- **Crashes.** A failed call includes any `panic` notification the game sent: the message, location and crash file.
+- **Found in passing:** the HUD showed 0 gold until the first simulation step after a load. Sessions now recount the world stats when created or loaded; the determinism checksum is unchanged.
+- **Verified** with a scripted MCP client over stdio (`initialize`, `tools/list` before and after `game_launch`, `list_changed`, `screenshot` image content, `world_place`, `game_call`, `session_state`, quit on disconnect).
+- **Verified with Claude Code** (2026-10-15, CLI 2.1.299). A headless session (`claude -p --mcp-config .mcp.json --strict-mcp-config`, with only the server's tools allowed) checked the done-when on its own:
+  - It started with the three fixed tools; after `game_launch`, `list_changed` brought the list to 77.
+  - `screenshot` returned an image the model described correctly.
+  - `world_place` placed a well, and the second screenshot showed it.
+  - `quit` ended the game.
+
+  In interactive sessions, the project's server stays "Pending approval" (`claude mcp list`) until the user approves it once.
+
+### Phase 5: Simulated input and UI automation (large)
+
+- [x] `VirtualInput` in `InputSystem`, `Application::push_synthetic_event`, and input capture mode with the badge.
+- [x] Engine input timeline applied at the start of `Engine::begin_frame`. Gestures: click, drag, key, type, scroll.
+- [x] `camera.cell_to_screen` / `camera.screen_to_cell`, and `cell` targets on input commands.
+- [x] Widget registry in `UiSystem`, leaf-widget recording, and path segments in menus and groups.
+- [x] `ui.tree`, `ui.click`, `ui.set`, `dialog.open` / `dialog.close` / `dialog.current`.
 
 Done when:
 - A script starts a new game from the home menu using only `ui.click`.
@@ -382,37 +509,94 @@ Done when:
 - Real mouse movement has no effect while capture is on, and turning capture off restores normal input.
 - `ui.tree` rects line up with what screenshots show.
 
-### Phase 5: Web and CI (medium)
+Notes (2026-10-14, local Mac):
+- **Simulated input.** `VirtualInput` replaces the backends' answers in `InputSystem` while capture is on. Deviation: no `Application::push_synthetic_event`; the engine's input timeline returns each frame's events and `Engine::poll_app_events` merges them after filtering the real ones, which keeps routing unchanged. Each gesture ends with one idle frame, so its command finishes after the game has handled it.
+- **Capture** pauses cursor confinement in both app backends (`pause_cursor_confinement`). `--capture-input` starts with it on; script mode and `hb-ctl launch` use it, so a person's mouse can't scroll the map in the middle of a run. A real Shift+Esc gives input back (added: otherwise a person couldn't even reach the console). The badge draws on the foreground draw list, like toasts, and stays out of captures.
+- **Camera edge scrolling** now ignores cursors outside the window: the parked virtual cursor sits off-window, and a real cursor over another app no longer scrolls the map either.
+- **Cell targets** center the camera on the cell unless it's already in the middle 60% of the window, clear of the HUD panels along the edges and of the edge-scroll margin.
+- **Widget registry** ([ui/registry.rs](../../crates/engine/src/ui/registry.rs)). Paths: menu labels, labeled-group labels, then the widget's label; sprite buttons use their sprite's file name (`TilePaletteMenu/housing`), and ImGui id suffixes and slashes are cleaned out. Text labels and headings are recorded too, so `ui.tree` shows what dialogs say. `ui.set` values are queued and applied by the widget's next draw through its own update callback; unclaimed ones expire after two frames.
+- **Timing fixes found while testing:**
+  - After a session switch, the old menus' modal popup stays in ImGui's popup stack for two frames and takes the mouse; a scroll sent then was lost. Session commands now finish two frames after the switch.
+  - Widgets of a dialog opened by a click appear one frame later. `ui.click` finishes one frame after its gesture, and `ui.click` / `ui.set` wait up to 30 frames for a missing widget.
+  - Scaling screenshots with `imageops::resize` took over a second in debug builds (generic code compiles in the engine, unoptimized). `DynamicImage::resize_exact` is compiled in the optimized `image` crate: 7 frames instead of 90.
+- **Verified** on macOS: `ui_new_game.jsonl` (home menu to a 64x96 dirt map through the New Game dialog) and `ui_build.jsonl` (palette, map click, road drag, Undo button) pass; HUD point clicks paused and resumed the simulation; Ctrl+/ toggled the menus; wheel zoom works when the config allows it (the default config turns it off). `ui.tree` rects match the screenshots (e.g. "Start New Game" at [151, 382, 165, 28]).
+- **Not verified:** real mouse movement while captured; there's no way to post real mouse events on this machine. By construction, every cursor, button and key query goes through `VirtualInput` while captured, and real input events other than quit and resize are dropped before routing.
 
-- [ ] `window.heritage.exec` bridge (`wasm_bindgen` export, plus glue in `web/bootstrap.js`), feeding the same queue. Replies resolve promises by request ID.
-- [ ] Verify Wgpu capture on web, including the asynchronous map. Screenshots return base64.
-- [ ] Web screenshot hotkey through a Blob download (add the `web-sys` features).
-- [ ] Playwright smoke script: serve `web/`, wait for the game, call `ping`, load a preset, take a screenshot. Chromium is preinstalled in Claude Code cloud sessions (`/opt/pw-browsers`).
-- [ ] CI job on Ubuntu:
+### Phase 6: Web and CI (medium)
+
+- [x] `window.heritage.exec` bridge (`wasm_bindgen` export, plus glue in `web/bootstrap.js`), feeding the same queue. Replies resolve promises by request ID.
+- [x] Verify Wgpu capture on web, including the asynchronous map. Screenshots return base64.
+- [x] Web screenshot hotkey through a Blob download (add the `web-sys` features).
+- [x] Playwright smoke script: serve `web/`, wait for the game, call `ping`, load a preset, take a screenshot. Chromium is preinstalled in Claude Code cloud sessions (`/opt/pw-browsers`); locally, run `npx playwright install chromium`.
+- [x] CI job on Ubuntu:
   - Install Xvfb and Mesa.
   - Build release.
-  - Run `xvfb-run -a cargo run -p HeritageBuilder --release -- --script scenarios/smoke.jsonl`.
+  - Run `xvfb-run -a cargo run -p HeritageBuilder --release -- --script crates/game/tests/scenarios/smoke.jsonl`.
   - Upload `out/*.png` as a workflow artifact.
 
 Done when:
 - The Playwright script gets a screenshot from the web build.
 - The CI job runs the scenarios green and uploads screenshots.
 
-### Phase 6: Agent ergonomics (small to medium)
+Notes (2026-10-15, local Mac):
+- **Bridge.** `heritageExec(method, params)` ([automation/web.rs](../../crates/engine/src/automation/web.rs)) returns a promise. Its `Responder` resolves it with the result, or rejects it with `{code, message}`: `NotReady` before the engine starts, `InvalidParams` for params that aren't an object. No request ids are needed: each promise carries its own responder. `bootstrap.js` exposes it as `window.heritage.exec`.
+- **Screenshots on web.** `screenshot` gained `inline: true`, returning `png_base64` (`screenshot::base64_encode`), which is the web default without a path. A "file" on web is a browser download (`platform::download_file`: Blob, object URL, anchor), so the F12 / PrintScreen hotkey works there too. `hb-ctl mcp` now asks for inline screenshots instead of reading back a temporary file.
+- **Smoke test.** Deviation: Python Playwright (`crates/tools/web-smoke/smoke.py`), not Node: this machine has no Node, and the repo's other tool scripts are Python. It serves `web/`, waits for `ping`, then checks `version`, `session.load_preset`, `session.state`, `world.list`, `world.place`, a bridge screenshot, Playwright's own page screenshot, and the F12 download. It runs Playwright's full Chromium in headless mode with `--enable-unsafe-webgpu`, plus `--use-webgpu-adapter=swiftshader` for GPU-less machines (`--swiftshader`).
+- **Found in passing (web):**
+  - The web game could hang after "Game initialized and running!": nothing requested the first redraw, so frames only began once an input or resize event happened to wake the event loop. Headless Chromium often sent none. `finish_init` now requests the first redraw.
+  - On web, `configs.json` never loaded: its `"app_api": "Glfw"` and `"render_api": "OpenGl"` are desktop-only enum variants, so the whole file failed to deserialize and the web build ran on default configs. Those two fields now read unknown values as defaults on web.
+  - Playwright's Chromium headless shell rejects `mapAsync` ("A valid external Instance reference no longer exists"), so captures fail there; full Chromium, on Metal or SwiftShader, maps fine. Keeping the `wgpu::Instance` and `Adapter` alive made no difference, so that change was dropped.
+- **CI.** A new `scenarios` job builds release, runs `smoke`, `ui_new_game` and `ui_build` under Xvfb with Mesa software OpenGL, runs `determinism.jsonl` twice and diffs the outputs and saves, and uploads `out/` and `logs/`. The web job runs the smoke test on the release build with SwiftShader and uploads `out/web/`.
+- **Verified** on macOS: the smoke test passes on Metal and on SwiftShader (load in about 4 s, debug build), and the bridge screenshot matches Playwright's page screenshot. The CI job's commands pass locally on a release build (macOS, no Xvfb). (Corrected in Phase 7: these notes said release and debug builds give different determinism checksums. The difference was the window size, which is part of the saved state: the configured 1440x800 window doesn't fit this screen, and macOS shrinks it to 795 or 796 points high. With `--window-size`, debug and release give the same checksum.) **Not verified:** the workflow itself, which runs once the branch is pushed.
 
-- [ ] `hb-ctl mcp`: stdio MCP server with `initialize`, `tools/list` and `tools/call`. It maps each registry command to a tool using the schemas from `help`, and `screenshot` returns image content. Add a project `.mcp.json` so Claude Code picks it up.
-- [ ] `.claude/skills/drive-game/SKILL.md`: launching, driving, screenshots, and common debugging recipes. List it in AGENTS.md.
-- [ ] `--record FILE` / `--replay FILE`: real input events and commands per frame as JSON lines, replayed with fixed delta and seed. Useful for bug reports.
-- [ ] Optional `assert.image {path, golden, tolerance}`, for same-machine, same-backend comparisons only.
+### Phase 7: Record, replay and image checks (small to medium)
 
-Done when: a local Claude Code session lists the game's tools over MCP, and can take a screenshot and place a building through them.
+- [x] `--record FILE` / `--replay FILE`: real input events and commands per frame as JSON lines, replayed with fixed delta and seed. Useful for bug reports.
+- [x] Optional `assert.image {path, golden, tolerance}`, for same-machine, same-backend comparisons only.
+
+Done when: a recorded session replays with the same seed and fixed delta and ends in a byte-identical save.
+
+Notes (2026-10-15, local Mac):
+- **Format** ([automation/recording.rs](../../crates/engine/src/automation/recording.rs)). JSON lines:
+  - A header: format version, build profile (for reference), command-line options, window size, display scale, input capture, and the run loop's details.
+  - Frame lines with only what changed: the time step, the cursor, the buttons and keys held, and input events.
+  - Command lines, written as each command starts.
+  - An end line: the frame count and the final state's checksum.
+
+  Floats are written as f64, so the f32 values read back exactly. Lines are written unbuffered, so a crash leaves a usable recording.
+- **Deviation: real devices below capture, commands above it.** The recording holds the real devices, sampled below input capture, plus the commands from scripts and outside tools. Simulated input comes back when the replay runs the commands that made it (gestures, `ui.click`). Console commands are left out, since the replayed typing runs them again. Replayed commands go through the engine's request queue on their recorded frames, not after the previous command finishes. So timing that depends on threads, such as screenshot writes, doesn't matter.
+- **Deviation: no fixed delta needed.** Each frame's time step is recorded (`FrameClock::set_replay_delta_time`), so runs in real time replay exactly too. The seed comes from the recorded options and configs.
+- **Device snapshot.** While recording or replaying, the `InputSystem` reads the real devices from a snapshot taken once a frame (`device_state`). Every read in a frame then agrees with the recording; GLFW otherwise reads the cursor live.
+- **Game side** ([automation/recording.rs](../../crates/game/src/automation/recording.rs)).
+  - The header holds the game's version, its autosave setting and `GameConfigs`.
+  - A replay applies the recorded configs the way `config.set` does, so `configs.json` keeps its own values.
+  - A replay autosaves when the recorded run did, because saving changes the state: `pre_save` resolves pending spawns.
+  - The final checksum is `session.checksum`'s hash, or none at the home menu.
+- **Options left out of recordings:** `--script` (its commands are recorded), `--automation`, and `--screenshot-*`, which quits after a varying number of frames; the end line already says when the run ended. The game names its own through `RunLoop::cli_options_not_recorded`. Options given with `--replay` come after the recorded ones.
+- **Replay controls.** Real input is ignored, except quitting and Shift+Esc, which stops the replay and gives the input back. A badge shows the frame. A recording without an end line gives the input back after its last frame.
+- **`assert.image`** (`screenshot::compare_png`) compares an in-memory screenshot with a golden PNG, channel by channel, with `tolerance` and `max_diff_pixels`. `update=true` writes the golden; `path` saves the screenshot and a `-diff.png` beside it.
+- **Found in passing:**
+  - `key_state(InputKey::Unknown)` on GLFW hit its invalid-key error, which panics inside the callback and aborts. It now returns Release.
+  - Determinism runs on this Mac alternated between two checksums. The camera's viewport is part of the saved state, and macOS shrinks the configured 1440x800 window to 795 or 796 points high. The determinism scenario and CI now pass `--window-size 1280x720`. A replay asks for the recorded window size and warns if it gets another.
+- **CI.** The scenarios job records `ui_build` and `determinism`, replays both, and checks that the replayed save matches the determinism runs' save. Its commands pass locally (macOS, without Xvfb).
+- **Verified** on macOS, release build:
+  - All four scenarios replay with matching checksums (exit 0), and the determinism replay writes a byte-identical save.
+  - An edited command fails the replay: exit 1, with both checksums in the log.
+  - A hand-written recording that clicks through the home menu with device-level mouse input (capture off) replays the same way twice.
+  - An `hb-ctl` session in real time replays exactly: variable time steps, remote commands, `quit`, and even the same ambient-effect warnings.
+  - A crashing run (`debug.panic`) crashes again on replay, and a recording cut short gives the input back.
+  - `hb-ctl launch --replay` takes queries while the replay runs.
+  - `assert.image` matches, fails with a diff image, and reports a missing golden.
+  - The web build compiles, and its smoke test passes.
+
+  **Not verified:** recording real mouse and keyboard input, which needs OS-level input events this machine can't send without accessibility permission; Shift+Esc during a replay; and the CI step itself.
 
 ## Risks
 
 | Risk | Mitigation |
 | --- | --- |
 | The server thread touches a `SingleThreadStatic` and asserts. | The thread only parses JSON and moves owned strings across channels. Every handler runs on the main thread. Add a debug assert on `is_main_thread()` in the dispatcher. |
-| The automation port is a remote-control surface in shipped builds. | Off by default. Loopback only, with a per-launch token. Behind an `automation` cargo feature that release bundles can leave out (see Q1). Screenshots don't need the server and always ship. |
+| The automation port is a remote-control surface in shipped builds. | Off by default. Loopback only, with a per-launch token. Ships in release builds, but stays off unless `--automation` is passed (Q1). Screenshots don't need the server and always ship. |
 | CI has no GPU or display. | `xvfb-run` with Mesa llvmpipe for OpenGL, or lavapipe for Wgpu. Audio init already fails gracefully. Where no display is available, fall back to script mode with `time.fast_forward` and no screenshots. |
 | Golden screenshots differ across GPUs and drivers. | Only compare images from the same machine and backend, with a tolerance. Prefer state assertions in CI, and use screenshots for agents and humans to look at. |
 | Frame rate is capped by vsync (Wgpu uses `PresentMode::Fifo`; GL depends on the driver's default swap interval). | Use `time.fast_forward` for long stretches. Optionally add `--no-vsync` for automation runs. |
@@ -426,9 +610,13 @@ Each has a default to use until the user decides otherwise. Record answers here.
 
 - **Q1. Shipping scope of the server.** Should the live control server ship in release builds behind a flag, for modders and support, or stay dev-only?
   *Default:* compile it into desktop builds behind an `automation` cargo feature that is on by default, and keep it off at runtime unless `--automation` is passed. Release bundles can turn the feature off. Screenshots ship either way.
+  **Decided (2026-10-14):** ship it in release builds behind the runtime flag, as in the default.
 - **Q2. MCP priority.** Should `hb-ctl mcp` move ahead of UI automation? It makes the biggest difference to how Claude Code uses the game, and it only needs Phase 3 (the server and `help`).
   *Default:* keep it in Phase 6, but it may start any time after Phase 3.
+  **Decided (2026-10-14):** move it ahead. It is now Phase 4, before simulated input and UI automation (now Phase 5).
 - **Q3. Console UI.** Should Phase 2 include a visible in-game developer console on the same registry?
   *Default:* no. Revisit after Phase 3; the registry makes it cheap to add later.
+  **Decided (2026-10-14):** yes, in Phase 2. Extend the debug LogViewer widget with an input field that runs commands, making it an interactive in-game console.
 - **Q4. Where scenarios live.** A top-level `scenarios/` folder, or `crates/game/tests/scenarios/` next to the integration tests?
   *Default:* top-level `scenarios/`, since the game binary runs them, not `cargo test`.
+  **Decided (2026-10-14):** `crates/game/tests/scenarios/`.
