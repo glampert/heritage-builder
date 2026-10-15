@@ -7,7 +7,7 @@
 use std::{
     fs::File,
     path::{Path, PathBuf},
-    process::{Command, ExitCode, Stdio},
+    process::{Child, Command, ExitCode, Stdio},
     time::{Duration, Instant, SystemTime, UNIX_EPOCH},
 };
 
@@ -227,6 +227,10 @@ pub struct Launched {
     pub client: Client,
     pub log_path: PathBuf,
     pub frame: Option<u64>,
+
+    // A long-lived caller (hb-ctl mcp) must wait on it once the game exits, or the game stays a
+    // zombie process until the caller exits. `hb-ctl launch` exits at once, so it lets it go.
+    pub process: Child,
 }
 
 fn cmd_launch(options: &Options, args: &[String]) -> Result<u8, String> {
@@ -347,7 +351,7 @@ pub fn launch(options: &Options, args: &LaunchArgs) -> Result<Launched, String> 
     let reply = client.call("ping", json!({})).map_err(|err| format!("The game didn't answer: {err}"))?;
     client.set_timeout(options.timeout);
 
-    Ok(Launched { instance, client, log_path, frame: reply.frame })
+    Ok(Launched { instance, client, log_path, frame: reply.frame, process: child })
 }
 
 // ----------------------------------------------

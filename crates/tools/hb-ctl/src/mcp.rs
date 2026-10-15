@@ -12,7 +12,8 @@
 
 use std::{
     io::{BufRead, Write},
-    time::Duration,
+    process::Child,
+    time::{Duration, Instant},
 };
 
 use serde_json::{Map, Value, json};
@@ -27,13 +28,16 @@ use crate::{
 const SUPPORTED_PROTOCOL_VERSIONS: &[&str] = &["2024-11-05", "2025-03-26", "2025-06-18", "2025-11-25"];
 const DEFAULT_PROTOCOL_VERSION: &str = "2025-06-18";
 
+// How long to wait for a game that was told to quit before moving on.
+const GAME_EXIT_TIMEOUT: Duration = Duration::from_secs(10);
+
 const INSTRUCTIONS: &str = "Drives the Heritage Builder city builder. Start a game with game_launch \
 (or game_connect to one already running), then use the game's commands as tools: help lists them. \
 Map cells are [x, y]. Screenshots come back as images, one pixel per window point by default. \
 Commands that need a map fail with NotInGame at the home menu.";
 
 pub fn run(options: &Options) -> Result<u8, String> {
-    let mut server = McpServer { options, client: None, commands: Vec::new(), launched_pid: None };
+    let mut server = McpServer { options, client: None, commands: Vec::new(), launched_pid: None, launched: Vec::new() };
 
     // List a running game's tools right away.
     let _ = server.connect(None);
@@ -45,6 +49,8 @@ pub fn run(options: &Options) -> Result<u8, String> {
             continue;
         }
 
+        server.reap_exited_games();
+
         match serde_json::from_str::<Value>(&line) {
             Ok(message) => server.handle(message),
             Err(err) => send(&error_response(&Value::Null, -32700, &format!("Invalid JSON: {err}"))),
@@ -54,7 +60,9 @@ pub fn run(options: &Options) -> Result<u8, String> {
     // The client went away: quit a game this session started, so it doesn't linger.
     if let (Some(pid), Some(client)) = (server.launched_pid, &mut server.client) {
         eprintln!("hb-ctl mcp: quitting the game this session started (pid {pid}).");
-        let _ = client.call("quit", json!({}));
+        if client.call("quit", json!({})).is_ok() {
+            server.wait_for_game_exit(pid);
+        }
     }
 
     Ok(0)
@@ -65,6 +73,9 @@ struct McpServer<'a> {
     client: Option<Client>,
     commands: Vec<Value>, // The game's `help` list, once connected.
     launched_pid: Option<u32>,
+
+    // Games this session started, until they exit and are waited on (see Launched::process).
+    launched: Vec<Child>,
 }
 
 impl McpServer<'_> {
@@ -118,7 +129,29 @@ impl McpServer<'_> {
         let instance = options.instance()?;
         let client = Client::connect(&instance, self.options.timeout)?;
         self.set_client(client)?;
+
+        // Quitting on disconnect is only for a game this session started.
+        let launched_here = self.launched.iter().any(|child| child.id() == instance.pid);
+        self.launched_pid = launched_here.then_some(instance.pid);
+
         Ok(json!({ "pid": instance.pid, "port": instance.port }))
+    }
+
+    // Waits on games this session started that have exited (see Launched::process).
+    fn reap_exited_games(&mut self) {
+        self.launched.retain_mut(|child| !matches!(child.try_wait(), Ok(Some(_))));
+    }
+
+    // After `quit`: the game exits once its frame ends and it has shut down.
+    fn wait_for_game_exit(&mut self, pid: u32) {
+        let deadline = Instant::now() + GAME_EXIT_TIMEOUT;
+        while self.launched.iter().any(|child| child.id() == pid) && Instant::now() < deadline {
+            self.reap_exited_games();
+            std::thread::sleep(Duration::from_millis(50));
+        }
+        if self.launched_pid == Some(pid) {
+            self.launched_pid = None;
+        }
     }
 
     fn set_client(&mut self, mut client: Client) -> Result<(), String> {
@@ -231,6 +264,7 @@ impl McpServer<'_> {
         };
 
         let pid = launched.instance.pid;
+        self.launched.push(launched.process);
         if let Err(err) = self.set_client(launched.client) {
             return tool_error(&err);
         }
@@ -249,7 +283,15 @@ impl McpServer<'_> {
         }
 
         match client.call(method, params) {
-            Ok(reply) => tool_text(&reply.result, false),
+            Ok(reply) => {
+                // Collect a game this session started as soon as it quits.
+                if method == "quit"
+                    && let Some(pid) = self.launched_pid
+                {
+                    self.wait_for_game_exit(pid);
+                }
+                tool_text(&reply.result, false)
+            }
             Err(err) => {
                 let text = describe_error(client, &err);
                 if err.code == "Disconnected" {
