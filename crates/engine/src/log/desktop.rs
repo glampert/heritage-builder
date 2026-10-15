@@ -52,7 +52,7 @@ fn init_log_output() -> LogOutput {
             LogOutput::File(file)
         } else {
             // Fallback to TTY
-            LogOutput::Stdout(io::stdout())
+            stdout_output()
         }
     } else if REDIRECT_TO_STDERR.load(Ordering::Relaxed) {
         // Color codes only help a terminal; they'd clutter a log captured to a file.
@@ -62,8 +62,16 @@ fn init_log_output() -> LogOutput {
         LogOutput::Stderr(io::stderr())
     } else {
         // TTY
-        LogOutput::Stdout(io::stdout())
+        stdout_output()
     }
+}
+
+fn stdout_output() -> LogOutput {
+    // Same for stdout redirected to a file or a pipe, as `hb-ctl launch` does.
+    if !io::stdout().is_terminal() {
+        super::enable_tty_colors(false);
+    }
+    LogOutput::Stdout(io::stdout())
 }
 
 static LOG_OUTPUT: LazyLock<RwLock<LogOutput>> = LazyLock::new(|| RwLock::new(init_log_output()));
