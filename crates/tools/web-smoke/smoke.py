@@ -128,6 +128,10 @@ def main():
         browser_args = ["--enable-unsafe-webgpu"]
         if args.swiftshader:
             browser_args.append("--use-webgpu-adapter=swiftshader")
+            # Linux Chrome runs WebGPU on Vulkan, which headless Chrome leaves off. Without it the
+            # canvas stays blank and buffer maps fail. SwiftShader provides the Vulkan device.
+            if sys.platform.startswith("linux"):
+                browser_args += ["--enable-features=Vulkan", "--use-vulkan=swiftshader", "--use-angle=swiftshader"]
         browser = playwright.chromium.launch(channel="chromium", headless=not args.headed, args=browser_args)
         page = browser.new_page(viewport={"width": 1280, "height": 720}, accept_downloads=True)
         page.on("console", lambda message: console.append(f"[{message.type}] {message.text}"))
