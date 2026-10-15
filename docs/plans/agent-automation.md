@@ -9,18 +9,20 @@
 - the web bridge and CI scenarios;
 - record and replay, with image assertions.
 
-Every task is ticked and every open decision is answered. A few checks need a person or CI; see [Remaining checks](#remaining-checks). See [Handoff](#handoff-2026-10-14) for the move to a local machine.
+Every task is ticked and every open decision is answered. Only the CI run is left to check; see [Remaining checks](#remaining-checks). See [Handoff](#handoff-2026-10-14) for the move to a local machine.
 
 This plan lets AI agents launch the game, drive it, inspect it and debug it. It also adds framebuffer screenshots, which ship to players as well. It was researched against commit `9f26ef8` on the `claude` branch. File and line references point at that commit, so re-check them before relying on them.
 
 ## Remaining checks
 
-Everything below is built, and was tested as far as possible without a person at the keyboard or a CI run:
-- **Phase 4:** a real Claude Code session using the project's `.mcp.json`. A scripted MCP client was checked; Claude Code asks for approval the first time it sees the project's servers.
-- **Phase 5:** real mouse movement has no effect while input capture is on, and Shift+Esc takes the input back. No real input events could be sent on the test machine.
 - **Phase 6:** the CI workflow, including the new scenario and record-and-replay steps. It runs once the branch is pushed.
-- **Phase 7:** recording real mouse and keyboard input and replaying it, and Shift+Esc during a replay. To check: `cargo run -p HeritageBuilder --release -- --record out/me.rec.jsonl`, play and quit, then run with `--replay out/me.rec.jsonl`. It should log "Replay matched" and exit 0.
-- **From the handoff:** the console's [`] key on non-US keyboard layouts.
+- **From the handoff:** the console's [`] key on keyboard layouts other than the one tested below.
+
+Checked by hand on 2026-10-15 (macOS):
+- Recording real play and replaying it works.
+- Real mouse input is ignored during a replay and with `--capture-input`, and Shift+Esc gives the controls back in both cases.
+- The [`] key opens the console.
+- A Claude Code session used the MCP tools; see the Phase 4 notes.
 
 ## How to resume this work
 
@@ -481,7 +483,14 @@ Notes (2026-10-14, local Mac):
 - **Screenshots.** The `screenshot` tool saves to a temporary file, returns the PNG as image content, and deletes the file unless a `path` was given. It defaults to `scale: "points"`, which the screenshot command gained here (`ScreenshotScale::Points` / `Factor` in the engine, scaled on the writer thread): on a 2x screen the image is 1440x792 instead of 2880x1584, about 300 KB, and its pixels are window points, the units input coordinates use.
 - **Crashes.** A failed call includes any `panic` notification the game sent: the message, location and crash file.
 - **Found in passing:** the HUD showed 0 gold until the first simulation step after a load. Sessions now recount the world stats when created or loaded; the determinism checksum is unchanged.
-- **Verified** with a scripted MCP client over stdio (`initialize`, `tools/list` before and after `game_launch`, `list_changed`, `screenshot` image content, `world_place`, `game_call`, `session_state`, quit on disconnect). Not yet checked: a real Claude Code session using `.mcp.json`; the server needs approval the first time Claude Code sees the project config.
+- **Verified** with a scripted MCP client over stdio (`initialize`, `tools/list` before and after `game_launch`, `list_changed`, `screenshot` image content, `world_place`, `game_call`, `session_state`, quit on disconnect).
+- **Verified with Claude Code** (2026-10-15, CLI 2.1.299). A headless session (`claude -p --mcp-config .mcp.json --strict-mcp-config`, with only the server's tools allowed) checked the done-when on its own:
+  - It started with the three fixed tools; after `game_launch`, `list_changed` brought the list to 77.
+  - `screenshot` returned an image the model described correctly.
+  - `world_place` placed a well, and the second screenshot showed it.
+  - `quit` ended the game.
+
+  In interactive sessions, the project's server stays "Pending approval" (`claude mcp list`) until the user approves it once.
 
 ### Phase 5: Simulated input and UI automation (large)
 
