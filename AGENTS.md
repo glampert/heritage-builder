@@ -28,6 +28,7 @@ Command-line options (`cargo run -p HeritageBuilder -- --help` lists them all):
 Headless Linux (CI, cloud agent sessions): install the packages from the CI Ubuntu job plus `xvfb`, then `LIBGL_ALWAYS_SOFTWARE=1 xvfb-run -a -s "-screen 0 1920x1080x24" cargo run -p HeritageBuilder -- <options>` runs the game on Mesa's software OpenGL. Without a sound device, audio init logs an error and the game runs silently.
 - The Winit app backend (needed for `"render_api": "Wgpu"`) also needs `libxkbcommon-x11-0`, and Wgpu needs a Vulkan driver: `mesa-vulkan-drivers` provides lavapipe.
 - To look at the game, take a screenshot with `--screenshot-after-frames` and read the PNG. `xdotool` can send real key presses to the window, e.g. `xdotool key F12`.
+- `xvfb-run` runs its command with `2>&1`, so the log ends up in script mode's JSON output. For `--script`, start one server instead (`Xvfb :99 -screen 0 1920x1080x24 &`) and set `DISPLAY=:99`, as the CI `scenarios` job does.
 
 Screenshots: PrintScreen or F12 saves `screenshots/<window title> <local date and time>.png` next to `saves/`; Shift leaves the UI out. A toast reports the file name. Code: `Engine::request_screenshot` ([screenshot.rs](crates/engine/src/screenshot.rs)) on top of `RenderSystem::request_capture` ([capture.rs](crates/engine/src/render/capture.rs)).
 

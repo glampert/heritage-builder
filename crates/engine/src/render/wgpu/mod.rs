@@ -1,7 +1,4 @@
-use std::sync::{
-    Arc,
-    atomic::{AtomicU8, Ordering},
-};
+use std::sync::{Arc, Mutex};
 
 use arrayvec::ArrayVec;
 use common::{Color, Rect, RectTexCoords, Size, Vec2, time::PerfTimer};
@@ -270,7 +267,7 @@ impl WgpuSystemState {
             swap_red_blue: is_bgra_format(self.surface_format),
             _texture: texture,
             buffer,
-            map_state: Arc::new(AtomicU8::new(MAP_PENDING)),
+            map_result: Arc::new(Mutex::new(None)),
         }
     }
 
@@ -299,10 +296,6 @@ impl WgpuSystemState {
 // CaptureReadback
 // ----------------------------------------------
 
-const MAP_PENDING: u8 = 0;
-const MAP_DONE:    u8 = 1;
-const MAP_FAILED:  u8 = 2;
-
 // A frame capture copied into a buffer, waiting for the buffer to be mapped.
 struct CaptureReadback {
     ids: Vec<CaptureId>, // Requests completed by this capture.
@@ -312,24 +305,25 @@ struct CaptureReadback {
     swap_red_blue: bool,
     _texture: wgpu::Texture, // Kept until the copy is done.
     buffer: wgpu::Buffer,
-    map_state: Arc<AtomicU8>, // Set by the map callback.
+    map_result: Arc<Mutex<Option<Result<(), wgpu::BufferAsyncError>>>>, // Set by the map callback.
 }
 
 impl CaptureReadback {
     // Call after the copy has been submitted.
     fn start_map(&self) {
-        let map_state = self.map_state.clone();
+        let map_result = self.map_result.clone();
         self.buffer.slice(..).map_async(wgpu::MapMode::Read, move |result| {
-            map_state.store(if result.is_ok() { MAP_DONE } else { MAP_FAILED }, Ordering::Release);
+            *map_result.lock().unwrap() = Some(result);
         });
     }
 
     // The captured image once the buffer is mapped, or None while it's still pending.
     fn try_read(&self) -> Option<CaptureResult> {
-        match self.map_state.load(Ordering::Acquire) {
-            MAP_PENDING => None,
-            MAP_FAILED => Some(Err("Failed to map the Wgpu capture buffer.".into())),
-            _ => {
+        let map_result = self.map_result.lock().unwrap().clone();
+        match map_result {
+            None => None,
+            Some(Err(err)) => Some(Err(format!("Failed to map the Wgpu capture buffer: {err}"))),
+            Some(Ok(())) => {
                 let row_bytes = self.size.width as usize * 4;
                 let mut pixels = {
                     let mapped = self.buffer.slice(..).get_mapped_range();

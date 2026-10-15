@@ -83,6 +83,14 @@ jobs:
       - name: Build (release)
         run: cargo build --release -p HeritageBuilder
 
+      # One X server for the whole job. xvfb-run would run each command with 2>&1, which mixes
+      # the game's log into the script results on stdout.
+      - name: Start Xvfb
+        run: |
+          Xvfb :99 -screen 0 1920x1080x24 &
+          for _ in $(seq 50); do [ -e /tmp/.X11-unix/X99 ] && break; sleep 0.1; done
+          echo "DISPLAY=:99" >> "$GITHUB_ENV"
+
       # Each script prints a JSON line per command and exits 1 if any fails. Logs go to stderr.
       - name: Run scenarios
         env:
@@ -91,8 +99,7 @@ jobs:
           mkdir -p logs
           for scenario in smoke ui_new_game ui_build; do
             echo "::group::$scenario"
-            xvfb-run -a -s "-screen 0 1920x1080x24" \
-              target/release/HeritageBuilder --script "crates/game/tests/scenarios/$scenario.jsonl" \
+            target/release/HeritageBuilder --script "crates/game/tests/scenarios/$scenario.jsonl" \
               2> "logs/$scenario.log"
             echo "::endgroup::"
           done
@@ -104,8 +111,7 @@ jobs:
           LIBGL_ALWAYS_SOFTWARE: "1"
         run: |
           for run in 1 2; do
-            xvfb-run -a -s "-screen 0 1920x1080x24" \
-              target/release/HeritageBuilder --seed 7 --window-size 1280x720 \
+            target/release/HeritageBuilder --seed 7 --window-size 1280x720 \
               --script crates/game/tests/scenarios/determinism.jsonl \
               > "logs/determinism-$run.jsonl" 2> "logs/determinism-$run.log"
             cp saves/determinism.json "logs/determinism-$run.json"
@@ -122,12 +128,10 @@ jobs:
         run: |
           for scenario in ui_build determinism; do
             echo "::group::$scenario"
-            xvfb-run -a -s "-screen 0 1920x1080x24" \
-              target/release/HeritageBuilder --seed 7 --window-size 1280x720 \
+            target/release/HeritageBuilder --seed 7 --window-size 1280x720 \
               --script "crates/game/tests/scenarios/$scenario.jsonl" \
               --record "logs/$scenario.rec.jsonl" > /dev/null 2> "logs/$scenario-record.log"
-            xvfb-run -a -s "-screen 0 1920x1080x24" \
-              target/release/HeritageBuilder --replay "logs/$scenario.rec.jsonl" > "logs/$scenario-replay.log" 2>&1 \
+            target/release/HeritageBuilder --replay "logs/$scenario.rec.jsonl" > "logs/$scenario-replay.log" 2>&1 \
               || { tail -n 20 "logs/$scenario-replay.log"; exit 1; }
             grep 'Replay matched' "logs/$scenario-replay.log"
             echo "::endgroup::"
@@ -222,4 +226,4 @@ jobs:
         uses: actions/upload-artifact@v7
         with:
           name: web-smoke
-          path: out/web/"
+          path: out/web/
