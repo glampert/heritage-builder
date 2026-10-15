@@ -9,13 +9,12 @@
 - the web bridge and CI scenarios;
 - record and replay, with image assertions.
 
-Every task is ticked and every open decision is answered. Only the CI run is left to check; see [Remaining checks](#remaining-checks). See [Handoff](#handoff-2026-10-14) for the move to a local machine.
+Every task is ticked, every open decision is answered, and CI passes on the PR branch. See [Remaining checks](#remaining-checks) for the one item left. See [Handoff](#handoff-2026-10-14) for the move to a local machine.
 
 This plan lets AI agents launch the game, drive it, inspect it and debug it. It also adds framebuffer screenshots, which ship to players as well. It was researched against commit `9f26ef8` on the `claude` branch. File and line references point at that commit, so re-check them before relying on them.
 
 ## Remaining checks
 
-- **Phase 6:** the CI workflow, including the new scenario and record-and-replay steps. It runs once the branch is pushed.
 - **From the handoff:** the console's [`] key on keyboard layouts other than the one tested below.
 
 Checked by hand on 2026-10-15 (macOS):
@@ -23,6 +22,10 @@ Checked by hand on 2026-10-15 (macOS):
 - Real mouse input is ignored during a replay and with `--capture-input`, and Shift+Esc gives the controls back in both cases.
 - The [`] key opens the console.
 - A Claude Code session used the MCP tools; see the Phase 4 notes.
+
+CI passed on 2026-10-15 ([run 38676139637](https://github.com/glampert/heritage-builder/actions/runs/38676139637)): both desktop jobs, the scenarios with determinism and record-and-replay, and the web smoke test. Getting there took two fixes:
+- `xvfb-run` merged the game's stderr into stdout, so log lines broke the determinism diff. The checksums matched. The scenarios job now runs one Xvfb server.
+- Headless Linux Chrome needed Vulkan for WebGPU; until then the canvas stayed blank and capture maps failed. The smoke test turns Vulkan on with SwiftShader on Linux.
 
 ## How to resume this work
 
