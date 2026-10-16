@@ -6,9 +6,13 @@
 // window points, the units input gestures use. Recording is off unless automation turns it on,
 // so normal play pays nothing.
 
-use serde_json::Value;
+use std::borrow::Cow;
 
-use common::Rect;
+use arrayvec::ArrayString;
+use serde_json::Value;
+use smallvec::SmallVec;
+
+use common::{Rect, write_fixed_string};
 
 #[derive(Clone, Debug)]
 pub struct UiWidgetInfo {
@@ -74,7 +78,7 @@ impl UiWidgetRegistry {
 
     pub fn push_path(&mut self, segment: &str) {
         if self.enabled {
-            self.path.push(clean_segment(segment));
+            self.path.push(clean_segment(segment).into_owned());
         }
     }
 
@@ -90,22 +94,32 @@ impl UiWidgetRegistry {
             return None;
         }
 
-        let mut path: Vec<String> = self.path.iter().filter(|segment| !segment.is_empty()).cloned().collect();
-        let label = clean_segment(&info.label);
-        if !label.is_empty() {
-            path.push(label);
-        } else if path.is_empty() {
-            path.push(info.kind.to_string());
-        }
+        let base_path = {
+            let label = clean_segment(&info.label);
 
-        let base_path = path.join("/");
-        let mut unique_path = base_path.clone();
-        let mut count = 1;
-        while self.recording.iter().any(|recorded| recorded.path == unique_path) {
+            // Paths are a few segments deep: borrow them on the stack.
+            let mut segments: SmallVec<[&str; 8]> =
+                self.path.iter().map(String::as_str).filter(|segment| !segment.is_empty()).collect();
+
+            if !label.is_empty() {
+                segments.push(&label);
+            } else if segments.is_empty() {
+                segments.push(info.kind);
+            }
+
+            segments.join("/")
+        };
+
+        // Only the suffix is formatted while looking for a free path, so a long path can't be
+        // truncated into one that's always taken.
+        let mut suffix = ArrayString::<24>::new(); // "#" and a u64.
+        let mut count = 1u64;
+        while self.recording.iter().any(|recorded| is_path(&recorded.path, &base_path, &suffix)) {
             count += 1;
-            unique_path = format!("{base_path}#{count}");
+            write_fixed_string!(&mut suffix, "#{count}");
         }
 
+        let unique_path = base_path + &suffix;
         info.path = unique_path.clone();
         self.recording.push(info);
         Some(unique_path)
@@ -122,10 +136,20 @@ impl UiWidgetRegistry {
     }
 }
 
+// Whether `path` is `base` followed by `suffix`, without joining them.
+fn is_path(path: &str, base: &str, suffix: &str) -> bool {
+    path.len() == base.len() + suffix.len() && path.starts_with(base) && path.ends_with(suffix)
+}
+
 // Labels can hold ImGui id suffixes ("Save##3") or slashes (sprite paths); neither belongs in a path.
-fn clean_segment(label: &str) -> String {
+// Borrows the label unless it has a slash to replace.
+fn clean_segment(label: &str) -> Cow<'_, str> {
     let label = label.split("##").next().unwrap_or_default().trim();
-    label.replace('/', "\u{2215}") // Division slash: keeps the text, can't split the path.
+    if label.contains('/') {
+        Cow::Owned(label.replace('/', "\u{2215}")) // Division slash: keeps the text, can't split the path.
+    } else {
+        Cow::Borrowed(label)
+    }
 }
 
 // ----------------------------------------------
@@ -161,6 +185,8 @@ mod tests {
         registry.push_path("Main Menu");
         assert_eq!(registry.record(info("text_button", "New Game")).as_deref(), Some("Main Menu/New Game"));
         assert_eq!(registry.record(info("text_button", "New Game")).as_deref(), Some("Main Menu/New Game#2"));
+        assert_eq!(registry.record(info("text_button", "New Game")).as_deref(), Some("Main Menu/New Game#3"));
+        assert_eq!(registry.record(info("text_button", "New")).as_deref(), Some("Main Menu/New"));
         registry.push_path("Map Width");
         assert_eq!(registry.record(info("int_input", "")).as_deref(), Some("Main Menu/Map Width"));
         registry.pop_path();
@@ -171,7 +197,7 @@ mod tests {
         // Nothing is listed until the frame is complete.
         assert!(registry.widgets().is_empty());
         registry.begin_frame();
-        assert_eq!(registry.widgets().len(), 5);
+        assert_eq!(registry.widgets().len(), 7);
     }
 
     #[test]
