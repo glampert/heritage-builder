@@ -6,7 +6,7 @@ use common::{
     callback::Callback,
     time::{CountdownTimer, Seconds},
 };
-use engine::{log, ui::{DrawDebugUi, UiSystem}};
+use engine::{log, ui::{DrawDebugUi, UiSystem, dev}};
 use proc_macros::DrawDebugUi;
 
 use super::{
@@ -554,12 +554,12 @@ impl UnitTask for UnitTaskRandomizedPatrol {
 
         ui.separator();
 
-        if ui.button("Return to Origin") {
+        if dev::button(ui_sys, "Return to Origin") {
             unit.follow_path(None);
             self.try_return_to_origin(unit, sim_context);
         }
 
-        if ui.button("Find New Goal") {
+        if dev::button(ui_sys, "Find New Goal") {
             unit.follow_path(None);
             self.try_find_goal(unit, sim_context);
         }
@@ -567,11 +567,11 @@ impl UnitTask for UnitTaskRandomizedPatrol {
         if let Some((idle_countdown, countdown)) = &mut self.idle_countdown {
             ui.separator();
 
-            if ui.button("Restart Idle Countdown") {
+            if dev::button(ui_sys, "Restart Idle Countdown") {
                 idle_countdown.reset(*countdown);
             }
 
-            if ui.button("Clear Idle Countdown") {
+            if dev::button(ui_sys, "Clear Idle Countdown") {
                 idle_countdown.reset(0.0);
             }
         }

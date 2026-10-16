@@ -1,5 +1,5 @@
 use common::{Color, format_small};
-use engine::ui::{DrawDebugUi, UiSystem};
+use engine::ui::{DrawDebugUi, UiSystem, dev};
 
 use crate::{
     building::BuildingKind,
@@ -18,9 +18,8 @@ impl DrawDebugUi for ResourceStock {
         let ui = ui_sys.ui();
         ui.indent_by(5.0);
         self.for_each(|index, item| {
-            ui.input_text(format_small!("{}##_stock_item_{}", item.kind, index), &mut format!("{}", item.count))
-                .read_only(true)
-                .build();
+            let label = format_small!("{}##_stock_item_{}", item.kind, index);
+            dev::input_text(ui_sys, &label, &mut item.count.to_string(), true);
         });
         ui.unindent_by(5.0);
     }

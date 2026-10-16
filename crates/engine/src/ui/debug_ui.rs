@@ -16,8 +16,7 @@ pub trait DrawDebugUi {
     // Draw the debug widgets nested under a collapsing header. Types that want a
     // different presentation (e.g. no collapsing header) can override this.
     fn draw_debug_ui_with_header(&mut self, header: &str, ui_sys: &UiSystem) {
-        if dev::collapsing_header(ui_sys, header, imgui::TreeNodeFlags::empty()) {
-            let _path = dev::path_scope(ui_sys, header);
+        if let Some(_path) = dev::collapsing_header_scope(ui_sys, header, imgui::TreeNodeFlags::empty()) {
             self.draw_debug_ui(ui_sys);
         }
     }

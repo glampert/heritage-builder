@@ -527,6 +527,11 @@ Notes (2026-10-14, local Mac):
   - A window's close button has no ImGui item; its rect comes from ImGui 1.89's title bar layout.
   - Queries (`assert.*`, `wait.until`) poll a pending command once, as the dispatcher does, so `ui.tree` works as a query once the registry is on.
   - Verified on macOS at the default size, 1280x720 and 1920x1080: `ui_dev_menus.jsonl` passes and replays from a recording; the UI scenarios, `smoke.jsonl` and the determinism runs still pass.
+- **Follow-up (2026-10-17): the tile inspector's panels.** The building, unit, prop and tile panels, the game-object debug options, the unit tasks, `UpdateTimer` and the d-pad now use `dev` too, as do the Game Configs window's config headers. Left on direct ImGui: the World Debug, Game Systems Debug, texture, sound and UI text windows, and the log viewer.
+  - `dev::collapsing_header_scope` puts a section's label in its widgets' paths, e.g. `Tile Inspector/Building/Workers/Add Worker (+1)`. `dev::input_scalar` covers the other number types (`usize` indices, `u32` counts, the house's `u8` level).
+  - The inspector opens next to its tile and ran off the bottom of the screen, where scrolling can't reach. `ui::fit_next_window_on_screen` caps a window's height at the room below its top (an ImGui size-constraint callback, which gets the window's position), so the rest scrolls inside it.
+  - `ui.click` on a dev widget scrolled out of view asks it to scroll into view (`UiSystem::request_widget_reveal`, then `SetScrollFromPosY` on its next draw) before clicking. It also follows a widget that moves while the cursor goes to it: the inspector reopened after a house upgrade grows over a few frames, and its close button moved away from the cursor.
+  - Verified on macOS: building (storage, house, producer), unit, prop and bare-tile panels list, click and set, e.g. filling a granary's slots, upgrading a house by its Level, harvesting a tree, teleporting a unit with the d-pad. `ui_dev_menus.jsonl` now upgrades a house through the inspector and passes at three window sizes, and replays.
 
 ### Phase 6: Web and CI (medium)
 

@@ -277,6 +277,18 @@ impl UiSystem {
         self.inner.as_mut().widget_registry.take_value(path)
     }
 
+    // Asks the widget at `path`, scrolled out of its window's view, to scroll into view on its next
+    // draw (ui.click). Only the ImGui widgets in `dev` do.
+    #[inline]
+    pub fn request_widget_reveal(&self, path: String) {
+        self.inner.as_mut().widget_registry.request_reveal(path);
+    }
+
+    #[inline]
+    pub(crate) fn take_widget_reveal(&self, path: &str) -> bool {
+        self.inner.as_mut().widget_registry.take_reveal(path)
+    }
+
     #[inline]
     pub fn show_ui_debug_menu(&self, show: bool) {
         self.inner.as_mut().show_ui_debug_menu = show;
@@ -1009,7 +1021,14 @@ pub enum UiDPadDirection {
     SW,
 }
 
-pub fn dpad_buttons(ui: &imgui::Ui) -> Option<UiDPadDirection> {
+pub fn dpad_buttons(ui_sys: &UiSystem) -> Option<UiDPadDirection> {
+    let ui = ui_sys.ui();
+    let arrow_button = |id: &str, direction: imgui::Direction| {
+        let pressed = ui.arrow_button(id, direction);
+        dev::record_button(ui_sys, "button", id, None, None);
+        pressed
+    };
+
     let mut direction_pressed = None;
 
     ui.dummy([35.0, 0.0]);
@@ -1018,20 +1037,20 @@ pub fn dpad_buttons(ui: &imgui::Ui) -> Option<UiDPadDirection> {
 
     ui.dummy([35.0, 0.0]);
     ui.same_line();
-    if ui.arrow_button("NE", imgui::Direction::Up) {
+    if arrow_button("NE", imgui::Direction::Up) {
         direction_pressed = Some(UiDPadDirection::NE);
     }
 
     ui.text("NW");
     ui.same_line();
-    if ui.arrow_button("NW", imgui::Direction::Left) {
+    if arrow_button("NW", imgui::Direction::Left) {
         direction_pressed = Some(UiDPadDirection::NW);
     }
 
     ui.same_line();
     ui.dummy([13.0, 0.0]);
     ui.same_line();
-    if ui.arrow_button("SE", imgui::Direction::Right) {
+    if arrow_button("SE", imgui::Direction::Right) {
         direction_pressed = Some(UiDPadDirection::SE);
     }
     ui.same_line();
@@ -1039,7 +1058,7 @@ pub fn dpad_buttons(ui: &imgui::Ui) -> Option<UiDPadDirection> {
 
     ui.dummy([35.0, 0.0]);
     ui.same_line();
-    if ui.arrow_button("SW", imgui::Direction::Down) {
+    if arrow_button("SW", imgui::Direction::Down) {
         direction_pressed = Some(UiDPadDirection::SW);
     }
     ui.dummy([35.0, 0.0]);
@@ -1201,6 +1220,32 @@ pub fn image_button(ui_sys: &UiSystem, params: &UiImageButtonParams) -> bool {
     }
 
     clicked
+}
+
+// Keeps the next window's bottom on screen: a window taller than the room below its top, such as
+// an auto-resized one opened low on the screen, scrolls its contents instead of running off the
+// bottom. Call right before building the window.
+pub fn fit_next_window_on_screen() {
+    unsafe extern "C" fn fit_on_screen(data: *mut imgui::sys::ImGuiSizeCallbackData) {
+        const MARGIN: f32 = 4.0;
+        const MIN_HEIGHT: f32 = 100.0;
+
+        // SAFETY: ImGui passes valid data while it sizes the window, inside a frame.
+        unsafe {
+            let data = &mut *data;
+            let display_height = (*imgui::sys::igGetIO()).DisplaySize.y;
+            let max_height = (display_height - data.Pos.y - MARGIN).max(MIN_HEIGHT);
+            data.DesiredSize.y = data.DesiredSize.y.min(max_height);
+        }
+    }
+
+    let min_size = imgui::sys::ImVec2 { x: 0.0, y: 0.0 };
+    let max_size = imgui::sys::ImVec2 { x: f32::MAX, y: f32::MAX };
+
+    // SAFETY: Only sets state for the next Begin.
+    unsafe {
+        imgui::sys::igSetNextWindowSizeConstraints(min_size, max_size, Some(fit_on_screen), std::ptr::null_mut());
+    }
 }
 
 pub fn overlay<DrawFn: FnOnce()>(ui: &imgui::Ui, name: &str, position: Vec2, bg_alpha: f32, draw_fn: DrawFn) {

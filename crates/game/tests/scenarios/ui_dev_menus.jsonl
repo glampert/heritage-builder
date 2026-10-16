@@ -1,5 +1,5 @@
 # Drives the developer editor's ImGui menus (Ctrl+/) through the widget registry: the tile palette,
-# the menu bar, the minimap's debug panel and the tile inspector. From the repository root:
+# the menu bar, the minimap's debug panel and the tile inspector and its panels. From the repository root:
 #   cargo run -p HeritageBuilder -- --script crates/game/tests/scenarios/ui_dev_menus.jsonl
 {"method": "time.fixed_dt", "params": {"dt": 0.016667}}
 {"method": "session.new_map", "params": {"size": [16, 16]}}
@@ -30,5 +30,14 @@
 {"method": "assert.eq", "params": {"query": "ui.tree", "args": {"kind": "window", "filter": "Tile Inspector"}, "path": "/widgets/0/value/cell", "value": [8, 8]}}
 {"method": "ui.click", "params": {"path": "Tile Inspector/Close"}}
 {"method": "assert.eq", "params": {"query": "ui.tree", "args": {"filter": "Tile Inspector"}, "path": "/widgets", "value": []}}
+# Its panels: open a house's Building and Upgrade sections and set its level.
+{"method": "world.place", "params": {"tile": "house0", "cell": [10, 10]}}
+{"method": "input.click", "params": {"cell": [10, 10]}}
+{"method": "ui.click", "params": {"path": "Tile Inspector/Building"}}
+{"method": "ui.click", "params": {"path": "Tile Inspector/Building/Upgrade"}}
+{"method": "ui.set", "params": {"path": "Tile Inspector/Building/Upgrade/Level", "value": 1}}
+{"method": "assert.eq", "params": {"query": "world.building_at", "args": {"cell": [10, 10]}, "path": "/name", "value": "House Level 1"}}
+{"method": "assert.eq", "params": {"query": "ui.tree", "args": {"kind": "window", "filter": "Tile Inspector"}, "path": "/widgets/0/value/tile", "value": "house1"}}
+{"method": "ui.click", "params": {"path": "Tile Inspector/Close"}}
 {"method": "input.move", "params": {"park": true}}
 {"method": "screenshot", "params": {"path": "out/ui_dev_menus.png", "scale": "points"}}

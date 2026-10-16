@@ -1,5 +1,5 @@
 use common::{Color, format_small};
-use engine::ui::{DrawDebugUi, UiFontScale, UiStaticVar, UiSystem};
+use engine::ui::{DrawDebugUi, UiFontScale, UiStaticVar, UiSystem, dev};
 use proc_macros::DrawDebugUi;
 
 use crate::{
@@ -27,7 +27,7 @@ impl Prop {
             }
             DebugUiMode::Detailed => {
                 let ui = ui_sys.ui();
-                if ui.collapsing_header("Prop", imgui::TreeNodeFlags::empty()) {
+                if let Some(_path) = dev::collapsing_header_scope(ui_sys, "Prop", imgui::TreeNodeFlags::empty()) {
                     ui.indent_by(10.0);
                     self.draw_debug_ui_detailed(context, ui_sys);
                     ui.unindent_by(10.0);
@@ -64,9 +64,11 @@ impl Prop {
         config.draw_debug_ui_with_header("Config", ui_sys);
 
         // NOTE: Use the special ##id here so we don't collide with Tile/Properties.
-        if !ui.collapsing_header("Properties##_prop_properties", imgui::TreeNodeFlags::empty()) {
+        let Some(_path) =
+            dev::collapsing_header_scope(ui_sys, "Properties##_prop_properties", imgui::TreeNodeFlags::empty())
+        else {
             return; // collapsed.
-        }
+        };
 
         #[derive(DrawDebugUi)]
         struct DrawDebugUiVariables<'a> {
@@ -93,13 +95,13 @@ impl Prop {
             }
 
             static HARVEST_AMOUNT: UiStaticVar<u32> = UiStaticVar::new(1);
-            ui.input_scalar("Harvest Amount", HARVEST_AMOUNT.as_mut()).step(1).build();
+            dev::input_scalar(ui_sys, "Harvest Amount", HARVEST_AMOUNT.as_mut(), 1);
 
-            if ui.button("Harvest") {
+            if dev::button(ui_sys, "Harvest") {
                 self.harvest(context, *HARVEST_AMOUNT);
             }
 
-            if ui.button("Respawn Now") {
+            if dev::button(ui_sys, "Respawn Now") {
                 self.respawn_harvestable(context);
             }
         }

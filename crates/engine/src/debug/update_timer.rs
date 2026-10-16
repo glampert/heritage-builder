@@ -1,6 +1,6 @@
 use common::time::UpdateTimer;
 
-use crate::ui::{DrawDebugUi, UiSystem};
+use crate::ui::{DrawDebugUi, UiSystem, dev};
 
 // `UpdateTimer` lives in `common` (which is ImGui-free), so its debug-UI impl lives
 // here in the engine crate, which owns the `DrawDebugUi` trait.
@@ -20,14 +20,10 @@ impl DrawDebugUi for UpdateTimer {
 
         ui.text(common::format_fixed_string_trunc!(128, "{}:", header));
 
-        ui.input_float("Frequency (secs)", &mut self.update_frequency_secs)
-            .display_format("%.2f")
-            .step(0.5)
-            .build();
+        // Same for UI automation paths: "Spawn Patrol/Frequency (secs)".
+        let _path = dev::path_scope(ui_sys, header);
 
-        ui.input_float("Time since last", &mut self.time_since_last_secs())
-            .display_format("%.2f")
-            .read_only(true)
-            .build();
+        dev::input_float(ui_sys, "Frequency (secs)", &mut self.update_frequency_secs, 0.5, Some("%.2f"), false);
+        dev::input_float(ui_sys, "Time since last", &mut self.time_since_last_secs(), 0.0, Some("%.2f"), true);
     }
 }

@@ -7,7 +7,7 @@ use common::{
     coords::{CellRange, WorldToScreenTransform},
 };
 use engine::{
-    ui::UiSystem,
+    ui::{UiSystem, dev},
 };
 
 use crate::{
@@ -141,21 +141,21 @@ pub trait GameObjectDebugOptions {
     fn draw_debug_ui(&mut self, ui_sys: &UiSystem) {
         let mut vars = self.get_vars();
         if !vars.is_empty() {
-            let ui = ui_sys.ui();
-            if ui.collapsing_header("Debug Options##_game_obj_debug_opts", imgui::TreeNodeFlags::empty()) {
+            let flags = imgui::TreeNodeFlags::empty();
+            if let Some(_path) = dev::collapsing_header_scope(ui_sys, "Debug Options##_game_obj_debug_opts", flags) {
                 for var in &mut vars {
                     match &mut var.value {
                         GameObjectDebugVarRef::Bool(value) => {
-                            ui.checkbox(common::fixed_string::snake_case_to_title::<64>(var.name), value);
+                            let label = common::fixed_string::snake_case_to_title::<64>(var.name);
+                            dev::checkbox(ui_sys, &label, value);
                         }
                         GameObjectDebugVarRef::I32(value) => {
-                            ui.input_int(common::fixed_string::snake_case_to_title::<64>(var.name), value).step(1).build();
+                            let label = common::fixed_string::snake_case_to_title::<64>(var.name);
+                            dev::input_int(ui_sys, &label, value, 1, None, false);
                         }
                         GameObjectDebugVarRef::F32(value) => {
-                            ui.input_float(common::fixed_string::snake_case_to_title::<64>(var.name), value)
-                                .display_format("%.2f")
-                                .step(1.0)
-                                .build();
+                            let label = common::fixed_string::snake_case_to_title::<64>(var.name);
+                            dev::input_float(ui_sys, &label, value, 1.0, Some("%.2f"), false);
                         }
                     }
                 }

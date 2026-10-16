@@ -90,25 +90,24 @@ impl Camera {
 impl NodeKind {
     pub(crate) fn draw_debug_ui(&mut self, ui_sys: &UiSystem) {
         macro_rules! node_kind_ui_checkbox {
-            ($ui:ident, $node_kind:ident, $flag_name:ident) => {
+            ($ui_sys:ident, $node_kind:ident, $flag_name:ident) => {
                 let mut value = $node_kind.intersects(NodeKind::$flag_name);
-                $ui.checkbox(stringify!($flag_name), &mut value);
+                dev::checkbox($ui_sys, stringify!($flag_name), &mut value);
                 $node_kind.set(NodeKind::$flag_name, value);
             };
         }
 
-        let ui = ui_sys.ui();
-        node_kind_ui_checkbox!(ui, self, EmptyLand);
-        node_kind_ui_checkbox!(ui, self, Road);
-        node_kind_ui_checkbox!(ui, self, Water);
-        node_kind_ui_checkbox!(ui, self, Building);
-        node_kind_ui_checkbox!(ui, self, BuildingRoadLink);
-        node_kind_ui_checkbox!(ui, self, BuildingAccess);
-        node_kind_ui_checkbox!(ui, self, VacantLot);
-        node_kind_ui_checkbox!(ui, self, SettlersSpawnPoint);
-        node_kind_ui_checkbox!(ui, self, Rocks);
-        node_kind_ui_checkbox!(ui, self, Vegetation);
-        node_kind_ui_checkbox!(ui, self, HarvestableTree);
+        node_kind_ui_checkbox!(ui_sys, self, EmptyLand);
+        node_kind_ui_checkbox!(ui_sys, self, Road);
+        node_kind_ui_checkbox!(ui_sys, self, Water);
+        node_kind_ui_checkbox!(ui_sys, self, Building);
+        node_kind_ui_checkbox!(ui_sys, self, BuildingRoadLink);
+        node_kind_ui_checkbox!(ui_sys, self, BuildingAccess);
+        node_kind_ui_checkbox!(ui_sys, self, VacantLot);
+        node_kind_ui_checkbox!(ui_sys, self, SettlersSpawnPoint);
+        node_kind_ui_checkbox!(ui_sys, self, Rocks);
+        node_kind_ui_checkbox!(ui_sys, self, Vegetation);
+        node_kind_ui_checkbox!(ui_sys, self, HarvestableTree);
     }
 }
 
@@ -144,7 +143,7 @@ impl BuildingConfigs {
 
         self.house_config_mut().draw_debug_ui_with_header("House", ui_sys);
 
-        if ui.collapsing_header("House Levels", imgui::TreeNodeFlags::empty()) {
+        if let Some(_path) = dev::collapsing_header_scope(ui_sys, "House Levels", imgui::TreeNodeFlags::empty()) {
             ui.indent_by(10.0);
             for config in self.house_levels_mut() {
                 let name = config.name.clone();
@@ -153,7 +152,7 @@ impl BuildingConfigs {
             ui.unindent_by(10.0);
         }
 
-        if ui.collapsing_header("Producers", imgui::TreeNodeFlags::empty()) {
+        if let Some(_path) = dev::collapsing_header_scope(ui_sys, "Producers", imgui::TreeNodeFlags::empty()) {
             ui.indent_by(10.0);
             for config in self.producer_configs_mut() {
                 let name = config.name.clone();
@@ -162,7 +161,7 @@ impl BuildingConfigs {
             ui.unindent_by(10.0);
         }
 
-        if ui.collapsing_header("Services", imgui::TreeNodeFlags::empty()) {
+        if let Some(_path) = dev::collapsing_header_scope(ui_sys, "Services", imgui::TreeNodeFlags::empty()) {
             ui.indent_by(10.0);
             for config in self.service_configs_mut() {
                 let name = config.name.clone();
@@ -171,7 +170,7 @@ impl BuildingConfigs {
             ui.unindent_by(10.0);
         }
 
-        if ui.collapsing_header("Storage", imgui::TreeNodeFlags::empty()) {
+        if let Some(_path) = dev::collapsing_header_scope(ui_sys, "Storage", imgui::TreeNodeFlags::empty()) {
             ui.indent_by(10.0);
             for config in self.storage_configs_mut() {
                 let name = config.name.clone();
@@ -190,8 +189,7 @@ impl BuildingConfigs {
 // render the nested `Vec<CampaignDef>` / `Vec<MissionDef>` structure.
 impl CampaignConfigs {
     pub(crate) fn draw_debug_ui_with_header(&self, header: &str, ui_sys: &UiSystem) {
-        let ui = ui_sys.ui();
-        if ui.collapsing_header(header, imgui::TreeNodeFlags::empty()) {
+        if let Some(_path) = dev::collapsing_header_scope(ui_sys, header, imgui::TreeNodeFlags::empty()) {
             self.draw_debug_ui(ui_sys);
         }
     }
@@ -206,7 +204,7 @@ impl CampaignConfigs {
 
         for (campaign_id, campaign) in self.campaigns.iter().enumerate() {
             let campaign_header = format_small!("[{campaign_id}] {} ({} missions)", campaign.name, campaign.missions.len());
-            if ui.collapsing_header(campaign_header, imgui::TreeNodeFlags::empty()) {
+            if let Some(_path) = dev::collapsing_header_scope(ui_sys, &campaign_header, imgui::TreeNodeFlags::empty()) {
                 ui.indent_by(10.0);
 
                 for (mission_index, mission) in campaign.missions.iter().enumerate() {
@@ -218,7 +216,9 @@ impl CampaignConfigs {
                         mission.requirements.goals.len()
                     );
 
-                    if ui.collapsing_header(mission_header, imgui::TreeNodeFlags::empty()) {
+                    if let Some(_path) =
+                        dev::collapsing_header_scope(ui_sys, &mission_header, imgui::TreeNodeFlags::empty())
+                    {
                         ui.indent_by(10.0);
                         Self::draw_mission_def_debug_ui(ui_sys, mission);
                         ui.unindent_by(10.0);

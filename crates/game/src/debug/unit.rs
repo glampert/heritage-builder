@@ -12,7 +12,7 @@ use common::{
 };
 use engine::{
     log,
-    ui::{self, DrawDebugUi, UiDPadDirection, UiFontScale, UiStaticVar, UiSystem},
+    ui::{self, DrawDebugUi, UiDPadDirection, UiFontScale, UiStaticVar, UiSystem, dev},
 };
 use proc_macros::DrawDebugUi;
 
@@ -72,7 +72,7 @@ impl Unit {
             }
             DebugUiMode::Detailed => {
                 let ui = ui_sys.ui();
-                if ui.collapsing_header("Unit", imgui::TreeNodeFlags::empty()) {
+                if let Some(_path) = dev::collapsing_header_scope(ui_sys, "Unit", imgui::TreeNodeFlags::empty()) {
                     ui.indent_by(10.0);
                     self.draw_debug_ui_detailed(cmds, context, ui_sys);
                     ui.unindent_by(10.0);
@@ -123,12 +123,12 @@ impl Unit {
     }
 
     fn draw_debug_ui_properties(&mut self, ui_sys: &UiSystem) {
-        let ui = ui_sys.ui();
-
         // NOTE: Use the special ##id here so we don't collide with Tile/Properties.
-        if !ui.collapsing_header("Properties##_unit_properties", imgui::TreeNodeFlags::empty()) {
+        let Some(_path) =
+            dev::collapsing_header_scope(ui_sys, "Properties##_unit_properties", imgui::TreeNodeFlags::empty())
+        else {
             return; // collapsed.
-        }
+        };
 
         #[derive(DrawDebugUi)]
         struct DrawDebugUiVariables<'a> {
@@ -155,9 +155,9 @@ impl Unit {
     fn draw_debug_ui_tasks(&mut self, context: &SimContext, ui_sys: &UiSystem) {
         let ui = ui_sys.ui();
 
-        if !ui.collapsing_header("Tasks", imgui::TreeNodeFlags::empty()) {
+        let Some(_path) = dev::collapsing_header_scope(ui_sys, "Tasks", imgui::TreeNodeFlags::empty()) else {
             return; // collapsed.
-        }
+        };
 
         if let Some(current_task_id) = self.current_task() {
             if let Some((archetype, started)) =
@@ -185,11 +185,11 @@ impl Unit {
     fn draw_debug_ui_navigation(&mut self, context: &SimContext, ui_sys: &UiSystem) {
         let ui = ui_sys.ui();
 
-        if !ui.collapsing_header("Navigation", imgui::TreeNodeFlags::empty()) {
+        let Some(_path) = dev::collapsing_header_scope(ui_sys, "Navigation", imgui::TreeNodeFlags::empty()) else {
             return; // collapsed.
-        }
+        };
 
-        if let Some(dir) = ui::dpad_buttons(ui) {
+        if let Some(dir) = ui::dpad_buttons(ui_sys) {
             let tile_map = context.tile_map_mut();
             match dir {
                 UiDPadDirection::NE => {
@@ -214,7 +214,7 @@ impl Unit {
         ui.text(format_small!("Direction  : {}", self.direction()));
         ui.text(format_small!("Anim       : {}", self.current_anim_name()));
 
-        if ui.button("Force Idle Anim") {
+        if dev::button(ui_sys, "Force Idle Anim") {
             self.idle(context);
         }
 
@@ -241,21 +241,20 @@ impl Unit {
     }
 
     fn draw_debug_ui_misc(&mut self, cmds: &mut SimCmds, context: &SimContext, ui_sys: &UiSystem) {
-        let ui = ui_sys.ui();
-        if !ui.collapsing_header("Debug Misc", imgui::TreeNodeFlags::empty()) {
+        let Some(_path) = dev::collapsing_header_scope(ui_sys, "Debug Misc", imgui::TreeNodeFlags::empty()) else {
             return; // collapsed.
-        }
+        };
 
-        if ui.button("Say Hello") {
+        if dev::button(ui_sys, "Say Hello") {
             debug_popup_msg!(self.debug_mut(), "Hello!");
         }
 
-        if ui.button("Push Minimap Alert") {
+        if dev::button(ui_sys, "Push Minimap Alert") {
             let minimap = context.minimap_mut();
             minimap.push_icon(MinimapIcon::Alert, self.cell(), Color::default(), MINIMAP_ICON_DEFAULT_LIFETIME);
         }
 
-        if ui.button("Clear Current Task") {
+        if dev::button(ui_sys, "Clear Current Task") {
             self.assign_task(context.task_manager_mut(), None);
             self.follow_path(None);
         }
@@ -268,31 +267,29 @@ impl Unit {
     }
 
     fn debug_dropdown_despawn_tasks(&mut self, cmds: &mut SimCmds, context: &SimContext, ui_sys: &UiSystem) {
-        let ui = ui_sys.ui();
-        if !ui.collapsing_header("Despawn Tasks", imgui::TreeNodeFlags::empty()) {
+        let Some(_path) = dev::collapsing_header_scope(ui_sys, "Despawn Tasks", imgui::TreeNodeFlags::empty()) else {
             return; // collapsed.
-        }
+        };
 
-        if ui.button("Give Despawn Task") {
+        if dev::button(ui_sys, "Give Despawn Task") {
             let task = context.task_manager_mut().new_task(UnitTaskDespawn::default());
             self.assign_task(context.task_manager_mut(), task);
         }
 
-        if ui.button("Force Despawn Immediately") {
+        if dev::button(ui_sys, "Force Despawn Immediately") {
             cmds.despawn_unit_with_id(self.id());
         }
     }
 
     fn debug_dropdown_runner_tasks(&mut self, context: &SimContext, ui_sys: &UiSystem) {
-        let ui = ui_sys.ui();
-        if !ui.collapsing_header("Runner Tasks", imgui::TreeNodeFlags::empty()) {
+        let Some(_path) = dev::collapsing_header_scope(ui_sys, "Runner Tasks", imgui::TreeNodeFlags::empty()) else {
             return; // collapsed.
-        }
+        };
 
         let task_manager = context.task_manager_mut();
         let world = context.world();
 
-        if ui.button("Give Deliver Resources Task") {
+        if dev::button(ui_sys, "Give Deliver Resources Task") {
             // We need a building to own the task, so this assumes there's at least one of
             // these placed on the map.
             if let Some(building) = world.find_building_by_name("Market", BuildingKind::Market) {
@@ -316,7 +313,7 @@ impl Unit {
             }
         }
 
-        if ui.button("Give Fetch Resources Task") {
+        if dev::button(ui_sys, "Give Fetch Resources Task") {
             // We need a building to own the task, so this assumes there's at least one of
             // these placed on the map.
             if let Some(building) = world.find_building_by_name("Market", BuildingKind::Market) {
@@ -346,24 +343,23 @@ impl Unit {
     }
 
     fn debug_dropdown_patrol_tasks(&mut self, context: &SimContext, ui_sys: &UiSystem) {
-        let ui = ui_sys.ui();
-        if !ui.collapsing_header("Patrol Tasks", imgui::TreeNodeFlags::empty()) {
+        let Some(_path) = dev::collapsing_header_scope(ui_sys, "Patrol Tasks", imgui::TreeNodeFlags::empty()) else {
             return; // collapsed.
-        }
+        };
 
         // SAFETY: Debug code only called from the main thread (ImGui is inherently single-threaded).
         static MAX_PATROL_DISTANCE: UiStaticVar<i32> = UiStaticVar::new(50);
         static PATH_BIAS_MIN: UiStaticVar<f32> = UiStaticVar::new(0.1);
         static PATH_BIAS_MAX: UiStaticVar<f32> = UiStaticVar::new(0.5);
 
-        ui.input_int("Patrol Max Distance", MAX_PATROL_DISTANCE.as_mut()).step(1).build();
-        ui.input_float("Patrol Path Bias Min", PATH_BIAS_MIN.as_mut()).display_format("%.2f").step(0.1).build();
-        ui.input_float("Patrol Path Bias Max", PATH_BIAS_MAX.as_mut()).display_format("%.2f").step(0.1).build();
+        dev::input_int(ui_sys, "Patrol Max Distance", MAX_PATROL_DISTANCE.as_mut(), 1, None, false);
+        dev::input_float(ui_sys, "Patrol Path Bias Min", PATH_BIAS_MIN.as_mut(), 0.1, Some("%.2f"), false);
+        dev::input_float(ui_sys, "Patrol Path Bias Max", PATH_BIAS_MAX.as_mut(), 0.1, Some("%.2f"), false);
 
         let task_manager = context.task_manager_mut();
         let world = context.world();
 
-        if ui.button("Give Patrol Task") {
+        if dev::button(ui_sys, "Give Patrol Task") {
             // We need a building to own the task, so this assumes there's at least one of
             // these placed on the map.
             if let Some(building) = world.find_building_by_name("Market", BuildingKind::Market) {
@@ -393,9 +389,9 @@ impl Unit {
 
     fn debug_dropdown_pathfinding_tasks(&mut self, context: &SimContext, ui_sys: &UiSystem) {
         let ui = ui_sys.ui();
-        if !ui.collapsing_header("Pathfind Tasks", imgui::TreeNodeFlags::empty()) {
+        let Some(_path) = dev::collapsing_header_scope(ui_sys, "Pathfind Tasks", imgui::TreeNodeFlags::empty()) else {
             return; // collapsed.
-        }
+        };
 
         let (traversable_node_kinds, max_search_distance, search_building_kind) = {
             // SAFETY: Debug code only called from the main thread (ImGui is inherently
@@ -410,10 +406,10 @@ impl Unit {
                 building_kind_names.push(kind.name());
             }
 
-            ui.checkbox("Road Paths", USE_ROAD_PATHS.as_mut());
-            ui.checkbox("Dirt Paths", USE_DIRT_PATHS.as_mut());
-            ui.input_int("Max Search Distance", MAX_SEARCH_DISTANCE.as_mut()).step(1).build();
-            ui.combo_simple_string("Dest Building Kind", BUILDING_KIND_IDX.as_mut(), &building_kind_names);
+            dev::checkbox(ui_sys, "Road Paths", USE_ROAD_PATHS.as_mut());
+            dev::checkbox(ui_sys, "Dirt Paths", USE_DIRT_PATHS.as_mut());
+            dev::input_int(ui_sys, "Max Search Distance", MAX_SEARCH_DISTANCE.as_mut(), 1, None, false);
+            dev::combo(ui_sys, "Dest Building Kind", BUILDING_KIND_IDX.as_mut(), &building_kind_names);
 
             let mut traversable_node_kinds = PathNodeKind::empty();
             if *USE_ROAD_PATHS {
@@ -426,7 +422,8 @@ impl Unit {
             (traversable_node_kinds, *MAX_SEARCH_DISTANCE, *BuildingKind::FLAGS[*BUILDING_KIND_IDX].value())
         };
 
-        if ui.button(format_small!("Path To Nearest Building ({})", search_building_kind)) && !traversable_node_kinds.is_empty() {
+        let label = format_small!("Path To Nearest Building ({})", search_building_kind);
+        if dev::button(ui_sys, &label) && !traversable_node_kinds.is_empty() {
             let start = self.cell();
             self.set_traversable_node_kinds(traversable_node_kinds);
 
@@ -456,7 +453,8 @@ impl Unit {
             );
         }
 
-        if ui.button(format_small!("Test Is Near Building ({})", search_building_kind)) && !traversable_node_kinds.is_empty() {
+        let label = format_small!("Test Is Near Building ({})", search_building_kind);
+        if dev::button(ui_sys, &label) && !traversable_node_kinds.is_empty() {
             let connected_to_road_only = traversable_node_kinds.intersects(PathNodeKind::Road)
                 && !traversable_node_kinds.intersects(PathNodeKind::EmptyLand);
 
@@ -474,7 +472,7 @@ impl Unit {
 
         let task_manager = context.task_manager_mut();
 
-        if ui.button("Find Vacant House Lot") && !traversable_node_kinds.is_empty() {
+        if dev::button(ui_sys, "Find Vacant House Lot") && !traversable_node_kinds.is_empty() {
             self.set_traversable_node_kinds(traversable_node_kinds);
 
             let completion_task = task_manager.new_task(UnitTaskDespawn::default());
@@ -493,7 +491,7 @@ impl Unit {
             self.assign_task(task_manager, task);
         }
 
-        if ui.button("Find & Settle Vacant Lot | House") && !traversable_node_kinds.is_empty() {
+        if dev::button(ui_sys, "Find & Settle Vacant Lot | House") && !traversable_node_kinds.is_empty() {
             self.set_traversable_node_kinds(traversable_node_kinds);
 
             // NOTE: We have to spawn the house building *after* the unit has
@@ -522,15 +520,14 @@ impl Unit {
     }
 
     fn debug_dropdown_harvest_tasks(&mut self, context: &SimContext, ui_sys: &UiSystem) {
-        let ui = ui_sys.ui();
-        if !ui.collapsing_header("Harvest Tasks", imgui::TreeNodeFlags::empty()) {
+        let Some(_path) = dev::collapsing_header_scope(ui_sys, "Harvest Tasks", imgui::TreeNodeFlags::empty()) else {
             return; // collapsed.
-        }
+        };
 
         let task_manager = context.task_manager_mut();
         let world = context.world();
 
-        if ui.button("Give Harvest Wood Task") {
+        if dev::button(ui_sys, "Give Harvest Wood Task") {
             // We need a building to own the task, so this assumes there's at least one
             // lumberyard placed on the map.
             if let Some(building) = world.find_building_by_name("Lumberyard", BuildingKind::Lumberyard) {
@@ -563,18 +560,18 @@ impl Unit {
 fn draw_inventory_debug_ui(inventory: &mut UnitInventory, ui_sys: &UiSystem) {
     let ui = ui_sys.ui();
 
-    if !ui.collapsing_header("Inventory", imgui::TreeNodeFlags::empty()) {
+    let Some(_path) = dev::collapsing_header_scope(ui_sys, "Inventory", imgui::TreeNodeFlags::empty()) else {
         return; // collapsed.
-    }
+    };
 
-    if ui.button("Give Random Item") {
+    if dev::button(ui_sys, "Give Random Item") {
         inventory.clear();
         inventory.receive_resources(ResourceKind::random(&mut rand::rng()), rand::rng().random_range(1..10));
     }
 
     ui.same_line();
 
-    if ui.button("Clear") {
+    if dev::button(ui_sys, "Clear") {
         inventory.clear();
     }
 

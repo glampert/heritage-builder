@@ -34,6 +34,12 @@ pub(super) struct UiWidgetRegistry {
     recording: Vec<UiWidgetInfo>,     // This frame's, so far.
     last_frame: Vec<UiWidgetInfo>,    // The previous frame's, complete.
     pending_values: Vec<PendingValue>, // From ui.set, applied by the widget on its next draw.
+    reveal: Option<PendingReveal>,     // From ui.click: a widget to scroll into view.
+}
+
+struct PendingReveal {
+    path: String,
+    frames_left: u32, // Dropped if the widget isn't drawn by then.
 }
 
 struct PendingValue {
@@ -51,6 +57,7 @@ impl UiWidgetRegistry {
             self.recording.clear();
             self.last_frame.clear();
             self.pending_values.clear();
+            self.reveal = None;
         }
     }
 
@@ -69,6 +76,13 @@ impl UiWidgetRegistry {
             pending.frames_left = pending.frames_left.saturating_sub(1);
             pending.frames_left > 0
         });
+
+        if let Some(reveal) = &mut self.reveal {
+            reveal.frames_left = reveal.frames_left.saturating_sub(1);
+            if reveal.frames_left == 0 {
+                self.reveal = None;
+            }
+        }
     }
 
     #[inline]
@@ -133,6 +147,18 @@ impl UiWidgetRegistry {
     pub fn take_value(&mut self, path: &str) -> Option<Value> {
         let index = self.pending_values.iter().position(|pending| pending.path == path)?;
         Some(self.pending_values.swap_remove(index).value)
+    }
+
+    pub fn request_reveal(&mut self, path: String) {
+        self.reveal = Some(PendingReveal { path, frames_left: PENDING_VALUE_FRAMES });
+    }
+
+    pub fn take_reveal(&mut self, path: &str) -> bool {
+        let requested = self.reveal.as_ref().is_some_and(|reveal| reveal.path == path);
+        if requested {
+            self.reveal = None;
+        }
+        requested
     }
 }
 
@@ -226,5 +252,21 @@ mod tests {
         registry.begin_frame();
         registry.begin_frame();
         assert_eq!(registry.take_value("Gone"), None);
+    }
+
+    #[test]
+    fn test_reveal() {
+        let mut registry = UiWidgetRegistry::default();
+        registry.set_enabled(true);
+        registry.request_reveal("Palette/Mine".into());
+        assert!(!registry.take_reveal("Palette/Well"));
+        assert!(registry.take_reveal("Palette/Mine"));
+        assert!(!registry.take_reveal("Palette/Mine"));
+
+        // A request for a widget that isn't drawn expires.
+        registry.request_reveal("Gone".into());
+        registry.begin_frame();
+        registry.begin_frame();
+        assert!(!registry.take_reveal("Gone"));
     }
 }

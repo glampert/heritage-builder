@@ -85,6 +85,12 @@ const FIND_WIDGET_TIMEOUT_FRAMES: u64 = 30;
 // How long ui.click waits, once the cursor is on a widget, for the widget to report it's hovered.
 const HOVER_TIMEOUT_FRAMES: u64 = 3;
 
+// How many times ui.click follows a widget that moves while the cursor goes to it.
+const MAX_HOVER_MOVES: u32 = 3;
+
+// How long ui.click waits for a widget scrolled out of view to scroll into it.
+const REVEAL_TIMEOUT_FRAMES: u64 = 5;
+
 // ----------------------------------------------
 // Registry access
 // ----------------------------------------------
@@ -219,10 +225,10 @@ fn cmd_click(context: &mut CommandContext, params: Value) -> CommandResult {
 
     let ready_frame = registry_ready_frame(context);
     let deadline_frame = ready_frame + FIND_WIDGET_TIMEOUT_FRAMES;
-    let mut step = ClickStep::Find;
+    let mut step = ClickStep::Find { reveal_deadline_frame: None };
 
     pending(move |context| match &mut step {
-        ClickStep::Find => {
+        ClickStep::Find { reveal_deadline_frame } => {
             if context.frame() < ready_frame {
                 return None;
             }
@@ -236,6 +242,14 @@ fn cmd_click(context: &mut CommandContext, params: Value) -> CommandResult {
                 return Some(Err(CommandError::failed(format!("'{}' is disabled.", widget.path))));
             }
             if !widget.visible {
+                // Ask it to scroll into view, then look again.
+                let deadline_frame = *reveal_deadline_frame.get_or_insert_with(|| {
+                    context.engine.ui_system().request_widget_reveal(widget.path.clone());
+                    context.frame() + REVEAL_TIMEOUT_FRAMES
+                });
+                if context.frame() < deadline_frame {
+                    return None;
+                }
                 let message =
                     format!("'{}' is scrolled out of view. Scroll its window (input.scroll), or use ui.set.", widget.path);
                 return Some(Err(CommandError::failed(message)));
@@ -248,10 +262,10 @@ fn cmd_click(context: &mut CommandContext, params: Value) -> CommandResult {
             }
 
             let gesture = context.engine.queue_input_gesture(gestures::move_gesture(center));
-            step = ClickStep::Hover { gesture, widget, deadline_frame: None };
+            step = ClickStep::Hover { gesture, widget, deadline_frame: None, moves_left: MAX_HOVER_MOVES };
             None
         }
-        ClickStep::Hover { gesture, widget, deadline_frame } => {
+        ClickStep::Hover { gesture, widget, deadline_frame, moves_left } => {
             // Widgets record whether they're hovered on the frame the cursor arrives, and are
             // listed from the next one.
             let Some(deadline_frame) = *deadline_frame else {
@@ -266,6 +280,18 @@ fn cmd_click(context: &mut CommandContext, params: Value) -> CommandResult {
 
             let current = context.engine.ui_system().widgets().iter().find(|other| other.path == widget.path);
             let hovered = current.is_some_and(|current| current.hovered);
+
+            // It moved, e.g. its window is still sizing itself to new contents: follow it.
+            if !hovered
+                && *moves_left > 0
+                && let Some(current) = current.filter(|current| (current.rect.center() - center).length() > 0.5)
+            {
+                let moved = current.clone();
+                let gesture = context.engine.queue_input_gesture(gestures::move_gesture(moved.rect.center()));
+                let moves_left = *moves_left - 1;
+                step = ClickStep::Hover { gesture, widget: moved, deadline_frame: None, moves_left };
+                return None;
+            }
 
             // In a menu bar with a menu open, hovering another menu opens it, and a click would
             // close it again. Finish a frame later, as after a click, once the menu has drawn.
@@ -302,11 +328,12 @@ fn cmd_click(context: &mut CommandContext, params: Value) -> CommandResult {
     })
 }
 
-// ui.click's steps: find the widget, move the cursor onto it and check that it's the widget under
-// the cursor, so a menu or window over it doesn't take the click, then click.
+// ui.click's steps: find the widget (scrolling it into view if it's out of view), move the cursor
+// onto it and check that it's the widget under the cursor, so a menu or window over it doesn't take
+// the click, then click.
 enum ClickStep {
-    Find,
-    Hover { gesture: GestureId, widget: UiWidgetInfo, deadline_frame: Option<u64> },
+    Find { reveal_deadline_frame: Option<u64> },
+    Hover { gesture: GestureId, widget: UiWidgetInfo, deadline_frame: Option<u64>, moves_left: u32 },
     Click { gesture: GestureId, reply: Value, done_frame: Option<u64> },
 }
 

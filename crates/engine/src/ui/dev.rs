@@ -4,9 +4,9 @@
 // widget. While the registry is on, it then records the item ImGui just drew and applies a value
 // ui.set queued for it; while it's off, that costs a flag check.
 //
-// - Items scrolled or clipped out of their window's view are recorded as not visible: ui.set
-//   still reaches them, but ui.click doesn't, since a click there would land on whatever is
-//   drawn instead.
+// - Items scrolled or clipped out of their window's view are recorded as not visible. ui.set
+//   still reaches them. ui.click first asks one to scroll into view (UiSystem::request_widget_reveal),
+//   since a click at its center would land on whatever is drawn there instead.
 // - Paths: begin_menu and path_scope add a segment for the widgets drawn inside them, as the
 //   retained menus and labeled groups do. Windows record themselves with record_window.
 
@@ -36,6 +36,7 @@ fn record_item(
     let ui = ui_sys.ui();
     let rect = Rect::from_extents(Vec2::from_array(ui.item_rect_min()), Vec2::from_array(ui.item_rect_max()));
     let center = rect.center().to_array();
+    let visible = ui.is_rect_visible(center, center); // Where ui.click would click.
 
     let path = ui_sys.record_widget_info(UiWidgetInfo {
         path: String::new(),
@@ -45,9 +46,14 @@ fn record_item(
         rect,
         enabled,
         hovered: ui.is_item_hovered(),
-        visible: ui.is_rect_visible(center, center), // Where ui.click would click.
+        visible,
         value,
     })?;
+
+    // Scrolls the window to center the item; ImGui applies it next frame.
+    if !visible && ui_sys.take_widget_reveal(&path) {
+        ui.set_scroll_from_pos_y_with_ratio(center[1] - ui.window_pos()[1], 0.5);
+    }
 
     ui_sys.take_widget_value(&path).filter(|_| enabled)
 }
@@ -182,6 +188,16 @@ pub fn collapsing_header(ui_sys: &UiSystem, label: &str, flags: imgui::TreeNodeF
     open
 }
 
+// A collapsing header that, while open, puts its label in the paths of the widgets drawn under it,
+// until the returned scope is dropped. None while it's closed.
+pub fn collapsing_header_scope<'a>(
+    ui_sys: &'a UiSystem,
+    label: &str,
+    flags: imgui::TreeNodeFlags,
+) -> Option<UiWidgetPathScope<'a>> {
+    collapsing_header(ui_sys, label, flags).then(|| path_scope(ui_sys, label))
+}
+
 // ----------------------------------------------
 // Values
 // ----------------------------------------------
@@ -205,30 +221,49 @@ pub fn read_only_checkbox(ui_sys: &UiSystem, label: &str, value: bool) {
 }
 
 // Numbers the sliders edit: ImGui scalar types that convert to and from JSON.
+// Numbers the sliders and inputs edit: ImGui scalar types that convert to and from JSON.
 pub trait UiDevNumber: imgui::internal::DataTypeKind + PartialOrd {
+    const INPUT_KIND: &'static str; // How an input of this type records itself: "int_input" or "float_input".
+
     fn to_json(self) -> Value;
-    fn from_json(value: &Value) -> Option<Self>;
+    fn from_json(value: &Value) -> Option<Self>; // None if it's not a number or out of range.
 }
 
-impl UiDevNumber for i32 {
-    fn to_json(self) -> Value {
-        Value::from(self)
-    }
+macro_rules! impl_dev_int {
+    ($($int:ty),*) => {$(
+        impl UiDevNumber for $int {
+            const INPUT_KIND: &'static str = "int_input";
 
-    fn from_json(value: &Value) -> Option<Self> {
-        value.as_i64().map(|value| value.clamp(i64::from(i32::MIN), i64::from(i32::MAX)) as i32)
-    }
+            fn to_json(self) -> Value {
+                Value::from(self)
+            }
+
+            fn from_json(value: &Value) -> Option<Self> {
+                let from_i64 = value.as_i64().and_then(|value| Self::try_from(value).ok());
+                from_i64.or_else(|| value.as_u64().and_then(|value| Self::try_from(value).ok()))
+            }
+        }
+    )*};
 }
 
-impl UiDevNumber for f32 {
-    fn to_json(self) -> Value {
-        serde_json::json!(self)
-    }
+macro_rules! impl_dev_float {
+    ($($float:ty),*) => {$(
+        impl UiDevNumber for $float {
+            const INPUT_KIND: &'static str = "float_input";
 
-    fn from_json(value: &Value) -> Option<Self> {
-        value.as_f64().map(|value| value as f32)
-    }
+            fn to_json(self) -> Value {
+                serde_json::json!(self)
+            }
+
+            fn from_json(value: &Value) -> Option<Self> {
+                value.as_f64().map(|value| value as Self)
+            }
+        }
+    )*};
 }
+
+impl_dev_int!(i8, u8, i16, u16, i32, u32, i64, u64, usize);
+impl_dev_float!(f32, f64);
 
 // `display_format`: printf-style, e.g. "%.1f". None for ImGui's default.
 pub fn slider<T: UiDevNumber>(
@@ -279,6 +314,11 @@ pub fn read_only_slider<T: UiDevNumber>(
     record_item(ui_sys, "slider", label, None, false, Some(value.to_json()));
 }
 
+// A number input of any ImGui scalar type, e.g. a usize index or a u32 count.
+pub fn input_scalar<T: UiDevNumber>(ui_sys: &UiSystem, label: &str, value: &mut T, step: T) -> bool {
+    input_number(ui_sys, label, value, step, None, false)
+}
+
 pub fn input_int(
     ui_sys: &UiSystem,
     label: &str,
@@ -287,17 +327,27 @@ pub fn input_int(
     display_format: Option<&str>,
     read_only: bool,
 ) -> bool {
-    let input = ui_sys.ui().input_int(label, value).read_only(read_only).step(step);
+    input_number(ui_sys, label, value, step, display_format, read_only)
+}
+
+fn input_number<T: UiDevNumber>(
+    ui_sys: &UiSystem,
+    label: &str,
+    value: &mut T,
+    step: T,
+    display_format: Option<&str>,
+    read_only: bool,
+) -> bool {
+    let input = ui_sys.ui().input_scalar(label, value).read_only(read_only).step(step);
     let mut changed = match display_format {
         Some(display_format) => input.display_format(display_format).build(),
         None => input.build(),
     };
 
-    if let Some(set_value) = record_item(ui_sys, "int_input", label, None, !read_only, Some(Value::from(*value))) {
-        if let Some(set_value) = i32::from_json(&set_value) {
-            changed |= set_value != *value;
-            *value = set_value;
-        }
+    let set_value = record_item(ui_sys, T::INPUT_KIND, label, None, !read_only, Some(value.to_json()));
+    if let Some(set_value) = set_value.as_ref().and_then(T::from_json) {
+        changed |= set_value != *value;
+        *value = set_value;
     }
 
     changed
