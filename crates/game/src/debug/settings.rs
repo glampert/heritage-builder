@@ -4,7 +4,7 @@ use engine::{
     file_sys::paths::PathRef,
     log,
     save,
-    ui::{self, DrawDebugUi, UiStaticVar},
+    ui::{self, DrawDebugUi, UiStaticVar, dev},
 };
 use proc_macros::DrawDebugUi;
 
@@ -199,25 +199,28 @@ impl DebugSettingsDevMenu {
         enable_dev_tile_inspector: &mut bool,
     ) {
         let ui = context.ui_sys.ui();
+        let ui_sys = context.ui_sys;
 
+        // Menus record themselves for UI automation (engine::ui::dev): "Debug", then
+        // "Debug/Draw Terrain" while it's open.
         if let Some(_menu_bar) = ui.begin_main_menu_bar() {
-            if let Some(_menu) = ui.begin_menu("Game") {
+            if let Some(_menu) = dev::begin_menu(ui_sys, "Game") {
                 self.game_menu(context);
             }
 
-            if let Some(_menu) = ui.begin_menu("Save") {
+            if let Some(_menu) = dev::begin_menu(ui_sys, "Save") {
                 self.save_game_menu(context);
             }
 
-            if let Some(_menu) = ui.begin_menu("Camera") {
+            if let Some(_menu) = dev::begin_menu(ui_sys, "Camera") {
                 self.camera_menu(context);
             }
 
-            if let Some(_menu) = ui.begin_menu("Cheats") {
+            if let Some(_menu) = dev::begin_menu(ui_sys, "Cheats") {
                 self.cheats_menu(context);
             }
 
-            if let Some(_menu) = ui.begin_menu("Debug") {
+            if let Some(_menu) = dev::begin_menu(ui_sys, "Debug") {
                 self.debug_options_menu(context, enable_dev_tile_inspector);
             }
 
@@ -265,31 +268,32 @@ impl DebugSettingsDevMenu {
 
     fn game_menu(&mut self, context: &mut GameUiContext) {
         let ui = context.ui_sys.ui();
+        let ui_sys = context.ui_sys;
         let game_loop = GameLoop::get_mut();
 
         // Quit game:
-        if ui.button("Quit") {
+        if dev::button(ui_sys, "Quit") {
             game_loop.quit_game();
         }
 
         // Reset map options:
         ui.separator();
 
-        if ui.button("Reset to empty map") {
+        if dev::button(ui_sys, "Reset to empty map") {
             game_loop.reset_session(None, None);
         }
 
-        if ui.button("Reset to dirt tiles") {
+        if dev::button(ui_sys, "Reset to dirt tiles") {
             let dirt_tile_def = PresetTiles::Dirt.find_tile_def();
             game_loop.reset_session(dirt_tile_def, None);
         }
 
-        if ui.button("Reset to grass tiles") {
+        if dev::button(ui_sys, "Reset to grass tiles") {
             let grass_tile_def = PresetTiles::Grass.find_tile_def();
             game_loop.reset_session(grass_tile_def, None);
         }
 
-        if ui.button("Reset to water tiles") {
+        if dev::button(ui_sys, "Reset to water tiles") {
             let water_tile_def = PresetTiles::Water.find_tile_def();
             game_loop.reset_session(water_tile_def, None);
         }
@@ -299,11 +303,11 @@ impl DebugSettingsDevMenu {
 
         let preset_tile_map_names = preset_maps::preset_tile_maps_list();
 
-        if ui.combo_simple_string("Preset Map", &mut self.preset_tile_map_number, &preset_tile_map_names) {
+        if dev::combo(ui_sys, "Preset Map", &mut self.preset_tile_map_number, &preset_tile_map_names) {
             self.preset_tile_map_number = self.preset_tile_map_number.min(preset_tile_map_names.len());
         }
 
-        if ui.button("Load Preset") {
+        if dev::button(ui_sys, "Load Preset") {
             log::info!(
                 log::channel!("debug"),
                 "Loading preset tile map '{}' ...",
@@ -316,11 +320,12 @@ impl DebugSettingsDevMenu {
         ui.separator();
 
         static NEW_MAP_SIZE: UiStaticVar<Size> = UiStaticVar::new(Size::new(64, 64));
-        if ui::input_i32_xy(ui, "New Map Size:", NEW_MAP_SIZE.as_mut(), false, Some([32, 32]), Some(["Width", "Height"])) {
+        let new_map_size = NEW_MAP_SIZE.as_mut();
+        if ui::input_i32_xy(ui_sys, "New Map Size:", new_map_size, false, Some([32, 32]), Some(["Width", "Height"])) {
             NEW_MAP_SIZE.set(NEW_MAP_SIZE.as_ref().clamp(Size::zero(), Size::new(1024, 1024)));
         }
 
-        if ui.button("New Game") {
+        if dev::button(ui_sys, "New Game") {
             let grass_tile_def = PresetTiles::Grass.find_tile_def();
             game_loop.reset_session(grass_tile_def, Some(*NEW_MAP_SIZE));
         }
@@ -365,17 +370,19 @@ impl DebugSettingsDevMenu {
 
         self.draw_debug_ui(context.ui_sys);
 
+        let ui_sys = context.ui_sys;
+
         let mut show_popup_messages = super::show_popup_messages();
-        if ui.checkbox("Show Popup Messages", &mut show_popup_messages) {
+        if dev::checkbox(ui_sys, "Show Popup Messages", &mut show_popup_messages) {
             super::set_show_popup_messages(show_popup_messages);
         }
 
         let mut show_ui_debug_menu = context.ui_sys.is_showing_ui_debug_menu();
-        if ui.checkbox("Show ImGui Debug Menu", &mut show_ui_debug_menu) {
+        if dev::checkbox(ui_sys, "Show ImGui Debug Menu", &mut show_ui_debug_menu) {
             context.ui_sys.show_ui_debug_menu(show_ui_debug_menu);
         }
 
-        ui.checkbox("Enable Tile Inspector", enable_dev_tile_inspector);
+        dev::checkbox(ui_sys, "Enable Tile Inspector", enable_dev_tile_inspector);
 
         // Debug grid options:
         ui.separator();
@@ -383,26 +390,23 @@ impl DebugSettingsDevMenu {
         let game_loop = GameLoop::get_mut();
 
         let mut line_thickness = game_loop.grid_line_thickness();
-        if ui
-            .slider_config("Grid thickness", MIN_GRID_LINE_THICKNESS, MAX_GRID_LINE_THICKNESS)
-            .display_format("%.1f")
-            .build(&mut line_thickness)
-        {
+        let (min_thickness, max_thickness) = (MIN_GRID_LINE_THICKNESS, MAX_GRID_LINE_THICKNESS);
+        if dev::slider(ui_sys, "Grid thickness", min_thickness, max_thickness, Some("%.1f"), &mut line_thickness) {
             game_loop.set_grid_line_thickness(line_thickness);
         }
 
-        ui.checkbox("Draw grid", &mut self.draw_grid);
-        ui.checkbox("Draw grid (ignore depth)", &mut self.draw_grid_ignore_depth);
+        dev::checkbox(ui_sys, "Draw grid", &mut self.draw_grid);
+        dev::checkbox(ui_sys, "Draw grid (ignore depth)", &mut self.draw_grid_ignore_depth);
 
         ui.separator();
 
-        if ui.button("Panic Now!") {
+        if dev::button(ui_sys, "Panic Now!") {
             panic!("Testing a runtime panic!");
         }
 
         ui.same_line();
 
-        if ui.button("Crash Now!") {
+        if dev::button(ui_sys, "Crash Now!") {
             unsafe {
                 let bad_ptr: *mut i64 = core::ptr::null_mut();
                 *bad_ptr = 1;
@@ -412,15 +416,16 @@ impl DebugSettingsDevMenu {
 
     fn save_game_menu(&mut self, context: &mut GameUiContext) {
         let ui = context.ui_sys.ui();
+        let ui_sys = context.ui_sys;
         let game_loop = GameLoop::get_mut();
 
         // Autosave:
         let mut autosave_enabled = game_loop.is_autosave_enabled();
-        if ui.checkbox("Autosave", &mut autosave_enabled) {
+        if dev::checkbox(ui_sys, "Autosave", &mut autosave_enabled) {
             game_loop.enable_autosave(autosave_enabled);
         }
 
-        if ui.button("Load Autosave") {
+        if dev::button(ui_sys, "Load Autosave") {
             game_loop.load_save_game(save::storage::AUTOSAVE_FILE_NAME);
         }
 
@@ -431,9 +436,9 @@ impl DebugSettingsDevMenu {
             self.save_file_name = save::storage::DEFAULT_SAVE_FILE_NAME.to_string();
         }
 
-        ui.input_text("Save File", &mut self.save_file_name).build();
+        dev::input_text(ui_sys, "Save File", &mut self.save_file_name, false);
 
-        if ui.button("Save") {
+        if dev::button(ui_sys, "Save") {
             if !self.save_file_name.is_empty() {
                 game_loop.save_game(PathRef::from_str(&self.save_file_name));
             } else {
@@ -445,12 +450,13 @@ impl DebugSettingsDevMenu {
         ui.separator();
 
         let save_files = save::storage::list_save_files();
+        let save_file_names: Vec<_> = save_files.iter().map(|save_file| save_file.to_string_lossy()).collect();
 
-        if ui.combo("Load File", &mut self.save_file_selected, &save_files, |s| s.to_string_lossy()) {
+        if dev::combo(ui_sys, "Load File", &mut self.save_file_selected, &save_file_names) {
             self.save_file_selected = self.save_file_selected.min(save_files.len());
         }
 
-        if ui.button("Load") && !save_files.is_empty() {
+        if dev::button(ui_sys, "Load") && !save_files.is_empty() {
             game_loop.load_save_game(PathRef::from_str(save_files[self.save_file_selected].to_str().unwrap()));
         }
     }
@@ -485,6 +491,8 @@ impl DebugSettingsDevMenu {
             .position([200.0, 20.0], imgui::Condition::FirstUseEver)
             .size([400.0, 350.0], imgui::Condition::FirstUseEver)
             .build(|| {
+                dev::record_window(context.ui_sys, "window", "Game Configs", None, true);
+                let _path = dev::path_scope(context.ui_sys, "Game Configs");
                 if let Some(_tab_bar) = ui.tab_bar("Configs Tab Bar") {
                     if let Some(_tab) = ui.tab_item("Engine/Game") {
                         GameConfigs::get_mut().draw_debug_ui_with_header("GameConfigs", context.ui_sys);
@@ -516,6 +524,8 @@ impl DebugSettingsDevMenu {
             .position([300.0, 20.0], imgui::Condition::FirstUseEver)
             .size([400.0, 350.0], imgui::Condition::FirstUseEver)
             .build(|| {
+                dev::record_window(context.ui_sys, "window", "World Debug", None, true);
+                let _path = dev::path_scope(context.ui_sys, "World Debug");
                 let sim = GameLoop::get_mut().sim_mut();
                 sim.draw_world_debug_ui(context);
             });
@@ -529,6 +539,8 @@ impl DebugSettingsDevMenu {
             .position([400.0, 20.0], imgui::Condition::FirstUseEver)
             .size([400.0, 350.0], imgui::Condition::FirstUseEver)
             .build(|| {
+                dev::record_window(context.ui_sys, "window", "Game Systems Debug", None, true);
+                let _path = dev::path_scope(context.ui_sys, "Game Systems Debug");
                 let engine = Engine::get_mut();
                 let sim = GameLoop::get_mut().sim_mut();
                 let systems = GameLoop::get_mut().systems_mut();
@@ -544,6 +556,8 @@ impl DebugSettingsDevMenu {
             .position([500.0, 20.0], imgui::Condition::FirstUseEver)
             .size([300.0, 150.0], imgui::Condition::FirstUseEver)
             .build(|| {
+                dev::record_window(context.ui_sys, "window", "Texture Settings", None, true);
+                let _path = dev::path_scope(context.ui_sys, "Texture Settings");
                 let tex_cache = Engine::get_mut().texture_cache_mut();
                 tex_cache.draw_debug_ui(context.ui_sys);
             });
@@ -557,6 +571,8 @@ impl DebugSettingsDevMenu {
             .position([350.0, 20.0], imgui::Condition::FirstUseEver)
             .size([500.0, 400.0], imgui::Condition::FirstUseEver)
             .build(|| {
+                dev::record_window(context.ui_sys, "window", "Sound Settings", None, true);
+                let _path = dev::path_scope(context.ui_sys, "Sound Settings");
                 let sound_sys = Engine::get_mut().sound_system_mut();
                 sound_sys.draw_debug_ui(context.ui_sys);
             });

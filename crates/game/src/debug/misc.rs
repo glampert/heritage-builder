@@ -1,5 +1,5 @@
 use common::{coords::Cell, format_small};
-use engine::ui::{self, DrawDebugUi, UiStaticVar, UiSystem};
+use engine::ui::{self, DrawDebugUi, UiStaticVar, UiSystem, dev};
 
 use crate::{
     building::config::BuildingConfigs,
@@ -21,35 +21,35 @@ impl Camera {
         let configs = &mut GameConfigs::get_mut().camera;
 
         let mut key_shortcut_zoom = !configs.disable_key_shortcut_zoom;
-        if ui.checkbox("Keyboard Zoom", &mut key_shortcut_zoom) {
+        if dev::checkbox(ui_sys, "Keyboard Zoom", &mut key_shortcut_zoom) {
             configs.disable_key_shortcut_zoom = !key_shortcut_zoom;
         }
 
         let mut mouse_scroll_zoom = !configs.disable_mouse_scroll_zoom;
-        if ui.checkbox("Mouse Scroll Zoom", &mut mouse_scroll_zoom) {
+        if dev::checkbox(ui_sys, "Mouse Scroll Zoom", &mut mouse_scroll_zoom) {
             configs.disable_mouse_scroll_zoom = !mouse_scroll_zoom;
         }
 
         let mut smooth_mouse_scroll_zoom = !configs.disable_smooth_mouse_scroll_zoom;
-        if ui.checkbox("Smooth Mouse Scroll Zoom", &mut smooth_mouse_scroll_zoom) {
+        if dev::checkbox(ui_sys, "Smooth Mouse Scroll Zoom", &mut smooth_mouse_scroll_zoom) {
             configs.disable_smooth_mouse_scroll_zoom = !smooth_mouse_scroll_zoom;
         }
 
-        ui.checkbox("Constrain To Playable Map Area", &mut configs.constrain_to_playable_map_area);
-        ui.checkbox("Clamp To Map AABB Bounds", &mut configs.clamp_to_map_bounds);
-        ui.checkbox("Enable Debug Draw", &mut configs.enable_debug_draw);
+        dev::checkbox(ui_sys, "Constrain To Playable Map Area", &mut configs.constrain_to_playable_map_area);
+        dev::checkbox(ui_sys, "Clamp To Map AABB Bounds", &mut configs.clamp_to_map_bounds);
+        dev::checkbox(ui_sys, "Enable Debug Draw", &mut configs.enable_debug_draw);
 
         ui.separator();
 
         let (zoom_min, zoom_max) = self.zoom_limits();
         let mut zoom = self.current_zoom();
 
-        if ui.slider("Zoom", zoom_min, zoom_max, &mut zoom) {
+        if dev::slider(ui_sys, "Zoom", zoom_min, zoom_max, None, &mut zoom) {
             self.set_zoom(zoom);
         }
 
         let mut step_zoom = configs.fixed_step_zoom_amount;
-        if ui.input_float("Step Zoom", &mut step_zoom).display_format("%.1f").step(0.5).build() {
+        if dev::input_float(ui_sys, "Step Zoom", &mut step_zoom, 0.5, Some("%.1f"), false) {
             configs.fixed_step_zoom_amount = step_zoom.clamp(zoom_min, zoom_max);
         }
 
@@ -58,26 +58,26 @@ impl Camera {
         let scroll_limits = self.scroll_limits();
         let mut scroll = self.current_scroll();
 
-        if ui.slider_config("Scroll X", scroll_limits.0.x, scroll_limits.1.x).display_format("%.1f").build(&mut scroll.x) {
+        if dev::slider(ui_sys, "Scroll X", scroll_limits.0.x, scroll_limits.1.x, Some("%.1f"), &mut scroll.x) {
             self.set_scroll(scroll);
         }
 
-        if ui.slider_config("Scroll Y", scroll_limits.0.y, scroll_limits.1.y).display_format("%.1f").build(&mut scroll.y) {
+        if dev::slider(ui_sys, "Scroll Y", scroll_limits.0.y, scroll_limits.1.y, Some("%.1f"), &mut scroll.y) {
             self.set_scroll(scroll);
         }
 
         ui.separator();
 
         static TELEPORT_CELL: UiStaticVar<Cell> = UiStaticVar::new(Cell::invalid());
-        ui::input_i32_xy(ui, "Teleport To Cell:", TELEPORT_CELL.as_mut(), false, None, None);
+        ui::input_i32_xy(ui_sys, "Teleport To Cell:", TELEPORT_CELL.as_mut(), false, None, None);
 
-        if ui.button("Teleport") {
+        if dev::button(ui_sys, "Teleport") {
             self.teleport(*TELEPORT_CELL);
         }
 
         ui.same_line();
 
-        if ui.button("Re-center") {
+        if dev::button(ui_sys, "Re-center") {
             self.center();
         }
     }

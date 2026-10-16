@@ -1,4 +1,4 @@
-use crate::ui::UiSystem;
+use crate::ui::{UiSystem, dev};
 
 // ----------------------------------------------
 // DrawDebugUi
@@ -16,8 +16,8 @@ pub trait DrawDebugUi {
     // Draw the debug widgets nested under a collapsing header. Types that want a
     // different presentation (e.g. no collapsing header) can override this.
     fn draw_debug_ui_with_header(&mut self, header: &str, ui_sys: &UiSystem) {
-        let ui = ui_sys.ui();
-        if ui.collapsing_header(header, imgui::TreeNodeFlags::empty()) {
+        if dev::collapsing_header(ui_sys, header, imgui::TreeNodeFlags::empty()) {
+            let _path = dev::path_scope(ui_sys, header);
             self.draw_debug_ui(ui_sys);
         }
     }

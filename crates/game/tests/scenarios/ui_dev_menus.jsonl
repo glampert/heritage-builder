@@ -1,0 +1,34 @@
+# Drives the developer editor's ImGui menus (Ctrl+/) through the widget registry: the tile palette,
+# the menu bar, the minimap's debug panel and the tile inspector. From the repository root:
+#   cargo run -p HeritageBuilder -- --script crates/game/tests/scenarios/ui_dev_menus.jsonl
+{"method": "time.fixed_dt", "params": {"dt": 0.016667}}
+{"method": "session.new_map", "params": {"size": [16, 16]}}
+{"method": "menus.mode", "params": {"mode": "DevEditor"}}
+# Tile palette: select a tile by name (most of the palette is scrolled out of view), place it, undo.
+{"method": "ui.set", "params": {"path": "Tile Selection", "value": "Small Well"}}
+{"method": "input.click", "params": {"cell": [8, 8]}}
+{"method": "assert.eq", "params": {"query": "tile.at", "args": {"cell": [8, 8]}, "path": "/objects/0/name", "value": "small_well"}}
+{"method": "ui.click", "params": {"path": "Tile Selection/Tools/Undo"}}
+{"method": "assert.eq", "params": {"query": "tile.at", "args": {"cell": [8, 8]}, "path": "/objects", "value": []}}
+# Menu bar: a menu's items are listed while it's open.
+{"method": "ui.click", "params": {"path": "Debug"}}
+{"method": "ui.set", "params": {"path": "Debug/Draw grid", "value": true}}
+{"method": "assert.eq", "params": {"query": "ui.tree", "args": {"filter": "Debug/Draw grid"}, "path": "/widgets/0/value", "value": true}}
+{"method": "ui.click", "params": {"path": "Game"}}
+{"method": "ui.click", "params": {"path": "Game/Pause"}}
+{"method": "assert.eq", "params": {"query": "sim.state", "path": "/paused", "value": true}}
+{"method": "ui.click", "params": {"path": "Game/Resume"}}
+{"method": "ui.click", "params": {"path": "Game"}}
+{"method": "assert.eq", "params": {"query": "ui.tree", "args": {"filter": "Game/"}, "path": "/widgets", "value": []}}
+# Minimap debug panel: open it, set a value, close it with its title bar button.
+{"method": "ui.click", "params": {"path": "Minimap/debug"}}
+{"method": "ui.set", "params": {"path": "Minimap Debug/Zoom", "value": 1.5}}
+{"method": "ui.click", "params": {"path": "Minimap Debug/Close"}}
+{"method": "assert.eq", "params": {"query": "ui.tree", "args": {"filter": "Minimap Debug"}, "path": "/widgets", "value": []}}
+# Tile inspector: a click on the map inspects the tile there.
+{"method": "input.click", "params": {"cell": [8, 8]}}
+{"method": "assert.eq", "params": {"query": "ui.tree", "args": {"kind": "window", "filter": "Tile Inspector"}, "path": "/widgets/0/value/cell", "value": [8, 8]}}
+{"method": "ui.click", "params": {"path": "Tile Inspector/Close"}}
+{"method": "assert.eq", "params": {"query": "ui.tree", "args": {"filter": "Tile Inspector"}, "path": "/widgets", "value": []}}
+{"method": "input.move", "params": {"park": true}}
+{"method": "screenshot", "params": {"path": "out/ui_dev_menus.png", "scale": "points"}}

@@ -66,14 +66,19 @@ impl Check {
     pub fn run(&self, context: &mut CommandContext, op: CompareOp) -> Result<CheckResult, CommandError> {
         let args = self.args.clone().map(Value::Object).unwrap_or(Value::Null);
 
+        // A pending command's first poll can finish it at once, e.g. ui.tree once the widget
+        // registry is on, as the dispatcher does (Automation::run).
         let result = match run_command(context, &self.query, args)? {
             Outcome::Done(result) => result,
-            Outcome::Pending(_) => {
-                return Err(CommandError::invalid_params(format!(
-                    "'{}' doesn't finish at once, so it can't be used as a query.",
-                    self.query
-                )));
-            }
+            Outcome::Pending(mut pending) => match pending.poll(context) {
+                Some(output) => output?,
+                None => {
+                    return Err(CommandError::invalid_params(format!(
+                        "'{}' doesn't finish at once, so it can't be used as a query.",
+                        self.query
+                    )));
+                }
+            },
         };
 
         let path = normalize_pointer(&self.path);

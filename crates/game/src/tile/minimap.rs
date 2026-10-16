@@ -17,7 +17,7 @@ use engine::{
     app::input::{InputAction, InputSystem, MouseButton},
     file_sys::paths::{self, AssetPath, PathRef},
     render::texture::{TextureCache, TextureFilter, TextureHandle, TextureSettings, TextureWrapMode},
-    ui::{self, UiFontScale, UiStaticVar, UiSystem, sound::UiButtonSoundsEnabled, widgets::*},
+    ui::{self, UiFontScale, UiStaticVar, UiSystem, dev, sound::UiButtonSoundsEnabled, widgets::*},
 };
 
 use super::{
@@ -1635,6 +1635,10 @@ impl DevUiMinimapRenderer {
             .position(window_pos, imgui::Condition::FirstUseEver)
             .always_auto_resize(true)
             .build(|| {
+                let ui_sys = context.ui_sys;
+                dev::record_window(ui_sys, "window", "Minimap Debug", None, true);
+                let _path = dev::path_scope(ui_sys, "Minimap Debug");
+
                 let widget_mut = &mut context.tile_map.minimap.widget;
 
                 let camera_center_iso = context.camera.iso_world_position();
@@ -1647,36 +1651,35 @@ impl DevUiMinimapRenderer {
 
                 let (uv_min, uv_max) = widget_mut.current_minimap_uv_window();
 
-                if ui.small_button("Reset") {
+                if dev::small_button(ui_sys, "Reset") {
                     context.camera.center();
                     widget_mut.transform.reset();
                 }
 
                 ui.same_line();
-                ui.checkbox("Debug Draw", &mut self.enable_debug_draw);
+                dev::checkbox(ui_sys, "Debug Draw", &mut self.enable_debug_draw);
                 ui.same_line();
-                ui.checkbox("Clipped", &mut self.base_renderer.apply_widget_clip_rect);
+                dev::checkbox(ui_sys, "Clipped", &mut self.base_renderer.apply_widget_clip_rect);
 
                 // newline
-                ui.checkbox("Auto Scroll", &mut widget_mut.auto_scroll);
+                dev::checkbox(ui_sys, "Auto Scroll", &mut widget_mut.auto_scroll);
                 ui.same_line();
-                ui.checkbox("Auto Zoom", &mut widget_mut.auto_zoom);
+                dev::checkbox(ui_sys, "Auto Zoom", &mut widget_mut.auto_zoom);
 
-                ui.input_float("Scroll Speed", &mut widget_mut.scroll_speed_px_per_sec)
-                    .display_format("%.2f")
-                    .step(1.0)
-                    .build();
+                dev::input_float(ui_sys, "Scroll Speed", &mut widget_mut.scroll_speed_px_per_sec, 1.0, Some("%.2f"), false);
 
-                ui.input_float("Scroll X", &mut widget_mut.transform.offsets.x).display_format("%.2f").step(1.0).build();
+                dev::input_float(ui_sys, "Scroll X", &mut widget_mut.transform.offsets.x, 1.0, Some("%.2f"), false);
 
-                ui.input_float("Scroll Y", &mut widget_mut.transform.offsets.y).display_format("%.2f").step(1.0).build();
+                dev::input_float(ui_sys, "Scroll Y", &mut widget_mut.transform.offsets.y, 1.0, Some("%.2f"), false);
 
-                if ui
-                    .input_float("Zoom", &mut widget_mut.transform.scale)
-                    .display_format("%.2f")
-                    .step(MinimapTransform::ZOOM_STEP)
-                    .build()
-                {
+                if dev::input_float(
+                    ui_sys,
+                    "Zoom",
+                    &mut widget_mut.transform.scale,
+                    MinimapTransform::ZOOM_STEP,
+                    Some("%.2f"),
+                    false,
+                ) {
                     widget_mut.transform.scale =
                         widget_mut.transform.scale.clamp(MinimapTransform::ZOOM_MIN, MinimapTransform::ZOOM_MAX);
                 }

@@ -521,6 +521,12 @@ Notes (2026-10-14, local Mac):
   - Scaling screenshots with `imageops::resize` took over a second in debug builds (generic code compiles in the engine, unoptimized). `DynamicImage::resize_exact` is compiled in the optimized `image` crate: 7 frames instead of 90.
 - **Verified** on macOS: `ui_new_game.jsonl` (home menu to a 64x96 dirt map through the New Game dialog) and `ui_build.jsonl` (palette, map click, road drag, Undo button) pass; HUD point clicks paused and resumed the simulation; Ctrl+/ toggled the menus; wheel zoom works when the config allows it (the default config turns it off). `ui.tree` rects match the screenshots (e.g. "Start New Game" at [151, 382, 165, 28]).
 - **Not verified:** real mouse movement while captured; there's no way to post real mouse events on this machine. By construction, every cursor, button and key query goes through `VirtualInput` while captured, and real input events other than quit and resize are dropped before routing.
+- **Follow-up (2026-10-16): developer menus.** The gap noted under "UI automation" is closed for the DevEditor menus. `engine::ui::dev` wraps the ImGui widgets they use (buttons, checkboxes, sliders, inputs, combos, menus, collapsing headers, windows) to draw and then record the last item, and `#[derive(DrawDebugUi)]` generates calls to it. Connected: the menu bar, the tile palette, the minimap's debug panel, the tile inspector window, and the Debug menu's child windows. Not connected: the game objects' own debug panels inside the inspector, beyond what the derive covers.
+  - ImGui items scrolled out of their window record `visible: false`: `ui.set` reaches them, `ui.click` refuses. The palette as a whole takes `ui.set` with a tile name, since most of it is scrolled away.
+  - `ui.click` now hovers first and clicks only if the widget reports it's hovered, so a menu popup over a window can't take the click. A closed menu-bar menu that opens on hover (another menu was open) isn't clicked again, since the click would close it.
+  - A window's close button has no ImGui item; its rect comes from ImGui 1.89's title bar layout.
+  - Queries (`assert.*`, `wait.until`) poll a pending command once, as the dispatcher does, so `ui.tree` works as a query once the registry is on.
+  - Verified on macOS at the default size, 1280x720 and 1920x1080: `ui_dev_menus.jsonl` passes and replays from a recording; the UI scenarios, `smoke.jsonl` and the determinism runs still pass.
 
 ### Phase 6: Web and CI (medium)
 

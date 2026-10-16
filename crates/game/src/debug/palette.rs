@@ -7,7 +7,7 @@ use engine::{
     app::input::{InputAction, MouseButton},
     file_sys::paths::PathRef,
     render::{debug::DebugDraw, texture::TextureHandle},
-    ui::{self, UiInputEvent, UiSystem, widgets::UiWidgetContext},
+    ui::{self, UiInputEvent, UiSystem, dev, widgets::UiWidgetContext},
 };
 use smallvec::SmallVec;
 
@@ -99,8 +99,26 @@ impl TilePaletteDevMenu {
             .build(|| {
                 let ui_sys = context.ui_sys;
 
+                // UI automation: ui.set on the palette selects a tile by its button label or its
+                // tile name ("Small Well" or "small_well"), "Clear", or nothing ("").
+                let selection = ui_sys.is_widget_registry_enabled().then(|| self.selection_json());
+                let set_selection = dev::record_window(ui_sys, "tile_palette", "Tile Selection", selection, false);
+                let set_selection = set_selection.as_ref().and_then(|value| value.as_str());
+                let _path = dev::path_scope(ui_sys, "Tile Selection");
+
+                match set_selection {
+                    Some("") => self.reset_selection_internal(),
+                    Some(name) if name.eq_ignore_ascii_case("Clear") => {
+                        self.reset_selection_internal();
+                        self.current_selection = TilePaletteSelection::Clear;
+                    }
+                    _ => {}
+                }
+
                 ui.text("Tools");
                 {
+                    let _path = dev::path_scope(ui_sys, "Tools");
+
                     if ui::icon_button(ui_sys, ui::icons::ICON_UNDO, Some("Undo")) {
                         undo_redo::undo(&context.new_sim_context());
                     }
@@ -135,7 +153,8 @@ impl TilePaletteDevMenu {
                 ];
 
                 for (label, tile_kind) in sections {
-                    self.draw_tile_list(label, tile_kind, ui_sys, tiles_per_row, spacing_between_tiles);
+                    let _path = dev::path_scope(ui_sys, if label.is_empty() { "Buildings" } else { label });
+                    self.draw_tile_list(label, tile_kind, ui_sys, tiles_per_row, spacing_between_tiles, set_selection);
                 }
             });
 
@@ -192,6 +211,7 @@ impl TilePaletteDevMenu {
         }
     }
 
+    // `select`: a tile to select as if its button was clicked, by button label or tile name.
     fn draw_tile_list(
         &mut self,
         label: &str,
@@ -199,6 +219,7 @@ impl TilePaletteDevMenu {
         ui_sys: &UiSystem,
         tiles_per_row: usize,
         padding_between_tiles: f32,
+        select: Option<&str>,
     ) {
         let ui = ui_sys.ui();
 
@@ -240,7 +261,11 @@ impl TilePaletteDevMenu {
                 selected,
             };
 
-            if ui::image_button(ui_sys, &btn_params) {
+            let clicked = ui::image_button(ui_sys, &btn_params);
+            let selected_by_name =
+                select.is_some_and(|name| name.eq_ignore_ascii_case(&btn_id) || name.eq_ignore_ascii_case(&tile_def.name));
+
+            if clicked || selected_by_name {
                 self.reset_selection_internal();
                 self.current_selection = TilePaletteSelection::Tile(TileDefHandle::new(tile_set, tile_category, tile_def));
                 self.selected_index.insert(tile_kind, tile_index);
@@ -315,6 +340,19 @@ impl TilePaletteDevMenu {
             BuildingArchetypeKind::StorageBuilding  => "Storage",
             BuildingArchetypeKind::ServiceBuilding  => "Services",
             BuildingArchetypeKind::HouseBuilding    => "Houses",
+        }
+    }
+
+    // The selection as the palette records it for UI automation: the button label, "Clear" or null.
+    fn selection_json(&self) -> serde_json::Value {
+        if self.current_selection.is_clear() {
+            return serde_json::Value::from("Clear");
+        }
+        match self.current_selection.as_tile_def() {
+            Some(tile_def) => {
+                serde_json::Value::from(common::fixed_string::snake_case_to_title::<64>(&tile_def.name).as_str())
+            }
+            None => serde_json::Value::Null,
         }
     }
 

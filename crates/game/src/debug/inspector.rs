@@ -1,6 +1,6 @@
 use arrayvec::ArrayString;
 use common::{Color, Size, Vec2, constants::*, coords::Cell, format_fixed_string, format_small, mem::RawPtr, time::Seconds};
-use engine::ui::{self, DrawDebugUi};
+use engine::ui::{self, DrawDebugUi, dev};
 use proc_macros::DrawDebugUi;
 use strum::{VariantArray, VariantNames};
 
@@ -110,7 +110,7 @@ impl TileInspectorDevMenu {
     }
 
     pub fn draw(&mut self, context: &mut GameUiContext) {
-        let (tile_screen_rect, window_label) = {
+        let (tile_screen_rect, window_label, tile_json) = {
             let tile = match self.try_get_selected_tile() {
                 Some(tile) => tile,
                 None => {
@@ -118,7 +118,11 @@ impl TileInspectorDevMenu {
                     return;
                 }
             };
-            (tile.screen_rect(context.camera.transform(), true), Self::make_stable_imgui_window_label(tile))
+            let tile_json = context.ui_sys.is_widget_registry_enabled().then(|| {
+                let cell = tile.base_cell();
+                serde_json::json!({ "tile": tile.name(), "kind": tile.kind().to_string(), "cell": [cell.x, cell.y] })
+            });
+            (tile.screen_rect(context.camera.transform(), true), Self::make_stable_imgui_window_label(tile), tile_json)
         };
 
         let window_position = [tile_screen_rect.center().x - 30.0, tile_screen_rect.center().y - 30.0];
@@ -133,6 +137,10 @@ impl TileInspectorDevMenu {
             .flags(window_flags)
             .position(window_position, imgui::Condition::FirstUseEver)
             .build(|| {
+                // UI automation: "Tile Inspector", with the tile as its value, and "Tile Inspector/Close".
+                dev::record_window(context.ui_sys, "window", "Tile Inspector", tile_json, true);
+                let _path = dev::path_scope(context.ui_sys, "Tile Inspector");
+
                 let tile = match self.try_get_selected_tile_mut() {
                     Some(tile) => tile,
                     None => return,
@@ -262,7 +270,7 @@ impl TileInspectorDevMenu {
 
         // Editable properties:
         let mut start_cell = tile.cell_range().start;
-        if ui::input_i32_xy(ui, "Start Cell:", &mut start_cell, read_only_cell, None, None) {
+        if ui::input_i32_xy(context.ui_sys, "Start Cell:", &mut start_cell, read_only_cell, None, None) {
             // If we've moved the tile, update the game-side state:
             if tile.is(TileKind::Building) {
                 if let Some(building) = context.world.find_building_for_tile_mut(tile) {
@@ -279,15 +287,15 @@ impl TileInspectorDevMenu {
         }
 
         let mut end_cell = tile.cell_range().end;
-        ui::input_i32_xy(ui, "End Cell:", &mut end_cell, true, None, None);
+        ui::input_i32_xy(context.ui_sys, "End Cell:", &mut end_cell, true, None, None);
 
         let mut iso_coords = tile.iso_coords();
-        if ui::input_i32_xy(ui, "Iso Coords:", &mut iso_coords, false, None, None) {
+        if ui::input_i32_xy(context.ui_sys, "Iso Coords:", &mut iso_coords, false, None, None) {
             tile.set_iso_coords(iso_coords);
         }
 
         let mut screen_coords = tile.screen_rect(context.camera.transform(), true).position();
-        ui::input_f32_xy(ui, "Screen Coords:", &mut screen_coords, true, None, None);
+        ui::input_f32_xy(context.ui_sys, "Screen Coords:", &mut screen_coords, true, None, None);
 
         ui.text("Depth Sort Override:");
         {
@@ -510,7 +518,7 @@ impl TileInspectorDevMenu {
             ui.separator();
 
             let mut variation_offset = tile.variation_offset();
-            if ui::input_f32_xy(ui, "Var Offset:", &mut variation_offset, false, None, None) {
+            if ui::input_f32_xy(context.ui_sys, "Var Offset:", &mut variation_offset, false, None, None) {
                 if let Some(editable_def) = tile.try_get_editable_tile_def() {
                     editable_def.variations[tile.variation_index()].iso_offset = variation_offset;
                     context.tile_map.on_tile_def_edited(tile);
@@ -521,7 +529,7 @@ impl TileInspectorDevMenu {
         ui.separator();
 
         let mut color = tile.tint_color();
-        if ui::input_color(ui, "Color:", &mut color) {
+        if ui::input_color(context.ui_sys, "Color:", &mut color) {
             if let Some(editable_def) = tile.try_get_editable_tile_def() {
                 // Prevent invalid values.
                 editable_def.color = color.clamp();
@@ -531,7 +539,7 @@ impl TileInspectorDevMenu {
         ui.separator();
 
         let mut draw_size = tile.draw_size();
-        if ui::input_i32_xy(ui, "Draw Size:", &mut draw_size, false, None, Some(["W", "H"])) {
+        if ui::input_i32_xy(context.ui_sys, "Draw Size:", &mut draw_size, false, None, Some(["W", "H"])) {
             if let Some(editable_def) = tile.try_get_editable_tile_def() {
                 if draw_size.is_valid() {
                     editable_def.draw_size = draw_size;
@@ -549,7 +557,7 @@ impl TileInspectorDevMenu {
 
         let mut logical_size = tile.logical_size();
         if ui::input_i32_xy(
-            ui,
+            context.ui_sys,
             "Logical Size:",
             &mut logical_size,
             false,

@@ -30,6 +30,7 @@ use crate::{
 };
 
 pub mod debug_ui;
+pub mod dev;
 pub mod icons;
 pub mod sound;
 pub mod tests;
@@ -250,7 +251,7 @@ impl UiSystem {
         let ui = self.ui();
         let rect = Rect::from_pos_and_size(Vec2::from_array(ui.item_rect_min()), Vec2::from_array(ui.item_rect_size()));
 
-        self.inner.as_mut().widget_registry.record(UiWidgetInfo {
+        self.record_widget_info(UiWidgetInfo {
             path: String::new(),
             kind,
             label: label.to_string(),
@@ -258,8 +259,16 @@ impl UiSystem {
             rect,
             enabled,
             hovered: ui.is_item_hovered(),
+            visible: true,
             value,
         })
+    }
+
+    // Records a widget described in full, e.g. one that isn't the last ImGui item. Returns its path,
+    // or None while the registry is off.
+    #[inline]
+    pub(crate) fn record_widget_info(&self, info: UiWidgetInfo) -> Option<String> {
+        self.inner.as_mut().widget_registry.record(info)
     }
 
     // A value queued for the widget at `path` by ui.set.
@@ -887,22 +896,24 @@ pub fn texture_settings() -> TextureSettings {
     TextureSettings { filter: TextureFilter::Linear, mipmaps: false, ..Default::default() }
 }
 
-pub fn input_i32(ui: &imgui::Ui, label: &str, value: &mut i32, read_only: bool, step: Option<i32>) -> bool {
+// The input helpers below record their fields under the label, without its colon: "Size/Width".
+
+pub fn input_i32(ui_sys: &UiSystem, label: &str, value: &mut i32, read_only: bool, step: Option<i32>) -> bool {
+    let ui = ui_sys.ui();
     ui.text(label);
     ui.indent_by(5.0);
 
-    let edited = ui
-        .input_int(format_fixed_string!(128, "##_{}_value", label), value)
-        .read_only(read_only)
-        .step(step.unwrap_or(1))
-        .build();
+    let path = dev::path_scope(ui_sys, label.trim_end_matches(':'));
+    let value_label = format_fixed_string!(128, "##_{}_value", label);
+    let edited = dev::input_int(ui_sys, &value_label, value, step.unwrap_or(1), None, read_only);
+    drop(path);
 
     ui.unindent_by(5.0);
     edited
 }
 
 pub fn input_i32_xy<T>(
-    ui: &imgui::Ui,
+    ui_sys: &UiSystem,
     label: &str,
     value: &mut T,
     read_only: bool,
@@ -915,42 +926,37 @@ where
     let s = steps.unwrap_or([1, 1]);
     let l = field_labels.unwrap_or(["X", "Y"]);
 
+    let ui = ui_sys.ui();
     ui.text(label);
     ui.indent_by(5.0);
 
-    let edited_x = ui
-        .input_int(format_fixed_string!(128, "{}##_{}_x", l[0], label), value.x_mut())
-        .read_only(read_only)
-        .step(s[0])
-        .build();
-
-    let edited_y = ui
-        .input_int(format_fixed_string!(128, "{}##_{}_y", l[1], label), value.y_mut())
-        .read_only(read_only)
-        .step(s[1])
-        .build();
+    let path = dev::path_scope(ui_sys, label.trim_end_matches(':'));
+    let label_x = format_fixed_string!(128, "{}##_{}_x", l[0], label);
+    let edited_x = dev::input_int(ui_sys, &label_x, value.x_mut(), s[0], None, read_only);
+    let label_y = format_fixed_string!(128, "{}##_{}_y", l[1], label);
+    let edited_y = dev::input_int(ui_sys, &label_y, value.y_mut(), s[1], None, read_only);
+    drop(path);
 
     ui.unindent_by(5.0);
     edited_x | edited_y
 }
 
-pub fn input_f32(ui: &imgui::Ui, label: &str, value: &mut f32, read_only: bool, step: Option<f32>) -> bool {
+pub fn input_f32(ui_sys: &UiSystem, label: &str, value: &mut f32, read_only: bool, step: Option<f32>) -> bool {
+    let ui = ui_sys.ui();
     ui.text(label);
     ui.indent_by(5.0);
 
-    let edited = ui
-        .input_float(format_fixed_string!(128, "##_{}_value", label), value)
-        .read_only(read_only)
-        .display_format("%.2f")
-        .step(step.unwrap_or(1.0))
-        .build();
+    let path = dev::path_scope(ui_sys, label.trim_end_matches(':'));
+    let value_label = format_fixed_string!(128, "##_{}_value", label);
+    let edited = dev::input_float(ui_sys, &value_label, value, step.unwrap_or(1.0), Some("%.2f"), read_only);
+    drop(path);
 
     ui.unindent_by(5.0);
     edited
 }
 
 pub fn input_f32_xy<T>(
-    ui: &imgui::Ui,
+    ui_sys: &UiSystem,
     label: &str,
     value: &mut T,
     read_only: bool,
@@ -963,45 +969,36 @@ where
     let s = steps.unwrap_or([1.0, 1.0]);
     let l = field_labels.unwrap_or(["X", "Y"]);
 
+    let ui = ui_sys.ui();
     ui.text(label);
     ui.indent_by(5.0);
 
-    let edited_x = ui
-        .input_float(format_fixed_string!(128, "{}##_{}_x", l[0], label), value.x_mut())
-        .read_only(read_only)
-        .display_format("%.2f")
-        .step(s[0])
-        .build();
-
-    let edited_y = ui
-        .input_float(format_fixed_string!(128, "{}##_{}_y", l[1], label), value.y_mut())
-        .read_only(read_only)
-        .display_format("%.2f")
-        .step(s[1])
-        .build();
+    let path = dev::path_scope(ui_sys, label.trim_end_matches(':'));
+    let label_x = format_fixed_string!(128, "{}##_{}_x", l[0], label);
+    let edited_x = dev::input_float(ui_sys, &label_x, value.x_mut(), s[0], Some("%.2f"), read_only);
+    let label_y = format_fixed_string!(128, "{}##_{}_y", l[1], label);
+    let edited_y = dev::input_float(ui_sys, &label_y, value.y_mut(), s[1], Some("%.2f"), read_only);
+    drop(path);
 
     ui.unindent_by(5.0);
     edited_x | edited_y
 }
 
-pub fn input_color(ui: &imgui::Ui, label: &str, value: &mut Color) -> bool {
+pub fn input_color(ui_sys: &UiSystem, label: &str, value: &mut Color) -> bool {
+    let ui = ui_sys.ui();
     ui.text(label);
     ui.indent_by(5.0);
 
-    let edited_r =
-        ui.slider_config(format_fixed_string!(128, "R##_{}_r", label), 0.0, 1.0).display_format("%.2f").build(&mut value.r);
-
-    let edited_g =
-        ui.slider_config(format_fixed_string!(128, "G##_{}_g", label), 0.0, 1.0).display_format("%.2f").build(&mut value.g);
-
-    let edited_b =
-        ui.slider_config(format_fixed_string!(128, "B##_{}_b", label), 0.0, 1.0).display_format("%.2f").build(&mut value.b);
-
-    let edited_a =
-        ui.slider_config(format_fixed_string!(128, "A##_{}_a", label), 0.0, 1.0).display_format("%.2f").build(&mut value.a);
+    let path = dev::path_scope(ui_sys, label.trim_end_matches(':'));
+    let mut edited = false;
+    for (name, channel) in [("R", &mut value.r), ("G", &mut value.g), ("B", &mut value.b), ("A", &mut value.a)] {
+        let channel_label = format_fixed_string!(128, "{}##_{}_{}", name, label, name);
+        edited |= dev::slider(ui_sys, &channel_label, 0.0, 1.0, Some("%.2f"), channel);
+    }
+    drop(path);
 
     ui.unindent_by(5.0);
-    edited_r | edited_g | edited_b | edited_a
+    edited
 }
 
 #[derive(Copy, Clone, PartialEq, Eq)]
@@ -1059,6 +1056,10 @@ pub fn icon_button(ui_sys: &UiSystem, icon: char, tooltip: Option<&str>) -> bool
     let clicked = ui.button(icon.to_string());
     icon_font.pop();
 
+    // Automation finds it by its tooltip, e.g. "Undo".
+    let mut icon_utf8 = [0; 4];
+    dev::record_button(ui_sys, "button", tooltip.unwrap_or(icon.encode_utf8(&mut icon_utf8)), None, None);
+
     if ui.is_item_hovered()
         && let Some(tooltip_text) = tooltip
     {
@@ -1074,6 +1075,9 @@ pub fn icon_button_custom_tooltip<TooltipFn: FnOnce()>(ui_sys: &UiSystem, icon: 
     let icon_font = ui.push_font(ui_sys.fonts().dev_icons);
     let clicked = ui.button(icon.to_string());
     icon_font.pop();
+
+    let mut icon_utf8 = [0; 4];
+    dev::record_button(ui_sys, "button", icon.encode_utf8(&mut icon_utf8), None, None);
 
     if ui.is_item_hovered() {
         let tooltip = ui.begin_tooltip();
@@ -1175,6 +1179,9 @@ pub fn image_button(ui_sys: &UiSystem, params: &UiImageButtonParams) -> bool {
         .build();
 
     frame_padding.pop();
+
+    // Its value is whether it's selected, e.g. the tile palette's current tile.
+    dev::record_button(ui_sys, "image_button", params.id, params.tooltip, Some(serde_json::Value::Bool(params.selected)));
 
     if ui.is_item_hovered() {
         if let Some(hovered) = params.hovered_color {

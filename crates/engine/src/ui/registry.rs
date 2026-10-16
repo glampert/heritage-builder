@@ -19,6 +19,7 @@ pub struct UiWidgetInfo {
     pub rect: Rect,
     pub enabled: bool,
     pub hovered: bool,
+    pub visible: bool,        // False if scrolled or clipped out of its window's view.
     pub value: Option<Value>, // Current value, for checkboxes, sliders, inputs and dropdowns.
 }
 
@@ -146,6 +147,7 @@ mod tests {
             rect: Rect::from_pos_and_size(Vec2::zero(), Vec2::new(10.0, 10.0)),
             enabled: true,
             hovered: false,
+            visible: true,
             value: None,
         }
     }

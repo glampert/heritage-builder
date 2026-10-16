@@ -79,7 +79,7 @@ impl DrawDebugUi for SoundSystem {
             }
 
             static SPATIAL_ORIGIN: UiStaticVar<Vec2> = UiStaticVar::new(Vec2::zero());
-            ui::input_f32_xy(ui, "Spatial:", SPATIAL_ORIGIN.as_mut(), false, None, None);
+            ui::input_f32_xy(ui_sys, "Spatial:", SPATIAL_ORIGIN.as_mut(), false, None, None);
 
             if ui.button("Play Spatial") {
                 let sound_key = self.load_ambience(PathRef::from_str("birds_chirping_ambiance.mp3"));

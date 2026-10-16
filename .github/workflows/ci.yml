@@ -97,7 +97,7 @@ jobs:
           LIBGL_ALWAYS_SOFTWARE: "1"
         run: |
           mkdir -p logs
-          for scenario in smoke ui_new_game ui_build; do
+          for scenario in smoke ui_new_game ui_build ui_dev_menus; do
             echo "::group::$scenario"
             target/release/HeritageBuilder --script "crates/game/tests/scenarios/$scenario.jsonl" \
               2> "logs/$scenario.log"

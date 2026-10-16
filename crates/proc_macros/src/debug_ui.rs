@@ -262,20 +262,14 @@ pub fn draw_debug_ui_proc_macro_impl(input: proc_macro::TokenStream) -> proc_mac
                 FieldKind::Bool => {
                     if read_only {
                         if button {
-                            quote! { ui.button(#label_str); }
+                            quote! { ::engine::ui::dev::button(ui_sys, #label_str); }
                         } else {
-                            quote! {
-                                {
-                                    // Write into a local variable so any change will be discarded.
-                                    let mut b_curr_value_ = self.#field_name;
-                                    ui.checkbox(#label_str, &mut b_curr_value_);
-                                }
-                            }
+                            quote! { ::engine::ui::dev::read_only_checkbox(ui_sys, #label_str, self.#field_name); }
                         }
                     } else if button {
-                        quote! { self.#field_name = ui.button(#label_str); }
+                        quote! { self.#field_name = ::engine::ui::dev::button(ui_sys, #label_str); }
                     } else {
-                        quote! { ui.checkbox(#label_str, &mut self.#field_name); }
+                        quote! { ::engine::ui::dev::checkbox(ui_sys, #label_str, &mut self.#field_name); }
                     }
                 }
                 FieldKind::Int => {
@@ -285,29 +279,20 @@ pub fn draw_debug_ui_proc_macro_impl(input: proc_macro::TokenStream) -> proc_mac
                         let max: i32 = attrs.max.unwrap_or("999".into()).parse().expect("Invalid 'max' attribute!");
                         if read_only {
                             quote! {
-                                {
-                                    // Write into a local variable so any change will be discarded.
-                                    let mut i_curr_value_ = self.#field_name;
-                                    ui.slider_config(#label_str, #min, #max)
-                                        .display_format(#display_format)
-                                        .build(&mut i_curr_value_);
-                                }
+                                ::engine::ui::dev::read_only_slider(
+                                    ui_sys, #label_str, #min, #max, Some(#display_format), self.#field_name);
                             }
                         } else {
                             quote! {
-                                ui.slider_config(#label_str, #min, #max)
-                                    .display_format(#display_format)
-                                    .build(&mut self.#field_name);
+                                ::engine::ui::dev::slider(
+                                    ui_sys, #label_str, #min, #max, Some(#display_format), &mut self.#field_name);
                             }
                         }
                     } else {
                         let step: i32 = attrs.step.unwrap_or("1".into()).parse().expect("Invalid 'step' attribute!");
                         quote! {
-                            ui.input_int(#label_str, &mut self.#field_name)
-                                .display_format(#display_format)
-                                .read_only(#read_only)
-                                .step(#step)
-                                .build();
+                            ::engine::ui::dev::input_int(
+                                ui_sys, #label_str, &mut self.#field_name, #step, Some(#display_format), #read_only);
                         }
                     }
                 }
@@ -318,37 +303,26 @@ pub fn draw_debug_ui_proc_macro_impl(input: proc_macro::TokenStream) -> proc_mac
                         let max: f32 = attrs.max.unwrap_or("999.0".into()).parse().expect("Invalid 'max' attribute!");
                         if read_only {
                             quote! {
-                                {
-                                    // Write into a local variable so any change will be discarded.
-                                    let mut f_curr_value_ = self.#field_name;
-                                    ui.slider_config(#label_str, #min, #max)
-                                        .display_format(#display_format)
-                                        .build(&mut f_curr_value_);
-                                }
+                                ::engine::ui::dev::read_only_slider(
+                                    ui_sys, #label_str, #min, #max, Some(#display_format), self.#field_name);
                             }
                         } else {
                             quote! {
-                                ui.slider_config(#label_str, #min, #max)
-                                    .display_format(#display_format)
-                                    .build(&mut self.#field_name);
+                                ::engine::ui::dev::slider(
+                                    ui_sys, #label_str, #min, #max, Some(#display_format), &mut self.#field_name);
                             }
                         }
                     } else {
                         let step: f32 = attrs.step.unwrap_or("1.0".into()).parse().expect("Invalid 'step' attribute!");
                         quote! {
-                            ui.input_float(#label_str, &mut self.#field_name)
-                                .display_format(#display_format)
-                                .read_only(#read_only)
-                                .step(#step)
-                                .build();
+                            ::engine::ui::dev::input_float(
+                                ui_sys, #label_str, &mut self.#field_name, #step, Some(#display_format), #read_only);
                         }
                     }
                 }
                 FieldKind::String => {
                     quote! {
-                        ui.input_text(#label_str, &mut self.#field_name)
-                            .read_only(#read_only)
-                            .build();
+                        ::engine::ui::dev::input_text(ui_sys, #label_str, &mut self.#field_name, #read_only);
                     }
                 }
                 FieldKind::Unknown => {
@@ -395,9 +369,11 @@ pub fn draw_debug_ui_proc_macro_impl(input: proc_macro::TokenStream) -> proc_mac
     // `&mut self` (the trait signature); `draw_debug_ui_with_header` comes from the
     // trait's default method. Paths are fully-qualified so the generated code resolves
     // identically in the engine crate (via `extern crate self as engine;`) and game crate.
+    // Edit widgets come from `engine::ui::dev`, so UI automation can drive them.
     let output = quote! {
         impl #impl_generics ::engine::ui::DrawDebugUi for #struct_name #ty_generics #where_clause {
             fn draw_debug_ui(&mut self, ui_sys: &::engine::ui::UiSystem) {
+                #[allow(unused_variables)] // Structs with only edit fields draw through ui_sys.
                 let ui = ui_sys.ui();
                 #(#field_lines)*
             }

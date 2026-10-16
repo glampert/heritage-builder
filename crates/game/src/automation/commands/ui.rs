@@ -7,7 +7,11 @@ use serde::Deserialize;
 use serde_json::{Map, Value, json};
 use strum::IntoEnumIterator;
 
-use engine::{app::input::MouseButton, automation::input as gestures, ui::UiWidgetInfo};
+use engine::{
+    app::input::MouseButton,
+    automation::input::{self as gestures, GestureId},
+    ui::UiWidgetInfo,
+};
 
 use crate::{
     automation::{CommandContext, CommandDef, CommandError, CommandResult, ErrorCode, ParamDef, done, parse_params, pending},
@@ -18,7 +22,7 @@ pub(super) const COMMANDS: &[CommandDef] = &[
     CommandDef {
         name: "ui.tree",
         help: "The game's widgets drawn last frame: path, kind, label, rect [x, y, width, height] in window points, \
-               enabled, value. Use the paths with ui.click and ui.set.",
+               enabled, value, and visible: false if scrolled out of view. Use the paths with ui.click and ui.set.",
         params: &[
             ParamDef { name: "filter", kind: "string", required: false, help: "Only widgets whose path contains this (any case)." },
             ParamDef { name: "kind", kind: "string", required: false, help: "Only this kind, e.g. text_button, sprite_button." },
@@ -27,7 +31,8 @@ pub(super) const COMMANDS: &[CommandDef] = &[
     },
     CommandDef {
         name: "ui.click",
-        help: "Click a widget by path, with the simulated mouse: hover, press, release, as a player would.",
+        help: "Click a widget by path, with the simulated mouse: hover, press, release, as a player would. Fails if \
+               another widget, menu or window covers it.",
         params: &[
             ParamDef {
                 name: "path",
@@ -41,10 +46,16 @@ pub(super) const COMMANDS: &[CommandDef] = &[
     },
     CommandDef {
         name: "ui.set",
-        help: "Set a checkbox, slider, number or text input, dropdown or list through the widget's own update.",
+        help: "Set a checkbox, slider, number or text input, dropdown, list, or the dev editor's tile palette, through the \
+               widget's own update.",
         params: &[
             ParamDef { name: "path", kind: "string", required: true, help: "Widget path from ui.tree, or the end of one." },
-            ParamDef { name: "value", kind: "any", required: true, help: "Bool, number, text, or a list item's text or index." },
+            ParamDef {
+                name: "value",
+                kind: "any",
+                required: true,
+                help: "Bool, number, text, a list item's text or index, or a palette tile's label or name.",
+            },
         ],
         run: cmd_set,
     },
@@ -64,11 +75,15 @@ pub(super) const COMMANDS: &[CommandDef] = &[
     },
 ];
 
-const SETTABLE_KINDS: &[&str] = &["checkbox", "slider", "int_input", "text_input", "dropdown", "item_list"];
+const SETTABLE_KINDS: &[&str] =
+    &["checkbox", "slider", "int_input", "float_input", "text_input", "dropdown", "item_list", "tile_palette"];
 
 // How long ui.click and ui.set look for a widget that isn't there (yet), e.g. in a dialog that
 // opens on the next frame.
 const FIND_WIDGET_TIMEOUT_FRAMES: u64 = 30;
+
+// How long ui.click waits, once the cursor is on a widget, for the widget to report it's hovered.
+const HOVER_TIMEOUT_FRAMES: u64 = 3;
 
 // ----------------------------------------------
 // Registry access
@@ -102,6 +117,9 @@ fn widget_json(widget: &UiWidgetInfo) -> Value {
     }
     if widget.hovered {
         json["hovered"] = json!(true);
+    }
+    if !widget.visible {
+        json["visible"] = json!(false);
     }
     if let Some(value) = &widget.value {
         json["value"] = value.clone();
@@ -201,41 +219,95 @@ fn cmd_click(context: &mut CommandContext, params: Value) -> CommandResult {
 
     let ready_frame = registry_ready_frame(context);
     let deadline_frame = ready_frame + FIND_WIDGET_TIMEOUT_FRAMES;
-    let mut gesture = None;
-    let mut done_frame = None;
+    let mut step = ClickStep::Find;
 
-    pending(move |context| {
-        if let Some((id, reply)) = &gesture {
+    pending(move |context| match &mut step {
+        ClickStep::Find => {
+            if context.frame() < ready_frame {
+                return None;
+            }
+
+            let widget = match find_widget_by(context, &params.path, deadline_frame)? {
+                Ok(widget) => widget,
+                Err(err) => return Some(Err(err)),
+            };
+
+            if !widget.enabled {
+                return Some(Err(CommandError::failed(format!("'{}' is disabled.", widget.path))));
+            }
+            if !widget.visible {
+                let message =
+                    format!("'{}' is scrolled out of view. Scroll its window (input.scroll), or use ui.set.", widget.path);
+                return Some(Err(CommandError::failed(message)));
+            }
+
+            let center = widget.rect.center();
+            let window_size = context.engine.app().window_size().to_vec2();
+            if !(center.x >= 0.0 && center.y >= 0.0 && center.x < window_size.x && center.y < window_size.y) {
+                return Some(Err(CommandError::failed(format!("'{}' is off the window (scrolled away?).", widget.path))));
+            }
+
+            let gesture = context.engine.queue_input_gesture(gestures::move_gesture(center));
+            step = ClickStep::Hover { gesture, widget, deadline_frame: None };
+            None
+        }
+        ClickStep::Hover { gesture, widget, deadline_frame } => {
+            // Widgets record whether they're hovered on the frame the cursor arrives, and are
+            // listed from the next one.
+            let Some(deadline_frame) = *deadline_frame else {
+                if context.engine.is_input_gesture_done(*gesture) {
+                    *deadline_frame = Some(context.frame() + HOVER_TIMEOUT_FRAMES);
+                }
+                return None;
+            };
+
+            let center = widget.rect.center();
+            let reply = json!({ "path": widget.path, "kind": widget.kind, "point": [center.x, center.y] });
+
+            let current = context.engine.ui_system().widgets().iter().find(|other| other.path == widget.path);
+            let hovered = current.is_some_and(|current| current.hovered);
+
+            // In a menu bar with a menu open, hovering another menu opens it, and a click would
+            // close it again. Finish a frame later, as after a click, once the menu has drawn.
+            let closed_menu = widget.kind == "menu" && widget.value == Some(Value::Bool(false));
+            if closed_menu && current.is_some_and(|current| current.value == Some(Value::Bool(true))) {
+                let gesture = *gesture;
+                step = ClickStep::Click { gesture, reply, done_frame: Some(context.frame() + 1) };
+                return None;
+            }
+
+            if (!hovered || closed_menu) && context.frame() < deadline_frame {
+                return None;
+            }
+            if !hovered {
+                return Some(Err(CommandError::failed(format!(
+                    "'{}' is covered at [{}, {}]: something else is under the cursor there, such as an open menu or \
+                     another window. Close it first.",
+                    widget.path, center.x, center.y
+                ))));
+            }
+
+            let gesture = context.engine.queue_input_gesture(gestures::click_gesture(center, button));
+            step = ClickStep::Click { gesture, reply, done_frame: None };
+            None
+        }
+        ClickStep::Click { gesture, reply, done_frame } => {
             // One more frame after the gesture, so whatever the click opened has drawn once and
             // the next ui command finds it.
-            if done_frame.is_none() && context.engine.is_input_gesture_done(*id) {
-                done_frame = Some(context.frame() + 1);
+            if done_frame.is_none() && context.engine.is_input_gesture_done(*gesture) {
+                *done_frame = Some(context.frame() + 1);
             }
-            return done_frame.is_some_and(|frame| context.frame() >= frame).then(|| Ok(Value::clone(reply)));
+            done_frame.is_some_and(|frame| context.frame() >= frame).then(|| Ok(reply.clone()))
         }
-        if context.frame() < ready_frame {
-            return None;
-        }
-
-        let widget = match find_widget_by(context, &params.path, deadline_frame)? {
-            Ok(widget) => widget,
-            Err(err) => return Some(Err(err)),
-        };
-
-        if !widget.enabled {
-            return Some(Err(CommandError::failed(format!("'{}' is disabled.", widget.path))));
-        }
-
-        let center = widget.rect.center();
-        let window_size = context.engine.app().window_size().to_vec2();
-        if !(center.x >= 0.0 && center.y >= 0.0 && center.x < window_size.x && center.y < window_size.y) {
-            return Some(Err(CommandError::failed(format!("'{}' is off the window (scrolled away?).", widget.path))));
-        }
-
-        let id = context.engine.queue_input_gesture(gestures::click_gesture(center, button));
-        gesture = Some((id, json!({ "path": widget.path, "kind": widget.kind, "point": [center.x, center.y] })));
-        None
     })
+}
+
+// ui.click's steps: find the widget, move the cursor onto it and check that it's the widget under
+// the cursor, so a menu or window over it doesn't take the click, then click.
+enum ClickStep {
+    Find,
+    Hover { gesture: GestureId, widget: UiWidgetInfo, deadline_frame: Option<u64> },
+    Click { gesture: GestureId, reply: Value, done_frame: Option<u64> },
 }
 
 fn cmd_set(context: &mut CommandContext, params: Value) -> CommandResult {
@@ -269,6 +341,9 @@ fn cmd_set(context: &mut CommandContext, params: Value) -> CommandResult {
             Err(err) => return Some(Err(err)),
         };
 
+        if !widget.enabled {
+            return Some(Err(CommandError::failed(format!("'{}' is read-only.", widget.path))));
+        }
         if let Err(err) = check_value(&widget, &params.value) {
             return Some(Err(err));
         }
@@ -291,8 +366,8 @@ fn check_value(widget: &UiWidgetInfo, value: &Value) -> Result<(), CommandError>
 
     let fits = match widget.kind {
         "checkbox" => value.is_boolean(),
-        "slider" | "int_input" => value.is_number(),
-        "text_input" => value.is_string(),
+        "slider" | "int_input" | "float_input" => value.is_number(),
+        "text_input" | "tile_palette" => value.is_string(),
         _ => value.is_string() || value.is_u64(), // Dropdowns and lists: item text or index.
     };
 
@@ -389,6 +464,7 @@ mod tests {
             rect: Rect::from_pos_and_size(Vec2::zero(), Vec2::new(1.0, 1.0)),
             enabled: true,
             hovered: false,
+            visible: true,
             value: None,
         }
     }
@@ -401,6 +477,9 @@ mod tests {
         assert!(check_value(&widget("text_input"), &json!("hi")).is_ok());
         assert!(check_value(&widget("dropdown"), &json!(2)).is_ok());
         assert!(check_value(&widget("dropdown"), &json!("Dirt")).is_ok());
+        assert!(check_value(&widget("float_input"), &json!(1.5)).is_ok());
+        assert!(check_value(&widget("tile_palette"), &json!("Small Well")).is_ok());
+        assert!(check_value(&widget("tile_palette"), &json!(3)).is_err());
         assert!(check_value(&widget("text_button"), &json!(true)).is_err());
     }
 }

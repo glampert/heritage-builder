@@ -40,7 +40,8 @@ To test what a player sees, drive the menus and the map with the simulated mouse
 - Gestures ignore the real mouse and keyboard while they run (input capture). A person at the machine gets them back with Shift+Esc, or you with `input.capture on=false`.
 - `dialog.open name=LoadGame` / `dialog.close` jump straight to a dialog.
 - After clicks the cursor stays put, and the tile under it is highlighted. `input.move park=true` before a screenshot.
-- Examples: `crates/game/tests/scenarios/ui_new_game.jsonl` and `ui_build.jsonl`.
+- Developer editor (`menus.mode mode=DevEditor`): open a menu bar menu before its items (`ui.click path=Debug`, then `ui.set path="Debug/Draw grid" value=true`). Pick palette tiles with `ui.set path="Tile Selection" value="Small Well"`, since most of the palette is scrolled out of view. With no tile picked, `input.click cell=[x,y]` opens the `Tile Inspector` on that tile; `ui.click path="Tile Inspector/Close"` closes it. If `ui.click` says a widget is covered, close the menu or window over it. More in AGENTS.md, "Simulated input and UI automation".
+- Examples: `crates/game/tests/scenarios/ui_new_game.jsonl`, `ui_build.jsonl` and `ui_dev_menus.jsonl`.
 
 ## Check and debug
 

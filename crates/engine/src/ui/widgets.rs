@@ -367,9 +367,9 @@ fn record_settable(
 }
 
 // An item of a list or dropdown, given by text or index.
-fn list_index(value: &serde_json::Value, items: &[String]) -> Option<usize> {
+pub(super) fn list_index(value: &serde_json::Value, items: &[impl AsRef<str>]) -> Option<usize> {
     match value {
-        serde_json::Value::String(text) => items.iter().position(|item| item == text),
+        serde_json::Value::String(text) => items.iter().position(|item| item.as_ref() == text),
         serde_json::Value::Number(index) => index.as_u64().map(|index| index as usize).filter(|index| *index < items.len()),
         _ => None,
     }
