@@ -1,4 +1,3 @@
-use rand::Rng;
 use smallvec::SmallVec;
 use strum::{EnumCount, EnumIter, EnumProperty, IntoEnumIterator};
 
@@ -106,32 +105,26 @@ impl MinimapTileColor {
     }
 
     #[inline]
-    fn empty_land() -> Self {
-        // Alternate randomly between two similar colors
-        // to give the minimap a more pleasant texture.
-        if rand::rng().random_bool(0.5) {
-            Self::EMPTY_LAND_1
-        } else {
-            Self::EMPTY_LAND_2
-        }
+    fn empty_land(cell: Cell) -> Self {
+        Self::alternate(cell, Self::EMPTY_LAND_1, Self::EMPTY_LAND_2)
     }
 
     #[inline]
-    fn vegetation() -> Self {
-        if rand::rng().random_bool(0.5) {
-            Self::VEGETATION_1
-        } else {
-            Self::VEGETATION_2
-        }
+    fn vegetation(cell: Cell) -> Self {
+        Self::alternate(cell, Self::VEGETATION_1, Self::VEGETATION_2)
     }
 
     #[inline]
-    fn rocks() -> Self {
-        if rand::rng().random_bool(0.5) {
-            Self::ROCKS_1
-        } else {
-            Self::ROCKS_2
-        }
+    fn rocks(cell: Cell) -> Self {
+        Self::alternate(cell, Self::ROCKS_1, Self::ROCKS_2)
+    }
+
+    // Alternates between two similar colors to give the minimap a more pleasant texture. The choice
+    // is a hash of the cell, so a cell keeps its color from run to run and when it's drawn again.
+    #[inline]
+    fn alternate(cell: Cell, first: Self, second: Self) -> Self {
+        let hash = (cell.x as u32).wrapping_mul(0x9E37_79B1) ^ (cell.y as u32).wrapping_mul(0x85EB_CA77);
+        if (hash >> 16) & 1 == 0 { first } else { second }
     }
 
     fn building(tile_def: &'static TileDef) -> Self {
@@ -149,10 +142,10 @@ impl MinimapTileColor {
         }
     }
 
-    fn from_tile_def(tile_def: &'static TileDef) -> Option<Self> {
+    fn from_tile_def(tile_def: &'static TileDef, cell: Cell) -> Option<Self> {
         Some({
             if tile_def.path_kind.is_empty_land() {
-                Self::empty_land()
+                Self::empty_land(cell)
             } else if tile_def.path_kind.is_vacant_lot() {
                 Self::vacant_lot()
             } else if tile_def.path_kind.is_water() {
@@ -160,9 +153,9 @@ impl MinimapTileColor {
             } else if tile_def.path_kind.is_road() {
                 Self::road(tile_def)
             } else if tile_def.path_kind.is_rocks() {
-                Self::rocks()
+                Self::rocks(cell)
             } else if tile_def.path_kind.is_vegetation() {
-                Self::vegetation()
+                Self::vegetation(cell)
             } else if tile_def.is(TileKind::Building) {
                 Self::building(tile_def)
             } else {
@@ -211,22 +204,18 @@ impl MinimapTexture {
 
     fn reset<F>(&mut self, size: Size, fill_fn: F)
     where
-        F: Fn() -> MinimapTileColor,
+        F: Fn(Cell) -> MinimapTileColor,
     {
         self.need_update = true;
 
-        if size == self.size {
-            self.pixels.fill_with(fill_fn);
-            return; // No change in size.
+        if size != self.size {
+            self.size = size;
+            self.size_changed = true;
         }
 
-        self.pixels.clear();
-
         let pixel_count = (size.width * size.height) as usize;
-        self.pixels.resize_with(pixel_count, fill_fn);
-
-        self.size = size;
-        self.size_changed = true;
+        self.pixels.clear();
+        self.pixels.extend((0..pixel_count as i32).map(|index| fill_fn(Cell::new(index % size.width, index / size.width))));
     }
 
     fn update(&mut self, tex_cache: &mut TextureCache) {
@@ -270,17 +259,17 @@ impl MinimapTexture {
     }
 
     fn post_load(&mut self, tile_map: &TileMap) {
-        self.reset(tile_map.size_in_cells(), MinimapTileColor::default);
+        self.reset(tile_map.size_in_cells(), |_| MinimapTileColor::default());
 
         tile_map.for_each_tile(TileKind::Terrain, |_tile_map, terrain| {
-            if let Some(color) = MinimapTileColor::from_tile_def(terrain.tile_def()) {
+            if let Some(color) = MinimapTileColor::from_tile_def(terrain.tile_def(), terrain.base_cell()) {
                 self.set_pixel(terrain.base_cell(), color);
             }
         });
 
         tile_map.for_each_tile(MINIMAP_OBJECT_TILE_KINDS, |_tile_map, object| {
-            if let Some(color) = MinimapTileColor::from_tile_def(object.tile_def()) {
-                for cell in &object.cell_range() {
+            for cell in &object.cell_range() {
+                if let Some(color) = MinimapTileColor::from_tile_def(object.tile_def(), cell) {
                     self.set_pixel(cell, color);
                 }
             }
@@ -449,9 +438,9 @@ impl Minimap {
 
     pub fn reset(&mut self, fill_with_def: Option<&'static TileDef>, new_map_size: Option<Size>) {
         let size = new_map_size.unwrap_or(self.texture.size);
-        self.texture.reset(size, || {
+        self.texture.reset(size, |cell| {
             if let Some(tile_def) = fill_with_def {
-                MinimapTileColor::from_tile_def(tile_def).unwrap_or_default()
+                MinimapTileColor::from_tile_def(tile_def, cell).unwrap_or_default()
             } else {
                 MinimapTileColor::default()
             }
@@ -468,8 +457,8 @@ impl Minimap {
             return;
         }
 
-        if let Some(color) = MinimapTileColor::from_tile_def(tile_def) {
-            for cell in &tile_def.cell_range(target_cell) {
+        for cell in &tile_def.cell_range(target_cell) {
+            if let Some(color) = MinimapTileColor::from_tile_def(tile_def, cell) {
                 self.texture.set_pixel(cell, color);
             }
         }
@@ -488,7 +477,7 @@ impl Minimap {
             }
         } else if tile_def.is(MINIMAP_OBJECT_TILE_KINDS) {
             for cell in &tile_def.cell_range(target_cell) {
-                self.texture.set_pixel(cell, MinimapTileColor::empty_land());
+                self.texture.set_pixel(cell, MinimapTileColor::empty_land(cell));
             }
         }
     }

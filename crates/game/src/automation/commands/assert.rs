@@ -13,18 +13,21 @@ use engine::{
 };
 
 use super::observe::screenshot_scale;
-use crate::automation::{
-    CommandContext,
-    CommandDef,
-    CommandError,
-    CommandOutput,
-    CommandResult,
-    ErrorCode,
-    ParamDef,
-    done,
-    parse_params,
-    pending,
-    query::{Check, CompareOp},
+use crate::{
+    automation::{
+        CommandContext,
+        CommandDef,
+        CommandError,
+        CommandOutput,
+        CommandResult,
+        ErrorCode,
+        ParamDef,
+        done,
+        parse_params,
+        pending,
+        query::{Check, CompareOp},
+    },
+    launch,
 };
 
 macro_rules! assert_command {
@@ -57,7 +60,8 @@ pub(super) const COMMANDS: &[CommandDef] = &[
                 name: "golden",
                 kind: "string",
                 required: true,
-                help: "PNG to compare with, relative to the directory the game was started from.",
+                help: "PNG to compare with, relative to --golden-dir if given, else to the directory the game was \
+                       started from.",
             },
             ParamDef {
                 name: "tolerance",
@@ -83,7 +87,8 @@ pub(super) const COMMANDS: &[CommandDef] = &[
                 name: "update",
                 kind: "bool",
                 required: false,
-                help: "True saves the screenshot as the golden instead of comparing, e.g. to create it.",
+                help: "True saves the screenshot as the golden instead of comparing, e.g. to create it. \
+                       --update-goldens does this for every assert.image.",
             },
         ],
         run: cmd_assert_image,
@@ -148,15 +153,23 @@ fn cmd_assert_image(context: &mut CommandContext, params: Value) -> CommandResul
     let params: Params = parse_params(params)?;
     let scale = screenshot_scale(params.scale.as_ref())?;
 
+    // --golden-dir picks the directory for relative goldens, e.g. one per render backend.
+    let launch_options = launch::get();
+    let golden_path = match &launch_options.golden_dir {
+        Some(golden_dir) => golden_dir.join(&params.golden),
+        None => cli::resolve_launch_path(&params.golden),
+    };
+    let update = params.update || launch_options.update_goldens;
+
     let check = ImageCheck {
-        golden_path: cli::resolve_launch_path(&params.golden),
+        golden_path,
         save_path: params.path.as_deref().map(cli::resolve_launch_path),
         tolerance: params.tolerance,
         max_diff_pixels: params.max_diff_pixels,
     };
 
     // Read the golden first, so a missing one fails before the capture.
-    let golden = if params.update {
+    let golden = if update {
         None
     } else {
         Some(std::fs::read(&check.golden_path).map_err(|err| {

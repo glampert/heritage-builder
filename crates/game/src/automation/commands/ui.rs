@@ -26,6 +26,13 @@ pub(super) const COMMANDS: &[CommandDef] = &[
         params: &[
             ParamDef { name: "filter", kind: "string", required: false, help: "Only widgets whose path contains this (any case)." },
             ParamDef { name: "kind", kind: "string", required: false, help: "Only this kind, e.g. text_button, sprite_button." },
+            ParamDef {
+                name: "fields",
+                kind: "array",
+                required: false,
+                help: "Only these fields of each widget, e.g. [\"path\", \"kind\", \"value\"]. Fields: path, kind, label, \
+                       tooltip, rect, enabled, hovered, visible, value.",
+            },
         ],
         run: cmd_tree,
     },
@@ -43,6 +50,18 @@ pub(super) const COMMANDS: &[CommandDef] = &[
             ParamDef { name: "button", kind: "string", required: false, help: "left (default) or right." },
         ],
         run: cmd_click,
+    },
+    CommandDef {
+        name: "ui.hover",
+        help: "Move the simulated mouse onto a widget and leave it there, e.g. to show its tooltip. Fails if another \
+               widget, menu or window covers it.",
+        params: &[ParamDef {
+            name: "path",
+            kind: "string",
+            required: true,
+            help: "Widget path from ui.tree, the end of one (e.g. \"New Game\"), or its tooltip.",
+        }],
+        run: cmd_hover,
     },
     CommandDef {
         name: "ui.set",
@@ -63,7 +82,7 @@ pub(super) const COMMANDS: &[CommandDef] = &[
     CommandDef { name: "dialog.current", help: "The dialog on top, or null.", params: &[], run: cmd_dialog_current },
     CommandDef {
         name: "dialog.open",
-        help: "Open a dialog, closing the others, e.g. NewGame, LoadGame, MainSettings.",
+        help: "Open a dialog, closing the others except the home menu, e.g. NewGame, LoadGame, MainSettings.",
         params: &[ParamDef { name: "name", kind: "string", required: true, help: "Dialog name, see dialog.list." }],
         run: cmd_dialog_open,
     },
@@ -74,6 +93,9 @@ pub(super) const COMMANDS: &[CommandDef] = &[
         run: cmd_dialog_close,
     },
 ];
+
+// The fields widget_json can give a widget, for ui.tree's `fields`.
+const WIDGET_FIELDS: &[&str] = &["path", "kind", "label", "tooltip", "rect", "enabled", "hovered", "visible", "value"];
 
 const SETTABLE_KINDS: &[&str] =
     &["checkbox", "slider", "int_input", "float_input", "text_input", "dropdown", "item_list", "tile_palette"];
@@ -183,9 +205,14 @@ fn cmd_tree(context: &mut CommandContext, params: Value) -> CommandResult {
     struct Params {
         filter: Option<String>,
         kind: Option<String>,
+        fields: Option<Vec<String>>,
     }
 
     let params: Params = parse_params(params)?;
+    if let Some(unknown) = params.fields.iter().flatten().find(|field| !WIDGET_FIELDS.contains(&field.as_str())) {
+        return Err(CommandError::invalid_params(format!("No widget field '{unknown}'. Fields: {}.", WIDGET_FIELDS.join(", "))));
+    }
+
     let ready_frame = registry_ready_frame(context);
     let filter = params.filter.map(|filter| filter.to_lowercase());
 
@@ -202,6 +229,12 @@ fn cmd_tree(context: &mut CommandContext, params: Value) -> CommandResult {
             .filter(|widget| filter.as_deref().is_none_or(|filter| widget.path.to_lowercase().contains(filter)))
             .filter(|widget| params.kind.as_deref().is_none_or(|kind| widget.kind == kind))
             .map(widget_json)
+            .map(|mut json| {
+                if let (Some(fields), Value::Object(object)) = (&params.fields, &mut json) {
+                    object.retain(|key, _| fields.contains(key));
+                }
+                json
+            })
             .collect();
 
         let window_size = context.engine.app().window_size();
@@ -223,6 +256,22 @@ fn cmd_click(context: &mut CommandContext, params: Value) -> CommandResult {
         _ => return Err(CommandError::invalid_params("button must be left or right.")),
     };
 
+    point_at_widget(context, params.path, Some(button))
+}
+
+fn cmd_hover(context: &mut CommandContext, params: Value) -> CommandResult {
+    #[derive(Deserialize)]
+    #[serde(deny_unknown_fields)]
+    struct Params {
+        path: String,
+    }
+
+    let params: Params = parse_params(params)?;
+    point_at_widget(context, params.path, None)
+}
+
+// ui.click with a button, ui.hover without one.
+fn point_at_widget(context: &mut CommandContext, path: String, button: Option<MouseButton>) -> CommandResult {
     let ready_frame = registry_ready_frame(context);
     let deadline_frame = ready_frame + FIND_WIDGET_TIMEOUT_FRAMES;
     let mut step = ClickStep::Find { reveal_deadline_frame: None };
@@ -233,12 +282,12 @@ fn cmd_click(context: &mut CommandContext, params: Value) -> CommandResult {
                 return None;
             }
 
-            let widget = match find_widget_by(context, &params.path, deadline_frame)? {
+            let widget = match find_widget_by(context, &path, deadline_frame)? {
                 Ok(widget) => widget,
                 Err(err) => return Some(Err(err)),
             };
 
-            if !widget.enabled {
+            if !widget.enabled && button.is_some() {
                 return Some(Err(CommandError::failed(format!("'{}' is disabled.", widget.path))));
             }
             if !widget.visible {
@@ -313,6 +362,13 @@ fn cmd_click(context: &mut CommandContext, params: Value) -> CommandResult {
                 ))));
             }
 
+            let Some(button) = button else {
+                // ui.hover: stay there. Finish a frame later, once what hovering shows (a tooltip) has drawn.
+                let gesture = *gesture;
+                step = ClickStep::Click { gesture, reply, done_frame: Some(context.frame() + 1) };
+                return None;
+            };
+
             let gesture = context.engine.queue_input_gesture(gestures::click_gesture(center, button));
             step = ClickStep::Click { gesture, reply, done_frame: None };
             None
@@ -330,7 +386,7 @@ fn cmd_click(context: &mut CommandContext, params: Value) -> CommandResult {
 
 // ui.click's steps: find the widget (scrolling it into view if it's out of view), move the cursor
 // onto it and check that it's the widget under the cursor, so a menu or window over it doesn't take
-// the click, then click.
+// the click, then click. ui.hover stops before the click.
 enum ClickStep {
     Find { reveal_deadline_frame: Option<u64> },
     Hover { gesture: GestureId, widget: UiWidgetInfo, deadline_frame: Option<u64>, moves_left: u32 },
@@ -447,7 +503,16 @@ fn cmd_dialog_open(context: &mut CommandContext, params: Value) -> CommandResult
     require_dialogs()?;
     let kind = dialog_kind(&params.name)?;
 
-    let opened = context.session.with_ui_context(context.engine, |ui_context| dialog::open(kind, true, ui_context));
+    // Close the others, but not the home menu's own dialog: the home menu would reopen it over
+    // this one. Its buttons open dialogs over it too.
+    let opened = context.session.with_ui_context(context.engine, |ui_context| {
+        for other in DialogMenuKind::iter().filter(|other| *other != kind && *other != DialogMenuKind::Home) {
+            if dialog::is_open(other) {
+                dialog::close(other, ui_context);
+            }
+        }
+        dialog::open(kind, false, ui_context)
+    });
     if !opened && !dialog::is_open(kind) {
         return Err(CommandError::failed(format!("{kind} didn't open.")));
     }

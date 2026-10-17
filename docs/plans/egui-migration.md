@@ -131,8 +131,32 @@ Tick tasks off and add notes in `docs/plans/egui-migration.md` as they land. Eve
 
 ### Phase 0: Branch, baselines, spikes
 - [x] Create the `egui-migration` branch, copy this plan to `docs/plans/egui-migration.md`, and link it from AGENTS.md.
-- [ ] Add a structural UI snapshot that works across renderers. `ui.tree` gets a `fields` filter, so it can output only paths, kinds, values and enabled states, without rects. Add `crates/game/tests/scenarios/ui_snapshot.jsonl`, which walks the home menu, new game, HUD and dialogs, the dev menus, the tile inspector and the debug windows, and dumps the tree at each step. Save the imgui output to compare against after the swap.
-- [ ] Take baseline screenshots of the same screens on OpenGL and on Wgpu (`--window-size 1600x900 --fixed-dt 0.016667 --seed 1`) into `out/baseline/`, using `assert.image update=true` goldens. They're for checking Phases 1 and 2, and as a reference for reviewing the retail look.
+- [x] Add a structural UI snapshot that works across renderers. `ui.tree` gets a `fields` filter, so it can output only paths, kinds, values and enabled states, without rects. Add `crates/game/tests/scenarios/ui_snapshot.jsonl`, which walks the home menu, new game, HUD and dialogs, the dev menus, the tile inspector and the debug windows, and dumps the tree at each step. Save the imgui output to compare against after the swap.
+- [x] Take baseline screenshots of the same screens on OpenGL and on Wgpu into `out/baseline/`, using `assert.image` goldens. They're for checking Phases 1 and 2, and as a reference for reviewing the retail look.
+
+**Phase 0 notes (2026-10-17):**
+- **Snapshot scenario:** `ui_snapshot.jsonl` visits 39 screens: the home menu and its dialogs (with a hover and an open dropdown); the HUD, a tooltip, the build palette, the building inspector and every in-game dialog; the dev editor, its tile palette tooltip, its five menus, the minimap debug panel, the tile inspector, the debug windows, the sample menus (every retained widget kind) and a message box. At each it runs `ui.tree fields=[path, kind, enabled, value]` and `assert.image`. The log viewer only gets a tree, since its contents change from run to run.
+- **New tooling** (generic, documented in AGENTS.md and the drive-game skill):
+  - `--render-api OpenGl|Wgpu` and `--app-api Glfw|Winit` pick the backends without editing `configs.json`;
+  - `--golden-dir DIR` and `--update-goldens` let one scenario make and check goldens per backend;
+  - `ui.hover` points at a widget without clicking it, for tooltips;
+  - `ui.tree fields=[...]` drops fields such as rects.
+- **Fixes the snapshot needed:**
+  - `dialog.open` closed the home menu's own dialog, which the home menu then reopened over the new one. It now leaves it open underneath.
+  - The minimap picked its alternating land, vegetation and rock shades with the thread RNG, so no two runs drew it the same way. The shade now comes from a hash of the cell.
+- **Reproducibility:** with those fixes, two runs give identical screenshots (tolerance 0) and identical trees on each backend, and the trees are identical across backends. Runs take a varying number of frames (OpenGL about 1070, Wgpu about 850), which doesn't affect either.
+- **Window size:** 1280x720, not 1600x900. This Mac's screen fits at most 1440x795, and macOS shrinks larger windows.
+- **Baselines** were made from `egui-migration` at the Phase 0 tooling commit (imgui), in the debug build, into `out/baseline/{opengl,wgpu}/`: 41 goldens each (about 72 MB), `ui_snapshot.jsonl` (the run's output) and `ui_tree.jsonl` (its trees). `out/` is git-ignored, so on another machine, check out that commit and make them again:
+  ```bash
+  cargo build -p HeritageBuilder
+  for api in OpenGl Wgpu; do dir=out/baseline/$(echo $api | tr A-Z a-z)
+    target/debug/HeritageBuilder --script crates/game/tests/scenarios/ui_snapshot.jsonl --window-size 1280x720 --seed 1 \
+      --render-api $api --golden-dir $dir --update-goldens 2>/dev/null > $dir/ui_snapshot.jsonl
+    jq -c 'select(.command=="ui.tree") | {line, widgets: .result.widgets}' $dir/ui_snapshot.jsonl > $dir/ui_tree.jsonl
+  done
+  ```
+  To compare a later build, run the same command without `--update-goldens` and with `--script-continue-on-error`, then diff the extracted trees. Failed `assert.image` lines name the `-diff.png` files in `out/ui_snapshot/`.
+- **Things seen in the baselines** to look at in Phase 4: at 1280x720, the home menu's "About" button runs into the scroll's bottom roller; the building inspector's warning line runs past the parchment; the palette tooltip covers the next item in the list.
 - [ ] Spikes on a throwaway `egui-spike` branch, with results recorded in the plan:
   1. egui text through both backends and the web build: crispness on retina, clip rects, partial uploads, the atlas reset.
   2. The Ui stack: window → header → horizontal → scroll area → combo → tooltip. Check ids are stable, registry rects and hover are right, global style reaches popups, and the close-button rect can be found.

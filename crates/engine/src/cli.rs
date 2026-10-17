@@ -14,7 +14,7 @@ use std::{
 
 use common::{Size, time::Seconds};
 
-use crate::{automation::recording::Replay, log};
+use crate::{app::ApplicationApi, automation::recording::Replay, log, render::RenderApi};
 
 // ----------------------------------------------
 // CliOption
@@ -46,6 +46,17 @@ pub const ENGINE_CLI_OPTIONS: &[CliOption] = &[
         help: "Advance every frame by this time step instead of the measured frame time, so runs repeat exactly.",
     },
     CliOption { name: "window-size", value_name: Some("WxH"), help: "Initial window size, e.g. 1280x720." },
+    CliOption {
+        name: "app-api",
+        value_name: Some("Glfw|Winit"),
+        help: "Window and input backend, instead of engine.app_api from configs.json. Desktop only.",
+    },
+    CliOption {
+        name: "render-api",
+        value_name: Some("OpenGl|Wgpu"),
+        help: "Renderer, instead of engine.render_api from configs.json. Wgpu also picks the Winit app backend \
+               unless --app-api says otherwise. Desktop only.",
+    },
     CliOption {
         name: "screenshot-after-frames",
         value_name: Some("N"),
@@ -355,6 +366,28 @@ fn exit_process(code: i32) -> ! {
 // `--window-size`, if given.
 pub fn window_size() -> Option<Size> {
     get().value("window-size").map(|value| parse_size(value).unwrap_or_else(|err| fail(&format!("--window-size: {err}"))))
+}
+
+// `--app-api`, if given.
+pub fn app_api() -> Option<ApplicationApi> {
+    let value = get().value("app-api")?;
+    match value.to_ascii_lowercase().as_str() {
+        "winit" => Some(ApplicationApi::Winit),
+        #[cfg(feature = "desktop")]
+        "glfw" => Some(ApplicationApi::Glfw),
+        _ => fail(&format!("--app-api: expected Glfw or Winit, got '{value}'.")),
+    }
+}
+
+// `--render-api`, if given.
+pub fn render_api() -> Option<RenderApi> {
+    let value = get().value("render-api")?;
+    match value.to_ascii_lowercase().as_str() {
+        "wgpu" => Some(RenderApi::Wgpu),
+        #[cfg(feature = "desktop")]
+        "opengl" => Some(RenderApi::OpenGl),
+        _ => fail(&format!("--render-api: expected OpenGl or Wgpu, got '{value}'.")),
+    }
 }
 
 pub struct OneShotScreenshotOptions {
