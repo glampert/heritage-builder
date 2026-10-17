@@ -1,5 +1,5 @@
 use common::{Color, format_small};
-use engine::ui::{DrawDebugUi, UiStaticVar, UiSystem};
+use engine::ui::{DrawDebugUi, UiStaticVar, UiSystem, dev};
 
 use crate::{
     sim::resources::GlobalTreasury,
@@ -47,7 +47,7 @@ impl WorldStats {
             }
         };
 
-        if let Some(_tab) = ui.tab_item("Population/Workers/Housing") {
+        if let Some(_tab) = dev::tab_item(ui_sys, "Population/Workers/Housing") {
             ui.bullet_text("Population:");
             ui.spacing();
             {
@@ -86,7 +86,7 @@ impl WorldStats {
             }
         }
 
-        if let Some(_tab) = ui.tab_item("Tax/Treasury") {
+        if let Some(_tab) = dev::tab_item(ui_sys, "Tax/Treasury") {
             ui.bullet_text("Tax:");
             highlight_zero_value("Tax Generated", self.treasury.tax_generated, Color::red());
             highlight_nonzero_value("Tax Available", self.treasury.tax_available, Color::yellow());
@@ -102,18 +102,18 @@ impl WorldStats {
             ui.separator();
 
             static GOLD_UNITS: UiStaticVar<u32> = UiStaticVar::new(0);
-            ui.input_scalar("Gold Units", GOLD_UNITS.as_mut()).step(100).build();
+            dev::input_scalar(ui_sys, "Gold Units", GOLD_UNITS.as_mut(), 100);
 
-            if ui.button("Give Gold") {
+            if dev::button(ui_sys, "Give Gold") {
                 treasury.add_gold_units(*GOLD_UNITS);
             }
 
-            if ui.button("Subtract Gold") {
+            if dev::button(ui_sys, "Subtract Gold") {
                 treasury.subtract_gold_units(*GOLD_UNITS);
             }
         }
 
-        if let Some(_tab) = ui.tab_item("Resources") {
+        if let Some(_tab) = dev::tab_item(ui_sys, "Resources") {
             let resources = &mut self.resources;
             resources.all.draw_debug_ui_with_header("All Resources", ui_sys);
 

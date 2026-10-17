@@ -7,8 +7,9 @@
 // - Items scrolled or clipped out of their window's view are recorded as not visible. ui.set
 //   still reaches them. ui.click first asks one to scroll into view (UiSystem::request_widget_reveal),
 //   since a click at its center would land on whatever is drawn there instead.
-// - Paths: begin_menu and path_scope add a segment for the widgets drawn inside them, as the
-//   retained menus and labeled groups do. Windows record themselves with record_window.
+// - Paths: begin_menu, tab_item, collapsing_header_scope and path_scope add a segment for the
+//   widgets drawn inside them, as the retained menus and labeled groups do. Windows record
+//   themselves with record_window.
 
 use serde_json::Value;
 
@@ -181,6 +182,29 @@ pub struct UiDevMenuToken<'ui> {
     _token: imgui::MenuToken<'ui>,
 }
 
+// An item in a menu: click it to run it.
+pub fn menu_item(ui_sys: &UiSystem, label: &str) -> bool {
+    let clicked = ui_sys.ui().menu_item(label);
+    record_item(ui_sys, "menu_item", label, None, true, None);
+    clicked
+}
+
+// A tab in a tab bar: click it to select it. `value` is whether it's selected. The selected tab's
+// widgets are drawn, and recorded, with its label in their paths.
+pub fn tab_item<'ui>(ui_sys: &'ui UiSystem, label: &str) -> Option<UiDevTabToken<'ui>> {
+    let token = ui_sys.ui().tab_item(label);
+    record_item(ui_sys, "tab", label, None, true, Some(Value::Bool(token.is_some())));
+
+    let token = token?;
+    Some(UiDevTabToken { _path: path_scope(ui_sys, label), _token: token })
+}
+
+// Ends the tab when dropped. Fields drop in order: the path segment, then the tab.
+pub struct UiDevTabToken<'ui> {
+    _path: UiWidgetPathScope<'ui>,
+    _token: imgui::TabItemToken<'ui>,
+}
+
 // A collapsing header: click it to open or close it. `value` is whether it's open.
 pub fn collapsing_header(ui_sys: &UiSystem, label: &str, flags: imgui::TreeNodeFlags) -> bool {
     let open = ui_sys.ui().collapsing_header(label, flags);
@@ -220,7 +244,6 @@ pub fn read_only_checkbox(ui_sys: &UiSystem, label: &str, value: bool) {
     record_item(ui_sys, "checkbox", label, None, false, Some(Value::Bool(value)));
 }
 
-// Numbers the sliders edit: ImGui scalar types that convert to and from JSON.
 // Numbers the sliders and inputs edit: ImGui scalar types that convert to and from JSON.
 pub trait UiDevNumber: imgui::internal::DataTypeKind + PartialOrd {
     const INPUT_KIND: &'static str; // How an input of this type records itself: "int_input" or "float_input".
@@ -378,16 +401,61 @@ pub fn input_float(
 }
 
 pub fn input_text(ui_sys: &UiSystem, label: &str, value: &mut String, read_only: bool) -> bool {
-    let mut changed = ui_sys.ui().input_text(label, value).read_only(read_only).build();
+    let set_value = if read_only { UiDevTextValue::default() } else { UiDevTextValue::take(ui_sys, label, value) };
+    let set = set_value.is_set();
 
-    if let Some(Value::String(set_value)) =
-        record_item(ui_sys, "text_input", label, None, !read_only, Some(Value::String(value.clone())))
-    {
-        changed |= set_value != *value;
-        *value = set_value;
+    let changed =
+        ui_sys.ui().input_text(label, value).read_only(read_only).callback(set_value.callbacks(), set_value).build();
+
+    record_text_input(ui_sys, label, value, read_only);
+    changed || set
+}
+
+// Records the last item as a text input. For one drawn with options input_text doesn't take, such
+// as a hint or a callback, which applies ui.set's value with UiDevTextValue.
+pub fn record_text_input(ui_sys: &UiSystem, label: &str, value: &str, read_only: bool) {
+    if ui_sys.is_widget_registry_enabled() {
+        record_item(ui_sys, "text_input", label, None, !read_only, Some(Value::String(value.to_string())));
+    }
+}
+
+// Applies a text ui.set queued for a text input. It's taken before the input draws: while the input
+// has keyboard focus, ImGui edits its own copy of the text and copies that back every frame, so a
+// value set after drawing would be lost. take() puts it in the input's string, which ImGui shows
+// unless the input has focus; then the input's ALWAYS callback (callbacks()) replaces ImGui's copy.
+#[derive(Default)]
+pub struct UiDevTextValue {
+    text: Option<String>,
+}
+
+impl UiDevTextValue {
+    // `label` is the one the input records with record_text_input.
+    pub fn take(ui_sys: &UiSystem, label: &str, value: &mut String) -> Self {
+        let text = match ui_sys.take_next_widget_value("text_input", label) {
+            Some(Value::String(text)) => text,
+            _ => return Self::default(),
+        };
+        value.clone_from(&text);
+        Self { text: Some(text) }
     }
 
-    changed
+    pub fn is_set(&self) -> bool {
+        self.text.is_some()
+    }
+
+    // The input's callbacks this value needs.
+    pub fn callbacks(&self) -> imgui::InputTextCallback {
+        if self.is_set() { imgui::InputTextCallback::ALWAYS } else { imgui::InputTextCallback::empty() }
+    }
+}
+
+impl imgui::InputTextCallbackHandler for UiDevTextValue {
+    fn on_always(&mut self, mut data: imgui::TextCallbackData) {
+        if let Some(text) = self.text.take() {
+            data.clear();
+            data.push_str(&text);
+        }
+    }
 }
 
 // ui.set takes an item's text or index.

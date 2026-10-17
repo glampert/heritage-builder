@@ -494,22 +494,22 @@ impl DebugSettingsDevMenu {
                 dev::record_window(context.ui_sys, "window", "Game Configs", None, true);
                 let _path = dev::path_scope(context.ui_sys, "Game Configs");
                 if let Some(_tab_bar) = ui.tab_bar("Configs Tab Bar") {
-                    if let Some(_tab) = ui.tab_item("Engine/Game") {
+                    if let Some(_tab) = dev::tab_item(context.ui_sys, "Engine/Game") {
                         GameConfigs::get_mut().draw_debug_ui_with_header("GameConfigs", context.ui_sys);
                     }
-                    if let Some(_tab) = ui.tab_item("Buildings") {
+                    if let Some(_tab) = dev::tab_item(context.ui_sys, "Buildings") {
                         BuildingConfigs::get_mut().draw_debug_ui_with_header("BuildingConfigs", context.ui_sys);
                     }
-                    if let Some(_tab) = ui.tab_item("Units") {
+                    if let Some(_tab) = dev::tab_item(context.ui_sys, "Units") {
                         UnitConfigs::get_mut().draw_debug_ui_with_header("UnitConfigs", context.ui_sys);
                     }
-                    if let Some(_tab) = ui.tab_item("Props") {
+                    if let Some(_tab) = dev::tab_item(context.ui_sys, "Props") {
                         PropConfigs::get_mut().draw_debug_ui_with_header("PropConfigs", context.ui_sys);
                     }
-                    if let Some(_tab) = ui.tab_item("Campaigns") {
+                    if let Some(_tab) = dev::tab_item(context.ui_sys, "Campaigns") {
                         CampaignConfigs::get_mut().draw_debug_ui_with_header("CampaignConfigs", context.ui_sys);
                     }
-                    if let Some(_tab) = ui.tab_item("Ui Text") {
+                    if let Some(_tab) = dev::tab_item(context.ui_sys, "Ui Text") {
                         ui::text::draw_debug_ui(context.ui_sys);
                     }
                 }

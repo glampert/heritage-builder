@@ -8,7 +8,7 @@ use num_enum::TryFromPrimitive;
 use proc_macros::DrawDebugUi;
 use serde::{Deserialize, Serialize};
 use slab::Slab;
-use strum::VariantArray;
+use strum::{VariantArray, VariantNames};
 
 use super::*;
 use crate::{
@@ -83,7 +83,7 @@ impl Default for TextureHandle {
 // ----------------------------------------------
 
 #[repr(u32)]
-#[derive(Copy, Clone, Display, VariantArray, TryFromPrimitive, Serialize, Deserialize)]
+#[derive(Copy, Clone, Display, VariantArray, VariantNames, TryFromPrimitive, Serialize, Deserialize)]
 pub enum TextureFilter {
     Nearest,
     Linear,
@@ -94,7 +94,7 @@ pub enum TextureFilter {
 }
 
 #[repr(u32)]
-#[derive(Copy, Clone, Display, VariantArray, TryFromPrimitive, Serialize, Deserialize)]
+#[derive(Copy, Clone, Display, VariantArray, VariantNames, TryFromPrimitive, Serialize, Deserialize)]
 pub enum TextureWrapMode {
     Repeat,
     ClampToEdge,

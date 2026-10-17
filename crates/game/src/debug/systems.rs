@@ -2,7 +2,7 @@ use strum::{IntoEnumIterator, VariantNames};
 use common::{Color, format_small};
 use engine::{
     Engine,
-    ui::{DrawDebugUi, UiStaticVar, UiSystem},
+    ui::{DrawDebugUi, UiStaticVar, UiSystem, dev},
 };
 
 use crate::{
@@ -28,18 +28,18 @@ impl GameSystems {
         let ui = ui_sys.ui();
         if let Some(_tab_bar) = ui.tab_bar("Game Systems Tab Bar") {
             for entry in &mut self.systems {
-                if let Some(_tab) = ui.tab_item(entry.system.to_string()) {
+                if let Some(_tab) = dev::tab_item(ui_sys, &entry.system.to_string()) {
                     entry.system.draw_debug_ui(engine, cmds, context);
                 }
             }
 
-            if let Some(_tab) = ui.tab_item("Create Systems") {
+            if let Some(_tab) = dev::tab_item(ui_sys, "Create Systems") {
                 ui.text("Create and register system if not already created.");
 
                 static SYSTEM_INDEX: UiStaticVar<usize> = UiStaticVar::new(0);
-                ui.combo_simple_string("Systems", SYSTEM_INDEX.as_mut(), GameSystemImpl::VARIANTS);
+                dev::combo(ui_sys, "Systems", SYSTEM_INDEX.as_mut(), GameSystemImpl::VARIANTS);
 
-                if ui.button("Create") {
+                if dev::button(ui_sys, "Create") {
                     if let Some(system) = GameSystemImpl::iter().nth(*SYSTEM_INDEX) {
                         if !self.has(system.as_any().type_id()) {
                             self.register(system);
@@ -59,7 +59,8 @@ impl SettlersSpawnSystem {
     pub(crate) fn draw_debug_ui_dispatch(&mut self, engine: &mut Engine, cmds: &mut SimCmds, context: &SimContext) {
         self.spawn_timer.draw_debug_ui_with_header("Settler Spawn", engine.ui_system());
 
-        let ui = engine.ui_system().ui();
+        let ui_sys = engine.ui_system();
+        let ui = ui_sys.ui();
 
         let color_text = |text: &str, cond: bool| {
             ui.text(text);
@@ -76,15 +77,15 @@ impl SettlersSpawnSystem {
         let spawn_point = Self::find_spawn_point(cmds, context);
         ui.text(format_small!("Spawn Point: {}", spawn_point.cell));
 
-        if ui.input_scalar("Population Per Settler Unit", &mut self.population_per_settler_unit).step(1).build() {
+        if dev::input_scalar(ui_sys, "Population Per Settler Unit", &mut self.population_per_settler_unit, 1) {
             self.population_per_settler_unit = self.population_per_settler_unit.max(1);
         }
 
-        if ui.button("Force Spawn Now") {
+        if dev::button(ui_sys, "Force Spawn Now") {
             self.spawn_settler(cmds, context);
         }
 
-        if ui.button("Highlight Spawn Point") {
+        if dev::button(ui_sys, "Highlight Spawn Point") {
             context.tile_map_mut().set_tile_flags(
                 spawn_point.cell,
                 TileKind::Terrain,
@@ -103,17 +104,17 @@ impl AmbientEffectsSystem {
     pub(crate) fn draw_debug_ui_dispatch(&mut self, engine: &mut Engine, cmds: &mut SimCmds, context: &SimContext) {
         self.bird_spawn_timer.draw_debug_ui_with_header("Bird Spawn", engine.ui_system());
 
-        let ui = engine.ui_system().ui();
+        let ui_sys = engine.ui_system();
 
-        if ui.button("Spawn Bird (left-to-right path") {
+        if dev::button(ui_sys, "Spawn Bird (left-to-right path") {
             spawn_bird(cmds, context, BirdFlightPath::LeftToRight);
         }
 
-        if ui.button("Spawn Bird (right-to-left path)") {
+        if dev::button(ui_sys, "Spawn Bird (right-to-left path)") {
             spawn_bird(cmds, context, BirdFlightPath::RightToLeft);
         }
 
-        if ui.button("Spawn Big Flock") {
+        if dev::button(ui_sys, "Spawn Big Flock") {
             for _ in 0..50 {
                 spawn_bird_with_random_flight_path(cmds, context);
             }
@@ -140,7 +141,7 @@ impl AmbientSoundsSystem {
             ui.text("Current Ambient Sound Playing: None");
         }
 
-        if ui.button("Reset Ambient Sounds") {
+        if dev::button(engine.ui_system(), "Reset Ambient Sounds") {
             self.reset(engine);
         }
     }
@@ -168,7 +169,7 @@ impl AmbientMusicSystem {
         ui.text(format_small!("Current Game State: {}", self.current_game_state()));
         ui.separator();
 
-        if ui.button("Reset Track") {
+        if dev::button(engine.ui_system(), "Reset Track") {
             self.reset(engine);
         }
     }

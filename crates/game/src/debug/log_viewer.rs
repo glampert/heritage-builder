@@ -10,7 +10,10 @@ use std::{
 
 use arrayvec::ArrayString;
 use common::format_fixed_string;
-use engine::{log, ui::UiSystem};
+use engine::{
+    log,
+    ui::{UiSystem, dev},
+};
 
 // Console input and command results are shown under this channel. They aren't logged.
 const CONSOLE_CHANNEL: log::Channel = log::channel!("console");
@@ -160,10 +163,14 @@ impl LogViewerSingleton {
             .size([550.0, 350.0], imgui::Condition::FirstUseEver)
             .menu_bar(true)
             .build(|| {
+                // Recording the viewer's widgets doesn't log, which would deadlock on the viewer's lock.
+                dev::record_window(ui_sys, "window", "Log Viewer", None, true);
+                let path = dev::path_scope(ui_sys, "Log Viewer");
+
                 // Draw menu bar:
                 if let Some(_menu_bar) = ui.begin_menu_bar() {
-                    if let Some(_menu) = ui.begin_menu("Filter") {
-                        if ui.menu_item("Channels") {
+                    if let Some(_menu) = dev::begin_menu(ui_sys, "Filter") {
+                        if dev::menu_item(ui_sys, "Channels") {
                             self.is_channel_filter_window_open = true;
                         }
                     }
@@ -194,10 +201,11 @@ impl LogViewerSingleton {
                     }
                 });
 
-                self.draw_console_input(ui);
+                self.draw_console_input(ui_sys);
+                drop(path); // The channel filter is a window of its own.
 
                 if self.is_channel_filter_window_open {
-                    self.draw_channel_filter_child_window(ui);
+                    self.draw_channel_filter_child_window(ui_sys);
                 }
             });
 
@@ -209,7 +217,10 @@ impl LogViewerSingleton {
         is_window_open
     }
 
-    fn draw_console_input(&mut self, ui: &imgui::Ui) {
+    // ui.set fills it in (path "Log Viewer/Console"); Enter runs it.
+    fn draw_console_input(&mut self, ui_sys: &UiSystem) {
+        let ui = ui_sys.ui();
+
         if self.focus_console_input {
             ui.set_keyboard_focus_here();
             self.focus_console_input = false;
@@ -217,15 +228,18 @@ impl LogViewerSingleton {
 
         ui.set_next_item_width(-1.0);
 
+        let set_value = dev::UiDevTextValue::take(ui_sys, "Console", &mut self.console_input);
         let entered = ui
             .input_text("##console_input", &mut self.console_input)
             .hint("Command, e.g. help, or help command=sim.speed")
             .enter_returns_true(true)
             .callback(
-                imgui::InputTextCallback::HISTORY,
-                ConsoleHistory { history: &self.console_history, position: &mut self.console_history_pos },
+                imgui::InputTextCallback::HISTORY | set_value.callbacks(),
+                ConsoleHistory { history: &self.console_history, position: &mut self.console_history_pos, set_value },
             )
             .build();
+
+        dev::record_text_input(ui_sys, "Console", &self.console_input, false);
 
         if entered {
             self.submit_console_input();
@@ -238,13 +252,17 @@ impl LogViewerSingleton {
         format_fixed_string!(128, "[{:?}]{}", line.level, chan_str)
     }
 
-    fn draw_channel_filter_child_window(&mut self, ui: &imgui::Ui) {
-        ui.window("Log Channel Filter")
+    fn draw_channel_filter_child_window(&mut self, ui_sys: &UiSystem) {
+        ui_sys
+            .ui()
+            .window("Log Channel Filter")
             .opened(&mut self.is_channel_filter_window_open)
             .size([250.0, 300.0], imgui::Condition::FirstUseEver)
             .build(|| {
+                dev::record_window(ui_sys, "window", "Log Channel Filter", None, true);
+                let _path = dev::path_scope(ui_sys, "Log Channel Filter");
                 for (channel, is_enabled) in self.channel_filter.iter_mut() {
-                    ui.checkbox(channel.name, is_enabled);
+                    dev::checkbox(ui_sys, channel.name, is_enabled);
                 }
             });
     }
@@ -254,14 +272,20 @@ impl LogViewerSingleton {
 // ConsoleHistory
 // ----------------------------------------------
 
-// Up and down arrows in the console input step through earlier commands.
-// Runs inside the input widget, under the viewer's lock, so it must not log.
+// Up and down arrows in the console input step through earlier commands. Also applies ui.set's
+// value while the input has keyboard focus. Runs inside the input widget, under the viewer's
+// lock, so it must not log.
 struct ConsoleHistory<'a> {
     history: &'a [String],
     position: &'a mut Option<usize>, // None while editing a new line.
+    set_value: dev::UiDevTextValue,
 }
 
 impl imgui::InputTextCallbackHandler for ConsoleHistory<'_> {
+    fn on_always(&mut self, data: imgui::TextCallbackData) {
+        self.set_value.on_always(data);
+    }
+
     fn on_history(&mut self, direction: imgui::HistoryDirection, mut data: imgui::TextCallbackData) {
         let previous = *self.position;
 

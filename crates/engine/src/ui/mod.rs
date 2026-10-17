@@ -277,6 +277,13 @@ impl UiSystem {
         self.inner.as_mut().widget_registry.take_value(path)
     }
 
+    // A value queued for the widget that records next with `kind` and `label`, for one that applies
+    // it before drawing.
+    #[inline]
+    pub(crate) fn take_next_widget_value(&self, kind: &'static str, label: &str) -> Option<serde_json::Value> {
+        self.inner.as_mut().widget_registry.take_next_value(kind, label)
+    }
+
     // Asks the widget at `path`, scrolled out of its window's view, to scroll into view on its next
     // draw (ui.click). Only the ImGui widgets in `dev` do.
     #[inline]

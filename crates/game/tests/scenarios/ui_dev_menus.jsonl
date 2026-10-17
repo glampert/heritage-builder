@@ -39,5 +39,23 @@
 {"method": "assert.eq", "params": {"query": "world.building_at", "args": {"cell": [10, 10]}, "path": "/name", "value": "House Level 1"}}
 {"method": "assert.eq", "params": {"query": "ui.tree", "args": {"kind": "window", "filter": "Tile Inspector"}, "path": "/widgets/0/value/tile", "value": "house1"}}
 {"method": "ui.click", "params": {"path": "Tile Inspector/Close"}}
+# Debug windows: World Debug's tabs ("Tax/Treasury" is the tab's label; its path segment is "Tax∕Treasury").
+{"method": "ui.click", "params": {"path": "Debug"}}
+{"method": "ui.set", "params": {"path": "Debug/Show Game World Debug", "value": true}}
+{"method": "ui.click", "params": {"path": "Tax/Treasury"}}
+{"method": "ui.set", "params": {"path": "World Debug/Tax∕Treasury/Gold Units", "value": 250}}
+{"method": "ui.click", "params": {"path": "World Debug/Tax∕Treasury/Give Gold"}}
+{"method": "assert.eq", "params": {"query": "world.stats", "path": "/treasury/gold", "value": 350}}
+{"method": "ui.click", "params": {"path": "World Debug/Close"}}
+# The log viewer's console: ui.set fills it in while it has keyboard focus, Enter runs it; or type it.
+{"method": "ui.click", "params": {"path": "Debug"}}
+{"method": "ui.set", "params": {"path": "Debug/Show Log Viewer Window", "value": true}}
+{"method": "ui.set", "params": {"path": "Log Viewer/Console", "value": "sim.pause"}}
+{"method": "input.key", "params": {"key": "Enter"}}
+{"method": "assert.eq", "params": {"query": "sim.state", "path": "/paused", "value": true}}
+{"method": "input.type", "params": {"text": "sim.resume"}}
+{"method": "input.key", "params": {"key": "Enter"}}
+{"method": "assert.eq", "params": {"query": "sim.state", "path": "/paused", "value": false}}
+{"method": "ui.click", "params": {"path": "Log Viewer/Close"}}
 {"method": "input.move", "params": {"park": true}}
 {"method": "screenshot", "params": {"path": "out/ui_dev_menus.png", "scale": "points"}}

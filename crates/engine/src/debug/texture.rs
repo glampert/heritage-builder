@@ -1,10 +1,10 @@
 use num_enum::TryFromPrimitive;
-use strum::VariantArray;
+use strum::VariantNames;
 use common::format_small;
 
 use crate::{
     render::texture::{TextureCache, TextureFilter, TextureSettings, TextureWrapMode},
-    ui::{DrawDebugUi, UiSystem},
+    ui::{DrawDebugUi, UiSystem, dev},
 };
 
 // Lists all loaded textures and exposes the global filtering settings.
@@ -13,31 +13,29 @@ impl DrawDebugUi for TextureCache {
         let ui = ui_sys.ui();
 
         if let Some(_tab_bar) = ui.tab_bar("Texture Cache Tab Bar") {
-            if let Some(_tab) = ui.tab_item("Filtering") {
-                draw_filtering(self, ui);
+            if let Some(_tab) = dev::tab_item(ui_sys, "Filtering") {
+                draw_filtering(self, ui_sys);
             }
 
-            if let Some(_tab) = ui.tab_item("Loaded Textures") {
+            if let Some(_tab) = dev::tab_item(ui_sys, "Loaded Textures") {
                 draw_loaded_textures(self, ui);
             }
         }
     }
 }
 
-fn draw_filtering(cache: &mut TextureCache, ui: &imgui::Ui) {
+fn draw_filtering(cache: &mut TextureCache, ui_sys: &UiSystem) {
     let current_settings = cache.current_texture_settings();
     let mut settings_changed = false;
 
     let mut current_filter_index = current_settings.filter as usize;
-    settings_changed |=
-        ui.combo("Filter", &mut current_filter_index, TextureFilter::VARIANTS, |filter| filter.to_string().into());
+    settings_changed |= dev::combo(ui_sys, "Filter", &mut current_filter_index, TextureFilter::VARIANTS);
 
     let mut current_wrap_mode_index = current_settings.wrap_mode as usize;
-    settings_changed |=
-        ui.combo("Wrap Mode", &mut current_wrap_mode_index, TextureWrapMode::VARIANTS, |mode| mode.to_string().into());
+    settings_changed |= dev::combo(ui_sys, "Wrap Mode", &mut current_wrap_mode_index, TextureWrapMode::VARIANTS);
 
     let mut current_gen_mipmaps = current_settings.mipmaps;
-    settings_changed |= ui.checkbox("Mipmaps", &mut current_gen_mipmaps);
+    settings_changed |= dev::checkbox(ui_sys, "Mipmaps", &mut current_gen_mipmaps);
 
     if settings_changed {
         let new_settings = TextureSettings {

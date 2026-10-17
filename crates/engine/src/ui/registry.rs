@@ -108,8 +108,16 @@ impl UiWidgetRegistry {
             return None;
         }
 
+        let unique_path = self.next_path(info.kind, &info.label);
+        info.path = unique_path.clone();
+        self.recording.push(info);
+        Some(unique_path)
+    }
+
+    // The path the next widget recorded with `kind` and `label` gets.
+    fn next_path(&self, kind: &'static str, label: &str) -> String {
         let base_path = {
-            let label = clean_segment(&info.label);
+            let label = clean_segment(label);
 
             // Paths are a few segments deep: borrow them on the stack.
             let mut segments: SmallVec<[&str; 8]> =
@@ -118,7 +126,7 @@ impl UiWidgetRegistry {
             if !label.is_empty() {
                 segments.push(&label);
             } else if segments.is_empty() {
-                segments.push(info.kind);
+                segments.push(kind);
             }
 
             segments.join("/")
@@ -133,10 +141,7 @@ impl UiWidgetRegistry {
             write_fixed_string!(&mut suffix, "#{count}");
         }
 
-        let unique_path = base_path + &suffix;
-        info.path = unique_path.clone();
-        self.recording.push(info);
-        Some(unique_path)
+        base_path + &suffix
     }
 
     pub fn queue_value(&mut self, path: String, value: Value) {
@@ -147,6 +152,16 @@ impl UiWidgetRegistry {
     pub fn take_value(&mut self, path: &str) -> Option<Value> {
         let index = self.pending_values.iter().position(|pending| pending.path == path)?;
         Some(self.pending_values.swap_remove(index).value)
+    }
+
+    // The value queued for the widget that records next with `kind` and `label`, for a widget that
+    // must apply it before it draws.
+    pub fn take_next_value(&mut self, kind: &'static str, label: &str) -> Option<Value> {
+        if !self.enabled || self.pending_values.is_empty() {
+            return None;
+        }
+        let path = self.next_path(kind, label);
+        self.take_value(&path)
     }
 
     pub fn request_reveal(&mut self, path: String) {
@@ -252,6 +267,13 @@ mod tests {
         registry.begin_frame();
         registry.begin_frame();
         assert_eq!(registry.take_value("Gone"), None);
+
+        // Taken before the widget records: by the path it's about to get.
+        registry.push_path("Console");
+        registry.record(info("text_input", "Input"));
+        registry.queue_value("Console/Input#2".into(), Value::from("help"));
+        assert_eq!(registry.take_next_value("text_input", "Input"), Some(Value::from("help")));
+        assert_eq!(registry.take_next_value("text_input", "Input"), None);
     }
 
     #[test]
