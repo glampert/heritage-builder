@@ -181,7 +181,12 @@ fn cmd_assert_image(context: &mut CommandContext, params: Value) -> CommandResul
     };
 
     let output = ScreenshotOutput::Memory;
-    let id = context.engine.request_screenshot(ScreenshotRequest { include_ui: params.include_ui, scale, output });
+    let id = context.engine.request_screenshot(ScreenshotRequest {
+        include_ui: params.include_ui,
+        scale,
+        output,
+        encode_in_frame: true, // So the script takes the same frames on every run.
+    });
 
     pending(move |context| {
         let result = context.engine.take_screenshot_result(id)?;

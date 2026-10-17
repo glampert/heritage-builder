@@ -505,6 +505,7 @@ impl GameLoop {
             include_ui,
             scale: ScreenshotScale::Pixels,
             output: ScreenshotOutput::File(path),
+            encode_in_frame: false,
         });
         self.pending_screenshots.push(id);
     }
