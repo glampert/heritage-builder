@@ -9,10 +9,10 @@ use std::{
 };
 
 use arrayvec::ArrayString;
-use common::format_fixed_string;
+use common::{Vec2, format_fixed_string};
 use engine::{
     log,
-    ui::{UiSystem, dev},
+    ui::{self, UiCondition, UiScrollArea, UiSystem, UiTextEdit, UiTextHistory, UiWindow},
 };
 
 // Console input and command results are shown under this channel. They aren't logged.
@@ -152,96 +152,79 @@ impl LogViewerSingleton {
             return false;
         }
 
-        let ui = ui_sys.ui();
-
         // The viewer draws in every menus mode; keep the dev font so lines stay compact.
-        let _font = ui.push_font(ui_sys.fonts().dev_monospace);
+        let window = UiWindow::new("Log Viewer")
+            .open(&mut is_window_open)
+            .position(Vec2::new(10.0, 20.0), UiCondition::FirstUse)
+            .size(Vec2::new(550.0, 350.0), UiCondition::FirstUse)
+            .menu_bar()
+            .monospace();
 
-        ui.window("Log Viewer")
-            .opened(&mut is_window_open)
-            .position([10.0, 20.0], imgui::Condition::FirstUseEver)
-            .size([550.0, 350.0], imgui::Condition::FirstUseEver)
-            .menu_bar(true)
-            .build(|| {
-                // Recording the viewer's widgets doesn't log, which would deadlock on the viewer's lock.
-                dev::record_window(ui_sys, "window", "Log Viewer", None, true);
-                let path = dev::path_scope(ui_sys, "Log Viewer");
-
-                // Draw menu bar:
-                if let Some(_menu_bar) = ui.begin_menu_bar() {
-                    if let Some(_menu) = dev::begin_menu(ui_sys, "Filter") {
-                        if dev::menu_item(ui_sys, "Channels") {
-                            self.is_channel_filter_window_open = true;
-                        }
-                    }
-                }
-
-                // Checked before the child window, which takes focus from this one.
-                let is_window_focused = ui.is_window_focused_with_flags(imgui::WindowFocusedFlags::ROOT_AND_CHILD_WINDOWS);
-
-                // Log lines, in a child window above the console input.
-                let footer_height = ui.clone_style().item_spacing[1] + ui.frame_height_with_spacing();
-                ui.child_window("##log_lines").size([0.0, -footer_height]).horizontal_scrollbar(true).build(|| {
-                    for line in &self.lines {
-                        if !self.is_channel_enabled(&line.channel) {
-                            continue;
-                        }
-
-                        let color = line.level.color();
-                        ui.text_colored(color.to_array(), Self::line_prefix(line));
-                        ui.same_line();
-                        ui.text(&line.message);
-                    }
-
-                    // Auto-scroll to bottom if we just added something.
-                    if self.scroll_to_bottom || (is_window_focused && self.auto_scroll) {
-                        ui.set_scroll_here_y_with_ratio(1.0);
-                        self.auto_scroll = false;
-                        self.scroll_to_bottom = false;
+        // Recording the viewer's widgets doesn't log, which would deadlock on the viewer's lock.
+        ui::window(ui_sys, window, |ui_sys| {
+            ui::window_menu_bar(ui_sys, |ui_sys| {
+                ui::menu(ui_sys, "Filter", |ui_sys| {
+                    if ui::menu_item(ui_sys, "Channels") {
+                        self.is_channel_filter_window_open = true;
                     }
                 });
+            });
 
-                self.draw_console_input(ui_sys);
-                drop(path); // The channel filter is a window of its own.
+            // Checked before the scroll area, which takes focus from this window.
+            let is_window_focused = ui::is_window_focused(ui_sys);
 
-                if self.is_channel_filter_window_open {
-                    self.draw_channel_filter_child_window(ui_sys);
+            // Log lines, in a scroll area above the console input.
+            let footer_height = ui::item_spacing(ui_sys).y + ui::frame_height_with_spacing(ui_sys);
+            let log_lines = UiScrollArea::new("##log_lines").leave_at_bottom(footer_height).horizontal_scrollbar();
+
+            ui::scroll_area(ui_sys, log_lines, |ui_sys| {
+                for line in &self.lines {
+                    if !self.is_channel_enabled(&line.channel) {
+                        continue;
+                    }
+
+                    ui::horizontal(ui_sys, |ui_sys| {
+                        ui::text_colored(ui_sys, line.level.color(), Self::line_prefix(line));
+                        ui::text(ui_sys, &line.message);
+                    });
+                }
+
+                // Auto-scroll to bottom if we just added something.
+                if self.scroll_to_bottom || (is_window_focused && self.auto_scroll) {
+                    ui::scroll_to_bottom(ui_sys);
+                    self.auto_scroll = false;
+                    self.scroll_to_bottom = false;
                 }
             });
 
+            self.draw_console_input(ui_sys);
+        });
+
+        // The channel filter is a window of its own.
         if !is_window_open {
             self.is_channel_filter_window_open = false;
+        } else if self.is_channel_filter_window_open {
+            self.draw_channel_filter_window(ui_sys);
         }
 
         self.is_window_open = is_window_open;
         is_window_open
     }
 
-    // ui.set fills it in (path "Log Viewer/Console"); Enter runs it.
+    // ui.set fills it in (path "Log Viewer/Console"); Enter runs it. Up and down step through
+    // earlier commands.
     fn draw_console_input(&mut self, ui_sys: &UiSystem) {
-        let ui = ui_sys.ui();
-
-        if self.focus_console_input {
-            ui.set_keyboard_focus_here();
-            self.focus_console_input = false;
-        }
-
-        ui.set_next_item_width(-1.0);
-
-        let set_value = dev::UiDevTextValue::take(ui_sys, "Console", &mut self.console_input);
-        let entered = ui
-            .input_text("##console_input", &mut self.console_input)
+        let input = UiTextEdit::new("Console")
+            .hide_label()
             .hint("Command, e.g. help, or help command=sim.speed")
-            .enter_returns_true(true)
-            .callback(
-                imgui::InputTextCallback::HISTORY | set_value.callbacks(),
-                ConsoleHistory { history: &self.console_history, position: &mut self.console_history_pos, set_value },
-            )
-            .build();
+            .submit_on_enter()
+            .full_width()
+            .focus(self.focus_console_input)
+            .history(UiTextHistory { entries: &self.console_history, position: &mut self.console_history_pos });
 
-        dev::record_text_input(ui_sys, "Console", &self.console_input, false);
+        self.focus_console_input = false;
 
-        if entered {
+        if ui::text_edit(ui_sys, input, &mut self.console_input).submitted {
             self.submit_console_input();
             self.focus_console_input = true; // Enter takes focus away from the field.
         }
@@ -252,56 +235,16 @@ impl LogViewerSingleton {
         format_fixed_string!(128, "[{:?}]{}", line.level, chan_str)
     }
 
-    fn draw_channel_filter_child_window(&mut self, ui_sys: &UiSystem) {
-        ui_sys
-            .ui()
-            .window("Log Channel Filter")
-            .opened(&mut self.is_channel_filter_window_open)
-            .size([250.0, 300.0], imgui::Condition::FirstUseEver)
-            .build(|| {
-                dev::record_window(ui_sys, "window", "Log Channel Filter", None, true);
-                let _path = dev::path_scope(ui_sys, "Log Channel Filter");
-                for (channel, is_enabled) in self.channel_filter.iter_mut() {
-                    dev::checkbox(ui_sys, channel.name, is_enabled);
-                }
-            });
-    }
-}
+    fn draw_channel_filter_window(&mut self, ui_sys: &UiSystem) {
+        let window = UiWindow::new("Log Channel Filter")
+            .open(&mut self.is_channel_filter_window_open)
+            .size(Vec2::new(250.0, 300.0), UiCondition::FirstUse);
 
-// ----------------------------------------------
-// ConsoleHistory
-// ----------------------------------------------
-
-// Up and down arrows in the console input step through earlier commands. Also applies ui.set's
-// value while the input has keyboard focus. Runs inside the input widget, under the viewer's
-// lock, so it must not log.
-struct ConsoleHistory<'a> {
-    history: &'a [String],
-    position: &'a mut Option<usize>, // None while editing a new line.
-    set_value: dev::UiDevTextValue,
-}
-
-impl imgui::InputTextCallbackHandler for ConsoleHistory<'_> {
-    fn on_always(&mut self, data: imgui::TextCallbackData) {
-        self.set_value.on_always(data);
-    }
-
-    fn on_history(&mut self, direction: imgui::HistoryDirection, mut data: imgui::TextCallbackData) {
-        let previous = *self.position;
-
-        *self.position = match (direction, previous) {
-            (imgui::HistoryDirection::Up, None) => self.history.len().checked_sub(1),
-            (imgui::HistoryDirection::Up, Some(index)) => Some(index.saturating_sub(1)),
-            (imgui::HistoryDirection::Down, Some(index)) if index + 1 < self.history.len() => Some(index + 1),
-            (imgui::HistoryDirection::Down, _) => None,
-        };
-
-        if *self.position != previous {
-            data.clear();
-            if let Some(index) = *self.position {
-                data.push_str(&self.history[index]);
+        ui::window(ui_sys, window, |ui_sys| {
+            for (channel, is_enabled) in self.channel_filter.iter_mut() {
+                ui::checkbox(ui_sys, channel.name, is_enabled);
             }
-        }
+        });
     }
 }
 

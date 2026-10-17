@@ -1,18 +1,18 @@
 use std::{
-    cell::UnsafeCell,
+    cell::{RefCell, UnsafeCell},
     ops::{Deref, DerefMut},
 };
 
+use smallvec::SmallVec;
+
 use common::{
     Color,
-    FieldAccessorXY,
     Rect,
     Vec2,
-    format_fixed_string,
     mem::{Mutable, RawPtr, RcMut},
     time::Seconds,
 };
-pub use imgui::{FontId as UiFontHandle, TextureId as UiTextureHandle};
+pub(crate) use imgui::{FontId as UiFontHandle, TextureId as UiTextureHandle};
 pub use renderer::{UiDrawIndex, UiDrawVertex, UiRenderFrameBundle};
 
 use crate::{
@@ -25,12 +25,11 @@ use crate::{
     platform,
     render::{
         RenderSystem,
-        texture::{TextureFilter, TextureHandle, TextureSettings},
+        texture::{TextureFilter, TextureSettings},
     },
 };
 
 pub mod debug_ui;
-pub mod dev;
 pub mod icons;
 pub mod sound;
 pub mod tests;
@@ -39,7 +38,10 @@ pub mod widgets;
 
 pub use debug_ui::DrawDebugUi;
 
+pub use immediate::*;
+
 // Internal implementation.
+mod immediate;
 mod internal;
 mod renderer;
 mod registry;
@@ -50,7 +52,7 @@ pub use registry::UiWidgetInfo;
 use toast::UiToasts;
 
 // usize::MAX == invalid/unset
-pub const INVALID_UI_TEXTURE_HANDLE: UiTextureHandle = UiTextureHandle::new(usize::MAX);
+pub(crate) const INVALID_UI_TEXTURE_HANDLE: UiTextureHandle = UiTextureHandle::new(usize::MAX);
 
 // ----------------------------------------------
 // UiInputEvent
@@ -105,6 +107,12 @@ impl UiTheme {
 
 pub struct UiSystem {
     inner: Mutable<UiSystemInner>,
+
+    // How the open immediate-mode containers lay out their widgets (immediate.rs), innermost last.
+    layout: RefCell<SmallVec<[immediate::UiLayout; 8]>>,
+
+    // The value ui.set queued for the window being drawn (ui::take_window_set_value).
+    window_set_value: RefCell<Option<serde_json::Value>>,
 }
 
 struct UiSystemInner {
@@ -135,7 +143,7 @@ impl UiSystem {
 
         inner.context.set_dev_ui_theme(); // Start in developer mode.
 
-        Self { inner: Mutable::new(inner) }
+        Self { inner: Mutable::new(inner), layout: RefCell::new(SmallVec::new()), window_set_value: RefCell::new(None) }
     }
 
     #[inline]
@@ -164,14 +172,15 @@ impl UiSystem {
         badge: Option<&str>,
     ) -> UiRenderFrameBundle<'_> {
         debug_assert!(self.frame_started());
+        debug_assert!(self.layout.borrow().is_empty(), "Unbalanced immediate-mode layout stack!");
 
         // Last, so toasts draw over everything else. Uses the theme font, which is still pushed.
-        let ui_ptr = self.inner.ui_ptr.unwrap(); // A copy, so `toasts` can be borrowed mutably.
-        let delta_time_secs = self.inner.delta_time_secs;
-        self.inner.toasts.update(ui_ptr.as_ref(), delta_time_secs, draw_overlays);
+        let mut toasts = std::mem::take(&mut self.inner.toasts); // Out, so they can draw with `self`.
+        toasts.update(self, self.inner.delta_time_secs, draw_overlays);
+        self.inner.toasts = toasts;
 
         if let Some(badge) = badge.filter(|_| draw_overlays) {
-            toast::draw_badge(ui_ptr.as_ref(), badge);
+            toast::draw_badge(self, badge);
         }
 
         internal::pop_font(self.ui());
@@ -345,18 +354,19 @@ impl UiSystem {
     }
 
     #[inline]
-    pub fn fonts(&self) -> &UiFonts {
+    pub(crate) fn fonts(&self) -> &UiFonts {
         self.inner.context.fonts()
     }
 
     #[inline]
-    pub fn ui(&self) -> &imgui::Ui {
+    pub(crate) fn ui(&self) -> &imgui::Ui {
         self.inner.ui_ptr.as_ref().expect("Called UiSystem::ui() outside begin_frame/end_frame!")
     }
 
+    // True if the mouse is over a widget, e.g. for the game to leave the click to the UI.
     #[inline]
-    pub fn to_ui_texture(&self, tex_handle: TextureHandle) -> UiTextureHandle {
-        UiTextureHandle::new(tex_handle.pack())
+    pub fn is_any_widget_hovered(&self) -> bool {
+        self.ui().is_any_item_hovered()
     }
 
     // ----------------------
@@ -394,12 +404,12 @@ impl UiSystem {
     }
 
     #[inline]
-    pub fn current_ui_style(&self) -> &imgui::Style {
+    pub(crate) fn current_ui_style(&self) -> &imgui::Style {
         internal::current_ui_style()
     }
 
     #[inline]
-    pub fn current_ui_font(&self) -> &imgui::Font {
+    pub(crate) fn current_ui_font(&self) -> &imgui::Font {
         if self.frame_started() {
             self.ui().current_font()
         } else {
@@ -410,9 +420,10 @@ impl UiSystem {
         }
     }
 
+    // The color modal dialogs dim the screen behind them with.
     #[inline]
-    pub fn set_style_color(&self, style_color: imgui::StyleColor, color: Color) {
-        self.inner.as_mut().context.ctx.style_mut().colors[style_color as usize] = color.to_array();
+    pub fn set_modal_backdrop_color(&self, color: Color) {
+        self.inner.as_mut().context.ctx.style_mut().colors[imgui::StyleColor::ModalWindowDimBg as usize] = color.to_array();
     }
 
     // ----------------------
@@ -447,7 +458,7 @@ impl UiSystem {
 // UiFonts
 // ----------------------------------------------
 
-pub struct UiFonts {
+pub(crate) struct UiFonts {
     // Debug / Dev fonts:
     pub dev_monospace: UiFontHandle,
     pub dev_icons: UiFontHandle,
@@ -913,366 +924,6 @@ pub fn assets_path() -> AssetPath {
 pub fn texture_settings() -> TextureSettings {
     // Use linear filter without mipmaps for all UI textures.
     TextureSettings { filter: TextureFilter::Linear, mipmaps: false, ..Default::default() }
-}
-
-// The input helpers below record their fields under the label, without its colon: "Size/Width".
-
-pub fn input_i32(ui_sys: &UiSystem, label: &str, value: &mut i32, read_only: bool, step: Option<i32>) -> bool {
-    let ui = ui_sys.ui();
-    ui.text(label);
-    ui.indent_by(5.0);
-
-    let path = dev::path_scope(ui_sys, label.trim_end_matches(':'));
-    let value_label = format_fixed_string!(128, "##_{}_value", label);
-    let edited = dev::input_int(ui_sys, &value_label, value, step.unwrap_or(1), None, read_only);
-    drop(path);
-
-    ui.unindent_by(5.0);
-    edited
-}
-
-pub fn input_i32_xy<T>(
-    ui_sys: &UiSystem,
-    label: &str,
-    value: &mut T,
-    read_only: bool,
-    steps: Option<[i32; 2]>,
-    field_labels: Option<[&str; 2]>,
-) -> bool
-where
-    T: FieldAccessorXY<i32>,
-{
-    let s = steps.unwrap_or([1, 1]);
-    let l = field_labels.unwrap_or(["X", "Y"]);
-
-    let ui = ui_sys.ui();
-    ui.text(label);
-    ui.indent_by(5.0);
-
-    let path = dev::path_scope(ui_sys, label.trim_end_matches(':'));
-    let label_x = format_fixed_string!(128, "{}##_{}_x", l[0], label);
-    let edited_x = dev::input_int(ui_sys, &label_x, value.x_mut(), s[0], None, read_only);
-    let label_y = format_fixed_string!(128, "{}##_{}_y", l[1], label);
-    let edited_y = dev::input_int(ui_sys, &label_y, value.y_mut(), s[1], None, read_only);
-    drop(path);
-
-    ui.unindent_by(5.0);
-    edited_x | edited_y
-}
-
-pub fn input_f32(ui_sys: &UiSystem, label: &str, value: &mut f32, read_only: bool, step: Option<f32>) -> bool {
-    let ui = ui_sys.ui();
-    ui.text(label);
-    ui.indent_by(5.0);
-
-    let path = dev::path_scope(ui_sys, label.trim_end_matches(':'));
-    let value_label = format_fixed_string!(128, "##_{}_value", label);
-    let edited = dev::input_float(ui_sys, &value_label, value, step.unwrap_or(1.0), Some("%.2f"), read_only);
-    drop(path);
-
-    ui.unindent_by(5.0);
-    edited
-}
-
-pub fn input_f32_xy<T>(
-    ui_sys: &UiSystem,
-    label: &str,
-    value: &mut T,
-    read_only: bool,
-    steps: Option<[f32; 2]>,
-    field_labels: Option<[&str; 2]>,
-) -> bool
-where
-    T: FieldAccessorXY<f32>,
-{
-    let s = steps.unwrap_or([1.0, 1.0]);
-    let l = field_labels.unwrap_or(["X", "Y"]);
-
-    let ui = ui_sys.ui();
-    ui.text(label);
-    ui.indent_by(5.0);
-
-    let path = dev::path_scope(ui_sys, label.trim_end_matches(':'));
-    let label_x = format_fixed_string!(128, "{}##_{}_x", l[0], label);
-    let edited_x = dev::input_float(ui_sys, &label_x, value.x_mut(), s[0], Some("%.2f"), read_only);
-    let label_y = format_fixed_string!(128, "{}##_{}_y", l[1], label);
-    let edited_y = dev::input_float(ui_sys, &label_y, value.y_mut(), s[1], Some("%.2f"), read_only);
-    drop(path);
-
-    ui.unindent_by(5.0);
-    edited_x | edited_y
-}
-
-pub fn input_color(ui_sys: &UiSystem, label: &str, value: &mut Color) -> bool {
-    let ui = ui_sys.ui();
-    ui.text(label);
-    ui.indent_by(5.0);
-
-    let path = dev::path_scope(ui_sys, label.trim_end_matches(':'));
-    let mut edited = false;
-    for (name, channel) in [("R", &mut value.r), ("G", &mut value.g), ("B", &mut value.b), ("A", &mut value.a)] {
-        let channel_label = format_fixed_string!(128, "{}##_{}_{}", name, label, name);
-        edited |= dev::slider(ui_sys, &channel_label, 0.0, 1.0, Some("%.2f"), channel);
-    }
-    drop(path);
-
-    ui.unindent_by(5.0);
-    edited
-}
-
-#[derive(Copy, Clone, PartialEq, Eq)]
-pub enum UiDPadDirection {
-    NE,
-    NW,
-    SE,
-    SW,
-}
-
-pub fn dpad_buttons(ui_sys: &UiSystem) -> Option<UiDPadDirection> {
-    let ui = ui_sys.ui();
-    let arrow_button = |id: &str, direction: imgui::Direction| {
-        let pressed = ui.arrow_button(id, direction);
-        dev::record_button(ui_sys, "button", id, None, None);
-        pressed
-    };
-
-    let mut direction_pressed = None;
-
-    ui.dummy([35.0, 0.0]);
-    ui.same_line();
-    ui.text("NE");
-
-    ui.dummy([35.0, 0.0]);
-    ui.same_line();
-    if arrow_button("NE", imgui::Direction::Up) {
-        direction_pressed = Some(UiDPadDirection::NE);
-    }
-
-    ui.text("NW");
-    ui.same_line();
-    if arrow_button("NW", imgui::Direction::Left) {
-        direction_pressed = Some(UiDPadDirection::NW);
-    }
-
-    ui.same_line();
-    ui.dummy([13.0, 0.0]);
-    ui.same_line();
-    if arrow_button("SE", imgui::Direction::Right) {
-        direction_pressed = Some(UiDPadDirection::SE);
-    }
-    ui.same_line();
-    ui.text("SE");
-
-    ui.dummy([35.0, 0.0]);
-    ui.same_line();
-    if arrow_button("SW", imgui::Direction::Down) {
-        direction_pressed = Some(UiDPadDirection::SW);
-    }
-    ui.dummy([35.0, 0.0]);
-    ui.same_line();
-    ui.text("SW");
-
-    direction_pressed
-}
-
-pub fn icon_button(ui_sys: &UiSystem, icon: char, tooltip: Option<&str>) -> bool {
-    let ui = ui_sys.ui();
-
-    let icon_font = ui.push_font(ui_sys.fonts().dev_icons);
-    let clicked = ui.button(icon.to_string());
-    icon_font.pop();
-
-    // Automation finds it by its tooltip, e.g. "Undo".
-    let mut icon_utf8 = [0; 4];
-    dev::record_button(ui_sys, "button", tooltip.unwrap_or(icon.encode_utf8(&mut icon_utf8)), None, None);
-
-    if ui.is_item_hovered()
-        && let Some(tooltip_text) = tooltip
-    {
-        ui.tooltip_text(tooltip_text)
-    }
-
-    clicked
-}
-
-pub fn icon_button_custom_tooltip<TooltipFn: FnOnce()>(ui_sys: &UiSystem, icon: char, tooltip_fn: TooltipFn) -> bool {
-    let ui = ui_sys.ui();
-
-    let icon_font = ui.push_font(ui_sys.fonts().dev_icons);
-    let clicked = ui.button(icon.to_string());
-    icon_font.pop();
-
-    let mut icon_utf8 = [0; 4];
-    dev::record_button(ui_sys, "button", icon.encode_utf8(&mut icon_utf8), None, None);
-
-    if ui.is_item_hovered() {
-        let tooltip = ui.begin_tooltip();
-        tooltip_fn();
-        tooltip.end();
-    }
-
-    clicked
-}
-
-pub fn custom_tooltip<TooltipFn: FnOnce()>(
-    ui_sys: &UiSystem,
-    font_scale: UiFontScale,
-    background: Option<UiTextureHandle>,
-    tooltip_fn: TooltipFn,
-) {
-    let ui = ui_sys.ui();
-    let tooltip = ui.begin_tooltip();
-
-    // NOTE:
-    // Always set font scale for tooltips because a tooltip is itself a window,
-    // so it will not inherit the current ui window font scale.
-    ui_sys.set_tooltip_font_scale(font_scale);
-
-    if let Some(bg_texture) = background {
-        let window_rect = Rect::from_pos_and_size(Vec2::from_array(ui.window_pos()), Vec2::from_array(ui.window_size()));
-
-        ui.get_window_draw_list().add_image(bg_texture, window_rect.min.to_array(), window_rect.max.to_array()).build();
-    }
-
-    tooltip_fn();
-    tooltip.end();
-
-    ui_sys.set_tooltip_font_scale(UiFontScale::default());
-}
-
-pub struct UiImageButtonParams<'a> {
-    pub id: &'a str,
-    pub size: Vec2,
-    pub ui_texture: UiTextureHandle,
-    pub tooltip: Option<&'a str>,
-    pub normal_color: Option<Color>,
-    pub hovered_color: Option<Color>,
-    pub selected_color: Option<Color>,
-    pub tint_color: Option<Color>,
-    pub top_left_uvs: Option<Vec2>,
-    pub bottom_right_uvs: Option<Vec2>,
-    pub selected: bool,
-}
-
-impl Default for UiImageButtonParams<'_> {
-    fn default() -> Self {
-        Self {
-            id: "",
-            size: Vec2::zero(),
-            ui_texture: INVALID_UI_TEXTURE_HANDLE,
-            tooltip: None,
-            normal_color: None,
-            hovered_color: None,
-            selected_color: None,
-            tint_color: None,
-            top_left_uvs: None,
-            bottom_right_uvs: None,
-            selected: false,
-        }
-    }
-}
-
-pub fn image_button(ui_sys: &UiSystem, params: &UiImageButtonParams) -> bool {
-    debug_assert!(!params.id.is_empty());
-    debug_assert!(params.size != Vec2::zero());
-    debug_assert!(params.ui_texture != INVALID_UI_TEXTURE_HANDLE);
-
-    fn to_imgui_uvs(uv: Vec2) -> Vec2 {
-        Vec2::new(uv.x, 1.0 - uv.y) // Invert Y
-    }
-
-    let tint_col = params.tint_color.unwrap_or_default().to_array();
-    let bg_col = if params.selected {
-        params.selected_color.unwrap_or_default().to_array()
-    } else {
-        params.normal_color.unwrap_or_default().to_array()
-    };
-
-    let top_left_uvs = to_imgui_uvs(params.top_left_uvs.unwrap_or(Vec2::new(0.0, 0.0)));
-    let bottom_right_uvs = to_imgui_uvs(params.bottom_right_uvs.unwrap_or(Vec2::new(1.0, 1.0)));
-
-    let ui = ui_sys.ui();
-
-    // No frame padding.
-    let frame_padding = ui.push_style_var(imgui::StyleVar::FramePadding([0.0, 0.0]));
-
-    let clicked = ui
-        .image_button_config(params.id, params.ui_texture, params.size.to_array())
-        .background_col(bg_col)
-        .tint_col(tint_col)
-        .uv0([top_left_uvs.x, bottom_right_uvs.y]) // Swap Ys
-        .uv1([bottom_right_uvs.x, top_left_uvs.y])
-        .build();
-
-    frame_padding.pop();
-
-    // Its value is whether it's selected, e.g. the tile palette's current tile.
-    dev::record_button(ui_sys, "image_button", params.id, params.tooltip, Some(serde_json::Value::Bool(params.selected)));
-
-    if ui.is_item_hovered() {
-        if let Some(hovered) = params.hovered_color {
-            // NOTE: ImGui hack to highlight a hovered button.
-            // Since we only know if the button was hovered *after* it has already
-            // been rendered, draw an semi-transparent overlay on top of the button
-            // that will be blended to simulate the hovered effect.
-            let draw_list = ui.get_window_draw_list();
-            let color = imgui::ImColor32::from_rgba_f32s(hovered.r, hovered.g, hovered.b, hovered.a);
-            draw_list.add_rect(ui.item_rect_min(), ui.item_rect_max(), color).filled(true).build();
-        }
-
-        // Show tooltip when hovered:
-        if let Some(tooltip) = params.tooltip {
-            ui.tooltip_text(tooltip);
-        }
-    }
-
-    clicked
-}
-
-// Keeps the next window's bottom on screen: a window taller than the room below its top, such as
-// an auto-resized one opened low on the screen, scrolls its contents instead of running off the
-// bottom. Call right before building the window.
-pub fn fit_next_window_on_screen() {
-    unsafe extern "C" fn fit_on_screen(data: *mut imgui::sys::ImGuiSizeCallbackData) {
-        const MARGIN: f32 = 4.0;
-        const MIN_HEIGHT: f32 = 100.0;
-
-        // SAFETY: ImGui passes valid data while it sizes the window, inside a frame.
-        unsafe {
-            let data = &mut *data;
-            let display_height = (*imgui::sys::igGetIO()).DisplaySize.y;
-            let max_height = (display_height - data.Pos.y - MARGIN).max(MIN_HEIGHT);
-            data.DesiredSize.y = data.DesiredSize.y.min(max_height);
-        }
-    }
-
-    let min_size = imgui::sys::ImVec2 { x: 0.0, y: 0.0 };
-    let max_size = imgui::sys::ImVec2 { x: f32::MAX, y: f32::MAX };
-
-    // SAFETY: Only sets state for the next Begin.
-    unsafe {
-        imgui::sys::igSetNextWindowSizeConstraints(min_size, max_size, Some(fit_on_screen), std::ptr::null_mut());
-    }
-}
-
-pub fn overlay<DrawFn: FnOnce()>(ui: &imgui::Ui, name: &str, position: Vec2, bg_alpha: f32, draw_fn: DrawFn) {
-    // Make the window background transparent and remove decorations.
-    let window_flags = imgui::WindowFlags::NO_DECORATION
-        | imgui::WindowFlags::NO_NAV
-        | imgui::WindowFlags::NO_MOVE
-        | imgui::WindowFlags::NO_MOUSE_INPUTS
-        | imgui::WindowFlags::NO_RESIZE
-        | imgui::WindowFlags::NO_SCROLLBAR
-        | imgui::WindowFlags::NO_COLLAPSE
-        | imgui::WindowFlags::NO_SAVED_SETTINGS
-        | imgui::WindowFlags::NO_FOCUS_ON_APPEARING
-        | imgui::WindowFlags::ALWAYS_AUTO_RESIZE;
-
-    ui.window(name)
-        .position(position.to_array(), imgui::Condition::Always)
-        .flags(window_flags)
-        .bg_alpha(bg_alpha) // Semi-transparent
-        .build(draw_fn);
 }
 
 // ----------------------------------------------

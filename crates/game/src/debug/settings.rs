@@ -1,10 +1,10 @@
-use common::{Color, Size, format_small};
+use common::{Color, Size, Vec2, format_small};
 use engine::{
     Engine,
     file_sys::paths::PathRef,
     log,
     save,
-    ui::{self, DrawDebugUi, UiStaticVar, dev},
+    ui::{self, DrawDebugUi, UiCondition, UiNumberFormat, UiStaticVar, UiWindow},
 };
 use proc_macros::DrawDebugUi;
 
@@ -198,67 +198,52 @@ impl DebugSettingsDevMenu {
         log_viewer: &log_viewer::LogViewer,
         enable_dev_tile_inspector: &mut bool,
     ) {
-        let ui = context.ui_sys.ui();
         let ui_sys = context.ui_sys;
 
-        // Menus record themselves for UI automation (engine::ui::dev): "Debug", then
+        // Menus record themselves for UI automation (engine::ui): "Debug", then
         // "Debug/Draw Terrain" while it's open.
-        if let Some(_menu_bar) = ui.begin_main_menu_bar() {
-            if let Some(_menu) = dev::begin_menu(ui_sys, "Game") {
-                self.game_menu(context);
-            }
-
-            if let Some(_menu) = dev::begin_menu(ui_sys, "Save") {
-                self.save_game_menu(context);
-            }
-
-            if let Some(_menu) = dev::begin_menu(ui_sys, "Camera") {
-                self.camera_menu(context);
-            }
-
-            if let Some(_menu) = dev::begin_menu(ui_sys, "Cheats") {
-                self.cheats_menu(context);
-            }
-
-            if let Some(_menu) = dev::begin_menu(ui_sys, "Debug") {
-                self.debug_options_menu(context, enable_dev_tile_inspector);
-            }
+        ui::main_menu_bar(ui_sys, |ui_sys| {
+            ui::menu(ui_sys, "Game", |_| self.game_menu(context));
+            ui::menu(ui_sys, "Save", |_| self.save_game_menu(context));
+            ui::menu(ui_sys, "Camera", |_| self.camera_menu(context));
+            ui::menu(ui_sys, "Cheats", |_| self.cheats_menu(context));
+            ui::menu(ui_sys, "Debug", |_| self.debug_options_menu(context, enable_dev_tile_inspector));
 
             self.menu_bar_text(context, log_viewer);
-        }
+        });
 
         self.draw_child_windows(context);
     }
 
     fn menu_bar_text(&self, context: &mut GameUiContext, log_viewer: &log_viewer::LogViewer) {
-        let ui = context.ui_sys.ui();
+        let ui_sys = context.ui_sys;
 
         // Log error/warning count:
         {
             let (log_error_count, log_warning_count) = log_viewer.error_and_warning_count();
 
             if log_error_count != 0 || log_warning_count != 0 {
-                ui.separator();
-                ui.text_colored(Color::red().to_array(), format_small!(" Errs: {log_error_count} "));
-                ui.text_colored(Color::yellow().to_array(), format_small!("Warns: {log_warning_count} "));
+                ui::separator(ui_sys);
+                ui::text_colored(ui_sys, Color::red(), format_small!(" Errs: {log_error_count} "));
+                ui::text_colored(ui_sys, Color::yellow(), format_small!("Warns: {log_warning_count} "));
             }
         }
 
         // Gold units | population:
         {
-            ui.separator();
+            ui::separator(ui_sys);
 
             let gold_units_total = context.world.stats().treasury.gold_units_total;
             let gold_units_text = format_small!(" Gold: {gold_units_total} ");
 
             if gold_units_total == 0 {
-                ui.text_colored(Color::red().to_array(), gold_units_text);
+                ui::text_colored(ui_sys, Color::red(), gold_units_text);
             } else {
-                ui.text(gold_units_text);
+                ui::text(ui_sys, gold_units_text);
             }
 
             let population = context.world.stats().population.total;
-            ui.text(format_small!("Pop: {population} "));
+            ui::text(ui_sys, format_small!("Pop: {population} "));
         }
     }
 
@@ -267,47 +252,46 @@ impl DebugSettingsDevMenu {
     }
 
     fn game_menu(&mut self, context: &mut GameUiContext) {
-        let ui = context.ui_sys.ui();
         let ui_sys = context.ui_sys;
         let game_loop = GameLoop::get_mut();
 
         // Quit game:
-        if dev::button(ui_sys, "Quit") {
+        if ui::button(ui_sys, "Quit") {
             game_loop.quit_game();
         }
 
         // Reset map options:
-        ui.separator();
+        ui::separator(ui_sys);
 
-        if dev::button(ui_sys, "Reset to empty map") {
+        if ui::button(ui_sys, "Reset to empty map") {
             game_loop.reset_session(None, None);
         }
 
-        if dev::button(ui_sys, "Reset to dirt tiles") {
+        if ui::button(ui_sys, "Reset to dirt tiles") {
             let dirt_tile_def = PresetTiles::Dirt.find_tile_def();
             game_loop.reset_session(dirt_tile_def, None);
         }
 
-        if dev::button(ui_sys, "Reset to grass tiles") {
+        if ui::button(ui_sys, "Reset to grass tiles") {
             let grass_tile_def = PresetTiles::Grass.find_tile_def();
             game_loop.reset_session(grass_tile_def, None);
         }
 
-        if dev::button(ui_sys, "Reset to water tiles") {
+        if ui::button(ui_sys, "Reset to water tiles") {
             let water_tile_def = PresetTiles::Water.find_tile_def();
             game_loop.reset_session(water_tile_def, None);
         }
 
         // Map presets:
-        ui.separator();
+        ui::separator(ui_sys);
 
         let preset_tile_map_names = preset_maps::preset_tile_maps_list();
 
-        if dev::combo(ui_sys, "Preset Map", &mut self.preset_tile_map_number, &preset_tile_map_names) {
+        if ui::combo(ui_sys, "Preset Map", &mut self.preset_tile_map_number, &preset_tile_map_names) {
             self.preset_tile_map_number = self.preset_tile_map_number.min(preset_tile_map_names.len());
         }
 
-        if dev::button(ui_sys, "Load Preset") {
+        if ui::button(ui_sys, "Load Preset") {
             log::info!(
                 log::channel!("debug"),
                 "Loading preset tile map '{}' ...",
@@ -317,7 +301,7 @@ impl DebugSettingsDevMenu {
         }
 
         // New game options:
-        ui.separator();
+        ui::separator(ui_sys);
 
         static NEW_MAP_SIZE: UiStaticVar<Size> = UiStaticVar::new(Size::new(64, 64));
         let new_map_size = NEW_MAP_SIZE.as_mut();
@@ -325,40 +309,37 @@ impl DebugSettingsDevMenu {
             NEW_MAP_SIZE.set(NEW_MAP_SIZE.as_ref().clamp(Size::zero(), Size::new(1024, 1024)));
         }
 
-        if dev::button(ui_sys, "New Game") {
+        if ui::button(ui_sys, "New Game") {
             let grass_tile_def = PresetTiles::Grass.find_tile_def();
             game_loop.reset_session(grass_tile_def, Some(*NEW_MAP_SIZE));
         }
 
         // Simulation/game speed:
-        ui.separator();
-        ui.text("Game Speed:");
+        ui::separator(ui_sys);
+        ui::text(ui_sys, "Game Speed:");
 
-        if ui::icon_button(context.ui_sys, ui::icons::ICON_PAUSE, Some("Pause")) {
-            context.sim.pause();
-        }
-        ui.same_line();
-        if ui::icon_button(context.ui_sys, ui::icons::ICON_PLAY, Some("Resume")) {
-            context.sim.resume();
-        }
-        ui.same_line();
-        if ui::icon_button(context.ui_sys, ui::icons::ICON_FAST_FORWARD, Some("Speedup")) {
-            context.sim.speedup();
-        }
-        ui.same_line();
-        if ui::icon_button(context.ui_sys, ui::icons::ICON_FAST_BACKWARD, Some("Slowdown")) {
-            context.sim.slowdown();
-        }
+        ui::horizontal(ui_sys, |ui_sys| {
+            if ui::icon_button(ui_sys, ui::icons::ICON_PAUSE, Some("Pause")) {
+                context.sim.pause();
+            }
+            if ui::icon_button(ui_sys, ui::icons::ICON_PLAY, Some("Resume")) {
+                context.sim.resume();
+            }
+            if ui::icon_button(ui_sys, ui::icons::ICON_FAST_FORWARD, Some("Speedup")) {
+                context.sim.speedup();
+            }
+            if ui::icon_button(ui_sys, ui::icons::ICON_FAST_BACKWARD, Some("Slowdown")) {
+                context.sim.slowdown();
+            }
 
-        ui.same_line();
-        ui.text("|");
-        ui.same_line();
+            ui::text(ui_sys, "|");
 
-        if context.sim.is_paused() {
-            ui.text_colored(Color::red().to_array(), "Paused");
-        } else {
-            ui.text(format_small!("Speed: {:1}x", context.sim.speed()));
-        }
+            if context.sim.is_paused() {
+                ui::text_colored(ui_sys, Color::red(), "Paused");
+            } else {
+                ui::text(ui_sys, format_small!("Speed: {:1}x", context.sim.speed()));
+            }
+        });
     }
 
     fn camera_menu(&self, context: &mut GameUiContext) {
@@ -366,79 +347,77 @@ impl DebugSettingsDevMenu {
     }
 
     fn debug_options_menu(&mut self, context: &mut GameUiContext, enable_dev_tile_inspector: &mut bool) {
-        let ui = context.ui_sys.ui();
+        let ui_sys = context.ui_sys;
 
         self.draw_debug_ui(context.ui_sys);
 
-        let ui_sys = context.ui_sys;
 
         let mut show_popup_messages = super::show_popup_messages();
-        if dev::checkbox(ui_sys, "Show Popup Messages", &mut show_popup_messages) {
+        if ui::checkbox(ui_sys, "Show Popup Messages", &mut show_popup_messages) {
             super::set_show_popup_messages(show_popup_messages);
         }
 
         let mut show_ui_debug_menu = context.ui_sys.is_showing_ui_debug_menu();
-        if dev::checkbox(ui_sys, "Show ImGui Debug Menu", &mut show_ui_debug_menu) {
+        if ui::checkbox(ui_sys, "Show ImGui Debug Menu", &mut show_ui_debug_menu) {
             context.ui_sys.show_ui_debug_menu(show_ui_debug_menu);
         }
 
-        dev::checkbox(ui_sys, "Enable Tile Inspector", enable_dev_tile_inspector);
+        ui::checkbox(ui_sys, "Enable Tile Inspector", enable_dev_tile_inspector);
 
         // Debug grid options:
-        ui.separator();
+        ui::separator(ui_sys);
 
         let game_loop = GameLoop::get_mut();
 
         let mut line_thickness = game_loop.grid_line_thickness();
         let (min_thickness, max_thickness) = (MIN_GRID_LINE_THICKNESS, MAX_GRID_LINE_THICKNESS);
-        if dev::slider(ui_sys, "Grid thickness", min_thickness, max_thickness, Some("%.1f"), &mut line_thickness) {
+        if ui::slider(ui_sys, "Grid thickness", min_thickness, max_thickness, UiNumberFormat::Decimals(1), &mut line_thickness) {
             game_loop.set_grid_line_thickness(line_thickness);
         }
 
-        dev::checkbox(ui_sys, "Draw grid", &mut self.draw_grid);
-        dev::checkbox(ui_sys, "Draw grid (ignore depth)", &mut self.draw_grid_ignore_depth);
+        ui::checkbox(ui_sys, "Draw grid", &mut self.draw_grid);
+        ui::checkbox(ui_sys, "Draw grid (ignore depth)", &mut self.draw_grid_ignore_depth);
 
-        ui.separator();
+        ui::separator(ui_sys);
 
-        if dev::button(ui_sys, "Panic Now!") {
-            panic!("Testing a runtime panic!");
-        }
-
-        ui.same_line();
-
-        if dev::button(ui_sys, "Crash Now!") {
-            unsafe {
-                let bad_ptr: *mut i64 = core::ptr::null_mut();
-                *bad_ptr = 1;
+        ui::horizontal(ui_sys, |ui_sys| {
+            if ui::button(ui_sys, "Panic Now!") {
+                panic!("Testing a runtime panic!");
             }
-        }
+
+            if ui::button(ui_sys, "Crash Now!") {
+                unsafe {
+                    let bad_ptr: *mut i64 = core::ptr::null_mut();
+                    *bad_ptr = 1;
+                }
+            }
+        });
     }
 
     fn save_game_menu(&mut self, context: &mut GameUiContext) {
-        let ui = context.ui_sys.ui();
         let ui_sys = context.ui_sys;
         let game_loop = GameLoop::get_mut();
 
         // Autosave:
         let mut autosave_enabled = game_loop.is_autosave_enabled();
-        if dev::checkbox(ui_sys, "Autosave", &mut autosave_enabled) {
+        if ui::checkbox(ui_sys, "Autosave", &mut autosave_enabled) {
             game_loop.enable_autosave(autosave_enabled);
         }
 
-        if dev::button(ui_sys, "Load Autosave") {
+        if ui::button(ui_sys, "Load Autosave") {
             game_loop.load_save_game(save::storage::AUTOSAVE_FILE_NAME);
         }
 
         // Save game:
-        ui.separator();
+        ui::separator(ui_sys);
 
         if self.save_file_name.is_empty() {
             self.save_file_name = save::storage::DEFAULT_SAVE_FILE_NAME.to_string();
         }
 
-        dev::input_text(ui_sys, "Save File", &mut self.save_file_name, false);
+        ui::input_text(ui_sys, "Save File", &mut self.save_file_name, false);
 
-        if dev::button(ui_sys, "Save") {
+        if ui::button(ui_sys, "Save") {
             if !self.save_file_name.is_empty() {
                 game_loop.save_game(PathRef::from_str(&self.save_file_name));
             } else {
@@ -447,16 +426,16 @@ impl DebugSettingsDevMenu {
         }
 
         // Load save game:
-        ui.separator();
+        ui::separator(ui_sys);
 
         let save_files = save::storage::list_save_files();
         let save_file_names: Vec<_> = save_files.iter().map(|save_file| save_file.to_string_lossy()).collect();
 
-        if dev::combo(ui_sys, "Load File", &mut self.save_file_selected, &save_file_names) {
+        if ui::combo(ui_sys, "Load File", &mut self.save_file_selected, &save_file_names) {
             self.save_file_selected = self.save_file_selected.min(save_files.len());
         }
 
-        if dev::button(ui_sys, "Load") && !save_files.is_empty() {
+        if ui::button(ui_sys, "Load") && !save_files.is_empty() {
             game_loop.load_save_game(PathRef::from_str(save_files[self.save_file_selected].to_str().unwrap()));
         }
     }
@@ -484,97 +463,78 @@ impl DebugSettingsDevMenu {
     }
 
     fn draw_game_configs_window(&mut self, context: &mut GameUiContext) {
-        let ui = context.ui_sys.ui();
+        // TODO(layout): Too narrow for its tab labels ("Engine/…", "Buildin…").
+        let window = UiWindow::new("Game Configs")
+            .open(&mut self.show_game_configs_debug)
+            .position(Vec2::new(200.0, 20.0), UiCondition::FirstUse)
+            .size(Vec2::new(400.0, 350.0), UiCondition::FirstUse);
 
-        ui.window("Game Configs")
-            .opened(&mut self.show_game_configs_debug)
-            .position([200.0, 20.0], imgui::Condition::FirstUseEver)
-            .size([400.0, 350.0], imgui::Condition::FirstUseEver)
-            .build(|| {
-                dev::record_window(context.ui_sys, "window", "Game Configs", None, true);
-                let _path = dev::path_scope(context.ui_sys, "Game Configs");
-                if let Some(_tab_bar) = ui.tab_bar("Configs Tab Bar") {
-                    if let Some(_tab) = dev::tab_item(context.ui_sys, "Engine/Game") {
-                        GameConfigs::get_mut().draw_debug_ui_with_header("GameConfigs", context.ui_sys);
-                    }
-                    if let Some(_tab) = dev::tab_item(context.ui_sys, "Buildings") {
-                        BuildingConfigs::get_mut().draw_debug_ui_with_header("BuildingConfigs", context.ui_sys);
-                    }
-                    if let Some(_tab) = dev::tab_item(context.ui_sys, "Units") {
-                        UnitConfigs::get_mut().draw_debug_ui_with_header("UnitConfigs", context.ui_sys);
-                    }
-                    if let Some(_tab) = dev::tab_item(context.ui_sys, "Props") {
-                        PropConfigs::get_mut().draw_debug_ui_with_header("PropConfigs", context.ui_sys);
-                    }
-                    if let Some(_tab) = dev::tab_item(context.ui_sys, "Campaigns") {
-                        CampaignConfigs::get_mut().draw_debug_ui_with_header("CampaignConfigs", context.ui_sys);
-                    }
-                    if let Some(_tab) = dev::tab_item(context.ui_sys, "Ui Text") {
-                        ui::text::draw_debug_ui(context.ui_sys);
-                    }
-                }
-            });
+        ui::window(context.ui_sys, window, |ui_sys| {
+            const TABS: [&str; 6] = ["Engine/Game", "Buildings", "Units", "Props", "Campaigns", "Ui Text"];
+            let Some(tab) = ui::tab_bar(ui_sys, "Configs Tab Bar", &TABS) else {
+                return;
+            };
+
+            match tab.index {
+                0 => GameConfigs::get_mut().draw_debug_ui_with_header("GameConfigs", ui_sys),
+                1 => BuildingConfigs::get_mut().draw_debug_ui_with_header("BuildingConfigs", ui_sys),
+                2 => UnitConfigs::get_mut().draw_debug_ui_with_header("UnitConfigs", ui_sys),
+                3 => PropConfigs::get_mut().draw_debug_ui_with_header("PropConfigs", ui_sys),
+                4 => CampaignConfigs::get_mut().draw_debug_ui_with_header("CampaignConfigs", ui_sys),
+                _ => ui::text::draw_debug_ui(ui_sys),
+            }
+        });
     }
 
     fn draw_world_debug_window(&mut self, context: &mut GameUiContext) {
-        let ui = context.ui_sys.ui();
+        let window = UiWindow::new("World Debug")
+            .open(&mut self.show_game_world_debug)
+            .position(Vec2::new(300.0, 20.0), UiCondition::FirstUse)
+            .size(Vec2::new(400.0, 350.0), UiCondition::FirstUse);
 
-        ui.window("World Debug")
-            .opened(&mut self.show_game_world_debug)
-            .position([300.0, 20.0], imgui::Condition::FirstUseEver)
-            .size([400.0, 350.0], imgui::Condition::FirstUseEver)
-            .build(|| {
-                dev::record_window(context.ui_sys, "window", "World Debug", None, true);
-                let _path = dev::path_scope(context.ui_sys, "World Debug");
-                let sim = GameLoop::get_mut().sim_mut();
-                sim.draw_world_debug_ui(context);
-            });
+        ui::window(context.ui_sys, window, |_| {
+            let sim = GameLoop::get_mut().sim_mut();
+            sim.draw_world_debug_ui(context);
+        });
     }
 
     fn draw_game_systems_debug_window(&mut self, context: &mut GameUiContext) {
-        let ui = context.ui_sys.ui();
+        // TODO(layout): Too narrow for its tab labels ("Settle…", "Ambien…") and some rows
+        // ("Population Per Set…").
+        let window = UiWindow::new("Game Systems Debug")
+            .open(&mut self.show_game_systems_debug)
+            .position(Vec2::new(400.0, 20.0), UiCondition::FirstUse)
+            .size(Vec2::new(400.0, 350.0), UiCondition::FirstUse);
 
-        ui.window("Game Systems Debug")
-            .opened(&mut self.show_game_systems_debug)
-            .position([400.0, 20.0], imgui::Condition::FirstUseEver)
-            .size([400.0, 350.0], imgui::Condition::FirstUseEver)
-            .build(|| {
-                dev::record_window(context.ui_sys, "window", "Game Systems Debug", None, true);
-                let _path = dev::path_scope(context.ui_sys, "Game Systems Debug");
-                let engine = Engine::get_mut();
-                let sim = GameLoop::get_mut().sim_mut();
-                let systems = GameLoop::get_mut().systems_mut();
-                sim.draw_game_systems_debug_ui(context, engine, systems);
-            });
+        ui::window(context.ui_sys, window, |_| {
+            let engine = Engine::get_mut();
+            let sim = GameLoop::get_mut().sim_mut();
+            let systems = GameLoop::get_mut().systems_mut();
+            sim.draw_game_systems_debug_ui(context, engine, systems);
+        });
     }
 
     fn draw_texture_settings_window(&mut self, context: &mut GameUiContext) {
-        let ui = context.ui_sys.ui();
+        let window = UiWindow::new("Texture Settings")
+            .open(&mut self.show_texture_settings)
+            .position(Vec2::new(500.0, 20.0), UiCondition::FirstUse)
+            .size(Vec2::new(300.0, 150.0), UiCondition::FirstUse);
 
-        ui.window("Texture Settings")
-            .opened(&mut self.show_texture_settings)
-            .position([500.0, 20.0], imgui::Condition::FirstUseEver)
-            .size([300.0, 150.0], imgui::Condition::FirstUseEver)
-            .build(|| {
-                dev::record_window(context.ui_sys, "window", "Texture Settings", None, true);
-                let _path = dev::path_scope(context.ui_sys, "Texture Settings");
-                let tex_cache = Engine::get_mut().texture_cache_mut();
-                tex_cache.draw_debug_ui(context.ui_sys);
-            });
+        ui::window(context.ui_sys, window, |ui_sys| {
+            let tex_cache = Engine::get_mut().texture_cache_mut();
+            tex_cache.draw_debug_ui(ui_sys);
+        });
     }
 
     fn draw_sound_settings_window(&mut self, context: &mut GameUiContext) {
-        let ui = context.ui_sys.ui();
+        let window = UiWindow::new("Sound Settings")
+            .open(&mut self.show_sound_settings)
+            .position(Vec2::new(350.0, 20.0), UiCondition::FirstUse)
+            .size(Vec2::new(500.0, 400.0), UiCondition::FirstUse);
 
-        ui.window("Sound Settings")
-            .opened(&mut self.show_sound_settings)
-            .position([350.0, 20.0], imgui::Condition::FirstUseEver)
-            .size([500.0, 400.0], imgui::Condition::FirstUseEver)
-            .build(|| {
-                dev::record_window(context.ui_sys, "window", "Sound Settings", None, true);
-                let _path = dev::path_scope(context.ui_sys, "Sound Settings");
-                let sound_sys = Engine::get_mut().sound_system_mut();
-                sound_sys.draw_debug_ui(context.ui_sys);
-            });
+        ui::window(context.ui_sys, window, |ui_sys| {
+            let sound_sys = Engine::get_mut().sound_system_mut();
+            sound_sys.draw_debug_ui(ui_sys);
+        });
     }
 }

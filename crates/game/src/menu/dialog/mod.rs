@@ -194,7 +194,7 @@ pub fn set_global_menu_flags(flags: UiMenuFlags) {
 
 pub fn set_bg_dim_alpha(context: &mut GameUiContext, alpha: f32) {
     debug_assert!((0.0..=1.0).contains(&alpha));
-    context.ui_sys.set_style_color(imgui::StyleColor::ModalWindowDimBg, Color::new(0.0, 0.0, 0.0, alpha));
+    context.ui_sys.set_modal_backdrop_color(Color::new(0.0, 0.0, 0.0, alpha));
 }
 
 // Load the starting map for a campaign mission. Routes through the GameLoop
@@ -527,11 +527,11 @@ impl DialogMenusSingleton {
         // [Debug]:
         const DEBUG_DRAW_MENU_STACK: bool = false;
         if DEBUG_DRAW_MENU_STACK && !self.menu_stack.is_empty() {
-            let ui = context.ui_sys.ui();
+            let ui_sys = context.ui_sys;
             let position = Vec2::new(context.viewport_size.width as f32 - 350.0, 100.0);
-            ui::overlay(ui, "Dialog Menu Stack Debug", position, 1.0, || {
+            ui::overlay(ui_sys, ui::UiOverlay::new("Dialog Menu Stack Debug", position).bg_alpha(1.0), |ui_sys| {
                 for (index, kind) in self.menu_stack.iter().enumerate() {
-                    ui.text(common::format_small!("[{index}]: {kind}"));
+                    ui::text(ui_sys, common::format_small!("[{index}]: {kind}"));
                 }
             });
         }

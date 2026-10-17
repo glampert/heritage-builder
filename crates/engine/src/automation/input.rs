@@ -8,7 +8,7 @@
 // Mouse state is polled once per frame, so a press and release on the same frame would never be
 // seen: a click is a move, a press on the next frame and a release on the frame after. The
 // timeline applies one frame's steps at the start of Engine::begin_frame, before events are
-// polled and before ImGui reads the input.
+// polled and before the UI reads the input.
 
 use std::collections::VecDeque;
 

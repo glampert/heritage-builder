@@ -448,7 +448,7 @@ impl GameLoop {
 
     fn update_camera(&mut self, cursor_screen_pos: Vec2, delta_time_secs: Seconds) -> CellRange {
         let viewport_size = self.engine.app().window_size();
-        let is_any_ui_item_hovered = self.engine.ui_system().ui().is_any_item_hovered();
+        let is_any_ui_item_hovered = self.engine.ui_system().is_any_widget_hovered();
 
         let camera = self.session.camera_mut();
         camera.set_viewport_size(viewport_size);
@@ -631,7 +631,7 @@ impl GameLoop {
                 }
             }
             ApplicationEvent::Scroll(amount) => {
-                // If we're not hovering over an ImGui menu...
+                // If we're not hovering over a UI menu...
                 let input_event = if self.is_in_game() && !self.engine.ui_system().is_handling_mouse_input() {
                     self.session.camera_mut().on_mouse_scroll(amount)
                 } else {

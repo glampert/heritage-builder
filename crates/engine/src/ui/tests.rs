@@ -1,4 +1,4 @@
-use common::Color;
+use common::{Color, format_fixed_string};
 
 use super::*;
 use crate::{

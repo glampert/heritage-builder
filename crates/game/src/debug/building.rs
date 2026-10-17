@@ -10,7 +10,7 @@ use common::{
 };
 use engine::{
     log,
-    ui::{DrawDebugUi, UiFontScale, UiStaticVar, UiSystem, dev},
+    ui::{self, DrawDebugUi, UiStaticVar, UiSystem},
 };
 use proc_macros::DrawDebugUi;
 
@@ -43,7 +43,7 @@ use crate::{
 // Building Debug UI
 // ----------------------------------------------
 
-// All ImGui debug-UI drawing for `Building`.
+// All debug-UI drawing for `Building`.
 // The `GameObject::draw_debug_ui` method on `Building` is a thin forward into this.
 impl Building {
     pub(crate) fn draw_debug_ui_dispatch(
@@ -60,44 +60,41 @@ impl Building {
                 self.draw_debug_ui_overview(&self.new_context(context), ui_sys);
             }
             DebugUiMode::Detailed => {
-                let ui = ui_sys.ui();
-                if let Some(_path) = dev::collapsing_header_scope(ui_sys, "Building", imgui::TreeNodeFlags::empty()) {
-                    ui.indent_by(10.0);
-                    self.draw_debug_ui_detailed(cmds, &self.new_context(context), ui_sys);
-                    ui.unindent_by(10.0);
+                if let Some(_path) = ui::collapsing_header_scope(ui_sys, "Building", false) {
+                    ui::indent(ui_sys, 10.0, |ui_sys| {
+                        self.draw_debug_ui_detailed(cmds, &self.new_context(context), ui_sys);
+                    });
                 }
             }
         }
     }
 
     fn draw_debug_ui_overview(&mut self, context: &BuildingContext, ui_sys: &UiSystem) {
-        let ui = ui_sys.ui();
-
         let color_bullet_bool = |label: &str, value: bool| {
-            ui.bullet_text(format_small!("{label}:"));
-            ui.same_line();
-            if value {
-                ui.text("yes");
-            } else {
-                ui.text_colored(Color::red().to_array(), "no");
-            }
+            ui::horizontal(ui_sys, |ui_sys| {
+                ui::bullet_text(ui_sys, format_small!("{label}:"));
+                if value {
+                    ui::text(ui_sys, "yes");
+                } else {
+                    ui::text_colored(ui_sys, Color::red(), "no");
+                }
+            });
         };
 
         let color_bullet_text = |label: &str, value: &str| {
-            ui.bullet_text(format_small!("{label}:"));
-            ui.same_line();
-            ui.text_colored(Color::red().to_array(), value);
+            ui::horizontal(ui_sys, |ui_sys| {
+                ui::bullet_text(ui_sys, format_small!("{label}:"));
+                ui::text_colored(ui_sys, Color::red(), value);
+            });
         };
 
-        ui_sys.set_window_font_scale(UiFontScale(1.2));
-        ui.text(format_small!("{} | ID{} @{}", self.name(), self.id(), self.base_cell()));
-        ui_sys.set_window_font_scale(UiFontScale::default());
+        ui::with_font_scale(ui_sys, 1.2, |ui_sys| ui::text(ui_sys, format_small!("{} | ID{} @{}", self.name(), self.id(), self.base_cell())));
 
         color_bullet_bool("Linked to road", self.is_linked_to_road());
 
         if self.archetype_kind() == BuildingArchetypeKind::HouseBuilding {
             let house = self.as_house();
-            ui.bullet_text(format_small!("Tax: (generated: {}, avail: {})", house.tax_generated(), house.tax_available()));
+            ui::bullet_text(ui_sys, format_small!("Tax: (generated: {}, avail: {})", house.tax_generated(), house.tax_available()));
 
             if !house.level().is_max() {
                 let upgrade_requirements = house.upgrade_requirements(context);
@@ -116,7 +113,7 @@ impl Building {
 
                 color_bullet_bool("Has room to upgrade", house.is_upgrade_available(context));
             } else {
-                ui.bullet_text("Max house level reached");
+                ui::bullet_text(ui_sys, "Max house level reached");
             }
         } else {
             color_bullet_bool("Is operational", self.archetype().is_operational());
@@ -128,12 +125,12 @@ impl Building {
         }
 
         if let Some(population) = self.archetype().population() {
-            ui.bullet_text(format_small!("Population: {} (max: {})", population.count(), population.max()));
+            ui::bullet_text(ui_sys, format_small!("Population: {} (max: {})", population.count(), population.max()));
         }
 
         if let Some(workers) = self.archetype().workers() {
             if let Some(worker_pool) = workers.as_household_worker_pool() {
-                ui.bullet_text(format_small!(
+                ui::bullet_text(ui_sys, format_small!(
                     "Workers: {} (employed: {}, unemployed: {})",
                     worker_pool.total_workers(),
                     worker_pool.employed_count(),
@@ -143,13 +140,13 @@ impl Building {
                 color_bullet_bool("Has min workers", self.archetype().has_min_required_workers());
                 color_bullet_bool("Has all workers", employer.is_at_max_capacity());
                 if employer.is_below_min_required() {
-                    ui.bullet_text("Workers:");
-                    ui.same_line();
-                    ui.text_colored(Color::red().to_array(), format_small!("{}", employer.employee_count()));
-                    ui.same_line();
-                    ui.text(format_small!("(min: {}, max: {})", employer.min_employees(), employer.max_employees()));
+                    ui::horizontal(ui_sys, |ui_sys| {
+                        ui::bullet_text(ui_sys, "Workers:");
+                        ui::text_colored(ui_sys, Color::red(), format_small!("{}", employer.employee_count()));
+                        ui::text(ui_sys, format_small!("(min: {}, max: {})", employer.min_employees(), employer.max_employees()));
+                    });
                 } else {
-                    ui.bullet_text(format_small!(
+                    ui::bullet_text(ui_sys, format_small!(
                         "Workers: {} (min: {}, max: {})",
                         employer.employee_count(),
                         employer.min_employees(),
@@ -161,11 +158,9 @@ impl Building {
     }
 
     fn draw_debug_ui_detailed(&mut self, cmds: &mut SimCmds, context: &BuildingContext, ui_sys: &UiSystem) {
-        let ui = ui_sys.ui();
-
         // NOTE: Use the special ##id here so we don't collide with Tile/Properties.
         if let Some(_path) =
-            dev::collapsing_header_scope(ui_sys, "Properties##_building_properties", imgui::TreeNodeFlags::empty())
+            ui::collapsing_header_scope(ui_sys, "Properties##_building_properties", false)
         {
             #[derive(DrawDebugUi)]
             struct DrawDebugUiVariables<'a> {
@@ -190,30 +185,30 @@ impl Building {
         self.configs().draw_debug_ui(ui_sys);
 
         if let Some(mut population) = self.archetype().population() {
-            if let Some(_path) = dev::collapsing_header_scope(ui_sys, "Population", imgui::TreeNodeFlags::empty()) {
+            if let Some(_path) = ui::collapsing_header_scope(ui_sys, "Population", false) {
                 population.draw_debug_ui(ui_sys);
 
-                if dev::button(ui_sys, "Increase Population (+1)") {
+                if ui::button(ui_sys, "Increase Population (+1)") {
                     self.archetype_mut().add_population(cmds, context, 1);
                 }
 
-                if dev::button(ui_sys, "Evict Resident (-1)") {
+                if ui::button(ui_sys, "Evict Resident (-1)") {
                     self.archetype_mut().remove_population(cmds, context, 1);
                 }
 
-                if dev::button(ui_sys, "Evict All Residents") {
+                if ui::button(ui_sys, "Evict All Residents") {
                     self.remove_all_population(cmds, context.sim_ctx);
                 }
             }
         }
 
         if let Some(workers) = self.archetype().workers() {
-            if let Some(_path) = dev::collapsing_header_scope(ui_sys, "Workers", imgui::TreeNodeFlags::empty()) {
+            if let Some(_path) = ui::collapsing_header_scope(ui_sys, "Workers", false) {
                 let is_household_worker_pool = workers.is_household_worker_pool();
                 let is_employer = workers.is_employer();
 
                 super::sim::draw_workers_debug_ui(workers, context.sim_ctx.world(), ui_sys);
-                ui.separator();
+                ui::separator(ui_sys);
 
                 let source = {
                     static BUILDING_KIND_IDX: UiStaticVar<usize> = UiStaticVar::new(0);
@@ -221,16 +216,16 @@ impl Building {
                     static BUILDING_ID: UiStaticVar<usize> = UiStaticVar::new(0);
 
                     if is_household_worker_pool {
-                        ui.text("Select Employer:");
+                        ui::text(ui_sys, "Select Employer:");
                     } else {
-                        ui.text("Select Worker Household:");
+                        ui::text(ui_sys, "Select Worker Household:");
                     }
 
                     let kind = {
                         if is_employer {
                             // Employers only source workers from houses.
                             BUILDING_KIND_IDX.set(0);
-                            dev::combo(ui_sys, "Kind", BUILDING_KIND_IDX.as_mut(), &["House"]);
+                            ui::combo(ui_sys, "Kind", BUILDING_KIND_IDX.as_mut(), &["House"]);
                             BuildingKind::House
                         } else {
                             let mut building_kind_names: SmallVec<[&'static str; BuildingKind::count()]> = SmallVec::new();
@@ -239,18 +234,18 @@ impl Building {
                                     building_kind_names.push(kind.name());
                                 }
                             }
-                            dev::combo(ui_sys, "Kind", BUILDING_KIND_IDX.as_mut(), &building_kind_names);
+                            ui::combo(ui_sys, "Kind", BUILDING_KIND_IDX.as_mut(), &building_kind_names);
                             *BuildingKind::FLAGS[*BUILDING_KIND_IDX + 1].value() // We've skipped House @ [0]
                         }
                     };
 
-                    dev::input_scalar(ui_sys, "Gen", BUILDING_GEN.as_mut(), 1);
-                    dev::input_scalar(ui_sys, "Idx", BUILDING_ID.as_mut(), 1);
+                    ui::input_scalar(ui_sys, "Gen", BUILDING_GEN.as_mut(), 1);
+                    ui::input_scalar(ui_sys, "Idx", BUILDING_ID.as_mut(), 1);
 
                     BuildingKindAndId { kind, id: BuildingId::new(*BUILDING_GEN, *BUILDING_ID) }
                 };
 
-                if dev::button(ui_sys, "Add Worker (+1)") && !self.workers_is_maxed() {
+                if ui::button(ui_sys, "Add Worker (+1)") && !self.workers_is_maxed() {
                     if let Some(building) = context.sim_ctx.find_building_mut(source.kind, source.id) {
                         let removed_count = building.remove_workers(1, self.kind_and_id());
                         let added_count = self.add_workers(removed_count, source);
@@ -260,7 +255,7 @@ impl Building {
                     }
                 }
 
-                if dev::button(ui_sys, "Remove Worker (-1)") && self.workers_count() != 0 {
+                if ui::button(ui_sys, "Remove Worker (-1)") && self.workers_count() != 0 {
                     if let Some(building) = context.sim_ctx.find_building_mut(source.kind, source.id) {
                         let added_count = building.add_workers(1, self.kind_and_id());
                         let removed_count = self.remove_workers(added_count, source);
@@ -270,7 +265,7 @@ impl Building {
                     }
                 }
 
-                if dev::button(ui_sys, "Remove All Workers") {
+                if ui::button(ui_sys, "Remove All Workers") {
                     self.remove_all_workers(context.sim_ctx);
                 }
 
@@ -281,21 +276,21 @@ impl Building {
             }
         }
 
-        if let Some(_path) = dev::collapsing_header_scope(ui_sys, "Access", imgui::TreeNodeFlags::empty()) {
+        if let Some(_path) = ui::collapsing_header_scope(ui_sys, "Access", false) {
             if self.is_linked_to_road() {
-                ui.text_colored(Color::green().to_array(), "Has road access.");
+                ui::text_colored(ui_sys, Color::green(), "Has road access.");
             } else {
-                ui.text_colored(Color::red().to_array(), "No road access!");
+                ui::text_colored(ui_sys, Color::red(), "No road access!");
             }
 
-            ui.text(format_small!("Road Link Tile : {}", self.road_link().unwrap_or_default()));
+            ui::text(ui_sys, format_small!("Road Link Tile : {}", self.road_link().unwrap_or_default()));
 
             let mut show_road_link = self.is_showing_road_link_debug(context.sim_ctx);
-            if dev::checkbox(ui_sys, "Show Road Link", &mut show_road_link) {
+            if ui::checkbox(ui_sys, "Show Road Link", &mut show_road_link) {
                 self.set_show_road_link_debug(context.sim_ctx, show_road_link);
             }
 
-            if dev::button(ui_sys, "Highlight Access Tiles") {
+            if ui::button(ui_sys, "Highlight Access Tiles") {
                 pathfind::highlight_building_access_tiles(context.sim_ctx.tile_map_mut(), self.cell_range());
             }
         }
@@ -311,24 +306,24 @@ impl Building {
 
 impl DrawDebugUi for BuildingStock {
     fn draw_debug_ui(&mut self, ui_sys: &UiSystem) {
-        let ui = ui_sys.ui();
         self.resources.for_each_mut(|index, item| {
             let item_label = format_small!("{}##_stock_item_{}", item.kind, index);
             let item_capacity = self.capacities[index] as u32;
 
-            if dev::input_scalar(ui_sys, &item_label, &mut item.count, 1) {
-                item.count = item.count.min(item_capacity);
-            }
+            ui::horizontal(ui_sys, |ui_sys| {
+                if ui::input_scalar(ui_sys, &item_label, &mut item.count, 1) {
+                    item.count = item.count.min(item_capacity);
+                }
 
-            let capacity_left = item_capacity - item.count;
-            let is_full = item.count >= item_capacity;
+                let capacity_left = item_capacity - item.count;
+                let is_full = item.count >= item_capacity;
 
-            ui.same_line();
-            if is_full {
-                ui.text_colored(Color::red().to_array(), "(full)");
-            } else {
-                ui.text(format_small!("({} left)", capacity_left));
-            }
+                if is_full {
+                    ui::text_colored(ui_sys, Color::red(), "(full)");
+                } else {
+                    ui::text(ui_sys, format_small!("({} left)", capacity_left));
+                }
+            });
         });
     }
 }
@@ -339,47 +334,47 @@ impl DrawDebugUi for BuildingStock {
 
 impl DrawDebugUi for ProducerOutputLocalStock {
     fn draw_debug_ui(&mut self, ui_sys: &UiSystem) {
-        let ui = ui_sys.ui();
-        ui.text("Local Stock:");
+        ui::text(ui_sys, "Local Stock:");
 
-        if dev::input_scalar(ui_sys, &format_small!("{}", self.item.kind), &mut self.item.count, 1) {
+        if ui::input_scalar(ui_sys, &format_small!("{}", self.item.kind), &mut self.item.count, 1) {
             self.item.count = self.item.count.min(self.capacity());
         }
 
-        ui.text("Is full:");
-        ui.same_line();
-        if self.is_full() {
-            ui.text_colored(Color::red().to_array(), "yes");
-        } else {
-            ui.text("no");
-        }
+        ui::horizontal(ui_sys, |ui_sys| {
+            ui::text(ui_sys, "Is full:");
+            if self.is_full() {
+                ui::text_colored(ui_sys, Color::red(), "yes");
+            } else {
+                ui::text(ui_sys, "no");
+            }
+        });
     }
 }
 
 impl DrawDebugUi for ProducerInputsLocalStock {
     fn draw_debug_ui(&mut self, ui_sys: &UiSystem) {
-        let ui = ui_sys.ui();
         if self.slots.is_empty() {
-            ui.text("<none>");
+            ui::text(ui_sys, "<none>");
         } else {
             let capacity = self.capacity();
 
             for (index, item) in self.slots.iter_mut().enumerate() {
                 let label = format_small!("{}##_stock_item_{}", item.kind, index);
 
-                if dev::input_scalar(ui_sys, &label, &mut item.count, 1) {
-                    item.count = item.count.min(capacity);
-                }
+                ui::horizontal(ui_sys, |ui_sys| {
+                    if ui::input_scalar(ui_sys, &label, &mut item.count, 1) {
+                        item.count = item.count.min(capacity);
+                    }
 
-                let capacity_left = capacity - item.count;
-                let is_full = item.count >= capacity;
+                    let capacity_left = capacity - item.count;
+                    let is_full = item.count >= capacity;
 
-                ui.same_line();
-                if is_full {
-                    ui.text_colored(Color::red().to_array(), "(full)");
-                } else {
-                    ui.text(format_small!("({} left)", capacity_left));
-                }
+                    if is_full {
+                        ui::text_colored(ui_sys, Color::red(), "(full)");
+                    } else {
+                        ui::text(ui_sys, format_small!("({} left)", capacity_left));
+                    }
+                });
             }
         }
     }
@@ -395,37 +390,35 @@ impl DrawDebugUi for StorageSlots {
             return;
         }
 
-        let ui = ui_sys.ui();
+        ui::horizontal(ui_sys, |ui_sys| {
+            if ui::button(ui_sys, "Fill up all slots") {
+                let add_amount = self.slot_capacity();
+                let slot_capacity = self.slot_capacity();
 
-        if dev::button(ui_sys, "Fill up all slots") {
-            let add_amount = self.slot_capacity();
-            let slot_capacity = self.slot_capacity();
+                for slot in &mut self.slots {
+                    if let Some(allocated_kind) = slot.allocated_resource_kind() {
+                        // Fill up slot with existing resource.
+                        slot.increment_resource_count(allocated_kind, add_amount, slot_capacity);
+                    } else {
+                        let accepted_kinds = slot.accepted_kinds();
 
-            for slot in &mut self.slots {
-                if let Some(allocated_kind) = slot.allocated_resource_kind() {
-                    // Fill up slot with existing resource.
-                    slot.increment_resource_count(allocated_kind, add_amount, slot_capacity);
-                } else {
-                    let accepted_kinds = slot.accepted_kinds();
+                        // Pick a random resource kind from the accepted kinds.
+                        let mut rng = rand::rng();
+                        let random_kind = accepted_kinds.iter().choose(&mut rng).unwrap_or(ResourceKind::Rice);
 
-                    // Pick a random resource kind from the accepted kinds.
-                    let mut rng = rand::rng();
-                    let random_kind = accepted_kinds.iter().choose(&mut rng).unwrap_or(ResourceKind::Rice);
-
-                    slot.increment_resource_count(random_kind, add_amount, slot_capacity);
+                        slot.increment_resource_count(random_kind, add_amount, slot_capacity);
+                    }
                 }
             }
-        }
 
-        ui.same_line();
-
-        if dev::button(ui_sys, "Clear all slots") {
-            for slot in &mut self.slots {
-                slot.clear();
+            if ui::button(ui_sys, "Clear all slots") {
+                for slot in &mut self.slots {
+                    slot.clear();
+                }
             }
-        }
+        });
 
-        ui.separator();
+        ui::separator(ui_sys);
 
         let mut display_slots: SmallVec<[SmallVec<[ResourceKind; 8]>; MAX_STORAGE_SLOTS]> =
             smallvec![SmallVec::new(); MAX_STORAGE_SLOTS];
@@ -443,52 +436,53 @@ impl DrawDebugUi for StorageSlots {
             }
         }
 
-        ui.indent_by(10.0);
-        for (slot_index, slot) in display_slots.iter().enumerate() {
-            let slot_label = {
-                if self.is_slot_free(slot_index) {
-                    format_small!("Slot {} (Free)", slot_index)
-                } else {
-                    format_small!("Slot {} ({})", slot_index, display_slots[slot_index].last().unwrap())
-                }
-            };
-
-            let header_label = format_small!("{}##_stock_slot_{}", slot_label, slot_index);
-
-            if let Some(_path) = dev::collapsing_header_scope(ui_sys, &header_label, imgui::TreeNodeFlags::DEFAULT_OPEN) {
-                for (res_index, res_kind) in slot.iter().enumerate() {
-                    let res_label = format_small!("{}##_stock_item_{}_slot_{}", res_kind, res_index, slot_index);
-
-                    let prev_count = self.slot_resource_count(slot_index, *res_kind);
-                    let mut new_count = prev_count;
-
-                    if dev::input_scalar(ui_sys, &res_label, &mut new_count, 1) {
-                        match new_count.cmp(&prev_count) {
-                            std::cmp::Ordering::Greater => {
-                                new_count =
-                                    self.increment_slot_resource_count(slot_index, *res_kind, new_count - prev_count);
-                            }
-                            std::cmp::Ordering::Less => {
-                                new_count =
-                                    self.decrement_slot_resource_count(slot_index, *res_kind, prev_count - new_count);
-                            }
-                            std::cmp::Ordering::Equal => {} // nothing
-                        }
-                    }
-
-                    let capacity_left = self.slot_capacity() - new_count;
-                    let is_full = new_count >= self.slot_capacity();
-
-                    ui.same_line();
-                    if is_full {
-                        ui.text_colored(Color::red().to_array(), "(full)");
+        ui::indent(ui_sys, 10.0, |ui_sys| {
+            for (slot_index, slot) in display_slots.iter().enumerate() {
+                let slot_label = {
+                    if self.is_slot_free(slot_index) {
+                        format_small!("Slot {} (Free)", slot_index)
                     } else {
-                        ui.text(format_small!("({} left)", capacity_left));
+                        format_small!("Slot {} ({})", slot_index, display_slots[slot_index].last().unwrap())
+                    }
+                };
+
+                let header_label = format_small!("{}##_stock_slot_{}", slot_label, slot_index);
+
+                if let Some(_path) = ui::collapsing_header_scope(ui_sys, &header_label, true) {
+                    for (res_index, res_kind) in slot.iter().enumerate() {
+                        let res_label = format_small!("{}##_stock_item_{}_slot_{}", res_kind, res_index, slot_index);
+
+                        let prev_count = self.slot_resource_count(slot_index, *res_kind);
+                        let mut new_count = prev_count;
+
+                        ui::horizontal(ui_sys, |ui_sys| {
+                            if ui::input_scalar(ui_sys, &res_label, &mut new_count, 1) {
+                                match new_count.cmp(&prev_count) {
+                                    std::cmp::Ordering::Greater => {
+                                        new_count =
+                                            self.increment_slot_resource_count(slot_index, *res_kind, new_count - prev_count);
+                                    }
+                                    std::cmp::Ordering::Less => {
+                                        new_count =
+                                            self.decrement_slot_resource_count(slot_index, *res_kind, prev_count - new_count);
+                                    }
+                                    std::cmp::Ordering::Equal => {} // nothing
+                                }
+                            }
+
+                            let capacity_left = self.slot_capacity() - new_count;
+                            let is_full = new_count >= self.slot_capacity();
+
+                            if is_full {
+                                ui::text_colored(ui_sys, Color::red(), "(full)");
+                            } else {
+                                ui::text(ui_sys, format_small!("({} left)", capacity_left));
+                            }
+                        });
                     }
                 }
             }
-        }
-        ui.unindent_by(10.0);
+        });
     }
 }
 
@@ -515,71 +509,71 @@ impl ProducerBuilding {
 
     fn draw_debug_ui_input_stock(&mut self, ui_sys: &UiSystem) {
         if self.production_input_stock.requires_any_resource() {
-            let ui = ui_sys.ui();
             if let Some(_path) =
-                dev::collapsing_header_scope(ui_sys, "Raw Materials In Stock", imgui::TreeNodeFlags::empty())
+                ui::collapsing_header_scope(ui_sys, "Raw Materials In Stock", false)
             {
                 self.production_input_stock.draw_debug_ui(ui_sys);
 
-                if dev::button(ui_sys, "Fill Stock##_fill_input_stock") {
-                    self.production_input_stock.fill();
-                }
-                ui.same_line();
-                if dev::button(ui_sys, "Clear Stock##_clear_input_stock") {
-                    self.production_input_stock.clear();
-                }
+                ui::horizontal(ui_sys, |ui_sys| {
+                    if ui::button(ui_sys, "Fill Stock##_fill_input_stock") {
+                        self.production_input_stock.fill();
+                    }
+                    if ui::button(ui_sys, "Clear Stock##_clear_input_stock") {
+                        self.production_input_stock.clear();
+                    }
+                });
             }
         }
     }
 
     fn draw_debug_ui_production_output(&mut self, context: &BuildingContext, ui_sys: &UiSystem) {
-        let ui = ui_sys.ui();
-        let Some(_path) = dev::collapsing_header_scope(ui_sys, "Production Output", imgui::TreeNodeFlags::empty()) else {
+        let Some(_path) = ui::collapsing_header_scope(ui_sys, "Production Output", false) else {
             return; // collapsed.
         };
 
         if self.is_production_halted() {
-            ui.text_colored(Color::red().to_array(), "Production Halted:");
-            ui.same_line();
-            if self.production_output_stock.is_full() {
-                ui.text_colored(Color::red().to_array(), "Local Stock Full!");
-            } else if self.production_input_stock.requires_any_resource()
-                && !self.production_input_stock.has_required_resources()
-            {
-                ui.text_colored(Color::red().to_array(), "Missing Resources!");
-            } else {
-                ui.text_colored(Color::red().to_array(), "Production Frozen.");
-            }
+            ui::horizontal(ui_sys, |ui_sys| {
+                ui::text_colored(ui_sys, Color::red(), "Production Halted:");
+                if self.production_output_stock.is_full() {
+                    ui::text_colored(ui_sys, Color::red(), "Local Stock Full!");
+                } else if self.production_input_stock.requires_any_resource()
+                    && !self.production_input_stock.has_required_resources()
+                {
+                    ui::text_colored(ui_sys, Color::red(), "Missing Resources!");
+                } else {
+                    ui::text_colored(ui_sys, Color::red(), "Production Frozen.");
+                }
+            });
         }
 
         if self.runner.failed_to_spawn() {
-            ui.text_colored(Color::red().to_array(), "Failed to spawn last Runner!");
+            ui::text_colored(ui_sys, Color::red(), "Failed to spawn last Runner!");
         }
 
         if self.harvester.failed_to_spawn() {
-            ui.text_colored(Color::red().to_array(), "Failed to spawn last Harvester!");
+            ui::text_colored(ui_sys, Color::red(), "Failed to spawn last Harvester!");
         }
 
         if self.is_waiting_on_runner() {
             if self.is_runner_delivering_resources(context.sim_ctx) {
-                ui.text_colored(Color::yellow().to_array(), "Runner sent on Delivery Task.");
+                ui::text_colored(ui_sys, Color::yellow(), "Runner sent on Delivery Task.");
             } else if self.is_runner_fetching_resources(context.sim_ctx) {
-                ui.text_colored(Color::yellow().to_array(), "Runner sent on Fetch Task.");
+                ui::text_colored(ui_sys, Color::yellow(), "Runner sent on Fetch Task.");
             } else {
-                ui.text_colored(Color::yellow().to_array(), "Runner sent out. Waiting...");
+                ui::text_colored(ui_sys, Color::yellow(), "Runner sent out. Waiting...");
             }
 
-            if dev::button(ui_sys, "Forget Runner") {
+            if ui::button(ui_sys, "Forget Runner") {
                 self.runner.reset();
             }
         }
 
         if self.is_waiting_on_harvester() {
             if self.is_harvester_fetching_resources(context.sim_ctx) {
-                ui.text_colored(Color::yellow().to_array(), "Harvester sent out. Waiting...");
+                ui::text_colored(ui_sys, Color::yellow(), "Harvester sent out. Waiting...");
             }
 
-            if dev::button(ui_sys, "Forget Harvester") {
+            if ui::button(ui_sys, "Forget Harvester") {
                 self.harvester.reset();
             }
         }
@@ -587,29 +581,29 @@ impl ProducerBuilding {
         self.production_update_timer.draw_debug_ui_with_header("Update", ui_sys);
         self.production_output_stock.draw_debug_ui(ui_sys);
 
-        if dev::button(ui_sys, "Fill Stock##_fill_output_stock") {
-            self.production_output_stock.fill();
-        }
-        ui.same_line();
-        if dev::button(ui_sys, "Clear Stock##_clear_output_stock") {
-            self.production_output_stock.clear();
-        }
+        ui::horizontal(ui_sys, |ui_sys| {
+            if ui::button(ui_sys, "Fill Stock##_fill_output_stock") {
+                self.production_output_stock.fill();
+            }
+            if ui::button(ui_sys, "Clear Stock##_clear_output_stock") {
+                self.production_output_stock.clear();
+            }
+        });
     }
 
     fn draw_debug_ui_ambient_patrol(&mut self, cmds: &mut SimCmds, context: &BuildingContext, ui_sys: &UiSystem) {
-        let ui = ui_sys.ui();
-        let Some(_path) = dev::collapsing_header_scope(ui_sys, "Ambient Patrol", imgui::TreeNodeFlags::empty()) else {
+        let Some(_path) = ui::collapsing_header_scope(ui_sys, "Ambient Patrol", false) else {
             return; // collapsed.
         };
 
         self.ambient_patrol.spawn_timer.draw_debug_ui_with_header("Spawn Patrol", ui_sys);
 
-        if dev::button(ui_sys, "Force Spawn Ambient Patrol") {
+        if ui::button(ui_sys, "Force Spawn Ambient Patrol") {
             self.spawn_ambient_patrol(cmds, context, true);
         }
 
         if self.ambient_patrol.patrol.is_spawned_or_pending_spawn() {
-            ui.text_colored(Color::yellow().to_array(), "Ambient Patrol Spawned...");
+            ui::text_colored(ui_sys, Color::yellow(), "Ambient Patrol Spawned...");
         }
     }
 }
@@ -629,24 +623,22 @@ impl ServiceBuilding {
         if !self.stock_or_treasury.is_stock_and_requires_resources() {
             return;
         }
-
-        let ui = ui_sys.ui();
-        let Some(_path) = dev::collapsing_header_scope(ui_sys, "Stock", imgui::TreeNodeFlags::empty()) else {
+        let Some(_path) = ui::collapsing_header_scope(ui_sys, "Stock", false) else {
             return; // collapsed.
         };
 
         if self.runner.failed_to_spawn() {
-            ui.text_colored(Color::red().to_array(), "Failed to spawn last Runner!");
+            ui::text_colored(ui_sys, Color::red(), "Failed to spawn last Runner!");
         }
 
         if self.is_waiting_on_runner() {
             if self.is_runner_fetching_resources(context.sim_ctx) {
-                ui.text_colored(Color::yellow().to_array(), "Runner sent on Fetch Task.");
+                ui::text_colored(ui_sys, Color::yellow(), "Runner sent on Fetch Task.");
             } else {
-                ui.text_colored(Color::yellow().to_array(), "Runner sent out. Waiting...");
+                ui::text_colored(ui_sys, Color::yellow(), "Runner sent out. Waiting...");
             }
 
-            if dev::button(ui_sys, "Forget Runner") {
+            if ui::button(ui_sys, "Forget Runner") {
                 self.runner.reset();
             }
         }
@@ -654,14 +646,15 @@ impl ServiceBuilding {
         if let StockOrTreasury::Stock { update_timer, stock } = &mut self.stock_or_treasury {
             update_timer.draw_debug_ui_with_header("Update", ui_sys);
 
-            if dev::button(ui_sys, "Fill Stock") {
-                // Set all to capacity.
-                stock.fill();
-            }
-            ui.same_line();
-            if dev::button(ui_sys, "Clear Stock") {
-                stock.clear();
-            }
+            ui::horizontal(ui_sys, |ui_sys| {
+                if ui::button(ui_sys, "Fill Stock") {
+                    // Set all to capacity.
+                    stock.fill();
+                }
+                if ui::button(ui_sys, "Clear Stock") {
+                    stock.clear();
+                }
+            });
 
             stock.draw_debug_ui_with_header("Resources", ui_sys);
         }
@@ -671,34 +664,32 @@ impl ServiceBuilding {
         if !self.has_patrol_unit() {
             return;
         }
-
-        let ui = ui_sys.ui();
-        let Some(_path) = dev::collapsing_header_scope(ui_sys, "Patrol", imgui::TreeNodeFlags::empty()) else {
+        let Some(_path) = ui::collapsing_header_scope(ui_sys, "Patrol", false) else {
             return; // collapsed.
         };
 
         if self.patrol.failed_to_spawn() {
-            ui.text_colored(Color::red().to_array(), "Failed to spawn last Patrol!");
+            ui::text_colored(ui_sys, Color::red(), "Failed to spawn last Patrol!");
         }
 
         if self.is_waiting_on_patrol() {
-            ui.text_colored(Color::yellow().to_array(), "Patrol sent out. Waiting...");
-            if dev::button(ui_sys, "Forget Patrol") {
+            ui::text_colored(ui_sys, Color::yellow(), "Patrol sent out. Waiting...");
+            if ui::button(ui_sys, "Forget Patrol") {
                 self.patrol.reset();
             }
         }
 
         self.patrol_timer.draw_debug_ui_with_header("Patrol", ui_sys);
 
-        ui.text(format_small!("Spawn State: {:?}", self.patrol.spawn_state()));
+        ui::text(ui_sys, format_small!("Spawn State: {:?}", self.patrol.spawn_state()));
 
         self.patrol.draw_debug_ui_with_header("Patrol Params", ui_sys);
     }
 
     fn draw_debug_ui_treasury(&mut self, ui_sys: &UiSystem) {
         if let StockOrTreasury::Treasury { gold_units } = &mut self.stock_or_treasury {
-            if let Some(_path) = dev::collapsing_header_scope(ui_sys, "Treasury", imgui::TreeNodeFlags::empty()) {
-                dev::input_scalar(ui_sys, "Gold Units", gold_units, 1);
+            if let Some(_path) = ui::collapsing_header_scope(ui_sys, "Treasury", false) {
+                ui::input_scalar(ui_sys, "Gold Units", gold_units, 1);
             }
         }
     }
@@ -717,82 +708,81 @@ impl HouseBuilding {
     }
 
     fn draw_debug_ui_upgrade_state(&mut self, cmds: &mut SimCmds, context: &BuildingContext, ui_sys: &UiSystem) {
-        let ui = ui_sys.ui();
-
-        let Some(_path) = dev::collapsing_header_scope(ui_sys, "Upgrade", imgui::TreeNodeFlags::empty()) else {
+        let Some(_path) = ui::collapsing_header_scope(ui_sys, "Upgrade", false) else {
             return; // collapsed.
         };
 
-        let draw_level_requirements = |label: &str, level_requirements: &HouseLevelRequirements, imgui_id: u32| {
-            ui.separator();
-            ui.text(label);
+        let draw_level_requirements = |label: &str, level_requirements: &HouseLevelRequirements, header_id: u32| {
+            ui::separator(ui_sys);
+            ui::text(ui_sys, label);
 
-            ui.text(format_small!(
+            ui::text(ui_sys, format_small!(
                 "  Resources avail : {} (req: {})",
                 level_requirements.resources_available_count(),
                 level_requirements.level_config.resources_required.len()
             ));
-            ui.text(format_small!(
+            ui::text(ui_sys, format_small!(
                 "  Services avail  : {} (req: {})",
                 level_requirements.services_available_count(),
                 level_requirements.level_config.services_required.len()
             ));
 
-            let header = format_small!("Resources##_building_resources_{}", imgui_id);
-            if let Some(_path) = dev::collapsing_header_scope(ui_sys, &header, imgui::TreeNodeFlags::empty()) {
+            let header = format_small!("Resources##_building_resources_{}", header_id);
+            if let Some(_path) = ui::collapsing_header_scope(ui_sys, &header, false) {
                 if !level_requirements.level_config.resources_required.is_empty() {
-                    ui.text("Available:");
+                    ui::text(ui_sys, "Available:");
                     if level_requirements.resources_available.is_empty() {
-                        ui.text("  <none>");
+                        ui::text(ui_sys, "  <none>");
                     }
                     for resource in level_requirements.resources_available.iter() {
-                        ui.text(format_small!("  {}", resource));
+                        ui::text(ui_sys, format_small!("  {}", resource));
                     }
                 }
 
-                ui.text("Required:");
+                ui::text(ui_sys, "Required:");
                 if level_requirements.level_config.resources_required.is_empty() {
-                    ui.text("  <none>");
+                    ui::text(ui_sys, "  <none>");
                 }
                 for resource in level_requirements.level_config.resources_required.iter() {
-                    ui.text(format_small!("  {}", resource));
+                    ui::text(ui_sys, format_small!("  {}", resource));
                 }
             }
 
-            let header = format_small!("Services##_building_services_{}", imgui_id);
-            if let Some(_path) = dev::collapsing_header_scope(ui_sys, &header, imgui::TreeNodeFlags::empty()) {
+            let header = format_small!("Services##_building_services_{}", header_id);
+            if let Some(_path) = ui::collapsing_header_scope(ui_sys, &header, false) {
                 if !level_requirements.level_config.services_required.is_empty() {
-                    ui.text("Available:");
+                    ui::text(ui_sys, "Available:");
                     if level_requirements.services_available.is_empty() {
-                        ui.text("  <none>");
+                        ui::text(ui_sys, "  <none>");
                     }
                     for service in level_requirements.services_available.iter() {
-                        ui.text(format_small!("  {}", service));
+                        ui::text(ui_sys, format_small!("  {}", service));
                     }
                 }
 
-                ui.text("Required:");
+                ui::text(ui_sys, "Required:");
                 if level_requirements.level_config.services_required.is_empty() {
-                    ui.text("  <none>");
+                    ui::text(ui_sys, "  <none>");
                 }
                 for service in level_requirements.level_config.services_required.iter() {
-                    ui.text(format_small!("  {}", service));
+                    ui::text(ui_sys, format_small!("  {}", service));
                 }
             }
         };
 
         let color_text = |text: &str, value: bool| {
-            ui.text(text);
-            ui.same_line();
-            if value {
-                ui.text("yes");
-            } else {
-                ui.text_colored(Color::red().to_array(), "no");
-            }
+            ui::horizontal(ui_sys, |ui_sys| {
+                ui::text(ui_sys, text);
+                if value {
+                    ui::text(ui_sys, "yes");
+                } else {
+                    ui::text_colored(ui_sys, Color::red(), "no");
+                }
+            });
         };
 
         let mut level_num: u8 = self.upgrade_state().level.into();
-        if dev::input_scalar(ui_sys, "Level", &mut level_num, 1) {
+        if ui::input_scalar(ui_sys, "Level", &mut level_num, 1) {
             if let Ok(level) = HouseLevel::try_from_primitive(level_num) {
                 match level.cmp(&self.upgrade_state().level) {
                     std::cmp::Ordering::Greater => {
@@ -831,9 +821,7 @@ impl HouseBuilding {
     }
 
     fn draw_debug_ui_timers(&mut self, cmds: &mut SimCmds, context: &BuildingContext, ui_sys: &UiSystem) {
-        let ui = ui_sys.ui();
-
-        let Some(_path) = dev::collapsing_header_scope(ui_sys, "Timers", imgui::TreeNodeFlags::empty()) else {
+        let Some(_path) = ui::collapsing_header_scope(ui_sys, "Timers", false) else {
             return; // collapsed.
         };
 
@@ -843,20 +831,18 @@ impl HouseBuilding {
         self.generate_tax_timer.draw_debug_ui_with_header("Gen Tax", ui_sys);
         self.ambient_patrol.spawn_timer.draw_debug_ui_with_header("Spawn Patrol", ui_sys);
 
-        if dev::button(ui_sys, "Force Spawn Ambient Patrol") {
+        if ui::button(ui_sys, "Force Spawn Ambient Patrol") {
             self.spawn_ambient_patrol(cmds, context, true);
         }
 
         if self.ambient_patrol.patrol.is_spawned_or_pending_spawn() {
-            ui.text_colored(Color::yellow().to_array(), "Ambient Patrol Spawned...");
+            ui::text_colored(ui_sys, Color::yellow(), "Ambient Patrol Spawned...");
         }
     }
 
     fn draw_debug_ui_stock(&mut self, _context: &BuildingContext, ui_sys: &UiSystem) {
         self.stock.draw_debug_ui_with_header("Stock", ui_sys);
-
-        let ui = ui_sys.ui();
-        let Some(_path) = dev::collapsing_header_scope(ui_sys, "Consumption", imgui::TreeNodeFlags::empty()) else {
+        let Some(_path) = ui::collapsing_header_scope(ui_sys, "Consumption", false) else {
             return; // collapsed.
         };
 
@@ -867,24 +853,24 @@ impl HouseBuilding {
         let timer = self.deprivation_timer_secs();
         let deprivation_text = format_small!("Deprivation : {:.0}s / {:.0}s", timer, grace);
         if timer > 0.0 {
-            ui.text_colored(Color::red().to_array(), deprivation_text);
+            ui::text_colored(ui_sys, Color::red(), deprivation_text);
         } else {
-            ui.text(deprivation_text);
+            ui::text(ui_sys, deprivation_text);
         }
 
         // Per-resource fractional consumption carried between stock updates.
-        ui.text("Accumulators:");
+        ui::text(ui_sys, "Accumulators:");
         let mut any_shown = false;
         for kind in ResourceKind::all().iter() {
             let accumulated = self.consumption_accumulator()[kind.index()];
             if accumulated != 0.0 {
                 let rate = config.consumption_rate_table[kind.index()];
-                ui.text(format_small!("  {}: {:.2} ({:.2}/day/resident)", kind, accumulated, rate));
+                ui::text(ui_sys, format_small!("  {}: {:.2} ({:.2}/day/resident)", kind, accumulated, rate));
                 any_shown = true;
             }
         }
         if !any_shown {
-            ui.text("  <none>");
+            ui::text(ui_sys, "  <none>");
         }
     }
 }
@@ -894,20 +880,20 @@ impl HouseBuilding {
 // ----------------------------------------------
 
 fn draw_house_merge_debug_ui(context: &BuildingContext, ui_sys: &UiSystem) {
-    let Some(_path) = dev::collapsing_header_scope(ui_sys, "Merge Debug", imgui::TreeNodeFlags::empty()) else {
+    let Some(_path) = ui::collapsing_header_scope(ui_sys, "Merge Debug", false) else {
         return; // collapsed.
     };
 
     static HIGHLIGHT_START_CELL: UiStaticVar<bool> = UiStaticVar::new(false);
     static CANDIDATE_RECT_IDX: UiStaticVar<usize> = UiStaticVar::new(0);
 
-    dev::checkbox(ui_sys, "Mark Start Cell", HIGHLIGHT_START_CELL.as_mut());
+    ui::checkbox(ui_sys, "Mark Start Cell", HIGHLIGHT_START_CELL.as_mut());
 
-    if dev::input_scalar(ui_sys, "Candidate Rect", CANDIDATE_RECT_IDX.as_mut(), 1) {
+    if ui::input_scalar(ui_sys, "Candidate Rect", CANDIDATE_RECT_IDX.as_mut(), 1) {
         CANDIDATE_RECT_IDX.set((*CANDIDATE_RECT_IDX).min(CANDIDATE_RECTS_COUNT - 1));
     }
 
-    if dev::button(ui_sys, "Visualize Merge Candidate Cells") {
+    if ui::button(ui_sys, "Visualize Merge Candidate Cells") {
         let candidate_rects = candidate_target_rects(context.cell_range());
         let target_rect = candidate_rects[*CANDIDATE_RECT_IDX];
 

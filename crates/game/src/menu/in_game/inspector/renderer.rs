@@ -185,11 +185,10 @@ impl InspectorMenuRenderer {
         }
     }
 
-    pub fn set_icon(&mut self, context: &GameUiContext, icon_sprite: TileIconSprite, tile_kind: TileKind) {
+    pub fn set_icon(&mut self, icon_sprite: TileIconSprite, tile_kind: TileKind) {
         let icon = self.find_icon();
 
-        let sprite = context.ui_sys.to_ui_texture(icon_sprite.tex_info.texture);
-        icon.set_sprite(sprite);
+        icon.set_sprite(icon_sprite.tex_info.texture);
 
         let tex_coords = icon_sprite.tex_info.coords;
         icon.set_tex_coords(tex_coords);

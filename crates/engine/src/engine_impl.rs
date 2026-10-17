@@ -379,7 +379,7 @@ impl Engine {
         // A replay sets the frame's time step, devices and commands first.
         let replayed_events = self.begin_replay_frame(frame);
 
-        // Simulated input next, so this frame's events and ImGui see it.
+        // Simulated input next, so this frame's events and the UI see it.
         let simulated_events = match self.app.input_system_mut().virtual_input_mut() {
             Some(virtual_input) => self.input_timeline.apply_frame(virtual_input),
             None => ApplicationEventList::new(),

@@ -146,7 +146,7 @@ pub trait GameMenusSystem: Any + Save + Load {
     }
 
     fn begin_frame(&mut self, context: &mut GameUiContext) {
-        // Bail if we're hovering over an ImGui menu...
+        // Bail if we're hovering over a UI menu...
         if context.ui_sys.is_handling_mouse_input() {
             return;
         }

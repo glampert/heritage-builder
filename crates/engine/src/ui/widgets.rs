@@ -25,6 +25,7 @@ use super::{
     UiFontScale,
     UiSystem,
     UiTextureHandle,
+    immediate::imgui_texture,
     internal,
     sound::{self, UiButtonSoundsEnabled, UiSoundKey},
 };
@@ -127,12 +128,12 @@ pub trait UiWidgetContext<'game> {
             .texture_cache_mut()
             .load_texture_with_settings((&file_path).into(), Some(super::texture_settings()))
     }
+}
 
-    #[inline]
-    fn load_ui_texture(&mut self, path: PathRef) -> UiTextureHandle {
-        let tex_handle = self.load_texture(path);
-        self.ui_sys().to_ui_texture(tex_handle)
-    }
+// Loads a UI texture as ImGui refers to it.
+#[inline]
+fn load_ui_texture(context: &mut dyn UiWidgetContext, path: PathRef) -> UiTextureHandle {
+    imgui_texture(context.load_texture(path))
 }
 
 // ----------------------------------------------
@@ -523,7 +524,7 @@ impl UiMenu {
             flags: params.flags,
             size: params.size,
             position: params.position,
-            background: params.background.map(|path| context.load_ui_texture(path)),
+            background: params.background.map(|path| load_ui_texture(context, path)),
             widgets: Vec::new(),
             widget_spacing: params.widget_spacing.unwrap_or_else(|| {
                 let style = context.ui_sys().current_ui_style();
@@ -1039,7 +1040,7 @@ impl UiMenuHeading {
 
         Self {
             lines: params.lines,
-            separator: params.separator.map(|path| context.load_ui_texture(path)),
+            separator: params.separator.map(|path| load_ui_texture(context, path)),
             margin_top: params.margin_top,
             margin_bottom: params.margin_bottom,
             center_vertically: params.center_vertically,
@@ -1771,7 +1772,7 @@ impl UiTextButton {
             tooltip: params.tooltip,
             font_scale: params.size.font_scale(),
             size: params.size,
-            hover: params.hover.map(|path| context.load_ui_texture(path)),
+            hover: params.hover.map(|path| load_ui_texture(context, path)),
             sounds_enabled: params.sounds_enabled,
             enabled: params.enabled,
             hovered: false,
@@ -2098,7 +2099,7 @@ impl UiSpriteButtonState {
 
     fn load_texture(self, sprite_path: PathRef, context: &mut dyn UiWidgetContext) -> UiTextureHandle {
         let asset_path = self.asset_path(sprite_path);
-        context.load_ui_texture((&asset_path).into())
+        load_ui_texture(context, (&asset_path).into())
     }
 }
 
@@ -2121,7 +2122,7 @@ pub struct UiTooltipTextParams<'a> {
 pub struct UiTooltipText {
     text: String,
     font_scale: UiFontScale,
-    background: Option<UiTextureHandle>,
+    background: Option<TextureHandle>,
 }
 
 impl UiTooltipText {
@@ -2132,15 +2133,15 @@ impl UiTooltipText {
         Self {
             text: params.text,
             font_scale: params.font_scale,
-            background: params.background.map(|path| context.load_ui_texture(path)),
+            background: params.background.map(|path| context.load_texture(path)),
         }
     }
 
     fn draw(&self, context: &mut dyn UiWidgetContext) {
         debug_assert!(context.is_inside_widget_window());
 
-        super::custom_tooltip(context.ui_sys(), self.font_scale, self.background, || {
-            context.ui_sys().ui().text(&self.text);
+        super::custom_tooltip(context.ui_sys(), self.font_scale, self.background, |ui_sys| {
+            super::text(ui_sys, &self.text);
         });
     }
 }
@@ -2203,7 +2204,7 @@ impl UiWidget for UiSeparator {
 impl UiSeparator {
     pub fn new(context: &mut dyn UiWidgetContext, params: UiSeparatorParams) -> Self {
         Self {
-            separator: params.separator.map(|path| context.load_ui_texture(path)),
+            separator: params.separator.map(|path| load_ui_texture(context, path)),
             size: params.size,
             thickness: params.thickness.unwrap_or(1.0),
             vertical: params.vertical,
@@ -2339,7 +2340,7 @@ impl UiSpriteIcon {
 
         Self {
             imgui_id: ImGuiIdString::new(),
-            sprite: params.sprite.map(|path| context.load_ui_texture(path)),
+            sprite: params.sprite.map(|path| load_ui_texture(context, path)),
             tex_coords: params.tex_coords,
             size: params.size,
             margin_top: params.margin_top,
@@ -2351,8 +2352,8 @@ impl UiSpriteIcon {
         }
     }
 
-    pub fn set_sprite(&mut self, sprite: UiTextureHandle) {
-        self.sprite = Some(sprite);
+    pub fn set_sprite(&mut self, sprite: TextureHandle) {
+        self.sprite = Some(imgui_texture(sprite));
     }
 
     pub fn set_tex_coords(&mut self, tex_coords: RectTexCoords) {
@@ -3476,7 +3477,7 @@ impl UiSlideshow {
 
         let mut frames = Vec::with_capacity(params.frames.len());
         for path in &params.frames {
-            frames.push(context.load_ui_texture(path.into()));
+            frames.push(load_ui_texture(context, path.into()));
         }
 
         let mut flags = params.flags;

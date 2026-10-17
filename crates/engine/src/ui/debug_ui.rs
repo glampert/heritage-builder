@@ -1,10 +1,10 @@
-use crate::ui::{UiSystem, dev};
+use crate::ui::{self, UiSystem};
 
 // ----------------------------------------------
 // DrawDebugUi
 // ----------------------------------------------
 
-// Unified extension trait for ImGui debug-UI drawing.
+// Unified extension trait for debug-UI drawing.
 //
 // Implemented either by hand (engine-side impls live in `engine::debug`, game-side
 // impls in `game::debug`) or automatically via `#[derive(DrawDebugUi)]`
@@ -16,7 +16,7 @@ pub trait DrawDebugUi {
     // Draw the debug widgets nested under a collapsing header. Types that want a
     // different presentation (e.g. no collapsing header) can override this.
     fn draw_debug_ui_with_header(&mut self, header: &str, ui_sys: &UiSystem) {
-        if let Some(_path) = dev::collapsing_header_scope(ui_sys, header, imgui::TreeNodeFlags::empty()) {
+        if let Some(_path) = ui::collapsing_header_scope(ui_sys, header, false) {
             self.draw_debug_ui(ui_sys);
         }
     }

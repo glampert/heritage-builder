@@ -1,6 +1,6 @@
 # Migrate the UI from imgui to egui
 
-**Status (2026-10-17): Phase 0 done (baselines and spikes); Phase 1 in progress.** Work happens on the `egui-migration` branch, one commit per step, merged into `main` with one PR at the end. This file tracks progress.
+**Status (2026-10-17): Phases 0 and 1 done; Phase 2 is next.** Work happens on the `egui-migration` branch, one commit per step, merged into `main` with one PR at the end. This file tracks progress.
 
 Researched against `02d8b3c` on `main`, using egui/epaint 0.37.0 (released 2026-10-15). File references point at that commit, so re-check them before relying on them.
 
@@ -52,21 +52,23 @@ The goal is to move every UI to egui, a pure-Rust library, rendered through the 
 
 ### API shape (examples)
 
+As built in Phase 1 (`crates/engine/src/ui/immediate.rs`):
+
 ```rust
-ui::window(ui_sys, UiWindow::new("Tile Inspector").id(obj_id).open(&mut open).initial_pos(p).auto_resize(), |ui_sys| { .. });
-ui::text(ui_sys, "Population");  ui::text_colored(ui_sys, UiColor::YELLOW, s);  ui::bullet_text(ui_sys, s);
-ui::text_segments(ui_sys, &[("Level: ", None), (lvl, Some(UiColor::GREEN))]); // One galley, replaces most same_line pairs.
-ui::horizontal(ui_sys, |ui_sys| { .. });  ui::indent(ui_sys, |ui_sys| { .. });  ui::separator(ui_sys);
+let window = UiWindow::new(&title).name("Tile Inspector").open(&mut open).auto_resize().position(p, UiCondition::FirstUse);
+ui::window(ui_sys, window, |ui_sys| { .. });
+ui::text(ui_sys, "Population");  ui::text_colored(ui_sys, Color::yellow(), s);  ui::bullet_text(ui_sys, format_args!("{x}"));
+ui::horizontal(ui_sys, |ui_sys| { ui::text(ui_sys, "Level:"); ui::text_colored(ui_sys, Color::green(), lvl); });
+ui::indent(ui_sys, 10.0, |ui_sys| { .. });  ui::separator(ui_sys);
 if ui::button(ui_sys, "Pause") { .. }
-ui::collapsing_header(ui_sys, "Upgrade", false /*default_open*/, |ui_sys| { .. }); // Also a registry path scope.
-ui::main_menu_bar(ui_sys, |ui_sys| ui::menu(ui_sys, "Debug", |ui_sys| { .. }));
-ui::tab_bar(ui_sys, "systems", |tabs| { tabs.tab("World", |ui_sys| { .. }); });
-ui::slider(ui_sys, "Speed", 0.0, 4.0, UiNumberFormat::decimals(2), &mut v);   // No printf formats.
-ui::with_style(ui_sys, UiTheme::Dev, |ui_sys| { .. });
-let painter = ui::painter(ui_sys, UiLayer::Window); painter.with_clip_rect(r).image_quad(tex, corners, uvs, tint);
+let Some(_path) = ui::collapsing_header_scope(ui_sys, "Upgrade", false) else { return }; // Body drawn after it.
+ui::main_menu_bar(ui_sys, |ui_sys| { ui::menu(ui_sys, "Debug", |ui_sys| { .. }); });
+let Some(tab) = ui::tab_bar(ui_sys, "systems", &["World", "Tax/Treasury"]) else { return }; // Draw tab.index's contents.
+ui::slider(ui_sys, "Speed", 0.0, 4.0, UiNumberFormat::Decimals(2), &mut v);
+let painter = ui::painter(ui_sys, UiLayer::Window); painter.clipped(r, |p| p.image_quad(texture, corners, uvs, tint));
 ```
 
-Formatted text goes through `FixedWriter` into an `ArrayString` (a `ui::textf!`-style helper), so it isn't allocated twice. egui still turns every label into a `String`.
+Text functions take `impl UiTextArg` (`&str`, `String`, `ArrayString` or `format_args!`), formatted on the stack. egui still turns every label into a `String`.
 
 ### Styles and fonts
 
@@ -196,18 +198,53 @@ Tick tasks off and add notes in `docs/plans/egui-migration.md` as they land. Eve
   - Record a text input's `TextEdit` response, not the whole row with its label.
 - **Z-order:** a newly shown `Area` goes on top. Retail menus and HUD bars need explicit `Order`s, so a dialog doesn't end up under the HUD.
 - **Debug-build cost:** the spike's windows (about 2,500 vertices) added 0.53 ms a frame unoptimized, and 0.23 ms with `opt-level = 2` for egui, epaint, emath and ecolor. Keep that override.
-### Phase 1: Portable UI API, still on imgui (several commits)
-- [ ] Rename `dev.rs` to `immediate.rs`, re-export it at `ui::`, rename `UiDev*`, and update every `dev::` caller and the proc macro.
-- [ ] Add the missing functions on imgui: text, colored and bullet text, `text_segments`, layout (`separator`, `spacing`, `new_line`, `horizontal`, `indent`, `dummy`, full-width items), `window` / `overlay` builders (they absorb `record_window` and `fit_next_window_on_screen`), `scroll_area` (stick to bottom), `main_menu_bar` / window menu bar, `tab_bar`, `grid`, `id_scope`, `with_style`, the console text input (hint, submit on Enter, focus, history), and queries (screen size, any item hovered, window focused). Add the painter wrapper (rect, circle, text, image, textured quad, clip rect; window, background and foreground layers) and a portable color type. Move `icon_button`, `image_button`, `dpad_buttons`, `custom_tooltip` and `input_*_xy` / `input_color` from `mod.rs` into the immediate module.
-- [ ] Remove imgui types from the API: `TreeNodeFlags` becomes `default_open: bool`, printf formats become `UiNumberFormat` (the proc macro converts `%.2f` and the like at compile time), `UiDevNumber` drops `DataTypeKind`, and `UiTextureHandle`/`UiFontHandle` become our own types. Text takes a size, replacing `set_window_font_scale`. A modal dim setter replaces `set_style_color`.
-- [ ] Port the call sites:
+### Phase 1: Portable UI API, still on imgui
+- [x] Rename `dev.rs` to `immediate.rs`, re-export it at `ui::`, rename `UiDev*`, and update every `dev::` caller and the proc macro.
+- [x] Add the missing functions on imgui: text, colored and bullet text, `text_segments`, layout (`separator`, `spacing`, `new_line`, `horizontal`, `indent`, `dummy`, full-width items), `window` / `overlay` builders (they absorb `record_window` and `fit_next_window_on_screen`), `scroll_area` (stick to bottom), `main_menu_bar` / window menu bar, `tab_bar`, `grid`, `id_scope`, `with_style`, the console text input (hint, submit on Enter, focus, history), and queries (screen size, any item hovered, window focused). Add the painter wrapper (rect, circle, text, image, textured quad, clip rect; window, background and foreground layers) and a portable color type. Move `icon_button`, `image_button`, `dpad_buttons`, `custom_tooltip` and `input_*_xy` / `input_color` from `mod.rs` into the immediate module.
+- [x] Remove imgui types from the API: `TreeNodeFlags` becomes `default_open: bool`, printf formats become `UiNumberFormat` (the proc macro converts `%.2f` and the like at compile time), `UiDevNumber` drops `DataTypeKind`, and `UiTextureHandle`/`UiFontHandle` become our own types. Text takes a size, replacing `set_window_font_scale`. A modal dim setter replaces `set_style_color`.
+- [x] Port the call sites:
   - `game/src/debug/*`, including `sim.rs`, `systems.rs` and `world.rs`, which call `.ui()` without naming imgui;
   - `tile/minimap.rs`, `tile/rendering.rs`, `camera.rs`, `unit/task/patrol.rs`, `game_loop.rs`, `menu/dialog/mod.rs`;
   - `engine/src/debug/{sound,texture,ui_text,update_timer}.rs`, `ui/toast.rs`;
   - `proc_macros/src/debug_ui.rs`, which now emits `ui::text` / `ui::separator` with no `ui` binding.
-- [ ] Make `UiSystem::ui()` `pub(super)` (used only by `widgets.rs`, `immediate.rs` and `internal.rs`) and drop `imgui` from `crates/game/Cargo.toml`.
-- [ ] Leave `TODO(layout)` notes where call sites hardcode sizes or positions involved in a [Phase 6](#phase-6-layout-pass) problem, but don't fix them yet: this phase must leave the screenshots unchanged.
+- [x] Make `UiSystem::ui()` `pub(super)` (used only by `widgets.rs`, `immediate.rs` and `internal.rs`) and drop `imgui` from `crates/game/Cargo.toml`.
+- [x] Leave `TODO(layout)` notes where call sites hardcode sizes or positions involved in a [Phase 6](#phase-6-layout-pass) problem, but don't fix them yet: this phase must leave the screenshots unchanged.
 - **Done when:** `rg imgui crates/game crates/proc_macros` finds nothing, every `ui_*.jsonl` scenario passes, the screenshots match the Phase 0 goldens, and the UI snapshot hasn't changed.
+
+**Phase 1 notes (2026-10-17):**
+- **One commit, not several:** the API change and every caller depend on each other, so the phase landed in a single commit.
+- **Verification:**
+  - All 41 `ui_snapshot.jsonl` screenshots match the Phase 0 goldens at tolerance 0, on OpenGL and on Wgpu.
+  - The trees match the baselines once each tree's widgets are sorted by path (see the tab bar note below).
+  - A rect-level comparison against a build of `7ee09dd` (the baseline commit, in a temporary worktree) found no differences, except the save lists, since the worktree had no local `saves/`.
+  - Every scenario passes, `cargo test --workspace` passes, `determinism.jsonl` still gives checksum `ef501950e441eea8`, record and replay match, and the web build compiles with no warnings and passes the smoke test.
+- **What the API looks like** (`crates/engine/src/ui/immediate.rs`, re-exported at `engine::ui`):
+  - Text functions take `impl UiTextArg`: a `&str`, `String`, `ArrayString` or `format_args!(..)`. Formatted text uses a 256-byte stack buffer and falls back to a `String` only when longer. Callers pass `format_args!` where they used `format!`.
+  - Rows are `ui::horizontal(ui_sys, |ui_sys| ..)` (or `horizontal_spaced`). On imgui, a layout stack in `UiSystem` inserts `same_line` before every widget after the first, and the row is an imgui group. `ui::indent`, `ui::id_scope`, `ui::with_font_scale` and `ui::grid` (texture list) are closures too.
+  - Windows are `ui::window(ui_sys, UiWindow::new(title).open(..).position(..).size(..).auto_resize()..., |ui_sys| ..)`. The window records itself and its close button, and puts its name in its widgets' paths: callers no longer call `record_window` or `path_scope` for it. `UiWindow::name` sets the automation name when the title differs (Tile Inspector, Minimap Debug). `record_as(kind, value)` with `ui::take_window_set_value` covers the palette's `ui.set`. Other builder options: `fit_on_screen`, `menu_bar`, `item_spacing`, `monospace`, `collapsed`, `no_resize`, `no_scrollbar` and `no_collapse`.
+  - Overlays are `ui::overlay(ui_sys, UiOverlay::new(label, pos).bg_alpha(..).bg_color(..).text_color(..).font_scale(..), |ui_sys| ..)`.
+  - Other containers: `ui::scroll_area` with `UiScrollArea` (`leave_at_bottom`, `horizontal_scrollbar`, and `ui::scroll_to_bottom`), `ui::tooltip`, `ui::item_tooltip`, `ui::main_menu_bar`, `ui::window_menu_bar` and `ui::menu`, all closures.
+  - **Deviation:** collapsing headers stay guard-shaped (`collapsing_header_scope(ui_sys, label, default_open) -> Option<scope>`), since imgui's collapsing header doesn't nest its body. That kept about 50 early-return call sites as they were. For egui, draw the header with `CollapsingState` and the body in the current `Ui`.
+  - **Deviation:** tab bars take their labels up front, `ui::tab_bar(ui_sys, id, &labels) -> Option<UiTab>`, and the caller draws the selected tab (`tab.index`) after the bar. egui has no tab widget, and its row of buttons must come before the content. The trees record the tabs before their content as a result.
+  - **Deviation:** `text_segments` wasn't added; `horizontal` covers it.
+  - Text inputs: `UiTextEdit::new(label)` with `hide_label`, `hint`, `submit_on_enter`, `full_width`, `focus` and `history(UiTextHistory)`, drawn with `ui::text_edit` (the name avoids the retained `UiTextInput`). The log viewer's history callback moved into the engine. `ui::input_text` remains for the simple case.
+  - The painter is `ui::painter(ui_sys, UiLayer::Window|Background|Foreground)`: `rect`, `rect_filled`, `circle`, `circle_filled`, `text`, `image`, `image_quad` and `clipped`. UVs use (0, 0) at the texture's top left, as both libraries do. The minimap, debug popups, toasts and the automation badge use it.
+  - Numbers take `UiNumberFormat::{Default, Decimals(n)}`. The proc macro's `display_format = "%.2f"` attribute became `decimals = "2"` (nothing used it). The `UiNumber` trait seals its imgui bound in a private module.
+- **imgui types out of the API:**
+  - Textures are `TextureHandle` everywhere (`UiImageButtonParams::texture`, `UiSpriteIcon::set_sprite`, painter, custom tooltip). `UiTextureHandle` and `INVALID_UI_TEXTURE_HANDLE` are crate-private, used by `widgets.rs` through `immediate::imgui_texture`, and `UiSystem::to_ui_texture` is gone.
+  - `UiSystem::ui()`, `fonts()`, `current_ui_style()` and `current_ui_font()` are `pub(crate)`.
+  - `set_style_color(ModalWindowDimBg)` became `set_modal_backdrop_color`, and `ui().is_any_item_hovered()` became `UiSystem::is_any_widget_hovered`.
+  - What's left public: the renderer's `UiDrawVertex`/`UiDrawIndex`/`UiRenderFrameBundle`, which Phase 2 replaces.
+- **Kept until Phase 3:**
+  - The Debug menu's "Show ImGui Debug Menu" checkbox keeps its label, so the snapshot stays the same; Phase 3 replaces imgui's metrics window.
+  - The comment on `SESSION_SETTLE_FRAMES` (`automation/commands/session.rs`) still describes imgui's popups.
+  - `fit_on_screen` still uses imgui's unsafe size callback.
+- **Kept for identical screenshots,** marked `TODO(layout)`: the palette's blank line for an empty section, and the trailing tile spacing it counts in its width.
+- **Other changes:**
+  - The log viewer's channel filter window draws after the viewer instead of inside it.
+  - Tab contents get an id scope per tab label.
+  - `UpdateTimer`'s id scope uses its address.
+  - The scripts that did the mechanical part of the port (text, separators, `dev::` paths, indent pairs) were throwaway; the rows, windows, overlays, menus, tabs and painters were ported by hand.
 
 ### Phase 2: Renderer prep, still on imgui
 - [ ] Add `UiDrawData` and `RenderSystem::end_frame(&UiDrawData)`, and remove `UiRenderFrameBundle`.

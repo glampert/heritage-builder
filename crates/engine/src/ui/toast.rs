@@ -2,14 +2,16 @@
 // "Screenshot saved". They draw above every window and ignore the mouse. Show one with
 // UiSystem::show_toast.
 
-use common::time::Seconds;
+use common::{Color, Rect, Vec2, time::Seconds};
+
+use super::{self as ui, UiLayer, UiSystem};
 
 const TOAST_LIFETIME_SECS: Seconds = 4.0;
 const TOAST_FADE_SECS: Seconds = 0.5; // Fades out over the end of its lifetime.
 const MAX_TOASTS: usize = 4; // The oldest goes first when there are more.
 
 const BOTTOM_MARGIN: f32 = 80.0;
-const PADDING: [f32; 2] = [12.0, 6.0];
+const PADDING: Vec2 = Vec2::new(12.0, 6.0);
 const SPACING: f32 = 6.0;
 
 struct UiToast {
@@ -31,7 +33,7 @@ impl UiToasts {
     }
 
     // Counts down every toast, and draws the live ones if `visible`. Newest at the bottom.
-    pub fn update(&mut self, ui: &imgui::Ui, delta_time_secs: Seconds, visible: bool) {
+    pub fn update(&mut self, ui_sys: &UiSystem, delta_time_secs: Seconds, visible: bool) {
         self.toasts.retain_mut(|toast| {
             toast.time_left -= delta_time_secs;
             toast.time_left > 0.0
@@ -41,46 +43,37 @@ impl UiToasts {
             return;
         }
 
-        let [screen_width, screen_height] = ui.io().display_size;
-        let draw_list = ui.get_foreground_draw_list();
-        let mut bottom = screen_height - BOTTOM_MARGIN;
+        let screen_size = ui::screen_size(ui_sys);
+        let painter = ui::painter(ui_sys, UiLayer::Foreground);
+        let mut bottom = screen_size.y - BOTTOM_MARGIN;
 
         for toast in self.toasts.iter().rev() {
             let alpha = (toast.time_left / TOAST_FADE_SECS).min(1.0);
-            let [text_width, text_height] = ui.calc_text_size(&toast.text);
+            let text_size = ui::calc_text_size(ui_sys, &toast.text);
 
-            let min = [((screen_width - text_width) * 0.5 - PADDING[0]).max(0.0), bottom - text_height - PADDING[1] * 2.0];
-            let max = [min[0] + text_width + PADDING[0] * 2.0, bottom];
+            let min = Vec2::new(((screen_size.x - text_size.x) * 0.5 - PADDING.x).max(0.0), bottom - text_size.y - PADDING.y * 2.0);
+            let max = Vec2::new(min.x + text_size.x + PADDING.x * 2.0, bottom);
 
-            draw_list
-                .add_rect(min, max, imgui::ImColor32::from_rgba_f32s(0.08, 0.08, 0.1, 0.8 * alpha))
-                .filled(true)
-                .rounding(6.0)
-                .build();
+            painter.rect_filled(Rect::from_extents(min, max), Color::new(0.08, 0.08, 0.1, 0.8 * alpha), 6.0);
+            painter.text(min + PADDING, Color::new(1.0, 1.0, 1.0, alpha), &toast.text);
 
-            draw_list.add_text(
-                [min[0] + PADDING[0], min[1] + PADDING[1]],
-                imgui::ImColor32::from_rgba_f32s(1.0, 1.0, 1.0, alpha),
-                &toast.text,
-            );
-
-            bottom = min[1] - SPACING;
+            bottom = min.y - SPACING;
         }
     }
 }
 
 // A status line at the top center of the screen, over everything else, e.g. while automation
 // drives the input.
-pub(super) fn draw_badge(ui: &imgui::Ui, text: &str) {
-    let [screen_width, _] = ui.io().display_size;
-    let [text_width, text_height] = ui.calc_text_size(text);
+pub(super) fn draw_badge(ui_sys: &UiSystem, text: &str) {
+    let screen_size = ui::screen_size(ui_sys);
+    let text_size = ui::calc_text_size(ui_sys, text);
 
-    let min = [((screen_width - text_width) * 0.5 - PADDING[0]).max(0.0), BADGE_TOP_MARGIN];
-    let max = [min[0] + text_width + PADDING[0] * 2.0, min[1] + text_height + PADDING[1] * 2.0];
+    let min = Vec2::new(((screen_size.x - text_size.x) * 0.5 - PADDING.x).max(0.0), BADGE_TOP_MARGIN);
+    let max = min + text_size + PADDING * 2.0;
 
-    let draw_list = ui.get_foreground_draw_list();
-    draw_list.add_rect(min, max, imgui::ImColor32::from_rgba_f32s(0.6, 0.1, 0.1, 0.85)).filled(true).rounding(6.0).build();
-    draw_list.add_text([min[0] + PADDING[0], min[1] + PADDING[1]], imgui::ImColor32::WHITE, text);
+    let painter = ui::painter(ui_sys, UiLayer::Foreground);
+    painter.rect_filled(Rect::from_extents(min, max), Color::new(0.6, 0.1, 0.1, 0.85), 6.0);
+    painter.text(min + PADDING, Color::white(), text);
 }
 
 const BADGE_TOP_MARGIN: f32 = 60.0; // Below the HUD's top bar.

@@ -16,7 +16,7 @@ use engine::{
     app::input::{InputAction, InputSystem, MouseButton},
     file_sys::paths::{self, AssetPath, PathRef},
     render::texture::{TextureCache, TextureFilter, TextureHandle, TextureSettings, TextureWrapMode},
-    ui::{self, UiFontScale, UiStaticVar, UiSystem, dev, sound::UiButtonSoundsEnabled, widgets::*},
+    ui::{self, UiCondition, UiFontScale, UiLayer, UiNumberFormat, UiPainter, UiStaticVar, UiSystem, UiWindow, sound::UiButtonSoundsEnabled, widgets::*},
 };
 
 use super::{
@@ -938,7 +938,7 @@ impl MinimapWidget {
     fn calc_window_rect(&self, ui_sys: &UiSystem) -> Rect {
         debug_assert!(self.widget_rect.is_valid());
         let size = Vec2::new(self.widget_rect.width() + 70.0, self.widget_rect.height() + 90.0);
-        let pos  = Vec2::new(0.0, ui_sys.ui().io().display_size[1] - size.y);
+        let pos  = Vec2::new(0.0, ui::screen_size(ui_sys).y - size.y);
         Rect::from_pos_and_size(pos, size)
     }
 
@@ -981,7 +981,7 @@ impl MinimapWidget {
         let max_cells = self.map_size_in_cells - Vec2::one();
         Vec2::new(
             cell.0.x / max_cells.x,
-            // NOTE: Flip V for ImGui (because OpenGL textures have V=0 at bottom).
+            // NOTE: Flip V: minimap UVs count V up from the bottom, as OpenGL textures do.
             1.0 - (cell.0.y / max_cells.y),
         )
     }
@@ -991,7 +991,7 @@ impl MinimapWidget {
         let max_cells = self.map_size_in_cells - Vec2::one();
         CellF32(Vec2::new(
             uv.x * max_cells.x,
-            // NOTE: Flip V for ImGui (because OpenGL textures have V=0 at bottom).
+            // NOTE: Flip V: minimap UVs count V up from the bottom, as OpenGL textures do.
             (1.0 - uv.y) * max_cells.y,
         ))
     }
@@ -1061,7 +1061,7 @@ impl MinimapWidget {
 // ----------------------------------------------
 
 pub trait MinimapRenderer {
-    // Draw the minimap using ImGui, nestled inside its own window.
+    // Draw the minimap, nestled inside its own UI window.
     fn draw(&mut self, context: &mut GameUiContext);
 }
 
@@ -1331,54 +1331,40 @@ impl BaseMinimapRenderer {
     }
 
     fn draw_minimap_texture_rect(&mut self, context: &mut GameUiContext) {
-        let draw_list = context.ui_sys.ui().get_window_draw_list();
         let widget = &context.tile_map.minimap.widget;
+        let texture = context.tile_map.minimap.texture.handle;
 
-        let draw_minimap_texture = || {
-            let minimap_texture_handle = context.ui_sys.to_ui_texture(context.tile_map.minimap.texture.handle);
+        let (uv_min, uv_max) = widget.current_minimap_uv_window();
+        let minimap_corners = widget.draw_data.corners();
 
-            let (uv_min, uv_max) = widget.current_minimap_uv_window();
-            let minimap_corners = widget.draw_data.corners();
+        // NOTE: Flip V: the UV window counts V up, UI texture coordinates count it down.
+        let uvs = [
+            Vec2::new(uv_min.x, 1.0 - uv_min.y),
+            Vec2::new(uv_max.x, 1.0 - uv_min.y),
+            Vec2::new(uv_max.x, 1.0 - uv_max.y),
+            Vec2::new(uv_min.x, 1.0 - uv_max.y),
+        ];
 
-            // NOTE: Flip V for ImGui.
-            let uv1 = [uv_min.x, 1.0 - uv_min.y];
-            let uv2 = [uv_max.x, 1.0 - uv_min.y];
-            let uv3 = [uv_max.x, 1.0 - uv_max.y];
-            let uv4 = [uv_min.x, 1.0 - uv_max.y];
-
-            draw_list
-                .add_image_quad(
-                    minimap_texture_handle,
-                    minimap_corners[0].to_array(),
-                    minimap_corners[1].to_array(),
-                    minimap_corners[2].to_array(),
-                    minimap_corners[3].to_array(),
-                )
-                .uv(uv1, uv2, uv3, uv4)
-                .build();
-        };
+        let painter = ui::painter(context.ui_sys, UiLayer::Window);
+        let draw_minimap_texture = |painter: &UiPainter| painter.image_quad(texture, minimap_corners, uvs, Color::white());
 
         if self.apply_widget_clip_rect {
             // Draw inner playable rectangle of the minimap diamond only.
-            let clip_rect = widget.draw_data.clip_rect();
-            draw_list.with_clip_rect(clip_rect.min.to_array(), clip_rect.max.to_array(), draw_minimap_texture);
+            painter.clipped(widget.draw_data.clip_rect(), draw_minimap_texture);
         } else {
             // Draw whole minimap unclipped.
-            draw_minimap_texture();
+            draw_minimap_texture(&painter);
         }
     }
 
     fn draw_camera_overlay_rect(&mut self, context: &mut GameUiContext) {
-        let draw_list = context.ui_sys.ui().get_window_draw_list();
         let widget = &context.tile_map.minimap.widget;
+        let painter = ui::painter(context.ui_sys, UiLayer::Window);
 
-        let clip_rect = widget.draw_data.clip_rect();
-        let camera_rect = widget.camera_rect;
-
-        draw_list.add_rect(camera_rect.min.to_array(), camera_rect.max.to_array(), imgui::ImColor32::WHITE).build();
+        painter.rect(widget.camera_rect, Color::white());
 
         // Whole map outline rect, after camera overlay rect so it draws on top.
-        draw_list.add_rect(clip_rect.min.to_array(), clip_rect.max.to_array(), imgui::ImColor32::BLACK).build();
+        painter.rect(widget.draw_data.clip_rect(), Color::black());
     }
 
     fn draw_icons(&mut self, context: &mut GameUiContext) {
@@ -1387,11 +1373,10 @@ impl BaseMinimapRenderer {
             return;
         }
 
-        let draw_list = context.ui_sys.ui().get_window_draw_list();
         let widget = &context.tile_map.minimap.widget;
         let clip_rect = widget.draw_data.clip_rect();
 
-        let draw_all_icons = || {
+        let draw_all_icons = |painter: &UiPainter| {
             const ICON_SIZE: Vec2 = Vec2::new(MINIMAP_ICON_SIZE, MINIMAP_ICON_SIZE);
             const ICON_HALF_SIZE: Vec2 = Vec2::new(ICON_SIZE.x * 0.5, ICON_SIZE.y * 0.5);
 
@@ -1418,19 +1403,16 @@ impl BaseMinimapRenderer {
                 let icon_tint_alpha = (icon.time_left / icon.lifetime).clamp(0.0, 1.0);
                 let icon_tint = Color::new(icon.tint.r, icon.tint.g, icon.tint.b, icon_tint_alpha);
 
-                let icon_ui_texture = context.ui_sys.to_ui_texture(icon.texture);
-
-                draw_list
-                    .add_image(icon_ui_texture, icon_rect.min.to_array(), icon_rect.max.to_array())
-                    .col(imgui::ImColor32::from_rgba_f32s(icon_tint.r, icon_tint.g, icon_tint.b, icon_tint_alpha))
-                    .build();
+                painter.image(icon.texture, icon_rect, icon_tint);
             }
         };
 
+        let painter = ui::painter(context.ui_sys, UiLayer::Window);
+
         if self.apply_widget_clip_rect {
-            draw_list.with_clip_rect(clip_rect.min.to_array(), clip_rect.max.to_array(), draw_all_icons);
+            painter.clipped(clip_rect, draw_all_icons);
         } else {
-            draw_all_icons();
+            draw_all_icons(&painter);
         }
     }
 }
@@ -1506,30 +1488,27 @@ impl DevUiMinimapRenderer {
             return;
         }
 
-        let draw_list  = context.ui_sys.ui().get_window_draw_list();
+        let painter    = ui::painter(context.ui_sys, UiLayer::Window);
         let widget     = &context.tile_map.minimap.widget;
         let cursor_pos = widget.cursor_pos;
         let clip_rect  = widget.draw_data.clip_rect();
 
         if clip_rect.contains_point(cursor_pos) {
             // Red when cursor inside minimap.
-            let color = imgui::ImColor32::from_rgb(255, 0, 0);
-
-            draw_list.add_rect(clip_rect.min.to_array(), clip_rect.max.to_array(), color).build();
-
-            draw_list.add_circle(cursor_pos.to_array(), 4.0, color).build();
+            painter.rect(clip_rect, Color::red());
+            painter.circle(cursor_pos, 4.0, Color::red());
         }
 
         // Minimap diamond corners:
         let corner_colors = [
-            imgui::ImColor32::from_rgb(255, 0, 0),     // 0, red
-            imgui::ImColor32::from_rgb(0, 255, 0),     // 1, green
-            imgui::ImColor32::from_rgb(0, 0, 255),     // 2, blue
-            imgui::ImColor32::from_rgb(255, 255, 255), // 3, white
+            Color::red(),   // 0
+            Color::green(), // 1
+            Color::blue(),  // 2
+            Color::white(), // 3
         ];
 
         for (corner, color) in widget.draw_data.diamond.screen_points().iter().zip(corner_colors) {
-            draw_list.add_circle(corner.to_array(), 2.0, color).build();
+            painter.circle(*corner, 2.0, color);
         }
     }
 
@@ -1538,7 +1517,7 @@ impl DevUiMinimapRenderer {
             return;
         }
 
-        let draw_list = context.ui_sys.ui().get_window_draw_list();
+        let painter = ui::painter(context.ui_sys, UiLayer::Window);
         let widget = &context.tile_map.minimap.widget;
 
         let camera_rect = widget.camera_rect;
@@ -1546,15 +1525,12 @@ impl DevUiMinimapRenderer {
 
         if camera_near_playable_area_limits {
             // Color camera rect red if any corner of the camera is nearing the playable area limits.
-            draw_list
-                .add_rect(camera_rect.min.to_array(), camera_rect.max.to_array(), imgui::ImColor32::from_rgb(255, 0, 0))
-                .build();
+            painter.rect(camera_rect, Color::red());
         }
 
         // Camera rect min (BLUE) / max (YELLOW):
-        draw_list.add_circle(camera_rect.min.to_array(), 2.0, imgui::ImColor32::from_rgb(0, 0, 255)).filled(true).build();
-
-        draw_list.add_circle(camera_rect.max.to_array(), 2.0, imgui::ImColor32::from_rgb(255, 255, 0)).filled(true).build();
+        painter.circle_filled(camera_rect.min, 2.0, Color::blue());
+        painter.circle_filled(camera_rect.max, 2.0, Color::yellow());
 
         // Draw a green/red debug circle at the camera's center:
         let camera_center_point = {
@@ -1574,14 +1550,10 @@ impl DevUiMinimapRenderer {
 
         if widget.draw_data.clip_rect().contains_rect(&point_rect) {
             // Center derived from iso coords (GREEN):
-            draw_list
-                .add_circle(camera_center_point.to_array(), POINT_RADIUS, imgui::ImColor32::from_rgb(0, 255, 0))
-                .build();
+            painter.circle(camera_center_point, POINT_RADIUS, Color::green());
 
             // Center derived from screen-space rect (RED):
-            draw_list
-                .add_circle(camera_rect.center().to_array(), POINT_RADIUS * 0.5, imgui::ImColor32::from_rgb(255, 0, 0))
-                .build();
+            painter.circle(camera_rect.center(), POINT_RADIUS * 0.5, Color::red());
         }
     }
 
@@ -1595,20 +1567,11 @@ impl DevUiMinimapRenderer {
             return;
         }
 
-        let parent_window_size = widget.window_rect.size().to_array();
-        let parent_window_pos  = widget.window_rect.position().to_array();
+        let window_pos = Vec2::new(
+            widget.window_rect.position().x + widget.window_rect.size().x + 10.0,
+            widget.window_rect.position().y - 115.0,
+        );
 
-        let window_pos = [
-            parent_window_pos[0] + parent_window_size[0] + 10.0,
-            parent_window_pos[1] - 115.0,
-        ];
-
-        let window_flags =
-            imgui::WindowFlags::NO_RESIZE
-            | imgui::WindowFlags::NO_SCROLLBAR
-            | imgui::WindowFlags::NO_COLLAPSE;
-
-        let ui = context.ui_sys.ui();
         let mut show_debug_controls = *SHOW_MINIMAP_DEBUG_CONTROLS;
 
         let window_name = format_fixed_string!(
@@ -1618,77 +1581,70 @@ impl DevUiMinimapRenderer {
             widget.map_size_in_cells.y as i32
         );
 
-        ui.window(window_name)
-            .opened(&mut show_debug_controls)
-            .flags(window_flags)
-            .position(window_pos, imgui::Condition::FirstUseEver)
-            .always_auto_resize(true)
-            .build(|| {
-                let ui_sys = context.ui_sys;
-                dev::record_window(ui_sys, "window", "Minimap Debug", None, true);
-                let _path = dev::path_scope(ui_sys, "Minimap Debug");
+        let window = UiWindow::new(&window_name)
+            .name("Minimap Debug")
+            .open(&mut show_debug_controls)
+            .no_resize()
+            .no_scrollbar()
+            .no_collapse()
+            .auto_resize()
+            .position(window_pos, UiCondition::FirstUse);
 
-                let widget_mut = &mut context.tile_map.minimap.widget;
+        ui::window(context.ui_sys, window, |ui_sys| {
+            let widget_mut = &mut context.tile_map.minimap.widget;
 
-                let camera_center_iso = context.camera.iso_world_position();
-                let camera_center_cell = coords::iso_to_cell_f32(camera_center_iso);
+            let camera_center_iso = context.camera.iso_world_position();
+            let camera_center_cell = coords::iso_to_cell_f32(camera_center_iso);
 
-                let camera_edges_near_playable_area_limits = widget_mut.camera_rect_edges_near_playable_map_area_limits();
+            let camera_edges_near_playable_area_limits = widget_mut.camera_rect_edges_near_playable_map_area_limits();
 
-                let visible_cells =
-                    MinimapWidget::calc_minimap_visible_cells(widget_mut.map_size_in_cells, widget_mut.transform.zoom());
+            let visible_cells =
+                MinimapWidget::calc_minimap_visible_cells(widget_mut.map_size_in_cells, widget_mut.transform.zoom());
 
-                let (uv_min, uv_max) = widget_mut.current_minimap_uv_window();
+            let (uv_min, uv_max) = widget_mut.current_minimap_uv_window();
 
-                if dev::small_button(ui_sys, "Reset") {
+            ui::horizontal(ui_sys, |ui_sys| {
+                if ui::small_button(ui_sys, "Reset") {
                     context.camera.center();
                     widget_mut.transform.reset();
                 }
 
-                ui.same_line();
-                dev::checkbox(ui_sys, "Debug Draw", &mut self.enable_debug_draw);
-                ui.same_line();
-                dev::checkbox(ui_sys, "Clipped", &mut self.base_renderer.apply_widget_clip_rect);
-
-                // newline
-                dev::checkbox(ui_sys, "Auto Scroll", &mut widget_mut.auto_scroll);
-                ui.same_line();
-                dev::checkbox(ui_sys, "Auto Zoom", &mut widget_mut.auto_zoom);
-
-                dev::input_float(ui_sys, "Scroll Speed", &mut widget_mut.scroll_speed_px_per_sec, 1.0, Some("%.2f"), false);
-
-                dev::input_float(ui_sys, "Scroll X", &mut widget_mut.transform.offsets.x, 1.0, Some("%.2f"), false);
-
-                dev::input_float(ui_sys, "Scroll Y", &mut widget_mut.transform.offsets.y, 1.0, Some("%.2f"), false);
-
-                if dev::input_float(
-                    ui_sys,
-                    "Zoom",
-                    &mut widget_mut.transform.scale,
-                    MinimapTransform::ZOOM_STEP,
-                    Some("%.2f"),
-                    false,
-                ) {
-                    widget_mut.transform.scale =
-                        widget_mut.transform.scale.clamp(MinimapTransform::ZOOM_MIN, MinimapTransform::ZOOM_MAX);
-                }
-
-                ui.separator();
-
-                ui.text(format_fixed_string!(128, "UV Window          : {}", uv_max - uv_min));
-                ui.text(format_fixed_string!(128, "UV Window Min/Max  : {} / {}", uv_min, uv_max));
-                ui.text(format_fixed_string!(128, "Visible Cells      : {}", visible_cells));
-                ui.text(format_fixed_string!(128, "Camera Center Iso  : {}", camera_center_iso.0));
-                ui.text(format_fixed_string!(128, "Camera Center Cell : {}", camera_center_cell.0));
-
-                if camera_edges_near_playable_area_limits.is_empty() {
-                    ui.text("Camera Edges Near Limit : None");
-                } else {
-                    ui.text("Camera Edges Near Limit :");
-                    ui.same_line();
-                    ui.text_colored(Color::red().to_array(), camera_edges_near_playable_area_limits.to_string());
-                }
+                ui::checkbox(ui_sys, "Debug Draw", &mut self.enable_debug_draw);
+                ui::checkbox(ui_sys, "Clipped", &mut self.base_renderer.apply_widget_clip_rect);
             });
+
+            ui::horizontal(ui_sys, |ui_sys| {
+                ui::checkbox(ui_sys, "Auto Scroll", &mut widget_mut.auto_scroll);
+                ui::checkbox(ui_sys, "Auto Zoom", &mut widget_mut.auto_zoom);
+            });
+
+            let decimals = UiNumberFormat::Decimals(2);
+            ui::input_float(ui_sys, "Scroll Speed", &mut widget_mut.scroll_speed_px_per_sec, 1.0, decimals, false);
+            ui::input_float(ui_sys, "Scroll X", &mut widget_mut.transform.offsets.x, 1.0, decimals, false);
+            ui::input_float(ui_sys, "Scroll Y", &mut widget_mut.transform.offsets.y, 1.0, decimals, false);
+
+            if ui::input_float(ui_sys, "Zoom", &mut widget_mut.transform.scale, MinimapTransform::ZOOM_STEP, decimals, false) {
+                widget_mut.transform.scale =
+                    widget_mut.transform.scale.clamp(MinimapTransform::ZOOM_MIN, MinimapTransform::ZOOM_MAX);
+            }
+
+            ui::separator(ui_sys);
+
+            ui::text(ui_sys, format_fixed_string!(128, "UV Window          : {}", uv_max - uv_min));
+            ui::text(ui_sys, format_fixed_string!(128, "UV Window Min/Max  : {} / {}", uv_min, uv_max));
+            ui::text(ui_sys, format_fixed_string!(128, "Visible Cells      : {}", visible_cells));
+            ui::text(ui_sys, format_fixed_string!(128, "Camera Center Iso  : {}", camera_center_iso.0));
+            ui::text(ui_sys, format_fixed_string!(128, "Camera Center Cell : {}", camera_center_cell.0));
+
+            if camera_edges_near_playable_area_limits.is_empty() {
+                ui::text(ui_sys, "Camera Edges Near Limit : None");
+            } else {
+                ui::horizontal(ui_sys, |ui_sys| {
+                    ui::text(ui_sys, "Camera Edges Near Limit :");
+                    ui::text_colored(ui_sys, Color::red(), camera_edges_near_playable_area_limits.to_string());
+                });
+            }
+        });
 
         SHOW_MINIMAP_DEBUG_CONTROLS.set(show_debug_controls);
     }

@@ -109,7 +109,7 @@ pub trait UnitTask: Sized + 'static {
     // Optional post-deserialization fixups (e.g. callback pointers).
     fn post_load(&mut self) {}
 
-    // Optional ImGui debug panel.
+    // Optional debug UI panel.
     fn draw_debug_ui(&mut self, _unit: &mut Unit, _sim_context: &SimContext, _ui: &UiSystem) {}
 }
 

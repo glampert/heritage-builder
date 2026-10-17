@@ -6,7 +6,7 @@ use common::{
     callback::Callback,
     time::{CountdownTimer, Seconds},
 };
-use engine::{log, ui::{DrawDebugUi, UiSystem, dev}};
+use engine::{log, ui::{self, DrawDebugUi, UiSystem}};
 use proc_macros::DrawDebugUi;
 
 use super::{
@@ -518,8 +518,6 @@ impl UnitTask for UnitTaskRandomizedPatrol {
     }
 
     fn draw_debug_ui(&mut self, unit: &mut Unit, sim_context: &SimContext, ui_sys: &UiSystem) {
-        let ui = ui_sys.ui();
-
         #[derive(DrawDebugUi)]
         struct View {
             #[debug_ui(label = "Origin Building")]
@@ -552,26 +550,26 @@ impl UnitTask for UnitTaskRandomizedPatrol {
 
         self.path_record.draw_debug_ui(ui_sys);
 
-        ui.separator();
+        ui::separator(ui_sys);
 
-        if dev::button(ui_sys, "Return to Origin") {
+        if ui::button(ui_sys, "Return to Origin") {
             unit.follow_path(None);
             self.try_return_to_origin(unit, sim_context);
         }
 
-        if dev::button(ui_sys, "Find New Goal") {
+        if ui::button(ui_sys, "Find New Goal") {
             unit.follow_path(None);
             self.try_find_goal(unit, sim_context);
         }
 
         if let Some((idle_countdown, countdown)) = &mut self.idle_countdown {
-            ui.separator();
+            ui::separator(ui_sys);
 
-            if dev::button(ui_sys, "Restart Idle Countdown") {
+            if ui::button(ui_sys, "Restart Idle Countdown") {
                 idle_countdown.reset(*countdown);
             }
 
-            if dev::button(ui_sys, "Clear Idle Countdown") {
+            if ui::button(ui_sys, "Clear Idle Countdown") {
                 idle_countdown.reset(0.0);
             }
         }

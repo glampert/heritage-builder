@@ -2,8 +2,8 @@ use arrayvec::ArrayString;
 use rand::{self, Rng};
 use smallvec::SmallVec;
 
-use common::{self, Color, Vec2, time::Seconds};
-use engine::ui::UiSystem;
+use common::{self, Color, Rect, Vec2, time::Seconds};
+use engine::ui::{self, UiLayer, UiSystem};
 
 // Max length of a popup message text. Debug-only, so we commit to a fixed
 // worst-case size and avoid any heap allocation on the hot path.
@@ -153,25 +153,15 @@ impl PopupMessage {
 // Internal helpers
 // ----------------------------------------------
 
-fn draw_text_with_bg(ui: &imgui::Ui, text: &str, pos: Vec2, text_color: Color, bg_color: Color, padding: f32) {
-    let draw_list = ui.get_background_draw_list();
+fn draw_text_with_bg(ui_sys: &UiSystem, text: &str, pos: Vec2, text_color: Color, bg_color: Color, padding: f32) {
+    let text_size = ui::calc_text_size(ui_sys, text);
 
-    // Measure text size
-    let text_size = ui.calc_text_size(text);
+    // Padded rectangle under the text.
+    let bg_rect = Rect::from_extents(pos - Vec2::new(padding, padding), pos + text_size + Vec2::new(padding, padding));
 
-    // Compute padded rectangle
-    let p_min = [pos.x - padding, pos.y - padding];
-    let p_max = [pos.x + text_size[0] + padding, pos.y + text_size[1] + padding];
-
-    // Convert colors
-    let bg_col_u32 = imgui::ImColor32::from_rgba_f32s(bg_color.r, bg_color.g, bg_color.b, bg_color.a);
-    let text_col_u32 = imgui::ImColor32::from_rgba_f32s(text_color.r, text_color.g, text_color.b, text_color.a);
-
-    // Draw background rectangle
-    draw_list.add_rect(p_min, p_max, bg_col_u32).filled(true).build();
-
-    // Draw text on top
-    draw_list.add_text([pos.x, pos.y], text_col_u32, text);
+    let painter = ui::painter(ui_sys, UiLayer::Background);
+    painter.rect_filled(bg_rect, bg_color, 0.0);
+    painter.text(pos, text_color, text);
 }
 
 fn calc_message_lifetime_percentage(lifetime_secs: Seconds, time_left_secs: Seconds) -> f32 {
@@ -189,8 +179,6 @@ fn draw_popup_message(
     scroll_speed: f32,
     start_bg_alpha: f32,
 ) {
-    let ui = ui_sys.ui();
-
     let lifetime_percentage = match message.lifetime {
         Some(lifetime) => calc_message_lifetime_percentage(lifetime.0, lifetime.1),
         None => 0.0, // default
@@ -215,5 +203,5 @@ fn draw_popup_message(
     let text_color = message.color;
     let bg_color = Color::new(0.1, 0.1, 0.1, bg_alpha);
 
-    draw_text_with_bg(ui, &message.text, pos, text_color, bg_color, 4.0);
+    draw_text_with_bg(ui_sys, &message.text, pos, text_color, bg_color, 4.0);
 }

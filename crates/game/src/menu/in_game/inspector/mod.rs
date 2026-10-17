@@ -173,7 +173,7 @@ impl GameObjectInspector for UnitInspector {
         let selected_tile = context.topmost_selected_tile().unwrap();
 
         if let Some(unit) = context.world.find_unit_for_tile(selected_tile) {
-            self.renderer.set_icon(context, selected_tile.icon_sprite(), selected_tile.kind());
+            self.renderer.set_icon(selected_tile.icon_sprite(), selected_tile.kind());
             self.renderer.set_title(unit.name());
             self.renderer.set_body_text(find_unit_dialog(selected_tile));
             self.set_inventory(unit.peek_inventory());
@@ -213,7 +213,7 @@ impl GameObjectInspector for BuildingInspector {
         let selected_tile = context.topmost_selected_tile().unwrap();
 
         if let Some(building) = context.world.find_building_for_tile(selected_tile) {
-            self.renderer.set_icon(context, selected_tile.icon_sprite(), selected_tile.kind());
+            self.renderer.set_icon(selected_tile.icon_sprite(), selected_tile.kind());
             self.renderer.set_title(building.name());
             self.set_population_and_workers(building);
 
@@ -410,7 +410,7 @@ impl GameObjectInspector for PropInspector {
         let selected_tile = context.topmost_selected_tile().unwrap();
 
         if let Some(prop) = context.world.find_prop_for_tile(selected_tile) {
-            self.renderer.set_icon(context, selected_tile.icon_sprite(), selected_tile.kind());
+            self.renderer.set_icon(selected_tile.icon_sprite(), selected_tile.kind());
             self.renderer.set_title(prop.name());
             self.renderer.set_body_text(find_tile_description(selected_tile));
             self.set_harvestable_resource(prop.harvestable_resource(), prop.harvestable_amount());
@@ -448,7 +448,7 @@ impl GameObjectInspector for TerrainInspector {
     fn update_selection(&mut self, context: &mut GameUiContext) {
         let selected_tile = context.topmost_selected_tile().unwrap();
 
-        self.renderer.set_icon(context, selected_tile.icon_sprite(), selected_tile.kind());
+        self.renderer.set_icon(selected_tile.icon_sprite(), selected_tile.kind());
         self.renderer.set_title(&snake_case_to_title::<128>(selected_tile.name()));
         self.renderer.set_body_text(find_tile_description(selected_tile));
     }

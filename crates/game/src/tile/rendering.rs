@@ -381,11 +381,9 @@ impl TileMapRenderer {
                         render_sys.draw_polyline_with_thickness(&points, color, line_thickness, true);
                     }
                 }
-
-                let ui = ui_sys.ui();
-                ui::overlay(ui, "Search Graph", Vec2::new(10.0, 30.0), 0.7, || {
-                    ui.text(common::format_small!("Vacant Lots: {}", graph.vacant_lot_nodes_count()));
-                    ui.text(common::format_small!("Settlers Spawn Point: {}", graph.settlers_spawn_point().unwrap_or(Node::invalid())));
+                ui::overlay(ui_sys, ui::UiOverlay::new("Search Graph", Vec2::new(10.0, 30.0)).bg_alpha(0.7), |ui_sys| {
+                    ui::text(ui_sys, common::format_small!("Vacant Lots: {}", graph.vacant_lot_nodes_count()));
+                    ui::text(ui_sys, common::format_small!("Settlers Spawn Point: {}", graph.settlers_spawn_point().unwrap_or(Node::invalid())));
                 });
             }
             TileMapLayerKind::Objects => {
