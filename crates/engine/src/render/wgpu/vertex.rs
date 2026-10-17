@@ -1,5 +1,6 @@
 use common::{Color, Vec2};
-use crate::render;
+
+use crate::render::ui_draw::UiVertex;
 
 // ----------------------------------------------
 // Compile time index size to wgpu::IndexFormat
@@ -90,33 +91,15 @@ pub type PointVertex2D = LineVertex2D;
 pub type PointIndex2D  = u16;
 
 // ----------------------------------------------
-// ImGui UI Vertex
+// UI Vertex
 // ----------------------------------------------
 
-// ImGui vertex: position + tex_coords + color (u8x4 normalized).
-// Must match render::UiDrawVertex layout exactly.
-#[repr(C)]
-#[derive(Copy, Clone, Default, bytemuck::Pod, bytemuck::Zeroable)]
-pub struct UiVertex2D {
-    pub position:   [f32; 2],
-    pub tex_coords: [f32; 2],
-    pub color:      [u8; 4],
-}
-
-impl UiVertex2D {
-    pub const LAYOUT: wgpu::VertexBufferLayout<'static> = wgpu::VertexBufferLayout {
-        array_stride: std::mem::size_of::<Self>() as wgpu::BufferAddress,
-        step_mode: wgpu::VertexStepMode::Vertex,
-        attributes: &wgpu::vertex_attr_array![
-            0 => Float32x2, // position
-            1 => Float32x2, // tex_coords
-            2 => Unorm8x4,  // color (RGBA u8 normalized to 0..1)
-        ],
-    };
-}
-
-// Compile-time check that UiVertex2D matches render::UiDrawVertex in size.
-const _: () = assert!(
-    std::mem::size_of::<UiVertex2D>() == std::mem::size_of::<render::UiDrawVertex>(),
-    "UiVertex2D size must match render::UiDrawVertex"
-);
+pub const UI_VERTEX_LAYOUT: wgpu::VertexBufferLayout<'static> = wgpu::VertexBufferLayout {
+    array_stride: std::mem::size_of::<UiVertex>() as wgpu::BufferAddress,
+    step_mode: wgpu::VertexStepMode::Vertex,
+    attributes: &wgpu::vertex_attr_array![
+        0 => Float32x2, // pos
+        1 => Float32x2, // uv
+        2 => Unorm8x4,  // color (RGBA, premultiplied alpha)
+    ],
+};

@@ -13,8 +13,9 @@ use super::{
     RenderStats,
     RenderSystemBackend,
     capture::{self, CaptureId, CaptureQueue, CaptureResult, CapturedImage},
+    ui_draw::{UiDrawData, UiIndex, UiVertex},
 };
-use crate::{log, ui::UiRenderFrameBundle};
+use crate::log;
 
 mod batch;
 mod pipeline;
@@ -65,7 +66,6 @@ struct WgpuSystemState {
     sprites_batch: DrawBatch<SpriteVertex2D, SpriteIndex2D>,
     lines_batch: DrawBatch<LineVertex2D, LineIndex2D>,
     points_batch: DrawBatch<PointVertex2D, PointIndex2D>,
-    ui_batch: UiDrawBatch,
 
     // GPU-side buffers.
     sprites_gpu: GpuVertexIndexBuffers,
@@ -75,11 +75,6 @@ struct WgpuSystemState {
 
     // Offscreen render target.
     offscreen_render_target: RenderTarget,
-
-    // UI draw commands recorded during the frame.
-    ui_draw_commands: Vec<UiDrawCommand>,
-    ui_base_vertex: i32,
-    ui_index_offset: u32,
 
     // Frame captures waiting for their readback buffer to be mapped.
     captures_in_flight: Vec<CaptureReadback>,
@@ -141,15 +136,16 @@ impl WgpuSystemState {
         1
     }
 
-    // Draws the UI recorded this frame on top of `target`, which must be framebuffer-sized.
-    // Returns the number of draw calls.
+    // Draws the frame's UI on top of `target`, which must be framebuffer-sized. Its vertices and
+    // indices must have been uploaded to ui_gpu. Returns the number of draw calls.
     fn encode_ui_pass(
         &self,
         encoder: &mut wgpu::CommandEncoder,
         target: &wgpu::TextureView,
         tex_cache: &mut super::texture::TextureCache,
+        ui_draw_data: &UiDrawData,
     ) -> u32 {
-        if self.ui_draw_commands.is_empty() || self.ui_batch.is_empty() {
+        if ui_draw_data.is_empty() {
             return 0;
         }
 
@@ -170,29 +166,24 @@ impl WgpuSystemState {
 
         pass.set_pipeline(&self.ui_pipeline);
         pass.set_bind_group(0, Some(&self.uniform_bind_group), &[]);
-        self.ui_gpu.bind_to_render_pass(&mut pass, vertex::size_to_index_format::<super::UiDrawIndex>());
+        self.ui_gpu.bind_to_render_pass(&mut pass, vertex::size_to_index_format::<UiIndex>());
 
-        let fb_w = self.framebuffer_size.width as u32;
-        let fb_h = self.framebuffer_size.height as u32;
+        let mut last_texture = None;
         let mut draw_calls = 0;
 
-        for cmd in &self.ui_draw_commands {
-            // Clip rect is in top-left origin (ImGui convention), matching wgpu's scissor.
-            let x = (cmd.clip_rect.x() as u32).min(fb_w);
-            let y = (cmd.clip_rect.y() as u32).min(fb_h);
-            let w = (cmd.clip_rect.width() as u32).min(fb_w.saturating_sub(x));
-            let h = (cmd.clip_rect.height() as u32).min(fb_h.saturating_sub(y));
+        for command in ui_draw_data.commands() {
+            // Top-left origin, like wgpu's scissor. Always inside the framebuffer.
+            let clip = command.clip_rect;
+            pass.set_scissor_rect(clip.x, clip.y, clip.width, clip.height);
 
-            if w == 0 || h == 0 {
-                continue;
+            if last_texture != Some(command.texture) {
+                last_texture = Some(command.texture);
+                let bg = tex_cache.texture_for_handle(command.texture).as_wgpu().bind_group();
+                pass.set_bind_group(1, Some(bg), &[]);
             }
 
-            pass.set_scissor_rect(x, y, w, h);
-
-            let bg = tex_cache.texture_for_handle(cmd.texture).as_wgpu().bind_group();
-            pass.set_bind_group(1, Some(bg), &[]);
-
-            pass.draw_indexed(cmd.first_index..cmd.first_index + cmd.index_count, cmd.base_vertex, 0..1);
+            let indices = command.first_index..command.first_index + command.index_count;
+            pass.draw_indexed(indices, command.base_vertex as i32, 0..1);
             draw_calls += 1;
         }
 
@@ -206,7 +197,7 @@ impl WgpuSystemState {
         &self,
         encoder: &mut wgpu::CommandEncoder,
         tex_cache: &mut super::texture::TextureCache,
-        include_ui: bool,
+        ui_draw_data: Option<&UiDrawData>, // None captures the scene only.
         ids: Vec<CaptureId>,
     ) -> CaptureReadback {
         let size = self.framebuffer_size;
@@ -226,8 +217,8 @@ impl WgpuSystemState {
         let view = texture.create_view(&wgpu::TextureViewDescriptor::default());
 
         self.encode_blit_pass(encoder, &view);
-        if include_ui {
-            self.encode_ui_pass(encoder, &view, tex_cache);
+        if let Some(ui_draw_data) = ui_draw_data {
+            self.encode_ui_pass(encoder, &view, tex_cache, ui_draw_data);
         }
 
         // Buffer copy rows must be a multiple of 256 bytes.
@@ -518,14 +509,19 @@ impl WgpuRenderSystemBackend {
         let ui_gpu = GpuVertexIndexBuffers::new(
             &device,
             "ui",
-            1024 * std::mem::size_of::<UiVertex2D>(),
-            1024 * std::mem::size_of::<super::UiDrawIndex>(),
+            1024 * std::mem::size_of::<UiVertex>(),
+            1024 * std::mem::size_of::<UiIndex>(),
         );
 
         log::info!(log::channel!("render"), "Wgpu initialized.");
         log::info!(log::channel!("render"), " - Surface format: {:?}", surface_format);
         log::info!(log::channel!("render"), " - Offscreen RT: {}", rt_size);
         log::info!(log::channel!("render"), " - Viewport: {}, Framebuffer: {}", viewport_size, framebuffer_size);
+
+        // Colors are blended as stored, like OpenGL does. An sRGB surface would blend in linear space.
+        if surface_format.is_srgb() {
+            log::warning!(log::channel!("render"), "No non-sRGB surface format available: colors will blend differently.");
+        }
 
         let s = Box::new(WgpuSystemState {
             device,
@@ -549,7 +545,6 @@ impl WgpuRenderSystemBackend {
             sprites_batch: DrawBatch::new(512, 512, 512),
             lines_batch: DrawBatch::new(64, 64, 0),
             points_batch: DrawBatch::new(64, 64, 0),
-            ui_batch: UiDrawBatch::new(),
 
             sprites_gpu,
             lines_gpu,
@@ -557,10 +552,6 @@ impl WgpuRenderSystemBackend {
             ui_gpu,
 
             offscreen_render_target,
-
-            ui_draw_commands: Vec::with_capacity(64),
-            ui_base_vertex: 0,
-            ui_index_offset: 0,
 
             captures_in_flight: Vec::new(),
 
@@ -609,15 +600,11 @@ impl RenderSystemBackend for WgpuRenderSystemBackend {
 
     fn end_frame(
         &mut self,
-        ui_frame_bundle: &mut UiRenderFrameBundle,
+        ui_draw_data: &UiDrawData,
         tex_cache: &mut super::texture::TextureCache,
         captures: &mut CaptureQueue,
     ) -> RenderStats {
         let render_submit_timer = PerfTimer::begin();
-
-        // Record UI draw data. This re-enters through RenderSystem to call
-        // begin_ui_render, set_ui_draw_buffers, draw_ui_elements, end_ui_render.
-        ui_frame_bundle.render();
 
         // All batches are now filled — do GPU work.
         let s = self.state_mut();
@@ -633,7 +620,7 @@ impl RenderSystemBackend for WgpuRenderSystemBackend {
         s.sprites_gpu.upload(&s.device, &s.queue, s.sprites_batch.vertices(), s.sprites_batch.indices());
         s.lines_gpu.upload(&s.device, &s.queue, s.lines_batch.vertices(), s.lines_batch.indices());
         s.points_gpu.upload(&s.device, &s.queue, s.points_batch.vertices(), s.points_batch.indices());
-        s.ui_gpu.upload_bytes(&s.device, &s.queue, s.ui_batch.vertex_bytes(), s.ui_batch.index_bytes());
+        s.ui_gpu.upload(&s.device, &s.queue, ui_draw_data.vertices(), ui_draw_data.indices());
 
         // Acquire surface texture.
         let output = match s.surface.get_current_texture() {
@@ -707,7 +694,8 @@ impl RenderSystemBackend for WgpuRenderSystemBackend {
         s.stats.draw_calls += s.encode_blit_pass(&mut encoder, &surface_view);
 
         // ---- Pass 3: UI on top of surface ----
-        s.stats.draw_calls += s.encode_ui_pass(&mut encoder, &surface_view, tex_cache);
+        s.stats.draw_calls += s.encode_ui_pass(&mut encoder, &surface_view, tex_cache, ui_draw_data);
+        s.stats.triangles_drawn += ui_draw_data.triangle_count();
 
         // ---- Frame captures: draw passes 2 and 3 again into capture textures ----
         let pending_captures = captures.take_pending();
@@ -716,10 +704,10 @@ impl RenderSystemBackend for WgpuRenderSystemBackend {
         if !pending_captures.is_empty() {
             if capture_format_is_supported(s.surface_format) {
                 if !pending_captures.scene.is_empty() {
-                    readbacks.push(s.encode_capture(&mut encoder, tex_cache, false, pending_captures.scene));
+                    readbacks.push(s.encode_capture(&mut encoder, tex_cache, None, pending_captures.scene));
                 }
                 if !pending_captures.with_ui.is_empty() {
-                    readbacks.push(s.encode_capture(&mut encoder, tex_cache, true, pending_captures.with_ui));
+                    readbacks.push(s.encode_capture(&mut encoder, tex_cache, Some(ui_draw_data), pending_captures.with_ui));
                 }
             } else {
                 let error = format!("Frame capture doesn't support the surface format {:?}.", s.surface_format);
@@ -753,10 +741,6 @@ impl RenderSystemBackend for WgpuRenderSystemBackend {
         s.sprites_batch.clear();
         s.lines_batch.clear();
         s.points_batch.clear();
-        s.ui_batch.clear();
-        s.ui_draw_commands.clear();
-        s.ui_base_vertex = 0;
-        s.ui_index_offset = 0;
 
         s.frame_started = false;
 
@@ -787,55 +771,6 @@ impl RenderSystemBackend for WgpuRenderSystemBackend {
     #[inline]
     fn set_framebuffer_size(&mut self, new_size: Size) {
         self.state_mut().set_framebuffer_size(new_size);
-    }
-
-    // ----------------------
-    // UI (ImGui) Drawing:
-    // ----------------------
-
-    fn begin_ui_render(&mut self) {
-        // Nothing to do — UI pass is built in end_frame.
-    }
-
-    fn end_ui_render(&mut self) {
-        // Nothing to do — UI pass is built in end_frame.
-    }
-
-    fn set_ui_draw_buffers(&mut self, vtx_buffer: &[super::UiDrawVertex], idx_buffer: &[super::UiDrawIndex]) {
-        debug_assert!(!vtx_buffer.is_empty() && !idx_buffer.is_empty());
-
-        let s = self.state_mut();
-
-        // Append this draw list's data (not replace). Each ImGui draw list has its own
-        // vertex/index buffers; we merge them and track offsets.
-        let (base_vertex, index_offset) = s.ui_batch.append_data(vtx_buffer, idx_buffer);
-        s.ui_base_vertex = base_vertex;
-        s.ui_index_offset = index_offset;
-    }
-
-    fn draw_ui_elements(
-        &mut self,
-        first_index: u32,
-        index_count: u32,
-        texture: super::texture::TextureHandle,
-        _tex_cache: &mut super::texture::TextureCache,
-        clip_rect: Rect,
-    ) {
-        debug_assert!(index_count.is_multiple_of(3));
-
-        let s = self.state_mut();
-
-        // Store draw command for replay during the UI render pass in end_frame.
-        // first_index is relative to the current draw list, so offset it.
-        s.ui_draw_commands.push(UiDrawCommand {
-            first_index: first_index + s.ui_index_offset,
-            index_count,
-            base_vertex: s.ui_base_vertex,
-            texture,
-            clip_rect,
-        });
-
-        s.stats.triangles_drawn += index_count / 3;
     }
 
     // ----------------------

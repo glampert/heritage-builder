@@ -58,6 +58,7 @@ pub struct GameLoopStats {
 
     pub ui_begin_frame_time_ms: Milliseconds,
     pub ui_end_frame_time_ms: Milliseconds,
+    pub ui_render_frame_time_ms: Milliseconds, // Turning the frame's UI into draw data, in Engine::end_frame.
 
     pub engine_begin_frame_time_ms: Milliseconds,
     pub engine_end_frame_time_ms: Milliseconds,
@@ -262,10 +263,11 @@ impl RunLoop for GameLoop {
         // Sound System Update:
         self.update_sound_system();
 
-        let (end_frame_time_ms, present_frame_time_ms) = self.engine.end_frame();
+        let (end_frame_time_ms, ui_render_time_ms, present_frame_time_ms) = self.engine.end_frame();
 
         self.stats.engine_begin_frame_time_ms = begin_frame_time_ms;
         self.stats.engine_end_frame_time_ms   = end_frame_time_ms;
+        self.stats.ui_render_frame_time_ms    = ui_render_time_ms;
         self.stats.present_frame_time_ms      = present_frame_time_ms;
         self.stats.total_frame_time_ms        = frame_timer.end();
     }

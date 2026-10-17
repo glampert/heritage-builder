@@ -1,6 +1,6 @@
 # Migrate the UI from imgui to egui
 
-**Status (2026-10-17): Phases 0 and 1 done; Phase 2 is next.** Work happens on the `egui-migration` branch, one commit per step, merged into `main` with one PR at the end. This file tracks progress.
+**Status (2026-10-18): Phases 0, 1 and 2 done; Phase 3 is next.** Work happens on the `egui-migration` branch, one commit per step, merged into `main` with one PR at the end. This file tracks progress.
 
 Researched against `02d8b3c` on `main`, using egui/epaint 0.37.0 (released 2026-10-15). File references point at that commit, so re-check them before relying on them.
 
@@ -151,9 +151,9 @@ Tick tasks off and add notes in `docs/plans/egui-migration.md` as they land. Eve
 - **Fixes the snapshot needed:**
   - `dialog.open` closed the home menu's own dialog, which the home menu then reopened over the new one. It now leaves it open underneath.
   - The minimap picked its alternating land, vegetation and rock shades with the thread RNG, so no two runs drew it the same way. The shade now comes from a hash of the cell.
-- **Reproducibility:** with those fixes, two runs give identical screenshots (tolerance 0) and identical trees on each backend, and the trees are identical across backends. Runs take a varying number of frames (OpenGL about 1070, Wgpu about 850), which doesn't affect either.
+- **Reproducibility:** with those fixes, two runs give identical screenshots (tolerance 0) and identical trees on each backend, and the trees are identical across backends. Runs take a varying number of frames (OpenGL about 1070, Wgpu about 850), which doesn't affect either. (It did, once: see the timing fix in the Phase 2 notes. Runs now take 503 frames.)
 - **Window size:** 1280x720, not 1600x900. This Mac's screen fits at most 1440x795, and macOS shrinks larger windows.
-- **Baselines** were made from `egui-migration` at `7ee09dd` (imgui), in the debug build, into `out/baseline/{opengl,wgpu}/`: 41 goldens each (about 72 MB), `ui_snapshot.jsonl` (the run's output) and `ui_tree.jsonl` (its trees). `out/` is git-ignored, so on another machine, check out that commit and make them again:
+- **Baselines** were made from `egui-migration` at `7ee09dd` (imgui), in the debug build, into `out/baseline/{opengl,wgpu}/`: 41 goldens each (about 72 MB), `ui_snapshot.jsonl` (the run's output) and `ui_tree.jsonl` (its trees). Phase 2 made them again from `e54dcdc` (still imgui's renderer path), after making the scenario take the same frames on every run; they're identical except the OpenGL message box. `out/` is git-ignored, so on another machine, check out `e54dcdc` and make them again:
   ```bash
   cargo build -p HeritageBuilder
   for api in OpenGl Wgpu; do dir=out/baseline/$(echo $api | tr A-Z a-z)
@@ -247,15 +247,39 @@ Tick tasks off and add notes in `docs/plans/egui-migration.md` as they land. Eve
   - The scripts that did the mechanical part of the port (text, separators, `dev::` paths, indent pairs) were throwaway; the rows, windows, overlays, menus, tabs and painters were ported by hand.
 
 ### Phase 2: Renderer prep, still on imgui
-- [ ] Add `UiDrawData` and `RenderSystem::end_frame(&UiDrawData)`, and remove `UiRenderFrameBundle`.
-- [ ] Add `UiVertex` (Pod) and `u32` indices, with one upload per frame and base-vertex draws in both backends.
-- [ ] Switch the UI pipelines and shaders to premultiplied alpha, premultiplying imgui's vertex colors on the CPU for now.
-- [ ] Add texture-delta handling to `UiRenderer`: create, partial update, recreate on resize, deferred free. imgui's atlas goes through it too.
+- [x] Add `UiDrawData` and `RenderSystem::end_frame(&UiDrawData)`, and remove `UiRenderFrameBundle`.
+- [x] Add `UiVertex` (Pod) and `u32` indices, with one upload per frame and base-vertex draws in both backends.
+- [x] Switch the UI pipelines and shaders to premultiplied alpha, premultiplying imgui's vertex colors on the CPU for now.
+- [x] Add texture-delta handling to `UiRenderer`: create, partial update, recreate on resize, deferred free. imgui's atlas goes through it too.
 - **Done when:** screenshots match the Phase 0 goldens within a small tolerance on OpenGL and Wgpu, the web smoke test passes, and the frame stats show no regression.
+
+**Phase 2 notes (2026-10-18):**
+- **What changed:**
+  - `render/ui_draw.rs` holds the renderer's UI input: `UiDrawData` (one vertex buffer, `u32` indices, and commands with an index range, a base vertex, a `TextureHandle` and a `UiClipRect` in framebuffer pixels), and `UiVertex`, laid out like `epaint::Vertex` (compile-time checks on its size and field offsets). The buffers keep their capacity between frames.
+  - `UiSystem::end_frame(tex_cache, ..)` returns `&UiDrawData` and `RenderSystem::end_frame(&UiDrawData)` draws it. The render module no longer depends on `ui`. Gone: `UiRenderFrameBundle`, `UiDrawVertex`/`UiDrawIndex`, the four `RenderSystem` UI calls, the Wgpu backend's own UI batch, and its `unsafe` byte copy of imgui's vertices.
+  - OpenGL uploads once and draws each command with `glDrawElementsBaseVertex`, rebinding the texture only when it changes. Wgpu uploads once, typed.
+  - The UI blends with premultiplied alpha (`ONE, ONE_MINUS_SRC_ALPHA`), and its shaders premultiply each texel; the scene keeps straight alpha. `ui/renderer.rs` premultiplies imgui's vertex colors while it copies them. Wgpu logs a warning if it can only get an sRGB surface.
+  - `UiManagedTextures` (`ui/renderer.rs`) keeps the UI library's own textures: create, partial update, full update in place, recreate under a new name when the size or settings change, and release a frame after a free or a recreate. It works on a `UiTextureStore` trait (the `TextureCache`, or a test store), so its unit tests cover every path. imgui's atlas is created through it at startup (`ui_texture_0`); imgui never updates its atlas, so the other paths first run for real in Phase 3.
+  - Clip rects are rounded to the nearest pixel, as egui's own backends do. imgui's backends, and ours until now, truncated.
+  - `debug.stats` has `frame_ms.ui_render`, and the game stats overlay a `Ui Render` line: the time `UiSystem::end_frame` takes to build the draw data. Phase 3 measures egui's tessellation with it.
+- **Timing fix (`e54dcdc`, its own commit):** desktop screenshots are encoded on a background thread, so `assert.image` finished after however many frames the encode took, 5 to 30 in a debug build, and the slideshows (home menu, sample menus) were caught at different points from run to run. The OpenGL message box baseline had caught the sample menus' slideshow on another image. Screenshots requested by automation commands are now encoded in the frame they're captured (`ScreenshotRequest::encode_in_frame`), and `ui_snapshot.jsonl` takes 503 frames on every run, on both backends. The baselines were remade from that commit (above); the old ones are in `out/baseline-7ee09dd/`.
+- **Verification:**
+  - Against the remade baselines, the trees are identical, and on every screen each pixel is within 1 per channel (premultiplied vertex colors are rounded to 8 bits), except the minimap's border: its clip rect has fractional edges, and rounding instead of truncating moves each edge by one pixel (1,125 pixels, on every screen that shows the minimap). A run with the old truncation, made temporarily, left nothing above 1.
+  - Every scenario passes on OpenGL and on Wgpu, `cargo test --workspace` passes (new tests for `UiDrawData`, `UiClipRect`, `UiManagedTextures` and premultiplying), `determinism.jsonl` still gives `ef501950e441eea8`, record and replay match, and the release web build passes the smoke test.
+  - **Performance,** on a busy developer screen (six debug windows, about 8,400 triangles, 171 draw calls), as mean and median over 360 frames from three alternating runs of each build, end of frame without present, in ms:
+
+    | Build | OpenGL before | OpenGL after | Wgpu before | Wgpu after |
+    |---|---|---|---|---|
+    | Release | 0.68 / 0.67 | 0.66 / 0.65 | 0.23 / 0.20 | 0.28 / 0.22 |
+    | Debug | 0.32 / 0.31 | 0.66 / 0.68 | 0.55 / 0.50 | 0.81 / 0.77 |
+
+    Release is unchanged within noise; building the draw data takes 0.02 to 0.05 ms. Debug builds spend about 0.3 ms more: imgui's vertices and indices are converted one by one (premultiplied, widened to `u32`), which unoptimized iterators make slow, and copying them as bytes would take `unsafe`. Phase 3 drops the conversion: egui's vertices and indices copy as they are.
 
 ### Phase 3: The swap to egui (one commit)
 - [ ] Add `egui = { version = "0.37", default-features = false, features = ["bytemuck"] }` to `crates/engine`, plus the dev-profile `opt-level` overrides (egui, epaint, emath, ecolor). Remove `imgui` from `crates/engine/Cargo.toml`. Note in AGENTS.md that the build needs Rust 1.95 or later. Use a `max_texture_side` of 2048.
 - [ ] Rewrite `UiSystem` and add `backend.rs`: egui Context, `RefCell`/`Cell` fields, the Ui stack, pass driving, input translation, draw data, textures.
+  - Each frame: `UiManagedTextures::release_freed`, then `set` for each `textures_delta.set` (egui's colors un-premultiplied into a reused buffer), then tessellate and build the draw data, then `free` for each `textures_delta.free`.
+  - Give `UiDrawData` a slice-based `add_mesh` for egui's meshes (`bytemuck::cast_slice`, then `extend_from_slice`), so debug builds copy them with a memcpy. The iterator version was for imgui's conversion; remove it with imgui.
 - [ ] Add `style.rs` and the two style files. Remove `include_bytes!` and the hardcoded themes. Add the `ui.reload_styles` command.
 - [ ] Port `immediate.rs`, `widgets.rs`, `toast.rs`, `internal.rs` (most of it should disappear), the painter, the minimap and the metrics window replacement.
 - [ ] Revisit the automation details: menu close behavior, the close-button rect, text-input `ui.set` with focus, and the note that session switches finish two frames late (imgui popups held the mouse; check whether egui still needs this).

@@ -10,7 +10,10 @@ use super::{
     context::{PrimitiveTopology, RenderContext},
     shader::ShaderProgram,
 };
-use crate::render;
+use crate::render::{
+    self,
+    ui_draw::{UiDrawCommand, UiIndex, UiVertex},
+};
 
 // ----------------------------------------------
 // DrawBatch
@@ -186,10 +189,9 @@ pub fn noop_set_shader_vars() -> impl FnMut(&mut RenderContext, &DrawBatchEntry)
 // UiDrawBatch
 // ----------------------------------------------
 
+// GPU buffers for the frame's UI geometry: uploaded once, then drawn with one call per command.
 pub struct UiDrawBatch {
     vertex_array: VertexArray,
-    pass_started: bool,
-    synced: bool,
 }
 
 impl UiDrawBatch {
@@ -197,76 +199,41 @@ impl UiDrawBatch {
         const VERTICES_CAPACITY_HINT: u32 = 1024;
         const INDICES_CAPACITY_HINT: u32 = 1024;
 
-        let vertex_layout = render::UiDrawVertex::layout();
-        let vertex_stride = render::UiDrawVertex::stride();
-
-        let index_type = match std::mem::size_of::<render::UiDrawIndex>() {
-            2 => IndexType::U16,
-            4 => IndexType::U32,
-            _ => unimplemented!("Unsupported UiDrawIndex size!"),
-        };
-
-        let vertex_buffer =
-            VertexBuffer::with_uninitialized_data(VERTICES_CAPACITY_HINT, vertex_stride as u32, BufferUsageHint::StreamDraw);
+        let vertex_buffer = VertexBuffer::with_uninitialized_data(
+            VERTICES_CAPACITY_HINT,
+            UiVertex::stride() as u32,
+            BufferUsageHint::StreamDraw,
+        );
 
         let index_buffer =
-            IndexBuffer::with_uninitialized_data(INDICES_CAPACITY_HINT, index_type, BufferUsageHint::StreamDraw);
+            IndexBuffer::with_uninitialized_data(INDICES_CAPACITY_HINT, UiIndex::index_type(), BufferUsageHint::StreamDraw);
 
-        let vertex_array = VertexArray::new(vertex_buffer, index_buffer, vertex_layout, vertex_stride);
+        let vertex_array = VertexArray::new(vertex_buffer, index_buffer, UiVertex::layout(), UiVertex::stride());
 
-        Self { vertex_array, pass_started: false, synced: false }
+        Self { vertex_array }
     }
 
-    pub fn begin(&mut self, render_context: &mut RenderContext, shader_program: &ShaderProgram) {
-        debug_assert!(!self.pass_started);
-        self.pass_started = true;
-
-        render_context.set_primitive_topology(PrimitiveTopology::Triangles);
-        render_context.set_shader_program(shader_program);
-    }
-
-    pub fn end(&mut self, render_context: &mut RenderContext) {
-        debug_assert!(self.pass_started);
-        self.pass_started = false;
-        self.synced = false;
-
-        render_context.unset_vertex_array();
-        render_context.unset_shader_program();
-    }
-
-    pub fn sync(
-        &mut self,
-        render_context: &mut RenderContext,
-        vtx_buffer: &[render::UiDrawVertex],
-        idx_buffer: &[render::UiDrawIndex],
-    ) {
-        debug_assert!(self.pass_started);
-        self.synced = true;
+    pub fn upload(&mut self, render_context: &mut RenderContext, vertices: &[UiVertex], indices: &[UiIndex]) {
+        debug_assert!(!vertices.is_empty() && !indices.is_empty());
 
         // NOTE: Unbind current VBO so we don't accidentally modify
         // its VB/IB bindings with the following buffer updates.
         render_context.unset_vertex_array();
 
-        // VB
-        let new_vertex_count = vtx_buffer.len();
-        if new_vertex_count > self.vertex_array.vertex_count() as usize {
-            self.vertex_array.vertex_buffer_mut().resize(new_vertex_count);
+        if vertices.len() > self.vertex_array.vertex_count() as usize {
+            self.vertex_array.vertex_buffer_mut().resize(vertices.len());
         }
-        self.vertex_array.vertex_buffer().set_data(vtx_buffer);
+        self.vertex_array.vertex_buffer().set_data(vertices);
 
-        // IB
-        let new_index_count = idx_buffer.len();
-        if new_index_count > self.vertex_array.index_count() as usize {
-            self.vertex_array.index_buffer_mut().resize(new_index_count);
+        if indices.len() > self.vertex_array.index_count() as usize {
+            self.vertex_array.index_buffer_mut().resize(indices.len());
         }
-        self.vertex_array.index_buffer().set_data(idx_buffer);
+        self.vertex_array.index_buffer().set_data(indices);
     }
 
-    pub fn draw(&mut self, render_context: &mut RenderContext, first_index: u32, index_count: u32) {
-        debug_assert!(self.pass_started);
-        debug_assert!(self.synced);
-
+    // Call upload() first. Leaves the vertex array bound.
+    pub fn draw(&self, render_context: &mut RenderContext, command: &UiDrawCommand) {
         render_context.set_vertex_array(&self.vertex_array);
-        render_context.draw_indexed(first_index, index_count);
+        render_context.draw_indexed_base_vertex(command.first_index, command.index_count, command.base_vertex);
     }
 }

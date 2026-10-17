@@ -1,4 +1,5 @@
-// UI (ImGui) shader: textured with per-vertex color tint.
+// UI shader: textured, tinted by the per-vertex color. Vertex colors have premultiplied alpha;
+// textures have straight alpha, so each texel is premultiplied first.
 
 struct Uniforms {
     viewport_size: vec2f,
@@ -11,7 +12,7 @@ struct Uniforms {
 struct VertexInput {
     @location(0) position:   vec2f,
     @location(1) tex_coords: vec2f,
-    @location(2) color:      vec4f, // RGBA normalized from u8x4.
+    @location(2) color:      vec4f, // RGBA normalized from u8x4, premultiplied alpha.
 }
 
 struct VertexOutput {
@@ -24,7 +25,7 @@ struct VertexOutput {
 fn vs_main(in: VertexInput) -> VertexOutput {
     var out: VertexOutput;
 
-    // ImGui UVs are already correct (no V-flip).
+    // UI UVs are already correct (no V-flip).
     out.tex_coords = in.tex_coords;
     out.color = in.color;
 
@@ -39,5 +40,6 @@ fn vs_main(in: VertexInput) -> VertexOutput {
 
 @fragment
 fn fs_main(in: VertexOutput) -> @location(0) vec4f {
-    return textureSample(sprite_texture, sprite_sampler, in.tex_coords) * in.color;
+    let texel = textureSample(sprite_texture, sprite_sampler, in.tex_coords);
+    return vec4f(texel.rgb * texel.a, texel.a) * in.color;
 }

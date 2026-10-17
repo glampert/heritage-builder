@@ -60,10 +60,27 @@ fn create_pipeline_layout(
     })
 }
 
+// Straight alpha: src * src_alpha + dst * (1 - src_alpha).
 fn alpha_blend_state() -> wgpu::BlendState {
     wgpu::BlendState {
         color: wgpu::BlendComponent {
             src_factor: wgpu::BlendFactor::SrcAlpha,
+            dst_factor: wgpu::BlendFactor::OneMinusSrcAlpha,
+            operation: wgpu::BlendOperation::Add,
+        },
+        alpha: wgpu::BlendComponent {
+            src_factor: wgpu::BlendFactor::One,
+            dst_factor: wgpu::BlendFactor::OneMinusSrcAlpha,
+            operation: wgpu::BlendOperation::Add,
+        },
+    }
+}
+
+// Colors already multiplied by their alpha: src + dst * (1 - src_alpha). Used by the UI.
+fn premultiplied_alpha_blend_state() -> wgpu::BlendState {
+    wgpu::BlendState {
+        color: wgpu::BlendComponent {
+            src_factor: wgpu::BlendFactor::One,
             dst_factor: wgpu::BlendFactor::OneMinusSrcAlpha,
             operation: wgpu::BlendOperation::Add,
         },
@@ -238,7 +255,7 @@ pub fn create_ui_pipeline(
         vertex: wgpu::VertexState {
             module: &shader,
             entry_point: Some("vs_main"),
-            buffers: &[vertex::UiVertex2D::LAYOUT],
+            buffers: &[vertex::UI_VERTEX_LAYOUT],
             compilation_options: Default::default(),
         },
         fragment: Some(wgpu::FragmentState {
@@ -246,7 +263,7 @@ pub fn create_ui_pipeline(
             entry_point: Some("fs_main"),
             targets: &[Some(wgpu::ColorTargetState {
                 format: target_format,
-                blend: Some(alpha_blend_state()),
+                blend: Some(premultiplied_alpha_blend_state()),
                 write_mask: wgpu::ColorWrites::ALL,
             })],
             compilation_options: Default::default(),

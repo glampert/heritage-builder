@@ -188,6 +188,7 @@ pub fn draw_world_perf_stats(
         ui::text(ui_sys, format_small!("- Sound      : {:.2}ms", game_stats.sound_frame_time_ms));
         ui::text(ui_sys, format_small!("- Draw World : {:.2}ms", game_stats.draw_world_frame_time_ms));
         ui::text(ui_sys, format_small!("- Ui B/E     : {:.2}ms/{:.2}ms", game_stats.ui_begin_frame_time_ms, game_stats.ui_end_frame_time_ms));
+        ui::text(ui_sys, format_small!("- Ui Render  : {:.2}ms", game_stats.ui_render_frame_time_ms));
         ui::text(ui_sys, format_small!("- Engine B/E : {:.2}ms/{:.2}ms", game_stats.engine_begin_frame_time_ms, game_stats.engine_end_frame_time_ms));
         ui::text(ui_sys, format_small!("- Present    : {:.2}ms", game_stats.present_frame_time_ms));
     });

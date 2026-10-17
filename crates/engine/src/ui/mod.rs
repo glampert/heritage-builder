@@ -8,12 +8,12 @@ use smallvec::SmallVec;
 use common::{
     Color,
     Rect,
+    Size,
     Vec2,
-    mem::{Mutable, RawPtr, RcMut},
+    mem::{Mutable, RawPtr},
     time::Seconds,
 };
 pub(crate) use imgui::{FontId as UiFontHandle, TextureId as UiTextureHandle};
-pub use renderer::{UiDrawIndex, UiDrawVertex, UiRenderFrameBundle};
 
 use crate::{
     app::{
@@ -24,8 +24,8 @@ use crate::{
     log,
     platform,
     render::{
-        RenderSystem,
-        texture::{TextureFilter, TextureSettings},
+        texture::{TextureCache, TextureFilter, TextureSettings, TextureWrapMode},
+        ui_draw::UiDrawData,
     },
 };
 
@@ -46,7 +46,7 @@ mod internal;
 mod renderer;
 mod registry;
 mod toast;
-use renderer::UiRenderer;
+use renderer::{UiRenderer, UiTextureDelta};
 use registry::UiWidgetRegistry;
 pub use registry::UiWidgetInfo;
 use toast::UiToasts;
@@ -127,11 +127,11 @@ struct UiSystemInner {
 }
 
 impl UiSystem {
-    pub fn new(render_sys: &mut RenderSystem) -> Self {
+    pub fn new(tex_cache: &mut TextureCache) -> Self {
         text::initialize();
 
         let mut inner = UiSystemInner {
-            context: UiContext::new(render_sys),
+            context: UiContext::new(tex_cache),
             ui_ptr: None,
             current_theme: UiTheme::Dev,
             current_font_scale: None,
@@ -162,15 +162,12 @@ impl UiSystem {
         self.inner.delta_time_secs = delta_time_secs;
     }
 
-    // `draw_overlays` false keeps toasts and the badge off this frame, e.g. while it's being
-    // captured. `badge`: a status line at the top of the screen, such as automation's.
+    // Returns what the UI drew, for RenderSystem::end_frame. Textures the UI library manages are
+    // created, updated and released in `tex_cache` here. `draw_overlays` false keeps toasts and the
+    // badge off this frame, e.g. while it's being captured. `badge`: a status line at the top of the
+    // screen, such as automation's.
     #[inline]
-    pub fn end_frame(
-        &mut self,
-        render_sys: RcMut<RenderSystem>,
-        draw_overlays: bool,
-        badge: Option<&str>,
-    ) -> UiRenderFrameBundle<'_> {
+    pub fn end_frame(&mut self, tex_cache: &mut TextureCache, draw_overlays: bool, badge: Option<&str>) -> &UiDrawData {
         debug_assert!(self.frame_started());
         debug_assert!(self.layout.borrow().is_empty(), "Unbalanced immediate-mode layout stack!");
 
@@ -194,7 +191,7 @@ impl UiSystem {
         self.inner.current_font_scale = None;
         self.inner.ui_ptr = None;
 
-        self.inner.context.end_frame(render_sys)
+        self.inner.context.end_frame(tex_cache)
     }
 
     #[inline]
@@ -523,18 +520,36 @@ struct UiContext {
     ctx: imgui::Context,
     fonts: UiFonts,
     renderer: UiRenderer,
+    framebuffer_size: Size,
     frame_started: bool,
 }
 
 impl UiContext {
-    fn new(render_sys: &mut RenderSystem) -> Self {
+    // ImGui's font atlas, as a texture managed by the UiRenderer.
+    const FONT_ATLAS_TEXTURE_ID: u64 = 0;
+
+    fn new(tex_cache: &mut TextureCache) -> Self {
         let mut ctx = imgui::Context::create();
         ctx.set_ini_filename(None); // 'None' disables automatic "imgui.ini" saving.
 
         let fonts = Self::load_custom_fonts(&mut ctx);
-        let renderer = UiRenderer::new(render_sys, &mut ctx);
+        let mut renderer = UiRenderer::default();
 
-        Self { ctx, fonts, renderer, frame_started: false }
+        let font_atlas = ctx.fonts();
+        let font_atlas_texture = font_atlas.build_rgba32_texture();
+        let font_atlas_handle = renderer.textures_mut().set(tex_cache, Self::FONT_ATLAS_TEXTURE_ID, &UiTextureDelta {
+            pos: None,
+            size: Size::new(font_atlas_texture.width as i32, font_atlas_texture.height as i32),
+            pixels: font_atlas_texture.data,
+            settings: TextureSettings {
+                filter: TextureFilter::Linear,
+                wrap_mode: TextureWrapMode::ClampToEdge,
+                mipmaps: false,
+            },
+        });
+        font_atlas.tex_id = UiTextureHandle::new(font_atlas_handle.pack());
+
+        Self { ctx, fonts, renderer, framebuffer_size: Size::zero(), frame_started: false }
     }
 
     fn begin_frame(&mut self, app: &Application, input_sys: &InputSystem, delta_time_secs: Seconds) -> &imgui::Ui {
@@ -544,7 +559,8 @@ impl UiContext {
         let io = self.ctx.io_mut();
         io.update_delta_time(std::time::Duration::from_secs_f32(delta_time_secs));
 
-        let fb_size = app.framebuffer_size().to_vec2();
+        self.framebuffer_size = app.framebuffer_size();
+        let fb_size = self.framebuffer_size.to_vec2();
         let content_scale = app.content_scale();
 
         io.display_size = [fb_size.x / content_scale.x, fb_size.y / content_scale.y];
@@ -557,11 +573,14 @@ impl UiContext {
         self.ctx.new_frame()
     }
 
-    fn end_frame(&mut self, render_sys: RcMut<RenderSystem>) -> UiRenderFrameBundle<'_> {
+    fn end_frame(&mut self, tex_cache: &mut TextureCache) -> &UiDrawData {
         debug_assert!(self.frame_started);
         self.frame_started = false;
 
-        UiRenderFrameBundle::new(&self.renderer, &mut self.ctx, render_sys)
+        // ImGui's atlas never changes after it's built, so it sends no texture updates.
+        self.renderer.textures_mut().release_freed(tex_cache);
+        self.renderer.build_from_imgui(self.ctx.render(), self.framebuffer_size);
+        self.renderer.draw_data()
     }
 
     fn fonts(&self) -> &UiFonts {

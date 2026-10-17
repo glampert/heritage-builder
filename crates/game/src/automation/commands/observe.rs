@@ -209,6 +209,7 @@ fn cmd_debug_stats(context: &mut CommandContext, _params: Value) -> CommandResul
             "draw_world": stats.draw_world_frame_time_ms,
             "ui_begin": stats.ui_begin_frame_time_ms,
             "ui_end": stats.ui_end_frame_time_ms,
+            "ui_render": stats.ui_render_frame_time_ms,
             "engine_begin": stats.engine_begin_frame_time_ms,
             "engine_end": stats.engine_end_frame_time_ms,
             "present": stats.present_frame_time_ms,
