@@ -1,6 +1,6 @@
 # Migrate the UI from imgui to egui
 
-**Status (2026-10-17): Phase 0 done (baselines and spikes); Phase 1 is next.** Work happens on the `egui-migration` branch, one commit per step, merged into `main` with one PR at the end. This file tracks progress.
+**Status (2026-10-17): Phase 0 done (baselines and spikes); Phase 1 in progress.** Work happens on the `egui-migration` branch, one commit per step, merged into `main` with one PR at the end. This file tracks progress.
 
 Researched against `02d8b3c` on `main`, using egui/epaint 0.37.0 (released 2026-10-15). File references point at that commit, so re-check them before relying on them.
 
@@ -161,7 +161,7 @@ Tick tasks off and add notes in `docs/plans/egui-migration.md` as they land. Eve
   done
   ```
   To compare a later build, run the same command without `--update-goldens` and with `--script-continue-on-error`, then diff the extracted trees. Failed `assert.image` lines name the `-diff.png` files in `out/ui_snapshot/`.
-- **Things seen in the baselines** to look at in Phase 4: at 1280x720, the home menu's "About" button runs into the scroll's bottom roller; the building inspector's warning line runs past the parchment; the palette tooltip covers the next item in the list.
+- **Layout problems seen in the baselines:** content overflowing the parchment, a tooltip covering the menu it belongs to, misaligned rows, truncated dev windows. All of them are listed in [Phase 6](#phase-6-layout-pass), the layout pass after the conversion.
 
 **Spike results (2026-10-17).** The spike is commit `1654573` on the local `egui-spike` branch: `crates/engine/src/ui/egui_spike.rs`, about 1000 lines, turned on with `HB_EGUI_SPIKE=1` (always on in web builds there). It runs egui 0.37 next to imgui and renders through the existing UI draw path, converting egui's meshes to imgui's vertex format and u16 indices, with colors un-premultiplied on the CPU. Its backend part (input events, texture deltas, mesh submission) and its `api` module (the owned-Ui stack) are good starting points for Phase 3. Every question has an answer, and the design holds:
 1. **Rendering.**
@@ -206,6 +206,7 @@ Tick tasks off and add notes in `docs/plans/egui-migration.md` as they land. Eve
   - `engine/src/debug/{sound,texture,ui_text,update_timer}.rs`, `ui/toast.rs`;
   - `proc_macros/src/debug_ui.rs`, which now emits `ui::text` / `ui::separator` with no `ui` binding.
 - [ ] Make `UiSystem::ui()` `pub(super)` (used only by `widgets.rs`, `immediate.rs` and `internal.rs`) and drop `imgui` from `crates/game/Cargo.toml`.
+- [ ] Leave `TODO(layout)` notes where call sites hardcode sizes or positions involved in a [Phase 6](#phase-6-layout-pass) problem, but don't fix them yet: this phase must leave the screenshots unchanged.
 - **Done when:** `rg imgui crates/game crates/proc_macros` finds nothing, every `ui_*.jsonl` scenario passes, the screenshots match the Phase 0 goldens, and the UI snapshot hasn't changed.
 
 ### Phase 2: Renderer prep, still on imgui
@@ -221,6 +222,13 @@ Tick tasks off and add notes in `docs/plans/egui-migration.md` as they land. Eve
 - [ ] Add `style.rs` and the two style files. Remove `include_bytes!` and the hardcoded themes. Add the `ui.reload_styles` command.
 - [ ] Port `immediate.rs`, `widgets.rs`, `toast.rs`, `internal.rs` (most of it should disappear), the painter, the minimap and the metrics window replacement.
 - [ ] Revisit the automation details: menu close behavior, the close-button rect, text-input `ui.set` with focus, and the note that session switches finish two frames late (imgui popups held the mouse; check whether egui still needs this).
+- [ ] Build the retail widgets so the [layout pass](#phase-6-layout-pass) can fix geometry without another rewrite, but keep today's geometry, so screenshots are comparable:
+  - a menu's content area comes from its background sprite's insets, kept with the menu's parameters instead of being scattered through `widgets.rs`;
+  - text widgets take an optional wrap width;
+  - tooltips take a placement (at the pointer, or beside the widget);
+  - labeled groups can share one label column across rows (egui `Grid`);
+  - every retained menu records its content rect in the widget registry (kind `menu_content`), for the layout check.
+  Mark each spot that the pass will change with `TODO(layout)`.
 - **Done when:**
   - every scenario passes on OpenGL and Wgpu, and `determinism.jsonl` gives the same checksum before and after;
   - the UI snapshot diff against Phase 0 has been reviewed (only intended differences);
@@ -228,7 +236,7 @@ Tick tasks off and add notes in `docs/plans/egui-migration.md` as they land. Eve
   - the user has reviewed screenshots of every screen.
 
 ### Phase 4: Retail style refresh
-- [ ] Tune `game.json` (spacing, colors, text sizes) and, where egui allows it, small layout changes in `widgets.rs`. Review screenshot sets side by side with the user and iterate using `ui.reload_styles`.
+- [ ] Tune `game.json` (spacing, colors, text sizes). Review screenshot sets side by side with the user and iterate using `ui.reload_styles`. Geometry fixes (overflow, alignment, tooltip placement) wait for the [layout pass](#phase-6-layout-pass).
 - [ ] Update the image goldens used locally.
 
 ### Phase 5: Cleanup and stale references
@@ -244,7 +252,26 @@ Tick tasks off and add notes in `docs/plans/egui-migration.md` as they land. Eve
 - [ ] Run `rg -i 'imgui|im_gui|ImColor|wasi'` over the whole repository (code, comments, scripts, configs, `.claude/`). Also look for printf-style formats, `##` labels whose ids are no longer needed, the `FieldAccessorXY` comment in `common/src/lib.rs`, and dead helpers in `internal.rs`.
 - [ ] Check the drive-game skill and the `hb-ctl`/MCP docs for descriptions of UI behavior that changed.
 
-### Phase 6: PR
+### Phase 6: Layout pass
+Fixes the layout problems seen in the Phase 0 baselines, on top of the egui widgets. Phase 3 leaves `TODO(layout)` notes and the provisions listed there; `rg 'TODO\(layout\)'` finds them. The problems, as seen at 1280x720:
+- **Retail: content overflowing the parchment.**
+  1. Home menu: the buttons don't fit the scroll's inner area. "About" and "Quit Game" sit on the bottom roller. Sizes and spacing don't adapt to the window's height.
+  2. Load Game (home menu), Load / Save and Save Game (in-game): the button row sits on the bottom roller. In Load / Save, the row ("Load Game  Save Game  Cancel") is also wider than the text area and reaches the scroll's edge.
+  3. Population: the content fills the scroll, so "Ok" sits on the bottom roller. Resources is close to doing the same.
+  4. Building inspector: the status line ("Building not running because it doesn't have the required resources!") isn't wrapped and runs past both edges of the parchment.
+- **Retail: tooltips and alignment.**
+  5. Build palette: an item's tooltip ("Cost: 4 gold") opens over the item itself and covers its neighbors ("Apothecary", "Hospital").
+  6. Settings dialogs: the label and widget columns change from row to row. In Graphics Settings, the checkbox follows its label while the dropdown starts further right. In Game Settings, long labels nearly touch their checkboxes, and the block isn't centered.
+- **Developer UI: windows too narrow for their contents.**
+  7. Game Systems Debug and Game Configs: tab labels are cut off ("Settle…", "Ambien…", "Engine/…"), and rows are clipped at the window's edge ("Population Per Set…").
+  8. Tile Inspector: the title is cut off ("Object | Building - ID(1,40…").
+
+Tasks:
+- [ ] Fix each problem above, using the Phase 3 provisions: content areas from sprite insets, a scrolling content area when a menu's contents don't fit, wrapped text, tooltips beside the widget, shared label columns, and dev windows that size to their tabs and rows.
+- [ ] Add a layout check: a `ui.layout_issues` command lists widgets whose rects fall outside their menu's `menu_content` rect, or overlap a sibling. `ui_snapshot.jsonl` runs it on every retail screen.
+- [ ] Run `ui_snapshot.jsonl` at 1280x720, 1024x768 and 1920x1080, review the screenshots with the user, and update the local goldens.
+
+### Phase 7: PR
 - [ ] Push `egui-migration`, check CI once, and open the PR into `main`. The PR description summarizes the phases and links the plan.
 
 ## Verification
