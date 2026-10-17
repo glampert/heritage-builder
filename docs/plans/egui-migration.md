@@ -1,0 +1,223 @@
+# Migrate the UI from imgui to egui
+
+**Status (2026-10-17): Approved; Phase 0 in progress.** Work happens on the `egui-migration` branch, one commit per step, merged into `main` with one PR at the end. This file tracks progress.
+
+Researched against `02d8b3c` on `main`, using egui/epaint 0.37.0 (released 2026-10-15). File references point at that commit, so re-check them before relying on them.
+
+## Context
+
+Every UI in the game, retail and developer, runs on imgui-rs 0.12. That causes four problems:
+- **Web build:** imgui's C++ is compiled to wasm, so the web build needs a clang/wasi-sdk toolchain, C library shims (`web/libc.js`, `platform/web/libc.rs`), a linker flag (`--allow-undefined`) and a patch to the generated JS.
+- **Styles:** both themes are hardcoded in `UiSystem` (`set_dev_ui_theme` / `set_in_game_ui_theme`, about 75 entries each).
+- **Fonts:** fonts are baked in with `include_bytes!`, the font atlas is built once, and font switching relies on imgui's global push/pop font stack.
+- **Unsafe code and a leaky boundary:** imgui's types and its `Ui` leak out of the engine (`UiSystem::ui()`, which has about 137 callers). `UiSystem` holds a raw pointer to the frame's `Ui`, and several helpers call `imgui::sys` directly.
+
+The goal is to move every UI to egui, a pure-Rust library, rendered through the engine's own `RenderSystem` and fed by its own `InputSystem`. Only the engine's `ui` module talks to egui. Styles and fonts come from JSON files loaded at boot. The web build loses every imgui hack.
+
+## Decisions
+
+- **One swap.** The backend changes in one step (Phase 3), after Phases 1 and 2 have confined imgui to `engine/src/ui/` and moved the renderer to the new format. imgui and egui never run side by side.
+- **The retail UI may change look.** It keeps the same widgets, flows and textures, but spacing and styling can be improved through the style files. It isn't checked pixel by pixel against the old version. The user reviews screenshots instead.
+- **Use egui core only.** That means `egui` with the `bytemuck` feature and `default-features = false`. Don't use eframe, egui-winit, egui-wgpu or egui_glow, and never enable epaint's `unity` feature (it changes the vertex layout).
+- **No new `unsafe`.** This migration removes unsafe code: the `RawPtr<imgui::Ui>`, the raw `imgui::sys` calls and the whole of `platform/web/libc.rs`. `UiSystem` stops using `Mutable` (an `UnsafeCell` wrapper) and keeps one `RefCell`/`Cell` field per concern.
+- **Performance:** prefer stack and small-buffer containers (`SmallVec`, `ArrayVec`, `ArrayString`, `common::fixed_string::FixedWriter`). Keep the capacity of per-frame buffers between frames. Add one upload per frame for UI geometry, the time spent on UI to the frame stats, and `opt-level = 2` for egui, epaint and emath in the dev profile (egui is very slow unoptimized).
+
+## Target architecture
+
+### Module layout (`crates/engine/src/ui/`)
+
+- `mod.rs`: `UiSystem`, the public types (`UiTheme`, `UiTexture`, `UiColor`, ...) and `pub use immediate::*`. Nothing egui-typed is public.
+- `immediate.rs` (renamed from `dev.rs`): immediate-mode functions such as `ui::button`, `ui::text` and `ui::window`, shared by the developer UI and `widgets.rs`. The `dev::` prefix and the `UiDev*` type names go away.
+- `widgets.rs`: retained retail widgets. Together with `immediate.rs`, it is the only module that calls egui for drawing.
+- `backend.rs` (new, private): the egui `Context`, the stack of the current `Ui`, input translation, and turning egui's output into draw data.
+- `style.rs` (new): `UiStyleDef` (serde), loading styles and fonts, and conversion to `egui::Style` / `FontDefinitions`.
+- `renderer.rs`: builds `UiDrawData` from tessellated primitives and keeps track of egui-managed textures.
+- `registry.rs`, `toast.rs`, `text.rs`, `icons.rs`, `sound.rs` keep their roles.
+
+### UiSystem and the safe current-Ui stack
+
+- Every UI function takes `&UiSystem`. Containers take `impl FnOnce(&UiSystem) -> R` closures, which replace the token APIs (`begin_menu -> Option<MenuToken>`, `tab_item`, `collapsing_header_scope`).
+- `UiSystem` holds `ui_stack: RefCell<SmallVec<[egui::Ui; 8]>>` of **owned** `Ui`s. The protocol:
+  - **Leaf functions** borrow the top `Ui` briefly.
+  - **Container functions** first pop the parent `Ui` off the stack by value, then run the egui container on it. Inside egui's closure, they create an owned child with `ui.new_child(UiBuilder::new())`, which inherits the layout and the available rect. They push the child, run the user's closure, pop the child, call `ui.advance_cursor_after_rect(child.min_rect())`, and finally push the parent back.
+  - **Top-level windows and areas** start from the egui `Context`.
+- Moving a `Ui` is cheap (about 11 fields), and none of this needs `unsafe`.
+- **Rules:**
+  - Never hold a `RefCell` borrow across a user closure.
+  - Never call back into `ui::` from inside `ctx.input/fonts/memory(|..|)`, because egui holds its lock there.
+  - Every egui API that takes a closure (`on_hover_ui`, ComboBox, menus, CollapsingHeader, ScrollArea, Grid, Window, Area, Modal) is wrapped as a container.
+  - A debug check verifies that the stack depth is balanced.
+- **Frame flow:** `begin_frame` calls `ctx.begin_pass(raw_input)` and `end_frame` calls `ctx.end_pass()`, then `tessellate`. `Options::max_passes = 1` is required, because UI code runs inside `GameLoop::update` and can't be re-run. `zoom_with_keyboard` is off and `quit_shortcuts` is empty.
+- **Labels:** keep imgui's `"label##id"` convention, parsed in our layer without allocating (`split_label(&str) -> (&str, &str)`). Pass the full label as `id_salt` wherever egui keeps state (CollapsingHeader, ComboBox, TextEdit, ScrollArea, `Window::id`). Fix any id clashes, because egui marks them in red in debug builds.
+
+### API shape (examples)
+
+```rust
+ui::window(ui_sys, UiWindow::new("Tile Inspector").id(obj_id).open(&mut open).initial_pos(p).auto_resize(), |ui_sys| { .. });
+ui::text(ui_sys, "Population");  ui::text_colored(ui_sys, UiColor::YELLOW, s);  ui::bullet_text(ui_sys, s);
+ui::text_segments(ui_sys, &[("Level: ", None), (lvl, Some(UiColor::GREEN))]); // One galley, replaces most same_line pairs.
+ui::horizontal(ui_sys, |ui_sys| { .. });  ui::indent(ui_sys, |ui_sys| { .. });  ui::separator(ui_sys);
+if ui::button(ui_sys, "Pause") { .. }
+ui::collapsing_header(ui_sys, "Upgrade", false /*default_open*/, |ui_sys| { .. }); // Also a registry path scope.
+ui::main_menu_bar(ui_sys, |ui_sys| ui::menu(ui_sys, "Debug", |ui_sys| { .. }));
+ui::tab_bar(ui_sys, "systems", |tabs| { tabs.tab("World", |ui_sys| { .. }); });
+ui::slider(ui_sys, "Speed", 0.0, 4.0, UiNumberFormat::decimals(2), &mut v);   // No printf formats.
+ui::with_style(ui_sys, UiTheme::Dev, |ui_sys| { .. });
+let painter = ui::painter(ui_sys, UiLayer::Window); painter.with_clip_rect(r).image_quad(tex, corners, uvs, tint);
+```
+
+Formatted text goes through `FixedWriter` into an `ArrayString` (a `ui::textf!`-style helper), so it isn't allocated twice. egui still turns every label into a `String`.
+
+### Styles and fonts
+
+- There are two files, `assets/configs/ui/styles/dev.json` and `assets/configs/ui/styles/game.json`. The game loads them in `GameLoop::start` through `UiSystem::load_styles(&[(UiTheme::Dev, path), (UiTheme::InGame, path)])`, before the first UI frame. Fonts are read from `assets/fonts/` through the engine's `file_sys`, so the web build gets them via `asset_manifest.json`.
+- `UiStyleDef` is our own `#[serde(default, deny_unknown_fields)]` struct, not a serialized `egui::Style`, which would tie the files to an egui version. It holds:
+  - a color palette and widget visuals (normal, hovered, active);
+  - spacing, corner radius, strokes, window and popup frames;
+  - the modal dim color, which replaces `set_style_color(ModalWindowDimBg)`;
+  - `animation_time` (0 for the dev UI keeps automation instant);
+  - `fonts`, a map from name to `{ file, tweak }`;
+  - `text_styles`, a map from name to `{ font, size, fallbacks }`, with `body`, `heading`, `button`, `small`, `monospace` and `icon` required.
+- egui has one font set per Context. Every style's fonts are merged into one `FontDefinitions` with namespaced families (`"dev/mono"`, `"game/body"`). egui's built-in `Proportional`/`Monospace` families are mapped to the dev fonts, because egui uses them internally. A small symbol fallback font is added for egui's text glyphs (submenu arrow, inspection UI).
+- The FontAwesome icon font becomes a fallback family with its own size; `icons.rs` stays.
+- Each widget picks its size through a `FontId`, which replaces `set_window_font_scale`, `set_tooltip_font_scale` and the global font push.
+- Theme switching uses `ctx.set_global_style` around each group of windows, through `ui::with_style`. Popups and tooltips start from the global style, so a per-window style wouldn't reach them (check this in spike 2).
+- A `ui.reload_styles` command reloads both files at runtime, for iterating on styles.
+
+### Input (`backend.rs`)
+
+- Build `RawInput` every frame:
+  - `screen_rect` in points;
+  - `viewports[ROOT].native_pixels_per_point = content_scale`;
+  - `time` from the engine's frame clock, so `--fixed-dt` keeps tooltips and animations deterministic;
+  - `focused`, and `max_texture_side`.
+- **Mouse:** the game polls mouse state from `InputSystem`, and the polled state is turned into `PointerMoved`/`PointerButton` events by comparing it with the previous frame. Virtual input and record/replay therefore keep working. `PointerGone` is sent when the cursor leaves the window, as `input.move park=true` does.
+- **Keyboard and text:** keys arrive as `Event::Key { key, physical_key, pressed, repeat, modifiers }`, covering every `InputKey`. Modifiers are sent with `Event::ModifiersChanged` (`command` = Super on macOS, Ctrl elsewhere). `Text` events skip control characters and the macOS private-use range U+F700–F8FF.
+- **Scrolling:** `MouseWheel { unit, delta, phase, source, modifiers }`.
+- **Copy/paste:** an in-app clipboard buffer handles synthesized `Copy`/`Cut`/`Paste` events and `OutputCommand::CopyText`.
+- **Game gating:** the mouse belongs to the UI when `is_pointer_over_egui() || egui_is_using_pointer()`, and the keyboard when `egui_wants_keyboard_input()`. Both use the previous frame's state, as now. `is_any_item_hovered` (`game_loop.rs:451`) becomes a portable query.
+
+### Rendering
+
+- `UiSystem::end_frame` returns an owned `UiDrawData`, which `RenderSystem::end_frame(&UiDrawData)` consumes. It holds the vertices, `u32` indices and commands `{ index range, base vertex, TextureHandle, clip rect in pixels }`.
+  - This replaces `UiRenderFrameBundle` and the backend calling back into the UI renderer through an `RcMut<RenderSystem>`.
+  - The buffers keep their capacity between frames.
+- `UiVertex` is our own `#[repr(C)]` Pod type. It is filled with `bytemuck::cast_slice` from `epaint::Vertex`, with compile-time checks on its size and field offsets.
+- Both backends upload once per frame and draw with a base vertex (`glDrawElementsBaseVertex` on GL 3.2; `base_vertex` in wgpu).
+- **Premultiplied alpha:** the UI blend becomes `ONE, ONE_MINUS_SRC_ALPHA`. The UI shader outputs `vec4(t.rgb * t.a, t.a) * vertex_color` (`opengl/shaders/ui.frag`, `wgpu/shaders/ui.wgsl`). egui-managed textures are un-premultiplied when uploaded, so every texture in video memory is straight alpha. Both surfaces are non-sRGB, which matches egui's gamma-space blending. Log a warning if wgpu falls back to an sRGB surface.
+- **egui textures:** `UiRenderer` maps `TextureId::Managed` to a `TextureHandle` in a `SmallVec<[(u64, TextureHandle); 4]>`.
+  - Partial updates use the existing `TextureCache::update_texture` (sub-rect).
+  - A full delta recreates the texture under a unique name (a name collision panics).
+  - Frees are deferred by one frame, because wgpu encodes the UI pass in `end_frame`.
+  - Every `TexturesDelta` is applied or cleared, including frames that skip the UI (`--screenshot-no-ui`), because its `Drop` asserts it is empty.
+  - The font atlas is cleared when it is over 80% full, which means a full re-upload.
+- `TextureId::User` holds `TextureHandle::pack()` behind our `UiTexture` newtype.
+
+### Mapping the hard parts
+
+- **Retail menus:** use `Area` with `Frame::NONE` and a pivot. Texture backgrounds go into a `Shape::Noop` slot that is filled once `min_rect` is known. `set_cursor_pos` layouts become `ui.put` / `scope_builder(max_rect)`. `fit_next_window_on_screen` becomes `max_height` plus a vertical scroll. Message boxes use `Modal`.
+- **Minimap:** the rotated textured quad becomes `Mesh::with_texture` + `Shape::mesh`, drawn through `painter.with_clip_rect`. Rects, circles and tinted icons come from the painter wrapper.
+- **Toasts, the badge and debug popups:** drawn with foreground/background layer painters, not one Area per message.
+- **Log viewer:** `ScrollArea::show_rows` with `stick_to_bottom`. History is handled by consuming ArrowUp/ArrowDown before the TextEdit, then setting the cursor through `TextEditState`. TextEdit edits the `String` in place, so the `UiDevTextValue` callback workaround goes away.
+- **Menus:** `MenuConfig` with `PopupCloseBehavior::CloseOnClickOutside`, and `menu_item` closes the menu explicitly. Without this, `Game/Pause` → `Game/Resume` in one open menu (`ui_dev_menus.jsonl`) breaks. `MenuButton::ui` returns the rect and open state the registry needs.
+- **Tab bar:** a row of selectable buttons, with the selected tab kept in `ctx.data_mut`. Columns become `Grid`.
+- **imgui's metrics window:** replaced by a dev window showing `inspection_ui` / `memory_ui` / `texture_ui`.
+- **Widget registry:** `record_item` takes the egui `Response`: rect, `hovered()`, `ui.is_rect_visible`, and `scroll_to_me` for reveal. The path stack becomes one reused `String` plus a `SmallVec<[u16; 8]>` of segment ends.
+- **Window close button:** its rect for `record_window` is computed from egui's title-bar layout. If spike 2 can't do that reliably, dev windows draw their own title bar.
+
+## Phases
+
+Tick tasks off and add notes in `docs/plans/egui-migration.md` as they land. Every commit builds for desktop and web and passes `cargo test --workspace`.
+
+### Phase 0: Branch, baselines, spikes
+- [x] Create the `egui-migration` branch, copy this plan to `docs/plans/egui-migration.md`, and link it from AGENTS.md.
+- [ ] Add a structural UI snapshot that works across renderers. `ui.tree` gets a `fields` filter, so it can output only paths, kinds, values and enabled states, without rects. Add `crates/game/tests/scenarios/ui_snapshot.jsonl`, which walks the home menu, new game, HUD and dialogs, the dev menus, the tile inspector and the debug windows, and dumps the tree at each step. Save the imgui output to compare against after the swap.
+- [ ] Take baseline screenshots of the same screens on OpenGL and on Wgpu (`--window-size 1600x900 --fixed-dt 0.016667 --seed 1`) into `out/baseline/`, using `assert.image update=true` goldens. They're for checking Phases 1 and 2, and as a reference for reviewing the retail look.
+- [ ] Spikes on a throwaway `egui-spike` branch, with results recorded in the plan:
+  1. egui text through both backends and the web build: crispness on retina, clip rects, partial uploads, the atlas reset.
+  2. The Ui stack: window → header → horizontal → scroll area → combo → tooltip. Check ids are stable, registry rects and hover are right, global style reaches popups, and the close-button rect can be found.
+  3. Automation: a virtual-input click, menu parity, a focused TextEdit with `ui.set` then Enter, history keys.
+  4. Retail: a `UiMenu` with a background texture, pivot placement, a centered group, and a modal.
+
+### Phase 1: Portable UI API, still on imgui (several commits)
+- [ ] Rename `dev.rs` to `immediate.rs`, re-export it at `ui::`, rename `UiDev*`, and update every `dev::` caller and the proc macro.
+- [ ] Add the missing functions on imgui: text, colored and bullet text, `text_segments`, layout (`separator`, `spacing`, `new_line`, `horizontal`, `indent`, `dummy`, full-width items), `window` / `overlay` builders (they absorb `record_window` and `fit_next_window_on_screen`), `scroll_area` (stick to bottom), `main_menu_bar` / window menu bar, `tab_bar`, `grid`, `id_scope`, `with_style`, the console text input (hint, submit on Enter, focus, history), and queries (screen size, any item hovered, window focused). Add the painter wrapper (rect, circle, text, image, textured quad, clip rect; window, background and foreground layers) and a portable color type. Move `icon_button`, `image_button`, `dpad_buttons`, `custom_tooltip` and `input_*_xy` / `input_color` from `mod.rs` into the immediate module.
+- [ ] Remove imgui types from the API: `TreeNodeFlags` becomes `default_open: bool`, printf formats become `UiNumberFormat` (the proc macro converts `%.2f` and the like at compile time), `UiDevNumber` drops `DataTypeKind`, and `UiTextureHandle`/`UiFontHandle` become our own types. Text takes a size, replacing `set_window_font_scale`. A modal dim setter replaces `set_style_color`.
+- [ ] Port the call sites:
+  - `game/src/debug/*`, including `sim.rs`, `systems.rs` and `world.rs`, which call `.ui()` without naming imgui;
+  - `tile/minimap.rs`, `tile/rendering.rs`, `camera.rs`, `unit/task/patrol.rs`, `game_loop.rs`, `menu/dialog/mod.rs`;
+  - `engine/src/debug/{sound,texture,ui_text,update_timer}.rs`, `ui/toast.rs`;
+  - `proc_macros/src/debug_ui.rs`, which now emits `ui::text` / `ui::separator` with no `ui` binding.
+- [ ] Make `UiSystem::ui()` `pub(super)` (used only by `widgets.rs`, `immediate.rs` and `internal.rs`) and drop `imgui` from `crates/game/Cargo.toml`.
+- **Done when:** `rg imgui crates/game crates/proc_macros` finds nothing, every `ui_*.jsonl` scenario passes, the screenshots match the Phase 0 goldens, and the UI snapshot hasn't changed.
+
+### Phase 2: Renderer prep, still on imgui
+- [ ] Add `UiDrawData` and `RenderSystem::end_frame(&UiDrawData)`, and remove `UiRenderFrameBundle`.
+- [ ] Add `UiVertex` (Pod) and `u32` indices, with one upload per frame and base-vertex draws in both backends.
+- [ ] Switch the UI pipelines and shaders to premultiplied alpha, premultiplying imgui's vertex colors on the CPU for now.
+- [ ] Add texture-delta handling to `UiRenderer`: create, partial update, recreate on resize, deferred free. imgui's atlas goes through it too.
+- **Done when:** screenshots match the Phase 0 goldens within a small tolerance on OpenGL and Wgpu, the web smoke test passes, and the frame stats show no regression.
+
+### Phase 3: The swap to egui (one commit)
+- [ ] Add `egui = { version = "0.37", default-features = false, features = ["bytemuck"] }` to `crates/engine`, plus the dev-profile `opt-level` overrides. Remove `imgui` from `crates/engine/Cargo.toml`.
+- [ ] Rewrite `UiSystem` and add `backend.rs`: egui Context, `RefCell`/`Cell` fields, the Ui stack, pass driving, input translation, draw data, textures.
+- [ ] Add `style.rs` and the two style files. Remove `include_bytes!` and the hardcoded themes. Add the `ui.reload_styles` command.
+- [ ] Port `immediate.rs`, `widgets.rs`, `toast.rs`, `internal.rs` (most of it should disappear), the painter, the minimap and the metrics window replacement.
+- [ ] Revisit the automation details: menu close behavior, the close-button rect, text-input `ui.set` with focus, and the note that session switches finish two frames late (imgui popups held the mouse; check whether egui still needs this).
+- **Done when:**
+  - every scenario passes on OpenGL and Wgpu, and `determinism.jsonl` gives the same checksum before and after;
+  - the UI snapshot diff against Phase 0 has been reviewed (only intended differences);
+  - the web smoke test passes and `cargo test --workspace` passes;
+  - the user has reviewed screenshots of every screen.
+
+### Phase 4: Retail style refresh
+- [ ] Tune `game.json` (spacing, colors, text sizes) and, where egui allows it, small layout changes in `widgets.rs`. Review screenshot sets side by side with the user and iterate using `ui.reload_styles`.
+- [ ] Update the image goldens used locally.
+
+### Phase 5: Cleanup and stale references
+- [ ] **Web:**
+  - Delete `crates/launcher/build.rs` once a web build succeeds without `--allow-undefined`.
+  - Delete `web/libc.js`, the importmap in `web/index.html` and `crates/engine/src/platform/web/libc.rs` (with `mod libc;`).
+  - In `web-builder`, delete the clang/wasi-sdk setup and `patch_generated_js`, and remove imports that are no longer used.
+  - In CI, delete `WASI_SDK_VERSION` and the "Install wasi-sdk" step.
+- [ ] **Docs:**
+  - Rewrite the ImGui references in AGENTS.md (automation notes, the web toolchain bullets, DrawDebugUi, the Engine description), `README.md` (the llvm/wasi-libc steps), and `.claude/rules/rendering.md`.
+  - Add a note about styles to AGENTS.md.
+  - Add a one-line note at the top of `docs/plans/agent-automation.md` saying the UI has since moved to egui; it's a historical record.
+- [ ] Run `rg -i 'imgui|im_gui|ImColor|wasi'` over the whole repository (code, comments, scripts, configs, `.claude/`). Also look for printf-style formats, `##` labels whose ids are no longer needed, the `FieldAccessorXY` comment in `common/src/lib.rs`, and dead helpers in `internal.rs`.
+- [ ] Check the drive-game skill and the `hb-ctl`/MCP docs for descriptions of UI behavior that changed.
+
+### Phase 6: PR
+- [ ] Push `egui-migration`, check CI once, and open the PR into `main`. The PR description summarizes the phases and links the plan.
+
+## Verification
+
+- **Each commit:** `cargo build -p HeritageBuilder`, `cargo test --workspace`, and `cargo run -p web-builder` (web compiles).
+- **Scenarios:** run `smoke`, `ui_new_game`, `ui_build`, `ui_dev_menus` and `ui_snapshot` with `--script`, and `determinism.jsonl` twice with the same `--seed` and `--window-size` (identical output and save). Run them on OpenGL (default) and on Wgpu (`"app_api": "Winit"`, `"render_api": "Wgpu"`).
+- **Live checks** through the heritage-builder MCP tools or `hb-ctl`: launch with `--map preset:2 --fixed-dt 0.016667`, then use `ui.tree`, `ui.click`, `ui.set`, `input.*` and `screenshot`. Diff screenshots against the goldens with `assert.image path=...`, which writes `-diff.png`.
+- **Record/replay:** record `ui_build` and replay it (status 0).
+- **Web:** `python3 crates/tools/web-smoke/smoke.py`, plus a manual look at text input and HiDPI crispness in a browser.
+- **Saves:** `--smoke-test-saves` after Phase 3. Nothing serialized should change, so no save-version bump is expected.
+- **Performance:** compare the frame-stats UI time and draw calls on a busy dev screen (several debug windows open) before and after, in release and debug builds.
+
+## Risks
+
+- **Debug-build speed:** egui is slow when unoptimized. The `opt-level` overrides address this; measure early (spike 1).
+- **First-frame sizing:** new Areas and Windows run a hidden sizing pass, and Grid columns settle one frame late. Screenshots and automation should wait a frame after a window opens; `ui.click` already waits for widgets to appear.
+- **Automation timing:** egui hit-tests against the previous frame's layout. A click needs the widget to exist on the hover frame, which the current timeline already gives it.
+- **Font atlas resets:** a reset re-uploads the whole atlas, which costs a frame spike with large CJK-sized glyph sets. That isn't a concern for the current fonts.
+- **egui version churn:** 0.37.0 is two days old. Pin `0.37` and take patch releases; don't upgrade minor versions during the migration.
+- **Big swap commit:** Phases 1 and 2 keep it to `engine/src/ui/` plus the two style files. Spikes 1–4 take most of the uncertainty out first.
+
+## Open decisions (defaults apply unless the user decides otherwise)
+
+- **Clipboard:** an in-app buffer for now. The real OS clipboard (glfw/winit/web) comes later.
+- **Dev window title bars:** egui's own. A custom one only if spike 2 can't place the close-button rect reliably.
+- **Symbol fallback font:** ship egui's small `emoji-icon-font` (OFL) in `assets/fonts/`.
+- **Style file location:** `assets/configs/ui/styles/{dev,game}.json`.
+
+## Working agreements
+
+- Commit each step to `egui-migration`. The user asked for a branch, which overrides the usual commit-to-main habit. Don't push without asking.
+- After pushing, check CI once and report the result.
+- Keep this plan's checkboxes and notes up to date. It's the source of truth for progress.
