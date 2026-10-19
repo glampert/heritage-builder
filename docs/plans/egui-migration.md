@@ -336,8 +336,22 @@ Tick tasks off and add notes in `docs/plans/egui-migration.md` as they land. Eve
   - **Screenshots:** every screen of `ui_snapshot` was compared side by side with the imgui baseline (`out/baseline/*`), on both backends. Text is at the same size and positions within a few points; the retail menus keep their geometry. Visible differences: egui's checkboxes, sliders (a rail with a round handle), drag values with -/+ buttons, combo boxes and list rows (full-width, selected row highlighted); dev-menu items are rows and a menu's buttons fill its width; windows have the custom title bar; tooltips use the popup frame. For the user's review.
 
 ### Phase 4: Retail style refresh
-- [ ] Tune `game.json` (spacing, colors, text sizes). Review screenshot sets side by side with the user and iterate using `ui.reload_styles`. Geometry fixes (overflow, alignment, tooltip placement) wait for the [layout pass](#phase-6-layout-pass).
-- [ ] Update the image goldens used locally.
+- [x] Tune `game.json` (spacing, colors, text sizes). Review screenshot sets side by side with the user and iterate using `ui.reload_styles`. Geometry fixes (overflow, alignment, tooltip placement) wait for the [layout pass](#phase-6-layout-pass).
+- [x] Update the image goldens used locally.
+
+**Phase 4 notes (2026-10-19):**
+- **What was wrong:** the Phase 3 `game.json` gave the selection color the same tan as the widget fill, so a slider's filled part, a selected list row and a dropdown's current item were invisible on the parchment; the empty rail, the scroll bar and the text fields were faint too.
+- **What changed (`game.json`):**
+  - `selection` is an ink brown (`#A1703F`) with cream `selection_text`: it fills sliders up to the handle, highlights the selected row of a list and the current item of an open dropdown, and marks selected text. Checkboxes keep the widget fill and an ink check mark, since egui colors only selectable buttons with the selection.
+  - The widget `fill` (slider rails, checkbox boxes, slider and scroll bar handles) is a tan (`#CDB98F`) that darkens when hovered and pressed, instead of a near-parchment tone that lightened. The `weak_fill` of buttons, dropdowns and number inputs is unchanged.
+  - Text fields are a light cream (`text_edit_fill` `#FFF4DAB3`), and the scroll bar track is lighter than the parchment (`extreme_fill` `#FFF4DA`) so the tan handle shows on it.
+  - Slider rails are 10 points tall (egui's default is 8): `spacing.slider_rail_height` is a new style field, which `dev.json` sets to 8.
+  - Text sizes, spacing and fonts are as in Phase 3: they already matched the imgui sizes.
+- **Style code:** the popup frame's `stroke_width` was dropped from `UiStyleDef`: egui's popups and tooltips take the window's border, so it never applied. `popup` now holds only `corner_radius`.
+- **Review loop:** a game launched with `hb-ctl`, then `ui.reload_styles` and a screenshot per retail screen (25 screens: the home dialogs, in-game dialogs, tooltips and the inspector) after each edit of `game.json`, compared as crops against the Phase 3 screenshots. Two iterations were needed: the colors, then the rail height (a build, since it's a new field).
+- **Goldens:** the imgui baselines moved from `out/baseline/` to `out/baseline-imgui/`, and `out/baseline/{opengl,wgpu}` hold new goldens from this build (`ui_snapshot.jsonl` with `--update-goldens`, debug build, 1280x720), so the layout pass can compare against the egui look.
+- **Verification (2026-10-19, macOS, 1280x720):** `ui_snapshot.jsonl` passes on OpenGL and on Wgpu (204 commands each, 501 frames), and its widget trees are the same as Phase 3's; a second OpenGL run matches the 41 new goldens pixel for pixel. `cargo test --workspace` passes and the web build compiles. Only the style files, `style.rs` and this plan changed: no widget code, so no scenario or save could be affected.
+- **For the user's review:** a sheet per three screens, imgui baseline on the left and this build on the right, in the session scratchpad under `phase4/sheets/`; the Phase 3 look of each widget is in `phase4/it1_*.png` and `it2_*.png` crops there.
 
 ### Phase 5: Cleanup and stale references
 - [ ] **Web:**

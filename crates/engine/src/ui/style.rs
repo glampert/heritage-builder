@@ -111,7 +111,7 @@ struct UiStyleDef {
     widgets: UiWidgetsDef,
     spacing: UiSpacingDef,
     window: UiFrameDef,
-    popup: UiFrameDef,
+    popup: UiPopupDef,
     animation_time: f32, // Seconds, e.g. for collapsing headers. 0 is instant.
     tooltip_delay: f32,  // Seconds the pointer rests on a widget before its tooltip shows.
     // How far from a resizable window's edges and corners the mouse grabs them, in points. The
@@ -130,7 +130,7 @@ impl Default for UiStyleDef {
             widgets: UiWidgetsDef::default(),
             spacing: UiSpacingDef::default(),
             window: UiFrameDef { corner_radius: 6.0, stroke_width: 1.0 },
-            popup: UiFrameDef { corner_radius: 4.0, stroke_width: 1.0 },
+            popup: UiPopupDef { corner_radius: 4.0 },
             animation_time: 0.0,
             tooltip_delay: 0.0,
             resize_grab_radius_side: 5.0, // egui's defaults.
@@ -303,6 +303,7 @@ struct UiSpacingDef {
     icon_width: f32,          // Check boxes and radio buttons.
     icon_spacing: f32,        // Between such an icon and its label.
     slider_width: f32,
+    slider_rail_height: f32, // The bar the handle slides on.
     combo_width: f32,
     text_edit_width: f32,
     scroll_bar_width: f32,
@@ -321,6 +322,7 @@ impl Default for UiSpacingDef {
             icon_width: spacing.icon_width,
             icon_spacing: spacing.icon_spacing,
             slider_width: spacing.slider_width,
+            slider_rail_height: spacing.slider_rail_height,
             combo_width: spacing.combo_width,
             text_edit_width: spacing.text_edit_width,
             scroll_bar_width: spacing.scroll.bar_width,
@@ -328,11 +330,19 @@ impl Default for UiSpacingDef {
     }
 }
 
+// Windows: their corner radius and border width.
 #[derive(Default, Deserialize)]
 #[serde(default, deny_unknown_fields)]
 struct UiFrameDef {
     corner_radius: f32,
     stroke_width: f32,
+}
+
+// Popups and tooltips: their corner radius. They take the window's border and fill.
+#[derive(Default, Deserialize)]
+#[serde(default, deny_unknown_fields)]
+struct UiPopupDef {
+    corner_radius: f32,
 }
 
 impl UiStyleDef {
@@ -459,6 +469,7 @@ impl UiStyleDef {
         egui_spacing.icon_width_inner = spacing.icon_width * 0.5;
         egui_spacing.icon_spacing = spacing.icon_spacing;
         egui_spacing.slider_width = spacing.slider_width;
+        egui_spacing.slider_rail_height = spacing.slider_rail_height;
         egui_spacing.combo_width = spacing.combo_width;
         egui_spacing.text_edit_width = spacing.text_edit_width;
         egui_spacing.scroll = egui::style::ScrollStyle { bar_width: spacing.scroll_bar_width, ..egui::style::ScrollStyle::solid() };
