@@ -352,6 +352,7 @@ Tick tasks off and add notes in `docs/plans/egui-migration.md` as they land. Eve
 - **Goldens:** the imgui baselines moved from `out/baseline/` to `out/baseline-imgui/`, and `out/baseline/{opengl,wgpu}` hold new goldens from this build (`ui_snapshot.jsonl` with `--update-goldens`, debug build, 1280x720), so the layout pass can compare against the egui look.
 - **Verification (2026-10-19, macOS, 1280x720):** `ui_snapshot.jsonl` passes on OpenGL and on Wgpu (204 commands each, 501 frames), and its widget trees are the same as Phase 3's; a second OpenGL run matches the 41 new goldens pixel for pixel. `cargo test --workspace` passes and the web build compiles. Only the style files, `style.rs` and this plan changed: no widget code, so no scenario or save could be affected.
 - **For the user's review:** a sheet per three screens, imgui baseline on the left and this build on the right, in the session scratchpad under `phase4/sheets/`; the Phase 3 look of each widget is in `phase4/it1_*.png` and `it2_*.png` crops there.
+- **Minimap (after the review):** the Phase 0 change that picked a cell's shade from a hash of its coordinates, for repeatable snapshots, gave the minimap a striped look. The minimap draws its shades from its own `Pcg32` again, seeded with a constant and started over whenever the whole minimap is built, so runs still match. The goldens were remade once more after it.
 
 ### Phase 5: Cleanup and stale references
 - [ ] **Web:**
