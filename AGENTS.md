@@ -203,4 +203,4 @@ When you learn something durable about the codebase, add it here or to a `.claud
 ## Plans
 
 - [docs/plans/agent-automation.md](docs/plans/agent-automation.md) — agent automation (command system, script mode, control server, MCP, simulated input, UI automation, web bridge, record and replay) and in-game screenshots. All phases are done; its notes record what was built, the deviations, and what was verified.
-- [docs/plans/egui-migration.md](docs/plans/egui-migration.md) — the move of every UI to egui: a portable `ui::` API, styles and fonts loaded from JSON, the renderer and input glue, and a web build without a C toolchain. Phases 0–6 are done on the `egui-migration` branch; Phase 7 is the PR into `main`.
+- [docs/plans/egui-migration.md](docs/plans/egui-migration.md) — the move of every UI to egui: a portable `ui::` API, styles and fonts loaded from JSON, the renderer and input glue, and a web build without a C toolchain. All phases are done; its notes record what was built, the deviations, and what was verified.

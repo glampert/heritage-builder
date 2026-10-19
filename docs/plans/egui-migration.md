@@ -1,6 +1,6 @@
 # Migrate the UI from imgui to egui
 
-**Status (2026-10-19): Phases 0–6 done; Phase 7, the PR into `main`, is next.** Work happens on the `egui-migration` branch, one commit per step, merged into `main` with one PR at the end. This file tracks progress.
+**Status (2026-10-19): Complete.** The work happened on the `egui-migration` branch, one commit per step, and lands in `main` through [PR #4](https://github.com/glampert/heritage-builder/pull/4). This file records what was built, the deviations and what was verified.
 
 Researched against `02d8b3c` on `main`, using egui/epaint 0.37.0 (released 2026-10-15). File references point at that commit, so re-check them before relying on them.
 
@@ -403,7 +403,9 @@ Tasks:
 - **For the user's review:** sheets with the Phase 4 build on the left and this one on the right, three screens each, in the session scratchpad under `phase6/sheets/`, and the 1024x768 and 1440x796 runs under `phase6/sheets_1024/` and `phase6/sheets_1440/`.
 
 ### Phase 7: PR
-- [ ] Push `egui-migration`, check CI once, and open the PR into `main`. The PR description summarizes the phases and links the plan.
+- [x] Push `egui-migration`, check CI once, and open the PR into `main`. The PR description summarizes the phases and links the plan.
+
+**Phase 7 notes (2026-10-19):** every phase's push had a green CI run (the last before the PR, 39240954875, on `9bc0965`, which also dropped the imgui references outside this plan). [PR #4](https://github.com/glampert/heritage-builder/pull/4) summarizes the phases, the deviations worth knowing at merge time (Rust 1.95, the UI pass cost, the determinism checksum, where the goldens live) and the verification.
 
 ## Verification
 
