@@ -1,0 +1,59 @@
+{
+  "fonts": {
+    "body": { "file": "protest_revolution_regular.ttf", "scale": 0.8333 },
+    "mono": { "file": "source_code_pro_semi_bold.ttf", "scale": 0.7955 },
+    "icons": { "file": "fa-solid-900.ttf" }
+  },
+  "text_styles": {
+    "body": { "font": "body", "size": 20.0, "fallbacks": ["mono", "icons"] },
+    "heading": { "font": "body", "size": 28.0, "fallbacks": ["mono", "icons"] },
+    "button": { "font": "body", "size": 20.0, "fallbacks": ["mono", "icons"] },
+    "small": { "font": "body", "size": 16.0, "fallbacks": ["mono", "icons"] },
+    "monospace": { "font": "mono", "size": 14.0, "fallbacks": ["icons"] },
+    "icon": { "font": "icons", "size": 16.0 }
+  },
+  "colors": {
+    "text": "#000000",
+    "text_disabled": "#808080",
+    "window_fill": "#F6DBA5",
+    "panel_fill": "#333338",
+    "border": "#474A4D99",
+    "separator": "#474A4D",
+    "faint_fill": "#E0D4AD40",
+    "extreme_fill": "#C7BA99",
+    "text_edit_fill": "#E0D4AD40",
+    "selection": "#E0D4AD",
+    "selection_text": "#000000",
+    "hyperlink": "#947359",
+    "warning": "#8C5A00",
+    "error": "#B00020",
+    "modal_backdrop": "#00000026"
+  },
+  "widgets": {
+    "noninteractive": { "fill": "#E0D4AD", "weak_fill": "#E0D4AD40", "stroke": "#474A4D", "stroke_width": 1.0, "text": "#000000", "text_width": 1.0, "corner_radius": 3.0 },
+    "inactive": { "fill": "#E0D4AD", "weak_fill": "#F6DBA5", "stroke": "#474A4D99", "stroke_width": 1.0, "text": "#000000", "text_width": 1.0, "corner_radius": 3.0 },
+    "hovered": { "fill": "#FAF2D4", "weak_fill": "#FAF2D4", "stroke": "#474A4D99", "stroke_width": 1.0, "text": "#000000", "text_width": 1.5, "corner_radius": 3.0 },
+    "active": { "fill": "#D6C79A", "weak_fill": "#E0D4AD", "stroke": "#474A4D99", "stroke_width": 1.0, "text": "#000000", "text_width": 2.0, "corner_radius": 3.0 },
+    "open": { "fill": "#E0D4AD", "weak_fill": "#E0D4AD", "stroke": "#474A4D99", "stroke_width": 1.0, "text": "#000000", "text_width": 1.0, "corner_radius": 3.0 }
+  },
+  "spacing": {
+    "item_spacing": [6.0, 6.0],
+    "button_padding": [5.0, 2.0],
+    "window_margin": 8.0,
+    "menu_margin": 6.0,
+    "indent": 25.0,
+    "interact_size": [40.0, 18.0],
+    "icon_width": 16.0,
+    "icon_spacing": 6.0,
+    "slider_width": 160.0,
+    "combo_width": 160.0,
+    "text_edit_width": 200.0,
+    "scroll_bar_width": 11.0
+  },
+  "window": { "corner_radius": 7.0, "stroke_width": 1.0 },
+  "popup": { "corner_radius": 4.0, "stroke_width": 0.0 },
+  "animation_time": 0.0,
+  "tooltip_delay": 0.0,
+  "resize_grab_radius_side": 3.0,
+  "resize_grab_radius_corner": 6.0
+}

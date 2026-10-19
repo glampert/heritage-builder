@@ -141,18 +141,14 @@ impl UiDrawData {
 
     // Appends a mesh: its vertices, and indices that count from its first vertex. Commands then
     // draw ranges of its indices, starting from the returned position.
-    pub(crate) fn add_mesh(
-        &mut self,
-        vertices: impl IntoIterator<Item = UiVertex>,
-        indices: impl IntoIterator<Item = UiIndex>,
-    ) -> UiMeshStart {
+    pub(crate) fn add_mesh(&mut self, vertices: &[UiVertex], indices: &[UiIndex]) -> UiMeshStart {
         let start = UiMeshStart {
             base_vertex: self.vertices.len().try_into().expect("Too many UI vertices!"),
             first_index: self.indices.len().try_into().expect("Too many UI indices!"),
         };
 
-        self.vertices.extend(vertices);
-        self.indices.extend(indices);
+        self.vertices.extend_from_slice(vertices);
+        self.indices.extend_from_slice(indices);
         start
     }
 
@@ -205,8 +201,8 @@ mod tests {
         let vertex = UiVertex::default();
         let mut draw_data = UiDrawData::default();
 
-        let first = draw_data.add_mesh([vertex; 4], [0, 1, 2, 2, 3, 0]);
-        let second = draw_data.add_mesh([vertex; 3], [0, 1, 2]);
+        let first = draw_data.add_mesh(&[vertex; 4], &[0, 1, 2, 2, 3, 0]);
+        let second = draw_data.add_mesh(&[vertex; 3], &[0, 1, 2]);
 
         assert_eq!(first, UiMeshStart { base_vertex: 0, first_index: 0 });
         assert_eq!(second, UiMeshStart { base_vertex: 4, first_index: 6 });

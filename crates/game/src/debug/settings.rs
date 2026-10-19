@@ -357,9 +357,9 @@ impl DebugSettingsDevMenu {
             super::set_show_popup_messages(show_popup_messages);
         }
 
-        let mut show_ui_debug_menu = context.ui_sys.is_showing_ui_debug_menu();
-        if ui::checkbox(ui_sys, "Show ImGui Debug Menu", &mut show_ui_debug_menu) {
-            context.ui_sys.show_ui_debug_menu(show_ui_debug_menu);
+        let mut show_ui_debug_window = context.ui_sys.is_showing_ui_debug_window();
+        if ui::checkbox(ui_sys, "Show UI Debug Window", &mut show_ui_debug_window) {
+            context.ui_sys.show_ui_debug_window(show_ui_debug_window);
         }
 
         ui::checkbox(ui_sys, "Enable Tile Inspector", enable_dev_tile_inspector);

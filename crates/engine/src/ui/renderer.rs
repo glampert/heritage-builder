@@ -1,16 +1,28 @@
-// Turns what the UI library drew into the renderer's UiDrawData (render/ui_draw.rs), and keeps the
-// textures the library manages itself, such as its font atlas, in the TextureCache.
+// Turns what egui drew into the renderer's UiDrawData (render/ui_draw.rs), and keeps the textures
+// egui manages itself, such as its font atlas, in the TextureCache.
 
 use smallvec::SmallVec;
+
+use egui::{TextureId, TexturesDelta, epaint::{ClippedPrimitive, Primitive}};
 
 use common::{Size, Vec2, format_fixed_string};
 
 use crate::{
     log,
     render::{
-        texture::{TextureCache, TextureHandle, TextureSettings},
-        ui_draw::{UiClipRect, UiDrawCommand, UiDrawData, UiIndex, UiVertex},
+        texture::{TextureCache, TextureFilter, TextureHandle, TextureSettings, TextureWrapMode},
+        ui_draw::{UiClipRect, UiDrawCommand, UiDrawData, UiVertex},
     },
+};
+
+// egui's meshes are copied into UiDrawData as they are.
+const _: () = {
+    use std::mem::{align_of, offset_of, size_of};
+    assert!(size_of::<egui::epaint::Vertex>() == size_of::<UiVertex>());
+    assert!(align_of::<egui::epaint::Vertex>() == align_of::<UiVertex>());
+    assert!(offset_of!(egui::epaint::Vertex, pos) == offset_of!(UiVertex, pos));
+    assert!(offset_of!(egui::epaint::Vertex, uv) == offset_of!(UiVertex, uv));
+    assert!(offset_of!(egui::epaint::Vertex, color) == offset_of!(UiVertex, color));
 };
 
 // ----------------------------------------------
@@ -21,6 +33,7 @@ use crate::{
 pub(super) struct UiRenderer {
     draw_data: UiDrawData,
     textures: UiManagedTextures,
+    pixels: Vec<u8>, // Texture updates in straight alpha, reused.
 }
 
 impl UiRenderer {
@@ -34,76 +47,101 @@ impl UiRenderer {
         &mut self.textures
     }
 
-    // Rebuilds the draw data from ImGui's. Its textures are TextureHandles, packed.
-    pub fn build_from_imgui(&mut self, imgui_draw_data: &imgui::DrawData, framebuffer_size: Size) {
+    // Applies egui's new texture pixels (`delta.set`), before drawing.
+    pub fn apply_texture_updates(&mut self, store: &mut impl UiTextureStore, delta: &mut TexturesDelta) {
+        for (id, image_deltas) in delta.set.drain() {
+            let TextureId::Managed(managed_id) = id else {
+                log::error!(log::channel!("ui"), "egui updated a texture it doesn't manage: {id:?}.");
+                continue;
+            };
+
+            for image_delta in image_deltas {
+                let egui::ImageData::Color(image) = &image_delta.image;
+
+                // egui's colors have premultiplied alpha; textures are stored with straight alpha.
+                self.pixels.clear();
+                self.pixels.extend(image.pixels.iter().flat_map(|color| color.to_srgba_unmultiplied()));
+
+                self.textures.set(store, managed_id, &UiTextureDelta {
+                    pos: image_delta.pos.map(|[x, y]| [x as u32, y as u32]),
+                    size: Size::new(image.size[0] as i32, image.size[1] as i32),
+                    pixels: &self.pixels,
+                    settings: texture_settings(image_delta.options),
+                });
+            }
+        }
+    }
+
+    // Releases the textures egui is done with (`delta.free`) a frame later, once they've been drawn.
+    pub fn free_textures(&mut self, delta: &mut TexturesDelta) {
+        for id in delta.free.drain() {
+            if let TextureId::Managed(managed_id) = id {
+                self.textures.free(managed_id);
+            }
+        }
+    }
+
+    // Rebuilds the draw data from egui's tessellated meshes.
+    pub fn build_draw_data(&mut self, primitives: &[ClippedPrimitive], pixels_per_point: f32, framebuffer_size: Size) {
         self.draw_data.clear();
 
-        let origin = Vec2::from_array(imgui_draw_data.display_pos);
-        let pixels_per_point = Vec2::from_array(imgui_draw_data.framebuffer_scale);
+        let scale = Vec2::new(pixels_per_point, pixels_per_point);
 
-        for draw_list in imgui_draw_data.draw_lists() {
-            let vtx_buffer = draw_list.vtx_buffer();
-            let idx_buffer = draw_list.idx_buffer();
+        for ClippedPrimitive { clip_rect, primitive } in primitives {
+            let Primitive::Mesh(mesh) = primitive else {
+                continue; // Paint callbacks: egui's way to draw with the renderer directly. Not used.
+            };
 
-            if vtx_buffer.is_empty() || idx_buffer.is_empty() {
-                continue; // Nothing to draw for this draw list.
+            if mesh.indices.is_empty() {
+                continue;
             }
 
-            let mesh = self.draw_data.add_mesh(
-                vtx_buffer.iter().map(|vertex| UiVertex {
-                    pos: vertex.pos,
-                    uv: vertex.uv,
-                    color: premultiply_alpha(vertex.col),
-                }),
-                idx_buffer.iter().map(|&index| UiIndex::from(index)),
-            );
+            let Some(clip_rect) = UiClipRect::from_points(
+                Vec2::new(clip_rect.min.x, clip_rect.min.y),
+                Vec2::new(clip_rect.max.x, clip_rect.max.y),
+                scale,
+                framebuffer_size,
+            ) else {
+                continue; // Clipped away entirely.
+            };
 
-            for command in draw_list.commands() {
-                match command {
-                    imgui::DrawCmd::Elements { count, cmd_params } => {
-                        if count == 0 {
-                            continue;
-                        }
+            let texture = match mesh.texture_id {
+                TextureId::User(packed) => TextureHandle::unpack(packed as usize),
+                TextureId::Managed(id) => self.textures.handle(id).unwrap_or_default(),
+            };
 
-                        let [min_x, min_y, max_x, max_y] = cmd_params.clip_rect;
-                        let Some(clip_rect) = UiClipRect::from_points(
-                            Vec2::new(min_x, min_y) - origin,
-                            Vec2::new(max_x, max_y) - origin,
-                            pixels_per_point,
-                            framebuffer_size,
-                        ) else {
-                            continue; // Clipped away entirely.
-                        };
+            let start = self.draw_data.add_mesh(bytemuck::cast_slice(&mesh.vertices), &mesh.indices);
 
-                        self.draw_data.add_command(UiDrawCommand {
-                            first_index: mesh.first_index + cmd_params.idx_offset as u32,
-                            index_count: count as u32,
-                            base_vertex: mesh.base_vertex + cmd_params.vtx_offset as u32,
-                            texture: TextureHandle::unpack(cmd_params.texture_id.id()),
-                            clip_rect,
-                        });
-                    }
-                    // These are not required by our UI renderer.
-                    imgui::DrawCmd::ResetRenderState => {
-                        unimplemented!("Haven't implemented imgui::DrawCmd::ResetRenderState yet!");
-                    }
-                    imgui::DrawCmd::RawCallback { .. } => {
-                        unimplemented!("Haven't implemented imgui::DrawCmd::RawCallback yet!");
-                    }
-                }
-            }
+            self.draw_data.add_command(UiDrawCommand {
+                first_index: start.first_index,
+                index_count: mesh.indices.len() as u32,
+                base_vertex: start.base_vertex,
+                texture,
+                clip_rect,
+            });
         }
     }
 }
 
-// Converts an RGBA color with straight alpha, as ImGui's vertex colors are, to premultiplied alpha.
-#[inline(always)] // Also in debug builds: it runs for every UI vertex.
-fn premultiply_alpha([r, g, b, a]: [u8; 4]) -> [u8; 4] {
-    if a == u8::MAX {
-        return [r, g, b, a];
-    }
-    let multiply = |c: u8| ((u32::from(c) * u32::from(a) + 127) / 255) as u8; // Rounded.
-    [multiply(r), multiply(g), multiply(b), a]
+// The texture settings egui asks for. Mipmaps aren't used for UI textures.
+fn texture_settings(options: egui::TextureOptions) -> TextureSettings {
+    let filter = match options.minification {
+        egui::TextureFilter::Nearest => TextureFilter::Nearest,
+        egui::TextureFilter::Linear => TextureFilter::Linear,
+    };
+
+    let wrap_mode = match options.wrap_mode {
+        egui::TextureWrapMode::ClampToEdge => TextureWrapMode::ClampToEdge,
+        egui::TextureWrapMode::Repeat | egui::TextureWrapMode::MirroredRepeat => TextureWrapMode::Repeat,
+    };
+
+    TextureSettings { filter, wrap_mode, mipmaps: false }
+}
+
+// The id a TextureHandle has in egui's meshes and images.
+#[inline]
+pub(super) fn egui_texture(texture: TextureHandle) -> TextureId {
+    TextureId::User(texture.pack() as u64)
 }
 
 // ----------------------------------------------
@@ -363,13 +401,5 @@ mod tests {
         assert_eq!(textures.set(&mut store, 3, &delta), TextureHandle::invalid());
         assert_eq!(textures.handle(3), None);
         assert!(store.calls.is_empty());
-    }
-
-    #[test]
-    fn premultiplies_vertex_colors() {
-        assert_eq!(premultiply_alpha([200, 100, 50, 255]), [200, 100, 50, 255]);
-        assert_eq!(premultiply_alpha([200, 100, 50, 0]), [0, 0, 0, 0]);
-        assert_eq!(premultiply_alpha([255, 255, 255, 128]), [128, 128, 128, 128]);
-        assert_eq!(premultiply_alpha([200, 100, 51, 128]), [100, 50, 26, 128]);
     }
 }

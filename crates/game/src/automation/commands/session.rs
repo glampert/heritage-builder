@@ -78,10 +78,10 @@ pub(super) const COMMANDS: &[CommandDef] = &[
 // Map sizes session.new_map accepts, in cells per side.
 const NEW_MAP_SIZE_LIMITS: (i32, i32) = (8, 512);
 
-// Frames session changes wait before they finish. The old menus' popups stay open in ImGui for a
-// couple of frames after a switch, and take the mouse until they close; input gestures sent
-// before then would be lost.
-const SESSION_SETTLE_FRAMES: u64 = 2;
+// Frames session changes wait, once the session command queue has run, before they finish. None:
+// the new menus take input on their first frame. (It was two while the UI ran on ImGui, whose
+// popups kept the mouse for that long after a switch, losing gestures sent before then.)
+const SESSION_SETTLE_FRAMES: u64 = 0;
 
 // Finishes `settle` frames after the session command queue has run (it runs at the start of the
 // next frame), with `reply_fn`'s result.

@@ -1,163 +1,229 @@
-use arrayvec::ArrayString;
-use imgui::sys::{ImFont, ImVec2};
+// Layout helpers for the retained widgets (widgets.rs): measuring text and widgets, and drawing
+// groups of them centered in a menu. Groups place each widget at a position they compute, in a
+// child Ui at that rect (UiSystem::draw_at), then move the menu's cursor past the whole group.
+//
+// TODO(layout): sizes and spacing follow the ImGui version's arithmetic, so menus keep their
+// geometry for now. The layout pass (docs/plans/egui-migration.md, Phase 6) revisits them.
+
+use egui::{Color32, TextStyle, pos2, vec2};
 use smallvec::SmallVec;
 
-use super::{widgets::*, *};
+use common::Vec2;
+
+use super::{UiFontScale, UiSystem, immediate::color32, widgets::*};
 
 // ----------------------------------------------
-// Internal ImGui helpers
+// Measuring
 // ----------------------------------------------
 
-#[inline]
-pub fn push_font(ui: &imgui::Ui, font_handle: UiFontHandle) {
-    let font_atlas = ui.fonts();
-    let font = font_atlas.get_font(font_handle).expect("push_font(): UI font atlas did not contain the given font!");
+// The current theme's plain text font at `font_scale`.
+pub fn font(ui_sys: &UiSystem, font_scale: UiFontScale) -> egui::FontId {
+    let mut font = ui_sys.style_font(&TextStyle::Body);
+    font.size *= font_scale.0;
+    font
+}
 
-    unsafe {
-        imgui::sys::igPushFont(font as *const _ as *mut _);
+// The size `text` takes in the current theme's font at `font_scale`, and that font's size.
+pub fn calc_text_size(ui_sys: &UiSystem, font_scale: UiFontScale, text: &str) -> (Vec2, f32) {
+    let font = font(ui_sys, font_scale);
+    let font_size = font.size;
+
+    if text.is_empty() {
+        return (Vec2::zero(), font_size);
+    }
+
+    let size = ui_sys.ctx().fonts_mut(|fonts| fonts.layout_no_wrap(text.to_owned(), font, Color32::WHITE).size());
+    (Vec2::new(size.x, size.y), font_size)
+}
+
+// The size of `text` wrapped at `wrap_width`.
+pub fn calc_wrapped_text_size(ui_sys: &UiSystem, font_scale: UiFontScale, text: &str, wrap_width: f32) -> Vec2 {
+    let font = font(ui_sys, font_scale);
+    let size = ui_sys.ctx().fonts_mut(|fonts| fonts.layout(text.to_owned(), font, Color32::WHITE, wrap_width).size());
+    Vec2::new(size.x, size.y)
+}
+
+pub fn calc_text_line_height(ui_sys: &UiSystem, font_scale: UiFontScale) -> f32 {
+    let font = font(ui_sys, font_scale);
+    ui_sys.ctx().fonts_mut(|fonts| fonts.row_height(&font))
+}
+
+pub fn calc_text_line_height_with_spacing(ui_sys: &UiSystem, font_scale: UiFontScale) -> f32 {
+    calc_text_line_height(ui_sys, font_scale) + ui_sys.egui_style().spacing.item_spacing.y
+}
+
+// The height of a framed widget, such as a button or an input, with text at `font_scale`.
+pub fn calc_frame_height(ui_sys: &UiSystem, font_scale: UiFontScale) -> f32 {
+    let style = ui_sys.egui_style();
+    (calc_text_line_height(ui_sys, font_scale) + style.spacing.button_padding.y * 2.0).max(style.spacing.interact_size.y)
+}
+
+// The width of a slider, input or dropdown: the one the group it's in gives it, or the default.
+pub fn item_width(ui_sys: &UiSystem) -> f32 {
+    ui_sys.item_width().unwrap_or(ui_sys.egui_style().spacing.slider_width)
+}
+
+// Works for most labeled widgets (input text, combo, slider): the field, then the label.
+pub fn calc_labeled_widget_size(ui_sys: &UiSystem, font_scale: UiFontScale, label: &str) -> Vec2 {
+    let style = ui_sys.egui_style();
+    let height = calc_frame_height(ui_sys, font_scale);
+    let mut width = item_width(ui_sys);
+
+    if !label.is_empty() {
+        let (label_size, _) = calc_text_size(ui_sys, font_scale, label);
+        width += style.spacing.icon_spacing + label_size.x;
+    }
+
+    Vec2::new(width, height)
+}
+
+// The room left in the current container, or none outside one.
+pub fn available_size(ui_sys: &UiSystem) -> Vec2 {
+    if !ui_sys.has_ui() {
+        return Vec2::zero();
+    }
+    let size = ui_sys.with_ui(super::immediate::fill_size);
+    Vec2::new(size.x, size.y)
+}
+
+// Resolve child window container size.
+// requested:
+//   > 0.0 -> fixed size
+//   = 0.0 -> use remaining host window size
+//   < 0.0 -> use remaining host window size minus abs(size)
+pub fn calc_child_window_size(ui_sys: &UiSystem, requested: Vec2) -> Vec2 {
+    let region_avail = available_size(ui_sys);
+    let resolve = |requested: f32, available: f32| {
+        if requested > 0.0 {
+            requested
+        } else if requested == 0.0 {
+            available
+        } else {
+            (available + requested).max(0.0)
+        }
+    };
+    Vec2::new(resolve(requested.x, region_avail.x), resolve(requested.y, region_avail.y))
+}
+
+// The size of a separator line.
+//  - `horizontal = true`  -> horizontal separator, across the container
+//  - `horizontal = false` -> vertical separator
+//  - `thickness` -> the line's
+pub fn calc_separator_size(ui_sys: &UiSystem, horizontal: bool, thickness: f32) -> Vec2 {
+    let region_avail = available_size(ui_sys);
+    let spacing = ui_sys.egui_style().spacing.item_spacing;
+
+    if horizontal {
+        Vec2::new(region_avail.x, thickness + spacing.y * 2.0)
+    } else {
+        Vec2::new(thickness + spacing.x * 2.0, region_avail.y)
     }
 }
 
-#[inline]
-pub fn pop_font(_ui: &imgui::Ui) {
-    unsafe {
-        imgui::sys::igPopFont();
-    }
+// ----------------------------------------------
+// Centered groups
+// ----------------------------------------------
+
+// The top left corner of the room left in the current container, and its size (none in a sizing
+// pass, so centering doesn't decide the container's size).
+fn cursor_and_available(ui_sys: &UiSystem) -> (egui::Pos2, egui::Vec2) {
+    ui_sys.with_ui(|ui| (ui.cursor().min, super::immediate::fill_size(ui)))
 }
 
+// Where a group of `size` starts to be centered in `available` room from `start`. A group larger
+// than the room overflows it on both sides; without room, it starts at `start`.
 #[inline]
-pub fn font_atlas() -> &'static imgui::FontAtlas {
-    unsafe {
-        let io_ptr = &*imgui::sys::igGetIO();
-        &*(io_ptr.Fonts as *const imgui::FontAtlas)
-    }
+fn centered_start(start: f32, available: f32, size: f32) -> f32 {
+    if available > 0.0 { start + (available - size) * 0.5 } else { start }
 }
 
-#[inline]
-pub fn current_ui_style() -> &'static imgui::Style {
-    // NOTE: Bypass imgui::Ui here because we may need to query
-    // the current style outside begin_frame/end_frame in some cases.
-    // ImGui style is effectively a global setting, so this is safe.
-    unsafe { &*(imgui::sys::igGetStyle() as *const imgui::Style) }
+// Moves the current container's cursor past a group drawn at `rect`.
+fn advance_past(ui_sys: &UiSystem, rect: egui::Rect) {
+    ui_sys.with_ui(|ui| {
+        ui.advance_cursor_after_rect(rect);
+    });
 }
 
-#[inline]
-pub fn base_widget_window_flags() -> imgui::WindowFlags {
-    imgui::WindowFlags::ALWAYS_AUTO_RESIZE
-        | imgui::WindowFlags::NO_RESIZE
-        | imgui::WindowFlags::NO_DECORATION
-        | imgui::WindowFlags::NO_SCROLLBAR
-        | imgui::WindowFlags::NO_TITLE_BAR
-        | imgui::WindowFlags::NO_MOVE
-        | imgui::WindowFlags::NO_COLLAPSE
-}
-
-#[inline]
-pub fn set_next_widget_window_pos(pos: Vec2, pivot: Vec2, cond: imgui::Condition) {
-    if cond == imgui::Condition::Never {
-        return;
-    }
-
-    unsafe {
-        imgui::sys::igSetNextWindowPos(ImVec2 { x: pos.x, y: pos.y }, cond as _, ImVec2 { x: pivot.x, y: pivot.y });
-    }
-}
-
-#[inline]
-pub fn set_next_widget_window_size(size: Vec2, cond: imgui::Condition) {
-    if cond == imgui::Condition::Never {
-        return;
-    }
-
-    unsafe {
-        imgui::sys::igSetNextWindowSize(ImVec2 { x: size.x, y: size.y }, cond as _);
-    }
-}
-
-#[inline]
-pub fn draw_widget_window_background(ui: &imgui::Ui, background: UiTextureHandle) {
-    let window_rect = Rect::from_pos_and_size(Vec2::from_array(ui.window_pos()), Vec2::from_array(ui.window_size()));
-
-    ui.get_window_draw_list().add_image(background, window_rect.min.to_array(), window_rect.max.to_array()).build();
-}
-
+// Lines of text, each centered on the widest. Returns the group's rect, in window points.
 pub fn draw_centered_text_group(
     context: &mut dyn UiWidgetContext,
     lines: &[UiText],
     vertical: bool,
     horizontal: bool,
-) -> Rect {
+) -> egui::Rect {
+    let ui_sys = context.ui_sys();
+
     if lines.is_empty() {
-        return Rect::zero();
-    }
-
-    let mut total_height = 0.0;
-    for line in lines {
-        if !line.string.is_empty() {
-            total_height += calc_text_line_height_with_spacing(context.ui_sys(), line.font_scale);
-        }
-    }
-
-    if total_height == 0.0 {
-        // All lines were blank. Early out.
-        return Rect::zero();
+        return egui::Rect::NOTHING;
     }
 
     // Measure text sizes:
     let text_sizes: SmallVec<[Vec2; 16]> = lines
         .iter()
-        .map(|text| context.calc_text_size(text.font_scale, &text.string))
+        .map(|line| match line.wrap_width {
+            Some(width) => calc_wrapped_text_size(ui_sys, line.font_scale, &line.string, width),
+            None => context.calc_text_size(line.font_scale, &line.string),
+        })
         .collect();
 
-    let max_width = text_sizes
+    // A line is as tall as its font, with spacing; a wrapped one, as tall as its rows.
+    let line_heights: SmallVec<[f32; 16]> = lines
         .iter()
-        .map(|size| size.x)
-        .fold(0.0, f32::max);
+        .zip(&text_sizes)
+        .map(|(line, size)| {
+            if line.string.is_empty() {
+                0.0
+            } else if line.wrap_width.is_some() {
+                size.y + ui_sys.egui_style().spacing.item_spacing.y
+            } else {
+                calc_text_line_height_with_spacing(ui_sys, line.font_scale)
+            }
+        })
+        .collect();
 
-    let ui = context.ui_sys().ui();
+    let total_height: f32 = line_heights.iter().sum();
+    if total_height == 0.0 {
+        // All lines were blank. Early out.
+        return egui::Rect::NOTHING;
+    }
 
-    let region_avail = ui.content_region_avail();
-    let cursor_start = ui.cursor_pos();
+    let max_width = text_sizes.iter().map(|size| size.x).fold(0.0, f32::max);
+
+    let (cursor, region_avail) = cursor_and_available(ui_sys);
 
     // Compute group origin (top-left):
     let start_x = if horizontal && !context.is_side_by_side_layout() {
-        cursor_start[0] + ((region_avail[0] - max_width) * 0.5)
+        centered_start(cursor.x, region_avail.x, max_width)
     } else {
-        cursor_start[0]
+        cursor.x
     };
-    let start_y = if vertical {
-        cursor_start[1] + ((region_avail[1] - total_height) * 0.5)
-    } else {
-        cursor_start[1]
-    };
+    let start_y = if vertical { centered_start(cursor.y, region_avail.y, total_height) } else { cursor.y };
 
     // Draw each line:
-    let mut offset_y = 0.0;
-    for (line, size) in lines.iter().zip(text_sizes) {
-        if line.string.is_empty() {
-            continue;
+    ui_sys.with_ui(|ui| {
+        let default_color = ui.visuals().text_color();
+        let mut offset_y = 0.0;
+
+        for ((line, size), line_height) in lines.iter().zip(text_sizes).zip(line_heights) {
+            if line.string.is_empty() {
+                continue;
+            }
+
+            let x = start_x + (max_width - size.x) * 0.5;
+            let y = start_y + offset_y;
+
+            let color = line.color.map_or(default_color, color32);
+            let wrap_width = line.wrap_width.unwrap_or(f32::INFINITY);
+            let galley = ui.painter().layout(line.string.clone(), font(ui_sys, line.font_scale), color, wrap_width);
+            ui.painter().galley(pos2(x, y), galley, color);
+
+            offset_y += line_height;
         }
+    });
 
-        let x = start_x + (max_width - size.x) * 0.5;
-        let y = start_y + offset_y;
-
-        context.set_window_font_scale(line.font_scale);
-        ui.set_cursor_pos([x, y]);
-
-        if let Some(custom_color) = line.color {
-            ui.text_colored(custom_color.to_array(), &line.string);
-        } else {
-            ui.text(&line.string);
-        }
-
-        offset_y += calc_text_line_height_with_spacing(context.ui_sys(), line.font_scale);
-    }
-
-    // Restore cursor so layout continues correctly.
-    ui.set_cursor_pos([cursor_start[0], start_y + total_height]);
-
-    // Return window relative position of group start + group size.
-    Rect::from_pos_and_size(Vec2::new(start_x, start_y), Vec2::new(max_width, total_height))
+    let group = egui::Rect::from_min_size(pos2(start_x, start_y), vec2(max_width, total_height));
+    advance_past(ui_sys, egui::Rect::from_min_max(pos2(cursor.x, start_y), pos2(cursor.x.max(group.right()), group.bottom())));
+    group
 }
 
 pub fn draw_centered_widget_group(
@@ -167,9 +233,9 @@ pub fn draw_centered_widget_group(
     horizontal: bool,
     stack_vertically: bool,
     margins: (f32, f32),
-) -> Rect {
+) -> egui::Rect {
     if widgets.is_empty() {
-        return Rect::zero();
+        return egui::Rect::NOTHING;
     }
 
     if !stack_vertically {
@@ -180,80 +246,63 @@ pub fn draw_centered_widget_group(
     let (margin_left, margin_right) = margins;
     debug_assert!(margin_left >= 0.0 && margin_right >= 0.0);
 
-    let item_spacing = Vec2::from_array(current_ui_style().item_spacing);
+    let ui_sys = context.ui_sys();
+    let item_spacing = ui_sys.with_ui(|ui| ui.spacing().item_spacing);
 
     // Measure widget sizes:
-    let widget_sizes: SmallVec<[Vec2; 16]> = widgets
-        .iter()
-        .map(|widget| widget.measure(context))
-        .collect();
+    let widget_sizes: SmallVec<[Vec2; 16]> = widgets.iter().map(|widget| widget.measure(context)).collect();
 
     let mut max_width: f32 = 0.0;
     let mut max_height: f32 = 0.0;
-    let mut total_size = item_spacing * (widgets.len() - 1) as f32;
+    let mut total_size = Vec2::new(item_spacing.x, item_spacing.y) * (widgets.len() - 1) as f32;
 
     for widget_size in &widget_sizes {
-        max_width  = max_width.max(widget_size.x);
+        max_width = max_width.max(widget_size.x);
         max_height = max_height.max(widget_size.y);
         total_size += *widget_size;
     }
 
-    let ui = context.ui_sys().ui();
+    let (cursor, region_avail) = cursor_and_available(ui_sys);
+    let cursor_start = cursor + vec2(margin_left, 0.0);
 
-    let region_avail = Vec2::from_array(ui.content_region_avail());
-    let cursor_start = Vec2::from_array(ui.cursor_pos()) + Vec2::new(margin_left, 0.0);
-
-    let total_width  = if stack_vertically  { max_width  } else { total_size.x };
+    let total_width = if stack_vertically { max_width } else { total_size.x };
     let total_height = if !stack_vertically { max_height } else { total_size.y };
 
     // Compute group origin (top-left):
-    let start_x = if horizontal { cursor_start.x + ((region_avail.x - total_width)  * 0.5) } else { cursor_start.x };
-    let start_y = if vertical   { cursor_start.y + ((region_avail.y - total_height) * 0.5) } else { cursor_start.y };
+    let start_x = if horizontal { centered_start(cursor_start.x, region_avail.x, total_width) } else { cursor_start.x };
+    let start_y = if vertical { centered_start(cursor_start.y, region_avail.y, total_height) } else { cursor_start.y };
 
     // Draw each widget:
     let mut offset = 0.0;
     for (widget, widget_size) in widgets.iter_mut().zip(widget_sizes.iter()) {
-        let widget_pos = {
-            if stack_vertically {
-                // Stack widgets vertically.
-                let x = start_x + (max_width - widget_size.x) * 0.5;
-                let y = start_y + offset;
-                offset += widget_size.y + item_spacing.y;
-                [x, y]
-            } else {
-                // Position widgets side-by-side.
-                let x = start_x + offset;
-                offset += widget_size.x + item_spacing.x;
-                [x, start_y]
-            }
+        let widget_pos = if stack_vertically {
+            // Stack widgets vertically.
+            let position = pos2(start_x + (max_width - widget_size.x) * 0.5, start_y + offset);
+            offset += widget_size.y + item_spacing.y;
+            position
+        } else {
+            // Position widgets side-by-side.
+            let position = pos2(start_x + offset, start_y);
+            offset += widget_size.x + item_spacing.x;
+            position
         };
 
-        ui.set_cursor_pos(widget_pos);
+        // Inputs, sliders and dropdowns fill the width up to the group's right margin.
+        let item_width = (margin_right > 0.0).then(|| (region_avail.x - (widget_pos.x - cursor.x) - margin_left - margin_right).max(0.0));
+        let size = vec2(item_width.unwrap_or(widget_size.x).max(widget_size.x), widget_size.y);
 
-        {
-            let _item_width = if margin_right > 0.0 {
-                // > 0.0: width is item_width pixels
-                // = 0.0: default to ~2/3 of window width
-                // < 0.0: item_width pixels relative to the right of window (-1.0 always aligns width to the right side)
-                let widget_width = (region_avail.x - widget_pos[0] - margin_left - margin_right).max(0.0);
-                Some(ui.push_item_width(widget_width))
-            } else {
-                None
-            };
-
-            widget.draw(context);
-        }
+        let previous_item_width = ui_sys.set_item_width(item_width);
+        ui_sys.draw_at(egui::Rect::from_min_size(widget_pos, size), |_| widget.draw(context));
+        ui_sys.set_item_width(previous_item_width);
     }
 
     if !stack_vertically {
         context.end_side_by_side_layout();
     }
 
-    // Restore cursor so layout continues correctly.
-    ui.set_cursor_pos([cursor_start.x, start_y + total_height]);
-
-    // Return window relative position of group start + group size.
-    Rect::from_pos_and_size(Vec2::new(start_x, start_y), Vec2::new(total_width, total_height))
+    let group = egui::Rect::from_min_size(pos2(start_x, start_y), vec2(total_width, total_height));
+    advance_past(ui_sys, egui::Rect::from_min_max(pos2(cursor.x, start_y), pos2(cursor.x.max(group.right()), group.bottom())));
+    group
 }
 
 pub fn draw_centered_labeled_widget_group(
@@ -262,356 +311,84 @@ pub fn draw_centered_labeled_widget_group(
     vertical: bool,
     horizontal: bool,
     margins: (f32, f32),
-) -> Rect {
+    label_column_width: Option<f32>,
+) -> egui::Rect {
     if labels_and_widgets.is_empty() {
-        return Rect::zero();
+        return egui::Rect::NOTHING;
     }
 
     let (margin_left, margin_right) = margins;
     debug_assert!(margin_left >= 0.0 && margin_right >= 0.0);
 
-    let item_spacing = Vec2::from_array(current_ui_style().item_spacing);
-    let mut longest_label: f32 = 0.0;
+    let ui_sys = context.ui_sys();
+    let item_spacing = ui_sys.with_ui(|ui| ui.spacing().item_spacing);
 
-    // Measure widget sizes:
-    let widget_sizes: SmallVec<[Vec2; 16]> = labels_and_widgets
+    // Measure the labels and widgets:
+    let sizes: SmallVec<[(Vec2, Vec2); 16]> = labels_and_widgets
         .iter()
-        .map(|(label, widget)| {
-            let widget_size = widget.measure(context);
-            let label_size = context.calc_text_size(widget.font_scale(), label);
+        .map(|(label, widget)| (context.calc_text_size(widget.font_scale(), label), widget.measure(context)))
+        .collect();
 
-            longest_label = longest_label.max(label_size.x);
-
-            let width  = label_size.x + item_spacing.x + widget_size.x;
-            let height = label_size.y.max(widget_size.y) + item_spacing.y;
-            Vec2::new(width, height)
-        }).collect();
+    // The labels' column: as wide as the longest, or the width given, shared with other groups.
+    let longest_label = sizes.iter().map(|(label_size, _)| label_size.x).fold(0.0, f32::max);
+    let label_column = label_column_width.map_or(longest_label, |width| width.max(longest_label));
 
     let mut max_width: f32 = 0.0;
     let mut total_height: f32 = 0.0;
 
-    for widget_size in &widget_sizes {
-        // NOTE: Both including item spacing.
-        max_width = max_width.max(widget_size.x);
-        total_height += widget_size.y;
-    }
+    let row_sizes: SmallVec<[Vec2; 16]> = sizes
+        .iter()
+        .map(|(label_size, widget_size)| {
+            // NOTE: Both including item spacing.
+            let label_width = if label_column_width.is_some() { label_column } else { label_size.x };
+            let width = label_width + item_spacing.x + widget_size.x;
+            let height = label_size.y.max(widget_size.y) + item_spacing.y;
+            max_width = max_width.max(width);
+            total_height += height;
+            Vec2::new(width, height)
+        })
+        .collect();
 
-    let ui = context.ui_sys().ui();
-
-    let region_avail = Vec2::from_array(ui.content_region_avail());
-    let cursor_start = Vec2::from_array(ui.cursor_pos()) + Vec2::new(margin_left, 0.0);
+    let (cursor, region_avail) = cursor_and_available(ui_sys);
+    let cursor_start = cursor + vec2(margin_left, 0.0);
 
     // Compute group origin (top-left):
-    let start_x = if horizontal { cursor_start.x + ((region_avail.x - max_width)    * 0.5) } else { cursor_start.x };
-    let start_y = if vertical   { cursor_start.y + ((region_avail.y - total_height) * 0.5) } else { cursor_start.y };
+    let start_x = if horizontal { centered_start(cursor_start.x, region_avail.x, max_width) } else { cursor_start.x };
+    let start_y = if vertical { centered_start(cursor_start.y, region_avail.y, total_height) } else { cursor_start.y };
 
-    // Draw each widget:
+    // Draw each row: its label, then its widget after the labels' column.
+    // TODO(layout): Phase 6 gives the groups of a menu one `label_column_width`, so their rows align.
     let mut offset_y = 0.0;
-    for ((label, widget), widget_size) in labels_and_widgets.iter_mut().zip(widget_sizes.iter()) {
-        context.set_window_font_scale(widget.font_scale());
-
-        let mut x = start_x;
+    for (((label, widget), row_size), (_, widget_size)) in labels_and_widgets.iter_mut().zip(row_sizes.iter()).zip(sizes.iter()) {
+        let font_scale = widget.font_scale();
         let y = start_y + offset_y;
+        let row_height = row_size.y - item_spacing.y;
 
-        ui.set_cursor_pos([x, y]);
-        ui.text(&*label);
+        // The label, centered on the row's height like a framed widget's text.
+        ui_sys.with_ui(|ui| {
+            let color = ui.visuals().text_color();
+            let galley = ui.painter().layout_no_wrap(label.clone(), font(ui_sys, font_scale), color);
+            let label_y = y + (row_height - galley.size().y) * 0.5;
+            ui.painter().galley(pos2(start_x, label_y), galley, color);
+        });
 
-        let label_width = ui.item_rect_size()[0];
-        let padding = longest_label - label_width;
-        x += label_width + item_spacing.x + padding;
+        let x = start_x + label_column + item_spacing.x;
 
-        ui.same_line();
-        ui.set_cursor_pos([x, y]);
+        // Inputs, sliders and dropdowns fill the width up to the group's right margin.
+        let item_width = (margin_right > 0.0).then(|| (region_avail.x - (x - cursor.x) - margin_left - margin_right).max(0.0));
+        let size = vec2(item_width.unwrap_or(widget_size.x).max(widget_size.x), row_height);
 
-        {
-            let _item_width = if margin_right > 0.0 {
-                // > 0.0: width is item_width pixels
-                // = 0.0: default to ~2/3 of window width
-                // < 0.0: item_width pixels relative to the right of window (-1.0 always aligns width to the right side)
-                let widget_width = (region_avail.x - x - margin_left - margin_right).max(0.0);
-                Some(ui.push_item_width(widget_width))
-            } else {
-                None
-            };
+        // The group's label names the widget for UI automation.
+        context.ui_sys().push_widget_path(label);
+        let previous_item_width = ui_sys.set_item_width(item_width);
+        ui_sys.draw_at(egui::Rect::from_min_size(pos2(x, y), size), |_| widget.draw(context));
+        ui_sys.set_item_width(previous_item_width);
+        context.ui_sys().pop_widget_path();
 
-            // The group's label names the widget for UI automation.
-            context.ui_sys().push_widget_path(label);
-            widget.draw(context);
-            context.ui_sys().pop_widget_path();
-        }
-
-        offset_y += widget_size.y;
+        offset_y += row_size.y;
     }
 
-    // Restore cursor so layout continues correctly.
-    ui.set_cursor_pos([cursor_start.x, start_y + total_height]);
-
-    // Return window relative position of group start + group size.
-    Rect::from_pos_and_size(Vec2::new(start_x, start_y), Vec2::new(max_width, total_height))
-}
-
-// Works for most labeled widgets (input text, combo, slider).
-pub fn calc_labeled_widget_size(ui_sys: &UiSystem, font_scale: UiFontScale, label: &str) -> Vec2 {
-    let style = current_ui_style();
-
-    let height = calc_text_line_height(ui_sys, font_scale) + (style.frame_padding[1] * 2.0);
-    let mut width = ui_sys.ui().calc_item_width();
-
-    if !label.is_empty() {
-        let (label_size, _) = calc_text_size(ui_sys, font_scale, label);
-        width += style.item_inner_spacing[0] + label_size.x;
-    }
-
-    Vec2::new(width, height)
-}
-
-// Resolve child window container size.
-// requested:
-//   > 0.0 -> fixed size
-//   = 0.0 -> use remaining host window size
-//   < 0.0 -> use remaining host window size minus abs(size)
-pub fn calc_child_window_size(ui_sys: &UiSystem, requested: Vec2) -> Vec2 {
-    let region_avail = Vec2::from_array(ui_sys.ui().content_region_avail());
-    let mut size = Vec2::zero();
-
-    if requested.x > 0.0 {
-        size.x = requested.x;
-    } else if requested.x == 0.0 {
-        size.x = region_avail.x;
-    } else {
-        // requested < 0.0
-        size.x = (region_avail.x + requested.x).max(0.0);
-    }
-
-    if requested.y > 0.0 {
-        size.y = requested.y;
-    } else if requested.y == 0.0 {
-        size.y = region_avail.y;
-    } else {
-        // requested < 0.0
-        size.y = (region_avail.y + requested.y).max(0.0);
-    }
-
-    size
-}
-
-// Computes the pre-render size of an ImGui separator.
-//  - `horizontal = true`  -> horizontal separator (`ui.separator()`)
-//  - `horizontal = false` -> vertical separator (tables / columns)
-//  - `thickness` -> ImGui default is 1.0
-pub fn calc_separator_size(ui_sys: &UiSystem, horizontal: bool, thickness: f32) -> Vec2 {
-    let region_avail = Vec2::from_array(ui_sys.ui().content_region_avail());
-    let style = current_ui_style();
-
-    if horizontal {
-        let width  = region_avail.x;
-        let height = thickness + (style.item_spacing[1] * 2.0);
-        Vec2::new(width, height)
-    } else {
-        let width  = thickness + (style.item_spacing[0] * 2.0);
-        let height = region_avail.y;
-        Vec2::new(width, height)
-    }
-}
-
-pub fn calc_text_line_height(ui_sys: &UiSystem, font_scale: UiFontScale) -> f32 {
-    let font = ui_sys.current_ui_font();
-    font.font_size * font_scale.0
-}
-
-pub fn calc_text_line_height_with_spacing(ui_sys: &UiSystem, font_scale: UiFontScale) -> f32 {
-    let font = ui_sys.current_ui_font();
-    let style = current_ui_style();
-    (font.font_size * font_scale.0) + style.item_spacing[1]
-}
-
-// Ui/window independent font size calculation, using current font.
-// Returns text size and scaled current font size.
-pub fn calc_text_size(ui_sys: &UiSystem, font_scale: UiFontScale, text: &str) -> (Vec2, f32) {
-    let font = ui_sys.current_ui_font();
-    let font_size = font.font_size * font_scale.0;
-
-    if text.is_empty() {
-        return (Vec2::zero(), font_size);
-    }
-
-    // No text wrapping.
-    let max_width  = f32::MAX;
-    let wrap_width = -1.0;
-
-    let mut out = ImVec2::zero();
-
-    unsafe {
-        let font_ptr = font as *const _ as *mut ImFont;
-        let text_start = text.as_ptr();
-        let text_end = text_start.add(text.len());
-        imgui::sys::ImFont_CalcTextSizeA(
-            &mut out,
-            font_ptr,
-            font_size,
-            max_width,
-            wrap_width,
-            text_start as *const _,
-            text_end as *const _,
-            std::ptr::null::<i8>() as *mut *const _,
-        );
-    }
-
-    (Vec2::new(out.x, out.y), font_size)
-}
-
-pub fn slider_with_left_label<'ui, T>(
-    ui: &'ui imgui::Ui,
-    label: &str,
-    min: T,
-    max: T,
-) -> (imgui::Slider<'ui, ArrayString<128>, T>, imgui::GroupToken<'ui>)
-where
-    T: imgui::internal::DataTypeKind,
-{
-    // Start a group so the layout behaves as a single item.
-    let group = ui.begin_group();
-
-    if label.starts_with('#') {
-        // No label given, just generated widget id. Render standalone slider.
-        (ui.slider_config(ArrayString::from(label).unwrap(), min, max), group)
-    } else {
-        // Vertically align text to match framed widgets.
-        ui.align_text_to_frame_padding();
-
-        // Draw lef-hand-side label.
-        ui.text(label);
-
-        // Same spacing ImGui uses between frame and label.
-        let style = current_ui_style();
-        ui.same_line_with_spacing(0.0, style.item_inner_spacing[0]);
-
-        let mut hidden_label = ArrayString::<128>::new();
-        hidden_label.push_str("##");
-        hidden_label.push_str(label);
-
-        // Draw slider (with hidden label).
-        (ui.slider_config(hidden_label, min, max), group)
-    }
-}
-
-pub fn input_int_with_left_label<'ui, 'p>(
-    ui: &'ui imgui::Ui,
-    label: &str,
-    value: &'p mut i32,
-) -> (imgui::InputScalar<'ui, 'p, i32, ArrayString<128>>, imgui::GroupToken<'ui>) {
-    // Start a group so the layout behaves as a single item.
-    let group = ui.begin_group();
-
-    if label.starts_with('#') {
-        // No label given, just generated widget id. Render standalone input.
-        (ui.input_int(ArrayString::from(label).unwrap(), value), group)
-    } else {
-        // Vertically align text to match framed widgets.
-        ui.align_text_to_frame_padding();
-
-        // Draw lef-hand-side label.
-        ui.text(label);
-
-        // Same spacing ImGui uses between frame and label.
-        let style = current_ui_style();
-        ui.same_line_with_spacing(0.0, style.item_inner_spacing[0]);
-
-        let mut hidden_label = ArrayString::<128>::new();
-        hidden_label.push_str("##");
-        hidden_label.push_str(label);
-
-        // Draw input (with hidden label).
-        (ui.input_int(hidden_label, value), group)
-    }
-}
-
-pub fn input_text_with_left_label<'ui, 'p>(
-    ui: &'ui imgui::Ui,
-    label: &str,
-    buf: &'p mut String,
-) -> (imgui::InputText<'ui, 'p, ArrayString<128>>, imgui::GroupToken<'ui>) {
-    // Start a group so the layout behaves as a single item.
-    let group = ui.begin_group();
-
-    if label.starts_with('#') {
-        // No label given, just generated widget id. Render standalone input.
-        (ui.input_text(ArrayString::from(label).unwrap(), buf), group)
-    } else {
-        // Vertically align text to match framed widgets.
-        ui.align_text_to_frame_padding();
-
-        // Draw lef-hand-side label.
-        ui.text(label);
-
-        // Same spacing ImGui uses between frame and label.
-        let style = current_ui_style();
-        ui.same_line_with_spacing(0.0, style.item_inner_spacing[0]);
-
-        let mut hidden_label = ArrayString::<128>::new();
-        hidden_label.push_str("##");
-        hidden_label.push_str(label);
-
-        // Draw input (with hidden label).
-        (ui.input_text(hidden_label, buf), group)
-    }
-}
-
-pub fn checkbox_with_left_label<'ui>(ui: &'ui imgui::Ui, label: &str, value: &mut bool) -> (bool, imgui::GroupToken<'ui>) {
-    // Start a group so the layout behaves as a single item.
-    let group = ui.begin_group();
-
-    if label.starts_with('#') {
-        // No label given, just generated widget id. Render standalone checkbox.
-        (ui.checkbox(label, value), group)
-    } else {
-        // Vertically align text to match framed widgets.
-        ui.align_text_to_frame_padding();
-
-        // Draw lef-hand-side label.
-        ui.text(label);
-
-        // Same spacing ImGui uses between frame and label.
-        let style = current_ui_style();
-        ui.same_line_with_spacing(0.0, style.item_inner_spacing[0]);
-
-        let mut hidden_label = ArrayString::<128>::new();
-        hidden_label.push_str("##");
-        hidden_label.push_str(label);
-
-        // Draw checkbox (with hidden label).
-        (ui.checkbox(hidden_label, value), group)
-    }
-}
-
-pub fn combo_with_left_label<'ui>(
-    ui: &'ui imgui::Ui,
-    label: &str,
-    current_item: &mut usize,
-    items: &[impl AsRef<str>],
-) -> (bool, imgui::GroupToken<'ui>) {
-    // Start a group so the layout behaves as a single item.
-    let group = ui.begin_group();
-
-    if label.starts_with('#') {
-        // No label given, just generated widget id. Render standalone combo list.
-        (ui.combo_simple_string(label, current_item, items), group)
-    } else {
-        // Vertically align text to match framed widgets.
-        ui.align_text_to_frame_padding();
-
-        // Draw lef-hand-side label.
-        ui.text(label);
-
-        // Same spacing ImGui uses between frame and label.
-        let style = current_ui_style();
-        ui.same_line_with_spacing(0.0, style.item_inner_spacing[0]);
-
-        let mut hidden_label = ArrayString::<128>::new();
-        hidden_label.push_str("##");
-        hidden_label.push_str(label);
-
-        // Draw combo list (with hidden label).
-        (ui.combo_simple_string(hidden_label, current_item, items), group)
-    }
+    let group = egui::Rect::from_min_size(pos2(start_x, start_y), vec2(max_width, total_height));
+    advance_past(ui_sys, egui::Rect::from_min_max(pos2(cursor.x, start_y), pos2(cursor.x.max(group.right()), group.bottom())));
+    group
 }

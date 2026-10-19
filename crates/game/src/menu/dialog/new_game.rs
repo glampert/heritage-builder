@@ -85,6 +85,7 @@ impl NewGame {
             center_horizontally: true,
             margin_left: 50.0,
             margin_right: 40.0,
+            label_column_width: None,
         });
 
         labeled_widget_group.add_widget("New Map Width".into(), new_map_width_input);

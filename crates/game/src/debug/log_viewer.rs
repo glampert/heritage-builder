@@ -158,6 +158,7 @@ impl LogViewerSingleton {
             .position(Vec2::new(10.0, 20.0), UiCondition::FirstUse)
             .size(Vec2::new(550.0, 350.0), UiCondition::FirstUse)
             .menu_bar()
+            .no_scrollbar() // Its log lines scroll, above the console input.
             .monospace();
 
         // Recording the viewer's widgets doesn't log, which would deadlock on the viewer's lock.

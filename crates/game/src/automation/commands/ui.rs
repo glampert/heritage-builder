@@ -78,6 +78,13 @@ pub(super) const COMMANDS: &[CommandDef] = &[
         ],
         run: cmd_set,
     },
+    CommandDef {
+        name: "ui.reload_styles",
+        help: "Load the UI style files again (assets/configs/ui/styles/), e.g. after editing one. Keeps the current \
+               styles if one fails to load.",
+        params: &[],
+        run: cmd_reload_styles,
+    },
     CommandDef { name: "dialog.list", help: "The game's dialogs, and which are open.", params: &[], run: cmd_dialog_list },
     CommandDef { name: "dialog.current", help: "The dialog on top, or null.", params: &[], run: cmd_dialog_current },
     CommandDef {
@@ -176,6 +183,7 @@ fn find_widget(context: &CommandContext, query: &str) -> Result<UiWidgetInfo, Co
     let suffix = format!("/{query_lower}");
     let matches: Vec<&UiWidgetInfo> = widgets
         .iter()
+        .filter(|widget| widget.kind != "menu_content") // A menu's content area: by its full path only.
         .filter(|widget| {
             let path = widget.path.to_lowercase();
             path == query_lower
@@ -459,6 +467,15 @@ fn check_value(widget: &UiWidgetInfo, value: &Value) -> Result<(), CommandError>
     } else {
         Err(CommandError::invalid_params(format!("{value} doesn't fit '{}', a {}.", widget.path, widget.kind)))
     }
+}
+
+// ----------------------------------------------
+// Styles
+// ----------------------------------------------
+
+fn cmd_reload_styles(context: &mut CommandContext, _params: Value) -> CommandResult {
+    context.engine.ui_system_mut().reload_styles().map_err(CommandError::failed)?;
+    done(json!({ "reloaded": true }))
 }
 
 // ----------------------------------------------

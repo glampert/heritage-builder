@@ -142,6 +142,11 @@ impl Engine {
     }
 
     #[inline]
+    pub fn ui_system_mut(&mut self) -> &mut UiSystem {
+        &mut self.ui_system
+    }
+
+    #[inline]
     pub fn frame_clock(&self) -> &FrameClock {
         &self.frame_clock
     }
@@ -496,12 +501,12 @@ impl Engine {
 
     // NOTE: Application and RenderSystem are initialized outside
     // because we need bespoke initialization for Web/WASM.
-    fn new(configs: &EngineConfigs, app: RcMut<Application>, mut render_system: RcMut<RenderSystem>) -> Self {
+    fn new(configs: &EngineConfigs, app: RcMut<Application>, render_system: RcMut<RenderSystem>) -> Self {
         log::info!(log::channel!("engine"), "Window Size: {}", app.window_size());
         log::info!(log::channel!("engine"), "Framebuffer Size: {}", app.framebuffer_size());
         log::info!(log::channel!("engine"), "Content Scale: {}", app.content_scale());
 
-        let ui_system = UiSystem::new(render_system.texture_cache_mut());
+        let ui_system = UiSystem::new();
         log::info!(log::channel!("engine"), "UiSystem initialized.");
 
         let mut sound_system = SoundSystem::new(configs.sound_settings);

@@ -11,7 +11,7 @@ use engine::{
     save,
     Engine,
     cli::{self, CliOption},
-    ui::UiInputEvent,
+    ui::{self, UiInputEvent},
     runner::RunLoop,
     file_sys::paths::PathRef,
     screenshot::{self, ScreenshotId, ScreenshotOutput, ScreenshotRequest, ScreenshotScale},
@@ -407,6 +407,12 @@ impl GameLoop {
         let tex_cache = engine.texture_cache_mut();
         TileSets::load(tex_cache, configs.engine.use_packed_texture_atlas, configs.debug.skip_loading_tile_sets, false);
         log::info!(log::channel!("game"), "TileSets loaded.");
+
+        // Before any menu is built: widgets read the style and measure text when they're created.
+        let pixels_per_point = engine.app().content_scale().x;
+        if let Err(err) = engine.ui_system_mut().load_styles(&ui::UI_STYLE_PATHS, pixels_per_point) {
+            panic!("Can't load the UI styles: {err}"); // No text can be drawn without their fonts.
+        }
 
         let load_assets_time_ms = load_assets_timer.end();
         log::info!(log::channel!("game"), "Load Assets took: {:.1}ms", load_assets_time_ms);
