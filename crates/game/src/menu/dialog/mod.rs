@@ -194,7 +194,7 @@ pub fn set_global_menu_flags(flags: UiMenuFlags) {
 
 pub fn set_bg_dim_alpha(context: &mut GameUiContext, alpha: f32) {
     debug_assert!((0.0..=1.0).contains(&alpha));
-    context.ui_sys.set_style_color(imgui::StyleColor::ModalWindowDimBg, Color::new(0.0, 0.0, 0.0, alpha));
+    context.ui_sys.set_modal_backdrop_color(Color::new(0.0, 0.0, 0.0, alpha));
 }
 
 // Load the starting map for a campaign mission. Routes through the GameLoop
@@ -527,11 +527,11 @@ impl DialogMenusSingleton {
         // [Debug]:
         const DEBUG_DRAW_MENU_STACK: bool = false;
         if DEBUG_DRAW_MENU_STACK && !self.menu_stack.is_empty() {
-            let ui = context.ui_sys.ui();
+            let ui_sys = context.ui_sys;
             let position = Vec2::new(context.viewport_size.width as f32 - 350.0, 100.0);
-            ui::overlay(ui, "Dialog Menu Stack Debug", position, 1.0, || {
+            ui::overlay(ui_sys, ui::UiOverlay::new("Dialog Menu Stack Debug", position).bg_alpha(1.0), |ui_sys| {
                 for (index, kind) in self.menu_stack.iter().enumerate() {
-                    ui.text(common::format_small!("[{index}]: {kind}"));
+                    ui::text(ui_sys, common::format_small!("[{index}]: {kind}"));
                 }
             });
         }
@@ -548,15 +548,21 @@ common::singleton_late_init! { DIALOG_MENUS_SINGLETON, DialogMenusSingleton }
 // For common dialog menus:
 const DEFAULT_DIALOG_MENU_BUTTON_SPACING: Vec2 = Vec2::new(8.0, 8.0); // Large stacked buttons
 const DEFAULT_DIALOG_MENU_WIDGET_SPACING: Vec2 = Vec2::new(6.0, 6.0); // Settings widgets / input fields
-const DEFAULT_DIALOG_MENU_WIDGET_LABEL_SPACING: f32 = 5.0;
-const DEFAULT_DIALOG_MENU_HEADING_MARGINS: (f32, f32) = (100.0, 10.0); // (top, bottom)
+const DEFAULT_DIALOG_MENU_TEXT_SPACING:   Vec2 = Vec2::new(4.0, 4.0); // Lines of text: the city management lists
+const DEFAULT_DIALOG_MENU_WIDGET_LABEL_SPACING: f32 = 12.0;
+const DEFAULT_DIALOG_MENU_HEADING_MARGINS: (f32, f32) = (0.0, 10.0); // (top, bottom)
 const DEFAULT_DIALOG_MENU_WIDGET_FONT_SCALE: UiFontScale = UiFontScale(1.0);
 const DEFAULT_DIALOG_MENU_HEADING_FONT_SCALE: UiFontScale = UiFontScale(1.8);
 const DEFAULT_DIALOG_MENU_BACKGROUND_SPRITE: PathRef = PathRef::from_str("misc/scroll_bg.png");
 
+// The scroll sprite's rollers and the paper's torn edges, as fractions of the sprite: its paper
+// spans x 112..752 of its 875 px and y 140..935 of its 1076 px, plus a margin. Contents stay on it.
+const DEFAULT_DIALOG_MENU_CONTENT_INSETS: UiMenuInsets = UiMenuInsets::fractions(0.14, 0.14, 0.15, 0.14);
+
 // For popup message boxes:
 const DEFAULT_DIALOG_POPUP_FONT_SCALE: UiFontScale = UiFontScale(1.5);
 const DEFAULT_DIALOG_POPUP_BACKGROUND_SPRITE: PathRef = PathRef::from_str("misc/square_page_bg.png");
+const DEFAULT_DIALOG_POPUP_CONTENT_INSETS: UiMenuInsets = UiMenuInsets::same(20.0); // The page's torn edges.
 
 const DEFAULT_DIALOG_MENU_FLAGS: UiMenuFlags = UiMenuFlags::from_bits_retain(
     UiMenuFlags::Modal.bits() | UiMenuFlags::CloseModalOnEscape.bits() | UiMenuFlags::PauseSimIfOpen.bits(),
@@ -581,6 +587,8 @@ fn make_default_layout_dialog_menu(
         flags: *GLOBAL_DIALOG_MENU_FLAGS,
         size: Some(menu_size),
         background: Some(DEFAULT_DIALOG_MENU_BACKGROUND_SPRITE),
+        content_insets: Some(DEFAULT_DIALOG_MENU_CONTENT_INSETS),
+        widget_spacing: Some(widget_spacing), // Between its widgets and the lines of its text.
         ..Default::default()
     });
 

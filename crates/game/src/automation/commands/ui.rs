@@ -7,6 +7,7 @@ use serde::Deserialize;
 use serde_json::{Map, Value, json};
 use strum::IntoEnumIterator;
 
+use common::{Rect, Vec2};
 use engine::{
     app::input::MouseButton,
     automation::input::{self as gestures, GestureId},
@@ -26,6 +27,13 @@ pub(super) const COMMANDS: &[CommandDef] = &[
         params: &[
             ParamDef { name: "filter", kind: "string", required: false, help: "Only widgets whose path contains this (any case)." },
             ParamDef { name: "kind", kind: "string", required: false, help: "Only this kind, e.g. text_button, sprite_button." },
+            ParamDef {
+                name: "fields",
+                kind: "array",
+                required: false,
+                help: "Only these fields of each widget, e.g. [\"path\", \"kind\", \"value\"]. Fields: path, kind, label, \
+                       tooltip, rect, enabled, hovered, visible, value.",
+            },
         ],
         run: cmd_tree,
     },
@@ -45,6 +53,18 @@ pub(super) const COMMANDS: &[CommandDef] = &[
         run: cmd_click,
     },
     CommandDef {
+        name: "ui.hover",
+        help: "Move the simulated mouse onto a widget and leave it there, e.g. to show its tooltip. Fails if another \
+               widget, menu or window covers it.",
+        params: &[ParamDef {
+            name: "path",
+            kind: "string",
+            required: true,
+            help: "Widget path from ui.tree, the end of one (e.g. \"New Game\"), or its tooltip.",
+        }],
+        run: cmd_hover,
+    },
+    CommandDef {
         name: "ui.set",
         help: "Set a checkbox, slider, number or text input, dropdown, list, or the dev editor's tile palette, through the \
                widget's own update.",
@@ -59,11 +79,25 @@ pub(super) const COMMANDS: &[CommandDef] = &[
         ],
         run: cmd_set,
     },
+    CommandDef {
+        name: "ui.reload_styles",
+        help: "Load the UI style files again (assets/configs/ui/styles/), e.g. after editing one. Keeps the current \
+               styles if one fails to load.",
+        params: &[],
+        run: cmd_reload_styles,
+    },
+    CommandDef {
+        name: "ui.layout_issues",
+        help: "The widgets drawn last frame that fall outside their menu's content area or overlap a sibling, and their \
+               count. For the retail screens: the developer windows have no content area.",
+        params: &[],
+        run: cmd_layout_issues,
+    },
     CommandDef { name: "dialog.list", help: "The game's dialogs, and which are open.", params: &[], run: cmd_dialog_list },
     CommandDef { name: "dialog.current", help: "The dialog on top, or null.", params: &[], run: cmd_dialog_current },
     CommandDef {
         name: "dialog.open",
-        help: "Open a dialog, closing the others, e.g. NewGame, LoadGame, MainSettings.",
+        help: "Open a dialog, closing the others except the home menu, e.g. NewGame, LoadGame, MainSettings.",
         params: &[ParamDef { name: "name", kind: "string", required: true, help: "Dialog name, see dialog.list." }],
         run: cmd_dialog_open,
     },
@@ -74,6 +108,9 @@ pub(super) const COMMANDS: &[CommandDef] = &[
         run: cmd_dialog_close,
     },
 ];
+
+// The fields widget_json can give a widget, for ui.tree's `fields`.
+const WIDGET_FIELDS: &[&str] = &["path", "kind", "label", "tooltip", "rect", "enabled", "hovered", "visible", "value"];
 
 const SETTABLE_KINDS: &[&str] =
     &["checkbox", "slider", "int_input", "float_input", "text_input", "dropdown", "item_list", "tile_palette"];
@@ -154,6 +191,7 @@ fn find_widget(context: &CommandContext, query: &str) -> Result<UiWidgetInfo, Co
     let suffix = format!("/{query_lower}");
     let matches: Vec<&UiWidgetInfo> = widgets
         .iter()
+        .filter(|widget| widget.kind != "menu_content") // A menu's content area: by its full path only.
         .filter(|widget| {
             let path = widget.path.to_lowercase();
             path == query_lower
@@ -183,9 +221,14 @@ fn cmd_tree(context: &mut CommandContext, params: Value) -> CommandResult {
     struct Params {
         filter: Option<String>,
         kind: Option<String>,
+        fields: Option<Vec<String>>,
     }
 
     let params: Params = parse_params(params)?;
+    if let Some(unknown) = params.fields.iter().flatten().find(|field| !WIDGET_FIELDS.contains(&field.as_str())) {
+        return Err(CommandError::invalid_params(format!("No widget field '{unknown}'. Fields: {}.", WIDGET_FIELDS.join(", "))));
+    }
+
     let ready_frame = registry_ready_frame(context);
     let filter = params.filter.map(|filter| filter.to_lowercase());
 
@@ -202,6 +245,12 @@ fn cmd_tree(context: &mut CommandContext, params: Value) -> CommandResult {
             .filter(|widget| filter.as_deref().is_none_or(|filter| widget.path.to_lowercase().contains(filter)))
             .filter(|widget| params.kind.as_deref().is_none_or(|kind| widget.kind == kind))
             .map(widget_json)
+            .map(|mut json| {
+                if let (Some(fields), Value::Object(object)) = (&params.fields, &mut json) {
+                    object.retain(|key, _| fields.contains(key));
+                }
+                json
+            })
             .collect();
 
         let window_size = context.engine.app().window_size();
@@ -223,6 +272,22 @@ fn cmd_click(context: &mut CommandContext, params: Value) -> CommandResult {
         _ => return Err(CommandError::invalid_params("button must be left or right.")),
     };
 
+    point_at_widget(context, params.path, Some(button))
+}
+
+fn cmd_hover(context: &mut CommandContext, params: Value) -> CommandResult {
+    #[derive(Deserialize)]
+    #[serde(deny_unknown_fields)]
+    struct Params {
+        path: String,
+    }
+
+    let params: Params = parse_params(params)?;
+    point_at_widget(context, params.path, None)
+}
+
+// ui.click with a button, ui.hover without one.
+fn point_at_widget(context: &mut CommandContext, path: String, button: Option<MouseButton>) -> CommandResult {
     let ready_frame = registry_ready_frame(context);
     let deadline_frame = ready_frame + FIND_WIDGET_TIMEOUT_FRAMES;
     let mut step = ClickStep::Find { reveal_deadline_frame: None };
@@ -233,12 +298,12 @@ fn cmd_click(context: &mut CommandContext, params: Value) -> CommandResult {
                 return None;
             }
 
-            let widget = match find_widget_by(context, &params.path, deadline_frame)? {
+            let widget = match find_widget_by(context, &path, deadline_frame)? {
                 Ok(widget) => widget,
                 Err(err) => return Some(Err(err)),
             };
 
-            if !widget.enabled {
+            if !widget.enabled && button.is_some() {
                 return Some(Err(CommandError::failed(format!("'{}' is disabled.", widget.path))));
             }
             if !widget.visible {
@@ -313,6 +378,13 @@ fn cmd_click(context: &mut CommandContext, params: Value) -> CommandResult {
                 ))));
             }
 
+            let Some(button) = button else {
+                // ui.hover: stay there. Finish a frame later, once what hovering shows (a tooltip) has drawn.
+                let gesture = *gesture;
+                step = ClickStep::Click { gesture, reply, done_frame: Some(context.frame() + 1) };
+                return None;
+            };
+
             let gesture = context.engine.queue_input_gesture(gestures::click_gesture(center, button));
             step = ClickStep::Click { gesture, reply, done_frame: None };
             None
@@ -330,7 +402,7 @@ fn cmd_click(context: &mut CommandContext, params: Value) -> CommandResult {
 
 // ui.click's steps: find the widget (scrolling it into view if it's out of view), move the cursor
 // onto it and check that it's the widget under the cursor, so a menu or window over it doesn't take
-// the click, then click.
+// the click, then click. ui.hover stops before the click.
 enum ClickStep {
     Find { reveal_deadline_frame: Option<u64> },
     Hover { gesture: GestureId, widget: UiWidgetInfo, deadline_frame: Option<u64>, moves_left: u32 },
@@ -406,6 +478,15 @@ fn check_value(widget: &UiWidgetInfo, value: &Value) -> Result<(), CommandError>
 }
 
 // ----------------------------------------------
+// Styles
+// ----------------------------------------------
+
+fn cmd_reload_styles(context: &mut CommandContext, _params: Value) -> CommandResult {
+    context.engine.ui_system_mut().reload_styles().map_err(CommandError::failed)?;
+    done(json!({ "reloaded": true }))
+}
+
+// ----------------------------------------------
 // Dialogs
 // ----------------------------------------------
 
@@ -422,6 +503,106 @@ fn dialog_kind(name: &str) -> Result<DialogMenuKind, CommandError> {
         let names: Vec<String> = DialogMenuKind::iter().map(|kind| kind.to_string()).collect();
         CommandError::invalid_params(format!("No dialog '{name}'. Dialogs: {}.", names.join(", ")))
     })
+}
+
+// ----------------------------------------------
+// Layout check
+// ----------------------------------------------
+
+// How far, in points, a widget may stick out of its menu or into a sibling before it's an issue:
+// rects are rounded to pixels, and frames round their margins to points.
+const LAYOUT_TOLERANCE: f32 = 1.0;
+
+// Widgets that hold other widgets: they're checked against their menu, not against siblings.
+const LAYOUT_CONTAINER_KINDS: &[&str] = &["menu_content", "window", "item_list"];
+
+fn cmd_layout_issues(context: &mut CommandContext, _params: Value) -> CommandResult {
+    let ready_frame = registry_ready_frame(context);
+
+    pending(move |context| {
+        if context.frame() < ready_frame {
+            return None;
+        }
+
+        let issues = layout_issues(context.engine.ui_system().widgets());
+        Some(Ok(json!({ "count": issues.len(), "issues": issues })))
+    })
+}
+
+// The widgets outside their menu's content area (the innermost `menu_content` whose path is a
+// prefix of theirs), and the pairs of siblings (same parent path, same menu) that overlap without
+// one holding the other. A dropdown's popup may leave the menu, so list items aren't held to it,
+// and a widget scrolled out of view (`visible: false`) is clipped, so it isn't checked.
+fn layout_issues(widgets: &[UiWidgetInfo]) -> Vec<Value> {
+    let menus: Vec<&UiWidgetInfo> = widgets.iter().filter(|widget| widget.kind == "menu_content").collect();
+
+    let menu_of = |widget: &UiWidgetInfo| -> Option<&UiWidgetInfo> {
+        menus
+            .iter()
+            .copied()
+            .filter(|menu| widget.path.len() > menu.path.len() && widget.path.starts_with(&menu.path) && widget.path.as_bytes()[menu.path.len()] == b'/')
+            .max_by_key(|menu| menu.path.len())
+    };
+
+    let checked: Vec<(&UiWidgetInfo, &UiWidgetInfo)> = widgets
+        .iter()
+        .filter(|widget| widget.kind != "menu_content" && widget.visible)
+        .filter_map(|widget| menu_of(widget).map(|menu| (widget, menu)))
+        .collect();
+
+    let rect_json = |rect: &Rect| json!([rect.x(), rect.y(), rect.width(), rect.height()]);
+    let mut issues = Vec::new();
+
+    for &(widget, menu) in &checked {
+        if widget.kind == "list_item" {
+            continue;
+        }
+        if !menu.rect.expanded(Vec2::new(LAYOUT_TOLERANCE, LAYOUT_TOLERANCE)).contains_rect(&widget.rect) {
+            issues.push(json!({
+                "problem": "outside",
+                "path": widget.path,
+                "kind": widget.kind,
+                "rect": rect_json(&widget.rect),
+                "menu": menu.path,
+                "menu_rect": rect_json(&menu.rect),
+            }));
+        }
+    }
+
+    for (index, &(widget, menu)) in checked.iter().enumerate() {
+        if LAYOUT_CONTAINER_KINDS.contains(&widget.kind) {
+            continue;
+        }
+        for &(other, other_menu) in &checked[index + 1..] {
+            if LAYOUT_CONTAINER_KINDS.contains(&other.kind)
+                || menu.path != other_menu.path
+                || parent_path(&widget.path) != parent_path(&other.path)
+                || widget.rect.contains_rect(&other.rect)
+                || other.rect.contains_rect(&widget.rect)
+            {
+                continue;
+            }
+            let shrunk = widget.rect.expanded(Vec2::new(-LAYOUT_TOLERANCE, -LAYOUT_TOLERANCE));
+            if shrunk.is_valid() && shrunk.intersects(&other.rect.expanded(Vec2::new(-LAYOUT_TOLERANCE, -LAYOUT_TOLERANCE))) {
+                issues.push(json!({
+                    "problem": "overlap",
+                    "path": widget.path,
+                    "kind": widget.kind,
+                    "rect": rect_json(&widget.rect),
+                    "other": other.path,
+                    "other_kind": other.kind,
+                    "other_rect": rect_json(&other.rect),
+                    "menu": menu.path,
+                }));
+            }
+        }
+    }
+
+    issues
+}
+
+fn parent_path(path: &str) -> &str {
+    path.rsplit_once('/').map_or("", |(parent, _)| parent)
 }
 
 fn cmd_dialog_list(_context: &mut CommandContext, _params: Value) -> CommandResult {
@@ -447,7 +628,16 @@ fn cmd_dialog_open(context: &mut CommandContext, params: Value) -> CommandResult
     require_dialogs()?;
     let kind = dialog_kind(&params.name)?;
 
-    let opened = context.session.with_ui_context(context.engine, |ui_context| dialog::open(kind, true, ui_context));
+    // Close the others, but not the home menu's own dialog: the home menu would reopen it over
+    // this one. Its buttons open dialogs over it too.
+    let opened = context.session.with_ui_context(context.engine, |ui_context| {
+        for other in DialogMenuKind::iter().filter(|other| *other != kind && *other != DialogMenuKind::Home) {
+            if dialog::is_open(other) {
+                dialog::close(other, ui_context);
+            }
+        }
+        dialog::open(kind, false, ui_context)
+    });
     if !opened && !dialog::is_open(kind) {
         return Err(CommandError::failed(format!("{kind} didn't open.")));
     }
@@ -494,6 +684,33 @@ mod tests {
             visible: true,
             value: None,
         }
+    }
+
+    fn widget_at(kind: &'static str, path: &str, x: f32, y: f32, w: f32, h: f32) -> UiWidgetInfo {
+        UiWidgetInfo { path: path.into(), rect: Rect::from_pos_and_size(Vec2::new(x, y), Vec2::new(w, h)), ..widget(kind) }
+    }
+
+    #[test]
+    fn test_layout_issues() {
+        let widgets = [
+            widget_at("menu_content", "Home", 0.0, 0.0, 100.0, 100.0),
+            widget_at("heading", "Home/Title", 10.0, 0.5, 80.0, 20.0),   // Within tolerance.
+            widget_at("text_button", "Home/Ok", 10.0, 90.0, 40.0, 20.0), // Past the bottom.
+            widget_at("checkbox", "Home/A", 10.0, 30.0, 20.0, 20.0),
+            widget_at("checkbox", "Home/B", 25.0, 40.0, 20.0, 20.0),     // Over A.
+            widget_at("item_list", "Home/item_list", 10.0, 60.0, 80.0, 20.0),
+            widget_at("list_item", "Home/autosave", 10.0, 60.0, 80.0, 10.0), // Held by the list.
+            widget_at("dropdown", "Home/Kind", 50.0, 30.0, 40.0, 20.0),
+            widget_at("list_item", "Home/Kind/Grass", 50.0, 50.0, 40.0, 60.0), // A popup: may leave the menu.
+            UiWidgetInfo { visible: false, ..widget_at("list_item", "Home/scrolled", 10.0, 85.0, 80.0, 30.0) }, // Clipped.
+            widget_at("window", "Debug", 200.0, 200.0, 50.0, 50.0),           // No menu: not checked.
+            widget_at("button", "Debug/Close", 300.0, 300.0, 10.0, 10.0),
+        ];
+
+        let issues = layout_issues(&widgets);
+        let problems: Vec<(&str, &str)> = issues.iter().map(|issue| (issue["problem"].as_str().unwrap(), issue["path"].as_str().unwrap())).collect();
+        assert_eq!(problems, [("outside", "Home/Ok"), ("overlap", "Home/A")]);
+        assert_eq!(issues[1]["other"], "Home/B");
     }
 
     #[test]

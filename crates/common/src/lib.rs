@@ -71,7 +71,7 @@ macro_rules! bitflags_with_display {
 }
 
 // Returns refs to the x,y fields of structs like Vec2, Cell, IsoPoint, etc.
-// Used with imgui debug widgets.
+// Used by the debug UI's X/Y inputs (engine::ui).
 pub trait FieldAccessorXY<T> {
     fn x_ref(&self) -> &T;
     fn y_ref(&self) -> &T;

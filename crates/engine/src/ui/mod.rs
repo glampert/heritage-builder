@@ -1,36 +1,42 @@
+// The UI system, on top of egui. Only this module uses egui:
+// - immediate.rs: immediate-mode functions, re-exported here (ui::button, ui::text, ui::window, ...),
+//   for the developer UI and DrawDebugUi.
+// - widgets.rs: retained widgets for the game's menus and HUD (UiMenu, UiTextButton, ...).
+// - style.rs: styles and fonts, from JSON files under assets/configs/ui/styles/.
+// - backend.rs and renderer.rs: egui's frame, the engine's input, and what egui draws, handed to
+//   the RenderSystem as UiDrawData.
+// - registry.rs: the widget registry for UI automation (ui.tree, ui.click, ui.set).
+//
+// The functions that draw widgets take `&UiSystem` and add to the innermost open container: a
+// window, a menu, a tooltip... UiSystem keeps a stack of egui Uis, one per open container. A
+// container takes its parent Ui off the stack while egui runs it, and pushes a child for its
+// contents; widgets borrow the top one. See with_ui, with_parent_ui and ui_scope.
+
 use std::{
-    cell::UnsafeCell,
+    cell::{Cell, RefCell, UnsafeCell},
     ops::{Deref, DerefMut},
 };
 
-use common::{
-    Color,
-    FieldAccessorXY,
-    Rect,
-    Vec2,
-    format_fixed_string,
-    mem::{Mutable, RawPtr, RcMut},
-    time::Seconds,
-};
-pub use imgui::{FontId as UiFontHandle, TextureId as UiTextureHandle};
-pub use renderer::{UiDrawIndex, UiDrawVertex, UiRenderFrameBundle};
+use egui::Color32;
+use smallvec::SmallVec;
+
+use common::{Color, Vec2, time::Seconds};
 
 use crate::{
     app::{
         Application,
         input::{InputAction, InputKey, InputModifiers, InputSystem, MouseButton},
     },
-    file_sys::paths::{self, AssetPath},
+    file_sys::paths::{self, AssetPath, PathRef},
     log,
     platform,
     render::{
-        RenderSystem,
-        texture::{TextureFilter, TextureHandle, TextureSettings},
+        texture::{TextureCache, TextureFilter, TextureSettings},
+        ui_draw::UiDrawData,
     },
 };
 
 pub mod debug_ui;
-pub mod dev;
 pub mod icons;
 pub mod sound;
 pub mod tests;
@@ -39,18 +45,21 @@ pub mod widgets;
 
 pub use debug_ui::DrawDebugUi;
 
+pub use immediate::*;
+
 // Internal implementation.
+mod backend;
+mod immediate;
 mod internal;
-mod renderer;
 mod registry;
+mod renderer;
+mod style;
 mod toast;
-use renderer::UiRenderer;
+use backend::UiBackend;
 use registry::UiWidgetRegistry;
 pub use registry::UiWidgetInfo;
+use style::{UiStyle, UiStyles};
 use toast::UiToasts;
-
-// usize::MAX == invalid/unset
-pub const INVALID_UI_TEXTURE_HANDLE: UiTextureHandle = UiTextureHandle::new(usize::MAX);
 
 // ----------------------------------------------
 // UiInputEvent
@@ -88,6 +97,8 @@ pub enum UiTheme {
 }
 
 impl UiTheme {
+    pub const COUNT: usize = 2;
+
     #[inline]
     pub fn is_dev(self) -> bool {
         self == Self::Dev
@@ -97,106 +108,199 @@ impl UiTheme {
     pub fn is_in_game(self) -> bool {
         self == Self::InGame
     }
+
+    // Prefixes the names of the style's fonts and font families.
+    #[inline]
+    fn style_name(self) -> &'static str {
+        match self {
+            Self::Dev => "dev",
+            Self::InGame => "game",
+        }
+    }
 }
+
+// Where the game's styles are, relative to assets/configs/.
+pub const UI_STYLE_PATHS: [(UiTheme, &str); UiTheme::COUNT] =
+    [(UiTheme::Dev, "ui/styles/dev.json"), (UiTheme::InGame, "ui/styles/game.json")];
 
 // ----------------------------------------------
 // UiSystem
 // ----------------------------------------------
 
 pub struct UiSystem {
-    inner: Mutable<UiSystemInner>,
-}
-
-struct UiSystemInner {
-    context: UiContext,
-    ui_ptr: Option<RawPtr<imgui::Ui>>,
-    current_theme: UiTheme,
-    current_font_scale: Option<UiFontScale>,
-    show_ui_debug_menu: bool,
-    toasts: UiToasts,
-    widget_registry: UiWidgetRegistry,
+    backend: UiBackend,
+    styles: Option<UiStyles>,
+    style_paths: [(UiTheme, String); UiTheme::COUNT],
+    theme: Cell<UiTheme>,
+    modal_backdrop: Cell<Option<Color32>>, // Replaces the style's, from set_modal_backdrop_color.
+    font_scale: Cell<Option<UiFontScale>>,   // For the text drawn next, until reset.
+    item_width: Cell<Option<f32>>,           // For the slider, input or dropdown drawn next, from its group.
+    show_debug_window: Cell<bool>,
     delta_time_secs: Seconds,
+    toasts: RefCell<UiToasts>,
+
+    // The innermost open container's egui Ui is the last one.
+    ui_stack: RefCell<SmallVec<[egui::Ui; 8]>>,
+
+    // The widget drawn last, for tooltips that go with it (ui::item_tooltip).
+    last_response: RefCell<Option<egui::Response>>,
+
+    // Whether a widget has been hovered this frame, so far, and over the whole of the last one.
+    widget_hovered: Cell<bool>,
+    widget_hovered_last_frame: bool,
+
+    // UI automation (registry.rs): the widgets being recorded this frame, and last frame's.
+    registry: RefCell<UiWidgetRegistry>,
+    widgets: Vec<UiWidgetInfo>,
+
+    // The value ui.set queued for the window being drawn (ui::take_window_set_value).
+    window_set_value: RefCell<Option<serde_json::Value>>,
 }
 
 impl UiSystem {
-    pub fn new(render_sys: &mut RenderSystem) -> Self {
+    pub fn new() -> Self {
         text::initialize();
 
-        let mut inner = UiSystemInner {
-            context: UiContext::new(render_sys),
-            ui_ptr: None,
-            current_theme: UiTheme::Dev,
-            current_font_scale: None,
-            show_ui_debug_menu: false,
-            toasts: UiToasts::default(),
-            widget_registry: UiWidgetRegistry::default(),
+        Self {
+            backend: UiBackend::new(),
+            styles: None,
+            style_paths: UI_STYLE_PATHS.map(|(theme, path)| (theme, path.to_string())),
+            theme: Cell::new(UiTheme::Dev),
+            modal_backdrop: Cell::new(None),
+            font_scale: Cell::new(None),
+            item_width: Cell::new(None),
+            show_debug_window: Cell::new(false),
             delta_time_secs: 0.0,
-        };
-
-        inner.context.set_dev_ui_theme(); // Start in developer mode.
-
-        Self { inner: Mutable::new(inner) }
+            toasts: RefCell::new(UiToasts::default()),
+            ui_stack: RefCell::new(SmallVec::new()),
+            last_response: RefCell::new(None),
+            widget_hovered: Cell::new(false),
+            widget_hovered_last_frame: false,
+            registry: RefCell::new(UiWidgetRegistry::default()),
+            widgets: Vec::new(),
+            window_set_value: RefCell::new(None),
+        }
     }
 
+    // ----------------------
+    // Styles:
+    // ----------------------
+
+    // Loads a style per theme, with its fonts, from files under assets/configs/. Call before
+    // drawing anything, and before creating widgets, which read the style and measure text.
+    // `pixels_per_point`: the window's content scale, which fonts are rasterized for.
+    pub fn load_styles(&mut self, paths: &[(UiTheme, &str); UiTheme::COUNT], pixels_per_point: f32) -> Result<(), String> {
+        let path_refs = paths.map(|(theme, path)| (theme, PathRef::from_str(path)));
+        let styles = UiStyles::load(&path_refs)?;
+
+        self.backend.ctx().set_fonts(styles.fonts.clone());
+        self.styles = Some(styles);
+        self.style_paths = paths.map(|(theme, path)| (theme, path.to_string()));
+        self.apply_theme_style();
+
+        if !self.frame_started() {
+            self.backend.warm_up(pixels_per_point); // Sets up the fonts for measuring text.
+        }
+
+        log::info!(log::channel!("ui"), "Loaded UI styles: {}.", paths.map(|(_, path)| path).join(", "));
+        Ok(())
+    }
+
+    // Loads the style files again, e.g. after editing them (ui.reload_styles). Keeps the current
+    // styles if one fails to load. Takes effect from the next frame.
+    pub fn reload_styles(&mut self) -> Result<(), String> {
+        let paths = self.style_paths.clone();
+        let paths = [(paths[0].0, paths[0].1.as_str()), (paths[1].0, paths[1].1.as_str())];
+        let pixels_per_point = self.ctx().pixels_per_point();
+        self.load_styles(&paths, pixels_per_point)
+    }
+
+    // The current theme's style.
     #[inline]
+    fn style(&self) -> &UiStyle {
+        self.styles.as_ref().expect("UiSystem::load_styles must be called first!").style(self.theme.get())
+    }
+
+    fn apply_theme_style(&self) {
+        if let Some(styles) = &self.styles {
+            self.backend.ctx().set_global_style(styles.style(self.theme.get()).egui.clone());
+        }
+    }
+
+    // ----------------------
+    // Frame:
+    // ----------------------
+
     pub fn begin_frame(&mut self, app: &Application, input_sys: &InputSystem, delta_time_secs: Seconds) {
         debug_assert!(!self.frame_started());
+        debug_assert!(self.styles.is_some(), "UiSystem::load_styles must be called before the first frame!");
 
-        let theme_font_handle = self.inner.context.fonts.front_for_theme(self.inner.current_theme);
+        self.registry.get_mut().begin_frame(&mut self.widgets);
+        self.widget_hovered_last_frame = self.widget_hovered.replace(false);
+        self.delta_time_secs = delta_time_secs;
+        self.font_scale.set(None);
 
-        self.inner.widget_registry.begin_frame();
-
-        let ui = self.inner.context.begin_frame(app, input_sys, delta_time_secs);
-
-        internal::push_font(ui, theme_font_handle);
-
-        self.inner.ui_ptr = Some(RawPtr::from_ref(ui));
-        self.inner.delta_time_secs = delta_time_secs;
+        self.backend.begin_frame(app, input_sys, delta_time_secs);
+        self.apply_theme_style();
     }
 
-    // `draw_overlays` false keeps toasts and the badge off this frame, e.g. while it's being
-    // captured. `badge`: a status line at the top of the screen, such as automation's.
-    #[inline]
-    pub fn end_frame(
-        &mut self,
-        render_sys: RcMut<RenderSystem>,
-        draw_overlays: bool,
-        badge: Option<&str>,
-    ) -> UiRenderFrameBundle<'_> {
+    // Returns what the UI drew, for RenderSystem::end_frame. Textures egui manages are created,
+    // updated and released in `tex_cache` here. `draw_overlays` false keeps toasts and the badge
+    // off this frame, e.g. while it's being captured. `badge`: a status line at the top of the
+    // screen, such as automation's.
+    pub fn end_frame(&mut self, tex_cache: &mut TextureCache, draw_overlays: bool, badge: Option<&str>) -> &UiDrawData {
         debug_assert!(self.frame_started());
+        debug_assert!(self.ui_stack.get_mut().is_empty(), "Unbalanced UI container stack!");
 
-        // Last, so toasts draw over everything else. Uses the theme font, which is still pushed.
-        let ui_ptr = self.inner.ui_ptr.unwrap(); // A copy, so `toasts` can be borrowed mutably.
-        let delta_time_secs = self.inner.delta_time_secs;
-        self.inner.toasts.update(ui_ptr.as_ref(), delta_time_secs, draw_overlays);
+        // Last, so toasts draw over everything else.
+        let mut toasts = std::mem::take(self.toasts.get_mut()); // Out, so they can draw with `self`.
+        toasts.update(self, self.delta_time_secs, draw_overlays);
+        *self.toasts.get_mut() = toasts;
 
         if let Some(badge) = badge.filter(|_| draw_overlays) {
-            toast::draw_badge(ui_ptr.as_ref(), badge);
+            toast::draw_badge(self, badge);
         }
 
-        internal::pop_font(self.ui());
-
-        let mut show_ui_debug_menu = self.inner.show_ui_debug_menu;
-        if show_ui_debug_menu {
-            self.ui().show_metrics_window(&mut show_ui_debug_menu);
-            self.inner.show_ui_debug_menu = show_ui_debug_menu;
+        if self.show_debug_window.get() {
+            self.draw_debug_window();
         }
 
-        self.inner.current_font_scale = None;
-        self.inner.ui_ptr = None;
+        self.last_response.get_mut().take();
+        self.font_scale.set(None);
 
-        self.inner.context.end_frame(render_sys)
+        self.backend.end_frame(tex_cache)
     }
 
     #[inline]
     pub fn frame_started(&self) -> bool {
-        self.inner.ui_ptr.is_some()
+        self.backend.frame_started()
     }
 
     // Shows a short message at the bottom of the screen for a few seconds.
     #[inline]
     pub fn show_toast(&self, text: impl Into<String>) {
-        self.inner.as_mut().toasts.push(text.into());
+        self.toasts.borrow_mut().push(text.into());
+    }
+
+    // egui's own inspection windows, for debugging the UI.
+    fn draw_debug_window(&self) {
+        let ctx = self.backend.ctx().clone();
+        let mut open = true;
+
+        let previous_style = ctx.global_style();
+        if let Some(styles) = &self.styles {
+            ctx.set_global_style(styles.style(UiTheme::Dev).egui.clone());
+        }
+
+        egui::Window::new("UI Debug").open(&mut open).default_size([420.0, 520.0]).vscroll(true).show(&ctx, |ui| {
+            egui::CollapsingHeader::new("Settings").show(ui, |ui| ctx.settings_ui(ui));
+            egui::CollapsingHeader::new("Inspection").show(ui, |ui| ctx.inspection_ui(ui));
+            egui::CollapsingHeader::new("Memory").show(ui, |ui| ctx.memory_ui(ui));
+            egui::CollapsingHeader::new("Textures").show(ui, |ui| ctx.texture_ui(ui));
+        });
+
+        ctx.set_global_style(previous_style);
+        self.show_debug_window.set(open);
     }
 
     // ----------------------
@@ -205,158 +309,138 @@ impl UiSystem {
 
     #[inline]
     pub fn set_widget_registry_enabled(&self, enabled: bool) {
-        self.inner.as_mut().widget_registry.set_enabled(enabled);
+        self.registry.borrow_mut().set_enabled(enabled);
     }
 
     #[inline]
     pub fn is_widget_registry_enabled(&self) -> bool {
-        self.inner.widget_registry.is_enabled()
+        self.registry.borrow().is_enabled()
     }
 
     // The widgets drawn last frame, in drawing order. Empty while the registry is off.
     #[inline]
     pub fn widgets(&self) -> &[UiWidgetInfo] {
-        self.inner.widget_registry.widgets()
+        &self.widgets
     }
 
     // Sets a widget's value on its next draw, through its own update callback (ui.set).
     #[inline]
     pub fn queue_widget_value(&self, path: String, value: serde_json::Value) {
-        self.inner.as_mut().widget_registry.queue_value(path, value);
+        self.registry.borrow_mut().queue_value(path, value);
     }
 
     #[inline]
     pub(crate) fn push_widget_path(&self, segment: &str) {
-        self.inner.as_mut().widget_registry.push_path(segment);
+        self.registry.borrow_mut().push_path(segment);
     }
 
     #[inline]
     pub(crate) fn pop_widget_path(&self) {
-        self.inner.as_mut().widget_registry.pop_path();
+        self.registry.borrow_mut().pop_path();
     }
 
-    // Records the last ImGui item as a widget and returns its path, or None while the registry is off.
-    pub(crate) fn record_widget(
-        &self,
-        kind: &'static str,
-        label: &str,
-        tooltip: Option<&str>,
-        enabled: bool,
-        value: Option<serde_json::Value>,
-    ) -> Option<String> {
-        if !self.is_widget_registry_enabled() {
-            return None;
-        }
-
-        let ui = self.ui();
-        let rect = Rect::from_pos_and_size(Vec2::from_array(ui.item_rect_min()), Vec2::from_array(ui.item_rect_size()));
-
-        self.record_widget_info(UiWidgetInfo {
-            path: String::new(),
-            kind,
-            label: label.to_string(),
-            tooltip: tooltip.map(str::to_string),
-            rect,
-            enabled,
-            hovered: ui.is_item_hovered(),
-            visible: true,
-            value,
-        })
-    }
-
-    // Records a widget described in full, e.g. one that isn't the last ImGui item. Returns its path,
-    // or None while the registry is off.
+    // Records a widget described in full. Returns its path, or None while the registry is off.
     #[inline]
     pub(crate) fn record_widget_info(&self, info: UiWidgetInfo) -> Option<String> {
-        self.inner.as_mut().widget_registry.record(info)
+        self.registry.borrow_mut().record(info)
+    }
+
+    // Records a widget listed before what's inside it, filled in later with update_widget_info.
+    #[inline]
+    pub(crate) fn reserve_widget_info(&self, info: UiWidgetInfo) -> Option<usize> {
+        self.registry.borrow_mut().reserve(info)
+    }
+
+    #[inline]
+    pub(crate) fn update_widget_info(&self, index: usize, update: impl FnOnce(&mut UiWidgetInfo)) {
+        self.registry.borrow_mut().update(index, update);
     }
 
     // A value queued for the widget at `path` by ui.set.
     #[inline]
     pub(crate) fn take_widget_value(&self, path: &str) -> Option<serde_json::Value> {
-        self.inner.as_mut().widget_registry.take_value(path)
+        self.registry.borrow_mut().take_value(path)
     }
 
     // A value queued for the widget that records next with `kind` and `label`, for one that applies
     // it before drawing.
     #[inline]
     pub(crate) fn take_next_widget_value(&self, kind: &'static str, label: &str) -> Option<serde_json::Value> {
-        self.inner.as_mut().widget_registry.take_next_value(kind, label)
+        self.registry.borrow_mut().take_next_value(kind, label)
     }
 
     // Asks the widget at `path`, scrolled out of its window's view, to scroll into view on its next
-    // draw (ui.click). Only the ImGui widgets in `dev` do.
+    // draw (ui.click).
     #[inline]
     pub fn request_widget_reveal(&self, path: String) {
-        self.inner.as_mut().widget_registry.request_reveal(path);
+        self.registry.borrow_mut().request_reveal(path);
     }
 
     #[inline]
     pub(crate) fn take_widget_reveal(&self, path: &str) -> bool {
-        self.inner.as_mut().widget_registry.take_reveal(path)
+        self.registry.borrow_mut().take_reveal(path)
+    }
+
+    // ----------------------
+    // UI debug window:
+    // ----------------------
+
+    #[inline]
+    pub fn show_ui_debug_window(&self, show: bool) {
+        self.show_debug_window.set(show);
     }
 
     #[inline]
-    pub fn show_ui_debug_menu(&self, show: bool) {
-        self.inner.as_mut().show_ui_debug_menu = show;
+    pub fn is_showing_ui_debug_window(&self) -> bool {
+        self.show_debug_window.get()
     }
 
-    #[inline]
-    pub fn is_showing_ui_debug_menu(&self) -> bool {
-        self.inner.as_mut().show_ui_debug_menu
-    }
+    // ----------------------
+    // Input:
+    // ----------------------
 
     #[inline]
-    pub fn on_key_input(&mut self, key: InputKey, action: InputAction, _: InputModifiers) -> UiInputEvent {
-        self.inner.context.on_key_input(key, action);
-
+    pub fn on_key_input(&mut self, key: InputKey, action: InputAction, modifiers: InputModifiers) -> UiInputEvent {
+        self.backend.on_key_input(key, action, modifiers);
         if self.is_handling_key_input() { UiInputEvent::Handled } else { UiInputEvent::NotHandled }
     }
 
     #[inline]
     pub fn on_char_input(&mut self, c: char) -> UiInputEvent {
-        self.inner.context.on_char_input(c);
-
+        self.backend.on_char_input(c);
         if self.is_handling_key_input() { UiInputEvent::Handled } else { UiInputEvent::NotHandled }
     }
 
     #[inline]
     pub fn on_scroll(&mut self, amount: Vec2) -> UiInputEvent {
-        self.inner.context.on_scroll(amount);
-
+        self.backend.on_scroll(amount);
         if self.is_handling_mouse_input() { UiInputEvent::Handled } else { UiInputEvent::NotHandled }
     }
 
     #[inline]
     pub fn on_mouse_button(&mut self, _: MouseButton, _: InputAction, _: InputModifiers) -> UiInputEvent {
-        // Mouse events are polled from the InputSystem instead;
-        // Just perform a quick check to see if mouse clicks are being consumed by ImGui.
+        // Mouse buttons are polled from the InputSystem instead (backend.rs). This only tells
+        // whether the click is the UI's.
         if self.is_handling_mouse_input() { UiInputEvent::Handled } else { UiInputEvent::NotHandled }
     }
 
+    // True if the mouse is over the UI, or the UI is using it (e.g. dragging a slider).
     #[inline]
     pub fn is_handling_mouse_input(&self) -> bool {
-        self.inner.context.ctx.io().want_capture_mouse
+        self.backend.wants_pointer()
     }
 
+    // True while text is being typed into the UI.
     #[inline]
     pub fn is_handling_key_input(&self) -> bool {
-        self.inner.context.ctx.io().want_capture_keyboard
+        self.backend.wants_keyboard()
     }
 
+    // True if the mouse was over a widget last frame, e.g. for the game to leave the click to the
+    // UI. Unlike is_handling_mouse_input, a menu's background doesn't count.
     #[inline]
-    pub fn fonts(&self) -> &UiFonts {
-        self.inner.context.fonts()
-    }
-
-    #[inline]
-    pub fn ui(&self) -> &imgui::Ui {
-        self.inner.ui_ptr.as_ref().expect("Called UiSystem::ui() outside begin_frame/end_frame!")
-    }
-
-    #[inline]
-    pub fn to_ui_texture(&self, tex_handle: TextureHandle) -> UiTextureHandle {
-        UiTextureHandle::new(tex_handle.pack())
+    pub fn is_any_widget_hovered(&self) -> bool {
+        self.widget_hovered_last_frame
     }
 
     // ----------------------
@@ -364,112 +448,188 @@ impl UiSystem {
     // ----------------------
 
     pub fn set_ui_theme(&self, theme: UiTheme) {
-        if self.inner.current_theme != theme {
-            self.inner.as_mut().current_theme = theme;
-
-            // Set style variables.
-            match theme {
-                UiTheme::Dev => self.inner.as_mut().context.set_dev_ui_theme(),
-                UiTheme::InGame => self.inner.as_mut().context.set_in_game_ui_theme(),
-            }
-
-            // Reset cached font states if this is being called mid-frame.
-            if self.frame_started() {
-                let theme_font_handle = self.inner.context.fonts.front_for_theme(theme);
-                self.inner.as_mut().current_font_scale = None;
-
-                // Pop previous global font.
-                let ui = self.ui();
-                internal::pop_font(ui);
-
-                // Set new current global font.
-                internal::push_font(ui, theme_font_handle);
-            }
+        if self.theme.replace(theme) != theme {
+            log::info!(log::channel!("ui"), "Setting UI theme to {theme:?}.");
+            self.font_scale.set(None);
+            self.apply_theme_style();
         }
     }
 
     #[inline]
     pub fn current_ui_theme(&self) -> UiTheme {
-        self.inner.current_theme
+        self.theme.get()
     }
 
+    // The color modal dialogs dim the screen behind them with.
     #[inline]
-    pub fn current_ui_style(&self) -> &imgui::Style {
-        internal::current_ui_style()
+    pub fn set_modal_backdrop_color(&self, color: Color) {
+        self.modal_backdrop.set(Some(Color32::from_rgba_unmultiplied(
+            (color.r * 255.0).round() as u8,
+            (color.g * 255.0).round() as u8,
+            (color.b * 255.0).round() as u8,
+            (color.a * 255.0).round() as u8,
+        )));
     }
 
-    #[inline]
-    pub fn current_ui_font(&self) -> &imgui::Font {
-        if self.frame_started() {
-            self.ui().current_font()
-        } else {
-            let theme_font_handle = self.inner.context.fonts.front_for_theme(self.inner.current_theme);
-            internal::font_atlas()
-                .get_font(theme_font_handle)
-                .expect("current_ui_font(): UI font atlas did not contain the given font!")
-        }
-    }
-
-    #[inline]
-    pub fn set_style_color(&self, style_color: imgui::StyleColor, color: Color) {
-        self.inner.as_mut().context.ctx.style_mut().colors[style_color as usize] = color.to_array();
+    pub(crate) fn modal_backdrop_color(&self) -> Color32 {
+        self.modal_backdrop.get().unwrap_or_else(|| self.style().modal_backdrop)
     }
 
     // ----------------------
     // Font Scale:
     // ----------------------
 
+    // Draws the text that follows `font_scale` times its size, until it's set again. Widget windows
+    // reset it when they end.
     #[inline]
     pub fn set_window_font_scale(&self, font_scale: UiFontScale) {
         debug_assert!(font_scale.is_valid());
-        if self.inner.current_font_scale != Some(font_scale) {
-            self.inner.as_mut().current_font_scale = Some(font_scale);
-            self.ui().set_window_font_scale(font_scale.0);
-        }
+        self.font_scale.set(if font_scale.is_identity() { None } else { Some(font_scale) });
     }
 
     #[inline]
     pub fn current_window_front_scale(&self) -> UiFontScale {
-        self.inner.current_font_scale.unwrap_or_default()
+        self.font_scale.get().unwrap_or_default()
     }
 
     #[inline]
     pub fn set_tooltip_font_scale(&self, font_scale: UiFontScale) {
-        debug_assert!(font_scale.is_valid());
+        self.set_window_font_scale(font_scale);
+    }
 
-        // Always override it for tooltips.
-        self.inner.as_mut().current_font_scale = if font_scale.is_identity() { None } else { Some(font_scale) };
-        self.ui().set_window_font_scale(font_scale.0);
+    // ----------------------
+    // Internal: the egui context and the Ui stack
+    // ----------------------
+
+    #[inline]
+    pub(crate) fn ctx(&self) -> &egui::Context {
+        self.backend.ctx()
+    }
+
+    // Runs `f` on the innermost open container's Ui, e.g. to add a widget to it. Don't call back
+    // into the ui functions from `f`: use with_parent_ui for egui containers.
+    #[inline]
+    pub(crate) fn with_ui<R>(&self, f: impl FnOnce(&mut egui::Ui) -> R) -> R {
+        let mut stack = self.ui_stack.borrow_mut();
+        let ui = stack.last_mut().expect("No open UI container: draw widgets inside a window, a menu or a tooltip.");
+        f(ui)
+    }
+
+    // True if a container is open, so widgets can be drawn.
+    #[inline]
+    pub(crate) fn has_ui(&self) -> bool {
+        !self.ui_stack.borrow().is_empty()
+    }
+
+    // Runs an egui container on the innermost open container's Ui. That Ui is off the stack while
+    // `f` runs, so the container's contents can push their own (ui_scope).
+    pub(crate) fn with_parent_ui<R>(&self, f: impl FnOnce(&mut egui::Ui) -> R) -> R {
+        let mut parent =
+            self.ui_stack.borrow_mut().pop().expect("No open UI container: draw widgets inside a window, a menu or a tooltip.");
+        let result = f(&mut parent);
+        self.ui_stack.borrow_mut().push(parent);
+        result
+    }
+
+    // Draws `contents` into a child of `ui`, which egui gave a container, then moves `ui`'s cursor
+    // past what they drew.
+    #[inline]
+    pub(crate) fn ui_scope<R>(&self, ui: &mut egui::Ui, contents: impl FnOnce(&UiSystem) -> R) -> R {
+        self.child_ui_scope(ui, egui::UiBuilder::new(), true, contents).0
+    }
+
+    // Draws `contents` into a child of `ui` made with `builder`, e.g. at a given rect. Moves `ui`'s
+    // cursor past it if `advance_cursor`. Returns what `contents` returned and the rect it drew in.
+    pub(crate) fn child_ui_scope<R>(
+        &self,
+        ui: &mut egui::Ui,
+        builder: egui::UiBuilder,
+        advance_cursor: bool,
+        contents: impl FnOnce(&UiSystem) -> R,
+    ) -> (R, egui::Rect) {
+        let child = ui.new_child(builder);
+
+        let depth = {
+            let mut stack = self.ui_stack.borrow_mut();
+            stack.push(child);
+            stack.len()
+        };
+
+        let result = contents(self);
+
+        let child = {
+            let mut stack = self.ui_stack.borrow_mut();
+            debug_assert_eq!(stack.len(), depth, "Unbalanced UI container stack!");
+            stack.pop().expect("UI container stack underflow!")
+        };
+
+        let rect = child.min_rect();
+        if advance_cursor {
+            ui.advance_cursor_after_rect(rect);
+        }
+        (result, rect)
+    }
+
+    // Draws `contents` with its top left corner at `rect`'s, in a child of the current Ui at most
+    // `rect` large, without moving the current Ui's cursor. Returns the rect it drew in.
+    pub(crate) fn draw_at<R>(&self, rect: egui::Rect, contents: impl FnOnce(&UiSystem) -> R) -> (R, egui::Rect) {
+        self.with_parent_ui(|parent| self.child_ui_scope(parent, egui::UiBuilder::new().max_rect(rect), false, contents))
+    }
+
+    // Remembers the widget drawn last, for ui::item_tooltip, and whether the mouse is on it.
+    #[inline]
+    pub(crate) fn set_last_response(&self, response: &egui::Response) {
+        if response.hovered() {
+            self.widget_hovered.set(true);
+        }
+        *self.last_response.borrow_mut() = Some(response.clone());
+    }
+
+    #[inline]
+    pub(crate) fn last_response(&self) -> Option<egui::Response> {
+        self.last_response.borrow().clone()
+    }
+
+    // The font of plain text in the current theme, at the current font scale.
+    pub(crate) fn text_font(&self) -> egui::FontId {
+        let mut font = self.style_font(&egui::TextStyle::Body);
+        font.size *= self.current_window_front_scale().0;
+        font
+    }
+
+    // The current theme's font for `text_style`.
+    #[inline]
+    pub(crate) fn style_font(&self, text_style: &egui::TextStyle) -> egui::FontId {
+        self.style().font(text_style)
+    }
+
+    // The width the group being drawn gives its sliders, inputs and dropdowns (internal.rs).
+    #[inline]
+    pub(crate) fn item_width(&self) -> Option<f32> {
+        self.item_width.get()
+    }
+
+    // Returns the previous width, to put back.
+    #[inline]
+    pub(crate) fn set_item_width(&self, width: Option<f32>) -> Option<f32> {
+        self.item_width.replace(width)
+    }
+
+    // The font of FontAwesome icons (ui::icons) in the current theme.
+    #[inline]
+    pub(crate) fn icon_font(&self) -> egui::FontId {
+        self.style().icon_font.clone()
+    }
+
+    #[inline]
+    pub(crate) fn egui_style(&self) -> &std::sync::Arc<egui::Style> {
+        &self.style().egui
     }
 }
 
-// ----------------------------------------------
-// UiFonts
-// ----------------------------------------------
-
-pub struct UiFonts {
-    // Debug / Dev fonts:
-    pub dev_monospace: UiFontHandle,
-    pub dev_icons: UiFontHandle,
-
-    // In-game UI / HUD fonts:
-    pub in_game: UiFontHandle,
-}
-
-impl UiFonts {
-    // Debug / Dev font sizes:
-    const DEV_MONOSPACE_FONT_SIZE: f32 = 14.0;
-    const DEV_ICONS_FONT_SIZE: f32 = 16.0;
-
-    // In-game UI / HUD font sizes:
-    const IN_GAME_FONT_SIZE: f32 = 20.0;
-
-    #[inline]
-    pub fn front_for_theme(&self, theme: UiTheme) -> UiFontHandle {
-        match theme {
-            UiTheme::Dev => self.dev_monospace,
-            UiTheme::InGame => self.in_game,
-        }
+impl Default for UiSystem {
+    fn default() -> Self {
+        Self::new()
     }
 }
 
@@ -505,402 +665,6 @@ impl Default for UiFontScale {
 }
 
 // ----------------------------------------------
-// UiContext
-// ----------------------------------------------
-
-struct UiContext {
-    ctx: imgui::Context,
-    fonts: UiFonts,
-    renderer: UiRenderer,
-    frame_started: bool,
-}
-
-impl UiContext {
-    fn new(render_sys: &mut RenderSystem) -> Self {
-        let mut ctx = imgui::Context::create();
-        ctx.set_ini_filename(None); // 'None' disables automatic "imgui.ini" saving.
-
-        let fonts = Self::load_custom_fonts(&mut ctx);
-        let renderer = UiRenderer::new(render_sys, &mut ctx);
-
-        Self { ctx, fonts, renderer, frame_started: false }
-    }
-
-    fn begin_frame(&mut self, app: &Application, input_sys: &InputSystem, delta_time_secs: Seconds) -> &imgui::Ui {
-        debug_assert!(!self.frame_started);
-        self.frame_started = true;
-
-        let io = self.ctx.io_mut();
-        io.update_delta_time(std::time::Duration::from_secs_f32(delta_time_secs));
-
-        let fb_size = app.framebuffer_size().to_vec2();
-        let content_scale = app.content_scale();
-
-        io.display_size = [fb_size.x / content_scale.x, fb_size.y / content_scale.y];
-        io.display_framebuffer_scale = [content_scale.x, content_scale.y];
-
-        // Send mouse/keyboard input to ImGui. The rest is handled by application events.
-        self.update_input(input_sys);
-
-        // Start new ImGui frame. Use the returned `ui` object to build the UI windows.
-        self.ctx.new_frame()
-    }
-
-    fn end_frame(&mut self, render_sys: RcMut<RenderSystem>) -> UiRenderFrameBundle<'_> {
-        debug_assert!(self.frame_started);
-        self.frame_started = false;
-
-        UiRenderFrameBundle::new(&self.renderer, &mut self.ctx, render_sys)
-    }
-
-    fn fonts(&self) -> &UiFonts {
-        &self.fonts
-    }
-
-    fn on_key_input(&mut self, key: InputKey, action: InputAction) {
-        let io = self.ctx.io_mut();
-        let pressed = action != InputAction::Release;
-        if let Some(imgui_key) = Self::app_input_key_to_imgui_key(key) {
-            io.add_key_event(imgui_key, pressed);
-        }
-    }
-
-    fn on_char_input(&mut self, c: char) {
-        let io = self.ctx.io_mut();
-        io.add_input_character(c);
-    }
-
-    fn on_scroll(&mut self, amount: Vec2) {
-        let io = self.ctx.io_mut();
-        io.mouse_wheel_h += amount.x;
-        io.mouse_wheel += amount.y;
-    }
-
-    fn update_input(&mut self, input_sys: &InputSystem) {
-        let io = self.ctx.io_mut();
-
-        let cursor_pos = input_sys.cursor_pos();
-        io.mouse_pos = [cursor_pos.x, cursor_pos.y];
-
-        io.mouse_down[0] = input_sys.mouse_button_state(MouseButton::Left) == InputAction::Press;
-        io.mouse_down[1] = input_sys.mouse_button_state(MouseButton::Right) == InputAction::Press;
-        io.mouse_down[2] = input_sys.mouse_button_state(MouseButton::Middle) == InputAction::Press;
-
-        io.key_shift = input_sys.key_state(InputKey::LeftShift) == InputAction::Press
-            || input_sys.key_state(InputKey::RightShift) == InputAction::Press;
-
-        io.key_ctrl = input_sys.key_state(InputKey::LeftControl) == InputAction::Press
-            || input_sys.key_state(InputKey::RightControl) == InputAction::Press;
-
-        io.key_alt = input_sys.key_state(InputKey::LeftAlt) == InputAction::Press
-            || input_sys.key_state(InputKey::RightAlt) == InputAction::Press;
-
-        io.key_super = input_sys.key_state(InputKey::LeftSuper) == InputAction::Press
-            || input_sys.key_state(InputKey::RightSuper) == InputAction::Press;
-    }
-
-    // Converts our InputKey to the corresponding ImGui key, if available.
-    fn app_input_key_to_imgui_key(input_key: InputKey) -> Option<imgui::Key> {
-        Some(match input_key {
-            InputKey::Tab       => imgui::Key::Tab,
-            InputKey::Left      => imgui::Key::LeftArrow,
-            InputKey::Right     => imgui::Key::RightArrow,
-            InputKey::Up        => imgui::Key::UpArrow,
-            InputKey::Down      => imgui::Key::DownArrow,
-            InputKey::PageUp    => imgui::Key::PageUp,
-            InputKey::PageDown  => imgui::Key::PageDown,
-            InputKey::Home      => imgui::Key::Home,
-            InputKey::End       => imgui::Key::End,
-            InputKey::Insert    => imgui::Key::Insert,
-            InputKey::Delete    => imgui::Key::Delete,
-            InputKey::Backspace => imgui::Key::Backspace,
-            InputKey::Space     => imgui::Key::Space,
-            InputKey::Enter     => imgui::Key::Enter,
-            InputKey::Escape    => imgui::Key::Escape,
-    
-            // We only need to map these for the internal ImGui key combos (CTRL+C, CTRV+V, etc).
-            InputKey::A => imgui::Key::A,
-            InputKey::C => imgui::Key::C,
-            InputKey::V => imgui::Key::V,
-            InputKey::X => imgui::Key::X,
-            InputKey::Y => imgui::Key::Y,
-            InputKey::Z => imgui::Key::Z,
-    
-            InputKey::LeftShift   | InputKey::RightShift   => imgui::Key::ModShift,
-            InputKey::LeftControl | InputKey::RightControl => imgui::Key::ModCtrl,
-            InputKey::LeftAlt     | InputKey::RightAlt     => imgui::Key::ModAlt,
-            InputKey::LeftSuper   | InputKey::RightSuper   => imgui::Key::ModSuper,
-    
-            _ => return None, // Key not used by ImGui.
-        })
-    }
-
-    fn set_dev_ui_theme(&mut self) {
-        use imgui::StyleColor;
-
-        log::info!(log::channel!("ui"), "Setting UI theme to dev.");
-
-        let style = self.ctx.style_mut();
-        let colors = &mut style.colors;
-
-        let theme_color = [0.58, 0.45, 0.35, 1.0]; // Soft light brown
-
-        colors[StyleColor::Text as usize] = [0.92, 0.93, 0.94, 1.0];
-        colors[StyleColor::TextDisabled as usize] = [0.50, 0.52, 0.54, 1.0];
-        colors[StyleColor::WindowBg as usize] = [0.14, 0.14, 0.16, 0.9];
-        colors[StyleColor::ChildBg as usize] = [0.16, 0.16, 0.18, 0.9];
-        colors[StyleColor::PopupBg as usize] = [0.18, 0.18, 0.20, 0.9];
-        colors[StyleColor::Border as usize] = [0.28, 0.29, 0.30, 0.60];
-        colors[StyleColor::BorderShadow as usize] = [0.0, 0.0, 0.0, 0.0];
-        colors[StyleColor::FrameBg as usize] = [0.20, 0.22, 0.24, 1.0];
-        colors[StyleColor::FrameBgHovered as usize] = [0.22, 0.24, 0.26, 1.0];
-        colors[StyleColor::FrameBgActive as usize] = [0.24, 0.26, 0.28, 1.0];
-        colors[StyleColor::TitleBg as usize] = [0.14, 0.14, 0.16, 1.0];
-        colors[StyleColor::TitleBgActive as usize] = [0.16, 0.16, 0.18, 1.0];
-        colors[StyleColor::TitleBgCollapsed as usize] = [0.14, 0.14, 0.16, 0.9];
-        colors[StyleColor::MenuBarBg as usize] = [0.20, 0.20, 0.22, 1.0];
-        colors[StyleColor::ScrollbarBg as usize] = [0.16, 0.16, 0.18, 1.0];
-
-        colors[StyleColor::ScrollbarGrab as usize] = theme_color;
-        colors[StyleColor::ScrollbarGrabHovered as usize] = [0.63, 0.50, 0.38, 1.0];
-        colors[StyleColor::ScrollbarGrabActive as usize] = [0.68, 0.54, 0.42, 1.0];
-
-        colors[StyleColor::CheckMark as usize] = theme_color;
-        colors[StyleColor::SliderGrab as usize] = theme_color;
-        colors[StyleColor::SliderGrabActive as usize] = [0.65, 0.50, 0.40, 1.0];
-
-        colors[StyleColor::Button as usize] = theme_color;
-        colors[StyleColor::ButtonHovered as usize] = [0.65, 0.50, 0.40, 1.0];
-        colors[StyleColor::ButtonActive as usize] = [0.70, 0.55, 0.45, 1.0];
-
-        colors[StyleColor::Header as usize] = theme_color;
-        colors[StyleColor::HeaderHovered as usize] = [0.65, 0.50, 0.40, 1.0];
-        colors[StyleColor::HeaderActive as usize] = [0.70, 0.55, 0.45, 1.0];
-
-        colors[StyleColor::Separator as usize] = [0.28, 0.29, 0.30, 1.0];
-        colors[StyleColor::SeparatorHovered as usize] = theme_color;
-        colors[StyleColor::SeparatorActive as usize] = theme_color;
-
-        colors[StyleColor::ResizeGrip as usize] = theme_color;
-        colors[StyleColor::ResizeGripHovered as usize] = [0.65, 0.50, 0.40, 1.0];
-        colors[StyleColor::ResizeGripActive as usize] = [0.70, 0.55, 0.45, 1.0];
-
-        colors[StyleColor::Tab as usize] = [0.20, 0.22, 0.24, 1.0];
-        colors[StyleColor::TabHovered as usize] = [0.65, 0.50, 0.40, 1.0];
-        colors[StyleColor::TabActive as usize] = theme_color;
-        colors[StyleColor::TabUnfocused as usize] = [0.20, 0.22, 0.24, 1.0];
-        colors[StyleColor::TabUnfocusedActive as usize] = theme_color;
-
-        colors[StyleColor::PlotLines as usize] = theme_color;
-        colors[StyleColor::PlotLinesHovered as usize] = theme_color;
-        colors[StyleColor::PlotHistogram as usize] = theme_color;
-        colors[StyleColor::PlotHistogramHovered as usize] = [0.65, 0.50, 0.40, 1.0];
-
-        colors[StyleColor::TableHeaderBg as usize] = [0.20, 0.22, 0.24, 1.0];
-        colors[StyleColor::TableBorderStrong as usize] = [0.28, 0.29, 0.30, 1.0];
-        colors[StyleColor::TableBorderLight as usize] = [0.24, 0.25, 0.26, 1.0];
-        colors[StyleColor::TableRowBg as usize] = [0.20, 0.22, 0.24, 1.0];
-        colors[StyleColor::TableRowBgAlt as usize] = [0.22, 0.24, 0.26, 1.0];
-
-        colors[StyleColor::TextSelectedBg as usize] = [0.58, 0.45, 0.35, 0.35];
-        colors[StyleColor::DragDropTarget as usize] = [0.58, 0.45, 0.35, 0.90];
-        colors[StyleColor::NavHighlight as usize] = theme_color;
-        colors[StyleColor::NavWindowingHighlight as usize] = [1.0, 1.0, 1.0, 0.70];
-        colors[StyleColor::NavWindowingDimBg as usize] = [0.0, 0.0, 0.0, 0.15];
-        colors[StyleColor::ModalWindowDimBg as usize] = [0.0, 0.0, 0.0, 0.15];
-
-        style.window_padding = [8.0, 8.0];
-        style.frame_padding = [5.0, 2.0];
-        style.cell_padding = [6.0, 6.0];
-        style.item_spacing = [6.0, 6.0];
-        style.item_inner_spacing = [6.0, 6.0];
-        style.touch_extra_padding = [0.0, 0.0];
-        style.indent_spacing = 25.0;
-        style.scrollbar_size = 11.0;
-        style.grab_min_size = 10.0;
-        style.window_border_size = 1.0;
-        style.child_border_size = 1.0;
-        style.popup_border_size = 1.0;
-        style.frame_border_size = 1.0;
-        style.tab_border_size = 1.0;
-        style.window_rounding = 7.0;
-        style.child_rounding = 4.0;
-        style.frame_rounding = 3.0;
-        style.popup_rounding = 4.0;
-        style.scrollbar_rounding = 9.0;
-        style.grab_rounding = 3.0;
-        style.log_slider_deadzone = 4.0;
-        style.tab_rounding = 4.0;
-    }
-
-    fn set_in_game_ui_theme(&mut self) {
-        use imgui::StyleColor;
-
-        log::info!(log::channel!("ui"), "Setting UI theme to in-game.");
-
-        let style = self.ctx.style_mut();
-        let colors = &mut style.colors;
-
-        let theme_color1 = [0.965, 0.859, 0.647, 1.0];
-        let theme_color2 = [0.58, 0.45, 0.35, 1.0];
-
-        colors[StyleColor::Text as usize] = [0.0, 0.0, 0.0, 1.0];
-        colors[StyleColor::TextDisabled as usize] = [0.5, 0.5, 0.5, 1.0];
-        colors[StyleColor::WindowBg as usize] = theme_color1;
-        colors[StyleColor::ChildBg as usize] = [0.88, 0.83, 0.68, 0.25];
-        colors[StyleColor::PopupBg as usize] = [0.0; 4];
-        colors[StyleColor::Border as usize] = [0.28, 0.29, 0.30, 0.60];
-        colors[StyleColor::BorderShadow as usize] = [0.0, 0.0, 0.0, 0.0];
-        colors[StyleColor::FrameBg as usize] = [0.88, 0.83, 0.68, 0.25];
-        colors[StyleColor::FrameBgHovered as usize] = [0.98, 0.95, 0.83, 0.5];
-        colors[StyleColor::FrameBgActive as usize] = [0.88, 0.83, 0.68, 0.5];
-        colors[StyleColor::TitleBg as usize] = theme_color1;
-        colors[StyleColor::TitleBgActive as usize] = theme_color1;
-        colors[StyleColor::TitleBgCollapsed as usize] = theme_color1;
-        colors[StyleColor::MenuBarBg as usize] = [0.20, 0.20, 0.22, 1.0];
-        colors[StyleColor::ScrollbarBg as usize] = [0.78, 0.73, 0.60, 1.0];
-
-        colors[StyleColor::ScrollbarGrab as usize] = [0.55, 0.50, 0.38, 1.0];
-        colors[StyleColor::ScrollbarGrabHovered as usize] = [0.62, 0.56, 0.42, 1.0];
-        colors[StyleColor::ScrollbarGrabActive as usize] = [0.68, 0.61, 0.45, 1.0];
-
-        colors[StyleColor::CheckMark as usize] = theme_color2;
-        colors[StyleColor::SliderGrab as usize] = theme_color2;
-        colors[StyleColor::SliderGrabActive as usize] = [0.65, 0.50, 0.40, 1.0];
-
-        colors[StyleColor::Button as usize] = theme_color1;
-        colors[StyleColor::ButtonHovered as usize] = [0.98, 0.95, 0.83, 1.0];
-        colors[StyleColor::ButtonActive as usize] = [0.88, 0.83, 0.68, 1.0];
-
-        colors[StyleColor::Header as usize] = [0.88, 0.83, 0.68, 0.5];
-        colors[StyleColor::HeaderHovered as usize] = [0.83, 0.78, 0.62, 0.5];
-        colors[StyleColor::HeaderActive as usize] = [0.88, 0.83, 0.68, 0.5];
-
-        colors[StyleColor::Separator as usize] = [0.28, 0.29, 0.30, 1.0];
-        colors[StyleColor::SeparatorHovered as usize] = theme_color2;
-        colors[StyleColor::SeparatorActive as usize] = theme_color2;
-
-        colors[StyleColor::ResizeGrip as usize] = theme_color2;
-        colors[StyleColor::ResizeGripHovered as usize] = [0.65, 0.50, 0.40, 1.0];
-        colors[StyleColor::ResizeGripActive as usize] = [0.70, 0.55, 0.45, 1.0];
-
-        colors[StyleColor::Tab as usize] = [0.20, 0.22, 0.24, 1.0];
-        colors[StyleColor::TabHovered as usize] = [0.65, 0.50, 0.40, 1.0];
-        colors[StyleColor::TabActive as usize] = theme_color2;
-        colors[StyleColor::TabUnfocused as usize] = [0.20, 0.22, 0.24, 1.0];
-        colors[StyleColor::TabUnfocusedActive as usize] = theme_color2;
-
-        colors[StyleColor::PlotLines as usize] = theme_color2;
-        colors[StyleColor::PlotLinesHovered as usize] = theme_color2;
-        colors[StyleColor::PlotHistogram as usize] = theme_color2;
-        colors[StyleColor::PlotHistogramHovered as usize] = [0.65, 0.50, 0.40, 1.0];
-
-        colors[StyleColor::TableHeaderBg as usize] = [0.20, 0.22, 0.24, 1.0];
-        colors[StyleColor::TableBorderStrong as usize] = [0.28, 0.29, 0.30, 1.0];
-        colors[StyleColor::TableBorderLight as usize] = [0.24, 0.25, 0.26, 1.0];
-        colors[StyleColor::TableRowBg as usize] = [0.20, 0.22, 0.24, 1.0];
-        colors[StyleColor::TableRowBgAlt as usize] = [0.22, 0.24, 0.26, 1.0];
-
-        colors[StyleColor::TextSelectedBg as usize] = [0.58, 0.45, 0.35, 0.35];
-        colors[StyleColor::DragDropTarget as usize] = [0.58, 0.45, 0.35, 0.90];
-        colors[StyleColor::NavHighlight as usize] = theme_color2;
-        colors[StyleColor::NavWindowingHighlight as usize] = [1.0, 1.0, 1.0, 0.70];
-        colors[StyleColor::NavWindowingDimBg as usize] = [0.0, 0.0, 0.0, 0.15];
-        colors[StyleColor::ModalWindowDimBg as usize] = [0.0, 0.0, 0.0, 0.15];
-
-        style.window_padding = [8.0, 8.0];
-        style.frame_padding = [5.0, 2.0];
-        style.cell_padding = [6.0, 6.0];
-        style.item_spacing = [6.0, 6.0];
-        style.item_inner_spacing = [6.0, 6.0];
-        style.touch_extra_padding = [0.0, 0.0];
-        style.indent_spacing = 25.0;
-        style.scrollbar_size = 11.0;
-        style.grab_min_size = 10.0;
-        style.window_border_size = 1.0;
-        style.child_border_size = 1.0;
-        style.popup_border_size = 0.0;
-        style.frame_border_size = 1.0;
-        style.tab_border_size = 1.0;
-        style.window_rounding = 7.0;
-        style.child_rounding = 4.0;
-        style.frame_rounding = 3.0;
-        style.popup_rounding = 4.0;
-        style.scrollbar_rounding = 9.0;
-        style.grab_rounding = 3.0;
-        style.log_slider_deadzone = 4.0;
-        style.tab_rounding = 4.0;
-    }
-
-    fn load_custom_fonts(ctx: &mut imgui::Context) -> UiFonts {
-        const DEV_FONT_DATA: &[u8] = include_bytes!(
-            "../../../../assets/fonts/source_code_pro_semi_bold.ttf"
-        );
-
-        const ICON_FONT_DATA: &[u8] = include_bytes!(
-            "../../../../assets/fonts/fa-solid-900.ttf"
-        );
-
-        const IN_GAME_FONT_DATA: &[u8] = include_bytes!(
-            "../../../../assets/fonts/protest_revolution_regular.ttf"
-        );
-
-        // NOTE: First font loaded will be set as the imgui default (dev_monospace).
-        let fonts = ctx.fonts();
-        UiFonts {
-            // Debug / Dev fonts:
-            dev_monospace: Self::load_font(
-                fonts,
-                DEV_FONT_DATA,
-                UiFonts::DEV_MONOSPACE_FONT_SIZE,
-                None,
-                None
-            ),
-            dev_icons: Self::load_font(
-                fonts,
-                ICON_FONT_DATA,
-                UiFonts::DEV_ICONS_FONT_SIZE,
-                Some(imgui::FontGlyphRanges::from_slice(&[
-                    icons::ICON_MIN as u32,
-                    icons::ICON_MAX as u32,
-                    0
-                ])),
-                None
-            ),
-            // In-game UI / HUD fonts:
-            in_game: Self::load_font(
-                fonts,
-                IN_GAME_FONT_DATA,
-                UiFonts::IN_GAME_FONT_SIZE,
-                None,
-                Some([1.0, 0.0])
-            ),
-        }
-    }
-
-    fn load_font(
-        fonts: &mut imgui::FontAtlas,
-        font_data: &[u8],
-        font_size: f32,
-        glyph_ranges: Option<imgui::FontGlyphRanges>,
-        glyph_extra_spacing: Option<[f32; 2]>,
-    ) -> UiFontHandle {
-        fonts.add_font(&[imgui::FontSource::TtfData {
-            data: font_data,
-            size_pixels: font_size,
-            config: Some(imgui::FontConfig {
-                oversample_h: 3,
-                oversample_v: 3,
-                pixel_snap_h: false,
-                glyph_ranges: glyph_ranges.unwrap_or_default(),
-                glyph_extra_spacing: glyph_extra_spacing.unwrap_or([0.0, 0.0]),
-                ..Default::default()
-            }),
-        }])
-    }
-}
-
-// ----------------------------------------------
 // Helper functions
 // ----------------------------------------------
 
@@ -913,366 +677,6 @@ pub fn assets_path() -> AssetPath {
 pub fn texture_settings() -> TextureSettings {
     // Use linear filter without mipmaps for all UI textures.
     TextureSettings { filter: TextureFilter::Linear, mipmaps: false, ..Default::default() }
-}
-
-// The input helpers below record their fields under the label, without its colon: "Size/Width".
-
-pub fn input_i32(ui_sys: &UiSystem, label: &str, value: &mut i32, read_only: bool, step: Option<i32>) -> bool {
-    let ui = ui_sys.ui();
-    ui.text(label);
-    ui.indent_by(5.0);
-
-    let path = dev::path_scope(ui_sys, label.trim_end_matches(':'));
-    let value_label = format_fixed_string!(128, "##_{}_value", label);
-    let edited = dev::input_int(ui_sys, &value_label, value, step.unwrap_or(1), None, read_only);
-    drop(path);
-
-    ui.unindent_by(5.0);
-    edited
-}
-
-pub fn input_i32_xy<T>(
-    ui_sys: &UiSystem,
-    label: &str,
-    value: &mut T,
-    read_only: bool,
-    steps: Option<[i32; 2]>,
-    field_labels: Option<[&str; 2]>,
-) -> bool
-where
-    T: FieldAccessorXY<i32>,
-{
-    let s = steps.unwrap_or([1, 1]);
-    let l = field_labels.unwrap_or(["X", "Y"]);
-
-    let ui = ui_sys.ui();
-    ui.text(label);
-    ui.indent_by(5.0);
-
-    let path = dev::path_scope(ui_sys, label.trim_end_matches(':'));
-    let label_x = format_fixed_string!(128, "{}##_{}_x", l[0], label);
-    let edited_x = dev::input_int(ui_sys, &label_x, value.x_mut(), s[0], None, read_only);
-    let label_y = format_fixed_string!(128, "{}##_{}_y", l[1], label);
-    let edited_y = dev::input_int(ui_sys, &label_y, value.y_mut(), s[1], None, read_only);
-    drop(path);
-
-    ui.unindent_by(5.0);
-    edited_x | edited_y
-}
-
-pub fn input_f32(ui_sys: &UiSystem, label: &str, value: &mut f32, read_only: bool, step: Option<f32>) -> bool {
-    let ui = ui_sys.ui();
-    ui.text(label);
-    ui.indent_by(5.0);
-
-    let path = dev::path_scope(ui_sys, label.trim_end_matches(':'));
-    let value_label = format_fixed_string!(128, "##_{}_value", label);
-    let edited = dev::input_float(ui_sys, &value_label, value, step.unwrap_or(1.0), Some("%.2f"), read_only);
-    drop(path);
-
-    ui.unindent_by(5.0);
-    edited
-}
-
-pub fn input_f32_xy<T>(
-    ui_sys: &UiSystem,
-    label: &str,
-    value: &mut T,
-    read_only: bool,
-    steps: Option<[f32; 2]>,
-    field_labels: Option<[&str; 2]>,
-) -> bool
-where
-    T: FieldAccessorXY<f32>,
-{
-    let s = steps.unwrap_or([1.0, 1.0]);
-    let l = field_labels.unwrap_or(["X", "Y"]);
-
-    let ui = ui_sys.ui();
-    ui.text(label);
-    ui.indent_by(5.0);
-
-    let path = dev::path_scope(ui_sys, label.trim_end_matches(':'));
-    let label_x = format_fixed_string!(128, "{}##_{}_x", l[0], label);
-    let edited_x = dev::input_float(ui_sys, &label_x, value.x_mut(), s[0], Some("%.2f"), read_only);
-    let label_y = format_fixed_string!(128, "{}##_{}_y", l[1], label);
-    let edited_y = dev::input_float(ui_sys, &label_y, value.y_mut(), s[1], Some("%.2f"), read_only);
-    drop(path);
-
-    ui.unindent_by(5.0);
-    edited_x | edited_y
-}
-
-pub fn input_color(ui_sys: &UiSystem, label: &str, value: &mut Color) -> bool {
-    let ui = ui_sys.ui();
-    ui.text(label);
-    ui.indent_by(5.0);
-
-    let path = dev::path_scope(ui_sys, label.trim_end_matches(':'));
-    let mut edited = false;
-    for (name, channel) in [("R", &mut value.r), ("G", &mut value.g), ("B", &mut value.b), ("A", &mut value.a)] {
-        let channel_label = format_fixed_string!(128, "{}##_{}_{}", name, label, name);
-        edited |= dev::slider(ui_sys, &channel_label, 0.0, 1.0, Some("%.2f"), channel);
-    }
-    drop(path);
-
-    ui.unindent_by(5.0);
-    edited
-}
-
-#[derive(Copy, Clone, PartialEq, Eq)]
-pub enum UiDPadDirection {
-    NE,
-    NW,
-    SE,
-    SW,
-}
-
-pub fn dpad_buttons(ui_sys: &UiSystem) -> Option<UiDPadDirection> {
-    let ui = ui_sys.ui();
-    let arrow_button = |id: &str, direction: imgui::Direction| {
-        let pressed = ui.arrow_button(id, direction);
-        dev::record_button(ui_sys, "button", id, None, None);
-        pressed
-    };
-
-    let mut direction_pressed = None;
-
-    ui.dummy([35.0, 0.0]);
-    ui.same_line();
-    ui.text("NE");
-
-    ui.dummy([35.0, 0.0]);
-    ui.same_line();
-    if arrow_button("NE", imgui::Direction::Up) {
-        direction_pressed = Some(UiDPadDirection::NE);
-    }
-
-    ui.text("NW");
-    ui.same_line();
-    if arrow_button("NW", imgui::Direction::Left) {
-        direction_pressed = Some(UiDPadDirection::NW);
-    }
-
-    ui.same_line();
-    ui.dummy([13.0, 0.0]);
-    ui.same_line();
-    if arrow_button("SE", imgui::Direction::Right) {
-        direction_pressed = Some(UiDPadDirection::SE);
-    }
-    ui.same_line();
-    ui.text("SE");
-
-    ui.dummy([35.0, 0.0]);
-    ui.same_line();
-    if arrow_button("SW", imgui::Direction::Down) {
-        direction_pressed = Some(UiDPadDirection::SW);
-    }
-    ui.dummy([35.0, 0.0]);
-    ui.same_line();
-    ui.text("SW");
-
-    direction_pressed
-}
-
-pub fn icon_button(ui_sys: &UiSystem, icon: char, tooltip: Option<&str>) -> bool {
-    let ui = ui_sys.ui();
-
-    let icon_font = ui.push_font(ui_sys.fonts().dev_icons);
-    let clicked = ui.button(icon.to_string());
-    icon_font.pop();
-
-    // Automation finds it by its tooltip, e.g. "Undo".
-    let mut icon_utf8 = [0; 4];
-    dev::record_button(ui_sys, "button", tooltip.unwrap_or(icon.encode_utf8(&mut icon_utf8)), None, None);
-
-    if ui.is_item_hovered()
-        && let Some(tooltip_text) = tooltip
-    {
-        ui.tooltip_text(tooltip_text)
-    }
-
-    clicked
-}
-
-pub fn icon_button_custom_tooltip<TooltipFn: FnOnce()>(ui_sys: &UiSystem, icon: char, tooltip_fn: TooltipFn) -> bool {
-    let ui = ui_sys.ui();
-
-    let icon_font = ui.push_font(ui_sys.fonts().dev_icons);
-    let clicked = ui.button(icon.to_string());
-    icon_font.pop();
-
-    let mut icon_utf8 = [0; 4];
-    dev::record_button(ui_sys, "button", icon.encode_utf8(&mut icon_utf8), None, None);
-
-    if ui.is_item_hovered() {
-        let tooltip = ui.begin_tooltip();
-        tooltip_fn();
-        tooltip.end();
-    }
-
-    clicked
-}
-
-pub fn custom_tooltip<TooltipFn: FnOnce()>(
-    ui_sys: &UiSystem,
-    font_scale: UiFontScale,
-    background: Option<UiTextureHandle>,
-    tooltip_fn: TooltipFn,
-) {
-    let ui = ui_sys.ui();
-    let tooltip = ui.begin_tooltip();
-
-    // NOTE:
-    // Always set font scale for tooltips because a tooltip is itself a window,
-    // so it will not inherit the current ui window font scale.
-    ui_sys.set_tooltip_font_scale(font_scale);
-
-    if let Some(bg_texture) = background {
-        let window_rect = Rect::from_pos_and_size(Vec2::from_array(ui.window_pos()), Vec2::from_array(ui.window_size()));
-
-        ui.get_window_draw_list().add_image(bg_texture, window_rect.min.to_array(), window_rect.max.to_array()).build();
-    }
-
-    tooltip_fn();
-    tooltip.end();
-
-    ui_sys.set_tooltip_font_scale(UiFontScale::default());
-}
-
-pub struct UiImageButtonParams<'a> {
-    pub id: &'a str,
-    pub size: Vec2,
-    pub ui_texture: UiTextureHandle,
-    pub tooltip: Option<&'a str>,
-    pub normal_color: Option<Color>,
-    pub hovered_color: Option<Color>,
-    pub selected_color: Option<Color>,
-    pub tint_color: Option<Color>,
-    pub top_left_uvs: Option<Vec2>,
-    pub bottom_right_uvs: Option<Vec2>,
-    pub selected: bool,
-}
-
-impl Default for UiImageButtonParams<'_> {
-    fn default() -> Self {
-        Self {
-            id: "",
-            size: Vec2::zero(),
-            ui_texture: INVALID_UI_TEXTURE_HANDLE,
-            tooltip: None,
-            normal_color: None,
-            hovered_color: None,
-            selected_color: None,
-            tint_color: None,
-            top_left_uvs: None,
-            bottom_right_uvs: None,
-            selected: false,
-        }
-    }
-}
-
-pub fn image_button(ui_sys: &UiSystem, params: &UiImageButtonParams) -> bool {
-    debug_assert!(!params.id.is_empty());
-    debug_assert!(params.size != Vec2::zero());
-    debug_assert!(params.ui_texture != INVALID_UI_TEXTURE_HANDLE);
-
-    fn to_imgui_uvs(uv: Vec2) -> Vec2 {
-        Vec2::new(uv.x, 1.0 - uv.y) // Invert Y
-    }
-
-    let tint_col = params.tint_color.unwrap_or_default().to_array();
-    let bg_col = if params.selected {
-        params.selected_color.unwrap_or_default().to_array()
-    } else {
-        params.normal_color.unwrap_or_default().to_array()
-    };
-
-    let top_left_uvs = to_imgui_uvs(params.top_left_uvs.unwrap_or(Vec2::new(0.0, 0.0)));
-    let bottom_right_uvs = to_imgui_uvs(params.bottom_right_uvs.unwrap_or(Vec2::new(1.0, 1.0)));
-
-    let ui = ui_sys.ui();
-
-    // No frame padding.
-    let frame_padding = ui.push_style_var(imgui::StyleVar::FramePadding([0.0, 0.0]));
-
-    let clicked = ui
-        .image_button_config(params.id, params.ui_texture, params.size.to_array())
-        .background_col(bg_col)
-        .tint_col(tint_col)
-        .uv0([top_left_uvs.x, bottom_right_uvs.y]) // Swap Ys
-        .uv1([bottom_right_uvs.x, top_left_uvs.y])
-        .build();
-
-    frame_padding.pop();
-
-    // Its value is whether it's selected, e.g. the tile palette's current tile.
-    dev::record_button(ui_sys, "image_button", params.id, params.tooltip, Some(serde_json::Value::Bool(params.selected)));
-
-    if ui.is_item_hovered() {
-        if let Some(hovered) = params.hovered_color {
-            // NOTE: ImGui hack to highlight a hovered button.
-            // Since we only know if the button was hovered *after* it has already
-            // been rendered, draw an semi-transparent overlay on top of the button
-            // that will be blended to simulate the hovered effect.
-            let draw_list = ui.get_window_draw_list();
-            let color = imgui::ImColor32::from_rgba_f32s(hovered.r, hovered.g, hovered.b, hovered.a);
-            draw_list.add_rect(ui.item_rect_min(), ui.item_rect_max(), color).filled(true).build();
-        }
-
-        // Show tooltip when hovered:
-        if let Some(tooltip) = params.tooltip {
-            ui.tooltip_text(tooltip);
-        }
-    }
-
-    clicked
-}
-
-// Keeps the next window's bottom on screen: a window taller than the room below its top, such as
-// an auto-resized one opened low on the screen, scrolls its contents instead of running off the
-// bottom. Call right before building the window.
-pub fn fit_next_window_on_screen() {
-    unsafe extern "C" fn fit_on_screen(data: *mut imgui::sys::ImGuiSizeCallbackData) {
-        const MARGIN: f32 = 4.0;
-        const MIN_HEIGHT: f32 = 100.0;
-
-        // SAFETY: ImGui passes valid data while it sizes the window, inside a frame.
-        unsafe {
-            let data = &mut *data;
-            let display_height = (*imgui::sys::igGetIO()).DisplaySize.y;
-            let max_height = (display_height - data.Pos.y - MARGIN).max(MIN_HEIGHT);
-            data.DesiredSize.y = data.DesiredSize.y.min(max_height);
-        }
-    }
-
-    let min_size = imgui::sys::ImVec2 { x: 0.0, y: 0.0 };
-    let max_size = imgui::sys::ImVec2 { x: f32::MAX, y: f32::MAX };
-
-    // SAFETY: Only sets state for the next Begin.
-    unsafe {
-        imgui::sys::igSetNextWindowSizeConstraints(min_size, max_size, Some(fit_on_screen), std::ptr::null_mut());
-    }
-}
-
-pub fn overlay<DrawFn: FnOnce()>(ui: &imgui::Ui, name: &str, position: Vec2, bg_alpha: f32, draw_fn: DrawFn) {
-    // Make the window background transparent and remove decorations.
-    let window_flags = imgui::WindowFlags::NO_DECORATION
-        | imgui::WindowFlags::NO_NAV
-        | imgui::WindowFlags::NO_MOVE
-        | imgui::WindowFlags::NO_MOUSE_INPUTS
-        | imgui::WindowFlags::NO_RESIZE
-        | imgui::WindowFlags::NO_SCROLLBAR
-        | imgui::WindowFlags::NO_COLLAPSE
-        | imgui::WindowFlags::NO_SAVED_SETTINGS
-        | imgui::WindowFlags::NO_FOCUS_ON_APPEARING
-        | imgui::WindowFlags::ALWAYS_AUTO_RESIZE;
-
-    ui.window(name)
-        .position(position.to_array(), imgui::Condition::Always)
-        .flags(window_flags)
-        .bg_alpha(bg_alpha) // Semi-transparent
-        .build(draw_fn);
 }
 
 // ----------------------------------------------
@@ -1309,9 +713,8 @@ impl<T> UiStaticVar<T> {
     }
 }
 
-// SAFETY: ImGui code always executes from the main thread, so we don't mind
-// using local static config vars for debug ImGui widgets. is_main_thread()
-// asserts prevent misuse.
+// SAFETY: UI code always executes from the main thread, so we don't mind using local static config
+// vars for debug UI widgets. is_main_thread() asserts prevent misuse.
 unsafe impl<T> Sync for UiStaticVar<T> {}
 
 // Implement Deref/DerefMut to allow `&*value` or `value.field` syntax.

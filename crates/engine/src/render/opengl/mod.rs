@@ -17,8 +17,9 @@ use super::{
     RenderSystemBackend,
     RenderSystemInitParams,
     capture::{self, CaptureQueue, CaptureResult, CapturedImage},
+    ui_draw::UiDrawData,
 };
-use crate::{log, ui::UiRenderFrameBundle};
+use crate::log;
 
 mod batch;
 mod buffer;
@@ -106,6 +107,48 @@ impl OpenGlSystemState {
         self.points_batch.sync();
         self.points_batch.draw_fast(&mut self.render_context, &self.points_shader.program);
         self.points_batch.clear();
+    }
+
+    // Draws the UI over what's in the screen's back buffer: one upload, then a draw per command.
+    fn draw_ui(&mut self, ui_draw_data: &UiDrawData, tex_cache: &mut super::texture::TextureCache) {
+        debug_assert!(self.frame_started);
+
+        if ui_draw_data.is_empty() {
+            return;
+        }
+
+        self.ui_batch.upload(&mut self.render_context, ui_draw_data.vertices(), ui_draw_data.indices());
+
+        self.render_context
+            .set_alpha_blend(AlphaBlend::Premultiplied)
+            .set_clip_test(ClipTest::Enabled)
+            .set_primitive_topology(PrimitiveTopology::Triangles)
+            .set_shader_program(&self.ui_shader.program);
+
+        let framebuffer_height = self.framebuffer_size.height as u32;
+        let mut last_texture = None;
+
+        for command in ui_draw_data.commands() {
+            // glScissor counts rows from the bottom, UiClipRect from the top.
+            let clip = command.clip_rect;
+            let clip_y = framebuffer_height.saturating_sub(clip.y + clip.height);
+            self.render_context.set_clip_rect(clip.x, clip_y, clip.width, clip.height);
+
+            if last_texture != Some(command.texture) {
+                last_texture = Some(command.texture);
+                let gl_texture = tex_cache.texture_for_handle(command.texture).as_opengl();
+                self.ui_shader.set_sprite_texture(gl_texture);
+                self.render_context.set_texture(gl_texture);
+            }
+
+            self.ui_batch.draw(&mut self.render_context, command);
+            self.stats.triangles_drawn += command.index_count / 3;
+        }
+
+        self.render_context.unset_vertex_array();
+        self.render_context.unset_shader_program();
+
+        self.render_context.set_clip_test(ClipTest::Disabled).set_alpha_blend(AlphaBlend::Enabled);
     }
 
     // Reads back what has been drawn to the screen's back buffer so far.
@@ -232,7 +275,7 @@ impl RenderSystemBackend for OpenGlRenderSystemBackend {
 
     fn end_frame(
         &mut self,
-        ui_frame_bundle: &mut UiRenderFrameBundle,
+        ui_draw_data: &UiDrawData,
         tex_cache: &mut super::texture::TextureCache,
         captures: &mut CaptureQueue,
     ) -> RenderStats {
@@ -258,7 +301,7 @@ impl RenderSystemBackend for OpenGlRenderSystemBackend {
         }
 
         // Render UI last so it will draw over the tile map.
-        ui_frame_bundle.render();
+        s.draw_ui(ui_draw_data, tex_cache);
 
         if !pending_captures.with_ui.is_empty() {
             captures.finish(&pending_captures.with_ui, s.read_screen_pixels());
@@ -297,56 +340,6 @@ impl RenderSystemBackend for OpenGlRenderSystemBackend {
     #[inline]
     fn set_framebuffer_size(&mut self, new_size: Size) {
         self.state_mut().set_framebuffer_size(new_size);
-    }
-
-    // ----------------------
-    // UI (ImGui) Drawing:
-    // ----------------------
-
-    fn begin_ui_render(&mut self) {
-        let s = self.state_mut();
-        s.render_context.set_clip_test(ClipTest::Enabled);
-        s.ui_batch.begin(&mut s.render_context, &s.ui_shader.program);
-    }
-
-    fn end_ui_render(&mut self) {
-        let s = self.state_mut();
-        s.ui_batch.end(&mut s.render_context);
-        s.render_context.set_clip_test(ClipTest::Disabled);
-    }
-
-    fn set_ui_draw_buffers(&mut self, vtx_buffer: &[super::UiDrawVertex], idx_buffer: &[super::UiDrawIndex]) {
-        debug_assert!(!vtx_buffer.is_empty() && !idx_buffer.is_empty());
-        let s = self.state_mut();
-        s.ui_batch.sync(&mut s.render_context, vtx_buffer, idx_buffer);
-    }
-
-    fn draw_ui_elements(
-        &mut self,
-        first_index: u32,
-        index_count: u32,
-        texture: super::texture::TextureHandle,
-        tex_cache: &mut super::texture::TextureCache,
-        clip_rect: Rect,
-    ) {
-        debug_assert!(index_count.is_multiple_of(3)); // We expect triangles.
-
-        let s = self.state_mut();
-
-        // Flip Y from top-left origin (ImGui) to bottom-left origin (OpenGL glScissor).
-        let fb_h = s.framebuffer_size.height as f32;
-        let gl_clip_rect = Rect::from_pos_and_size(
-            Vec2::new(clip_rect.x(), (fb_h - clip_rect.y() - clip_rect.height()).max(0.0)),
-            Vec2::new(clip_rect.width(), clip_rect.height()),
-        );
-        s.render_context.set_clip_rect(gl_clip_rect);
-
-        let gl_texture = tex_cache.texture_for_handle(texture).as_opengl();
-        s.ui_shader.set_sprite_texture(gl_texture);
-        s.render_context.set_texture(gl_texture);
-
-        s.ui_batch.draw(&mut s.render_context, first_index, index_count);
-        s.stats.triangles_drawn += index_count / 3;
     }
 
     // ----------------------

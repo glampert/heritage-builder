@@ -7,7 +7,7 @@ use common::{
     coords::{CellRange, WorldToScreenTransform},
 };
 use engine::{
-    ui::{UiSystem, dev},
+    ui::{self, UiNumberFormat, UiSystem},
 };
 
 use crate::{
@@ -141,21 +141,21 @@ pub trait GameObjectDebugOptions {
     fn draw_debug_ui(&mut self, ui_sys: &UiSystem) {
         let mut vars = self.get_vars();
         if !vars.is_empty() {
-            let flags = imgui::TreeNodeFlags::empty();
-            if let Some(_path) = dev::collapsing_header_scope(ui_sys, "Debug Options##_game_obj_debug_opts", flags) {
+            let flags = false;
+            if let Some(_path) = ui::collapsing_header_scope(ui_sys, "Debug Options##_game_obj_debug_opts", flags) {
                 for var in &mut vars {
                     match &mut var.value {
                         GameObjectDebugVarRef::Bool(value) => {
                             let label = common::fixed_string::snake_case_to_title::<64>(var.name);
-                            dev::checkbox(ui_sys, &label, value);
+                            ui::checkbox(ui_sys, &label, value);
                         }
                         GameObjectDebugVarRef::I32(value) => {
                             let label = common::fixed_string::snake_case_to_title::<64>(var.name);
-                            dev::input_int(ui_sys, &label, value, 1, None, false);
+                            ui::input_int(ui_sys, &label, value, 1, UiNumberFormat::Default, false);
                         }
                         GameObjectDebugVarRef::F32(value) => {
                             let label = common::fixed_string::snake_case_to_title::<64>(var.name);
-                            dev::input_float(ui_sys, &label, value, 1.0, Some("%.2f"), false);
+                            ui::input_float(ui_sys, &label, value, 1.0, UiNumberFormat::Decimals(2), false);
                         }
                     }
                 }

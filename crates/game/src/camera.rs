@@ -568,12 +568,10 @@ impl Camera {
         // Camera center point, in screen/render space:
         let camera_center = self.viewport_center();
         debug_draw.point(camera_center, Color::magenta(), 15.0);
-
-        let ui = ui_sys.ui();
-        ui::overlay(ui, "Camera Center", camera_center, 0.6, || {
-            ui.text(format!("C:{:.1},{:.1}", camera_center.x, camera_center.y));
-            ui.text(format!("O:{:.1},{:.1}", self.current_scroll().x, self.current_scroll().y));
-            ui.text(format!("I:{:.1},{:.1}", self.iso_world_position().0.x, self.iso_world_position().0.y));
+        ui::overlay(ui_sys, ui::UiOverlay::new("Camera Center", camera_center).bg_alpha(0.6), |ui_sys| {
+            ui::text(ui_sys, format_args!("C:{:.1},{:.1}", camera_center.x, camera_center.y));
+            ui::text(ui_sys, format_args!("O:{:.1},{:.1}", self.current_scroll().x, self.current_scroll().y));
+            ui::text(ui_sys, format_args!("I:{:.1},{:.1}", self.iso_world_position().0.x, self.iso_world_position().0.y));
         });
     }
 }

@@ -4,22 +4,19 @@ use common::format_small;
 
 use crate::{
     render::texture::{TextureCache, TextureFilter, TextureSettings, TextureWrapMode},
-    ui::{DrawDebugUi, UiSystem, dev},
+    ui::{self, DrawDebugUi, UiSystem},
 };
 
 // Lists all loaded textures and exposes the global filtering settings.
 impl DrawDebugUi for TextureCache {
     fn draw_debug_ui(&mut self, ui_sys: &UiSystem) {
-        let ui = ui_sys.ui();
+        let Some(tab) = ui::tab_bar(ui_sys, "Texture Cache Tab Bar", &["Filtering", "Loaded Textures"]) else {
+            return;
+        };
 
-        if let Some(_tab_bar) = ui.tab_bar("Texture Cache Tab Bar") {
-            if let Some(_tab) = dev::tab_item(ui_sys, "Filtering") {
-                draw_filtering(self, ui_sys);
-            }
-
-            if let Some(_tab) = dev::tab_item(ui_sys, "Loaded Textures") {
-                draw_loaded_textures(self, ui);
-            }
+        match tab.index {
+            0 => draw_filtering(self, ui_sys),
+            _ => draw_loaded_textures(self, ui_sys),
         }
     }
 }
@@ -29,13 +26,13 @@ fn draw_filtering(cache: &mut TextureCache, ui_sys: &UiSystem) {
     let mut settings_changed = false;
 
     let mut current_filter_index = current_settings.filter as usize;
-    settings_changed |= dev::combo(ui_sys, "Filter", &mut current_filter_index, TextureFilter::VARIANTS);
+    settings_changed |= ui::combo(ui_sys, "Filter", &mut current_filter_index, TextureFilter::VARIANTS);
 
     let mut current_wrap_mode_index = current_settings.wrap_mode as usize;
-    settings_changed |= dev::combo(ui_sys, "Wrap Mode", &mut current_wrap_mode_index, TextureWrapMode::VARIANTS);
+    settings_changed |= ui::combo(ui_sys, "Wrap Mode", &mut current_wrap_mode_index, TextureWrapMode::VARIANTS);
 
     let mut current_gen_mipmaps = current_settings.mipmaps;
-    settings_changed |= dev::checkbox(ui_sys, "Mipmaps", &mut current_gen_mipmaps);
+    settings_changed |= ui::checkbox(ui_sys, "Mipmaps", &mut current_gen_mipmaps);
 
     if settings_changed {
         let new_settings = TextureSettings {
@@ -47,43 +44,30 @@ fn draw_filtering(cache: &mut TextureCache, ui_sys: &UiSystem) {
     }
 }
 
-fn draw_loaded_textures(cache: &TextureCache, ui: &imgui::Ui) {
-    let table_col = |label: &str| {
-        ui.text(label);
-        ui.next_column();
-    };
-
+fn draw_loaded_textures(cache: &TextureCache, ui_sys: &UiSystem) {
     let bool_str = |val: bool| {
         if val { "yes" } else { "no" }
     };
 
-    ui.text(format_small!("Loaded Count: {}", cache.loaded_textures_count()));
-    ui.separator();
+    ui::text(ui_sys, format_small!("Loaded Count: {}", cache.loaded_textures_count()));
+    ui::separator(ui_sys);
 
-    // Set number of rows (emulated with columns):
-    ui.columns(7, "texture_columns", true);
+    ui::grid(ui_sys, "texture_columns", 7, |grid| {
+        // Header row:
+        for header in ["Index", "Name", "Size", "Change Settings", "Mipmaps", "Filter", "Wrap Mode"] {
+            grid.text(header);
+        }
 
-    // Header row:
-    table_col("Index");
-    table_col("Name");
-    table_col("Size");
-    table_col("Change Settings");
-    table_col("Mipmaps");
-    table_col("Filter");
-    table_col("Wrap Mode");
+        grid.separator();
 
-    ui.separator();
-
-    for info in cache.loaded_textures_debug_info() {
-        table_col(&format_small!("{}", info.index));
-        table_col(info.name);
-        table_col(&format_small!("{}x{}", info.size.width, info.size.height));
-        table_col(bool_str(info.allow_settings_change));
-        table_col(bool_str(info.has_mipmaps));
-        table_col(&format_small!("{}", info.filter));
-        table_col(&format_small!("{}", info.wrap_mode));
-    }
-
-    // Return to single column.
-    ui.columns(1, "", false);
+        for info in cache.loaded_textures_debug_info() {
+            grid.text(format_small!("{}", info.index));
+            grid.text(info.name);
+            grid.text(format_small!("{}x{}", info.size.width, info.size.height));
+            grid.text(bool_str(info.allow_settings_change));
+            grid.text(bool_str(info.has_mipmaps));
+            grid.text(format_small!("{}", info.filter));
+            grid.text(format_small!("{}", info.wrap_mode));
+        }
+    });
 }

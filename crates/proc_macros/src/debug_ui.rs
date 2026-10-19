@@ -22,19 +22,19 @@ use syn::{
 | Attribute                   | Effect                         |
 | --------------------------- | ------------------------------ |
 | #[debug_ui(skip)]           | Skip the field entirely        |
-| #[debug_ui(separator)]      | Add ui.separator() after       |
+| #[debug_ui(separator)]      | Add a separator after          |
 | #[debug_ui(nested)]         | Nested struct with own fn      |
 | #[debug_ui(debug)]          | Format value with {:?} (Debug) |
 | #[debug_ui(label = "...")]  | Override default label         |
 | #[debug_ui(format = "...")] | Use custom format string       |
-| #[debug_ui(edit = "...")]   | Use imgui edit widget          |
+| #[debug_ui(edit = "...")]   | Use an edit widget             |
 
 | Only meaningful when used together with `edit`:
 | ----------------------------------- | -------------------------------- |
 | #[debug_ui(step = "...")]           | Edit widget step (int, float)    |
 | #[debug_ui(min = "...")]            | Edit widget min (int, float)     |
 | #[debug_ui(max = "...")]            | Edit widget max (int, float)     |
-| #[debug_ui(display_format = "...")] | Edit widget display_format       |
+| #[debug_ui(decimals = "...")]       | Edit widget decimals (float)     |
 | #[debug_ui(widget = "...")]         | Edit widget kind (e.g. "slider") |
 */
 
@@ -50,7 +50,7 @@ struct DebugUiAttrs {
     step: Option<String>,
     min: Option<String>,
     max: Option<String>,
-    display_format: Option<String>,
+    decimals: Option<String>,
     widget: Option<String>,
 }
 
@@ -91,10 +91,10 @@ fn parse_debug_ui_attrs(attrs: &[Attribute]) -> DebugUiAttrs {
                 let value = meta.value()?;
                 let max: LitStr = value.parse()?;
                 result.max = Some(max.value());
-            } else if meta.path.is_ident("display_format") {
+            } else if meta.path.is_ident("decimals") {
                 let value = meta.value()?;
-                let display_format: LitStr = value.parse()?;
-                result.display_format = Some(display_format.value());
+                let decimals: LitStr = value.parse()?;
+                result.decimals = Some(decimals.value());
             } else if meta.path.is_ident("widget") {
                 let value = meta.value()?;
                 let widget: LitStr = value.parse()?;
@@ -157,7 +157,7 @@ fn calc_field_name_padding(fields: &Punctuated<Field, Comma>) -> usize {
     for field in fields.iter() {
         let attrs = parse_debug_ui_attrs(&field.attrs);
         if attrs.skip || attrs.edit.is_some() {
-            // edit fields use imgui input widgets.
+            // edit fields use input widgets.
             continue;
         }
 
@@ -229,7 +229,7 @@ pub fn draw_debug_ui_proc_macro_impl(input: proc_macro::TokenStream) -> proc_mac
 
         let mut tokens = TokenStream::new();
 
-        // Use imgui edit widget?
+        // Use an edit widget?
         if let Some(edit) = attrs.edit {
             let read_only = {
                 if edit.is_empty() {
@@ -262,67 +262,68 @@ pub fn draw_debug_ui_proc_macro_impl(input: proc_macro::TokenStream) -> proc_mac
                 FieldKind::Bool => {
                     if read_only {
                         if button {
-                            quote! { ::engine::ui::dev::button(ui_sys, #label_str); }
+                            quote! { ::engine::ui::button(ui_sys, #label_str); }
                         } else {
-                            quote! { ::engine::ui::dev::read_only_checkbox(ui_sys, #label_str, self.#field_name); }
+                            quote! { ::engine::ui::read_only_checkbox(ui_sys, #label_str, self.#field_name); }
                         }
                     } else if button {
-                        quote! { self.#field_name = ::engine::ui::dev::button(ui_sys, #label_str); }
+                        quote! { self.#field_name = ::engine::ui::button(ui_sys, #label_str); }
                     } else {
-                        quote! { ::engine::ui::dev::checkbox(ui_sys, #label_str, &mut self.#field_name); }
+                        quote! { ::engine::ui::checkbox(ui_sys, #label_str, &mut self.#field_name); }
                     }
                 }
                 FieldKind::Int => {
-                    let display_format = attrs.display_format.unwrap_or("%i".into());
+                    let number_format = quote! { ::engine::ui::UiNumberFormat::Default };
                     if slider {
                         let min: i32 = attrs.min.unwrap_or("0".into()).parse().expect("Invalid 'min' attribute!");
                         let max: i32 = attrs.max.unwrap_or("999".into()).parse().expect("Invalid 'max' attribute!");
                         if read_only {
                             quote! {
-                                ::engine::ui::dev::read_only_slider(
-                                    ui_sys, #label_str, #min, #max, Some(#display_format), self.#field_name);
+                                ::engine::ui::read_only_slider(
+                                    ui_sys, #label_str, #min, #max, #number_format, self.#field_name);
                             }
                         } else {
                             quote! {
-                                ::engine::ui::dev::slider(
-                                    ui_sys, #label_str, #min, #max, Some(#display_format), &mut self.#field_name);
+                                ::engine::ui::slider(
+                                    ui_sys, #label_str, #min, #max, #number_format, &mut self.#field_name);
                             }
                         }
                     } else {
                         let step: i32 = attrs.step.unwrap_or("1".into()).parse().expect("Invalid 'step' attribute!");
                         quote! {
-                            ::engine::ui::dev::input_int(
-                                ui_sys, #label_str, &mut self.#field_name, #step, Some(#display_format), #read_only);
+                            ::engine::ui::input_int(
+                                ui_sys, #label_str, &mut self.#field_name, #step, #number_format, #read_only);
                         }
                     }
                 }
                 FieldKind::Float => {
-                    let display_format = attrs.display_format.unwrap_or("%.2f".into());
+                    let decimals: u8 = attrs.decimals.unwrap_or("2".into()).parse().expect("Invalid 'decimals' attribute!");
+                    let number_format = quote! { ::engine::ui::UiNumberFormat::Decimals(#decimals) };
                     if slider {
                         let min: f32 = attrs.min.unwrap_or("0.0".into()).parse().expect("Invalid 'min' attribute!");
                         let max: f32 = attrs.max.unwrap_or("999.0".into()).parse().expect("Invalid 'max' attribute!");
                         if read_only {
                             quote! {
-                                ::engine::ui::dev::read_only_slider(
-                                    ui_sys, #label_str, #min, #max, Some(#display_format), self.#field_name);
+                                ::engine::ui::read_only_slider(
+                                    ui_sys, #label_str, #min, #max, #number_format, self.#field_name);
                             }
                         } else {
                             quote! {
-                                ::engine::ui::dev::slider(
-                                    ui_sys, #label_str, #min, #max, Some(#display_format), &mut self.#field_name);
+                                ::engine::ui::slider(
+                                    ui_sys, #label_str, #min, #max, #number_format, &mut self.#field_name);
                             }
                         }
                     } else {
                         let step: f32 = attrs.step.unwrap_or("1.0".into()).parse().expect("Invalid 'step' attribute!");
                         quote! {
-                            ::engine::ui::dev::input_float(
-                                ui_sys, #label_str, &mut self.#field_name, #step, Some(#display_format), #read_only);
+                            ::engine::ui::input_float(
+                                ui_sys, #label_str, &mut self.#field_name, #step, #number_format, #read_only);
                         }
                     }
                 }
                 FieldKind::String => {
                     quote! {
-                        ::engine::ui::dev::input_text(ui_sys, #label_str, &mut self.#field_name, #read_only);
+                        ::engine::ui::input_text(ui_sys, #label_str, &mut self.#field_name, #read_only);
                     }
                 }
                 FieldKind::Unknown => {
@@ -334,7 +335,7 @@ pub fn draw_debug_ui_proc_macro_impl(input: proc_macro::TokenStream) -> proc_mac
                         }
                     } else {
                         // Fallback: Try format Display text.
-                        quote! { ui.text(format!(#format_str_lit, self.#field_name)); }
+                        quote! { ::engine::ui::text(ui_sys, format_args!(#format_str_lit, self.#field_name)); }
                     }
                 }
             };
@@ -349,13 +350,13 @@ pub fn draw_debug_ui_proc_macro_impl(input: proc_macro::TokenStream) -> proc_mac
         } else {
             // Read only text field.
             tokens.extend(quote! {
-                ui.text(format!(#format_str_lit, self.#field_name));
+                ::engine::ui::text(ui_sys, format_args!(#format_str_lit, self.#field_name));
             });
         }
 
         if attrs.separator {
             tokens.extend(quote! {
-                ui.separator();
+                ::engine::ui::separator(ui_sys);
             });
         }
 
@@ -369,12 +370,10 @@ pub fn draw_debug_ui_proc_macro_impl(input: proc_macro::TokenStream) -> proc_mac
     // `&mut self` (the trait signature); `draw_debug_ui_with_header` comes from the
     // trait's default method. Paths are fully-qualified so the generated code resolves
     // identically in the engine crate (via `extern crate self as engine;`) and game crate.
-    // Edit widgets come from `engine::ui::dev`, so UI automation can drive them.
+    // The widgets record themselves for UI automation, so it can drive them.
     let output = quote! {
         impl #impl_generics ::engine::ui::DrawDebugUi for #struct_name #ty_generics #where_clause {
             fn draw_debug_ui(&mut self, ui_sys: &::engine::ui::UiSystem) {
-                #[allow(unused_variables)] // Structs with only edit fields draw through ui_sys.
-                let ui = ui_sys.ui();
                 #(#field_lines)*
             }
         }

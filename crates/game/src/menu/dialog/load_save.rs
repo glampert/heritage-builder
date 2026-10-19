@@ -116,6 +116,7 @@ impl SaveGameHelper {
             UiMessageBoxParams {
                 label: Some("Overwrite Save Game Popup".into()),
                 background: Some(DEFAULT_DIALOG_POPUP_BACKGROUND_SPRITE),
+                content_insets: Some(DEFAULT_DIALOG_POPUP_CONTENT_INSETS),
                 contents: vec![UiWidgetImpl::from(UiMenuHeading::new(context, UiMenuHeadingParams {
                     lines: vec![UiText::new("Overwrite existing save game?".into(), DEFAULT_DIALOG_POPUP_FONT_SCALE)],
                     separator: Some(LARGE_HORIZONTAL_SEPARATOR_SPRITE),
@@ -177,9 +178,7 @@ impl SaveGameHelper {
 
         let save_files_list = UiItemList::new(context, UiItemListParams {
             font_scale: DEFAULT_DIALOG_MENU_WIDGET_FONT_SCALE,
-            size: Some(Vec2::new(0.0, 250.0)), // Use whole parent window width minus margin, fixed height.
-            margin_left: 95.0,
-            margin_right: 100.0,
+            size: Some(Vec2::new(0.0, 250.0)), // The menu's content width, fixed height.
             flags: UiItemListFlags::Border
                 | UiItemListFlags::TextInputField
                 | UiItemListFlags::Scrollbars

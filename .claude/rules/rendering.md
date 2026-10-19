@@ -5,7 +5,7 @@ paths:
 
 # Renderer notes
 
-Last verified against the code on 2026-10-15.
+Last verified against the code on 2026-10-18.
 
 ## Backends
 
@@ -15,9 +15,10 @@ Last verified against the code on 2026-10-15.
 
 ## Frame structure
 
-- Draw calls are batched per primitive in `DrawBatch`es: sprites (triangles), lines, points, plus a separate ImGui UI batch. Both backends have sprite, line and point pipelines.
+- Draw calls are batched per primitive in `DrawBatch`es: sprites (triangles), lines, points. Both backends have sprite, line and point pipelines.
 - The scene renders into an offscreen `RenderTarget` and is then blitted to the screen (OpenGL `RenderTarget::blit_filter`; Wgpu `blit_pipeline` + `blit.wgsl`).
-- Wgpu records UI draws as commands and replays them in a dedicated UI pass in `end_frame`.
+- The UI draws last, over the blitted scene. It arrives whole in `RenderSystem::end_frame(&UiDrawData)` (`render/ui_draw.rs`): one vertex buffer of `UiVertex` (laid out like egui's), `u32` indices, and commands, each with an index range, a base vertex, a `TextureHandle` and a scissor rect in framebuffer pixels (top-left origin, already clamped and never empty). Both backends upload it once a frame and issue one base-vertex draw per command (`glDrawElementsBaseVertex`; Wgpu's `base_vertex`, in a dedicated UI pass). `UiSystem::end_frame` builds it (`ui/renderer.rs`); the render module doesn't depend on `ui`.
+- The UI blends with premultiplied alpha (`ONE, ONE_MINUS_SRC_ALPHA`): vertex colors are premultiplied, textures keep straight alpha like every other texture, and the UI shaders premultiply each texel. The scene's sprites, lines and points keep straight-alpha blending. Both surfaces are non-sRGB; Wgpu logs a warning if it has to use an sRGB one.
 
 ## Frame capture (screenshots)
 
@@ -32,6 +33,7 @@ Last verified against the code on 2026-10-15.
 - `TextureCache` (`render/texture.rs`) is a `Slab` of backend textures plus a pre-hashed name→index lookup. It has no LRU and no eviction. The `tex_cache_initial_capacity: 128` is only a capacity hint.
 - Two textures whose names hash to the same value cause a panic ("TextureCache key collision").
 - Built-in 8×8 handles: `TextureHandle::Invalid` (dummy) and `TextureHandle::White`.
+- Textures the UI library manages itself (its font atlas) go through `UiManagedTextures` (`ui/renderer.rs`): created on their first full update, updated in place by partial ones, recreated under a new name when a full update changes their size or settings. A replaced or freed texture is released a frame later, once the frame that may still draw it has been drawn.
 
 ## Culling
 

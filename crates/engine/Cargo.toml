@@ -45,7 +45,7 @@ pollster       = { version = "0.4",  optional = true }
 bytemuck       = { version = "1.21", features = ["derive"] }
 wgpu           = "28.0.0"
 winit          = "0.30.13"
-imgui          = "0.12"
+egui           = { version = "0.37", default-features = false, features = ["bytemuck"] }
 web-time       = { version = "1", optional = true }
 texture_packer = { git = "https://github.com/glampert/texture_packer", rev = "980824d1" }
 image          = "0.25.6"

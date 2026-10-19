@@ -54,7 +54,7 @@ Work moves from a Claude Code cloud session to a local machine here. (Kept for h
   - Mac keys: F12 needs Fn unless function keys are set as standard keys. GLFW maps the PC-style PrintScreen key to `PrintScreen`; winit reports it as F13, which isn't bound.
   - The console's [`] key on non-US keyboard layouts.
 - **Next task:** the rest of Phase 2. Start with script mode (`--script`): it gives every later phase a way to test itself. Then add the remaining commands, using the implementation notes under Phase 2 (they flag the APIs that panic on bad input). Then add the sample scenarios.
-- **Local setup:** macOS needs none of the cloud-only packages (`xvfb`, `mesa-vulkan-drivers`, `libxkbcommon-x11-0`, `xdotool`). Run the game directly. For agent-style checks, use `--screenshot-after-frames N --screenshot-out out/x.png` and read the PNG. The web build uses Homebrew `llvm` + `wasi-libc` (see AGENTS.md).
+- **Local setup:** macOS needs none of the cloud-only packages (`xvfb`, `mesa-vulkan-drivers`, `libxkbcommon-x11-0`, `xdotool`). Run the game directly. For agent-style checks, use `--screenshot-after-frames N --screenshot-out out/x.png` and read the PNG.
 
 ## Goals
 
@@ -72,7 +72,7 @@ The plan has seven parts:
 1. **One command registry** in the game crate. Named commands take JSON parameters and return JSON results. They run on the main thread at one safe point in `GameLoop::update`.
 2. **Three ways in, built in this order.** First a `--script` run mode, which works for agents with nothing but bash. Then a localhost JSON-RPC server with a small `hb-ctl` CLI client. Then a `window.heritage` bridge for the web build that Playwright can drive.
 3. **Deterministic time.** A fixed frame delta, plus commands that step frames or fast-forward the simulation.
-4. **Simulated input** through a virtual override in `InputSystem`. Injected events alone are not enough, because ImGui, the minimap and edge scrolling poll the cursor and button state every frame.
+4. **Simulated input** through a virtual override in `InputSystem`. Injected events alone are not enough, because the UI, the minimap and edge scrolling poll the cursor and button state every frame.
 5. **UI automation.** The retained widget layer records each widget's label and screen rect every frame, so an agent can ask for the widget tree and click a button by name.
 6. **Framebuffer capture** for both renderers. Players get a PrintScreen hotkey; agents get a `screenshot` command.
 7. **Observability:** state queries, a log feed with more than one listener, and frame stats.
@@ -89,7 +89,7 @@ The plan has seven parts:
 | Headless sim | Proven | The integration test harness runs the simulation without a window (`crates/game/tests/test_utils/mod.rs`). `--smoke-test-saves` is a precedent for a scripted run mode (`game_loop.rs:64`). |
 | Crash reporting | Partial | On desktop, a panic hook logs the message and a backtrace (`crates/engine/src/platform/desktop/crash_report.rs:61`). The web build uses `console_error_panic_hook` (`platform/web/crash_report.rs`). Nothing is written to a file or sent to a client. |
 | Audio without a device | OK | Kira init failure logs an error and returns `None` instead of panicking (`sound/kira/mod.rs:63`), so headless CI should not be blocked by audio. |
-| Event injection | Partial | `Application::push_event` exists for the web runner (`app/mod.rs:125`). However, ImGui reads cursor position and button state straight from `InputSystem` every frame (`UiSystem` `update_input`, `ui/mod.rs:445`), and so do the minimap (`tile/minimap.rs:718`, `731`) and camera edge scrolling. The GLFW backend reads the cursor from the OS window (`app/glfw/input.rs:23`). Pushing events alone cannot drive the UI. |
+| Event injection | Partial | `Application::push_event` exists for the web runner (`app/mod.rs:125`). However, the UI system reads cursor position and button state straight from `InputSystem` every frame (`UiSystem` `update_input`, `ui/mod.rs:445`), and so do the minimap (`tile/minimap.rs:718`, `731`) and camera edge scrolling. The GLFW backend reads the cursor from the OS window (`app/glfw/input.rs:23`). Pushing events alone cannot drive the UI. |
 | Frame timing | Gap | `FrameClock` uses wall-clock time (`crates/common/src/time.rs:29`). How many sim ticks run depends on frame rate, so two runs of the same script can diverge. |
 | Determinism | Gap | `sim/resources.rs` stores `employers` (line 171) and `employee_households` (line 353) in std `HashMap`s with random seeding, and `for_each_employer` (line 200) iterates them with early exit. See [Determinism audit](#determinism-audit). |
 | Screenshots | Missing | No readback path. OpenGL draws UI onto the backbuffer after the scene blit (`render/opengl/mod.rs:216`, `222`). Wgpu creates its surface with `RENDER_ATTACHMENT` only (`render/wgpu/mod.rs:198`, `runner/web.rs:327`), and the offscreen target lacks `COPY_SRC` (`render/wgpu/target.rs:33`). |
@@ -131,7 +131,7 @@ flowchart LR
 
 ### Execution point
 
-Drain the queue in `GameLoop::update` right after `self.session_cmd_queue.execute(...)` (`game_loop.rs:174`) and before input events and `update_simulation`. At that point the world is unlocked, no `SimContext` is live, and the engine frame has started, so ImGui queries are valid.
+Drain the queue in `GameLoop::update` right after `self.session_cmd_queue.execute(...)` (`game_loop.rs:174`) and before input events and `update_simulation`. At that point the world is unlocked, no `SimContext` is live, and the engine frame has started, so UI queries are valid.
 
 - World edits go through `TilePlacement` or an `ImmediateModeSimCmds` built from a fresh context. `GameSession` needs small helpers that build a `SimContext` or `GameUiContext` from its private fields (see the `make_ui_widget_context!` macro in `session.rs`), because the borrows must be split inside the session.
 - Session-level changes are pushed onto `GameSessionCmdQueue`. That queue runs at the start of the next frame, so the reply waits until it has run.
@@ -228,12 +228,12 @@ Fix: switch both to a deterministic map. `BTreeMap` works if the keys implement 
 
 ## Simulated input
 
-Pushing events is only half of input. The other half is state that gets polled every frame: ImGui sets `io.mouse_pos` and `mouse_down` from `InputSystem`, camera edge scrolling uses the cursor position from `Engine::begin_frame`, and the minimap polls the left button directly. With the shipped GLFW backend, cursor position comes from the OS window.
+Pushing events is only half of input. The other half is state that gets polled every frame: the UI takes its pointer position and buttons from `InputSystem`, camera edge scrolling uses the cursor position from `Engine::begin_frame`, and the minimap polls the left button directly. With the shipped GLFW backend, cursor position comes from the OS window.
 
 - **Virtual state.** Add a `VirtualInput` layer inside the frontend `InputSystem`, above both backends. It holds cursor position, button states, key states and modifiers. When it's active, `cursor_pos()`, `mouse_button_state()` and `key_state()` return virtual values.
 - **Synthetic events need their own queue.** The web runner already uses `Application::push_event` for real browser input, so synthetic events can't share it. Add `Application::push_synthetic_event`, merged in `poll_events`, so routing in `Engine::poll_app_events` stays unchanged.
 - **Input capture mode.** While an agent drives, real input events are dropped (except `Quit` and `WindowResize`), and cursor confinement stops warping the real cursor (see `confine_cursor_to_window` in `app/winit/mod.rs`; check the GLFW path too). Otherwise the user's real mouse resting near a window edge would scroll the map in the middle of a test. A visible "AUTOMATION" badge, drawn with `ui::overlay`, makes the mode obvious.
-- **Frame-spread gestures.** Mouse state is polled once per frame, so a press and release in the same frame is never seen. An engine-level input timeline applies one step per frame at the start of `Engine::begin_frame`, before events are polled and before ImGui reads the state. High-level gestures expand into steps:
+- **Frame-spread gestures.** Mouse state is polled once per frame, so a press and release in the same frame is never seen. An engine-level input timeline applies one step per frame at the start of `Engine::begin_frame`, before events are polled and before the UI reads the state. High-level gestures expand into steps:
   - `input.click`: move, then press on the next frame, then release on the frame after.
   - `input.drag`: interpolates the cursor across frames, which road placement needs.
   - `input.type`: sends characters.
@@ -245,15 +245,15 @@ Coordinates are in window points, which is what `InputSystem` already uses. On H
 
 ## UI automation
 
-The game's own menus (HUD, dialogs, home menu) are built from retained widgets in `crates/engine/src/ui/widgets.rs` (`UiMenu`, `UiTextButton`, `UiSpriteButton`, `UiSlider`, `UiDropdown`, …). Each has a label and draws as one ImGui item. That makes a widget tree cheap to build.
+The game's own menus (HUD, dialogs, home menu) are built from retained widgets in `crates/engine/src/ui/widgets.rs` (`UiMenu`, `UiTextButton`, `UiSpriteButton`, `UiSlider`, `UiDropdown`, …). Each has a label and draws as one UI item. That makes a widget tree cheap to build.
 
-- **Per-frame widget registry.** Each leaf widget records `{path, kind, label, rect, enabled, hovered}` in its own `draw`, right after its ImGui item call, using `item_rect_min` / `item_rect_size`. `UiMenu` and the group layouts push and pop a path segment around their children; the child draw sites are `widgets.rs:687`, `internal.rs:244` and `internal.rs:337`. The registry is cleared at `UiSystem::begin_frame` and only records while automation is on, so a normal session pays nothing. Duplicate paths get a `#n` suffix.
+- **Per-frame widget registry.** Each leaf widget records `{path, kind, label, rect, enabled, hovered}` in its own `draw`, right after it draws, from the item's rect. `UiMenu` and the group layouts push and pop a path segment around their children; the child draw sites are `widgets.rs:687`, `internal.rs:244` and `internal.rs:337`. The registry is cleared at `UiSystem::begin_frame` and only records while automation is on, so a normal session pays nothing. Duplicate paths get a `#n` suffix.
 - **`ui.tree`** returns the registry: every visible widget with a stable path such as `"Main Menu/Load Game"`.
 - **`ui.click {path}`** resolves the widget's rect from the latest registry and clicks its center with the input timeline. This is a true end-to-end click, with the same hover, sound and callback behavior as a player's. It fails if the widget is missing or disabled.
 - **`ui.set {path, value}`** for sliders, checkboxes, text inputs and dropdowns. Dragging a slider to an exact value with simulated input is fragile, so this writes through the widget's own `on_update_value` callback instead. The callback needs a widget context, so queue the value in `UiSystem` and apply it during that widget's next `draw`.
 - **`dialog.open` / `dialog.close` / `dialog.current`** wrap the existing `menu::dialog` functions.
 
-The developer editor menus are immediate-mode ImGui and have no retained layer. For those, agents fall back to coordinates plus screenshots. A small `automation_id` helper in the debug UI could close that gap later if it matters.
+The developer editor menus are immediate-mode UI and have no retained layer. For those, agents fall back to coordinates plus screenshots. A small `automation_id` helper in the debug UI could close that gap later if it matters.
 
 ## Screenshots
 
@@ -279,7 +279,7 @@ In `OpenGlRenderSystem::end_frame`, after `ui_frame_bundle.render()` (`render/op
 ### As a player feature
 
 - PrintScreen (and F12, since Mac keyboards lack PrintScreen) saves `screenshots/Heritage Builder 2026-10-10 14-03-22.png` next to `saves/`, then shows a short message with the file name. There's no toast widget yet; build a small timed one on `ui::overlay`.
-- Handle the key in `GameLoop::handle_app_event`. The engine forwards PrintScreen and F12 even while ImGui has keyboard focus (`screenshot::is_hotkey` in `Engine::poll_app_events`), so a screenshot can be taken with a dialog open. Neither is a text-input key, so typing isn't affected.
+- Handle the key in `GameLoop::handle_app_event`. The engine forwards PrintScreen and F12 even while the UI has keyboard focus (`screenshot::is_hotkey` in `Engine::poll_app_events`), so a screenshot can be taken with a dialog open. Neither is a text-input key, so typing isn't affected.
 - There's no date-time crate in the workspace. To build the file name, either format UTC from `SystemTime` with a small civil-date helper, use `libc::localtime_r` (`libc` is already a desktop dependency of the engine), or add a crate such as `time`.
 - Encode and write the PNG on a background thread on desktop, so the hotkey never causes a frame hitch.
 - Optional: a Settings toggle for "hide interface in screenshots".
@@ -353,7 +353,7 @@ Notes (2026-10-11):
 - **Shutdown crash fixed.** Exiting the game segfaulted on Linux/Mesa, so even a successful smoke test exited with status 139. `Engine` dropped its `Application` (window and GL context) before the render system, which then called GL with no context. `app` is now the last field of `Engine`, so it drops last.
 - **Verified:**
   - `cargo test --workspace` passes.
-  - Desktop and web builds pass (web with wasi-sdk 32, as in CI).
+  - Desktop and web builds pass.
   - `--smoke-test-saves` loads all 11 sample saves and exits 0 under `xvfb-run`.
   - Two runs of `--load-save test_save_2 --fixed-dt 0.016667` (51 worker assignments by then) wrote byte-identical first autosaves, and so did two runs of `--map preset:2 --seed 7 --fixed-dt 0.016667`.
 - Found in passing and fixed in a separate commit: the texture atlas cache was never written on a fresh checkout.
@@ -375,7 +375,7 @@ Notes (2026-10-14):
 - **API.** `Engine::request_screenshot(ScreenshotRequest { include_ui, output })` returns an id; poll `Engine::take_screenshot_result(id)`. Output is a file or the PNG bytes in memory. `engine::screenshot` owns encoding, the background writer threads and timestamped file names. The engine drains `RenderSystem::take_finished_captures` itself every frame.
 - **Deviation: scene-only on OpenGL** reads the back buffer right after the scene blit, before the UI draws, instead of reading the offscreen target. It comes out at framebuffer size, like a full capture; the offscreen target can be larger.
 - **Wgpu** re-encodes the blit and UI passes into a capture texture on capture frames (the surface can't be a copy source). Desktop waits on the device, so the capture is ready that frame. Web will finish it a frame or more later, from the map callback.
-- **Hotkey.** PrintScreen fires on release (Windows reports only the release), F12 on press, and Shift leaves the UI out. The engine forwards these keys even while ImGui has keyboard focus. The hotkey is desktop-only until the web download lands in Phase 6. Toasts (`UiSystem::show_toast`) are new, and hidden on capture frames so they never show up in screenshots.
+- **Hotkey.** PrintScreen fires on release (Windows reports only the release), F12 on press, and Shift leaves the UI out. The engine forwards these keys even while the UI has keyboard focus. The hotkey is desktop-only until the web download lands in Phase 6. Toasts (`UiSystem::show_toast`) are new, and hidden on capture frames so they never show up in screenshots.
 - **File names** use local time from `platform::local_date_time()`: `libc::localtime_r` on desktop, `js_sys::Date` on web. No date crate was added. Names get " (2)", " (3)", ... when taken.
 - **Exit codes** (moved up from Phase 2): `Engine::request_exit(code)`, and the desktop runner exits with `Engine::exit_code()` after a clean shutdown. A one-shot run that quits before its PNG is written exits 1. Relative `--screenshot-out` paths are resolved against the directory the game was started from (`cli::path_value`).
 - **Verified** under `xvfb-run` on Mesa:
@@ -514,27 +514,27 @@ Notes (2026-10-14, local Mac):
 - **Capture** pauses cursor confinement in both app backends (`pause_cursor_confinement`). `--capture-input` starts with it on; script mode and `hb-ctl launch` use it, so a person's mouse can't scroll the map in the middle of a run. A real Shift+Esc gives input back (added: otherwise a person couldn't even reach the console). The badge draws on the foreground draw list, like toasts, and stays out of captures.
 - **Camera edge scrolling** now ignores cursors outside the window: the parked virtual cursor sits off-window, and a real cursor over another app no longer scrolls the map either.
 - **Cell targets** center the camera on the cell unless it's already in the middle 60% of the window, clear of the HUD panels along the edges and of the edge-scroll margin.
-- **Widget registry** ([ui/registry.rs](../../crates/engine/src/ui/registry.rs)). Paths: menu labels, labeled-group labels, then the widget's label; sprite buttons use their sprite's file name (`TilePaletteMenu/housing`), and ImGui id suffixes and slashes are cleaned out. Text labels and headings are recorded too, so `ui.tree` shows what dialogs say. `ui.set` values are queued and applied by the widget's next draw through its own update callback; unclaimed ones expire after two frames.
+- **Widget registry** ([ui/registry.rs](../../crates/engine/src/ui/registry.rs)). Paths: menu labels, labeled-group labels, then the widget's label; sprite buttons use their sprite's file name (`TilePaletteMenu/housing`), and `##id` suffixes and slashes are cleaned out. Text labels and headings are recorded too, so `ui.tree` shows what dialogs say. `ui.set` values are queued and applied by the widget's next draw through its own update callback; unclaimed ones expire after two frames.
 - **Timing fixes found while testing:**
-  - After a session switch, the old menus' modal popup stays in ImGui's popup stack for two frames and takes the mouse; a scroll sent then was lost. Session commands now finish two frames after the switch.
+  - Session commands finish once the session command queue has run, at the start of the next frame, so a gesture sent after one reaches the new menus.
   - Widgets of a dialog opened by a click appear one frame later. `ui.click` finishes one frame after its gesture, and `ui.click` / `ui.set` wait up to 30 frames for a missing widget.
   - Scaling screenshots with `imageops::resize` took over a second in debug builds (generic code compiles in the engine, unoptimized). `DynamicImage::resize_exact` is compiled in the optimized `image` crate: 7 frames instead of 90.
 - **Verified** on macOS: `ui_new_game.jsonl` (home menu to a 64x96 dirt map through the New Game dialog) and `ui_build.jsonl` (palette, map click, road drag, Undo button) pass; HUD point clicks paused and resumed the simulation; Ctrl+/ toggled the menus; wheel zoom works when the config allows it (the default config turns it off). `ui.tree` rects match the screenshots (e.g. "Start New Game" at [151, 382, 165, 28]).
 - **Not verified:** real mouse movement while captured; there's no way to post real mouse events on this machine. By construction, every cursor, button and key query goes through `VirtualInput` while captured, and real input events other than quit and resize are dropped before routing.
-- **Follow-up (2026-10-16): developer menus.** The gap noted under "UI automation" is closed for the DevEditor menus. `engine::ui::dev` wraps the ImGui widgets they use (buttons, checkboxes, sliders, inputs, combos, menus, collapsing headers, windows) to draw and then record the last item, and `#[derive(DrawDebugUi)]` generates calls to it. Connected: the menu bar, the tile palette, the minimap's debug panel, the tile inspector window, and the Debug menu's child windows. Not connected: the game objects' own debug panels inside the inspector, beyond what the derive covers.
-  - ImGui items scrolled out of their window record `visible: false`: `ui.set` reaches them, `ui.click` refuses. The palette as a whole takes `ui.set` with a tile name, since most of it is scrolled away.
+- **Follow-up (2026-10-16): developer menus.** The gap noted under "UI automation" is closed for the DevEditor menus. `engine::ui`'s immediate-mode functions wrap the widgets they use (buttons, checkboxes, sliders, inputs, combos, menus, collapsing headers, windows) to draw and then record the item, and `#[derive(DrawDebugUi)]` generates calls to it. Connected: the menu bar, the tile palette, the minimap's debug panel, the tile inspector window, and the Debug menu's child windows. Not connected: the game objects' own debug panels inside the inspector, beyond what the derive covers.
+  - Widgets scrolled out of their window record `visible: false`: `ui.set` reaches them, `ui.click` refuses. The palette as a whole takes `ui.set` with a tile name, since most of it is scrolled away.
   - `ui.click` now hovers first and clicks only if the widget reports it's hovered, so a menu popup over a window can't take the click. A closed menu-bar menu that opens on hover (another menu was open) isn't clicked again, since the click would close it.
-  - A window's close button has no ImGui item; its rect comes from ImGui 1.89's title bar layout.
+  - `ui::window` draws the title bar itself, so a window's close button is a widget the registry records (`<window>/Close`).
   - Queries (`assert.*`, `wait.until`) poll a pending command once, as the dispatcher does, so `ui.tree` works as a query once the registry is on.
   - Verified on macOS at the default size, 1280x720 and 1920x1080: `ui_dev_menus.jsonl` passes and replays from a recording; the UI scenarios, `smoke.jsonl` and the determinism runs still pass.
-- **Follow-up (2026-10-17): the tile inspector's panels.** The building, unit, prop and tile panels, the game-object debug options, the unit tasks, `UpdateTimer` and the d-pad now use `dev` too, as do the Game Configs window's config headers. Left on direct ImGui: the World Debug, Game Systems Debug, texture, sound and UI text windows, and the log viewer.
-  - `dev::collapsing_header_scope` puts a section's label in its widgets' paths, e.g. `Tile Inspector/Building/Workers/Add Worker (+1)`. `dev::input_scalar` covers the other number types (`usize` indices, `u32` counts, the house's `u8` level).
-  - The inspector opens next to its tile and ran off the bottom of the screen, where scrolling can't reach. `ui::fit_next_window_on_screen` caps a window's height at the room below its top (an ImGui size-constraint callback, which gets the window's position), so the rest scrolls inside it.
-  - `ui.click` on a dev widget scrolled out of view asks it to scroll into view (`UiSystem::request_widget_reveal`, then `SetScrollFromPosY` on its next draw) before clicking. It also follows a widget that moves while the cursor goes to it: the inspector reopened after a house upgrade grows over a few frames, and its close button moved away from the cursor.
+- **Follow-up (2026-10-17): the tile inspector's panels.** The building, unit, prop and tile panels, the game-object debug options, the unit tasks, `UpdateTimer` and the d-pad now use `ui::` too, as do the Game Configs window's config headers. Not yet converted: the World Debug, Game Systems Debug, texture, sound and UI text windows, and the log viewer.
+  - `ui::collapsing_header_scope` puts a section's label in its widgets' paths, e.g. `Tile Inspector/Building/Workers/Add Worker (+1)`. `ui::input_scalar` covers the other number types (`usize` indices, `u32` counts, the house's `u8` level).
+  - The inspector opens next to its tile and ran off the bottom of the screen, where scrolling can't reach. `UiWindow::fit_on_screen` caps a window's height at the room below its top, so the rest scrolls inside it.
+  - `ui.click` on a dev widget scrolled out of view asks it to scroll into view (`UiSystem::request_widget_reveal`, then `scroll_to_me` on its next draw) before clicking. It also follows a widget that moves while the cursor goes to it: the inspector reopened after a house upgrade grows over a few frames, and its close button moved away from the cursor.
   - Verified on macOS: building (storage, house, producer), unit, prop and bare-tile panels list, click and set, e.g. filling a granary's slots, upgrading a house by its Level, harvesting a tree, teleporting a unit with the d-pad. `ui_dev_menus.jsonl` now upgrades a house through the inspector and passes at three window sizes, and replays.
-- **Follow-up (2026-10-17): the remaining debug windows.** World Debug, Game Systems Debug, Texture Settings, Sound Settings, the Game Configs window's tabs and its UI text panel, and the log viewer use `dev` too. No ImGui widget in the developer menus is left unrecorded; plain text isn't recorded, as the queries cover it.
-  - `dev::tab_item` records a tab (value: selected) and puts its label in the paths of the selected tab's widgets; `dev::menu_item` records a menu item.
-  - While a text input has keyboard focus, ImGui edits its own copy of the text and copies it back every frame, so a value set after the input draws is lost, and imgui-sys's master bindings don't expose `ClearActiveID`. Text inputs take ui.set's value before drawing instead (`UiWidgetRegistry::take_next_value`, by the path the input is about to record), and an `ALWAYS` text callback replaces ImGui's copy (`dev::UiDevTextValue`). The console needs this: it takes keyboard focus when the viewer opens.
+- **Follow-up (2026-10-17): the remaining debug windows.** World Debug, Game Systems Debug, Texture Settings, Sound Settings, the Game Configs window's tabs and its UI text panel, and the log viewer use `ui::` too. No widget in the developer menus is left unrecorded; plain text isn't recorded, as the queries cover it.
+  - `ui::tab_bar` records each tab (value: selected) and puts its label in the paths of the selected tab's widgets; `ui::menu_item` records a menu item.
+  - Text inputs take ui.set's value before drawing (`UiWidgetRegistry::take_next_value`, by the path the input is about to record), so it shows even while the input has keyboard focus. The console needs this: it takes keyboard focus when the viewer opens.
   - The viewer draws while holding its lock, and logging takes the same lock. Recording widgets doesn't log.
   - Verified on macOS: tabs switch and their widgets list, click and set in every window (gold given through World Debug, a settler spawned through Game Systems Debug, texture filter and sound checkboxes set, UI text categories opened); the console runs a command set through `ui.set` and one typed with `input.type`; the channel filter toggles channels. `ui_dev_menus.jsonl` covers World Debug's tabs and the console, passes at three window sizes, and replays.
 

@@ -3,6 +3,8 @@
   "assets/configs/game/campaigns.json",
   "assets/configs/game/configs.json",
   "assets/configs/props/configs.json",
+  "assets/configs/ui/styles/dev.json",
+  "assets/configs/ui/styles/game.json",
   "assets/configs/ui/text.json",
   "assets/configs/units/configs.json",
   "assets/fonts/fa-solid-900.ttf",

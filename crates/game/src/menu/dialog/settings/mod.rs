@@ -289,6 +289,7 @@ impl SettingsCategory {
             center_horizontally: true,
             margin_left,
             margin_right,
+            label_column_width: None,
         });
 
         for setting in &self.settings {

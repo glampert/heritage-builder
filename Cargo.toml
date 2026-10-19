@@ -39,3 +39,14 @@ opt-level = 3
 opt-level = 3
 [profile.dev.package.simd-adler32]
 opt-level = 3
+
+# egui, the UI library: unoptimized, its layout and tessellation cost a debug build several
+# times as much per frame.
+[profile.dev.package.egui]
+opt-level = 3
+[profile.dev.package.epaint]
+opt-level = 3
+[profile.dev.package.emath]
+opt-level = 3
+[profile.dev.package.ecolor]
+opt-level = 3

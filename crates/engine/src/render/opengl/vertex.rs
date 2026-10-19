@@ -91,17 +91,17 @@ impl VertexTrait for PointVertex2D {
 }
 
 // ----------------------------------------------
-// ImGui UI Vertex
+// UI Vertex
 // ----------------------------------------------
 
-impl VertexTrait for render::UiDrawVertex {
+impl VertexTrait for render::ui_draw::UiVertex {
     fn layout() -> &'static [VertexElementDef] {
         &[
             // vec2 in_position
             VertexElementDef { count: 2, kind: gl::FLOAT, normalized: gl::FALSE },
             // vec2 in_tex_coords
             VertexElementDef { count: 2, kind: gl::FLOAT, normalized: gl::FALSE },
-            // vec2 in_vert_color
+            // vec4 in_vert_color (RGBA, premultiplied alpha)
             VertexElementDef { count: 4, kind: gl::UNSIGNED_BYTE, normalized: gl::TRUE },
         ]
     }

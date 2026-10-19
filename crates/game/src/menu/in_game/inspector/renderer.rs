@@ -22,6 +22,7 @@ const INSPECTOR_SUBHEADING_FONT_SCALE: UiFontScale = UiFontScale(1.0);
 const INSPECTOR_BODY_TEXT_FONT_SCALE:  UiFontScale = UiFontScale(1.0);
 
 const INSPECTOR_BODY_TEXT_MAX_LINES: usize = 10;
+const INSPECTOR_CONTENT_INSET:       f32   = 20.0; // The page sprite's torn edges.
 const INSPECTOR_BODY_TEXT_MAX_LEN:   usize = 1024;
 const INSPECTOR_FMT_STR_MAX_LEN:     usize = 128;
 
@@ -185,11 +186,10 @@ impl InspectorMenuRenderer {
         }
     }
 
-    pub fn set_icon(&mut self, context: &GameUiContext, icon_sprite: TileIconSprite, tile_kind: TileKind) {
+    pub fn set_icon(&mut self, icon_sprite: TileIconSprite, tile_kind: TileKind) {
         let icon = self.find_icon();
 
-        let sprite = context.ui_sys.to_ui_texture(icon_sprite.tex_info.texture);
-        icon.set_sprite(sprite);
+        icon.set_sprite(icon_sprite.tex_info.texture);
 
         let tex_coords = icon_sprite.tex_info.coords;
         icon.set_tex_coords(tex_coords);
@@ -285,9 +285,12 @@ impl InspectorMenuRenderer {
 
         button_group.add_widget(close_button);
 
+        let menu_size = Self::calc_menu_size(context);
+
+        // Placeholder text, wrapped at the menu's content width.
+        let body_line = UiText::empty(INSPECTOR_BODY_TEXT_FONT_SCALE).with_wrap_width(menu_size.x - INSPECTOR_CONTENT_INSET * 2.0);
         let body_text = UiMenuHeading::new(context, UiMenuHeadingParams {
-            // placeholder text
-            lines: vec![UiText::empty(INSPECTOR_BODY_TEXT_FONT_SCALE); INSPECTOR_BODY_TEXT_MAX_LINES],
+            lines: vec![body_line; INSPECTOR_BODY_TEXT_MAX_LINES],
             center_vertically: false,
             center_horizontally: true,
             ..Default::default()
@@ -298,7 +301,6 @@ impl InspectorMenuRenderer {
             ..Default::default()
         });
 
-        let menu_size = Self::calc_menu_size(context);
         let mut menu = UiMenu::new(context, UiMenuParams {
             label: Some(menu_name.into()),
             flags: UiMenuFlags::PauseSimIfOpen
@@ -308,6 +310,7 @@ impl InspectorMenuRenderer {
                 | UiMenuFlags::AdjustSizeToContents,
             size: Some(menu_size),
             background: Some(PathRef::from_str("misc/square_page_bg.png")),
+            content_insets: Some(UiMenuInsets::same(INSPECTOR_CONTENT_INSET)),
             widget_spacing: Some(Vec2::new(0.0, 10.0)),
             ..Default::default()
         });

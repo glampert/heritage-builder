@@ -25,7 +25,8 @@ pub enum PrimitiveTopology {
 #[repr(u32)]
 #[derive(Copy, Clone, PartialEq, Eq)]
 pub enum AlphaBlend {
-    Enabled,
+    Enabled,       // Straight alpha: src * src_alpha + dst * (1 - src_alpha).
+    Premultiplied, // Colors already multiplied by their alpha: src + dst * (1 - src_alpha).
     Disabled,
 }
 
@@ -119,6 +120,10 @@ impl RenderContext {
                 gl::Enable(gl::BLEND);
                 gl::BlendFunc(gl::SRC_ALPHA, gl::ONE_MINUS_SRC_ALPHA);
             },
+            AlphaBlend::Premultiplied => unsafe {
+                gl::Enable(gl::BLEND);
+                gl::BlendFunc(gl::ONE, gl::ONE_MINUS_SRC_ALPHA);
+            },
             AlphaBlend::Disabled => unsafe {
                 gl::Disable(gl::BLEND);
             },
@@ -186,11 +191,11 @@ impl RenderContext {
         self
     }
 
-    pub fn set_clip_rect(&mut self, rect: Rect) -> &mut Self {
-        debug_assert!(rect.is_valid());
+    // In framebuffer pixels, from the bottom-left corner (glScissor).
+    pub fn set_clip_rect(&mut self, x: u32, y: u32, width: u32, height: u32) -> &mut Self {
         debug_assert!(self.clip_test == ClipTest::Enabled);
         unsafe {
-            gl::Scissor(rect.x() as _, rect.y() as _, rect.width() as _, rect.height() as _);
+            gl::Scissor(x as _, y as _, width as _, height as _);
         }
         self
     }
@@ -303,21 +308,40 @@ impl RenderContext {
     }
 
     pub fn draw_indexed(&mut self, first_index: u32, index_count: u32) {
-        debug_assert!(index_count != 0);
-        debug_assert!(self.current_shader_program != NULL_SHADER_HANDLE);
-        debug_assert!(self.current_vertex_array != NULL_VERTEX_ARRAY_HANDLE);
-        debug_assert!(self.current_index_type.is_some());
-
-        let index_type = self.current_index_type.unwrap();
-        let index_type_size_in_bytes = index_type.size_in_bytes();
-        let gl_index_type = index_type.to_gl_enum();
-        let offset_in_bytes: usize = (first_index as usize) * index_type_size_in_bytes;
+        let (gl_index_type, offset_in_bytes) = self.index_type_and_offset(first_index, index_count);
 
         unsafe {
             gl::DrawElements(self.primitive_topology as _, index_count as _, gl_index_type, offset_in_bytes as _);
         }
 
         self.draw_call_count += 1;
+    }
+
+    // Adds `base_vertex` to each index (glDrawElementsBaseVertex, OpenGL 3.2).
+    pub fn draw_indexed_base_vertex(&mut self, first_index: u32, index_count: u32, base_vertex: u32) {
+        let (gl_index_type, offset_in_bytes) = self.index_type_and_offset(first_index, index_count);
+
+        unsafe {
+            gl::DrawElementsBaseVertex(
+                self.primitive_topology as _,
+                index_count as _,
+                gl_index_type,
+                offset_in_bytes as _,
+                base_vertex as _,
+            );
+        }
+
+        self.draw_call_count += 1;
+    }
+
+    fn index_type_and_offset(&self, first_index: u32, index_count: u32) -> (gl::types::GLenum, usize) {
+        debug_assert!(index_count != 0);
+        debug_assert!(self.current_shader_program != NULL_SHADER_HANDLE);
+        debug_assert!(self.current_vertex_array != NULL_VERTEX_ARRAY_HANDLE);
+        debug_assert!(self.current_index_type.is_some());
+
+        let index_type = self.current_index_type.unwrap();
+        (index_type.to_gl_enum(), (first_index as usize) * index_type.size_in_bytes())
     }
 
     // Sets and draw the whole VertexArray.

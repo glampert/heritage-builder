@@ -1,0 +1,248 @@
+# Walks every screen of the game's UI, retail and developer, and at each one lists the widgets
+# (ui.tree, without rects) and compares a screenshot with a golden image. On the retail screens it
+# also checks the layout: no widget outside its menu's content area or over a sibling
+# (ui.layout_issues). For checking UI changes that should leave the UI as it was (paths, kinds,
+# values) and for reviewing how it looks. Goldens depend on the machine and render backend, so keep
+# one directory per backend:
+#   cargo run -p HeritageBuilder -- --script crates/game/tests/scenarios/ui_snapshot.jsonl \
+#     --window-size 1280x720 --seed 1 --render-api OpenGl --golden-dir out/baseline/opengl --update-goldens
+# Then, to compare against them (screenshots and -diff.png files go to out/ui_snapshot/):
+#   cargo run -p HeritageBuilder -- --script crates/game/tests/scenarios/ui_snapshot.jsonl \
+#     --window-size 1280x720 --seed 1 --render-api OpenGl --golden-dir out/baseline/opengl --script-continue-on-error
+# The Load Game and Save Game lists show the local saves/, so keep it unchanged between runs. Not run
+# in CI: there are no goldens there.
+{"method": "time.fixed_dt", "params": {"dt": 0.016667}}
+
+# ---- Home menu and its dialogs ----
+{"method": "assert.eq", "params": {"query": "session.state", "path": "/menus_mode", "value": "Home"}}
+{"method": "input.move", "params": {"park": true}}
+{"method": "wait.frames", "params": {"frames": 3}}
+{"method": "ui.tree", "params": {"fields": ["path", "kind", "enabled", "value"]}}
+{"method": "assert.eq", "params": {"query": "ui.layout_issues", "path": "/count", "value": 0}}
+{"method": "assert.image", "params": {"golden": "home.png", "path": "out/ui_snapshot/home.png"}}
+{"method": "ui.hover", "params": {"path": "Home/New Game"}}
+{"method": "assert.image", "params": {"golden": "home_hover.png", "path": "out/ui_snapshot/home_hover.png"}}
+{"method": "input.move", "params": {"park": true}}
+{"method": "dialog.open", "params": {"name": "NewGame"}}
+{"method": "wait.frames", "params": {"frames": 3}}
+{"method": "ui.tree", "params": {"fields": ["path", "kind", "enabled", "value"]}}
+{"method": "assert.eq", "params": {"query": "ui.layout_issues", "path": "/count", "value": 0}}
+{"method": "assert.image", "params": {"golden": "home_new_game.png", "path": "out/ui_snapshot/home_new_game.png"}}
+{"method": "ui.click", "params": {"path": "Terrain Kind"}}
+{"method": "input.move", "params": {"park": true}}
+{"method": "wait.frames", "params": {"frames": 3}}
+{"method": "ui.tree", "params": {"fields": ["path", "kind", "enabled", "value"]}}
+{"method": "assert.eq", "params": {"query": "ui.layout_issues", "path": "/count", "value": 0}}
+{"method": "assert.image", "params": {"golden": "home_new_game_dropdown.png", "path": "out/ui_snapshot/home_new_game_dropdown.png"}}
+{"method": "input.key", "params": {"key": "Escape"}}
+{"method": "dialog.open", "params": {"name": "LoadGame"}}
+{"method": "wait.frames", "params": {"frames": 3}}
+{"method": "ui.tree", "params": {"fields": ["path", "kind", "enabled", "value"]}}
+{"method": "assert.eq", "params": {"query": "ui.layout_issues", "path": "/count", "value": 0}}
+{"method": "assert.image", "params": {"golden": "home_load_game.png", "path": "out/ui_snapshot/home_load_game.png"}}
+{"method": "dialog.open", "params": {"name": "MainSettings"}}
+{"method": "wait.frames", "params": {"frames": 3}}
+{"method": "ui.tree", "params": {"fields": ["path", "kind", "enabled", "value"]}}
+{"method": "assert.eq", "params": {"query": "ui.layout_issues", "path": "/count", "value": 0}}
+{"method": "assert.image", "params": {"golden": "home_settings.png", "path": "out/ui_snapshot/home_settings.png"}}
+{"method": "dialog.open", "params": {"name": "GameSettings"}}
+{"method": "wait.frames", "params": {"frames": 3}}
+{"method": "ui.tree", "params": {"fields": ["path", "kind", "enabled", "value"]}}
+{"method": "assert.eq", "params": {"query": "ui.layout_issues", "path": "/count", "value": 0}}
+{"method": "assert.image", "params": {"golden": "home_game_settings.png", "path": "out/ui_snapshot/home_game_settings.png"}}
+{"method": "dialog.open", "params": {"name": "SoundSettings"}}
+{"method": "wait.frames", "params": {"frames": 3}}
+{"method": "ui.tree", "params": {"fields": ["path", "kind", "enabled", "value"]}}
+{"method": "assert.eq", "params": {"query": "ui.layout_issues", "path": "/count", "value": 0}}
+{"method": "assert.image", "params": {"golden": "home_sound_settings.png", "path": "out/ui_snapshot/home_sound_settings.png"}}
+{"method": "dialog.open", "params": {"name": "GraphicsSettings"}}
+{"method": "wait.frames", "params": {"frames": 3}}
+{"method": "ui.tree", "params": {"fields": ["path", "kind", "enabled", "value"]}}
+{"method": "assert.eq", "params": {"query": "ui.layout_issues", "path": "/count", "value": 0}}
+{"method": "assert.image", "params": {"golden": "home_graphics_settings.png", "path": "out/ui_snapshot/home_graphics_settings.png"}}
+{"method": "dialog.open", "params": {"name": "About"}}
+{"method": "wait.frames", "params": {"frames": 3}}
+{"method": "ui.tree", "params": {"fields": ["path", "kind", "enabled", "value"]}}
+{"method": "assert.eq", "params": {"query": "ui.layout_issues", "path": "/count", "value": 0}}
+{"method": "assert.image", "params": {"golden": "home_about.png", "path": "out/ui_snapshot/home_about.png"}}
+{"method": "dialog.close"}
+
+# ---- In-game HUD, palette, inspector and dialogs (paused, so units hold still) ----
+{"method": "session.load_preset", "params": {"preset": 2}}
+{"method": "sim.pause"}
+{"method": "input.move", "params": {"park": true}}
+{"method": "wait.frames", "params": {"frames": 3}}
+{"method": "ui.tree", "params": {"fields": ["path", "kind", "enabled", "value"]}}
+{"method": "assert.eq", "params": {"query": "ui.layout_issues", "path": "/count", "value": 0}}
+{"method": "assert.image", "params": {"golden": "ingame.png", "path": "out/ui_snapshot/ingame.png"}}
+{"method": "ui.hover", "params": {"path": "LeftBar/settings"}}
+{"method": "wait.frames", "params": {"frames": 2}}
+{"method": "assert.image", "params": {"golden": "ingame_hud_tooltip.png", "path": "out/ui_snapshot/ingame_hud_tooltip.png"}}
+{"method": "ui.click", "params": {"path": "TilePaletteMenu/services"}}
+{"method": "ui.hover", "params": {"path": "Apothecary"}}
+{"method": "wait.frames", "params": {"frames": 2}}
+{"method": "ui.tree", "params": {"fields": ["path", "kind", "enabled", "value"]}}
+{"method": "assert.eq", "params": {"query": "ui.layout_issues", "path": "/count", "value": 0}}
+{"method": "assert.image", "params": {"golden": "ingame_palette.png", "path": "out/ui_snapshot/ingame_palette.png"}}
+{"method": "ui.click", "params": {"path": "TilePaletteMenu/services"}}
+{"method": "input.click", "params": {"cell": [6, 1]}}
+{"method": "input.move", "params": {"park": true}}
+{"method": "wait.frames", "params": {"frames": 3}}
+{"method": "ui.tree", "params": {"fields": ["path", "kind", "enabled", "value"]}}
+{"method": "assert.eq", "params": {"query": "ui.layout_issues", "path": "/count", "value": 0}}
+{"method": "assert.image", "params": {"golden": "ingame_inspector.png", "path": "out/ui_snapshot/ingame_inspector.png"}}
+{"method": "ui.click", "params": {"path": "BuildingInspector/Close"}}
+{"method": "dialog.open", "params": {"name": "MainGame"}}
+{"method": "input.move", "params": {"park": true}}
+{"method": "wait.frames", "params": {"frames": 3}}
+{"method": "ui.tree", "params": {"fields": ["path", "kind", "enabled", "value"]}}
+{"method": "assert.eq", "params": {"query": "ui.layout_issues", "path": "/count", "value": 0}}
+{"method": "assert.image", "params": {"golden": "ingame_main_game.png", "path": "out/ui_snapshot/ingame_main_game.png"}}
+{"method": "dialog.open", "params": {"name": "CityManagement"}}
+{"method": "wait.frames", "params": {"frames": 3}}
+{"method": "ui.tree", "params": {"fields": ["path", "kind", "enabled", "value"]}}
+{"method": "assert.eq", "params": {"query": "ui.layout_issues", "path": "/count", "value": 0}}
+{"method": "assert.image", "params": {"golden": "ingame_city.png", "path": "out/ui_snapshot/ingame_city.png"}}
+{"method": "dialog.open", "params": {"name": "PopulationManagement"}}
+{"method": "wait.frames", "params": {"frames": 3}}
+{"method": "ui.tree", "params": {"fields": ["path", "kind", "enabled", "value"]}}
+{"method": "assert.eq", "params": {"query": "ui.layout_issues", "path": "/count", "value": 0}}
+{"method": "assert.image", "params": {"golden": "ingame_population.png", "path": "out/ui_snapshot/ingame_population.png"}}
+{"method": "dialog.open", "params": {"name": "ResourcesManagement"}}
+{"method": "wait.frames", "params": {"frames": 3}}
+{"method": "ui.tree", "params": {"fields": ["path", "kind", "enabled", "value"]}}
+{"method": "assert.eq", "params": {"query": "ui.layout_issues", "path": "/count", "value": 0}}
+{"method": "assert.image", "params": {"golden": "ingame_resources.png", "path": "out/ui_snapshot/ingame_resources.png"}}
+{"method": "dialog.open", "params": {"name": "FinancesManagement"}}
+{"method": "wait.frames", "params": {"frames": 3}}
+{"method": "ui.tree", "params": {"fields": ["path", "kind", "enabled", "value"]}}
+{"method": "assert.eq", "params": {"query": "ui.layout_issues", "path": "/count", "value": 0}}
+{"method": "assert.image", "params": {"golden": "ingame_finances.png", "path": "out/ui_snapshot/ingame_finances.png"}}
+{"method": "dialog.open", "params": {"name": "LoadOrSaveGame"}}
+{"method": "wait.frames", "params": {"frames": 3}}
+{"method": "ui.tree", "params": {"fields": ["path", "kind", "enabled", "value"]}}
+{"method": "assert.eq", "params": {"query": "ui.layout_issues", "path": "/count", "value": 0}}
+{"method": "assert.image", "params": {"golden": "ingame_load_or_save.png", "path": "out/ui_snapshot/ingame_load_or_save.png"}}
+{"method": "dialog.open", "params": {"name": "SaveGame"}}
+{"method": "wait.frames", "params": {"frames": 3}}
+{"method": "ui.tree", "params": {"fields": ["path", "kind", "enabled", "value"]}}
+{"method": "assert.eq", "params": {"query": "ui.layout_issues", "path": "/count", "value": 0}}
+{"method": "assert.image", "params": {"golden": "ingame_save_game.png", "path": "out/ui_snapshot/ingame_save_game.png"}}
+{"method": "dialog.open", "params": {"name": "MainSettings"}}
+{"method": "wait.frames", "params": {"frames": 3}}
+{"method": "ui.tree", "params": {"fields": ["path", "kind", "enabled", "value"]}}
+{"method": "assert.eq", "params": {"query": "ui.layout_issues", "path": "/count", "value": 0}}
+{"method": "assert.image", "params": {"golden": "ingame_settings.png", "path": "out/ui_snapshot/ingame_settings.png"}}
+{"method": "dialog.open", "params": {"name": "SoundSettings"}}
+{"method": "wait.frames", "params": {"frames": 3}}
+{"method": "ui.tree", "params": {"fields": ["path", "kind", "enabled", "value"]}}
+{"method": "assert.eq", "params": {"query": "ui.layout_issues", "path": "/count", "value": 0}}
+{"method": "assert.image", "params": {"golden": "ingame_sound_settings.png", "path": "out/ui_snapshot/ingame_sound_settings.png"}}
+{"method": "dialog.open", "params": {"name": "MissionComplete"}}
+{"method": "wait.frames", "params": {"frames": 3}}
+{"method": "ui.tree", "params": {"fields": ["path", "kind", "enabled", "value"]}}
+{"method": "assert.eq", "params": {"query": "ui.layout_issues", "path": "/count", "value": 0}}
+{"method": "assert.image", "params": {"golden": "ingame_mission_complete.png", "path": "out/ui_snapshot/ingame_mission_complete.png"}}
+{"method": "dialog.open", "params": {"name": "CampaignComplete"}}
+{"method": "wait.frames", "params": {"frames": 3}}
+{"method": "ui.tree", "params": {"fields": ["path", "kind", "enabled", "value"]}}
+{"method": "assert.eq", "params": {"query": "ui.layout_issues", "path": "/count", "value": 0}}
+{"method": "assert.image", "params": {"golden": "ingame_campaign_complete.png", "path": "out/ui_snapshot/ingame_campaign_complete.png"}}
+{"method": "dialog.close"}
+
+# ---- Developer editor: palette, menu bar, minimap debug, tile inspector, debug windows ----
+{"method": "menus.mode", "params": {"mode": "DevEditor"}}
+{"method": "sim.pause"}
+{"method": "input.move", "params": {"park": true}}
+{"method": "wait.frames", "params": {"frames": 3}}
+{"method": "ui.tree", "params": {"fields": ["path", "kind", "enabled", "value"]}}
+{"method": "assert.image", "params": {"golden": "dev.png", "path": "out/ui_snapshot/dev.png"}}
+{"method": "ui.hover", "params": {"path": "Tile Selection/Buildings/Market"}}
+{"method": "wait.frames", "params": {"frames": 2}}
+{"method": "assert.image", "params": {"golden": "dev_palette_tooltip.png", "path": "out/ui_snapshot/dev_palette_tooltip.png"}}
+{"method": "ui.click", "params": {"path": "Game"}}
+{"method": "ui.tree", "params": {"fields": ["path", "kind", "enabled", "value"]}}
+{"method": "assert.image", "params": {"golden": "dev_menu_game.png", "path": "out/ui_snapshot/dev_menu_game.png"}}
+{"method": "ui.click", "params": {"path": "Game"}}
+{"method": "ui.click", "params": {"path": "Save"}}
+{"method": "ui.tree", "params": {"fields": ["path", "kind", "enabled", "value"]}}
+{"method": "assert.image", "params": {"golden": "dev_menu_save.png", "path": "out/ui_snapshot/dev_menu_save.png"}}
+{"method": "ui.click", "params": {"path": "Save"}}
+{"method": "ui.click", "params": {"path": "Camera"}}
+{"method": "ui.tree", "params": {"fields": ["path", "kind", "enabled", "value"]}}
+{"method": "assert.image", "params": {"golden": "dev_menu_camera.png", "path": "out/ui_snapshot/dev_menu_camera.png"}}
+{"method": "ui.click", "params": {"path": "Camera"}}
+{"method": "ui.click", "params": {"path": "Cheats"}}
+{"method": "ui.tree", "params": {"fields": ["path", "kind", "enabled", "value"]}}
+{"method": "assert.image", "params": {"golden": "dev_menu_cheats.png", "path": "out/ui_snapshot/dev_menu_cheats.png"}}
+{"method": "ui.click", "params": {"path": "Cheats"}}
+{"method": "ui.click", "params": {"path": "Debug"}}
+{"method": "ui.tree", "params": {"fields": ["path", "kind", "enabled", "value"]}}
+{"method": "assert.image", "params": {"golden": "dev_menu_debug.png", "path": "out/ui_snapshot/dev_menu_debug.png"}}
+{"method": "ui.click", "params": {"path": "Debug"}}
+{"method": "ui.click", "params": {"path": "Minimap/debug"}}
+{"method": "input.move", "params": {"park": true}}
+{"method": "wait.frames", "params": {"frames": 3}}
+{"method": "ui.tree", "params": {"fields": ["path", "kind", "enabled", "value"]}}
+{"method": "assert.image", "params": {"golden": "dev_minimap_debug.png", "path": "out/ui_snapshot/dev_minimap_debug.png"}}
+{"method": "ui.click", "params": {"path": "Minimap Debug/Close"}}
+{"method": "input.click", "params": {"cell": [6, 1]}}
+{"method": "ui.click", "params": {"path": "Tile Inspector/Building"}}
+{"method": "input.move", "params": {"park": true}}
+{"method": "wait.frames", "params": {"frames": 3}}
+{"method": "ui.tree", "params": {"fields": ["path", "kind", "enabled", "value"]}}
+{"method": "assert.image", "params": {"golden": "dev_tile_inspector.png", "path": "out/ui_snapshot/dev_tile_inspector.png"}}
+{"method": "ui.click", "params": {"path": "Tile Inspector/Close"}}
+{"method": "ui.click", "params": {"path": "Debug"}}
+{"method": "ui.set", "params": {"path": "Debug/Show Game Configs Debug", "value": true}}
+{"method": "input.move", "params": {"park": true}}
+{"method": "wait.frames", "params": {"frames": 3}}
+{"method": "ui.tree", "params": {"fields": ["path", "kind", "enabled", "value"]}}
+{"method": "assert.image", "params": {"golden": "dev_game_configs.png", "path": "out/ui_snapshot/dev_game_configs.png"}}
+{"method": "ui.click", "params": {"path": "Game Configs/Close"}}
+{"method": "ui.click", "params": {"path": "Debug"}}
+{"method": "ui.set", "params": {"path": "Debug/Show Game World Debug", "value": true}}
+{"method": "input.move", "params": {"park": true}}
+{"method": "wait.frames", "params": {"frames": 3}}
+{"method": "ui.tree", "params": {"fields": ["path", "kind", "enabled", "value"]}}
+{"method": "assert.image", "params": {"golden": "dev_world_debug.png", "path": "out/ui_snapshot/dev_world_debug.png"}}
+{"method": "ui.click", "params": {"path": "World Debug/Close"}}
+{"method": "ui.click", "params": {"path": "Debug"}}
+{"method": "ui.set", "params": {"path": "Debug/Show Game Systems Debug", "value": true}}
+{"method": "input.move", "params": {"park": true}}
+{"method": "wait.frames", "params": {"frames": 3}}
+{"method": "ui.tree", "params": {"fields": ["path", "kind", "enabled", "value"]}}
+{"method": "assert.image", "params": {"golden": "dev_systems_debug.png", "path": "out/ui_snapshot/dev_systems_debug.png"}}
+{"method": "ui.click", "params": {"path": "Game Systems Debug/Close"}}
+{"method": "ui.click", "params": {"path": "Debug"}}
+{"method": "ui.set", "params": {"path": "Debug/Show Texture Settings", "value": true}}
+{"method": "input.move", "params": {"park": true}}
+{"method": "wait.frames", "params": {"frames": 3}}
+{"method": "ui.tree", "params": {"fields": ["path", "kind", "enabled", "value"]}}
+{"method": "assert.image", "params": {"golden": "dev_texture_settings.png", "path": "out/ui_snapshot/dev_texture_settings.png"}}
+{"method": "ui.click", "params": {"path": "Texture Settings/Close"}}
+{"method": "ui.click", "params": {"path": "Debug"}}
+{"method": "ui.set", "params": {"path": "Debug/Show Sound Settings", "value": true}}
+{"method": "input.move", "params": {"park": true}}
+{"method": "wait.frames", "params": {"frames": 3}}
+{"method": "ui.tree", "params": {"fields": ["path", "kind", "enabled", "value"]}}
+{"method": "assert.image", "params": {"golden": "dev_sound_settings.png", "path": "out/ui_snapshot/dev_sound_settings.png"}}
+{"method": "ui.click", "params": {"path": "Sound Settings/Close"}}
+# The log viewer shows this run's log, which changes from run to run: list its widgets only.
+{"method": "ui.click", "params": {"path": "Debug"}}
+{"method": "ui.set", "params": {"path": "Debug/Show Log Viewer Window", "value": true}}
+{"method": "wait.frames", "params": {"frames": 3}}
+{"method": "ui.tree", "params": {"fields": ["path", "kind", "enabled", "value"]}}
+{"method": "ui.click", "params": {"path": "Log Viewer/Close"}}
+# The sample menus show every retained widget kind, and a message box.
+{"method": "ui.click", "params": {"path": "Debug"}}
+{"method": "ui.set", "params": {"path": "Debug/Show Sample Menus", "value": true}}
+{"method": "input.move", "params": {"park": true}}
+{"method": "wait.frames", "params": {"frames": 3}}
+{"method": "ui.tree", "params": {"fields": ["path", "kind", "enabled", "value"]}}
+{"method": "assert.image", "params": {"golden": "dev_sample_menus.png", "path": "out/ui_snapshot/dev_sample_menus.png"}}
+{"method": "ui.click", "params": {"path": "Sample Menu 1/Open Message Box"}}
+{"method": "input.move", "params": {"park": true}}
+{"method": "wait.frames", "params": {"frames": 3}}
+{"method": "ui.tree", "params": {"fields": ["path", "kind", "enabled", "value"]}}
+{"method": "assert.image", "params": {"golden": "dev_message_box.png", "path": "out/ui_snapshot/dev_message_box.png"}}

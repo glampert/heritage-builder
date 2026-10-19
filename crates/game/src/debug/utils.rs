@@ -7,7 +7,7 @@ use common::{
 };
 use engine::{
     render::{RenderStats, debug::DebugDraw},
-    ui::{self, UiFontScale, UiSystem},
+    ui::{self, UiSystem},
 };
 
 use crate::{
@@ -70,18 +70,16 @@ pub fn draw_cursor_overlay(
     cursor_screen_pos: Vec2,
     opt_text: Option<&str>,
 ) {
-    let ui = ui_sys.ui();
-
-    ui::overlay(ui, "Cursor Debug", cursor_screen_pos + Vec2::new(10.0, 10.0), 0.6, || {
+    ui::overlay(ui_sys, ui::UiOverlay::new("Cursor Debug", cursor_screen_pos + Vec2::new(10.0, 10.0)).bg_alpha(0.6), |ui_sys| {
         if let Some(text) = opt_text {
-            ui.text(text);
+            ui::text(ui_sys, text);
         } else {
             let cursor_iso_pos = coords::screen_to_iso_point(cursor_screen_pos, transform);
             let cursor_approx_cell = coords::iso_to_cell(cursor_iso_pos);
 
-            ui.text(format_small!("C:{},{}", cursor_approx_cell.x, cursor_approx_cell.y));
-            ui.text(format_small!("S:{:.1},{:.1}", cursor_screen_pos.x, cursor_screen_pos.y));
-            ui.text(format_small!("I:{},{}", cursor_iso_pos.x, cursor_iso_pos.y));
+            ui::text(ui_sys, format_small!("C:{},{}", cursor_approx_cell.x, cursor_approx_cell.y));
+            ui::text(ui_sys, format_small!("S:{:.1},{:.1}", cursor_screen_pos.x, cursor_screen_pos.y));
+            ui::text(ui_sys, format_small!("I:{},{}", cursor_iso_pos.x, cursor_iso_pos.y));
         }
     });
 }
@@ -106,51 +104,45 @@ pub fn draw_screen_origin_marker(debug_draw: &mut DebugDraw) {
 }
 
 pub fn draw_render_perf_stats(ui_sys: &UiSystem, render_sys_stats: &RenderStats, tile_render_stats: &TileMapRenderStats) {
-    let ui = ui_sys.ui();
-    let position = Vec2::new(5.0, ui.io().display_size[1] - 250.0);
+    let position = Vec2::new(5.0, ui::screen_size(ui_sys).y - 250.0);
 
-    ui::overlay(ui, "Render Stats", position, 0.8, || {
-        ui.text_colored(Color::yellow().to_array(),
-            format_small!("Render submit     : {:.2}ms",
+    ui::overlay(ui_sys, ui::UiOverlay::new("Render Stats", position).bg_alpha(0.8), |ui_sys| {
+        ui::text_colored(ui_sys, Color::yellow(), format_small!("Render submit     : {:.2}ms",
                           render_sys_stats.render_submit_time_ms));
 
-        ui.text_colored(Color::yellow().to_array(),
-            format_small!("Tiles drawn       : {} | Peak: {}",
+        ui::text_colored(ui_sys, Color::yellow(), format_small!("Tiles drawn       : {} | Peak: {}",
                           tile_render_stats.tiles_drawn,
                           tile_render_stats.peak_tiles_drawn));
 
-        ui.text_colored(Color::yellow().to_array(),
-            format_small!("Triangles drawn   : {} | Peak: {}",
+        ui::text_colored(ui_sys, Color::yellow(), format_small!("Triangles drawn   : {} | Peak: {}",
                           render_sys_stats.triangles_drawn,
                           render_sys_stats.peak_triangles_drawn));
 
-        ui.text_colored(Color::yellow().to_array(),
-            format_small!("Texture changes   : {} | Peak: {}",
+        ui::text_colored(ui_sys, Color::yellow(), format_small!("Texture changes   : {} | Peak: {}",
                           render_sys_stats.texture_changes,
                           render_sys_stats.peak_texture_changes));
 
-        ui.text_colored(Color::yellow().to_array(),
-            format_small!("Draw calls        : {} | Peak: {}",
+        ui::text_colored(ui_sys, Color::yellow(), format_small!("Draw calls        : {} | Peak: {}",
                           render_sys_stats.draw_calls,
                           render_sys_stats.peak_draw_calls));
 
-        ui.text(format_small!("Tile sort list    : {} | Peak: {}",
+        ui::text(ui_sys, format_small!("Tile sort list    : {} | Peak: {}",
                               tile_render_stats.tile_sort_list_len,
                               tile_render_stats.peak_tile_sort_list_len));
 
-        ui.text(format_small!("Tiles highlighted : {} | Peak: {}",
+        ui::text(ui_sys, format_small!("Tiles highlighted : {} | Peak: {}",
                               tile_render_stats.tiles_drawn_highlighted,
                               tile_render_stats.peak_tiles_drawn_highlighted));
 
-        ui.text(format_small!("Tiles invalidated : {} | Peak: {}",
+        ui::text(ui_sys, format_small!("Tiles invalidated : {} | Peak: {}",
                               tile_render_stats.tiles_drawn_invalidated,
                               tile_render_stats.peak_tiles_drawn_invalidated));
 
-        ui.text(format_small!("Lines drawn       : {} | Peak: {}",
+        ui::text(ui_sys, format_small!("Lines drawn       : {} | Peak: {}",
                               render_sys_stats.lines_drawn,
                               render_sys_stats.peak_lines_drawn));
 
-        ui.text(format_small!("Points drawn      : {} | Peak: {}",
+        ui::text(ui_sys, format_small!("Points drawn      : {} | Peak: {}",
                               render_sys_stats.points_drawn,
                               render_sys_stats.peak_points_drawn));
     });
@@ -163,10 +155,9 @@ pub fn draw_world_perf_stats(
     visible_range: CellRange,
     game_stats: &GameLoopStats,
 ) {
-    let ui = ui_sys.ui();
     let position = Vec2::new(5.0, 30.0);
 
-    ui::overlay(ui, "Game Stats", position, 0.8, || {
+    ui::overlay(ui_sys, ui::UiOverlay::new("Game Stats", position).bg_alpha(0.8), |ui_sys| {
         let (buildings_spawned, peak_buildings_spawned) = world.buildings_stats();
         let (units_spawned, peak_units_spawned) = world.units_stats();
         let (props_spawned, peak_props_spawned) = world.prop_stats();
@@ -174,31 +165,32 @@ pub fn draw_world_perf_stats(
         let map_stats = tile_map.stats();
         let map_mem_usage_bytes = tile_map.memory_usage_estimate();
 
-        ui.text("Game Objects:");
-        ui.text(format_small!("- Buildings  : {buildings_spawned} | Peak: {peak_buildings_spawned}"));
-        ui.text(format_small!("- Units      : {units_spawned} | Peak: {peak_units_spawned}"));
-        ui.text(format_small!("- Props      : {props_spawned} | Peak: {peak_props_spawned}"));
-        ui.text("Tile Map:");
-        ui.text(format_small!("- Terrain    : {}", map_stats.terrain_tiles));
-        ui.text(format_small!("- Buildings  : {}", map_stats.building_tiles));
-        ui.text(format_small!("- Blockers   : {}", map_stats.blocker_tiles));
-        ui.text(format_small!("- Units      : {}", map_stats.unit_tiles));
-        ui.text(format_small!("- Vegetation : {}", map_stats.vegetation_tiles));
-        ui.text(format_small!("- Rocks      : {}", map_stats.rock_tiles));
-        ui.text(format_small!("- Memory     : {}kb", map_mem_usage_bytes / 1024));
-        ui.text("Vis Cells:");
-        ui.text(format_small!("- Start      : [{},{}]", visible_range.x(), visible_range.y()));
-        ui.text(format_small!("- Count      : {}x{}", visible_range.width(), visible_range.height()));
-        ui.text("Frame Times:");
-        ui.text(format_small!("- FPS        : {:.1}", game_stats.fps));
-        ui.text(format_small!("- Frame      : {:.2}ms", game_stats.total_frame_time_ms));
-        ui.text(format_small!("- Sim        : {:.2}ms", game_stats.sim_frame_time_ms));
-        ui.text(format_small!("- Anim       : {:.2}ms", game_stats.anim_frame_time_ms));
-        ui.text(format_small!("- Sound      : {:.2}ms", game_stats.sound_frame_time_ms));
-        ui.text(format_small!("- Draw World : {:.2}ms", game_stats.draw_world_frame_time_ms));
-        ui.text(format_small!("- Ui B/E     : {:.2}ms/{:.2}ms", game_stats.ui_begin_frame_time_ms, game_stats.ui_end_frame_time_ms));
-        ui.text(format_small!("- Engine B/E : {:.2}ms/{:.2}ms", game_stats.engine_begin_frame_time_ms, game_stats.engine_end_frame_time_ms));
-        ui.text(format_small!("- Present    : {:.2}ms", game_stats.present_frame_time_ms));
+        ui::text(ui_sys, "Game Objects:");
+        ui::text(ui_sys, format_small!("- Buildings  : {buildings_spawned} | Peak: {peak_buildings_spawned}"));
+        ui::text(ui_sys, format_small!("- Units      : {units_spawned} | Peak: {peak_units_spawned}"));
+        ui::text(ui_sys, format_small!("- Props      : {props_spawned} | Peak: {peak_props_spawned}"));
+        ui::text(ui_sys, "Tile Map:");
+        ui::text(ui_sys, format_small!("- Terrain    : {}", map_stats.terrain_tiles));
+        ui::text(ui_sys, format_small!("- Buildings  : {}", map_stats.building_tiles));
+        ui::text(ui_sys, format_small!("- Blockers   : {}", map_stats.blocker_tiles));
+        ui::text(ui_sys, format_small!("- Units      : {}", map_stats.unit_tiles));
+        ui::text(ui_sys, format_small!("- Vegetation : {}", map_stats.vegetation_tiles));
+        ui::text(ui_sys, format_small!("- Rocks      : {}", map_stats.rock_tiles));
+        ui::text(ui_sys, format_small!("- Memory     : {}kb", map_mem_usage_bytes / 1024));
+        ui::text(ui_sys, "Vis Cells:");
+        ui::text(ui_sys, format_small!("- Start      : [{},{}]", visible_range.x(), visible_range.y()));
+        ui::text(ui_sys, format_small!("- Count      : {}x{}", visible_range.width(), visible_range.height()));
+        ui::text(ui_sys, "Frame Times:");
+        ui::text(ui_sys, format_small!("- FPS        : {:.1}", game_stats.fps));
+        ui::text(ui_sys, format_small!("- Frame      : {:.2}ms", game_stats.total_frame_time_ms));
+        ui::text(ui_sys, format_small!("- Sim        : {:.2}ms", game_stats.sim_frame_time_ms));
+        ui::text(ui_sys, format_small!("- Anim       : {:.2}ms", game_stats.anim_frame_time_ms));
+        ui::text(ui_sys, format_small!("- Sound      : {:.2}ms", game_stats.sound_frame_time_ms));
+        ui::text(ui_sys, format_small!("- Draw World : {:.2}ms", game_stats.draw_world_frame_time_ms));
+        ui::text(ui_sys, format_small!("- Ui B/E     : {:.2}ms/{:.2}ms", game_stats.ui_begin_frame_time_ms, game_stats.ui_end_frame_time_ms));
+        ui::text(ui_sys, format_small!("- Ui Render  : {:.2}ms", game_stats.ui_render_frame_time_ms));
+        ui::text(ui_sys, format_small!("- Engine B/E : {:.2}ms/{:.2}ms", game_stats.engine_begin_frame_time_ms, game_stats.engine_end_frame_time_ms));
+        ui::text(ui_sys, format_small!("- Present    : {:.2}ms", game_stats.present_frame_time_ms));
     });
 }
 
@@ -208,57 +200,47 @@ pub fn draw_world_perf_stats(
 
 fn draw_tile_overlay_text(ui_sys: &UiSystem, debug_overlay_pos: Vec2, tile_screen_pos: Vec2, tile: &Tile) {
     // NOTE: Label has to be unique for each tile because it will be used as the
-    // ImGui ID for this widget.
+    // overlay's id.
     let cell = tile.actual_base_cell();
     let label = format_small!("{}_{}_{}", tile.name(), cell.x, cell.y);
 
     let bg_color = {
         if tile.is(TileKind::Blocker) {
-            Color::red().to_array()
+            Color::red()
         } else if tile.is(TileKind::Building) {
-            Color::yellow().to_array()
+            Color::yellow()
         } else if tile.is(TileKind::Rocks) {
-            Color::magenta().to_array()
+            Color::magenta()
         } else if tile.is(TileKind::Unit) {
-            Color::cyan().to_array()
+            Color::cyan()
         } else if tile.is(TileKind::Vegetation) {
-            Color::green().to_array()
+            Color::green()
         } else {
-            Color::black().to_array()
+            Color::black()
         }
     };
 
-    let text_color = {
-        if tile.is(TileKind::Terrain) {
-            Color::white().to_array()
-        } else {
-            Color::black().to_array()
-        }
-    };
+    let text_color = if tile.is(TileKind::Terrain) { Color::white() } else { Color::black() };
 
-    let ui = ui_sys.ui();
+    // Window background and text colors by tile kind.
+    let overlay = ui::UiOverlay::new(&label, debug_overlay_pos)
+        .bg_alpha(0.4)
+        .bg_color(bg_color)
+        .text_color(text_color)
+        .font_scale(0.8);
 
-    // Adjust window background color based on tile kind.
-    // The returned tokens take care of popping back to the previous colors.
-    let _bg_col = ui.push_style_color(imgui::StyleColor::WindowBg, bg_color);
-    let _text_col = ui.push_style_color(imgui::StyleColor::Text, text_color);
-
-    ui::overlay(ui, &label, debug_overlay_pos, 0.4, || {
-        ui_sys.set_window_font_scale(UiFontScale(0.8));
-
+    ui::overlay(ui_sys, overlay, |ui_sys| {
         let tile_iso_pos = tile.iso_coords_f32();
-        ui.text(format_small!("C:{},{}", cell.x, cell.y)); // Cell position
-        ui.text(format_small!("S:{:.1},{:.1}", tile_screen_pos.x, tile_screen_pos.y)); // 2D screen position
-        ui.text(format_small!("I:{:.1},{:.1}", tile_iso_pos.0.x, tile_iso_pos.0.y)); // 2D isometric position
+        ui::text(ui_sys, format_small!("C:{},{}", cell.x, cell.y)); // Cell position
+        ui::text(ui_sys, format_small!("S:{:.1},{:.1}", tile_screen_pos.x, tile_screen_pos.y)); // 2D screen position
+        ui::text(ui_sys, format_small!("I:{:.1},{:.1}", tile_iso_pos.0.x, tile_iso_pos.0.y)); // 2D isometric position
 
         // Z/Depth sorting:
         match tile.depth_sort_override() {
             TileDepthSortOverride::None => {}
-            TileDepthSortOverride::Topmost => ui.text("Z: Top"),
-            TileDepthSortOverride::Bottommost => ui.text("Z: Bottom"),
+            TileDepthSortOverride::Topmost => ui::text(ui_sys, "Z: Top"),
+            TileDepthSortOverride::Bottommost => ui::text(ui_sys, "Z: Bottom"),
         }
-
-        ui_sys.set_window_font_scale(UiFontScale::default());
     });
 }
 

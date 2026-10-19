@@ -1,5 +1,4 @@
 use super::*;
-mod libc;
 
 // ----------------------------------------------
 // Crash Report System

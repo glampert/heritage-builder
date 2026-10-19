@@ -3,9 +3,10 @@
 // Request one with Engine::request_screenshot. Players press PrintScreen or F12 (see
 // match_hotkey), and `--screenshot-after-frames N` takes one and quits. The GPU readback runs on
 // the main thread at the end of the frame (see render/capture.rs). On desktop the PNG is then
-// encoded and written on a background thread, so the frame doesn't also wait for that. Web has
-// no threads and no writable file system: it encodes in place, and "saving a file" hands the PNG
-// to the browser as a download.
+// encoded and written on a background thread, so the frame doesn't also wait for that, unless the
+// request asks for it in the frame (automation does, see ScreenshotRequest::encode_in_frame). Web
+// has no threads and no writable file system: it encodes in place, and "saving a file" hands the
+// PNG to the browser as a download.
 
 use std::{
     path::{Path, PathBuf},
@@ -51,6 +52,12 @@ pub struct ScreenshotRequest {
     pub include_ui: bool, // False saves the scene only, without menus or other UI.
     pub scale: ScreenshotScale,
     pub output: ScreenshotOutput,
+
+    // Encode and write it on the main thread, in the frame it's captured, rather than on a
+    // background thread. That frame takes longer, but the result is then ready after the same
+    // number of frames on every run, which keeps scripts that wait for it repeatable: animations
+    // drawn after it are at the same point each time.
+    pub encode_in_frame: bool,
 }
 
 pub struct Screenshot {
@@ -259,9 +266,16 @@ fn write_png(path: &Path, png: &[u8]) -> Result<(), String> {
 // ScreenshotSystem
 // ----------------------------------------------
 
+struct WaitingScreenshot {
+    id: ScreenshotId,
+    scale: ScreenshotScale,
+    output: ScreenshotOutput,
+    encode_in_frame: bool,
+}
+
 // Owned by the Engine. Matches finished captures with their requests and saves them.
 pub(crate) struct ScreenshotSystem {
-    waiting_for_capture: Vec<(ScreenshotId, ScreenshotScale, ScreenshotOutput)>,
+    waiting_for_capture: Vec<WaitingScreenshot>,
     paths_in_use: Vec<(ScreenshotId, PathBuf)>, // Not yet written. New file names avoid them.
     writers: Vec<JoinHandle<()>>,
     results_sender: mpsc::Sender<(ScreenshotId, ScreenshotResult)>,
@@ -282,22 +296,24 @@ impl ScreenshotSystem {
         }
     }
 
-    pub fn add_request(&mut self, id: ScreenshotId, scale: ScreenshotScale, output: ScreenshotOutput) {
+    pub fn add_request(&mut self, id: ScreenshotId, request: ScreenshotRequest) {
+        let ScreenshotRequest { scale, output, encode_in_frame, .. } = request;
         if let ScreenshotOutput::File(path) = &output {
             self.paths_in_use.push((id, path.clone()));
         }
-        self.waiting_for_capture.push((id, scale, output));
+        self.waiting_for_capture.push(WaitingScreenshot { id, scale, output, encode_in_frame });
     }
 
     pub fn on_capture_finished(&mut self, id: ScreenshotId, result: CaptureResult) {
-        let Some(index) = self.waiting_for_capture.iter().position(|(waiting_id, ..)| *waiting_id == id) else {
+        let Some(index) = self.waiting_for_capture.iter().position(|waiting| waiting.id == id) else {
             log::warning!(log::channel!("screenshot"), "Dropping capture {id:?}: no screenshot requested it.");
             return;
         };
 
-        let (_, scale, output) = self.waiting_for_capture.swap_remove(index);
+        let WaitingScreenshot { scale, output, encode_in_frame, .. } = self.waiting_for_capture.swap_remove(index);
 
         match result {
+            Ok(image) if encode_in_frame => self.finish(id, save_screenshot(image, scale, output)),
             Ok(image) => self.save(id, image, scale, output),
             Err(err) => self.finish(id, Err(err)),
         }
@@ -399,6 +415,10 @@ mod tests {
             pixels.extend_from_slice(&[i as u8, 0x80, 0xFF - i as u8, 0xFF]);
         }
         CapturedImage { size: Size::new(width, height), scale: Vec2::new(1.0, 1.0), pixels }
+    }
+
+    fn request(output: ScreenshotOutput, encode_in_frame: bool) -> ScreenshotRequest {
+        ScreenshotRequest { include_ui: true, scale: ScreenshotScale::Pixels, output, encode_in_frame }
     }
 
     #[test]
@@ -518,7 +538,7 @@ mod tests {
         let id = queue.request(crate::render::capture::CaptureRequest { include_ui: true });
         let unknown = queue.request(crate::render::capture::CaptureRequest { include_ui: true });
 
-        system.add_request(id, ScreenshotScale::Pixels, ScreenshotOutput::Memory);
+        system.add_request(id, request(ScreenshotOutput::Memory, false));
         system.on_capture_finished(unknown, Ok(test_image(1, 1))); // Ignored.
         system.on_capture_finished(id, Ok(test_image(1, 1)));
 
@@ -537,12 +557,27 @@ mod tests {
     }
 
     #[test]
+    fn test_encode_in_frame_finishes_with_the_capture() {
+        let mut system = ScreenshotSystem::new();
+        let mut queue = crate::render::capture::CaptureQueue::default();
+        let id = queue.request(crate::render::capture::CaptureRequest { include_ui: true });
+
+        system.add_request(id, request(ScreenshotOutput::Memory, true));
+        system.on_capture_finished(id, Ok(test_image(2, 1)));
+
+        // No update() needed: the PNG was encoded on this thread.
+        let screenshot = system.take_result(id).unwrap().unwrap();
+        assert_eq!(screenshot.size, Size::new(2, 1));
+        assert!(screenshot.png.is_some());
+    }
+
+    #[test]
     fn test_capture_errors_are_reported() {
         let mut system = ScreenshotSystem::new();
         let mut queue = crate::render::capture::CaptureQueue::default();
         let id = queue.request(crate::render::capture::CaptureRequest { include_ui: false });
 
-        system.add_request(id, ScreenshotScale::Pixels, ScreenshotOutput::File(PathBuf::from("unused.png")));
+        system.add_request(id, request(ScreenshotOutput::File(PathBuf::from("unused.png")), false));
         assert!(system.is_path_in_use(Path::new("unused.png")));
 
         system.on_capture_finished(id, Err("GPU on fire".into()));

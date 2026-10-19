@@ -1,4 +1,4 @@
-# Drives the developer editor's ImGui menus (Ctrl+/) through the widget registry: the tile palette,
+# Drives the developer editor's menus (Ctrl+/) through the widget registry: the tile palette,
 # the menu bar, the minimap's debug panel and the tile inspector and its panels. From the repository root:
 #   cargo run -p HeritageBuilder -- --script crates/game/tests/scenarios/ui_dev_menus.jsonl
 {"method": "time.fixed_dt", "params": {"dt": 0.016667}}

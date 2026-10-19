@@ -1444,7 +1444,7 @@ impl TileSets {
 
     // Get back a mutable reference for the given TileDef.
     // This function is only intended for development/debug
-    // and use within the ImGui TileInspector widget.
+    // and use within the Tile Inspector debug window.
     pub fn try_get_editable_tile_def(&'static self, tile_def: &'static TileDef) -> Option<&'static mut TileDef> {
         if let Some(cat) = self.find_category_for_tile_def(tile_def) {
             let editable_def = &cat.tile_defs[tile_def.category_tiledef_index as usize];

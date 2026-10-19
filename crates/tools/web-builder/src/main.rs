@@ -184,80 +184,11 @@ fn cargo_build_wasm(project_root: &Path, release: bool) {
         cmd.arg("--release");
     }
 
-    // Set up clang for imgui-sys cross-compilation.
-    // A wasi-sdk install pointed to by WASI_SDK_PATH takes precedence (Linux / CI),
-    // otherwise fall back to the Homebrew llvm + wasi-libc layout on MacOS.
-    if let Some(wasi_sdk) = env::var_os("WASI_SDK_PATH").map(PathBuf::from) {
-        configure_wasi_sdk_toolchain(&mut cmd, &wasi_sdk);
-    } else {
-        configure_homebrew_toolchain(&mut cmd);
-    }
-
     cmd.current_dir(project_root);
 
     let status = cmd.status().expect("❌ Failed to run cargo build");
     if !status.success() {
         panic!("❌ Cargo build failed!");
-    }
-}
-
-// Uses clang++, llvm-ar and the WASI sysroot from a wasi-sdk release
-// (https://github.com/WebAssembly/wasi-sdk). wasi-sdk 30 to 32 are known to work;
-// the headers in wasi-sdk 33+ refuse to compile for non-WASI targets like wasm32-unknown-unknown.
-fn configure_wasi_sdk_toolchain(cmd: &mut Command, wasi_sdk: &Path) {
-    let clang = wasi_sdk.join("bin/clang++");
-    let llvm_ar = wasi_sdk.join("bin/llvm-ar");
-    let sysroot = wasi_sdk.join("share/wasi-sysroot");
-
-    if !clang.exists() || !sysroot.exists() {
-        panic!("❌ WASI_SDK_PATH={} does not look like a wasi-sdk install (expected bin/clang++ and share/wasi-sysroot).",
-               wasi_sdk.display());
-    }
-
-    // Older sysroots ship `include/wasm32-wasi`, newer ones only `include/wasm32-wasip1`.
-    let include_dir = ["wasm32-wasi", "wasm32-wasip1"]
-        .iter()
-        .map(|dir| sysroot.join("include").join(dir))
-        .find(|dir| dir.exists())
-        .unwrap_or_else(|| panic!("❌ No wasm32-wasi include directory found under {}", sysroot.display()));
-
-    println!("   Using wasi-sdk at {}", wasi_sdk.display());
-
-    cmd.env("CXX_wasm32_unknown_unknown", &clang);
-    cmd.env("AR_wasm32_unknown_unknown", &llvm_ar);
-    cmd.env("CXXFLAGS_wasm32_unknown_unknown",
-            format!("--sysroot={} -I{}", sysroot.display(), include_dir.display()));
-
-    // Tell the cc crate not to link a C++ stdlib — imgui is compiled with
-    // -fno-exceptions -fno-rtti and doesn't need it.
-    cmd.env("CXXSTDLIB_wasm32_unknown_unknown", "");
-}
-
-fn configure_homebrew_toolchain(cmd: &mut Command) {
-    let llvm_clang = PathBuf::from("/opt/homebrew/opt/llvm/bin/clang++");
-    let wasi_sysroot = PathBuf::from("/opt/homebrew/opt/wasi-libc/share/wasi-sysroot");
-
-    if llvm_clang.exists() {
-        cmd.env("CXX_wasm32_unknown_unknown", &llvm_clang);
-
-        if wasi_sysroot.exists() {
-            let flags = format!(
-                "--sysroot={} -I{}/include/wasm32-wasi",
-                wasi_sysroot.display(),
-                wasi_sysroot.display(),
-            );
-            cmd.env("CXXFLAGS_wasm32_unknown_unknown", &flags);
-        } else {
-            println!("   ⚠️  wasi-libc sysroot not found at {}", wasi_sysroot.display());
-            println!("   Install it: brew install wasi-libc");
-        }
-
-        // Tell the cc crate not to link a C++ stdlib — imgui is compiled with
-        // -fno-exceptions -fno-rtti and doesn't need it.
-        cmd.env("CXXSTDLIB_wasm32_unknown_unknown", "");
-    } else {
-        println!("   ⚠️  LLVM clang++ not found at {}", llvm_clang.display());
-        println!("   Install it: brew install llvm (or point WASI_SDK_PATH at a wasi-sdk install)");
     }
 }
 
@@ -293,43 +224,6 @@ fn run_wasm_bindgen(project_root: &Path, release: bool) {
     }
 
     println!("   Output: {}", out_dir.display());
-
-    // Post-process: inject libc.js setWasm() call into the generated JS.
-    // wasm-bindgen's __wbg_finalize_init sets `wasm = instance.exports` then calls
-    // `wasm.__wbindgen_start()` (which runs Rust main()). We need libc.js to have
-    // the WASM exports *before* main() runs, so we inject a setWasm() call between
-    // the two lines.
-    patch_generated_js(&out_dir);
-}
-
-// Patch generate HeritageBuilder.js to load libc.js, which contains missing C library wrappers used by ImGui.
-// NOTE: If we move away from ImGui in the future this shouldn't be necessary anymore.
-fn patch_generated_js(pkg_dir: &Path) {
-    let js_path = pkg_dir.join(format!("{GAME_CRATE}.js"));
-    let js = fs::read_to_string(&js_path)
-        .unwrap_or_else(|e| panic!("❌ Failed to read {}: {e}", js_path.display()));
-
-    // Add import for libc.js setWasm at the top (after the existing env imports).
-    let js = if !js.contains("import { setWasm }") {
-        js.replacen(
-            "\nfunction __wbg_get_imports()",
-            "\nimport { setWasm as __envSetWasm } from \"env\"\n\nfunction __wbg_get_imports()",
-            1,
-        )
-    } else {
-        js
-    };
-
-    // Inject __envSetWasm(wasm) before __wbindgen_start().
-    let js = js.replace(
-        "wasm.__wbindgen_start();",
-        "__envSetWasm(wasm);\n    wasm.__wbindgen_start();",
-    );
-
-    fs::write(&js_path, &js)
-        .unwrap_or_else(|e| panic!("❌ Failed to write {}: {e}", js_path.display()));
-
-    println!("   Patched {} with libc.js integration.", js_path.display());
 }
 
 // -----------------------------------------------

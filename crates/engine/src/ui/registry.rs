@@ -31,8 +31,7 @@ pub struct UiWidgetInfo {
 pub(super) struct UiWidgetRegistry {
     enabled: bool,
     path: Vec<String>,
-    recording: Vec<UiWidgetInfo>,     // This frame's, so far.
-    last_frame: Vec<UiWidgetInfo>,    // The previous frame's, complete.
+    recording: Vec<UiWidgetInfo>,      // This frame's, so far.
     pending_values: Vec<PendingValue>, // From ui.set, applied by the widget on its next draw.
     reveal: Option<PendingReveal>,     // From ui.click: a widget to scroll into view.
 }
@@ -55,7 +54,6 @@ impl UiWidgetRegistry {
         self.enabled = enabled;
         if !enabled {
             self.recording.clear();
-            self.last_frame.clear();
             self.pending_values.clear();
             self.reveal = None;
         }
@@ -66,9 +64,12 @@ impl UiWidgetRegistry {
         self.enabled
     }
 
-    pub fn begin_frame(&mut self) {
+    // Hands the widgets recorded last frame to `last_frame` (nothing while recording is off), and
+    // starts recording this frame's.
+    pub fn begin_frame(&mut self, last_frame: &mut Vec<UiWidgetInfo>) {
+        last_frame.clear();
         if self.enabled {
-            self.last_frame = std::mem::take(&mut self.recording);
+            std::mem::swap(last_frame, &mut self.recording); // Both keep their capacity.
         }
         self.path.clear();
 
@@ -83,11 +84,6 @@ impl UiWidgetRegistry {
                 self.reveal = None;
             }
         }
-    }
-
-    #[inline]
-    pub fn widgets(&self) -> &[UiWidgetInfo] {
-        &self.last_frame
     }
 
     pub fn push_path(&mut self, segment: &str) {
@@ -114,6 +110,20 @@ impl UiWidgetRegistry {
         Some(unique_path)
     }
 
+    // Records a widget whose rect and state are known only after what's inside it has recorded
+    // (a menu and its items), so it's listed first. Returns its index for `update`.
+    pub fn reserve(&mut self, info: UiWidgetInfo) -> Option<usize> {
+        self.record(info)?;
+        Some(self.recording.len() - 1)
+    }
+
+    // Fills in a widget `reserve` recorded this frame.
+    pub fn update(&mut self, index: usize, update: impl FnOnce(&mut UiWidgetInfo)) {
+        if let Some(info) = self.recording.get_mut(index) {
+            update(info);
+        }
+    }
+
     // The path the next widget recorded with `kind` and `label` gets.
     fn next_path(&self, kind: &'static str, label: &str) -> String {
         let base_path = {
@@ -130,6 +140,14 @@ impl UiWidgetRegistry {
             }
 
             segments.join("/")
+        };
+
+        // An unlabeled widget takes the path of the group or menu around it, unless that's the
+        // menu's own content record: then it goes by its kind, e.g. "Home/item_list".
+        let base_path = if label.is_empty() && self.recording.iter().any(|recorded| recorded.path == base_path && recorded.kind == "menu_content") {
+            format!("{base_path}/{kind}")
+        } else {
+            base_path
         };
 
         // Only the suffix is formatted while looking for a free path, so a long path can't be
@@ -182,7 +200,7 @@ fn is_path(path: &str, base: &str, suffix: &str) -> bool {
     path.len() == base.len() + suffix.len() && path.starts_with(base) && path.ends_with(suffix)
 }
 
-// Labels can hold ImGui id suffixes ("Save##3") or slashes (sprite paths); neither belongs in a path.
+// Labels can hold id suffixes ("Save##3") or slashes (sprite paths); neither belongs in a path.
 // Borrows the label unless it has a slash to replace.
 fn clean_segment(label: &str) -> Cow<'_, str> {
     let label = label.split("##").next().unwrap_or_default().trim();
@@ -220,8 +238,9 @@ mod tests {
     #[test]
     fn test_paths() {
         let mut registry = UiWidgetRegistry::default();
+        let mut widgets = Vec::new();
         registry.set_enabled(true);
-        registry.begin_frame();
+        registry.begin_frame(&mut widgets);
 
         registry.push_path("Main Menu");
         assert_eq!(registry.record(info("text_button", "New Game")).as_deref(), Some("Main Menu/New Game"));
@@ -232,22 +251,28 @@ mod tests {
         assert_eq!(registry.record(info("int_input", "")).as_deref(), Some("Main Menu/Map Width"));
         registry.pop_path();
         registry.pop_path();
+        // An unlabeled widget in a menu goes by its kind, since the menu's content record has the path.
+        assert_eq!(registry.record(info("menu_content", "Load Game")).as_deref(), Some("Load Game"));
+        registry.push_path("Load Game");
+        assert_eq!(registry.record(info("item_list", "")).as_deref(), Some("Load Game/item_list"));
+        registry.pop_path();
         assert_eq!(registry.record(info("sprite_button", "ui/palette/roads")).as_deref(), Some("ui\u{2215}palette\u{2215}roads"));
         assert_eq!(registry.record(info("checkbox", "Mute##7")).as_deref(), Some("Mute"));
 
         // Nothing is listed until the frame is complete.
-        assert!(registry.widgets().is_empty());
-        registry.begin_frame();
-        assert_eq!(registry.widgets().len(), 7);
+        assert!(widgets.is_empty());
+        registry.begin_frame(&mut widgets);
+        assert_eq!(widgets.len(), 9);
     }
 
     #[test]
     fn test_off_records_nothing() {
         let mut registry = UiWidgetRegistry::default();
-        registry.begin_frame();
+        let mut widgets = Vec::new();
+        registry.begin_frame(&mut widgets);
         assert_eq!(registry.record(info("text_button", "New Game")), None);
-        registry.begin_frame();
-        assert!(registry.widgets().is_empty());
+        registry.begin_frame(&mut widgets);
+        assert!(widgets.is_empty());
     }
 
     #[test]
@@ -261,11 +286,11 @@ mod tests {
 
         // A value for a widget that isn't drawn expires.
         registry.queue_value("Gone".into(), Value::from(1));
-        registry.begin_frame();
+        registry.begin_frame(&mut Vec::new());
         assert!(registry.take_value("Gone").is_some());
         registry.queue_value("Gone".into(), Value::from(1));
-        registry.begin_frame();
-        registry.begin_frame();
+        registry.begin_frame(&mut Vec::new());
+        registry.begin_frame(&mut Vec::new());
         assert_eq!(registry.take_value("Gone"), None);
 
         // Taken before the widget records: by the path it's about to get.
@@ -287,8 +312,8 @@ mod tests {
 
         // A request for a widget that isn't drawn expires.
         registry.request_reveal("Gone".into());
-        registry.begin_frame();
-        registry.begin_frame();
+        registry.begin_frame(&mut Vec::new());
+        registry.begin_frame(&mut Vec::new());
         assert!(!registry.take_reveal("Gone"));
     }
 }

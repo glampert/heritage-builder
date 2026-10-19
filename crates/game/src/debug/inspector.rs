@@ -1,6 +1,6 @@
 use arrayvec::ArrayString;
 use common::{Color, Size, Vec2, constants::*, coords::Cell, format_fixed_string, format_small, mem::RawPtr, time::Seconds};
-use engine::ui::{self, DrawDebugUi, dev};
+use engine::ui::{self, DrawDebugUi, UiCondition, UiWindow};
 use proc_macros::DrawDebugUi;
 use strum::{VariantArray, VariantNames};
 
@@ -122,56 +122,47 @@ impl TileInspectorDevMenu {
                 let cell = tile.base_cell();
                 serde_json::json!({ "tile": tile.name(), "kind": tile.kind().to_string(), "cell": [cell.x, cell.y] })
             });
-            (tile.screen_rect(context.camera.transform(), true), Self::make_stable_imgui_window_label(tile), tile_json)
+            (tile.screen_rect(context.camera.transform(), true), Self::make_stable_window_label(tile), tile_json)
         };
 
-        let window_position = [tile_screen_rect.center().x - 30.0, tile_screen_rect.center().y - 30.0];
-
-        let window_flags = imgui::WindowFlags::ALWAYS_AUTO_RESIZE;
-
-        let ui = context.ui_sys.ui();
+        let window_position = Vec2::new(tile_screen_rect.center().x - 30.0, tile_screen_rect.center().y - 30.0);
         let mut is_open = self.is_open;
 
+        // UI automation: "Tile Inspector", with the tile as its value, and "Tile Inspector/Close".
         // It opens next to the tile, often low on the screen: what doesn't fit scrolls inside it.
-        ui::fit_next_window_on_screen();
+        let window = UiWindow::new(&window_label)
+            .name("Tile Inspector")
+            .record_as("window", tile_json)
+            .open(&mut is_open)
+            .auto_resize()
+            .position(window_position, UiCondition::FirstUse)
+            .fit_on_screen();
 
-        ui.window(window_label)
-            .opened(&mut is_open)
-            .flags(window_flags)
-            .position(window_position, imgui::Condition::FirstUseEver)
-            .build(|| {
-                // UI automation: "Tile Inspector", with the tile as its value, and "Tile Inspector/Close".
-                dev::record_window(context.ui_sys, "window", "Tile Inspector", tile_json, true);
-                let _path = dev::path_scope(context.ui_sys, "Tile Inspector");
+        ui::window(context.ui_sys, window, |ui_sys| {
+            let tile = match self.try_get_selected_tile_mut() {
+                Some(tile) => tile,
+                None => return,
+            };
 
-                let tile = match self.try_get_selected_tile_mut() {
-                    Some(tile) => tile,
-                    None => return,
-                };
+            let sim = GameLoop::get_mut().sim_mut();
 
-                let sim = GameLoop::get_mut().sim_mut();
+            // Overview:
+            sim.draw_game_object_debug_ui(context, tile, DebugUiMode::Overview);
 
-                // Overview:
-                sim.draw_game_object_debug_ui(context, tile, DebugUiMode::Overview);
-
-                // Detailed:
-                if tile.game_object_handle().is_valid() {
-                    // If the tile has a game object, we'll have different dropdowns besides "Tile"
-                    // (e.g.: "Building", "Unit"), so nest tile debug under its own collapsing header.
-                    if let Some(_path) =
-                        dev::collapsing_header_scope(context.ui_sys, "Tile", imgui::TreeNodeFlags::empty())
-                    {
-                        ui.indent_by(10.0);
-                        Self::draw_tile_debug_ui(context, tile);
-                        ui.unindent_by(10.0);
-                    }
-                } else {
-                    // Draw tile debug ui directly without nesting under a collapsing header.
-                    Self::draw_tile_debug_ui(context, tile);
+            // Detailed:
+            if tile.game_object_handle().is_valid() {
+                // If the tile has a game object, we'll have different dropdowns besides "Tile"
+                // (e.g.: "Building", "Unit"), so nest tile debug under its own collapsing header.
+                if let Some(_path) = ui::collapsing_header_scope(ui_sys, "Tile", false) {
+                    ui::indent(ui_sys, 10.0, |_| Self::draw_tile_debug_ui(context, tile));
                 }
+            } else {
+                // Draw tile debug ui directly without nesting under a collapsing header.
+                Self::draw_tile_debug_ui(context, tile);
+            }
 
-                sim.draw_game_object_debug_ui(context, tile, DebugUiMode::Detailed);
-            });
+            sim.draw_game_object_debug_ui(context, tile, DebugUiMode::Detailed);
+        });
 
         self.is_open = is_open;
     }
@@ -198,8 +189,8 @@ impl TileInspectorDevMenu {
         tile_ref.try_tile_mut()
     }
 
-    fn make_stable_imgui_window_label(tile: &Tile) -> ArrayString<128> {
-        // If the tile has an associated game object, we'll use it as the imgui window
+    fn make_stable_window_label(tile: &Tile) -> ArrayString<128> {
+        // If the tile has an associated game object, we'll use it as the window
         // ID, since it is the most stable handle we can get.
         let game_object_handle = tile.game_object_handle();
         if game_object_handle.is_valid() {
@@ -227,11 +218,11 @@ impl TileInspectorDevMenu {
     }
 
     fn tile_properties_dropdown(context: &mut GameUiContext, tile: &mut Tile) {
-        let ui = context.ui_sys.ui();
+        let ui_sys = context.ui_sys;
 
         // NOTE: Use the special ##id here so we don't collide with Building/Properties.
         let Some(_path) =
-            dev::collapsing_header_scope(context.ui_sys, "Properties##_tile_properties", imgui::TreeNodeFlags::empty())
+            ui::collapsing_header_scope(context.ui_sys, "Properties##_tile_properties", false)
         else {
             return; // collapsed.
         };
@@ -269,7 +260,7 @@ impl TileInspectorDevMenu {
         };
 
         debug_vars.draw_debug_ui(context.ui_sys);
-        ui.separator();
+        ui::separator(ui_sys);
 
         // Editing the cell only for single cell Object Tiles for now; no building
         // blockers/terrain support.
@@ -304,11 +295,11 @@ impl TileInspectorDevMenu {
         let mut screen_coords = tile.screen_rect(context.camera.transform(), true).position();
         ui::input_f32_xy(context.ui_sys, "Screen Coords:", &mut screen_coords, true, None, None);
 
-        ui.text("Depth Sort Override:");
+        ui::text(ui_sys, "Depth Sort Override:");
         {
-            let _path = dev::path_scope(context.ui_sys, "Depth Sort Override");
+            let _path = ui::path_scope(context.ui_sys, "Depth Sort Override");
             let mut selected_index = tile.depth_sort_override() as usize;
-            if dev::combo(
+            if ui::combo(
                 context.ui_sys,
                 "##DepthSortOverride",
                 &mut selected_index,
@@ -320,30 +311,31 @@ impl TileInspectorDevMenu {
         }
 
         if tile.is_stacked() {
-            ui.separator();
-            ui.text("Stack:");
+            ui::separator(ui_sys);
+            ui::text(ui_sys, "Stack:");
 
-            let mut maybe_next_tile: Option<&Tile> = Some(tile);
+            ui::horizontal(ui_sys, |ui_sys| {
+                let mut maybe_next_tile: Option<&Tile> = Some(tile);
 
-            while let Some(next_tile) = maybe_next_tile {
-                ui.text(format_small!("{} {} ->", next_tile.name(), next_tile.base_cell()));
-                ui.same_line();
-                maybe_next_tile = context.tile_map.next_tile(next_tile);
-            }
+                while let Some(next_tile) = maybe_next_tile {
+                    ui::text(ui_sys, format_small!("{} {} ->", next_tile.name(), next_tile.base_cell()));
+                    maybe_next_tile = context.tile_map.next_tile(next_tile);
+                }
 
-            ui.text("~");
+                ui::text(ui_sys, "~");
+            });
         }
     }
 
     fn tile_flags_dropdown(context: &mut GameUiContext, tile: &mut Tile) {
-        let Some(_path) = dev::collapsing_header_scope(context.ui_sys, "Flags", imgui::TreeNodeFlags::empty()) else {
+        let Some(_path) = ui::collapsing_header_scope(context.ui_sys, "Flags", false) else {
             return; // collapsed.
         };
 
         macro_rules! tile_flag_ui_checkbox {
             ($tile:ident, $flag_name:ident) => {
                 let mut value = $tile.has_flags(TileFlags::$flag_name);
-                if dev::checkbox(context.ui_sys, stringify!($flag_name), &mut value) {
+                if ui::checkbox(context.ui_sys, stringify!($flag_name), &mut value) {
                     context.tile_map.set_tile_flags_at_index(
                         tile.index(),
                         tile.layer_kind(),
@@ -373,18 +365,18 @@ impl TileInspectorDevMenu {
             return;
         }
 
-        let ui = context.ui_sys.ui();
-        let Some(_path) = dev::collapsing_header_scope(context.ui_sys, "Variations", imgui::TreeNodeFlags::empty()) else {
+        let ui_sys = context.ui_sys;
+        let Some(_path) = ui::collapsing_header_scope(context.ui_sys, "Variations", false) else {
             return; // collapsed.
         };
 
         let mut variation_index = tile.variation_index();
-        if dev::input_scalar(context.ui_sys, "Var idx", &mut variation_index, 1) {
+        if ui::input_scalar(context.ui_sys, "Var idx", &mut variation_index, 1) {
             tile.set_variation_index(variation_index);
         }
 
-        ui.text(format_small!("Variations    : {}", tile.variation_count()));
-        ui.text(format_small!("Variation idx : {}, {}", tile.variation_index(), tile.variation_name()));
+        ui::text(ui_sys, format_small!("Variations    : {}", tile.variation_count()));
+        ui::text(ui_sys, format_small!("Variation idx : {}, {}", tile.variation_index(), tile.variation_name()));
     }
 
     fn tile_animations_dropdown(context: &mut GameUiContext, tile: &mut Tile) {
@@ -392,7 +384,7 @@ impl TileInspectorDevMenu {
             return;
         }
 
-        let Some(_path) = dev::collapsing_header_scope(context.ui_sys, "Animations", imgui::TreeNodeFlags::empty()) else {
+        let Some(_path) = ui::collapsing_header_scope(context.ui_sys, "Animations", false) else {
             return; // collapsed.
         };
 
@@ -404,12 +396,12 @@ impl TileInspectorDevMenu {
         }
 
         let mut anim_set_index: usize = tile.anim_set_index();
-        if dev::combo(context.ui_sys, "Anim Set", &mut anim_set_index, &anim_set_names) {
+        if ui::combo(context.ui_sys, "Anim Set", &mut anim_set_index, &anim_set_names) {
             tile.set_anim_set_index(anim_set_index);
         }
 
         anim_set_index = tile.anim_set_index();
-        if dev::input_scalar(context.ui_sys, "Anim Set idx", &mut anim_set_index, 1) {
+        if ui::input_scalar(context.ui_sys, "Anim Set idx", &mut anim_set_index, 1) {
             tile.set_anim_set_index(anim_set_index);
         }
 
@@ -445,7 +437,7 @@ impl TileInspectorDevMenu {
         // NOTE: Use the special ##id here so we don't collide with Building/Debug
         // Options.
         let Some(_path) =
-            dev::collapsing_header_scope(context.ui_sys, "Debug Options##_tile_debug_opts", imgui::TreeNodeFlags::empty())
+            ui::collapsing_header_scope(context.ui_sys, "Debug Options##_tile_debug_opts", false)
         else {
             return; // collapsed.
         };
@@ -454,7 +446,7 @@ impl TileInspectorDevMenu {
         let tile_layer = tile.layer_kind();
 
         let mut hide_tile = tile.has_flags(TileFlags::Hidden);
-        if dev::checkbox(context.ui_sys, "Hide tile", &mut hide_tile) {
+        if ui::checkbox(context.ui_sys, "Hide tile", &mut hide_tile) {
             context.tile_map.set_tile_flags_at_index(
                 tile_index,
                 tile_layer,
@@ -464,7 +456,7 @@ impl TileInspectorDevMenu {
         }
 
         let mut show_tile_debug = tile.has_flags(TileFlags::DrawDebugInfo);
-        if dev::checkbox(context.ui_sys, "Show debug overlay", &mut show_tile_debug) {
+        if ui::checkbox(context.ui_sys, "Show debug overlay", &mut show_tile_debug) {
             context.tile_map.set_tile_flags_at_index(
                 tile_index,
                 tile_layer,
@@ -474,7 +466,7 @@ impl TileInspectorDevMenu {
         }
 
         let mut show_tile_bounds = tile.has_flags(TileFlags::DrawDebugBounds);
-        if dev::checkbox(context.ui_sys, "Show tile bounds", &mut show_tile_bounds) {
+        if ui::checkbox(context.ui_sys, "Show tile bounds", &mut show_tile_bounds) {
             context.tile_map.set_tile_flags_at_index(
                 tile_index,
                 tile_layer,
@@ -485,7 +477,7 @@ impl TileInspectorDevMenu {
 
         if tile.is(TileKind::Building) {
             let mut show_building_blockers = tile.has_flags(TileFlags::DrawBlockerInfo);
-            if dev::checkbox(context.ui_sys, "Show blocker tiles", &mut show_building_blockers) {
+            if ui::checkbox(context.ui_sys, "Show blocker tiles", &mut show_building_blockers) {
                 context.tile_map.set_tile_flags_at_index(
                     tile_index,
                     tile_layer,
@@ -502,27 +494,25 @@ impl TileInspectorDevMenu {
             return;
         }
 
-        let ui = context.ui_sys.ui();
-        let Some(_path) = dev::collapsing_header_scope(context.ui_sys, "Edit TileDef", imgui::TreeNodeFlags::empty()) else {
+        let ui_sys = context.ui_sys;
+        let Some(_path) = ui::collapsing_header_scope(context.ui_sys, "Edit TileDef", false) else {
             return; // collapsed.
         };
 
-        ui.indent_by(3.0);
-        if let Some(_path) = dev::collapsing_header_scope(context.ui_sys, "Path Flags", imgui::TreeNodeFlags::empty()) {
-            if let Some(editable_def) = tile.try_get_editable_tile_def() {
-                ui.indent_by(5.0);
-                editable_def.path_kind.draw_debug_ui(context.ui_sys);
-                ui.unindent_by(5.0);
+        ui::indent(ui_sys, 3.0, |ui_sys| {
+            if let Some(_path) = ui::collapsing_header_scope(ui_sys, "Path Flags", false)
+                && let Some(editable_def) = tile.try_get_editable_tile_def()
+            {
+                ui::indent(ui_sys, 5.0, |ui_sys| editable_def.path_kind.draw_debug_ui(ui_sys));
             }
-        }
-        ui.unindent_by(3.0);
+        });
 
-        if dev::button(context.ui_sys, "Refresh all Tiles") {
+        if ui::button(context.ui_sys, "Refresh all Tiles") {
             super::utils::refresh_cached_tile_visuals(context.tile_map);
         }
 
         if tile.is(TileKind::Object) {
-            ui.separator();
+            ui::separator(ui_sys);
 
             let mut variation_offset = tile.variation_offset();
             if ui::input_f32_xy(context.ui_sys, "Var Offset:", &mut variation_offset, false, None, None) {
@@ -533,7 +523,7 @@ impl TileInspectorDevMenu {
             }
         }
 
-        ui.separator();
+        ui::separator(ui_sys);
 
         let mut color = tile.tint_color();
         if ui::input_color(context.ui_sys, "Color:", &mut color) {
@@ -543,7 +533,7 @@ impl TileInspectorDevMenu {
             }
         }
 
-        ui.separator();
+        ui::separator(ui_sys);
 
         let mut draw_size = tile.draw_size();
         if ui::input_i32_xy(context.ui_sys, "Draw Size:", &mut draw_size, false, None, Some(["W", "H"])) {
@@ -560,7 +550,7 @@ impl TileInspectorDevMenu {
             return;
         }
 
-        ui.separator();
+        ui::separator(ui_sys);
 
         let mut logical_size = tile.logical_size();
         if ui::input_i32_xy(
@@ -582,10 +572,10 @@ impl TileInspectorDevMenu {
             }
         }
 
-        ui.separator();
+        ui::separator(ui_sys);
 
         let mut occludes_terrain = tile.has_flags(TileFlags::OccludesTerrain);
-        if dev::checkbox(context.ui_sys, "Occludes terrain", &mut occludes_terrain) {
+        if ui::checkbox(context.ui_sys, "Occludes terrain", &mut occludes_terrain) {
             let tile_index = tile.index();
             let tile_layer = tile.layer_kind();
             if let Some(editable_def) = tile.try_get_editable_tile_def() {

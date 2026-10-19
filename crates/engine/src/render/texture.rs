@@ -20,7 +20,7 @@ use crate::{
 // TextureHandle
 // ----------------------------------------------
 
-#[derive(Copy, Clone, PartialEq, Eq)]
+#[derive(Copy, Clone, PartialEq, Eq, Debug)]
 pub enum TextureHandle {
     Invalid,    // Returns built-in dummy_texture.
     White,      // Returns built-in white_texture.
@@ -43,7 +43,7 @@ impl TextureHandle {
         !matches!(self, TextureHandle::Invalid)
     }
 
-    // Pack/unpack into usize for ImGui TextureId.
+    // Pack/unpack into a usize, so the UI library's texture ids can carry a TextureHandle.
     // Tag in the top 2 bits, index in the lower 30 bits.
     // Supports up to 2^30 (~1 billion) texture indices.
     const TAG_SHIFT: u32 = usize::BITS - 2;
@@ -83,7 +83,7 @@ impl Default for TextureHandle {
 // ----------------------------------------------
 
 #[repr(u32)]
-#[derive(Copy, Clone, Display, VariantArray, VariantNames, TryFromPrimitive, Serialize, Deserialize)]
+#[derive(Copy, Clone, PartialEq, Eq, Debug, Display, VariantArray, VariantNames, TryFromPrimitive, Serialize, Deserialize)]
 pub enum TextureFilter {
     Nearest,
     Linear,
@@ -94,14 +94,14 @@ pub enum TextureFilter {
 }
 
 #[repr(u32)]
-#[derive(Copy, Clone, Display, VariantArray, VariantNames, TryFromPrimitive, Serialize, Deserialize)]
+#[derive(Copy, Clone, PartialEq, Eq, Debug, Display, VariantArray, VariantNames, TryFromPrimitive, Serialize, Deserialize)]
 pub enum TextureWrapMode {
     Repeat,
     ClampToEdge,
     ClampToBorder,
 }
 
-#[derive(Copy, Clone, DrawDebugUi, Serialize, Deserialize)]
+#[derive(Copy, Clone, PartialEq, Eq, Debug, DrawDebugUi, Serialize, Deserialize)]
 pub struct TextureSettings {
     pub filter: TextureFilter,
     pub wrap_mode: TextureWrapMode,

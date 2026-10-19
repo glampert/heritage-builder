@@ -83,8 +83,9 @@ impl NewGame {
             widget_spacing: DEFAULT_DIALOG_MENU_WIDGET_SPACING.y,
             center_vertically: false,
             center_horizontally: true,
-            margin_left: 50.0,
-            margin_right: 40.0,
+            margin_left: 0.0,
+            margin_right: 0.0,
+            label_column_width: None,
         });
 
         labeled_widget_group.add_widget("New Map Width".into(), new_map_width_input);

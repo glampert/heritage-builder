@@ -80,8 +80,8 @@ impl SoundSettings {
             Self::KIND,
             Self::TITLE,
             // Margins:
-            50.0,
-            30.0,
+            0.0,
+            0.0,
         );
 
         Self { menu, category }

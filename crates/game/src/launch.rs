@@ -44,6 +44,17 @@ pub const GAME_CLI_OPTIONS: &[CliOption] = &[
         value_name: None,
         help: "With --script, keep going after a command fails. The exit status is still 1.",
     },
+    CliOption {
+        name: "golden-dir",
+        value_name: Some("DIR"),
+        help: "Directory that assert.image resolves relative golden paths against, instead of the directory the game \
+               was started from. E.g. one directory of goldens per render backend.",
+    },
+    CliOption {
+        name: "update-goldens",
+        value_name: None,
+        help: "Make every assert.image save its screenshot as the golden instead of comparing, as with update=true.",
+    },
 ];
 
 // Options a recording (--record) leaves out: it holds the script's commands, and its replay runs
@@ -75,6 +86,8 @@ pub struct LaunchOptions {
     pub skip_home_menu: bool,              // --skip-home-menu
     pub smoke_test_saves: bool,            // --smoke-test-saves
     pub script: Option<ScriptOptions>,     // --script
+    pub golden_dir: Option<PathBuf>,       // --golden-dir, relative to the directory the game was started from.
+    pub update_goldens: bool,              // --update-goldens
 }
 
 impl LaunchOptions {
@@ -110,6 +123,8 @@ impl LaunchOptions {
             skip_home_menu: command_line.has("skip-home-menu"),
             smoke_test_saves: command_line.has("smoke-test-saves"),
             script,
+            golden_dir: cli::path_value("golden-dir"),
+            update_goldens: command_line.has("update-goldens"),
         }
     }
 
@@ -166,7 +181,14 @@ pub fn initialize(configs: &GameConfigs) -> &'static LaunchOptions {
 
 // Options for this run. All defaults if initialize() hasn't run (in tests, for instance).
 pub fn get() -> &'static LaunchOptions {
-    static DEFAULT: LaunchOptions =
-        LaunchOptions { seed: None, start_map: None, skip_home_menu: false, smoke_test_saves: false, script: None };
+    static DEFAULT: LaunchOptions = LaunchOptions {
+        seed: None,
+        start_map: None,
+        skip_home_menu: false,
+        smoke_test_saves: false,
+        script: None,
+        golden_dir: None,
+        update_goldens: false,
+    };
     LAUNCH_OPTIONS.get().unwrap_or(&DEFAULT)
 }

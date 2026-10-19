@@ -64,8 +64,14 @@ impl DesktopRunner {
 
         log::set_level(engine_configs.log_level);
 
-        let app_api = engine_configs.app_api;
-        let mut render_api = engine_configs.render_api;
+        // Wgpu only runs on Winit, so --render-api Wgpu alone picks Winit too.
+        let render_api_option = cli::render_api();
+        let app_api = match (cli::app_api(), render_api_option) {
+            (Some(app_api), _) => app_api,
+            (None, Some(RenderApi::Wgpu)) => ApplicationApi::Winit,
+            (None, _) => engine_configs.app_api,
+        };
+        let mut render_api = render_api_option.unwrap_or(engine_configs.render_api);
 
         if app_api == ApplicationApi::Glfw && render_api != RenderApi::OpenGl {
             log::warning!(log::channel!("engine"), "Glfw is only compatible OpenGl. Setting render backend to OpenGl.");

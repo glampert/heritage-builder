@@ -1,15 +1,21 @@
 #![allow(clippy::enum_variant_names)]
 #![allow(clippy::type_complexity)]
 
+// Retained widgets for the game's menus and HUD, drawn with egui: a UiMenu holds widgets, which it
+// draws in an egui Area (or a Modal) each frame. Widgets keep their own state and report changes
+// through callbacks. Callbacks run after the widget has drawn, outside egui's borrow of the Ui,
+// since they may open dialogs or draw other widgets.
+//
+// Widgets record themselves in the widget registry (registry.rs) as they draw, for UI automation.
+
 use std::{any::Any, cell::RefMut, fmt::Display};
-use arrayvec::ArrayString;
 use smallbox::{SmallBox, smallbox};
 use enum_dispatch::enum_dispatch;
+use egui::{Color32, Sense, Stroke, StrokeKind, pos2, vec2};
 use strum::{EnumCount, EnumIter, EnumProperty, IntoEnumIterator};
 
 use common::{
     Color,
-    Rect,
     RectTexCoords,
     Size,
     Vec2,
@@ -21,11 +27,12 @@ use common::{
 };
 
 use super::{
-    INVALID_UI_TEXTURE_HANDLE,
     UiFontScale,
     UiSystem,
-    UiTextureHandle,
+    UiTooltipPlacement,
+    immediate::{self, egui_pos2, egui_vec2, rich_text, uv_full},
     internal,
+    renderer::egui_texture,
     sound::{self, UiButtonSoundsEnabled, UiSoundKey},
 };
 use crate::{
@@ -35,47 +42,14 @@ use crate::{
 };
 
 // ----------------------------------------------
-// Macros: make_imgui_id / make_imgui_labeled_id
+// Widget ids
 // ----------------------------------------------
 
-const IMGUI_ID_STRING_MAX_LEN: usize = 60;
-type ImGuiIdString = ArrayString<IMGUI_ID_STRING_MAX_LEN>;
-
-macro_rules! make_imgui_id {
-    ($self:expr, $widget_type:ty, $widget_label:expr) => {{
-        if $self.imgui_id.is_empty() {
-            // Compute id once and cache it.
-            $self.imgui_id = {
-                if $widget_label.is_empty() {
-                    // NOTE: Use widget memory address as unique id if no label.
-                    format_fixed_string!(IMGUI_ID_STRING_MAX_LEN, "##{} @ {:p}", stringify!($widget_type), $self)
-                } else {
-                    format_fixed_string!(IMGUI_ID_STRING_MAX_LEN, "{}", $widget_label)
-                }
-            };
-        }
-        // Use cached id.
-        &$self.imgui_id
-    }};
-}
-
-macro_rules! make_imgui_labeled_id {
-    ($self:expr, $widget_type:ty, $widget_label:expr) => {{
-        if $self.imgui_id.is_empty() {
-            // Compute id once and cache it, prefixed by the widget label.
-            // (Use widget memory address as unique id).
-            debug_assert!(!$widget_label.is_empty());
-            $self.imgui_id = format_fixed_string!(
-                IMGUI_ID_STRING_MAX_LEN,
-                "{}##{} @ {:p}",
-                $widget_label,
-                stringify!($widget_type),
-                $self
-            );
-        }
-        // Use cached id.
-        &$self.imgui_id
-    }};
+// An egui id for a widget that keeps state in egui (an Area, a combo box, a scroll area): its type,
+// label and address. Widgets don't move once they're in a menu.
+#[inline]
+fn widget_id<W>(widget: &W, label: &str) -> egui::Id {
+    egui::Id::unique((std::any::type_name::<W>(), label, widget as *const W as usize))
 }
 
 // ----------------------------------------------
@@ -126,12 +100,6 @@ pub trait UiWidgetContext<'game> {
         self.render_sys()
             .texture_cache_mut()
             .load_texture_with_settings((&file_path).into(), Some(super::texture_settings()))
-    }
-
-    #[inline]
-    fn load_ui_texture(&mut self, path: PathRef) -> UiTextureHandle {
-        let tex_handle = self.load_texture(path);
-        self.ui_sys().to_ui_texture(tex_handle)
     }
 }
 
@@ -349,21 +317,18 @@ pub trait UiWidget: Any {
 // Widget registry helpers (UI automation)
 // ----------------------------------------------
 
-// Records the widget just drawn (see UiSystem::record_widget) and returns a value ui.set queued
-// for it, which the widget then applies through its own update callback.
+// Records the widget just drawn and returns a value ui.set queued for it, which the widget then
+// applies through its own update callback.
+#[inline]
 fn record_settable(
-    context: &mut dyn UiWidgetContext,
+    ui_sys: &UiSystem,
+    ui: &egui::Ui,
+    response: &egui::Response,
     kind: &'static str,
     label: &str,
     value: serde_json::Value,
 ) -> Option<serde_json::Value> {
-    let ui_sys = context.ui_sys();
-    if !ui_sys.is_widget_registry_enabled() {
-        return None;
-    }
-
-    let path = ui_sys.record_widget(kind, label, None, true, Some(value))?;
-    ui_sys.take_widget_value(&path)
+    immediate::record(ui_sys, ui, response, kind, label, None, true, Some(value))
 }
 
 // An item of a list or dropdown, given by text or index.
@@ -373,6 +338,20 @@ pub(super) fn list_index(value: &serde_json::Value, items: &[impl AsRef<str>]) -
         serde_json::Value::Number(index) => index.as_u64().map(|index| index as usize).filter(|index| *index < items.len()),
         _ => None,
     }
+}
+
+// A label to the left of a framed widget, centered on its height.
+fn left_label(ui_sys: &UiSystem, ui: &mut egui::Ui, label: &str) {
+    if !label.is_empty() {
+        ui.add(egui::Label::new(rich_text(ui_sys, ui, label)).selectable(false));
+    }
+}
+
+// The UVs of `tex_coords` (V up), from the rect's top left corner to its bottom right.
+fn tex_coords_uv(tex_coords: &RectTexCoords) -> egui::Rect {
+    let top_left = tex_coords.top_left();
+    let bottom_right = tex_coords.bottom_right();
+    egui::Rect::from_min_max(pos2(top_left.x, 1.0 - bottom_right.y), pos2(bottom_right.x, 1.0 - top_left.y))
 }
 
 // ----------------------------------------------
@@ -438,6 +417,46 @@ pub enum UiMenuPosition {
 // UiMenuParams
 // ----------------------------------------------
 
+// The borders of a menu's background sprite: its contents stay inside them. In points, or, for a
+// menu with a size, as fractions of that size, since the sprite is stretched to it (a scroll's
+// rollers take the same share of the scroll at any size).
+#[derive(Copy, Clone, Default, PartialEq, Debug)]
+pub struct UiMenuInsets {
+    pub left: f32,
+    pub top: f32,
+    pub right: f32,
+    pub bottom: f32,
+    pub relative: bool, // Fractions of the menu's size instead of points.
+}
+
+impl UiMenuInsets {
+    pub const fn same(points: f32) -> Self {
+        Self::points(points, points, points, points)
+    }
+
+    pub const fn points(left: f32, top: f32, right: f32, bottom: f32) -> Self {
+        Self { left, top, right, bottom, relative: false }
+    }
+
+    // Fractions of the menu's width (left, right) and height (top, bottom), for a menu with a size.
+    pub const fn fractions(left: f32, top: f32, right: f32, bottom: f32) -> Self {
+        Self { left, top, right, bottom, relative: true }
+    }
+
+    // The padding of a menu of `size`, or None for relative insets on a menu sized to its contents.
+    // egui frames pad in whole points (i8), enough for a sprite's borders.
+    fn to_margin(self, size: Option<Vec2>) -> Option<egui::Margin> {
+        let scale = if self.relative { size? } else { Vec2::one() };
+        let points = |inset: f32| inset.round().clamp(f32::from(i8::MIN), f32::from(i8::MAX)) as i8;
+        Some(egui::Margin {
+            left: points(self.left * scale.x),
+            right: points(self.right * scale.x),
+            top: points(self.top * scale.y),
+            bottom: points(self.bottom * scale.y),
+        })
+    }
+}
+
 #[derive(Default)]
 pub struct UiMenuParams<'a> {
     pub label: Option<String>,
@@ -446,6 +465,7 @@ pub struct UiMenuParams<'a> {
     pub position: UiMenuPosition,
     pub widget_spacing: Option<Vec2>,
     pub background: Option<PathRef<'a>>,
+    pub content_insets: Option<UiMenuInsets>, // The style's window margin if None.
     pub on_open_close: UiMenuOpenClose,
 }
 
@@ -467,13 +487,16 @@ pub struct UiMenuWidgetIndex(usize);
 // UiMenu
 // ----------------------------------------------
 
+// The default width of inputs, sliders and dropdowns in a menu with a size, as a fraction of it.
+const MENU_ITEM_WIDTH_FRACTION: f32 = 0.65;
+
 pub struct UiMenu {
     label: String,
-    imgui_id: ImGuiIdString,
     flags: UiMenuFlags,
     size: Option<Vec2>,
     position: UiMenuPosition,
-    background: Option<UiTextureHandle>,
+    background: Option<TextureHandle>,
+    content_insets: Option<UiMenuInsets>,
     widgets: Vec<UiWidgetImpl>,
     widget_spacing: Vec2,
     message_box: UiMessageBox,
@@ -490,7 +513,7 @@ impl UiWidget for UiMenu {
     }
 
     fn measure(&self, context: &dyn UiWidgetContext) -> Vec2 {
-        let style = context.ui_sys().current_ui_style();
+        let style = context.ui_sys().egui_style().clone();
         let mut size = Vec2::zero();
 
         for widget in &self.widgets {
@@ -501,11 +524,13 @@ impl UiWidget for UiMenu {
 
         if !self.widgets.is_empty() {
             // Add inter-widget spacing.
-            size.y += style.item_spacing[1] * (self.widgets.len() - 1) as f32;
+            size.y += self.widget_spacing.y * (self.widgets.len() - 1) as f32;
         }
 
-        size += Vec2::from_array(style.window_padding) * 2.0;
-        size += Vec2::new(style.window_border_size, style.window_border_size) * 2.0;
+        let padding = self.content_insets.and_then(|insets| insets.to_margin(self.size)).unwrap_or(style.spacing.window_margin);
+        let border = style.visuals.window_stroke.width;
+        size += Vec2::new(f32::from(padding.left) + f32::from(padding.right), f32::from(padding.top) + f32::from(padding.bottom));
+        size += Vec2::new(border, border) * 2.0;
 
         size
     }
@@ -517,18 +542,20 @@ impl UiWidget for UiMenu {
 
 impl UiMenu {
     pub fn new(context: &mut dyn UiWidgetContext, params: UiMenuParams) -> UiMenuRcMut {
+        let widget_spacing = params.widget_spacing.unwrap_or_else(|| {
+            let spacing = context.ui_sys().egui_style().spacing.item_spacing;
+            Vec2::new(spacing.x, spacing.y)
+        });
+
         UiMenuRcMut::new(Self {
             label: params.label.unwrap_or_default(),
-            imgui_id: ImGuiIdString::new(),
             flags: params.flags,
             size: params.size,
             position: params.position,
-            background: params.background.map(|path| context.load_ui_texture(path)),
+            background: params.background.map(|path| context.load_texture(path)),
+            content_insets: params.content_insets,
             widgets: Vec::new(),
-            widget_spacing: params.widget_spacing.unwrap_or_else(|| {
-                let style = context.ui_sys().current_ui_style();
-                Vec2::from_array(style.item_spacing)
-            }),
+            widget_spacing,
             message_box: UiMessageBox::default(),
             on_open_close: params.on_open_close,
         })
@@ -710,12 +737,16 @@ impl UiMenu {
     // ----------------------
 
     pub fn draw_menu_contents(&mut self, context: &mut dyn UiWidgetContext) {
-        // Set default widget spacing.
-        let _spacing = context.ui_sys().ui().push_style_var(imgui::StyleVar::ItemSpacing(self.widget_spacing.to_array()));
+        // Default widget spacing, for this menu's widgets.
+        let ui_sys = context.ui_sys();
+        let spacing = egui_vec2(self.widget_spacing);
+        let previous_spacing = ui_sys.with_ui(|ui| std::mem::replace(&mut ui.spacing_mut().item_spacing, spacing));
 
         for widget in &mut self.widgets {
             widget.draw(context);
         }
+
+        ui_sys.with_ui(|ui| ui.spacing_mut().item_spacing = previous_spacing);
     }
 
     pub fn draw_custom<OnClose, OnGetMsgBox, OnDrawContents>(
@@ -743,60 +774,117 @@ impl UiMenu {
             return;
         }
 
-        let ui = context.ui_sys().ui();
+        let ui_sys = context.ui_sys();
+        let ctx = ui_sys.ctx().clone();
+        let style = ui_sys.egui_style().clone();
 
-        let (window_size, window_size_cond) = self.calc_window_size(ui);
-        let (window_pos, window_pivot) = self.calc_window_pos(context, ui);
+        let window_size = self.calc_window_size(ui_sys);
+        let (window_pos, window_pivot) = self.calc_window_pos(context, ui_sys);
+        let id = widget_id(self, &self.label);
 
-        let window_flags = self.calc_window_flags();
-        let window_name = *make_imgui_id!(self, UiMenu, self.label);
+        let padding = self.content_insets.and_then(|insets| insets.to_margin(window_size)).unwrap_or(style.spacing.window_margin);
+        let has_title_bar = self.background.is_none() && !self.label.is_empty() && !self.has_flags(UiMenuFlags::NoTitleBar);
 
-        internal::set_next_widget_window_pos(window_pos, window_pivot, imgui::Condition::Always);
-        internal::set_next_widget_window_size(window_size, window_size_cond);
+        // A texture background replaces the window's frame.
+        let frame = if self.background.is_some() {
+            egui::Frame::NONE.inner_margin(padding)
+        } else {
+            egui::Frame::window(&style).inner_margin(padding).shadow(egui::Shadow::NONE)
+        };
 
-        fn draw_background(ui: &imgui::Ui, opt_background: Option<UiTextureHandle>) {
-            if let Some(background) = opt_background {
-                internal::draw_widget_window_background(ui, background);
+        let pivot = egui::Align2([align(window_pivot.x), align(window_pivot.y)]);
+        let modal = flags.intersects(UiMenuFlags::Modal);
+
+        // A menu's content area is its window minus `padding`: its background sprite's insets, or the
+        // style's window margin.
+        let draw_window = |ui: &mut egui::Ui| -> bool {
+            let background_slot = self.background.map(|_| ui.painter().add(egui::Shape::Noop));
+
+            // Its content area, for the layout check: listed before its widgets, filled in once the
+            // frame has drawn.
+            let content_index = immediate::reserve_rect(ui_sys, "menu_content", &self.label);
+
+            let frame_response = frame.show(ui, |ui| {
+                let content_size = window_size.map(|size| (egui_vec2(size) - padding.sum()).max(egui::Vec2::ZERO));
+                if let Some(content_size) = content_size {
+                    ui.set_min_size(content_size);
+                    ui.set_max_size(content_size);
+                }
+
+                let mut close_clicked = false;
+                if has_title_bar {
+                    ui.horizontal(|ui| {
+                        ui.label(egui::RichText::new(&self.label).strong());
+                        close_clicked = ui.small_button("x").clicked();
+                    });
+                }
+
+                // Inputs, sliders and dropdowns take a fraction of a sized menu's content width by default.
+                let previous_item_width = ui_sys.set_item_width(content_size.map(|size| size.x * MENU_ITEM_WIDTH_FRACTION));
+
+                let draw_contents = |ui: &mut egui::Ui| {
+                    ui_sys.ui_scope(ui, |ui_sys| {
+                        context.begin_widget_window();
+                        ui_sys.push_widget_path(&self.label);
+                        on_draw_contents(self, context);
+                        ui_sys.pop_widget_path();
+                        context.end_widget_window();
+                    });
+                };
+
+                // A menu with a size scrolls its contents when they don't fit it.
+                if content_size.is_some() {
+                    egui::ScrollArea::vertical()
+                        .id_salt(id.with("contents"))
+                        .auto_shrink([false, false])
+                        .scroll_bar_visibility(egui::scroll_area::ScrollBarVisibility::VisibleWhenNeeded)
+                        .show(ui, draw_contents);
+                } else {
+                    draw_contents(ui);
+                }
+
+                ui_sys.set_item_width(previous_item_width);
+
+                close_clicked
+            });
+
+            if let (Some(slot), Some(background)) = (background_slot, self.background) {
+                let image = egui::Shape::image(egui_texture(background), frame_response.response.rect, uv_full(), Color32::WHITE);
+                ui.painter().set(slot, image);
             }
-        }
 
-        // Modal window has exclusive input focus (e.g.: popup message box).
-        if flags.intersects(UiMenuFlags::Modal) {
-            let close_on_escape_pressed = flags.intersects(UiMenuFlags::CloseModalOnEscape);
+            if let Some(index) = content_index {
+                let outer = frame_response.response.rect;
+                let content = egui::Rect::from_min_max(outer.min + padding.left_top(), outer.max - padding.right_bottom());
+                immediate::update_rect(ui_sys, index, content, false, None);
+            }
 
-            ui.open_popup(window_name);
-            let closed = ui
-                .modal_popup_config(window_name)
-                .opened(&mut is_open)
-                .flags(window_flags)
-                .build(|| {
-                    context.begin_widget_window();
-                    draw_background(ui, self.background);
-                    context.ui_sys().push_widget_path(&self.label);
-                    on_draw_contents(self, context);
-                    context.ui_sys().pop_widget_path();
-                    context.end_widget_window();
+            frame_response.inner
+        };
 
-                    close_on_escape_pressed && ui.is_window_focused() && ui.is_key_pressed(imgui::Key::Escape)
-                })
-                .unwrap_or(false);
+        immediate::close_popups_on_open(&ctx, id);
+        let area = egui::Area::new(id).fixed_pos(egui_pos2(window_pos)).pivot(pivot).constrain(false);
 
-            if closed {
+        if modal {
+            // Modal window has exclusive input focus (e.g.: popup message box).
+            let close_on_escape = flags.intersects(UiMenuFlags::CloseModalOnEscape);
+
+            let response = egui::Modal::new(id)
+                .area(area.order(egui::Order::Foreground))
+                .frame(egui::Frame::NONE)
+                .backdrop_color(ui_sys.modal_backdrop_color())
+                .show(&ctx, |ui| draw_window(ui));
+
+            let escape_pressed = close_on_escape && response.is_top_modal && ctx.input(|input| input.key_pressed(egui::Key::Escape));
+            if response.inner || escape_pressed {
                 is_open = false;
             }
         } else {
             // Regular window.
-            ui.window(window_name)
-                .opened(&mut is_open)
-                .flags(window_flags)
-                .build(|| {
-                    context.begin_widget_window();
-                    draw_background(ui, self.background);
-                    context.ui_sys().push_widget_path(&self.label);
-                    on_draw_contents(self, context);
-                    context.ui_sys().pop_widget_path();
-                    context.end_widget_window();
-                });
+            let response = area.order(egui::Order::Middle).show(&ctx, |ui| draw_window(ui));
+            if response.inner {
+                is_open = false;
+            }
         }
 
         let closed = flags.intersects(UiMenuFlags::IsOpen) && !is_open;
@@ -813,23 +901,21 @@ impl UiMenu {
     // Internal:
     // ----------------------
 
-    fn calc_window_size(&self, ui: &imgui::Ui) -> (Vec2, imgui::Condition) {
-        if let Some(size) = self.size {
-            let condition = if self.has_flags(UiMenuFlags::AdjustSizeToContents) {
-                imgui::Condition::Appearing
-            } else {
-                imgui::Condition::Always
-            };
-            (size, condition)
+    // The menu's size, or None to size it to its contents.
+    fn calc_window_size(&self, ui_sys: &UiSystem) -> Option<Vec2> {
+        if self.has_flags(UiMenuFlags::AdjustSizeToContents) {
+            None // Its size only applies when it opens, and it sizes to its contents after that.
+        } else if let Some(size) = self.size {
+            Some(size)
         } else if self.has_flags(UiMenuFlags::Fullscreen) {
-            (Vec2::from_array(ui.io().display_size), imgui::Condition::Always)
+            Some(super::screen_size(ui_sys))
         } else {
-            (Vec2::zero(), imgui::Condition::Never) // Sized to contents.
+            None // Sized to contents.
         }
     }
 
-    fn calc_window_pos(&self, context: &mut dyn UiWidgetContext, ui: &imgui::Ui) -> (Vec2, Vec2) {
-        let display_size = Vec2::from_array(ui.io().display_size);
+    fn calc_window_pos(&self, context: &mut dyn UiWidgetContext, ui_sys: &UiSystem) -> (Vec2, Vec2) {
+        let display_size = super::screen_size(ui_sys);
 
         let mut position = Vec2::zero();
         let mut pivot = Vec2::zero();
@@ -872,19 +958,16 @@ impl UiMenu {
 
         (position, pivot)
     }
+}
 
-    fn calc_window_flags(&self) -> imgui::WindowFlags {
-        let mut window_flags = internal::base_widget_window_flags();
-
-        if self.background.is_some() {
-            window_flags |= imgui::WindowFlags::NO_BACKGROUND;
-        }
-
-        if self.background.is_none() && !self.label.is_empty() && !self.has_flags(UiMenuFlags::NoTitleBar) {
-            window_flags.remove(imgui::WindowFlags::NO_TITLE_BAR);
-        }
-
-        window_flags
+// A pivot of 0, 0.5 or 1 as egui's alignment.
+fn align(pivot: f32) -> egui::Align {
+    if pivot <= 0.25 {
+        egui::Align::Min
+    } else if pivot >= 0.75 {
+        egui::Align::Max
+    } else {
+        egui::Align::Center
     }
 }
 
@@ -897,19 +980,25 @@ pub struct UiText {
     pub string: String,
     pub font_scale: UiFontScale,
     pub color: Option<Color>,
+    pub wrap_width: Option<f32>, // Wraps at this width, in points; one line if None.
 }
 
 impl UiText {
     pub const fn new(string: String, font_scale: UiFontScale) -> Self {
-        Self { string, font_scale, color: None }
+        Self { string, font_scale, color: None, wrap_width: None }
     }
 
     pub const fn colored(string: String, font_scale: UiFontScale, color: Color) -> Self {
-        Self { string, font_scale, color: Some(color) }
+        Self { string, font_scale, color: Some(color), wrap_width: None }
     }
 
     pub const fn empty(font_scale: UiFontScale) -> Self {
-        Self { string: String::new(), font_scale, color: None }
+        Self { string: String::new(), font_scale, color: None, wrap_width: None }
+    }
+
+    pub fn with_wrap_width(mut self, width: f32) -> Self {
+        self.wrap_width = Some(width);
+        self
     }
 }
 
@@ -947,7 +1036,7 @@ impl<'a> Default for UiMenuHeadingParams<'a> {
 // Can consist of multiple lines and an optional separator sprite at the end.
 pub struct UiMenuHeading {
     lines: Vec<UiText>,
-    separator: Option<UiTextureHandle>,
+    separator: Option<TextureHandle>,
     margin_top: f32,
     margin_bottom: f32,
     center_vertically: bool,
@@ -961,43 +1050,34 @@ impl UiWidget for UiMenuHeading {
 
     fn draw(&mut self, context: &mut dyn UiWidgetContext) {
         debug_assert!(context.is_inside_widget_window());
-        let ui = context.ui_sys().ui();
+        let ui_sys = context.ui_sys();
 
         if self.margin_top > 0.0 {
-            ui.dummy([0.0, self.margin_top]);
+            ui_sys.with_ui(|ui| ui.add_space(self.margin_top));
         }
 
-        let group =
-            internal::draw_centered_text_group(context, &self.lines, self.center_vertically, self.center_horizontally);
+        let group = internal::draw_centered_text_group(context, &self.lines, self.center_vertically, self.center_horizontally);
 
-        if context.ui_sys().is_widget_registry_enabled() {
-            let text: Vec<&str> =
-                self.lines.iter().map(|line| line.string.as_str()).filter(|line| !line.is_empty()).collect();
-            context.ui_sys().record_widget("heading", &text.join(" "), None, true, None);
+        if ui_sys.is_widget_registry_enabled() && group.is_positive() {
+            let text: Vec<&str> = self.lines.iter().map(|line| line.string.as_str()).filter(|line| !line.is_empty()).collect();
+            immediate::record_rect(ui_sys, "heading", &text.join(" "), group, false, None);
         }
 
         if let Some(separator) = self.separator
-            && group.is_valid()
+            && group.is_positive()
         {
-            let separator_height = ui.text_line_height();
+            // As tall as the last line's font.
+            let separator_height = internal::font(ui_sys, ui_sys.current_window_front_scale()).size;
 
-            let separator_rect = Rect::from_pos_and_size(
-                Vec2::new(group.x() + ui.window_pos()[0], ui.cursor_screen_pos()[1]),
-                Vec2::new(group.width(), separator_height),
-            );
-
-            ui.get_window_draw_list()
-                .add_image(separator, separator_rect.min.to_array(), separator_rect.max.to_array())
-                .build();
-
-            // Move cursor down to after the separator and reset.
-            let mut cursor = ui.cursor_pos();
-            cursor[1] += separator_rect.height();
-            ui.set_cursor_pos(cursor);
+            ui_sys.with_ui(|ui| {
+                let separator_rect = egui::Rect::from_min_size(pos2(group.left(), ui.cursor().top()), vec2(group.width(), separator_height));
+                ui.painter().image(egui_texture(separator), separator_rect, uv_full(), Color32::WHITE);
+                ui.advance_cursor_after_rect(separator_rect);
+            });
         }
 
         if self.margin_bottom > 0.0 {
-            ui.dummy([0.0, self.margin_bottom]);
+            ui_sys.with_ui(|ui| ui.add_space(self.margin_bottom));
         }
     }
 
@@ -1019,8 +1099,7 @@ impl UiWidget for UiMenuHeading {
 
         if non_empty_lines_count > 0 {
             // Add inter-line spacing.
-            let style = context.ui_sys().current_ui_style();
-            size.y += style.item_spacing[1] * (non_empty_lines_count - 1) as f32;
+            size.y += internal::item_spacing(context.ui_sys()).y * (non_empty_lines_count - 1) as f32;
         }
 
         size
@@ -1039,7 +1118,7 @@ impl UiMenuHeading {
 
         Self {
             lines: params.lines,
-            separator: params.separator.map(|path| context.load_ui_texture(path)),
+            separator: params.separator.map(|path| context.load_texture(path)),
             margin_top: params.margin_top,
             margin_bottom: params.margin_bottom,
             center_vertically: params.center_vertically,
@@ -1101,6 +1180,7 @@ pub struct UiSizedTextLabelParams {
 // UiSizedTextLabel
 // ----------------------------------------------
 
+// Text centered in a box of a given size.
 pub struct UiSizedTextLabel {
     font_scale: UiFontScale,
     label: String,
@@ -1116,20 +1196,18 @@ impl UiWidget for UiSizedTextLabel {
         debug_assert!(context.is_inside_widget_window());
 
         context.set_window_font_scale(self.font_scale);
-        let ui = context.ui_sys().ui();
+        let size = self.measure(context);
+        let ui_sys = context.ui_sys();
 
-        // Make button backgrounds and frames transparent/invisible.
-        let transparent = [0.0, 0.0, 0.0, 0.0];
-        let _border_size = ui.push_style_var(imgui::StyleVar::FrameBorderSize(0.0));
-        let _button_color = ui.push_style_color(imgui::StyleColor::Button, transparent);
-        let _button_hovered = ui.push_style_color(imgui::StyleColor::ButtonHovered, transparent);
-        let _button_active = ui.push_style_color(imgui::StyleColor::ButtonActive, transparent);
+        ui_sys.with_ui(|ui| {
+            let (rect, response) = ui.allocate_exact_size(egui_vec2(size), Sense::hover());
 
-        // Render a button with only the text label visible.
-        // It will be centered to the button rectangle by default.
-        ui.button_with_size(&self.label, self.size.to_array());
+            let color = ui.visuals().text_color();
+            let galley = ui.painter().layout_no_wrap(self.label.clone(), internal::font(ui_sys, self.font_scale), color);
+            ui.painter().galley(rect.center() - galley.size() * 0.5, galley, color);
 
-        context.ui_sys().record_widget("text", &self.label, None, true, None);
+            immediate::record(ui_sys, ui, &response, "text", &self.label, None, true, None);
+        });
     }
 
     fn measure(&self, context: &dyn UiWidgetContext) -> Vec2 {
@@ -1137,12 +1215,12 @@ impl UiWidget for UiSizedTextLabel {
             return self.size;
         }
 
-        // Setting size as [0.0, 0.0] will size the button to the label's width in the current style.
+        // Sized to the label, with a framed widget's padding.
         let (text_size, font_size) = context.calc_text_and_font_size(self.font_scale, &self.label);
 
-        let style = context.ui_sys().current_ui_style();
-        let width = text_size.x + (style.frame_padding[0] * 2.0);
-        let height = text_size.y.max(font_size) + (style.frame_padding[1] * 2.0);
+        let padding = context.ui_sys().egui_style().spacing.button_padding;
+        let width = text_size.x + (padding.x * 2.0);
+        let height = text_size.y.max(font_size) + (padding.y * 2.0);
 
         Vec2::new(width, height)
     }
@@ -1228,9 +1306,9 @@ impl UiWidget for UiWidgetGroup {
     fn draw(&mut self, context: &mut dyn UiWidgetContext) {
         debug_assert!(context.is_inside_widget_window());
 
-        let ui = context.ui_sys().ui();
-
-        let _spacing = ui.push_style_var(imgui::StyleVar::ItemSpacing(self.widget_spacing.to_array()));
+        let ui_sys = context.ui_sys();
+        let spacing = egui_vec2(self.widget_spacing);
+        let previous_spacing = ui_sys.with_ui(|ui| std::mem::replace(&mut ui.spacing_mut().item_spacing, spacing));
 
         internal::draw_centered_widget_group(
             context,
@@ -1240,6 +1318,8 @@ impl UiWidget for UiWidgetGroup {
             self.stack_vertically,
             (self.margin_left, self.margin_right),
         );
+
+        ui_sys.with_ui(|ui| ui.spacing_mut().item_spacing = previous_spacing);
     }
 
     fn measure(&self, context: &dyn UiWidgetContext) -> Vec2 {
@@ -1259,12 +1339,12 @@ impl UiWidget for UiWidgetGroup {
 
         if !self.widgets.is_empty() {
             // Add inter-widget spacing
-            let style = context.ui_sys().current_ui_style();
+            let spacing = self.widget_spacing;
 
             if self.stack_vertically {
-                size.y += style.item_spacing[1] * (self.widgets.len() - 1) as f32; // v-spacing
+                size.y += spacing.y * (self.widgets.len() - 1) as f32; // v-spacing
             } else {
-                size.x += style.item_spacing[0] * (self.widgets.len() - 1) as f32; // h-spacing
+                size.x += spacing.x * (self.widgets.len() - 1) as f32; // h-spacing
             }
         }
 
@@ -1385,6 +1465,7 @@ pub struct UiLabeledWidgetGroupParams {
     pub center_horizontally: bool,
     pub margin_left: f32,
     pub margin_right: f32,
+    pub label_column_width: Option<f32>, // The labels' column, shared with other groups; the longest label's width if None.
 }
 
 impl Default for UiLabeledWidgetGroupParams {
@@ -1396,6 +1477,7 @@ impl Default for UiLabeledWidgetGroupParams {
             center_horizontally: true,
             margin_left: 0.0,
             margin_right: 0.0,
+            label_column_width: None,
         }
     }
 }
@@ -1417,6 +1499,7 @@ pub struct UiLabeledWidgetGroup {
     center_horizontally: bool,
     margin_left: f32,
     margin_right: f32,
+    label_column_width: Option<f32>,
 }
 
 impl UiWidget for UiLabeledWidgetGroup {
@@ -1427,9 +1510,9 @@ impl UiWidget for UiLabeledWidgetGroup {
     fn draw(&mut self, context: &mut dyn UiWidgetContext) {
         debug_assert!(context.is_inside_widget_window());
 
-        let ui = context.ui_sys().ui();
-
-        let _spacing = ui.push_style_var(imgui::StyleVar::ItemSpacing([self.label_spacing, self.widget_spacing]));
+        let ui_sys = context.ui_sys();
+        let spacing = vec2(self.label_spacing, self.widget_spacing);
+        let previous_spacing = ui_sys.with_ui(|ui| std::mem::replace(&mut ui.spacing_mut().item_spacing, spacing));
 
         internal::draw_centered_labeled_widget_group(
             context,
@@ -1437,24 +1520,28 @@ impl UiWidget for UiLabeledWidgetGroup {
             self.center_vertically,
             self.center_horizontally,
             (self.margin_left, self.margin_right),
+            self.label_column_width,
         );
+
+        ui_sys.with_ui(|ui| ui.spacing_mut().item_spacing = previous_spacing);
     }
 
     fn measure(&self, context: &dyn UiWidgetContext) -> Vec2 {
-        let style = context.ui_sys().current_ui_style();
+        let spacing = Vec2::new(self.label_spacing, self.widget_spacing);
         let mut size = Vec2::zero();
 
         for (label, widget) in &self.labels_and_widgets {
             let widget_size = widget.measure(context);
             let label_size = context.calc_text_size(widget.font_scale(), label);
+            let label_width = self.label_column_width.map_or(label_size.x, |width| width.max(label_size.x));
 
-            size.x = size.x.max(label_size.x + style.item_spacing[0] + widget_size.x); // Max width (label + widget).
+            size.x = size.x.max(label_width + spacing.x + widget_size.x); // Max width (label + widget).
             size.y += label_size.y.max(widget_size.y); // Total height (largest of the two).
         }
 
         if !self.labels_and_widgets.is_empty() {
             // Add inter-widget spacing
-            size.y += style.item_spacing[1] * (self.labels_and_widgets.len() - 1) as f32;
+            size.y += spacing.y * (self.labels_and_widgets.len() - 1) as f32;
         }
 
         // Subtract margins.
@@ -1479,6 +1566,7 @@ impl UiLabeledWidgetGroup {
             center_horizontally: params.center_horizontally,
             margin_left: params.margin_left,
             margin_right: params.margin_right,
+            label_column_width: params.label_column_width,
         }
     }
 
@@ -1634,11 +1722,10 @@ impl Default for UiTextButtonParams<'_> {
 // immediately back to unpressed state.
 pub struct UiTextButton {
     label: String,
-    imgui_id: ImGuiIdString,
     tooltip: Option<UiTooltipText>,
     font_scale: UiFontScale,
     size: UiTextButtonSize,
-    hover: Option<UiTextureHandle>,
+    hover: Option<TextureHandle>,
     sounds_enabled: UiButtonSoundsEnabled,
     enabled: bool,
     hovered: bool,
@@ -1654,70 +1741,42 @@ impl UiWidget for UiTextButton {
         debug_assert!(context.is_inside_widget_window());
 
         context.set_window_font_scale(self.font_scale);
-        let ui = context.ui_sys().ui();
+        let ui_sys = context.ui_sys();
+        let enabled = self.is_enabled();
 
-        let label = make_imgui_labeled_id!(self, UiTextButton, self.label);
+        let (pressed, hovered) = ui_sys.with_ui(|ui| {
+            // Faded text if disabled. It still takes the mouse, for its tooltip.
+            let text_color = ui.visuals().text_color();
+            let text_color = if enabled { text_color } else { text_color.gamma_multiply(0.5) };
+            let text = rich_text(ui_sys, ui, &self.label).color(text_color);
 
-        // Faded text if disabled.
-        let mut text_color = ui.style_color(imgui::StyleColor::Text);
-        if self.is_enabled() {
-            text_color[3] = 1.0;
-        } else {
-            text_color[3] = 0.5;
-        }
-
-        let _btn_text_color = ui.push_style_color(imgui::StyleColor::Text, text_color);
-
-        let pressed = if let Some(hover) = self.hover {
-            // If we have a hover effect texture (underline effect), the button
-            // will draw fully transparent. We change the text color to indicate
-            // enabled/disabled buttons.
-
-            // No border.
-            let _border_size = ui.push_style_var(imgui::StyleVar::FrameBorderSize(0.0));
-
-            // No color change when hovered/active. Transparent background.
-            let transparent = [0.0, 0.0, 0.0, 0.0];
-            let _btn_color = ui.push_style_color(imgui::StyleColor::Button, transparent);
-            let _btn_color_hovered = ui.push_style_color(imgui::StyleColor::ButtonHovered, transparent);
-            let _btn_color_active = ui.push_style_color(imgui::StyleColor::ButtonActive, transparent);
-
-            let pressed = ui.button(label);
+            // With a hover effect texture (underline effect) the button draws fully transparent.
+            let button = egui::Button::new(text).frame(self.hover.is_none());
+            let response = ui.add(button);
 
             // Draw underline effect when hovered / active:
-            if ui.is_item_hovered() {
-                let button_pos = Vec2::from_array(ui.item_rect_min());
-                let button_size = Vec2::from_array(ui.item_rect_size());
-
-                let button_rect =
-                    Rect::from_pos_and_size(button_pos + Vec2::new(0.0, (button_size.y * 0.5) + 1.0), button_size);
-
-                let hover_tint_color = if ui.is_item_active() || !self.is_enabled() {
-                    imgui::ImColor32::from_rgba_f32s(1.0, 1.0, 1.0, 0.5)
+            if let Some(hover) = self.hover
+                && response.hovered()
+            {
+                let rect = response.rect;
+                let underline_rect = egui::Rect::from_min_size(rect.min + vec2(0.0, rect.height() * 0.5 + 1.0), rect.size());
+                let tint = if response.is_pointer_button_down_on() || !enabled {
+                    Color32::from_white_alpha(128)
                 } else {
-                    imgui::ImColor32::WHITE
+                    Color32::WHITE
                 };
-
-                ui.get_window_draw_list()
-                    .add_image(hover, button_rect.min.to_array(), button_rect.max.to_array())
-                    .col(hover_tint_color)
-                    .build();
+                ui.painter().image(egui_texture(hover), underline_rect, uv_full(), tint);
             }
 
-            pressed
-        } else {
-            // Draw standard imgui text label button.
-            ui.button(label)
-        };
+            let tooltip = self.tooltip.as_ref().map(|tooltip| tooltip.text.as_str());
+            immediate::record(ui_sys, ui, &response, "text_button", &self.label, tooltip, enabled, None);
 
-        let hovered = ui.is_item_hovered();
+            (response.clicked(), response.hovered())
+        });
+
         if hovered {
             // Play sound on transition to hovered state.
-            if self.sounds_enabled.intersects(UiButtonSoundsEnabled::Hovered)
-                && !self.hovered
-                && !pressed
-                && self.is_enabled()
-            {
+            if self.sounds_enabled.intersects(UiButtonSoundsEnabled::Hovered) && !self.hovered && !pressed && enabled {
                 sound::play(*context.sound_sys(), UiSoundKey::ButtonHovered);
             }
 
@@ -1727,11 +1786,8 @@ impl UiWidget for UiTextButton {
         }
         self.hovered = hovered;
 
-        let tooltip = self.tooltip.as_ref().map(|tooltip| tooltip.text.as_str());
-        context.ui_sys().record_widget("text_button", &self.label, tooltip, self.is_enabled(), None);
-
         // Invoke on pressed callback.
-        if pressed && self.is_enabled() {
+        if pressed && enabled {
             if self.sounds_enabled.intersects(UiButtonSoundsEnabled::Pressed) {
                 sound::play(*context.sound_sys(), UiSoundKey::ButtonPressed);
             }
@@ -1741,13 +1797,13 @@ impl UiWidget for UiTextButton {
     }
 
     fn measure(&self, context: &dyn UiWidgetContext) -> Vec2 {
-        let style = context.ui_sys().current_ui_style();
+        let padding = context.ui_sys().egui_style().spacing.button_padding;
 
         // Compute scaled font size (window-independent).
         let (text_size, font_size) = context.calc_text_and_font_size(self.font_scale, &self.label);
 
-        let width = text_size.x + (style.frame_padding[0] * 2.0);
-        let height = text_size.y.max(font_size) + (style.frame_padding[1] * 2.0);
+        let width = text_size.x + (padding.x * 2.0);
+        let height = text_size.y.max(font_size) + (padding.y * 2.0);
 
         Vec2::new(width, height)
     }
@@ -1767,11 +1823,10 @@ impl UiTextButton {
 
         Self {
             label: params.label,
-            imgui_id: ImGuiIdString::new(),
             tooltip: params.tooltip,
             font_scale: params.size.font_scale(),
             size: params.size,
-            hover: params.hover.map(|path| context.load_ui_texture(path)),
+            hover: params.hover.map(|path| context.load_texture(path)),
             sounds_enabled: params.sounds_enabled,
             enabled: params.enabled,
             hovered: false,
@@ -1839,34 +1894,32 @@ impl UiWidget for UiSpriteButton {
         debug_assert!(context.is_inside_widget_window());
         debug_assert!(self.textures.are_textures_loaded());
 
-        let ui = context.ui_sys().ui();
+        let ui_sys = context.ui_sys();
         let texture = self.textures.texture_for_state(self.visual_state);
 
-        let flags = imgui::ButtonFlags::MOUSE_BUTTON_LEFT | imgui::ButtonFlags::MOUSE_BUTTON_RIGHT;
-        ui.invisible_button_flags(&self.label, self.size.to_array(), flags);
+        let response = ui_sys.with_ui(|ui| {
+            let (rect, response) = ui.allocate_exact_size(egui_vec2(self.size), Sense::click());
+            if ui.is_rect_visible(rect) {
+                ui.painter().image(egui_texture(texture), rect, uv_full(), Color32::WHITE);
+            }
+            response
+        });
 
-        let hovered = ui.is_item_hovered();
-        let left_click = ui.is_item_clicked_with_button(imgui::MouseButton::Left);
-        let right_click = ui.is_item_clicked_with_button(imgui::MouseButton::Right);
+        let hovered = response.hovered();
+        let left_click = response.clicked();
+        let right_click = response.secondary_clicked();
 
-        let rect_min = ui.item_rect_min();
-        let rect_max = ui.item_rect_max();
-
-        ui.get_window_draw_list().add_image(texture, rect_min, rect_max).build();
-
-        self.position = Some(Vec2::from_array(rect_min));
+        self.position = Some(Vec2::new(response.rect.min.x, response.rect.min.y));
 
         // NOTE: Only left click counts as "pressed".
         let delta_time_secs = context.delta_time_secs();
         self.update_state(context, hovered, left_click, right_click, delta_time_secs);
 
-        if context.ui_sys().is_widget_registry_enabled() {
-            // The label is a sprite path, e.g. "palette/housing"; its last part names the button.
-            let name = self.label.rsplit('/').next().unwrap_or(&self.label);
-            let tooltip = self.tooltip.as_ref().map(|tooltip| tooltip.text.as_str());
-            let pressed = Some(serde_json::Value::Bool(self.is_pressed()));
-            context.ui_sys().record_widget("sprite_button", name, tooltip, true, pressed);
-        }
+        // The label is a sprite path, e.g. "palette/housing"; its last part names the button.
+        let name = self.label.rsplit('/').next().unwrap_or(&self.label);
+        let tooltip = self.tooltip.as_ref().map(|tooltip| tooltip.text.as_str());
+        let pressed = Some(serde_json::Value::Bool(self.is_pressed()));
+        ui_sys.with_ui(|ui| immediate::record(ui_sys, ui, &response, "sprite_button", name, tooltip, true, pressed));
 
         if let Some(tooltip) = &self.tooltip {
             let show_tooltip = hovered && (!self.is_pressed() || self.show_tooltip_when_pressed);
@@ -2034,12 +2087,12 @@ impl UiSpriteButton {
 // ----------------------------------------------
 
 struct UiSpriteButtonTextures {
-    textures: [UiTextureHandle; UI_SPRITE_BUTTON_STATE_COUNT],
+    textures: [TextureHandle; UI_SPRITE_BUTTON_STATE_COUNT],
 }
 
 impl UiSpriteButtonTextures {
     fn unloaded() -> Self {
-        Self { textures: [INVALID_UI_TEXTURE_HANDLE; UI_SPRITE_BUTTON_STATE_COUNT] }
+        Self { textures: [TextureHandle::invalid(); UI_SPRITE_BUTTON_STATE_COUNT] }
     }
 
     fn load(sprite_path: PathRef, context: &mut dyn UiWidgetContext) -> Self {
@@ -2056,12 +2109,12 @@ impl UiSpriteButtonTextures {
 
     #[inline]
     fn are_textures_loaded(&self) -> bool {
-        self.textures[0] != INVALID_UI_TEXTURE_HANDLE
+        self.textures[0].is_valid()
     }
 
     #[inline]
-    fn texture_for_state(&self, state: UiSpriteButtonState) -> UiTextureHandle {
-        debug_assert!(self.textures[state as usize] != INVALID_UI_TEXTURE_HANDLE);
+    fn texture_for_state(&self, state: UiSpriteButtonState) -> TextureHandle {
+        debug_assert!(self.textures[state as usize].is_valid());
         self.textures[state as usize]
     }
 }
@@ -2096,9 +2149,9 @@ impl UiSpriteButtonState {
         AssetPath::from_str("buttons").join(sprite_name)
     }
 
-    fn load_texture(self, sprite_path: PathRef, context: &mut dyn UiWidgetContext) -> UiTextureHandle {
+    fn load_texture(self, sprite_path: PathRef, context: &mut dyn UiWidgetContext) -> TextureHandle {
         let asset_path = self.asset_path(sprite_path);
-        context.load_ui_texture((&asset_path).into())
+        context.load_texture((&asset_path).into())
     }
 }
 
@@ -2121,7 +2174,8 @@ pub struct UiTooltipTextParams<'a> {
 pub struct UiTooltipText {
     text: String,
     font_scale: UiFontScale,
-    background: Option<UiTextureHandle>,
+    background: Option<TextureHandle>,
+    placement: UiTooltipPlacement,
 }
 
 impl UiTooltipText {
@@ -2132,15 +2186,23 @@ impl UiTooltipText {
         Self {
             text: params.text,
             font_scale: params.font_scale,
-            background: params.background.map(|path| context.load_ui_texture(path)),
+            background: params.background.map(|path| context.load_texture(path)),
+            placement: UiTooltipPlacement::default(),
         }
     }
 
+    // Where it shows: at the pointer (the default), or beside its widget.
+    pub fn with_placement(mut self, placement: UiTooltipPlacement) -> Self {
+        self.placement = placement;
+        self
+    }
+
+    // For the widget drawn last.
     fn draw(&self, context: &mut dyn UiWidgetContext) {
         debug_assert!(context.is_inside_widget_window());
 
-        super::custom_tooltip(context.ui_sys(), self.font_scale, self.background, || {
-            context.ui_sys().ui().text(&self.text);
+        super::custom_tooltip(context.ui_sys(), self.font_scale, self.background, self.placement, |ui_sys| {
+            super::text(ui_sys, &self.text);
         });
     }
 }
@@ -2163,7 +2225,7 @@ pub struct UiSeparatorParams<'a> {
 
 #[derive(Clone)]
 pub struct UiSeparator {
-    separator: Option<UiTextureHandle>,
+    separator: Option<TextureHandle>,
     size: Option<Vec2>,
     thickness: f32,
     vertical: bool,
@@ -2177,22 +2239,17 @@ impl UiWidget for UiSeparator {
     fn draw(&mut self, context: &mut dyn UiWidgetContext) {
         debug_assert!(context.is_inside_widget_window());
 
-        let ui = context.ui_sys().ui();
-        let size =
-            self.size.unwrap_or_else(|| internal::calc_separator_size(context.ui_sys(), !self.vertical, self.thickness));
+        let ui_sys = context.ui_sys();
+        let size = self.size.unwrap_or_else(|| internal::calc_separator_size(ui_sys, !self.vertical, self.thickness));
 
-        // Invisible dummy item.
-        ui.dummy(size.to_array());
+        ui_sys.with_ui(|ui| {
+            // Empty space, optionally with a texture over it.
+            let (rect, _) = ui.allocate_exact_size(egui_vec2(size), Sense::hover());
 
-        // Optionally draw a texture over it.
-        if let Some(separator) = self.separator {
-            let separator_rect =
-                Rect::from_extents(Vec2::from_array(ui.item_rect_min()), Vec2::from_array(ui.item_rect_max()));
-
-            ui.get_window_draw_list()
-                .add_image(separator, separator_rect.min.to_array(), separator_rect.max.to_array())
-                .build();
-        }
+            if let Some(separator) = self.separator {
+                ui.painter().image(egui_texture(separator), rect, uv_full(), Color32::WHITE);
+            }
+        });
     }
 
     fn measure(&self, context: &dyn UiWidgetContext) -> Vec2 {
@@ -2203,7 +2260,7 @@ impl UiWidget for UiSeparator {
 impl UiSeparator {
     pub fn new(context: &mut dyn UiWidgetContext, params: UiSeparatorParams) -> Self {
         Self {
-            separator: params.separator.map(|path| context.load_ui_texture(path)),
+            separator: params.separator.map(|path| context.load_texture(path)),
             size: params.size,
             thickness: params.thickness.unwrap_or(1.0),
             vertical: params.vertical,
@@ -2233,8 +2290,7 @@ pub struct UiSpriteIconParams<'a> {
 // ----------------------------------------------
 
 pub struct UiSpriteIcon {
-    imgui_id: ImGuiIdString,
-    sprite: Option<UiTextureHandle>,
+    sprite: Option<TextureHandle>,
     tex_coords: RectTexCoords,
     size: Vec2,
     margin_top: f32,
@@ -2253,77 +2309,48 @@ impl UiWidget for UiSpriteIcon {
     fn draw(&mut self, context: &mut dyn UiWidgetContext) {
         debug_assert!(context.is_inside_widget_window());
 
-        let ui = context.ui_sys().ui();
-        let label = make_imgui_id!(self, UiSpriteIcon, String::new());
+        let ui_sys = context.ui_sys();
+        let screen_rect = ui_sys.ctx().content_rect();
 
-        if self.margin_top != 0.0 {
-            // NOTE: May be negative.
-            let pos = ui.cursor_pos();
-            ui.set_cursor_pos([pos[0], pos[1] + self.margin_top]);
-        }
-
-        // Render icon as an invisible button so we can have hover detection for the tooltip.
-        ui.invisible_button_flags(label, self.size.to_array(), imgui::ButtonFlags::empty());
-
-        // Render the actual sprite icon:
-        if let Some(sprite) = self.sprite {
-            let draw_list = ui.get_window_draw_list();
-
-            fn to_imgui_uvs(uv: Vec2) -> Vec2 {
-                Vec2::new(uv.x, 1.0 - uv.y) // Invert Y
+        let hovered = ui_sys.with_ui(|ui| {
+            if self.margin_top != 0.0 {
+                ui.add_space(self.margin_top); // NOTE: May be negative.
             }
 
-            let top_left_uvs = to_imgui_uvs(self.tex_coords.top_left());
-            let bottom_right_uvs = to_imgui_uvs(self.tex_coords.bottom_right());
+            // Hover detection for the tooltip.
+            let (rect, response) = ui.allocate_exact_size(egui_vec2(self.size), Sense::hover());
 
-            let draw_outline = || {
-                let outline_rect =
-                    Rect::from_extents(Vec2::from_array(ui.item_rect_min()), Vec2::from_array(ui.item_rect_max()))
-                        .expanded(Vec2::new(2.0, 2.0));
+            // Render the actual sprite icon:
+            if let Some(sprite) = self.sprite {
+                let uv = tex_coords_uv(&self.tex_coords);
+                let outline_stroke = Stroke::new(1.0, Color32::BLACK);
 
-                draw_list
-                    .add_rect(outline_rect.min.to_array(), outline_rect.max.to_array(), imgui::ImColor32::BLACK)
-                    .thickness(1.0)
-                    .rounding(2.0)
-                    .build();
-            };
+                // Unclipped, the icon can overflow the parent window's bounds.
+                let (painter, icon_rect) = if self.clip_to_parent_menu {
+                    (ui.painter().clone(), rect)
+                } else {
+                    (ui.painter().with_clip_rect(screen_rect), egui::Rect::from_min_size(rect.min, egui_vec2(self.unclipped_draw_size)))
+                };
 
-            if self.clip_to_parent_menu {
-                draw_list
-                    .add_image(sprite, ui.item_rect_min(), ui.item_rect_max())
-                    .uv_min([top_left_uvs.x, bottom_right_uvs.y]) // Swap Ys
-                    .uv_max([bottom_right_uvs.x, top_left_uvs.y])
-                    .build();
+                painter.image(egui_texture(sprite), icon_rect, uv, Color32::WHITE);
 
                 if self.outline {
-                    draw_outline();
+                    painter.rect_stroke(rect.expand(2.0), 2.0, outline_stroke, StrokeKind::Middle);
                 }
-            } else {
-                // Draw with fullscreen clip rect so the icon is allowed to overflow the parent window bounds.
-                draw_list.with_clip_rect([0.0, 0.0], ui.io().display_size, || {
-                    let icon_rect = Rect::from_pos_and_size(Vec2::from_array(ui.item_rect_min()), self.unclipped_draw_size);
-
-                    draw_list
-                        .add_image(sprite, icon_rect.min.to_array(), icon_rect.max.to_array())
-                        .uv_min([top_left_uvs.x, bottom_right_uvs.y]) // Swap Ys
-                        .uv_max([bottom_right_uvs.x, top_left_uvs.y])
-                        .build();
-
-                    if self.outline {
-                        draw_outline();
-                    }
-                });
             }
-        }
+
+            if self.margin_bottom > 0.0 {
+                ui.add_space(self.margin_bottom);
+            }
+
+            ui_sys.set_last_response(&response);
+            response.hovered()
+        });
 
         if let Some(tooltip) = &self.tooltip
-            && ui.is_item_hovered()
+            && hovered
         {
             tooltip.draw(context);
-        }
-
-        if self.margin_bottom > 0.0 {
-            ui.dummy([0.0, self.margin_bottom]);
         }
     }
 
@@ -2338,8 +2365,7 @@ impl UiSpriteIcon {
         debug_assert!(params.margin_bottom >= 0.0);
 
         Self {
-            imgui_id: ImGuiIdString::new(),
-            sprite: params.sprite.map(|path| context.load_ui_texture(path)),
+            sprite: params.sprite.map(|path| context.load_texture(path)),
             tex_coords: params.tex_coords,
             size: params.size,
             margin_top: params.margin_top,
@@ -2351,7 +2377,7 @@ impl UiSpriteIcon {
         }
     }
 
-    pub fn set_sprite(&mut self, sprite: UiTextureHandle) {
+    pub fn set_sprite(&mut self, sprite: TextureHandle) {
         self.sprite = Some(sprite);
     }
 
@@ -2387,7 +2413,6 @@ pub type UiSliderUpdateValue<T> = UiWidgetCallbackWithArg<UiSlider, UiReadOnly, 
 
 pub struct UiSlider {
     label: String,
-    imgui_id: ImGuiIdString,
     font_scale: UiFontScale,
     value: UiSliderValue,
 }
@@ -2401,60 +2426,37 @@ impl UiWidget for UiSlider {
         debug_assert!(context.is_inside_widget_window());
 
         context.set_window_font_scale(self.font_scale);
-        let ui = context.ui_sys().ui();
-
-        let label = make_imgui_id!(self, UiSlider, self.label);
 
         match &self.value {
             UiSliderValue::I32 { min, max, on_read_value, on_update_value } => {
-                let mut value = on_read_value.invoke(self, context).unwrap_or_default();
+                let value = on_read_value.invoke(self, context).unwrap_or_default();
+                let (new_value, set_value) = self.draw_slider(context, value, *min, *max, None);
 
-                let (slider, _group) = internal::slider_with_left_label(ui, label, *min, *max);
-
-                let value_changed =
-                    slider.flags(imgui::SliderFlags::ALWAYS_CLAMP | imgui::SliderFlags::NO_INPUT).build(&mut value);
-
-                if value_changed {
-                    on_update_value.invoke(self, context, value.clamp(*min, *max));
+                if let Some(new_value) = new_value {
+                    on_update_value.invoke(self, context, new_value.clamp(*min, *max));
                 }
-
-                let set_value = record_settable(context, "slider", &self.label, serde_json::json!(value));
                 if let Some(new_value) = set_value.and_then(|value| value.as_i64()) {
                     on_update_value.invoke(self, context, new_value.clamp(i64::from(*min), i64::from(*max)) as i32);
                 }
             }
             UiSliderValue::U32 { min, max, on_read_value, on_update_value } => {
-                let mut value = on_read_value.invoke(self, context).unwrap_or_default();
+                let value = on_read_value.invoke(self, context).unwrap_or_default();
+                let (new_value, set_value) = self.draw_slider(context, value, *min, *max, None);
 
-                let (slider, _group) = internal::slider_with_left_label(ui, label, *min, *max);
-
-                let value_changed =
-                    slider.flags(imgui::SliderFlags::ALWAYS_CLAMP | imgui::SliderFlags::NO_INPUT).build(&mut value);
-
-                if value_changed {
-                    on_update_value.invoke(self, context, value.clamp(*min, *max));
+                if let Some(new_value) = new_value {
+                    on_update_value.invoke(self, context, new_value.clamp(*min, *max));
                 }
-
-                let set_value = record_settable(context, "slider", &self.label, serde_json::json!(value));
                 if let Some(new_value) = set_value.and_then(|value| value.as_u64()) {
                     on_update_value.invoke(self, context, new_value.clamp(u64::from(*min), u64::from(*max)) as u32);
                 }
             }
             UiSliderValue::F32 { min, max, on_read_value, on_update_value } => {
-                let mut value = on_read_value.invoke(self, context).unwrap_or_default();
+                let value = on_read_value.invoke(self, context).unwrap_or_default();
+                let (new_value, set_value) = self.draw_slider(context, value, *min, *max, Some(2));
 
-                let (slider, _group) = internal::slider_with_left_label(ui, label, *min, *max);
-
-                let value_changed = slider
-                    .flags(imgui::SliderFlags::ALWAYS_CLAMP | imgui::SliderFlags::NO_INPUT)
-                    .display_format("%.2f")
-                    .build(&mut value);
-
-                if value_changed {
-                    on_update_value.invoke(self, context, value.clamp(*min, *max));
+                if let Some(new_value) = new_value {
+                    on_update_value.invoke(self, context, new_value.clamp(*min, *max));
                 }
-
-                let set_value = record_settable(context, "slider", &self.label, serde_json::json!(value));
                 if let Some(new_value) = set_value.and_then(|value| value.as_f64()) {
                     on_update_value.invoke(self, context, (new_value as f32).clamp(*min, *max));
                 }
@@ -2484,10 +2486,43 @@ impl UiSlider {
 
         Self {
             label: params.label.clone().unwrap_or_default(),
-            imgui_id: ImGuiIdString::new(),
             font_scale: params.font_scale,
             value: params.into_slider_value(),
         }
+    }
+
+    // A left label, then the slider. Returns the value the user set, if changed, and a value ui.set
+    // queued for it.
+    fn draw_slider<T: egui::emath::Numeric + serde::Serialize>(
+        &self,
+        context: &mut dyn UiWidgetContext,
+        mut value: T,
+        min: T,
+        max: T,
+        decimals: Option<usize>,
+    ) -> (Option<T>, Option<serde_json::Value>) {
+        let ui_sys = context.ui_sys();
+        let width = internal::item_width(ui_sys);
+
+        ui_sys.with_ui(|ui| {
+            let response = ui
+                .horizontal(|ui| {
+                    left_label(ui_sys, ui, &self.label);
+
+                    // The value shows to the slider's right.
+                    ui.spacing_mut().slider_width = (width - ui.spacing().interact_size.x - ui.spacing().item_spacing.x).max(40.0);
+                    let mut slider = egui::Slider::new(&mut value, min..=max).clamping(egui::SliderClamping::Always);
+                    if let Some(decimals) = decimals {
+                        slider = slider.fixed_decimals(decimals);
+                    }
+                    ui.add(slider)
+                })
+                .inner;
+
+            let changed = response.changed().then_some(value);
+            let set_value = record_settable(ui_sys, ui, &response, "slider", &self.label, serde_json::json!(value));
+            (changed, set_value)
+        })
     }
 }
 
@@ -2563,7 +2598,6 @@ pub type UiCheckboxUpdateValue = UiWidgetCallbackWithArg<UiCheckbox, UiReadOnly,
 
 pub struct UiCheckbox {
     label: String,
-    imgui_id: ImGuiIdString,
     font_scale: UiFontScale,
     on_read_value: UiCheckboxReadValue,
     on_update_value: UiCheckboxUpdateValue,
@@ -2578,34 +2612,40 @@ impl UiWidget for UiCheckbox {
         debug_assert!(context.is_inside_widget_window());
 
         context.set_window_font_scale(self.font_scale);
-        let ui = context.ui_sys().ui();
-
-        let label = make_imgui_id!(self, UiCheckbox, self.label);
+        let ui_sys = context.ui_sys();
 
         let mut value = self.on_read_value.invoke(self, context).unwrap_or_default();
 
-        let (value_changed, _group) = internal::checkbox_with_left_label(ui, label, &mut value);
+        let (value_changed, set_value) = ui_sys.with_ui(|ui| {
+            let response = ui
+                .horizontal(|ui| {
+                    left_label(ui_sys, ui, &self.label);
+                    ui.checkbox(&mut value, "")
+                })
+                .inner;
+
+            let set_value = record_settable(ui_sys, ui, &response, "checkbox", &self.label, serde_json::Value::Bool(value));
+            (response.changed(), set_value)
+        });
 
         if value_changed {
             self.on_update_value.invoke(self, context, value);
         }
-
-        let set_value = record_settable(context, "checkbox", &self.label, serde_json::Value::Bool(value));
         if let Some(new_value) = set_value.and_then(|value| value.as_bool()) {
             self.on_update_value.invoke(self, context, new_value);
         }
     }
 
     fn measure(&self, context: &dyn UiWidgetContext) -> Vec2 {
-        let style = context.ui_sys().current_ui_style();
+        let ui_sys = context.ui_sys();
+        let spacing = &ui_sys.egui_style().spacing;
 
-        let checkbox_square =
-            internal::calc_text_line_height(context.ui_sys(), self.font_scale) + (style.frame_padding[1] * 2.0);
+        let checkbox_square = internal::calc_frame_height(ui_sys, self.font_scale);
         let mut width = checkbox_square;
 
         if !self.label.is_empty() {
             let label_size = context.calc_text_size(self.font_scale, &self.label);
-            width += style.item_inner_spacing[0] + label_size.x;
+            width += spacing.icon_spacing + label_size.x;
         }
 
         Vec2::new(width, checkbox_square)
@@ -2626,7 +2666,6 @@ impl UiCheckbox {
 
         Self {
             label: params.label.unwrap_or_default(),
-            imgui_id: ImGuiIdString::new(),
             font_scale: params.font_scale,
             on_read_value: params.on_read_value,
             on_update_value: params.on_update_value,
@@ -2658,7 +2697,6 @@ pub type UiIntInputUpdateValue = UiWidgetCallbackWithArg<UiIntInput, UiReadOnly,
 
 pub struct UiIntInput {
     label: String,
-    imgui_id: ImGuiIdString,
     font_scale: UiFontScale,
     min: i32,
     max: i32,
@@ -2676,22 +2714,42 @@ impl UiWidget for UiIntInput {
         debug_assert!(context.is_inside_widget_window());
 
         context.set_window_font_scale(self.font_scale);
-        let ui = context.ui_sys().ui();
-
-        let label = make_imgui_id!(self, UiIntInput, self.label);
+        let ui_sys = context.ui_sys();
+        let width = internal::item_width(ui_sys);
 
         let mut value = self.on_read_value.invoke(self, context).unwrap_or_default();
 
-        let (input, _group) = internal::input_int_with_left_label(ui, label, &mut value);
+        let (value_changed, set_value) = ui_sys.with_ui(|ui| {
+            let (response, stepped) = ui
+                .horizontal(|ui| {
+                    left_label(ui_sys, ui, &self.label);
 
-        let value_changed = input.step(self.step).build();
+                    // A field to drag or type into, and buttons that step it.
+                    let buttons_width = (ui.spacing().interact_size.y + ui.spacing().item_spacing.x) * 2.0;
+                    let drag = egui::DragValue::new(&mut value).range(self.min..=self.max).speed(f64::from(self.step) * 0.1);
+                    let response = ui.add_sized(vec2((width - buttons_width).max(40.0), ui.spacing().interact_size.y), drag);
+
+                    let mut stepped = false;
+                    if ui.small_button("-").clicked() {
+                        value = value.saturating_sub(self.step);
+                        stepped = true;
+                    }
+                    if ui.small_button("+").clicked() {
+                        value = value.saturating_add(self.step);
+                        stepped = true;
+                    }
+                    (response, stepped)
+                })
+                .inner;
+
+            let set_value = record_settable(ui_sys, ui, &response, "int_input", &self.label, serde_json::json!(value));
+            (response.changed() || stepped, set_value)
+        });
 
         if value_changed {
             value = value.clamp(self.min, self.max);
             self.on_update_value.invoke(self, context, value);
         }
-
-        let set_value = record_settable(context, "int_input", &self.label, serde_json::json!(value));
         if let Some(new_value) = set_value.and_then(|value| value.as_i64()) {
             let new_value = new_value.clamp(i64::from(self.min), i64::from(self.max)) as i32;
             self.on_update_value.invoke(self, context, new_value);
@@ -2717,7 +2775,6 @@ impl UiIntInput {
 
         Self {
             label: params.label.unwrap_or_default(),
-            imgui_id: ImGuiIdString::new(),
             font_scale: params.font_scale,
             min: params.min.unwrap_or(i32::MIN),
             max: params.max.unwrap_or(i32::MAX),
@@ -2749,7 +2806,6 @@ pub type UiTextInputUpdateValue = UiWidgetCallbackWithArg<UiTextInput, UiReadOnl
 
 pub struct UiTextInput {
     label: String,
-    imgui_id: ImGuiIdString,
     buffer: String,
     font_scale: UiFontScale,
     on_read_value: UiTextInputReadValue,
@@ -2765,24 +2821,34 @@ impl UiWidget for UiTextInput {
         debug_assert!(context.is_inside_widget_window());
 
         context.set_window_font_scale(self.font_scale);
-        let ui = context.ui_sys().ui();
-
-        let label = make_imgui_id!(self, UiTextInput, self.label);
+        let ui_sys = context.ui_sys();
+        let width = internal::item_width(ui_sys);
 
         self.buffer.clear();
         if let Some(value) = self.on_read_value.invoke(self, context) {
             self.buffer.push_str(&value.0);
         }
 
-        let (input, _group) = internal::input_text_with_left_label(ui, label, &mut self.buffer);
+        let id = widget_id(self, &self.label);
+        let (value_changed, set_value) = ui_sys.with_ui(|ui| {
+            let response = ui
+                .horizontal(|ui| {
+                    left_label(ui_sys, ui, &self.label);
+                    let text_edit = egui::TextEdit::singleline(&mut self.buffer)
+                        .id(id)
+                        .font(internal::font(ui_sys, self.font_scale))
+                        .desired_width(width);
+                    ui.add(text_edit)
+                })
+                .inner;
 
-        let value_changed = input.build();
+            let set_value = record_settable(ui_sys, ui, &response, "text_input", &self.label, serde_json::json!(self.buffer));
+            (response.changed(), set_value)
+        });
 
         if value_changed {
             self.on_update_value.invoke(self, context, &self.buffer);
         }
-
-        let set_value = record_settable(context, "text_input", &self.label, serde_json::json!(self.buffer));
         if let Some(new_value) = set_value.as_ref().and_then(|value| value.as_str()) {
             self.buffer.clear();
             self.buffer.push_str(new_value);
@@ -2809,7 +2875,6 @@ impl UiTextInput {
 
         Self {
             label: params.label.unwrap_or_default(),
-            imgui_id: ImGuiIdString::new(),
             buffer: String::new(),
             font_scale: params.font_scale,
             on_read_value: params.on_read_value,
@@ -2841,7 +2906,6 @@ pub type UiDropdownGetCurrentSelection = UiWidgetCallback<UiDropdown, UiReadOnly
 
 pub struct UiDropdown {
     label: String,
-    imgui_id: ImGuiIdString,
     font_scale: UiFontScale,
     current_item: usize,
     items: Vec<String>,
@@ -2858,30 +2922,48 @@ impl UiWidget for UiDropdown {
         debug_assert!(context.is_inside_widget_window());
 
         context.set_window_font_scale(self.font_scale);
-        let ui = context.ui_sys().ui();
-
-        let bg_color = if context.ui_sys().current_ui_theme().is_in_game() {
-            [0.90, 0.80, 0.60, 1.0]
-        } else {
-            context.ui_sys().current_ui_style().colors[imgui::StyleColor::PopupBg as usize]
-        };
-
-        let _combo_bg_color = ui.push_style_color(imgui::StyleColor::PopupBg, bg_color);
-
-        let label = make_imgui_id!(self, UiDropdown, self.label);
+        let ui_sys = context.ui_sys();
+        let width = internal::item_width(ui_sys);
 
         if !self.on_get_current_selection.is_none() {
             self.current_item = self.on_get_current_selection.invoke(self, context).unwrap();
         }
 
-        let (selection_changed, _group) = internal::combo_with_left_label(ui, label, &mut self.current_item, &self.items);
+        let id = widget_id(self, &self.label);
+        let mut current_item = self.current_item;
+
+        let (selection_changed, set_value) = ui_sys.with_ui(|ui| {
+            let response = ui
+                .horizontal(|ui| {
+                    left_label(ui_sys, ui, &self.label);
+
+                    let font = internal::font(ui_sys, self.font_scale);
+                    let selected_text = self.items.get(current_item).map_or("", String::as_str);
+
+                    egui::ComboBox::from_id_salt(id)
+                        .width(width)
+                        .selected_text(egui::RichText::new(selected_text).font(font.clone()))
+                        .show_ui(ui, |ui| {
+                            // Its items, recorded under its label while it's open.
+                            let _path = immediate::path_scope(ui_sys, &self.label);
+                            for (index, item) in self.items.iter().enumerate() {
+                                let response = ui.selectable_value(&mut current_item, index, egui::RichText::new(item).font(font.clone()));
+                                immediate::record(ui_sys, ui, &response, "list_item", item, None, true, Some(serde_json::Value::Bool(current_item == index)));
+                            }
+                        })
+                        .response
+                })
+                .inner;
+
+            let current = self.items.get(current_item).cloned().unwrap_or_default();
+            let set_value = record_settable(ui_sys, ui, &response, "dropdown", &self.label, serde_json::Value::String(current));
+            (current_item != self.current_item, set_value)
+        });
 
         if selection_changed {
+            self.current_item = current_item;
             self.on_selection_changed.invoke(self, context);
         }
-
-        let current = self.items.get(self.current_item).cloned().unwrap_or_default();
-        let set_value = record_settable(context, "dropdown", &self.label, serde_json::Value::String(current));
         if let Some(index) = set_value.and_then(|value| list_index(&value, &self.items)) {
             self.current_item = index;
             self.on_selection_changed.invoke(self, context);
@@ -2913,7 +2995,6 @@ impl UiDropdown {
 
         Self {
             label: params.label.unwrap_or_default(),
-            imgui_id: ImGuiIdString::new(),
             font_scale: params.font_scale,
             current_item: params.current_item,
             items: params.items,
@@ -3010,7 +3091,6 @@ pub type UiItemListSelectionChanged = UiWidgetCallback<UiItemList, UiReadOnly>;
 
 pub struct UiItemList {
     label: String,
-    imgui_id: ImGuiIdString,
     font_scale: UiFontScale,
     size: Option<Vec2>,
     margin_left: f32,
@@ -3031,89 +3111,120 @@ impl UiWidget for UiItemList {
         debug_assert!(context.is_inside_widget_window());
 
         context.set_window_font_scale(self.font_scale);
-        let ui = context.ui_sys().ui();
+        let ui_sys = context.ui_sys();
 
-        let window_name = make_imgui_id!(self, UiItemList, self.label);
-
-        // child_window size:
+        // The list's size:
         //  > 0.0 -> fixed size
         //  = 0.0 -> use remaining host window size
         //  < 0.0 -> use remaining host window size minus abs(size)
-        let mut window_size = self.size.unwrap_or(Vec2::zero());
+        let mut requested_size = self.size.unwrap_or(Vec2::zero());
         if self.margin_right > 0.0 {
             // NOTE: Decrement window padding from margin, so it is accurate.
-            let style = context.ui_sys().current_ui_style();
-            window_size.x -= self.margin_right - style.window_padding[0];
+            let padding = f32::from(ui_sys.egui_style().spacing.window_margin.left);
+            requested_size.x -= self.margin_right - padding;
         }
 
-        let set_left_margin = || {
-            if self.margin_left > 0.0 {
-                ui.set_cursor_pos([self.margin_left, ui.cursor_pos()[1]]);
+        let id = widget_id(self, &self.label);
+        let font = internal::font(ui_sys, self.font_scale);
+        let margin_left = self.margin_left;
+        let border = self.flags.intersects(UiItemListFlags::Border);
+        let scrollable = self.flags.intersects(UiItemListFlags::Scrollable);
+        let scroll_bars = self.flags.intersects(UiItemListFlags::Scrollbars);
+
+        let mut current_item = self.current_item;
+        let mut text_input_field_changed = false;
+
+        let list_response = ui_sys.with_ui(|ui| {
+            let left = ui.cursor().left() + margin_left;
+
+            // Optional label:
+            if !self.label.is_empty() {
+                ui.horizontal(|ui| {
+                    ui.add_space(margin_left);
+                    ui.label(egui::RichText::new(&self.label).font(font.clone()));
+                });
             }
-        };
 
-        // Optional label:
-        if !self.label.is_empty() {
-            set_left_margin();
-            ui.text(&self.label);
-        }
+            let available = immediate::fill_size(ui);
+            let resolve = |requested: f32, available: f32| {
+                if requested > 0.0 { requested } else { (available + requested).max(0.0) }
+            };
+            let width = resolve(requested_size.x, available.x - margin_left);
 
-        // Optional text input field:
-        let text_input_field_changed = {
+            // Optional text input field:
             if let Some(text_input_field_buffer) = &mut self.text_input_field_buffer {
-                // set_next_item_width:
-                //  > 0.0 -> width is item_width pixels
-                //  = 0.0 -> default to ~2/3 of window width
-                //  < 0.0 -> item_width pixels relative to the right of window (-1.0 always aligns width to the right side)
-                ui.set_next_item_width(window_size.x);
-                set_left_margin();
-
-                let input_field_id = format_fixed_string!(64, "## {window_name} InputField");
-                ui.input_text(input_field_id, text_input_field_buffer).build()
-            } else {
-                false
+                let response = ui
+                    .horizontal(|ui| {
+                        ui.add_space(margin_left);
+                        ui.add(egui::TextEdit::singleline(text_input_field_buffer).id(id.with("input_field")).font(font.clone()).desired_width(width))
+                    })
+                    .inner;
+                text_input_field_changed = response.changed();
             }
-        };
+
+            let height = resolve(requested_size.y, immediate::fill_size(ui).y);
+            let rect = egui::Rect::from_min_size(pos2(left, ui.cursor().top()), vec2(width, height));
+            let list_response = ui.allocate_rect(rect, Sense::hover());
+
+            let frame = if border {
+                egui::Frame::group(ui.style()).inner_margin(ui.spacing().item_spacing.x * 0.5)
+            } else {
+                egui::Frame::NONE
+            };
+
+            let mut list_ui = ui.new_child(egui::UiBuilder::new().max_rect(rect));
+            frame.show(&mut list_ui, |ui| {
+                ui.set_min_size((rect.size() - frame.total_margin().sum()).max(egui::Vec2::ZERO));
+
+                let scroll_area = egui::ScrollArea::vertical()
+                    .id_salt(id)
+                    .auto_shrink([false, false])
+                    .vscroll(scrollable)
+                    .scroll_bar_visibility(if scroll_bars {
+                        egui::scroll_area::ScrollBarVisibility::VisibleWhenNeeded
+                    } else {
+                        egui::scroll_area::ScrollBarVisibility::AlwaysHidden
+                    });
+
+                scroll_area.show(ui, |ui| {
+                    let _path = immediate::path_scope(ui_sys, &self.label);
+                    ui.style_mut().spacing.item_spacing.y = 0.0;
+                    // Rows span the list, with their text on the left.
+                    ui.with_layout(egui::Layout::top_down_justified(egui::Align::LEFT), |ui| {
+                        for (index, item) in self.items.iter().enumerate() {
+                            let is_selected = current_item == Some(index);
+                            let text = egui::RichText::new(item).font(font.clone());
+                            let response = ui.add(egui::Button::selectable(is_selected, text));
+                            if response.clicked() {
+                                current_item = Some(index);
+                            }
+                            immediate::record(ui_sys, ui, &response, "list_item", item, None, true, Some(serde_json::Value::Bool(is_selected)));
+                        }
+                    });
+                });
+            });
+
+            list_response
+        });
 
         if text_input_field_changed && self.text_input_field_buffer.is_some() {
+            current_item = None;
             self.current_item = None;
             self.on_selection_changed.invoke(self, context);
         }
 
-        set_left_margin();
-        ui.child_window(window_name)
-            .size(window_size.to_array())
-            .border(self.flags.intersects(UiItemListFlags::Border))
-            .scrollable(self.flags.intersects(UiItemListFlags::Scrollable))
-            .scroll_bar(self.flags.intersects(UiItemListFlags::Scrollbars))
-            .build(|| {
-                let mut selection_changed = false;
-
-                context.ui_sys().push_widget_path(&self.label);
-
-                for (index, item) in self.items.iter().enumerate() {
-                    let is_selected = self.current_item == Some(index);
-
-                    if ui.selectable_config(item).selected(is_selected).build() {
-                        if self.current_item != Some(index) {
-                            self.current_item = Some(index);
-                            selection_changed = true;
-                        }
-                    }
-
-                    context.ui_sys().record_widget("list_item", item, None, true, Some(serde_json::Value::Bool(is_selected)));
-                }
-
-                context.ui_sys().pop_widget_path();
-
-                if selection_changed && let Some(selected_index) = self.current_item {
-                    self.select_item(context, selected_index);
-                }
-            });
+        if current_item != self.current_item
+            && let Some(selected_index) = current_item
+        {
+            self.current_item = current_item;
+            self.select_item(context, selected_index);
+        }
 
         // ui.set on the list selects an item, by text or index.
         let current = self.current_item.and_then(|index| self.items.get(index)).cloned();
-        let set_value = record_settable(context, "item_list", &self.label, current.map_or(serde_json::Value::Null, serde_json::Value::String));
+        let set_value = ui_sys.with_ui(|ui| {
+            record_settable(ui_sys, ui, &list_response, "item_list", &self.label, current.map_or(serde_json::Value::Null, serde_json::Value::String))
+        });
         if let Some(index) = set_value.and_then(|value| list_index(&value, &self.items)) {
             self.current_item = Some(index);
             self.select_item(context, index);
@@ -3121,22 +3232,18 @@ impl UiWidget for UiItemList {
     }
 
     fn measure(&self, context: &dyn UiWidgetContext) -> Vec2 {
-        let style = context.ui_sys().current_ui_style();
+        let ui_sys = context.ui_sys();
+        let padding = f32::from(ui_sys.egui_style().spacing.window_margin.left);
 
         let mut requested_size = self.size.unwrap_or(Vec2::zero());
         if self.margin_right > 0.0 {
-            requested_size.x -= self.margin_right - style.window_padding[0];
+            requested_size.x -= self.margin_right - padding;
         }
 
-        let size = internal::calc_child_window_size(context.ui_sys(), requested_size);
+        let size = internal::calc_child_window_size(ui_sys, requested_size);
 
-        let input_field_height = {
-            if self.text_input_field_buffer.is_some() {
-                internal::calc_text_line_height(context.ui_sys(), self.font_scale) + (style.frame_padding[1] * 2.0)
-            } else {
-                0.0
-            }
-        };
+        let input_field_height =
+            if self.text_input_field_buffer.is_some() { internal::calc_frame_height(ui_sys, self.font_scale) } else { 0.0 };
 
         Vec2::new(size.x, size.y + input_field_height)
     }
@@ -3183,7 +3290,6 @@ impl UiItemList {
 
         Self {
             label: params.label.unwrap_or_default(),
-            imgui_id: ImGuiIdString::new(),
             font_scale: params.font_scale,
             size: params.size,
             margin_left: params.margin_left,
@@ -3275,6 +3381,7 @@ pub struct UiMessageBoxParams<'a> {
     pub label: Option<String>,
     pub size: Option<Vec2>,
     pub background: Option<PathRef<'a>>,
+    pub content_insets: Option<UiMenuInsets>, // The background's borders; the style's window margin if None.
     pub contents: Vec<UiWidgetImpl>,
     pub buttons: Vec<UiWidgetImpl>,
 }
@@ -3348,6 +3455,7 @@ impl UiMessageBox {
             flags: UiMenuFlags::IsOpen | UiMenuFlags::AlignCenter | UiMenuFlags::Modal | UiMenuFlags::CloseModalOnEscape,
             size: params.size,
             background: params.background,
+            content_insets: params.content_insets,
             ..Default::default()
         });
 
@@ -3432,7 +3540,6 @@ pub struct UiSlideshowParams {
 // ----------------------------------------------
 
 pub struct UiSlideshow {
-    imgui_id: ImGuiIdString,
     flags: UiSlideshowFlags,
     loop_mode: UiSlideshowLoopMode,
 
@@ -3440,7 +3547,7 @@ pub struct UiSlideshow {
     margin_left: f32,
     margin_right: f32,
 
-    frames: Vec<UiTextureHandle>,
+    frames: Vec<TextureHandle>,
     frame_index: usize,
     frame_duration_secs: Seconds,
     frame_play_time_secs: Seconds,
@@ -3457,14 +3564,8 @@ impl UiWidget for UiSlideshow {
     }
 
     fn measure(&self, context: &dyn UiWidgetContext) -> Vec2 {
-        let style = context.ui_sys().current_ui_style();
-
-        let mut requested_size = self.size.unwrap_or(Vec2::zero());
-        if self.margin_right > 0.0 {
-            requested_size.x -= self.margin_right - style.window_padding[0];
-        }
-
-        internal::calc_child_window_size(context.ui_sys(), requested_size)
+        let ui_sys = context.ui_sys();
+        internal::calc_child_window_size(ui_sys, self.requested_size(ui_sys))
     }
 }
 
@@ -3476,7 +3577,7 @@ impl UiSlideshow {
 
         let mut frames = Vec::with_capacity(params.frames.len());
         for path in &params.frames {
-            frames.push(context.load_ui_texture(path.into()));
+            frames.push(context.load_texture(path.into()));
         }
 
         let mut flags = params.flags;
@@ -3488,7 +3589,6 @@ impl UiSlideshow {
         }
 
         Self {
-            imgui_id: ImGuiIdString::new(),
             flags,
             loop_mode: params.loop_mode,
             size: params.size,
@@ -3508,6 +3608,20 @@ impl UiSlideshow {
     // ----------------------
     // Internal:
     // ----------------------
+
+    // The size it asks for:
+    //  > 0.0 -> fixed size
+    //  = 0.0 -> use remaining host window size
+    //  < 0.0 -> use remaining host window size minus abs(size)
+    fn requested_size(&self, ui_sys: &UiSystem) -> Vec2 {
+        let mut requested_size = self.size.unwrap_or(Vec2::zero());
+        if self.margin_right > 0.0 {
+            // NOTE: Decrement window padding from margin, so it is accurate.
+            let padding = f32::from(ui_sys.egui_style().spacing.window_margin.left);
+            requested_size.x -= self.margin_right - padding;
+        }
+        requested_size
+    }
 
     fn update_anim(&mut self, delta_time_secs: Seconds) {
         if self.frames.len() <= 1 {
@@ -3551,51 +3665,23 @@ impl UiSlideshow {
 
     fn draw_current_frame(&mut self, context: &mut dyn UiWidgetContext) {
         let current_frame = self.frames[self.frame_index];
+        let ui_sys = context.ui_sys();
 
         if context.is_inside_widget_window() && !self.has_flags(UiSlideshowFlags::Fullscreen) {
-            // We are drawing inside a parent window, so nest the
-            // rendered anim frame inside a child window instead.
-            self.draw_inside_child_window(context, current_frame);
+            // We are drawing inside a parent window: the frame takes its room in it.
+            let size = internal::calc_child_window_size(ui_sys, self.requested_size(ui_sys));
+            let margin_left = self.margin_left;
+
+            ui_sys.with_ui(|ui| {
+                let rect = egui::Rect::from_min_size(ui.cursor().min + vec2(margin_left, 0.0), egui_vec2(size));
+                ui.painter().image(egui_texture(current_frame), rect, uv_full(), Color32::WHITE);
+                ui.advance_cursor_after_rect(rect);
+            });
         } else {
-            // Draw full-screen rectangle with the anim frame texture.
-            // Background draw list ensures it renders behind any other UI elements.
-            let ui = context.ui_sys().ui();
-            let draw_list = ui.get_background_draw_list();
-            draw_list.add_image(current_frame, [0.0, 0.0], ui.io().display_size).build();
+            // Draw full-screen rectangle with the anim frame texture, behind any other UI.
+            let screen_rect = ui_sys.ctx().content_rect();
+            let painter = ui_sys.ctx().layer_painter(egui::LayerId::background());
+            painter.image(egui_texture(current_frame), screen_rect, uv_full(), Color32::WHITE);
         }
-    }
-
-    fn draw_inside_child_window(&mut self, context: &mut dyn UiWidgetContext, current_frame: UiTextureHandle) {
-        let ui = context.ui_sys().ui();
-        let window_name = make_imgui_id!(self, UiSlideshow, String::new());
-
-        // child_window size:
-        //  > 0.0 -> fixed size
-        //  = 0.0 -> use remaining host window size
-        //  < 0.0 -> use remaining host window size minus abs(size)
-        let mut window_size = self.size.unwrap_or(Vec2::zero());
-        if self.margin_right > 0.0 {
-            // NOTE: Decrement window padding from margin, so it is accurate.
-            let style = context.ui_sys().current_ui_style();
-            window_size.x -= self.margin_right - style.window_padding[0];
-        }
-
-        let mut cursor = ui.cursor_pos();
-        if self.margin_left > 0.0 {
-            ui.set_cursor_pos([self.margin_left, cursor[1]]);
-        }
-
-        ui.child_window(window_name).size(window_size.to_array()).flags(internal::base_widget_window_flags()).build(|| {
-            let draw_list = ui.get_window_draw_list();
-
-            let child_window_rect =
-                Rect::from_pos_and_size(Vec2::from_array(ui.window_pos()), Vec2::from_array(ui.window_size()));
-
-            draw_list.add_image(current_frame, child_window_rect.min.to_array(), child_window_rect.max.to_array()).build();
-
-            // Advance cursor to after the slide frame.
-            cursor[1] += child_window_rect.height();
-            ui.set_cursor_pos(cursor);
-        });
     }
 }

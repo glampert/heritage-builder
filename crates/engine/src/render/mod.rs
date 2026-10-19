@@ -3,11 +3,10 @@ use enum_dispatch::enum_dispatch;
 use serde::{Deserialize, Serialize};
 use strum::Display;
 
-use crate::ui::{UiDrawIndex, UiDrawVertex, UiRenderFrameBundle};
-
 pub mod capture;
 pub mod debug;
 pub mod texture;
+pub mod ui_draw;
 
 // ----------------------------------------------
 // Internal backend implementations
@@ -44,10 +43,11 @@ trait RenderSystemBackend: Sized {
     // Begin/End frame:
     fn begin_frame(&mut self, viewport_size: Size, framebuffer_size: Size);
 
-    // Also fills in the captures requested during the frame, and any earlier ones still in flight.
+    // Draws the UI over the scene. Also fills in the captures requested during the frame, and any
+    // earlier ones still in flight.
     fn end_frame(
         &mut self,
-        ui_frame_bundle: &mut UiRenderFrameBundle,
+        ui_draw_data: &ui_draw::UiDrawData,
         tex_cache: &mut texture::TextureCache,
         captures: &mut capture::CaptureQueue,
     ) -> RenderStats;
@@ -56,21 +56,6 @@ trait RenderSystemBackend: Sized {
     fn viewport(&self) -> Rect;
     fn set_viewport_size(&mut self, new_size: Size);
     fn set_framebuffer_size(&mut self, new_size: Size);
-
-    // UI (ImGui) Drawing:
-    fn begin_ui_render(&mut self);
-    fn end_ui_render(&mut self);
-
-    fn set_ui_draw_buffers(&mut self, vtx_buffer: &[UiDrawVertex], idx_buffer: &[UiDrawIndex]);
-
-    fn draw_ui_elements(
-        &mut self,
-        first_index: u32,
-        index_count: u32,
-        texture: texture::TextureHandle,
-        tex_cache: &mut texture::TextureCache,
-        clip_rect: Rect,
-    );
 
     // Draw commands:
     fn draw_colored_indexed_triangles(&mut self, vertices: &[Vec2], indices: &[DrawIndex], color: Color);
@@ -231,9 +216,10 @@ impl RenderSystem {
         self.backend.begin_frame(viewport_size, framebuffer_size);
     }
 
+    // Draws the frame's scene, then `ui_draw_data` over it.
     #[inline]
-    pub fn end_frame(&mut self, ui_frame_bundle: &mut UiRenderFrameBundle) -> RenderStats {
-        self.backend.end_frame(ui_frame_bundle, &mut self.tex_cache, &mut self.captures)
+    pub fn end_frame(&mut self, ui_draw_data: &ui_draw::UiDrawData) -> RenderStats {
+        self.backend.end_frame(ui_draw_data, &mut self.tex_cache, &mut self.captures)
     }
 
     // ----------------------
@@ -289,36 +275,6 @@ impl RenderSystem {
     #[inline]
     pub fn set_framebuffer_size(&mut self, new_size: Size) {
         self.backend.set_framebuffer_size(new_size)
-    }
-
-    // ----------------------
-    // UI (ImGui) Drawing:
-    // ----------------------
-
-    #[inline]
-    pub fn begin_ui_render(&mut self) {
-        self.backend.begin_ui_render();
-    }
-
-    #[inline]
-    pub fn end_ui_render(&mut self) {
-        self.backend.end_ui_render();
-    }
-
-    #[inline]
-    pub fn set_ui_draw_buffers(&mut self, vtx_buffer: &[UiDrawVertex], idx_buffer: &[UiDrawIndex]) {
-        self.backend.set_ui_draw_buffers(vtx_buffer, idx_buffer);
-    }
-
-    #[inline]
-    pub fn draw_ui_elements(
-        &mut self,
-        first_index: u32,
-        index_count: u32,
-        texture: texture::TextureHandle,
-        clip_rect: Rect,
-    ) {
-        self.backend.draw_ui_elements(first_index, index_count, texture, &mut self.tex_cache, clip_rect);
     }
 
     // ----------------------

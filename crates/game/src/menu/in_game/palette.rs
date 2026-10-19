@@ -311,12 +311,14 @@ impl TilePaletteMainButton {
         });
 
         for child_def in children {
+            // Beside the item, so it doesn't cover the items around it.
             let child_tooltip = child_def.tooltip.map(|tooltip_text| {
                 UiTooltipText::new(context, UiTooltipTextParams {
                     text: tooltip_text,
                     font_scale: TOOLTIP_FONT_SCALE,
                     background: Some(TOOLTIP_BACKGROUND_SPRITE),
                 })
+                .with_placement(ui::UiTooltipPlacement::BesideWidget)
             });
 
             let parent_button_def = main_button_def;

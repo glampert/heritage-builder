@@ -142,6 +142,11 @@ impl Engine {
     }
 
     #[inline]
+    pub fn ui_system_mut(&mut self) -> &mut UiSystem {
+        &mut self.ui_system
+    }
+
+    #[inline]
     pub fn frame_clock(&self) -> &FrameClock {
         &self.frame_clock
     }
@@ -231,7 +236,7 @@ impl Engine {
     // take_screenshot_result: the result is ready once the PNG is written, usually after a frame.
     pub fn request_screenshot(&mut self, request: ScreenshotRequest) -> ScreenshotId {
         let id = self.render_system.request_capture(CaptureRequest { include_ui: request.include_ui });
-        self.screenshots.add_request(id, request.scale, request.output);
+        self.screenshots.add_request(id, request);
         id
     }
 
@@ -379,7 +384,7 @@ impl Engine {
         // A replay sets the frame's time step, devices and commands first.
         let replayed_events = self.begin_replay_frame(frame);
 
-        // Simulated input next, so this frame's events and ImGui see it.
+        // Simulated input next, so this frame's events and the UI see it.
         let simulated_events = match self.app.input_system_mut().virtual_input_mut() {
             Some(virtual_input) => self.input_timeline.apply_frame(virtual_input),
             None => ApplicationEventList::new(),
@@ -402,7 +407,9 @@ impl Engine {
         (self.frame_clock.delta_time(), input_sys.cursor_pos(), begin_frame_time_ms)
     }
 
-    pub fn end_frame(&mut self) -> (Milliseconds, Milliseconds) {
+    // Returns how long the whole of end_frame took, the UI's part of it (turning the frame's UI
+    // into draw data) and presenting the frame.
+    pub fn end_frame(&mut self) -> (Milliseconds, Milliseconds, Milliseconds) {
         let end_frame_timer = PerfTimer::begin();
 
         self.request_one_shot_screenshot();
@@ -411,8 +418,12 @@ impl Engine {
         let draw_overlays = !self.render_system.has_pending_ui_capture();
         let badge = self.badge_text();
 
-        let mut ui_frame_bundle = self.ui_system.end_frame(self.render_system.clone(), draw_overlays, badge.as_deref());
-        self.render_stats = self.render_system.end_frame(&mut ui_frame_bundle);
+        let ui_render_timer = PerfTimer::begin();
+        let ui_draw_data =
+            self.ui_system.end_frame(self.render_system.texture_cache_mut(), draw_overlays, badge.as_deref());
+        let ui_render_time_ms = ui_render_timer.end();
+
+        self.render_stats = self.render_system.end_frame(ui_draw_data);
 
         let present_timer = PerfTimer::begin();
         self.app.present();
@@ -429,7 +440,7 @@ impl Engine {
 
         let end_frame_time_ms = end_frame_timer.end();
 
-        (end_frame_time_ms, present_frame_time_ms)
+        (end_frame_time_ms, ui_render_time_ms, present_frame_time_ms)
     }
 
     // ----------------------
@@ -490,12 +501,12 @@ impl Engine {
 
     // NOTE: Application and RenderSystem are initialized outside
     // because we need bespoke initialization for Web/WASM.
-    fn new(configs: &EngineConfigs, app: RcMut<Application>, mut render_system: RcMut<RenderSystem>) -> Self {
+    fn new(configs: &EngineConfigs, app: RcMut<Application>, render_system: RcMut<RenderSystem>) -> Self {
         log::info!(log::channel!("engine"), "Window Size: {}", app.window_size());
         log::info!(log::channel!("engine"), "Framebuffer Size: {}", app.framebuffer_size());
         log::info!(log::channel!("engine"), "Content Scale: {}", app.content_scale());
 
-        let ui_system = UiSystem::new(&mut render_system);
+        let ui_system = UiSystem::new();
         log::info!(log::channel!("engine"), "UiSystem initialized.");
 
         let mut sound_system = SoundSystem::new(configs.sound_settings);
@@ -791,6 +802,7 @@ impl Engine {
                 include_ui: shot.options.include_ui,
                 scale: ScreenshotScale::Pixels,
                 output: ScreenshotOutput::File(shot.options.path.clone()),
+                encode_in_frame: false,
             },
             _ => return,
         };
