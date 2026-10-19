@@ -48,25 +48,12 @@ rustup target add wasm32-unknown-unknown
 # 2. wasm-bindgen CLI (generates the JS glue)
 cargo install wasm-bindgen-cli
 
-# 3. LLVM + a WASI sysroot — needed to cross-compile the C++ in imgui-sys
-brew install llvm wasi-libc
-
-# 4. wasm-opt for size/speed optimization on release builds (part of binaryen)
+# 3. wasm-opt for size/speed optimization on release builds (part of binaryen)
 brew install binaryen
 
-# 5. Python 3 to serve the built files locally (usually already present)
+# 4. Python 3 to serve the built files locally (usually already present)
 python3 --version
 ```
-
-> **Why LLVM + wasi-libc?** The ImGui debug UI is a C++ library. The web-builder tool wires up
-> `/opt/homebrew/opt/llvm/bin/clang++` and the `/opt/homebrew/opt/wasi-libc` sysroot to cross-compile it
-> for `wasm32`. If either is missing the build prints a warning telling you what to install. Paths are
-> Homebrew/Apple-Silicon defaults — adjust in [`crates/tools/web-builder/src/main.rs`](crates/tools/web-builder/src/main.rs)
-> if yours differ.
->
-> **On Linux (or anywhere without Homebrew)**, download a [wasi-sdk](https://github.com/WebAssembly/wasi-sdk/releases)
-> release and set `WASI_SDK_PATH` to its root; web-builder then uses its `clang++`, `llvm-ar` and sysroot instead.
-> Use **wasi-sdk 30–32**: the headers in 33+ refuse to compile for `wasm32-unknown-unknown`. This is what CI does.
 
 ---
 
@@ -119,7 +106,7 @@ cd web && python3 -m http.server 8080    # serve it
 
 ### Debug / developer UI — `Ctrl` + `/`
 
-The game ships with an extensive **ImGui-based developer editor**. Press **`Ctrl` + `/`** at any time to
+The game ships with an extensive **developer editor**. Press **`Ctrl` + `/`** at any time to
 toggle between the normal in-game **HUD** and the **DevEditor** menu. The DevEditor exposes map editing,
 building/unit/prop spawning, simulation inspectors, config tweaking, and per-system debug panels — most of
 the game's config structs auto-render their controls there.
@@ -152,9 +139,9 @@ Cargo workspace, edition 2024. High-level layout:
 crates/
   launcher/          Binary crate `HeritageBuilder` — the only game executable. main() just runs the loop.
   common/            Platform-agnostic utilities (coords, time, hashing, fixed strings) and shared macros.
-  engine/            Platform, rendering (OpenGL + Wgpu), UI (ImGui), sound (Kira), saves, run loop.
+  engine/            Platform, rendering (OpenGL + Wgpu), UI (egui), sound (Kira), saves, run loop.
   game/              All gameplay: simulation, world, tilemap, units, buildings, props, pathfinding, menus, debug.
-  proc_macros/       #[derive(DrawDebugUi)] — auto-generates ImGui debug panels for config structs.
+  proc_macros/       #[derive(DrawDebugUi)] — auto-generates debug UI panels for config structs.
   tools/
     bundler/         Driver for `cargo bundle` + assets (used by bundle.sh).
     web-builder/     WASM build driver (used by web.sh).
@@ -205,7 +192,7 @@ thread (several globals are single-thread statics) and does **not** accept filte
 [`.github/workflows/ci.yml`](.github/workflows/ci.yml) runs on every push and pull request:
 
 - **Desktop** (Ubuntu and macOS): `cargo build --workspace --all-targets` + `cargo test --workspace`.
-- **Web**: `cargo run -p web-builder -- release` using wasi-sdk, a `wasm-bindgen-cli` matching the resolved
+- **Web**: `cargo run -p web-builder -- release` with a `wasm-bindgen-cli` matching the resolved
   `wasm-bindgen` crate, and `wasm-opt`. It also warns if `web/asset_manifest.json` is out of date.
 
 CI uses the latest stable Rust and treats compiler warnings as warnings, not errors.

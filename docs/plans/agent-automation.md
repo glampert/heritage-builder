@@ -1,5 +1,7 @@
 # Agent automation and in-game screenshots
 
+> **Note (2026-10-19):** the UI has since moved from ImGui to egui ([egui-migration.md](egui-migration.md)). The ImGui behavior described below is a historical record.
+
 **Status (2026-10-15): Complete.** Approved 2026-10-11. Phase 0 was merged with PR #1. Phases 1–7 are done on the `claude` branch, to be merged into `main` in one PR:
 - screenshots;
 - the command registry, with script mode and the in-game console;

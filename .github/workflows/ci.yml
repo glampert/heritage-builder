@@ -154,9 +154,6 @@ jobs:
     name: Web (wasm32)
     runs-on: ubuntu-latest
     env:
-      # wasi-sdk provides clang++/llvm-ar + WASI sysroot to cross-compile imgui-sys.
-      # Headers in wasi-sdk 33+ refuse non-WASI targets, so stay on 32 for now.
-      WASI_SDK_VERSION: "32"
       BINARYEN_VERSION: "133"
 
     steps:
@@ -167,12 +164,6 @@ jobs:
           toolchain: stable
           target: wasm32-unknown-unknown
           build-warnings: warn
-
-      - name: Install wasi-sdk
-        run: |
-          curl -sSfL "https://github.com/WebAssembly/wasi-sdk/releases/download/wasi-sdk-${WASI_SDK_VERSION}/wasi-sdk-${WASI_SDK_VERSION}.0-x86_64-linux.tar.gz" \
-            | tar xz -C "$RUNNER_TEMP"
-          echo "WASI_SDK_PATH=$RUNNER_TEMP/wasi-sdk-${WASI_SDK_VERSION}.0-x86_64-linux" >> "$GITHUB_ENV"
 
       - name: Install wasm-opt (binaryen)
         run: |

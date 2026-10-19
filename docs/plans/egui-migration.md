@@ -355,17 +355,23 @@ Tick tasks off and add notes in `docs/plans/egui-migration.md` as they land. Eve
 - **Minimap (after the review):** the Phase 0 change that picked a cell's shade from a hash of its coordinates, for repeatable snapshots, gave the minimap a striped look. The minimap draws its shades from its own `Pcg32` again, seeded with a constant and started over whenever the whole minimap is built, so runs still match. The goldens were remade once more after it.
 
 ### Phase 5: Cleanup and stale references
-- [ ] **Web:**
+- [x] **Web:**
   - Delete `crates/launcher/build.rs` once a web build succeeds without `--allow-undefined`.
   - Delete `web/libc.js`, the importmap in `web/index.html` and `crates/engine/src/platform/web/libc.rs` (with `mod libc;`).
   - In `web-builder`, delete the clang/wasi-sdk setup and `patch_generated_js`, and remove imports that are no longer used.
   - In CI, delete `WASI_SDK_VERSION` and the "Install wasi-sdk" step.
-- [ ] **Docs:**
+- [x] **Docs:**
   - Rewrite the ImGui references in AGENTS.md (automation notes, the web toolchain bullets, DrawDebugUi, the Engine description), `README.md` (the llvm/wasi-libc steps), and `.claude/rules/rendering.md`.
   - Add a note about styles to AGENTS.md.
   - Add a one-line note at the top of `docs/plans/agent-automation.md` saying the UI has since moved to egui; it's a historical record.
-- [ ] Run `rg -i 'imgui|im_gui|ImColor|wasi'` over the whole repository (code, comments, scripts, configs, `.claude/`). Also look for printf-style formats, `##` labels whose ids are no longer needed, the `FieldAccessorXY` comment in `common/src/lib.rs`, and dead helpers in `internal.rs`.
-- [ ] Check the drive-game skill and the `hb-ctl`/MCP docs for descriptions of UI behavior that changed.
+- [x] Run `rg -i 'imgui|im_gui|ImColor|wasi'` over the whole repository (code, comments, scripts, configs, `.claude/`). Also look for printf-style formats, `##` labels whose ids are no longer needed, the `FieldAccessorXY` comment in `common/src/lib.rs`, and dead helpers in `internal.rs`.
+- [x] Check the drive-game skill and the `hb-ctl`/MCP docs for descriptions of UI behavior that changed.
+
+**Phase 5 notes (2026-10-19):**
+- **Web:** the launcher's `build.rs` (`--allow-undefined`), `web/libc.js` with the page's `env` importmap, and `platform/web/libc.rs` (the C library shims imgui-sys imported: malloc, qsort, vsnprintf, sscanf, 632 lines) are gone, and so are `web-builder`'s clang/wasi-sdk setup and its patch of wasm-bindgen's output. The web build needs only the `wasm32-unknown-unknown` target, `wasm-bindgen-cli` and `wasm-opt`, and CI no longer downloads wasi-sdk. The release build passes the Playwright smoke test in Chrome.
+- **Docs:** AGENTS.md says which library the UI runs on, drops the wasi toolchain bullets, and gains the note on the style files; README.md loses the llvm/wasi-libc install step and its explanation; `agent-automation.md` opens with a note that its ImGui details are history. `.claude/rules/rendering.md` was already written for the egui renderer in Phase 2. The drive-game skill and the hb-ctl/MCP docs describe no behavior that changed.
+- **What's left on purpose:** the comments in `ui/style.rs` (why fonts have a `scale`) and `automation/commands/session.rs` (why the settle frames are zero) explain decisions by what imgui did, and `internal.rs`'s `TODO(layout)` goes with the layout pass. The `"label##id"` convention stays (the ids keep same-named headers and buttons apart within a window, e.g. the inspector's `Properties` panels), so no `##` suffix was dropped. No helper in `internal.rs` is unused, and the only printf-style format was in the deleted `libc.rs`.
+- **Verification (2026-10-19):** the desktop build, the debug and release web builds (no linker flag, no C toolchain) and `cargo test --workspace` pass, and the release web build passes the smoke test in Chrome (load, commands, a placed well, both screenshots, the hotkey download). `rg -i 'imgui|im_gui|ImColor|wasi'` outside the plans finds only the three comments kept above and AGENTS.md's link to this plan.
 
 ### Phase 6: Layout pass
 Fixes the layout problems seen in the Phase 0 baselines, on top of the egui widgets. Phase 3 leaves `TODO(layout)` notes and the provisions listed there; `rg 'TODO\(layout\)'` finds them. The problems, as seen at 1280x720:
