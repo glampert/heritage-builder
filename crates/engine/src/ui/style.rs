@@ -145,8 +145,8 @@ struct UiFontDef {
     file: String, // Under assets/fonts/.
 
     // The font draws this much larger or smaller than its text style's size. egui sizes a font by
-    // its em; ImGui sized it by its ascent minus descent, so units_per_em / (ascent - descent)
-    // draws it as ImGui did.
+    // its em, so a font whose ascent minus descent is larger than its em looks bigger than another
+    // at the same size; units_per_em / (ascent - descent) sizes it by that height instead.
     scale: f32,
 
     y_offset_factor: f32, // Moves glyphs down by this fraction of the font size.

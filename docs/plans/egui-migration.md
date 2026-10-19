@@ -1,6 +1,6 @@
 # Migrate the UI from imgui to egui
 
-**Status (2026-10-18): Phases 0, 1 and 2 done; Phase 3 is next.** Work happens on the `egui-migration` branch, one commit per step, merged into `main` with one PR at the end. This file tracks progress.
+**Status (2026-10-19): Phases 0–6 done; Phase 7, the PR into `main`, is next.** Work happens on the `egui-migration` branch, one commit per step, merged into `main` with one PR at the end. This file tracks progress.
 
 Researched against `02d8b3c` on `main`, using egui/epaint 0.37.0 (released 2026-10-15). File references point at that commit, so re-check them before relying on them.
 
