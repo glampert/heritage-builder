@@ -73,7 +73,7 @@ impl ResourcesManagement {
             context,
             Self::KIND,
             Self::TITLE,
-            DEFAULT_DIALOG_MENU_WIDGET_SPACING,
+            DEFAULT_DIALOG_MENU_TEXT_SPACING,
             Option::<Vec<UiWidgetImpl>>::None,
         );
 

@@ -463,7 +463,6 @@ impl DebugSettingsDevMenu {
     }
 
     fn draw_game_configs_window(&mut self, context: &mut GameUiContext) {
-        // TODO(layout): Too narrow for its tab labels ("Engine/…", "Buildin…").
         let window = UiWindow::new("Game Configs")
             .open(&mut self.show_game_configs_debug)
             .position(Vec2::new(200.0, 20.0), UiCondition::FirstUse)
@@ -499,8 +498,6 @@ impl DebugSettingsDevMenu {
     }
 
     fn draw_game_systems_debug_window(&mut self, context: &mut GameUiContext) {
-        // TODO(layout): Too narrow for its tab labels ("Settle…", "Ambien…") and some rows
-        // ("Population Per Set…").
         let window = UiWindow::new("Game Systems Debug")
             .open(&mut self.show_game_systems_debug)
             .position(Vec2::new(400.0, 20.0), UiCondition::FirstUse)

@@ -96,6 +96,7 @@ impl MainGame {
             UiMessageBoxParams {
                 label: Some("Quit Game Popup".into()),
                 background: Some(DEFAULT_DIALOG_POPUP_BACKGROUND_SPRITE),
+                content_insets: Some(DEFAULT_DIALOG_POPUP_CONTENT_INSETS),
                 contents: vec![UiWidgetImpl::from(UiMenuHeading::new(context, UiMenuHeadingParams {
                     lines: vec![
                         UiText::new("Quit Game?".into(), DEFAULT_DIALOG_POPUP_FONT_SCALE),

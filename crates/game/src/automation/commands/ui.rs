@@ -7,6 +7,7 @@ use serde::Deserialize;
 use serde_json::{Map, Value, json};
 use strum::IntoEnumIterator;
 
+use common::{Rect, Vec2};
 use engine::{
     app::input::MouseButton,
     automation::input::{self as gestures, GestureId},
@@ -84,6 +85,13 @@ pub(super) const COMMANDS: &[CommandDef] = &[
                styles if one fails to load.",
         params: &[],
         run: cmd_reload_styles,
+    },
+    CommandDef {
+        name: "ui.layout_issues",
+        help: "The widgets drawn last frame that fall outside their menu's content area or overlap a sibling, and their \
+               count. For the retail screens: the developer windows have no content area.",
+        params: &[],
+        run: cmd_layout_issues,
     },
     CommandDef { name: "dialog.list", help: "The game's dialogs, and which are open.", params: &[], run: cmd_dialog_list },
     CommandDef { name: "dialog.current", help: "The dialog on top, or null.", params: &[], run: cmd_dialog_current },
@@ -497,6 +505,106 @@ fn dialog_kind(name: &str) -> Result<DialogMenuKind, CommandError> {
     })
 }
 
+// ----------------------------------------------
+// Layout check
+// ----------------------------------------------
+
+// How far, in points, a widget may stick out of its menu or into a sibling before it's an issue:
+// rects are rounded to pixels, and frames round their margins to points.
+const LAYOUT_TOLERANCE: f32 = 1.0;
+
+// Widgets that hold other widgets: they're checked against their menu, not against siblings.
+const LAYOUT_CONTAINER_KINDS: &[&str] = &["menu_content", "window", "item_list"];
+
+fn cmd_layout_issues(context: &mut CommandContext, _params: Value) -> CommandResult {
+    let ready_frame = registry_ready_frame(context);
+
+    pending(move |context| {
+        if context.frame() < ready_frame {
+            return None;
+        }
+
+        let issues = layout_issues(context.engine.ui_system().widgets());
+        Some(Ok(json!({ "count": issues.len(), "issues": issues })))
+    })
+}
+
+// The widgets outside their menu's content area (the innermost `menu_content` whose path is a
+// prefix of theirs), and the pairs of siblings (same parent path, same menu) that overlap without
+// one holding the other. A dropdown's popup may leave the menu, so list items aren't held to it,
+// and a widget scrolled out of view (`visible: false`) is clipped, so it isn't checked.
+fn layout_issues(widgets: &[UiWidgetInfo]) -> Vec<Value> {
+    let menus: Vec<&UiWidgetInfo> = widgets.iter().filter(|widget| widget.kind == "menu_content").collect();
+
+    let menu_of = |widget: &UiWidgetInfo| -> Option<&UiWidgetInfo> {
+        menus
+            .iter()
+            .copied()
+            .filter(|menu| widget.path.len() > menu.path.len() && widget.path.starts_with(&menu.path) && widget.path.as_bytes()[menu.path.len()] == b'/')
+            .max_by_key(|menu| menu.path.len())
+    };
+
+    let checked: Vec<(&UiWidgetInfo, &UiWidgetInfo)> = widgets
+        .iter()
+        .filter(|widget| widget.kind != "menu_content" && widget.visible)
+        .filter_map(|widget| menu_of(widget).map(|menu| (widget, menu)))
+        .collect();
+
+    let rect_json = |rect: &Rect| json!([rect.x(), rect.y(), rect.width(), rect.height()]);
+    let mut issues = Vec::new();
+
+    for &(widget, menu) in &checked {
+        if widget.kind == "list_item" {
+            continue;
+        }
+        if !menu.rect.expanded(Vec2::new(LAYOUT_TOLERANCE, LAYOUT_TOLERANCE)).contains_rect(&widget.rect) {
+            issues.push(json!({
+                "problem": "outside",
+                "path": widget.path,
+                "kind": widget.kind,
+                "rect": rect_json(&widget.rect),
+                "menu": menu.path,
+                "menu_rect": rect_json(&menu.rect),
+            }));
+        }
+    }
+
+    for (index, &(widget, menu)) in checked.iter().enumerate() {
+        if LAYOUT_CONTAINER_KINDS.contains(&widget.kind) {
+            continue;
+        }
+        for &(other, other_menu) in &checked[index + 1..] {
+            if LAYOUT_CONTAINER_KINDS.contains(&other.kind)
+                || menu.path != other_menu.path
+                || parent_path(&widget.path) != parent_path(&other.path)
+                || widget.rect.contains_rect(&other.rect)
+                || other.rect.contains_rect(&widget.rect)
+            {
+                continue;
+            }
+            let shrunk = widget.rect.expanded(Vec2::new(-LAYOUT_TOLERANCE, -LAYOUT_TOLERANCE));
+            if shrunk.is_valid() && shrunk.intersects(&other.rect.expanded(Vec2::new(-LAYOUT_TOLERANCE, -LAYOUT_TOLERANCE))) {
+                issues.push(json!({
+                    "problem": "overlap",
+                    "path": widget.path,
+                    "kind": widget.kind,
+                    "rect": rect_json(&widget.rect),
+                    "other": other.path,
+                    "other_kind": other.kind,
+                    "other_rect": rect_json(&other.rect),
+                    "menu": menu.path,
+                }));
+            }
+        }
+    }
+
+    issues
+}
+
+fn parent_path(path: &str) -> &str {
+    path.rsplit_once('/').map_or("", |(parent, _)| parent)
+}
+
 fn cmd_dialog_list(_context: &mut CommandContext, _params: Value) -> CommandResult {
     require_dialogs()?;
     let dialogs: Map<String, Value> =
@@ -576,6 +684,33 @@ mod tests {
             visible: true,
             value: None,
         }
+    }
+
+    fn widget_at(kind: &'static str, path: &str, x: f32, y: f32, w: f32, h: f32) -> UiWidgetInfo {
+        UiWidgetInfo { path: path.into(), rect: Rect::from_pos_and_size(Vec2::new(x, y), Vec2::new(w, h)), ..widget(kind) }
+    }
+
+    #[test]
+    fn test_layout_issues() {
+        let widgets = [
+            widget_at("menu_content", "Home", 0.0, 0.0, 100.0, 100.0),
+            widget_at("heading", "Home/Title", 10.0, 0.5, 80.0, 20.0),   // Within tolerance.
+            widget_at("text_button", "Home/Ok", 10.0, 90.0, 40.0, 20.0), // Past the bottom.
+            widget_at("checkbox", "Home/A", 10.0, 30.0, 20.0, 20.0),
+            widget_at("checkbox", "Home/B", 25.0, 40.0, 20.0, 20.0),     // Over A.
+            widget_at("item_list", "Home/item_list", 10.0, 60.0, 80.0, 20.0),
+            widget_at("list_item", "Home/autosave", 10.0, 60.0, 80.0, 10.0), // Held by the list.
+            widget_at("dropdown", "Home/Kind", 50.0, 30.0, 40.0, 20.0),
+            widget_at("list_item", "Home/Kind/Grass", 50.0, 50.0, 40.0, 60.0), // A popup: may leave the menu.
+            UiWidgetInfo { visible: false, ..widget_at("list_item", "Home/scrolled", 10.0, 85.0, 80.0, 30.0) }, // Clipped.
+            widget_at("window", "Debug", 200.0, 200.0, 50.0, 50.0),           // No menu: not checked.
+            widget_at("button", "Debug/Close", 300.0, 300.0, 10.0, 10.0),
+        ];
+
+        let issues = layout_issues(&widgets);
+        let problems: Vec<(&str, &str)> = issues.iter().map(|issue| (issue["problem"].as_str().unwrap(), issue["path"].as_str().unwrap())).collect();
+        assert_eq!(problems, [("outside", "Home/Ok"), ("overlap", "Home/A")]);
+        assert_eq!(issues[1]["other"], "Home/B");
     }
 
     #[test]

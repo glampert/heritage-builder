@@ -417,26 +417,43 @@ pub enum UiMenuPosition {
 // UiMenuParams
 // ----------------------------------------------
 
-// The borders of a menu's background sprite, in points: its contents stay inside them.
-// TODO(layout): Phase 6 gives each background sprite its insets. Until then menus pad their
-// contents with the style's window margin, as they always did.
+// The borders of a menu's background sprite: its contents stay inside them. In points, or, for a
+// menu with a size, as fractions of that size, since the sprite is stretched to it (a scroll's
+// rollers take the same share of the scroll at any size).
 #[derive(Copy, Clone, Default, PartialEq, Debug)]
 pub struct UiMenuInsets {
     pub left: f32,
     pub top: f32,
     pub right: f32,
     pub bottom: f32,
+    pub relative: bool, // Fractions of the menu's size instead of points.
 }
 
 impl UiMenuInsets {
-    pub const fn same(inset: f32) -> Self {
-        Self { left: inset, top: inset, right: inset, bottom: inset }
+    pub const fn same(points: f32) -> Self {
+        Self::points(points, points, points, points)
     }
 
+    pub const fn points(left: f32, top: f32, right: f32, bottom: f32) -> Self {
+        Self { left, top, right, bottom, relative: false }
+    }
+
+    // Fractions of the menu's width (left, right) and height (top, bottom), for a menu with a size.
+    pub const fn fractions(left: f32, top: f32, right: f32, bottom: f32) -> Self {
+        Self { left, top, right, bottom, relative: true }
+    }
+
+    // The padding of a menu of `size`, or None for relative insets on a menu sized to its contents.
     // egui frames pad in whole points (i8), enough for a sprite's borders.
-    fn to_margin(self) -> egui::Margin {
+    fn to_margin(self, size: Option<Vec2>) -> Option<egui::Margin> {
+        let scale = if self.relative { size? } else { Vec2::one() };
         let points = |inset: f32| inset.round().clamp(f32::from(i8::MIN), f32::from(i8::MAX)) as i8;
-        egui::Margin { left: points(self.left), right: points(self.right), top: points(self.top), bottom: points(self.bottom) }
+        Some(egui::Margin {
+            left: points(self.left * scale.x),
+            right: points(self.right * scale.x),
+            top: points(self.top * scale.y),
+            bottom: points(self.bottom * scale.y),
+        })
     }
 }
 
@@ -507,12 +524,12 @@ impl UiWidget for UiMenu {
 
         if !self.widgets.is_empty() {
             // Add inter-widget spacing.
-            size.y += style.spacing.item_spacing.y * (self.widgets.len() - 1) as f32;
+            size.y += self.widget_spacing.y * (self.widgets.len() - 1) as f32;
         }
 
-        let padding = f32::from(style.spacing.window_margin.left);
+        let padding = self.content_insets.and_then(|insets| insets.to_margin(self.size)).unwrap_or(style.spacing.window_margin);
         let border = style.visuals.window_stroke.width;
-        size += Vec2::new(padding, padding) * 2.0;
+        size += Vec2::new(f32::from(padding.left) + f32::from(padding.right), f32::from(padding.top) + f32::from(padding.bottom));
         size += Vec2::new(border, border) * 2.0;
 
         size
@@ -765,7 +782,7 @@ impl UiMenu {
         let (window_pos, window_pivot) = self.calc_window_pos(context, ui_sys);
         let id = widget_id(self, &self.label);
 
-        let padding = self.content_insets.map_or(style.spacing.window_margin, UiMenuInsets::to_margin);
+        let padding = self.content_insets.and_then(|insets| insets.to_margin(window_size)).unwrap_or(style.spacing.window_margin);
         let has_title_bar = self.background.is_none() && !self.label.is_empty() && !self.has_flags(UiMenuFlags::NoTitleBar);
 
         // A texture background replaces the window's frame.
@@ -778,9 +795,8 @@ impl UiMenu {
         let pivot = egui::Align2([align(window_pivot.x), align(window_pivot.y)]);
         let modal = flags.intersects(UiMenuFlags::Modal);
 
-        // TODO(layout): a menu's content area is its window minus `padding`: the style's margin until
-        // Phase 6 sets each menu's `content_insets` from its background sprite, so contents stay on
-        // the parchment.
+        // A menu's content area is its window minus `padding`: its background sprite's insets, or the
+        // style's window margin.
         let draw_window = |ui: &mut egui::Ui| -> bool {
             let background_slot = self.background.map(|_| ui.painter().add(egui::Shape::Noop));
 
@@ -789,8 +805,8 @@ impl UiMenu {
             let content_index = immediate::reserve_rect(ui_sys, "menu_content", &self.label);
 
             let frame_response = frame.show(ui, |ui| {
-                if let Some(size) = window_size {
-                    let content_size = (egui_vec2(size) - padding.sum()).max(egui::Vec2::ZERO);
+                let content_size = window_size.map(|size| (egui_vec2(size) - padding.sum()).max(egui::Vec2::ZERO));
+                if let Some(content_size) = content_size {
                     ui.set_min_size(content_size);
                     ui.set_max_size(content_size);
                 }
@@ -803,16 +819,29 @@ impl UiMenu {
                     });
                 }
 
-                // Inputs, sliders and dropdowns take a fraction of a sized menu's width by default.
-                let previous_item_width = ui_sys.set_item_width(window_size.map(|size| size.x * MENU_ITEM_WIDTH_FRACTION));
+                // Inputs, sliders and dropdowns take a fraction of a sized menu's content width by default.
+                let previous_item_width = ui_sys.set_item_width(content_size.map(|size| size.x * MENU_ITEM_WIDTH_FRACTION));
 
-                ui_sys.ui_scope(ui, |ui_sys| {
-                    context.begin_widget_window();
-                    ui_sys.push_widget_path(&self.label);
-                    on_draw_contents(self, context);
-                    ui_sys.pop_widget_path();
-                    context.end_widget_window();
-                });
+                let draw_contents = |ui: &mut egui::Ui| {
+                    ui_sys.ui_scope(ui, |ui_sys| {
+                        context.begin_widget_window();
+                        ui_sys.push_widget_path(&self.label);
+                        on_draw_contents(self, context);
+                        ui_sys.pop_widget_path();
+                        context.end_widget_window();
+                    });
+                };
+
+                // A menu with a size scrolls its contents when they don't fit it.
+                if content_size.is_some() {
+                    egui::ScrollArea::vertical()
+                        .id_salt(id.with("contents"))
+                        .auto_shrink([false, false])
+                        .scroll_bar_visibility(egui::scroll_area::ScrollBarVisibility::VisibleWhenNeeded)
+                        .show(ui, draw_contents);
+                } else {
+                    draw_contents(ui);
+                }
 
                 ui_sys.set_item_width(previous_item_width);
 
@@ -967,7 +996,6 @@ impl UiText {
         Self { string: String::new(), font_scale, color: None, wrap_width: None }
     }
 
-    // TODO(layout): Phase 6 wraps long lines at their menu's content width.
     pub fn with_wrap_width(mut self, width: f32) -> Self {
         self.wrap_width = Some(width);
         self
@@ -1071,8 +1099,7 @@ impl UiWidget for UiMenuHeading {
 
         if non_empty_lines_count > 0 {
             // Add inter-line spacing.
-            let spacing = context.ui_sys().egui_style().spacing.item_spacing;
-            size.y += spacing.y * (non_empty_lines_count - 1) as f32;
+            size.y += internal::item_spacing(context.ui_sys()).y * (non_empty_lines_count - 1) as f32;
         }
 
         size
@@ -1312,7 +1339,7 @@ impl UiWidget for UiWidgetGroup {
 
         if !self.widgets.is_empty() {
             // Add inter-widget spacing
-            let spacing = context.ui_sys().egui_style().spacing.item_spacing;
+            let spacing = self.widget_spacing;
 
             if self.stack_vertically {
                 size.y += spacing.y * (self.widgets.len() - 1) as f32; // v-spacing
@@ -1500,7 +1527,7 @@ impl UiWidget for UiLabeledWidgetGroup {
     }
 
     fn measure(&self, context: &dyn UiWidgetContext) -> Vec2 {
-        let spacing = context.ui_sys().egui_style().spacing.item_spacing;
+        let spacing = Vec2::new(self.label_spacing, self.widget_spacing);
         let mut size = Vec2::zero();
 
         for (label, widget) in &self.labels_and_widgets {
@@ -3354,6 +3381,7 @@ pub struct UiMessageBoxParams<'a> {
     pub label: Option<String>,
     pub size: Option<Vec2>,
     pub background: Option<PathRef<'a>>,
+    pub content_insets: Option<UiMenuInsets>, // The background's borders; the style's window margin if None.
     pub contents: Vec<UiWidgetImpl>,
     pub buttons: Vec<UiWidgetImpl>,
 }
@@ -3427,6 +3455,7 @@ impl UiMessageBox {
             flags: UiMenuFlags::IsOpen | UiMenuFlags::AlignCenter | UiMenuFlags::Modal | UiMenuFlags::CloseModalOnEscape,
             size: params.size,
             background: params.background,
+            content_insets: params.content_insets,
             ..Default::default()
         });
 

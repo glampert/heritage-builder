@@ -129,7 +129,6 @@ impl TileInspectorDevMenu {
         let mut is_open = self.is_open;
 
         // UI automation: "Tile Inspector", with the tile as its value, and "Tile Inspector/Close".
-        // TODO(layout): The auto-sized window cuts its title off ("Object | Building - ID(1,40…").
         // It opens next to the tile, often low on the screen: what doesn't fit scrolls inside it.
         let window = UiWindow::new(&window_label)
             .name("Tile Inspector")

@@ -279,10 +279,7 @@ impl TilePaletteDevMenu {
             row.push((tile_set, tile_category, tile_def));
         }
 
-        if row.is_empty() {
-            // TODO(layout): An empty section leaves a blank line, as it always has.
-            ui::new_line(ui_sys);
-        } else {
+        if !row.is_empty() {
             self.draw_tile_row(ui_sys, tile_kind, &row, &mut tile_index, padding_between_tiles, select);
         }
     }
@@ -301,10 +298,6 @@ impl TilePaletteDevMenu {
                 self.draw_tile_button(ui_sys, tile_kind, *tile_index, tile_set, tile_category, tile_def, select);
                 *tile_index += 1;
             }
-
-            // TODO(layout): The padding after a row's last tile, which the palette has always
-            // counted in its width.
-            ui::dummy(ui_sys, Vec2::zero());
         });
     }
 

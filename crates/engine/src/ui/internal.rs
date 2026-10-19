@@ -1,9 +1,6 @@
 // Layout helpers for the retained widgets (widgets.rs): measuring text and widgets, and drawing
 // groups of them centered in a menu. Groups place each widget at a position they compute, in a
 // child Ui at that rect (UiSystem::draw_at), then move the menu's cursor past the whole group.
-//
-// TODO(layout): sizes and spacing follow the ImGui version's arithmetic, so menus keep their
-// geometry for now. The layout pass (docs/plans/egui-migration.md, Phase 6) revisits them.
 
 use egui::{Color32, TextStyle, pos2, vec2};
 use smallvec::SmallVec;
@@ -49,7 +46,13 @@ pub fn calc_text_line_height(ui_sys: &UiSystem, font_scale: UiFontScale) -> f32 
 }
 
 pub fn calc_text_line_height_with_spacing(ui_sys: &UiSystem, font_scale: UiFontScale) -> f32 {
-    calc_text_line_height(ui_sys, font_scale) + ui_sys.egui_style().spacing.item_spacing.y
+    calc_text_line_height(ui_sys, font_scale) + item_spacing(ui_sys).y
+}
+
+// The spacing between items in the current container (a menu's widget spacing), or the style's
+// outside one.
+pub fn item_spacing(ui_sys: &UiSystem) -> egui::Vec2 {
+    if ui_sys.has_ui() { ui_sys.with_ui(|ui| ui.spacing().item_spacing) } else { ui_sys.egui_style().spacing.item_spacing }
 }
 
 // The height of a framed widget, such as a button or an input, with text at `font_scale`.
@@ -111,7 +114,7 @@ pub fn calc_child_window_size(ui_sys: &UiSystem, requested: Vec2) -> Vec2 {
 //  - `thickness` -> the line's
 pub fn calc_separator_size(ui_sys: &UiSystem, horizontal: bool, thickness: f32) -> Vec2 {
     let region_avail = available_size(ui_sys);
-    let spacing = ui_sys.egui_style().spacing.item_spacing;
+    let spacing = item_spacing(ui_sys);
 
     if horizontal {
         Vec2::new(region_avail.x, thickness + spacing.y * 2.0)
@@ -131,10 +134,10 @@ fn cursor_and_available(ui_sys: &UiSystem) -> (egui::Pos2, egui::Vec2) {
 }
 
 // Where a group of `size` starts to be centered in `available` room from `start`. A group larger
-// than the room overflows it on both sides; without room, it starts at `start`.
+// than the room, or without room, starts at `start` and overflows (or scrolls) past its end.
 #[inline]
 fn centered_start(start: f32, available: f32, size: f32) -> f32 {
-    if available > 0.0 { start + (available - size) * 0.5 } else { start }
+    if available > 0.0 { start + ((available - size) * 0.5).max(0.0) } else { start }
 }
 
 // Moves the current container's cursor past a group drawn at `rect`.
@@ -174,7 +177,7 @@ pub fn draw_centered_text_group(
             if line.string.is_empty() {
                 0.0
             } else if line.wrap_width.is_some() {
-                size.y + ui_sys.egui_style().spacing.item_spacing.y
+                size.y + item_spacing(ui_sys).y
             } else {
                 calc_text_line_height_with_spacing(ui_sys, line.font_scale)
             }
@@ -252,21 +255,31 @@ pub fn draw_centered_widget_group(
     // Measure widget sizes:
     let widget_sizes: SmallVec<[Vec2; 16]> = widgets.iter().map(|widget| widget.measure(context)).collect();
 
+    let count = widgets.len() as f32;
     let mut max_width: f32 = 0.0;
     let mut max_height: f32 = 0.0;
-    let mut total_size = Vec2::new(item_spacing.x, item_spacing.y) * (widgets.len() - 1) as f32;
+    let mut widgets_size = Vec2::zero(); // Without spacing.
 
     for widget_size in &widget_sizes {
         max_width = max_width.max(widget_size.x);
         max_height = max_height.max(widget_size.y);
-        total_size += *widget_size;
+        widgets_size += *widget_size;
     }
 
     let (cursor, region_avail) = cursor_and_available(ui_sys);
     let cursor_start = cursor + vec2(margin_left, 0.0);
 
-    let total_width = if stack_vertically { max_width } else { total_size.x };
-    let total_height = if !stack_vertically { max_height } else { total_size.y };
+    // A stack taller than its room closes up its spacing, down to none, so its widgets fit where
+    // they can: a menu's buttons at a small window height.
+    let spacing_y = if stack_vertically && widgets.len() > 1 && region_avail.y > 0.0 {
+        let room = (region_avail.y - widgets_size.y) / (count - 1.0);
+        item_spacing.y.min(room).max(0.0)
+    } else {
+        item_spacing.y
+    };
+
+    let total_width = if stack_vertically { max_width } else { widgets_size.x + item_spacing.x * (count - 1.0) };
+    let total_height = if stack_vertically { widgets_size.y + spacing_y * (count - 1.0) } else { max_height };
 
     // Compute group origin (top-left):
     let start_x = if horizontal { centered_start(cursor_start.x, region_avail.x, total_width) } else { cursor_start.x };
@@ -278,7 +291,7 @@ pub fn draw_centered_widget_group(
         let widget_pos = if stack_vertically {
             // Stack widgets vertically.
             let position = pos2(start_x + (max_width - widget_size.x) * 0.5, start_y + offset);
-            offset += widget_size.y + item_spacing.y;
+            offset += widget_size.y + spacing_y;
             position
         } else {
             // Position widgets side-by-side.
@@ -357,7 +370,6 @@ pub fn draw_centered_labeled_widget_group(
     let start_y = if vertical { centered_start(cursor_start.y, region_avail.y, total_height) } else { cursor_start.y };
 
     // Draw each row: its label, then its widget after the labels' column.
-    // TODO(layout): Phase 6 gives the groups of a menu one `label_column_width`, so their rows align.
     let mut offset_y = 0.0;
     for (((label, widget), row_size), (_, widget_size)) in labels_and_widgets.iter_mut().zip(row_sizes.iter()).zip(sizes.iter()) {
         let font_scale = widget.font_scale();

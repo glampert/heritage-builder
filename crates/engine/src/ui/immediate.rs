@@ -27,7 +27,7 @@
 use std::fmt;
 
 use arrayvec::ArrayString;
-use egui::{Align, Align2, Color32, Id, Key, Pos2, Sense, Stroke, StrokeKind, TextStyle, pos2, vec2};
+use egui::{Align, Align2, Color32, Id, Key, Pos2, RectAlign, Sense, Stroke, StrokeKind, TextStyle, pos2, vec2};
 use serde_json::Value;
 
 use common::{Color, FieldAccessorXY, Rect, Vec2, format_fixed_string};
@@ -691,6 +691,8 @@ pub fn window<R>(ui_sys: &UiSystem, window: UiWindow, contents: impl FnOnce(&UiS
                     f32::INFINITY
                 };
 
+                // The scroll area takes its contents' width (it only scrolls vertically), so a
+                // resizable window grows to the width of its rows.
                 Some(
                     egui::ScrollArea::vertical()
                         .id_salt("window_contents")
@@ -959,12 +961,23 @@ pub fn item_tooltip_placed(ui_sys: &UiSystem, placement: UiTooltipPlacement, con
         return;
     };
 
-    let tooltip = egui::Tooltip::for_enabled(&response);
-    let tooltip = match placement {
-        UiTooltipPlacement::AtPointer => tooltip.at_pointer().gap(12.0),
-        UiTooltipPlacement::BesideWidget => tooltip,
-    };
-    tooltip.show(|ui| ui_sys.ui_scope(ui, contents));
+    placed_tooltip(&response, placement).show(|ui| ui_sys.ui_scope(ui, contents));
+}
+
+// Where a tooltip beside its widget goes when the widget's left has no room for it.
+const BESIDE_WIDGET_ALIGNS: [RectAlign; 4] = [RectAlign::RIGHT_START, RectAlign::LEFT_END, RectAlign::RIGHT_END, RectAlign::TOP_START];
+
+// A tooltip for `response`'s widget, shown while it's hovered, at `placement`.
+fn placed_tooltip(response: &egui::Response, placement: UiTooltipPlacement) -> egui::Tooltip<'_> {
+    let mut tooltip = egui::Tooltip::for_enabled(response);
+    match placement {
+        UiTooltipPlacement::AtPointer => tooltip = tooltip.at_pointer().gap(12.0),
+        UiTooltipPlacement::BesideWidget => {
+            // To the widget's left, or wherever else it fits: never over the widget or its neighbors.
+            tooltip.popup = tooltip.popup.align(RectAlign::LEFT_START).align_alternatives(&BESIDE_WIDGET_ALIGNS).gap(8.0);
+        }
+    }
+    tooltip
 }
 
 pub fn item_tooltip_text(ui_sys: &UiSystem, tooltip_text: impl UiTextArg) {
@@ -983,11 +996,7 @@ pub fn custom_tooltip(
         return;
     };
 
-    let tooltip = egui::Tooltip::for_enabled(&response);
-    let tooltip = match placement {
-        UiTooltipPlacement::AtPointer => tooltip.at_pointer().gap(12.0),
-        UiTooltipPlacement::BesideWidget => tooltip,
-    };
+    let tooltip = placed_tooltip(&response, placement);
 
     let previous_scale = ui_sys.current_window_front_scale();
     ui_sys.set_tooltip_font_scale(font_scale);
@@ -1118,6 +1127,19 @@ pub fn tab_bar<'a>(ui_sys: &'a UiSystem, id: &str, labels: &[impl AsRef<str>]) -
     let index = ui_sys.with_ui(|ui| {
         let bar_id = ui.make_persistent_id(("ui_tab_bar", id));
         let mut selected = ui.ctx().data_mut(|data| *data.get_temp_mut_or(bar_id, 0usize)).min(labels.len() - 1);
+
+        // On one row when the screen has room for it: the window grows to its rows (ui::window).
+        // Wrapped on a screen too narrow for it, and until the window has grown.
+        let font = TextStyle::Button.resolve(ui.style());
+        let tab_padding = ui.spacing().button_padding.x * 2.0;
+        let labels_width: f32 = labels
+            .iter()
+            .map(|label| ui.painter().layout_no_wrap(label_text(label.as_ref()).to_owned(), font.clone(), Color32::PLACEHOLDER).size().x + tab_padding)
+            .sum();
+        let row_width = labels_width + ui.spacing().item_spacing.x * (labels.len() - 1) as f32;
+        let frame_right = f32::from(ui.spacing().window_margin.right) + ui.visuals().window_stroke.width;
+        let room = ui.ctx().content_rect().max.x - ui.cursor().left() - frame_right - WINDOW_SCREEN_MARGIN;
+        ui.set_min_width(row_width.min(room));
 
         ui.horizontal_wrapped(|ui| {
             for (index, label) in labels.iter().enumerate() {

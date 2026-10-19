@@ -17,6 +17,7 @@ use engine::{
     ui::{
         UiFontScale,
         UiInputEvent,
+        UiTooltipPlacement,
         sound::UiButtonSoundsEnabled,
         widgets::{
             UiSpriteButton,
@@ -854,12 +855,14 @@ trait ButtonDef: Sized + Copy + Clone + EnumProperty {
         initial_state: UiSpriteButtonState,
         on_state_changed: UiSpriteButtonStateChanged,
     ) -> UiSpriteButton {
-        // Always give a tooltip for sprite buttons.
+        // Always give a tooltip for sprite buttons, beside the button: they sit in bars along the
+        // screen's edges, where a tooltip at the pointer would cover the buttons next to it.
         let tooltip = UiTooltipText::new(context, UiTooltipTextParams {
             text: self.tooltip(),
             font_scale: TOOLTIP_FONT_SCALE,
             background: Some(TOOLTIP_BACKGROUND_SPRITE),
-        });
+        })
+        .with_placement(UiTooltipPlacement::BesideWidget);
 
         UiSpriteButton::new(context, UiSpriteButtonParams {
             label: self.label(),
