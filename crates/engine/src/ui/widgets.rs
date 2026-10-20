@@ -135,164 +135,18 @@ where
 }
 
 // ----------------------------------------------
-// UiWidgetCallbackRef
-// ----------------------------------------------
-
-pub trait UiWidgetCallbackRef<Widget: UiWidget> {
-    type Ref<'a>;
-    fn from_ref<'a>(widget: &'a Widget) -> Self::Ref<'a>;
-}
-
-pub struct UiReadOnly;
-pub struct UiMutable;
-
-impl<Widget: UiWidget> UiWidgetCallbackRef<Widget> for UiReadOnly {
-    type Ref<'a> = &'a Widget;
-
-    #[inline]
-    fn from_ref<'a>(widget: &'a Widget) -> Self::Ref<'a> {
-        widget
-    }
-}
-
-impl<Widget: UiWidget> UiWidgetCallbackRef<Widget> for UiMutable {
-    type Ref<'a> = &'a mut Widget;
-
-    #[inline]
-    fn from_ref<'a>(widget: &'a Widget) -> Self::Ref<'a> {
-        mem::mut_ref_cast(widget)
-    }
-}
-
-// ----------------------------------------------
-// UiCallbackArg
-// ----------------------------------------------
-
-// Mirrors what UiWidgetCallbackRef does for Widget, but for arguments.
-pub trait UiCallbackArg {
-    type Arg<'a>;
-}
-
-// For owned / 'static arguments where no lifetime is involved.
-pub struct UiValue<T>(std::marker::PhantomData<T>);
-impl<T> UiCallbackArg for UiValue<T> {
-    type Arg<'a> = T;
-}
-
-// For string references.
-pub struct UiStrRef(RawPtr<str>);
-impl UiCallbackArg for UiStrRef {
-    type Arg<'a> = &'a str;
-}
-
-impl UiStrRef {
-    #[inline]
-    pub fn new(s: &str) -> Self {
-        Self(RawPtr::from_ref(s))
-    }
-}
-
-// ----------------------------------------------
 // UiWidgetCallback
 // ----------------------------------------------
 
-#[derive(Default)]
-pub enum UiWidgetCallback<Widget, Access, Output = ()>
-where
-    Widget: UiWidget,
-    Access: UiWidgetCallbackRef<Widget>,
-{
-    #[default]
-    None,
+// A widget's callbacks are plain closures: each takes the widget, the context and, for an event
+// with a value, that value. A closure is stored inline when it fits in two words (a weak menu
+// reference, a few Copy values) and on the heap otherwise. One that takes its widget mutably
+// (UiMenu's open/close, UiSpriteButton's state change) is called through `mem::mut_ref_cast`,
+// since it lives in that widget: it must not replace itself while it runs.
+pub type UiWidgetClosure<F> = SmallBox<F, smallbox::space::S2>;
 
-    // With plain function pointer, no capture, no memory allocation.
-    Fn(for<'a> fn(Access::Ref<'a>, &mut dyn UiWidgetContext) -> Output),
-
-    // With closure/capture. Allocates memory, most flexible.
-    Closure(SmallBox<dyn for<'a> Fn(Access::Ref<'a>, &mut dyn UiWidgetContext) -> Output + 'static, smallbox::space::S2>),
-}
-
-impl<Widget, Access, Output> UiWidgetCallback<Widget, Access, Output>
-where
-    Widget: UiWidget,
-    Access: UiWidgetCallbackRef<Widget>,
-{
-    pub fn with_fn(f: for<'a> fn(Access::Ref<'a>, &mut dyn UiWidgetContext) -> Output) -> Self {
-        Self::Fn(f)
-    }
-
-    pub fn with_closure<C>(c: C) -> Self
-    where
-        C: for<'a> Fn(Access::Ref<'a>, &mut dyn UiWidgetContext) -> Output + 'static,
-    {
-        Self::Closure(smallbox!(c))
-    }
-
-    pub fn is_none(&self) -> bool {
-        matches!(self, Self::None)
-    }
-
-    #[inline]
-    fn invoke(&self, widget: &Widget, context: &mut dyn UiWidgetContext) -> Option<Output> {
-        match self {
-            Self::Fn(f) => Some(f(Access::from_ref(widget), context)),
-            Self::Closure(c) => Some(c(Access::from_ref(widget), context)),
-            Self::None => None,
-        }
-    }
-}
-
-// ----------------------------------------------
-// UiWidgetCallbackWithArg
-// ----------------------------------------------
-
-#[derive(Default)]
-pub enum UiWidgetCallbackWithArg<Widget, Access, Arg, Output = ()>
-where
-    Widget: UiWidget,
-    Access: UiWidgetCallbackRef<Widget>,
-    Arg: UiCallbackArg,
-{
-    #[default]
-    None,
-
-    // With plain function pointer, no capture, no memory allocation.
-    Fn(for<'a> fn(Access::Ref<'a>, &mut dyn UiWidgetContext, Arg::Arg<'a>) -> Output),
-
-    // With closure/capture. Allocates memory, most flexible.
-    Closure(SmallBox<dyn for<'a> Fn(Access::Ref<'a>, &mut dyn UiWidgetContext, Arg::Arg<'a>) -> Output + 'static, smallbox::space::S2>),
-}
-
-impl<Widget, Access, Arg, Output> UiWidgetCallbackWithArg<Widget, Access, Arg, Output>
-where
-    Widget: UiWidget,
-    Access: UiWidgetCallbackRef<Widget>,
-    Arg: UiCallbackArg,
-{
-    pub fn with_fn(f: for<'a> fn(Access::Ref<'a>, &mut dyn UiWidgetContext, Arg::Arg<'a>) -> Output) -> Self {
-        Self::Fn(f)
-    }
-
-    pub fn with_closure<C>(c: C) -> Self
-    where
-        C: for<'a> Fn(Access::Ref<'a>, &mut dyn UiWidgetContext, Arg::Arg<'a>) -> Output + 'static,
-    {
-        Self::Closure(smallbox!(c))
-    }
-
-    pub fn is_none(&self) -> bool {
-        matches!(self, Self::None)
-    }
-
-    #[inline]
-    fn invoke<'a>(&self, widget: &'a Widget, context: &mut dyn UiWidgetContext, arg: Arg::Arg<'a>) -> Option<Output> {
-        match self {
-            Self::Fn(f) => Some(f(Access::from_ref(widget), context, arg)),
-            Self::Closure(c) => Some(c(Access::from_ref(widget), context, arg)),
-            Self::None => None,
-        }
-    }
-}
+// A callback field: None until the widget's `on_*` setter is called.
+pub type UiWidgetCallback<F> = Option<UiWidgetClosure<F>>;
 
 // ----------------------------------------------
 // UiWidget Trait
@@ -422,9 +276,9 @@ impl UiMenuPosition {
     // A position computed each frame, e.g. beside a widget of another menu.
     pub fn callback<F>(f: F) -> Self
     where
-        F: for<'a> Fn(&'a UiMenu, &mut dyn UiWidgetContext) -> Vec2 + 'static,
+        F: Fn(&UiMenu, &mut dyn UiWidgetContext) -> Vec2 + 'static,
     {
-        Self::Callback(UiMenuCalcPosition::with_closure(f))
+        Self::Callback(smallbox!(f))
     }
 }
 
@@ -486,8 +340,8 @@ pub type UiMenuRcMut   = RcMut<UiMenu>;
 pub type UiMenuWeakMut = WeakMut<UiMenu>;
 pub type UiMenuWeakRef = WeakRef<UiMenu>;
 
-pub type UiMenuOpenClose    = UiWidgetCallbackWithArg<UiMenu, UiMutable, UiValue<bool>>;
-pub type UiMenuCalcPosition = UiWidgetCallback<UiMenu, UiReadOnly, Vec2>;
+pub type UiMenuOpenClose    = UiWidgetCallback<dyn Fn(&mut UiMenu, &mut dyn UiWidgetContext, bool)>;
+pub type UiMenuCalcPosition = UiWidgetClosure<dyn Fn(&UiMenu, &mut dyn UiWidgetContext) -> Vec2>;
 
 #[derive(Copy, Clone)]
 pub struct UiMenuWidgetIndex(usize);
@@ -563,7 +417,7 @@ impl UiMenu {
             widgets: Vec::new(),
             widget_spacing: None,
             message_box: UiMessageBox::default(),
-            on_open_close: UiMenuOpenClose::default(),
+            on_open_close: None,
         }
     }
 
@@ -615,7 +469,7 @@ impl UiMenu {
     // Called with `true` when the menu opens and `false` when it closes.
     pub fn on_open_close<F>(mut self, f: F) -> Self
     where
-        F: for<'a> Fn(&'a mut UiMenu, &mut dyn UiWidgetContext, bool) + 'static,
+        F: Fn(&mut UiMenu, &mut dyn UiWidgetContext, bool) + 'static,
     {
         self.set_open_close_callback(f);
         self
@@ -623,9 +477,9 @@ impl UiMenu {
 
     pub fn set_open_close_callback<F>(&mut self, f: F)
     where
-        F: for<'a> Fn(&'a mut UiMenu, &mut dyn UiWidgetContext, bool) + 'static,
+        F: Fn(&mut UiMenu, &mut dyn UiWidgetContext, bool) + 'static,
     {
-        self.on_open_close = UiMenuOpenClose::with_closure(f);
+        self.on_open_close = Some(smallbox!(f));
     }
 
     #[inline]
@@ -670,7 +524,7 @@ impl UiMenu {
         }
 
         const IS_OPEN: bool = true;
-        self.on_open_close.invoke(self, context, IS_OPEN);
+        self.notify_open_close(context, IS_OPEN);
     }
 
     pub fn close(&mut self, context: &mut dyn UiWidgetContext) {
@@ -685,7 +539,14 @@ impl UiMenu {
         }
 
         const IS_OPEN: bool = false;
-        self.on_open_close.invoke(self, context, IS_OPEN);
+        self.notify_open_close(context, IS_OPEN);
+    }
+
+    fn notify_open_close(&mut self, context: &mut dyn UiWidgetContext, is_open: bool) {
+        if let Some(on_open_close) = &self.on_open_close {
+            // The callback lives in this menu and gets it mutably: see UiWidgetCallback.
+            on_open_close(mem::mut_ref_cast(self), context, is_open);
+        }
     }
 
     pub fn add_widget(&mut self, widget: impl Into<UiWidgetImpl>) -> UiMenuWidgetIndex {
@@ -995,8 +856,8 @@ impl UiMenu {
             UiMenuPosition::Fixed(fixed) => {
                 position = *fixed;
             }
-            UiMenuPosition::Callback(cb) => {
-                position = cb.invoke(self, context).unwrap();
+            UiMenuPosition::Callback(calc_position) => {
+                position = calc_position(self, context);
             }
             UiMenuPosition::None => {}
         }
@@ -1800,7 +1661,7 @@ impl UiTextButtonSize {
 // UiTextButton
 // ----------------------------------------------
 
-pub type UiTextButtonPressed = UiWidgetCallback<UiTextButton, UiReadOnly>;
+pub type UiTextButtonPressed = UiWidgetCallback<dyn Fn(&UiTextButton, &mut dyn UiWidgetContext)>;
 
 // Simple text label button. State does not "stick",
 // one click equals one call to `on_pressed`, then
@@ -1876,7 +1737,9 @@ impl UiWidget for UiTextButton {
                 sound::play(*context.sound_sys(), UiSoundKey::ButtonPressed);
             }
 
-            self.on_pressed.invoke(self, context);
+            if let Some(on_pressed) = &self.on_pressed {
+                on_pressed(self, context);
+            }
         }
     }
 
@@ -1916,7 +1779,7 @@ impl UiTextButton {
             sounds_enabled: UiButtonSoundsEnabled::all(),
             enabled: true,
             hovered: false,
-            on_pressed: UiTextButtonPressed::default(),
+            on_pressed: None,
         }
     }
 
@@ -1949,9 +1812,9 @@ impl UiTextButton {
 
     pub fn on_pressed<F>(mut self, f: F) -> Self
     where
-        F: for<'a> Fn(&'a UiTextButton, &mut dyn UiWidgetContext) + 'static,
+        F: Fn(&UiTextButton, &mut dyn UiWidgetContext) + 'static,
     {
-        self.on_pressed = UiTextButtonPressed::with_closure(f);
+        self.on_pressed = Some(smallbox!(f));
         self
     }
 
@@ -1968,7 +1831,8 @@ impl UiTextButton {
 // UiSpriteButton
 // ----------------------------------------------
 
-pub type UiSpriteButtonStateChanged = UiWidgetCallbackWithArg<UiSpriteButton, UiMutable, UiValue<UiSpriteButtonState>>;
+pub type UiSpriteButtonStateChanged =
+    UiWidgetCallback<dyn Fn(&mut UiSpriteButton, &mut dyn UiWidgetContext, UiSpriteButtonState)>;
 
 // Multi-state sprite button. Works via state polling or callback; state persists until changed.
 pub struct UiSpriteButton {
@@ -2066,7 +1930,7 @@ impl UiSpriteButton {
             visual_state: UiSpriteButtonState::Idle,
             visual_state_transition_timer: CountdownTimer::new(0.0),
             state_transition_secs: 0.0,
-            on_state_changed: UiSpriteButtonStateChanged::default(),
+            on_state_changed: None,
         }
     }
 
@@ -2103,9 +1967,9 @@ impl UiSpriteButton {
     // Called with the previous state when the state changes, and on every left click.
     pub fn on_state_changed<F>(mut self, f: F) -> Self
     where
-        F: for<'a> Fn(&'a mut UiSpriteButton, &mut dyn UiWidgetContext, UiSpriteButtonState) + 'static,
+        F: Fn(&mut UiSpriteButton, &mut dyn UiWidgetContext, UiSpriteButtonState) + 'static,
     {
-        self.on_state_changed = UiSpriteButtonStateChanged::with_closure(f);
+        self.on_state_changed = Some(smallbox!(f));
         self
     }
 
@@ -2222,8 +2086,11 @@ impl UiSpriteButton {
         }
 
         // Invoke on state change or re-click with left mouse button.
-        if self.logical_state != prev_state || left_click {
-            self.on_state_changed.invoke(self, context, prev_state);
+        if (self.logical_state != prev_state || left_click)
+            && let Some(on_state_changed) = &self.on_state_changed
+        {
+            // The callback lives in this button and gets it mutably: see UiWidgetCallback.
+            on_state_changed(mem::mut_ref_cast(self), context, prev_state);
         }
     }
 }
@@ -2610,8 +2477,8 @@ impl_ui_slider_value! { i32 => true, u32 => true, i64 => true, u64 => true, f32 
 // UiSlider
 // ----------------------------------------------
 
-pub type UiSliderReadValue   = UiWidgetCallback<UiSlider, UiReadOnly, f64>;
-pub type UiSliderUpdateValue = UiWidgetCallbackWithArg<UiSlider, UiReadOnly, UiValue<f64>>;
+pub type UiSliderReadValue   = UiWidgetCallback<dyn Fn(&UiSlider, &mut dyn UiWidgetContext) -> f64>;
+pub type UiSliderUpdateValue = UiWidgetCallback<dyn Fn(&UiSlider, &mut dyn UiWidgetContext, f64)>;
 
 pub struct UiSlider {
     label: String,
@@ -2633,15 +2500,18 @@ impl UiWidget for UiSlider {
 
         context.set_window_font_scale(self.font_scale);
 
-        let value = self.on_read_value.invoke(self, context).unwrap_or_default();
+        let value = match &self.on_read_value {
+            Some(on_read_value) => on_read_value(self, context),
+            None => 0.0,
+        };
         let (new_value, set_value) = self.draw_slider(context, value);
 
         if let Some(new_value) = new_value {
-            self.on_update_value.invoke(self, context, new_value.clamp(self.min, self.max));
+            self.update_value(context, new_value);
         }
         if let Some(new_value) = set_value.and_then(|value| value.as_f64()) {
             let new_value = if self.integral { new_value.round() } else { new_value };
-            self.on_update_value.invoke(self, context, new_value.clamp(self.min, self.max));
+            self.update_value(context, new_value);
         }
     }
 
@@ -2672,8 +2542,8 @@ impl UiSlider {
             min,
             max,
             integral: T::INTEGRAL,
-            on_read_value: UiSliderReadValue::default(),
-            on_update_value: UiSliderUpdateValue::default(),
+            on_read_value: None,
+            on_update_value: None,
         }
     }
 
@@ -2693,11 +2563,11 @@ impl UiSlider {
     pub fn on_read_value<T, F>(mut self, f: F) -> Self
     where
         T: UiSliderValue,
-        F: for<'a> Fn(&'a UiSlider, &mut dyn UiWidgetContext) -> T + 'static,
+        F: Fn(&UiSlider, &mut dyn UiWidgetContext) -> T + 'static,
     {
-        self.on_read_value = UiSliderReadValue::with_closure(move |slider: &UiSlider, context: &mut dyn UiWidgetContext| {
+        self.on_read_value = Some(smallbox!(move |slider: &UiSlider, context: &mut dyn UiWidgetContext| {
             f(slider, context).to_f64()
-        });
+        }));
         self
     }
 
@@ -2705,13 +2575,19 @@ impl UiSlider {
     pub fn on_update_value<T, F>(mut self, f: F) -> Self
     where
         T: UiSliderValue,
-        F: for<'a> Fn(&'a UiSlider, &mut dyn UiWidgetContext, T) + 'static,
+        F: Fn(&UiSlider, &mut dyn UiWidgetContext, T) + 'static,
     {
-        self.on_update_value =
-            UiSliderUpdateValue::with_closure(move |slider: &UiSlider, context: &mut dyn UiWidgetContext, value: f64| {
-                f(slider, context, T::from_f64(value))
-            });
+        self.on_update_value = Some(smallbox!(move |slider: &UiSlider, context: &mut dyn UiWidgetContext, value: f64| {
+            f(slider, context, T::from_f64(value))
+        }));
         self
+    }
+
+    // Gives on_update_value the value, clamped to the range.
+    fn update_value(&self, context: &mut dyn UiWidgetContext, value: f64) {
+        if let Some(on_update_value) = &self.on_update_value {
+            on_update_value(self, context, value.clamp(self.min, self.max));
+        }
     }
 
     // A left label, then the slider. Returns the value the user set, if changed, and a value ui.set
@@ -2745,8 +2621,8 @@ impl UiSlider {
 // UiCheckbox
 // ----------------------------------------------
 
-pub type UiCheckboxReadValue   = UiWidgetCallback<UiCheckbox, UiReadOnly, bool>;
-pub type UiCheckboxUpdateValue = UiWidgetCallbackWithArg<UiCheckbox, UiReadOnly, UiValue<bool>>;
+pub type UiCheckboxReadValue   = UiWidgetCallback<dyn Fn(&UiCheckbox, &mut dyn UiWidgetContext) -> bool>;
+pub type UiCheckboxUpdateValue = UiWidgetCallback<dyn Fn(&UiCheckbox, &mut dyn UiWidgetContext, bool)>;
 
 pub struct UiCheckbox {
     label: String,
@@ -2766,7 +2642,10 @@ impl UiWidget for UiCheckbox {
         context.set_window_font_scale(self.font_scale);
         let ui_sys = context.ui_sys();
 
-        let mut value = self.on_read_value.invoke(self, context).unwrap_or_default();
+        let mut value = match &self.on_read_value {
+            Some(on_read_value) => on_read_value(self, context),
+            None => false,
+        };
 
         let (value_changed, set_value) = ui_sys.with_ui(|ui| {
             let response = ui
@@ -2781,10 +2660,10 @@ impl UiWidget for UiCheckbox {
         });
 
         if value_changed {
-            self.on_update_value.invoke(self, context, value);
+            self.update_value(context, value);
         }
         if let Some(new_value) = set_value.and_then(|value| value.as_bool()) {
-            self.on_update_value.invoke(self, context, new_value);
+            self.update_value(context, new_value);
         }
     }
 
@@ -2824,8 +2703,8 @@ impl UiCheckbox {
         Self {
             label: String::new(),
             font_scale: UiFontScale::default(),
-            on_read_value: UiCheckboxReadValue::default(),
-            on_update_value: UiCheckboxUpdateValue::default(),
+            on_read_value: None,
+            on_update_value: None,
         }
     }
 
@@ -2843,18 +2722,24 @@ impl UiCheckbox {
 
     pub fn on_read_value<F>(mut self, f: F) -> Self
     where
-        F: for<'a> Fn(&'a UiCheckbox, &mut dyn UiWidgetContext) -> bool + 'static,
+        F: Fn(&UiCheckbox, &mut dyn UiWidgetContext) -> bool + 'static,
     {
-        self.on_read_value = UiCheckboxReadValue::with_closure(f);
+        self.on_read_value = Some(smallbox!(f));
         self
     }
 
     pub fn on_update_value<F>(mut self, f: F) -> Self
     where
-        F: for<'a> Fn(&'a UiCheckbox, &mut dyn UiWidgetContext, bool) + 'static,
+        F: Fn(&UiCheckbox, &mut dyn UiWidgetContext, bool) + 'static,
     {
-        self.on_update_value = UiCheckboxUpdateValue::with_closure(f);
+        self.on_update_value = Some(smallbox!(f));
         self
+    }
+
+    fn update_value(&self, context: &mut dyn UiWidgetContext, value: bool) {
+        if let Some(on_update_value) = &self.on_update_value {
+            on_update_value(self, context, value);
+        }
     }
 }
 
@@ -2862,8 +2747,8 @@ impl UiCheckbox {
 // UiIntInput
 // ----------------------------------------------
 
-pub type UiIntInputReadValue   = UiWidgetCallback<UiIntInput, UiReadOnly, i32>;
-pub type UiIntInputUpdateValue = UiWidgetCallbackWithArg<UiIntInput, UiReadOnly, UiValue<i32>>;
+pub type UiIntInputReadValue   = UiWidgetCallback<dyn Fn(&UiIntInput, &mut dyn UiWidgetContext) -> i32>;
+pub type UiIntInputUpdateValue = UiWidgetCallback<dyn Fn(&UiIntInput, &mut dyn UiWidgetContext, i32)>;
 
 pub struct UiIntInput {
     label: String,
@@ -2887,7 +2772,10 @@ impl UiWidget for UiIntInput {
         let ui_sys = context.ui_sys();
         let width = internal::item_width(ui_sys);
 
-        let mut value = self.on_read_value.invoke(self, context).unwrap_or_default();
+        let mut value = match &self.on_read_value {
+            Some(on_read_value) => on_read_value(self, context),
+            None => 0,
+        };
 
         let (value_changed, set_value) = ui_sys.with_ui(|ui| {
             let (response, stepped) = ui
@@ -2917,12 +2805,11 @@ impl UiWidget for UiIntInput {
         });
 
         if value_changed {
-            value = value.clamp(self.min, self.max);
-            self.on_update_value.invoke(self, context, value);
+            self.update_value(context, value);
         }
         if let Some(new_value) = set_value.and_then(|value| value.as_i64()) {
             let new_value = new_value.clamp(i64::from(self.min), i64::from(self.max)) as i32;
-            self.on_update_value.invoke(self, context, new_value);
+            self.update_value(context, new_value);
         }
     }
 
@@ -2955,8 +2842,8 @@ impl UiIntInput {
             min: i32::MIN,
             max: i32::MAX,
             step: 1,
-            on_read_value: UiIntInputReadValue::default(),
-            on_update_value: UiIntInputUpdateValue::default(),
+            on_read_value: None,
+            on_update_value: None,
         }
     }
 
@@ -2989,19 +2876,26 @@ impl UiIntInput {
 
     pub fn on_read_value<F>(mut self, f: F) -> Self
     where
-        F: for<'a> Fn(&'a UiIntInput, &mut dyn UiWidgetContext) -> i32 + 'static,
+        F: Fn(&UiIntInput, &mut dyn UiWidgetContext) -> i32 + 'static,
     {
-        self.on_read_value = UiIntInputReadValue::with_closure(f);
+        self.on_read_value = Some(smallbox!(f));
         self
     }
 
     // Called with the new value, clamped to the range.
     pub fn on_update_value<F>(mut self, f: F) -> Self
     where
-        F: for<'a> Fn(&'a UiIntInput, &mut dyn UiWidgetContext, i32) + 'static,
+        F: Fn(&UiIntInput, &mut dyn UiWidgetContext, i32) + 'static,
     {
-        self.on_update_value = UiIntInputUpdateValue::with_closure(f);
+        self.on_update_value = Some(smallbox!(f));
         self
+    }
+
+    // Gives on_update_value the value, clamped to the range.
+    fn update_value(&self, context: &mut dyn UiWidgetContext, value: i32) {
+        if let Some(on_update_value) = &self.on_update_value {
+            on_update_value(self, context, value.clamp(self.min, self.max));
+        }
     }
 }
 
@@ -3009,8 +2903,8 @@ impl UiIntInput {
 // UiTextInput
 // ----------------------------------------------
 
-pub type UiTextInputReadValue   = UiWidgetCallback<UiTextInput, UiReadOnly, UiStrRef>;
-pub type UiTextInputUpdateValue = UiWidgetCallbackWithArg<UiTextInput, UiReadOnly, UiStrRef>;
+pub type UiTextInputReadValue   = UiWidgetCallback<dyn for<'a> Fn(&UiTextInput, &'a mut dyn UiWidgetContext) -> &'a str>;
+pub type UiTextInputUpdateValue = UiWidgetCallback<dyn Fn(&UiTextInput, &mut dyn UiWidgetContext, &str)>;
 
 pub struct UiTextInput {
     label: String,
@@ -3033,8 +2927,9 @@ impl UiWidget for UiTextInput {
         let width = internal::item_width(ui_sys);
 
         self.buffer.clear();
-        if let Some(value) = self.on_read_value.invoke(self, context) {
-            self.buffer.push_str(&value.0);
+        if let Some(on_read_value) = &self.on_read_value {
+            let text = on_read_value(self, context);
+            self.buffer.push_str(text);
         }
 
         let id = widget_id(self, &self.label);
@@ -3055,12 +2950,12 @@ impl UiWidget for UiTextInput {
         });
 
         if value_changed {
-            self.on_update_value.invoke(self, context, &self.buffer);
+            self.update_value(context);
         }
         if let Some(new_value) = set_value.as_ref().and_then(|value| value.as_str()) {
             self.buffer.clear();
             self.buffer.push_str(new_value);
-            self.on_update_value.invoke(self, context, &self.buffer);
+            self.update_value(context);
         }
     }
 
@@ -3091,8 +2986,8 @@ impl UiTextInput {
             label: String::new(),
             buffer: String::new(),
             font_scale: UiFontScale::default(),
-            on_read_value: UiTextInputReadValue::default(),
-            on_update_value: UiTextInputUpdateValue::default(),
+            on_read_value: None,
+            on_update_value: None,
         }
     }
 
@@ -3108,21 +3003,30 @@ impl UiTextInput {
         self
     }
 
-    // Returns the text to show, as a UiStrRef to a string that outlives the frame.
+    // Reads the text to show, each frame: a borrow of the context or of anything that outlives
+    // it, such as game state. The field copies it into its own edit buffer.
     pub fn on_read_value<F>(mut self, f: F) -> Self
     where
-        F: for<'a> Fn(&'a UiTextInput, &mut dyn UiWidgetContext) -> UiStrRef + 'static,
+        F: for<'a> Fn(&UiTextInput, &'a mut dyn UiWidgetContext) -> &'a str + 'static,
     {
-        self.on_read_value = UiTextInputReadValue::with_closure(f);
+        self.on_read_value = Some(smallbox!(f));
         self
     }
 
+    // Called with the edited text.
     pub fn on_update_value<F>(mut self, f: F) -> Self
     where
-        F: for<'a> Fn(&'a UiTextInput, &mut dyn UiWidgetContext, &'a str) + 'static,
+        F: Fn(&UiTextInput, &mut dyn UiWidgetContext, &str) + 'static,
     {
-        self.on_update_value = UiTextInputUpdateValue::with_closure(f);
+        self.on_update_value = Some(smallbox!(f));
         self
+    }
+
+    // Gives on_update_value the buffer's text.
+    fn update_value(&self, context: &mut dyn UiWidgetContext) {
+        if let Some(on_update_value) = &self.on_update_value {
+            on_update_value(self, context, &self.buffer);
+        }
     }
 }
 
@@ -3130,8 +3034,8 @@ impl UiTextInput {
 // UiDropdown
 // ----------------------------------------------
 
-pub type UiDropdownSelectionChanged    = UiWidgetCallback<UiDropdown, UiReadOnly>;
-pub type UiDropdownGetCurrentSelection = UiWidgetCallback<UiDropdown, UiReadOnly, usize>;
+pub type UiDropdownSelectionChanged    = UiWidgetCallback<dyn Fn(&UiDropdown, &mut dyn UiWidgetContext)>;
+pub type UiDropdownGetCurrentSelection = UiWidgetCallback<dyn Fn(&UiDropdown, &mut dyn UiWidgetContext) -> usize>;
 
 pub struct UiDropdown {
     label: String,
@@ -3154,8 +3058,8 @@ impl UiWidget for UiDropdown {
         let ui_sys = context.ui_sys();
         let width = internal::item_width(ui_sys);
 
-        if !self.on_get_current_selection.is_none() {
-            self.current_item = self.on_get_current_selection.invoke(self, context).unwrap();
+        if let Some(on_get_current_selection) = &self.on_get_current_selection {
+            self.current_item = on_get_current_selection(self, context);
         }
 
         let id = widget_id(self, &self.label);
@@ -3190,12 +3094,10 @@ impl UiWidget for UiDropdown {
         });
 
         if selection_changed {
-            self.current_item = current_item;
-            self.on_selection_changed.invoke(self, context);
+            self.select_item(context, current_item);
         }
         if let Some(index) = set_value.and_then(|value| list_index(&value, &self.items)) {
-            self.current_item = index;
-            self.on_selection_changed.invoke(self, context);
+            self.select_item(context, index);
         }
     }
 
@@ -3227,8 +3129,8 @@ impl UiDropdown {
             font_scale: UiFontScale::default(),
             current_item: 0,
             items,
-            on_selection_changed: UiDropdownSelectionChanged::default(),
-            on_get_current_selection: UiDropdownGetCurrentSelection::default(),
+            on_selection_changed: None,
+            on_get_current_selection: None,
         }
     }
 
@@ -3253,19 +3155,26 @@ impl UiDropdown {
     // Called when the user picks an item; current_selection gives it.
     pub fn on_selection_changed<F>(mut self, f: F) -> Self
     where
-        F: for<'a> Fn(&'a UiDropdown, &mut dyn UiWidgetContext) + 'static,
+        F: Fn(&UiDropdown, &mut dyn UiWidgetContext) + 'static,
     {
-        self.on_selection_changed = UiDropdownSelectionChanged::with_closure(f);
+        self.on_selection_changed = Some(smallbox!(f));
         self
     }
 
     // Reads the selected item's index each frame, for a selection kept elsewhere.
     pub fn on_get_current_selection<F>(mut self, f: F) -> Self
     where
-        F: for<'a> Fn(&'a UiDropdown, &mut dyn UiWidgetContext) -> usize + 'static,
+        F: Fn(&UiDropdown, &mut dyn UiWidgetContext) -> usize + 'static,
     {
-        self.on_get_current_selection = UiDropdownGetCurrentSelection::with_closure(f);
+        self.on_get_current_selection = Some(smallbox!(f));
         self
+    }
+
+    fn select_item(&mut self, context: &mut dyn UiWidgetContext, index: usize) {
+        self.current_item = index;
+        if let Some(on_selection_changed) = &self.on_selection_changed {
+            on_selection_changed(self, context);
+        }
     }
 
     pub fn current_selection_index(&self) -> usize {
@@ -3318,7 +3227,7 @@ bitflags_with_display! {
 // UiItemList
 // ----------------------------------------------
 
-pub type UiItemListSelectionChanged = UiWidgetCallback<UiItemList, UiReadOnly>;
+pub type UiItemListSelectionChanged = UiWidgetCallback<dyn Fn(&UiItemList, &mut dyn UiWidgetContext)>;
 
 pub struct UiItemList {
     label: String,
@@ -3441,7 +3350,7 @@ impl UiWidget for UiItemList {
         if text_input_field_changed && self.text_input_field_buffer.is_some() {
             current_item = None;
             self.current_item = None;
-            self.on_selection_changed.invoke(self, context);
+            self.notify_selection_changed(context);
         }
 
         if current_item != self.current_item
@@ -3501,7 +3410,13 @@ impl UiItemList {
             text_input_field_buffer.push_str(&self.items[index]);
         }
 
-        self.on_selection_changed.invoke(self, context);
+        self.notify_selection_changed(context);
+    }
+
+    fn notify_selection_changed(&self, context: &mut dyn UiWidgetContext) {
+        if let Some(on_selection_changed) = &self.on_selection_changed {
+            on_selection_changed(self, context);
+        }
     }
 
     // The text input field shows the selected item.
@@ -3527,7 +3442,7 @@ impl UiItemList {
             current_item: None,
             items: Vec::new(),
             text_input_field_buffer: None,
-            on_selection_changed: UiItemListSelectionChanged::default(),
+            on_selection_changed: None,
         }
     }
 
@@ -3585,9 +3500,9 @@ impl UiItemList {
     // current_text_input_field give them.
     pub fn on_selection_changed<F>(mut self, f: F) -> Self
     where
-        F: for<'a> Fn(&'a UiItemList, &mut dyn UiWidgetContext) + 'static,
+        F: Fn(&UiItemList, &mut dyn UiWidgetContext) + 'static,
     {
-        self.on_selection_changed = UiItemListSelectionChanged::with_closure(f);
+        self.on_selection_changed = Some(smallbox!(f));
         self
     }
 

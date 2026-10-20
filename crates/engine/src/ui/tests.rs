@@ -82,7 +82,7 @@ fn create_sample_menu_1_once(context: &mut dyn UiWidgetContext) {
 
     let text_input = UiTextInput::new()
         .with_font_scale(widgets_font_scale)
-        .on_read_value(|_input, _context| UiStrRef::new(&SAMPLE_MENU_1_STATE.text_input))
+        .on_read_value(|_input, _context| SAMPLE_MENU_1_STATE.text_input.as_str())
         .on_update_value(|_input, _context, new_value| {
             log::info!("Updated TextInput value: {new_value}");
             SAMPLE_MENU_1_STATE.as_mut().text_input = new_value.into();
