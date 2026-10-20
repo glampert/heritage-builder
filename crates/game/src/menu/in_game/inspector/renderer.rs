@@ -1,14 +1,11 @@
 use arrayvec::{ArrayString, ArrayVec};
 use common::{Vec2, format_fixed_string};
-use engine::{
-    file_sys::paths::PathRef,
-    ui::{self, UiFontScale, sound::UiButtonSoundsEnabled, widgets::*},
-};
+use engine::ui::{UiFontScale, widgets::*};
 use strum::EnumCount;
 
 use super::{TileInspector, TileInspectorMenuWeakMut};
 use crate::{
-    menu::TEXT_BUTTON_HOVERED_SPRITE,
+    menu::make_text_button,
     tile::{TileKind, sets::TileIconSprite},
     ui_context::GameUiContext,
 };
@@ -229,91 +226,49 @@ impl InspectorMenuRenderer {
         tile_inspector_menu_weak_ref: &TileInspectorMenuWeakMut,
         menu_name: &str,
     ) -> Self {
-        let icon = UiSpriteIcon::new(context, UiSpriteIconParams {
-            size: Vec2::one(), // placeholder
-            outline: true,
-            clip_to_parent_menu: true,
-            ..Default::default()
-        });
+        let icon = UiSpriteIcon::new(Vec2::one()).with_outline(true); // placeholder size; set_icon sizes it.
 
         const TITLE: UiText = UiText::empty(INSPECTOR_TITLE_FONT_SCALE);
         const SUBHEADING: UiText = UiText::empty(INSPECTOR_SUBHEADING_FONT_SCALE);
 
-        let heading = UiMenuHeading::new(context, UiMenuHeadingParams {
-            lines: vec![
-                TITLE,      // title placeholder
-                SUBHEADING, // subheading 0 placeholder
-                SUBHEADING, // subheading 1 placeholder
-                SUBHEADING, // subheading 2 placeholder
-                SUBHEADING, // subheading 3 placeholder
-            ],
-            center_vertically: false,
-            center_horizontally: false,
-            ..Default::default()
-        });
+        // Placeholders: the title, then INSPECTOR_SUBHEADING_COUNT subheadings.
+        let heading =
+            UiMenuHeading::new([TITLE, SUBHEADING, SUBHEADING, SUBHEADING, SUBHEADING]).with_center_horizontally(false);
 
-        let mut icon_and_heading_group = UiWidgetGroup::new(context, UiWidgetGroupParams {
-            widget_spacing: Vec2::new(20.0, 8.0),
-            center_vertically: false,
-            center_horizontally: true,
-            stack_vertically: false,
-            ..Default::default()
-        });
+        let mut icon_and_heading_group =
+            UiWidgetGroup::new().with_widget_spacing(Vec2::new(20.0, 8.0)).with_stack_vertically(false);
 
         let icon_index = icon_and_heading_group.add_widget(icon);
         let heading_index = icon_and_heading_group.add_widget(heading);
 
         let close_button_inspector_menu_weak_ref = tile_inspector_menu_weak_ref.clone();
-        let close_button = UiTextButton::new(context, UiTextButtonParams {
-            label: "Close".into(),
-            size: UiTextButtonSize::Normal,
-            hover: Some(TEXT_BUTTON_HOVERED_SPRITE),
-            sounds_enabled: UiButtonSoundsEnabled::all(),
-            on_pressed: UiTextButtonPressed::with_closure(move |_, context| {
-                let mut inspector_menu = close_button_inspector_menu_weak_ref.upgrade().unwrap();
-                inspector_menu.close(ui::widgets::context_as_mut::<GameUiContext>(context));
-            }),
-            ..Default::default()
+        let close_button = make_text_button(context, "Close", move |_, context| {
+            let mut inspector_menu = close_button_inspector_menu_weak_ref.upgrade().unwrap();
+            inspector_menu.close(context_as_mut::<GameUiContext>(context));
         });
 
-        let mut button_group = UiWidgetGroup::new(context, UiWidgetGroupParams {
-            center_vertically: false,
-            center_horizontally: true,
-            stack_vertically: false,
-            ..Default::default()
-        });
-
-        button_group.add_widget(close_button);
+        let button_group = UiWidgetGroup::new().with_stack_vertically(false).with_widget(close_button);
 
         let menu_size = Self::calc_menu_size(context);
 
         // Placeholder text, wrapped at the menu's content width.
         let body_line = UiText::empty(INSPECTOR_BODY_TEXT_FONT_SCALE).with_wrap_width(menu_size.x - INSPECTOR_CONTENT_INSET * 2.0);
-        let body_text = UiMenuHeading::new(context, UiMenuHeadingParams {
-            lines: vec![body_line; INSPECTOR_BODY_TEXT_MAX_LINES],
-            center_vertically: false,
-            center_horizontally: true,
-            ..Default::default()
-        });
+        let body_text = UiMenuHeading::new(vec![body_line; INSPECTOR_BODY_TEXT_MAX_LINES]);
 
-        let separator = UiSeparator::new(context, UiSeparatorParams {
-            thickness: Some(1.0), // Includes widget_spacing/item_spacing.
-            ..Default::default()
-        });
+        let separator = UiSeparator::new(); // Includes widget_spacing/item_spacing.
 
-        let mut menu = UiMenu::new(context, UiMenuParams {
-            label: Some(menu_name.into()),
-            flags: UiMenuFlags::PauseSimIfOpen
-                | UiMenuFlags::AlignCenter
-                | UiMenuFlags::Modal
-                | UiMenuFlags::CloseModalOnEscape
-                | UiMenuFlags::AdjustSizeToContents,
-            size: Some(menu_size),
-            background: Some(PathRef::from_str("misc/square_page_bg.png")),
-            content_insets: Some(UiMenuInsets::same(INSPECTOR_CONTENT_INSET)),
-            widget_spacing: Some(Vec2::new(0.0, 10.0)),
-            ..Default::default()
-        });
+        let mut menu = UiMenu::new(menu_name)
+            .with_flags(
+                UiMenuFlags::PauseSimIfOpen
+                    | UiMenuFlags::AlignCenter
+                    | UiMenuFlags::Modal
+                    | UiMenuFlags::CloseModalOnEscape
+                    | UiMenuFlags::AdjustSizeToContents,
+            )
+            .with_size(menu_size)
+            .with_background(context, "misc/square_page_bg.png")
+            .with_content_insets(UiMenuInsets::same(INSPECTOR_CONTENT_INSET))
+            .with_widget_spacing(Vec2::new(0.0, 10.0));
 
         menu.add_widget(separator.clone());
         let icon_and_heading_group_index = menu.add_widget(icon_and_heading_group);
@@ -326,6 +281,7 @@ impl InspectorMenuRenderer {
 
         menu.add_widget(separator);
 
+        let menu = menu.into_rc();
         Self { menu, icon_index, heading_index, icon_and_heading_group_index, body_text_index, button_group_index }
     }
 

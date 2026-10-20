@@ -330,6 +330,14 @@ impl<'a> PathRef<'a> {
     }
 }
 
+// &str.into() => PathRef
+impl<'a> From<&'a str> for PathRef<'a> {
+    #[inline]
+    fn from(s: &'a str) -> Self {
+        Self::from_str(s)
+    }
+}
+
 // FixedPathBuf.into() => PathRef
 impl<'a, const N: usize> From<&'a FixedPathBuf<N>> for PathRef<'a> {
     fn from(p: &'a FixedPathBuf<N>) -> Self {

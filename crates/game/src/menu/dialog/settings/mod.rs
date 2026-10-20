@@ -4,7 +4,6 @@ use common::mem::{RcMut, WeakMut};
 use engine::log;
 
 use super::*;
-use crate::menu::TEXT_BUTTON_HOVERED_SPRITE;
 
 mod main;
 pub use main::MainSettings;
@@ -99,7 +98,7 @@ trait Setting {
     fn set_from_widget_value(&mut self, new_value: SettingsWidgetValue);
 
     fn widget_label(&self) -> String;
-    fn create_widget(&self, this: WeakMut<dyn Setting>, context: &mut GameUiContext) -> UiWidgetImpl;
+    fn create_widget(&self, this: WeakMut<dyn Setting>) -> UiWidgetImpl;
 }
 
 struct SettingImpl<T, OnReadFn, OnCommitFn>
@@ -166,63 +165,51 @@ where
         self.widget_label.into()
     }
 
-    fn create_widget(&self, this: WeakMut<dyn Setting>, context: &mut GameUiContext) -> UiWidgetImpl {
+    fn create_widget(&self, this: WeakMut<dyn Setting>) -> UiWidgetImpl {
+        let read_weak_ref = this.clone().into_not_mut();
+        let write_weak_ref = this;
+
         match self.widget_kind {
-            SettingsWidgetKind::SliderU32(min, max) => {
-                let read_weak_ref = this.clone().into_not_mut();
-                let write_weak_ref = this.clone();
-                UiWidgetImpl::from(UiSlider::new(context, UiSliderParams {
-                    font_scale: DEFAULT_DIALOG_MENU_WIDGET_FONT_SCALE,
-                    min,
-                    max,
-                    on_read_value: UiSliderReadValue::with_closure(move |_, _| {
+            SettingsWidgetKind::SliderU32(min, max) => UiWidgetImpl::from(
+                UiSlider::new(min..=max)
+                    .with_font_scale(DEFAULT_DIALOG_MENU_WIDGET_FONT_SCALE)
+                    .on_read_value(move |_, _| -> u32 {
                         let setting = read_weak_ref.upgrade().unwrap();
                         let widget_value = setting.to_widget_value();
                         widget_value.try_into().unwrap_or_else(|_| panic!("Expected u32!"))
-                    }),
-                    on_update_value: UiSliderUpdateValue::with_closure(move |_, _, new_value: u32| {
+                    })
+                    .on_update_value(move |_, _, new_value: u32| {
                         let mut setting = write_weak_ref.upgrade().unwrap();
                         setting.set_from_widget_value(new_value.into());
                     }),
-                    ..Default::default()
-                }))
-            }
-            SettingsWidgetKind::Dropdown(ref items) => {
-                let read_weak_ref = this.clone().into_not_mut();
-                let write_weak_ref = this.clone();
-                UiWidgetImpl::from(UiDropdown::new(context, UiDropdownParams {
-                    font_scale: DEFAULT_DIALOG_MENU_WIDGET_FONT_SCALE,
-                    items: items.clone(),
-                    on_get_current_selection: UiDropdownGetCurrentSelection::with_closure(move |_, _| {
+            ),
+            SettingsWidgetKind::Dropdown(ref items) => UiWidgetImpl::from(
+                UiDropdown::new(items)
+                    .with_font_scale(DEFAULT_DIALOG_MENU_WIDGET_FONT_SCALE)
+                    .on_get_current_selection(move |_, _| {
                         let setting = read_weak_ref.upgrade().unwrap();
                         let widget_value = setting.to_widget_value();
                         widget_value.try_into().unwrap_or_else(|_| panic!("Expected usize!"))
-                    }),
-                    on_selection_changed: UiDropdownSelectionChanged::with_closure(move |dropdown, _| {
+                    })
+                    .on_selection_changed(move |dropdown, _| {
                         let mut setting = write_weak_ref.upgrade().unwrap();
                         let selection_index = dropdown.current_selection_index();
                         setting.set_from_widget_value(selection_index.into());
                     }),
-                    ..Default::default()
-                }))
-            }
-            SettingsWidgetKind::Checkbox => {
-                let read_weak_ref = this.clone().into_not_mut();
-                let write_weak_ref = this.clone();
-                UiWidgetImpl::from(UiCheckbox::new(context, UiCheckboxParams {
-                    font_scale: DEFAULT_DIALOG_MENU_WIDGET_FONT_SCALE,
-                    on_read_value: UiCheckboxReadValue::with_closure(move |_, _| {
+            ),
+            SettingsWidgetKind::Checkbox => UiWidgetImpl::from(
+                UiCheckbox::new()
+                    .with_font_scale(DEFAULT_DIALOG_MENU_WIDGET_FONT_SCALE)
+                    .on_read_value(move |_, _| {
                         let setting = read_weak_ref.upgrade().unwrap();
                         let widget_value = setting.to_widget_value();
                         widget_value.try_into().unwrap_or_else(|_| panic!("Expected bool!"))
-                    }),
-                    on_update_value: UiCheckboxUpdateValue::with_closure(move |_, _, new_value: bool| {
+                    })
+                    .on_update_value(move |_, _, new_value| {
                         let mut setting = write_weak_ref.upgrade().unwrap();
                         setting.set_from_widget_value(new_value.into());
                     }),
-                    ..Default::default()
-                }))
-            }
+            ),
         }
     }
 }
@@ -275,26 +262,17 @@ impl SettingsCategory {
         context: &mut GameUiContext,
         dialog_menu_kind: DialogMenuKind,
         heading_title: &[&str],
-        margin_left: f32,
-        margin_right: f32,
     ) -> UiMenuRcMut {
         // -------------
         // Widgets:
         // -------------
 
-        let mut labeled_widget_group = UiLabeledWidgetGroup::new(context, UiLabeledWidgetGroupParams {
-            label_spacing: DEFAULT_DIALOG_MENU_WIDGET_LABEL_SPACING,
-            widget_spacing: DEFAULT_DIALOG_MENU_WIDGET_SPACING.y,
-            center_vertically: false,
-            center_horizontally: true,
-            margin_left,
-            margin_right,
-            label_column_width: None,
-        });
+        let mut labeled_widget_group = UiLabeledWidgetGroup::new()
+            .with_label_spacing(DEFAULT_DIALOG_MENU_WIDGET_LABEL_SPACING)
+            .with_widget_spacing(DEFAULT_DIALOG_MENU_WIDGET_SPACING.y);
 
         for setting in &self.settings {
-            let widget = setting.create_widget(setting.downgrade(), context);
-            labeled_widget_group.add_widget(setting.widget_label(), widget);
+            labeled_widget_group.add_widget(setting.widget_label(), setting.create_widget(setting.downgrade()));
         }
 
         // -------------
@@ -302,38 +280,17 @@ impl SettingsCategory {
         // -------------
 
         let ok_button_weak_ref = this.clone().into_not_mut();
-        let ok_button = UiTextButton::new(context, UiTextButtonParams {
-            label: "Ok".into(),
-            hover: Some(TEXT_BUTTON_HOVERED_SPRITE),
-            sounds_enabled: UiButtonSoundsEnabled::all(),
-            on_pressed: UiTextButtonPressed::with_closure(move |_, context| {
-                let settings = ok_button_weak_ref.upgrade().unwrap();
-                settings.commit_settings();
-                super::close_current(ui::widgets::context_as_mut::<GameUiContext>(context));
-            }),
-            ..Default::default()
+        let ok_button = make_text_button(context, "Ok", move |_, context| {
+            let settings = ok_button_weak_ref.upgrade().unwrap();
+            settings.commit_settings();
+            super::close_current(context_as_mut::<GameUiContext>(context));
         });
 
-        let cancel_button = UiTextButton::new(context, UiTextButtonParams {
-            label: "Cancel".into(),
-            hover: Some(TEXT_BUTTON_HOVERED_SPRITE),
-            sounds_enabled: UiButtonSoundsEnabled::all(),
-            on_pressed: UiTextButtonPressed::with_fn(|_, context| {
-                super::close_current(ui::widgets::context_as_mut::<GameUiContext>(context));
-            }),
-            ..Default::default()
-        });
-
-        let mut side_by_side_button_group = UiWidgetGroup::new(context, UiWidgetGroupParams {
-            widget_spacing: DEFAULT_DIALOG_MENU_WIDGET_SPACING * 4.0,
-            center_vertically: false,
-            center_horizontally: true,
-            stack_vertically: false,
-            ..Default::default()
-        });
-
-        side_by_side_button_group.add_widget(ok_button);
-        side_by_side_button_group.add_widget(cancel_button);
+        let side_by_side_button_group = UiWidgetGroup::new()
+            .with_widget_spacing(DEFAULT_DIALOG_MENU_WIDGET_SPACING * 4.0)
+            .with_stack_vertically(false)
+            .with_widget(ok_button)
+            .with_widget(make_dialog_close_button(context, "Cancel"));
 
         // -------------
         // Menu:
@@ -344,25 +301,20 @@ impl SettingsCategory {
             dialog_menu_kind,
             heading_title,
             DEFAULT_DIALOG_MENU_WIDGET_SPACING,
-            Option::<Vec<UiWidgetImpl>>::None,
+            [],
         );
 
         // Refresh settings categories when the menu opens.
         let menu_open_weak_ref = this.clone();
-        menu.set_open_close_callback(UiMenuOpenClose::with_closure(move |_, _, is_open| {
+        menu.set_open_close_callback(move |_, _, is_open| {
             if is_open {
                 let mut settings = menu_open_weak_ref.upgrade().unwrap();
                 settings.read_settings();
             }
-        }));
-
-        let spacing = UiSeparator::new(context, UiSeparatorParams {
-            thickness: Some(DEFAULT_DIALOG_MENU_WIDGET_SPACING.x),
-            ..Default::default()
         });
 
         menu.add_widget(labeled_widget_group);
-        menu.add_widget(spacing);
+        menu.add_widget(UiSeparator::new().with_thickness(DEFAULT_DIALOG_MENU_WIDGET_SPACING.x));
         menu.add_widget(side_by_side_button_group);
 
         menu

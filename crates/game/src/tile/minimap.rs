@@ -1148,38 +1148,37 @@ impl BaseMinimapRenderer {
         let menu_size = widget.window_rect.size();
         let menu_pos  = widget.window_rect.position();
 
-        let mut minimap_menu = UiMenu::new(context, UiMenuParams {
-            label: Some("Minimap".into()),
-            flags: UiMenuFlags::IsOpen | UiMenuFlags::NoTitleBar,
-            size: Some(menu_size),
-            position: UiMenuPosition::Vec2(menu_pos.x, menu_pos.y),
-            background,
-            ..Default::default()
-        });
+        // The dev minimap has no background sprite.
+        let make_menu = |context: &mut GameUiContext, label: &str| match background {
+            Some(sprite) => UiMenu::new(label).with_background(context, sprite),
+            None => UiMenu::new(label),
+        };
+        let make_tooltip = |context: &mut GameUiContext, text: &str| {
+            let tooltip = UiTooltipText::new(text).with_font_scale(font_scale);
+            match background {
+                Some(sprite) => tooltip.with_background(context, sprite),
+                None => tooltip,
+            }
+        };
 
-        let mut open_button_menu = UiMenu::new(context, UiMenuParams {
-            flags: UiMenuFlags::IsOpen | UiMenuFlags::AdjustSizeToContents,
-            size: Some(open_button_size),
-            position: UiMenuPosition::Vec2(open_button_pos.x, open_button_pos.y),
-            background,
-            ..Default::default()
-        });
+        let mut minimap_menu = make_menu(context, "Minimap")
+            .with_flags(UiMenuFlags::IsOpen | UiMenuFlags::NoTitleBar)
+            .with_size(menu_size)
+            .with_position(menu_pos)
+            .into_rc();
 
-        let mut menu_group = UiWidgetGroup::new(context, UiWidgetGroupParams {
-            widget_spacing: Vec2::zero(),
-            center_vertically: false,
-            center_horizontally: true,
-            stack_vertically: false,
-            ..Default::default()
-        });
+        // Unlabeled: its button is named "open" in widget paths.
+        let mut open_button_menu = make_menu(context, "")
+            .with_flags(UiMenuFlags::IsOpen | UiMenuFlags::AdjustSizeToContents)
+            .with_size(open_button_size)
+            .with_position(open_button_pos)
+            .into_rc();
+
+        let mut menu_group = UiWidgetGroup::new().with_stack_vertically(false);
 
         // Minimap menu title:
         let menu_heading_width = {
-            let heading = UiMenuHeading::new(context, UiMenuHeadingParams {
-                lines: vec![UiText::new("Map".into(), font_scale)],
-                ..Default::default()
-            });
-
+            let heading = UiMenuHeading::new([UiText::new("Map", font_scale)]);
             let heading_width = heading.measure(context).x;
             menu_group.add_widget(heading);
             heading_width
@@ -1192,23 +1191,15 @@ impl BaseMinimapRenderer {
                 menu_button_size.y,
             );
 
-            let separator =
-                UiSeparator::new(context, UiSeparatorParams { size: Some(separator_size), ..Default::default() });
-
-            menu_group.add_widget(separator);
+            menu_group.add_widget(UiSeparator::new().with_size(separator_size));
         }
 
         // Debug button, optional:
         if with_debug_button {
-            let debug_tooltip =
-                UiTooltipText::new(context, UiTooltipTextParams { text: "Debug".into(), font_scale, background });
-
-            let debug_button = UiSpriteButton::new(context, UiSpriteButtonParams {
-                label: "minimap/debug".into(),
-                tooltip: Some(debug_tooltip),
-                size: menu_button_size,
-                sounds_enabled: button_sounds_enabled,
-                on_state_changed: UiSpriteButtonStateChanged::with_fn(|button, _, _| {
+            let debug_button = UiSpriteButton::new(context, "minimap/debug", menu_button_size)
+                .with_tooltip(make_tooltip(context, "Debug"))
+                .with_sounds(button_sounds_enabled)
+                .on_state_changed(|button, _, _| {
                     if button.is_pressed() {
                         let prev_state = *SHOW_MINIMAP_DEBUG_CONTROLS;
                         SHOW_MINIMAP_DEBUG_CONTROLS.set(!prev_state);
@@ -1216,9 +1207,7 @@ impl BaseMinimapRenderer {
                         // Single click button. Reverts to unpressed immediately.
                         button.press(false);
                     }
-                }),
-                ..Default::default()
-            });
+                });
 
             menu_group.add_widget(debug_button);
         }
@@ -1228,15 +1217,10 @@ impl BaseMinimapRenderer {
             let minimap_menu_ref = minimap_menu.downgrade();
             let open_button_menu_ref = open_button_menu.downgrade();
 
-            let close_tooltip =
-                UiTooltipText::new(context, UiTooltipTextParams { text: "Close".into(), font_scale, background });
-
-            let close_button = UiSpriteButton::new(context, UiSpriteButtonParams {
-                label: "minimap/close".into(),
-                tooltip: Some(close_tooltip),
-                size: menu_button_size,
-                sounds_enabled: button_sounds_enabled,
-                on_state_changed: UiSpriteButtonStateChanged::with_closure(move |button, context, _| {
+            let close_button = UiSpriteButton::new(context, "minimap/close", menu_button_size)
+                .with_tooltip(make_tooltip(context, "Close"))
+                .with_sounds(button_sounds_enabled)
+                .on_state_changed(move |button, context, _| {
                     if button.is_pressed() {
                         let mut open_button_menu = open_button_menu_ref.upgrade().unwrap();
                         open_button_menu.open(context);
@@ -1247,9 +1231,7 @@ impl BaseMinimapRenderer {
                         // Single click button. Reverts to unpressed immediately.
                         button.press(false);
                     }
-                }),
-                ..Default::default()
-            });
+                });
 
             menu_group.add_widget(close_button);
         }
@@ -1261,15 +1243,10 @@ impl BaseMinimapRenderer {
             let minimap_menu_ref = minimap_menu.downgrade();
             let open_button_menu_ref = open_button_menu.downgrade();
 
-            let open_tooltip =
-                UiTooltipText::new(context, UiTooltipTextParams { text: "Open Map".into(), font_scale, background });
-
-            let open_button = UiSpriteButton::new(context, UiSpriteButtonParams {
-                label: "minimap/open".into(),
-                tooltip: Some(open_tooltip),
-                size: open_button_size,
-                sounds_enabled: button_sounds_enabled,
-                on_state_changed: UiSpriteButtonStateChanged::with_closure(move |button, context, _| {
+            let open_button = UiSpriteButton::new(context, "minimap/open", open_button_size)
+                .with_tooltip(make_tooltip(context, "Open Map"))
+                .with_sounds(button_sounds_enabled)
+                .on_state_changed(move |button, context, _| {
                     if button.is_pressed() {
                         let mut open_button_menu = open_button_menu_ref.upgrade().unwrap();
                         open_button_menu.close(context);
@@ -1280,9 +1257,7 @@ impl BaseMinimapRenderer {
                         // Single click button. Reverts to unpressed immediately.
                         button.press(false);
                     }
-                }),
-                ..Default::default()
-            });
+                });
 
             open_button_menu.add_widget(open_button);
         }

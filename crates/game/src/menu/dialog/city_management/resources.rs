@@ -3,7 +3,7 @@
 use common::format_fixed_string;
 
 use super::*;
-use crate::{menu::TEXT_BUTTON_HOVERED_SPRITE, sim::resources::ResourceKind};
+use crate::sim::resources::ResourceKind;
 
 // ----------------------------------------------
 // ResourcesManagement
@@ -31,63 +31,31 @@ impl ResourcesManagement {
         }
 
         // Layout the following two headings side-by-side.
-        let mut side_by_side_heading_group = UiWidgetGroup::new(context, UiWidgetGroupParams {
-            widget_spacing: Vec2::new(30.0, DEFAULT_DIALOG_MENU_WIDGET_SPACING.y),
-            center_vertically: false,
-            center_horizontally: true,
-            stack_vertically: false,
-            ..Default::default()
-        });
+        let mut side_by_side_heading_group = UiWidgetGroup::new()
+            .with_widget_spacing(Vec2::new(30.0, DEFAULT_DIALOG_MENU_WIDGET_SPACING.y))
+            .with_stack_vertically(false);
 
-        let storage_yard_resources_heading =
-            UiMenuHeading::new(context, UiMenuHeadingParams { lines: storage_yard_resources_text, ..Default::default() });
+        let storage_yard_resources_heading_index =
+            side_by_side_heading_group.add_widget(UiMenuHeading::new(storage_yard_resources_text));
+        let granary_resources_heading_index =
+            side_by_side_heading_group.add_widget(UiMenuHeading::new(granary_resources_text));
 
-        let storage_yard_resources_heading_index = side_by_side_heading_group.add_widget(storage_yard_resources_heading);
+        let button_group = UiWidgetGroup::new().with_widget(make_dialog_close_button(context, "Ok"));
 
-        let granary_resources_heading =
-            UiMenuHeading::new(context, UiMenuHeadingParams { lines: granary_resources_text, ..Default::default() });
-
-        let granary_resources_heading_index = side_by_side_heading_group.add_widget(granary_resources_heading);
-
-        let mut button_group =
-            UiWidgetGroup::new(context, UiWidgetGroupParams { center_vertically: false, ..Default::default() });
-
-        let ok_button = UiTextButton::new(context, UiTextButtonParams {
-            label: "Ok".into(),
-            hover: Some(TEXT_BUTTON_HOVERED_SPRITE),
-            sounds_enabled: UiButtonSoundsEnabled::all(),
-            on_pressed: UiTextButtonPressed::with_fn(|_, context| {
-                super::close_current(ui::widgets::context_as_mut::<GameUiContext>(context));
-            }),
-            ..Default::default()
-        });
-
-        button_group.add_widget(ok_button);
-
-        let spacing = UiSeparator::new(context, UiSeparatorParams {
-            thickness: Some(DEFAULT_DIALOG_MENU_WIDGET_SPACING.x),
-            ..Default::default()
-        });
-
-        let mut menu = make_default_layout_dialog_menu(
-            context,
-            Self::KIND,
-            Self::TITLE,
-            DEFAULT_DIALOG_MENU_TEXT_SPACING,
-            Option::<Vec<UiWidgetImpl>>::None,
-        );
+        let mut menu =
+            make_default_layout_dialog_menu(context, Self::KIND, Self::TITLE, DEFAULT_DIALOG_MENU_TEXT_SPACING, []);
 
         let heading_group_index = menu.add_widget(side_by_side_heading_group);
-        menu.add_widget(spacing);
+        menu.add_widget(UiSeparator::new().with_thickness(DEFAULT_DIALOG_MENU_WIDGET_SPACING.x));
         menu.add_widget(button_group);
 
         // Refresh body text when menu is opened.
-        menu.set_open_close_callback(UiMenuOpenClose::with_fn(|_, context, is_open| {
+        menu.set_open_close_callback(|_, context, is_open| {
             if is_open {
                 let this_dialog = super::find::<ResourcesManagement>();
-                this_dialog.update_stats(ui::widgets::context_as_mut::<GameUiContext>(context));
+                this_dialog.update_stats(context_as_mut::<GameUiContext>(context));
             }
-        }));
+        });
 
         Self { menu, heading_group_index, storage_yard_resources_heading_index, granary_resources_heading_index }
     }

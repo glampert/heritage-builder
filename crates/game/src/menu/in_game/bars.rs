@@ -6,10 +6,7 @@ use common::{
     mem::{RcMut, WeakMut, WeakRef},
     time::Seconds,
 };
-use engine::{
-    file_sys::paths::PathRef,
-    ui::{self, sound::UiButtonSoundsEnabled, widgets::*},
-};
+use engine::{file_sys::paths::PathRef, ui::widgets::*};
 use num_enum::TryFromPrimitive;
 use strum::{Display, EnumCount, EnumIter, EnumProperty, IntoEnumIterator};
 
@@ -17,9 +14,9 @@ use crate::{
     menu::{
         ButtonDef,
         SMALL_VERTICAL_SEPARATOR_SPRITE,
-        TOOLTIP_BACKGROUND_SPRITE,
         TOOLTIP_FONT_SCALE,
         dialog::{self, DialogMenuKind},
+        make_tooltip,
     },
     ui_context::GameUiContext,
 };
@@ -98,18 +95,12 @@ const TOP_BAR_ICON_COUNT: usize = TopBarIcon::COUNT;
 #[repr(usize)]
 #[derive(Copy, Clone, Debug, PartialEq, Eq, EnumCount, EnumProperty, EnumIter, Display, TryFromPrimitive)]
 enum TopBarIcon {
-    #[strum(props(
-        AssetPath = "icons/population_icon.png",
-        ClipToMenu = true,
-        WithTooltip = true,
-        Width = 35,
-        Height = 20
-    ))]
+    #[strum(props(AssetPath = "icons/population_icon.png", WithTooltip = true, Width = 35, Height = 20))]
     Population,
 
+    // The player icon overflows the menu bar: it draws at its unclipped size.
     #[strum(props(
         AssetPath = "icons/player_icon.png",
-        ClipToMenu = false, // Player icon overflows the menu bar.
         WithTooltip = false,
         Width = 45,
         Height = 20,
@@ -118,13 +109,7 @@ enum TopBarIcon {
     ))]
     Player,
 
-    #[strum(props(
-        AssetPath = "icons/gold_icon.png",
-        ClipToMenu = true,
-        WithTooltip = true,
-        Width = 35,
-        Height = 20
-    ))]
+    #[strum(props(AssetPath = "icons/gold_icon.png", WithTooltip = true, Width = 35, Height = 20))]
     Gold,
 }
 
@@ -133,10 +118,6 @@ impl TopBarIcon {
         // ui/icons/{sprite}.png
         let path = self.get_str("AssetPath").unwrap();
         PathRef::from_str(path)
-    }
-
-    fn clip_to_menu(self) -> bool {
-        self.get_bool("ClipToMenu").unwrap()
     }
 
     fn with_tooltip(self) -> bool {
@@ -149,15 +130,16 @@ impl TopBarIcon {
         Vec2::new(width, height)
     }
 
-    fn size_unclipped(self) -> Vec2 {
-        let mut size = self.size();
-        if let Some(width) = self.get_int("WidthUnclipped") {
-            size.x = width as f32;
+    // The size the icon draws at, past the bar's edge, if it overflows it.
+    fn size_unclipped(self) -> Option<Vec2> {
+        let width = self.get_int("WidthUnclipped");
+        let height = self.get_int("HeightUnclipped");
+        if width.is_none() && height.is_none() {
+            return None;
         }
-        if let Some(height) = self.get_int("HeightUnclipped") {
-            size.y = height as f32;
-        }
-        size
+
+        let size = self.size();
+        Some(Vec2::new(width.map_or(size.x, |width| width as f32), height.map_or(size.y, |height| height as f32)))
     }
 
     fn margin_top(self) -> f32 {
@@ -222,74 +204,48 @@ impl TopBar {
     fn new(context: &mut GameUiContext) -> Rc<Self> {
         let stats = TopBarStats::new(context);
 
-        let mut group = UiWidgetGroup::new(context, UiWidgetGroupParams {
-            widget_spacing: TOP_BAR_ICON_SPACING,
-            center_horizontally: false, // Let content float left.
-            stack_vertically: false,    // Layout icons side-by-side.
-            ..Default::default()
-        });
+        let mut group = UiWidgetGroup::new()
+            .with_widget_spacing(TOP_BAR_ICON_SPACING)
+            .with_center_horizontally(false) // Let content float left.
+            .with_stack_vertically(false); // Layout icons side-by-side.
 
         let mut icon_label_indices = [None; TOP_BAR_ICON_COUNT];
 
         for (icon_index, icon) in TopBarIcon::iter().enumerate() {
-            let icon_tooltip = {
-                if icon.with_tooltip() {
-                    Some(UiTooltipText::new(context, UiTooltipTextParams {
-                        text: icon.to_string(),
-                        font_scale: TOOLTIP_FONT_SCALE,
-                        background: Some(TOOLTIP_BACKGROUND_SPRITE),
-                    }))
-                } else {
-                    None
-                }
-            };
+            let mut icon_sprite =
+                UiSpriteIcon::new(icon.size()).with_sprite(context, icon.asset_path()).with_margin_top(icon.margin_top());
 
-            let icon_sprite = UiSpriteIcon::new(context, UiSpriteIconParams {
-                sprite: Some(icon.asset_path()),
-                size: icon.size(),
-                margin_top: icon.margin_top(),
-                tooltip: icon_tooltip,
-                clip_to_parent_menu: icon.clip_to_menu(),
-                unclipped_draw_size: Some(icon.size_unclipped()),
-                ..Default::default()
-            });
+            if let Some(size_unclipped) = icon.size_unclipped() {
+                icon_sprite = icon_sprite.with_unclipped_draw_size(size_unclipped);
+            }
+
+            if icon.with_tooltip() {
+                icon_sprite = icon_sprite.with_tooltip(make_tooltip(context, icon.to_string()));
+            }
 
             group.add_widget(icon_sprite);
 
             if let Some(label_text) = icon.label_for_stats(&stats) {
-                let size = TopBarIcon::max_label_size(context);
-                let icon_label = UiSizedTextLabel::new(context, UiSizedTextLabelParams {
-                    font_scale: TOOLTIP_FONT_SCALE,
-                    label: label_text,
-                    size,
-                });
+                let icon_label = UiSizedTextLabel::new(label_text)
+                    .with_font_scale(TOOLTIP_FONT_SCALE)
+                    .with_size(TopBarIcon::max_label_size(context));
 
-                let label_index = group.add_widget(icon_label);
-                icon_label_indices[icon_index] = Some(label_index);
+                icon_label_indices[icon_index] = Some(group.add_widget(icon_label));
             }
 
             let is_last = icon_index == (TOP_BAR_ICON_COUNT - 1);
             if !is_last {
                 const SEPARATOR_WIDTH: f32 = 20.0;
-
-                let spacing = UiSeparator::new(context, UiSeparatorParams {
-                    size: Some(Vec2::new(SEPARATOR_WIDTH, 0.0)),
-                    ..Default::default()
-                });
-
-                group.add_widget(spacing);
+                group.add_widget(UiSeparator::new().with_size(Vec2::new(SEPARATOR_WIDTH, 0.0)));
             }
         }
 
-        let mut menu = UiMenu::new(context, UiMenuParams {
-            label: Some("TopBar".into()),
-            flags: UiMenuFlags::IsOpen | UiMenuFlags::AlignCenterTop,
-            widget_spacing: Some(TOP_BAR_ICON_SPACING),
-            background: Some(PathRef::from_str("misc/wide_page_bg.png")),
-            ..Default::default()
-        });
-
-        menu.add_widget(group);
+        let menu = UiMenu::new("TopBar")
+            .with_flags(UiMenuFlags::IsOpen | UiMenuFlags::AlignCenterTop)
+            .with_widget_spacing(TOP_BAR_ICON_SPACING)
+            .with_background(context, "misc/wide_page_bg.png")
+            .with_widget(group)
+            .into_rc();
 
         Rc::new(Self { current_stats: stats, icon_label_indices, menu })
     }
@@ -315,8 +271,6 @@ impl TopBar {
 
 const LEFT_BAR_BUTTON_SIZE: Vec2 = Vec2::new(24.0, 24.0);
 const LEFT_BAR_BUTTON_SPACING: f32 = 4.0;
-
-const LEFT_BAR_BUTTON_SHOW_TOOLTIP_WHEN_PRESSED: bool = true;
 const LEFT_BAR_BUTTON_STATE_TRANSITION_SECS: Seconds = 0.5;
 
 const LEFT_BAR_BUTTON_COUNT: usize = LeftBarButtonKind::COUNT;
@@ -364,39 +318,28 @@ impl MenuBar for LeftBar {
 
 impl LeftBar {
     fn new(context: &mut GameUiContext) -> Rc<Self> {
-        let mut menu = UiMenu::new(context, UiMenuParams {
-            label: Some("LeftBar".into()),
-            flags: UiMenuFlags::IsOpen | UiMenuFlags::AlignLeft,
-            position: UiMenuPosition::Vec2(0.0, 60.0),
-            widget_spacing: Some(Vec2::new(LEFT_BAR_BUTTON_SPACING, LEFT_BAR_BUTTON_SPACING)),
-            background: Some(PathRef::from_str("misc/tall_page_bg.png")),
-            ..Default::default()
-        });
+        let mut menu = UiMenu::new("LeftBar")
+            .with_flags(UiMenuFlags::IsOpen | UiMenuFlags::AlignLeft)
+            .with_position(Vec2::new(0.0, 60.0))
+            .with_widget_spacing(Vec2::new(LEFT_BAR_BUTTON_SPACING, LEFT_BAR_BUTTON_SPACING))
+            .with_background(context, "misc/tall_page_bg.png");
 
         for button_kind in LeftBarButtonKind::iter() {
-            let on_button_state_changed = UiSpriteButtonStateChanged::with_closure(move |button, context, _| {
-                if button.is_pressed() {
-                    button_kind.on_pressed(ui::widgets::context_as_mut::<GameUiContext>(context));
+            let button = button_kind
+                .new_sprite_button(context, LEFT_BAR_BUTTON_SIZE, move |button, context, _| {
+                    if button.is_pressed() {
+                        button_kind.on_pressed(context_as_mut::<GameUiContext>(context));
 
-                    // Pressed state doesn't persist.
-                    button.press(false);
-                }
-            });
-
-            let button = button_kind.new_sprite_button(
-                context,
-                UiButtonSoundsEnabled::Pressed,
-                LEFT_BAR_BUTTON_SHOW_TOOLTIP_WHEN_PRESSED,
-                LEFT_BAR_BUTTON_SIZE,
-                LEFT_BAR_BUTTON_STATE_TRANSITION_SECS,
-                UiSpriteButtonState::Idle,
-                on_button_state_changed,
-            );
+                        // Pressed state doesn't persist.
+                        button.press(false);
+                    }
+                })
+                .with_state_transition_secs(LEFT_BAR_BUTTON_STATE_TRANSITION_SECS);
 
             menu.add_widget(button);
         }
 
-        Rc::new(Self { menu })
+        Rc::new(Self { menu: menu.into_rc() })
     }
 }
 
@@ -406,8 +349,6 @@ impl LeftBar {
 
 const SPEED_CONTROLS_BUTTON_SIZE: Vec2 = Vec2::new(20.0, 20.0);
 const SPEED_CONTROLS_BUTTON_SPACING: Vec2 = Vec2::new(2.0, 2.0);
-
-const SPEED_CONTROLS_BUTTON_SHOW_TOOLTIP_WHEN_PRESSED: bool = true;
 const SPEED_CONTROLS_BUTTON_STATE_TRANSITION_SECS: Seconds = 0.5;
 
 const SPEED_CONTROLS_BUTTON_COUNT: usize = SpeedControlsButtonKind::COUNT;
@@ -472,66 +413,46 @@ impl MenuBar for SpeedControlsBar {
 
 impl SpeedControlsBar {
     fn new(context: &mut GameUiContext) -> Rc<Self> {
-        let mut group = UiWidgetGroup::new(context, UiWidgetGroupParams {
-            widget_spacing: SPEED_CONTROLS_BUTTON_SPACING,
-            center_horizontally: false, // Let content float left.
-            stack_vertically: false,    // Layout buttons side-by-side.
-            ..Default::default()
-        });
+        let mut group = UiWidgetGroup::new()
+            .with_widget_spacing(SPEED_CONTROLS_BUTTON_SPACING)
+            .with_center_horizontally(false) // Let content float left.
+            .with_stack_vertically(false); // Layout buttons side-by-side.
 
         for button_kind in SpeedControlsButtonKind::iter() {
-            let on_button_state_changed = UiSpriteButtonStateChanged::with_closure(move |button, context, _| {
-                if button.is_pressed() {
-                    button_kind.on_pressed(ui::widgets::context_as_mut::<GameUiContext>(context));
+            let button = button_kind
+                .new_sprite_button(context, SPEED_CONTROLS_BUTTON_SIZE, move |button, context, _| {
+                    if button.is_pressed() {
+                        button_kind.on_pressed(context_as_mut::<GameUiContext>(context));
 
-                    // Pressed state doesn't persist.
-                    button.press(false);
-                }
-            });
-
-            let button = button_kind.new_sprite_button(
-                context,
-                UiButtonSoundsEnabled::Pressed,
-                SPEED_CONTROLS_BUTTON_SHOW_TOOLTIP_WHEN_PRESSED,
-                SPEED_CONTROLS_BUTTON_SIZE,
-                SPEED_CONTROLS_BUTTON_STATE_TRANSITION_SECS,
-                UiSpriteButtonState::Idle,
-                on_button_state_changed,
-            );
+                        // Pressed state doesn't persist.
+                        button.press(false);
+                    }
+                })
+                .with_state_transition_secs(SPEED_CONTROLS_BUTTON_STATE_TRANSITION_SECS);
 
             group.add_widget(button);
         }
 
         const SEPARATOR_THICKNESS: f32 = 8.0;
-        let separator = UiSeparator::new(context, UiSeparatorParams {
-            separator: Some(SMALL_VERTICAL_SEPARATOR_SPRITE),
-            thickness: Some(SEPARATOR_THICKNESS),
-            vertical: true,
-            ..Default::default()
-        });
+        let separator = UiSeparator::new()
+            .with_sprite(context, SMALL_VERTICAL_SEPARATOR_SPRITE)
+            .with_thickness(SEPARATOR_THICKNESS)
+            .with_vertical(true);
 
         group.add_widget(separator);
 
         let sim_state = SimState::new(context);
         let (label_text, label_size) = sim_state.label_and_size(context);
-
-        let sim_state_label = UiSizedTextLabel::new(context, UiSizedTextLabelParams {
-            font_scale: TOOLTIP_FONT_SCALE,
-            label: label_text,
-            size: label_size,
-        });
+        let sim_state_label = UiSizedTextLabel::new(label_text).with_font_scale(TOOLTIP_FONT_SCALE).with_size(label_size);
 
         group.add_widget(sim_state_label);
 
-        let mut menu = UiMenu::new(context, UiMenuParams {
-            label: Some("SpeedControlsBar".into()),
-            flags: UiMenuFlags::IsOpen | UiMenuFlags::AlignLeft,
-            widget_spacing: Some(SPEED_CONTROLS_BUTTON_SPACING),
-            background: Some(PathRef::from_str("misc/wide_page_bg.png")),
-            ..Default::default()
-        });
-
-        menu.add_widget(group);
+        let menu = UiMenu::new("SpeedControlsBar")
+            .with_flags(UiMenuFlags::IsOpen | UiMenuFlags::AlignLeft)
+            .with_widget_spacing(SPEED_CONTROLS_BUTTON_SPACING)
+            .with_background(context, "misc/wide_page_bg.png")
+            .with_widget(group)
+            .into_rc();
 
         Rc::new(Self { current_sim_state: sim_state, menu })
     }

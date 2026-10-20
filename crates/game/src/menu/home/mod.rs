@@ -7,7 +7,7 @@ use engine::{
     ui::{
         UiInputEvent,
         UiTheme,
-        widgets::{UiMenuFlags, UiSlideshow, UiSlideshowFlags, UiSlideshowLoopMode, UiSlideshowParams, UiWidget},
+        widgets::{UiMenuFlags, UiSlideshow, UiSlideshowFlags, UiSlideshowLoopMode, UiWidget},
     },
 };
 
@@ -44,42 +44,25 @@ impl HomeMenus {
         dialog::set_global_menu_flags(UiMenuFlags::AlignCenter | UiMenuFlags::AlignLeft);
         dialog::set_bg_dim_alpha(context, 0.0); // No bg dimming.
 
-        let slideshow = if ANIMATED_BACKGROUND {
-            // Animated menu background.
-            UiSlideshow::new(context, Self::animated_background_slideshow())
+        Self { slideshow: Self::make_background_slideshow(context) }
+    }
+
+    // The menu's full-screen background: animated, or a static single frame.
+    fn make_background_slideshow(context: &mut GameUiContext) -> UiSlideshow {
+        if ANIMATED_BACKGROUND {
+            const SLIDESHOW_FRAME_COUNT: usize = 30;
+            const SLIDESHOW_FRAME_DURATION: Seconds = 0.3;
+
+            let frames: Vec<AssetPath> = (0..SLIDESHOW_FRAME_COUNT)
+                .map(|i| AssetPath::from_str(&format_fixed_string!(64, "misc/home_menu_anim/frame{i}.jpg")))
+                .collect();
+
+            UiSlideshow::new(context, frames.iter())
+                .with_flags(UiSlideshowFlags::Fullscreen)
+                .with_loop_mode(UiSlideshowLoopMode::FramesFromEnd(2)) // Loop last two frames from end.
+                .with_frame_duration_secs(SLIDESHOW_FRAME_DURATION)
         } else {
-            // Static, single-frame menu background.
-            UiSlideshow::new(context, Self::static_background_slideshow())
-        };
-
-        Self { slideshow }
-    }
-
-    fn animated_background_slideshow() -> UiSlideshowParams {
-        const SLIDESHOW_FRAME_COUNT: usize = 30;
-        const SLIDESHOW_FRAME_DURATION: Seconds = 0.3;
-
-        let mut frames = Vec::with_capacity(SLIDESHOW_FRAME_COUNT);
-        for i in 0..SLIDESHOW_FRAME_COUNT {
-            let path = format_fixed_string!(64, "misc/home_menu_anim/frame{i}.jpg");
-            frames.push(AssetPath::from_str(&path));
-        }
-
-        UiSlideshowParams {
-            flags: UiSlideshowFlags::Fullscreen,
-            loop_mode: UiSlideshowLoopMode::FramesFromEnd(2), // Loop last two frames from end.
-            frame_duration_secs: SLIDESHOW_FRAME_DURATION,
-            frames,
-            ..Default::default()
-        }
-    }
-
-    fn static_background_slideshow() -> UiSlideshowParams {
-        UiSlideshowParams {
-            flags: UiSlideshowFlags::Fullscreen,
-            loop_mode: UiSlideshowLoopMode::None,
-            frames: vec![AssetPath::from_str("misc/home_menu_static_bg.png")],
-            ..Default::default()
+            UiSlideshow::new(context, ["misc/home_menu_static_bg.png"]).with_flags(UiSlideshowFlags::Fullscreen)
         }
     }
 }

@@ -8,15 +8,16 @@ use common::{
     constants::BASE_TILE_SIZE_F32,
     coords::WorldToScreenTransform,
     mem::{RcMut, WeakMut, WeakRef},
+    time::Seconds,
 };
 use engine::{
     app::input::{InputAction, MouseButton},
     file_sys::paths::PathRef,
     render::texture::TextureHandle,
     ui::{
-        self,
         UiInputEvent,
-        sound::{self, UiSoundKey},
+        UiTooltipPlacement,
+        sound::{self, UiButtonSoundsEnabled, UiSoundKey},
         widgets::*,
     },
 };
@@ -52,7 +53,6 @@ const TILE_PALETTE_BUTTON_SPACING: Vec2 = Vec2::new(4.0, 4.0); // Vertical spaci
 const TILE_PALETTE_MAIN_BUTTON_SIZE: Vec2 = Vec2::new(50.0, 50.0); // In pixels.
 
 const TILE_PALETTE_MAIN_BUTTON_STATE_TRANSITION_SECS: Seconds = 0.0; // No timed transition.
-const TILE_PALETTE_MAIN_BUTTON_SHOW_TOOLTIP_WHEN_PRESSED: bool = false;
 
 const TILE_PALETTE_MAIN_BUTTON_COUNT: usize = TilePaletteMainButtonDef::COUNT;
 
@@ -201,8 +201,8 @@ impl TilePaletteMainButtonsBuilder {
             let tile_palette_weak_ref = tile_palette.clone();
             let child_menu_weak_ref = main_button.child_menu_weak_mut();
 
-            let on_main_button_state_changed =
-                UiSpriteButtonStateChanged::with_closure(move |button, context, prev_state| {
+            let ui_button = main_button_def
+                .new_sprite_button(context, TILE_PALETTE_MAIN_BUTTON_SIZE, move |button, context, prev_state| {
                     let mut tile_palette_rc = tile_palette_weak_ref.upgrade().unwrap();
 
                     let is_pressed = button.is_pressed();
@@ -211,7 +211,7 @@ impl TilePaletteMainButtonsBuilder {
 
                     if is_pressed || was_unpressed {
                         // Reset all other main buttons / close open child menus.
-                        tile_palette_rc.reset_selection_internal(ui::widgets::context_as_mut::<GameUiContext>(context));
+                        tile_palette_rc.reset_selection_internal(context_as_mut::<GameUiContext>(context));
                     }
 
                     if is_pressed {
@@ -224,12 +224,12 @@ impl TilePaletteMainButtonsBuilder {
                         } else {
                             match main_button_def {
                                 TilePaletteMainButtonDef::Undo => {
-                                    let game_ui_context = ui::widgets::context_as_mut::<GameUiContext>(context);
+                                    let game_ui_context = context_as_mut::<GameUiContext>(context);
                                     undo_redo::undo(&game_ui_context.new_sim_context());
                                     stay_pressed = false;
                                 }
                                 TilePaletteMainButtonDef::Redo => {
-                                    let game_ui_context = ui::widgets::context_as_mut::<GameUiContext>(context);
+                                    let game_ui_context = context_as_mut::<GameUiContext>(context);
                                     undo_redo::redo(&game_ui_context.new_sim_context());
                                     stay_pressed = false;
                                 }
@@ -244,17 +244,9 @@ impl TilePaletteMainButtonsBuilder {
                         // Stay pressed, except for undo/redo (reset_selection_internal above would have unpressed all).
                         button.press(stay_pressed);
                     }
-                });
-
-            let ui_button = main_button_def.new_sprite_button(
-                context,
-                UiButtonSoundsEnabled::Pressed,
-                TILE_PALETTE_MAIN_BUTTON_SHOW_TOOLTIP_WHEN_PRESSED,
-                TILE_PALETTE_MAIN_BUTTON_SIZE,
-                main_button_def.state_transition_secs(),
-                main_button_def.initial_state(main_button.has_children()),
-                on_main_button_state_changed,
-            );
+                })
+                .with_state(main_button_def.initial_state(main_button.has_children()))
+                .with_state_transition_secs(main_button_def.state_transition_secs());
 
             buttons.main.push(main_button);
             buttons.ui.push(ui_button);
@@ -298,36 +290,21 @@ impl TilePaletteMainButton {
         tile_palette: &TilePaletteMenuWeakMut,
         children: Vec<TilePaletteChildButtonDef>,
     ) -> UiMenuRcMut {
-        let mut child_menu = UiMenu::new(context, UiMenuParams {
-            label: Some(format!("TilePaletteChildMenu: {}", main_button_def.name())),
-            background: Some(TILE_PALETTE_CHILD_MENU_BACKGROUND_SPRITE),
-            widget_spacing: Some(TILE_PALETTE_BUTTON_SPACING),
-            ..Default::default()
-        });
+        let mut child_menu = UiMenu::new(format!("TilePaletteChildMenu: {}", main_button_def.name()))
+            .with_background(context, TILE_PALETTE_CHILD_MENU_BACKGROUND_SPRITE)
+            .with_widget_spacing(TILE_PALETTE_BUTTON_SPACING)
+            .into_rc();
 
-        let mut child_button_group = UiWidgetGroup::new(context, UiWidgetGroupParams {
-            widget_spacing: TILE_PALETTE_BUTTON_SPACING,
-            ..Default::default()
-        });
+        let mut child_button_group = UiWidgetGroup::new().with_widget_spacing(TILE_PALETTE_BUTTON_SPACING);
 
         for child_def in children {
-            // Beside the item, so it doesn't cover the items around it.
-            let child_tooltip = child_def.tooltip.map(|tooltip_text| {
-                UiTooltipText::new(context, UiTooltipTextParams {
-                    text: tooltip_text,
-                    font_scale: TOOLTIP_FONT_SCALE,
-                    background: Some(TOOLTIP_BACKGROUND_SPRITE),
-                })
-                .with_placement(ui::UiTooltipPlacement::BesideWidget)
-            });
-
             let parent_button_def = main_button_def;
             let child_button_tile_def_handle = child_def.tile_def_handle;
 
             let tile_palette_weak_ref = tile_palette.clone();
             let child_menu_weak_ref = child_menu.downgrade();
 
-            let on_child_button_pressed = UiTextButtonPressed::with_closure(move |_button, context| {
+            let mut child_button = make_text_button(context, child_def.label, move |_button, context| {
                 let mut tile_palette_rc = tile_palette_weak_ref.upgrade().unwrap();
                 let mut child_menu_rc = child_menu_weak_ref.upgrade().unwrap();
 
@@ -336,17 +313,15 @@ impl TilePaletteMainButton {
 
                 // Keep the parent button pressed but close the child menu when we have a selection.
                 child_menu_rc.close(context);
-            });
+            })
+            .with_size(UiTextButtonSize::ExtraSmall)
+            .with_sounds(UiButtonSoundsEnabled::Pressed);
 
-            let child_button = UiTextButton::new(context, UiTextButtonParams {
-                label: child_def.label,
-                tooltip: child_tooltip,
-                hover: Some(TEXT_BUTTON_HOVERED_SPRITE),
-                sounds_enabled: UiButtonSoundsEnabled::Pressed,
-                size: UiTextButtonSize::ExtraSmall,
-                on_pressed: on_child_button_pressed,
-                ..Default::default()
-            });
+            // Beside the item, so it doesn't cover the items around it.
+            if let Some(tooltip_text) = child_def.tooltip {
+                let tooltip = make_tooltip(context, tooltip_text).with_placement(UiTooltipPlacement::BesideWidget);
+                child_button = child_button.with_tooltip(tooltip);
+            }
 
             child_button_group.add_widget(child_button);
         }
@@ -465,23 +440,19 @@ impl TilePaletteMenu {
         TilePaletteMenuRcMut::new_cyclic(|tile_palette_weak_ref| {
             let buttons = TilePaletteMainButtonsBuilder::build_all(context, &tile_palette_weak_ref);
 
-            let mut palette_menu = UiMenu::new(context, UiMenuParams {
-                label: Some("TilePaletteMenu".into()),
-                flags: UiMenuFlags::IsOpen | UiMenuFlags::AlignRight,
-                background: Some(TILE_PALETTE_BACKGROUND_SPRITE),
-                widget_spacing: Some(TILE_PALETTE_BUTTON_SPACING),
-                ..Default::default()
-            });
+            let mut palette_menu = UiMenu::new("TilePaletteMenu")
+                .with_flags(UiMenuFlags::IsOpen | UiMenuFlags::AlignRight)
+                .with_background(context, TILE_PALETTE_BACKGROUND_SPRITE)
+                .with_widget_spacing(TILE_PALETTE_BUTTON_SPACING);
 
             for (index, ui_button) in buttons.ui.into_iter().enumerate() {
                 palette_menu.add_widget(ui_button);
 
                 if buttons.main[index].def.separator_follows() {
-                    palette_menu.add_widget(UiSeparator::new(context, UiSeparatorParams {
-                        separator: Some(SMALL_HORIZONTAL_SEPARATOR_SPRITE),
-                        thickness: Some(2.0),
-                        ..Default::default()
-                    }));
+                    let separator = UiSeparator::new()
+                        .with_sprite(context, SMALL_HORIZONTAL_SEPARATOR_SPRITE)
+                        .with_thickness(2.0);
+                    palette_menu.add_widget(separator);
                 }
             }
 
@@ -490,7 +461,7 @@ impl TilePaletteMenu {
                 current_selection: TilePaletteSelection::None,
                 selection_renderer: TileSelectionRenderer::new(context),
                 main_buttons: buttons.main,
-                menu: palette_menu,
+                menu: palette_menu.into_rc(),
             };
 
             tile_palette.set_child_menu_position_callbacks(context);
@@ -543,12 +514,12 @@ impl TilePaletteMenu {
                     .expect("Couldn't find UiSpriteButton widget in palette menu!")
                     .0;
 
-                child_menu.set_position(UiMenuPosition::Callback(UiMenuCalcPosition::with_closure(move |_, _| {
+                child_menu.set_position(UiMenuPosition::callback(move |_, _| {
                     let palette_menu = palette_menu_weak_ref.upgrade().unwrap();
                     let main_button = palette_menu.widget_as::<UiSpriteButton>(main_button_index).unwrap();
                     let main_button_pos = main_button.position();
                     Vec2::new(main_button_pos.x - child_menu_width, main_button_pos.y)
-                })));
+                }));
             }
         }
     }

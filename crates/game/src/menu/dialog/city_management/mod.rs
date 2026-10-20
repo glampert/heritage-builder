@@ -75,7 +75,7 @@ impl CityManagement {
                 Self::KIND,
                 Self::TITLE,
                 DEFAULT_DIALOG_MENU_BUTTON_SPACING,
-                Some(buttons),
+                buttons,
             ),
         }
     }

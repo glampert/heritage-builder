@@ -2,7 +2,6 @@ use common::format_fixed_string;
 use strum::EnumCount;
 
 use super::*;
-use crate::menu::TEXT_BUTTON_HOVERED_SPRITE;
 
 // ----------------------------------------------
 // Enums / Constants
@@ -56,53 +55,26 @@ impl FinancesManagement {
             PLACEHOLDER_BODY,
         ];
 
-        let mut menu = make_default_layout_dialog_menu(
-            context,
-            Self::KIND,
-            Self::TITLE,
-            DEFAULT_DIALOG_MENU_TEXT_SPACING,
-            Option::<Vec<UiWidgetImpl>>::None,
-        );
+        let mut menu =
+            make_default_layout_dialog_menu(context, Self::KIND, Self::TITLE, DEFAULT_DIALOG_MENU_TEXT_SPACING, []);
 
-        let tax_stats_heading = UiMenuHeading::new(context, UiMenuHeadingParams {
-            lines: TAX_STATS_TEXT.into(),
-            separator: Some(LARGE_HORIZONTAL_SEPARATOR_SPRITE),
-            ..Default::default()
-        });
-
+        let tax_stats_heading =
+            UiMenuHeading::new(TAX_STATS_TEXT).with_separator(context, LARGE_HORIZONTAL_SEPARATOR_SPRITE);
         let tax_stats_heading_index = menu.add_widget(tax_stats_heading);
 
-        let treasury_stats_heading = UiMenuHeading::new(context, UiMenuHeadingParams {
-            lines: TREASURY_STATS_TEXT.into(),
-            separator: Some(LARGE_HORIZONTAL_SEPARATOR_SPRITE),
-            ..Default::default()
-        });
-
+        let treasury_stats_heading =
+            UiMenuHeading::new(TREASURY_STATS_TEXT).with_separator(context, LARGE_HORIZONTAL_SEPARATOR_SPRITE);
         let treasury_stats_heading_index = menu.add_widget(treasury_stats_heading);
 
-        let mut button_group =
-            UiWidgetGroup::new(context, UiWidgetGroupParams { center_vertically: false, ..Default::default() });
-
-        let ok_button = UiTextButton::new(context, UiTextButtonParams {
-            label: "Ok".into(),
-            hover: Some(TEXT_BUTTON_HOVERED_SPRITE),
-            sounds_enabled: UiButtonSoundsEnabled::all(),
-            on_pressed: UiTextButtonPressed::with_fn(|_, context| {
-                super::close_current(ui::widgets::context_as_mut::<GameUiContext>(context));
-            }),
-            ..Default::default()
-        });
+        menu.add_widget(UiWidgetGroup::new().with_widget(make_dialog_close_button(context, "Ok")));
 
         // Refresh body text when menu is opened.
-        menu.set_open_close_callback(UiMenuOpenClose::with_fn(|_, context, is_open| {
+        menu.set_open_close_callback(|_, context, is_open| {
             if is_open {
                 let this_dialog = super::find::<FinancesManagement>();
-                this_dialog.update_stats(ui::widgets::context_as_mut::<GameUiContext>(context));
+                this_dialog.update_stats(context_as_mut::<GameUiContext>(context));
             }
-        }));
-
-        button_group.add_widget(ok_button);
-        menu.add_widget(button_group);
+        });
 
         Self { menu, tax_stats_heading_index, treasury_stats_heading_index }
     }

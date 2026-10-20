@@ -3,7 +3,6 @@ use engine::log;
 use strum::EnumCount;
 
 use super::*;
-use crate::menu::TEXT_BUTTON_HOVERED_SPRITE;
 
 // ----------------------------------------------
 // Enums / Constants
@@ -61,53 +60,26 @@ impl PopulationManagement {
             PLACEHOLDER_BODY,
         ];
 
-        let mut menu = make_default_layout_dialog_menu(
-            context,
-            Self::KIND,
-            Self::TITLE,
-            DEFAULT_DIALOG_MENU_TEXT_SPACING,
-            Option::<Vec<UiWidgetImpl>>::None,
-        );
+        let mut menu =
+            make_default_layout_dialog_menu(context, Self::KIND, Self::TITLE, DEFAULT_DIALOG_MENU_TEXT_SPACING, []);
 
-        let population_stats_heading = UiMenuHeading::new(context, UiMenuHeadingParams {
-            lines: POPULATION_STATS_TEXT.into(),
-            separator: Some(LARGE_HORIZONTAL_SEPARATOR_SPRITE),
-            ..Default::default()
-        });
-
+        let population_stats_heading =
+            UiMenuHeading::new(POPULATION_STATS_TEXT).with_separator(context, LARGE_HORIZONTAL_SEPARATOR_SPRITE);
         let population_stats_heading_index = menu.add_widget(population_stats_heading);
 
-        let worker_stats_heading = UiMenuHeading::new(context, UiMenuHeadingParams {
-            lines: WORKER_STATS_TEXT.into(),
-            separator: Some(LARGE_HORIZONTAL_SEPARATOR_SPRITE),
-            ..Default::default()
-        });
-
+        let worker_stats_heading =
+            UiMenuHeading::new(WORKER_STATS_TEXT).with_separator(context, LARGE_HORIZONTAL_SEPARATOR_SPRITE);
         let worker_stats_heading_index = menu.add_widget(worker_stats_heading);
 
-        let mut button_group =
-            UiWidgetGroup::new(context, UiWidgetGroupParams { center_vertically: false, ..Default::default() });
-
-        let ok_button = UiTextButton::new(context, UiTextButtonParams {
-            label: "Ok".into(),
-            hover: Some(TEXT_BUTTON_HOVERED_SPRITE),
-            sounds_enabled: UiButtonSoundsEnabled::all(),
-            on_pressed: UiTextButtonPressed::with_fn(|_, context| {
-                super::close_current(ui::widgets::context_as_mut::<GameUiContext>(context));
-            }),
-            ..Default::default()
-        });
-
-        button_group.add_widget(ok_button);
-        menu.add_widget(button_group);
+        menu.add_widget(UiWidgetGroup::new().with_widget(make_dialog_close_button(context, "Ok")));
 
         // Refresh body text when menu is opened.
-        menu.set_open_close_callback(UiMenuOpenClose::with_fn(|_, context, is_open| {
+        menu.set_open_close_callback(|_, context, is_open| {
             if is_open {
                 let this_dialog = super::find::<PopulationManagement>();
-                this_dialog.update_stats(ui::widgets::context_as_mut::<GameUiContext>(context));
+                this_dialog.update_stats(context_as_mut::<GameUiContext>(context));
             }
-        }));
+        });
 
         Self { menu, population_stats_heading_index, worker_stats_heading_index }
     }

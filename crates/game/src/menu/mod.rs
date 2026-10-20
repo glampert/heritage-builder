@@ -8,7 +8,6 @@ use common::{
     Vec2,
     coords::{Cell, CellRange},
     hash::SmallSet,
-    time::Seconds,
 };
 use engine::{
     log,
@@ -18,19 +17,7 @@ use engine::{
         UiFontScale,
         UiInputEvent,
         UiTooltipPlacement,
-        sound::UiButtonSoundsEnabled,
-        widgets::{
-            UiSpriteButton,
-            UiSpriteButtonParams,
-            UiSpriteButtonState,
-            UiSpriteButtonStateChanged,
-            UiTextButton,
-            UiTextButtonParams,
-            UiTextButtonPressed,
-            UiTextButtonSize,
-            UiTooltipText,
-            UiTooltipTextParams,
-        },
+        widgets::{UiSpriteButton, UiSpriteButtonState, UiTextButton, UiTextButtonSize, UiTooltipText, UiWidgetContext},
     },
 };
 
@@ -767,6 +754,23 @@ const LARGE_VERTICAL_SEPARATOR_SPRITE: PathRef = PathRef::from_str("misc/brush_s
 const TEXT_BUTTON_HOVERED_SPRITE: PathRef = PathRef::from_str("misc/brush_stroke_divider.png");
 
 // ----------------------------------------------
+// Internal Shared Widget Helpers
+// ----------------------------------------------
+
+// A tooltip in the retail style: small text on the wide page sprite.
+fn make_tooltip(context: &mut dyn UiWidgetContext, text: impl Into<String>) -> UiTooltipText {
+    UiTooltipText::new(text).with_font_scale(TOOLTIP_FONT_SCALE).with_background(context, TOOLTIP_BACKGROUND_SPRITE)
+}
+
+// A text button in the retail style: underlined with the brush stroke while hovered.
+fn make_text_button<F>(context: &mut dyn UiWidgetContext, label: impl Into<String>, on_pressed: F) -> UiTextButton
+where
+    F: for<'a> Fn(&'a UiTextButton, &mut dyn UiWidgetContext) + 'static,
+{
+    UiTextButton::new(label).with_hover_sprite(context, TEXT_BUTTON_HOVERED_SPRITE).on_pressed(on_pressed)
+}
+
+// ----------------------------------------------
 // ButtonDef
 // ----------------------------------------------
 
@@ -814,66 +818,29 @@ trait ButtonDef: Sized + Copy + Clone + EnumProperty {
         self.get_bool("Enabled").unwrap_or(true)
     }
 
-    fn new_text_button(
-        self,
-        context: &mut GameUiContext,
-        sounds_enabled: UiButtonSoundsEnabled,
-        size: UiTextButtonSize,
-        on_pressed: UiTextButtonPressed,
-    ) -> UiTextButton {
-        let tooltip = {
-            // Only give it a tooltip if we have a Tooltip property.
-            if self.has_custom_tooltip() {
-                Some(UiTooltipText::new(context, UiTooltipTextParams {
-                    text: self.tooltip(),
-                    font_scale: TOOLTIP_FONT_SCALE,
-                    background: Some(TOOLTIP_BACKGROUND_SPRITE),
-                }))
-            } else {
-                None
-            }
-        };
+    fn new_text_button<F>(self, context: &mut GameUiContext, size: UiTextButtonSize, on_pressed: F) -> UiTextButton
+    where
+        F: for<'a> Fn(&'a UiTextButton, &mut dyn UiWidgetContext) + 'static,
+    {
+        let mut button = make_text_button(context, self.label(), on_pressed).with_size(size).with_enabled(self.is_enabled());
 
-        UiTextButton::new(context, UiTextButtonParams {
-            label: self.label(),
-            tooltip,
-            hover: Some(TEXT_BUTTON_HOVERED_SPRITE),
-            sounds_enabled,
-            size,
-            enabled: self.is_enabled(),
-            on_pressed,
-        })
+        // Only give it a tooltip if we have a Tooltip property.
+        if self.has_custom_tooltip() {
+            button = button.with_tooltip(make_tooltip(context, self.tooltip()));
+        }
+
+        button
     }
 
-    fn new_sprite_button(
-        self,
-        context: &mut GameUiContext,
-        sounds_enabled: UiButtonSoundsEnabled,
-        show_tooltip_when_pressed: bool,
-        size: Vec2,
-        state_transition_secs: Seconds,
-        initial_state: UiSpriteButtonState,
-        on_state_changed: UiSpriteButtonStateChanged,
-    ) -> UiSpriteButton {
+    fn new_sprite_button<F>(self, context: &mut GameUiContext, size: Vec2, on_state_changed: F) -> UiSpriteButton
+    where
+        F: for<'a> Fn(&'a mut UiSpriteButton, &mut dyn UiWidgetContext, UiSpriteButtonState) + 'static,
+    {
         // Always give a tooltip for sprite buttons, beside the button: they sit in bars along the
         // screen's edges, where a tooltip at the pointer would cover the buttons next to it.
-        let tooltip = UiTooltipText::new(context, UiTooltipTextParams {
-            text: self.tooltip(),
-            font_scale: TOOLTIP_FONT_SCALE,
-            background: Some(TOOLTIP_BACKGROUND_SPRITE),
-        })
-        .with_placement(UiTooltipPlacement::BesideWidget);
+        let tooltip = make_tooltip(context, self.tooltip()).with_placement(UiTooltipPlacement::BesideWidget);
 
-        UiSpriteButton::new(context, UiSpriteButtonParams {
-            label: self.label(),
-            tooltip: Some(tooltip),
-            show_tooltip_when_pressed,
-            sounds_enabled,
-            size,
-            state_transition_secs,
-            initial_state,
-            on_state_changed,
-        })
+        UiSpriteButton::new(context, self.label(), size).with_tooltip(tooltip).on_state_changed(on_state_changed)
     }
 
     fn on_pressed(self, _context: &mut GameUiContext) -> bool {

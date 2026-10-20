@@ -1,10 +1,7 @@
 use strum::{EnumCount, EnumIter, EnumProperty};
 
 use super::*;
-use crate::{
-    GameLoop,
-    menu::{ButtonDef, LARGE_HORIZONTAL_SEPARATOR_SPRITE},
-};
+use crate::{GameLoop, menu::ButtonDef};
 
 // ----------------------------------------------
 // MainGameButtonKind
@@ -68,14 +65,8 @@ implement_dialog_menu! { MainGame, ["Game"] }
 impl MainGame {
     pub fn new(context: &mut GameUiContext) -> Self {
         let buttons = make_dialog_button_widgets::<MainGameButtonKind, MAIN_GAME_BUTTON_COUNT>(context);
-
-        let mut menu = make_default_layout_dialog_menu(
-            context,
-            Self::KIND,
-            Self::TITLE,
-            DEFAULT_DIALOG_MENU_BUTTON_SPACING,
-            Some(buttons),
-        );
+        let mut menu =
+            make_default_layout_dialog_menu(context, Self::KIND, Self::TITLE, DEFAULT_DIALOG_MENU_BUTTON_SPACING, buttons);
 
         menu.set_flags(UiMenuFlags::HideWhenMessageBoxOpen, true);
 
@@ -89,54 +80,18 @@ impl MainGame {
             return false;
         }
 
-        let menu_rc = self.menu.clone();
+        let menu_weak_ref = self.menu.downgrade();
 
-        self.menu.open_message_box(context, |context: &mut dyn UiWidgetContext| {
-            let menu_weak_ref = menu_rc.downgrade();
-            UiMessageBoxParams {
-                label: Some("Quit Game Popup".into()),
-                background: Some(DEFAULT_DIALOG_POPUP_BACKGROUND_SPRITE),
-                content_insets: Some(DEFAULT_DIALOG_POPUP_CONTENT_INSETS),
-                contents: vec![UiWidgetImpl::from(UiMenuHeading::new(context, UiMenuHeadingParams {
-                    lines: vec![
-                        UiText::new("Quit Game?".into(), DEFAULT_DIALOG_POPUP_FONT_SCALE),
-                        UiText::new("Any unsaved progress will be lost...".into(), DEFAULT_DIALOG_POPUP_FONT_SCALE),
-                    ],
-                    separator: Some(LARGE_HORIZONTAL_SEPARATOR_SPRITE),
-                    margin_top: 2.0,
-                    ..Default::default()
-                }))],
-                buttons: vec![
-                    UiWidgetImpl::from(UiTextButton::new(context, UiTextButtonParams {
-                        label: "Quit to Main Menu".into(),
-                        size: UiTextButtonSize::Normal,
-                        hover: Some(LARGE_HORIZONTAL_SEPARATOR_SPRITE),
-                        sounds_enabled: UiButtonSoundsEnabled::all(),
-                        on_pressed: UiTextButtonPressed::with_fn(|_, _| GameLoop::get_mut().quit_to_main_menu()),
-                        ..Default::default()
-                    })),
-                    UiWidgetImpl::from(UiTextButton::new(context, UiTextButtonParams {
-                        label: "Exit Game".into(),
-                        size: UiTextButtonSize::Normal,
-                        hover: Some(LARGE_HORIZONTAL_SEPARATOR_SPRITE),
-                        sounds_enabled: UiButtonSoundsEnabled::all(),
-                        on_pressed: UiTextButtonPressed::with_fn(|_, _| GameLoop::get_mut().quit_game()),
-                        ..Default::default()
-                    })),
-                    UiWidgetImpl::from(UiTextButton::new(context, UiTextButtonParams {
-                        label: "Cancel".into(),
-                        size: UiTextButtonSize::Normal,
-                        hover: Some(LARGE_HORIZONTAL_SEPARATOR_SPRITE),
-                        sounds_enabled: UiButtonSoundsEnabled::all(),
-                        on_pressed: UiTextButtonPressed::with_closure(move |_, context| {
-                            let mut main_menu = menu_weak_ref.upgrade().unwrap();
-                            main_menu.close_message_box(context);
-                        }),
-                        ..Default::default()
-                    })),
-                ],
-                ..Default::default()
-            }
+        self.menu.open_message_box(context, |context| {
+            let lines = ["Quit Game?", "Any unsaved progress will be lost..."];
+            make_dialog_popup(context, "Quit Game Popup", lines).with_buttons([
+                make_text_button(context, "Quit to Main Menu", |_, _| GameLoop::get_mut().quit_to_main_menu()),
+                make_text_button(context, "Exit Game", |_, _| GameLoop::get_mut().quit_game()),
+                make_text_button(context, "Cancel", move |_, context| {
+                    let mut main_menu = menu_weak_ref.upgrade().unwrap();
+                    main_menu.close_message_box(context);
+                }),
+            ])
         });
 
         true

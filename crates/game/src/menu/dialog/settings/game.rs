@@ -42,15 +42,7 @@ impl GameSettings {
                 |enable| GameConfigs::get_mut().camera.disable_smooth_mouse_scroll_zoom = !enable,
             ));
 
-        let menu = category.build_menu(
-            category.downgrade(),
-            context,
-            Self::KIND,
-            Self::TITLE,
-            // Margins:
-            0.0,
-            0.0,
-        );
+        let menu = category.build_menu(category.downgrade(), context, Self::KIND, Self::TITLE);
 
         Self { menu, category }
     }

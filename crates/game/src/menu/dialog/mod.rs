@@ -8,14 +8,14 @@ use engine::{
         self,
         UiFontScale,
         UiStaticVar,
-        sound::{self, UiButtonSoundsEnabled, UiSoundKey},
+        sound::{self, UiSoundKey},
         widgets::*,
     },
 };
 use enum_dispatch::enum_dispatch;
 use strum::{Display, EnumCount, EnumDiscriminants, EnumIter, IntoEnumIterator};
 
-use super::LARGE_HORIZONTAL_SEPARATOR_SPRITE;
+use super::{LARGE_HORIZONTAL_SEPARATOR_SPRITE, make_text_button};
 use crate::{menu::ButtonDef, ui_context::GameUiContext, campaign::config::MissionMap};
 
 mod home;
@@ -550,7 +550,7 @@ const DEFAULT_DIALOG_MENU_BUTTON_SPACING: Vec2 = Vec2::new(8.0, 8.0); // Large s
 const DEFAULT_DIALOG_MENU_WIDGET_SPACING: Vec2 = Vec2::new(6.0, 6.0); // Settings widgets / input fields
 const DEFAULT_DIALOG_MENU_TEXT_SPACING:   Vec2 = Vec2::new(4.0, 4.0); // Lines of text: the city management lists
 const DEFAULT_DIALOG_MENU_WIDGET_LABEL_SPACING: f32 = 12.0;
-const DEFAULT_DIALOG_MENU_HEADING_MARGINS: (f32, f32) = (0.0, 10.0); // (top, bottom)
+const DEFAULT_DIALOG_MENU_HEADING_MARGIN_BOTTOM: f32 = 10.0;
 const DEFAULT_DIALOG_MENU_WIDGET_FONT_SCALE: UiFontScale = UiFontScale(1.0);
 const DEFAULT_DIALOG_MENU_HEADING_FONT_SCALE: UiFontScale = UiFontScale(1.8);
 const DEFAULT_DIALOG_MENU_BACKGROUND_SPRITE: PathRef = PathRef::from_str("misc/scroll_bg.png");
@@ -574,55 +574,38 @@ fn default_dialog_menu_size(context: &GameUiContext) -> Vec2 {
     Vec2::new(550.0, context.viewport_size.height as f32 - 120.0)
 }
 
+// The dialogs' shared layout: the title heading on the scroll, then `widgets`, if any, stacked in
+// a group with `widget_spacing` between them.
 fn make_default_layout_dialog_menu(
     context: &mut GameUiContext,
     dialog_menu_kind: DialogMenuKind,
     heading_title: &[&str], // Each item in the slice is a heading line.
     widget_spacing: Vec2,
-    widgets: Option<impl IntoIterator<Item = UiWidgetImpl>>,
+    widgets: impl IntoIterator<Item = UiWidgetImpl>,
 ) -> UiMenuRcMut {
-    let menu_size = default_dialog_menu_size(context);
-    let mut menu = UiMenu::new(context, UiMenuParams {
-        label: Some(dialog_menu_kind.to_string()),
-        flags: *GLOBAL_DIALOG_MENU_FLAGS,
-        size: Some(menu_size),
-        background: Some(DEFAULT_DIALOG_MENU_BACKGROUND_SPRITE),
-        content_insets: Some(DEFAULT_DIALOG_MENU_CONTENT_INSETS),
-        widget_spacing: Some(widget_spacing), // Between its widgets and the lines of its text.
-        ..Default::default()
-    });
+    let heading_lines = heading_title.iter().map(|line| UiText::new(*line, DEFAULT_DIALOG_MENU_HEADING_FONT_SCALE));
+    let heading = UiMenuHeading::new(heading_lines)
+        .with_separator(context, LARGE_HORIZONTAL_SEPARATOR_SPRITE)
+        .with_margin_bottom(DEFAULT_DIALOG_MENU_HEADING_MARGIN_BOTTOM);
 
-    let heading = UiMenuHeading::new(context, UiMenuHeadingParams {
-        lines: heading_title
-            .iter()
-            .map(|line| UiText::new(line.to_string(), DEFAULT_DIALOG_MENU_HEADING_FONT_SCALE))
-            .collect(),
-        separator: Some(LARGE_HORIZONTAL_SEPARATOR_SPRITE),
-        margin_top: DEFAULT_DIALOG_MENU_HEADING_MARGINS.0,
-        margin_bottom: DEFAULT_DIALOG_MENU_HEADING_MARGINS.1,
-        ..Default::default()
-    });
+    let mut menu = UiMenu::new(dialog_menu_kind.to_string())
+        .with_flags(*GLOBAL_DIALOG_MENU_FLAGS)
+        .with_size(default_dialog_menu_size(context))
+        .with_background(context, DEFAULT_DIALOG_MENU_BACKGROUND_SPRITE)
+        .with_content_insets(DEFAULT_DIALOG_MENU_CONTENT_INSETS)
+        .with_widget_spacing(widget_spacing) // Between its widgets and the lines of its text.
+        .with_widget(heading);
 
-    menu.add_widget(heading);
-
-    if let Some(widgets) = widgets {
-        let mut group = UiWidgetGroup::new(context, UiWidgetGroupParams {
-            widget_spacing,
-            center_vertically: false,
-            center_horizontally: true,
-            ..Default::default()
-        });
-
-        for widget in widgets {
-            group.add_widget(widget);
-        }
-
-        menu.add_widget(group);
+    let group = UiWidgetGroup::new().with_widget_spacing(widget_spacing);
+    let group = widgets.into_iter().fold(group, |group, widget| group.with_widget(widget));
+    if !group.widgets().is_empty() {
+        menu = menu.with_widget(group);
     }
 
-    menu
+    menu.into_rc()
 }
 
+// A large button per variant of `ButtonKind`, pressing which runs its on_pressed.
 fn make_dialog_button_widgets<ButtonKind, const COUNT: usize>(context: &mut GameUiContext) -> ArrayVec<UiWidgetImpl, COUNT>
 where
     ButtonKind: ButtonDef + EnumCount + IntoEnumIterator + 'static,
@@ -630,17 +613,35 @@ where
     let mut buttons = ArrayVec::<UiWidgetImpl, COUNT>::new();
 
     for button_kind in ButtonKind::iter() {
-        let on_pressed = UiTextButtonPressed::with_closure(move |_, context| {
-            button_kind.on_pressed(ui::widgets::context_as_mut::<GameUiContext>(context));
+        let button = button_kind.new_text_button(context, UiTextButtonSize::Large, move |_, context| {
+            button_kind.on_pressed(context_as_mut::<GameUiContext>(context));
         });
 
-        buttons.push(UiWidgetImpl::from(button_kind.new_text_button(
-            context,
-            UiButtonSoundsEnabled::all(),
-            UiTextButtonSize::Large,
-            on_pressed,
-        )));
+        buttons.push(UiWidgetImpl::from(button));
     }
 
     buttons
+}
+
+// A button that closes the current dialog.
+fn make_dialog_close_button(context: &mut dyn UiWidgetContext, label: &str) -> UiTextButton {
+    make_text_button(context, label, |_, context| {
+        close_current(context_as_mut::<GameUiContext>(context));
+    })
+}
+
+// A popup message box of a dialog: `lines` on the square page sprite, with its buttons under them.
+fn make_dialog_popup<'a>(
+    context: &mut dyn UiWidgetContext,
+    label: &str,
+    lines: impl IntoIterator<Item = &'a str>,
+) -> UiMessageBox {
+    let heading = UiMenuHeading::new(lines.into_iter().map(|line| UiText::new(line, DEFAULT_DIALOG_POPUP_FONT_SCALE)))
+        .with_separator(context, LARGE_HORIZONTAL_SEPARATOR_SPRITE)
+        .with_margin_top(2.0);
+
+    UiMessageBox::new(label)
+        .with_background(context, DEFAULT_DIALOG_POPUP_BACKGROUND_SPRITE)
+        .with_content_insets(DEFAULT_DIALOG_POPUP_CONTENT_INSETS)
+        .with_content(heading)
 }
