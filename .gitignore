@@ -8,6 +8,10 @@ Cargo.lock
 # Apple stuff
 .DS_Store
 
+# Python bytecode caches (tool scripts under crates/tools/)
+__pycache__/
+*.pyc
+
 # Log files
 *.log
 

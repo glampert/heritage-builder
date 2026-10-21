@@ -1,0 +1,142 @@
+# Water shores: land placed every other cell leaves one water cell between two islands, which must
+# draw a shore on both sides (a channel), while the cells diagonal to both islands draw both corners.
+# Then a cross of one-cell channels carved into a block of land: a crossing, four dead ends and the
+# straight cells between. Then a two by two lake with a channel entering beside its shore. From the
+# repository root:
+#   cargo run -p HeritageBuilder -- --script crates/game/tests/scenarios/water_edges.jsonl
+{"method": "time.fixed_dt", "params": {"dt": 0.016667}}
+{"method": "session.new_map", "params": {"size": [12, 12], "terrain": "water"}}
+{"method": "world.place", "params": {"tile": "grass", "cell": [4, 5]}}
+{"method": "world.place", "params": {"tile": "grass", "cell": [6, 5]}}
+{"method": "assert.eq", "params": {"query": "tile.at", "args": {"cell": [5, 5]}, "path": "/terrain/variation_name", "value": "1010"}}
+{"method": "assert.eq", "params": {"query": "tile.at", "args": {"cell": [5, 6]}, "path": "/terrain/variation_name", "value": "ne_se_corner"}}
+{"method": "assert.eq", "params": {"query": "tile.at", "args": {"cell": [5, 4]}, "path": "/terrain/variation_name", "value": "nw_sw_corner"}}
+{"method": "assert.eq", "params": {"query": "tile.at", "args": {"cell": [3, 5]}, "path": "/terrain/variation_name", "value": "1000"}}
+{"method": "assert.eq", "params": {"query": "tile.at", "args": {"cell": [7, 5]}, "path": "/terrain/variation_name", "value": "0010"}}
+{"method": "assert.eq", "params": {"query": "tile.at", "args": {"cell": [3, 4]}, "path": "/terrain/variation_name", "value": "nw_corner"}}
+{"method": "world.place", "params": {"tile": "water", "cell": [6, 5]}}
+{"method": "assert.eq", "params": {"query": "tile.at", "args": {"cell": [5, 5]}, "path": "/terrain/variation_name", "value": "0010"}}
+{"method": "assert.eq", "params": {"query": "tile.at", "args": {"cell": [5, 6]}, "path": "/terrain/variation_name", "value": "se_corner"}}
+{"method": "world.place", "params": {"tile": "grass", "cell": [6, 5]}}
+{"method": "assert.eq", "params": {"query": "tile.at", "args": {"cell": [5, 5]}, "path": "/terrain/variation_name", "value": "1010"}}
+{"method": "world.place", "params": {"tile": "grass", "cell": [8, 5]}}
+{"method": "assert.eq", "params": {"query": "tile.at", "args": {"cell": [7, 5]}, "path": "/terrain/variation_name", "value": "1010"}}
+{"method": "world.place", "params": {"tile": "grass", "cell": [5, 8]}}
+{"method": "world.place", "params": {"tile": "grass", "cell": [5, 10]}}
+{"method": "assert.eq", "params": {"query": "tile.at", "args": {"cell": [5, 9]}, "path": "/terrain/variation_name", "value": "0101"}}
+{"method": "assert.eq", "params": {"query": "tile.at", "args": {"cell": [6, 9]}, "path": "/terrain/variation_name", "value": "se_sw_corner"}}
+{"method": "assert.eq", "params": {"query": "tile.at", "args": {"cell": [4, 9]}, "path": "/terrain/variation_name", "value": "ne_nw_corner"}}
+{"method": "camera.teleport", "params": {"cell": [6, 7]}}
+{"method": "camera.zoom", "params": {"zoom": 2}}
+{"method": "input.move", "params": {"park": true}}
+{"method": "screenshot", "params": {"path": "out/water_edges.png", "include_ui": false}}
+{"method": "session.new_map", "params": {"size": [12, 12], "terrain": "water"}}
+{"method": "world.place", "params": {"tile": "grass", "cell": [3, 3]}}
+{"method": "world.place", "params": {"tile": "grass", "cell": [3, 4]}}
+{"method": "world.place", "params": {"tile": "grass", "cell": [3, 5]}}
+{"method": "world.place", "params": {"tile": "grass", "cell": [3, 6]}}
+{"method": "world.place", "params": {"tile": "grass", "cell": [3, 7]}}
+{"method": "world.place", "params": {"tile": "grass", "cell": [3, 8]}}
+{"method": "world.place", "params": {"tile": "grass", "cell": [3, 9]}}
+{"method": "world.place", "params": {"tile": "grass", "cell": [4, 3]}}
+{"method": "world.place", "params": {"tile": "grass", "cell": [4, 4]}}
+{"method": "world.place", "params": {"tile": "grass", "cell": [4, 5]}}
+{"method": "world.place", "params": {"tile": "grass", "cell": [4, 7]}}
+{"method": "world.place", "params": {"tile": "grass", "cell": [4, 8]}}
+{"method": "world.place", "params": {"tile": "grass", "cell": [4, 9]}}
+{"method": "world.place", "params": {"tile": "grass", "cell": [5, 3]}}
+{"method": "world.place", "params": {"tile": "grass", "cell": [5, 4]}}
+{"method": "world.place", "params": {"tile": "grass", "cell": [5, 5]}}
+{"method": "world.place", "params": {"tile": "grass", "cell": [5, 7]}}
+{"method": "world.place", "params": {"tile": "grass", "cell": [5, 8]}}
+{"method": "world.place", "params": {"tile": "grass", "cell": [5, 9]}}
+{"method": "world.place", "params": {"tile": "grass", "cell": [6, 3]}}
+{"method": "world.place", "params": {"tile": "grass", "cell": [6, 9]}}
+{"method": "world.place", "params": {"tile": "grass", "cell": [7, 3]}}
+{"method": "world.place", "params": {"tile": "grass", "cell": [7, 4]}}
+{"method": "world.place", "params": {"tile": "grass", "cell": [7, 5]}}
+{"method": "world.place", "params": {"tile": "grass", "cell": [7, 7]}}
+{"method": "world.place", "params": {"tile": "grass", "cell": [7, 8]}}
+{"method": "world.place", "params": {"tile": "grass", "cell": [7, 9]}}
+{"method": "world.place", "params": {"tile": "grass", "cell": [8, 3]}}
+{"method": "world.place", "params": {"tile": "grass", "cell": [8, 4]}}
+{"method": "world.place", "params": {"tile": "grass", "cell": [8, 5]}}
+{"method": "world.place", "params": {"tile": "grass", "cell": [8, 7]}}
+{"method": "world.place", "params": {"tile": "grass", "cell": [8, 8]}}
+{"method": "world.place", "params": {"tile": "grass", "cell": [8, 9]}}
+{"method": "world.place", "params": {"tile": "grass", "cell": [9, 3]}}
+{"method": "world.place", "params": {"tile": "grass", "cell": [9, 4]}}
+{"method": "world.place", "params": {"tile": "grass", "cell": [9, 5]}}
+{"method": "world.place", "params": {"tile": "grass", "cell": [9, 6]}}
+{"method": "world.place", "params": {"tile": "grass", "cell": [9, 7]}}
+{"method": "world.place", "params": {"tile": "grass", "cell": [9, 8]}}
+{"method": "world.place", "params": {"tile": "grass", "cell": [9, 9]}}
+{"method": "assert.eq", "params": {"query": "tile.at", "args": {"cell": [6, 6]}, "path": "/terrain/variation_name", "value": "ne_nw_se_sw_corner"}}
+{"method": "assert.eq", "params": {"query": "tile.at", "args": {"cell": [5, 6]}, "path": "/terrain/variation_name", "value": "0101"}}
+{"method": "assert.eq", "params": {"query": "tile.at", "args": {"cell": [6, 5]}, "path": "/terrain/variation_name", "value": "1010"}}
+{"method": "assert.eq", "params": {"query": "tile.at", "args": {"cell": [4, 6]}, "path": "/terrain/variation_name", "value": "0111"}}
+{"method": "assert.eq", "params": {"query": "tile.at", "args": {"cell": [8, 6]}, "path": "/terrain/variation_name", "value": "1101"}}
+{"method": "assert.eq", "params": {"query": "tile.at", "args": {"cell": [6, 4]}, "path": "/terrain/variation_name", "value": "1110"}}
+{"method": "assert.eq", "params": {"query": "tile.at", "args": {"cell": [6, 8]}, "path": "/terrain/variation_name", "value": "1011"}}
+{"method": "world.place", "params": {"tile": "water", "cell": [8, 8]}}
+{"method": "assert.eq", "params": {"query": "tile.at", "args": {"cell": [8, 8]}, "path": "/terrain/variation_name", "value": "1111"}}
+{"method": "world.place", "params": {"tile": "water", "cell": [8, 7]}}
+{"method": "assert.eq", "params": {"query": "tile.at", "args": {"cell": [8, 8]}, "path": "/terrain/variation_name", "value": "1011"}}
+{"method": "assert.eq", "params": {"query": "tile.at", "args": {"cell": [8, 7]}, "path": "/terrain/variation_name", "value": "1010"}}
+{"method": "assert.eq", "params": {"query": "tile.at", "args": {"cell": [8, 6]}, "path": "/terrain/variation_name", "value": "1100_sw_corner"}}
+{"method": "camera.teleport", "params": {"cell": [6, 6]}}
+{"method": "camera.zoom", "params": {"zoom": 2}}
+{"method": "input.move", "params": {"park": true}}
+{"method": "screenshot", "params": {"path": "out/water_edges_cross.png", "include_ui": false}}
+{"method": "session.new_map", "params": {"size": [12, 12], "terrain": "water"}}
+{"method": "world.place", "params": {"tile": "grass", "cell": [3, 3]}}
+{"method": "world.place", "params": {"tile": "grass", "cell": [3, 4]}}
+{"method": "world.place", "params": {"tile": "grass", "cell": [3, 5]}}
+{"method": "world.place", "params": {"tile": "grass", "cell": [3, 6]}}
+{"method": "world.place", "params": {"tile": "grass", "cell": [3, 7]}}
+{"method": "world.place", "params": {"tile": "grass", "cell": [3, 8]}}
+{"method": "world.place", "params": {"tile": "grass", "cell": [3, 9]}}
+{"method": "world.place", "params": {"tile": "grass", "cell": [4, 3]}}
+{"method": "world.place", "params": {"tile": "grass", "cell": [4, 4]}}
+{"method": "world.place", "params": {"tile": "grass", "cell": [4, 5]}}
+{"method": "world.place", "params": {"tile": "grass", "cell": [4, 6]}}
+{"method": "world.place", "params": {"tile": "grass", "cell": [4, 7]}}
+{"method": "world.place", "params": {"tile": "grass", "cell": [4, 8]}}
+{"method": "world.place", "params": {"tile": "grass", "cell": [4, 9]}}
+{"method": "world.place", "params": {"tile": "grass", "cell": [5, 3]}}
+{"method": "world.place", "params": {"tile": "grass", "cell": [5, 4]}}
+{"method": "world.place", "params": {"tile": "grass", "cell": [6, 3]}}
+{"method": "world.place", "params": {"tile": "grass", "cell": [6, 4]}}
+{"method": "world.place", "params": {"tile": "grass", "cell": [6, 7]}}
+{"method": "world.place", "params": {"tile": "grass", "cell": [6, 8]}}
+{"method": "world.place", "params": {"tile": "grass", "cell": [6, 9]}}
+{"method": "world.place", "params": {"tile": "grass", "cell": [7, 3]}}
+{"method": "world.place", "params": {"tile": "grass", "cell": [7, 4]}}
+{"method": "world.place", "params": {"tile": "grass", "cell": [7, 5]}}
+{"method": "world.place", "params": {"tile": "grass", "cell": [7, 6]}}
+{"method": "world.place", "params": {"tile": "grass", "cell": [7, 7]}}
+{"method": "world.place", "params": {"tile": "grass", "cell": [7, 8]}}
+{"method": "world.place", "params": {"tile": "grass", "cell": [7, 9]}}
+{"method": "world.place", "params": {"tile": "grass", "cell": [8, 3]}}
+{"method": "world.place", "params": {"tile": "grass", "cell": [8, 4]}}
+{"method": "world.place", "params": {"tile": "grass", "cell": [8, 5]}}
+{"method": "world.place", "params": {"tile": "grass", "cell": [8, 6]}}
+{"method": "world.place", "params": {"tile": "grass", "cell": [8, 7]}}
+{"method": "world.place", "params": {"tile": "grass", "cell": [8, 8]}}
+{"method": "world.place", "params": {"tile": "grass", "cell": [8, 9]}}
+{"method": "world.place", "params": {"tile": "grass", "cell": [9, 3]}}
+{"method": "world.place", "params": {"tile": "grass", "cell": [9, 4]}}
+{"method": "world.place", "params": {"tile": "grass", "cell": [9, 5]}}
+{"method": "world.place", "params": {"tile": "grass", "cell": [9, 6]}}
+{"method": "world.place", "params": {"tile": "grass", "cell": [9, 7]}}
+{"method": "world.place", "params": {"tile": "grass", "cell": [9, 8]}}
+{"method": "world.place", "params": {"tile": "grass", "cell": [9, 9]}}
+{"method": "assert.eq", "params": {"query": "tile.at", "args": {"cell": [5, 6]}, "path": "/terrain/variation_name", "value": "0010_nw_sw_corner"}}
+{"method": "assert.eq", "params": {"query": "tile.at", "args": {"cell": [5, 7]}, "path": "/terrain/variation_name", "value": "1010"}}
+{"method": "assert.eq", "params": {"query": "tile.at", "args": {"cell": [6, 6]}, "path": "/terrain/variation_name", "value": "1001"}}
+{"method": "assert.eq", "params": {"query": "tile.at", "args": {"cell": [5, 5]}, "path": "/terrain/variation_name", "value": "0110"}}
+{"method": "assert.eq", "params": {"query": "tile.at", "args": {"cell": [6, 5]}, "path": "/terrain/variation_name", "value": "1100"}}
+{"method": "camera.teleport", "params": {"cell": [5, 6]}}
+{"method": "camera.zoom", "params": {"zoom": 2}}
+{"method": "input.move", "params": {"park": true}}
+{"method": "screenshot", "params": {"path": "out/water_edges_lake.png", "include_ui": false}}

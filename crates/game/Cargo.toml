@@ -77,3 +77,7 @@ harness = false
 [[test]]
 name    = "house_consumption"
 harness = false
+
+[[test]]
+name    = "terrain_placement"
+harness = false

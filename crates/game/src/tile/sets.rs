@@ -154,7 +154,8 @@ impl Default for TileIconSprite {
 #[derive(Clone, Default, Deserialize)]
 pub struct TileSprite {
     // Name of the tile texture. Resolved into a TextureHandle post load.
-    pub name: ArrayString<16>,
+    // Long enough for the composed water shores, e.g. "ne_nw_se_sw_corner".
+    pub name: ArrayString<24>,
 
     // Hash of `name`, computed post-load.
     #[serde(skip)]
@@ -302,7 +303,7 @@ impl TileAnimSet {
 
                 for frame_index in 0..*frame_count {
                     let mut frame =
-                        TileSprite { name: format_fixed_string!(16, "frame{frame_index}"), ..Default::default() };
+                        TileSprite { name: format_fixed_string!(24, "frame{frame_index}"), ..Default::default() };
 
                     Self::load_frame_texture(
                         &mut frame,

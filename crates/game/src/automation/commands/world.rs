@@ -698,6 +698,7 @@ fn tile_json(context: &CommandContext, tile: &Tile) -> Value {
         "kind": tile.kind().to_string(),
         "cell": cell_json(tile.base_cell()),
         "variation": tile.variation_index(),
+        "variation_name": tile.variation_name(),
     });
 
     if tile.game_object_handle().is_valid() {

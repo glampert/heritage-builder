@@ -769,6 +769,510 @@
                   ]
                 }
               ]
+            },
+            {
+              "name": "1010",
+              "anim_sets": [
+                {
+                  "frames": [
+                    {
+                      "name": "1010"
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "name": "0101",
+              "anim_sets": [
+                {
+                  "frames": [
+                    {
+                      "name": "0101"
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "name": "1110",
+              "anim_sets": [
+                {
+                  "frames": [
+                    {
+                      "name": "1110"
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "name": "0111",
+              "anim_sets": [
+                {
+                  "frames": [
+                    {
+                      "name": "0111"
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "name": "1011",
+              "anim_sets": [
+                {
+                  "frames": [
+                    {
+                      "name": "1011"
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "name": "1101",
+              "anim_sets": [
+                {
+                  "frames": [
+                    {
+                      "name": "1101"
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "name": "1111",
+              "anim_sets": [
+                {
+                  "frames": [
+                    {
+                      "name": "1111"
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "name": "ne_nw_corner",
+              "anim_sets": [
+                {
+                  "frames": [
+                    {
+                      "name": "ne_nw_corner"
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "name": "ne_se_corner",
+              "anim_sets": [
+                {
+                  "frames": [
+                    {
+                      "name": "ne_se_corner"
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "name": "nw_se_corner",
+              "anim_sets": [
+                {
+                  "frames": [
+                    {
+                      "name": "nw_se_corner"
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "name": "ne_nw_se_corner",
+              "anim_sets": [
+                {
+                  "frames": [
+                    {
+                      "name": "ne_nw_se_corner"
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "name": "ne_sw_corner",
+              "anim_sets": [
+                {
+                  "frames": [
+                    {
+                      "name": "ne_sw_corner"
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "name": "nw_sw_corner",
+              "anim_sets": [
+                {
+                  "frames": [
+                    {
+                      "name": "nw_sw_corner"
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "name": "ne_nw_sw_corner",
+              "anim_sets": [
+                {
+                  "frames": [
+                    {
+                      "name": "ne_nw_sw_corner"
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "name": "se_sw_corner",
+              "anim_sets": [
+                {
+                  "frames": [
+                    {
+                      "name": "se_sw_corner"
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "name": "ne_se_sw_corner",
+              "anim_sets": [
+                {
+                  "frames": [
+                    {
+                      "name": "ne_se_sw_corner"
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "name": "nw_se_sw_corner",
+              "anim_sets": [
+                {
+                  "frames": [
+                    {
+                      "name": "nw_se_sw_corner"
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "name": "ne_nw_se_sw_corner",
+              "anim_sets": [
+                {
+                  "frames": [
+                    {
+                      "name": "ne_nw_se_sw_corner"
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "name": "1000_se_corner",
+              "anim_sets": [
+                {
+                  "frames": [
+                    {
+                      "name": "1000_se_corner"
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "name": "1000_sw_corner",
+              "anim_sets": [
+                {
+                  "frames": [
+                    {
+                      "name": "1000_sw_corner"
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "name": "1000_se_sw_corner",
+              "anim_sets": [
+                {
+                  "frames": [
+                    {
+                      "name": "1000_se_sw_corner"
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "name": "0100_nw_corner",
+              "anim_sets": [
+                {
+                  "frames": [
+                    {
+                      "name": "0100_nw_corner"
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "name": "0100_sw_corner",
+              "anim_sets": [
+                {
+                  "frames": [
+                    {
+                      "name": "0100_sw_corner"
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "name": "0100_nw_sw_corner",
+              "anim_sets": [
+                {
+                  "frames": [
+                    {
+                      "name": "0100_nw_sw_corner"
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "name": "0010_ne_corner",
+              "anim_sets": [
+                {
+                  "frames": [
+                    {
+                      "name": "0010_ne_corner"
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "name": "0010_nw_corner",
+              "anim_sets": [
+                {
+                  "frames": [
+                    {
+                      "name": "0010_nw_corner"
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "name": "0010_ne_nw_corner",
+              "anim_sets": [
+                {
+                  "frames": [
+                    {
+                      "name": "0010_ne_nw_corner"
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "name": "0001_ne_corner",
+              "anim_sets": [
+                {
+                  "frames": [
+                    {
+                      "name": "0001_ne_corner"
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "name": "0001_se_corner",
+              "anim_sets": [
+                {
+                  "frames": [
+                    {
+                      "name": "0001_se_corner"
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "name": "0001_ne_se_corner",
+              "anim_sets": [
+                {
+                  "frames": [
+                    {
+                      "name": "0001_ne_se_corner"
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "name": "1100_sw_corner",
+              "anim_sets": [
+                {
+                  "frames": [
+                    {
+                      "name": "1100_sw_corner"
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "name": "0110_nw_corner",
+              "anim_sets": [
+                {
+                  "frames": [
+                    {
+                      "name": "0110_nw_corner"
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "name": "0011_ne_corner",
+              "anim_sets": [
+                {
+                  "frames": [
+                    {
+                      "name": "0011_ne_corner"
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "name": "1001_se_corner",
+              "anim_sets": [
+                {
+                  "frames": [
+                    {
+                      "name": "1001_se_corner"
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "name": "1000_ne_se_corner",
+              "anim_sets": [
+                {
+                  "frames": [
+                    {
+                      "name": "1000_ne_se_corner"
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "name": "1000_nw_sw_corner",
+              "anim_sets": [
+                {
+                  "frames": [
+                    {
+                      "name": "1000_nw_sw_corner"
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "name": "0100_ne_nw_corner",
+              "anim_sets": [
+                {
+                  "frames": [
+                    {
+                      "name": "0100_ne_nw_corner"
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "name": "0100_se_sw_corner",
+              "anim_sets": [
+                {
+                  "frames": [
+                    {
+                      "name": "0100_se_sw_corner"
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "name": "0010_ne_se_corner",
+              "anim_sets": [
+                {
+                  "frames": [
+                    {
+                      "name": "0010_ne_se_corner"
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "name": "0010_nw_sw_corner",
+              "anim_sets": [
+                {
+                  "frames": [
+                    {
+                      "name": "0010_nw_sw_corner"
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "name": "0001_ne_nw_corner",
+              "anim_sets": [
+                {
+                  "frames": [
+                    {
+                      "name": "0001_ne_nw_corner"
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "name": "0001_se_sw_corner",
+              "anim_sets": [
+                {
+                  "frames": [
+                    {
+                      "name": "0001_se_sw_corner"
+                    }
+                  ]
+                }
+              ]
             }
           ]
         }

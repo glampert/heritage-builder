@@ -7,6 +7,8 @@ use game::{
     cheats,
     debug::preset_maps,
     config::GameConfigs,
+    menu::{PlaceOrClearResult, TilePlacement},
+    undo_redo,
     world::{World, object::GameObject},
     prop::{config::PropConfigs, PropId},
     sim::{
@@ -14,7 +16,10 @@ use game::{
         SimCmds, SimContext, Simulation,
     },
     tile::{
-        sets::{TileDef, TileSets, OBJECTS_BUILDINGS_CATEGORY, OBJECTS_VEGETATION_CATEGORY, TERRAIN_LAND_CATEGORY},
+        sets::{
+            TileDef, TileSets, OBJECTS_BUILDINGS_CATEGORY, OBJECTS_VEGETATION_CATEGORY, TERRAIN_LAND_CATEGORY,
+            TERRAIN_WATER_CATEGORY,
+        },
         TileMap, TileMapLayerKind,
     },
     building::{
@@ -53,6 +58,7 @@ fn setup(test_suite_name: &str) {
 
     cheats::initialize();
     cheats::get_mut().ignore_tile_cost = true; // So we can spawn anything...
+    undo_redo::initialize(); // The player's placement path (TilePlacement) records edits.
     cheats::get_mut().ignore_worker_requirements = true; // So producer/storage buildings accept deliveries without staffing.
 
     let mut tex_cache = TextureCache::default();
@@ -133,6 +139,15 @@ impl TestEnvironment {
         }
     }
 
+    // A map with every cell set to `tile_def`, e.g. all water, as session.new_map makes one.
+    pub fn with_terrain(size: Size, tile_def: &'static TileDef) -> Self {
+        Self {
+            tile_map: TileMap::new(size, Some(tile_def)),
+            world: World::new(),
+            sim: Simulation::new(size, GameConfigs::get()),
+        }
+    }
+
     pub fn with_preset_map(preset_number: usize) -> Self {
         let mut world = World::new();
         let tile_map = preset_maps::create_preset_tile_map(&mut world, preset_number);
@@ -158,6 +173,12 @@ pub fn find_terrain_def(name: &str) -> &'static TileDef {
     TileSets::get()
         .find_tile_def_by_name(TileMapLayerKind::Terrain, TERRAIN_LAND_CATEGORY.string, name)
         .unwrap_or_else(|| panic!("Missing terrain tile def '{name}'"))
+}
+
+pub fn find_water_def() -> &'static TileDef {
+    TileSets::get()
+        .find_tile_def_by_name(TileMapLayerKind::Terrain, TERRAIN_WATER_CATEGORY.string, "water")
+        .unwrap_or_else(|| panic!("Missing terrain tile def 'water'"))
 }
 
 pub fn find_building_def(name: &str) -> &'static TileDef {
@@ -193,6 +214,16 @@ pub fn place_terrain_by_def(env: &mut TestEnvironment, cell: Cell, tile_def: &'s
 
 pub fn place_terrain(env: &mut TestEnvironment, cell: Cell, name: &str) {
     place_terrain_by_def(env, cell, find_terrain_def(name));
+}
+
+// Place a tile the way the player does, through `TilePlacement::place`, which also updates the
+// road junctions and water shores around it and records the edit for undo. The SimCmds path
+// above doesn't.
+pub fn place_tile_as_player(env: &mut TestEnvironment, cell: Cell, tile_def: &'static TileDef) {
+    let context = env.new_sim_context(TestEnvironment::TICK_DELTA_SECS);
+    if let PlaceOrClearResult::Failed { message, .. } = TilePlacement::place(&context, cell, tile_def, false, true) {
+        panic!("place_tile_as_player({cell}, '{}') failed: {message}", tile_def.name);
+    }
 }
 
 // Fill every cell of the map with the named terrain. Useful for tests

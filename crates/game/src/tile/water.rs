@@ -1,204 +1,194 @@
-use common::{coords::Cell, hash::StrHashPair};
+use arrayvec::ArrayString;
+use common::{
+    coords::Cell,
+    hash::{self, StrHashPair},
+};
 
 use super::{TileKind, TileMap, TileMapLayerKind, sets::TileDef};
-use crate::pathfind::NodeKind as PathNodeKind;
 
 // ----------------------------------------------
 // Water Tile Transitions
 // ----------------------------------------------
 
-// Each bit represents whether there is land in that direction
-// relative to the current tile (the one being placed).
+// A water tile draws the shore of the land around it. Its variation is picked from which of its
+// eight neighbors are land whenever the terrain next to it changes. The four sides come first, as
+// the digits of the variation names: "0001" is land to the west, "0010" south, "0100" east, "1000"
+// north; "1010" has land on both the north and the south sides, with a channel between the two
+// shores, and "1111" on every side. A diagonal counts only when both sides next to it are water,
+// since the shore of a land side covers it otherwise. The diagonals name the `_corner` variations:
+// "ne_corner", "ne_se_corner", "1000_sw_corner", "1100_sw_corner", ... One exception: a tile with
+// a single land side also lists the diagonal next to that side when a one-cell channel enters the
+// tile beside the land, i.e. when the water side between the two is bordered by land at both of
+// its diagonals ("0010_nw_sw_corner": land south, a channel entering from the west between the
+// north-west and south-west land). There the shore bends from the channel's bank into the wider
+// water. The hand-made sprites cover one side, two adjacent sides and one diagonal;
+// crates/tools/water-transitions/compose.py composes the other 42 combinations from them.
+//
+// Directions: north is +x, the upper-right edge of the cell on screen; east is -y, the lower-right.
+
+// Sides, as the digits of a variation name, from the last.
 const WEST_BIT:  usize = 1 << 0; // 0001
 const SOUTH_BIT: usize = 1 << 1; // 0010
 const EAST_BIT:  usize = 1 << 2; // 0100
 const NORTH_BIT: usize = 1 << 3; // 1000
 
-fn water_transition_mask(tile_map: &TileMap, cell: Cell) -> usize {
-    let mut mask = 0;
-    if is_land(tile_map, Cell::new(cell.x + 1, cell.y)) { mask |= NORTH_BIT; }
-    if is_land(tile_map, Cell::new(cell.x - 1, cell.y)) { mask |= SOUTH_BIT; }
-    if is_land(tile_map, Cell::new(cell.x, cell.y - 1)) { mask |= EAST_BIT;  }
-    if is_land(tile_map, Cell::new(cell.x, cell.y + 1)) { mask |= WEST_BIT;  }
-    mask
+// Diagonals, in the order a variation name lists them.
+const NE_BIT: usize = 1 << 0;
+const NW_BIT: usize = 1 << 1;
+const SE_BIT: usize = 1 << 2;
+const SW_BIT: usize = 1 << 3;
+
+const DIAGONAL_NAMES: [(usize, &str); 4] = [(NE_BIT, "ne"), (NW_BIT, "nw"), (SE_BIT, "se"), (SW_BIT, "sw")];
+
+// Open water, the variation every water tile starts with.
+const OPEN_WATER_VARIATION: usize = 0;
+
+// Name of the variation that draws a water tile's shores, e.g. "1010" or "1000_se_sw_corner".
+pub type ShoreVariationName = ArrayString<32>;
+
+// The land around a water cell.
+#[derive(Copy, Clone, PartialEq, Eq, Debug)]
+pub struct ShoreNeighbors {
+    pub sides: usize,     // NORTH_BIT | EAST_BIT | SOUTH_BIT | WEST_BIT.
+    pub diagonals: usize, // NE_BIT | NW_BIT | SE_BIT | SW_BIT: those not next to a land side, plus `attached`.
+    pub attached: usize,  // The diagonal next to the one land side where a channel enters beside it.
 }
 
+impl ShoreNeighbors {
+    pub fn variation_name(self) -> ShoreVariationName {
+        let mut name = ShoreVariationName::new();
+
+        if self.sides != 0 || self.diagonals == 0 {
+            for bit in [NORTH_BIT, EAST_BIT, SOUTH_BIT, WEST_BIT] {
+                name.push(if (self.sides & bit) != 0 { '1' } else { '0' });
+            }
+        }
+
+        if self.diagonals != 0 {
+            for (bit, diagonal) in DIAGONAL_NAMES {
+                if (self.diagonals & bit) != 0 {
+                    if !name.is_empty() {
+                        name.push('_');
+                    }
+                    name.push_str(diagonal);
+                }
+            }
+            name.push_str("_corner");
+        }
+
+        name
+    }
+}
+
+// Is the terrain at `cell` land? Cells past the map's edge count as water, so a shore
+// ends at the edge of the map instead of running along it.
 #[inline]
 fn is_land(tile_map: &TileMap, cell: Cell) -> bool {
-    !is_water(tile_map, cell)
+    tile_map
+        .try_tile_from_layer(cell, TileMapLayerKind::Terrain)
+        .is_some_and(|tile| tile.path_kind().is_land())
 }
 
-#[inline]
-fn is_water(tile_map: &TileMap, cell: Cell) -> bool {
-    if let Some(tile) = tile_map.try_tile_from_layer(cell, TileMapLayerKind::Terrain) {
-        if tile.path_kind().is_water() {
-            return true;
+pub fn shore_neighbors(tile_map: &TileMap, cell: Cell) -> ShoreNeighbors {
+    let land = |dx: i32, dy: i32| is_land(tile_map, Cell::new(cell.x + dx, cell.y + dy));
+
+    let north = land(1, 0);
+    let south = land(-1, 0);
+    let east  = land(0, -1);
+    let west  = land(0, 1);
+
+    let mut sides = 0;
+    if north { sides |= NORTH_BIT; }
+    if south { sides |= SOUTH_BIT; }
+    if east  { sides |= EAST_BIT;  }
+    if west  { sides |= WEST_BIT;  }
+
+    let ne = land(1, -1);
+    let nw = land(1, 1);
+    let se = land(-1, -1);
+    let sw = land(-1, 1);
+
+    // A diagonal shows only when the two sides next to it are water.
+    let mut diagonals = 0;
+    if !north && !east && ne { diagonals |= NE_BIT; }
+    if !north && !west && nw { diagonals |= NW_BIT; }
+    if !south && !east && se { diagonals |= SE_BIT; }
+    if !south && !west && sw { diagonals |= SW_BIT; }
+
+    // With a single land side, a channel can enter the tile beside it: the water side next to
+    // the land then has land at both of its diagonals. The diagonal next to the land side shows
+    // too, and the shore bends into the channel's bank. Not when the far diagonals of both water
+    // sides are land: that tile is a T junction, with a channel on each side already.
+    let mut attached = 0;
+    match sides {
+        NORTH_BIT => {
+            if se && ne && !sw { attached |= NE_BIT; }
+            if sw && nw && !se { attached |= NW_BIT; }
         }
-    }
-    false
-}
-
-// Lookup table to handle invalid/unsupported combinations.
-// If no transition is available we fallback to full water (var 0).
-const FALLBACK_WATER_TRANSITION_VARIATION: usize = 0;
-const WATER_TRANSITION_VARIATION_LOOKUP: [Option<usize>; 16] = [
-    None,    // 0000 — surrounded by water
-    Some(1), // 0001 — land to the west
-    Some(2), // 0010 — land to the south
-    Some(3), // 0011 — NE corner (land south & west)
-    Some(4), // 0100 — land to the east
-    None,    // 0101
-    Some(5), // 0110 — NW corner (land south & east)
-    None,    // 0111
-    Some(6), // 1000 — land to the north
-    Some(7), // 1001 — SE corner (land north & west)
-    None,    // 1010
-    None,    // 1011
-    Some(8), // 1100 — SW corner (land north & east)
-    None,    // 1101
-    None,    // 1110
-    None,    // 1111
-];
-
-// Outer corners for islands / L-shaped inner edges.
-#[repr(usize)]
-#[derive(Copy, Clone, PartialEq, Eq)]
-enum ShoreCorner {
-    None,
-    // These follow the last transition variation (`1100 — SW corner`, #8).
-    SE = 9,  // se_corner
-    SW = 10, // sw_corner
-    NE = 11, // ne_corner
-    NW = 12, // nw_corner
-}
-
-// Water transition mask + outer corner transition if any.
-fn compute_full_water_transitions(tile_map: &TileMap, cell: Cell) -> (usize, ShoreCorner) {
-    fn tile_at(tile_map: &TileMap, x: i32, y: i32) -> PathNodeKind {
-        if let Some(tile) = tile_map.try_tile_from_layer(Cell::new(x, y), TileMapLayerKind::Terrain) {
-            tile.path_kind()
-        } else {
-            PathNodeKind::empty()
+        SOUTH_BIT => {
+            if ne && se && !nw { attached |= SE_BIT; }
+            if nw && sw && !ne { attached |= SW_BIT; }
         }
+        EAST_BIT => {
+            if nw && ne && !sw { attached |= NE_BIT; }
+            if sw && se && !nw { attached |= SE_BIT; }
+        }
+        WEST_BIT => {
+            if ne && nw && !se { attached |= NW_BIT; }
+            if se && sw && !ne { attached |= SW_BIT; }
+        }
+        _ => {}
     }
 
-    // Helper: does a given cell have at least one cardinal land neighbor (including self)?
-    fn neighborhood_has_cardinal_land(tile_map: &TileMap, x: i32, y: i32) -> bool {
-        tile_at(tile_map, x, y).is_land()
-            || tile_at(tile_map, x + 1, y).is_land()
-            || tile_at(tile_map, x - 1, y).is_land()
-            || tile_at(tile_map, x, y - 1).is_land()
-            || tile_at(tile_map, x, y + 1).is_land()
-    }
+    ShoreNeighbors { sides, diagonals: diagonals | attached, attached }
+}
 
-    // Cardinal neighbors (N/S/E/W):
-    let north = tile_at(tile_map, cell.x + 1, cell.y);
-    let south = tile_at(tile_map, cell.x - 1, cell.y);
-    let east  = tile_at(tile_map, cell.x, cell.y - 1);
-    let west  = tile_at(tile_map, cell.x, cell.y + 1);
+// The variation of `tile_def` that draws these shores. A tile set without the variation for an
+// entering channel falls back to the plain corner, one without that to the sides alone, and one
+// without that to open water.
+fn find_shore_variation(tile_def: &TileDef, neighbors: ShoreNeighbors) -> usize {
+    let find = |sides: usize, diagonals: usize| {
+        let name = ShoreNeighbors { sides, diagonals, attached: 0 }.variation_name();
+        let hash = hash::fnv1a_from_str(&name);
+        tile_def.variations.iter().position(|variation| variation.hash == hash)
+    };
 
-    // Diagonals:
-    let ne = tile_at(tile_map, cell.x + 1, cell.y - 1);
-    let nw = tile_at(tile_map, cell.x + 1, cell.y + 1);
-    let se = tile_at(tile_map, cell.x - 1, cell.y - 1);
-    let sw = tile_at(tile_map, cell.x - 1, cell.y + 1);
+    let mut fallbacks = [
+        Some((neighbors.sides, neighbors.diagonals)),
+        (neighbors.attached != 0).then_some((neighbors.sides, neighbors.diagonals & !neighbors.attached)),
+        (neighbors.diagonals != 0).then_some((neighbors.sides, 0)),
+    ]
+    .into_iter()
+    .flatten();
 
-    // Base mask: which cardinals are land (so this water tile must show transition on those sides).
-    let mut mask = 0;
-    if north.is_land() { mask |= NORTH_BIT; }
-    if south.is_land() { mask |= SOUTH_BIT; }
-    if east.is_land()  { mask |= EAST_BIT;  }
-    if west.is_land()  { mask |= WEST_BIT;  }
-
-    // Decide outer corner — default none.
-    let mut corner = ShoreCorner::None;
-
-    // Condition pattern used for each corner:
-    // 1) diagonal is land
-    // 2) both adjacent cardinals (from the current tile) are water
-    // 3) there is land context:
-    //    either mask != 0 (current tile touches some cardinal land)
-    //    OR the diagonal cell has at least one cardinal land neighbor (so it's not an isolated diagonal)
-
-    // SE diagonal case: se at (x-1, y-1)
-    // adjacent cardinals for current tile: north (x+1,y) and west (x,y+1) must be water
-    if se.is_land()
-        && north.is_water()
-        && west.is_water()
-        && (mask != 0 || neighborhood_has_cardinal_land(tile_map, cell.x - 1, cell.y - 1))
-    {
-        corner = ShoreCorner::SE;
-    }
-
-    // SW diagonal case: sw at (x-1, y+1)
-    // adjacent: north (x+1,y) and east (x,y-1)
-    if sw.is_land()
-        && north.is_water()
-        && east.is_water()
-        && (mask != 0 || neighborhood_has_cardinal_land(tile_map, cell.x - 1, cell.y + 1))
-    {
-        corner = ShoreCorner::SW;
-    }
-
-    // NE diagonal case: ne at (x+1, y-1)
-    // adjacent: south (x-1,y) and west (x,y+1)
-    if ne.is_land()
-        && south.is_water()
-        && west.is_water()
-        && (mask != 0 || neighborhood_has_cardinal_land(tile_map, cell.x + 1, cell.y - 1))
-    {
-        corner = ShoreCorner::NE;
-    }
-
-    // NW diagonal case: nw at (x+1, y+1)
-    // adjacent: south (x-1,y) and east (x,y-1)
-    if nw.is_land()
-        && south.is_water()
-        && east.is_water()
-        && (mask != 0 || neighborhood_has_cardinal_land(tile_map, cell.x + 1, cell.y + 1))
-    {
-        corner = ShoreCorner::NW;
-    }
-
-    // If this tile is completely surrounded by water (mask == 0)
-    // and no diagonal produced a corner (corner == None), keep None.
-
-    (mask, corner)
+    fallbacks.find_map(|(sides, diagonals)| find(sides, diagonals)).unwrap_or(OPEN_WATER_VARIATION)
 }
 
 fn update_tile_transitions(tile_map: &mut TileMap, cell: Cell) {
-    let (mask, corner) = compute_full_water_transitions(tile_map, cell);
+    let Some(tile) = tile_map.try_tile_from_layer(cell, TileMapLayerKind::Terrain) else {
+        return;
+    };
+
+    if !tile.path_kind().is_water() {
+        return;
+    }
+
+    let variation_index = find_shore_variation(tile.tile_def(), shore_neighbors(tile_map, cell));
+
     if let Some(tile) = tile_map.try_tile_from_layer_mut(cell, TileMapLayerKind::Terrain) {
-        if tile.path_kind().is_water() {
-            if let Some(variation_index) = WATER_TRANSITION_VARIATION_LOOKUP[mask] {
-                tile.set_variation_index(variation_index);
-            } else {
-                // Outer corner?
-                if corner != ShoreCorner::None {
-                    tile.set_variation_index(corner as usize);
-                } else {
-                    // Fully surrounded by water.
-                    tile.set_variation_index(FALLBACK_WATER_TRANSITION_VARIATION);
-                }
-            }
-        }
+        tile.set_variation_index(variation_index);
     }
 }
 
-fn update_neighboring_transitions(tile_map: &mut TileMap, cell: Cell) {
+// Picks the shores drawn by the water tile at `cell`, if it is one, and by the water tiles around
+// it, once the terrain at `cell` has changed. A water tile's shores depend on its eight neighbors
+// alone, so the ring around the changed cell holds every tile that can change.
+pub fn update_transitions(tile_map: &mut TileMap, cell: Cell) {
     for y in -1..=1 {
         for x in -1..=1 {
-            let cell = Cell::new(cell.x + x, cell.y + y);
-            if is_water(tile_map, cell) {
-                update_tile_transitions(tile_map, cell);
-            }
+            update_tile_transitions(tile_map, Cell::new(cell.x + x, cell.y + y));
         }
     }
-}
-
-pub fn update_transitions(tile_map: &mut TileMap, cell: Cell) {
-    update_tile_transitions(tile_map, cell);
-    update_neighboring_transitions(tile_map, cell);
 }
 
 // ----------------------------------------------
@@ -232,6 +222,11 @@ pub fn update_port_wharf_orientation(tile_map: &mut TileMap, cell: Cell) {
         }
     }
     panic!("Couldn't find suitable port/wharf variation!");
+}
+
+// Which sides of `cell` have land, as NORTH_BIT | EAST_BIT | SOUTH_BIT | WEST_BIT.
+fn water_transition_mask(tile_map: &TileMap, cell: Cell) -> usize {
+    shore_neighbors(tile_map, cell).sides
 }
 
 fn try_set_port_wharf_variation(tile_map: &mut TileMap, cell: Cell) -> bool {

@@ -12,6 +12,10 @@ Last verified against the code on 2026-10-08. Remove an entry once it's resolved
 - `ProducerBuilding` clears its stock as soon as it hands resources to a delivery unit, so the resources are lost if that unit fails to spawn. The TODO judges this low priority, since a spawn failure would itself be a bug — `crates/game/src/building/producer.rs`.
 - House access to a service is decided by proximity to the service building, measured from the house's road-link tile, not by a service patrol unit actually visiting. A TODO asks whether to switch to visit-based access — `crates/game/src/building/house.rs`.
 
+- Water shores are recomputed only when terrain is placed, so a save made before 2026-10-20, when the composed shore variations (channels, bays, several corners) were added, still draws plain water in a one-cell channel until the land next to it is placed again. Loading doesn't recompute them — `crates/game/src/session.rs`, see `.claude/rules/terrain-tiles.md`.
+
+- The packed texture atlas is loaded from `cache/atlas/<layer>/` whenever that directory exists (`cached_packed_atlas_exists` in `crates/game/src/tile/atlas.rs`) and is only packed when it doesn't, so sprites added or changed under `assets/tiles/` draw as magenta placeholders until the directory is deleted by hand. The cache should be invalidated automatically, e.g. by comparing the sprite files' names and modification times, or a hash of them, with what the cached `atlas_meta.json` was built from.
+
 ## Failure handling
 
 - Save failures, autosave included, are only logged. `GameSession::save_game` returns `false`, but `GameSessionCmdQueue::cmd_save_game` discards that, so the player is never told — `crates/game/src/session.rs`.
