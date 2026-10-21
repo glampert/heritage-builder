@@ -14,8 +14,6 @@ Last verified against the code on 2026-10-08. Remove an entry once it's resolved
 
 - Water shores are recomputed only when terrain is placed, so a save made before 2026-10-20, when the composed shore variations (channels, bays, several corners) were added, still draws plain water in a one-cell channel until the land next to it is placed again. Loading doesn't recompute them — `crates/game/src/session.rs`, see `.claude/rules/terrain-tiles.md`.
 
-- The packed texture atlas is loaded from `cache/atlas/<layer>/` whenever that directory exists (`cached_packed_atlas_exists` in `crates/game/src/tile/atlas.rs`) and is only packed when it doesn't, so sprites added or changed under `assets/tiles/` draw as magenta placeholders until the directory is deleted by hand. The cache should be invalidated automatically, e.g. by comparing the sprite files' names and modification times, or a hash of them, with what the cached `atlas_meta.json` was built from.
-
 ## Failure handling
 
 - Save failures, autosave included, are only logged. `GameSession::save_game` returns `false`, but `GameSessionCmdQueue::cmd_save_game` discards that, so the player is never told — `crates/game/src/session.rs`.

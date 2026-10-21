@@ -1,6 +1,6 @@
 # Terrain tiles: water shores and road junctions
 
-Last verified against the code on 2026-10-20.
+Last verified against the code on 2026-10-21.
 
 ## Water shores
 
@@ -9,7 +9,8 @@ Last verified against the code on 2026-10-20.
 - Hand-made geometry, in cell coordinates where the center is 0 and the edges ±1: a land side's shoreline is 0.25 past the center on the water side, a diagonal's land is the square past both of its edges, and the dirt band is 0.55 wide on the north and south shores but 0.25 on the east and west ones. A one-cell channel moves both shores 0.56 towards their land (`CELL_SHIFT`), so its banks are at ±0.31; every composed junction, bend, bay, pond and channel mouth is built from the hand-made pieces moved the same way, with a bank stopping where the bank across its end has its dirt (`DIRT_EXTENT`). Land wins over water and dirt over grass where pieces overlap.
 - Saves store a tile's variation as an index, so new variations go at the end of the list in `assets/tiles/terrain/tile_set.json`; never reorder them. The sprite frame name (`TileSprite::name`) is an `ArrayString<24>`, sized for the longest composed name.
 - Shores are recomputed only by `TilePlacement::place` ([menu/mod.rs](../../crates/game/src/menu/mod.rs)), which the dev editor, the player's build tools, `world.place` and undo/redo use, and by `debug::utils::refresh_cached_tile_visuals` for the preset maps. The `Spawner` / `SimCmds` tile spawns don't update shores or road junctions, and neither does loading a save or starting a new map: a save made before a variation existed keeps what it stored until the terrain next to it changes.
-- After adding or changing sprites, delete `cache/atlas/` (git-ignored): the game loads the packed texture atlas from there when it exists and only repacks when it doesn't, so new sprites draw as magenta placeholders otherwise.
+- The packed texture atlas is cached per layer in `cache/atlas/<layer>/` (git-ignored) and checked at every boot by `atlas::check_cached_packed_atlas` ([tile/atlas.rs](../../crates/game/src/tile/atlas.rs)): the size and modification time of every `.png` under the layer's assets directory and of its `tile_set.json`, one `stat` per file, a few milliseconds in all, against the list `atlas_meta.json` recorded when the cache was packed. Any difference, a missing cache or another `ATLAS_CACHE_VERSION` packs that layer again and rewrites its cache (about 0.4 s for terrain and 3 s for objects in a debug build), so sprites can be added or changed without touching the cache by hand. Bump `ATLAS_CACHE_VERSION` when the packer configuration or the layout of the cache files changes. A `git checkout` that rewrites sprites changes their modification times and repacks once. Desktop only: the web build packs the atlas on every load and never caches it.
+- A sprite the tile set names but the cache lacks, because its image failed to load when the atlas was packed, is logged as a warning by the cached atlas and draws as a magenta placeholder.
 - Tests: `cargo test -p game --test terrain_placement` places land on a water map through `TilePlacement::place` and checks the variation names, including every one of the 256 neighbor patterns; `crates/game/tests/scenarios/water_edges.jsonl` does the same in the running game and runs in CI.
 
 ## Roads

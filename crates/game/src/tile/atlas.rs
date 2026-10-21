@@ -5,7 +5,12 @@ use serde::{Deserialize, Serialize};
 
 #[cfg(feature = "desktop")]
 use rayon::prelude::*;
+use std::cmp::Ordering;
+#[cfg(feature = "desktop")]
+use std::{path::Path, time::UNIX_EPOCH};
 
+#[cfg(feature = "desktop")]
+use common::time::PerfTimer;
 use common::{
     RectTexCoords,
     Size,
@@ -31,7 +36,10 @@ use super::{TileMapLayerKind, sets::TileTexInfo};
 pub trait TextureAtlas {
     fn load_texture(&mut self, tex_cache: &mut TextureCache, texture_path: PathRef) -> TileTexInfo;
     fn commit_textures(&self, tex_cache: &mut TextureCache);
-    fn save_textures_to_file(&self, base_path: PathRef);
+
+    // Writes the packed pages and their metadata to the cache under `base_path`, along with the
+    // source files the atlas was packed from, which the next boot checks the cache against.
+    fn save_textures_to_file(&self, base_path: PathRef, sources: &[AtlasSourceFile]);
 }
 
 // ----------------------------------------------
@@ -73,7 +81,7 @@ impl TextureAtlas for PassthroughTextureAtlas {
     fn commit_textures(&self, _tex_cache: &mut TextureCache) {}
 
     #[inline]
-    fn save_textures_to_file(&self, _base_path: PathRef) {}
+    fn save_textures_to_file(&self, _base_path: PathRef, _sources: &[AtlasSourceFile]) {}
 }
 
 // ----------------------------------------------
@@ -119,9 +127,17 @@ impl TextureAtlas for RuntimePackedTextureAtlas {
     }
 
     #[cfg(feature = "desktop")]
-    fn save_textures_to_file(&self, base_path: PathRef) {
+    fn save_textures_to_file(&self, base_path: PathRef, sources: &[AtlasSourceFile]) {
         let save_path = paths::base_path().join(base_path).join("atlas").join(self.layer.lowercase_name());
         let metadata_file_path = save_path.join("atlas_meta.json");
+
+        // Remove what a previous pack left there, so that its pages past this
+        // one's page count don't linger. The metadata file is written last.
+        if save_path.exists()
+            && let Err(err) = std::fs::remove_dir_all(&save_path)
+        {
+            log::warning!(log::channel!("atlas"), "Failed to remove the previous texture atlas cache {save_path}: {err}");
+        }
 
         // Creates save_path itself: create_path() makes the directories leading to a file.
         let _ = file_sys::create_path(&metadata_file_path);
@@ -139,11 +155,11 @@ impl TextureAtlas for RuntimePackedTextureAtlas {
             save_sprite_metadata_file((&metadata_file_path).into(), &page.sprites, page_size);
         });
 
-        save_atlas_metadata_file((&metadata_file_path).into(), self.packer.page_count(), self.layer);
+        save_atlas_metadata_file((&metadata_file_path).into(), self.layer, self.packer.page_count(), sources);
     }
 
     #[cfg(feature = "web")]
-    fn save_textures_to_file(&self, _base_path: PathRef) {
+    fn save_textures_to_file(&self, _base_path: PathRef, _sources: &[AtlasSourceFile]) {
         // No-op on Web/WASM: atlas caching is a desktop optimization.
     }
 }
@@ -161,13 +177,12 @@ pub struct OfflinePackedTextureAtlas {
 }
 
 impl OfflinePackedTextureAtlas {
-    pub fn new(layer: TileMapLayerKind, tex_cache: &mut TextureCache) -> Self {
+    // `atlas_metadata` is the cache's own, which check_cached_packed_atlas() found up to date.
+    pub fn new(layer: TileMapLayerKind, tex_cache: &mut TextureCache, atlas_metadata: &AtlasMetadata) -> Self {
+        debug_assert!(atlas_metadata.layer == layer);
         let layer_name = layer.lowercase_name();
 
-        let cache_path = paths::base_path().join(CACHE_BASE_PATH).join("atlas").join(layer_name);
-
-        let atlas_metadata_path = cache_path.join("atlas_meta.json");
-        let atlas_metadata = load_atlas_metadata_file((&atlas_metadata_path).into(), layer);
+        let cache_path = atlas_cache_path(layer);
 
         let mut page_images = load_cached_atlas_page_images(layer_name, atlas_metadata.page_count);
         debug_assert!(page_images.len() == atlas_metadata.page_count);
@@ -233,22 +248,32 @@ impl TextureAtlas for OfflinePackedTextureAtlas {
         debug_assert!(!texture_path.is_empty());
         let key = hash::fnv1a_from_str(texture_path.as_str());
 
-        self.mapping.get(&key).map_or(TileTexInfo::default(), |(page_index, sprite_index)| {
-            let page = &self.pages[*page_index];
-            let sprite = &page.sprites[*sprite_index];
+        let Some((page_index, sprite_index)) = self.mapping.get(&key) else {
+            // The tile set names a sprite the cache was packed without. The cache is checked
+            // against the sprite files and the tile set at boot, so the image couldn't be
+            // loaded when the atlas was packed, e.g. the file is missing.
+            log::warning!(
+                log::channel!("atlas"),
+                "Sprite '{texture_path}' is not in the cached texture atlas for '{}'.",
+                self.layer
+            );
+            return TileTexInfo::default();
+        };
 
-            debug_assert!(sprite.key == key);
-            debug_assert!(sprite.path == texture_path.as_str());
+        let page = &self.pages[*page_index];
+        let sprite = &page.sprites[*sprite_index];
 
-            TileTexInfo { texture: page.texture, coords: sprite.rect }
-        })
+        debug_assert!(sprite.key == key);
+        debug_assert!(sprite.path == texture_path.as_str());
+
+        TileTexInfo { texture: page.texture, coords: sprite.rect }
     }
 
     #[inline]
     fn commit_textures(&self, _tex_cache: &mut TextureCache) {}
 
     #[inline]
-    fn save_textures_to_file(&self, _base_path: PathRef) {}
+    fn save_textures_to_file(&self, _base_path: PathRef, _sources: &[AtlasSourceFile]) {}
 }
 
 // ----------------------------------------------
@@ -257,10 +282,9 @@ impl TextureAtlas for OfflinePackedTextureAtlas {
 
 pub const CACHE_BASE_PATH: PathRef = PathRef::from_str("cache");
 
-pub fn cached_packed_atlas_exists(layer: TileMapLayerKind) -> bool {
-    let layer_name = layer.lowercase_name();
-    let cache_path = paths::base_path().join(CACHE_BASE_PATH).join("atlas").join(layer_name);
-    cache_path.exists()
+// Directory of the cached packed atlas for `layer`: <base_path>/cache/atlas/<layer>/.
+fn atlas_cache_path(layer: TileMapLayerKind) -> FixedPath {
+    paths::base_path().join(CACHE_BASE_PATH).join("atlas").join(layer.lowercase_name())
 }
 
 struct OfflinePackedAtlasPage {
@@ -351,13 +375,15 @@ fn save_sprite_metadata_file(path: PathRef, sprites: &[packer::AtlasSprite], pag
 }
 
 #[derive(Serialize)]
-struct SerializedAtlasMetadata {
-    page_count: usize,
+struct SerializedAtlasMetadata<'a> {
+    cache_version: u32,
     layer: TileMapLayerKind,
+    page_count: usize,
+    sources: &'a [AtlasSourceFile],
 }
 
-fn save_atlas_metadata_file(path: PathRef, page_count: usize, layer: TileMapLayerKind) -> bool {
-    let metadata = SerializedAtlasMetadata { page_count, layer };
+fn save_atlas_metadata_file(path: PathRef, layer: TileMapLayerKind, page_count: usize, sources: &[AtlasSourceFile]) -> bool {
+    let metadata = SerializedAtlasMetadata { cache_version: ATLAS_CACHE_VERSION, layer, page_count, sources };
 
     let mut state = save::new_json_save_state(true);
 
@@ -408,35 +434,263 @@ fn load_sprite_metadata_file(path: PathRef) -> DeserializedSpriteMetadata {
     }
 }
 
+// atlas_meta.json: what the cached atlas holds and what it was packed from.
 #[derive(Deserialize)]
-struct DeserializedAtlasMetadata {
-    page_count: usize,
+pub struct AtlasMetadata {
+    cache_version: u32,
     layer: TileMapLayerKind,
+    page_count: usize,
+    sources: Vec<AtlasSourceFile>,
 }
 
-fn load_atlas_metadata_file(path: PathRef, layer: TileMapLayerKind) -> DeserializedAtlasMetadata {
+// None if the file can't be read or parsed, e.g. one written by a build with another
+// metadata layout. The caller treats that as a stale cache and packs the atlas again.
+fn load_atlas_metadata_file(path: PathRef) -> Option<AtlasMetadata> {
     let mut state = save::new_json_save_state(false);
 
     if let Err(err) = state.read_file(path) {
-        log::error!(log::channel!("atlas"), "Failed to read atlas metadata file {path}: {err}");
-        return DeserializedAtlasMetadata { page_count: 0, layer };
+        log::warning!(log::channel!("atlas"), "Failed to read atlas metadata file {path}: {err}");
+        return None;
     }
 
-    match state.load_new_instance::<DeserializedAtlasMetadata>() {
-        Ok(metadata) => {
-            if metadata.layer != layer {
-                log::error!(
-                    log::channel!("atlas"),
-                    "Wrong atlas metadata layer in {path}: Expected {} but found {}.",
-                    layer,
-                    metadata.layer
-                );
-            }
-            metadata
-        }
+    match state.load_new_instance::<AtlasMetadata>() {
+        Ok(metadata) => Some(metadata),
         Err(err) => {
-            log::error!(log::channel!("atlas"), "Failed to load atlas metadata {path}: {err}");
-            DeserializedAtlasMetadata { page_count: 0, layer }
+            log::warning!(log::channel!("atlas"), "Failed to load atlas metadata {path}: {err}");
+            None
+        }
+    }
+}
+
+// ----------------------------------------------
+// Atlas cache freshness
+// ----------------------------------------------
+
+// Version of the cache's layout: the packer configuration, the page images and the metadata
+// files. Bump it when any of those change in a way that makes a cache written by an older
+// build unusable; a cache with another version is packed again.
+const ATLAS_CACHE_VERSION: u32 = 1;
+
+// A file a packed atlas was built from, a sprite image or the layer's tile_set.json: its path
+// relative to the assets directory, and the size and modification time it had when the atlas
+// was packed. The cache is stale once any of them differs from the file on disk, or a file was
+// added or removed. Checking that costs one stat per file, a few milliseconds for every sprite
+// in the game, where hashing the files' contents would take tens of times longer.
+#[derive(Serialize, Deserialize, Clone, PartialEq, Eq, PartialOrd, Ord, Debug)]
+pub struct AtlasSourceFile {
+    pub path: String,
+    pub size: u64,
+    pub modified_ns: u64, // Nanoseconds since the Unix epoch.
+}
+
+// The cached packed atlas for a layer, checked against the files it was packed from.
+pub enum AtlasCacheState {
+    // The cache was packed from the sprite files as they are on disk now: load it.
+    Fresh(AtlasMetadata),
+    // There is no cache, it has another cache version, or sprite files were changed, added or
+    // removed since it was packed: pack the atlas again and save it along with these source files.
+    Stale(Vec<AtlasSourceFile>),
+}
+
+// Checks the cached packed atlas for `layer` against the sprite files on disk. Runs at every
+// boot, before any sprite is loaded, so that a sprite edited while the atlas is being packed
+// shows up as changed on the next boot rather than being missed.
+#[cfg(feature = "desktop")]
+pub fn check_cached_packed_atlas(layer: TileMapLayerKind) -> AtlasCacheState {
+    let timer = PerfTimer::begin();
+    let sources = collect_atlas_source_files(layer);
+    let source_count = sources.len();
+
+    let metadata_path = atlas_cache_path(layer).join("atlas_meta.json");
+
+    let cached_metadata = if metadata_path.exists() {
+        load_atlas_metadata_file((&metadata_path).into())
+    } else {
+        log::info!(log::channel!("atlas"), "No cached texture atlas for '{layer}' ({metadata_path}).");
+        None
+    };
+
+    let state = match cached_metadata {
+        None => AtlasCacheState::Stale(sources),
+        Some(metadata) if metadata.cache_version != ATLAS_CACHE_VERSION => {
+            log::info!(
+                log::channel!("atlas"),
+                "Cached texture atlas for '{layer}' has cache version {}, this build uses {ATLAS_CACHE_VERSION}.",
+                metadata.cache_version
+            );
+            AtlasCacheState::Stale(sources)
+        }
+        Some(metadata) if metadata.layer != layer => {
+            log::error!(
+                log::channel!("atlas"),
+                "Wrong atlas metadata layer in {metadata_path}: Expected {layer} but found {}.",
+                metadata.layer
+            );
+            AtlasCacheState::Stale(sources)
+        }
+        Some(metadata) if metadata.sources != sources => {
+            let changes = AtlasSourceChanges::between(&metadata.sources, &sources);
+            log::info!(
+                log::channel!("atlas"),
+                "Cached texture atlas for '{layer}' is stale: {} source files changed, {} added, {} removed ({}).",
+                changes.changed,
+                changes.added,
+                changes.removed,
+                changes.examples
+            );
+            AtlasCacheState::Stale(sources)
+        }
+        Some(metadata) => AtlasCacheState::Fresh(metadata),
+    };
+
+    log::info!(
+        log::channel!("atlas"),
+        "Checked the texture atlas cache for '{layer}' against {source_count} source files in {:.1}ms: {}.",
+        timer.end(),
+        if matches!(state, AtlasCacheState::Fresh(_)) { "up to date" } else { "stale" }
+    );
+
+    state
+}
+
+#[cfg(feature = "web")]
+pub fn check_cached_packed_atlas(_layer: TileMapLayerKind) -> AtlasCacheState {
+    // Atlas caching is a desktop optimization: Web/WASM packs the atlas on every load.
+    AtlasCacheState::Stale(Vec::new())
+}
+
+// Every sprite image under the layer's assets directory, and the tile set that says which of
+// them the atlas needs, sorted by path: directory entries come in no particular order.
+#[cfg(feature = "desktop")]
+fn collect_atlas_source_files(layer: TileMapLayerKind) -> Vec<AtlasSourceFile> {
+    let assets_path = paths::assets_path();
+    let layer_path = assets_path.join(layer.assets_path());
+
+    let assets_dir: &Path = assets_path.as_ref();
+    let layer_dir: &Path = layer_path.as_ref();
+
+    let mut sources = Vec::with_capacity(512);
+    collect_atlas_source_files_in_dir(assets_dir, layer_dir, &mut sources);
+    sources.sort();
+    sources
+}
+
+#[cfg(feature = "desktop")]
+fn collect_atlas_source_files_in_dir(assets_dir: &Path, dir: &Path, sources: &mut Vec<AtlasSourceFile>) {
+    let entries = match std::fs::read_dir(dir) {
+        Ok(entries) => entries,
+        Err(err) => {
+            log::error!(log::channel!("atlas"), "Failed to read directory {}: {err}", dir.display());
+            return;
+        }
+    };
+
+    for entry in entries {
+        let entry = match entry {
+            Ok(entry) => entry,
+            Err(err) => {
+                log::error!(log::channel!("atlas"), "Failed to read an entry of directory {}: {err}", dir.display());
+                continue;
+            }
+        };
+
+        let path = entry.path();
+        let Ok(file_type) = entry.file_type() else {
+            continue;
+        };
+
+        if file_type.is_dir() {
+            collect_atlas_source_files_in_dir(assets_dir, &path, sources);
+        } else if file_type.is_file() && is_atlas_source_file(&path) {
+            let Ok(metadata) = entry.metadata() else {
+                continue;
+            };
+
+            let modified_ns = metadata
+                .modified()
+                .ok()
+                .and_then(|time| time.duration_since(UNIX_EPOCH).ok())
+                .map_or(0, |since_epoch| u64::try_from(since_epoch.as_nanos()).unwrap_or(u64::MAX));
+
+            // Relative to the assets directory, with the separators the sprite keys use.
+            let relative_path = path.strip_prefix(assets_dir).unwrap_or(&path);
+            let path = relative_path.to_string_lossy().replace('\\', "/");
+
+            sources.push(AtlasSourceFile { path, size: metadata.len(), modified_ns });
+        }
+    }
+}
+
+#[cfg(feature = "desktop")]
+fn is_atlas_source_file(path: &Path) -> bool {
+    path.extension().is_some_and(|ext| ext == "png") || path.file_name().is_some_and(|name| name == "tile_set.json")
+}
+
+// What differs between the source files a cache was packed from and the ones on disk now,
+// for the log. Both lists are sorted by path.
+#[derive(Default, Debug, PartialEq, Eq)]
+struct AtlasSourceChanges {
+    changed: usize,
+    added: usize,
+    removed: usize,
+    examples: String, // The first few, e.g. "changed tiles/terrain/water/water/1010/1010.png, added ...".
+}
+
+impl AtlasSourceChanges {
+    const MAX_EXAMPLES: usize = 5;
+
+    fn between(cached: &[AtlasSourceFile], current: &[AtlasSourceFile]) -> Self {
+        let mut changes = Self::default();
+        let (mut i, mut j) = (0, 0);
+
+        while i < cached.len() || j < current.len() {
+            // Equal paths are the same file; otherwise the lesser path is a file the other list lacks.
+            let order = match (cached.get(i), current.get(j)) {
+                (Some(old), Some(new)) => old.path.cmp(&new.path),
+                (Some(_), None) => Ordering::Less,
+                (None, Some(_)) => Ordering::Greater,
+                (None, None) => unreachable!(),
+            };
+
+            match order {
+                Ordering::Equal => {
+                    if cached[i] != current[j] {
+                        changes.changed += 1;
+                        changes.add_example("changed", &current[j].path);
+                    }
+                    i += 1;
+                    j += 1;
+                }
+                Ordering::Less => {
+                    changes.removed += 1;
+                    changes.add_example("removed", &cached[i].path);
+                    i += 1;
+                }
+                Ordering::Greater => {
+                    changes.added += 1;
+                    changes.add_example("added", &current[j].path);
+                    j += 1;
+                }
+            }
+        }
+
+        let total = changes.changed + changes.added + changes.removed;
+        if total > Self::MAX_EXAMPLES {
+            changes.examples.push_str(&format!(", {} more", total - Self::MAX_EXAMPLES));
+        }
+
+        changes
+    }
+
+    // Call after counting the change, so the count tells whether it is among the first few.
+    fn add_example(&mut self, what: &str, path: &str) {
+        if self.changed + self.added + self.removed <= Self::MAX_EXAMPLES {
+            if !self.examples.is_empty() {
+                self.examples.push_str(", ");
+            }
+            self.examples.push_str(what);
+            self.examples.push(' ');
+            self.examples.push_str(path);
         }
     }
 }
@@ -623,5 +877,44 @@ mod packer {
 
             dst_buf[dst_row_start..dst_row_end].copy_from_slice(&src_buf[src_row_start..src_row_start + src_stride]);
         }
+    }
+}
+
+// ----------------------------------------------
+// Unit Tests
+// ----------------------------------------------
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn source(path: &str, size: u64, modified_ns: u64) -> AtlasSourceFile {
+        AtlasSourceFile { path: path.to_string(), size, modified_ns }
+    }
+
+    #[test]
+    fn source_changes_between_lists() {
+        let cached = vec![source("a.png", 1, 10), source("b.png", 2, 20), source("d.png", 4, 40)];
+        let current = vec![source("a.png", 1, 10), source("b.png", 2, 21), source("c.png", 3, 30)];
+
+        let changes = AtlasSourceChanges::between(&cached, &current);
+        assert_eq!((changes.changed, changes.added, changes.removed), (1, 1, 1));
+        assert_eq!(changes.examples, "changed b.png, added c.png, removed d.png");
+
+        assert_eq!(AtlasSourceChanges::between(&cached, &cached), AtlasSourceChanges::default());
+        assert_eq!(AtlasSourceChanges::between(&[], &[]), AtlasSourceChanges::default());
+    }
+
+    #[test]
+    fn source_changes_list_the_first_few() {
+        let cached: Vec<_> = (0..8).map(|n| source(&format!("{n}.png"), 1, 1)).collect();
+
+        let changes = AtlasSourceChanges::between(&cached, &[]);
+        assert_eq!(changes.removed, 8);
+        assert_eq!(changes.examples, "removed 0.png, removed 1.png, removed 2.png, removed 3.png, removed 4.png, 3 more");
+
+        let changes = AtlasSourceChanges::between(&[], &cached);
+        assert_eq!(changes.added, 8);
+        assert!(changes.examples.starts_with("added 0.png, "));
     }
 }

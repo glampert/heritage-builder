@@ -1544,32 +1544,35 @@ impl TileSets {
         if use_packed_texture_atlas {
             log::info!(log::channel!("tileset"), "Texture Atlas Packing: YES");
 
-            // If we have a pre-packed texture atlas already exported we can load it directly.
-            // Otherwise build the atlas on-the-fly and export it to the local cache, so next
-            // time it will be available and loaded very efficiently.
-            if atlas::cached_packed_atlas_exists(layer) {
-                log::info!(log::channel!("tileset"), "Loading offline packed Texture Atlas for '{layer}'...");
+            // If the pre-packed texture atlas in the local cache was packed from the sprite
+            // files as they are now, load it directly. Otherwise build the atlas on-the-fly
+            // and export it to the cache, so next time it will be loaded very efficiently.
+            match atlas::check_cached_packed_atlas(layer) {
+                AtlasCacheState::Fresh(cached_metadata) => {
+                    log::info!(log::channel!("tileset"), "Loading offline packed Texture Atlas for '{layer}'...");
 
-                let mut tex_atlas = OfflinePackedTextureAtlas::new(layer, tex_cache);
-                if !tile_set.post_load(tex_cache, &mut tex_atlas, tile_set_path, skip_loading_textures) {
-                    log::error!(log::channel!("tileset"), "Post load failed for TileSet '{layer}' - {tile_set_json_path}!");
-                    return false;
+                    let mut tex_atlas = OfflinePackedTextureAtlas::new(layer, tex_cache, &cached_metadata);
+                    if !tile_set.post_load(tex_cache, &mut tex_atlas, tile_set_path, skip_loading_textures) {
+                        log::error!(log::channel!("tileset"), "Post load failed for TileSet '{layer}' - {tile_set_json_path}!");
+                        return false;
+                    }
+                    tex_atlas.commit_textures(tex_cache);
                 }
-                tex_atlas.commit_textures(tex_cache);
-            } else {
-                log::info!(log::channel!("tileset"), "Packing Texture Atlas on-the-fly for '{layer}'...");
+                AtlasCacheState::Stale(sources) => {
+                    log::info!(log::channel!("tileset"), "Packing Texture Atlas on-the-fly for '{layer}'...");
 
-                let mut tex_atlas = RuntimePackedTextureAtlas::new(layer, tex_cache);
-                if !tile_set.post_load(tex_cache, &mut tex_atlas, tile_set_path, skip_loading_textures) {
-                    log::error!(log::channel!("tileset"), "Post load failed for TileSet '{layer}' - {tile_set_json_path}!");
-                    return false;
+                    let mut tex_atlas = RuntimePackedTextureAtlas::new(layer, tex_cache);
+                    if !tile_set.post_load(tex_cache, &mut tex_atlas, tile_set_path, skip_loading_textures) {
+                        log::error!(log::channel!("tileset"), "Post load failed for TileSet '{layer}' - {tile_set_json_path}!");
+                        return false;
+                    }
+                    tex_atlas.commit_textures(tex_cache);
+
+                    // Save sprite sheet images and metadata, with the source files they were packed
+                    // from, so next time around we'll be able to use the OfflinePackedTextureAtlas.
+                    log::info!(log::channel!("tileset"), "Saving packed Texture Atlas to file cache...");
+                    tex_atlas.save_textures_to_file(atlas::CACHE_BASE_PATH, &sources);
                 }
-                tex_atlas.commit_textures(tex_cache);
-
-                // Save sprite sheet images and metadata so next time
-                // around we'll be able to use the OfflinePackedTextureAtlas.
-                log::info!(log::channel!("tileset"), "Saving packed Texture Atlas to file cache...");
-                tex_atlas.save_textures_to_file(atlas::CACHE_BASE_PATH);
             }
         } else {
             log::info!(log::channel!("tileset"), "Texture Atlas Packing: NO");
