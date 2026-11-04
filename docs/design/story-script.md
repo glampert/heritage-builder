@@ -1,111 +1,186 @@
 # Heritage Builder — Story Script
 
-Storyboard for the intro/story comic, one section per frame.
+Story comics play before a campaign, between key missions and at the end. They follow [story.md](story.md), and all names are fictional (see [world.md](world.md)).
 
-## Frame 1 — “Adopted, Yet Chosen”
+**Format:** a short sequence of full-screen panels with narration in "ink cloud" captions and dialogue in ink bubbles. Each sequence is 4–8 panels.
 
-- **Visual:** Royal hall, lacquer-inspired textures, Emperor seated, Khai Sơn kneeling with respectful posture.
-- **Narration (ink cloud):** "Not born of the Dragon Line, yet raised beneath the royal sun."
-- **Emperor (ink bubble):** "Your father died protecting this realm. You shall rise in his honor."
+**Art style per realm:**
+- **Đại Long:** inspired by woodblock prints and lacquer painting. Bold outlines, flat warm colours, decorative sun, fish and crane motifs.
+- **Kambara:** inspired by temple bas-reliefs. Sandstone tones, figures in profile, layered friezes.
+- **Tampadesa:** inspired by temple murals. Red, ochre and white grounds, rows of small figures, gold accents.
 
-## Frame 2 — “To the Frontier”
+---
 
-- **Visual:** Khai Sơn leading settlers through a wooden gate toward riverlands, carrying tools and scrolls. Đông Hồ hills, fish, cranes, and sun motifs in background.
-- **Narration:** "To silence doubt, he is sent where wilderness meets destiny."
-- **Khai Sơn (ink bubble):** "I will build not for power, but for the people."
+## Campaign I — The Dragon Legacy
 
-## Frame 3 — “Legacy Begins With Hands in Soil”
+Campaign I is scripted panel by panel below. Its sequences are:
 
-- **Visual:** Khai Sơn planting a wooden stake into earth, settlers behind him, cranes flying upwards, soil patterns reflecting Đông Hồ strokes.
-- **Narration:** "A leader is forged not by blood, but by creation."
-- **Khai Sơn (ink bubble, bold ink):** "From this land, a new heritage shall rise."
+| Sequence | Plays | Panels |
+|---|---|---|
+| I-A "Adopted, Yet Chosen" | Before mission 1 | 6 |
+| I-B "The Governor of the South" | After mission 5 | 4 |
+| I-C "The Dragon Falls Silent" | After mission 7 | 6 |
+| I-D "The Silent Siege" | After mission 9 | 8 |
+| I-E "The Ascending River" | After mission 10 (ending) | 4 |
 
-## Frame 4 — building the town
+### I-A — "Adopted, Yet Chosen" (before mission 1)
 
-- **Narration:** "Building everything from the scratch is not easy"
-- **Dialogue — Khai Sơn:** "we need 100 more men!"
+**Panel 1**
+- **Visual:** the throne hall at Hoa Thành, lacquer red and gold. The ageing Emperor Long Thái is seated. The young Khai Sơn kneels, and courtiers whisper behind fans.
+- **Narration:** "Not born of the Dragon Line, yet raised beneath the royal sun."
+- **Courtier (whisper bubble):** "He is not of the Dragon Line."
 
-## Frame 5 — The Town Thrives
+**Panel 2**
+- **Visual:** a flashback in sepia ink. General Phan Trung falls defending a gate, and the Emperor holds a child's hand.
+- **Emperor (ink bubble):** "Your father died protecting this realm. I have raised you in his honour."
 
-- **Narration:** "From humble beginnings, prosperity now blossoms."
-- **Villager Dialogue (group speech bubble):** "Governor Khai Sơn, thank you for giving us a future!"
-- **Scene Direction:** Villagers are smiling warmly, bowing respectfully, and offering thanks, gifts, or fresh flowers toward Khai Sơn.
-- **Khai Sơn (gentle expression, no arrogance):** "This prosperity belongs to you — the people."
+**Panel 3**
+- **Visual:** Prince Long Uy stands beside the throne, arms folded, his eyes on Khai Sơn.
+- **Prince Long Uy (ink bubble):** "Honour is inherited, Father. Not borrowed."
 
-## Frame 6 — The Crown Falls 💀
+**Panel 4**
+- **Visual:** the Emperor hands Khai Sơn a sealed scroll and a governor's seal.
+- **Emperor:** "Go south, to the plains the river has emptied. Build there — not for me, but for those who will live there. Let your works answer the court."
 
-- **Visual:** The First Son in a shadowy private chamber, receiving news of the Emperor's death. His expression is cold, triumphant, and calculating.
-- **Narration:** "The Dragon Line has fractured. The Emperor is gone, and the true-born son ascends in shadow."
-- **First Son (ink bubble, cold smirk):** "The crown is mine. Now, we deal with the popularity of the King that never was."
+**Panel 5**
+- **Visual:** Khai Sơn leads settlers through a wooden gate towards the river lands, carrying tools, seed rice and scrolls. Master Văn Lễ rides an ox cart. Woodblock-print hills, fish, cranes and sun.
+- **Narration:** "To silence doubt, he was sent where the wilderness meets destiny."
+- **Khai Sơn:** "I will build not for power, but for the people."
 
-## Frame 7 — Whispers of Tyranny
+**Panel 6**
+- **Visual:** Khai Sơn drives a wooden stake into the riverbank mud. Settlers stand behind him, and cranes rise into the sky.
+- **Narration:** "A leader is forged not by blood, but by what he creates."
+- **Khai Sơn (bold ink):** "From this land, a new heritage shall rise."
 
-- **Visual:** The First Son, now seated on a throne or at the head of a table, addressing his inner circle. His posture is arrogant, reflecting his new, unchallenged power.
-- **Narration:** "Power shifts in the shadows, where a new tyrant finds willing ears."
-- **First Son (ink bubble, commanding tone):** "Khai Sơn’s 'popularity' grows tiresome. It is time to remind the people where the Crown's absolute authority lies."
+### I-B — "The Governor of the South" (after mission 5)
 
-## Frame 8 — A Shadow Falls
+**Panel 1**
+- **Visual:** a montage of the delta villages, dykes and the highland market, all thriving.
+- **Narration:** "From humble beginnings, prosperity blossomed."
 
-- **Visual:** Imperial guards imposing new taxes in Khai Sơn's town square. Khai Sơn observes with concern.
-- **Narration:** "The seeds of discord are sown, threatening the newly built peace."
-- **Imperial Guard (ink bubble, stern voice, addressing villagers):** "By the King's own decree, a new levy is imposed! Pay your dues to the Crown!"
+**Panel 2**
+- **Visual:** villagers bow and offer flowers and rice to Khai Sơn.
+- **Villagers (group bubble):** "Governor, thank you for giving us a future!"
+- **Khai Sơn (gentle):** "This prosperity belongs to you, the people."
 
-## Frame 9 — Khai Sơn Confronts
+**Panel 3**
+- **Visual:** in the throne hall, the Emperor names Khai Sơn Governor of the Southern Provinces.
+- **Emperor:** "The court asked what blood you carry. The river has answered."
 
-- **Visual:** Khai Sơn stepping forward to confront the Imperial Guard captain, standing between the guards and anxious villagers.
-- **Narration:** "A leader's true test is in standing against injustice."
-- **Khai Sơn (ink bubble, strong, clear voice):** "By whose authority do you demand this? This town pays its rightful tributes!"
+**Panel 4**
+- **Visual:** in the shadows, Prince Long Uy listens as Chancellor Đoàn Kỳ murmurs to him.
+- **Đoàn Kỳ:** "The people sing his name in the south, Highness. Soon they will sing it in the capital."
 
-## Frame 10 — The Unsigned Order
+### I-C — "The Dragon Falls Silent" (after mission 7)
 
-- **Visual:** Close-up of the Imperial Guard Captain's hand holding a sealed scroll, thrust toward Khai Sơn.
-- **Narration:** "The decree is delivered, bearing the weight of the new King's command, forcing a desperate choice."
-- **Imperial Guard Captain (ink bubble, dismissive):** "My authority comes from the Crown itself! You, adopted Governor, have grown too bold! Read it and obey!"
+**Panel 1**
+- **Visual:** night in the palace. Incense smoke, and the Emperor on his deathbed.
+- **Narration:** "The Emperor's last words were of the river and the people."
 
-## Frame 11 — The Stand Against Tyranny
+**Panel 2**
+- **Visual:** Long Uy is crowned. Đoàn Kỳ stands at his shoulder.
+- **Narration:** "The Dragon Line has passed to the true-born son, and to those who whisper in his ear."
 
-- **Visual:** Khai Sơn tearing or discarding the scroll, flanked by villagers armed with tools, confronting the Imperial Guards. Sunset background.
-- **Narration:** "But loyalty to a tyrant's decree is no loyalty at all. For the people, Khai Sơn chooses treason."
-- **Khai Sơn (ink bubble, powerful, resolute shout):** "This is not justice! We built this land with our hands, and we will defend it with our lives!"
+**Panel 3**
+- **Visual:** a council table with maps. Đoàn Kỳ points at the southern provinces.
+- **Đoàn Kỳ:** "The south grows rich while the crown's coffers thin. A new levy, Majesty, and the border lands of Kambara are there for the taking."
+- **King Long Uy:** "Let the south pay. And let the west remember who rules."
 
-## Frame 12 — The First Blow
+**Panel 4**
+- **Visual:** imperial guards read a decree in a flood-damaged market square in Khai Sơn's town. The villagers are anxious.
+- **Imperial Guard Captain:** "By the King's decree, a new levy of grain! Pay your dues to the Crown!"
 
-- **Visual:** Dynamic action shot. Khai Sơn deflecting the Imperial Guard Captain's attack. Chaotic background of skirmishes.
-- **Narration:** "The defiance gives way to battle. The people of the new town fight not for the throne, but for the soil."
-- **Villager (ink bubble, determined yell):** "Defend our home!"
+**Panel 5**
+- **Visual:** Khai Sơn steps between the guards and the villagers.
+- **Khai Sơn:** "These fields drowned this season. The levy will be paid — from my treasury, not their bowls."
 
-## Frame 13 — Khai Sơn's Strategy
+**Panel 6**
+- **Visual:** a close-up of the captain's face, looking suspicious.
+- **Captain:** "The King will hear of your generosity, Governor."
+- **Narration:** "Sometimes loyalty to the people looks like defiance to the throne."
 
-- **Visual:** Khai Sơn directing villagers who are outmaneuvering the Imperial Guards using terrain and simple tools.
-- **Narration:** "Against steel and armor, the spirit of unity and the wisdom of the land prove a potent shield."
-- **Khai Sơn (ink bubble, calm but firm command):** "Hold the south gate! Drive them towards the river!"
+*Mission 8's levy choice continues this scene in gameplay.*
 
-## Frame 14 — Retreat of the Crown
+### I-D — "The Silent Siege" (after mission 9)
 
-- **Visual:** Imperial Guards retreating in disarray. Villagers stand triumphant. Khai Sơn watches the retreat.
-- **Narration:** "The first wave recedes, leaving triumph in its wake, but the shadow of the throne still looms."
-- **Imperial Guard Captain (ink bubble, enraged, looking back at Khai Sơn):** "This isn't over, Governor! The King will hear of this defiance and your treason!"
+**Panel 1**
+- **Visual:** dawn over the estuary. Broken enemy hulls are caught on stakes, the tide is going out, and militia cheer on the banks.
+- **Narration:** "The northern fleet came with the tide, and broke upon the river's teeth."
 
-## Frame 15 — The Tyrant's Fury
+**Panel 2**
+- **Visual:** in a provincial hall, King Long Uy is in exile from his own capital, raging.
+- **King Long Uy:** "He held the river while I fled? Then all will say he is the king I am not! Send the Royal Legion. Bring me the traitor."
 
-- **Visual:** Back in the palace. The First Son (now King) is enraged, slamming a fist down, surrounded by wary advisors.
-- **Narration:** "Word of defiance travels fast, igniting the flames of a tyrant's wounded pride."
-- **First Son (ink bubble, roaring with anger):** "Defeated by mere farmers?! That insolent 'Governor' will pay for this humiliation! Bring the full Royal Legion!"
+**Panel 3**
+- **Visual:** a great map of the south. Khai Sơn's cities are linked by roads and canals. Ngọc Lan and Commander Hà Vũ stand with Khai Sơn.
+- **Hà Vũ:** "The Legion marches south, my Governor. Their road passes through three of our cities."
+- **Khai Sơn:** "Then we will meet them as we meet every traveller."
 
-## Frame 16 — The Web of Prosperity
+**Panel 4**
+- **Visual:** a wide shot. The huge Legion is halted on a dyke road. Thousands of unarmed farmers, scholars and merchants fill the road and paddies, offering rice, tea and water.
+- **Narration:** "The King sent steel. The south answered with bread."
 
-- **Visual:** A vast map of the riverlands/frontier region, highlighting Khai Sơn's original thriving town and several smaller, interconnected new settlements (represented by prosperous icons). Lines of trade and road networks connect them all. In the foreground, Khai Sơn is surveying the map with a trusted advisor, looking determined and confident.
-- **Narration:** "While the tyrant focused on war, Khai Sơn focused on life. His vision of prosperity spread, turning the frontier into a network of unshakable loyalty."
-- **Trusted Advisor (ink bubble, urgent):** "My Governor, the 'Royal Legion' approaches! But their route passes three loyal, established cities!"
+**Panel 5**
+- **Visual:** soldiers lower their spears. One takes a bowl of rice from an old woman.
+- **Legion Commander:** "We cannot march through our own people. We will not."
 
-## Frame 17 — The Silent Siege
+**Panel 6**
+- **Visual:** the palace again. Courtiers turn away from Đoàn Kỳ, and guards lead him out.
+- **Narration:** "The court that whispered for the Chancellor now whispered against him."
 
-- **Visual:** A powerful, wide shot. The huge Royal Legion is stalled. They are not fighting, but their path is blocked by massive numbers of organized, peaceful citizens from three different settlements (Khai Sơn's and two others). These citizens are using resources (food, water, morale) to deny the legion passage, or their presence is simply overwhelming. The Legion's soldiers look frustrated, confused, and reluctant to attack unarmed, prosperous people.
-- **Narration:** "The tyrant sent steel, but Khai Sơn met them with stability. The Legion could not march on war when the path was blocked by prosperity and overwhelming popular will."
-- **Legion Commander (ink bubble, defeated, speaking into the distance):** "We cannot advance! We dare not attack the lifeblood of the realm!"
+**Panel 7**
+- **Visual:** a mountain monastery in the mist. Long Uy, in plain robes, faces Khai Sơn.
+- **Long Uy:** "I was born to the throne and could not hold it. You were not, and the people gave it to you."
+- **Khai Sơn:** "Then let us both serve them, brother — you in prayer, I in labour."
 
-## Frame 18 — The People's King (The True Ending)
+**Panel 8**
+- **Visual:** the court, ministers and people bow before Khai Sơn on the palace steps.
+- **Minister:** "Leadership is earned, not inherited."
 
-- **Visual:** Khai Sơn standing tall on the steps of the Imperial Palace. The Emperor/Old King is absent. Khai Sơn is cheered by a massive crowd; a loyal Minister or General bows.
-- **Narration (Final, bold statement):** "The tyrant is vanquished, undone not by swords, but by the power of good governance. Khai Sơn, the adopted son, who built a future with loyalty and empowered people across the realm, takes his rightful place: The King of the New Dawn."
-- **New Royal Advisor (ink bubble, dignified, not the Emperor):** "Leadership is earned, not inherited."
+### I-E — "The Ascending River" (after mission 10)
+
+**Panel 1**
+- **Visual:** King Khai Sơn writes the edict moving the capital with a brush.
+- **Narration:** "His first edict moved the capital to the delta, where the dragon rose from the river."
+
+**Panel 2**
+- **Visual:** a panorama of Thăng Hà: the Imperial Citadel, the Temple of Learning in the distance, river trade.
+
+**Panel 3**
+- **Visual:** a stele on a stone turtle is carved with Khai Sơn's deeds. The player's mission results appear as lines on it.
+
+**Panel 4**
+- **Narration (bold):** "The people remember his walls not for their height, but for the peace they sheltered."
+
+---
+
+## Campaign II — The Temple Mountain (beat outline, to be scripted)
+
+| Sequence | Plays | Beats |
+|---|---|---|
+| II-A "The Lake Provinces" | Before mission 1 | King Suryadeva's vision of a temple-mountain mirroring the heavens. He appoints Sovanna. Achar Vama: "The lake breathes." |
+| II-B "Envoys at the Border" | After mission 4 | Sovanna and Khai Sơn's envoy make the truce under a banyan tree, mirroring Campaign I. The King's displeasure. |
+| II-C "The Mountain of the Gods" | After mission 5 | Suryagiri consecrated. Achar Vama's death. Suryadeva's own death. Vrah Sena's rise and Jayadeva's flight into exile. |
+| II-D "Fire on the Water" | After mission 7 | The sack seen from the water: Admiral Pô Rinda's fleet and burning towers. Sovanna among refugees on the causeway. |
+| II-E "Rebuild for the Living" | Before mission 8 | Jayadeva returns. He kneels to help a wounded child. Grain boats arrive from Đại Long. |
+| II-F "The Faces Smile" | After mission 10 (ending) | The Temple of Four Faces. The House of Ja's ships return as traders. The aged Sovanna's stele. |
+
+## Campaign III — The Plain of Ten Thousand Temples (beat outline, to be scripted)
+
+| Sequence | Plays | Beats |
+|---|---|---|
+| III-A "The Captive Scholar" | Before mission 1 | Hamsara falls. Scriptures are carried north on white elephants. The young Thiha walks among the captives. Mahathura offers him a ruined village. |
+| III-B "The Relic" | After mission 4 | The relic procession to the Gilded Stupa. Mahathura frees Thiha. |
+| III-C "Home Is a Foreign Land" | Before mission 6 | Thiha returns to Hamsara as governor and is met with silence. |
+| III-D "A Temple on Every Field" | After mission 7 | Mahathura dies. Narathiri's coronation. Nobles compete over temples. Treasurer Maung Pe's empty chests. |
+| III-E "The Envoys of the Steppe" | Before mission 9 | The Khaganate's envoys demand submission, and Narathiri insults them. Arslan Noyan receives the news. |
+| III-F "The Three Crowns" | After mission 10 (ending) | Aid arrives from Đại Long and Kambara. The monsoon and fevers. Arslan Noyan looks over the plain of temples and turns back. Thiha's stele. |
+
+## Epilogue — The Three Steles (after Campaign III)
+
+| Panel | Visual and text |
+|---|---|
+| 1 | Centuries later. Travellers in many kinds of dress walk the dyke-lined river of Thăng Hà. |
+| 2 | The face towers of Yasonagara, wrapped in roots, smile at visitors. |
+| 3 | Sunrise over the plain of temples at Pugara. |
+| 4 | The three steles stand together. **Narration:** "They built for those who came after them." |
