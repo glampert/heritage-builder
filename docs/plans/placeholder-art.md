@@ -1,6 +1,6 @@
 # Placeholder art pipeline
 
-**Status (2026-11-05): Draft. Not started.** This plan turns the Blender tile generator in `crates/tools/blender-tile-generator/` (`hb_tile_gen.py` and its README) into the game's source of placeholder art. It renders every building, terrain tile, overlay and prop that the design calls for and the hand-made art doesn't cover yet, and writes them into `assets/tiles/` with their `tile_set.json` entries. It is milestone M2 of the [roadmap](roadmap.md), and runs alongside the gameplay milestones. It was researched against `d0696fe` on `main`, plus the generator that commit `d414cc1` added to the repo.
+**Status (2026-11-05): In progress.** The engine camera works, and the first generated building, the roof-tile kiln, is in the game (Phase 1 notes). This plan turns the Blender tile generator in `crates/tools/blender-tile-generator/` (`hb_tile_gen.py` and its README) into the game's source of placeholder art. It renders every building, terrain tile, overlay and prop that the design calls for and the hand-made art doesn't cover yet, and writes them into `assets/tiles/` with their `tile_set.json` entries. It is milestone M2 of the [roadmap](roadmap.md), and runs alongside the gameplay milestones. It was researched against `d0696fe` on `main`, plus the generator that commit `d414cc1` added to the repo.
 
 ## How to resume this work
 
@@ -106,18 +106,18 @@ crates/tools/blender-tile-generator/
 
 ### 2. Fitting the game's format: camera, anchor and density
 
-- **Fixed density** (Q1): render at **4 px per logical px**, so 256 px per cell of width. Then:
-  - a 1×1 building is 256 px wide and a 5×5 is 1280;
-  - a terrain tile is 256×128 plus its side faces;
-  - `draw_size` = PNG size ÷ 4, so the width is exactly `cells × 64` and the height is whatever the model needs.
+- **Fixed density** (Q1): render at **8 px per logical px** (first planned as 4), so 512 px per cell of width. Then:
+  - a 1×1 building is 512 px wide and a 5×5 is 2560;
+  - a terrain tile is 512×256 plus its side faces;
+  - `draw_size` = PNG size ÷ 8, so the width is exactly `cells × 64` and the height is whatever the model needs.
 
-  This is about the density of today's 3×3 and terrain art. It's plenty when zoomed in, it fits the 4096² atlas pages, and it gives one rule for every tile.
+  This is about the density of today's 2×2 art (the 3×3 and terrain art are 5–6×). It holds up next to the hand-made art at high zoom, it fits the 4096² atlas pages, and it gives one rule for every tile.
 - **Bottom anchor:** the bottom vertex of the footprint diamond, at **z = 0**, goes **exactly on the bottom edge of the frame**. That matches `y -= draw_h - 32`.
   - Today's 6 px pad on the earth slab's front corner becomes 0, measured at z = 0.
   - Anything below ground, such as an earth slab or a moat, is cut off. Recipes that need visible depth (moats, wharves) report a `depth_px`, and the catalog turns it into an `iso_offset`.
 - **One size argument:** `setup_camera` takes `G` from the recipe, so `cells` disappears. The camera position moves out with the size, so tall or large models don't get clipped by the near plane.
 - **Trimming:** `trim_top` stays (crop the empty rows above, keep the width).
-- **Oversampling** (later, optional): render at 8× and downsample to 4× with a box filter in `build.py`, for cleaner outlines.
+- **Oversampling** (later, optional): render at 16× and downsample to 8× with a box filter in `build.py`, for cleaner outlines.
 
 ### 3. Recipes
 
@@ -168,7 +168,7 @@ Each catalog entry describes one tile def, with everything needed to render it a
 
 **`build.py`** runs inside one Blender process and renders every entry, or only the ones named on the command line:
 - It writes `assets/tiles/<layer>/<category>/<tile>/<variation>/<tile>.png`.
-- It measures `draw_size` from the trimmed PNG (÷ 4).
+- It takes `draw_size` from the render (PNG size ÷ density; the engine camera sizes the frame to whole logical px).
 - It writes a sidecar `build/manifest.json` recording each sprite's size and its recipe hash, which covers the parameters, palette, recipe source and generator version. Unchanged entries are skipped.
 
 **`sync_tileset.py`** is plain Python and needs no Blender:
@@ -198,7 +198,7 @@ Each catalog entry describes one tile def, with everything needed to render it a
 
 ### 6. Performance
 
-The README's settings (Eevee at 96 samples plus Freestyle) take a few seconds per sprite at 1×, and more at 4×.
+The README's settings (Eevee at 96 samples plus Freestyle) take a few seconds per sprite at 1×. The 2×2 roof-tile kiln takes about 7 s at 8×, Blender's start-up included.
 - A Phase 1 catalog of about 120 sprites, counting variations, scaffolds and terrain, takes about 10–20 minutes for a full render. After that, the hash cache means only changed entries are rendered.
 - If that turns out too slow, `build.py --fast` renders at 32 samples for iteration.
 
@@ -208,16 +208,25 @@ The README's settings (Eevee at 96 samples plus Freestyle) take a few seconds pe
 
 - [x] Commit `hb_tile_gen.py`, its README and `reference/` under `crates/tools/blender-tile-generator/`. Done by the user in `d414cc1` (2026-11-05), with the reference `.blend` files included, which answers Q5.
 - [ ] Split into the `hbgen/` package (§1). The `generate()` and command-line options keep working, and the three fortresses render identically: compare checksums, or `validate.py` statistics if Blender isn't deterministic.
-- [ ] Add a line to AGENTS.md's workspace layout and README instructions for running headless and through the Blender MCP server.
+- [x] Add a line to AGENTS.md's workspace layout and README instructions for running headless and through the Blender MCP server. The README already had both; it now also covers engine renders (§10).
 
 Done when: `Blender -b -P hb_tile_gen.py -- --building fortress --palette viet --out x.png` produces the same image as before.
 
 ### Phase 1: Fitting the engine and the checks (small to medium)
 
-- [ ] Camera: a single size argument `G`; the camera position scales with size; the bottom anchor at z = 0 on the frame's bottom edge (§2).
-- [ ] The density constant, 4 px per logical px, with `draw_size` computed from it.
+- [x] Camera: a single size argument `G`; the camera position scales with size; the bottom anchor at z = 0 on the frame's bottom edge (§2).
+- [x] The density constant, 8 px per logical px (Q1), with `draw_size` computed from it.
 - [ ] `validate.py` and the contact sheet.
-- [ ] Re-render one existing building (for example `market`, 2×2) as a test. Swap it in locally and check its placement against the grid in the game: no gap or float at the bottom vertex, and correct overlap with neighbours.
+- [x] Re-render one existing building (for example `market`, 2×2) as a test. Swap it in locally and check its placement against the grid in the game: no gap or float at the bottom vertex, and correct overlap with neighbours. Done with a new building instead, see the notes.
+
+Notes (2026-11-05):
+- `setup_camera_engine` in `hb_tile_gen.py` frames a tile the way `calc_object_iso_coords` draws it. The PNG is `G × 64 × density` wide, and the footprint's front corner at z = 0 is the bottom-centre of the frame. The camera sits on the line through that corner, with `sensor_fit` horizontal and no shift. The height is measured from the model's vertices and rounded up to whole logical px, plus 2 px, so no trimming is needed and `draw_size` is exactly the PNG size ÷ density. A model wider than the diamond logs a warning, since the frame would clip it.
+- `generate_engine()` and `--density` render in this format; the fortress recipes keep the old camera (`LEGACY_CAMERA`), and `fortress` renders pixel for pixel as before.
+- **Outlines:** Freestyle multiplies the scene's line thickness by the line style's, so the legacy renders have 2.56 px lines. Engine renders scale only the style's thickness, by `density × 0.4`, about 1 logical px. The noise and jitter stay at their 1× size, which keeps the lines crisp; scaled up with the density, they turned into a soft brown halo.
+- **First building:** `roof_tile_kiln`, a 2×2 recipe (`build_roof_tile_kiln`) for M5. It has a brick bottle kiln with a chimney, an open drying shed with racks and a grey-brown tile roof, tile stacks on pallets, jars, a clay heap and a bush. Its new primitives are `cylinder`, `dome`, `gable_roof`, `jar` and `tile_stack`. Its new materials are brick, tiles, jar, yard, clay, plaster and an emissive fire, plus gable-roof tiles with columns (`roof(cols_axis=...)`). Palettes lacking the new keys borrow the viet values.
+- **In the game:** the sprite is 1024×760, drawn at 128×95, and the pottery kiln is 126×100. A local test config placed two of them beside the pottery kiln, brick maker, market, a house and a well. Their footprints meet the neighbours' with no gap or overlap at zoom 2 and zoom 5. The pixel checks agree: the diamond fills columns 0 to 1023, the bottom vertex is on the bottom row at the centre, and the side corners are at a quarter of the width.
+- **Tile def:** `roof_tile_kiln` is in `assets/tiles/objects/tile_set.json`, entered by hand (until Phase 2's `sync_tileset.py`), with no `sector`, so the build menu leaves it out. M5 adds its good, its producer config and its sector (known-issues).
+- **Look:** at a glance it sits with the hand-made workshops. Close up it reads as a clean 3D render beside painted art, with less clutter, larger shapes and a darker shed interior. That's fine for a placeholder; the user reviews it with the Phase 3 set.
 
 Done when: a generated 2×2 sprite sits on its footprint exactly, at every zoom level.
 
@@ -268,7 +277,7 @@ Approach:
 - **Recipes:** a low-poly `figure`, built from `Builder` primitives (head, torso, capsule limbs), with simple parenting or an armature. Parameters: build, clothing colours from the palette, headwear (a conical hat), and things carried (a shoulder pole with baskets, a scroll, a spear, a staff). Plus a `quadruped` recipe for the dog and the buffalo.
 - **Walk cycle:** keyframed procedurally: legs and arms swing on a sine, and the body bobs. Frame counts match today's units (8 walk frames and 2 idle for people).
 - **Directions:** turn the figure in 45° steps under the fixed isometric camera. Render 5 directions (N, NE, E, SE, S) and mirror the other 3 in `tile_set.json` (`mirror: true`), as the hand-made units already do.
-- **Size and anchor:** match the existing unit draw sizes (about 22×40 logical for people) and the feet anchor (`y -= draw_h - 16`), at the 4× density. Outlines need to be thinner for small figures; the 1.6 px used for buildings may be too heavy.
+- **Size and anchor:** match the existing unit draw sizes (about 22×40 logical for people) and the feet anchor (`y -= draw_h - 16`), at the 8× density. Outlines need to be thinner for small figures; the 1.6 px used for buildings may be too heavy.
 - **Output:** `assets/tiles/objects/units/<unit>/<anim_set>/frameN.png` with `frames_source: {"Files": n}`. Catalog entries of a new `unit` kind; `sync_tileset.py` adds the anim sets.
 
 Tasks:
@@ -298,13 +307,14 @@ Done when: the user has judged the settler test and the decision is recorded.
 | `sync_tileset.py` reorders or deletes variations, which breaks saves | Append only; existing defs are never removed; `--check` in CI; a test round-trips the real `tile_set.json` with no changes |
 | Blender versions differ between machines | The README's 5.x notes; pin the version in the README; `validate.py` statistics catch drift in the look |
 | Nearest filtering on terrain at high source resolution shimmers when zoomed out | Already true of today's terrain art. Mipmaps for terrain pages are a renderer question, outside this plan |
-| The atlas fills up as sprites grow | 4× density keeps a 5×5 at 1280 px wide; watch the page count in `atlas_meta.json` |
+| The atlas fills up as sprites grow | 8× density puts a 5×5 at 2560 px wide, inside a 4096² page, at about four times the area of a 4× sprite; watch the page count in `atlas_meta.json`, and drop to `--density 6` if pages pile up |
 | Renders only run on the Mac | Rendered PNGs are committed, so cloud sessions and CI never need Blender |
 
 ## Open decisions
 
 **Q1. What pixel density should sprites be rendered at?**
 *Default: 4 px per logical px* (256 px per cell). The alternative is to match each existing size, which varies 5–13×.
+**Changed (2026-11-05): 8 px per logical px**, pending the user's review. At 4× the roof-tile kiln was visibly blurrier than the hand-made 2×2 workshops beside it (about 7.6×) from zoom 5 up, and the camera zooms to 10×. At 8×, a 2×2 is 1024 px wide and a 5×5 is 2560, which still fits the 4096² atlas pages. `--density 4` still works.
 
 **Q2. Should the bottom anchor sit exactly at the frame's bottom edge, at z = 0?**
 *Default: yes,* to match `calc_object_iso_coords`. Anything below ground goes through `iso_offset`.

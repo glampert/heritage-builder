@@ -43,6 +43,14 @@ PALETTES = {
         "lantern":   "d83c1c",
         "gold":      "d4902e",
         "archDark":  "120c08",
+        # Workshop and yard materials (first used by the roof-tile kiln).
+        "brick":      ("a85a3a", "8a4630", "4e3226"),   # fired brick A / B / mortar
+        "terracotta": ("5a2412", "a4502e", "d08050"),   # roof tiles: shadow / mid / highlight
+        "yard":       ("a87e4e", "cfa26a"),             # packed sandy earth
+        "clay":       ("5e5246", "8a7a66"),             # raw clay
+        "fire":       "ff8c2a",
+        "plaster":    ("b88a44", "d8b064"),             # ochre lime plaster
+        "roofGrey":   ("2a221c", "5a4e44", "8c7e6c"),   # weathered grey-brown tiles, as on the hand-made workshops
     },
     # Bagan-inspired: red brick, teak, sandstone paving, gilded central shikhara.
     "burma": {
@@ -125,6 +133,18 @@ class Materials:
         self.water("water", *p["water"])
         for n in ("ridge", "lantern", "gold", "archDark"):
             self.flat(n, p[n], rough=0.4 if n in ("lantern", "gold") else 0.9)
+        # Workshop and yard materials. Palettes that lack a key borrow the viet one.
+        g = lambda k: p.get(k, PALETTES["viet"][k])
+        self.brick("brick", *g("brick"), scale=11.0, mortar_size=0.06)
+        self.roof("tiles", *g("terracotta"), rows_per_unit=30)          # stacks of loose roof tiles
+        self.roof("roofSmallX", *g("roofGrey"), rows_per_unit=26, cols_axis='X', cols_per_unit=22)   # small gable roofs, ridge along X
+        self.roof("roofSmallY", *g("roofGrey"), rows_per_unit=26, cols_axis='Y', cols_per_unit=22)   # small gable roofs, ridge along Y
+        self.noise("plaster", *g("plaster"), scale=5, bump_s=0.15)
+        self.noise("jar", g("terracotta")[0], g("terracotta")[1], scale=8, rough=0.6, bump_s=0.15)
+        self.noise("yard", *g("yard"), scale=9, bump_s=0.2)
+        self.noise("clay", *g("clay"), scale=6, bump_s=0.5)
+        self.flat("fire", g("fire"), rough=0.5, emission=6.0)
+        self.noise("tileTop", g("terracotta")[1], g("terracotta")[2], scale=30, bump_s=0.4)     # top of a tile stack
 
     def __getitem__(self, k): return self.m[k]
 
@@ -153,9 +173,11 @@ class Materials:
             e = el.new(pos); e.color = col
         nt.links.new(src, r.inputs[0]); return r
 
-    def flat(self, name, hexc, rough=0.9):
+    def flat(self, name, hexc, rough=0.9, emission=0.0):
         nt, bsdf, tc = self._new(name)
         bsdf.inputs["Base Color"].default_value = lin(hexc); bsdf.inputs["Roughness"].default_value = rough
+        if emission > 0.0:
+            bsdf.inputs["Emission Color"].default_value = lin(hexc); bsdf.inputs["Emission Strength"].default_value = emission
 
     def brick(self, name, c1, c2, mortar, scale, mortar_size=0.04, rough=0.9, bump_s=0.5, use_z=True, moss=None, moss_amount=1.0):
         nt, bsdf, tc = self._new(name)
@@ -210,14 +232,24 @@ class Materials:
         nt.links.new(r.outputs[0], bsdf.inputs["Base Color"]); bsdf.inputs["Roughness"].default_value = rough
         self._bump(nt, bsdf, nz.outputs["Fac"], bump_s, 0.05)
 
-    def roof(self, name, c_shadow, c_mid, c_hi, rows_per_unit=10.0):
-        # Rows of curved tiles along the slope (z-based). Rows only: a column
-        # pattern on x+y streaks diagonally across the slopes that face other ways.
+    def roof(self, name, c_shadow, c_mid, c_hi, rows_per_unit=10.0, cols_axis=None, cols_per_unit=None):
+        # Rows of curved tiles along the slope (z-based). A column pattern on x+y
+        # streaks diagonally across the slopes that face other ways, so columns are
+        # only for gable roofs, keyed on the ridge's axis (cols_axis 'X' or 'Y').
         nt, bsdf, tc = self._new(name)
         sep = nt.nodes.new("ShaderNodeSeparateXYZ"); nt.links.new(tc.outputs["Object"], sep.inputs[0])
         rows = nt.nodes.new("ShaderNodeMath"); rows.operation = 'MULTIPLY'; rows.inputs[1].default_value = rows_per_unit; nt.links.new(sep.outputs[2], rows.inputs[0])
         fr = nt.nodes.new("ShaderNodeMath"); fr.operation = 'FRACT'; nt.links.new(rows.outputs[0], fr.inputs[0])
         prof = nt.nodes.new("ShaderNodeMath"); prof.operation = 'POWER'; prof.inputs[1].default_value = 0.5; nt.links.new(fr.outputs[0], prof.inputs[0])
+        if cols_axis:
+            # Each column of tiles is a half-round channel: darken towards its edges.
+            cols = nt.nodes.new("ShaderNodeMath"); cols.operation = 'MULTIPLY'; cols.inputs[1].default_value = cols_per_unit or rows_per_unit * 0.8
+            nt.links.new(sep.outputs[0 if cols_axis == 'X' else 1], cols.inputs[0])
+            cf = nt.nodes.new("ShaderNodeMath"); cf.operation = 'PINGPONG'; cf.inputs[1].default_value = 0.5; nt.links.new(cols.outputs[0], cf.inputs[0])
+            cs = nt.nodes.new("ShaderNodeMath"); cs.operation = 'MULTIPLY'; cs.inputs[1].default_value = 2.0; nt.links.new(cf.outputs[0], cs.inputs[0])
+            cp = nt.nodes.new("ShaderNodeMath"); cp.operation = 'POWER'; cp.inputs[1].default_value = 0.35; nt.links.new(cs.outputs[0], cp.inputs[0])
+            both = nt.nodes.new("ShaderNodeMath"); both.operation = 'MULTIPLY'; nt.links.new(prof.outputs[0], both.inputs[0]); nt.links.new(cp.outputs[0], both.inputs[1])
+            prof = both
         nz = nt.nodes.new("ShaderNodeTexNoise"); nz.inputs["Scale"].default_value = 5; nz.inputs["Detail"].default_value = 2; nt.links.new(tc.outputs["Object"], nz.inputs["Vector"])
         r = self._ramp(nt, prof.outputs[0], [(0.0, lin(c_shadow)), (0.35, lin(c_mid)), (1.0, lin(c_hi))])
         mix = nt.nodes.new("ShaderNodeMix"); mix.data_type = 'RGBA'; mix.blend_type = 'MULTIPLY'; mix.inputs["Factor"].default_value = 0.25
@@ -333,6 +365,64 @@ class Builder:
         else:
             self.box("grass", 0, 0, -0.1, G, G, 0.1, "grass")
         return P
+
+    # -- Workshop and yard primitives (engine-anchored tiles) ------------------
+    def cylinder(self, name, cx, cy, z0, r, h, m, verts=16, axis='Z', r2=None):
+        """Upright cylinder (or a tapered one with r2), or one lying along X or Y."""
+        bpy.ops.mesh.primitive_cone_add(vertices=verts, radius1=r, radius2=r if r2 is None else r2, depth=h, location=(0, 0, 0))
+        o = bpy.context.active_object; o.name = name
+        if axis == 'Z':   o.location = (cx, cy, z0 + h / 2)
+        elif axis == 'X': o.rotation_euler = (0, radians(90), 0); o.location = (cx, cy, z0 + r)
+        else:             o.rotation_euler = (radians(90), 0, 0); o.location = (cx, cy, z0 + r)
+        self._add(o, m); self.smooth(o)
+        return o
+
+    def dome(self, name, cx, cy, z0, r, h, m, segments=20, rings=10):
+        """Upper half of a sphere of radius r, squashed or stretched to height h."""
+        me = bpy.data.meshes.new(name); bm = bmesh.new()
+        bmesh.ops.create_uvsphere(bm, u_segments=segments, v_segments=rings * 2, radius=1.0)
+        bmesh.ops.delete(bm, geom=[v for v in bm.verts if v.co.z < -1e-4], context='VERTS')
+        for v in bm.verts: v.co = (cx + v.co.x * r, cy + v.co.y * r, z0 + max(v.co.z, 0.0) * h)
+        bm.to_mesh(me); bm.free()
+        o = bpy.data.objects.new(name, me); bpy.context.scene.collection.objects.link(o)
+        self._add(o, m); self.smooth(o)
+        return o
+
+    def gable_roof(self, name, cx, cy, z0, w, d, h, axis='X', overhang=0.1, m="roof", tips=True):
+        """Two-slope roof whose ridge runs along `axis`, over a w x d (x, y) plan,
+        with a ridge cap and upturned tips at both ends of the ridge."""
+        L, S = (w, d) if axis == 'X' else (d, w)              # ridge length, span across it
+        L2, S2 = L / 2 + overhang, S / 2 + overhang
+        pt = (lambda a, b, z: (cx + a, cy + b, z)) if axis == 'X' else (lambda a, b, z: (cx + b, cy + a, z))
+        me = bpy.data.meshes.new(name); bm = bmesh.new()
+        e = [bm.verts.new(pt(a, b, z0 - 0.06)) for a, b in ((-L2, -S2), (L2, -S2), (L2, S2), (-L2, S2))]
+        r = [bm.verts.new(pt(a, 0, z0 + h)) for a in (-L2, L2)]
+        bm.faces.new((e[0], e[1], r[1], r[0])); bm.faces.new((e[2], e[3], r[0], r[1]))
+        bm.faces.new((e[3], e[0], r[0])); bm.faces.new((e[1], e[2], r[1]))
+        bm.faces.new(e[::-1])
+        bm.to_mesh(me); bm.free()
+        o = bpy.data.objects.new(name, me); bpy.context.scene.collection.objects.link(o); self._add(o, m)
+        cw = 0.07
+        if axis == 'X': self.box(name + "_ridge", cx, cy, z0 + h - 0.02, 2 * L2, cw, 0.07, "ridge")
+        else:           self.box(name + "_ridge", cx, cy, z0 + h - 0.02, cw, 2 * L2, 0.07, "ridge")
+        if tips:
+            for sgn in (-1, 1):
+                x, y, _ = pt(sgn * L2, 0, 0)
+                t = self.box(name + "_tip", x, y, z0 + h - 0.02, 0.08, 0.08, 0.16, "ridge")
+                if axis == 'X': t.rotation_euler = (0, radians(-25 * sgn), 0)
+                else:           t.rotation_euler = (radians(25 * sgn), 0, 0)
+        return o
+
+    def jar(self, x, y, z, r=0.09, h=0.2, m="jar"):
+        bpy.ops.mesh.primitive_uv_sphere_add(radius=1.0, location=(x, y, z + h * 0.45), segments=14, ring_count=8)
+        o = bpy.context.active_object; o.scale = (r, r, h * 0.5); self._add(o, m); self.smooth(o)
+        self.cylinder("jar_neck", x, y, z + h * 0.8, r * 0.55, h * 0.2, m, verts=12)
+
+    def tile_stack(self, x, y, z, w, d, h):
+        """A stack of roof tiles on a low pallet: a block striped one row per tile."""
+        self.box("pallet", x, y, z, w + 0.03, d + 0.03, 0.025, "woodDark")
+        self.box("stack", x, y, z + 0.025, w, d, h, "tiles")
+        self.box("stack_top", x, y, z + 0.025 + h, w, d, 0.006, "tileTop")
 
 
 # ----------------------------------------------------------------------------
@@ -485,7 +575,57 @@ def build_khmer_fortress(B):
     return G
 
 
-BUILDINGS = {"fortress": build_fortress, "bagan_fortress": build_bagan_fortress, "khmer_fortress": build_khmer_fortress}
+def build_roof_tile_kiln(B):
+    """2x2 workshop: a brick bottle kiln with its chimney, a long open drying shed
+    with racks of tiles along the back, and a yard of finished tile stacks and jars.
+    Rendered with the engine camera: the footprint is [-1, 1] x [-1, 1] at z = 0."""
+    Z = 0.05                                                  # top of the yard slab
+    B.box("yard", 0, 0, 0, 2.0, 2.0, Z, "yard")
+    # Kiln on the left cell: round brick base, dome, firing mouth facing -y, chimney behind.
+    kx, ky = -0.45, -0.3
+    B.cylinder("kiln_base", kx, ky, Z, 0.34, 0.24, "brick", verts=20)
+    B.dome("kiln_dome", kx, ky, Z + 0.24, 0.34, 0.3, "brick")
+    B.box("kiln_mouth", kx + 0.02, ky - 0.33, Z, 0.2, 0.05, 0.18, "archDark")
+    B.box("kiln_fire", kx + 0.02, ky - 0.355, Z + 0.02, 0.12, 0.03, 0.08, "fire")
+    B.box("kiln_lintel", kx + 0.02, ky - 0.34, Z + 0.18, 0.26, 0.07, 0.04, "brick")
+    cx_, cy_ = kx - 0.16, ky + 0.17
+    B.box("chimney", cx_, cy_, Z + 0.24, 0.14, 0.14, 0.82, "brick")
+    B.box("chimney_cap", cx_, cy_, Z + 1.06, 0.18, 0.18, 0.05, "brick")
+    B.box("chimney_hole", cx_, cy_, Z + 1.105, 0.09, 0.09, 0.005, "archDark")
+    for lx, ly, lz in ((0.0, -0.86, 0.0), (0.0, -0.78, 0.0), (0.0, -0.82, 0.065)):   # firewood beside the mouth
+        B.cylinder("log", -0.08 + lx, ly, Z + lz, 0.035, 0.3, "trunk", verts=8, axis='X')
+    # Drying shed along the back-right edge (y = +1): posts, back wall, racks, gable roof.
+    sx, sy, sw, sd, sh = 0.05, 0.6, 1.6, 0.6, 0.46
+    for px in (-sw / 2 + 0.05, 0.0, sw / 2 - 0.05):
+        for py in (sy - sd / 2 + 0.04, sy + sd / 2 - 0.04):
+            B.box("post", sx + px, py, Z, 0.06, 0.06, sh, "woodDark")
+    B.box("shed_wall", sx, sy + sd / 2 - 0.03, Z, sw - 0.04, 0.04, sh, "plaster")
+    B.box("shed_floor", sx, sy, Z, sw - 0.02, sd - 0.02, 0.02, "woodDark")
+    for lvl, zz in enumerate((0.12, 0.27)):
+        B.box("rack", sx, sy + 0.05, Z + zz, sw - 0.16, 0.3, 0.025, "woodDark")
+        for i in range(9):
+            B.box("drying_tile", sx - sw / 2 + 0.17 + i * 0.158, sy + 0.05, Z + zz + 0.025, 0.11, 0.22, 0.03, "jar")
+    B.gable_roof("shed_roof", sx, sy, Z + sh, sw, sd, 0.28, axis='X', overhang=0.1, m="roofSmallX")
+    # Yard: two rows of finished tile stacks, jars by the front corner, a clay heap.
+    hs = (0.16, 0.12, 0.19, 0.14, 0.1, 0.18, 0.13, 0.17, 0.15, 0.11, 0.16, 0.12)
+    for j, yy in enumerate((-0.05, -0.27, -0.49)):
+        for i, xx in enumerate((0.22, 0.41, 0.6, 0.79)):
+            if (i, j) == (3, 2): continue                       # room for the jars
+            B.tile_stack(xx, yy, Z, 0.13, 0.11, hs[j * 4 + i])
+    for x, y, r, h in ((0.72, -0.78, 0.09, 0.2), (0.52, -0.84, 0.075, 0.16), (0.86, -0.6, 0.07, 0.15), (-0.86, 0.2, 0.08, 0.18)):
+        B.jar(x, y, Z, r, h)
+    bpy.ops.mesh.primitive_ico_sphere_add(radius=1.0, subdivisions=2, location=(0.72, 0.18, Z))
+    o = bpy.context.active_object; o.scale = (0.2, 0.16, 0.12); B._add(o, "clay"); B.smooth(o)
+    for dx, dy, dz, r in ((0, 0, 0.07, 0.08), (0.07, 0.05, 0.05, 0.06), (-0.05, 0.06, 0.04, 0.055)):   # a bush by the left corner
+        bpy.ops.mesh.primitive_ico_sphere_add(radius=r, subdivisions=2, location=(-0.8 + dx, -0.82 + dy, Z + dz))
+        B.smooth(B._add(bpy.context.active_object, "leaf"))
+    return 2
+
+
+BUILDINGS = {"fortress": build_fortress, "bagan_fortress": build_bagan_fortress, "khmer_fortress": build_khmer_fortress,
+             "roof_tile_kiln": build_roof_tile_kiln}
+# The fortress studies predate the engine camera and keep the original one (--cells, 6 px pad).
+LEGACY_CAMERA = {"fortress", "bagan_fortress", "khmer_fortress"}
 
 
 # ----------------------------------------------------------------------------
@@ -521,6 +661,63 @@ def setup_camera(G, cells, scale, height_factor=1.0):
     return cam
 
 
+# Engine sprite format (see calc_object_iso_coords in crates/game/src/tile/mod.rs):
+# - the sprite is centred on the footprint using its logical width, so the PNG is
+#   exactly G * 64 * density px wide and the diamond's left and right corners touch
+#   the frame's sides;
+# - its bottom edge sits on the footprint's bottom vertex, so the front corner of the
+#   footprint at z = 0, world (G/2, -G/2, 0), is the bottom-centre of the frame.
+# draw_size is the PNG size / density. Anything below z = 0 is cut off.
+DEFAULT_DENSITY = 8          # PNG px per logical px (placeholder-art plan, Q1): about the hand-made 2x2 art's 7.6
+TOP_MARGIN_PX = 2            # empty logical px kept above the model
+
+
+def model_extents(G, collection):
+    """Screen-space extents of the model, in world units, relative to the anchor:
+    (up, half-width) as seen by the isometric camera."""
+    from mathutils import Euler, Vector
+    R = Euler((radians(60), 0, radians(45))).to_matrix()
+    up, right = R @ Vector((0, 1, 0)), R @ Vector((1, 0, 0))
+    anchor = Vector((G / 2, -G / 2, 0))
+    bpy.context.view_layer.update()
+    max_up, max_side = 0.0, 0.0
+    for o in collection.all_objects:
+        if o.type != 'MESH': continue
+        mw = o.matrix_world
+        for v in o.data.vertices:
+            d = mw @ v.co - anchor
+            max_up = max(max_up, d.dot(up)); max_side = max(max_side, abs(d.dot(right)))
+    return max_up, max_side
+
+
+def setup_camera_engine(G, density, collection):
+    """Orthographic camera whose frame matches the engine's sprite anchor exactly.
+    The height is measured from the model and rounded up to whole logical px.
+    Returns (camera, width_px, height_px)."""
+    from mathutils import Euler, Vector
+    sc = bpy.context.scene
+    cam_d = bpy.data.cameras.new("IsoCam"); cam_d.type = 'ORTHO'; cam_d.sensor_fit = 'HORIZONTAL'
+    cam = bpy.data.objects.new("IsoCam", cam_d); sc.collection.objects.link(cam); sc.camera = cam
+    rot = Euler((radians(60), 0, radians(45))); cam.rotation_euler = rot
+    R = rot.to_matrix(); up, fwd = R @ Vector((0, 1, 0)), R @ Vector((0, 0, -1))
+    width_px = int(round(G * 64 * density))
+    cam_d.ortho_scale = G * sqrt(2)                          # the diamond spans the full width
+    world_per_px = cam_d.ortho_scale / width_px
+    max_up, max_side = model_extents(G, collection)
+    if max_side > cam_d.ortho_scale / 2 + 1e-4:
+        print(f"WARNING: model is {max_side:.3f} wide of the anchor; the frame holds {cam_d.ortho_scale / 2:.3f}. The sides get clipped.")
+    logical_h = math.ceil(max_up / world_per_px / density) + TOP_MARGIN_PX
+    height_px = logical_h * density
+    sc.render.resolution_x, sc.render.resolution_y, sc.render.resolution_percentage = width_px, height_px, 100
+    sc.render.pixel_aspect_x = sc.render.pixel_aspect_y = 1.0
+    cam_d.shift_x = cam_d.shift_y = 0.0
+    dist = 40.0 + 4.0 * G
+    anchor = Vector((G / 2, -G / 2, 0))
+    cam.location = anchor + up * (height_px * world_per_px / 2) - fwd * dist   # anchor on the bottom edge's centre
+    cam_d.clip_start, cam_d.clip_end = 0.1, dist * 2 + 20
+    return cam, width_px, height_px
+
+
 def setup_lighting():
     L = LIGHTING; sc = bpy.context.scene
     sun_d = bpy.data.lights.new("Sun", 'SUN'); sun_d.energy = L["sun_energy"]; sun_d.color = L["sun_color"]; sun_d.angle = radians(L["sun_angle"])
@@ -544,9 +741,16 @@ def setup_render():
         if hasattr(ev, k): setattr(ev, k, v)
 
 
-def setup_outlines():
-    O = OUTLINE; sc = bpy.context.scene
+def setup_outlines(px_scale=1.0, wobble_scale=None):
+    """px_scale multiplies the line thickness, for renders at more than one pixel
+    per logical pixel; wobble_scale (default px_scale) multiplies the noise and jitter."""
+    O = dict(OUTLINE); sc = bpy.context.scene
+    # The scene's line thickness multiplies the line style's, so only the style's
+    # measures scale: the legacy renders get 1.6 x 1.6 = 2.56 px lines.
     sc.render.use_freestyle = True; sc.render.line_thickness_mode = 'ABSOLUTE'; sc.render.line_thickness = O["thickness"]
+    w = px_scale if wobble_scale is None else wobble_scale
+    O["thickness"] *= px_scale
+    for k in ("noise_amp", "jitter_amp", "noise_period"): O[k] *= w
     fs = bpy.context.view_layer.freestyle_settings; fs.use_culling = True; fs.crease_angle = radians(120)
     for ls in list(fs.linesets): fs.linesets.remove(ls)
     ls = fs.linesets.new("Ink"); ls.select_silhouette = True; ls.select_border = True; ls.select_crease = True; ls.select_contour = False
@@ -591,6 +795,32 @@ def trim_top(path, keep_px=4):
 # ----------------------------------------------------------------------------
 # Entry point
 # ----------------------------------------------------------------------------
+# Outline thickness per logical px for engine renders. The legacy 1.6 px was tuned
+# for 1x fortress renders, where a 15-cell tile shrinks a lot on screen; game tiles
+# are drawn near 1:1, so their ink is thinner per logical px.
+ENGINE_OUTLINE_SCALE = 0.4
+
+
+def generate_engine(building, palette="viet", density=DEFAULT_DENSITY, out=None, blend=None, render=True):
+    """Render a tile in the engine's sprite format. Returns the PNG size and the
+    draw_size for tile_set.json (PNG size / density)."""
+    clear_scene()
+    mats = Materials(PALETTES[palette])
+    B = Builder(mats, collection_name=building)
+    G = BUILDINGS[building](B)
+    # Ink: thickness scales with density, but the wobble stays small so the lines stay crisp.
+    setup_lighting(); setup_render(); setup_outlines(density * ENGINE_OUTLINE_SCALE, wobble_scale=1.0); setup_grade()
+    _, w, h = setup_camera_engine(G, density, B.col)
+    sc = bpy.context.scene
+    if blend:
+        bpy.ops.wm.save_as_mainfile(filepath=os.path.abspath(os.path.expanduser(blend)))
+    if out and render:
+        sc.render.filepath = os.path.abspath(os.path.expanduser(out))
+        bpy.ops.render.render(write_still=True)
+    return dict(building=building, cells=G, density=density, png_size=[w, h],
+                logical_size=dict(width=G * 64, height=G * 32), draw_size=dict(width=w // density, height=h // density), out=out)
+
+
 def generate(building="fortress", palette="viet", cells=15, scale=1.0, height_factor=1.0, out=None, blend=None, render=True, trim=True):
     clear_scene()
     mats = Materials(PALETTES[palette])
@@ -617,13 +847,18 @@ def _cli():
     ap = argparse.ArgumentParser()
     ap.add_argument("--building", default="fortress", choices=list(BUILDINGS))
     ap.add_argument("--palette", default="viet", choices=list(PALETTES))
-    ap.add_argument("--cells", type=int, default=15, help="footprint in grid cells (render width = cells*64*scale px)")
-    ap.add_argument("--scale", type=float, default=1.0, help="pixels per logical pixel (2 or 4 for hi-dpi / downsampling)")
-    ap.add_argument("--height", type=float, default=1.0, help="render height as a factor of width")
+    ap.add_argument("--cells", type=int, default=15, help="legacy camera: footprint in grid cells (render width = cells*64*scale px)")
+    ap.add_argument("--scale", type=float, default=1.0, help="legacy camera: pixels per logical pixel")
+    ap.add_argument("--height", type=float, default=1.0, help="legacy camera: render height as a factor of width")
+    ap.add_argument("--density", type=int, default=DEFAULT_DENSITY, help="engine camera: PNG px per logical px")
     ap.add_argument("--out", required=True); ap.add_argument("--blend", default=None)
-    ap.add_argument("--no-trim", action="store_true", help="keep the full square render instead of cropping empty rows off the top")
+    ap.add_argument("--no-trim", action="store_true", help="legacy camera: keep the full square render instead of cropping empty rows off the top")
     a = ap.parse_args(argv)
-    print(generate(a.building, a.palette, a.cells, a.scale, a.height, a.out, a.blend, trim=not a.no_trim))
+    if a.building in LEGACY_CAMERA:
+        print(generate(a.building, a.palette, a.cells, a.scale, a.height, a.out, a.blend, trim=not a.no_trim))
+    else:
+        import json
+        print("HB_RESULT " + json.dumps(generate_engine(a.building, a.palette, a.density, a.out, a.blend)))
 
 
 if __name__ == "__main__" and bpy.app.background:

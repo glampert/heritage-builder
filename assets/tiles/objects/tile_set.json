@@ -990,6 +990,31 @@
               ]
             }
           ]
+        },
+        {
+          "name": "roof_tile_kiln",
+          "cost": 10,
+          "logical_size": {
+            "width": 128,
+            "height": 64
+          },
+          "draw_size": {
+            "width": 128,
+            "height": 95
+          },
+          "variations": [
+            {
+              "anim_sets": [
+                {
+                  "frames": [
+                    {
+                      "name": "roof_tile_kiln"
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
         }
       ]
     },

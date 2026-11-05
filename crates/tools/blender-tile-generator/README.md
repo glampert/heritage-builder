@@ -166,3 +166,53 @@ the bottom, heights 592 / 633 / 587. Median luminance 0.29 / 0.27 / 0.28.
 Known rough edges to revisit with the mesh pass: the Bagan terrace stairs read
 as stacked blocks, the prangs are stepped rather than smoothly curved, and the
 Khmer gallery roofs catch more sun than the reference's brown-red tiles.
+
+## 10. Game tiles: the engine camera (added Nov 2026)
+
+Sections 1–4 describe the fortress studies, which keep their original camera.
+Every other recipe renders in the game's sprite format, set by
+`calc_object_iso_coords` in `crates/game/src/tile/mod.rs`:
+
+- The PNG is exactly `cells × 64 × density` px wide. The ground diamond spans
+  the full width, because the engine centres the sprite with its logical width.
+- The footprint's front corner at z = 0, world `(G/2, −G/2, 0)`, is the
+  bottom-centre of the frame. The engine puts the sprite's bottom edge on the
+  footprint's bottom vertex. Anything below z = 0 is cut off.
+- The height is measured from the model, rounded up to whole logical px, plus
+  2 px, so `draw_size` is exactly the PNG size ÷ density and nothing is trimmed.
+- `density` defaults to 8 px per logical px, about the hand-made 2×2 art's.
+  A model wider than the diamond prints a warning, since the frame clips it.
+
+Render one, from the repository root:
+
+    /Applications/Blender.app/Contents/MacOS/Blender -b \
+        -P crates/tools/blender-tile-generator/hb_tile_gen.py -- \
+        --building roof_tile_kiln \
+        --out assets/tiles/objects/buildings/roof_tile_kiln/roof_tile_kiln.png
+
+The last line it prints starts with `HB_RESULT` and gives the `logical_size` and
+`draw_size` for `assets/tiles/objects/tile_set.json`. Until the catalog and
+`sync_tileset.py` exist (placeholder-art plan, Phase 2), add or update the tile
+def there by hand. Then run `cargo run -p web-builder` and commit
+`web/asset_manifest.json`. The desktop atlas cache repacks by itself.
+
+Writing a recipe for the engine camera:
+
+- Centre the footprint on the origin: a 2×2 spans [−1, 1] × [−1, 1].
+- Stand it on z = 0. A thin yard slab (`z` 0 to 0.05) matches the hand-made
+  art's raised base.
+- Keep everything inside the diamond's left and right corners.
+- Front faces are +X (screen lower right) and −Y (screen lower left). Put
+  doorways, kiln mouths and anything that should read on those faces.
+- Scale against the hand-made neighbours: on a 2×2, a kiln about 0.7 across,
+  a chimney about 1.1 tall, and goods stacks about 0.13 across.
+
+Outlines: Freestyle multiplies the scene's line thickness by the line style's,
+so the fortress renders draw 1.6 × 1.6 = 2.56 px lines. Engine renders scale
+only the style's thickness, by `density × ENGINE_OUTLINE_SCALE` (0.4), which is
+about 1 logical px. They keep the noise and jitter at their 1× size, because
+scaled up with the density the lines turn into a soft brown halo.
+
+Check a render against the hand-made art at the same draw size before adding it.
+Then place it in the game next to its neighbours, once at zoom 2 and once at
+zoom 5. A building needs a building config to be placed (`world.place`).
