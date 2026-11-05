@@ -965,29 +965,32 @@ impl ResourceStock {
         None
     }
 
+    // Visits each accepted kind in bit order, with its count and its index: the kind's bit, as in
+    // `[_; RESOURCE_KIND_COUNT]` arrays (find() returns the same index).
     #[inline]
     pub fn for_each<F>(&self, mut visitor_fn: F)
     where
         F: FnMut(usize, &StockItem),
     {
-        for (index, kind) in self.kinds.iter().enumerate() {
+        for kind in self.kinds.iter() {
+            let index = bit_index(kind);
             if index < self.counts.len() {
-                let count = self.counts[index];
-                let item = StockItem { kind, count: count.into() };
+                let item = StockItem { kind, count: self.counts[index].into() };
                 visitor_fn(index, &item);
             }
         }
     }
 
+    // As for_each, then stores each item's count back.
     #[inline]
     pub fn for_each_mut<F>(&mut self, mut visitor_fn: F)
     where
         F: FnMut(usize, &mut StockItem),
     {
-        for (index, kind) in self.kinds.iter().enumerate() {
+        for kind in self.kinds.iter() {
+            let index = bit_index(kind);
             if index < self.counts.len() {
-                let count = self.counts[index];
-                let mut item = StockItem { kind, count: count.into() };
+                let mut item = StockItem { kind, count: self.counts[index].into() };
                 visitor_fn(index, &mut item);
                 self.counts[index] = item.count.try_into().expect("Value cannot fit into a u16!");
             }
@@ -1211,5 +1214,41 @@ impl Display for ShoppingList {
         }
         write!(f, "]")?;
         Ok(())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    // A stock that accepts goods which don't start ResourceKind's bit order, as a storage yard
+    // saved before it took pottery and bricks does.
+    fn wood_and_bricks() -> ResourceStock {
+        let mut stock = ResourceStock::with_accepted_kinds(ResourceKind::Wood | ResourceKind::Bricks);
+        stock.add(ResourceKind::Wood, 3);
+        stock.add(ResourceKind::Bricks, 5);
+        stock
+    }
+
+    #[test]
+    fn for_each_reports_each_kind_with_its_count_and_index() {
+        let stock = wood_and_bricks();
+        let mut visited = Vec::new();
+        stock.for_each(|index, item| visited.push((index, *item)));
+        assert_eq!(visited, [
+            (ResourceKind::Wood.index(), StockItem { kind: ResourceKind::Wood, count: 3 }),
+            (ResourceKind::Bricks.index(), StockItem { kind: ResourceKind::Bricks, count: 5 }),
+        ]);
+    }
+
+    #[test]
+    fn for_each_mut_writes_each_kind_back() {
+        let mut stock = wood_and_bricks();
+        stock.for_each_mut(|_, item| item.count *= 2);
+        assert_eq!(stock.count(ResourceKind::Wood), 6);
+        assert_eq!(stock.count(ResourceKind::Bricks), 10);
+
+        stock.for_each_mut(|_, item| item.count = 0);
+        assert!(stock.is_empty());
     }
 }

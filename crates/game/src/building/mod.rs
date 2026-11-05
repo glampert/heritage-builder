@@ -1568,3 +1568,23 @@ pub fn construction_stage_from_tile_flags(flags: TileFlags) -> Option<u8> {
     Some(low | (high << 1))
 }
 
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    // BuildingStock looks capacities up by the index its stock's visitors pass, which must be
+    // the one capacity_for uses, even for goods that don't start ResourceKind's bit order.
+    #[test]
+    fn stock_visitors_index_capacities_by_kind() {
+        let mut stock = BuildingStock::with_accepted_kinds_and_capacity(ResourceKind::Wood | ResourceKind::Bricks, 4);
+        stock.capacities[ResourceKind::Bricks.index()] = 2;
+        assert!(!stock.is_full());
+
+        stock.fill();
+        assert_eq!(stock.available_resources(ResourceKind::Wood), 4);
+        assert_eq!(stock.available_resources(ResourceKind::Bricks), stock.capacity_for(ResourceKind::Bricks));
+        assert_eq!(stock.available_resources(ResourceKind::Bricks), 2);
+        assert!(stock.is_full());
+    }
+}
