@@ -267,6 +267,8 @@ Notes (2026-11-05):
 
 ### Phase 3: Generic recipes and the Phase 1 building set (medium to large)
 
+**Decided (2026-11-05): on demand.** The user chose to generate art as each milestone needs it, not as one batch. Each gameplay milestone renders its own buildings, and adds the generic recipes and primitives they need as it goes. The list below is the running total, ticked as milestones cover it.
+
 - [ ] New `Builder` primitives: gable_roof, thatch, stilts, fence, crates, jars, timber_stack, field_rows, scaffold_poles.
 - [ ] Generic recipes (§3): house, hall, workshop, yard, field, well, shrine, garden, statue, pond.
 - [ ] `buildings_daiLong.json` for the buildings that Campaign I, missions 1–5 need and that have no hand-made art yet. The roadmap's M5–M10 list them:

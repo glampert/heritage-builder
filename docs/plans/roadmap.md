@@ -95,7 +95,7 @@ See [placeholder-art.md](placeholder-art.md):
 - add a catalog, a batch driver and `tile_set.json` syncing;
 - write generic recipes and render the Phase 1 building set, scaffolds, rubble and the new terrain kinds.
 
-Each later milestone adds its buildings to the catalog.
+Each later milestone adds its buildings to the catalog, when it needs them (see the conventions below).
 
 ### M3: Building costs and construction (medium to large)
 
@@ -263,6 +263,7 @@ Bumps should be grouped where milestones land close together. Each bump needs a 
 
 ## Conventions for every milestone
 
+- **Art on demand** (decided 2026-11-05): a milestone that adds a building, overlay or terrain kind without art generates it with the Blender pipeline as part of its own work: a recipe, a catalog entry and `tilegen.sh` ([placeholder-art.md](placeholder-art.md), the generator's README). Art isn't rendered ahead of the milestone that needs it.
 - **Data first:** new buildings, goods, events, patrons and mission settings live in `assets/configs/` JSON, so Phases 3 and 4 can add realms without code changes where possible. Nothing realm-specific is hard-coded, not even Đại Long names.
 - **Determinism:** new systems draw from the simulation's RNG and run in a fixed order. `determinism.jsonl` keeps passing.
 - **Automation:** every new system can be read through a query command (for `assert.*` and `wait.until`) and driven by a command where it makes sense. Each milestone adds a scenario.
