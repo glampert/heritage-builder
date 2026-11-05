@@ -519,8 +519,11 @@ where
 
 pub struct Spawner<'game> {
     context: &'game SimContext,
-    subtract_tile_cost: bool, // Decrement tile cost when spawning? Default = true.
-    restore_tile_cost: bool,  // Restore back tile cost when despawning? Default = false.
+    // Charge the tile's cost when spawning? Default false: only the player's placement paths
+    // (TilePlacement::place, place_road_segment and their affordability checks) turn it on, so
+    // deferred spawns (SimCmds, settler houses) and presets never charge.
+    subtract_tile_cost: bool,
+    restore_tile_cost: bool, // Refund the tile's cost when despawning? Default false.
 }
 
 pub enum SpawnerResult<'game> {
@@ -546,7 +549,7 @@ impl SpawnerResult<'_> {
 impl<'game> Spawner<'game> {
     #[inline]
     pub fn new(context: &'game SimContext) -> Self {
-        Self { context, subtract_tile_cost: true, restore_tile_cost: false }
+        Self { context, subtract_tile_cost: false, restore_tile_cost: false }
     }
 
     #[inline]

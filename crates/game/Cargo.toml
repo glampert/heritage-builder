@@ -85,3 +85,7 @@ harness = false
 [[test]]
 name    = "game_time"
 harness = false
+
+[[test]]
+name    = "construction"
+harness = false

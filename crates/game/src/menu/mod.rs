@@ -457,7 +457,8 @@ impl TilePlacement {
             return Err(RoadSegmentError::CannotAffordCost(segment.cost()));
         }
 
-        let spawner = Spawner::new(context);
+        let mut spawner = Spawner::new(context);
+        spawner.set_subtract_tile_cost(true);
 
         // Place tiles:
         for cell in &segment.path {
@@ -491,7 +492,11 @@ impl TilePlacement {
 
     fn placement_operation(&self, selection: TilePaletteSelection, context: &mut GameUiContext) -> TilePlacementOp {
         if let Some(tile_def) = selection.as_tile_def() {
-            if Spawner::new(&context.new_sim_context()).can_afford_tile(tile_def) {
+            let sim_context = context.new_sim_context();
+            let mut spawner = Spawner::new(&sim_context);
+            spawner.set_subtract_tile_cost(true);
+
+            if spawner.can_afford_tile(tile_def) {
                 TilePlacementOp::Place(tile_def)
             } else {
                 TilePlacementOp::Invalidate(tile_def)

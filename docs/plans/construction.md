@@ -1,6 +1,6 @@
 # Building costs, construction sites and house renovation
 
-**Status (2026-11-05): Draft. Not started.** This plan implements GDD sections 5.1.1 (building costs) and 5.1.2 (construction cycle) in [docs/design/gdd.md](../design/gdd.md). It is milestone M3 of the [roadmap](roadmap.md). It was researched against `d0696fe` on `main`. File and line references point at that commit, so re-check them before relying on them.
+**Status (2026-11-05): In progress. Phase 0 done.** This plan implements GDD sections 5.1.1 (building costs) and 5.1.2 (construction cycle) in [docs/design/gdd.md](../design/gdd.md). It is milestone M3 of the [roadmap](roadmap.md). It was researched against `d0696fe` on `main`. File and line references point at that commit, so re-check them before relying on them.
 
 ## How to resume this work
 
@@ -234,11 +234,20 @@ Do this once, in Phase 2, with all the serialized fields from Phases 2 and 3 tog
 
 ### Phase 0: Prerequisites (small)
 
-- [ ] The speed-squared fix from [roadmap](roadmap.md) M1 is merged, so building timers run at true game speed.
-- [ ] Change the `Spawner` default to `subtract_tile_cost = false`, and check that every player path passes `true` (`menu/mod.rs`, `automation/commands/world.rs` `cmd_place`, undo's `place_tiles`).
-- [ ] Add a test: a settler house spawned through `SimCmds` doesn't change the treasury with the cost cheat off.
+- [x] The speed-squared fix from [roadmap](roadmap.md) M1 is in, so building timers run at true game speed.
+- [x] Change the `Spawner` default to `subtract_tile_cost = false`, and check that every player path passes `true` (`menu/mod.rs`, `automation/commands/world.rs` `cmd_place`, undo's `place_tiles`).
+- [x] Add a test: a settler house spawned through `SimCmds` doesn't change the treasury with the cost cheat off.
 
 Done when: `cargo test --workspace` and all scenarios pass unchanged.
+
+**Notes (2026-11-05):**
+- M1 is on the `claude` branch (`6e685b4`), not yet merged into `main`.
+- Two player paths relied on the old default and now turn it on:
+  - `TilePlacement::place_road_segment`, which charges per road tile;
+  - the palette's `placement_operation`, whose `can_afford_tile` check passes everything when the flag is off.
+- `cmd_place` and undo's `place_tiles` already went through `TilePlacement::place`, which passes the flag. Undo of a clear passes `false` and redo of a placement `true`, as before.
+- Houses cost 0, so a settler's house was never really charged. The new test in `tests/construction.rs` spawns a small well (cost 2) through `SimCmds` instead. It fails with the old default (98 gold left, not 100).
+- Verified: `cargo test --workspace` and every CI scenario pass, and the determinism checksum is unchanged (`1e4ac1bec6ae8ac5`).
 
 ### Phase 1: Material costs (medium)
 
