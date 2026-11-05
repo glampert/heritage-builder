@@ -11,7 +11,7 @@ The design documents for Heritage Builder. Start with the GDD.
 | [story-script.md](story-script.md) | Story comics: Campaign I scripted panel by panel, beat outlines for Campaigns II and III |
 | [overview.md](overview.md) | Positioning, audience, comparable games, content budget, development phases |
 
-Engineering plans live in [`../plans/`](../plans/), and art references and prototype screenshots in [`../images/`](../images/).
+Engineering plans live in [`../plans/`](../plans/), and art references and prototype screenshots in [`../images/`](../images/). UI mockups per realm (world map, and the generator that draws them) are in [mockups/](mockups/).
 
 ## Ground rules
 
