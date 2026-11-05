@@ -1,0 +1,44 @@
+# Construction: a building costs gold and materials, taken from the storage yards when it's placed,
+# then stands as an inert construction site for its tier's time before it works. Clearing a site
+# refunds everything; demolishing a finished building refunds nothing. From the repository root:
+#   cargo run -p HeritageBuilder -- --script crates/game/tests/scenarios/construction.jsonl
+# A temple costs 15 gold, 6 Wood and 8 Bricks and is a Civic building: 40 simulated seconds. A
+# storage yard is Basic: 15 seconds. The worker cheat lets the finished temple work with no residents.
+{"method": "time.fixed_dt", "params": {"dt": 0.016667}}
+{"method": "session.new_map", "params": {"size": [24, 24]}}
+{"method": "cheats.set", "params": {"name": "ignore_worker_requirements", "value": true}}
+{"method": "world.road", "params": {"from": [3, 13], "to": [20, 13]}}
+
+# The storage yard is a site first, and holds nothing until it's built.
+{"method": "world.place", "params": {"tile": "storage_yard", "cell": [4, 10]}}
+{"method": "assert.eq", "params": {"query": "world.building_at", "args": {"cell": [4, 10]}, "path": "/construction/total_secs", "value": 15.0}}
+{"method": "time.fast_forward", "params": {"sim_secs": 16}}
+{"method": "world.add_stock", "params": {"resources": {"Wood": 12, "Bricks": 16}}}
+{"method": "assert.eq", "params": {"query": "sim.state", "path": "/gold", "value": 72}}
+
+# Placing the temple takes its gold and materials at once, and it doesn't work while it's a site.
+{"method": "world.place", "params": {"tile": "temple", "cell": [12, 10]}}
+{"method": "assert.eq", "params": {"query": "sim.state", "path": "/gold", "value": 57}}
+{"method": "assert.eq", "params": {"query": "world.stats", "path": "/city_stock", "value": {"Bricks": 8, "Wood": 6}}}
+{"method": "assert.eq", "params": {"query": "world.building_at", "args": {"cell": [12, 10]}, "path": "/construction/total_secs", "value": 40.0}}
+{"method": "assert.eq", "params": {"query": "world.building_at", "args": {"cell": [12, 10]}, "path": "/operational", "value": false}}
+{"method": "time.fast_forward", "params": {"sim_secs": 20}}
+{"method": "assert.eq", "params": {"query": "world.building_at", "args": {"cell": [12, 10]}, "path": "/construction/stage", "value": 2}}
+{"method": "assert.eq", "params": {"query": "world.building_at", "args": {"cell": [12, 10]}, "path": "/operational", "value": false}}
+{"method": "time.fast_forward", "params": {"sim_secs": 21}}
+{"method": "assert.eq", "params": {"query": "world.building_at", "args": {"cell": [12, 10]}, "path": "/operational", "value": true}}
+{"method": "assert.eq", "params": {"query": "logs.tail", "args": {"channel": "construction", "limit": 1}, "path": "/records/0/message", "value": "Temple completed at [12,10]."}}
+
+# A second temple, cleared while it's a site, is refunded in full.
+{"method": "world.place", "params": {"tile": "temple", "cell": [16, 10]}}
+{"method": "assert.eq", "params": {"query": "sim.state", "path": "/gold", "value": 42}}
+{"method": "assert.eq", "params": {"query": "world.stats", "path": "/city_stock", "value": {}}}
+{"method": "time.fast_forward", "params": {"sim_secs": 10}}
+{"method": "world.clear", "params": {"cell": [16, 10]}}
+{"method": "assert.eq", "params": {"query": "sim.state", "path": "/gold", "value": 57}}
+{"method": "assert.eq", "params": {"query": "world.stats", "path": "/city_stock", "value": {"Bricks": 8, "Wood": 6}}}
+
+# Demolishing the finished temple refunds nothing.
+{"method": "world.clear", "params": {"cell": [12, 10]}}
+{"method": "assert.eq", "params": {"query": "sim.state", "path": "/gold", "value": 57}}
+{"method": "assert.eq", "params": {"query": "world.stats", "path": "/city_stock", "value": {"Bricks": 8, "Wood": 6}}}

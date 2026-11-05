@@ -144,6 +144,10 @@ pub struct SimConfigs {
     #[debug_ui(skip)]
     pub calendar: CalendarSettings,
 
+    // How long construction sites take (docs/plans/construction.md).
+    #[debug_ui(nested)]
+    pub construction: ConstructionConfigs,
+
     // Workers/Population:
     pub workers_search_radius: i32,
     pub workers_update_frequency_secs: Seconds,
@@ -168,6 +172,7 @@ impl Default for SimConfigs {
             seconds_per_month: 60.0,
             days_per_month: 30,
             calendar: CalendarSettings::default(),
+            construction: ConstructionConfigs::default(),
             // Workers/Population:
             workers_search_radius: 20,
             workers_update_frequency_secs: 20.0,
@@ -175,6 +180,35 @@ impl Default for SimConfigs {
             birds_spawn_frequency: 20.0,
             settlers_spawn_frequency_secs: 20.0,
             population_per_settler_unit: 1,
+        }
+    }
+}
+
+// Simulated seconds a construction site takes, by construction tier, before `time_scale`.
+#[derive(DrawDebugUi, Serialize, Deserialize)]
+#[serde(default)]
+pub struct ConstructionConfigs {
+    pub decorative_secs: Seconds,
+    pub basic_secs: Seconds,
+    pub civic_secs: Seconds,
+    pub grand_secs: Seconds,
+
+    // The house a settler builds on a vacant lot.
+    pub house_build_secs: Seconds,
+
+    // Multiplies every duration: 0 builds everything at once, 2 takes twice as long.
+    pub time_scale: f32,
+}
+
+impl Default for ConstructionConfigs {
+    fn default() -> Self {
+        Self {
+            decorative_secs: 8.0,
+            basic_secs: 15.0,
+            civic_secs: 40.0,
+            grand_secs: 75.0,
+            house_build_secs: 4.0,
+            time_scale: 1.0,
         }
     }
 }

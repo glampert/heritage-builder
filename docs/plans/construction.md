@@ -1,6 +1,6 @@
 # Building costs, construction sites and house renovation
 
-**Status (2026-11-05): In progress. Phases 0 and 1 done.** This plan implements GDD sections 5.1.1 (building costs) and 5.1.2 (construction cycle) in [docs/design/gdd.md](../design/gdd.md). It is milestone M3 of the [roadmap](roadmap.md). It was researched against `d0696fe` on `main`. File and line references point at that commit, so re-check them before relying on them.
+**Status (2026-11-05): In progress. Phases 0, 1 and 2 done.** This plan implements GDD sections 5.1.1 (building costs) and 5.1.2 (construction cycle) in [docs/design/gdd.md](../design/gdd.md). It is milestone M3 of the [roadmap](roadmap.md). It was researched against `d0696fe` on `main`. File and line references point at that commit, so re-check them before relying on them.
 
 ## How to resume this work
 
@@ -287,18 +287,48 @@ Done when: on a test map, a temple can't be placed without bricks, is placed onc
 
 ### Phase 2: Construction sites (medium to large)
 
-- [ ] Add `ConstructionSite` and `Building.construction`. `Spawner::set_build_as_site`; `TilePlacement::place` sets it for non-instant tiers.
-- [ ] Gate `Building::update`, `update_workers`, `is_operational`, the resource accessors, `visited_by` and `tally`. `is_near_building` and `find_storage_fetch_candidate` skip sites.
-- [ ] Completion, `SimCmd::ConstructionCompleted`, and the stage flags written through a `SimCmd`.
-- [ ] Cancelling a site (clearing or undo) gives a full refund.
-- [ ] Settler houses spawn as short sites.
-- [ ] `SimConfigs.construction` (tier durations, `time_scale`, `house_build_secs`), the `instant_construction` cheat, and scale 0 in the test harness and script mode.
-- [ ] Renderer: the `UnderConstruction` flag and stage → scaffold sprite lookup, with a fallback, using placeholder scaffold sprites until the art pipeline delivers them.
-- [ ] Inspector progress with a per-frame refresh; automation fields.
-- [ ] Save v4 and migration, together with Phase 3's fields (Q5).
-- [ ] `construction.jsonl` scenario, added to CI.
+- [x] Add `ConstructionSite` and `Building.construction`. `Spawner::set_build_as_site`; `TilePlacement::place` sets it for non-instant tiers.
+- [x] Gate `Building::update`, `update_workers`, `is_operational`, the resource accessors, `visited_by` and `tally`. `is_near_building` and `find_storage_fetch_candidate` skip sites.
+- [x] Completion, `SimCmd::ConstructionCompleted`, and the stage flags written through a `SimCmd`.
+- [x] Cancelling a site (clearing or undo) gives a full refund.
+- [x] Settler houses spawn as short sites.
+- [x] `SimConfigs.construction` (tier durations, `time_scale`, `house_build_secs`), the `instant_construction` cheat, and scale 0 in the test harness and script mode.
+- [x] Renderer: the `UnderConstruction` flag and stage → scaffold sprite lookup, with a fallback, using placeholder scaffold sprites until the art pipeline delivers them.
+- [x] Inspector progress with a per-frame refresh; automation fields.
+- [x] Save v4 and migration, together with Phase 3's fields (Q5).
+- [x] `construction.jsonl` scenario, added to CI.
 
 Done when: a placed building shows scaffolding, does nothing until the timer runs out, then works; cancelling refunds everything; all old tests and scenarios pass with scale 0.
+
+**Notes (2026-11-05):**
+- **Placement:**
+  - `TilePlacement::place` takes a `ConstructionMode` (Site or Finished), passed on to `Spawner::set_construction_mode`.
+  - `TilePlacement::new()` builds sites (the in-game HUD); `TilePlacement::for_editor()` builds finished buildings unless the `build_sites_in_editor` cheat is on (Q3's default).
+  - `world.place` builds sites.
+  - Undo and redo place a site again when the recorded tile carried `UnderConstruction`, charging it, since the site was refunded. Without that, undoing the clear of a site would give a free building.
+- **Completion:** done through `cmds.defer_building_update` rather than a new `SimCmd` variant. The closure clears the tile flags, moves in a settler house's residents, and logs "<name> completed at <cell>." on the `construction` channel. Phase 4's sound and toast go there too.
+- **Skipping sites:**
+  - `is_near_building` (service coverage), the settler task's fallback to houses with room, and `CityStock` skip sites.
+  - `find_storage_fetch_candidate` and deliveries skip them already, through the gated resource accessors.
+  - `Building::add_population` refuses a site; its residents move in on completion.
+- **Rendering (deviation):** there are no scaffold sprites yet, and adding scaffold tile defs would need a new tile category. Instead, a site draws its building twice:
+  - a faint, sandy outline of all of it;
+  - the part built so far, solid and tinted, rising from the ground: the bottom quarter at stage 0, all of it at stage 3.
+
+  The tile flags use bits 12–14 (`UnderConstruction`, `ConstructionStage0/1`); bit 15 stays free for Phase 3's `Renovating`. M2's scaffold art can replace the drawing in `TileMapRenderer::draw_tile` (`construction_site_rect`).
+- **Script mode (deviation):** script mode doesn't default to instant construction. No scenario needed it except `ui_build.jsonl`, which now waits 16 s for its storage yard. The determinism checksum changed (now `7d03fb459db4f1bf`, the same in debug and release builds), since its buildings are sites now and the save version is 4. The test harness turns on `instant_construction`.
+- **Not done:** a per-tile-def `construction_secs` override (§1); no building needs one yet.
+- **Inspector:** the HUD inspector remembers the building it shows and redraws it whenever a site's whole-percent progress changes: "Under construction: 61%" and the seconds left. It switches to the normal panel on completion.
+- **Automation:**
+  - Building JSON (`world.place`'s `object`, `world.building_at`, `world.list`, `world.inspect`) has `construction` (progress, stage, remaining and total seconds) while it's a site.
+  - `world.add_stock` and `CityStock` skip yards that are still sites.
+- **Save version 4** adds `Building::construction` (`v3_to_v4.py`). Phase 3's house fields will join the same version, since v4 hasn't been merged yet.
+- **Verified:**
+  - `cargo test --workspace` passes, including 13 tests in `tests/construction.rs`: a site is inert until built, clearing refunds exactly, undo/redo, no refund for a finished building, settlers move in on completion, and the editor mode.
+  - Every CI scenario passes, as does `construction.jsonl` (30 steps), on debug and release builds, with determinism and record/replay.
+  - The 12 local saves migrate to v4 and pass `--smoke-test-saves`, and `sample_saves.zip` holds 11 v4 saves. A site saved at 54% loads and completes.
+  - The web target builds.
+  - Screenshots show sites at each stage and the inspector following a site until it completes.
 
 ### Phase 3: House renovation (small to medium)
 

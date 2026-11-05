@@ -115,6 +115,9 @@ impl UnitTaskSettler {
                     traversable_node_kinds,
                     None,
                     |building, _path| {
+                        if building.is_under_construction() {
+                            return true; // Its builders move in when it completes.
+                        }
                         if let Some(population) = building.population() {
                             if !population.is_max() {
                                 return false; // Accept this building and end the search.

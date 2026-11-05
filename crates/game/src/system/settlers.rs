@@ -14,8 +14,9 @@ use crate::{
     pathfind::Node,
     config::GameConfigs,
     save_context::PostLoadContext,
-    building::BuildingKind,
+    building::{BuildingKind, construction::{self, ConstructionSite}},
     sim::{SimCmds, SimContext, SimCmdQueue, commands::ImmediateModeSimCmds},
+    world::city_stock::Withdrawal,
     tile::{
         TileFlags,
         TileKind,
@@ -220,6 +221,16 @@ impl Settler {
                         Ok(building) => {
                             debug_assert!(building.is(BuildingKind::House));
                             building.set_random_variation(context);
+
+                            // The settlers build their house first, then move in when it completes.
+                            let build_secs =
+                                construction::scaled_construction_secs(GameConfigs::get().sim.construction.house_build_secs);
+                            if build_secs > 0.0 {
+                                let site = ConstructionSite::new(build_secs, 0, Withdrawal::default())
+                                    .with_settlers(population_to_add);
+                                building.start_construction(site, context);
+                                return;
+                            }
 
                             // We are already within a deferred command; execute recursive commands immediately.
                             let mut cmds = ImmediateModeSimCmds::new(context);

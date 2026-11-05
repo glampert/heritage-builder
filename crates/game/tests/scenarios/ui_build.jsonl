@@ -4,13 +4,16 @@
 {"method": "time.fixed_dt", "params": {"dt": 0.016667}}
 {"method": "session.new_map", "params": {"size": [16, 16]}}
 # An apothecary costs 4 gold, 3 Wood and 2 Bricks, taken from the storage yards when it's placed.
+# A storage yard is a construction site for 15 simulated seconds before it holds anything.
 {"method": "world.place", "params": {"tile": "storage_yard", "cell": [10, 3]}}
+{"method": "time.fast_forward", "params": {"sim_secs": 16}}
 {"method": "world.add_stock", "params": {"resources": {"Wood": 3, "Bricks": 2}}}
 {"method": "ui.click", "params": {"path": "Services"}}
 {"method": "ui.click", "params": {"path": "Apothecary"}}
 {"method": "input.click", "params": {"cell": [8, 8]}}
 {"method": "assert.eq", "params": {"query": "world.building_at", "args": {"cell": [8, 8]}, "path": "/kind", "value": "Apothecary"}}
 {"method": "assert.eq", "params": {"query": "world.stats", "path": "/city_stock", "value": {}}}
+{"method": "assert.exists", "params": {"query": "world.building_at", "args": {"cell": [8, 8]}, "path": "/construction"}}
 {"method": "ui.click", "params": {"path": "Roads"}}
 {"method": "ui.click", "params": {"path": "Dirt Road"}}
 {"method": "input.drag", "params": {"from": [5, 5], "to": [5, 12], "cells": true}}

@@ -22,6 +22,8 @@ use engine::{
 };
 
 use crate::{
+    building::construction::ConstructionMode,
+    cheats,
     sim::SimContext,
     ui_context::GameUiContext,
     save_context::{Load, Save},
@@ -166,7 +168,8 @@ pub trait GameMenusSystem: Any + Save + Load {
                 },
             }
 
-            let result = match TilePlacement::try_place_or_clear_tile(selection, context) {
+            let construction_mode = self.placement().construction_mode();
+            let result = match TilePlacement::try_place_or_clear_tile(selection, construction_mode, context) {
                 PlaceOrClearResult::ClearedTile(_tile_def) => PlacementResult::ClearedTile,
                 PlaceOrClearResult::PlacedTile(tile_def) => {
                     if tile_def.is(TileKind::Building | TileKind::Unit) {
@@ -414,11 +417,27 @@ impl std::fmt::Display for RoadSegmentError {
 
 pub struct TilePlacement {
     current_road_segment: RoadSegment, // For road placement.
+    builds_sites: bool,                // Placed buildings start as construction sites.
 }
 
 impl TilePlacement {
+    // The player's placement: buildings start as construction sites.
     pub fn new() -> Self {
-        Self { current_road_segment: RoadSegment::default() }
+        Self { current_road_segment: RoadSegment::default(), builds_sites: true }
+    }
+
+    // The developer editor's placement: finished buildings, unless the build_sites_in_editor
+    // cheat is on.
+    pub fn for_editor() -> Self {
+        Self { current_road_segment: RoadSegment::default(), builds_sites: false }
+    }
+
+    fn construction_mode(&self) -> ConstructionMode {
+        if self.builds_sites || cheats::get().build_sites_in_editor {
+            ConstructionMode::Site
+        } else {
+            ConstructionMode::Finished
+        }
     }
 
     fn try_place_road_segment(&mut self, context: &mut GameUiContext) -> PlaceRoadSegmentResult {
@@ -508,7 +527,11 @@ impl TilePlacement {
         }
     }
 
-    fn try_place_or_clear_tile(selection: TilePaletteSelection, context: &mut GameUiContext) -> PlaceOrClearResult {
+    fn try_place_or_clear_tile(
+        selection: TilePaletteSelection,
+        construction_mode: ConstructionMode,
+        context: &mut GameUiContext,
+    ) -> PlaceOrClearResult {
         // If we have a selection, place it. Otherwise we want to try removing the tile
         // under the cursor. Do not remove terrain tiles though.
         if let Some(tile_def) = selection.as_tile_def() {
@@ -520,7 +543,7 @@ impl TilePlacement {
 
             if target_cell.is_valid() {
                 let sim_context = context.new_sim_context();
-                return Self::place(&sim_context, target_cell, tile_def, true, true);
+                return Self::place(&sim_context, target_cell, tile_def, true, true, construction_mode);
             }
         } else if selection.is_clear() {
             // Clear/remove tile:
@@ -540,15 +563,20 @@ impl TilePlacement {
         }
     }
 
+    // Places `tile_def` at `target_cell` as the player does: charges its cost if
+    // `subtract_tile_cost`, and with ConstructionMode::Site, a building whose tier takes time
+    // starts as a construction site.
     pub fn place(
         context: &SimContext,
         target_cell: Cell,
         tile_def: &'static TileDef,
         subtract_tile_cost: bool,
         undo_redo: bool,
+        construction_mode: ConstructionMode,
     ) -> PlaceOrClearResult {
         let mut spawner = Spawner::new(context);
         spawner.set_subtract_tile_cost(subtract_tile_cost);
+        spawner.set_construction_mode(construction_mode);
 
         let spawn_result = spawner.try_spawn_tile_with_def(target_cell, tile_def);
         match &spawn_result {
@@ -609,10 +637,22 @@ impl TilePlacement {
                 undo_redo::record(EditAction::ClearingTiles, &[target_cell], layers, context.tile_map(), context.world());
             }
 
+            // A construction site is refunded in full, cleared or undone; a finished building
+            // only by undo (restore_tile_cost).
+            let site = context
+                .world_mut()
+                .find_building_for_cell_mut(target_cell, context.tile_map())
+                .filter(|building| tile.is(TileKind::Building) && building.base_cell() == target_cell)
+                .and_then(|building| building.take_construction_site());
+
             let mut spawner = Spawner::new(context);
-            spawner.set_restore_tile_cost(restore_tile_cost);
+            spawner.set_restore_tile_cost(restore_tile_cost && site.is_none());
 
             spawner.despawn_tile(tile);
+
+            if let Some(site) = &site {
+                spawner.refund_construction_site(site, &tile_def.name);
+            }
 
             if is_road || is_vacant_lot {
                 // Replace removed road tile with a regular terrain tile.

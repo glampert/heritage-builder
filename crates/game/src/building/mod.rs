@@ -73,6 +73,7 @@ use crate::{
 
 pub mod config;
 pub mod construction;
+use construction::{CONSTRUCTION_STAGES, ConstructionSite};
 pub use house::{HouseLevel, HouseUpgradeDirection};
 
 pub(crate) mod house;
@@ -257,6 +258,8 @@ pub struct Building {
     kind: BuildingKind,
     workers_update_timer: UpdateTimer,
     archetype: Option<BuildingArchetype>,
+    // Some while the building is a construction site: inert until it completes.
+    construction: Option<Box<ConstructionSite>>,
 }
 
 impl GameObject for Building {
@@ -275,6 +278,12 @@ impl GameObject for Building {
         // Refresh cached road link cell.
         self.update_road_link(Some(cmds), context);
 
+        // A site does nothing but build until it completes.
+        if self.construction.is_some() {
+            self.update_construction(cmds, context);
+            return;
+        }
+
         if self.workers_update_timer.tick(context.delta_time_secs()).should_update() {
             self.update_workers(cmds);
         }
@@ -286,7 +295,8 @@ impl GameObject for Building {
     }
 
     fn tally(&self, stats: &mut WorldStats) {
-        if !self.is_spawned() {
+        // Sites count towards nothing: no population, workers or stock.
+        if !self.is_spawned() || self.is_under_construction() {
             return;
         }
 
@@ -434,6 +444,75 @@ impl Building {
         self.kind = BuildingKind::default();
         self.workers_update_timer = UpdateTimer::default();
         self.archetype = None;
+        self.construction = None;
+    }
+
+    // ----------------------
+    // Construction:
+    // ----------------------
+
+    #[inline]
+    pub fn is_under_construction(&self) -> bool {
+        self.construction.is_some()
+    }
+
+    #[inline]
+    pub fn construction_site(&self) -> Option<&ConstructionSite> {
+        self.construction.as_deref()
+    }
+
+    // Turns a just-spawned building into a construction site, drawn as one from now on. Needs a
+    // mutable context: it sets the tile's flags at once.
+    pub fn start_construction(&mut self, site: ConstructionSite, context: &SimContext) {
+        debug_assert!(self.is_spawned());
+        debug_assert!(self.construction.is_none());
+
+        set_construction_tile_flags(context.tile_map_mut(), self.base_cell(), Some(site.stage()));
+        self.construction = Some(Box::new(site));
+    }
+
+    // Advances the site by the world step; queues the stage's tile flags when it changes, and
+    // the completion when it's done (the tile map is locked during the update).
+    fn update_construction(&mut self, cmds: &mut SimCmds, context: &SimContext) {
+        let site = self.construction.as_mut().unwrap();
+        let prev_stage = site.stage();
+        let finished = site.advance(context.delta_time_secs());
+        let stage = site.stage();
+
+        if finished {
+            let site = self.construction.take().unwrap();
+            let settlers = site.settlers();
+
+            // Hire workers on the first step.
+            self.workers_update_timer.force_update();
+
+            cmds.defer_building_update(self.kind_and_id(), move |context, building| {
+                set_construction_tile_flags(context.tile_map_mut(), building.base_cell(), None);
+
+                if settlers != 0 {
+                    let mut cmds = ImmediateModeSimCmds::new(context);
+                    let added = building.add_population(&mut cmds, context, settlers);
+                    if added != settlers {
+                        log::warning!(
+                            log::channel!("construction"),
+                            "{} took {added} of the {settlers} settlers who built it.",
+                            building.name()
+                        );
+                    }
+                }
+
+                log::info!(log::channel!("construction"), "{} completed at {}.", building.name(), building.base_cell());
+            });
+        } else if stage != prev_stage {
+            cmds.defer_building_update(self.kind_and_id(), move |context, building| {
+                set_construction_tile_flags(context.tile_map_mut(), building.base_cell(), Some(stage));
+            });
+        }
+    }
+
+    // Removes the site state, e.g. to refund it when the site is cleared.
+    pub fn take_construction_site(&mut self) -> Option<ConstructionSite> {
+        self.construction.take().map(|site| *site)
     }
 
     // ----------------------
@@ -528,7 +607,7 @@ impl Building {
 
     #[inline]
     pub fn is_operational(&self) -> bool {
-        self.archetype().is_operational()
+        !self.is_under_construction() && self.archetype().is_operational()
     }
 
     #[inline]
@@ -548,6 +627,9 @@ impl Building {
 
     pub fn visited_by(&mut self, unit: &mut Unit, context: &SimContext) -> BuildingVisitResult {
         debug_assert!(self.is_spawned());
+        if self.is_under_construction() {
+            return BuildingVisitResult::Refused;
+        }
         let context = self.new_context(context);
         self.archetype_mut().visited_by(unit, &context)
     }
@@ -596,6 +678,9 @@ impl Building {
     pub fn available_resources(&self, kind: ResourceKind) -> u32 {
         debug_assert!(kind.is_single_resource());
         debug_assert!(self.is_spawned());
+        if self.is_under_construction() {
+            return 0;
+        }
         self.archetype().available_resources(kind)
     }
 
@@ -603,6 +688,9 @@ impl Building {
     pub fn receivable_resources(&self, kind: ResourceKind) -> u32 {
         debug_assert!(kind.is_single_resource());
         debug_assert!(self.is_spawned());
+        if self.is_under_construction() {
+            return 0;
+        }
         self.archetype().receivable_resources(kind)
     }
 
@@ -610,6 +698,9 @@ impl Building {
     pub fn receive_resources(&mut self, kind: ResourceKind, count: u32) -> u32 {
         debug_assert!(kind.is_single_resource());
         debug_assert!(self.is_spawned());
+        if self.is_under_construction() {
+            return 0;
+        }
         self.archetype_mut().receive_resources(kind, count)
     }
 
@@ -617,6 +708,9 @@ impl Building {
     pub fn remove_resources(&mut self, kind: ResourceKind, count: u32) -> u32 {
         debug_assert!(kind.is_single_resource());
         debug_assert!(self.is_spawned());
+        if self.is_under_construction() {
+            return 0;
+        }
         self.archetype_mut().remove_resources(kind, count)
     }
 
@@ -666,6 +760,9 @@ impl Building {
     #[inline]
     pub fn add_population(&mut self, cmds: &mut SimCmds, context: &SimContext, count: u32) -> u32 {
         debug_assert!(self.is_spawned());
+        if self.is_under_construction() {
+            return 0; // Residents move in when it's built.
+        }
         let context = self.new_context(context);
         self.archetype_mut().add_population(cmds, &context, count)
     }
@@ -1437,3 +1534,33 @@ impl<'de> Deserialize<'de> for BuildingStock {
         Ok(BuildingStock { resources: stock.resources, capacities })
     }
 }
+
+// ----------------------------------------------
+// Construction site tile flags
+// ----------------------------------------------
+
+// Shows the building at `base_cell` as a site at `stage` (0 to CONSTRUCTION_STAGES - 1), or as
+// finished with None. The renderer only sees tiles, so the site's state reaches it this way.
+pub(crate) fn set_construction_tile_flags(tile_map: &mut TileMap, base_cell: Cell, stage: Option<u8>) {
+    let site_flags = TileFlags::UnderConstruction | TileFlags::ConstructionStage0 | TileFlags::ConstructionStage1;
+    tile_map.set_tile_flags(base_cell, TileKind::Building, site_flags, false);
+
+    if let Some(stage) = stage {
+        debug_assert!(stage < CONSTRUCTION_STAGES);
+        let mut flags = TileFlags::UnderConstruction;
+        flags.set(TileFlags::ConstructionStage0, stage & 1 != 0);
+        flags.set(TileFlags::ConstructionStage1, stage & 2 != 0);
+        tile_map.set_tile_flags(base_cell, TileKind::Building, flags, true);
+    }
+}
+
+// The drawn stage of a site's tile (see set_construction_tile_flags), None for anything else.
+pub fn construction_stage_from_tile_flags(flags: TileFlags) -> Option<u8> {
+    if !flags.intersects(TileFlags::UnderConstruction) {
+        return None;
+    }
+    let low = u8::from(flags.intersects(TileFlags::ConstructionStage0));
+    let high = u8::from(flags.intersects(TileFlags::ConstructionStage1));
+    Some(low | (high << 1))
+}
+

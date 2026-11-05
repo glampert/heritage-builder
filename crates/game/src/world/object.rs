@@ -15,7 +15,7 @@ use common::coords::{Cell, CellRange, WorldToScreenTransform};
 use engine::{log, ui::UiSystem};
 
 use super::{
-    city_stock::{CityStock, MissingCost},
+    city_stock::{CityStock, MissingCost, Withdrawal},
     stats::WorldStats,
 };
 use crate::{
@@ -26,7 +26,11 @@ use crate::{
     sim::{SimCmds, SimContext},
     undo_redo::GameObjectSavedState,
     prop::{Prop, PropId},
-    building::{Building, BuildingKindAndId},
+    building::{
+        Building,
+        BuildingKindAndId,
+        construction::{self, ConstructionMode, ConstructionSite},
+    },
     unit::{Unit, UnitId, config::UnitConfigKey},
     tile::{
         Tile,
@@ -527,6 +531,8 @@ pub struct Spawner<'game> {
     // deferred spawns (SimCmds, settler houses) and presets never charge.
     subtract_tile_cost: bool,
     restore_tile_cost: bool, // Refund the tile's cost when despawning? Default false.
+    // Site: a building whose tier takes time starts as a construction site. Default Finished.
+    construction_mode: ConstructionMode,
 }
 
 pub enum SpawnerResult<'game> {
@@ -552,7 +558,7 @@ impl SpawnerResult<'_> {
 impl<'game> Spawner<'game> {
     #[inline]
     pub fn new(context: &'game SimContext) -> Self {
-        Self { context, subtract_tile_cost: false, restore_tile_cost: false }
+        Self { context, subtract_tile_cost: false, restore_tile_cost: false, construction_mode: ConstructionMode::Finished }
     }
 
     #[inline]
@@ -563,6 +569,11 @@ impl<'game> Spawner<'game> {
     #[inline]
     pub fn set_restore_tile_cost(&mut self, restore: bool) {
         self.restore_tile_cost = restore;
+    }
+
+    #[inline]
+    pub fn set_construction_mode(&mut self, mode: ConstructionMode) {
+        self.construction_mode = mode;
     }
 
     // Spawn a GameObject (Building, Unit, Prop) or place a Tile
@@ -645,9 +656,18 @@ impl<'game> Spawner<'game> {
         let result =
             self.context.world_mut().try_spawn_building_with_tile_def(self.context, building_base_cell, building_tile_def);
 
-        if let Ok(ref building) = result {
-            self.subtract_tile_cost(building_tile_def);
+        if let Ok(building) = result {
+            let (paid_gold, withdrawal) = self.subtract_tile_cost(building_tile_def);
             building.set_random_variation(self.context);
+
+            if self.construction_mode == ConstructionMode::Site {
+                let secs = construction::construction_secs(building_tile_def);
+                if secs > 0.0 {
+                    building.start_construction(ConstructionSite::new(secs, paid_gold, withdrawal), self.context);
+                }
+            }
+
+            return Ok(building);
         }
 
         result
@@ -686,7 +706,7 @@ impl<'game> Spawner<'game> {
             self.context.world_mut().try_spawn_unit_with_tile_def(self.context, unit_origin, unit_tile_def);
 
         if result.is_ok() {
-            self.subtract_tile_cost(unit_tile_def);
+            let _ = self.subtract_tile_cost(unit_tile_def);
         }
 
         result
@@ -736,7 +756,7 @@ impl<'game> Spawner<'game> {
             self.context.world_mut().try_spawn_prop_with_tile_def(self.context, prop_base_cell, prop_tile_def);
 
         if result.is_ok() {
-            self.subtract_tile_cost(prop_tile_def);
+            let _ = self.subtract_tile_cost(prop_tile_def);
         }
 
         result
@@ -777,15 +797,40 @@ impl<'game> Spawner<'game> {
         Ok(())
     }
 
-    // Charges the tile's gold, then takes its materials from the storage yards.
+    // Charges the tile's gold, then takes its materials from the storage yards. Returns what
+    // it took, for a construction site's refund.
     #[inline]
-    fn subtract_tile_cost(&self, tile_def: &'static TileDef) {
+    fn subtract_tile_cost(&self, tile_def: &'static TileDef) -> (u32, Withdrawal) {
+        let mut paid_gold = 0;
+        let mut withdrawal = Withdrawal::default();
+
         if self.subtract_tile_cost && tile_def.has_cost() && !cheats::get().ignore_tile_cost {
             if tile_def.cost != 0 {
                 self.context.treasury_mut().subtract_gold_units_global(self.context.world_mut(), tile_def.cost);
+                paid_gold = tile_def.cost;
             }
             if !tile_def.materials.is_empty() {
-                CityStock::withdraw(self.context.world_mut(), &tile_def.materials);
+                withdrawal = CityStock::withdraw(self.context.world_mut(), &tile_def.materials);
+            }
+        }
+
+        (paid_gold, withdrawal)
+    }
+
+    // Refunds a construction site in full: the gold it was charged and the materials it took,
+    // back into the yards they came from; what no yard has room for is logged and lost.
+    pub fn refund_construction_site(&self, site: &ConstructionSite, name: &str) {
+        if site.paid_gold() != 0 {
+            self.context.treasury_mut().add_gold_units_global(self.context.world_mut(), site.paid_gold());
+        }
+        if !site.withdrawal().is_empty() {
+            for item in &CityStock::refund(self.context.world_mut(), site.withdrawal()) {
+                log::warning!(
+                    log::channel!("world"),
+                    "No storage yard had room for {} {} refunded by cancelling '{name}'; they're lost.",
+                    item.count,
+                    item.kind
+                );
             }
         }
     }
@@ -821,7 +866,7 @@ impl<'game> Spawner<'game> {
 
         match self.context.try_place_tile(target_cell, tile_def) {
             Ok(tile) => {
-                self.subtract_tile_cost(tile_def);
+                let _ = self.subtract_tile_cost(tile_def);
 
                 if tile.path_kind().is_vacant_lot() && let Some(prev_tile) = prev_tile_def {
                     if prev_tile.hash == PresetTiles::Grass.hash() {

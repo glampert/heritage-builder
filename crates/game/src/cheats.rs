@@ -78,6 +78,10 @@ macro_rules! game_cheats {
 game_cheats! {
     ignore_worker_requirements = false,
     ignore_tile_cost = false,
+    // Placed buildings are finished at once instead of starting as construction sites.
+    instant_construction = false,
+    // The developer editor places construction sites, as the player does, instead of finished buildings.
+    build_sites_in_editor = false,
 }
 
 // ----------------------------------------------

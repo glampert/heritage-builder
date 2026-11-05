@@ -1,6 +1,8 @@
 use common::coords::Cell;
+use common::time::Seconds;
 use game::{
-    building::{BuildingKindAndId, construction::ConstructionMaterials},
+    building::{BuildingKind, BuildingKindAndId, construction::{ConstructionMaterials, ConstructionMode}},
+    config::GameConfigs,
     cheats,
     menu::{PlaceOrClearResult, TilePlacement},
     sim::{SimCmdQueue, resources::{ResourceKind, StockItem}},
@@ -28,6 +30,13 @@ fn main() {
         test_utils::test_fn!(test_refund_goes_elsewhere_when_a_yard_is_gone),
         // Material costs:
         test_utils::test_fn!(test_temple_needs_bricks),
+        // Construction sites:
+        test_utils::test_fn!(test_site_is_inert_until_built),
+        test_utils::test_fn!(test_clearing_a_site_refunds_it),
+        test_utils::test_fn!(test_undo_and_redo_of_a_site),
+        test_utils::test_fn!(test_finished_building_refunds_nothing_when_cleared),
+        test_utils::test_fn!(test_settlers_move_in_when_their_house_is_built),
+        test_utils::test_fn!(test_editor_mode_builds_finished),
     ]);
 }
 
@@ -40,6 +49,40 @@ fn with_tile_costs<F: FnOnce()>(test: F) {
     cheats::get_mut().ignore_tile_cost = false;
     test();
     cheats::get_mut().ignore_tile_cost = true;
+}
+
+// Runs `test` with tile costs and construction sites on, as the player plays.
+fn as_player<F: FnOnce()>(test: F) {
+    cheats::get_mut().instant_construction = false;
+    with_tile_costs(test);
+    cheats::get_mut().instant_construction = true;
+}
+
+fn place(env: &mut TestEnvironment, cell: Cell, name: &str, mode: ConstructionMode) -> bool {
+    let tile_def = test_utils::find_building_def(name);
+    env.world.refresh_stats(env.sim.treasury()); // Placement checks the treasury through the stats.
+    let context = env.new_sim_context(0.0);
+    match TilePlacement::place(&context, cell, tile_def, true, true, mode) {
+        PlaceOrClearResult::Failed { message, .. } => panic!("placing {name} at {cell} failed: {message}"),
+        _ => true,
+    }
+}
+
+fn clear(env: &mut TestEnvironment, cell: Cell) -> bool {
+    let context = env.new_sim_context(0.0);
+    let tile = context.find_tile(cell, game::tile::TileKind::Building).expect("a building to clear");
+    TilePlacement::clear(&context, tile, false, true).is_ok()
+}
+
+fn building_at(env: &TestEnvironment, cell: Cell) -> Option<&game::building::Building> {
+    env.world.find_building_for_cell(cell, &env.tile_map)
+}
+
+// Ticks the world (as world steps do) for `secs` of simulated time.
+fn run_for(env: &mut TestEnvironment, secs: Seconds) {
+    const STEP: Seconds = 0.5;
+    let steps = (secs / STEP).ceil() as usize;
+    test_utils::tick_n(env, steps, STEP);
 }
 
 // Gold the HUD and the affordability checks see: the world stats, recounted now.
@@ -103,7 +146,7 @@ fn test_player_placement_charges_gold() {
         let well_def = test_utils::find_building_def("small_well");
         {
             let context = env.new_sim_context(0.0);
-            assert!(TilePlacement::place(&context, Cell::new(4, 4), well_def, true, false).is_ok());
+            assert!(TilePlacement::place(&context, Cell::new(4, 4), well_def, true, false, ConstructionMode::Finished).is_ok());
         }
 
         assert_eq!(gold(&mut env), gold_before - well_def.cost);
@@ -209,7 +252,7 @@ fn test_temple_needs_bricks() {
         // No materials: refused, with the reason.
         {
             let context = env.new_sim_context(0.0);
-            match TilePlacement::place(&context, temple_cell, temple_def, true, true) {
+            match TilePlacement::place(&context, temple_cell, temple_def, true, true, ConstructionMode::Finished) {
                 PlaceOrClearResult::Failed { message, .. } => assert!(message.contains("Bricks"), "{message}"),
                 _ => panic!("the temple shouldn't be placed without bricks"),
             }
@@ -228,7 +271,7 @@ fn test_temple_needs_bricks() {
 
         {
             let context = env.new_sim_context(0.0);
-            assert!(TilePlacement::place(&context, temple_cell, temple_def, true, true).is_ok());
+            assert!(TilePlacement::place(&context, temple_cell, temple_def, true, true, ConstructionMode::Finished).is_ok());
         }
         assert_eq!(CityStock::available(&env.world, ResourceKind::Bricks), 1);
         assert_eq!(CityStock::available(&env.world, ResourceKind::Wood), 0);
@@ -245,6 +288,155 @@ fn test_temple_needs_bricks() {
         assert_eq!(gold(&mut env), gold_before);
         assert!(test_utils::find_building(&env, yard).is(game::building::BuildingKind::StorageYard));
 
+        undo_redo::clear();
+    });
+}
+
+// ----------------------------------------------
+// Construction sites
+// ----------------------------------------------
+
+// A placed storage yard is a site for its tier's duration: it holds nothing and counts for
+// nothing in the city stock until it completes, then works.
+fn test_site_is_inert_until_built() {
+    as_player(|| {
+        let mut env = TestEnvironment::new();
+        let cell = Cell::new(4, 4);
+        let build_secs = GameConfigs::get().sim.construction.basic_secs;
+
+        assert!(place(&mut env, cell, "storage_yard", ConstructionMode::Site));
+        let yard = building_at(&env, cell).unwrap();
+        assert!(yard.is_under_construction());
+        assert!(!yard.is_operational());
+        let handle = yard.kind_and_id();
+
+        // Deliveries and deposits skip it.
+        assert_eq!(test_utils::find_building_mut(&mut env, handle).receive_resources(ResourceKind::Wood, 2), 0);
+        assert_eq!(CityStock::deposit_resource(&mut env.world, ResourceKind::Wood, 2), 2);
+
+        run_for(&mut env, build_secs - 1.0);
+        let site = building_at(&env, cell).unwrap().construction_site().unwrap();
+        assert!(site.progress() > 0.9 && site.progress() < 1.0, "progress {}", site.progress());
+
+        run_for(&mut env, 1.5);
+        assert!(!building_at(&env, cell).unwrap().is_under_construction(), "the yard should be built");
+        assert_eq!(CityStock::deposit_resource(&mut env.world, ResourceKind::Wood, 2), 0);
+        assert_eq!(CityStock::available(&env.world, ResourceKind::Wood), 2);
+    });
+}
+
+// Clearing a site refunds its gold and materials, into the yards they came from.
+fn test_clearing_a_site_refunds_it() {
+    as_player(|| {
+        let mut env = TestEnvironment::new();
+        let yard = spawn_yard(&mut env, Cell::new(2, 2), 0);
+        assert!(CityStock::deposit(&mut env.world, &materials(&[(ResourceKind::Bricks, 8), (ResourceKind::Wood, 6)])).is_empty());
+        let gold_before = gold(&mut env);
+
+        let temple_cell = Cell::new(14, 14);
+        assert!(place(&mut env, temple_cell, "temple", ConstructionMode::Site));
+        assert!(building_at(&env, temple_cell).unwrap().is_under_construction());
+        assert_eq!(CityStock::available(&env.world, ResourceKind::Bricks), 0);
+
+        run_for(&mut env, 5.0);
+        assert!(clear(&mut env, temple_cell));
+
+        assert!(building_at(&env, temple_cell).is_none());
+        assert_eq!(gold(&mut env), gold_before);
+        assert_eq!(CityStock::available(&env.world, ResourceKind::Bricks), 8);
+        assert_eq!(test_utils::find_building(&env, yard).available_resources(ResourceKind::Wood), 4); // The first slot.
+        assert_eq!(CityStock::available(&env.world, ResourceKind::Wood), 6);
+        undo_redo::clear();
+    });
+}
+
+// Undoing a site's placement refunds it; redo places a new site and charges again.
+fn test_undo_and_redo_of_a_site() {
+    as_player(|| {
+        let mut env = TestEnvironment::new();
+        let gold_before = gold(&mut env);
+        let cell = Cell::new(6, 6);
+        let well_cost = test_utils::find_building_def("small_well").cost;
+
+        assert!(place(&mut env, cell, "small_well", ConstructionMode::Site));
+        run_for(&mut env, 3.0);
+        assert_eq!(gold(&mut env), gold_before - well_cost);
+
+        {
+            let context = env.new_sim_context(0.0);
+            undo_redo::undo(&context);
+        }
+        assert!(building_at(&env, cell).is_none());
+        assert_eq!(gold(&mut env), gold_before);
+
+        {
+            let context = env.new_sim_context(0.0);
+            undo_redo::redo(&context);
+        }
+        let well = building_at(&env, cell).expect("redo should place the well again");
+        assert!(well.is_under_construction(), "redo places a new site");
+        assert_eq!(well.construction_site().unwrap().progress(), 0.0);
+        assert_eq!(gold(&mut env), gold_before - well_cost);
+        undo_redo::clear();
+    });
+}
+
+// Demolishing a finished building refunds nothing.
+fn test_finished_building_refunds_nothing_when_cleared() {
+    as_player(|| {
+        let mut env = TestEnvironment::new();
+        let gold_before = gold(&mut env);
+        let cell = Cell::new(6, 6);
+        let well_cost = test_utils::find_building_def("small_well").cost;
+
+        assert!(place(&mut env, cell, "small_well", ConstructionMode::Site));
+        run_for(&mut env, GameConfigs::get().sim.construction.basic_secs + 1.0);
+        assert!(!building_at(&env, cell).unwrap().is_under_construction());
+
+        assert!(clear(&mut env, cell));
+        assert_eq!(gold(&mut env), gold_before - well_cost);
+        undo_redo::clear();
+    });
+}
+
+// A settler's house is a short site; the settlers move in when it's built.
+fn test_settlers_move_in_when_their_house_is_built() {
+    as_player(|| {
+        let mut env = TestEnvironment::new();
+        let cell = Cell::new(8, 8);
+        let house_def = test_utils::find_building_def("house0");
+        let build_secs = GameConfigs::get().sim.construction.house_build_secs;
+
+        // What the settler task does on arrival (system/settlers.rs), as a deferred spawn.
+        {
+            let context = env.new_sim_context(0.0);
+            let cmds = context.cmds_mut();
+            cmds.spawn_building_with_tile_def_cb(cell, house_def, |context, result| {
+                let Ok(building) = result else { panic!("the house should spawn") };
+                let site = game::building::construction::ConstructionSite::new(4.0, 0, Withdrawal::default()).with_settlers(2);
+                building.start_construction(site, context);
+            });
+            cmds.execute(&context);
+        }
+
+        let house = building_at(&env, cell).unwrap();
+        assert!(house.is(BuildingKind::House) && house.is_under_construction());
+        assert_eq!(house.population_count(), 0);
+
+        run_for(&mut env, build_secs + 1.0);
+        let house = building_at(&env, cell).unwrap();
+        assert!(!house.is_under_construction());
+        assert_eq!(house.population_count(), 2);
+    });
+}
+
+// The developer editor's mode places finished buildings, even with sites on.
+fn test_editor_mode_builds_finished() {
+    as_player(|| {
+        let mut env = TestEnvironment::new();
+        let cell = Cell::new(6, 6);
+        assert!(place(&mut env, cell, "small_well", ConstructionMode::Finished));
+        assert!(!building_at(&env, cell).unwrap().is_under_construction());
         undo_redo::clear();
     });
 }

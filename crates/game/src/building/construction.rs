@@ -7,7 +7,15 @@ use arrayvec::ArrayVec;
 use serde::{Deserialize, Deserializer, Serialize, de};
 use strum::{Display, EnumString};
 
-use crate::sim::resources::{ResourceKind, StockItem};
+use common::time::Seconds;
+
+use crate::{
+    cheats,
+    config::GameConfigs,
+    sim::resources::{ResourceKind, StockItem},
+    tile::sets::TileDef,
+    world::city_stock::Withdrawal,
+};
 
 // ----------------------------------------------
 // ConstructionMaterials
@@ -135,4 +143,155 @@ pub enum ConstructionTier {
     Civic,
     // Palaces and fortresses.
     Grand,
+}
+
+// ----------------------------------------------
+// ConstructionMode
+// ----------------------------------------------
+
+// Whether a placed building starts as a construction site (when its tier takes time) or finished.
+// The player's placements build sites; presets, world spawns and the developer editor don't.
+#[derive(Copy, Clone, PartialEq, Eq, Debug)]
+pub enum ConstructionMode {
+    Site,
+    Finished,
+}
+
+// Simulated seconds a building of `tile_def` takes to build, after the time scale: 0 for the
+// Instant tier, with the instant_construction cheat, or with a time scale of 0.
+pub fn construction_secs(tile_def: &TileDef) -> Seconds {
+    let configs = &GameConfigs::get().sim.construction;
+    let secs = match tile_def.construction_tier() {
+        ConstructionTier::Instant => 0.0,
+        ConstructionTier::Decorative => configs.decorative_secs,
+        ConstructionTier::Basic => configs.basic_secs,
+        ConstructionTier::Civic => configs.civic_secs,
+        ConstructionTier::Grand => configs.grand_secs,
+    };
+    scaled_construction_secs(secs)
+}
+
+// `secs` after the time scale and the instant_construction cheat.
+pub fn scaled_construction_secs(secs: Seconds) -> Seconds {
+    if cheats::get().instant_construction {
+        return 0.0;
+    }
+    (secs * GameConfigs::get().sim.construction.time_scale).max(0.0)
+}
+
+// ----------------------------------------------
+// ConstructionSite
+// ----------------------------------------------
+
+// Number of drawn stages a site goes through (TileFlags::ConstructionStage holds 0 to 3).
+pub const CONSTRUCTION_STAGES: u8 = 4;
+
+// A building being built: inert until its timer runs out (docs/plans/construction.md §4).
+// Saved with the building.
+#[derive(Clone, PartialEq, Debug, Serialize, Deserialize)]
+pub struct ConstructionSite {
+    // Simulated seconds it takes, fixed at placement, and how many have passed.
+    total_secs: Seconds,
+    elapsed_secs: Seconds,
+
+    // What placing it cost, so cancelling refunds exactly that.
+    paid_gold: u32,
+    withdrawal: Withdrawal,
+
+    // Residents who move in when a house site completes: the settlers who arrived on its lot.
+    settlers: u32,
+}
+
+impl ConstructionSite {
+    pub fn new(total_secs: Seconds, paid_gold: u32, withdrawal: Withdrawal) -> Self {
+        debug_assert!(total_secs > 0.0);
+        Self { total_secs, elapsed_secs: 0.0, paid_gold, withdrawal, settlers: 0 }
+    }
+
+    pub fn with_settlers(mut self, settlers: u32) -> Self {
+        self.settlers = settlers;
+        self
+    }
+
+    // Advances by `delta_time_secs` of simulated time. True once it's finished.
+    pub fn advance(&mut self, delta_time_secs: Seconds) -> bool {
+        self.elapsed_secs = (self.elapsed_secs + delta_time_secs.max(0.0)).min(self.total_secs);
+        self.is_finished()
+    }
+
+    #[inline]
+    pub fn is_finished(&self) -> bool {
+        self.elapsed_secs >= self.total_secs
+    }
+
+    // 0 to 1.
+    #[inline]
+    pub fn progress(&self) -> f32 {
+        if self.total_secs > 0.0 { (self.elapsed_secs / self.total_secs).clamp(0.0, 1.0) } else { 1.0 }
+    }
+
+    #[inline]
+    pub fn remaining_secs(&self) -> Seconds {
+        (self.total_secs - self.elapsed_secs).max(0.0)
+    }
+
+    #[inline]
+    pub fn total_secs(&self) -> Seconds {
+        self.total_secs
+    }
+
+    // The drawn stage, 0 to CONSTRUCTION_STAGES - 1, a quarter of the progress each.
+    pub fn stage(&self) -> u8 {
+        ((self.progress() * f32::from(CONSTRUCTION_STAGES)) as u8).min(CONSTRUCTION_STAGES - 1)
+    }
+
+    #[inline]
+    pub fn paid_gold(&self) -> u32 {
+        self.paid_gold
+    }
+
+    #[inline]
+    pub fn withdrawal(&self) -> &Withdrawal {
+        &self.withdrawal
+    }
+
+    #[inline]
+    pub fn settlers(&self) -> u32 {
+        self.settlers
+    }
+}
+
+// ----------------------------------------------
+// Unit Tests
+// ----------------------------------------------
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_site_progress_and_stages() {
+        let mut site = ConstructionSite::new(10.0, 5, Withdrawal::default());
+        assert_eq!((site.progress(), site.stage(), site.remaining_secs()), (0.0, 0, 10.0));
+
+        assert!(!site.advance(2.6));
+        assert_eq!(site.stage(), 1);
+
+        assert!(!site.advance(5.0));
+        assert_eq!(site.stage(), 3);
+
+        assert!(site.advance(5.0));
+        assert_eq!((site.progress(), site.stage(), site.remaining_secs()), (1.0, 3, 0.0));
+    }
+
+    #[test]
+    fn test_materials_parse_and_validate() {
+        let materials: ConstructionMaterials = serde_json::from_str(r#"{ "Wood": 6, "Bricks": 8 }"#).unwrap();
+        assert_eq!(materials.to_string(), "6 Wood, 8 Bricks");
+
+        assert!(serde_json::from_str::<ConstructionMaterials>(r#"{ "Gold": 1 }"#).is_err());
+        assert!(serde_json::from_str::<ConstructionMaterials>(r#"{ "Wood": 0 }"#).is_err());
+        assert!(serde_json::from_str::<ConstructionMaterials>(r#"{ "Stone": 1 }"#).is_err());
+        assert!(serde_json::from_str::<ConstructionMaterials>(r#"{ "Wood": 1, "Clay": 1, "Metal": 1, "Bricks": 1, "Rice": 1 }"#).is_err());
+    }
 }

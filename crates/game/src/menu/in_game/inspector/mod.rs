@@ -13,7 +13,7 @@ use crate::{
     tile::{Tile, TileKind},
     ui_context::GameUiContext,
     sim::resources::{ResourceKind, StockItem},
-    building::{Building, BuildingArchetypeKind, BuildingKind, BuildingContext},
+    building::{Building, BuildingArchetypeKind, BuildingKind, BuildingContext, BuildingKindAndId, construction::ConstructionSite},
 };
 
 mod renderer;
@@ -205,31 +205,86 @@ impl UnitInspector {
 
 struct BuildingInspector {
     renderer: InspectorMenuRenderer,
+    // While the building shown is a construction site: the building, and the progress shown
+    // (percent), so the panel follows the site until it completes.
+    site: Option<(BuildingKindAndId, u32)>,
 }
 
 impl GameObjectInspector for BuildingInspector {
     fn update_selection(&mut self, context: &mut GameUiContext) {
-        let sim_context = context.new_sim_context();
         let selected_tile = context.topmost_selected_tile().unwrap();
 
         if let Some(building) = context.world.find_building_for_tile(selected_tile) {
             self.renderer.set_icon(selected_tile.icon_sprite(), selected_tile.kind());
-            self.renderer.set_title(building.name());
-            self.set_population_and_workers(building);
-
-            let building_ctx = building.new_context(&sim_context);
-            self.set_stats_info(&building_ctx, building);
+            self.show(context, building.kind_and_id());
         }
     }
 
     fn menu(&mut self) -> &mut UiMenu {
         self.renderer.menu()
     }
+
+    fn draw(&mut self, context: &mut GameUiContext) -> bool {
+        // The panel is filled when opened; a site's progress is refreshed as it changes.
+        if let Some((handle, shown_percent)) = self.site {
+            let percent = context
+                .world
+                .find_building(handle.kind, handle.id)
+                .map(|building| building.construction_site().map(construction_percent));
+
+            match percent {
+                Some(percent) if percent != Some(shown_percent) => self.show(context, handle),
+                Some(_) => {}
+                None => self.site = None, // Gone.
+            }
+        }
+
+        let menu = self.menu();
+        menu.draw(context);
+        menu.is_open()
+    }
+}
+
+// Progress of a site, in whole percent.
+fn construction_percent(site: &ConstructionSite) -> u32 {
+    (site.progress() * 100.0).floor() as u32
 }
 
 impl BuildingInspector {
     fn new(context: &mut GameUiContext, tile_inspector_menu_weak_ref: &TileInspectorMenuWeakMut) -> Self {
-        Self { renderer: InspectorMenuRenderer::new(context, tile_inspector_menu_weak_ref, stringify!(BuildingInspector)) }
+        Self {
+            renderer: InspectorMenuRenderer::new(context, tile_inspector_menu_weak_ref, stringify!(BuildingInspector)),
+            site: None,
+        }
+    }
+
+    fn show(&mut self, context: &mut GameUiContext, handle: BuildingKindAndId) {
+        let sim_context = context.new_sim_context();
+        let Some(building) = context.world.find_building(handle.kind, handle.id) else {
+            self.site = None;
+            return;
+        };
+
+        self.renderer.set_title(building.name());
+        self.site = building.construction_site().map(|site| (handle, construction_percent(site)));
+
+        if let Some(site) = building.construction_site() {
+            self.renderer.clear_headings();
+            self.renderer.set_body(&Self::gather_site_stats(site));
+            return;
+        }
+
+        self.set_population_and_workers(building);
+
+        let building_ctx = building.new_context(&sim_context);
+        self.set_stats_info(&building_ctx, building);
+    }
+
+    fn gather_site_stats(site: &ConstructionSite) -> InspectorMenuBody {
+        let mut body = InspectorMenuBody::new();
+        add_body_line!(&mut body, "Under construction: {}%", construction_percent(site));
+        add_body_line!(&mut body, "About {} seconds left. It starts working once it's built.", site.remaining_secs().ceil());
+        body
     }
 
     fn set_population_and_workers(&mut self, building: &Building) {

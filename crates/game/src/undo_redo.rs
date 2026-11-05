@@ -5,6 +5,7 @@ use common::coords::Cell;
 use engine::log;
 
 use crate::{
+    building::construction::ConstructionMode,
     menu::TilePlacement,
     pathfind::NodeKind as PathNodeKind,
     sim::SimContext,
@@ -187,9 +188,16 @@ impl Record {
         let mut tile_flags = tile_state.tile_flags;
         tile_flags.set(TileFlags::Highlighted | TileFlags::Invalidated, false); // clear these.
 
+        // A construction site goes back as a new site, charged again: its cost was refunded when
+        // it was cleared or undone. The new site sets its own flags.
+        let was_site = tile_flags.intersects(TileFlags::UnderConstruction);
+        tile_flags.set(TileFlags::UnderConstruction | TileFlags::ConstructionStage0 | TileFlags::ConstructionStage1, false);
+        let (subtract_tile_cost, construction_mode) =
+            if was_site { (true, ConstructionMode::Site) } else { (subtract_tile_cost, ConstructionMode::Finished) };
+
         debug_assert!(tile_def.layer_kind() == layer);
 
-        if TilePlacement::place(context, target_cell, tile_def, subtract_tile_cost, false).is_ok() {
+        if TilePlacement::place(context, target_cell, tile_def, subtract_tile_cost, false, construction_mode).is_ok() {
             if let Some(tile) = context.find_tile_mut(target_cell, tile_def.kind()) {
                 tile.set_variation_index(tile_variation_index as usize);
                 if !tile_flags.is_empty() {

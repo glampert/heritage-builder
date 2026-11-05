@@ -60,6 +60,7 @@ fn setup(test_suite_name: &str) {
     cheats::get_mut().ignore_tile_cost = true; // So we can spawn anything...
     undo_redo::initialize(); // The player's placement path (TilePlacement) records edits.
     cheats::get_mut().ignore_worker_requirements = true; // So producer/storage buildings accept deliveries without staffing.
+    cheats::get_mut().instant_construction = true; // Placed buildings work at once; tests/construction.rs turns it off.
 
     let mut tex_cache = TextureCache::default();
     let skip_loading_textures = true;
@@ -221,7 +222,8 @@ pub fn place_terrain(env: &mut TestEnvironment, cell: Cell, name: &str) {
 // above doesn't.
 pub fn place_tile_as_player(env: &mut TestEnvironment, cell: Cell, tile_def: &'static TileDef) {
     let context = env.new_sim_context(TestEnvironment::TICK_DELTA_SECS);
-    if let PlaceOrClearResult::Failed { message, .. } = TilePlacement::place(&context, cell, tile_def, false, true) {
+    let mode = game::building::construction::ConstructionMode::Site; // Sites are instant in tests, see setup().
+    if let PlaceOrClearResult::Failed { message, .. } = TilePlacement::place(&context, cell, tile_def, false, true, mode) {
         panic!("place_tile_as_player({cell}, '{}') failed: {message}", tile_def.name);
     }
 }

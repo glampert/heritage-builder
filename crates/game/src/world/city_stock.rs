@@ -111,6 +111,20 @@ impl CityStock {
         count
     }
 
+    // Room for `kind` in all storage yards: the most a deposit can add.
+    pub fn room_for(world: &World, kind: ResourceKind) -> u32 {
+        debug_assert!(kind.is_single_resource());
+
+        let mut room = 0;
+        world.for_each_building(CITY_STOCK_BUILDINGS, |building| {
+            if Self::is_stock_building(building) {
+                room += building.as_storage().storage_slots.receivable_total(kind);
+            }
+            true
+        });
+        room
+    }
+
     // Ok if the city has `gold` (as the world stats count it, tax offices included) and every
     // material; otherwise what's missing. The tile cost cheat makes everything affordable.
     pub fn can_afford(world: &World, gold: u32, materials: &ConstructionMaterials) -> Result<(), MissingCost> {
@@ -204,10 +218,10 @@ impl CityStock {
     // Internal:
     // ----------------------
 
-    // Every storage yard counts, staffed or not.
+    // Every finished storage yard counts, staffed or not.
     #[inline]
     fn is_stock_building(building: &Building) -> bool {
-        building.is(CITY_STOCK_BUILDINGS)
+        building.is(CITY_STOCK_BUILDINGS) && !building.is_under_construction()
     }
 
     // Puts `count` units of `kind` into any yards with room, in pool order. Returns the count

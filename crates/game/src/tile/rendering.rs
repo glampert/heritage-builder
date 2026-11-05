@@ -7,6 +7,7 @@ use common::{
     Color,
     Vec2,
     Rect,
+    RectTexCoords,
     constants::*,
     mem::RawPtr,
     coords::{self, CellRange, IsoPointF32, WorldToScreenTransform},
@@ -17,7 +18,7 @@ use engine::{
 };
 
 use super::{Tile, TileDepthSortOverride, TileFlags, TileKind, TileMap, TileMapLayerKind, road};
-use crate::{debug, pathfind::{Node, NodeKind as PathNodeKind}};
+use crate::{building, debug, pathfind::{Node, NodeKind as PathNodeKind}};
 
 // ----------------------------------------------
 // Constants
@@ -461,12 +462,20 @@ impl TileMapRenderer {
                     }
                 };
 
-                // Standard render:
                 let tex_coords = &tile_sprite.coords;
                 let texture = tile_sprite.texture;
                 let color = tile.tint_color() * highlight_color;
 
-                render_sys.draw_textured_colored_rect(tile_screen_rect, tex_coords, texture, color);
+                if let Some(stage) = building::construction_stage_from_tile_flags(tile.flags()) {
+                    // Construction site: a faint outline of the whole building, and the part
+                    // built so far rising from the ground through it.
+                    render_sys.draw_textured_colored_rect(tile_screen_rect, tex_coords, texture, color * CONSTRUCTION_OUTLINE_COLOR);
+                    let (rect, coords) = construction_site_rect(tile_screen_rect, tex_coords, stage);
+                    render_sys.draw_textured_colored_rect(rect, &coords, texture, color * CONSTRUCTION_SITE_COLOR);
+                } else {
+                    // Standard render:
+                    render_sys.draw_textured_colored_rect(tile_screen_rect, tex_coords, texture, color);
+                }
                 stats.tiles_drawn += 1;
 
                 // Road placement overlay:
@@ -607,3 +616,36 @@ impl TileDrawListEntry {
         &self.tile
     }
 }
+
+// ----------------------------------------------
+// Construction sites
+// ----------------------------------------------
+
+// A construction site draws its building twice: a faint outline of all of it, and the part built
+// so far in a sandy tint, like fresh timber and unfired brick. Placeholder until the art pipeline
+// provides scaffold sprites (construction plan §6).
+const CONSTRUCTION_OUTLINE_COLOR: Color = Color::new(1.0, 0.9, 0.75, 0.3);
+const CONSTRUCTION_SITE_COLOR: Color = Color::new(1.0, 0.82, 0.6, 1.0);
+
+// The part of a building's sprite a construction site at `stage` has built: its bottom
+// (stage + 1) quarters, so it rises from the ground as the site progresses. Returns the screen
+// rect and the texture coordinates for that part.
+fn construction_site_rect(screen_rect: Rect, tex_coords: &RectTexCoords, stage: u8) -> (Rect, RectTexCoords) {
+    let shown = (f32::from(stage) + 1.0) / f32::from(building::construction::CONSTRUCTION_STAGES);
+
+    // A sprite's foot is at the rect's max.y, which the renderer pairs with tex coords 0 and 2
+    // (Rect's and RectTexCoords' "top"); min.y goes with coords 1 and 3. Keep the part next to
+    // the foot: move the min.y edge and coords 1 and 3 towards it.
+    let mut rect = screen_rect;
+    rect.min.y = screen_rect.max.y - (screen_rect.height() * shown);
+
+    let mut coords = *tex_coords;
+    for (moved, foot) in [(1, 0), (3, 2)] {
+        let foot_v = tex_coords.coords[foot].y;
+        let far_v = tex_coords.coords[moved].y;
+        coords.coords[moved].y = foot_v + ((far_v - foot_v) * shown);
+    }
+
+    (rect, coords)
+}
+

@@ -135,6 +135,12 @@ bitflags_with_display! {
         const DrawDebugInfo      = 1 << 9;
         const DrawDebugBounds    = 1 << 10;
         const DrawBlockerInfo    = 1 << 11;
+
+        // Construction site (building::set_construction_tile_flags): drawn unfinished, at the
+        // stage in the two stage bits (0 to 3).
+        const UnderConstruction  = 1 << 12;
+        const ConstructionStage0 = 1 << 13;
+        const ConstructionStage1 = 1 << 14;
     }
 }
 

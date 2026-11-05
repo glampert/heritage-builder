@@ -9,7 +9,12 @@ use common::coords::Cell;
 use super::{CellParam, ObjectId, archetype_building_kinds, cell_json, refresh_world_stats};
 use crate::{
     automation::{CommandContext, CommandDef, CommandError, CommandResult, ParamDef, done, parse_params},
-    building::{Building, BuildingArchetypeKind, BuildingKind, construction::ConstructionMaterials},
+    building::{
+        Building,
+        BuildingArchetypeKind,
+        BuildingKind,
+        construction::{ConstructionMaterials, ConstructionMode},
+    },
     menu::{PlaceOrClearResult, TilePlacement},
     prop::Prop,
     save_context::{PostSaveContext, PreSaveContext},
@@ -39,7 +44,9 @@ pub(super) const COMMANDS: &[CommandDef] = &[
     },
     CommandDef {
         name: "world.place",
-        help: "Place a tile (building, road, terrain, ...) at a cell as a player would: pays its cost, records undo.",
+        help: "Place a tile (building, road, terrain, ...) at a cell as a player would: pays its cost, records undo, and \
+               starts a building as a construction site unless its tier is Instant (object.construction says how long; \
+               the instant_construction cheat skips it).",
         params: &[
             ParamDef { name: "tile", kind: "string", required: true, help: "Tile name, see tiles.list." },
             ParamDef { name: "cell", kind: "cell", required: true, help: "[x, y]. For bigger tiles, the cell with the lowest x and y." },
@@ -48,7 +55,8 @@ pub(super) const COMMANDS: &[CommandDef] = &[
     },
     CommandDef {
         name: "world.clear",
-        help: "Clear the object, road or vacant lot at a cell as a player would. Other terrain can't be cleared.",
+        help: "Clear the object, road or vacant lot at a cell as a player would. Other terrain can't be cleared. A \
+               construction site is refunded in full; a finished building, not at all.",
         params: &[
             ParamDef { name: "cell", kind: "cell", required: true, help: "[x, y]. Any cell of a multi-cell building." },
             ParamDef { name: "layer", kind: "string", required: false, help: "objects or terrain. Default: the topmost." },
@@ -92,7 +100,8 @@ pub(super) const COMMANDS: &[CommandDef] = &[
     },
     CommandDef {
         name: "world.building_at",
-        help: "The building covering a cell: id, kind, population, workers, stock and road link.",
+        help: "The building covering a cell: id, kind, population, workers, stock, road link, and construction while \
+               it's a site.",
         params: &[ParamDef { name: "cell", kind: "cell", required: true, help: "[x, y]." }],
         run: cmd_building_at,
     },
@@ -108,8 +117,8 @@ pub(super) const COMMANDS: &[CommandDef] = &[
     },
     CommandDef {
         name: "world.add_stock",
-        help: "Put goods into the storage yards, as deliveries would, first yards first, staffed or not. Fails, adding \
-               nothing, if the yards haven't room for all of it.",
+        help: "Put goods into the storage yards, as deliveries would, first yards first, staffed or not, but not yards \
+               still under construction. Fails, adding nothing, if the yards haven't room for all of it.",
         params: &[ParamDef {
             name: "resources",
             kind: "object",
@@ -266,7 +275,7 @@ fn cmd_place(context: &mut CommandContext, params: Value) -> CommandResult {
 
     let delta_time_secs = context.engine.frame_clock().delta_time();
     let result = context.session.with_sim_context(delta_time_secs, |sim_context| {
-        TilePlacement::place(sim_context, cell, tile_def, true, true)
+        TilePlacement::place(sim_context, cell, tile_def, true, true, ConstructionMode::Site)
     });
 
     if let PlaceOrClearResult::Failed { message, .. } = result {
@@ -479,15 +488,26 @@ fn object_summary_at(context: &CommandContext, cell: Cell, layer: TileMapLayerKi
     object_id_at(context, cell).and_then(|id| find_object(context, id)).map(|object| object.summary)
 }
 
+// Construction sites add `construction`: progress (0 to 1), stage (0 to 3), and the simulated
+// seconds left and in all.
 fn building_json(building: &Building) -> Value {
     let cells = building.cell_range();
-    json!({
+    let mut reply = json!({
         "id": ObjectId::building(building.archetype_kind(), building.id()).to_json(),
         "name": building.name(),
         "kind": building.kind().to_string(),
         "cell": cell_json(cells.start),
         "size": [cells.end.x - cells.start.x + 1, cells.end.y - cells.start.y + 1],
-    })
+    });
+    if let Some(site) = building.construction_site() {
+        reply["construction"] = json!({
+            "progress": site.progress(),
+            "stage": site.stage(),
+            "remaining_secs": site.remaining_secs(),
+            "total_secs": site.total_secs(),
+        });
+    }
+    reply
 }
 
 fn unit_json(unit: &Unit) -> Value {
@@ -702,11 +722,7 @@ fn cmd_add_stock(context: &mut CommandContext, params: Value) -> CommandResult {
     // Check there's room for everything first, so a failure adds nothing.
     let world = context.session.world();
     for (kind, count) in &items {
-        let mut room = 0;
-        world.for_each_building(BuildingKind::StorageYard, |building| {
-            room += building.as_storage().storage_slots.receivable_total(*kind);
-            true
-        });
+        let room = CityStock::room_for(world, *kind);
         if room < *count {
             return Err(CommandError::failed(format!("The storage yards have room for {room} {kind}, not {count}.")));
         }

@@ -158,7 +158,7 @@ struct DevEditorMenusSingleton {
 impl DevEditorMenusSingleton {
     fn new(context: &mut GameUiContext) -> Self {
         Self {
-            tile_placement: TilePlacement::new(),
+            tile_placement: TilePlacement::for_editor(),
             debug_settings_menu: DebugSettingsDevMenu::new(),
             tile_palette_menu: TilePaletteDevMenu::new(context),
             tile_inspector_menu: TileInspectorDevMenu::default(),

@@ -544,8 +544,9 @@ impl SimContext {
             building_kinds,
             traversable_node_kinds,
             Some(effect_radius),
-            |_building, _path| {
-                false // Stop iterating, we'll take the first match.
+            |building, _path| {
+                // Stop at the first match; a construction site provides nothing yet.
+                building.is_under_construction()
             },
         ).is_some()
     }
