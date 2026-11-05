@@ -103,6 +103,12 @@ impl UnitTaskFetchFromStorage {
         for resource_to_fetch in self.resources_to_fetch.iter() {
             debug_assert!(resource_to_fetch.kind.is_single_resource());
 
+            // The origin has no room for it. Visiting a storage for it would take nothing, and
+            // the next search would pick the same storage again.
+            if resource_to_fetch.count == 0 {
+                continue;
+            }
+
             let path_find_result = find_storage_fetch_candidate(
                 ctx.sim_context,
                 self.origin_building.kind,

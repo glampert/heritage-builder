@@ -568,9 +568,13 @@ impl ServiceBuilding {
         let mut list = ShoppingList::default();
         let stock = self.stock_or_treasury.as_stock();
 
+        // Only goods there's room for: a runner sent for a full one would bring nothing back.
         stock.for_each(|index, item| {
             debug_assert!(item.count <= stock.capacity_at(index), "{item}");
-            list.push(StockItem { kind: item.kind, count: stock.capacity_at(index) - item.count });
+            let room = stock.capacity_at(index) - item.count;
+            if room != 0 {
+                list.push(StockItem { kind: item.kind, count: room });
+            }
         });
 
         // Items with the highest capacity first.

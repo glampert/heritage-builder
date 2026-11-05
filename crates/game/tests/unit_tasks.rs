@@ -65,6 +65,7 @@ fn main() {
         test_utils::test_fn!(test_fetch_recovers_when_origin_destroyed_mid_return),
         test_utils::test_fn!(test_fetch_takes_more_than_one_slot),
         test_utils::test_fn!(test_fetch_surplus_skips_storage_that_cannot_hold_it),
+        test_utils::test_fn!(test_fetch_skips_goods_the_origin_has_no_room_for),
 
         // UnitTaskHarvestWood
         test_utils::test_fn!(test_harvest_traverses_off_road),
@@ -901,6 +902,37 @@ fn test_fetch_surplus_skips_storage_that_cannot_hold_it() {
     assert_eq!(find_building(&env, storage_yard).available_resources(ResourceKind::Wine), N);
     assert_eq!(find_building(&env, market).available_resources(ResourceKind::Wine), room);
     assert!(find_building(&env, granary).stock().iter().all(|item| item.count == 0), "the granary should hold nothing");
+}
+
+// A market with all the rice it can hold still has room for other goods, so it
+// sends a runner, but not for rice: with none of the others in storage, the
+// runner comes straight back. It used to go for rice it had no room for and
+// stay at the granary, taking nothing, while the market waited on it.
+fn test_fetch_skips_goods_the_origin_has_no_room_for() {
+    let mut env = TestEnvironment::with_preset_map(
+        preset_maps::PRESET_1_MARKET_1_GRANARY,
+    );
+
+    let market  = find_building_id(&env, BuildingKind::Market);
+    let granary = find_building_id(&env, BuildingKind::Granary);
+
+    set_building_debug_bool(&mut env, market, "freeze_patrol", true);
+
+    let room = find_building(&env, market).receivable_resources(ResourceKind::Rice);
+    assert_eq!(find_building_mut(&mut env, market).receive_resources(ResourceKind::Rice, room), room);
+
+    const N: u32 = 4;
+    seed_storage(&mut env, granary, ResourceKind::Rice, N);
+
+    let runner_id = tick_until_runner_spawned(&mut env, 30);
+
+    // Pin to a single dispatch.
+    set_building_debug_bool(&mut env, market, "freeze_stock_update", true);
+
+    tick_until_runner_despawned(&mut env, runner_id, 30);
+
+    assert_eq!(find_building(&env, granary).available_resources(ResourceKind::Rice), N);
+    assert_eq!(find_building(&env, market).available_resources(ResourceKind::Rice), room);
 }
 
 // ----------------------------------------------
