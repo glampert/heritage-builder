@@ -9,7 +9,7 @@ This file covers the game's place in the market and the shape of the project. Fo
 | **Title** | Heritage Builder (working title) |
 | **Genre** | 2D isometric historical city builder, walker-based |
 | **Setting** | A fictional world drawn from three civilisations of mainland Southeast Asia (see [world.md](world.md)) |
-| **Content** | Three campaigns of 10 missions each, plus Custom Game |
+| **Content** | Three campaigns of 10 missions each (about 1 hour per mission), plus Custom Game |
 | **Platforms** | macOS, Windows, Linux and web |
 | **Engine** | Custom, in Rust |
 | **Stage** | Playable prototype (April 2026 screenshots in `images/`), moving into full pre-production |
@@ -56,7 +56,7 @@ The closest neighbours in setting are Thriving City: Song (Song-dynasty China) a
 
 | Content | Amount |
 |---|---|
-| Campaign maps | 30, plus about 6–10 Custom Game maps |
+| Campaign maps | 30, plus 9 alternate maps for the map choices (missions 6–8 of each campaign), plus about 6–10 Custom Game maps |
 | Realm art sets | 3 (terrain variants, about 40 shared buildings reskinned per realm, 6–10 unique buildings per realm, walkers) |
 | Monuments | 8, each drawn in several stages |
 | Comic sequences | 17, plus an epilogue (Campaign I: 5, Campaign II: 6, Campaign III: 6) |

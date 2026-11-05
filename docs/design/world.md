@@ -13,7 +13,8 @@ See [story.md](story.md) for the characters and plots, and [campaigns.md](campai
 2. **Fictional names should still sound right.** Each name is built from the language and naming habits of the culture it stands for, and echoes a real place or person without copying it. A player who knows the region should recognise the inspiration. A player who doesn't should simply find the world believable.
 3. **Real history is used loosely.** Events are borrowed, compressed, moved in time or combined when the story needs it. Accuracy matters for the look and feel of daily life (architecture, crops, crafts, dress, festivals, music), not for dates or politics.
 4. **Respect for living cultures.** Faiths, sacred sites and national symbols are shown with care. No realm is the villain. Conflicts are told so that each side has understandable reasons, and the same war is played from both sides in different campaigns.
-5. **Reference names stay in the design docs.** The real-world references in the tables below are for the team only. They never ship.
+5. **Faiths are recognisable but unnamed.** Each realm's beliefs are drawn faithfully from its real traditions, but the faiths, deities and scriptures are never named in the game. They are called things like "the Teaching of the Elders" or "the Compassionate Path" (decided 2026-11-05).
+6. **Reference names stay in the design docs.** The real-world references in the tables below are for the team only. They never ship.
 
 ### Name style per realm
 
@@ -25,7 +26,7 @@ See [story.md](story.md) for the characters and plots, and [campaigns.md](campai
 
 ## The three realms
 
-All names below are **working names**, open to change.
+The names below are confirmed (decided 2026-11-05).
 
 ### Đại Long — the Realm of the Great Dragon
 
@@ -160,6 +161,4 @@ These are starting points for research, never for in-game text.
 
 ## Open questions
 
-- **The names:** do the working names (Đại Long, Kambara, Tampadesa, Thăng Hà, Yasonagara, Pugara) work, or do you want other options?
-- **The faiths:** should they stay recognisable but unnamed, as written here, or become fully fictional pantheons?
 - **The Steppe Khaganate:** is a Mongol-inspired common enemy at the end of the game the finale you want, or should Campaign III end on a conflict between the realms?

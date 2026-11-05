@@ -6,20 +6,24 @@ There are 30 missions in three campaigns, played in order: Đại Long, then Kam
 
 **Mission types:** **M** = metrics, **H** = heritage monument, **S** = survival.
 
+**Length:** about 1 hour per mission at normal speed.
+
+**Map choices:** in every campaign, missions 6–8 let the player pick one of two maps (marked ⇄). The story beat is the same on both maps, but they differ in terrain, resources and threats, and their goals are tuned to each map. That makes 9 alternate maps across the game.
+
 ---
 
 ## Campaign I — The Dragon Legacy (Đại Long)
 
 | # | Mission | Setting | WY | Type | New systems |
 |---|---|---|---|---|---|
-| 1 | The River's Gift | Delta flood plain | 1–3 | M | Roads, housing, wells, rice paddies, granary, market, workers |
-| 2 | Fish and Clay | Coastal delta | 3–6 | M | Fishing, clay and pottery, storage yard, taxes and treasury |
+| 1 | The River's Gift | Delta flood plain | 1–3 | M | Roads, construction sites, housing, wells, rice paddies, granary, market, workers |
+| 2 | Fish and Clay | Coastal delta | 3–6 | M | Fishing, clay and pottery, storage yard, taxes and treasury, building material costs |
 | 3 | The Village of Spirits | Karst valley | 6–9 | M | Shrines and temples, communal hall, health, fire and collapse, festivals, Culture rating |
 | 4 | Taming the Cinnabar River | Delta lowland | 9–15 | M | Seasons, the flood cycle, dykes and sluices, irrigation, patron favour, disease |
-| 5 | The Mountain Market | Highland pass | 15–20 | M | Timber and mining, trade post, the world map, trade routes, court requests, the Mandate rating |
-| 6 | The Southern Shore | The port of Hội Thủy | 20–24 | M + S | Docks and sea trade, the silk chain, elite housing, first defences: palisade, watchtower, garrison |
-| 7 | The Scholar's Gate | Provincial city | 24–28 | H | Academy and examinations, scholar-officials, monuments and guilds |
-| 8 | The Western Marches | Border highlands | 28–32 | S + M | Walls, gatehouses, towers, fortress, weapons, the levy choice |
+| 5 | The Mountain Market | Highland pass | 15–20 | M | Timber and mining, trade post, the world map, trade routes, importing materials, court requests, the Mandate rating |
+| 6 | The Southern Shore ⇄ | The port of Hội Thủy, or the island harbour of Vân Cảng | 20–24 | M + S | Docks and sea trade, the silk chain, elite housing, first defences: palisade, watchtower, garrison |
+| 7 | The Scholar's Gate ⇄ | An Lạc or Thạch Lâm prefecture | 24–28 | H | Academy and examinations, scholar-officials, monuments and guilds |
+| 8 | The Western Marches ⇄ | A mountain pass or a river crossing | 28–32 | S + M | Walls, gatehouses, towers, fortress, weapons, the levy choice |
 | 9 | The River of Stakes | Estuary | 32–34 | S | River stakes, naval attacks, moats, gifts and tribute |
 | 10 | The Ascending Dragon | Thăng Hà, the new capital | 34–36 | H + M | Everything together: the Imperial Citadel |
 
@@ -28,6 +32,7 @@ There are 30 missions in three campaigns, played in order: Đại Long, then Kam
 - **Setting:** an abandoned flood plain on the Sông Son. A small map with no threats. The start is empty apart from a road entry.
 - **Teaches:**
   - camera and roads;
+  - placing buildings and watching them go up as building sites;
   - placing houses, and settlers moving in;
   - wells;
   - rice paddies, the granary and the market;
@@ -44,6 +49,7 @@ There are 30 missions in three campaigns, played in order: Đại Long, then Kam
   - the clay pit and the pottery kiln;
   - the storage yard;
   - the tax office, the treasury and wages;
+  - **building material costs:** civic buildings such as the tax office need wood and bricks as well as gold, taken from storage when placed. The map starts with a small stock in a pre-placed storage yard, and the player then makes their own bricks;
   - level 2 housing, which needs pottery.
 - **Goals:** population 300; treasury 1,500; 15 houses at level 2.
 - **Story:** the first tax caravan is sent to the capital. The court notices.
@@ -80,6 +86,7 @@ There are 30 missions in three campaigns, played in order: Đại Long, then Kam
   - lumberyards and mines;
   - the trade post and the world map;
   - opening a route and setting buy and sell limits;
+  - importing construction materials: a caravan brings timber or bricks to the storage yards;
   - court requests;
   - the Mandate (Legitimacy) rating.
 - **Goals:** trade income 1,000 a year; fulfil 3 court requests; Mandate 30.
@@ -88,6 +95,9 @@ There are 30 missions in three campaigns, played in order: Đại Long, then Kam
 ### 6. The Southern Shore
 
 - **Setting:** the port of Hội Thủy, with foreign merchants from Vijara, Hamsara and the far traders.
+- **Map choice:**
+  - **A. Hội Thủy:** a river-mouth port with good mulberry land and pirates only from the sea.
+  - **B. Vân Cảng:** an island harbour with salt flats and little farmland, so food is imported. Raids are more frequent.
 - **Introduces:**
   - the dock and sea trade;
   - the mulberry and silk chain;
@@ -100,6 +110,9 @@ There are 30 missions in three campaigns, played in order: Đại Long, then Kam
 ### 7. The Scholar's Gate
 
 - **Setting:** a provincial city to be made a centre of learning.
+- **Map choice:**
+  - **A. An Lạc prefecture:** fertile lowland and an easy economy, but timber has to be imported.
+  - **B. Thạch Lâm prefecture:** a karst valley with quarries and timber but little farmland.
 - **Introduces:**
   - the academy, examinations and scholar-officials who staff the tax offices and courts;
   - heritage monuments and guilds (carpenters, masons).
@@ -110,6 +123,9 @@ There are 30 missions in three campaigns, played in order: Đại Long, then Kam
 ### 8. The Western Marches
 
 - **Setting:** the border highlands towards Kambara.
+- **Map choice:**
+  - **A. The mountain pass:** a single approach, with fewer but larger waves, and plenty of timber.
+  - **B. The river crossing:** two approaches, one of them by river, with more, smaller waves, and fertile land.
 - **Introduces:**
   - walls and gatehouses;
   - towers and the fortress;
@@ -152,9 +168,9 @@ There are 30 missions in three campaigns, played in order: Đại Long, then Kam
 | 3 | Stones of the Holy Hills | Quarry town | 27–29 | M | Sandstone and laterite quarries, elephant labour, the stone barge quay, temple estates |
 | 4 | The Royal Road | The eastern march | 29–32 | S + M | Royal roads and rest houses, laterite walls, moats, elephant militia, gifts and truces |
 | 5 | Suryagiri | The capital's outskirts | 32–38 | H | A great staged monument, sculptors, temple dance |
-| 6 | Tribute of the Sea | The coastal frontier | 40–55 | M + S | Heavy court tribute, a poor start, storms, sea trade with Vijara |
-| 7 | The Burning of Yasonagara | A lakeside city | 60–62 | S | Large naval invasion, refugee waves |
-| 8 | The Exile's Return | A road city | 62–66 | M | Royal hospitals, the shift in faith, incoming aid |
+| 6 | Tribute of the Sea ⇄ | A bay port or the pepper hills | 40–55 | M + S | Heavy court tribute, a poor start, storms, sea trade with Vijara |
+| 7 | The Burning of Yasonagara ⇄ | The north or south shore of the lake | 60–62 | S | Large naval invasion, refugee waves |
+| 8 | The Exile's Return ⇄ | A western or northern road city | 62–66 | M | Royal hospitals, the shift in faith, incoming aid |
 | 9 | The Great City | Yasonagara rebuilt | 66–72 | S + H | A walled and moated city with gate towers as a monument, the final assault |
 | 10 | The Temple of Four Faces | The heart of Yasonagara | 72–80 | H + M | The great monument, peace with Vijara |
 
@@ -215,6 +231,9 @@ There are 30 missions in three campaigns, played in order: Đại Long, then Kam
 ### 6. Tribute of the Sea
 
 - **Setting:** a poor frontier on the coast facing Vijara.
+- **Map choice:**
+  - **A. The bay port:** a sheltered fishing harbour with milder storms; raids come by sea.
+  - **B. The pepper hills:** a hill town that exports spices, with more storms and raiders who come overland.
 - **Pressure:**
   - the usurper Lord Vrah Sena's court sends one heavy tribute request after another;
   - the starting budget is low;
@@ -227,6 +246,9 @@ There are 30 missions in three campaigns, played in order: Đại Long, then Kam
 ### 7. The Burning of Yasonagara
 
 - **Setting:** a lakeside city in sight of the capital, during the flood season.
+- **Map choice:**
+  - **A. The north shore:** a city with a hill citadel. It is easier to defend but has little farmland.
+  - **B. The south shore:** a flood-plain city rich in floating rice. It is harder to defend and has a larger refugee target.
 - **Pressure:**
   - a large naval invasion lands from the lake;
   - waves of refugees need housing quickly;
@@ -237,6 +259,9 @@ There are 30 missions in three campaigns, played in order: Đại Long, then Kam
 ### 8. The Exile's Return
 
 - **Setting:** a new city on the royal road.
+- **Map choice:**
+  - **A. The western road:** close to the barays, with plenty of water.
+  - **B. The northern road:** close to the sacred hills, rich in stone but with fewer farms.
 - **Introduces:**
   - royal hospitals;
   - **the shift in faith:** the Compassionate Path's patrons appear beside the Devas;
@@ -270,9 +295,9 @@ There are 30 missions in three campaigns, played in order: Đại Long, then Kam
 | 3 | Fire and Clay | A kiln town | 76–80 | M | Brick works at scale, lacquerware, **the merit economy** |
 | 4 | The Gilded Stupa | The Pugara riverside | 80–85 | H | The gilders' guild, the gold-leaf trade, a relic procession |
 | 5 | The Hill Roads | Highland mines | 85–90 | M + S | Gem and jade mines, overland routes to both other realms, horse-archer militia, brick walls |
-| 6 | The Port of the Sacred Goose | Hamsara | 90–96 | M | Two peoples with separate culture needs, the far traders, typhoons |
-| 7 | The Temple of Infinite Wisdom | Pugara | 96–102 | H + M | A great monument built against treasury pressure |
-| 8 | The Price of Merit | The central plain | 102–112 | M | Crisis: an empty treasury, tax-free temple lands, drought, unrest, policy choices |
+| 6 | The Port of the Sacred Goose ⇄ | Hamsara's royal port or an upriver delta town | 90–96 | M | Two peoples with separate culture needs, the far traders, typhoons |
+| 7 | The Temple of Infinite Wisdom ⇄ | Pugara's eastern plain or its riverside terraces | 96–102 | H + M | A great monument built against treasury pressure |
+| 8 | The Price of Merit ⇄ | A temple district or a farming district | 102–112 | M | Crisis: an empty treasury, tax-free temple lands, drought, unrest, policy choices |
 | 9 | The Northern Storm | The northern frontier fortress | 120–124 | S | Siege forces with rams, cavalry, calling on allies |
 | 10 | The Three Crowns | Pugara | 124–130 | S + H | The final siege, allied aid, the Plain of Ten Thousand Temples |
 
@@ -329,6 +354,9 @@ There are 30 missions in three campaigns, played in order: Đại Long, then Kam
 ### 6. The Port of the Sacred Goose
 
 - **Setting:** Hamsara, Thiha's homeland, now a province.
+- **Map choice:**
+  - **A. The royal port:** a large sea port, exposed to typhoons.
+  - **B. The upriver delta town:** more rice and river trade rather than sea trade, fewer typhoons, and a harder balance between the two peoples. Its export goal is set for the river.
 - **Introduces:**
   - **two peoples** with their own temples, festivals and satisfaction;
   - sea trade with the far traders;
@@ -339,6 +367,9 @@ There are 30 missions in three campaigns, played in order: Đại Long, then Kam
 ### 7. The Temple of Infinite Wisdom
 
 - **Setting:** Pugara.
+- **Map choice:**
+  - **A. The eastern plain:** flat, near the brick kilns, and prone to drought.
+  - **B. The riverside terraces:** easy water but seasonal floods, and little clay, so bricks are imported.
 - **Monument:** **the Temple of Infinite Wisdom**, in 5 stages.
 - **Pressure:** temple lands keep growing and the tax base shrinks.
 - **Goals:** the temple complete; treasury 5,000 at the end.
@@ -347,6 +378,9 @@ There are 30 missions in three campaigns, played in order: Đại Long, then Kam
 ### 8. The Price of Merit
 
 - **Setting:** the central plain in crisis.
+- **Map choice:**
+  - **A. The temple district:** high Merit and an empty treasury.
+  - **B. The farming district:** the crisis is mainly drought and famine.
 - **Pressure:**
   - the treasury starts empty;
   - much of the land is held tax-free by temples;
@@ -379,20 +413,19 @@ There are 30 missions in three campaigns, played in order: Đại Long, then Kam
 | System | Introduced |
 |---|---|
 | Housing, water, food, markets | I-1 |
-| Industry, storage, taxes | I-2 |
+| Industry, storage, taxes, building material costs | I-2 |
 | Religion, health, fire and collapse, festivals, Culture | I-3 |
 | Seasons, floods, irrigation, favour | I-4 |
-| Trade and world map, requests, Legitimacy | I-5 |
+| Trade and world map, importing materials, requests, Legitimacy | I-5 |
 | Sea trade, elite housing, basic defence | I-6 |
 | Monuments and guilds | I-7 |
 | Walls, towers, fortress, weapons | I-8 |
 | Naval attacks, moats, gifts and tribute | I-9 |
 | Realm signature systems | II-1 to II-4, III-1 to III-3 |
+| Map choices | Missions 6–8 of each campaign |
 | Policy choices | III-8 |
 | Calling on allies | III-9 |
 
 ## Open questions
 
-- **Number of missions:** 30 maps is a large content budget. Should some missions offer a choice of two maps, as in Pharaoh, or does each campaign have exactly 10?
 - **Tutorials in later campaigns:** Campaign II and III each introduce new systems. Should their first missions have short tutorial prompts, or rely on advisor messages?
-- **Mission length:** what is the target? About 1–2 hours each is typical of the reference games.

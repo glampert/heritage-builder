@@ -57,7 +57,7 @@ The game uses fictional names. Real civilisations are references only; see [worl
 
 ### Modes
 
-- **Campaign:** three campaigns of 10 missions each, played in order: Đại Long, then Kambara, then Tampadesa. Missions 1–5 of Campaign I teach the game. Its missions 6–10 and both later campaigns are full city-building challenges where the story unfolds. Each mission is one map, usually one city, which you found or take over.
+- **Campaign:** three campaigns of 10 missions each, played in order: Đại Long, then Kambara, then Tampadesa. Missions 1–5 of Campaign I teach the game. Its missions 6–10 and both later campaigns are full city-building challenges where the story unfolds. Each mission is one map, usually one city, which you found or take over. A mission should take about **1 hour** at normal speed.
 - **Custom Game (sandbox):** pick a realm, a map, a starting year and goals (or none). Disasters, attacks and economic difficulty can be turned on or off. This mode serves the creative and relaxed player. The home menu already has a placeholder button for it.
 - **Later:** a scenario editor built on the existing developer map editor, and mod support for configs and maps.
 
@@ -65,7 +65,7 @@ Unlocking: Campaign II unlocks when Campaign I is finished, and Campaign III whe
 
 ### Mission flow
 
-1. **Briefing:** an illustrated scroll or comic panel with the story, the goals and the advisor's notes. Some missions offer a choice of two maps, as Pharaoh does.
+1. **Briefing:** an illustrated scroll or comic panel with the story, the goals and the advisor's notes. In each campaign, three consecutive missions from mission 6 onwards offer **a choice of two maps**, as Pharaoh does. The story beat is the same on either map; the maps differ in terrain, resources, trade partners and threats. See [campaigns.md](campaigns.md).
 2. **Play:** build the city. Goals are tracked live in a goals panel. Advisors, court requests, events and attack warnings arrive as messages.
 3. **Victory:** when every goal is met, the player may finish now or keep playing until they choose to leave.
 4. **Debrief:** the mission's lines are carved into the campaign's stele. A city founded in the mission joins the realm's world map for later missions, as a trade partner or a source of requests.
@@ -82,7 +82,7 @@ Status codes: **P** = in the prototype today, **P+** = in the prototype but to b
 
 | # | System | Status | Summary |
 |---|---|---|---|
-| 5.1 | Terrain, map and construction | P+ | Isometric tile map with land, water and shores, rocks and vegetation; dirt and paved roads; placing, clearing, undo and redo; minimap. Planned: elevation-like terrain features (hills, karst, cliffs), fertility, and favourable sites, flood areas, rice paddies |
+| 5.1 | Terrain, map and construction | P+ | Isometric tile map with land, water and shores, rocks and vegetation; dirt and paved roads; placing, clearing, undo and redo; minimap. Planned: building costs in gold and materials (5.1.1), a construction cycle (5.1.2), elevation-like terrain features (hills, karst, cliffs), fertility, and favourable sites, flood areas, rice paddies |
 | 5.2 | Population and housing | P+ | Houses evolve when their service and goods needs are met; five levels exist today. Planned: a common track and an elite track (5.2.1) |
 | 5.3 | Labour and employment | P | Each house supplies workers by level; buildings need staff to run. Planned: labour priorities per sector, as in Pharaoh |
 | 5.4 | Walkers and coverage | P+ | Service walkers patrol from their buildings; runners deliver goods; settlers move in. Today, access is decided by distance to the service building. Planned: decide whether to switch to walkers actually visiting (an open item in known-issues) |
@@ -93,7 +93,7 @@ Status codes: **P** = in the prototype today, **P+** = in the prototype but to b
 | 5.9 | City risks | N | Fire, collapse, disease, crime and unrest, each countered by a service walker |
 | 5.10 | Seasons and environment | N | Wet and dry seasons, floods, droughts, storms, crop cycles |
 | 5.11 | Faith and festivals | N | Patron spirits or deities per realm, favour, blessings and misfortunes, festivals |
-| 5.12 | Trade | N | World map, trade routes by river, sea and land, trade posts and docks, buying and selling |
+| 5.12 | Trade | N | World map, trade routes by river, sea and land, trade posts and docks, buying and selling, importing construction materials |
 | 5.13 | Realm layers | N | Signature systems, buildings, goods and art per realm (section 6) |
 | 5.14 | Diplomacy and requests | N | Court and foreign requests, gifts, relations, tribute |
 | 5.15 | Heritage monuments | N | Large projects built in stages from materials and specialist workers |
@@ -102,11 +102,61 @@ Status codes: **P** = in the prototype today, **P+** = in the prototype but to b
 | 5.18 | Goals, events and advisors | P+ | Campaign goals exist (population, employment, treasury). Planned: the full goal set (section 7), scripted events, advisor messages |
 | 5.19 | Story presentation | N | Briefings, comics, steles, in-mission story events |
 
+### 5.1.1 Building costs
+
+Basic buildings cost only gold. Larger buildings also cost construction materials, which are taken from storage when the building is placed. Monuments are the exception: their materials are delivered to the site stage by stage (5.15).
+
+| Tier | Cost | Buildings (examples) |
+|---|---|---|
+| **Basic** | Gold only | Roads, housing plots, wells, farms, fishing wharf, lumberyard, clay pit, mine, brick maker, pottery kiln, granary, storage yard, market, shrine, gardens and statues |
+| **Civic** | Gold + common materials (wood, bricks, roof tiles) | Temples, tax office, apothecary, police, theatre, academy, hospital, trade post, dock, larger workshops, elite housing plots, palisade, watchtower, garrison |
+| **Grand** | Gold + stone or the realm's premium material (sandstone, laterite, fired brick in quantity) + metal | Governor's palace, citadel, fortress, stone or brick walls and gatehouses, towers, the largest temples |
+| **Monument** | Materials delivered over time, plus specialist workers | See 5.15 |
+
+Rules:
+- **When costs are paid.** Gold and materials are both taken the moment the building is placed. If the city doesn't have enough of either, placement is refused, and the build menu greys the building out with a tooltip listing what is missing.
+- **Where materials come from.** Materials are taken from any storage yard in the city, as one shared pool. Since they are taken instantly, it doesn't matter which yard holds them or how far away it is.
+- **Getting materials.** Materials are either produced locally or imported. There is no instant purchase. An import works like any other trade: the player sets an import quota on the trade screen, and a caravan or ship brings the goods to the city's storage yards (5.12). If an import is still on its way, the player has to wait for it.
+- **Starting stock.** On maps where the starter buildings need materials, the mission begins with a small stock of them in a pre-placed storage yard.
+- **Map design rule.** Every mission must be able to bootstrap itself, from its starting stock and local production, or through an import route that is open from the start. Basic buildings never need materials, so the player can't get stuck.
+- **Upgrading buildings.** Upgrades that change a building's tier, such as a palisade becoming a rampart and then a stone wall, cost the next tier's materials.
+- **Undo and demolishing.** Undo refunds the gold and materials in full. Demolishing refunds nothing, as in Pharaoh, but this will be revisited during balancing.
+- **Housing.** Housing evolution never uses construction materials. Houses evolve from their services and from the goods they get from markets, as in Pharaoh (5.2.1).
+- **Difficulty** scales material costs along with gold costs.
+- **When it's introduced:** material costs come in Campaign I, mission 2, and imports in mission 5.
+
+### 5.1.2 Construction cycle
+
+Placed buildings go through a short construction phase before they work. House upgrades go through a short renovation. Monuments keep their own staged construction (5.15).
+
+- **A plain timer.** When a building is placed, its costs are paid at once (5.1.1) and its footprint becomes a building site with scaffolding. The site completes on a timer. No builder walkers come and no workers are taken from the labour pool: labour costs belong to monuments only. Time runs in game time, so it speeds up with game speed and stops while the game is paused.
+- **Durations by tier**, at normal speed. These are starting values for balancing; most buildings should finish in under a minute.
+
+  | Tier | Construction time |
+  |---|---|
+  | Instant | Roads, clearing land and plazas |
+  | Decorative | About 5–10 seconds: gardens, statues, ponds and similar |
+  | Basic | About 10–20 seconds |
+  | Civic | About 30–45 seconds |
+  | Grand | About 60–90 seconds |
+
+- **Building sites are inert.** A site has no staff and provides no service, storage or production. Its tiles are blocked and it is drawn as scaffolding. Fire and raiders can damage or destroy it.
+- **Undo or cancel** while a building is still a site refunds its gold and materials in full.
+- **Upgrading a building to a higher tier,** such as a wall going from palisade to stone, runs a site on top of the existing building. The old version keeps working until the new one is finished.
+- **New houses:** a housing plot waits for settlers, as it does now. When they arrive the first house goes up in a few seconds.
+- **House upgrades are renovations.** A house starts renovating only once its needs for the next level have been met continuously for a short time, and the renovation is cancelled if those needs lapse. During the renovation the house stays lived in and keeps working, with scaffolding drawn over it.
+- **House downgrades** take effect after a short grace period of unmet needs, with no construction step. Together with the renovation delay, this stops the flickering of houses up and down a level that the reference games suffer from when a walker passes.
+- **Construction speed setting:** a config value scales every construction time, and 0 means instant. Custom Game and the easiest difficulties expose it as a "fast build" option. The automation test scenarios use it too.
+- **Art:** shared scaffold sprites for each footprint size (1×1 to 4×4), in 2–3 stages, tinted per realm, plus a renovation overlay for houses. Ordinary buildings don't get construction art of their own.
+- **What it changes in play:** attack warnings matter more, because walls and towers take time to go up. Rebuilding after a disaster costs time as well as gold and materials.
+
 ### 5.2.1 Housing
 
 Two tracks, as in Zeus and Emperor:
 - **Common housing:** about 6 levels, from hut to merchant townhouse. It houses the workers. Each level needs more goods (food, then a second food, pottery, cloth, then luxuries) and wider service coverage.
 - **Elite housing:** about 4 levels, for scholar-officials, nobles and temple patrons. It is placed as a larger lot and sends no workers. It pays much higher taxes, needs luxury goods, gardens and culture, and raises Prosperity and Legitimacy. Elite housing is introduced in Campaign I, mission 6.
+
+Housing evolves through services and market goods only. Upgrading a house costs no construction materials (5.1.1). Upgrades go through a short renovation, and downgrades through a short grace period (5.1.2).
 
 Today's five levels (0–4) become the first five common levels. Each realm draws the same levels differently: timber and tile houses in Đại Long, stilt houses in Kambara, teak and brick houses in Tampadesa.
 
@@ -141,6 +191,7 @@ Each building shows its risk in its info panel and on a risk overlay.
 - The **world map** shows the player's earlier cities, the other realms and the non-playable powers.
 - The player pays to **open a route**. Land routes need a trade post, river and sea routes need a dock.
 - For each good and each partner, the player sets **buy and sell limits**. Caravans, river boats and sea junks are walkers that travel the map to the trade building.
+- **Imports**, including construction materials, always arrive by delivery. A caravan or ship brings the goods to the city's storage yards; there is never an instant purchase. When a city lacks a material, it opens a route and waits for the delivery.
 - Prices move with supply and demand, and with events such as a war that closes a route or a festival that raises demand.
 - Trade income feeds Prosperity and is a goal in several missions.
 
@@ -155,6 +206,7 @@ Each building shows its risk in its info panel and on a risk overlay.
 ### 5.15 Heritage monuments
 
 - A monument is a large, multi-tile project placed on a chosen site. Some missions require a favourable site.
+- Monuments are the only buildings whose materials are delivered to the site rather than taken from storage at placement (5.1.1).
 - It is built in **stages**, for example foundation, terraces, walls, towers or spires, and ornament and consecration. Each stage needs materials delivered (stone, brick, timber, lacquer, gold leaf) plus specialist workers sent by guild buildings: stonemasons, carpenters, bricklayers, gilders and sculptors.
 - Construction is visible step by step on the map.
 - A finished monument gives **permanent bonuses** (Culture, favour, Legitimacy, trade fame), a stele line, and a place on the world map. Some missions require only certain stages.
@@ -250,6 +302,7 @@ Many missions mix families. Planned goal types (the first three exist today):
 | Raw materials | Wood*, clay*, metal ore → metal*, stone | Đại Long: mulberry, salt. Kambara: sandstone, laterite. Tampadesa: cotton, teak, gems |
 | Crafted goods | Pottery*, bricks*, wine/spirits*, weapons | Đại Long: silk, celadon, bronze, lacquer. Kambara: iron tools, carvings. Tampadesa: lacquerware, cloth |
 | Luxuries (elite housing, trade) | | Đại Long: silk, celadon, tea. Kambara: spices, carvings. Tampadesa: lacquerware, gems |
+| Construction materials (5.1.1) | Wood*, bricks*, roof tiles, stone, metal* | Kambara: sandstone, laterite. Tampadesa: teak |
 | Monument materials | Stone, timber, bricks | Gold leaf, lacquer, sandstone, laterite |
 
 \* already in the prototype (`ResourceKind`: rice, meat, fish, wine, pottery, wood, metal, clay, bricks, gold).
@@ -292,7 +345,7 @@ Implementation plans for each system will live in `docs/plans/`.
 
 ## 13. Scope
 
-**In scope:** three realms; 30 campaign missions; Custom Game; the systems in sections 5–8; automatic defence; world-map trade and diplomacy; staged monuments.
+**In scope:** three realms; 30 campaign missions, 9 of them with a choice of two maps; Custom Game; the systems in sections 5–8; automatic defence; world-map trade and diplomacy; staged monuments.
 
 **Out of scope for this version:**
 - player-controlled armies and navies;
