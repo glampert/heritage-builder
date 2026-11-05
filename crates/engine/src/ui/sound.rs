@@ -38,6 +38,10 @@ pub enum UiSoundKey {
 
     #[strum(props(SfxPath = "misc/default/tile_placement_failed.wav"))]
     TilePlacementFailed,
+
+    // A building finished construction. Placeholder: the tile placed sound.
+    #[strum(props(SfxPath = "misc/default/tile_placed.wav"))]
+    ConstructionCompleted,
 }
 
 impl UiSoundKey {

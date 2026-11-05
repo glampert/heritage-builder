@@ -30,7 +30,7 @@ use crate::{
     menu::GameMenusMode,
     config::GameConfigs,
     unit::config::UnitConfigs,
-    building::config::BuildingConfigs,
+    building::{self, config::BuildingConfigs},
     prop::config::PropConfigs,
     sim::Simulation,
     system::GameSystems,
@@ -229,6 +229,7 @@ impl RunLoop for GameLoop {
 
         self.update_autosave();
         self.update_screenshots();
+        self.notify_constructions_completed();
         self.session_cmd_queue.execute(&mut self.session, self.engine, self.configs);
 
         // Automation commands run here: the world is unlocked and no SimContext is live.
@@ -504,6 +505,19 @@ impl GameLoop {
             "map_size": [map_size.width, map_size.height],
             "frame": self.engine.frame_clock().frame_number(),
         }));
+    }
+
+    // A toast and a sound for each building the player had built that completed last frame.
+    fn notify_constructions_completed(&mut self) {
+        let completed = building::construction::take_completed();
+        if completed.is_empty() {
+            return;
+        }
+
+        for name in &completed {
+            self.engine.ui_system().show_toast(format!("{name} completed."));
+        }
+        ui::sound::play(self.engine.sound_system_mut(), ui::sound::UiSoundKey::ConstructionCompleted);
     }
 
     // Saves the current frame to screenshots/. A toast reports the result once it's written.

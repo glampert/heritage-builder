@@ -1,6 +1,6 @@
 # Technical roadmap
 
-**Status (2026-11-05): Phase 1 in progress: M1 done, M3 under way.** This is the top-level implementation plan. It turns the design in [docs/design/](../design/README.md) into milestones, puts them in order, and links to a detailed plan for each one. It was researched against `d0696fe` on `main`.
+**Status (2026-11-05): Phase 1 in progress: M1 and M3 done.** This is the top-level implementation plan. It turns the design in [docs/design/](../design/README.md) into milestones, puts them in order, and links to a detailed plan for each one. It was researched against `d0696fe` on `main`.
 
 ## How to use this file
 
@@ -45,7 +45,7 @@ These follow [overview.md](../design/overview.md#development-phases).
 |---|---|---|---|---|---|
 | M1 | Game time and calendar | Small | — | [game-time.md](game-time.md) | Done (hand check on macOS pending) |
 | M2 | Placeholder art pipeline | Medium | — (runs alongside) | [placeholder-art.md](placeholder-art.md) | Not started |
-| M3 | Building costs and construction | Medium to large | M1 | [construction.md](construction.md) | In progress: Phases 0–3 done |
+| M3 | Building costs and construction | Medium to large | M1 | [construction.md](construction.md) | Done (fast build option waits for Custom Game) |
 | M4 | Finance | Medium | M1 | — | Not started |
 | M5 | Goods and production for missions I-1 to I-5 | Medium | M3 | — | Not started |
 | M6 | City risks: fire and collapse | Medium | M3, M1 | — | Not started |

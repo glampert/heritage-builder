@@ -502,6 +502,10 @@ impl Building {
                 }
 
                 log::info!(log::channel!("construction"), "{} completed at {}.", building.name(), building.base_cell());
+
+                if settlers == 0 {
+                    construction::notify_completed(building.name());
+                }
             });
         } else if stage != prev_stage {
             cmds.defer_building_update(self.kind_and_id(), move |context, building| {

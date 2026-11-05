@@ -1,11 +1,13 @@
 # Known issues and unfinished work
 
-Last verified against the code on 2026-10-08. Remove an entry once it's resolved.
+Last verified against the code on 2026-11-05. Remove an entry once it's resolved.
 
 ## Unfinished features
 
 - Home menu **Continue** (resume last save) and **Custom Game** buttons are disabled placeholders (`Enabled = false`; `on_pressed` returns `false` with a TODO) — `crates/game/src/menu/dialog/home.rs`.
 - Ambient sounds ignore game state; which sound plays is a placeholder (two TODOs) — `crates/game/src/system/ambient_sounds.rs`.
+- Construction sites and renovating houses have no art of their own. A site draws its building as a faint outline with the built part rising through it, and a renovating house is tinted (`TileMapRenderer::draw_tile`, `crates/game/src/tile/rendering.rs`). The completion sound reuses the UI's tile placed sound (`UiSoundKey::ConstructionCompleted`). Scaffold sprites come from the placeholder-art pipeline (roadmap M2).
+- The construction plan's "fast build" option belongs in Custom Game settings, which don't exist yet. Until then `SimConfigs::construction.time_scale` is edited in the debug Game Configs window or with `config.set`, and the `instant_construction` cheat skips sites.
 
 ## Open bugs / design questions
 

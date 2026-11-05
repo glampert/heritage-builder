@@ -1,6 +1,6 @@
 # Building costs, construction sites and house renovation
 
-**Status (2026-11-05): In progress. Phases 0–3 done.** This plan implements GDD sections 5.1.1 (building costs) and 5.1.2 (construction cycle) in [docs/design/gdd.md](../design/gdd.md). It is milestone M3 of the [roadmap](roadmap.md). It was researched against `d0696fe` on `main`. File and line references point at that commit, so re-check them before relying on them.
+**Status (2026-11-05): Done.** All phases are in; the "fast build" option waits for Custom Game, and the scaffold art for the art pipeline (M2). This plan implements GDD sections 5.1.1 (building costs) and 5.1.2 (construction cycle) in [docs/design/gdd.md](../design/gdd.md). It is milestone M3 of the [roadmap](roadmap.md). It was researched against `d0696fe` on `main`. File and line references point at that commit, so re-check them before relying on them.
 
 ## How to resume this work
 
@@ -366,9 +366,20 @@ Done when: a house that keeps its needs met upgrades after the delay plus the re
 
 ### Phase 4: Polish and documentation (small)
 
-- [ ] Sound and toast on completion.
-- [ ] A "fast build" option in Custom Game settings, which is just `time_scale`.
-- [ ] Update AGENTS.md (construction section, test notes) and `.claude/rules/known-issues.md`.
+- [x] Sound and toast on completion.
+- [ ] A "fast build" option in Custom Game settings, which is just `time_scale`. **Waits for Custom Game,** which is still a disabled placeholder on the home menu (known-issues). Until then the time scale is edited in the debug Game Configs window or with `config.set`.
+- [x] Update AGENTS.md (construction section, test notes) and `.claude/rules/known-issues.md`.
+
+**Notes (2026-11-05):**
+- **Completion notices:**
+  - A completed site queues its building's name in a thread-local list (`construction::notify_completed`; settler houses don't).
+  - `GameLoop::notify_constructions_completed` takes the names each frame, shows a toast per building ("Temple completed."), and plays `UiSoundKey::ConstructionCompleted` once. For now that sound is the UI's tile placed sound.
+  - The queue exists because the simulation update that completes a site has no `Engine`. M11 (messages and advisors) can take these notices over.
+- **Toasts in screenshots:** toasts are left out of captured frames, so the toast was checked on the live display (an X grab of the Xvfb screen).
+- **Docs:**
+  - AGENTS.md covers costs, the city stock, sites, renovation, the cheats and the scenarios.
+  - known-issues lists the placeholder art and sound and the missing fast build option.
+  - The drive-game skill notes materials and sites.
 
 ## Risks
 
