@@ -2,9 +2,12 @@
 """
 Migrates Heritage Builder save files from v3 to v4.
 
-v4 adds construction (docs/plans/construction.md):
+v4 adds construction and house renovation (docs/plans/construction.md):
   - `Building::construction`: the construction site state, `null` for a
     finished building. Every building in an old save is finished.
+  - `HouseUpgradeState`: `upgrade_ready_secs` and `downgrade_pending_secs`
+    (0.0) and `renovation_secs_left` (`null`): no renovation or downgrade
+    under way.
   - `save_version` is bumped to 4.
 
 Usage:
@@ -43,12 +46,29 @@ def add_construction(node):
     return count
 
 
+def add_house_timers(node):
+    """Give every serialized HouseUpgradeState its renovation and downgrade timers."""
+    if isinstance(node, list):
+        for item in node:
+            add_house_timers(item)
+    elif isinstance(node, dict):
+        state = node.get("upgrade_state")
+        if isinstance(state, dict) and "level" in state:
+            state.setdefault("upgrade_ready_secs", 0.0)
+            state.setdefault("renovation_secs_left", None)
+            state.setdefault("downgrade_pending_secs", 0.0)
+        for value in node.values():
+            add_house_timers(value)
+
+
 def migrate(data):
     world = data.get("world")
     if not isinstance(world, dict):
         raise ValueError("save has no `world` object")
 
-    add_construction(world.get("building_spawn_pools"))
+    pools = world.get("building_spawn_pools")
+    add_construction(pools)
+    add_house_timers(pools)
 
     data["save_version"] = CURRENT_VERSION
     return data

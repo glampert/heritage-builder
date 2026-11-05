@@ -1,6 +1,6 @@
 # Building costs, construction sites and house renovation
 
-**Status (2026-11-05): In progress. Phases 0, 1 and 2 done.** This plan implements GDD sections 5.1.1 (building costs) and 5.1.2 (construction cycle) in [docs/design/gdd.md](../design/gdd.md). It is milestone M3 of the [roadmap](roadmap.md). It was researched against `d0696fe` on `main`. File and line references point at that commit, so re-check them before relying on them.
+**Status (2026-11-05): In progress. Phases 0–3 done.** This plan implements GDD sections 5.1.1 (building costs) and 5.1.2 (construction cycle) in [docs/design/gdd.md](../design/gdd.md). It is milestone M3 of the [roadmap](roadmap.md). It was researched against `d0696fe` on `main`. File and line references point at that commit, so re-check them before relying on them.
 
 ## How to resume this work
 
@@ -332,13 +332,37 @@ Done when: a placed building shows scaffolding, does nothing until the timer run
 
 ### Phase 3: House renovation (small to medium)
 
-- [ ] `HouseUpgradeState` timers and the `HouseConfig` values.
-- [ ] Renovation start, completion and abort; the downgrade grace period; the `Renovating` flag and overlay.
-- [ ] Inspector shows renovation and downgrade warnings.
-- [ ] Update `test_house_downgrades_when_requirements_unmet` for the grace period, and add a test that a house whose needs flicker doesn't change level.
-- [ ] `renovation.jsonl` scenario.
+- [x] `HouseUpgradeState` timers and the `HouseConfig` values.
+- [x] Renovation start, completion and abort; the downgrade grace period; the `Renovating` flag and overlay.
+- [x] Inspector shows renovation and downgrade warnings.
+- [x] Update `test_house_downgrades_when_requirements_unmet` for the grace period, and add a test that a house whose needs flicker doesn't change level.
+- [x] `renovation.jsonl` scenario.
 
 Done when: a house that keeps its needs met upgrades after the delay plus the renovation time; a house that loses a service for less than the grace period keeps its level.
+
+**Notes (2026-11-05):**
+- **Timers:**
+  - `HouseUpgradeState` holds `upgrade_ready_secs`, `renovation_secs_left: Option<Seconds>` and `downgrade_pending_secs`, all saved.
+  - `advance_timers(can_upgrade, can_downgrade, config)` is a pure step per upgrade update. It returns what to do: start, finish or abort a renovation, downgrade, or nothing. That keeps the rules unit-testable without a world: `building::house::tests` covers waiting out the delay, flickering needs, an aborted renovation and the grace period.
+  - Each update counts `upgrade_update_frequency_secs` (10) towards the timers, as the Level 0 deprivation timer already did.
+- **Rules:**
+  - Losing its own level's needs aborts a renovation.
+  - A finished renovation upgrades only if the needs still hold. An expansion that fails (no room) leaves the timers reset, so the delay starts again.
+  - `perform_upgrade` resets the timers on any level change, which covers the forced ones (the inspector's setter and `SimCmd` upgrades).
+- **Rendering (deviation):** with no scaffold overlay art, `TileFlags::Renovating` (bit 15) draws the house with a light sandy tint. That uses all four free `TileFlags` bits, as Q4 expected. The flag is set and cleared through a deferred building update; an upgrade replaces the tile and its flags anyway.
+- **Inspector:**
+  - The house panel says "Being renovated: it upgrades in about N seconds", "Its needs are met: renovation starts in about N seconds", or "Its needs aren't met! It downgrades in about N seconds".
+  - The panel is a snapshot taken when opened, as the house panel already was. Only construction sites refresh live.
+- **Automation:**
+  - `world.building_at` reports a house's `level` and timers under `house`.
+  - `world.add_stock` takes an optional `cell` to stock one building, e.g. a house's food, which `renovation.jsonl` needs.
+- **Save version 4** now also holds the house timers. Since v4 hadn't been merged, `v3_to_v4.py` gained them rather than starting a v5. The local saves were migrated again from the v3 sample saves, and `sample_saves.zip` regenerated.
+- **Verified:**
+  - `cargo test --workspace` passes, including the four timer unit tests and the grace-period house test.
+  - Every CI scenario passes, as does `renovation.jsonl`, with determinism and record/replay; the checksum is `290e786b47e15fcf` in debug and release.
+  - All 12 local saves pass `--smoke-test-saves`.
+  - The web target builds.
+  - A screenshot shows the inspector's renovation line.
 
 ### Phase 4: Polish and documentation (small)
 

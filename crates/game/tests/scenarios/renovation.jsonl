@@ -1,0 +1,35 @@
+# House renovation: a house upgrades only after its next level's needs have been met for a while
+# (renovation_delay_secs, 30), then renovates (renovation_secs, 10); it downgrades only after its own
+# level's needs have gone unmet for a while (downgrade_grace_secs, 40). Upgrades are checked every
+# 10 simulated seconds. From the repository root:
+#   cargo run -p HeritageBuilder -- --script crates/game/tests/scenarios/renovation.jsonl
+# Level 1 needs a well and a market nearby, and food in the house. Buildings are finished at once
+# here (instant_construction), so the timings are the house's alone.
+{"method": "time.fixed_dt", "params": {"dt": 0.016667}}
+{"method": "session.new_map", "params": {"size": [20, 20]}}
+{"method": "cheats.set", "params": {"name": "instant_construction", "value": true}}
+{"method": "world.road", "params": {"from": [3, 10], "to": [16, 10]}}
+{"method": "world.place", "params": {"tile": "house0", "cell": [8, 9]}}
+{"method": "world.place", "params": {"tile": "small_well", "cell": [6, 9]}}
+{"method": "world.place", "params": {"tile": "market", "cell": [11, 11]}}
+{"method": "world.add_stock", "params": {"cell": [8, 9], "resources": {"Rice": 4}}}
+
+# Its needs are met, but it waits out the delay before renovating, and renovates before upgrading.
+{"method": "time.fast_forward", "params": {"sim_secs": 25}}
+{"method": "assert.eq", "params": {"query": "world.building_at", "args": {"cell": [8, 9]}, "path": "/house/level", "value": "Level0"}}
+{"method": "assert.gt", "params": {"query": "world.building_at", "args": {"cell": [8, 9]}, "path": "/house/upgrade_ready_secs", "value": 0}}
+{"method": "time.fast_forward", "params": {"sim_secs": 10}}
+{"method": "assert.eq", "params": {"query": "world.building_at", "args": {"cell": [8, 9]}, "path": "/house/level", "value": "Level0"}}
+{"method": "assert.exists", "params": {"query": "world.building_at", "args": {"cell": [8, 9]}, "path": "/house/renovation_secs_left"}}
+{"method": "time.fast_forward", "params": {"sim_secs": 12}}
+{"method": "assert.eq", "params": {"query": "world.building_at", "args": {"cell": [8, 9]}, "path": "/house/level", "value": "Level1"}}
+{"method": "assert.eq", "params": {"query": "world.building_at", "args": {"cell": [8, 9]}, "path": "/size", "value": [2, 2]}}
+
+# Without the market, Level 1's needs go unmet: it keeps its level through the grace period, then downgrades.
+{"method": "world.clear", "params": {"cell": [11, 11]}}
+{"method": "time.fast_forward", "params": {"sim_secs": 30}}
+{"method": "assert.eq", "params": {"query": "world.building_at", "args": {"cell": [8, 9]}, "path": "/house/level", "value": "Level1"}}
+{"method": "assert.gt", "params": {"query": "world.building_at", "args": {"cell": [8, 9]}, "path": "/house/downgrade_pending_secs", "value": 0}}
+# The Level 0 house takes one cell of the Level 1 house's four: [8, 8].
+{"method": "time.fast_forward", "params": {"sim_secs": 15}}
+{"method": "assert.eq", "params": {"query": "world.building_at", "args": {"cell": [8, 8]}, "path": "/house/level", "value": "Level0"}}

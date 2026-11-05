@@ -27,7 +27,7 @@ use crate::{
     save_context::PostLoadContext,
     world::stats::WorldStats,
     system::settlers::Settler,
-    tile::{Tile, sets::TileDef},
+    tile::{Tile, TileFlags, TileKind, sets::TileDef},
     undo_redo::{GameObjectSavedState, game_object_undo_redo_state},
     debug::game_object_debug::{GameObjectDebugOptions, debug_popup_msg, debug_popup_msg_color, game_object_debug_options},
     sim::{
@@ -87,6 +87,14 @@ pub struct HouseConfig {
     // Number of residents that leave the city each time the deprivation grace window elapses.
     pub eviction_batch_size: u32,
 
+    // Upgrades are renovations: once a house has met the next level's needs for
+    // `renovation_delay_secs` in a row, it renovates for `renovation_secs`, then upgrades if it
+    // still meets them. A house that stops meeting its own level's needs downgrades only after
+    // `downgrade_grace_secs` in a row, so a need that comes and goes doesn't flip its level.
+    pub renovation_delay_secs: Seconds,
+    pub renovation_secs: Seconds,
+    pub downgrade_grace_secs: Seconds,
+
     // Base consumption rate per resident, in units per day, keyed by ResourceKind.
     // Kinds not listed here default to 1.0 unit/day (see `consumption_rate_table`).
     #[debug_ui(skip)]
@@ -117,6 +125,9 @@ impl Default for HouseConfig {
             shop_batch_size: 4,
             deprivation_grace_secs: 200.0,
             eviction_batch_size: 2,
+            renovation_delay_secs: 30.0,
+            renovation_secs: 10.0,
+            downgrade_grace_secs: 40.0,
             consumption_rates: vec![
                 (ResourceKind::Rice, 1.0),
                 (ResourceKind::Meat, 0.5),
@@ -729,11 +740,31 @@ impl HouseBuilding {
         debug_assert!(self.upgrade_state.curr_level_config.is_some());
         debug_assert!(self.upgrade_state.next_level_config.is_some());
 
-        // Attempt to upgrade or downgrade based on services and resources availability.
-        if self.upgrade_state.can_upgrade(context, &self.stock) {
-            cmds.upgrade_house(context.kind_and_id(), HouseUpgradeDirection::Upgrade);
-        } else if self.upgrade_state.can_downgrade(context, &self.stock) {
-            cmds.upgrade_house(context.kind_and_id(), HouseUpgradeDirection::Downgrade);
+        // Renovate and upgrade, or downgrade, based on services and resources availability.
+        let can_upgrade = self.upgrade_state.can_upgrade(context, &self.stock);
+        let can_downgrade = self.upgrade_state.can_downgrade(context, &self.stock);
+        let config = BuildingConfigs::get().house_config();
+
+        match self.upgrade_state.advance_timers(can_upgrade, can_downgrade, config) {
+            HouseUpgradeEvent::None => {}
+            HouseUpgradeEvent::RenovationStarted => {
+                set_renovating_tile_flag(cmds, context, true);
+                debug_popup_msg!(self.debug, "Renovating");
+            }
+            HouseUpgradeEvent::RenovationFinished => {
+                // The upgrade replaces the tile, flags and all; set_renovating_tile_flag clears
+                // the flag too, in case it fails.
+                set_renovating_tile_flag(cmds, context, false);
+                cmds.upgrade_house(context.kind_and_id(), HouseUpgradeDirection::Upgrade);
+            }
+            HouseUpgradeEvent::RenovationAborted => {
+                set_renovating_tile_flag(cmds, context, false);
+                debug_popup_msg_color!(self.debug, Color::yellow(), "Renovation stopped");
+            }
+            HouseUpgradeEvent::Downgrade => {
+                set_renovating_tile_flag(cmds, context, false);
+                cmds.upgrade_house(context.kind_and_id(), HouseUpgradeDirection::Downgrade);
+            }
         }
 
         // Base-level (Level 0) houses that go without access to food and water for
@@ -806,6 +837,8 @@ impl HouseBuilding {
         };
 
         if success {
+            // A level change, timed or forced (debug setter, UpgradeHouse), starts the timers over.
+            self.upgrade_state.reset_timers();
             self.stock.update_capacities(self.current_level_config().stock_capacity);
             self.adjust_population(cmds, context, self.population.count(), self.current_level_config().max_population);
         }
@@ -1351,9 +1384,37 @@ pub enum HouseUpgradeDirection {
 // HouseUpgradeState
 // ----------------------------------------------
 
+// What an upgrade update decided (HouseUpgradeState::advance_timers).
+#[derive(Copy, Clone, PartialEq, Eq, Debug)]
+enum HouseUpgradeEvent {
+    None,
+    RenovationStarted,
+    RenovationFinished,
+    RenovationAborted,
+    Downgrade,
+}
+
+// Shows the house as being renovated, or not. The tile map is locked during the update, so the
+// change is queued.
+fn set_renovating_tile_flag(cmds: &mut SimCmds, context: &BuildingContext, renovating: bool) {
+    cmds.defer_building_update(context.kind_and_id(), move |context, building| {
+        context.tile_map_mut().set_tile_flags(building.base_cell(), TileKind::Building, TileFlags::Renovating, renovating);
+    });
+}
+
 #[derive(Clone, Serialize, Deserialize)]
 pub(crate) struct HouseUpgradeState {
     pub(crate) level: HouseLevel,
+
+    // Simulated seconds in a row the house has met the next level's needs; once past
+    // HouseConfig::renovation_delay_secs, a renovation starts.
+    pub(crate) upgrade_ready_secs: Seconds,
+    // Seconds left of a renovation in progress; it upgrades the house when it ends.
+    pub(crate) renovation_secs_left: Option<Seconds>,
+    // Simulated seconds in a row the house hasn't met its own level's needs; once past
+    // HouseConfig::downgrade_grace_secs, it downgrades.
+    pub(crate) downgrade_pending_secs: Seconds,
+
     #[serde(skip)]
     pub(crate) curr_level_config: Option<&'static HouseLevelConfig>,
     #[serde(skip)]
@@ -1368,7 +1429,78 @@ impl HouseUpgradeState {
         let next_level_config =
             if !level.is_max() { Some(configs.find_house_level_config(level.next())) } else { curr_level_config };
 
-        Self { level, curr_level_config, next_level_config, has_room_to_upgrade: true }
+        Self {
+            level,
+            upgrade_ready_secs: 0.0,
+            renovation_secs_left: None,
+            downgrade_pending_secs: 0.0,
+            curr_level_config,
+            next_level_config,
+            has_room_to_upgrade: true,
+        }
+    }
+
+    #[inline]
+    pub(crate) fn is_renovating(&self) -> bool {
+        self.renovation_secs_left.is_some()
+    }
+
+    fn reset_timers(&mut self) {
+        self.upgrade_ready_secs = 0.0;
+        self.renovation_secs_left = None;
+        self.downgrade_pending_secs = 0.0;
+    }
+
+    // Advances the renovation and downgrade timers by one upgrade update
+    // (HouseConfig::upgrade_update_frequency_secs). Returns what the house should do now.
+    fn advance_timers(&mut self, can_upgrade: bool, can_downgrade: bool, config: &HouseConfig) -> HouseUpgradeEvent {
+        let step = config.upgrade_update_frequency_secs;
+
+        if can_downgrade {
+            // Its own level's needs are unmet: no renovation, and the grace period runs.
+            let was_renovating = self.is_renovating();
+            self.upgrade_ready_secs = 0.0;
+            self.renovation_secs_left = None;
+            self.downgrade_pending_secs += step;
+
+            if self.downgrade_pending_secs >= config.downgrade_grace_secs {
+                self.downgrade_pending_secs = 0.0;
+                return HouseUpgradeEvent::Downgrade;
+            }
+            return if was_renovating { HouseUpgradeEvent::RenovationAborted } else { HouseUpgradeEvent::None };
+        }
+
+        self.downgrade_pending_secs = 0.0;
+
+        if let Some(secs_left) = self.renovation_secs_left {
+            let secs_left = secs_left - step;
+            if secs_left > 0.0 {
+                self.renovation_secs_left = Some(secs_left);
+                return HouseUpgradeEvent::None;
+            }
+
+            // Done: upgrade if the needs still hold, else wait out the delay again.
+            self.renovation_secs_left = None;
+            self.upgrade_ready_secs = 0.0;
+            return if can_upgrade { HouseUpgradeEvent::RenovationFinished } else { HouseUpgradeEvent::RenovationAborted };
+        }
+
+        if !can_upgrade {
+            self.upgrade_ready_secs = 0.0;
+            return HouseUpgradeEvent::None;
+        }
+
+        self.upgrade_ready_secs += step;
+        if self.upgrade_ready_secs >= config.renovation_delay_secs {
+            self.upgrade_ready_secs = 0.0;
+            if config.renovation_secs > 0.0 {
+                self.renovation_secs_left = Some(config.renovation_secs);
+                return HouseUpgradeEvent::RenovationStarted;
+            }
+            return HouseUpgradeEvent::RenovationFinished;
+        }
+
+        HouseUpgradeEvent::None
     }
 
     fn post_load(&mut self) {
@@ -1533,5 +1665,88 @@ impl HouseUpgradeState {
         // Check if we have enough space to expand this house to a larger tile size
         // (possibly merging with others).
         house_upgrade::can_expand_house(context, context.id, current_level, target_level)
+    }
+}
+
+// ----------------------------------------------
+// Unit Tests
+// ----------------------------------------------
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn upgrade_state() -> HouseUpgradeState {
+        HouseUpgradeState {
+            level: HouseLevel::Level0,
+            upgrade_ready_secs: 0.0,
+            renovation_secs_left: None,
+            downgrade_pending_secs: 0.0,
+            curr_level_config: None,
+            next_level_config: None,
+            has_room_to_upgrade: true,
+        }
+    }
+
+    // Updates every 10 s; renovation starts after 30 s of needs met, takes 10 s; downgrade after 40 s.
+    fn config() -> HouseConfig {
+        HouseConfig {
+            upgrade_update_frequency_secs: 10.0,
+            renovation_delay_secs: 30.0,
+            renovation_secs: 10.0,
+            downgrade_grace_secs: 40.0,
+            ..HouseConfig::default()
+        }
+    }
+
+    use HouseUpgradeEvent::{Downgrade, RenovationAborted, RenovationFinished, RenovationStarted};
+    const NOTHING: HouseUpgradeEvent = HouseUpgradeEvent::None;
+
+    fn run(state: &mut HouseUpgradeState, updates: &[(bool, bool)]) -> Vec<HouseUpgradeEvent> {
+        let config = config();
+        updates.iter().map(|&(can_upgrade, can_downgrade)| state.advance_timers(can_upgrade, can_downgrade, &config)).collect()
+    }
+
+    const UP: (bool, bool) = (true, false);
+    const STAY: (bool, bool) = (false, false);
+    const DOWN: (bool, bool) = (false, true);
+
+    #[test]
+    fn test_upgrade_waits_for_delay_then_renovates() {
+        let mut state = upgrade_state();
+        assert_eq!(run(&mut state, &[UP, UP, UP]), [NOTHING, NOTHING, RenovationStarted]);
+        assert!(state.is_renovating());
+        assert_eq!(run(&mut state, &[UP]), [RenovationFinished]);
+        assert!(!state.is_renovating());
+    }
+
+    #[test]
+    fn test_flickering_needs_never_upgrade() {
+        let mut state = upgrade_state();
+        let events = run(&mut state, &[UP, UP, STAY, UP, UP, STAY, UP, UP, STAY]);
+        assert!(events.iter().all(|event| *event == NOTHING), "{events:?}");
+    }
+
+    #[test]
+    fn test_renovation_aborts_if_needs_are_lost() {
+        let mut state = upgrade_state();
+        assert_eq!(run(&mut state, &[UP, UP, UP, STAY]), [NOTHING, NOTHING, RenovationStarted, RenovationAborted]);
+
+        // The delay starts over.
+        assert_eq!(run(&mut state, &[UP, UP, UP]), [NOTHING, NOTHING, RenovationStarted]);
+
+        // Losing its own level's needs also stops it.
+        assert_eq!(run(&mut state, &[DOWN]), [RenovationAborted]);
+        assert!(!state.is_renovating());
+    }
+
+    #[test]
+    fn test_downgrade_waits_out_the_grace_period() {
+        let mut state = upgrade_state();
+        // Needs lost for 30 s, then back: no downgrade, and the grace period starts over.
+        assert_eq!(run(&mut state, &[DOWN, DOWN, DOWN, STAY]), [NOTHING, NOTHING, NOTHING, NOTHING]);
+        assert_eq!(state.downgrade_pending_secs, 0.0);
+
+        assert_eq!(run(&mut state, &[DOWN, DOWN, DOWN, DOWN]), [NOTHING, NOTHING, NOTHING, Downgrade]);
     }
 }

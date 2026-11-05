@@ -141,6 +141,9 @@ bitflags_with_display! {
         const UnderConstruction  = 1 << 12;
         const ConstructionStage0 = 1 << 13;
         const ConstructionStage1 = 1 << 14;
+
+        // A house being renovated before an upgrade (HouseUpgradeState).
+        const Renovating         = 1 << 15;
     }
 }
 

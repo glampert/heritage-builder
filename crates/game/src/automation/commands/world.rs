@@ -100,8 +100,8 @@ pub(super) const COMMANDS: &[CommandDef] = &[
     },
     CommandDef {
         name: "world.building_at",
-        help: "The building covering a cell: id, kind, population, workers, stock, road link, and construction while \
-               it's a site.",
+        help: "The building covering a cell: id, kind, population, workers, stock, road link, construction while it's \
+               a site, and for a house: its level and renovation and downgrade timers (simulated seconds).",
         params: &[ParamDef { name: "cell", kind: "cell", required: true, help: "[x, y]." }],
         run: cmd_building_at,
     },
@@ -118,13 +118,17 @@ pub(super) const COMMANDS: &[CommandDef] = &[
     CommandDef {
         name: "world.add_stock",
         help: "Put goods into the storage yards, as deliveries would, first yards first, staffed or not, but not yards \
-               still under construction. Fails, adding nothing, if the yards haven't room for all of it.",
-        params: &[ParamDef {
-            name: "resources",
-            kind: "object",
-            required: true,
-            help: "Resource names and counts, e.g. {\"Bricks\": 8, \"Wood\": 6}.",
-        }],
+               still under construction; or, with cell, into that building (a house's food, a market's stock). Fails, \
+               adding nothing, if there isn't room for all of it.",
+        params: &[
+            ParamDef {
+                name: "resources",
+                kind: "object",
+                required: true,
+                help: "Resource names and counts, e.g. {\"Bricks\": 8, \"Wood\": 6}.",
+            },
+            ParamDef { name: "cell", kind: "cell", required: false, help: "A cell of the building to stock instead." },
+        ],
         run: cmd_add_stock,
     },
     CommandDef {
@@ -637,6 +641,17 @@ fn cmd_building_at(context: &mut CommandContext, params: Value) -> CommandResult
     reply["workers"] = building.workers().map_or(Value::Null, workers_json);
     reply["stock"] = stock_items_json(building.stock().iter().filter(|item| item.count != 0));
 
+    if building.is(BuildingKind::House) && !building.is_under_construction() {
+        let house = building.as_house();
+        let upgrade_state = house.upgrade_state();
+        reply["house"] = json!({
+            "level": house.level().to_string(),
+            "upgrade_ready_secs": upgrade_state.upgrade_ready_secs,
+            "renovation_secs_left": upgrade_state.renovation_secs_left,
+            "downgrade_pending_secs": upgrade_state.downgrade_pending_secs,
+        });
+    }
+
     done(reply)
 }
 
@@ -699,6 +714,7 @@ fn cmd_add_stock(context: &mut CommandContext, params: Value) -> CommandResult {
     #[serde(deny_unknown_fields)]
     struct Params {
         resources: Map<String, Value>,
+        cell: Option<CellParam>,
     }
 
     let params: Params = parse_params(params)?;
@@ -715,6 +731,10 @@ fn cmd_add_stock(context: &mut CommandContext, params: Value) -> CommandResult {
             .filter(|count| *count > 0)
             .ok_or_else(|| CommandError::invalid_params(format!("{name}: expected a count above 0, got {count}.")))?;
         items.push((kind, count));
+    }
+
+    if let Some(CellParam(cell)) = params.cell {
+        return add_stock_to_building(context, cell, &items);
     }
 
     refresh_world_stats(context);
@@ -738,6 +758,34 @@ fn cmd_add_stock(context: &mut CommandContext, params: Value) -> CommandResult {
 
     refresh_world_stats(context);
     done(json!({ "city_stock": resource_stock_json(&context.session.world().stats().resources.storage_yards) }))
+}
+
+// world.add_stock with a cell: stock one building, as a delivery to it would.
+fn add_stock_to_building(context: &mut CommandContext, cell: Cell, items: &[(ResourceKind, u32)]) -> CommandResult {
+    context.require_cell_in_map(cell)?;
+
+    let session = &mut *context.session;
+    let handle = session
+        .world()
+        .find_building_for_cell(cell, session.tile_map())
+        .map(|building| building.kind_and_id())
+        .ok_or_else(|| CommandError::not_found(format!("No building at [{}, {}].", cell.x, cell.y)))?;
+    let building = session.world_mut().find_building_mut(handle.kind, handle.id).unwrap();
+
+    for (kind, count) in items {
+        let room = building.receivable_resources(*kind);
+        if room < *count {
+            return Err(CommandError::failed(format!("{} has room for {room} {kind}, not {count}.", building.name())));
+        }
+    }
+    for (kind, count) in items {
+        let received = building.receive_resources(*kind, *count);
+        debug_assert_eq!(received, *count);
+    }
+
+    let stock = stock_items_json(building.stock().iter().filter(|item| item.count != 0));
+    refresh_world_stats(context);
+    done(json!({ "stock": stock }))
 }
 
 fn cmd_stats(context: &mut CommandContext, _params: Value) -> CommandResult {

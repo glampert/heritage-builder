@@ -170,8 +170,9 @@ fn test_house_consumption_scales_with_occupancy() {
 // Downgrade when requirements are unmet
 // ----------------------------------------------
 
-// A house whose level requirements (services/resources) go unmet downgrades on the
-// next upgrade tick, walking back down toward the base Level 0.
+// A house whose level requirements (services/resources) go unmet downgrades once the
+// downgrade grace period (HouseConfig::downgrade_grace_secs) has passed, walking back
+// down toward the base Level 0.
 fn test_house_downgrades_when_requirements_unmet() {
     let mut env = TestEnvironment::with_map_size(Size::new(12, 12));
     test_utils::fill_terrain(&mut env, "grass");
@@ -180,9 +181,13 @@ fn test_house_downgrades_when_requirements_unmet() {
     let _house = test_utils::spawn_building(&mut env, cell, "house1");
     assert_eq!(house_level_name(&env, cell), "House Level 1", "should spawn as Level 1");
 
-    // No food and no nearby services means the Level 1 requirements can't be met,
-    // so the house should downgrade on the next upgrade tick (every 10s).
+    // No food and no nearby services means the Level 1 requirements can't be met.
+    // The house keeps its level through the grace period (40s, checked every 10s)...
     test_utils::tick_n(&mut env, 6, 5.0); // ~30s
+    assert_eq!(house_level_name(&env, cell), "House Level 1", "a house keeps its level during the grace period");
+
+    // ...then downgrades.
+    test_utils::tick_n(&mut env, 6, 5.0); // ~60s
 
     assert_eq!(
         house_level_name(&env, cell),

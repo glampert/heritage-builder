@@ -9,6 +9,7 @@ use engine::ui::{
 };
 
 use crate::{
+    building::config::BuildingConfigs,
     menu::TileInspector,
     tile::{Tile, TileKind},
     ui_context::GameUiContext,
@@ -339,6 +340,20 @@ impl BuildingInspector {
         let mut body = InspectorMenuBody::new();
 
         let house = building.as_house();
+        let upgrade_state = house.upgrade_state();
+        let config = BuildingConfigs::get().house_config();
+
+        // Renovation and downgrade warnings.
+        if let Some(secs_left) = upgrade_state.renovation_secs_left {
+            add_body_line!(&mut body, "Being renovated: it upgrades in about {} seconds.", secs_left.ceil());
+        } else if upgrade_state.upgrade_ready_secs > 0.0 {
+            let secs = (config.renovation_delay_secs - upgrade_state.upgrade_ready_secs).max(0.0);
+            add_body_line!(&mut body, "Its needs are met: renovation starts in about {} seconds.", secs.ceil());
+        }
+        if upgrade_state.downgrade_pending_secs > 0.0 {
+            let secs = (config.downgrade_grace_secs - upgrade_state.downgrade_pending_secs).max(0.0);
+            add_body_line!(&mut body, "Its needs aren't met! It downgrades in about {} seconds.", secs.ceil());
+        }
 
         if !house.level().is_max() {
             if !building.is_linked_to_road() {

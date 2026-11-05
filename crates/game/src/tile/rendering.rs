@@ -472,6 +472,9 @@ impl TileMapRenderer {
                     render_sys.draw_textured_colored_rect(tile_screen_rect, tex_coords, texture, color * CONSTRUCTION_OUTLINE_COLOR);
                     let (rect, coords) = construction_site_rect(tile_screen_rect, tex_coords, stage);
                     render_sys.draw_textured_colored_rect(rect, &coords, texture, color * CONSTRUCTION_SITE_COLOR);
+                } else if tile.has_flags(TileFlags::Renovating) {
+                    // A house being renovated before an upgrade.
+                    render_sys.draw_textured_colored_rect(tile_screen_rect, tex_coords, texture, color * RENOVATION_COLOR);
                 } else {
                     // Standard render:
                     render_sys.draw_textured_colored_rect(tile_screen_rect, tex_coords, texture, color);
@@ -626,6 +629,9 @@ impl TileDrawListEntry {
 // provides scaffold sprites (construction plan §6).
 const CONSTRUCTION_OUTLINE_COLOR: Color = Color::new(1.0, 0.9, 0.75, 0.3);
 const CONSTRUCTION_SITE_COLOR: Color = Color::new(1.0, 0.82, 0.6, 1.0);
+
+// A house being renovated: a lighter version of the site tint. Placeholder for a scaffold overlay.
+const RENOVATION_COLOR: Color = Color::new(1.0, 0.9, 0.75, 1.0);
 
 // The part of a building's sprite a construction site at `stage` has built: its bottom
 // (stage + 1) quarters, so it rises from the ground as the site progresses. Returns the screen

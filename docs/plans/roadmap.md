@@ -45,7 +45,7 @@ These follow [overview.md](../design/overview.md#development-phases).
 |---|---|---|---|---|---|
 | M1 | Game time and calendar | Small | — | [game-time.md](game-time.md) | Done (hand check on macOS pending) |
 | M2 | Placeholder art pipeline | Medium | — (runs alongside) | [placeholder-art.md](placeholder-art.md) | Not started |
-| M3 | Building costs and construction | Medium to large | M1 | [construction.md](construction.md) | In progress: Phases 0–2 done |
+| M3 | Building costs and construction | Medium to large | M1 | [construction.md](construction.md) | In progress: Phases 0–3 done |
 | M4 | Finance | Medium | M1 | — | Not started |
 | M5 | Goods and production for missions I-1 to I-5 | Medium | M3 | — | Not started |
 | M6 | City risks: fire and collapse | Medium | M3, M1 | — | Not started |
@@ -255,7 +255,7 @@ Bumps should be grouped where milestones land close together. Each bump needs a 
 |---|---|---|---|
 | 2 | Current | — | Shipped |
 | 3 | Calendar | M1 | Done |
-| 4 | Building construction state; house renovation timers | M3 | Construction state done; renovation timers next |
+| 4 | Building construction state; house renovation timers | M3 | Done |
 | 5 | Elevation map | T | Planned |
 | … | Finance, risk, flood, favour and ratings state | M4–M9 | Planned; group them where possible |
 
