@@ -14,15 +14,53 @@ The strategic world map (see [world.md](../world.md#the-world-map) and [gdd.md](
 
 Placeholders in the mockups: the names of the cities founded in missions 1–5 (the docs don't name them yet), the realms' era names, the trade goods and prices, and the map's geography beyond the rough layout in world.md.
 
+## Intro
+
+The first screen of a story comic sequence (see [story-script.md](../story-script.md)), one panel per realm in the folk-art style the GDD gives its comics: a narration caption, a speech bubble, and a bar with the sequence title, panel dots and Skip / Next.
+
+| Realm | Panel | Image |
+|---|---|---|
+| Đại Long | I-A "Adopted, Yet Chosen", panel 6, as a woodblock print | [intro-dailong.jpg](intro-dailong.jpg) |
+| Kambara | II-A "The Lake Provinces", as a temple bas-relief | [intro-kambara.jpg](intro-kambara.jpg) |
+| Tampadesa | III-A "The Captive Scholar", as a temple mural | [intro-tampadesa.jpg](intro-tampadesa.jpg) |
+
+## Intermission
+
+The debrief after a mission (gdd.md 4, *Mission flow*), shown after mission 5 of each campaign: the campaign's stele with a carved line per mission, the newest highlighted, beside the goals, distinctions, ratings, city stats and the city joining the world map.
+
+| Realm | Stele | Image |
+|---|---|---|
+| Đại Long | Grey stone on a tortoise, in a red lacquer niche | [intermission-dailong.jpg](intermission-dailong.jpg) |
+| Kambara | Pointed sandstone slab on a lotus pedestal, with moss and vines | [intermission-kambara.jpg](intermission-kambara.jpg) |
+| Tampadesa | Rounded slab with a gilded border and umbrella finial, on a brick plinth | [intermission-tampadesa.jpg](intermission-tampadesa.jpg) |
+
+## In-game HUD
+
+The minimal HUD of gdd.md 10 over a city: speed and date, population, treasury, food and the four ratings, the goals tracker, the build bar with a tooltip, the minimap and the message log. Đại Long uses parchment and wood, Kambara mossy sandstone, Tampadesa earthen brown with gilt trim.
+
+| Realm | Image |
+|---|---|
+| Đại Long | [hud-dailong.jpg](hud-dailong.jpg) |
+| Kambara | [hud-kambara.jpg](hud-kambara.jpg) |
+| Tampadesa | [hud-tampadesa.jpg](hud-tampadesa.jpg) |
+
+The city behind the HUD is existing art: Đại Long's is cropped from `../../images/prototype_apr_2026_3.jpg`, and Kambara's and Tampadesa's are the small reference mocks in `../../images/references/` scaled up, so they look soft.
+
+Placeholders in these screens: the stele lines, goals, numbers and distinctions, and the dialogue not given in story-script.md.
+
 ## Regenerating
 
-The generator lives in [generator/](generator/): `common.py` holds the shared geography and layout, `content.py` what each realm's map shows, and `world_map.py` the three styles. It needs Python 3, Node with Playwright and Chromium, and network access to Google Fonts the first time.
+The generator lives in [generator/](generator/): `common.py` holds the shared geography and layout, `content.py` what each realm's map shows, and `world_map.py` the three styles. `screens.py` (with its text in `screens_content.py`) draws the intro, intermission and HUD screens in the same styles. It needs Python 3, Node with Playwright and Chromium, and network access to Google Fonts the first time.
 
 ```bash
 cd docs/design/mockups/generator
 python3 fonts.py        # downloads the fonts into build/ (git-ignored)
 python3 world_map.py    # writes build/world-map-<realm>.html
 node shot.js world-map-dailong world-map-kambara world-map-tampadesa
+python3 screens.py      # writes build/{intro,intermission,hud}-<realm>.html
+node shot.js intro-dailong intermission-dailong hud-dailong   # and so on per realm
 ```
+
+Run `python3 backdrops.py` (needs Pillow) before `screens.py`: it crops the city art behind the HUD into `build/city_<realm>.jpg`.
 
 `shot.js` saves `../<name>.jpg` at 2x (3840 x 2160); `SCALE` and `QUALITY` change that.

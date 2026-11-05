@@ -1190,7 +1190,7 @@ class Tampadesa(Theme):
         return T(x, y, s, self.title_font, 42, self.ink, "middle", 400)
 
     def divider(self, x, y, w):
-        return (f'<line x1="{x}" y1="{y}" x2="{x + w}" y2="{y}" stroke="{self.gold()}" stroke-width="2.5"/>'
+        return (f'<rect x="{x}" y="{y - 1.5}" width="{w}" height="3" fill="{self.gold()}"/>'
                 + self.stupa(x + w / 2, y + 4, 0.38))
 
     def meter(self, x, y, w, v):
