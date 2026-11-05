@@ -1,0 +1,251 @@
+# Technical roadmap
+
+**Status (2026-11-05): Draft. Phase 1 not started.** This is the top-level implementation plan. It turns the design in [docs/design/](../design/README.md) into milestones, puts them in order, and links to a detailed plan for each one. It was researched against `d0696fe` on `main`.
+
+## How to use this file
+
+- **One plan per milestone.** Each milestone gets its own plan in `docs/plans/` when work on it starts. That plan holds the detail and the checkboxes. This file keeps the order, the dependencies and the status.
+- Plans written so far:
+  - [construction.md](construction.md) (M3);
+  - [placeholder-art.md](placeholder-art.md) (M2);
+  - [terrain-height.md](terrain-height.md) (T).
+- When a milestone starts, finishes or changes scope, update its row in the [Phase 1 table](#phase-1-campaign-i-missions-15-the-vertical-slice) and its entry in the [save-version log](#save-version-log).
+- Follow [AGENTS.md](../../AGENTS.md) throughout:
+  - keep desktop and web compiling;
+  - run `cargo test --workspace` and the scenarios;
+  - follow the Saves workflow for every change to the save format;
+  - route edits through `TilePlacement`, `SimCmds` and the `TileMap` setters;
+  - list each new plan in AGENTS.md's Plans section.
+
+## Phases
+
+These follow [overview.md](../design/overview.md#development-phases).
+
+| Phase | Result | Plans |
+|---|---|---|
+| **0. Prototype** | Done: engine, renderers, egui UI, saves, housing, services, production, walkers, a campaign framework, automation | [agent-automation.md](agent-automation.md), [egui-migration.md](egui-migration.md) |
+| **1. Core city sim** | Campaign I, missions 1–5 playable from start to finish with placeholder art, on desktop and web | This file (M1–M13, T) |
+| **2. Advanced systems** | All of Campaign I: elite housing, monuments and guilds, defence and attacks, diplomacy, sea trade, story presentation in full | Outlined [below](#phase-2-outline) |
+| **3. Kambara** | The realm layer as data, the Kambara art set, the water network (barays and canals), the lake's pulse, temple estates, rest houses. Campaign II | Later |
+| **4. Tampadesa** | The merit economy, policies, two peoples, calling on allies. Campaign III and the epilogue | Later |
+| **5. Polish and release** | Balance, difficulty, Custom Game, localisation, accessibility, performance, store pages | Later |
+
+## Phase 1: Campaign I, missions 1–5 (the vertical slice)
+
+**Goal:** a player can start the campaign, play missions 1–5 with their briefings, meet each mission's goals, and see the debrief. Every system those missions teach works (see [campaigns.md](../design/campaigns.md), mission I-1 to I-5, and the GDD).
+
+**Done when:**
+- missions 1–5 can be finished on desktop and on the web;
+- every mission has a script scenario that plays it to victory (with time compressed by `time.fast_forward`), running in CI;
+- all existing tests and scenarios pass.
+
+| # | Milestone | Size | Depends on | Plan | Status |
+|---|---|---|---|---|---|
+| M1 | Game time and calendar | Small | — | — | Not started |
+| M2 | Placeholder art pipeline | Medium | — (runs alongside) | [placeholder-art.md](placeholder-art.md) | Not started |
+| M3 | Building costs and construction | Medium to large | M1 | [construction.md](construction.md) | Not started |
+| M4 | Finance | Medium | M1 | — | Not started |
+| M5 | Goods and production for missions I-1 to I-5 | Medium | M3 | — | Not started |
+| M6 | City risks: fire and collapse | Medium | M3, M1 | — | Not started |
+| M7 | Seasons, floods and irrigation | Large | M1, M5 | — | Not started |
+| M8 | Faith and festivals | Medium | M1 | — | Not started |
+| M9 | Ratings, goals and failure | Medium | M4, M7, M8 | — | Not started |
+| M10 | Trade v1 and court requests | Large | M1, M4, M5 | — | Not started |
+| M11 | Messages and advisors | Medium | M9 (grows with each system) | — | Not started |
+| M12 | Story presentation v1 | Small to medium | — | — | Not started |
+| M13 | Missions I-1 to I-5: maps, configs, balance, scenarios | Large | All of the above | — | Not started |
+| T | Terrain height | Medium to large | M3 (spike after) | [terrain-height.md](terrain-height.md) | Not started |
+
+Suggested order:
+- **First:** M1 → M3 → M5, with M2 running alongside from the start.
+- **Then, in parallel:** M4, M6 and M8.
+- **Then:** M7, then M10, M9 and M11.
+- **Last:** M13, with M12 slotted in anywhere.
+- **Terrain height:** the T spike runs after M3, and Stages 1–4 come before M13 builds mission 5's map.
+
+### M1: Game time and calendar (small)
+
+**Problems today:**
+- The only game-time unit is `SimConfigs::seconds_per_day = 600`, used only by house consumption.
+- `Simulation::elapsed_secs` isn't saved.
+- **Bug:** the world update's delta is multiplied by speed twice, so every building timer runs at speed squared (`sim/mod.rs:165–166`; `time_since_last_secs()` has already been scaled once when it's multiplied by `self.speed`). Every timer-driven system after this depends on the fix.
+
+**Tasks:**
+- Fix the speed-squared delta and add a regression test: building timers run at 1× and 2× speed for the same simulated span.
+- Add `GameCalendar`, saved:
+  - a game-time clock, with day, month and year, measured in game seconds;
+  - the season, wet or dry, from a per-mission season table (start month, wet months);
+  - the World Year plus the realm's era name, for display (see [world.md](../design/world.md#shared-timeline)).
+- **Events:** `on_new_month`, `on_new_season` and `on_new_year`, broadcast to systems through the `GameSystem` trait.
+- **HUD:** date and season in the top bar (`menu/in_game/bars.rs`).
+- **Automation:** `sim.state` reports the date, and `wait.until` can wait for a date.
+- Bump the save version (shared with M3 if they land together).
+
+### M2: Placeholder art pipeline (medium, alongside)
+
+See [placeholder-art.md](placeholder-art.md):
+- move the Blender generator into the repo;
+- fit its camera and anchor to the engine;
+- add a catalog, a batch driver and `tile_set.json` syncing;
+- write generic recipes and render the Phase 1 building set, scaffolds, rubble and the new terrain kinds.
+
+Each later milestone adds its buildings to the catalog.
+
+### M3: Building costs and construction (medium to large)
+
+See [construction.md](construction.md):
+- material costs taken from a city-wide stock at placement;
+- construction sites on a game-time timer, refunded in full when cancelled;
+- house renovation and the downgrade grace period;
+- scaffold rendering;
+- save v3.
+
+### M4: Finance (medium)
+
+GDD 5.7: wages, tax rate, upkeep, yearly accounts and debt. Building on `GlobalTreasury` (`sim/resources.rs:739`), the tax collectors and the existing finances dialog (`menu/dialog/city_management/finances`):
+- **Wages:** paid monthly per employed worker from the treasury, at a rate the player can set; wages affect Prosperity later.
+- **Tax rate:** set by the player, scaling `HouseBuilding::generate_tax`.
+- **Upkeep:** an optional monthly cost per building, from its config.
+- **Yearly accounts:** income and spending by category, last year against this year, in the finances dialog.
+- **Debt:** the treasury can go negative. Being in debt for a while sets a failure flag that M9 uses.
+- **Tests:** a new `finance.rs` test.
+
+### M5: Goods and production for missions I-1 to I-5 (medium)
+
+- **New `ResourceKind`s** that missions 1–5 use, such as roof tiles and vegetables (see GDD §8). `ResourceKind` is a `u32` bitflag with 10 bits used. Check how it serializes, because adding kinds may change the save format.
+- **New producers:** a roof-tile kiln, plus any others the missions need. Config entries in `buildings/configs.json`, art from M2.
+- **Rebalance storage capacity** (8 slots × 4 units today) against construction costs, and against the house goods needs for common levels 1–5.
+- **Common house level 5**, if missions 1–5 need it.
+
+### M6: City risks: fire and collapse (medium)
+
+GDD 5.9:
+- **Risk build-up:** fire and collapse risk per building, from its config and age; it goes up each month and is reset by a patrol walker's visit.
+- **New service buildings:** the fire watch and the builders' guild. Both reuse the `ServiceBuilding` patrol machinery (`unit/task/patrol.rs`).
+- **Events:**
+  - a fire spreads to neighbours and leaves rubble;
+  - a collapse leaves rubble;
+  - rubble is a tile that can be cleared.
+- **Overlay:** a risk overlay.
+- **Tests:** tests and a scenario.
+
+(Disease and crime come in Phase 2, with hospitals and unrest.)
+
+### M7: Seasons, floods and irrigation (large)
+
+GDD 5.10 and Đại Long's water layer (GDD §6):
+- **Floodplain:** a floodplain terrain kind or flag and a per-cell fertility value, which floods raise.
+- **Flood event:** once each wet season, the mission's flood profile (height and extent) floods unprotected floodplain cells. Buildings there are damaged or destroyed and fields are reset.
+- **Dykes:** a linear building with junction variations, like roads (art from M2). Dykes block the flood. They can **breach** if under-maintained, which ties into M6's collapse.
+- **Sluice gates:** let water into chosen paddies to irrigate them.
+- **Farm yield** depends on fertility and irrigation; irrigation allows a second harvest.
+- **Interaction with terrain height:** floods only reach cells below the flood level (terrain-height §9).
+- **Goal type:** `SeasonsSurvived` (shared with M9).
+- **Overlays:** flood risk and fertility.
+
+### M8: Faith and festivals (medium)
+
+GDD 5.11:
+- **Patrons:** 3–5 per realm, defined as data (names fictionalised; see world.md). Shrines and temples are dedicated to a patron.
+- **Favour** per patron rises with coverage and festivals, and fades with neglect.
+- **Blessings and misfortunes** come from an event table, through the message system (M11).
+- **Festivals:** a festival square building; hosting a festival costs gold and goods and raises Culture, favour and calm.
+- **Đại Long:** the Mountain Lord and the Water Lord hook into the flood severity (M7).
+
+### M9: Ratings, goals and failure (medium)
+
+GDD 5.17 and 7:
+- **Ratings:** Prosperity, Culture, Security and Legitimacy (the Mandate), recomputed monthly, each with a breakdown of what drives it.
+- **Goals:** extend `MissionGoal` (`campaign/config.rs:53`) with `Rating`, `HousesAtLevel`, `TradeIncome`, `Stockpile`, `RequestsFulfilled`, `SeasonsSurvived`, `SurviveUntil` and `SurviveAttacks`. The last two are for Phase 2.
+- **Failure conditions:** debt (M4), Legitimacy near zero, and time limits.
+- **Optional distinctions** for the stele.
+- **Goals panel** in the HUD, live; a ratings dialog.
+- **Tests:** extend `tests/campaign.rs`.
+
+### M10: Trade v1 and court requests (large)
+
+GDD 5.12 and 5.14:
+- **World map:** a mission-defined world map with partner cities and routes, set up in mission config; a world-map dialog.
+- **Opening a route** costs gold.
+- **Trade post:** buys and sells within limits set per good and per partner. A **caravan** walker comes from the map edge's entry point, goes to the trade post and trades.
+- **Imports** fill storage yards through deliveries; this is how construction materials are imported (GDD 5.1.1).
+- **Prices** come from a per-partner table with simple supply and demand.
+- **Court requests:** "deliver N goods within M months"; goods go out through a dispatch building or the trade post. Fulfilling one raises Legitimacy, and failing one lowers it.
+- **Scope:** Phase 1 needs only land routes (mission I-5). Docks and sea trade come in Phase 2 (I-6).
+
+### M11: Messages and advisors (medium)
+
+- **Message log:** a typed message system with priorities, a log panel, and a popup for important events (floods, fires, requests, blessings, goals).
+- **Advisor screens:** labour, food, finance (M4) and ratings (M9), at a basic level.
+- **Automation:** `messages.list` for scenarios.
+
+### M12: Story presentation v1 (small to medium)
+
+- **Briefing dialog:** a scroll with text, goals and an image, from mission config.
+- **Debrief:** stele lines added, then the stele shown.
+- **Comic viewer:** a sequence of full-screen images with caption and dialogue text, from data. It's used for the I-A and I-B sequences ([story-script.md](../design/story-script.md)).
+- **Text** lives in `assets/configs/ui/text.json` or a new story file, ready for localisation later.
+
+### M13: Missions I-1 to I-5 (large, content)
+
+- Build the five maps in the developer editor, as saves (`campaigns.json` `MissionMap::SaveGame`). Mission 5 uses terrain height if T has landed.
+- **Starting conditions:** gold, a pre-placed storage yard with starting stock (bootstrap rule, GDD 5.1.1), the season table, the flood profile, world-map partners and the request schedule.
+- **Unlocks per mission:** which buildings appear in the build menu (a new field in the mission config).
+- **Balance** against the 1-hour target.
+- **One scenario per mission** that plays it to victory with `time.fast_forward`, in CI.
+
+### T: Terrain height (medium to large)
+
+See [terrain-height.md](terrain-height.md):
+- Stage 0, a go/no-go spike after M3;
+- then data, rendering, picking, pathfinding and art.
+
+## Phase 2 outline
+
+These get their own plans when Phase 2 begins:
+
+- **Elite housing:** the second housing track and elite lots (GDD 5.2.1).
+- **Monuments and guilds:** staged construction with materials delivered and guild workers; the Temple of Learning and the Imperial Citadel (GDD 5.15).
+- **Defence and attacks:**
+  - walls, gatehouses, moats, towers, watchtowers and fortresses with automatic militia, and the weapons workshop;
+  - attacker AI, raids, warnings and damage (GDD 5.16);
+  - uses terrain height for chokepoints.
+- **Sea trade and docks;** foreign partners on the world map; gifts, relations and tribute (GDD 5.12 and 5.14).
+- **The silk chain;** Đại Long's signature goods.
+- **Examinations and scholar-officials** (GDD §6).
+- **Disease and hospitals;** crime and unrest.
+- **Map choices** for missions 6–8 (two maps each).
+- **Story presentation:** the remaining comics, in-mission story events, and the stele screen.
+- **Missions I-6 to I-10.**
+
+## Fixes the research turned up
+
+These are bugs or gaps, each tied to the milestone that fixes it:
+
+| Issue | Where | Fixed in |
+|---|---|---|
+| The world update's delta is multiplied by speed twice | `sim/mod.rs:165–166` | M1 |
+| `SimCmds` building spawns charge the tile cost through `Spawner` defaults | `sim/commands.rs:684`, `:851` | M3 Phase 0 |
+| Service access doesn't check that the service building is operational | `sim/context.rs:510` | Decided under construction.md Q2 |
+| Undo refunds gold without updating `world.stats` | `undo_redo.rs`, `sim/resources.rs` | M3 Phase 1 |
+| Save and load failures are only logged (known-issues) | `session.rs` | M11, which can now show them |
+
+## Save-version log
+
+Bumps should be grouped where milestones land close together. Each bump needs a migration script, migrated sample saves and `--smoke-test-saves`.
+
+| Version | Contents | Milestone | Status |
+|---|---|---|---|
+| 2 | Current | — | Shipped |
+| 3 | Calendar; building construction state; house renovation timers | M1, M3 | Planned |
+| 4 | Elevation map | T | Planned |
+| … | Finance, risk, flood, favour and ratings state | M4–M9 | Planned; group them where possible |
+
+## Conventions for every milestone
+
+- **Data first:** new buildings, goods, events, patrons and mission settings live in `assets/configs/` JSON, so Phases 3 and 4 can add realms without code changes where possible. Nothing realm-specific is hard-coded, not even Đại Long names.
+- **Determinism:** new systems draw from the simulation's RNG and run in a fixed order. `determinism.jsonl` keeps passing.
+- **Automation:** every new system can be read through a query command (for `assert.*` and `wait.until`) and driven by a command where it makes sense. Each milestone adds a scenario.
+- **Tests:** unit and integration tests use the custom harness in `crates/game/tests/`, one file per system.
+- **UI:** retail UI goes through the `engine::ui` API and the style files; new screens pass `ui.layout_issues`.
+- **Docs:** each milestone updates AGENTS.md or `.claude/rules/` with anything durable it learned, and ticks its plan.
