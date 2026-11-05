@@ -161,6 +161,7 @@ iso_y = (cell.x + cell.y) * -16;   // larger x+y is higher on screen
   - both are flat at the same level;
   - one is a ramp and the other is its uphill neighbour at `L + 1`, or its downhill neighbour at `L`;
   - both are ramps facing the same way, one level apart, along that direction.
+- With 8-way movement ([unit-movement.md](unit-movement.md)), a diagonal step also needs both side cells to be flat and on the same level as the two cells it joins. Ramps are only climbed straight.
 - `Heuristic::movement_cost` adds a small cost for ramps (Q7). `UnitNavigation::update`'s check on the next node also checks the edge, so a unit whose path crosses a new cliff stops and repaths.
 - Units draw at their blended height. Their sort key stays the starting cell's, which is correct on ramps because a ramp's band is the lower cell's.
 
@@ -273,7 +274,7 @@ If height slips, mission 5 can ship on a flat map with decorative mountains (opt
 ## Open decisions
 
 **Q1. How tall is one level, in logical px?**
-*Default: 16,* one diagonal step. That keeps draw order and picking exact. 32 (one full tile height) gives more dramatic cliffs, but loses the exact one-step match.
+**Decided (2026-11-05):** start with 16, one diagonal step, which keeps draw order and picking exact. It may go higher after playtesting. 32 (one full tile height) gives more dramatic cliffs, but loses the exact one-step match. The spike and placeholder art should keep it a single constant so it can change.
 
 **Q2. What's the highest level?**
 *Default: 7* (3 bits). Missions will probably use 0–3.

@@ -295,7 +295,7 @@ Done when: a house that keeps its needs met upgrades after the delay plus the re
 ## Open decisions
 
 **Q1. Can construction take materials from unstaffed storage yards?**
-*Default: yes.* The goods are in the yard, and taking them is instant (GDD 5.1.1).
+**Decided (2026-11-05):** yes, for paying for a building at placement. Deliveries to monument sites, which are carried by walkers, need a staffed yard; that belongs to the monument plan.
 
 **Q2. Should service coverage ignore unstaffed service buildings as well as sites?**
 *Default: no change in this plan.* It's tracked in known-issues; a decision on service coverage (GDD open question) will cover it.

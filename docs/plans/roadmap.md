@@ -8,7 +8,8 @@
 - Plans written so far:
   - [construction.md](construction.md) (M3);
   - [placeholder-art.md](placeholder-art.md) (M2);
-  - [terrain-height.md](terrain-height.md) (T).
+  - [terrain-height.md](terrain-height.md) (T);
+  - [unit-movement.md](unit-movement.md) (U).
 - When a milestone starts, finishes or changes scope, update its row in the [Phase 1 table](#phase-1-campaign-i-missions-15-the-vertical-slice) and its entry in the [save-version log](#save-version-log).
 - Follow [AGENTS.md](../../AGENTS.md) throughout:
   - keep desktop and web compiling;
@@ -55,6 +56,7 @@ These follow [overview.md](../design/overview.md#development-phases).
 | M12 | Story presentation v1 | Small to medium | — | — | Not started |
 | M13 | Missions I-1 to I-5: maps, configs, balance, scenarios | Large | All of the above | — | Not started |
 | T | Terrain height | Medium to large | M3 (spike after) | [terrain-height.md](terrain-height.md) | Not started |
+| U | Eight-direction movement for off-road walkers | Medium | M3; art from M2 Phase 6 | [unit-movement.md](unit-movement.md) | Not started |
 
 Suggested order:
 - **First:** M1 → M3 → M5, with M2 running alongside from the start.
@@ -62,6 +64,7 @@ Suggested order:
 - **Then:** M7, then M10, M9 and M11.
 - **Last:** M13, with M12 slotted in anywhere.
 - **Terrain height:** the T spike runs after M3, and Stages 1–4 come before M13 builds mission 5's map.
+- **Eight-direction movement:** U runs after M3 and, ideally, before T's pathfinding stage (Stage 4), since both change the same step check. Its art waits on the Blender walker experiment (M2, placeholder-art Phase 6), with a fallback to existing directions until then.
 
 ### M1: Game time and calendar (small)
 
@@ -200,12 +203,23 @@ See [terrain-height.md](terrain-height.md):
 - Stage 0, a go/no-go spike after M3;
 - then data, rendering, picking, pathfinding and art.
 
+### U: Eight-direction movement for off-road walkers (medium)
+
+See [unit-movement.md](unit-movement.md):
+- units with `diagonal_movement` (settler, dog, buffalo, bird) path through 8 neighbours, without cutting corners, at costs of 10 and 14;
+- road walkers don't change;
+- `UnitDirection` gets N, S, E and W, with a fallback to existing art;
+- the new walk angles come from the Blender walker experiment, or by hand.
+
+No save-version bump: the new enum variants go at the end, so old saves still load.
+
 ## Phase 2 outline
 
 These get their own plans when Phase 2 begins:
 
 - **Elite housing:** the second housing track and elite lots (GDD 5.2.1).
 - **Monuments and guilds:** staged construction with materials delivered and guild workers; the Temple of Learning and the Imperial Citadel (GDD 5.15).
+- **New walkers** (militia, raiders, caravans) use 8-way movement (U) and get all 8 directions of art from the start.
 - **Defence and attacks:**
   - walls, gatehouses, moats, towers, watchtowers and fortresses with automatic militia, and the weapons workshop;
   - attacker AI, raids, warnings and damage (GDD 5.16);

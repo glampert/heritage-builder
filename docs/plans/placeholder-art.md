@@ -260,11 +260,35 @@ Done when: the new terrain types tile cleanly with the existing ones in the game
 - [ ] `ramp(dir, kind)` for grass, dirt and road, in 4 directions.
 - [ ] The level height comes from the engine's constant (see [terrain-height.md](terrain-height.md)); both read it from one shared JSON value.
 
+### Phase 6: Walker experiment (medium)
+
+**Goal:** find out whether Blender can make walker sprites that look right next to the hand-made ones. It starts with the N, S and E directions that 8-way movement needs ([unit-movement.md](unit-movement.md)). If it works, Blender becomes the source for new walkers: militia, raiders, caravans.
+
+Approach:
+- **Recipes:** a low-poly `figure`, built from `Builder` primitives (head, torso, capsule limbs), with simple parenting or an armature. Parameters: build, clothing colours from the palette, headwear (a conical hat), and things carried (a shoulder pole with baskets, a scroll, a spear, a staff). Plus a `quadruped` recipe for the dog and the buffalo.
+- **Walk cycle:** keyframed procedurally: legs and arms swing on a sine, and the body bobs. Frame counts match today's units (8 walk frames and 2 idle for people).
+- **Directions:** turn the figure in 45° steps under the fixed isometric camera. Render 5 directions (N, NE, E, SE, S) and mirror the other 3 in `tile_set.json` (`mirror: true`), as the hand-made units already do.
+- **Size and anchor:** match the existing unit draw sizes (about 22×40 logical for people) and the feet anchor (`y -= draw_h - 16`), at the 4× density. Outlines need to be thinner for small figures; the 1.6 px used for buildings may be too heavy.
+- **Output:** `assets/tiles/objects/units/<unit>/<anim_set>/frameN.png` with `frames_source: {"Files": n}`. Catalog entries of a new `unit` kind; `sync_tileset.py` adds the anim sets.
+
+Tasks:
+- [ ] The `figure` and `quadruped` recipes, the walk cycle, rendering each direction, and frame-sequence output.
+- [ ] Settler test: render all 8 directions (5 plus mirrors) and place it next to the hand-made settler in the game. Compare at 1× and at full zoom.
+- [ ] Decide with the user whether to:
+  - generate only the missing N, S and E for existing units;
+  - regenerate every direction for a unit;
+  - or draw them by hand instead.
+
+  Record the answer in [unit-movement.md](unit-movement.md) Q5.
+- [ ] If Blender works out: generate N, S and E for the settler, dog, buffalo and bird ([unit-movement.md](unit-movement.md) Phase 4).
+
+Done when: the user has judged the settler test and the decision is recorded.
+
 ### Later
 
 - Palettes for Kambara and Tampadesa, and the `khmer` and `burma` palettes tuned against references (roadmap Phases 3 and 4).
 - Monument stages, as a separate render for each stage.
-- Walkers: probably not from Blender. 8 directions × 8 frames of low-poly figures is possible, but the hand-made units already cover the needed roles. Revisit if new roles (militia, caravans) need art.
+- New walkers for Phase 2 (militia, raiders, caravans) in all 8 directions, if the Phase 6 experiment works out.
 
 ## Risks
 
