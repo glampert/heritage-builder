@@ -29,7 +29,10 @@ use super::{
     TileMapLayerKind,
     atlas::{self, *},
 };
-use crate::pathfind::NodeKind as PathNodeKind;
+use crate::{
+    building::construction::{ConstructionMaterials, ConstructionTier},
+    pathfind::NodeKind as PathNodeKind,
+};
 
 // ----------------------------------------------
 // Constants
@@ -601,6 +604,16 @@ pub struct TileDef {
     #[serde(default)]
     pub cost: u32,
 
+    // Construction materials taken from the city's storage yards when the player places the
+    // tile, on top of `cost`, e.g. `{ "Wood": 6, "Bricks": 8 }`. Optional.
+    #[serde(default)]
+    pub materials: ConstructionMaterials,
+
+    // How long the tile takes to build. Optional: Basic for buildings, Instant for the rest.
+    // See construction_tier().
+    #[serde(default)]
+    construction: Option<ConstructionTier>,
+
     // Building sector; Also name of UI tile palette button this tile displays under.
     #[serde(default)]
     pub sector: TileSector,
@@ -620,6 +633,18 @@ pub struct TileDef {
 }
 
 impl TileDef {
+    // How long the tile takes to build: its own tier if it has one, else Basic for buildings
+    // and Instant for everything else.
+    pub fn construction_tier(&self) -> ConstructionTier {
+        self.construction.unwrap_or(if self.is(TileKind::Building) { ConstructionTier::Basic } else { ConstructionTier::Instant })
+    }
+
+    // True if placing the tile costs anything: gold or materials.
+    #[inline]
+    pub fn has_cost(&self) -> bool {
+        self.cost != 0 || !self.materials.is_empty()
+    }
+
     #[inline]
     pub fn kind(&self) -> TileKind {
         self.kind

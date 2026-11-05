@@ -71,6 +71,7 @@ pub enum TilePlacementErrReason {
     CellOutOfBounds,
     SpawnFailed,
     CannotAffordCost,
+    CannotAffordMaterials,
     RequiresProximity(PathNodeKind), // Required node proximity violated.
     Obstruction(&'static TileDef),   // Tile obstructing the placement.
 }

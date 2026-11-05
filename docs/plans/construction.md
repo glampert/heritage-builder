@@ -1,6 +1,6 @@
 # Building costs, construction sites and house renovation
 
-**Status (2026-11-05): In progress. Phase 0 done.** This plan implements GDD sections 5.1.1 (building costs) and 5.1.2 (construction cycle) in [docs/design/gdd.md](../design/gdd.md). It is milestone M3 of the [roadmap](roadmap.md). It was researched against `d0696fe` on `main`. File and line references point at that commit, so re-check them before relying on them.
+**Status (2026-11-05): In progress. Phases 0 and 1 done.** This plan implements GDD sections 5.1.1 (building costs) and 5.1.2 (construction cycle) in [docs/design/gdd.md](../design/gdd.md). It is milestone M3 of the [roadmap](roadmap.md). It was researched against `d0696fe` on `main`. File and line references point at that commit, so re-check them before relying on them.
 
 ## How to resume this work
 
@@ -251,14 +251,39 @@ Done when: `cargo test --workspace` and all scenarios pass unchanged.
 
 ### Phase 1: Material costs (medium)
 
-- [ ] Add `materials` and `construction` to `TileDef` (`tile/sets.rs`), with defaults, and fill in `assets/tiles/objects/tile_set.json` from the table in §1.
-- [ ] Add `world/city_stock.rs`: `available`, `can_afford` (returning `MissingCost`), `withdraw` (in pool order, returning a `Withdrawal`), and `refund`. Adjust `world.stats` straight away.
-- [ ] `Spawner` charges and refunds materials; add `TilePlacementErrReason::CannotAffordMaterials`.
-- [ ] Undo of a placement refunds materials. Clearing a finished building refunds nothing.
-- [ ] Palette tooltip and greying out; `tiles.list` reports materials.
-- [ ] Unit tests (a new `tests/construction.rs` with the custom harness): affordability across several yards; deterministic withdrawal order; exact refund; refund into another yard when the first is gone.
+- [x] Add `materials` and `construction` to `TileDef` (`tile/sets.rs`), with defaults, and fill in `assets/tiles/objects/tile_set.json` from the table in §1.
+- [x] Add `world/city_stock.rs`: `available`, `can_afford` (returning `MissingCost`), `withdraw` (in pool order, returning a `Withdrawal`), and `refund`. Adjust `world.stats` straight away.
+- [x] `Spawner` charges and refunds materials; add `TilePlacementErrReason::CannotAffordMaterials`.
+- [x] Undo of a placement refunds materials. Clearing a finished building refunds nothing.
+- [x] Palette tooltip and greying out; `tiles.list` reports materials.
+- [x] Unit tests (a new `tests/construction.rs` with the custom harness): affordability across several yards; deterministic withdrawal order; exact refund; refund into another yard when the first is gone.
 
 Done when: on a test map, a temple can't be placed without bricks, is placed once bricks are delivered, and undoing it returns the bricks.
+
+**Notes (2026-11-05):**
+- **Types:**
+  - `ConstructionMaterials` and `ConstructionTier` live in `building/construction.rs`; Phase 2 adds `ConstructionSite` there.
+  - Materials are written as a JSON map and taken in the file's order. A count is a `u32`, like `StockItem`'s.
+  - `TileDef::construction_tier()` defaults to Basic for buildings and Instant otherwise.
+- **Storage slots:** `StorageSlots::available_resources` and `remove_resources` only see the first slot holding a kind, so a yard with 6 bricks in two slots reported 4. The city stock uses new helpers over all slots instead: `total_resources`, `take_resources`, `put_resources` and `receivable_total`. The old accessors, which walkers use, are unchanged.
+- **Refunds:**
+  - Undo refunds gold through `GlobalTreasury::add_gold_units_global`, which also updates `world.stats`, fixing the roadmap's undo bug.
+  - Materials go into any yard with room (`CityStock::deposit`), since a finished building keeps no `Withdrawal`. `CityStock::refund` returns a `Withdrawal` to its own yards, for Phase 2's sites.
+- **Messages:**
+  - A refusal names what's missing, e.g. "Cannot afford tile 'temple'. Cost: 15 gold, 6 Wood, 8 Bricks. Missing: 6 Wood, 8 Bricks".
+  - The HUD and developer palette tooltips list materials.
+  - **Deviation:** the tooltip is static text, so missing materials aren't shown in red. The placement preview still turns invalid when the city can't pay.
+- **Automation:**
+  - `tiles.list` reports `materials` and `construction`, and `world.stats` reports `city_stock` (the storage yards' tally).
+  - The new `world.add_stock` fills the yards, adding nothing if they lack room.
+- **Scenarios:**
+  - `ui_build.jsonl` places its Apothecary through the HUD, so it now places a storage yard and stocks it first. It also checks the stock is empty afterwards; the gold left goes from 88 to 78.
+  - The drive-game skill's build recipe says the same.
+  - `ui_snapshot.jsonl` hovers the Apothecary, whose tooltip is now longer, so its goldens need remaking.
+- **Verified:**
+  - `cargo test --workspace` passes, including `tests/construction.rs`.
+  - Every CI scenario passes, and the determinism checksum is unchanged.
+  - In the game, `world.place` refuses a temple without materials, places it once `world.add_stock` provides them and leaves exactly 1 spare brick, and the HUD tooltip reads "Cost: 15 gold, 6 Wood, 8 Bricks".
 
 ### Phase 2: Construction sites (medium to large)
 

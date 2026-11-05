@@ -14,7 +14,10 @@ use serde::{
 use common::coords::{Cell, CellRange, WorldToScreenTransform};
 use engine::{log, ui::UiSystem};
 
-use super::stats::WorldStats;
+use super::{
+    city_stock::{CityStock, MissingCost},
+    stats::WorldStats,
+};
 use crate::{
     cheats,
     constants::*,
@@ -637,9 +640,7 @@ impl<'game> Spawner<'game> {
         building_base_cell: Cell,
         building_tile_def: &'static TileDef,
     ) -> Result<&'game mut Building, TilePlacementErr> {
-        if !self.can_afford_tile(building_tile_def) {
-            return cost_error(building_tile_def);
-        }
+        self.check_tile_cost(building_tile_def).or_else(|missing| cost_error(building_tile_def, &missing))?;
 
         let result =
             self.context.world_mut().try_spawn_building_with_tile_def(self.context, building_base_cell, building_tile_def);
@@ -679,9 +680,7 @@ impl<'game> Spawner<'game> {
         unit_origin: Cell,
         unit_tile_def: &'static TileDef,
     ) -> Result<&'game mut Unit, TilePlacementErr> {
-        if !self.can_afford_tile(unit_tile_def) {
-            return cost_error(unit_tile_def);
-        }
+        self.check_tile_cost(unit_tile_def).or_else(|missing| cost_error(unit_tile_def, &missing))?;
 
         let result =
             self.context.world_mut().try_spawn_unit_with_tile_def(self.context, unit_origin, unit_tile_def);
@@ -731,9 +730,7 @@ impl<'game> Spawner<'game> {
         prop_base_cell: Cell,
         prop_tile_def: &'static TileDef,
     ) -> Result<&'game mut Prop, TilePlacementErr> {
-        if !self.can_afford_tile(prop_tile_def) {
-            return cost_error(prop_tile_def);
-        }
+        self.check_tile_cost(prop_tile_def).or_else(|missing| cost_error(prop_tile_def, &missing))?;
 
         let result =
             self.context.world_mut().try_spawn_prop_with_tile_def(self.context, prop_base_cell, prop_tile_def);
@@ -769,31 +766,55 @@ impl<'game> Spawner<'game> {
 
     #[inline]
     pub fn can_afford_tile(&self, tile_def: &'static TileDef) -> bool {
-        if self.subtract_tile_cost && tile_def.cost != 0 && !cheats::get().ignore_tile_cost {
-            return self.context.treasury().can_afford(self.context.world(), tile_def.cost);
-        }
-        true
+        self.check_tile_cost(tile_def).is_ok()
     }
 
+    // Ok if the tile is free, charging is off, or the city can pay; otherwise what it lacks.
+    pub fn check_tile_cost(&self, tile_def: &'static TileDef) -> Result<(), MissingCost> {
+        if self.subtract_tile_cost && tile_def.has_cost() && !cheats::get().ignore_tile_cost {
+            return CityStock::can_afford(self.context.world(), tile_def.cost, &tile_def.materials);
+        }
+        Ok(())
+    }
+
+    // Charges the tile's gold, then takes its materials from the storage yards.
     #[inline]
     fn subtract_tile_cost(&self, tile_def: &'static TileDef) {
-        if self.subtract_tile_cost && tile_def.cost != 0 && !cheats::get().ignore_tile_cost {
-            self.context.treasury_mut().subtract_gold_units_global(self.context.world_mut(), tile_def.cost);
+        if self.subtract_tile_cost && tile_def.has_cost() && !cheats::get().ignore_tile_cost {
+            if tile_def.cost != 0 {
+                self.context.treasury_mut().subtract_gold_units_global(self.context.world_mut(), tile_def.cost);
+            }
+            if !tile_def.materials.is_empty() {
+                CityStock::withdraw(self.context.world_mut(), &tile_def.materials);
+            }
         }
     }
 
+    // Refunds the tile's gold, and its materials into any storage yards with room.
     #[inline]
     fn restore_tile_cost(&self, tile_def: &'static TileDef) {
-        if self.restore_tile_cost && tile_def.cost != 0 && !cheats::get().ignore_tile_cost {
-            self.context.treasury_mut().add_gold_units(tile_def.cost);
+        if self.restore_tile_cost && tile_def.has_cost() && !cheats::get().ignore_tile_cost {
+            if tile_def.cost != 0 {
+                self.context.treasury_mut().add_gold_units_global(self.context.world_mut(), tile_def.cost);
+            }
+            if !tile_def.materials.is_empty() {
+                let lost = CityStock::deposit(self.context.world_mut(), &tile_def.materials);
+                for item in &lost {
+                    log::warning!(
+                        log::channel!("world"),
+                        "No storage yard had room for {} {} refunded by '{}'; they're lost.",
+                        item.count,
+                        item.kind,
+                        tile_def.name
+                    );
+                }
+            }
         }
     }
 
     #[inline]
     fn try_place_tile_with_def(&self, target_cell: Cell, tile_def: &'static TileDef) -> Result<&mut Tile, TilePlacementErr> {
-        if !self.can_afford_tile(tile_def) {
-            return cost_error(tile_def);
-        }
+        self.check_tile_cost(tile_def).or_else(|missing| cost_error(tile_def, &missing))?;
 
         let prev_tile_def =
             self.context.try_tile_from_layer(target_cell, tile_def.layer_kind()).map(|tile| tile.tile_def());
@@ -823,8 +844,23 @@ impl<'game> Spawner<'game> {
 }
 
 #[cold]
-fn cost_error<T>(tile_def: &'static TileDef) -> Result<T, TilePlacementErr> {
-    placement::err!(Placement::CannotAffordCost, "Cannot afford tile '{}'. Cost: {} gold", tile_def.name, tile_def.cost)
+fn cost_error<T>(tile_def: &'static TileDef, missing: &MissingCost) -> Result<T, TilePlacementErr> {
+    let cost = tile_cost_text(tile_def);
+    if missing.is_only_gold() {
+        placement::err!(Placement::CannotAffordCost, "Cannot afford tile '{}'. Cost: {cost}. Missing: {missing}", tile_def.name)
+    } else {
+        placement::err!(Placement::CannotAffordMaterials, "Cannot afford tile '{}'. Cost: {cost}. Missing: {missing}", tile_def.name)
+    }
+}
+
+// "15 gold, 6 Wood, 8 Bricks", or "free".
+pub fn tile_cost_text(tile_def: &TileDef) -> String {
+    match (tile_def.cost, tile_def.materials.is_empty()) {
+        (0, true) => "free".into(),
+        (gold, true) => format!("{gold} gold"),
+        (0, false) => tile_def.materials.to_string(),
+        (gold, false) => format!("{gold} gold, {}", tile_def.materials),
+    }
 }
 
 #[cold]

@@ -38,6 +38,7 @@ use crate::{
     },
 };
 
+pub mod city_stock;
 pub mod object;
 pub mod stats;
 

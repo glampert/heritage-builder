@@ -45,7 +45,7 @@ These follow [overview.md](../design/overview.md#development-phases).
 |---|---|---|---|---|---|
 | M1 | Game time and calendar | Small | — | [game-time.md](game-time.md) | Done (hand check on macOS pending) |
 | M2 | Placeholder art pipeline | Medium | — (runs alongside) | [placeholder-art.md](placeholder-art.md) | Not started |
-| M3 | Building costs and construction | Medium to large | M1 | [construction.md](construction.md) | In progress: Phase 0 done |
+| M3 | Building costs and construction | Medium to large | M1 | [construction.md](construction.md) | In progress: Phases 0–1 done |
 | M4 | Finance | Medium | M1 | — | Not started |
 | M5 | Goods and production for missions I-1 to I-5 | Medium | M3 | — | Not started |
 | M6 | City risks: fire and collapse | Medium | M3, M1 | — | Not started |
@@ -242,9 +242,9 @@ These are bugs or gaps, each tied to the milestone that fixes it:
 | Issue | Where | Fixed in |
 |---|---|---|
 | The world update's delta is multiplied by speed twice | `sim/mod.rs:165–166` | M1 (fixed, with the frame the step fires on, which it also left out) |
-| `SimCmds` building spawns charge the tile cost through `Spawner` defaults | `sim/commands.rs:684`, `:851` | M3 Phase 0 |
+| `SimCmds` building spawns charge the tile cost through `Spawner` defaults | `sim/commands.rs:684`, `:851` | M3 Phase 0 (fixed) |
 | Service access doesn't check that the service building is operational | `sim/context.rs:510` | Decided under construction.md Q2 |
-| Undo refunds gold without updating `world.stats` | `undo_redo.rs`, `sim/resources.rs` | M3 Phase 1 |
+| Undo refunds gold without updating `world.stats` | `undo_redo.rs`, `sim/resources.rs` | M3 Phase 1 (fixed) |
 | Save and load failures are only logged (known-issues) | `session.rs` | M11, which can now show them |
 
 ## Save-version log

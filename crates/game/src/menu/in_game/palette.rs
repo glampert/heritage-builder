@@ -40,6 +40,7 @@ use crate::{
     },
     ui_context::GameUiContext,
     undo_redo,
+    world::object::tile_cost_text,
 };
 
 // ----------------------------------------------
@@ -176,7 +177,7 @@ impl TilePaletteChildButtonDef {
     fn new(tile_def: &TileDef) -> Self {
         let label = common::fixed_string::snake_case_to_title::<128>(&tile_def.name).to_string();
 
-        let tooltip = { if tile_def.cost != 0 { Some(format!("Cost: {} gold", tile_def.cost)) } else { None } };
+        let tooltip = tile_def.has_cost().then(|| format!("Cost: {}", tile_cost_text(tile_def)));
 
         Self { label, tooltip, tile_def_handle: TileDefHandle::from_tile_def(tile_def) }
     }

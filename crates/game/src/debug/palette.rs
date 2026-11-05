@@ -317,8 +317,8 @@ impl TilePaletteDevMenu {
 
         let btn_id = common::fixed_string::snake_case_to_title::<64>(&tile_def.name);
         let btn_tooltip_buf;
-        let btn_tooltip = if tile_def.cost != 0 {
-            btn_tooltip_buf = common::format_small!("{}\nCost: {} gold", btn_id, tile_def.cost);
+        let btn_tooltip = if tile_def.has_cost() {
+            btn_tooltip_buf = format!("{}\nCost: {}", btn_id, crate::world::object::tile_cost_text(tile_def));
             btn_tooltip_buf.as_str()
         } else {
             btn_id.as_str()

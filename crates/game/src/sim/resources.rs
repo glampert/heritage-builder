@@ -27,7 +27,7 @@ use crate::{
 // ----------------------------------------------
 
 bitflags_with_display! {
-    #[derive(Copy, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+    #[derive(Copy, Clone, Default, PartialEq, Eq, Debug, Serialize, Deserialize)]
     pub struct ResourceKind: u32 {
         // Foods:
         const Rice    = 1 << 0;
@@ -756,6 +756,14 @@ impl GlobalTreasury {
         self.gold_units += amount;
     }
 
+    // Adds to the treasury and to the world stats' total, which placement checks read, so a
+    // refund can be spent straight away (the stats are otherwise recounted on the next step).
+    #[inline]
+    pub fn add_gold_units_global(&mut self, world: &mut World, amount: u32) {
+        self.gold_units += amount;
+        world.stats_mut().treasury.gold_units_total += amount;
+    }
+
     #[inline]
     pub fn subtract_gold_units(&mut self, amount: u32) -> u32 {
         let prev_gold_units = self.gold_units;
@@ -810,7 +818,7 @@ impl GlobalTreasury {
 // ResourceStock
 // ----------------------------------------------
 
-#[derive(Copy, Clone, Serialize, Deserialize)]
+#[derive(Copy, Clone, PartialEq, Eq, Debug, Serialize, Deserialize)]
 pub struct StockItem {
     pub kind: ResourceKind, // This is always a single bitflag; never ORed together.
     pub count: u32,

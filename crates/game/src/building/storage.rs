@@ -579,6 +579,56 @@ impl StorageSlots {
         if let Some(slot_index) = self.find_resource_slot(kind) { self.slot_resource_count(slot_index, kind) } else { 0 }
     }
 
+    // Units of `kind` across all slots. available_resources only counts the first slot holding it.
+    pub(crate) fn total_resources(&self, kind: ResourceKind) -> u32 {
+        debug_assert!(kind.is_single_resource());
+        self.slots
+            .iter()
+            .filter(|slot| slot.allocated_resource_kind == Some(kind))
+            .map(|slot| slot.stock.count(kind))
+            .sum()
+    }
+
+    // Removes up to `count` units of `kind` from as many slots as it takes, first slots first.
+    // Returns the count removed.
+    pub(crate) fn take_resources(&mut self, kind: ResourceKind, count: u32) -> u32 {
+        let mut removed = 0;
+        while removed < count {
+            let taken = self.remove_resources(kind, count - removed);
+            if taken == 0 {
+                break;
+            }
+            removed += taken;
+        }
+        removed
+    }
+
+    // Adds up to `count` units of `kind`, filling as many slots as it takes. Returns the count
+    // added, less than `count` when the yard is full.
+    pub(crate) fn put_resources(&mut self, kind: ResourceKind, count: u32) -> u32 {
+        if !self.accepts(kind) {
+            return 0;
+        }
+        let mut added = 0;
+        while added < count {
+            let received = self.receive_resources(kind, count - added);
+            if received == 0 {
+                break;
+            }
+            added += received;
+        }
+        added
+    }
+
+    // Room for `kind` across all slots: what put_resources would add at most.
+    pub(crate) fn receivable_total(&self, kind: ResourceKind) -> u32 {
+        if self.accepts(kind) { self.receivable_resources(kind) } else { 0 }
+    }
+
+    fn accepts(&self, kind: ResourceKind) -> bool {
+        self.slots.first().is_some_and(|slot| slot.accepted_kinds().intersects(kind))
+    }
+
     fn receivable_resources(&self, kind: ResourceKind) -> u32 {
         // Should be a single kind, never multiple ORed flags.
         debug_assert!(kind.is_single_resource());

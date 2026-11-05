@@ -9,11 +9,11 @@ use common::coords::Cell;
 use super::{CellParam, ObjectId, archetype_building_kinds, cell_json, refresh_world_stats};
 use crate::{
     automation::{CommandContext, CommandDef, CommandError, CommandResult, ParamDef, done, parse_params},
-    building::{Building, BuildingArchetypeKind},
+    building::{Building, BuildingArchetypeKind, BuildingKind, construction::ConstructionMaterials},
     menu::{PlaceOrClearResult, TilePlacement},
     prop::Prop,
     save_context::{PostSaveContext, PreSaveContext},
-    sim::resources::{ResourceStock, StockItem, Workers},
+    sim::resources::{ResourceKind, ResourceStock, StockItem, Workers},
     tile::{
         Tile,
         TileKind,
@@ -23,13 +23,14 @@ use crate::{
     },
     undo_redo,
     unit::Unit,
-    world::{object::{GameObject, Spawner}, stats::WorldStats},
+    world::{city_stock::CityStock, object::{GameObject, Spawner}, stats::WorldStats},
 };
 
 pub(super) const COMMANDS: &[CommandDef] = &[
     CommandDef {
         name: "tiles.list",
-        help: "List the tiles that world.place takes: name, category, layer, size and cost.",
+        help: "List the tiles that world.place takes: name, category, layer, size, cost (gold), materials (taken from \
+               the storage yards) and construction tier.",
         params: &[
             ParamDef { name: "category", kind: "string", required: false, help: "Only this category, e.g. buildings." },
             ParamDef { name: "layer", kind: "string", required: false, help: "Only this layer: terrain or objects." },
@@ -106,8 +107,21 @@ pub(super) const COMMANDS: &[CommandDef] = &[
         run: cmd_inspect,
     },
     CommandDef {
+        name: "world.add_stock",
+        help: "Put goods into the storage yards, as deliveries would, first yards first, staffed or not. Fails, adding \
+               nothing, if the yards haven't room for all of it.",
+        params: &[ParamDef {
+            name: "resources",
+            kind: "object",
+            required: true,
+            help: "Resource names and counts, e.g. {\"Bricks\": 8, \"Wood\": 6}.",
+        }],
+        run: cmd_add_stock,
+    },
+    CommandDef {
         name: "world.stats",
-        help: "World totals: population, workers, treasury, housing and resources.",
+        help: "World totals: population, workers, treasury, housing and resources. city_stock: what the storage yards \
+               hold, which construction materials are taken from.",
         params: &[],
         run: cmd_stats,
     },
@@ -183,7 +197,18 @@ fn tile_def_json(tile_def: &TileDef, category: &TileCategory) -> Value {
         "kind": tile_def.kind().to_string(),
         "size": [size.width, size.height],
         "cost": tile_def.cost,
+        "materials": materials_json(&tile_def.materials),
+        "construction": tile_def.construction_tier().to_string(),
     })
+}
+
+// {"Wood": 6, "Bricks": 8}, in the tile set's order.
+fn materials_json(materials: &ConstructionMaterials) -> Value {
+    let mut map = Map::new();
+    for item in materials.iter() {
+        map.insert(item.kind.to_string(), json!(item.count));
+    }
+    Value::Object(map)
 }
 
 fn cmd_tiles_list(_context: &mut CommandContext, params: Value) -> CommandResult {
@@ -649,6 +674,56 @@ fn save_json<T: GameObject + serde::Serialize>(object: &mut T, cmds: common::mem
     state
 }
 
+fn cmd_add_stock(context: &mut CommandContext, params: Value) -> CommandResult {
+    #[derive(Deserialize)]
+    #[serde(deny_unknown_fields)]
+    struct Params {
+        resources: Map<String, Value>,
+    }
+
+    let params: Params = parse_params(params)?;
+    context.require_map()?;
+
+    let mut items = Vec::new();
+    for (name, count) in &params.resources {
+        let kind = ResourceKind::from_name(name)
+            .filter(|kind| *kind != ResourceKind::Gold)
+            .ok_or_else(|| CommandError::invalid_params(format!("'{name}' isn't a resource storage yards hold.")))?;
+        let count = count
+            .as_u64()
+            .and_then(|count| u32::try_from(count).ok())
+            .filter(|count| *count > 0)
+            .ok_or_else(|| CommandError::invalid_params(format!("{name}: expected a count above 0, got {count}.")))?;
+        items.push((kind, count));
+    }
+
+    refresh_world_stats(context);
+
+    // Check there's room for everything first, so a failure adds nothing.
+    let world = context.session.world();
+    for (kind, count) in &items {
+        let mut room = 0;
+        world.for_each_building(BuildingKind::StorageYard, |building| {
+            room += building.as_storage().storage_slots.receivable_total(*kind);
+            true
+        });
+        if room < *count {
+            return Err(CommandError::failed(format!("The storage yards have room for {room} {kind}, not {count}.")));
+        }
+    }
+
+    let delta_time_secs = context.engine.frame_clock().delta_time();
+    context.session.with_sim_context(delta_time_secs, |sim_context| {
+        for (kind, count) in &items {
+            let unplaced = CityStock::deposit_resource(sim_context.world_mut(), *kind, *count);
+            debug_assert_eq!(unplaced, 0);
+        }
+    });
+
+    refresh_world_stats(context);
+    done(json!({ "city_stock": resource_stock_json(&context.session.world().stats().resources.storage_yards) }))
+}
+
 fn cmd_stats(context: &mut CommandContext, _params: Value) -> CommandResult {
     context.require_map()?;
     refresh_world_stats(context);
@@ -688,6 +763,8 @@ fn world_stats_json(stats: &WorldStats) -> Value {
         },
         "houses": houses,
         "resources": resource_stock_json(&stats.resources.all),
+        // The city stock (world::city_stock) is the storage yards' tally.
+        "city_stock": resource_stock_json(&stats.resources.storage_yards),
     })
 }
 

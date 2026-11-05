@@ -72,6 +72,7 @@ use crate::{
 };
 
 pub mod config;
+pub mod construction;
 pub use house::{HouseLevel, HouseUpgradeDirection};
 
 pub(crate) mod house;
