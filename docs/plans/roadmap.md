@@ -44,7 +44,7 @@ These follow [overview.md](../design/overview.md#development-phases).
 | # | Milestone | Size | Depends on | Plan | Status |
 |---|---|---|---|---|---|
 | M1 | Game time and calendar | Small | — | [game-time.md](game-time.md) | Done (hand check on macOS pending) |
-| M2 | Placeholder art pipeline | Medium | — (runs alongside) | [placeholder-art.md](placeholder-art.md) | In progress (engine camera; first generated building) |
+| M2 | Placeholder art pipeline | Medium | — (runs alongside) | [placeholder-art.md](placeholder-art.md) | In progress: the pipeline is done (Phases 0–2); recipes and the building set next |
 | M3 | Building costs and construction | Medium to large | M1 | [construction.md](construction.md) | Done (fast build option waits for Custom Game) |
 | M4 | Finance | Medium | M1 | — | Not started |
 | M5 | Goods and production for missions I-1 to I-5 | Medium | M3 | — | Not started |

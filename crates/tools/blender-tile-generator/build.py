@@ -40,8 +40,9 @@ from hbgen.generate import generate_engine  # noqa: E402
 from hbgen.palettes import PALETTES  # noqa: E402
 from hbgen.recipes import LEGACY_CAMERA, RECIPES  # noqa: E402
 
-CORE_SOURCES = [os.path.join(HERE, "hbgen", f) for f in
-                ("palettes.py", "materials.py", "builder.py", "scene.py", "generate.py", os.path.join("recipes", "__init__.py"))]
+# The recipe registry (recipes/__init__.py) only maps names, so it isn't hashed:
+# registering a recipe doesn't re-render the others.
+CORE_SOURCES = [os.path.join(HERE, "hbgen", f) for f in ("palettes.py", "materials.py", "builder.py", "scene.py", "generate.py")]
 FAST_SAMPLES = 32
 
 

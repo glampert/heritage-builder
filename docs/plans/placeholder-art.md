@@ -1,16 +1,14 @@
 # Placeholder art pipeline
 
-**Status (2026-11-05): In progress.** The engine camera works, and the first generated building, the roof-tile kiln, is in the game (Phase 1 notes). This plan turns the Blender tile generator in `crates/tools/blender-tile-generator/` (`hb_tile_gen.py` and its README) into the game's source of placeholder art. It renders every building, terrain tile, overlay and prop that the design calls for and the hand-made art doesn't cover yet, and writes them into `assets/tiles/` with their `tile_set.json` entries. It is milestone M2 of the [roadmap](roadmap.md), and runs alongside the gameplay milestones. It was researched against `d0696fe` on `main`, plus the generator that commit `d414cc1` added to the repo.
+**Status (2026-11-05): Phases 0–2 done; Phase 3 next.** The pipeline is set up: the `hbgen` package, the engine camera, the catalog, `tilegen.sh` (render, check, sync `tile_set.json`, refresh the web asset list) and a CI check. The first generated building, the roof-tile kiln, is in the game. The generator's [README](../../crates/tools/blender-tile-generator/README.md) is the user guide. This plan turns the Blender tile generator in `crates/tools/blender-tile-generator/` (`hb_tile_gen.py` and its README) into the game's source of placeholder art. It renders every building, terrain tile, overlay and prop that the design calls for and the hand-made art doesn't cover yet, and writes them into `assets/tiles/` with their `tile_set.json` entries. It is milestone M2 of the [roadmap](roadmap.md), and runs alongside the gameplay milestones. It was researched against `d0696fe` on `main`, plus the generator that commit `d414cc1` added to the repo.
 
 ## How to resume this work
 
 - Work through the [phases](#phases) in order. Tick the checkboxes and add dated notes under each phase as tasks land.
 - The [open decisions](#open-decisions) each have a default. Proceed with the default unless the user has decided otherwise.
 - **Never overwrite hand-made art.** The generator writes only the sprites the catalog marks as generated (§4).
-- The generator runs on the Mac with Blender 5.x: headless (`Blender -b -P ...`), or through the Blender MCP server, which the desktop app has connected. Cloud sessions can edit the scripts and the catalog but can't render.
-- After adding or removing sprites:
-  - run `cargo run -p web-builder` and commit `web/asset_manifest.json`;
-  - the desktop atlas cache repacks by itself (see [terrain-tiles.md](../../.claude/rules/terrain-tiles.md)).
+- The generator runs on the Mac with Blender 5.x: `crates/tools/blender-tile-generator/tilegen.sh [TILE ...]` for the catalog, or through the Blender MCP server, which the desktop app has connected. Cloud sessions can edit the scripts and the catalog, and run `sync_tileset.py`, `validate.py` and the unit tests, but can't render.
+- `tilegen.sh` refreshes `web/asset_manifest.json` (`cargo run -p web-builder -- manifest`); commit it with the sprites. The desktop atlas cache repacks by itself (see [terrain-tiles.md](../../.claude/rules/terrain-tiles.md)).
 
 ## Goals
 
@@ -207,16 +205,25 @@ The README's settings (Eevee at 96 samples plus Freestyle) take a few seconds pe
 ### Phase 0: Bring the generator into the repo (small)
 
 - [x] Commit `hb_tile_gen.py`, its README and `reference/` under `crates/tools/blender-tile-generator/`. Done by the user in `d414cc1` (2026-11-05), with the reference `.blend` files included, which answers Q5.
-- [ ] Split into the `hbgen/` package (§1). The `generate()` and command-line options keep working, and the three fortresses render identically: compare checksums, or `validate.py` statistics if Blender isn't deterministic.
+- [x] Split into the `hbgen/` package (§1). The `generate()` and command-line options keep working, and the three fortresses render identically: compare checksums, or `validate.py` statistics if Blender isn't deterministic.
 - [x] Add a line to AGENTS.md's workspace layout and README instructions for running headless and through the Blender MCP server. The README already had both; it now also covers engine renders (§10).
 
 Done when: `Blender -b -P hb_tile_gen.py -- --building fortress --palette viet --out x.png` produces the same image as before.
+
+Notes (2026-11-05):
+- Done after Phase 1 had started, so the split carried the engine camera and the kiln along. The fortress renders pixel for pixel as before the split, and the kiln within 1/255 on a few pixels (Eevee noise). Blender renders the same scene identically run to run.
+- Layout as in §1, with these differences:
+  - recipes are `fortress.py`, `workshop.py` (the kiln) and `test.py`, a minimal 1×1 template and pipeline test; `generic.py` and `terrain.py` come with Phases 3 and 4;
+  - plain-Python modules joined the package: `catalog.py`, `tileset.py` (the sync), `checks.py` and `pngio.py` (a standard-library PNG reader and writer). `hbgen/__init__.py` imports nothing, so they load without Blender;
+  - the manifest is `catalog/manifest.json`, committed, not `build/manifest.json`: CI checks the tile sets against it without Blender. `build/` holds only the contact sheets and is git-ignored;
+  - `tilegen.sh` wraps `build.py` and the web asset list; `tests/test_pipeline.py` holds the unit tests.
+- `hb_tile_gen.py` keeps its command line and gains `--seed` and `--params`. In a live Blender, `exec` it after setting `HB_TILE_GEN_DIR`; each `exec` drops the cached `hbgen` modules, so edits take effect without restarting.
 
 ### Phase 1: Fitting the engine and the checks (small to medium)
 
 - [x] Camera: a single size argument `G`; the camera position scales with size; the bottom anchor at z = 0 on the frame's bottom edge (§2).
 - [x] The density constant, 8 px per logical px (Q1), with `draw_size` computed from it.
-- [ ] `validate.py` and the contact sheet.
+- [x] `validate.py` and the contact sheet.
 - [x] Re-render one existing building (for example `market`, 2×2) as a test. Swap it in locally and check its placement against the grid in the game: no gap or float at the bottom vertex, and correct overlap with neighbours. Done with a new building instead, see the notes.
 
 Notes (2026-11-05):
@@ -230,15 +237,33 @@ Notes (2026-11-05):
 
 Done when: a generated 2×2 sprite sits on its footprint exactly, at every zoom level.
 
+Notes on the checks (2026-11-05):
+- `validate.py` checks width, height, an empty top row, the side corners and the bottom row (README §11). It writes `build/contact_<catalog>.png` at 2 px per logical px, bottoms aligned, with a red line under each sprite.
+- The README's brightness targets turned out to be luma of the gamma-encoded values (Blender's `image.pixels` returns stored bytes for a PNG), not linear luminance. On that scale the fortress measures 0.29, the kiln 0.26, and the hand-made pottery kiln and brick maker 0.29 and 0.35. The targets are 0.29 ± 0.08 luma and 0.48 ± 0.15 saturation, and a miss is only a warning.
+- The corner check looks at the outermost 2 columns. A wider band failed the 1×1 test hut, because the diamond's lower edge drops 1 px per 2 columns on top of the ink.
+
 ### Phase 2: The catalog, the batch driver and syncing the tile set (medium)
 
-- [ ] The catalog format (§4) and `catalog.py`.
-- [ ] `build.py`: batch render, manifest, hash cache, `--only NAME`, `--fast`.
-- [ ] `sync_tileset.py`: merge, append-only variations, stable formatting, `--check`.
-- [ ] A CI step for `sync_tileset.py --check`.
-- [ ] A round trip: catalog a new test building, render, sync, load the game, place it with `world.place`, and check the screenshot.
+- [x] The catalog format (§4) and `catalog.py`.
+- [x] `build.py`: batch render, manifest, hash cache, `--only NAME`, `--fast`.
+- [x] `sync_tileset.py`: merge, append-only variations, stable formatting, `--check`.
+- [x] A CI step for `sync_tileset.py --check`.
+- [x] A round trip: catalog a new test building, render, sync, load the game, place it with `world.place`, and check the screenshot.
 
 Done when: one command adds a new building's art and tile def, and the game loads it.
+
+Notes (2026-11-05):
+- **Catalog:** `catalog/buildings_daiLong.json`, with the roof-tile kiln. Per-file defaults for `palette` and `density`. An entry is validated on load: unknown keys, duplicate tiles, names over 24 characters, and an unnamed variation among named ones are errors.
+- **build.py:** tile names are positional rather than `--only`. Also `--force`, `--dry-run`, `--no-sync`, `--no-validate` and `--catalog FILE`.
+  - **Hash:** it covers the entry's settings, the core modules, the recipe's own module, the forced height, `--fast` and `GENERATOR_VERSION`. The recipe registry isn't hashed, so registering a recipe doesn't re-render the others.
+  - **Variations:** they share the tallest one's height, since a tile def has one `draw_size`.
+  - **Hand-made art:** a sprite file the manifest doesn't know counts as hand-made and isn't overwritten; `--adopt TILE` takes one over, as the kiln's first build did.
+  - **Fast renders:** `--fast` renders are recorded, and the sync check fails on them until they're redone.
+- **Sync:** the objects tile set is hand-formatted (inline `materials`, `"x" : 2`), and re-serialising it would change about 1100 lines. So the sync parses the file with text spans and replaces only the text of the defs it owns, or appends new ones to their category. A def whose existing art the generator didn't write is refused. Besides the defs, `--check` checks each sprite's file, recorded size, `--fast` flag and listing in `web/asset_manifest.json`. A hand-corrupted kiln def was caught, and a sync restored the file byte for byte.
+- **Web:** `web-builder` has a `manifest` mode that writes `web/asset_manifest.json` without building WASM. `tilegen.sh` runs it after a build, then `sync_tileset.py --check`.
+- **CI:** the Linux desktop job runs `sync_tileset.py --check` and the unit tests (13: catalog, spans over the real tile set, sync rules, checks, PNG round trip) before the Rust build.
+- **Round trip:** the kiln's sprite, manifest record and tile def were deleted, and a `test_hut` (1×1, two seeded variations) was catalogued. One `tilegen.sh` rendered all three, with the hut's variations at one forced height of 456 px. It restored the kiln's def byte for byte, appended the hut's, and listed the sprites for the web build. With local building configs, `world.place` put the kiln and eight huts beside hand-made buildings, and `tile.at` reported both hut variations in use. The footprints meet their neighbours'. The hut and the local configs were then removed; `test_hut` stays as a recipe, not in the catalog.
+- Not done: the in-game gallery scenario (§5) needs building configs for the generated tiles, which their gameplay milestones add. It moves to Phase 3, with the review.
 
 ### Phase 3: Generic recipes and the Phase 1 building set (medium to large)
 
@@ -250,6 +275,7 @@ Done when: one command adds a new building's art and tile def, and the game load
   - trade post, mulberry field, rice paddy (if it becomes a terrain-like building), common house level 5;
   - statue and pond decorations.
 - [ ] Overlays: `scaffold` for 1×1 to 5×5 in 3 stages, `renovation` for each house size, and `rubble` for 1×1 to 5×5.
+- [ ] `crates/game/tests/scenarios/art_gallery.jsonl` (§5): places every generated building that has a building config, with screenshots. Moved here from Phase 2.
 - [ ] Review the contact sheets and the in-game gallery with the user.
 
 Done when: every building in the Phase 1 build menus has art, either hand-made or generated.
@@ -314,7 +340,7 @@ Done when: the user has judged the settler test and the decision is recorded.
 
 **Q1. What pixel density should sprites be rendered at?**
 *Default: 4 px per logical px* (256 px per cell). The alternative is to match each existing size, which varies 5–13×.
-**Changed (2026-11-05): 8 px per logical px**, pending the user's review. At 4× the roof-tile kiln was visibly blurrier than the hand-made 2×2 workshops beside it (about 7.6×) from zoom 5 up, and the camera zooms to 10×. At 8×, a 2×2 is 1024 px wide and a 5×5 is 2560, which still fits the 4096² atlas pages. `--density 4` still works.
+**Decided (2026-11-05): 8 px per logical px.** The user approved the kiln's 1024×760 render. At 4× the roof-tile kiln was visibly blurrier than the hand-made 2×2 workshops beside it (about 7.6×) from zoom 5 up, and the camera zooms to 10×. At 8×, a 2×2 is 1024 px wide and a 5×5 is 2560, which still fits the 4096² atlas pages. `--density 4` still works.
 
 **Q2. Should the bottom anchor sit exactly at the frame's bottom edge, at z = 0?**
 *Default: yes,* to match `calc_object_iso_coords`. Anything below ground goes through `iso_offset`.

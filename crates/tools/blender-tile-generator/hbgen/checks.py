@@ -41,7 +41,9 @@ def check_sprite(path, rec, palette="viet", full_width=True):
     if any(A(x, 0) for x in range(w)):
         errors.append("the top row isn't empty: the model may be clipped at the top")
     if full_width:
-        for side, xs in (("left", range(0, d)), ("right", range(w - d, w))):
+        # The outermost 2 columns: further in, the diamond's lower edge has already
+        # dropped (1 px per 2 columns), on top of the ink below it.
+        for side, xs in (("left", range(0, 2)), ("right", range(w - 2, w))):
             rows = [y for y in range(h) if any(A(x, y) > 127 for x in xs)]
             if not rows:
                 errors.append(f"nothing touches the {side} edge: the ground diamond should span the width")
