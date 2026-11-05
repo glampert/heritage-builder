@@ -37,7 +37,7 @@ The names below are confirmed (decided 2026-11-05).
 | **Heartland** | The delta of the Sông Son, the "Cinnabar River" (ref. Red River), with limestone karst to the south |
 | **Ruling house** | The Long, the "Dragon Line" (fictional) |
 | **Landscape** | Rice paddies on flood plains, dykes, bamboo-ringed villages, karst towers, highland passes, a long coast |
-| **Architecture** | Dark timber frames, terracotta tile roofs with curved ridges, red lanterns, ochre walls, communal village halls, multi-tier gate towers (see `images/references/citadel_vn.png`, `factory_vn.png`) |
+| **Architecture** | Dark timber frames, terracotta tile roofs with curved ridges, red lanterns, ochre walls, communal village halls, multi-tier gate towers (see `images/references/citadel_vn.png`, `building_vn.png`) |
 | **Economy** | Wet rice, fish, silk, ceramics, salt, bronze, timber, lacquer |
 | **Society** | Village communes under scholar-officials chosen by examination, with a court of nobles above them |
 | **Faith (fictionalised)** | Ancestor veneration, village guardian spirits, and a contemplative temple tradition (ref. Mahāyāna Buddhism mixed with Confucian ethics) |
@@ -53,7 +53,7 @@ The names below are confirmed (decided 2026-11-05).
 | **Heartland** | Tonlé Thom, the "Breathing Lake" (ref. Tonlé Sap), which floods each wet season and shrinks in the dry; the sacred sandstone hills of Phnom Rumsay (ref. Phnom Kulen) |
 | **Ruling house** | God-kings who rule as earthly images of the divine: King Suryadeva, later King Jayadeva (both fictional) |
 | **Landscape** | Lake plains, monsoon forest, laterite soil, vast reservoirs (barays) and moats, causeways, stilt houses |
-| **Architecture** | Grey sandstone and red laterite temple-mountains, lotus-bud towers (prang), galleries, moats with balustrade bridges, wooden stilt houses with thatch roofs (see `citadel_khr.png`, `market_khr.png`, `mock_khr.jpg`) |
+| **Architecture** | Grey sandstone and red laterite temple-mountains, lotus-bud towers (prang), galleries, moats with balustrade bridges, wooden stilt houses with thatch roofs (see `citadel_khr.png`, `building_khr.png`, `mock_khr.jpg`) |
 | **Economy** | Rice from reservoir irrigation, freshwater fish, sandstone, iron, palm sugar, cardamom and spices, elephants for labour |
 | **Society** | Temple estates, royal officials, and a large free and bonded labour force that builds the temples and waterworks |
 | **Faith (fictionalised)** | A court cult of the Devas (ref. Hindu Shaivism and Vaishnavism) that gives way to the Compassionate Path (ref. Mahāyāna Buddhism) during Campaign II |
@@ -69,7 +69,7 @@ The names below are confirmed (decided 2026-11-05).
 | **Heartland** | The dry plain on the bend of the Shwemyit, the "Golden River" (ref. Irrawaddy), with the irrigated rice valley of Kyautthin (ref. Kyaukse) to the south |
 | **Ruling house** | Warrior kings who become great patrons of the faith: King Mahathura, later King Narathiri (both fictional) |
 | **Landscape** | Dry plains with toddy palms and thorn scrub, the wide river, irrigated valleys, teak-forested hills, a delta coast to the south |
-| **Architecture** | Red brick temples and stupas, gilded spires, whitewashed stucco, carved teak monasteries, brick city walls (see `citadel_burma.png`, `shrine_burma.png`, `mock_burma.jpg`) |
+| **Architecture** | Red brick temples and stupas, gilded spires, whitewashed stucco, carved teak monasteries, brick city walls (see `citadel_burma.png`, `building_burma.png`, `mock_burma.jpg`) |
 | **Economy** | Irrigated rice, sesame and cotton, bricks, lacquerware, teak, gems and jade from the hills, river trade |
 | **Society** | The king, his ministers and a merit-seeking nobility, monasteries that hold large tax-free lands, and village farmers |
 | **Faith (fictionalised)** | The Teaching of the Elders (ref. Theravāda Buddhism), brought from the southern ports, beside older spirit worship (ref. nat worship) |
