@@ -1,0 +1,40 @@
+# Calendar: the date advances with simulated time, at any speed; the wet season starts in month 5
+# and a new year in month 1, each logged on the calendar channel; the top bar shows the date and
+# fits. From the repository root:
+#   cargo run -p HeritageBuilder -- --script crates/game/tests/scenarios/calendar.jsonl
+# A month is seconds_per_month (60) simulated seconds of 30 days, and games outside a campaign
+# start on day 1 of month 1, World Year 1, in the dry season.
+{"method": "time.fixed_dt", "params": {"dt": 0.016667}}
+{"method": "session.new_map", "params": {"size": [16, 16]}}
+{"method": "assert.eq", "params": {"query": "sim.state", "path": "/date/ordinal_month", "value": 12}}
+{"method": "assert.eq", "params": {"query": "sim.state", "path": "/date/season", "value": "Dry"}}
+{"method": "assert.eq", "params": {"query": "sim.state", "path": "/date/year_name", "value": "Year 1"}}
+
+# Half a month at 1x is day 16.
+{"method": "time.fast_forward", "params": {"sim_secs": 30.5}}
+{"method": "assert.eq", "params": {"query": "sim.state", "path": "/date/day", "value": 16}}
+
+# Last day of month 4; the next month starts the wet season.
+{"method": "calendar.set", "params": {"year": 1, "month": 4, "day": 30}}
+{"method": "time.fast_forward", "params": {"sim_secs": 3}}
+{"method": "assert.eq", "params": {"query": "sim.state", "path": "/date/month", "value": 5}}
+{"method": "assert.eq", "params": {"query": "sim.state", "path": "/date/season", "value": "Wet"}}
+{"method": "assert.eq", "params": {"query": "logs.tail", "args": {"channel": "calendar", "limit": 1}, "path": "/records/0/message", "value": "The wet season begins."}}
+
+# At 10x, a whole month in 6 seconds of frames, and wait.until waits for the date.
+{"method": "sim.speed", "params": {"speed": 10}}
+{"method": "wait.until", "params": {"query": "sim.state", "path": "/date/ordinal_month", "op": "ge", "value": 17, "timeout_frames": 600}}
+{"method": "assert.eq", "params": {"query": "sim.state", "path": "/date/month", "value": 6}}
+{"method": "sim.speed", "params": {"speed": 1}}
+
+# The last month of the year rolls over into World Year 2.
+{"method": "calendar.set", "params": {"year": 1, "month": 12, "day": 30}}
+{"method": "time.fast_forward", "params": {"sim_secs": 3}}
+{"method": "assert.eq", "params": {"query": "sim.state", "path": "/date/year_name", "value": "Year 2"}}
+{"method": "assert.eq", "params": {"query": "logs.tail", "args": {"channel": "calendar", "limit": 1}, "path": "/records/0/message", "value": "New year: Year 2 (World Year 2)."}}
+
+# The top bar's date label (its path is its text) stays inside the bar. The first ui.* command
+# turns on the widget registry, so ui.layout_issues runs once before it can be a query.
+{"method": "ui.layout_issues", "params": {}}
+{"method": "assert.eq", "params": {"query": "ui.layout_issues", "path": "/count", "value": 0}}
+{"method": "screenshot", "params": {"path": "out/calendar.png"}}

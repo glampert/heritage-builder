@@ -1,6 +1,9 @@
 use serde::{Deserialize, Serialize};
 
-use crate::{sim::resources::ResourceKind, world::stats::WorldStats};
+use crate::{
+    sim::{calendar::EraDef, resources::ResourceKind},
+    world::stats::WorldStats,
+};
 
 // ----------------------------------------------
 // Campaign / Mission Definitions (data-driven)
@@ -18,6 +21,9 @@ pub struct CampaignConfigs {
 pub struct CampaignDef {
     pub name: String,
     pub missions: Vec<MissionDef>,
+    // The realm's eras, in the order they start: the calendar counts years from the latest.
+    #[serde(default)]
+    pub eras: Vec<EraDef>,
 }
 
 // A single mission: a starting map plus the requirements to complete it.
@@ -29,6 +35,20 @@ pub struct MissionDef {
     pub map: MissionMap,
     #[serde(default)]
     pub requirements: MissionRequirements,
+    // When the mission starts, and its seasons. None: the defaults from SimConfigs::calendar.
+    #[serde(default)]
+    pub calendar: Option<MissionCalendarDef>,
+}
+
+// The calendar a mission starts with. Fields left out keep SimConfigs::calendar's.
+#[derive(Clone, Default, Serialize, Deserialize)]
+#[serde(default, deny_unknown_fields)]
+pub struct MissionCalendarDef {
+    // World Year and month (1 to 12) of the mission's first day.
+    pub start_year: Option<u32>,
+    pub start_month: Option<u32>,
+    // Months (1 to 12) of the wet season.
+    pub wet_months: Option<Vec<u32>>,
 }
 
 // How a mission's starting map is loaded.

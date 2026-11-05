@@ -81,3 +81,7 @@ harness = false
 [[test]]
 name    = "terrain_placement"
 harness = false
+
+[[test]]
+name    = "game_time"
+harness = false

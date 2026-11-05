@@ -2,11 +2,15 @@
   "campaigns": [
     {
       "name": "The Dragon Legacy",
+      "eras": [
+        { "name": "Long Thái", "start_year": 1 }
+      ],
       "missions": [
         {
           "name": "A Humble Beginning",
           "description": "Establish your first settlement and grow its population.",
           "map": { "SaveGame": { "save_file": "tiny_island" } },
+          "calendar": { "start_year": 1, "start_month": 1 },
           "requirements": {
             "goals": [
               { "Population": { "min": 20 } }
@@ -17,6 +21,7 @@
           "name": "A Thriving Town",
           "description": "Put your citizens to work and build up your reserves.",
           "map": { "SaveGame": { "save_file": "test_map_64x64" } },
+          "calendar": { "start_year": 3, "start_month": 1 },
           "requirements": {
             "goals": [
               { "Population": { "min": 50 } },
@@ -29,6 +34,7 @@
           "name": "Master of the Realm",
           "description": "Amass wealth and population to complete your legacy.",
           "map": { "SaveGame": { "save_file": "test_map_96x96" } },
+          "calendar": { "start_year": 6, "start_month": 1 },
           "requirements": {
             "goals": [
               { "Population": { "min": 100 } },

@@ -223,8 +223,8 @@ The renderer can't see buildings, so site state reaches it through the four free
 ### 8. Saves
 
 `Building.construction` and the `HouseUpgradeState` fields change the save format:
-- bump `CURRENT_SAVE_VERSION` to 3;
-- add `crates/tools/save-migration-scripts/v2_to_v3.py`, which sets `construction: null` on every building and zeroes the new house fields;
+- bump `CURRENT_SAVE_VERSION` to 4 (M1's calendar took version 3);
+- add `crates/tools/save-migration-scripts/v3_to_v4.py`, which sets `construction: null` on every building and zeroes the new house fields;
 - migrate `saves/` and run `--smoke-test-saves`;
 - regenerate `saves/sample_saves.zip`.
 
@@ -261,7 +261,7 @@ Done when: on a test map, a temple can't be placed without bricks, is placed onc
 - [ ] `SimConfigs.construction` (tier durations, `time_scale`, `house_build_secs`), the `instant_construction` cheat, and scale 0 in the test harness and script mode.
 - [ ] Renderer: the `UnderConstruction` flag and stage → scaffold sprite lookup, with a fallback, using placeholder scaffold sprites until the art pipeline delivers them.
 - [ ] Inspector progress with a per-frame refresh; automation fields.
-- [ ] Save v3 and migration, together with Phase 3's fields (Q5).
+- [ ] Save v4 and migration, together with Phase 3's fields (Q5).
 - [ ] `construction.jsonl` scenario, added to CI.
 
 Done when: a placed building shows scaffolding, does nothing until the timer runs out, then works; cancelling refunds everything; all old tests and scenarios pass with scale 0.
@@ -307,4 +307,4 @@ Done when: a house that keeps its needs met upgrades after the delay plus the re
 *Default: `TileFlags` bits 12–15.*
 
 **Q5. Should all of this go into a single save-version bump?**
-*Default: yes, v3 covers Phases 2 and 3.* If Phase 3 slips past another change that bumps the version, it gets its own bump.
+*Default: yes, v4 covers Phases 2 and 3.* If Phase 3 slips past another change that bumps the version, it gets its own bump.

@@ -18,7 +18,12 @@ pub mod config;
 use config::{CampaignConfigs, MissionMap};
 use serde::{Deserialize, Serialize};
 
-use crate::sim::SimContext;
+use engine::log;
+
+use crate::{
+    config::GameConfigs,
+    sim::{CalendarSettings, SimContext},
+};
 
 // ----------------------------------------------
 // Campaign progress & prompts
@@ -145,15 +150,53 @@ pub fn capture_snapshot() -> CampaignProgress {
 }
 
 // Restore from a session load. No-op (clearing the flag) for campaign-driven
-// mission loads, so the intended active mission survives the map swap.
-pub fn restore_snapshot(progress: CampaignProgress) {
-    let mgr = CampaignManager::get_mut();
-    if mgr.suppress_snapshot_restore {
-        mgr.suppress_snapshot_restore = false;
-        return;
+// mission loads, so the intended active mission survives the map swap. Returns
+// true for those: the load starts the active mission.
+pub fn restore_snapshot(progress: CampaignProgress) -> bool {
+    if take_mission_start() {
+        return true;
     }
+    let mgr = CampaignManager::get_mut();
     mgr.progress = progress;
     mgr.pending_prompt = None;
+    false
+}
+
+// True once after start_campaign or advance_to_next_mission: the next session is the
+// active mission's start. Save loads take it through restore_snapshot; a preset
+// mission map, which isn't a save, takes it when its session is created.
+pub fn take_mission_start() -> bool {
+    std::mem::take(&mut CampaignManager::get_mut().suppress_snapshot_restore)
+}
+
+// The calendar the active mission starts with: its own start and wet months over
+// SimConfigs::calendar, with its campaign's eras. None outside a campaign. Invalid
+// settings are logged and replaced by the defaults.
+pub fn active_mission_calendar() -> Option<CalendarSettings> {
+    let active = CampaignManager::get().progress.active.clone()?;
+    let campaign = CampaignConfigs::get().campaign(active.campaign_id)?;
+    let mission = campaign.missions.get(active.mission_index)?;
+
+    let defaults = &GameConfigs::get().sim.calendar;
+    let mut settings = defaults.clone();
+
+    if let Some(calendar) = &mission.calendar {
+        settings.start_year = calendar.start_year.unwrap_or(defaults.start_year);
+        settings.start_month = calendar.start_month.unwrap_or(defaults.start_month);
+        if let Some(wet_months) = &calendar.wet_months {
+            settings.wet_months = wet_months.clone();
+        }
+    }
+    if !campaign.eras.is_empty() {
+        settings.eras = campaign.eras.clone();
+    }
+
+    if let Err(err) = settings.validate() {
+        log::error!(log::channel!("campaign"), "Mission '{}' has an invalid calendar: {err} Using the defaults.", mission.name);
+        return Some(defaults.clone());
+    }
+
+    Some(settings)
 }
 
 // Per-tick requirement evaluation. Called from `CampaignSystem::update`.

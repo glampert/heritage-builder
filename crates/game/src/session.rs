@@ -510,6 +510,9 @@ impl GameSession {
 
         if let LoadMapSetting::SaveGame { save_file } = load_map_setting {
             let _ = session.load_save_game(engine, configs, PathRef::from_path(save_file)); // Failures are logged.
+        } else if campaign::take_mission_start() {
+            // A preset mission map: a save load would have started the calendar in post_load.
+            session.start_mission_calendar();
         }
 
         if configs.sim.start_paused {
@@ -523,6 +526,13 @@ impl GameSession {
 
         new_generation();
         session
+    }
+
+    // The active campaign mission's calendar, from its first day.
+    fn start_mission_calendar(&mut self) {
+        if let Some(settings) = campaign::active_mission_calendar() {
+            self.sim.calendar_mut().restart(settings);
+        }
     }
 
     fn create_with_preset_map(engine: &mut Engine, configs: &'static GameConfigs, preset_number: usize) -> Self {
@@ -767,8 +777,11 @@ impl Load for GameSession {
         }
 
         // Restore campaign progress into the manager. No-op for campaign-driven
-        // mission loads (the manager keeps its intended active mission instead).
-        campaign::restore_snapshot(self.campaign_progress.clone());
+        // mission loads (the manager keeps its intended active mission instead),
+        // which start the mission's calendar instead of the map's.
+        if campaign::restore_snapshot(self.campaign_progress.clone()) {
+            self.start_mission_calendar();
+        }
     }
 }
 
@@ -779,7 +792,7 @@ impl Load for GameSession {
 // Save file format version. Bumped whenever the serialized layout changes in a
 // way that older saves cannot be deserialized directly. Old saves must be run
 // through the matching script in crates/tools/save-migration-scripts/.
-const CURRENT_SAVE_VERSION: u32 = 2;
+const CURRENT_SAVE_VERSION: u32 = 3;
 
 // Minimal struct to read just the save version ahead of a full deserialize.
 #[derive(Deserialize)]

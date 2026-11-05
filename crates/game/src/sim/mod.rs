@@ -35,6 +35,19 @@ pub use context::SimContext;
 pub mod resources;
 pub use resources::GlobalTreasury;
 
+pub mod calendar;
+pub use calendar::{CalendarEvents, CalendarSettings, GameCalendar};
+
+// ----------------------------------------------
+// WorldStep
+// ----------------------------------------------
+
+// A fixed step of the world and game systems update (see `Simulation::advance_clocks`).
+pub struct WorldStep {
+    pub delta_time_secs: Seconds,
+    pub calendar_events: CalendarEvents,
+}
+
 // ----------------------------------------------
 // RandomGenerator
 // ----------------------------------------------
@@ -56,6 +69,7 @@ pub struct Simulation {
     cmds: RcMut<SimCmds>,
     task_manager: UnitTaskManager,
     treasury: GlobalTreasury,
+    calendar: GameCalendar,
 
     // Path finding:
     #[serde(skip)]
@@ -80,6 +94,7 @@ impl Simulation {
             cmds: RcMut::new(commands::DeferredSimCmds::new(SIM_CMDS_CAPACITY)),
             task_manager: UnitTaskManager::new(UNIT_TASK_POOL_CAPACITY),
             treasury: GlobalTreasury::new(configs.sim.starting_gold_units),
+            calendar: GameCalendar::new(configs.sim.calendar.clone()),
             search: Search::with_grid_size(map_size_in_cells),
             speed: Self::MIN_SIM_SPEED,
             is_paused: false,
@@ -123,6 +138,16 @@ impl Simulation {
     }
 
     #[inline]
+    pub fn calendar(&self) -> &GameCalendar {
+        &self.calendar
+    }
+
+    #[inline]
+    pub fn calendar_mut(&mut self) -> &mut GameCalendar {
+        &mut self.calendar
+    }
+
+    #[inline]
     pub fn rng(&self) -> &RcMut<RandomGenerator> {
         &self.rng
     }
@@ -149,51 +174,64 @@ impl Simulation {
             return; // Early out.
         }
 
-        self.elapsed_secs += f64::from(delta_time_secs * self.speed);
+        let scaled_delta_time_secs = delta_time_secs * self.speed;
 
         // Units movement needs to be smooth, so it updates every frame.
         {
-            let scaled_delta_time_secs = delta_time_secs * self.speed;
             let context = context::make_update_context_mut!(self, scaled_delta_time_secs, tile_map, world);
             world.update_unit_navigation(&context);
         }
 
         // Fixed step world & game systems update.
-        {
+        if let Some(step) = self.advance_clocks(scaled_delta_time_secs) {
             const LOCK_WORLD_AND_MAP_DURING_UPDATE: bool = cfg!(debug_assertions);
 
-            let scaled_delta_time_secs = delta_time_secs * self.speed;
-            let world_update_delta_time_secs = self.update_timer.time_since_last_secs() * self.speed;
+            debug_assert!(self.cmds.is_empty());
 
-            if self.update_timer.tick(scaled_delta_time_secs).should_update() {
-                debug_assert!(self.cmds.is_empty());
-
-                if LOCK_WORLD_AND_MAP_DURING_UPDATE {
-                    tile_map.lock();
-                    world.lock();
-                }
-
-                // Update world and game systems. Cross entity mutation will be deferred into SimCmds.
-                {
-                    let context = context::make_update_context_readonly!(self, world_update_delta_time_secs, tile_map, world);
-                    world.update(&mut self.cmds, &context);
-                    systems.update(engine, &mut self.cmds, &context);
-                }
-
-                if LOCK_WORLD_AND_MAP_DURING_UPDATE {
-                    world.unlock();
-                    tile_map.unlock();
-                }
-
-                // Any world or tile map mutation would have been deferred until now.
-                {
-                    let context = context::make_update_context_mut!(self, world_update_delta_time_secs, tile_map, world);
-                    self.cmds.execute(&context);
-                }
-
-                debug_assert!(self.cmds.is_empty());
+            if LOCK_WORLD_AND_MAP_DURING_UPDATE {
+                tile_map.lock();
+                world.lock();
             }
+
+            // Update world and game systems. Cross entity mutation will be deferred into SimCmds.
+            {
+                let context = context::make_update_context_readonly!(self, step.delta_time_secs, tile_map, world);
+                world.update(&mut self.cmds, &context);
+                systems.update(engine, &mut self.cmds, &context);
+                systems.on_calendar_events(engine, &mut self.cmds, &context, &step.calendar_events);
+            }
+
+            if LOCK_WORLD_AND_MAP_DURING_UPDATE {
+                world.unlock();
+                tile_map.unlock();
+            }
+
+            // Any world or tile map mutation would have been deferred until now.
+            {
+                let context = context::make_update_context_mut!(self, step.delta_time_secs, tile_map, world);
+                self.cmds.execute(&context);
+            }
+
+            debug_assert!(self.cmds.is_empty());
         }
+    }
+
+    // Advances the simulation's clocks by one frame of simulated time (frame time times the
+    // speed). Returns the world step when one is due: the simulated time since the last step,
+    // this frame included, and the calendar events it crossed. The calendar advances by the same
+    // steps, so it, the world and `elapsed_secs` all count the same time.
+    pub fn advance_clocks(&mut self, scaled_delta_time_secs: Seconds) -> Option<WorldStep> {
+        self.elapsed_secs += f64::from(scaled_delta_time_secs);
+
+        // The timer accumulates simulated time already, and doesn't add the frame it fires on.
+        let delta_time_secs = self.update_timer.time_since_last_secs() + scaled_delta_time_secs;
+
+        if !self.update_timer.tick(scaled_delta_time_secs).should_update() {
+            return None;
+        }
+
+        let calendar_events = self.calendar.advance(delta_time_secs, GameConfigs::get().sim.seconds_per_month);
+        Some(WorldStep { delta_time_secs, calendar_events })
     }
 
     pub fn reset_world(
@@ -210,6 +248,9 @@ impl Simulation {
         systems.reset(engine);
         self.cmds.reset();
         self.elapsed_secs = 0.0;
+
+        let calendar_settings = self.calendar.settings().clone();
+        self.calendar.restart(calendar_settings);
     }
 
     pub fn reset_search_graph(&mut self, tile_map: &mut TileMap) {

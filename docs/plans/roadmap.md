@@ -1,11 +1,12 @@
 # Technical roadmap
 
-**Status (2026-11-05): Draft. Phase 1 not started.** This is the top-level implementation plan. It turns the design in [docs/design/](../design/README.md) into milestones, puts them in order, and links to a detailed plan for each one. It was researched against `d0696fe` on `main`.
+**Status (2026-11-05): Phase 1 in progress: M1 done.** This is the top-level implementation plan. It turns the design in [docs/design/](../design/README.md) into milestones, puts them in order, and links to a detailed plan for each one. It was researched against `d0696fe` on `main`.
 
 ## How to use this file
 
 - **One plan per milestone.** Each milestone gets its own plan in `docs/plans/` when work on it starts. That plan holds the detail and the checkboxes. This file keeps the order, the dependencies and the status.
 - Plans written so far:
+  - [game-time.md](game-time.md) (M1);
   - [construction.md](construction.md) (M3);
   - [placeholder-art.md](placeholder-art.md) (M2);
   - [terrain-height.md](terrain-height.md) (T);
@@ -42,7 +43,7 @@ These follow [overview.md](../design/overview.md#development-phases).
 
 | # | Milestone | Size | Depends on | Plan | Status |
 |---|---|---|---|---|---|
-| M1 | Game time and calendar | Small | — | — | Not started |
+| M1 | Game time and calendar | Small | — | [game-time.md](game-time.md) | Done (hand check on macOS pending) |
 | M2 | Placeholder art pipeline | Medium | — (runs alongside) | [placeholder-art.md](placeholder-art.md) | Not started |
 | M3 | Building costs and construction | Medium to large | M1 | [construction.md](construction.md) | Not started |
 | M4 | Finance | Medium | M1 | — | Not started |
@@ -68,6 +69,8 @@ Suggested order:
 
 ### M1: Game time and calendar (small)
 
+Plan: [game-time.md](game-time.md), which records the decisions (month length, where the settings come from, the event order).
+
 **Problems today:**
 - The only game-time unit is `SimConfigs::seconds_per_day = 600`, used only by house consumption.
 - `Simulation::elapsed_secs` isn't saved.
@@ -82,7 +85,7 @@ Suggested order:
 - **Events:** `on_new_month`, `on_new_season` and `on_new_year`, broadcast to systems through the `GameSystem` trait.
 - **HUD:** date and season in the top bar (`menu/in_game/bars.rs`).
 - **Automation:** `sim.state` reports the date, and `wait.until` can wait for a date.
-- Bump the save version (shared with M3 if they land together).
+- Bump the save version: version 3, the calendar alone (M3 didn't land with it).
 
 ### M2: Placeholder art pipeline (medium, alongside)
 
@@ -238,7 +241,7 @@ These are bugs or gaps, each tied to the milestone that fixes it:
 
 | Issue | Where | Fixed in |
 |---|---|---|
-| The world update's delta is multiplied by speed twice | `sim/mod.rs:165–166` | M1 |
+| The world update's delta is multiplied by speed twice | `sim/mod.rs:165–166` | M1 (fixed, with the frame the step fires on, which it also left out) |
 | `SimCmds` building spawns charge the tile cost through `Spawner` defaults | `sim/commands.rs:684`, `:851` | M3 Phase 0 |
 | Service access doesn't check that the service building is operational | `sim/context.rs:510` | Decided under construction.md Q2 |
 | Undo refunds gold without updating `world.stats` | `undo_redo.rs`, `sim/resources.rs` | M3 Phase 1 |
@@ -251,8 +254,9 @@ Bumps should be grouped where milestones land close together. Each bump needs a 
 | Version | Contents | Milestone | Status |
 |---|---|---|---|
 | 2 | Current | — | Shipped |
-| 3 | Calendar; building construction state; house renovation timers | M1, M3 | Planned |
-| 4 | Elevation map | T | Planned |
+| 3 | Calendar | M1 | Done |
+| 4 | Building construction state; house renovation timers | M3 | Planned |
+| 5 | Elevation map | T | Planned |
 | … | Finance, risk, flood, favour and ratings state | M4–M9 | Planned; group them where possible |
 
 ## Conventions for every milestone

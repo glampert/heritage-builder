@@ -22,7 +22,7 @@ use crate::{
 pub(super) const COMMANDS: &[CommandDef] = &[
     CommandDef {
         name: "session.state",
-        help: "Menus mode, map size, simulation state, seed and campaign mission.",
+        help: "Menus mode, map size, simulation state, date, seed and campaign mission.",
         params: &[],
         run: cmd_state,
     },
@@ -123,6 +123,7 @@ fn cmd_state(context: &mut CommandContext, _params: Value) -> CommandResult {
         "paused": sim.is_paused(),
         "speed": sim.speed(),
         "sim_time": sim.elapsed_secs(),
+        "date": super::sim::date_json(sim.calendar()),
         "gold": stats.treasury.gold_units_total,
         "population": stats.population.total,
         "seed": launch::get().random_seed(context.configs),

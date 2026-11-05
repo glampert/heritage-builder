@@ -18,6 +18,8 @@ use crate::{
         dialog::{self, DialogMenuKind},
         make_tooltip,
     },
+    config::GameConfigs,
+    sim::GameCalendar,
     ui_context::GameUiContext,
 };
 
@@ -90,6 +92,7 @@ trait MenuBar {
 // ----------------------------------------------
 
 const TOP_BAR_ICON_SPACING: Vec2 = Vec2::new(0.0, 0.0);
+const TOP_BAR_SEPARATOR_WIDTH: f32 = 20.0;
 const TOP_BAR_ICON_COUNT: usize = TopBarIcon::COUNT;
 
 #[repr(usize)]
@@ -185,6 +188,9 @@ impl TopBarStats {
 struct TopBar {
     current_stats: TopBarStats,
     icon_label_indices: [Option<UiWidgetGroupWidgetIndex>; TOP_BAR_ICON_COUNT],
+    current_date: String,
+    date_label_index: UiWidgetGroupWidgetIndex,
+    date_label_size: Vec2,
     menu: UiMenuRcMut,
 }
 
@@ -196,8 +202,29 @@ impl MenuBar for TopBar {
             self.update_stats(stats);
         }
 
+        let date = date_label(context.sim.calendar());
+        if self.current_date != date {
+            self.update_date(context, date);
+        }
+
         self.menu.draw(context);
     }
+}
+
+// "Day 12, Month 3, Long Thái 2 · Wet season".
+fn date_label(calendar: &GameCalendar) -> String {
+    let configs = &GameConfigs::get().sim;
+    let date = calendar.date(configs.days_per_month, configs.seconds_per_month);
+    format!("Day {}, Month {}, {} · {} season", date.day, date.month, calendar.year_name(), calendar.season())
+}
+
+// The date label's box: sized for the longest day and month numbers, so the bar doesn't change
+// size from day to day.
+fn date_label_size(context: &GameUiContext, date: &str) -> Vec2 {
+    let widest = date.chars().map(|c| if c.is_ascii_digit() { '0' } else { c }).collect::<String>();
+    let mut size = context.calc_text_size(TOOLTIP_FONT_SCALE, &format!("{widest}00"));
+    size.y += 5.0; // explicit vertical padding, as the icon labels have.
+    size
 }
 
 impl TopBar {
@@ -233,12 +260,14 @@ impl TopBar {
                 icon_label_indices[icon_index] = Some(group.add_widget(icon_label));
             }
 
-            let is_last = icon_index == (TOP_BAR_ICON_COUNT - 1);
-            if !is_last {
-                const SEPARATOR_WIDTH: f32 = 20.0;
-                group.add_widget(UiSeparator::new().with_size(Vec2::new(SEPARATOR_WIDTH, 0.0)));
-            }
+            group.add_widget(UiSeparator::new().with_size(Vec2::new(TOP_BAR_SEPARATOR_WIDTH, 0.0)));
         }
+
+        let current_date = date_label(context.sim.calendar());
+        let date_label_size = date_label_size(context, &current_date);
+        let date_label_index = group.add_widget(
+            UiSizedTextLabel::new(current_date.clone()).with_font_scale(TOOLTIP_FONT_SCALE).with_size(date_label_size),
+        );
 
         let menu = UiMenu::new("TopBar")
             .with_flags(UiMenuFlags::IsOpen | UiMenuFlags::AlignCenterTop)
@@ -247,7 +276,20 @@ impl TopBar {
             .with_widget(group)
             .into_rc();
 
-        Rc::new(Self { current_stats: stats, icon_label_indices, menu })
+        Rc::new(Self { current_stats: stats, icon_label_indices, current_date, date_label_index, date_label_size, menu })
+    }
+
+    fn update_date(&mut self, context: &GameUiContext, date: String) {
+        // Grows for a longer era name, but never shrinks back, so the bar keeps its size.
+        let size = date_label_size(context, &date);
+        self.date_label_size = Vec2::new(self.date_label_size.x.max(size.x), self.date_label_size.y.max(size.y));
+
+        let (_, group) = self.menu.find_widget_of_type_mut::<UiWidgetGroup>().unwrap();
+        let label = group.widget_as_mut::<UiSizedTextLabel>(self.date_label_index).unwrap();
+        label.set_label(date.clone());
+        label.set_size(self.date_label_size);
+
+        self.current_date = date;
     }
 
     fn update_stats(&mut self, stats: TopBarStats) {

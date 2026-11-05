@@ -3,10 +3,11 @@ use game::{
         self,
         CampaignProgress,
         CampaignPrompt,
-        config::{CampaignConfigs, CampaignDef, MissionDef, MissionGoal, MissionMap, MissionRequirements},
+        config::{CampaignConfigs, CampaignDef, MissionCalendarDef, MissionDef, MissionGoal, MissionMap, MissionRequirements},
     },
+    config::GameConfigs,
     debug::preset_maps,
-    sim::resources::ResourceKind,
+    sim::{calendar::EraDef, resources::ResourceKind},
     world::stats::WorldStats,
 };
 
@@ -29,6 +30,7 @@ fn main() {
         test_utils::test_fn!(test_advance_to_next_mission),
         test_utils::test_fn!(test_continue_playing_no_requeue),
         test_utils::test_fn!(test_snapshot_restore_and_suppress),
+        test_utils::test_fn!(test_mission_calendar),
     ]);
 }
 
@@ -49,14 +51,17 @@ fn build_test_configs() -> CampaignConfigs {
                     description: String::new(),
                     map: MissionMap::Preset { preset_number: TEST_PRESET },
                     requirements: MissionRequirements { goals: vec![MissionGoal::Population { min: 10 }] },
+                    calendar: Some(MissionCalendarDef { start_year: Some(5), start_month: Some(3), wet_months: None }),
                 },
                 MissionDef {
                     name: "Mission 2".into(),
                     description: String::new(),
                     map: MissionMap::Preset { preset_number: TEST_PRESET },
                     requirements: MissionRequirements { goals: vec![MissionGoal::Treasury { min_gold: 100 }] },
+                    calendar: None,
                 },
             ],
+            eras: vec![EraDef { name: "Test Era".into(), start_year: 4 }],
         }],
     }
 }
@@ -222,17 +227,40 @@ fn test_snapshot_restore_and_suppress() {
     campaign::reset();
     assert!(campaign::active_mission().is_none());
 
-    campaign::restore_snapshot(snapshot);
+    assert!(!campaign::restore_snapshot(snapshot), "an unsuppressed restore isn't a mission start");
     assert_eq!(campaign::active_mission().unwrap().mission_index, 0);
 
     // After start_campaign sets the suppress flag (campaign-driven load in
     // flight), the next restore is a no-op so the intended mission survives.
     campaign::reset();
     campaign::start_campaign(0);
-    campaign::restore_snapshot(CampaignProgress::default()); // suppressed -> ignored
+    assert!(campaign::restore_snapshot(CampaignProgress::default()), "suppressed -> ignored, and starts the mission");
     assert!(campaign::active_mission().is_some());
 
     // The suppress flag is one-shot: a subsequent restore now applies.
-    campaign::restore_snapshot(CampaignProgress::default());
+    assert!(!campaign::restore_snapshot(CampaignProgress::default()));
     assert!(campaign::active_mission().is_none());
+}
+
+// A mission starts with its own calendar over the configs' defaults, and its campaign's eras.
+fn test_mission_calendar() {
+    ensure_campaign_setup();
+    assert!(campaign::active_mission_calendar().is_none(), "no calendar outside a campaign");
+
+    let defaults = &GameConfigs::get().sim.calendar;
+
+    campaign::start_campaign(0);
+    assert!(campaign::take_mission_start(), "start_campaign makes the next session the mission's start");
+    assert!(!campaign::take_mission_start(), "taken once");
+
+    let first = campaign::active_mission_calendar().unwrap();
+    assert_eq!((first.start_year, first.start_month), (5, 3));
+    assert_eq!(first.wet_months, defaults.wet_months);
+    assert_eq!(first.eras, vec![EraDef { name: "Test Era".into(), start_year: 4 }]);
+
+    // Mission 2 has no calendar of its own: the defaults, with the campaign's eras.
+    campaign::advance_to_next_mission();
+    let second = campaign::active_mission_calendar().unwrap();
+    assert_eq!((second.start_year, second.start_month), (defaults.start_year, defaults.start_month));
+    assert_eq!(second.eras.len(), 1);
 }

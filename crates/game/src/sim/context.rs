@@ -16,7 +16,7 @@ use common::{
 };
 use engine::log;
 
-use super::{GlobalTreasury, RandomGenerator, SimCmds};
+use super::{GameCalendar, GlobalTreasury, RandomGenerator, SimCmds};
 use crate::{
     world::{World, object::GameObject},
     building::{Building, BuildingId, BuildingKind},
@@ -76,6 +76,9 @@ pub struct SimContext {
     // World resource stats:
     treasury: RawPtr<GlobalTreasury>,
 
+    // Date and season:
+    calendar: RawPtr<GameCalendar>,
+
     // Deferred sim command queue:
     cmds: RawPtr<SimCmds>,
 
@@ -102,6 +105,7 @@ impl SimContext {
         world: &mut World,
         tile_map: &mut TileMap,
         treasury: &mut GlobalTreasury,
+        calendar: &mut GameCalendar,
         cmds: &mut SimCmds,
         delta_time_secs: Seconds,
         is_world_teardown: bool,
@@ -114,6 +118,7 @@ impl SimContext {
             world: RawPtr::from_ref(world),
             tile_map: RawPtr::from_ref(tile_map),
             treasury: RawPtr::from_ref(treasury),
+            calendar: RawPtr::from_ref(calendar),
             cmds: RawPtr::from_ref(cmds),
             delta_time_secs,
             is_world_teardown,
@@ -184,6 +189,11 @@ impl SimContext {
     #[inline(always)]
     pub fn treasury(&self) -> &GlobalTreasury {
         &self.treasury
+    }
+
+    #[inline(always)]
+    pub fn calendar(&self) -> &GameCalendar {
+        &self.calendar
     }
 
     #[inline]
@@ -730,6 +740,7 @@ macro_rules! make_context {
             $world,
             $tile_map,
             &mut $self.treasury,
+            &mut $self.calendar,
             &mut $self.cmds,
             $delta_time_secs,
             $is_world_teardown,

@@ -6,7 +6,7 @@ use proc_macros::DrawDebugUi;
 use serde::{Deserialize, Serialize};
 use strum::Display;
 
-use crate::camera::*;
+use crate::{camera::*, sim::calendar::CalendarSettings};
 
 // ----------------------------------------------
 // GameConfigs
@@ -137,6 +137,13 @@ pub struct SimConfigs {
     // resource consumption) be expressed in intuitive units-per-day.
     pub seconds_per_day: Seconds,
 
+    // Calendar: simulated seconds per month, days per month, and the calendar of games outside
+    // a campaign. A campaign mission's start applies its own (see campaign::config).
+    pub seconds_per_month: Seconds,
+    pub days_per_month: u32,
+    #[debug_ui(skip)]
+    pub calendar: CalendarSettings,
+
     // Workers/Population:
     pub workers_search_radius: i32,
     pub workers_update_frequency_secs: Seconds,
@@ -157,6 +164,10 @@ impl Default for SimConfigs {
             starting_gold_units: 0,
             start_paused: false,
             seconds_per_day: 600.0,
+            // Calendar:
+            seconds_per_month: 60.0,
+            days_per_month: 30,
+            calendar: CalendarSettings::default(),
             // Workers/Population:
             workers_search_radius: 20,
             workers_update_frequency_secs: 20.0,
