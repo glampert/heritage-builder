@@ -265,7 +265,9 @@ Done when: on a test map, a temple can't be placed without bricks, is placed onc
   - `ConstructionMaterials` and `ConstructionTier` live in `building/construction.rs`; Phase 2 adds `ConstructionSite` there.
   - Materials are written as a JSON map and taken in the file's order. A count is a `u32`, like `StockItem`'s.
   - `TileDef::construction_tier()` defaults to Basic for buildings and Instant otherwise.
-- **Storage slots:** `StorageSlots::available_resources` and `remove_resources` only see the first slot holding a kind, so a yard with 6 bricks in two slots reported 4. The city stock uses new helpers over all slots instead: `total_resources`, `take_resources`, `put_resources` and `receivable_total`. The old accessors, which walkers use, are unchanged.
+- **Storage slots:** `StorageSlots::available_resources` and `remove_resources` only saw the first slot holding a kind, so a yard with 6 bricks in two slots reported 4. Phase 1 gave the city stock its own helpers over all slots and left the walkers' accessors as they were.
+  - **Since fixed (2026-11-05):** the accessors themselves count, fill and empty every slot, taking from the emptiest slot first so a good keeps to as few slots as it can, and they report no room for a good the storage doesn't accept (a granary for wine). The helpers are gone; the city stock uses the accessors, which it reads without the staffing check.
+  - Walkers now fetch and deliver more than one slot's worth in a trip: a market's runner brings back up to the market's 10, not 4. A storage building's stock lists each good once, so the inspector and `world.building_at` show its total.
 - **Refunds:**
   - Undo refunds gold through `GlobalTreasury::add_gold_units_global`, which also updates `world.stats`, fixing the roadmap's undo bug.
   - Materials go into any yard with room (`CityStock::deposit`), since a finished building keeps no `Withdrawal`. `CityStock::refund` returns a `Withdrawal` to its own yards, for Phase 2's sites.

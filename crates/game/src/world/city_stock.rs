@@ -104,7 +104,7 @@ impl CityStock {
         let mut count = 0;
         world.for_each_building(CITY_STOCK_BUILDINGS, |building| {
             if Self::is_stock_building(building) {
-                count += building.as_storage().storage_slots.total_resources(kind);
+                count += building.as_storage().storage_slots.available_resources(kind);
             }
             true
         });
@@ -118,7 +118,7 @@ impl CityStock {
         let mut room = 0;
         world.for_each_building(CITY_STOCK_BUILDINGS, |building| {
             if Self::is_stock_building(building) {
-                room += building.as_storage().storage_slots.receivable_total(kind);
+                room += building.as_storage().storage_slots.receivable_resources(kind);
             }
             true
         });
@@ -159,7 +159,7 @@ impl CityStock {
             world.for_each_building_mut(CITY_STOCK_BUILDINGS, |building| {
                 if Self::is_stock_building(building) {
                     let storage_id = building.id();
-                    let taken = building.as_storage_mut().storage_slots.take_resources(item.kind, remaining);
+                    let taken = building.as_storage_mut().storage_slots.remove_resources(item.kind, remaining);
                     if taken != 0 {
                         withdrawal.taken.push(WithdrawnItem { storage_id, kind: item.kind, count: taken });
                         remaining -= taken;
@@ -185,7 +185,7 @@ impl CityStock {
             let mut returned = 0;
             if let Some(building) = world.find_building_mut(CITY_STOCK_BUILDINGS, item.storage_id) {
                 if Self::is_stock_building(building) {
-                    returned = building.as_storage_mut().storage_slots.put_resources(item.kind, item.count);
+                    returned = building.as_storage_mut().storage_slots.receive_resources(item.kind, item.count);
                 }
             }
             Self::add_to_stats(world, item.kind, returned);
@@ -232,7 +232,7 @@ impl CityStock {
         if remaining != 0 {
             world.for_each_building_mut(CITY_STOCK_BUILDINGS, |building| {
                 if Self::is_stock_building(building) {
-                    remaining -= building.as_storage_mut().storage_slots.put_resources(kind, remaining);
+                    remaining -= building.as_storage_mut().storage_slots.receive_resources(kind, remaining);
                 }
                 remaining != 0
             });

@@ -1,7 +1,7 @@
 use common::coords::Cell;
 use common::time::Seconds;
 use game::{
-    building::{BuildingKind, BuildingKindAndId, construction::{ConstructionMaterials, ConstructionMode}},
+    building::{BuildingKind, BuildingKindAndId, config::BuildingConfigs, construction::{ConstructionMaterials, ConstructionMode}},
     config::GameConfigs,
     cheats,
     menu::{PlaceOrClearResult, TilePlacement},
@@ -24,6 +24,7 @@ fn main() {
         test_utils::test_fn!(test_deferred_spawns_are_free),
         test_utils::test_fn!(test_player_placement_charges_gold),
         // City stock:
+        test_utils::test_fn!(test_yard_accessors_see_every_slot),
         test_utils::test_fn!(test_city_stock_counts_every_yard),
         test_utils::test_fn!(test_withdrawal_takes_yards_in_pool_order),
         test_utils::test_fn!(test_refund_returns_materials_to_their_yards),
@@ -156,6 +157,42 @@ fn test_player_placement_charges_gold() {
 // ----------------------------------------------
 // City stock
 // ----------------------------------------------
+
+// A storage yard's own accessors, which walkers use, see all of its slots, as the city stock
+// does. Taking goods empties the emptiest slots first, so a good keeps to as few as it can.
+fn test_yard_accessors_see_every_slot() {
+    let mut env = TestEnvironment::new();
+    let yard = test_utils::spawn_building(&mut env, Cell::new(2, 2), "storage_yard");
+    let config = BuildingConfigs::get().find_storage_config(BuildingKind::StorageYard);
+    let (slot_capacity, num_slots) = (config.slot_capacity, config.num_slots);
+    assert_eq!(slot_capacity, 4, "the counts below assume slots of 4 units");
+
+    let building = test_utils::find_building_mut(&mut env, yard);
+
+    // Wood fills a slot and starts a second, bricks take a third, then more wood tops up the
+    // second and starts a fourth: wood 4 + 4 + 1.
+    assert_eq!(building.receive_resources(ResourceKind::Wood, 6), 6);
+    assert_eq!(building.receive_resources(ResourceKind::Bricks, 3), 3);
+    assert_eq!(building.receive_resources(ResourceKind::Wood, 3), 3);
+    assert_eq!(building.available_resources(ResourceKind::Wood), 9);
+    assert_eq!(building.stock().as_slice(), &[
+        StockItem { kind: ResourceKind::Wood, count: 9 },
+        StockItem { kind: ResourceKind::Bricks, count: 3 },
+    ]);
+
+    // Taking 7 wood empties the 1-unit slot and a full one and leaves 2 in the other, so only
+    // that slot and the bricks' are in use.
+    assert_eq!(building.remove_resources(ResourceKind::Wood, 7), 7);
+    assert_eq!(building.available_resources(ResourceKind::Wood), 2);
+    assert_eq!(building.receivable_resources(ResourceKind::Bricks), (slot_capacity - 3) + (num_slots - 2) * slot_capacity);
+
+    // A delivery takes as much as fits; taking more than there is takes all there is.
+    let room = building.receivable_resources(ResourceKind::Wood);
+    assert_eq!(building.receive_resources(ResourceKind::Wood, room + 5), room);
+    assert_eq!(building.receivable_resources(ResourceKind::Wood), 0);
+    assert_eq!(building.remove_resources(ResourceKind::Wood, 100), 2 + room);
+    assert_eq!(building.receivable_resources(ResourceKind::Wood), (num_slots - 1) * slot_capacity);
+}
 
 // The city stock is every storage yard's, and affordability reports the shortfall.
 fn test_city_stock_counts_every_yard() {
@@ -344,8 +381,9 @@ fn test_clearing_a_site_refunds_it() {
         assert!(building_at(&env, temple_cell).is_none());
         assert_eq!(gold(&mut env), gold_before);
         assert_eq!(CityStock::available(&env.world, ResourceKind::Bricks), 8);
-        assert_eq!(test_utils::find_building(&env, yard).available_resources(ResourceKind::Wood), 4); // The first slot.
         assert_eq!(CityStock::available(&env.world, ResourceKind::Wood), 6);
+        // The yard's own count, which walkers see, is the same: 6 wood in two slots.
+        assert_eq!(test_utils::find_building(&env, yard).available_resources(ResourceKind::Wood), 6);
         undo_redo::clear();
     });
 }

@@ -1,6 +1,6 @@
 use common::{time::Seconds, callback::Callback, coords::Cell, mem::SingleThreadStatic};
 use game::{
-    building::{Building, BuildingKind, BuildingKindAndId, BuildingTileInfo},
+    building::{Building, BuildingKind, BuildingKindAndId, BuildingTileInfo, config::BuildingConfigs},
     debug::{game_object_debug::GameObjectDebugVarRef, preset_maps},
     pathfind::{NodeKind as PathNodeKind, SearchResult},
     sim::{
@@ -63,6 +63,8 @@ fn main() {
         test_utils::test_fn!(test_fetch_recovers_by_shipping_back_to_storage_when_origin_unreachable),
         test_utils::test_fn!(test_fetch_recovers_when_unload_at_origin_fails),
         test_utils::test_fn!(test_fetch_recovers_when_origin_destroyed_mid_return),
+        test_utils::test_fn!(test_fetch_takes_more_than_one_slot),
+        test_utils::test_fn!(test_fetch_surplus_skips_storage_that_cannot_hold_it),
 
         // UnitTaskHarvestWood
         test_utils::test_fn!(test_harvest_traverses_off_road),
@@ -462,21 +464,13 @@ fn test_delivery_path_blocked_recovery() {
 // UnitTaskFetchFromStorage
 // ----------------------------------------------
 
-// Helper: seed a storage building (granary / storage_yard) so its
-// `available_resources(kind)` returns `count`. The cheat
+// Helper: seed a storage building (granary / storage_yard) with `count` of
+// `kind`, in as many of its slots (4 units each) as that takes. The cheat
 // `ignore_worker_requirements` (set in test_utils setup) makes this work
 // even though the storage has no workers in tests.
-//
-// `Building::receive_resources` only fills one storage slot per call (slots
-// are 4 wide on both granary and storage yard), so we loop until we've
-// deposited `count`.
 fn seed_storage(env: &mut TestEnvironment, handle: BuildingKindAndId, kind: ResourceKind, count: u32) {
-    let mut remaining = count;
-    while remaining > 0 {
-        let received = find_building_mut(env, handle).receive_resources(kind, remaining);
-        assert!(received != 0, "Storage {} refused to store {kind} ({remaining} remaining)", handle.kind);
-        remaining -= received;
-    }
+    let received = find_building_mut(env, handle).receive_resources(kind, count);
+    assert_eq!(received, count, "Storage {} refused to store {count} {kind}", handle.kind);
 }
 
 // Market -> Granary fetch cycle: stock_update timer fires, runner is dispatched
@@ -493,9 +487,8 @@ fn test_fetch_picks_up_and_returns_with_resource() {
     // Suppress the market's Vendor patrol unit -- we only care about the runner.
     set_building_debug_bool(&mut env, market, "freeze_patrol", true);
 
-    // Seed the granary with rice so the market has something to fetch. The
-    // granary's slot capacity is 4, and `StorageSlots::available_resources`
-    // reports a single slot, so we keep N within one slot for clean assertions.
+    // Seed the granary with rice so the market has something to fetch. N fits
+    // in one storage slot; test_fetch_takes_more_than_one_slot fetches more.
     const N: u32 = 4;
     seed_storage(&mut env, granary, ResourceKind::Rice, N);
     assert_eq!(find_building(&env, granary).available_resources(ResourceKind::Rice), N);
@@ -821,6 +814,93 @@ fn test_fetch_recovers_when_origin_destroyed_mid_return() {
     let granary_rice = find_building(&env, granary).available_resources(ResourceKind::Rice);
     let storage_yard_rice = find_building(&env, storage_yard).available_resources(ResourceKind::Rice);
     assert_eq!(granary_rice + storage_yard_rice, N);
+}
+
+// ---- Goods spread over several storage slots ----
+
+// The units a storage yard's slot holds (assets/configs/buildings/configs.json).
+fn storage_yard_slot_capacity() -> u32 {
+    BuildingConfigs::get().find_storage_config(BuildingKind::StorageYard).slot_capacity
+}
+
+// The market's runner asks for as much rice as the market has room for, more
+// than a storage slot holds. The storage yard has more still, in three slots
+// with wood in a slot between them: one trip brings back everything the
+// market asked for, not just the first slot's, and leaves the wood.
+fn test_fetch_takes_more_than_one_slot() {
+    let mut env = TestEnvironment::with_preset_map(
+        preset_maps::PRESET_1_MARKET_1_GRANARY_1_STORAGE_YARD,
+    );
+
+    let market       = find_building_id(&env, BuildingKind::Market);
+    let storage_yard = find_building_id(&env, BuildingKind::StorageYard);
+
+    set_building_debug_bool(&mut env, market, "freeze_patrol", true);
+
+    let slot_capacity = storage_yard_slot_capacity();
+    let wanted = find_building(&env, market).receivable_resources(ResourceKind::Rice);
+    assert!(wanted > slot_capacity, "the market should want more than one slot's worth of rice");
+
+    // Rice in slots 0, 2 and 3; wood in slot 1.
+    let rice = wanted + 2;
+    seed_storage(&mut env, storage_yard, ResourceKind::Rice, slot_capacity);
+    seed_storage(&mut env, storage_yard, ResourceKind::Wood, 2);
+    seed_storage(&mut env, storage_yard, ResourceKind::Rice, rice - slot_capacity);
+    assert_eq!(find_building(&env, storage_yard).available_resources(ResourceKind::Rice), rice);
+
+    let runner_id = tick_until_runner_spawned(&mut env, 30);
+
+    // Pin to a single dispatch.
+    set_building_debug_bool(&mut env, market, "freeze_stock_update", true);
+
+    // The market takes the runner's whole load at once when it gets back.
+    let ticks = tick_until(&mut env, 200, DELIVER_TICK_DELTA_SECS, |env| {
+        find_building(env, market).available_resources(ResourceKind::Rice) != 0
+    });
+    assert!(ticks < 200, "fetch should complete within 200 ticks");
+
+    assert_eq!(find_building(&env, market).available_resources(ResourceKind::Rice), wanted);
+    assert_eq!(find_building(&env, storage_yard).available_resources(ResourceKind::Rice), rice - wanted);
+    assert_eq!(find_building(&env, storage_yard).available_resources(ResourceKind::Wood), 2);
+
+    tick_until_runner_despawned(&mut env, runner_id, 30);
+}
+
+// A granary keeps only food. The market turns its runner's wine away, having
+// filled up while the runner was out, so the runner looks for a storage to
+// take it: it passes the nearer granary, which has free slots but can't hold
+// wine, and takes it back to the storage yard.
+fn test_fetch_surplus_skips_storage_that_cannot_hold_it() {
+    let mut env = TestEnvironment::with_preset_map(
+        preset_maps::PRESET_1_MARKET_1_GRANARY_1_STORAGE_YARD,
+    );
+
+    let market       = find_building_id(&env, BuildingKind::Market);
+    let granary      = find_building_id(&env, BuildingKind::Granary);
+    let storage_yard = find_building_id(&env, BuildingKind::StorageYard);
+
+    set_building_debug_bool(&mut env, market, "freeze_patrol", true);
+
+    assert_eq!(find_building(&env, granary).receivable_resources(ResourceKind::Wine), 0);
+    assert_eq!(find_building_mut(&mut env, granary).receive_resources(ResourceKind::Wine, 2), 0);
+
+    const N: u32 = 6;
+    seed_storage(&mut env, storage_yard, ResourceKind::Wine, N);
+
+    let runner_id = tick_until_runner_spawned(&mut env, 30);
+
+    // Pin to a single dispatch.
+    set_building_debug_bool(&mut env, market, "freeze_stock_update", true);
+
+    // Fill the market's wine while the runner is out.
+    let room = find_building(&env, market).receivable_resources(ResourceKind::Wine);
+    assert_eq!(find_building_mut(&mut env, market).receive_resources(ResourceKind::Wine, room), room);
+
+    tick_until_runner_despawned(&mut env, runner_id, 300);
+
+    assert_eq!(find_building(&env, storage_yard).available_resources(ResourceKind::Wine), N);
+    assert_eq!(find_building(&env, market).available_resources(ResourceKind::Wine), room);
+    assert!(find_building(&env, granary).stock().iter().all(|item| item.count == 0), "the granary should hold nothing");
 }
 
 // ----------------------------------------------

@@ -1,3 +1,5 @@
+use std::cmp::Reverse;
+
 use arrayvec::ArrayVec;
 use serde::{Deserialize, Serialize};
 
@@ -223,10 +225,14 @@ impl BuildingBehavior for StorageBuilding {
         self.storage_slots.are_all_slots_full()
     }
 
+    // One item per kind held, its units summed over the slots holding it.
     fn stock(&self) -> ArrayVec<StockItem, RESOURCE_KIND_COUNT> {
-        let mut items = ArrayVec::new();
+        let mut items: ArrayVec<StockItem, RESOURCE_KIND_COUNT> = ArrayVec::new();
         self.storage_slots.for_each_resource(|item| {
-            items.push(*item);
+            match items.iter_mut().find(|held| held.kind == item.kind) {
+                Some(held) => held.count += item.count,
+                None => items.push(*item),
+            }
         });
         items
     }
@@ -421,7 +427,7 @@ impl StorageSlot {
         let (index, mut count) = self.resource_index_and_count(kind);
 
         let prev_count = count;
-        count = (prev_count + add_amount).min(slot_capacity);
+        count = prev_count.saturating_add(add_amount).min(slot_capacity);
 
         if let Some(allocated_kind) = self.allocated_resource_kind {
             if allocated_kind != kind {
@@ -533,21 +539,6 @@ impl StorageSlots {
     }
 
     #[inline]
-    fn find_resource_slot(&self, kind: ResourceKind) -> Option<usize> {
-        // Should be a single kind, never multiple ORed flags.
-        debug_assert!(kind.is_single_resource());
-
-        for (slot_index, slot) in self.slots.iter().enumerate() {
-            if let Some(allocated_kind) = slot.allocated_resource_kind {
-                if allocated_kind == kind {
-                    return Some(slot_index);
-                }
-            }
-        }
-        None
-    }
-
-    #[inline]
     fn find_free_slot(&self) -> Option<usize> {
         for (slot_index, slot) in self.slots.iter().enumerate() {
             if slot.is_free() {
@@ -575,13 +566,35 @@ impl StorageSlots {
         self.find_free_slot()
     }
 
-    fn available_resources(&self, kind: ResourceKind) -> u32 {
-        if let Some(slot_index) = self.find_resource_slot(kind) { self.slot_resource_count(slot_index, kind) } else { 0 }
+    // The slot holding the fewest units of `kind`, the last of them on a tie. Taking from it
+    // first empties slots soonest, so a kind keeps to as few slots as it can and leaves the
+    // others free for other goods.
+    fn find_emptiest_resource_slot(&self, kind: ResourceKind) -> Option<usize> {
+        // Should be a single kind, never multiple ORed flags.
+        debug_assert!(kind.is_single_resource());
+
+        self.slots
+            .iter()
+            .enumerate()
+            .filter(|(_, slot)| slot.allocated_resource_kind == Some(kind) && slot.stock.count(kind) != 0)
+            .min_by_key(|(slot_index, slot)| (slot.stock.count(kind), Reverse(*slot_index)))
+            .map(|(slot_index, _)| slot_index)
     }
 
-    // Units of `kind` across all slots. available_resources only counts the first slot holding it.
-    pub(crate) fn total_resources(&self, kind: ResourceKind) -> u32 {
+    // Every slot accepts the same kinds.
+    fn accepts(&self, kind: ResourceKind) -> bool {
+        self.slots.first().is_some_and(|slot| slot.accepted_kinds().intersects(kind))
+    }
+
+    // ----------------------
+    // Stock across all slots:
+    // ----------------------
+
+    // Units of `kind` in all slots.
+    pub(crate) fn available_resources(&self, kind: ResourceKind) -> u32 {
+        // Should be a single kind, never multiple ORed flags.
         debug_assert!(kind.is_single_resource());
+
         self.slots
             .iter()
             .filter(|slot| slot.allocated_resource_kind == Some(kind))
@@ -589,86 +602,74 @@ impl StorageSlots {
             .sum()
     }
 
-    // Removes up to `count` units of `kind` from as many slots as it takes, first slots first.
-    // Returns the count removed.
-    pub(crate) fn take_resources(&mut self, kind: ResourceKind, count: u32) -> u32 {
-        let mut removed = 0;
-        while removed < count {
-            let taken = self.remove_resources(kind, count - removed);
-            if taken == 0 {
-                break;
-            }
-            removed += taken;
-        }
-        removed
-    }
+    // Room for `kind`: what's left in the slots holding it, plus every free slot. None for a kind
+    // the storage doesn't accept, whatever its free slots.
+    pub(crate) fn receivable_resources(&self, kind: ResourceKind) -> u32 {
+        // Should be a single kind, never multiple ORed flags.
+        debug_assert!(kind.is_single_resource());
 
-    // Adds up to `count` units of `kind`, filling as many slots as it takes. Returns the count
-    // added, less than `count` when the yard is full.
-    pub(crate) fn put_resources(&mut self, kind: ResourceKind, count: u32) -> u32 {
         if !self.accepts(kind) {
             return 0;
         }
-        let mut added = 0;
-        while added < count {
-            let received = self.receive_resources(kind, count - added);
-            if received == 0 {
-                break;
-            }
-            added += received;
-        }
-        added
-    }
 
-    // Room for `kind` across all slots: what put_resources would add at most.
-    pub(crate) fn receivable_total(&self, kind: ResourceKind) -> u32 {
-        if self.accepts(kind) { self.receivable_resources(kind) } else { 0 }
-    }
-
-    fn accepts(&self, kind: ResourceKind) -> bool {
-        self.slots.first().is_some_and(|slot| slot.accepted_kinds().intersects(kind))
-    }
-
-    fn receivable_resources(&self, kind: ResourceKind) -> u32 {
-        // Should be a single kind, never multiple ORed flags.
-        debug_assert!(kind.is_single_resource());
         let mut count = 0;
-
         for slot in &self.slots {
             if slot.is_free() {
                 count += self.slot_capacity;
-            } else if let Some(allocated_kind) = slot.allocated_resource_kind {
-                if allocated_kind == kind {
-                    count += slot.remaining_capacity(self.slot_capacity);
-                }
+            } else if slot.allocated_resource_kind == Some(kind) {
+                count += slot.remaining_capacity(self.slot_capacity);
             }
         }
-
         count
     }
 
-    fn receive_resources(&mut self, kind: ResourceKind, count: u32) -> u32 {
-        let slot_index = match self.alloc_resource_slot(kind) {
-            Some(slot_index) => slot_index,
-            None => return 0,
-        };
+    // Adds up to `count` units of `kind`, topping up the slots that hold it before taking free
+    // ones. Returns the count added: less than `count` when the slots fill up, and 0 for a kind
+    // the storage doesn't accept.
+    pub(crate) fn receive_resources(&mut self, kind: ResourceKind, count: u32) -> u32 {
+        // Should be a single kind, never multiple ORed flags.
+        debug_assert!(kind.is_single_resource());
 
-        let prev_count = self.slot_resource_count(slot_index, kind);
-        let new_count = self.increment_slot_resource_count(slot_index, kind, count);
+        if !self.accepts(kind) {
+            return 0;
+        }
 
-        new_count - prev_count
+        let mut received = 0;
+        while received < count {
+            let Some(slot_index) = self.alloc_resource_slot(kind) else {
+                break; // No room left.
+            };
+
+            let prev_count = self.slot_resource_count(slot_index, kind);
+            let new_count = self.increment_slot_resource_count(slot_index, kind, count - received);
+            if new_count == prev_count {
+                break;
+            }
+            received += new_count - prev_count;
+        }
+        received
     }
 
-    fn remove_resources(&mut self, kind: ResourceKind, count: u32) -> u32 {
-        let slot_index = match self.find_resource_slot(kind) {
-            Some(slot_index) => slot_index,
-            None => return 0,
-        };
+    // Removes up to `count` units of `kind` from as many slots as it takes, emptiest first.
+    // Returns the count removed.
+    pub(crate) fn remove_resources(&mut self, kind: ResourceKind, count: u32) -> u32 {
+        // Should be a single kind, never multiple ORed flags.
+        debug_assert!(kind.is_single_resource());
 
-        let prev_count = self.slot_resource_count(slot_index, kind);
-        let new_count = self.decrement_slot_resource_count(slot_index, kind, count);
+        let mut removed = 0;
+        while removed < count {
+            let Some(slot_index) = self.find_emptiest_resource_slot(kind) else {
+                break; // None left.
+            };
 
-        prev_count - new_count
+            let prev_count = self.slot_resource_count(slot_index, kind);
+            let new_count = self.decrement_slot_resource_count(slot_index, kind, count - removed);
+            if new_count == prev_count {
+                break;
+            }
+            removed += prev_count - new_count;
+        }
+        removed
     }
 
     fn for_each_resource<F>(&self, mut visitor_fn: F)

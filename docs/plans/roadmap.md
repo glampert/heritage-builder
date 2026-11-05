@@ -245,6 +245,7 @@ These are bugs or gaps, each tied to the milestone that fixes it:
 | `SimCmds` building spawns charge the tile cost through `Spawner` defaults | `sim/commands.rs:684`, `:851` | M3 Phase 0 (fixed) |
 | Service access doesn't check that the service building is operational | `sim/context.rs:510` | Decided under construction.md Q2 |
 | Undo refunds gold without updating `world.stats` | `undo_redo.rs`, `sim/resources.rs` | M3 Phase 1 (fixed) |
+| Storage accessors see only the first slot holding a good, so walkers fetch at most 4 at a time; a granary reports room for goods it can't hold, and a runner taking wine there crashes | `building/storage.rs` | After M3 (fixed) |
 | Save and load failures are only logged (known-issues) | `session.rs` | M11, which can now show them |
 
 ## Save-version log
