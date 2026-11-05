@@ -22,12 +22,18 @@ fn main() {
     let release = match mode.as_str() {
         "debug" => false,
         "release" => true,
-        other => panic!("❌ Unknown mode '{other}'. Use 'debug' or 'release'."),
+        "manifest" => false,
+        other => panic!("❌ Unknown mode '{other}'. Use 'debug', 'release' or 'manifest'."),
     };
 
     // Step 1: Generate the asset manifest.
     println!("\n📋 Generating asset manifest...");
     generate_asset_manifest(&project_root);
+
+    // `manifest` stops here: the tile generator refreshes the asset list after adding sprites.
+    if mode == "manifest" {
+        return;
+    }
 
     // Step 2: Build the WASM binary.
     println!("\n🔨 Building WASM binary ({mode})...");

@@ -1,0 +1,26 @@
+{
+  "sprites": {
+    "assets/tiles/objects/buildings/roof_tile_kiln/roof_tile_kiln.png": {
+      "category": "buildings",
+      "density": 8,
+      "draw_size": {
+        "height": 95,
+        "width": 128
+      },
+      "fast": false,
+      "hash": "79590592902cc666",
+      "layer": "objects",
+      "logical_size": {
+        "height": 64,
+        "width": 128
+      },
+      "png_size": [
+        1024,
+        760
+      ],
+      "tile": "roof_tile_kiln",
+      "variation": ""
+    }
+  },
+  "version": 1
+}

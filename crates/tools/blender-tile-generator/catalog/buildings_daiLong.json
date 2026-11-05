@@ -1,0 +1,13 @@
+{
+  "realm": "daiLong",
+  "palette": "viet",
+  "density": 8,
+  "entries": [
+    {
+      "tile": "roof_tile_kiln",
+      "recipe": "roof_tile_kiln",
+      "notes": "M5: a 2x2 workshop that fires roof tiles. No sector until M5 adds its good and building config.",
+      "tile_set": { "cost": 10 }
+    }
+  ]
+}

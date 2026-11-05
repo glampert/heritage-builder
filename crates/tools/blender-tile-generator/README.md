@@ -94,7 +94,8 @@ Final settings (v7) and why:
   palette).
 - **Grade.** Compositor saturation 1.0 (a 1.25 boost was tried; it tipped the
   greens), contrast +0.08.
-- **Measured targets** (linear luminance over opaque pixels): median ≈ 0.29,
+- **Measured targets** (Rec. 709 luma of the stored, gamma-encoded values over
+  opaque pixels, as Blender's `image.pixels` returns them for a PNG): median ≈ 0.29,
   p25/p75 ≈ 0.25/0.35, median saturation ≈ 0.46. Use `world_strength` as the
   single exposure knob; it moves brightness without touching palette or contrast.
 

@@ -31,6 +31,14 @@ jobs:
     steps:
       - uses: actions/checkout@v7
 
+      # Plain Python, no Blender: generated tiles' defs match the catalog, their
+      # sprites exist at the recorded sizes and are in web/asset_manifest.json.
+      - name: Tile generator (catalog in sync, unit tests)
+        if: runner.os == 'Linux'
+        run: |
+          python3 crates/tools/blender-tile-generator/sync_tileset.py --check
+          python3 -m unittest discover -s crates/tools/blender-tile-generator/tests
+
       - name: Install Linux system dependencies
         if: runner.os == 'Linux'
         run: |
