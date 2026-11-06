@@ -47,9 +47,10 @@ bitflags_with_display! {
         const Metal   = 1 << 6;
         const Clay    = 1 << 7;
         const Bricks  = 1 << 8;
+        const RoofTiles = 1 << 9;
 
         // Gold (used as currency only):
-        const Gold    = 1 << 9;
+        const Gold    = 1 << 10;
     }
 }
 
@@ -76,7 +77,9 @@ impl ResourceKind {
 
     #[inline]
     pub const fn raw_materials() -> Self {
-        Self::from_bits_retain(Self::Wood.bits() | Self::Metal.bits() | Self::Clay.bits() | Self::Bricks.bits())
+        Self::from_bits_retain(
+            Self::Wood.bits() | Self::Metal.bits() | Self::Clay.bits() | Self::Bricks.bits() | Self::RoofTiles.bits(),
+        )
     }
 
     #[inline]
@@ -111,6 +114,23 @@ impl ResourceKind {
     pub fn name(self) -> &'static str {
         debug_assert!(self.is_single_resource());
         Self::FLAGS.iter().find(|flag| *flag.value() == self).map_or("", |flag| flag.name())
+    }
+
+    // Name of a single-resource flag as the player reads it, with spaces between its words:
+    // "Roof Tiles" for `RoofTiles`. Saves and configs use `name()`.
+    pub fn display_name(self) -> std::borrow::Cow<'static, str> {
+        let name = self.name();
+        if !name.chars().skip(1).any(|c| c.is_ascii_uppercase()) {
+            return name.into();
+        }
+        let mut spaced = String::with_capacity(name.len() + 2);
+        for (i, c) in name.chars().enumerate() {
+            if i != 0 && c.is_ascii_uppercase() {
+                spaced.push(' ');
+            }
+            spaced.push(c);
+        }
+        spaced.into()
     }
 
     // Index of a single-resource flag, for use with `[_; RESOURCE_KIND_COUNT]` arrays.
@@ -1377,6 +1397,12 @@ mod tests {
         assert_eq!(stock.count(ResourceKind::Bricks), 5);
         stock.add(ResourceKind::Pottery, 2);
         assert_eq!(stock.count(ResourceKind::Pottery), 2);
+    }
+
+    #[test]
+    fn display_names_have_spaces() {
+        assert_eq!(ResourceKind::RoofTiles.display_name(), "Roof Tiles");
+        assert_eq!(ResourceKind::Rice.display_name(), "Rice");
     }
 
     #[test]

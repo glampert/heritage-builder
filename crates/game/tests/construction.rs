@@ -275,7 +275,7 @@ fn test_refund_goes_elsewhere_when_a_yard_is_gone() {
 // Material costs
 // ----------------------------------------------
 
-// A temple costs gold, wood and bricks: it can't be placed until the storage yards hold the
+// A temple costs gold, wood, bricks and roof tiles: it can't be placed until the storage yards hold the
 // materials, placing it takes them, and undoing the placement gives them and the gold back.
 fn test_temple_needs_bricks() {
     with_tile_costs(|| {
@@ -283,6 +283,7 @@ fn test_temple_needs_bricks() {
         let temple_def = test_utils::find_building_def("temple");
         let bricks_needed = temple_def.materials.iter().find(|item| item.kind == ResourceKind::Bricks).unwrap().count;
         let wood_needed = temple_def.materials.iter().find(|item| item.kind == ResourceKind::Wood).unwrap().count;
+        let roof_tiles_needed = temple_def.materials.iter().find(|item| item.kind == ResourceKind::RoofTiles).unwrap().count;
 
         let yard = spawn_yard(&mut env, Cell::new(2, 2), 0);
         let gold_before = gold(&mut env);
@@ -305,7 +306,14 @@ fn test_temple_needs_bricks() {
         }
 
         // Deliver the materials, plus a spare brick.
-        let lost = CityStock::deposit(&mut env.world, &materials(&[(ResourceKind::Bricks, bricks_needed + 1), (ResourceKind::Wood, wood_needed)]));
+        let lost = CityStock::deposit(
+            &mut env.world,
+            &materials(&[
+                (ResourceKind::Bricks, bricks_needed + 1),
+                (ResourceKind::Wood, wood_needed),
+                (ResourceKind::RoofTiles, roof_tiles_needed),
+            ]),
+        );
         assert!(lost.is_empty());
 
         {
@@ -314,6 +322,7 @@ fn test_temple_needs_bricks() {
         }
         assert_eq!(CityStock::available(&env.world, ResourceKind::Bricks), 1);
         assert_eq!(CityStock::available(&env.world, ResourceKind::Wood), 0);
+        assert_eq!(CityStock::available(&env.world, ResourceKind::RoofTiles), 0);
         assert_eq!(gold(&mut env), gold_before - temple_def.cost);
 
         // Undo: the materials and gold come back.
@@ -324,6 +333,7 @@ fn test_temple_needs_bricks() {
         assert!(env.world.find_building_for_cell(temple_cell, &env.tile_map).is_none());
         assert_eq!(CityStock::available(&env.world, ResourceKind::Bricks), bricks_needed + 1);
         assert_eq!(CityStock::available(&env.world, ResourceKind::Wood), wood_needed);
+        assert_eq!(CityStock::available(&env.world, ResourceKind::RoofTiles), roof_tiles_needed);
         assert_eq!(gold(&mut env), gold_before);
         assert!(test_utils::find_building(&env, yard).is(game::building::BuildingKind::StorageYard));
 
@@ -369,7 +379,8 @@ fn test_clearing_a_site_refunds_it() {
     as_player(|| {
         let mut env = TestEnvironment::new();
         let yard = spawn_yard(&mut env, Cell::new(2, 2), 0);
-        assert!(CityStock::deposit(&mut env.world, &materials(&[(ResourceKind::Bricks, 8), (ResourceKind::Wood, 6)])).is_empty());
+        let temple_materials = materials(&[(ResourceKind::Bricks, 8), (ResourceKind::Wood, 6), (ResourceKind::RoofTiles, 4)]);
+        assert!(CityStock::deposit(&mut env.world, &temple_materials).is_empty());
         let gold_before = gold(&mut env);
 
         let temple_cell = Cell::new(14, 14);
@@ -384,6 +395,7 @@ fn test_clearing_a_site_refunds_it() {
         assert_eq!(gold(&mut env), gold_before);
         assert_eq!(CityStock::available(&env.world, ResourceKind::Bricks), 8);
         assert_eq!(CityStock::available(&env.world, ResourceKind::Wood), 6);
+        assert_eq!(CityStock::available(&env.world, ResourceKind::RoofTiles), 4);
         // The yard's own count, which walkers see, is the same: 6 wood in two slots.
         assert_eq!(test_utils::find_building(&env, yard).available_resources(ResourceKind::Wood), 6);
         undo_redo::clear();

@@ -74,7 +74,7 @@ impl ResourcesManagement {
             index += 1;
 
             resources.storage_yards.for_each(|_, item| {
-                heading.set_line_string(index, &format_fixed_string!(FMT_LEN, "{}: {}", item.kind, item.count));
+                heading.set_line_string(index, &format_fixed_string!(FMT_LEN, "{}: {}", item.kind.display_name(), item.count));
                 index += 1;
             });
         }
@@ -87,7 +87,7 @@ impl ResourcesManagement {
             index += 1;
 
             resources.granaries.for_each(|_, item| {
-                heading.set_line_string(index, &format_fixed_string!(FMT_LEN, "{}: {}", item.kind, item.count));
+                heading.set_line_string(index, &format_fixed_string!(FMT_LEN, "{}: {}", item.kind.display_name(), item.count));
                 index += 1;
             });
         }

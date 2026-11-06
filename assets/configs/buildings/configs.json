@@ -408,6 +408,25 @@
       "fetch_from_storage_kinds": "StorageYard"
     },
     {
+      "kind": "Factory",
+      "name": "Roof Tile Kiln",
+      "tile_def_name": "roof_tile_kiln",
+      "min_workers": 2,
+      "max_workers": 4,
+      "production_output_frequency_secs": 20.0,
+      "production_output_amount": 1,
+      "production_output": "RoofTiles",
+      "production_capacity": 5,
+      "resources_required": {
+        "kinds": [
+          "Clay"
+        ]
+      },
+      "resources_capacity": 8,
+      "deliver_to_storage_kinds": "StorageYard",
+      "fetch_from_storage_kinds": "StorageYard"
+    },
+    {
       "kind": "Mine",
       "name": "Mine",
       "tile_def_name": "mine",
@@ -462,7 +481,8 @@
           "Metal",
           "Clay",
           "Pottery",
-          "Bricks"
+          "Bricks",
+          "RoofTiles"
         ]
       },
       "num_slots": 8,

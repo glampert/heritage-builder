@@ -48,7 +48,7 @@ impl fmt::Display for MissingCost {
             if !first {
                 f.write_str(", ")?;
             }
-            write!(f, "{} {}", item.count, item.kind)?;
+            write!(f, "{} {}", item.count, item.kind.display_name())?;
             first = false;
         }
         Ok(())

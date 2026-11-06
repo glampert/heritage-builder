@@ -1,0 +1,32 @@
+# Goods: a clay pit digs clay, the roof-tile kiln fires it into roof tiles, and walkers carry both
+# through a storage yard. A temple then takes its roof tiles from the city stock when it's placed.
+# From the repository root:
+#   cargo run -p HeritageBuilder -- --script crates/game/tests/scenarios/goods.jsonl
+# Sites are finished at once, and the worker cheat staffs the buildings with no residents.
+{"method": "time.fixed_dt", "params": {"dt": 0.016667}}
+{"method": "session.new_map", "params": {"size": [24, 24]}}
+{"method": "cheats.set", "params": {"name": "instant_construction", "value": true}}
+{"method": "cheats.set", "params": {"name": "ignore_worker_requirements", "value": true}}
+{"method": "world.road", "params": {"from": [3, 13], "to": [20, 13]}}
+
+# The chain: clay pit -> storage yard -> roof-tile kiln -> storage yard. A clay pit digs by water.
+{"method": "world.place", "params": {"tile": "water", "cell": [8, 10]}}
+{"method": "world.place", "params": {"tile": "water", "cell": [9, 10]}}
+{"method": "world.place", "params": {"tile": "storage_yard", "cell": [4, 10]}}
+{"method": "world.place", "params": {"tile": "clay_pit", "cell": [8, 11]}}
+{"method": "world.place", "params": {"tile": "roof_tile_kiln", "cell": [11, 11]}}
+{"method": "assert.eq", "params": {"query": "world.building_at", "args": {"cell": [11, 11]}, "path": "/name", "value": "Roof Tile Kiln"}}
+{"method": "time.fast_forward", "params": {"sim_secs": 300}}
+{"method": "assert.ge", "params": {"query": "world.stats", "path": "/city_stock/RoofTiles", "value": 4}}
+
+# A temple costs 4 roof tiles, with 6 wood and 8 bricks, all taken when it's placed. The kiln has
+# fired 8 by now (the run is deterministic at this time step).
+{"method": "world.add_stock", "params": {"resources": {"Wood": 6, "Bricks": 8}}}
+{"method": "assert.eq", "params": {"query": "world.stats", "path": "/city_stock/RoofTiles", "value": 8}}
+{"method": "world.place", "params": {"tile": "temple", "cell": [15, 10]}}
+{"method": "assert.eq", "params": {"query": "world.building_at", "args": {"cell": [15, 10]}, "path": "/kind", "value": "Temple"}}
+{"method": "assert.eq", "params": {"query": "world.stats", "path": "/city_stock/RoofTiles", "value": 4}}
+{"method": "camera.zoom", "params": {"zoom": 2}}
+{"method": "camera.teleport", "params": {"cell": [11, 12]}}
+{"method": "input.move", "params": {"park": true}}
+{"method": "screenshot", "params": {"path": "out/goods.png"}}

@@ -193,7 +193,7 @@ impl UnitInspector {
 
     fn set_inventory(&mut self, inventory: Option<StockItem>) {
         if let Some(item) = inventory {
-            self.renderer.set_heading_pairs(&[(item.kind, item.count)]);
+            self.renderer.set_heading_pairs(&[(item.kind.display_name(), item.count)]);
         } else {
             self.renderer.clear_headings();
         }
@@ -457,7 +457,7 @@ impl BuildingInspector {
                         body.add_str(" | ");
                     }
 
-                    add_body_str!(&mut body, "{}: {}", item.kind, item.count);
+                    add_body_str!(&mut body, "{}: {}", item.kind.display_name(), item.count);
                     items_in_line += 1;
                 }
             }

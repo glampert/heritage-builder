@@ -653,7 +653,7 @@
         {
           "name": "temple",
           "cost": 15,
-          "materials": { "Wood": 6, "Bricks": 8 },
+          "materials": { "Wood": 6, "Bricks": 8, "RoofTiles": 4 },
           "construction": "Civic",
           "sector": "CultureAndReligion",
           "logical_size": {
@@ -734,7 +734,7 @@
         {
           "name": "hospital",
           "cost": 12,
-          "materials": { "Wood": 6, "Bricks": 6 },
+          "materials": { "Wood": 6, "Bricks": 6, "RoofTiles": 3 },
           "construction": "Civic",
           "sector": "Services",
           "logical_size": {
@@ -762,7 +762,7 @@
         {
           "name": "theater",
           "cost": 15,
-          "materials": { "Wood": 8, "Bricks": 6 },
+          "materials": { "Wood": 8, "Bricks": 6, "RoofTiles": 4 },
           "construction": "Civic",
           "sector": "CultureAndReligion",
           "logical_size": {
@@ -790,7 +790,7 @@
         {
           "name": "university",
           "cost": 20,
-          "materials": { "Wood": 8, "Bricks": 10 },
+          "materials": { "Wood": 8, "Bricks": 10, "RoofTiles": 5 },
           "construction": "Civic",
           "sector": "CultureAndReligion",
           "logical_size": {
@@ -818,7 +818,7 @@
         {
           "name": "governor_palace",
           "cost": 500,
-          "materials": { "Bricks": 16, "Wood": 8, "Metal": 4 },
+          "materials": { "Bricks": 16, "Wood": 8, "Metal": 4, "RoofTiles": 8 },
           "construction": "Grand",
           "sector": "Infrastructure",
           "logical_size": {
@@ -846,7 +846,7 @@
         {
           "name": "citadel",
           "cost": 1000,
-          "materials": { "Bricks": 24, "Wood": 8, "Metal": 8 },
+          "materials": { "Bricks": 24, "Wood": 8, "Metal": 8, "RoofTiles": 8 },
           "construction": "Grand",
           "sector": "Infrastructure",
           "logical_size": {
@@ -994,6 +994,7 @@
         {
           "name": "roof_tile_kiln",
           "cost": 10,
+          "sector": "IndustryAndResources",
           "logical_size": {
             "width": 128,
             "height": 64

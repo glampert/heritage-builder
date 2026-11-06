@@ -1,6 +1,6 @@
 # Goods and production for missions I-1 to I-5
 
-**Status (2026-11-06): Phase 0 done; Phase 1, roof tiles and the kiln, next.** This plan is milestone M5 of the [roadmap](roadmap.md). It adds the goods and producers that missions I-1 to I-5 need ([campaigns.md](../design/campaigns.md#campaign-i--the-dragon-legacy-đại-long), GDD §8), and rebalances storage against construction costs and house needs. First it changes how goods are saved, so that adding a good later never breaks the save format (user request, 2026-11-06). It was researched against `9635bff` on `claude`. File and line references point at that commit, so re-check them before relying on them.
+**Status (2026-11-06): Phases 0 and 1 done; Phase 2, the house ladder and storage balance, next.** This plan is milestone M5 of the [roadmap](roadmap.md). It adds the goods and producers that missions I-1 to I-5 need ([campaigns.md](../design/campaigns.md#campaign-i--the-dragon-legacy-đại-long), GDD §8), and rebalances storage against construction costs and house needs. First it changes how goods are saved, so that adding a good later never breaks the save format (user request, 2026-11-06). It was researched against `9635bff` on `claude`. File and line references point at that commit, so re-check them before relying on them.
 
 ## How to resume this work
 
@@ -79,7 +79,7 @@ A saved good the config no longer accepts stays accepted while the stock holds a
 
 ### 3. Roof tiles and the kiln (Phase 1)
 
-- **Good:** `RoofTiles`, grouped with the raw materials (construction materials). Display name "Roof Tiles". The storage yard accepts it.
+- **Good:** `RoofTiles`, grouped with the raw materials (construction materials). The player reads "Roof Tiles" (`ResourceKind::display_name()`). The storage yard accepts it.
 - **Producer:** the roof-tile kiln, `Factory`, clay in, 1 roof tile per 20 s (like the brick maker), delivered to and fetched from storage yards. `sector: IndustryAndResources` and cost 10, as the brick maker. The art is already in.
 - **Walker art:** the delivery walker reuses the brick maker's runner sprite, if goods aren't drawn per kind. Check this when the config lands.
 - **Costs:** roof tiles go on the civic buildings that come from mission 3 on: the temple, hospital, theatre, university, governor's palace and citadel. Mission I-2's tax office, police station, apothecary and distillery keep wood and bricks, so I-2 teaches materials with the goods it introduces (see the open decisions).
@@ -116,11 +116,20 @@ A saved good the config no longer accepts stays accepted while the stock holds a
 
 ### Phase 1: Roof tiles and the kiln (small to medium)
 
-- [ ] `RoofTiles` good, accepted by the storage yard.
-- [ ] Roof-tile kiln producer config; `sector` and cost on its tile def; remove its known-issues entry.
-- [ ] Roof tiles on the civic buildings' `materials`.
-- [ ] A version 5 save from before this phase loads (the Phase 0 promise, checked for real).
-- [ ] `goods.jsonl` scenario, added to CI.
+- [x] `RoofTiles` good, accepted by the storage yard.
+- [x] Roof-tile kiln producer config; `sector` and cost on its tile def; remove its known-issues entry.
+- [x] Roof tiles on the civic buildings' `materials`.
+- [x] A version 5 save from before this phase loads (the Phase 0 promise, checked for real).
+- [x] `goods.jsonl` scenario, added to CI.
+
+**Notes (2026-11-06):**
+- `RoofTiles` is bit 9, between `Bricks` and `Gold`, so `Gold` moved to bit 10: a good inserted mid-list, with no save-version bump. The version 5 sample saves (made before it) pass `--smoke-test-saves`; `tiny_island`'s yards still read 32 Wine, and an old yard in `test_map_64x64` takes roof tiles.
+- `ResourceKind::display_name()` spaces a name's words ("Roof Tiles"). Cost texts, the missing-materials message, the Resources dialog and the inspectors use it; saves, configs and automation keep `RoofTiles`.
+- The producer config is named "Roof Tile Kiln", matching the build menu's label, which comes from the tile name. The sector went in through the tile generator's catalog entry (`tile_set.sector`), since the tile def is generated.
+- Roof tiles added: temple 4, hospital 3, theater 4, university 5, governor's palace 8, citadel 8. The palace and citadel now use all four material slots (`MAX_CONSTRUCTION_MATERIALS`).
+- `construction.jsonl` now places two storage yards: two temples' materials (12 wood, 16 bricks, 8 roof tiles) need 9 slots of 4, one more than a yard has. Phase 2's storage sizes may make one enough again.
+- `goods.jsonl`: water beside a clay pit (it must be placed near water), the kiln and a yard; after 300 simulated seconds the yard holds 8 roof tiles, and a temple takes 4. It saves `out/goods.png`. The kiln's delivery walker needed no new sprite.
+- Verified: `cargo test --workspace`, every CI scenario including `goods`, `determinism.jsonl` twice, the web target, `ui.layout_issues` on the industry build menu and the Resources dialog, and `sync_tileset.py --check`.
 
 ### Phase 2: House ladder and storage balance (small)
 
