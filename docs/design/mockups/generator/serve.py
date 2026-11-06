@@ -58,6 +58,7 @@ class State:
         self.building = False
         self.error = ""
         self.last = ""
+        self.pending = set()   # steps a failed build left undone
 
     def snapshot(self):
         with self.lock:
@@ -68,19 +69,22 @@ STATE = State()
 
 
 def run_steps(steps):
-    steps = [s for s in STEPS if s in steps]
     with STATE.lock:
+        steps = [s for s in STEPS if s in steps or s in STATE.pending]
         STATE.building = True
     t0 = time.time()
     error = ""
-    for step in steps:
+    undone = set()
+    for i, step in enumerate(steps):
         proc = subprocess.run([sys.executable, f"{step}.py"], cwd=HERE, capture_output=True, text=True)
         if proc.returncode:
             error = f"{step}.py failed:\n\n{proc.stderr.strip() or proc.stdout.strip()}"
+            undone = set(steps[i:])
             break
     with STATE.lock:
         STATE.building = False
         STATE.error = error
+        STATE.pending = undone
         STATE.last = f"{', '.join(steps)} in {time.time() - t0:.1f} s" + (" (failed)" if error else "")
         if not error:
             STATE.version += 1
