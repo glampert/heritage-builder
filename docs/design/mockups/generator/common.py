@@ -12,6 +12,18 @@ MAP_W, MAP_H = 1000 * MAP_S, 672 * MAP_S       # 1290 x 867
 PANEL_X, PANEL_W = 1400, 480
 
 
+# Each realm's typefaces. A family must be in fonts.py (Google Fonts or the
+# game's own assets/fonts) and cover the Vietnamese diacritics wherever it
+# shows Đại Long's names.
+REALM_FONTS = {
+    "dailong": dict(title="Protest Revolution", label="Protest Revolution", body="Protest Revolution"),
+    # A family list falls back glyph by glyph: Jaini and Amita have no
+    # Vietnamese, so Đại Long's names take their missing letters from the next.
+    "kambara": dict(title="Jaini, 'Spectral SC'", label="Jaini, 'Spectral SC'", body="Jaini, 'Spectral SC'"),
+    "tampadesa": dict(title="Amita, Alegreya", label="Amita, Alegreya", body="Amita, Alegreya"),
+}
+
+
 def P(x, y):
     return MAP_X + x * MAP_S, MAP_Y + y * MAP_S
 

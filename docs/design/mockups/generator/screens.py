@@ -31,7 +31,7 @@ class Screens:
         svg = (f'<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" width="{W}" height="{H}" viewBox="0 0 {W} {H}">'
                f'<defs>{"".join(self.defs)}</defs>{body}</svg>')
         html = (f'<!doctype html><html><head><meta charset="utf-8"><title>{name}</title>'
-                f'<style>{FONTS_CSS} html,body{{margin:0;padding:0;background:#000}} svg{{display:block}}</style>'
+                f'<style>{FONTS_CSS} html,body{{margin:0;padding:0;background:#000}} svg{{display:block;font-synthesis:style}}</style>'
                 f'</head><body>{svg}</body></html>')
         BUILD.mkdir(exist_ok=True)
         (BUILD / f"{name}.html").write_text(html)

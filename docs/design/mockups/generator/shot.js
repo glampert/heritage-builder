@@ -11,7 +11,7 @@ const path = require('path');
     await p.goto('file://' + path.join(__dirname, 'build', `${name}.html`));
     await p.evaluate(() => document.fonts.ready);
     await p.waitForTimeout(300);
-    const out = path.join(__dirname, '..', `${name}.jpg`);
+    const out = path.join(process.env.OUTDIR || path.join(__dirname, '..'), `${name}.jpg`);
     await p.screenshot({ path: out, type: 'jpeg', quality });
     console.log('wrote', out);
   }

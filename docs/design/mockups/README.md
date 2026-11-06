@@ -48,18 +48,57 @@ The city behind the HUD is existing art: Đại Long's is cropped from `../../im
 
 Placeholders in these screens: the stele lines, goals, numbers and distinctions, and the dialogue not given in story-script.md.
 
-## Regenerating
+## Main menu
 
-The generator lives in [generator/](generator/): `common.py` holds the shared geography and layout, `content.py` what each realm's map shows, and `world_map.py` the three styles. `screens.py` (with its text in `screens_content.py`) draws the intro, intermission and HUD screens in the same styles. It needs Python 3, Node with Playwright and Chromium, and network access to Google Fonts the first time.
+The home menu and its dialogs: load / save, settings, custom game and about. The game shows the home menu in the style of the realm whose campaign the player has reached, so each realm's set shows the saved progress at that point: the campaigns reached, Continue and Campaign pointing at mission 6, saves from earlier campaigns, and the realms Custom Game has unlocked.
+
+| Screen | Đại Long | Kambara | Tampadesa |
+|---|---|---|---|
+| Home | [menu-home-dailong.jpg](menu-home-dailong.jpg) | [menu-home-kambara.jpg](menu-home-kambara.jpg) | [menu-home-tampadesa.jpg](menu-home-tampadesa.jpg) |
+| Load / save | [menu-load-save-dailong.jpg](menu-load-save-dailong.jpg) | [menu-load-save-kambara.jpg](menu-load-save-kambara.jpg) | [menu-load-save-tampadesa.jpg](menu-load-save-tampadesa.jpg) |
+| Settings (Game, Sound, Graphics tab) | [menu-settings-dailong.jpg](menu-settings-dailong.jpg) | [menu-settings-kambara.jpg](menu-settings-kambara.jpg) | [menu-settings-tampadesa.jpg](menu-settings-tampadesa.jpg) |
+| Custom game | [menu-custom-game-dailong.jpg](menu-custom-game-dailong.jpg) | [menu-custom-game-kambara.jpg](menu-custom-game-kambara.jpg) | [menu-custom-game-tampadesa.jpg](menu-custom-game-tampadesa.jpg) |
+| About | [menu-about-dailong.jpg](menu-about-dailong.jpg) | [menu-about-kambara.jpg](menu-about-kambara.jpg) | [menu-about-tampadesa.jpg](menu-about-tampadesa.jpg) |
+
+Đại Long's home backdrop is the game's own painting (`assets/ui/misc/home_menu_static_bg.png`); Kambara's and Tampadesa's are flat vector stand-ins drawn by `menus.py`. Placeholders: the save names, maps, numbers and credit names.
+
+## Fonts
+
+Each realm has its own typeface, set in `REALM_FONTS` in `generator/common.py`:
+
+| Realm | Font | Source |
+|---|---|---|
+| Đại Long | Protest Revolution | `assets/fonts/protest_revolution_regular.ttf` (SIL OFL, `protest_revolution_OFL.txt`) |
+| Kambara | Jaini, a carved-stone look | `assets/fonts/jaini_regular.ttf` (SIL OFL, `jaini_OFL.txt`) |
+| Tampadesa | Amita, thin strokes and round letters | `assets/fonts/amita_regular.ttf`, `amita_bold.ttf` (SIL OFL, `amita_OFL.txt`) |
+
+Jaini and Amita have no Vietnamese, so Đại Long's names on Kambara's and Tampadesa's screens take their accented letters from a fallback (Spectral SC and Alegreya, from Google Fonts). Protest Revolution covers Vietnamese.
+
+## Live preview
 
 ```bash
 cd docs/design/mockups/generator
-python3 fonts.py        # downloads the fonts into build/ (git-ignored)
+python3 serve.py --open
+```
+
+builds every screen and serves them at http://127.0.0.1:8765/ (`--port` and `--host` change that). The index links each screen; a screen's page fits it to the window, with links to the other realms and ← / → to step through all 27. Saving a file in this folder, or a font in `assets/fonts/`, re-runs only the scripts it affects (about a second) and the open page reloads itself. A failed build shows its traceback over the page and keeps the last good screens. It's the standard library only, but the scripts it runs need Pillow. It writes only the HTML in `build/`: run `shot.js` to update the committed JPEGs.
+
+## Regenerating
+
+The generator lives in [generator/](generator/): `common.py` holds the shared geography and layout, `content.py` what each realm's map shows, and `world_map.py` the three styles. `screens.py` (with its text in `screens_content.py`) draws the intro, intermission and HUD screens in the same styles, and `menus.py` (text in `menus_content.py`) the main menu screens. It needs Python 3, Node with Playwright and Chromium, and network access to Google Fonts the first time.
+
+```bash
+cd docs/design/mockups/generator
+python3 fonts.py        # embeds the fonts into build/fonts.css (git-ignored): Google Fonts and assets/fonts
 python3 world_map.py    # writes build/world-map-<realm>.html
 node shot.js world-map-dailong world-map-kambara world-map-tampadesa
 python3 screens.py      # writes build/{intro,intermission,hud}-<realm>.html
 node shot.js intro-dailong intermission-dailong hud-dailong   # and so on per realm
+python3 menus.py        # writes build/menu-{home,load-save,settings,custom-game,about}-<realm>.html
+node shot.js menu-home-dailong   # and so on
 ```
+
+`node prev.js NAME...` saves quick 1x previews as `build/prev-<name>.jpg`, and `OUTDIR=DIR node shot.js ...` writes the full-size images somewhere other than this folder, e.g. to compare before replacing them.
 
 Run `python3 backdrops.py` (needs Pillow) before `screens.py`: it crops the city art behind the HUD into `build/city_<realm>.jpg`.
 
