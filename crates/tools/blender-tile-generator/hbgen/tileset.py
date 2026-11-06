@@ -124,7 +124,7 @@ def _variation_obj(entry, v):
     if v["name"]:
         obj["name"] = v["name"]
     obj.update(v["tile_set"])
-    obj["anim_sets"] = [{"frames": [{"name": entry["tile"]}]}]
+    obj["anim_sets"] = [{"frames": [{"name": f["name"]} for f in entry["frames"]]}]
     return obj
 
 
@@ -135,13 +135,13 @@ def desired_def(entry, existing, sprites, notes):
     if bad:
         raise SyncError(f"{entry['tile']}: tile_set may not set {sorted(bad)}; they come from the render")
     recs = []
-    for v in entry["variations"]:
-        rec = sprites.get(cat.sprite_path(entry, v["name"]))
+    for job in cat.jobs([dict(entry, generated=True)]):
+        rec = sprites.get(job["path"])
         if rec is None:
-            raise SyncError(f"{entry['tile']}: {cat.sprite_path(entry, v['name'])} isn't rendered yet; run build.py")
+            raise SyncError(f"{entry['tile']}: {job['path']} isn't rendered yet; run build.py")
         recs.append(rec)
     if any((r["logical_size"], r["draw_size"]) != (recs[0]["logical_size"], recs[0]["draw_size"]) for r in recs):
-        raise SyncError(f"{entry['tile']}: its variations rendered at different sizes; build.py renders them at one height")
+        raise SyncError(f"{entry['tile']}: its sprites rendered at different sizes; build.py renders a tile's sprites at one height")
     if existing is not None:
         ours = [ev for ev in existing.get("variations", []) if cat.sprite_path(entry, ev.get("name", "")) in sprites]
         if not ours:

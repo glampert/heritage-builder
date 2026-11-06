@@ -276,11 +276,20 @@ Notes (2026-11-05):
   - dyke, with junction variations, and sluice gate;
   - trade post, mulberry field, rice paddy (if it becomes a terrain-like building), common house level 5;
   - statue and pond decorations.
-- [ ] Overlays: `scaffold` for 1×1 to 5×5 in 3 stages, `renovation` for each house size, and `rubble` for 1×1 to 5×5.
+- [x] Overlays: `scaffold` for 1×1 to 5×5 in 3 stages, `renovation` for each house size. Done 2026-11-06, with 4 stages to match the engine; see the notes in [construction.md](construction.md) §6.
+- [ ] `rubble` for 1×1 to 5×5 (with M6).
 - [ ] `crates/game/tests/scenarios/art_gallery.jsonl` (§5): places every generated building that has a building config, with screenshots. Moved here from Phase 2.
 - [ ] Review the contact sheets and the in-game gallery with the user.
 
 Done when: every building in the Phase 1 build menus has art, either hand-made or generated.
+
+Notes (2026-11-06), the scaffold and renovation overlays:
+- **Frames:** the catalog takes `frames`, each with its own recipe parameters, written to `<tile>/[<variation>/]<frame>.png` and listed in one anim set. Variations and frames of a tile all render at one height.
+- **Overlay checks:** `"validate": {"ground": false}` skips the diamond and bottom-row checks for sprites with no ground.
+- **Primitive:** `Builder.pole` draws a round pole between two points.
+- **Materials:** `bamboo` and `rope`.
+- **Catalog:** `catalog/overlays.json` holds 9 tiles and 24 sprites, about 75 s to render.
+- **Brightness:** stage 0 was first a pale paved slab, 0.64 luma at 3×3 and up against the 0.29 target, and read as an empty plaza. A dug floor inside a stone footing, with materials spread in proportion to the area, fixed both.
 
 ### Phase 4: Terrain tiles and transitions (medium)
 

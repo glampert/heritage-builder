@@ -28,6 +28,8 @@ PALETTES = {
         "fire":       "ff8c2a",
         "plaster":    ("b88a44", "d8b064"),             # ochre lime plaster
         "roofGrey":   ("2a221c", "5a4e44", "8c7e6c"),   # weathered grey-brown tiles, as on the hand-made workshops
+        "bamboo":     ("8a7636", "c9b46a"),             # scaffold poles
+        "rope":       "e2d6b0",                         # builders' string lines
     },
     # Bagan-inspired: red brick, teak, sandstone paving, gilded central shikhara.
     "burma": {

@@ -3,9 +3,10 @@
 Each sprite must match the engine's format (see README §10):
 - the width is logical width x density, the height a multiple of density;
 - the top row is empty (nothing clipped above);
-- the diamond's left and right corners touch the sides, a quarter of the width
-  above the bottom, give or take the ink (one logical px);
-- the bottom row holds only the footprint's front corner, at the centre.
+- with a ground diamond (not an overlay, "validate": {"ground": false}):
+  - the diamond's left and right corners touch the sides, a quarter of the
+    width above the bottom, give or take the ink (one logical px);
+  - the bottom row holds only the footprint's front corner, at the centre.
 Brightness and saturation are compared with the palette's targets; a miss is a
 warning, since buildings differ (a sandy yard is brighter than a stone court).
 """
@@ -27,7 +28,7 @@ def _median(xs):
     return xs[len(xs) // 2] if xs else 0.0
 
 
-def check_sprite(path, rec, palette="viet", full_width=True):
+def check_sprite(path, rec, palette="viet", ground=True):
     """(errors, warnings, stats) for one sprite. rec is its manifest record."""
     errors, warnings = [], []
     w, h, px = pngio.read_rgba(path)
@@ -40,7 +41,7 @@ def check_sprite(path, rec, palette="viet", full_width=True):
         errors.append(f"height {h} isn't a multiple of the density {d}")
     if any(A(x, 0) for x in range(w)):
         errors.append("the top row isn't empty: the model may be clipped at the top")
-    if full_width:
+    if ground:
         # The outermost 2 columns: further in, the diamond's lower edge has already
         # dropped (1 px per 2 columns), on top of the ink below it.
         for side, xs in (("left", range(0, 2)), ("right", range(w - 2, w))):
@@ -52,7 +53,9 @@ def check_sprite(path, rec, palette="viet", full_width=True):
             if abs(max(rows) - expected) > d:
                 errors.append(f"the {side} corner is at row {max(rows)}, expected {expected} (± {d}): the anchor is off")
     bottom = [x for x in range(w) if A(x, h - 1) > 127]
-    if not bottom:
+    if not ground:
+        pass
+    elif not bottom:
         errors.append("the bottom row is empty: the footprint's front corner should touch it")
     elif min(bottom) < w // 2 - 2 * d or max(bottom) > w // 2 + 2 * d:
         errors.append(f"the bottom row is opaque from x {min(bottom)} to {max(bottom)}; only the front corner, "

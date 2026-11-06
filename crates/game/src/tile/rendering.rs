@@ -11,13 +11,17 @@ use common::{
     constants::*,
     mem::RawPtr,
     coords::{self, CellRange, IsoPointF32, WorldToScreenTransform},
+    hash::StrHashPair,
 };
 use engine::{
     render::{RenderSystem, debug::DebugDraw},
     ui::{self, UiSystem},
 };
 
-use super::{Tile, TileDepthSortOverride, TileFlags, TileKind, TileMap, TileMapLayerKind, road};
+use super::{
+    Tile, TileDepthSortOverride, TileFlags, TileKind, TileMap, TileMapLayerKind, road,
+    sets::{OBJECTS_OVERLAYS_CATEGORY, TileDef, TileSets, TileTexInfo},
+};
 use crate::{building, debug, pathfind::{Node, NodeKind as PathNodeKind}};
 
 // ----------------------------------------------
@@ -467,14 +471,22 @@ impl TileMapRenderer {
                 let color = tile.tint_color() * highlight_color;
 
                 if let Some(stage) = building::construction_stage_from_tile_flags(tile.flags()) {
-                    // Construction site: a faint outline of the whole building, and the part
-                    // built so far rising from the ground through it.
-                    render_sys.draw_textured_colored_rect(tile_screen_rect, tex_coords, texture, color * CONSTRUCTION_OUTLINE_COLOR);
-                    let (rect, coords) = construction_site_rect(tile_screen_rect, tex_coords, stage);
-                    render_sys.draw_textured_colored_rect(rect, &coords, texture, color * CONSTRUCTION_SITE_COLOR);
+                    if let Some((rect, scaffold)) = construction_overlay(tile, &SCAFFOLD_TILES, usize::from(stage), transform) {
+                        // Construction site: the scaffold for its footprint and stage, instead of the building.
+                        render_sys.draw_textured_colored_rect(rect, &scaffold.coords, scaffold.texture, highlight_color);
+                    } else {
+                        // No scaffold art for this size: a faint outline of the whole building, and
+                        // the part built so far rising from the ground through it.
+                        render_sys.draw_textured_colored_rect(tile_screen_rect, tex_coords, texture, color * CONSTRUCTION_OUTLINE_COLOR);
+                        let (rect, coords) = construction_site_rect(tile_screen_rect, tex_coords, stage);
+                        render_sys.draw_textured_colored_rect(rect, &coords, texture, color * CONSTRUCTION_SITE_COLOR);
+                    }
                 } else if tile.has_flags(TileFlags::Renovating) {
-                    // A house being renovated before an upgrade.
+                    // A house being renovated before an upgrade: lightly tinted, with scaffolding over it.
                     render_sys.draw_textured_colored_rect(tile_screen_rect, tex_coords, texture, color * RENOVATION_COLOR);
+                    if let Some((rect, overlay)) = construction_overlay(tile, &RENOVATION_TILES, 0, transform) {
+                        render_sys.draw_textured_colored_rect(rect, &overlay.coords, overlay.texture, highlight_color);
+                    }
                 } else {
                     // Standard render:
                     render_sys.draw_textured_colored_rect(tile_screen_rect, tex_coords, texture, color);
@@ -624,14 +636,62 @@ impl TileDrawListEntry {
 // Construction sites
 // ----------------------------------------------
 
-// A construction site draws its building twice: a faint outline of all of it, and the part built
-// so far in a sandy tint, like fresh timber and unfired brick. Placeholder until the art pipeline
-// provides scaffold sprites (construction plan §6).
+// Construction art from the tile generator (overlays category), by footprint size in cells:
+// scaffold_NxN has a frame per construction stage and is drawn instead of a site's building;
+// renovation_NxN is drawn over a renovating house. Both are anchored like a building of that
+// footprint, at their own draw size.
+const SCAFFOLD_TILES: [StrHashPair; 5] = [
+    StrHashPair::from_str("scaffold_1x1"),
+    StrHashPair::from_str("scaffold_2x2"),
+    StrHashPair::from_str("scaffold_3x3"),
+    StrHashPair::from_str("scaffold_4x4"),
+    StrHashPair::from_str("scaffold_5x5"),
+];
+const RENOVATION_TILES: [StrHashPair; 4] = [
+    StrHashPair::from_str("renovation_1x1"),
+    StrHashPair::from_str("renovation_2x2"),
+    StrHashPair::from_str("renovation_3x3"),
+    StrHashPair::from_str("renovation_4x4"),
+];
+
+fn overlay_tile_def(tiles: &[StrHashPair], footprint_cells: i32) -> Option<&'static TileDef> {
+    let name = tiles.get(usize::try_from(footprint_cells).ok()?.checked_sub(1)?)?;
+    TileSets::get().try_find_tile_def_by_hash(TileMapLayerKind::Objects, OBJECTS_OVERLAYS_CATEGORY.hash, name.hash)
+}
+
+// The scaffold drawn instead of a construction site's building, for a square footprint this
+// many cells wide, with a frame per construction stage. None when there's no art for that size.
+pub fn scaffold_tile_def(footprint_cells: i32) -> Option<&'static TileDef> {
+    overlay_tile_def(&SCAFFOLD_TILES, footprint_cells)
+}
+
+// The scaffolding drawn over a renovating house this many cells wide. None without art.
+pub fn renovation_tile_def(footprint_cells: i32) -> Option<&'static TileDef> {
+    overlay_tile_def(&RENOVATION_TILES, footprint_cells)
+}
+
+// The overlay from `tiles` for this tile's footprint, frame `frame` (clamped to the last), and
+// the screen rect to draw it in. None when there's no art for the footprint.
+fn construction_overlay(
+    tile: &Tile,
+    tiles: &[StrHashPair],
+    frame: usize,
+    transform: WorldToScreenTransform,
+) -> Option<(Rect, &'static TileTexInfo)> {
+    let def = overlay_tile_def(tiles, tile.logical_size().width / BASE_TILE_WIDTH_I32)?;
+    let frames = &def.anim_set_by_index(0, 0)?.frames;
+    let sprite = frames.get(frame.min(frames.len().checked_sub(1)?))?;
+    let iso = super::calc_object_iso_coords(TileKind::Building, tile.base_cell(), tile.logical_size(), def.draw_size);
+    Some((coords::iso_to_screen_rect_f32(iso, def.draw_size, transform), &sprite.tex_info))
+}
+
+// Without scaffold art for its size, a construction site draws its building twice: a faint
+// outline of all of it, and the part built so far in a sandy tint.
 const CONSTRUCTION_OUTLINE_COLOR: Color = Color::new(1.0, 0.9, 0.75, 0.3);
 const CONSTRUCTION_SITE_COLOR: Color = Color::new(1.0, 0.82, 0.6, 1.0);
 
-// A house being renovated: a lighter version of the site tint. Placeholder for a scaffold overlay.
-const RENOVATION_COLOR: Color = Color::new(1.0, 0.9, 0.75, 1.0);
+// A house being renovated: a light sandy tint under its scaffolding overlay.
+const RENOVATION_COLOR: Color = Color::new(1.0, 0.93, 0.82, 1.0);
 
 // The part of a building's sprite a construction site at `stage` has built: its bottom
 // (stage + 1) quarters, so it rises from the ground as the site progresses. Returns the screen

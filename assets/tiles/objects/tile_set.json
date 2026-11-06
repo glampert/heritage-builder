@@ -2246,6 +2246,272 @@
           ]
         }
       ]
+    },
+    {
+      "name": "overlays",
+      "tile_defs": [
+        {
+          "name": "scaffold_1x1",
+          "logical_size": {
+            "width": 64,
+            "height": 32
+          },
+          "draw_size": {
+            "width": 64,
+            "height": 64
+          },
+          "variations": [
+            {
+              "anim_sets": [
+                {
+                  "frames": [
+                    {
+                      "name": "stage0"
+                    },
+                    {
+                      "name": "stage1"
+                    },
+                    {
+                      "name": "stage2"
+                    },
+                    {
+                      "name": "stage3"
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "name": "scaffold_2x2",
+          "logical_size": {
+            "width": 128,
+            "height": 64
+          },
+          "draw_size": {
+            "width": 128,
+            "height": 108
+          },
+          "variations": [
+            {
+              "anim_sets": [
+                {
+                  "frames": [
+                    {
+                      "name": "stage0"
+                    },
+                    {
+                      "name": "stage1"
+                    },
+                    {
+                      "name": "stage2"
+                    },
+                    {
+                      "name": "stage3"
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "name": "scaffold_3x3",
+          "logical_size": {
+            "width": 192,
+            "height": 96
+          },
+          "draw_size": {
+            "width": 192,
+            "height": 151
+          },
+          "variations": [
+            {
+              "anim_sets": [
+                {
+                  "frames": [
+                    {
+                      "name": "stage0"
+                    },
+                    {
+                      "name": "stage1"
+                    },
+                    {
+                      "name": "stage2"
+                    },
+                    {
+                      "name": "stage3"
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "name": "scaffold_4x4",
+          "logical_size": {
+            "width": 256,
+            "height": 128
+          },
+          "draw_size": {
+            "width": 256,
+            "height": 194
+          },
+          "variations": [
+            {
+              "anim_sets": [
+                {
+                  "frames": [
+                    {
+                      "name": "stage0"
+                    },
+                    {
+                      "name": "stage1"
+                    },
+                    {
+                      "name": "stage2"
+                    },
+                    {
+                      "name": "stage3"
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "name": "scaffold_5x5",
+          "logical_size": {
+            "width": 320,
+            "height": 160
+          },
+          "draw_size": {
+            "width": 320,
+            "height": 238
+          },
+          "variations": [
+            {
+              "anim_sets": [
+                {
+                  "frames": [
+                    {
+                      "name": "stage0"
+                    },
+                    {
+                      "name": "stage1"
+                    },
+                    {
+                      "name": "stage2"
+                    },
+                    {
+                      "name": "stage3"
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "name": "renovation_1x1",
+          "logical_size": {
+            "width": 64,
+            "height": 32
+          },
+          "draw_size": {
+            "width": 64,
+            "height": 44
+          },
+          "variations": [
+            {
+              "anim_sets": [
+                {
+                  "frames": [
+                    {
+                      "name": "renovation_1x1"
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "name": "renovation_2x2",
+          "logical_size": {
+            "width": 128,
+            "height": 64
+          },
+          "draw_size": {
+            "width": 128,
+            "height": 63
+          },
+          "variations": [
+            {
+              "anim_sets": [
+                {
+                  "frames": [
+                    {
+                      "name": "renovation_2x2"
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "name": "renovation_3x3",
+          "logical_size": {
+            "width": 192,
+            "height": 96
+          },
+          "draw_size": {
+            "width": 192,
+            "height": 82
+          },
+          "variations": [
+            {
+              "anim_sets": [
+                {
+                  "frames": [
+                    {
+                      "name": "renovation_3x3"
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "name": "renovation_4x4",
+          "logical_size": {
+            "width": 256,
+            "height": 128
+          },
+          "draw_size": {
+            "width": 256,
+            "height": 101
+          },
+          "variations": [
+            {
+              "anim_sets": [
+                {
+                  "frames": [
+                    {
+                      "name": "renovation_4x4"
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        }
+      ]
     }
   ]
 }

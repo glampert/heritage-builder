@@ -85,13 +85,13 @@ def main():
     for e in selected:
         jobs = cat.jobs([e])
         sources = CORE_SOURCES + [inspect.getsourcefile(RECIPES[e["recipe"]])]
-        # A tile def has one draw_size, so a tile's variations share the tallest one's height.
+        # A tile def has one draw_size, so a tile's sprites (variations and frames) share the tallest one's height.
         height = None
         if len(jobs) > 1:
             height = max(generate_engine(j["recipe"], j["palette"], j["density"], render=False, params=j["params"],
                                          seed=j["seed"])["png_size"][1] for j in jobs)
         for j in jobs:
-            label = j["tile"] + (f"/{j['variation']}" if j["variation"] else "")
+            label = "/".join(x for x in (j["tile"], j["variation"], j["frame"] if j["frame"] != j["tile"] else "") if x)
             h = cat.job_hash(j, sources, {"fast": a.fast, "height_px": height})
             rec = sprites.get(j["path"]); full = os.path.join(cat.REPO_ROOT, j["path"])
             if not a.force and rec and rec.get("hash") == h and os.path.exists(full):
@@ -109,7 +109,7 @@ def main():
                                       samples=FAST_SAMPLES if a.fast else None, height_px=height)
             except Exception as ex:  # keep going: one bad recipe shouldn't stop the batch
                 failed += 1; log(f"FAILED      {label}: {type(ex).__name__}: {ex}"); continue
-            sprites[j["path"]] = dict(tile=j["tile"], variation=j["variation"], layer=j["layer"], category=j["category"],
+            sprites[j["path"]] = dict(tile=j["tile"], variation=j["variation"], frame=j["frame"], layer=j["layer"], category=j["category"],
                                       hash=h, png_size=res["png_size"], density=j["density"],
                                       logical_size=res["logical_size"], draw_size=res["draw_size"], fast=a.fast)
             cat.save_manifest(manifest)                   # after each render, so a crash keeps the finished ones

@@ -38,6 +38,8 @@ class Materials:
         self.noise("clay", *g("clay"), scale=6, bump_s=0.5)
         self.flat("fire", g("fire"), rough=0.5, emission=6.0)
         self.noise("tileTop", g("terracotta")[1], g("terracotta")[2], scale=30, bump_s=0.4)     # top of a tile stack
+        self.wood("bamboo", *g("bamboo"), scale=14)
+        self.flat("rope", g("rope"), rough=0.8)
 
     def __getitem__(self, k): return self.m[k]
 

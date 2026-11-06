@@ -24,7 +24,7 @@ use crate::{
         TileKind,
         TileMapLayerKind,
         road::{self, RoadKind},
-        sets::{TileCategory, TileDef, TileSets},
+        sets::{OBJECTS_OVERLAYS_CATEGORY, TileCategory, TileDef, TileSets},
     },
     undo_redo,
     unit::Unit,
@@ -164,7 +164,8 @@ pub(super) fn find_tile_def(
 
     // TileCategory::find_tile_def_by_name logs an error for every category without the name.
     TileSets::get().for_each_category(|set, category| {
-        if layer.is_none_or(|layer| set.layer == layer) {
+        // Overlays (scaffolds, renovation) are drawn by the renderer, never placed.
+        if layer.is_none_or(|layer| set.layer == layer) && category.hash != OBJECTS_OVERLAYS_CATEGORY.hash {
             category.for_each_tile_def(|tile_def| {
                 if tile_def.name == name {
                     matches.push((tile_def, category));
@@ -239,7 +240,7 @@ fn cmd_tiles_list(_context: &mut CommandContext, params: Value) -> CommandResult
     TileSets::get().for_each_category(|set, category| {
         let wanted_layer = layer.is_none_or(|layer| set.layer == layer);
         let wanted_category = params.category.as_deref().is_none_or(|name| category.name == name);
-        if wanted_layer && wanted_category {
+        if wanted_layer && wanted_category && category.hash != OBJECTS_OVERLAYS_CATEGORY.hash {
             category.for_each_tile_def(|tile_def| {
                 tiles.push(tile_def_json(tile_def, category));
                 true

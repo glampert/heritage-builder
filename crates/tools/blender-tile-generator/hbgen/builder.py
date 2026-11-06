@@ -151,6 +151,17 @@ class Builder:
                 else:           t.rotation_euler = (radians(25 * sgn), 0, 0)
         return o
 
+    def pole(self, name, p0, p1, r, m, verts=8):
+        """A round pole from point p0 to point p1 (scaffolding, rafters, braces)."""
+        from mathutils import Vector
+        a, b = Vector(p0), Vector(p1)
+        d = b - a
+        bpy.ops.mesh.primitive_cylinder_add(vertices=verts, radius=r, depth=d.length, location=(a + b) / 2)
+        o = bpy.context.active_object; o.name = name
+        o.rotation_mode = 'QUATERNION'; o.rotation_quaternion = d.to_track_quat('Z', 'Y')
+        self._add(o, m)
+        return o
+
     def jar(self, x, y, z, r=0.09, h=0.2, m="jar"):
         bpy.ops.mesh.primitive_uv_sphere_add(radius=1.0, location=(x, y, z + h * 0.45), segments=14, ring_count=8)
         o = bpy.context.active_object; o.scale = (r, r, h * 0.5); self._add(o, m); self.smooth(o)

@@ -76,7 +76,8 @@ Blender modules (they import `bpy`; use them only inside Blender):
 - `hbgen/scene.py`: the legacy and engine cameras, lights, render settings,
   outlines, the compositor grade, and `trim_top`.
 - `hbgen/recipes/`: the recipes, registered in `RECIPES`. `fortress.py`
-  holds the studies, `workshop.py` the game's workshops, `test.py` the template.
+  holds the studies, `workshop.py` the game's workshops, `overlays.py` the
+  construction scaffolds and renovation overlays, `test.py` the template.
 - `hbgen/generate.py`: `generate()` (legacy camera) and `generate_engine()`.
 - `hb_tile_gen.py`: the one-tile command line, and the `exec` entry point.
 - `build.py`: the batch driver (§11), run by `tilegen.sh`.
@@ -267,6 +268,19 @@ zoom 5. A building needs a building config to be placed (`world.place`).
 `params` and `tile_set` fields, such as `iso_offset`. Sprites go to
 `assets/tiles/<layer>/<category>/<tile>/[<variation>/]<tile>.png`.
 
+`frames` gives a tile several sprites in one anim set, each with its own
+recipe `params`, written as `<frame>.png`. The scaffolds use them for their
+stages:
+
+    "frames": [{"name": "stage0", "params": {"stage": 0}}, {"name": "stage1", "params": {"stage": 1}}]
+
+`"validate": {"ground": false}` marks an overlay, a sprite without a ground
+diamond (the renovation scaffolds), so the checks skip the corner and
+bottom-row tests. The `overlays` category is drawn by the renderer only:
+`catalog/overlays.json` holds the construction site scaffolds and the
+renovation overlays, which the renderer looks up by name
+(`tile/rendering.rs`).
+
 **Manifest** (`catalog/manifest.json`, written by `build.py`, committed).
 For each sprite the generator wrote: its hash, PNG size, density,
 `logical_size` and `draw_size`. A sprite file that isn't in the manifest is
@@ -280,8 +294,8 @@ lists the options). For each catalog entry, or the tiles named:
   `generate`), the recipe's own module, the forced height, `--fast` and
   `GENERATOR_VERSION` in `hbgen/catalog.py`. Bump that to re-render
   everything, e.g. after a Blender upgrade.
-- A tile def has one `draw_size`, so a tile's variations all render at the
-  tallest one's height.
+- A tile def has one `draw_size`, so a tile's variations and frames all
+  render at the tallest one's height.
 - It saves the manifest after every render, then runs the checks, writes the
   contact sheets to `build/` (git-ignored), and syncs the tile sets.
 - `--dry-run` lists what would render. `--force` ignores the hash.

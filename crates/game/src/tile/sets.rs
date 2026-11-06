@@ -48,6 +48,11 @@ pub const OBJECTS_UNITS_CATEGORY: StrHashPair = StrHashPair::from_str("units");
 pub const OBJECTS_ROCKS_CATEGORY: StrHashPair = StrHashPair::from_str("rocks");
 pub const OBJECTS_VEGETATION_CATEGORY: StrHashPair = StrHashPair::from_str("vegetation");
 
+// Sprites drawn over or instead of other tiles, never placed on the map: construction site
+// scaffolds and renovation overlays (see `tile::rendering`). Their tile defs have no specialized
+// TileKind, so the palettes, placement and automation leave them out.
+pub const OBJECTS_OVERLAYS_CATEGORY: StrHashPair = StrHashPair::from_str("overlays");
+
 #[repr(u64)]
 #[derive(Copy, Clone, Default, PartialEq, Eq, Display)]
 pub enum PresetTiles {
@@ -1003,6 +1008,13 @@ impl TileCategory {
         Some(&self.tile_defs[entry_index])
     }
 
+    // Like find_tile_def_by_hash, without logging a missing tile def.
+    #[inline]
+    pub fn try_find_tile_def_by_hash(&self, tile_name_hash: StringHash) -> Option<&TileDef> {
+        let entry_index = *self.mapping.get(&tile_name_hash)?;
+        Some(&self.tile_defs[entry_index])
+    }
+
     pub fn find_tile_def_by_hash(&self, tile_name_hash: StringHash) -> Option<&TileDef> {
         let entry_index = match self.mapping.get(&tile_name_hash) {
             Some(entry_index) => *entry_index,
@@ -1144,6 +1156,12 @@ impl TileSet {
             }
         };
         Some(&self.categories[entry_index])
+    }
+
+    // Like find_category_by_hash, without logging a missing category.
+    #[inline]
+    pub fn try_find_category_by_hash(&self, category_name_hash: StringHash) -> Option<&TileCategory> {
+        self.mapping.get(&category_name_hash).map(|&entry_index| &self.categories[entry_index])
     }
 
     pub fn find_category_by_hash(&self, category_name_hash: StringHash) -> Option<&TileCategory> {
@@ -1424,6 +1442,18 @@ impl TileSets {
     ) -> Option<&'static TileDef> {
         let cat = self.find_category_by_hash(layer, category_name_hash)?;
         cat.find_tile_def_by_hash(tile_name_hash)
+    }
+
+    // Like find_tile_def_by_hash, without logging a missing category or tile def: for optional
+    // art such as the construction overlays, looked up while drawing.
+    pub fn try_find_tile_def_by_hash(
+        &'static self,
+        layer: TileMapLayerKind,
+        category_name_hash: StringHash,
+        tile_name_hash: StringHash,
+    ) -> Option<&'static TileDef> {
+        let set = self.find_set_by_layer(layer)?;
+        set.try_find_category_by_hash(category_name_hash)?.try_find_tile_def_by_hash(tile_name_hash)
     }
 
     pub fn for_each_set<F>(&'static self, mut visitor_fn: F)

@@ -31,8 +31,8 @@ def run(entries, manifest, only=None, contact=True, root=cat.REPO_ROOT, out=prin
         rec = sprites.get(job["path"]); full = os.path.join(root, job["path"])
         if rec is None or not os.path.exists(full):
             out(f"error: {job['path']}: not rendered; run build.py"); nerr += 1; continue
-        errors, warnings, stats = checks.check_sprite(full, rec, job["palette"], job["validate"].get("full_width", True))
-        label = job["tile"] + (f"/{job['variation']}" if job["variation"] else "")
+        errors, warnings, stats = checks.check_sprite(full, rec, job["palette"], job["validate"].get("ground", True))
+        label = "/".join(x for x in (job["tile"], job["variation"], job["frame"] if job["frame"] != job["tile"] else "") if x)
         out(f"{'FAIL' if errors else 'ok  '} {label}: {stats['size'][0]}x{stats['size'][1]}, "
             f"luminance {stats['luminance']}, saturation {stats['saturation']}")
         for e in errors: out(f"  error: {e}")

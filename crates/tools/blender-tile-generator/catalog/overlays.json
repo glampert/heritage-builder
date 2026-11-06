@@ -1,0 +1,231 @@
+{
+  "realm": "shared",
+  "palette": "viet",
+  "density": 8,
+  "notes": "Construction art shared by every building (GDD 5.1.2), by footprint size. The renderer looks them up by name (tile/rendering.rs).",
+  "entries": [
+    {
+      "tile": "scaffold_1x1",
+      "category": "overlays",
+      "recipe": "scaffold",
+      "params": {
+        "size": 1
+      },
+      "frames": [
+        {
+          "name": "stage0",
+          "params": {
+            "stage": 0
+          }
+        },
+        {
+          "name": "stage1",
+          "params": {
+            "stage": 1
+          }
+        },
+        {
+          "name": "stage2",
+          "params": {
+            "stage": 2
+          }
+        },
+        {
+          "name": "stage3",
+          "params": {
+            "stage": 3
+          }
+        }
+      ],
+      "notes": "Drawn instead of a construction site's building, one frame per stage (CONSTRUCTION_STAGES)."
+    },
+    {
+      "tile": "scaffold_2x2",
+      "category": "overlays",
+      "recipe": "scaffold",
+      "params": {
+        "size": 2
+      },
+      "frames": [
+        {
+          "name": "stage0",
+          "params": {
+            "stage": 0
+          }
+        },
+        {
+          "name": "stage1",
+          "params": {
+            "stage": 1
+          }
+        },
+        {
+          "name": "stage2",
+          "params": {
+            "stage": 2
+          }
+        },
+        {
+          "name": "stage3",
+          "params": {
+            "stage": 3
+          }
+        }
+      ],
+      "notes": "Drawn instead of a construction site's building, one frame per stage (CONSTRUCTION_STAGES)."
+    },
+    {
+      "tile": "scaffold_3x3",
+      "category": "overlays",
+      "recipe": "scaffold",
+      "params": {
+        "size": 3
+      },
+      "frames": [
+        {
+          "name": "stage0",
+          "params": {
+            "stage": 0
+          }
+        },
+        {
+          "name": "stage1",
+          "params": {
+            "stage": 1
+          }
+        },
+        {
+          "name": "stage2",
+          "params": {
+            "stage": 2
+          }
+        },
+        {
+          "name": "stage3",
+          "params": {
+            "stage": 3
+          }
+        }
+      ],
+      "notes": "Drawn instead of a construction site's building, one frame per stage (CONSTRUCTION_STAGES)."
+    },
+    {
+      "tile": "scaffold_4x4",
+      "category": "overlays",
+      "recipe": "scaffold",
+      "params": {
+        "size": 4
+      },
+      "frames": [
+        {
+          "name": "stage0",
+          "params": {
+            "stage": 0
+          }
+        },
+        {
+          "name": "stage1",
+          "params": {
+            "stage": 1
+          }
+        },
+        {
+          "name": "stage2",
+          "params": {
+            "stage": 2
+          }
+        },
+        {
+          "name": "stage3",
+          "params": {
+            "stage": 3
+          }
+        }
+      ],
+      "notes": "Drawn instead of a construction site's building, one frame per stage (CONSTRUCTION_STAGES)."
+    },
+    {
+      "tile": "scaffold_5x5",
+      "category": "overlays",
+      "recipe": "scaffold",
+      "params": {
+        "size": 5
+      },
+      "frames": [
+        {
+          "name": "stage0",
+          "params": {
+            "stage": 0
+          }
+        },
+        {
+          "name": "stage1",
+          "params": {
+            "stage": 1
+          }
+        },
+        {
+          "name": "stage2",
+          "params": {
+            "stage": 2
+          }
+        },
+        {
+          "name": "stage3",
+          "params": {
+            "stage": 3
+          }
+        }
+      ],
+      "notes": "Drawn instead of a construction site's building, one frame per stage (CONSTRUCTION_STAGES)."
+    },
+    {
+      "tile": "renovation_1x1",
+      "category": "overlays",
+      "recipe": "renovation",
+      "params": {
+        "size": 1
+      },
+      "validate": {
+        "ground": false
+      },
+      "notes": "Drawn over a renovating house of this footprint."
+    },
+    {
+      "tile": "renovation_2x2",
+      "category": "overlays",
+      "recipe": "renovation",
+      "params": {
+        "size": 2
+      },
+      "validate": {
+        "ground": false
+      },
+      "notes": "Drawn over a renovating house of this footprint."
+    },
+    {
+      "tile": "renovation_3x3",
+      "category": "overlays",
+      "recipe": "renovation",
+      "params": {
+        "size": 3
+      },
+      "validate": {
+        "ground": false
+      },
+      "notes": "Drawn over a renovating house of this footprint."
+    },
+    {
+      "tile": "renovation_4x4",
+      "category": "overlays",
+      "recipe": "renovation",
+      "params": {
+        "size": 4
+      },
+      "validate": {
+        "ground": false
+      },
+      "notes": "Drawn over a renovating house of this footprint."
+    }
+  ]
+}

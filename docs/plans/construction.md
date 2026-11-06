@@ -1,6 +1,6 @@
 # Building costs, construction sites and house renovation
 
-**Status (2026-11-05): Done.** All phases are in; the "fast build" option waits for Custom Game, and the scaffold art for the art pipeline (M2). This plan implements GDD sections 5.1.1 (building costs) and 5.1.2 (construction cycle) in [docs/design/gdd.md](../design/gdd.md). It is milestone M3 of the [roadmap](roadmap.md). It was researched against `d0696fe` on `main`. File and line references point at that commit, so re-check them before relying on them.
+**Status (2026-11-06): Done.** All phases are in, and so is the scaffold and renovation art (§6 notes). The "fast build" option waits for Custom Game. This plan implements GDD sections 5.1.1 (building costs) and 5.1.2 (construction cycle) in [docs/design/gdd.md](../design/gdd.md). It is milestone M3 of the [roadmap](roadmap.md). It was researched against `d0696fe` on `main`. File and line references point at that commit, so re-check them before relying on them.
 
 ## How to resume this work
 
@@ -202,6 +202,21 @@ The renderer can't see buildings, so site state reaches it through the four free
 **Drawing:** `TileMapRenderer::draw_tile` (`tile/rendering.rs:435`) looks up `scaffold_{n}x{n}` by footprint from a cache built at load, and draws frame `stage`. A missing size falls back to the nearest smaller one, drawn larger.
 
 **Art** comes from the placeholder pipeline ([placeholder-art.md](placeholder-art.md)): scaffolds for 1×1 to 5×5 in 3 stages, plus a renovation overlay for each house size.
+
+Notes on the art (2026-11-06):
+- **What landed:** `scaffold_1x1` to `scaffold_5x5`, with a frame per stage (`stage0` to `stage3`: four, matching `CONSTRUCTION_STAGES`, not three), and `renovation_1x1` to `renovation_4x4`. They're in a new `overlays` category of the objects tile set, whose tile defs have no specialized `TileKind`, so nothing can place them. Recipes: `hbgen/recipes/overlays.py`; catalog: `catalog/overlays.json`.
+- **Stages:**
+  - stage 0: a stone footing round a dug floor, with stakes, string lines and materials spread over it;
+  - stage 1: brick walls a third up in bamboo scaffolding;
+  - stage 2: two thirds up;
+  - stage 3: full walls and a roof frame, half tiled.
+- **Drawing:** `TileMapRenderer::draw_tile` replaces the building with the scaffold frame for its stage, anchored with `calc_object_iso_coords` at the scaffold's own draw size. A renovating house keeps a light tint and gets the overlay on top. Without art for a footprint, the old outline drawing remains as a fallback; the cache lookup doesn't log a miss (`TileSets::try_find_tile_def_by_hash`). No fallback to a smaller size drawn larger: every footprint in use has art, and `test_construction_art_covers_every_footprint` keeps it that way.
+- **Renovation overlay:** it can't know where a house's walls are, and it's drawn on top, so it may only hold things that stand in front of the house. Scaffolding along the full front edges read as a fence round the property, so it's an L of scaffolding round the front corner, about 45% along each edge, with a ladder and materials. On the courtyard houses (3×3, 4×4) it stands in the front yard (known-issues).
+- **Verified:**
+  - In the game, copies of a 1×1, 2×2, 3×3 (basic, 4 s apart), 4×4 and 5×5 (grand, 19 s apart) building show stages 3 to 0 side by side, each on its footprint.
+  - A house renovates under its overlay at 1×1 and again at 2×2.
+  - `tiles.list` lists no overlays, and `world.place` refuses them.
+  - `cargo test --workspace` passes, and so do the CI scenarios and determinism. The web build succeeds.
 
 **Inspector:**
 - `BuildingInspector` (`menu/in_game/inspector/mod.rs:211`) refreshes the construction progress every frame; it's a snapshot today.

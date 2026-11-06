@@ -8,7 +8,8 @@
         "width": 128
       },
       "fast": false,
-      "hash": "85b03c49621444d5",
+      "frame": "roof_tile_kiln",
+      "hash": "aaa442c0bf37c771",
       "layer": "objects",
       "logical_size": {
         "height": 64,
@@ -19,6 +20,534 @@
         760
       ],
       "tile": "roof_tile_kiln",
+      "variation": ""
+    },
+    "assets/tiles/objects/overlays/renovation_1x1/renovation_1x1.png": {
+      "category": "overlays",
+      "density": 8,
+      "draw_size": {
+        "height": 44,
+        "width": 64
+      },
+      "fast": false,
+      "frame": "renovation_1x1",
+      "hash": "46a148d305c981f6",
+      "layer": "objects",
+      "logical_size": {
+        "height": 32,
+        "width": 64
+      },
+      "png_size": [
+        512,
+        352
+      ],
+      "tile": "renovation_1x1",
+      "variation": ""
+    },
+    "assets/tiles/objects/overlays/renovation_2x2/renovation_2x2.png": {
+      "category": "overlays",
+      "density": 8,
+      "draw_size": {
+        "height": 63,
+        "width": 128
+      },
+      "fast": false,
+      "frame": "renovation_2x2",
+      "hash": "7be5d376be75eee4",
+      "layer": "objects",
+      "logical_size": {
+        "height": 64,
+        "width": 128
+      },
+      "png_size": [
+        1024,
+        504
+      ],
+      "tile": "renovation_2x2",
+      "variation": ""
+    },
+    "assets/tiles/objects/overlays/renovation_3x3/renovation_3x3.png": {
+      "category": "overlays",
+      "density": 8,
+      "draw_size": {
+        "height": 82,
+        "width": 192
+      },
+      "fast": false,
+      "frame": "renovation_3x3",
+      "hash": "c42a1daa0a786a97",
+      "layer": "objects",
+      "logical_size": {
+        "height": 96,
+        "width": 192
+      },
+      "png_size": [
+        1536,
+        656
+      ],
+      "tile": "renovation_3x3",
+      "variation": ""
+    },
+    "assets/tiles/objects/overlays/renovation_4x4/renovation_4x4.png": {
+      "category": "overlays",
+      "density": 8,
+      "draw_size": {
+        "height": 101,
+        "width": 256
+      },
+      "fast": false,
+      "frame": "renovation_4x4",
+      "hash": "1660e4f08977f307",
+      "layer": "objects",
+      "logical_size": {
+        "height": 128,
+        "width": 256
+      },
+      "png_size": [
+        2048,
+        808
+      ],
+      "tile": "renovation_4x4",
+      "variation": ""
+    },
+    "assets/tiles/objects/overlays/scaffold_1x1/stage0.png": {
+      "category": "overlays",
+      "density": 8,
+      "draw_size": {
+        "height": 64,
+        "width": 64
+      },
+      "fast": false,
+      "frame": "stage0",
+      "hash": "6440a1249c3bccb0",
+      "layer": "objects",
+      "logical_size": {
+        "height": 32,
+        "width": 64
+      },
+      "png_size": [
+        512,
+        512
+      ],
+      "tile": "scaffold_1x1",
+      "variation": ""
+    },
+    "assets/tiles/objects/overlays/scaffold_1x1/stage1.png": {
+      "category": "overlays",
+      "density": 8,
+      "draw_size": {
+        "height": 64,
+        "width": 64
+      },
+      "fast": false,
+      "frame": "stage1",
+      "hash": "d3223da17009da7f",
+      "layer": "objects",
+      "logical_size": {
+        "height": 32,
+        "width": 64
+      },
+      "png_size": [
+        512,
+        512
+      ],
+      "tile": "scaffold_1x1",
+      "variation": ""
+    },
+    "assets/tiles/objects/overlays/scaffold_1x1/stage2.png": {
+      "category": "overlays",
+      "density": 8,
+      "draw_size": {
+        "height": 64,
+        "width": 64
+      },
+      "fast": false,
+      "frame": "stage2",
+      "hash": "5007a007039a3be7",
+      "layer": "objects",
+      "logical_size": {
+        "height": 32,
+        "width": 64
+      },
+      "png_size": [
+        512,
+        512
+      ],
+      "tile": "scaffold_1x1",
+      "variation": ""
+    },
+    "assets/tiles/objects/overlays/scaffold_1x1/stage3.png": {
+      "category": "overlays",
+      "density": 8,
+      "draw_size": {
+        "height": 64,
+        "width": 64
+      },
+      "fast": false,
+      "frame": "stage3",
+      "hash": "bb793d94143c6ab5",
+      "layer": "objects",
+      "logical_size": {
+        "height": 32,
+        "width": 64
+      },
+      "png_size": [
+        512,
+        512
+      ],
+      "tile": "scaffold_1x1",
+      "variation": ""
+    },
+    "assets/tiles/objects/overlays/scaffold_2x2/stage0.png": {
+      "category": "overlays",
+      "density": 8,
+      "draw_size": {
+        "height": 108,
+        "width": 128
+      },
+      "fast": false,
+      "frame": "stage0",
+      "hash": "2b5786808c71e3b0",
+      "layer": "objects",
+      "logical_size": {
+        "height": 64,
+        "width": 128
+      },
+      "png_size": [
+        1024,
+        864
+      ],
+      "tile": "scaffold_2x2",
+      "variation": ""
+    },
+    "assets/tiles/objects/overlays/scaffold_2x2/stage1.png": {
+      "category": "overlays",
+      "density": 8,
+      "draw_size": {
+        "height": 108,
+        "width": 128
+      },
+      "fast": false,
+      "frame": "stage1",
+      "hash": "57da5129edcce456",
+      "layer": "objects",
+      "logical_size": {
+        "height": 64,
+        "width": 128
+      },
+      "png_size": [
+        1024,
+        864
+      ],
+      "tile": "scaffold_2x2",
+      "variation": ""
+    },
+    "assets/tiles/objects/overlays/scaffold_2x2/stage2.png": {
+      "category": "overlays",
+      "density": 8,
+      "draw_size": {
+        "height": 108,
+        "width": 128
+      },
+      "fast": false,
+      "frame": "stage2",
+      "hash": "5f4a2a353e435a9d",
+      "layer": "objects",
+      "logical_size": {
+        "height": 64,
+        "width": 128
+      },
+      "png_size": [
+        1024,
+        864
+      ],
+      "tile": "scaffold_2x2",
+      "variation": ""
+    },
+    "assets/tiles/objects/overlays/scaffold_2x2/stage3.png": {
+      "category": "overlays",
+      "density": 8,
+      "draw_size": {
+        "height": 108,
+        "width": 128
+      },
+      "fast": false,
+      "frame": "stage3",
+      "hash": "79d7098bab729832",
+      "layer": "objects",
+      "logical_size": {
+        "height": 64,
+        "width": 128
+      },
+      "png_size": [
+        1024,
+        864
+      ],
+      "tile": "scaffold_2x2",
+      "variation": ""
+    },
+    "assets/tiles/objects/overlays/scaffold_3x3/stage0.png": {
+      "category": "overlays",
+      "density": 8,
+      "draw_size": {
+        "height": 151,
+        "width": 192
+      },
+      "fast": false,
+      "frame": "stage0",
+      "hash": "35bda9ff6bb0968a",
+      "layer": "objects",
+      "logical_size": {
+        "height": 96,
+        "width": 192
+      },
+      "png_size": [
+        1536,
+        1208
+      ],
+      "tile": "scaffold_3x3",
+      "variation": ""
+    },
+    "assets/tiles/objects/overlays/scaffold_3x3/stage1.png": {
+      "category": "overlays",
+      "density": 8,
+      "draw_size": {
+        "height": 151,
+        "width": 192
+      },
+      "fast": false,
+      "frame": "stage1",
+      "hash": "5fc76ec1b1d87792",
+      "layer": "objects",
+      "logical_size": {
+        "height": 96,
+        "width": 192
+      },
+      "png_size": [
+        1536,
+        1208
+      ],
+      "tile": "scaffold_3x3",
+      "variation": ""
+    },
+    "assets/tiles/objects/overlays/scaffold_3x3/stage2.png": {
+      "category": "overlays",
+      "density": 8,
+      "draw_size": {
+        "height": 151,
+        "width": 192
+      },
+      "fast": false,
+      "frame": "stage2",
+      "hash": "3825d05e7c487c2b",
+      "layer": "objects",
+      "logical_size": {
+        "height": 96,
+        "width": 192
+      },
+      "png_size": [
+        1536,
+        1208
+      ],
+      "tile": "scaffold_3x3",
+      "variation": ""
+    },
+    "assets/tiles/objects/overlays/scaffold_3x3/stage3.png": {
+      "category": "overlays",
+      "density": 8,
+      "draw_size": {
+        "height": 151,
+        "width": 192
+      },
+      "fast": false,
+      "frame": "stage3",
+      "hash": "0faf6a7ecf84856b",
+      "layer": "objects",
+      "logical_size": {
+        "height": 96,
+        "width": 192
+      },
+      "png_size": [
+        1536,
+        1208
+      ],
+      "tile": "scaffold_3x3",
+      "variation": ""
+    },
+    "assets/tiles/objects/overlays/scaffold_4x4/stage0.png": {
+      "category": "overlays",
+      "density": 8,
+      "draw_size": {
+        "height": 194,
+        "width": 256
+      },
+      "fast": false,
+      "frame": "stage0",
+      "hash": "d597741f6a470c1e",
+      "layer": "objects",
+      "logical_size": {
+        "height": 128,
+        "width": 256
+      },
+      "png_size": [
+        2048,
+        1552
+      ],
+      "tile": "scaffold_4x4",
+      "variation": ""
+    },
+    "assets/tiles/objects/overlays/scaffold_4x4/stage1.png": {
+      "category": "overlays",
+      "density": 8,
+      "draw_size": {
+        "height": 194,
+        "width": 256
+      },
+      "fast": false,
+      "frame": "stage1",
+      "hash": "cb4daa1257ab35ee",
+      "layer": "objects",
+      "logical_size": {
+        "height": 128,
+        "width": 256
+      },
+      "png_size": [
+        2048,
+        1552
+      ],
+      "tile": "scaffold_4x4",
+      "variation": ""
+    },
+    "assets/tiles/objects/overlays/scaffold_4x4/stage2.png": {
+      "category": "overlays",
+      "density": 8,
+      "draw_size": {
+        "height": 194,
+        "width": 256
+      },
+      "fast": false,
+      "frame": "stage2",
+      "hash": "48bf24ea12de07d4",
+      "layer": "objects",
+      "logical_size": {
+        "height": 128,
+        "width": 256
+      },
+      "png_size": [
+        2048,
+        1552
+      ],
+      "tile": "scaffold_4x4",
+      "variation": ""
+    },
+    "assets/tiles/objects/overlays/scaffold_4x4/stage3.png": {
+      "category": "overlays",
+      "density": 8,
+      "draw_size": {
+        "height": 194,
+        "width": 256
+      },
+      "fast": false,
+      "frame": "stage3",
+      "hash": "13c7ea92548cae5f",
+      "layer": "objects",
+      "logical_size": {
+        "height": 128,
+        "width": 256
+      },
+      "png_size": [
+        2048,
+        1552
+      ],
+      "tile": "scaffold_4x4",
+      "variation": ""
+    },
+    "assets/tiles/objects/overlays/scaffold_5x5/stage0.png": {
+      "category": "overlays",
+      "density": 8,
+      "draw_size": {
+        "height": 238,
+        "width": 320
+      },
+      "fast": false,
+      "frame": "stage0",
+      "hash": "2f5174e6ad232eac",
+      "layer": "objects",
+      "logical_size": {
+        "height": 160,
+        "width": 320
+      },
+      "png_size": [
+        2560,
+        1904
+      ],
+      "tile": "scaffold_5x5",
+      "variation": ""
+    },
+    "assets/tiles/objects/overlays/scaffold_5x5/stage1.png": {
+      "category": "overlays",
+      "density": 8,
+      "draw_size": {
+        "height": 238,
+        "width": 320
+      },
+      "fast": false,
+      "frame": "stage1",
+      "hash": "b9aba08259b6d4b0",
+      "layer": "objects",
+      "logical_size": {
+        "height": 160,
+        "width": 320
+      },
+      "png_size": [
+        2560,
+        1904
+      ],
+      "tile": "scaffold_5x5",
+      "variation": ""
+    },
+    "assets/tiles/objects/overlays/scaffold_5x5/stage2.png": {
+      "category": "overlays",
+      "density": 8,
+      "draw_size": {
+        "height": 238,
+        "width": 320
+      },
+      "fast": false,
+      "frame": "stage2",
+      "hash": "59f8d64d7642e4de",
+      "layer": "objects",
+      "logical_size": {
+        "height": 160,
+        "width": 320
+      },
+      "png_size": [
+        2560,
+        1904
+      ],
+      "tile": "scaffold_5x5",
+      "variation": ""
+    },
+    "assets/tiles/objects/overlays/scaffold_5x5/stage3.png": {
+      "category": "overlays",
+      "density": 8,
+      "draw_size": {
+        "height": 238,
+        "width": 320
+      },
+      "fast": false,
+      "frame": "stage3",
+      "hash": "6f39d420fc18176b",
+      "layer": "objects",
+      "logical_size": {
+        "height": 160,
+        "width": 320
+      },
+      "png_size": [
+        2560,
+        1904
+      ],
+      "tile": "scaffold_5x5",
       "variation": ""
     }
   },

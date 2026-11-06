@@ -108,6 +108,8 @@ impl TileKind {
             TileKind::Rocks
         } else if category_hash == sets::OBJECTS_VEGETATION_CATEGORY.hash {
             TileKind::Vegetation
+        } else if category_hash == sets::OBJECTS_OVERLAYS_CATEGORY.hash {
+            TileKind::empty() // Drawn by the renderer only; never placed (see OBJECTS_OVERLAYS_CATEGORY).
         } else {
             panic!("Unknown Tile Category hash!");
         }

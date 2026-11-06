@@ -38,6 +38,8 @@ fn main() {
         test_utils::test_fn!(test_finished_building_refunds_nothing_when_cleared),
         test_utils::test_fn!(test_settlers_move_in_when_their_house_is_built),
         test_utils::test_fn!(test_editor_mode_builds_finished),
+        // Art:
+        test_utils::test_fn!(test_construction_art_covers_every_footprint),
     ]);
 }
 
@@ -477,4 +479,38 @@ fn test_editor_mode_builds_finished() {
         assert!(!building_at(&env, cell).unwrap().is_under_construction());
         undo_redo::clear();
     });
+}
+
+// ----------------------------------------------
+// Construction art
+// ----------------------------------------------
+
+// Every building's footprint has a scaffold with a frame per stage, and every house size a
+// renovation overlay (the tile generator's catalog/overlays.json), so no site falls back to the
+// placeholder drawing.
+fn test_construction_art_covers_every_footprint() {
+    use game::{
+        building::{BuildingArchetypeKind, construction::CONSTRUCTION_STAGES},
+        tile::{TileMapLayerKind, rendering, sets::{OBJECTS_BUILDINGS_CATEGORY, TileSets}},
+    };
+
+    let buildings = TileSets::get().find_category_by_hash(TileMapLayerKind::Objects, OBJECTS_BUILDINGS_CATEGORY.hash).unwrap();
+    let mut checked = 0;
+    buildings.for_each_tile_def(|tile_def| {
+        let cells = tile_def.logical_size.width / 64;
+        let scaffold = rendering::scaffold_tile_def(cells)
+            .unwrap_or_else(|| panic!("No scaffold_{cells}x{cells} for '{}'", tile_def.name));
+        let frames = scaffold.anim_set_by_index(0, 0).map_or(0, |anim_set| anim_set.frames.len());
+        assert_eq!(frames, usize::from(CONSTRUCTION_STAGES), "scaffold_{cells}x{cells} needs a frame per stage");
+        assert_eq!(scaffold.logical_size, tile_def.logical_size);
+
+        if BuildingConfigs::get().find_building_archetype_kind_for_tile_def(tile_def) == Some(BuildingArchetypeKind::HouseBuilding) {
+            let overlay = rendering::renovation_tile_def(cells)
+                .unwrap_or_else(|| panic!("No renovation_{cells}x{cells} for '{}'", tile_def.name));
+            assert_eq!(overlay.logical_size, tile_def.logical_size);
+        }
+        checked += 1;
+        true
+    });
+    assert!(checked > 20, "expected the building tile defs, found {checked}");
 }

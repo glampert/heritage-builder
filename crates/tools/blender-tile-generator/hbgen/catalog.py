@@ -17,8 +17,12 @@ A catalog file (catalog/*.json, one per realm):
           "variations": [            # optional; omitted = one unnamed variation
             {"name": "var0", "seed": 1, "params": {}}
           ],
+          "frames": [                # optional; omitted = one frame named after the tile.
+            {"name": "stage0", "params": {"stage": 0}}   # One sprite per frame, in one anim set:
+          ],                                             # <tile>/[<variation>/]<frame>.png
           "tile_set": {"cost": 10},  # fields written into the tile def, in this order
-          "generated": true          # false: the art is hand-made; leave it alone
+          "generated": true,         # false: the art is hand-made; leave it alone
+          "validate": {"ground": false}  # an overlay: skip the ground diamond's checks
         }
       ]
     }
@@ -42,7 +46,8 @@ MAX_FRAME_NAME = 24                 # TileSprite::name is an ArrayString<24>
 # Bump to re-render everything, e.g. after a Blender upgrade changes the look.
 GENERATOR_VERSION = 1
 
-_ENTRY_KEYS = {"tile", "layer", "category", "recipe", "params", "palette", "density", "variations", "tile_set", "generated", "validate", "notes"}
+_ENTRY_KEYS = {"tile", "layer", "category", "recipe", "params", "palette", "density", "variations", "frames", "tile_set", "generated", "validate", "notes"}
+_FRAME_KEYS = {"name", "params"}
 _VARIATION_KEYS = {"name", "seed", "params", "tile_set"}
 
 
@@ -80,6 +85,15 @@ def load(paths=None, catalog_dir=CATALOG_DIR):
                 if set(v) - _VARIATION_KEYS:
                     raise CatalogError(f"{where}: unknown variation keys {sorted(set(v) - _VARIATION_KEYS)}")
                 v.setdefault("name", ""); v.setdefault("seed", 0); v.setdefault("params", {}); v.setdefault("tile_set", {})
+            e["frames"] = [dict(f) for f in raw.get("frames", [{"name": e["tile"]}])]
+            for f in e["frames"]:
+                if set(f) - _FRAME_KEYS or not f.get("name"):
+                    raise CatalogError(f"{where}: a frame needs a name, and may only have {sorted(_FRAME_KEYS)}")
+                if len(f["name"]) > MAX_FRAME_NAME:
+                    raise CatalogError(f"{where}: frame name '{f['name']}' is longer than {MAX_FRAME_NAME} characters")
+                f.setdefault("params", {})
+            if len({f["name"] for f in e["frames"]}) != len(e["frames"]):
+                raise CatalogError(f"{where}: frame names must be unique")
             names = [v["name"] for v in e["variations"]]
             if len(set(names)) != len(names) or ("" in names and len(names) > 1):
                 raise CatalogError(f"{where}: variation names must be unique, and only a lone variation may be unnamed")
@@ -94,26 +108,28 @@ def load(paths=None, catalog_dir=CATALOG_DIR):
     return entries
 
 
-def sprite_path(entry, variation_name):
+def sprite_path(entry, variation_name, frame_name=None):
     """Repository-relative path of a sprite, as the engine looks it up:
-    assets/tiles/<layer>/<category>/<tile>/[<variation>/]<tile>.png"""
+    assets/tiles/<layer>/<category>/<tile>/[<variation>/]<frame>.png. The frame
+    defaults to the entry's first, which is named after the tile unless it lists frames."""
     parts = ["assets", "tiles", entry["layer"], entry["category"], entry["tile"]]
     if variation_name:
         parts.append(variation_name)
-    return "/".join(parts + [entry["tile"] + ".png"])
+    return "/".join(parts + [(frame_name or entry["frames"][0]["name"]) + ".png"])
 
 
 def jobs(entries):
-    """One render job per generated variation."""
+    """One render job per generated variation and frame."""
     out = []
     for e in entries:
         if not e["generated"]:
             continue
         for v in e["variations"]:
-            out.append(dict(tile=e["tile"], layer=e["layer"], category=e["category"], recipe=e["recipe"],
-                            params={**e["params"], **v["params"]}, seed=v["seed"], palette=e["palette"],
-                            density=e["density"], variation=v["name"], path=sprite_path(e, v["name"]),
-                            validate=e["validate"], source=e["source"]))
+            for f in e["frames"]:
+                out.append(dict(tile=e["tile"], layer=e["layer"], category=e["category"], recipe=e["recipe"],
+                                params={**e["params"], **v["params"], **f["params"]}, seed=v["seed"], palette=e["palette"],
+                                density=e["density"], variation=v["name"], frame=f["name"],
+                                path=sprite_path(e, v["name"], f["name"]), validate=e["validate"], source=e["source"]))
     return out
 
 

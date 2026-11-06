@@ -72,6 +72,16 @@ class Catalog(unittest.TestCase):
                                                               "assets/tiles/objects/buildings/kiln/var1/kiln.png"])
         self.assertEqual(cat.jobs([entry("market", generated=False)]), [])
 
+    def test_frames(self):
+        e = entry("scaffold_2x2", frames=[{"name": "stage0", "params": {"stage": 0}}, {"name": "stage1", "params": {"stage": 1}}],
+                  category="overlays", params={"size": 2})
+        js = cat.jobs([e])
+        self.assertEqual([j["path"] for j in js], ["assets/tiles/objects/overlays/scaffold_2x2/stage0.png",
+                                                    "assets/tiles/objects/overlays/scaffold_2x2/stage1.png"])
+        self.assertEqual([j["params"] for j in js], [{"size": 2, "stage": 0}, {"size": 2, "stage": 1}])
+        with self.assertRaises(cat.CatalogError): entry("x", frames=[{"name": "a"}, {"name": "a"}])
+        with self.assertRaises(cat.CatalogError): entry("x", frames=[{"params": {}}])
+
     def test_rejects_bad_entries(self):
         with self.assertRaises(cat.CatalogError): entry("kiln", colour="red")
         with self.assertRaises(cat.CatalogError): entry("a" * 25)
@@ -142,6 +152,16 @@ class Sync(unittest.TestCase):
         names = [v["name"] for v in json.loads(two)["categories"][0]["tile_defs"][1]["variations"]]
         self.assertEqual(names, ["var0", "var1", "var2"])
         self.assertTrue(any("var0" in n for n in notes))
+
+    def test_frames_in_def(self):
+        e = entry("scaffold_1x1", frames=[{"name": "stage0"}, {"name": "stage1"}])
+        sprites = {j["path"]: sprite_rec(512, 400) for j in cat.jobs([e])}
+        new, _ = self.sync(TILE_SET, [e], sprites)
+        d = json.loads(new)["categories"][0]["tile_defs"][1]
+        self.assertEqual(d["variations"], [{"anim_sets": [{"frames": [{"name": "stage0"}, {"name": "stage1"}]}]}])
+        sprites[cat.jobs([e])[1]["path"]] = sprite_rec(512, 480)
+        with self.assertRaises(tileset.SyncError):
+            self.sync(TILE_SET, [e], sprites)
 
     def test_refuses_hand_made_def(self):
         # The catalog renders a variation of "temple", whose existing art the generator never wrote.
