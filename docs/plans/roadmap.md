@@ -10,7 +10,8 @@
   - [construction.md](construction.md) (M3);
   - [placeholder-art.md](placeholder-art.md) (M2);
   - [terrain-height.md](terrain-height.md) (T);
-  - [unit-movement.md](unit-movement.md) (U).
+  - [unit-movement.md](unit-movement.md) (U);
+  - [minimap.md](minimap.md) (MM).
 - When a milestone starts, finishes or changes scope, update its row in the [Phase 1 table](#phase-1-campaign-i-missions-15-the-vertical-slice) and its entry in the [save-version log](#save-version-log).
 - Follow [AGENTS.md](../../AGENTS.md) throughout:
   - keep desktop and web compiling;
@@ -58,6 +59,7 @@ These follow [overview.md](../design/overview.md#development-phases).
 | M13 | Missions I-1 to I-5: maps, configs, balance, scenarios | Large | All of the above | — | Not started |
 | T | Terrain height | Medium to large | M3 (spike after) | [terrain-height.md](terrain-height.md) | Not started |
 | U | Eight-direction movement for off-road walkers | Medium | M3; art from M2 Phase 6 | [unit-movement.md](unit-movement.md) | Not started |
+| MM | Minimap: painted relief, lenses and tools | Medium | — (lenses grow with M6, M7, M8) | [minimap.md](minimap.md) | Not started |
 
 Suggested order:
 - **First:** M1 → M3 → M5, with M2 running alongside from the start.
@@ -65,6 +67,7 @@ Suggested order:
 - **Then:** M7, then M10, M9 and M11.
 - **Last:** M13, with M12 slotted in anywhere.
 - **Terrain height:** the T spike runs after M3, and Stages 1–4 come before M13 builds mission 5's map.
+- **Minimap:** MM can run any time; its Risk, Faith, Flood and Fertility lenses come with M6, M8 and M7.
 - **Eight-direction movement:** U runs after M3 and, ideally, before T's pathfinding stage (Stage 4), since both change the same step check. Its art waits on the Blender walker experiment (M2, placeholder-art Phase 6), with a fallback to existing directions until then.
 
 ### M1: Game time and calendar (small)
@@ -217,6 +220,16 @@ See [unit-movement.md](unit-movement.md):
 - the new walk angles come from the Blender walker experiment, or by hand.
 
 No save-version bump: the new enum variants go at the end, so old saves still load.
+
+### MM: Minimap (medium)
+
+See [minimap.md](minimap.md):
+- a painted base baked on the CPU, with buildings, roads and icons drawn as egui shapes on top;
+- lenses (sectors and water first; risks, faith, floods and fertility with their milestones);
+- tools: zoom, alerts, home, world map, collapse;
+- realm styles as JSON, and a `minimap` block on tile defs for fields and landmarks.
+
+No save-version bump: the minimap is rebuilt on load.
 
 ## Phase 2 outline
 
