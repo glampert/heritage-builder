@@ -32,22 +32,24 @@ SCREENS = [
     ("menu-home", "Home"), ("menu-load-save", "Load / save"), ("menu-settings", "Settings"),
     ("menu-custom-game", "Custom game"), ("menu-about", "About"),
 ]
-ORDER = [f"{s}-{r}" for s, _ in SCREENS for r, _ in REALMS]
+ORDER = [f"{s}-{r}" for s, _ in SCREENS for r, _ in REALMS] + ["minimap-concepts", "minimap-lenses"]
+SHEETS = [("minimap-concepts", "Minimap concepts"), ("minimap-lenses", "Minimap widget and lenses")]
 
 # Which build steps a changed file needs. The scripts import each other
 # (screens imports world_map, menus imports both), so a change to a shared
 # file rebuilds everything that depends on it.
-STEPS = ["fonts", "backdrops", "world_map", "screens", "menus"]
+STEPS = ["fonts", "backdrops", "world_map", "screens", "menus", "minimap"]
 AFFECTS = {
-    "fonts.py": ["fonts", "world_map", "screens", "menus"],
+    "fonts.py": ["fonts", "world_map", "screens", "menus", "minimap"],
     "backdrops.py": ["backdrops", "screens", "menus"],
-    "common.py": ["world_map", "screens", "menus"],
-    "world_map.py": ["world_map", "screens", "menus"],
+    "common.py": ["world_map", "screens", "menus", "minimap"],
+    "world_map.py": ["world_map", "screens", "menus", "minimap"],
     "content.py": ["world_map"],
     "screens.py": ["screens", "menus"],
     "screens_content.py": ["screens"],
     "menus.py": ["menus"],
     "menus_content.py": ["menus"],
+    "minimap.py": ["minimap"],
 }
 
 
@@ -92,7 +94,7 @@ def run_steps(steps):
 
 
 def initial_steps():
-    steps = {"world_map", "screens", "menus"}
+    steps = {"world_map", "screens", "menus", "minimap"}
     if not (BUILD / "fonts.css").exists():
         steps.add("fonts")
     if not all((BUILD / f"city_{r}.jpg").exists() for r, _ in REALMS):
@@ -181,6 +183,9 @@ th {{ color: #a99a80; font-weight: 600; }} a {{ color: #f0c27a; }}
 
 def view_page(name):
     i = ORDER.index(name)
+    if name in dict(SHEETS):
+        return VIEW_PAGE.format(title=html.escape(dict(SHEETS)[name]), name=name, realm_links="",
+                                prev=ORDER[i - 1], next=ORDER[(i + 1) % len(ORDER)])
     screen, realm = name.rsplit("-", 1)
     title = f"{dict(SCREENS)[screen]} · {dict(REALMS)[realm]}"
     links = "".join(f'<a class="{"on" if r == realm else ""}" href="/view/{screen}-{r}">{html.escape(label)}</a>' for r, label in REALMS)
@@ -192,6 +197,7 @@ def index_page():
     heads = "".join(f"<th>{html.escape(label)}</th>" for _, label in REALMS)
     rows = "".join(f"<tr><td>{html.escape(label)}</td>" + "".join(f'<td><a href="/view/{s}-{r}">open</a></td>' for r, _ in REALMS) + "</tr>"
                    for s, label in SCREENS)
+    rows += "".join(f'<tr><td>{html.escape(label)}</td><td colspan="3"><a href="/view/{s}">open</a></td></tr>' for s, label in SHEETS)
     return INDEX_PAGE.format(realm_heads=heads, rows=rows)
 
 

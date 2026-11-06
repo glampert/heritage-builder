@@ -62,6 +62,17 @@ The home menu and its dialogs: load / save, settings, custom game and about. The
 
 Đại Long's home backdrop is the game's own painting (`assets/ui/misc/home_menu_static_bg.png`); Kambara's and Tampadesa's are flat vector stand-ins drawn by `menus.py`. Placeholders: the save names, maps, numbers and credit names.
 
+## Minimap
+
+Concepts for a more modern minimap, on one 80 × 80 sample city drawn in the minimap's real projection (an isometric diamond clipped to the playable area, as in `crates/game/src/tile/minimap.rs`).
+
+| Sheet | Image |
+|---|---|
+| Today's minimap beside three directions: A, painted relief (recommended); B, an ink map like the world map; C, lenses (A with one data layer) | [minimap-concepts.jpg](minimap-concepts.jpg) |
+| Concept A in Đại Long's HUD frame with a lens bar and tools (zoom, alerts, home, world map, collapse), and the four lenses: sectors, water, fire risk, faith | [minimap-lenses.jpg](minimap-lenses.jpg) |
+
+Drawn by `minimap.py` (needs numpy and Pillow). The implementation plan is [docs/plans/minimap.md](../../plans/minimap.md).
+
 ## Fonts
 
 Each realm has its own typeface, set in `REALM_FONTS` in `generator/common.py`:
@@ -81,7 +92,7 @@ cd docs/design/mockups/generator
 python3 serve.py --open
 ```
 
-builds every screen and serves them at http://127.0.0.1:8765/ (`--port` and `--host` change that). The index links each screen; a screen's page fits it to the window, with links to the other realms and ← / → to step through all 27. Saving a file in this folder, or a font in `assets/fonts/`, re-runs only the scripts it affects (about a second) and the open page reloads itself. A failed build shows its traceback over the page and keeps the last good screens. It's the standard library only, but the scripts it runs need Pillow. It writes only the HTML in `build/`: run `shot.js` to update the committed JPEGs.
+builds every screen and serves them at http://127.0.0.1:8765/ (`--port` and `--host` change that). The index links each screen; a screen's page fits it to the window, with links to the other realms and ← / → to step through all of them. Saving a file in this folder, or a font in `assets/fonts/`, re-runs only the scripts it affects (about a second) and the open page reloads itself. A failed build shows its traceback over the page and keeps the last good screens. It's the standard library only, but the scripts it runs need Pillow. It writes only the HTML in `build/`: run `shot.js` to update the committed JPEGs.
 
 ## Regenerating
 
@@ -94,6 +105,7 @@ python3 world_map.py    # writes build/world-map-<realm>.html
 node shot.js world-map-dailong world-map-kambara world-map-tampadesa
 python3 screens.py      # writes build/{intro,intermission,hud}-<realm>.html
 node shot.js intro-dailong intermission-dailong hud-dailong   # and so on per realm
+python3 minimap.py      # writes build/minimap-concepts.html and minimap-lenses.html
 python3 menus.py        # writes build/menu-{home,load-save,settings,custom-game,about}-<realm>.html
 node shot.js menu-home-dailong   # and so on
 ```
