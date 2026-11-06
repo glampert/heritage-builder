@@ -103,7 +103,7 @@ class Theme:
         svg = (f'<svg xmlns="http://www.w3.org/2000/svg" width="{C.W}" height="{C.H}" viewBox="0 0 {C.W} {C.H}">'
                f'<defs>{"".join(self.defs)}</defs>{"".join(body)}</svg>')
         return (f'<!doctype html><html><head><meta charset="utf-8"><title>World map: {self.d["key"]}</title>'
-                f'<style>{FONTS_CSS} html,body{{margin:0;padding:0;background:#000}} svg{{display:block}}</style>'
+                f'<style>{FONTS_CSS} html,body{{margin:0;padding:0;background:#000}} svg{{display:block;font-synthesis:style}}</style>'
                 f'</head><body>{svg}</body></html>')
 
     def map_layer(self):
@@ -279,9 +279,9 @@ class Theme:
 
 # ====================================================================== Đại Long
 class DaiLong(Theme):
-    title_font = "Playfair Display"
-    label_font = "Cormorant Garamond"
-    body_font = "Cormorant Garamond"
+    title_font = C.REALM_FONTS["dailong"]["title"]
+    label_font = C.REALM_FONTS["dailong"]["label"]
+    body_font = C.REALM_FONTS["dailong"]["body"]
     ink = "#2b2118"
     halo = "#ead9b0"
     water = "#c9c2a2"
@@ -572,9 +572,9 @@ class DaiLong(Theme):
 
 # ====================================================================== Kambara
 class Kambara(Theme):
-    title_font = "Cinzel"
-    label_font = "Spectral SC"
-    body_font = "Spectral SC"
+    title_font = C.REALM_FONTS["kambara"]["title"]
+    label_font = C.REALM_FONTS["kambara"]["label"]
+    body_font = C.REALM_FONTS["kambara"]["body"]
     ink = "#2c2a22"
     halo = "#cfc2a3"
     water = "#3f6a62"
@@ -857,7 +857,7 @@ class Kambara(Theme):
                 f'<rect x="{x + 6}" y="{y + 6}" width="{w - 12}" height="{h - 12}" fill="none" stroke="#a89c80" stroke-width="1.2"/>')
 
     def title_text(self, x, y, s):
-        return self.engrave(x, y, s, "Cinzel Decorative", 38, "start", 700, fill="#efe6cf", dark=False)
+        return self.engrave(x, y, s, self.title_font, 38, "start", 700, fill="#efe6cf", dark=False)
 
     def coin(self, x, y):
         return (f'<circle cx="{x}" cy="{y}" r="15" fill="#d9b24e" stroke="#4a3a14" stroke-width="2"/>'
@@ -922,9 +922,9 @@ class Kambara(Theme):
 
 # ====================================================================== Tampadesa
 class Tampadesa(Theme):
-    title_font = "Rozha One"
-    label_font = "Alegreya SC"
-    body_font = "Alegreya"
+    title_font = C.REALM_FONTS["tampadesa"]["title"]
+    label_font = C.REALM_FONTS["tampadesa"]["label"]
+    body_font = C.REALM_FONTS["tampadesa"]["body"]
     ink = "#3b2412"
     halo = "#ecd3a3"
     water = "#6f9188"

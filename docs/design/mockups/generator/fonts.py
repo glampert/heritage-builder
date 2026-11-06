@@ -14,6 +14,10 @@ FAMILIES = [
     "Philosopher:wght@700", "Spectral+SC:wght@600",
 ]
 KEEP = {"latin", "latin-ext", "vietnamese"}
+# The game's own fonts, from assets/fonts: (family name, file).
+LOCAL = [("Protest Revolution", 400, "protest_revolution_regular.ttf"), ("Jaini", 400, "jaini_regular.ttf"),
+         ("Amita", 400, "amita_regular.ttf"), ("Amita", 700, "amita_bold.ttf")]
+ASSET_FONTS = pathlib.Path(__file__).parent / "../../../../assets/fonts"
 UA = "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 Chrome/120 Safari/537.36"
 BUILD = pathlib.Path(__file__).parent / "build"
 CACHE = BUILD / "fonts"
@@ -41,6 +45,9 @@ def main():
                 curl(url, woff)
             data = base64.b64encode(woff.read_bytes()).decode()
             faces.append("@font-face {" + body.replace(f"url({url})", f"url(data:font/woff2;base64,{data})") + "}")
+    for family, weight, name in LOCAL:
+        data = base64.b64encode((ASSET_FONTS / name).read_bytes()).decode()
+        faces.append(f"@font-face {{ font-family: '{family}'; font-style: normal; font-weight: {weight}; src: url(data:font/ttf;base64,{data}) format('truetype'); }}")
     (BUILD / "fonts.css").write_text("\n".join(faces))
     print(f"{len(faces)} font faces -> {BUILD / 'fonts.css'}")
 
