@@ -387,34 +387,60 @@ def icon(kind, x, y, s, c):
     return f'<path d="{p}" transform="translate({f(x)},{f(y)}) scale({s})" fill="none" stroke="{c}" stroke-width="{2.2 / s}" stroke-linecap="round" stroke-linejoin="round"/>'
 
 
-def widget(mm, x, y, w, body, lens_on="city", alerts=2, compact=False):
-    """Đại Long HUD chrome around a map body: a lens bar on top, tools on the right."""
-    ink, red, paper = "#2b2118", "#a8261c", "#ecdcb4"
-    pad = 14
-    tb = 0 if compact else 52
-    H = w / 2 + 2 * pad + tb
-    W = w + 2 * pad + 64
+LENSES = [("city", "City"), ("sectors", "Sectors"), ("water", "Water"), ("fire", "Risks"), ("religion", "Faith")]
+TOOLS = [("plus", "Zoom in"), ("minus", "Zoom out"), ("alert", "Next alert"), ("home", "Centre on the palace"), ("world", "World map"), ("collapse", "Hide the map")]
+
+
+def widget_layout(x, y, map_w, btn, gap, pad):
+    """The widget's layout: lens icons in a row across the top, the map under them, the
+    tools in a column on the right. Returns the total size and where everything goes."""
+    map_x, map_y = x + pad, y + pad + btn + gap
+    col_x = map_x + map_w + gap
+    inner_h = btn + gap + map_w / 2
+    W = pad * 2 + map_w + gap + btn
+    H = pad * 2 + inner_h
+    lens_pos = [(map_x + k * (btn + gap), y + pad) for k in range(len(LENSES))]
+    step = (inner_h - btn) / (len(TOOLS) - 1)
+    tool_pos = [(col_x, y + pad + k * step) for k in range(len(TOOLS))]
+    return W, H, (map_x, map_y), lens_pos, tool_pos
+
+
+def widget_controls(lens_pos, tool_pos, btn, colors, lens_on="city", alerts=2, icon_scale=None):
+    """Icon-only buttons: one per lens, then the tools. `colors`: fill, on_fill, stroke, ink, on_ink, alert, badge."""
+    c = colors
+    s = icon_scale or btn / 44
+    out = []
+    for (bx, by), (key, _) in zip(lens_pos, LENSES):
+        on = key == lens_on
+        out.append(f'<rect x="{f(bx)}" y="{f(by)}" width="{btn}" height="{btn}" rx="{btn * 0.16:.1f}" fill="{c["on_fill"] if on else c["fill"]}" stroke="{c["stroke"]}" stroke-width="1.2"/>'
+                   + icon(key, bx + btn / 2, by + btn / 2, s, c["on_ink"] if on else c["ink"]))
+    for (bx, by), (key, _) in zip(tool_pos, TOOLS):
+        out.append(f'<rect x="{f(bx)}" y="{f(by)}" width="{btn}" height="{btn}" rx="{btn * 0.16:.1f}" fill="{c["fill"]}" stroke="{c["stroke"]}" stroke-width="1.2"/>'
+                   + icon(key, bx + btn / 2, by + btn / 2, s, c["alert"] if key == "alert" else c["ink"]))
+        if key == "alert" and alerts:
+            r = btn * 0.25
+            out.append(f'<circle cx="{f(bx + btn - 2)}" cy="{f(by + 2)}" r="{f(r)}" fill="{c["badge"]}" stroke="#fff4dc" stroke-width="1.2"/>'
+                       + T(bx + btn - 2, by + 2 + r * 0.42, str(alerts), "sans-serif", f(r * 1.25), "#fff", "middle", 800))
+    return "".join(out)
+
+
+DAILONG_CONTROLS = dict(fill="#f6ead0", on_fill="#a8261c", stroke="#2b211880", ink="#2b2118", on_ink="#fff4dc", alert="#a8261c", badge="#a8261c")
+
+
+def widget(mm, x, y, w, body_fn, lens_on="city", alerts=2, hover=None):
+    """The minimap widget in Đại Long's HUD chrome, large, for the widget sheet."""
+    btn, gap, pad = 44, 10, 14
+    W, H, (mx, my), lens_pos, tool_pos = widget_layout(x, y, w, btn, gap, pad)
     out = [f'<rect x="{x - 6}" y="{y - 6}" width="{W + 12}" height="{H + 12}" rx="8" fill="#2a170c"/>',
-           f'<rect x="{x}" y="{y}" width="{W}" height="{H}" rx="5" fill="{paper}"/>']
-    if not compact:
-        lenses = [("city", "City"), ("sectors", "Sectors"), ("water", "Water"), ("fire", "Risks"), ("religion", "Faith")]
-        bw = (w - 4 * 6) / 5
-        for k, (key, label) in enumerate(lenses):
-            bx = x + pad + k * (bw + 6)
-            on = key == lens_on
-            out.append(f'<rect x="{f(bx)}" y="{y + pad}" width="{f(bw)}" height="38" rx="5" fill="{red if on else "#f6ead0"}" stroke="{ink}" stroke-opacity=".5" stroke-width="1.2"/>')
-            out.append(icon(key, bx + 22, y + pad + 19, 0.85, "#fff4dc" if on else ink))
-            out.append(T(bx + 40, y + pad + 26, label, "Protest Revolution", 19, "#fff4dc" if on else ink))
-    out.append(body)
-    tx = x + W - 32 - pad + 8
-    tools = [("plus", None), ("minus", None), ("alert", alerts), ("home", None), ("world", None), ("collapse", None)]
-    step = (H - 2 * pad) / len(tools)
-    for k, (key, badge) in enumerate(tools):
-        ty = y + pad + step * k + step / 2
-        out.append(f'<rect x="{f(tx - 20)}" y="{f(ty - 20)}" width="40" height="40" rx="6" fill="#f6ead0" stroke="{ink}" stroke-opacity=".5" stroke-width="1.2"/>' + icon(key, tx, ty, 0.95, red if key == "alert" else ink))
-        if badge:
-            out.append(f'<circle cx="{f(tx + 16)}" cy="{f(ty - 16)}" r="10" fill="{red}" stroke="#fff4dc" stroke-width="1.5"/>' + T(tx + 16, ty - 11.5, str(badge), "sans-serif", 13, "#fff", "middle", 800))
-    return "".join(out), (x + pad, y + pad + tb)
+           f'<rect x="{x}" y="{y}" width="{W}" height="{H}" rx="5" fill="#ecdcb4"/>',
+           body_fn(mx, my, w),
+           widget_controls(lens_pos, tool_pos, btn, DAILONG_CONTROLS, lens_on, alerts, icon_scale=1.0)]
+    if hover is not None:
+        (bx, by), (_, label) = lens_pos[hover], LENSES[hover]
+        tw = 18 + len(label) * 11
+        out.append(f'<rect x="{f(bx)}" y="{f(by + btn + 6)}" width="{tw}" height="32" rx="5" fill="#2a170c" opacity=".92"/>'
+                   + T(bx + 10, by + btn + 28, label, "Protest Revolution", 19, "#f6ead0"))
+    return "".join(out), W, H
 
 
 def page(name, title, sub, body, defs, h=1080):
@@ -479,11 +505,10 @@ def lenses():
     body = []
     # The full widget with tools, in Đại Long's chrome.
     w = 760
-    inner, (mx, my) = widget(mm, 60, 130, w, "", "city")
+    inner, W, H = widget(mm, 60, 130, w, lambda x, y, ww: mm.painted(x, y, ww), "city", hover=2)
     body.append(inner)
-    body.append(mm.painted(mx, my, w))
     notes = [
-        ("Lens bar", "City, Sectors, Water, Risks, Faith. Picks what the minimap shows; could also switch the main view's overlay."),
+        ("Lens icons (top)", "City, Sectors, Water, Risks, Faith; the name shows as a tooltip. Picks what the minimap shows."),
         ("+ / −", "Zoom the minimap in around the camera: big maps (256 × 256) get too dense at one zoom."),
         ("Alerts", "Counts fires, collapses, raids and requests; each press jumps the camera to the next one."),
         ("Home", "Centres the camera on the palace or the governor's house."),
@@ -491,7 +516,7 @@ def lenses():
         ("Collapse", "Folds the widget down to its frame, as the current open / close button does."),
         ("On the map", "Camera frame with corner ticks, pulsing pings for alerts, icons for landmarks only."),
     ]
-    nx = 60 + w + 2 * 14 + 64 + 60
+    nx = 60 + W + 60
     for k, (t, s) in enumerate(notes):
         yy = 170 + k * 62
         body.append(T(nx, yy, t, "sans-serif", 19, "#f3e6c8", "start", 700))
@@ -512,7 +537,7 @@ def lenses():
             lx = x + (n % 2) * 220
             ly = y + LW / 2 + 82 + (n // 2) * 24
             body.append(f'<rect x="{lx}" y="{ly - 12}" width="14" height="14" rx="3" fill="{col}"/>' + T(lx + 22, ly, lab, "sans-serif", 15, "#cbbd9f", "start", 500))
-    page("minimap-lenses", "Minimap widget and lenses", "Concept A in Đại Long's HUD chrome, with a lens bar and tools, and the four lenses below.",
+    page("minimap-lenses", "Minimap widget and lenses", "Concept A in Đại Long's HUD chrome: lens icons across the top, tools down the right, and the four lenses below.",
          "".join(body), defs)
 
 

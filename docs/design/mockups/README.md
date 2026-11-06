@@ -36,7 +36,7 @@ The debrief after a mission (gdd.md 4, *Mission flow*), shown after mission 5 of
 
 ## In-game HUD
 
-The minimal HUD of gdd.md 10 over a city: speed and date, population, treasury, food and the four ratings, the goals tracker, the build bar with a tooltip, the minimap and the message log. The minimap is the [minimap concept](#minimap) A drawn by `minimap.py` (the sample city, in each realm's palette) with its lens and tool buttons. Đại Long uses parchment and wood, Kambara mossy sandstone, Tampadesa earthen brown with gilt trim.
+The minimal HUD of gdd.md 10 over a city: speed and date, population, treasury, food and the four ratings, the goals tracker, the build bar with a tooltip, the minimap and the message log. The minimap is the [minimap concept](#minimap) A drawn by `minimap.py` (the sample city, in each realm's palette) with the same layout: lens icons across the top and tools down the right. Đại Long uses parchment and wood, Kambara mossy sandstone, Tampadesa earthen brown with gilt trim.
 
 | Realm | Image |
 |---|---|
@@ -69,7 +69,7 @@ Concepts for a more modern minimap, on one 80 × 80 sample city drawn in the min
 | Sheet | Image |
 |---|---|
 | Today's minimap beside three directions: A, painted relief (recommended); B, an ink map like the world map; C, lenses (A with one data layer) | [minimap-concepts.jpg](minimap-concepts.jpg) |
-| Concept A in Đại Long's HUD frame with a lens bar and tools (zoom, alerts, home, world map, collapse), and the four lenses: sectors, water, fire risk, faith | [minimap-lenses.jpg](minimap-lenses.jpg) |
+| Concept A in Đại Long's HUD frame: lens icons across the top, tools down the right (zoom, alerts, home, world map, collapse), and the four lenses: sectors, water, fire risk, faith | [minimap-lenses.jpg](minimap-lenses.jpg) |
 
 Drawn by `minimap.py` (needs numpy and Pillow). The implementation plan is [docs/plans/minimap.md](../../plans/minimap.md).
 

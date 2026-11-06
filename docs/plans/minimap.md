@@ -196,15 +196,15 @@ pub trait LensProvider {                      // implemented by game systems tha
 ### The widget and toolbar
 
 Built with the existing retained widgets (`UiMenu`, `UiSpriteButton`, tooltips), like today's buttons:
-- **Lens bar** across the top: one toggle button per available lens, icon and short label. Only lenses whose systems exist are shown.
-- **Tool column** on the right: zoom in, zoom out, alerts (with a count badge drawn by the painter), home, world map, collapse.
+- **Lens icons** in a row across the top, above the map: one icon-only toggle button per available lens, its name in a tooltip, the active one filled in the accent colour. Only lenses whose systems exist are shown. There's no title or lens label: the icons replace today's "Map" heading.
+- **Tool column** down the right, beside the map and level with the lens row: zoom in, zoom out, alerts (with a count badge drawn by the painter), home, world map, collapse. Icon-only, with tooltips.
   - **Zoom:** sets `transform` zoom in steps (×1.5) and turns `auto_zoom` off; collapsing and reopening resets it.
   - **Home:** `camera.teleport_iso` to the seat's centre: the first feature with `LandmarkKind::Seat`, else the map centre.
   - **World map:** disabled until M10 brings the world map, with a tooltip saying so.
 - **Collapse:** the current close button, moved into the tool column. The open button stays where it is.
 - **Frame:** the menu's background sprite comes from the realm style, as today's `background` argument does.
 - **Hover:** a tooltip with the building or terrain under the cursor (the picking already exists). Optional; Phase 5.
-- **Sizes:** the widget keeps its current size by default, and the lens bar adds 40 points on top.
+- **Sizes:** in the HUD mockups the map is 300 × 150 points with 28-point buttons, 8 points apart, and a 12-point margin: 360 × 210 points in all. The layout is `widget_layout` in the mockup generator's `minimap.py`.
 
 ### Style files
 

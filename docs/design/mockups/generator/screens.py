@@ -10,7 +10,7 @@ import textwrap
 
 from world_map import DaiLong, Kambara, Tampadesa, T, f, FONTS_CSS, BUILD
 import screens_content as SC
-from minimap import Minimap, icon as mm_icon
+from minimap import Minimap, widget_layout, widget_controls
 
 W, H = 1920, 1080
 
@@ -235,15 +235,20 @@ class Screens:
         # Tooltip for the hovered build button.
         ty = 40 + 5 * 84 + 34
         parts.append(self.tooltip(bx - self.tooltip_w - 20, ty - 52, self.tooltip_w, 104, "Temples and shrines", "Faith, festivals and the patron spirits"))
-        # Minimap, bottom left: concept A from minimap.py, in the realm's palette.
-        parts.append(self.box(12, 776, 330, 292))
-        parts.append(self.section_title(36, 812, "Map"))
-        parts.append(T(318, 812, "City", self.body_font, 17, self.panel_sub, "end", 600, style="font-style:italic"))
+        # Minimap, bottom left: concept A from minimap.py in the realm's palette, with
+        # its lens icons across the top and its tools down the right (minimap-lenses).
+        btn, mw_ = 28, 300
+        mm_w, mm_h, *_ = widget_layout(0, 0, mw_, btn, 8, 12)
+        bx0, by0 = 12, 1068 - mm_h
+        mm_w, mm_h, (mmx, mmy), lens_pos, tool_pos = widget_layout(bx0, by0, mw_, btn, 8, 12)
+        parts.append(self.box(bx0, by0, mm_w, mm_h))
         mm = Minimap(self.defs, prefix="hudmm")
-        parts.append(mm.painted(26, 826, 302, palette=self.mm_palette, k=0.62))
-        parts.append(self.minimap_tools(26, 1022, u.get("alerts", 2)))
+        parts.append(mm.painted(mmx, mmy, mw_, palette=self.mm_palette, k=0.62))
+        colors = dict(fill=self.btn_fill, on_fill=self.accent, stroke=self.panel_rule, ink=self.panel_text,
+                      on_ink=self.on_icon, alert=self.accent, badge="#c4321f")
+        parts.append(widget_controls(lens_pos, tool_pos, btn, colors, "city", u.get("alerts", 2), icon_scale=0.62))
         # Messages, bottom centre.
-        mx, mw = 356, 900
+        mx, mw = bx0 + mm_w + 14, 1256 - (bx0 + mm_w + 14)
         parts.append(self.box(mx, 950, mw, 118))
         for k, (ic, msg) in enumerate(u["messages"]):
             my = 984 + k * 32
@@ -251,25 +256,6 @@ class Screens:
             parts.append(T(mx + 58, my, msg, self.body_font, 19, self.panel_text if k == 0 else self.panel_sub, "start", 700 if k == 0 else 600))
         parts.append(T(mx + mw - 24, 984, "now", self.body_font, 16, self.panel_sub, "end", 500, style="font-style:italic"))
         self.page(f"hud-{d['key']}", parts)
-
-    def minimap_tools(self, x, y, alerts):
-        """The minimap's toolbar, as in minimap-lenses: five lenses, then zoom, alerts and home."""
-        out = []
-        keys = ["city", "sectors", "water", "fire", "religion", None, "plus", "minus", "alert", "home"]
-        bx = x
-        for key in keys:
-            if key is None:
-                bx += 14
-                continue
-            on = key == "city"
-            cx = bx + 15
-            out.append(f'<rect x="{bx}" y="{y - 15}" width="30" height="30" rx="5" fill="{self.accent if on else self.btn_fill}" stroke="{self.panel_rule}" stroke-width="1.2"/>')
-            out.append(mm_icon(key, cx, y, 0.62, self.on_icon if on else (self.accent if key == "alert" else self.panel_text)))
-            if key == "alert" and alerts:
-                out.append(f'<circle cx="{cx + 12}" cy="{y - 13}" r="8" fill="#c4321f" stroke="#fff4dc" stroke-width="1.2"/>'
-                           + T(cx + 12, y - 9.5, str(alerts), "sans-serif", 11, "#fff", "middle", 800))
-            bx += 32
-        return "".join(out)
 
     def rating_badge(self, x, y, lab, v):
         r = 22
