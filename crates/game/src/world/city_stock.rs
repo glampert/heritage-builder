@@ -9,7 +9,13 @@ use serde::{Deserialize, Serialize};
 use smallvec::SmallVec;
 
 use crate::{
-    building::{Building, BuildingId, BuildingKind, construction::{ConstructionMaterials, MAX_CONSTRUCTION_MATERIALS}},
+    building::{
+        Building,
+        BuildingId,
+        BuildingKind,
+        construction::{ConstructionMaterials, MAX_CONSTRUCTION_MATERIALS},
+        storage::StorageSlots,
+    },
     cheats,
     sim::resources::{ResourceKind, StockItem},
     world::{World, object::GameObject},
@@ -123,6 +129,35 @@ impl CityStock {
             true
         });
         room
+    }
+
+    // Ok if `items`, deposited in this order, all fit in the storage yards; otherwise the first
+    // item that doesn't, with the count of it that would fit. room_for() checks one good alone,
+    // but goods share free slots, so goods that fit one at a time may not fit together. Runs the
+    // deposit on copies of the yards' slots.
+    pub fn check_room_for_all(world: &World, items: &[StockItem]) -> Result<(), StockItem> {
+        let mut yards: SmallVec<[StorageSlots; 4]> = SmallVec::new();
+        world.for_each_building(CITY_STOCK_BUILDINGS, |building| {
+            if Self::is_stock_building(building) {
+                yards.push(building.as_storage().storage_slots.as_ref().clone());
+            }
+            true
+        });
+
+        for item in items {
+            debug_assert!(item.kind.is_single_resource());
+            let mut remaining = item.count;
+            for slots in &mut yards {
+                if remaining == 0 {
+                    break;
+                }
+                remaining -= slots.receive_resources(item.kind, remaining);
+            }
+            if remaining != 0 {
+                return Err(StockItem { kind: item.kind, count: item.count - remaining });
+            }
+        }
+        Ok(())
     }
 
     // Ok if the city has `gold` (as the world stats count it, tax offices included) and every

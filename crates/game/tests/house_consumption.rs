@@ -1,6 +1,6 @@
 use common::{coords::Cell, Size};
 use game::{
-    building::BuildingKindAndId,
+    building::{BuildingKindAndId, HouseLevel, config::BuildingConfigs},
     debug::game_object_debug::GameObjectDebugVarRef,
     sim::{resources::ResourceKind, SimCmdQueue},
     tile::{TileFlags, TileKind},
@@ -22,6 +22,7 @@ fn main() {
         test_utils::test_fn!(test_house_consumption_scales_with_occupancy),
         test_utils::test_fn!(test_house_downgrades_when_requirements_unmet),
         test_utils::test_fn!(test_deprived_level0_house_loses_population_to_emigration),
+        test_utils::test_fn!(test_houses_need_pottery_from_level_2),
     ]);
 }
 
@@ -230,4 +231,14 @@ fn test_deprived_level0_house_loses_population_to_emigration() {
         0,
         "a Level 0 house without food/water access should lose all its population"
     );
+}
+
+// Mission I-2 teaches "level 2 housing, which needs pottery" (docs/design/campaigns.md), so
+// pottery is a need from level 2 up, and not before.
+fn test_houses_need_pottery_from_level_2() {
+    let configs = BuildingConfigs::get();
+    for level in [HouseLevel::Level1, HouseLevel::Level2, HouseLevel::Level3, HouseLevel::Level4] {
+        let needs_pottery = configs.find_house_level_config(level).resources_required.iter().any(|kinds| *kinds == ResourceKind::Pottery);
+        assert_eq!(needs_pottery, level != HouseLevel::Level1, "{level}");
+    }
 }

@@ -69,7 +69,7 @@ impl Default for StorageConfig {
             max_workers: 4,
             resources_accepted: ResourceKinds::all(),
             num_slots: 8,
-            slot_capacity: 4,
+            slot_capacity: 8,
         }
     }
 }

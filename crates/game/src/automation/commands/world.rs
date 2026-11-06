@@ -740,13 +740,15 @@ fn cmd_add_stock(context: &mut CommandContext, params: Value) -> CommandResult {
 
     refresh_world_stats(context);
 
-    // Check there's room for everything first, so a failure adds nothing.
-    let world = context.session.world();
-    for (kind, count) in &items {
-        let room = CityStock::room_for(world, *kind);
-        if room < *count {
-            return Err(CommandError::failed(format!("The storage yards have room for {room} {kind}, not {count}.")));
-        }
+    // Check there's room for everything together first, so a failure adds nothing.
+    let stock_items: Vec<StockItem> = items.iter().map(|&(kind, count)| StockItem { kind, count }).collect();
+    if let Err(fits) = CityStock::check_room_for_all(context.session.world(), &stock_items) {
+        let wanted = stock_items.iter().find(|item| item.kind == fits.kind).map_or(0, |item| item.count);
+        return Err(CommandError::failed(format!(
+            "The storage yards have room for {} {} with the rest of this stock, not {wanted}.",
+            fits.count,
+            fits.kind.name()
+        )));
     }
 
     let delta_time_secs = context.engine.frame_clock().delta_time();
@@ -773,8 +775,14 @@ fn add_stock_to_building(context: &mut CommandContext, cell: Cell, items: &[(Res
         .ok_or_else(|| CommandError::not_found(format!("No building at [{}, {}].", cell.x, cell.y)))?;
     let building = session.world_mut().find_building_mut(handle.kind, handle.id).unwrap();
 
+    // A storage yard's goods share its slots, so check them together on a copy of the slots.
+    // Other buildings hold each good in its own space.
+    let mut yard_slots = building.is(BuildingKind::storage()).then(|| building.as_storage().storage_slots.as_ref().clone());
     for (kind, count) in items {
-        let room = building.receivable_resources(*kind);
+        let room = match &mut yard_slots {
+            Some(slots) => slots.receive_resources(*kind, *count),
+            None => building.receivable_resources(*kind).min(*count),
+        };
         if room < *count {
             return Err(CommandError::failed(format!("{} has room for {room} {kind}, not {count}.", building.name())));
         }

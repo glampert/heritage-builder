@@ -75,7 +75,8 @@
       "resources_required": {
         "kinds": [
           "Rice",
-          "Meat | Fish"
+          "Meat | Fish",
+          "Pottery"
         ]
       },
       "stock_capacity": 15
@@ -106,7 +107,8 @@
         "kinds": [
           "Rice",
           "Meat | Fish",
-          "Wine"
+          "Wine",
+          "Pottery"
         ]
       },
       "stock_capacity": 15
@@ -139,7 +141,8 @@
         "kinds": [
           "Rice",
           "Meat | Fish",
-          "Wine"
+          "Wine",
+          "Pottery"
         ]
       },
       "stock_capacity": 20
@@ -486,7 +489,7 @@
         ]
       },
       "num_slots": 8,
-      "slot_capacity": 4
+      "slot_capacity": 8
     },
     {
       "kind": "Granary",
@@ -502,7 +505,7 @@
         ]
       },
       "num_slots": 8,
-      "slot_capacity": 4
+      "slot_capacity": 8
     }
   ]
 }

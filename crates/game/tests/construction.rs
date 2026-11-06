@@ -26,6 +26,7 @@ fn main() {
         // City stock:
         test_utils::test_fn!(test_yard_accessors_see_every_slot),
         test_utils::test_fn!(test_city_stock_counts_every_yard),
+        test_utils::test_fn!(test_room_for_goods_together),
         test_utils::test_fn!(test_withdrawal_takes_yards_in_pool_order),
         test_utils::test_fn!(test_refund_returns_materials_to_their_yards),
         test_utils::test_fn!(test_refund_goes_elsewhere_when_a_yard_is_gone),
@@ -167,24 +168,25 @@ fn test_yard_accessors_see_every_slot() {
     let yard = test_utils::spawn_building(&mut env, Cell::new(2, 2), "storage_yard");
     let config = BuildingConfigs::get().find_storage_config(BuildingKind::StorageYard);
     let (slot_capacity, num_slots) = (config.slot_capacity, config.num_slots);
-    assert_eq!(slot_capacity, 4, "the counts below assume slots of 4 units");
+    assert!(slot_capacity >= 4 && slot_capacity % 2 == 0, "the counts below assume even slots of 4 units or more");
+    let half = slot_capacity / 2;
 
     let building = test_utils::find_building_mut(&mut env, yard);
 
-    // Wood fills a slot and starts a second, bricks take a third, then more wood tops up the
-    // second and starts a fourth: wood 4 + 4 + 1.
-    assert_eq!(building.receive_resources(ResourceKind::Wood, 6), 6);
+    // Wood fills a slot and half of a second, bricks take a third, then more wood tops up the
+    // second and starts a fourth: wood S + S + 1.
+    assert_eq!(building.receive_resources(ResourceKind::Wood, slot_capacity + half), slot_capacity + half);
     assert_eq!(building.receive_resources(ResourceKind::Bricks, 3), 3);
-    assert_eq!(building.receive_resources(ResourceKind::Wood, 3), 3);
-    assert_eq!(building.available_resources(ResourceKind::Wood), 9);
+    assert_eq!(building.receive_resources(ResourceKind::Wood, half + 1), half + 1);
+    assert_eq!(building.available_resources(ResourceKind::Wood), 2 * slot_capacity + 1);
     assert_eq!(building.stock().as_slice(), &[
-        StockItem { kind: ResourceKind::Wood, count: 9 },
+        StockItem { kind: ResourceKind::Wood, count: 2 * slot_capacity + 1 },
         StockItem { kind: ResourceKind::Bricks, count: 3 },
     ]);
 
-    // Taking 7 wood empties the 1-unit slot and a full one and leaves 2 in the other, so only
-    // that slot and the bricks' are in use.
-    assert_eq!(building.remove_resources(ResourceKind::Wood, 7), 7);
+    // Taking all but 2 of the wood empties the 1-unit slot and a full one and leaves 2 in the
+    // other, so only that slot and the bricks' are in use.
+    assert_eq!(building.remove_resources(ResourceKind::Wood, 2 * slot_capacity - 1), 2 * slot_capacity - 1);
     assert_eq!(building.available_resources(ResourceKind::Wood), 2);
     assert_eq!(building.receivable_resources(ResourceKind::Bricks), (slot_capacity - 3) + (num_slots - 2) * slot_capacity);
 
@@ -194,6 +196,31 @@ fn test_yard_accessors_see_every_slot() {
     assert_eq!(building.receivable_resources(ResourceKind::Wood), 0);
     assert_eq!(building.remove_resources(ResourceKind::Wood, 100), 2 + room);
     assert_eq!(building.receivable_resources(ResourceKind::Wood), (num_slots - 1) * slot_capacity);
+}
+
+// Goods share a yard's free slots: two goods that each fit alone may not fit together, and the
+// combined check says which one runs out of room and how much of it would fit.
+fn test_room_for_goods_together() {
+    let mut env = TestEnvironment::new();
+    spawn_yard(&mut env, Cell::new(2, 2), 0);
+    let config = BuildingConfigs::get().find_storage_config(BuildingKind::StorageYard);
+    let (slot_capacity, num_slots) = (config.slot_capacity, config.num_slots);
+
+    // Each good takes just over half the slots.
+    let slots_each = num_slots / 2 + 1;
+    let count = slots_each * slot_capacity;
+    let wood = StockItem { kind: ResourceKind::Wood, count };
+    let rice = StockItem { kind: ResourceKind::Rice, count };
+    assert!(CityStock::room_for(&env.world, ResourceKind::Wood) >= count);
+    assert!(CityStock::room_for(&env.world, ResourceKind::Rice) >= count);
+
+    assert_eq!(CityStock::check_room_for_all(&env.world, &[wood]), Ok(()));
+    assert_eq!(
+        CityStock::check_room_for_all(&env.world, &[wood, rice]),
+        Err(StockItem { kind: ResourceKind::Rice, count: (num_slots - slots_each) * slot_capacity })
+    );
+    // The check changes nothing.
+    assert_eq!(CityStock::available(&env.world, ResourceKind::Wood), 0);
 }
 
 // The city stock is every storage yard's, and affordability reports the shortfall.

@@ -1,6 +1,6 @@
 # Goods and production for missions I-1 to I-5
 
-**Status (2026-11-06): Phases 0 and 1 done; Phase 2, the house ladder and storage balance, next.** This plan is milestone M5 of the [roadmap](roadmap.md). It adds the goods and producers that missions I-1 to I-5 need ([campaigns.md](../design/campaigns.md#campaign-i--the-dragon-legacy-đại-long), GDD §8), and rebalances storage against construction costs and house needs. First it changes how goods are saved, so that adding a good later never breaks the save format (user request, 2026-11-06). It was researched against `9635bff` on `claude`. File and line references point at that commit, so re-check them before relying on them.
+**Status (2026-11-06): Phases 0–2 done; Phase 3, the documentation pass, remains.** This plan is milestone M5 of the [roadmap](roadmap.md). It adds the goods and producers that missions I-1 to I-5 need ([campaigns.md](../design/campaigns.md#campaign-i--the-dragon-legacy-đại-long), GDD §8), and rebalances storage against construction costs and house needs. First it changes how goods are saved, so that adding a good later never breaks the save format (user request, 2026-11-06). It was researched against `9635bff` on `claude`. File and line references point at that commit, so re-check them before relying on them.
 
 ## How to resume this work
 
@@ -133,11 +133,19 @@ A saved good the config no longer accepts stays accepted while the stock holds a
 
 ### Phase 2: House ladder and storage balance (small)
 
-- [ ] Pottery in house levels 2–4.
-- [ ] Storage slot capacity, measured against the civic costs and house needs.
-- [ ] `world.add_stock` checks all goods together; remove its known-issues entry.
-- [ ] The Resources dialog passes `ui.layout_issues` with the new goods.
-- [ ] Update `renovation.jsonl`, `smoke.jsonl` and the tests if the ladder change moves them.
+- [x] Pottery in house levels 2–4.
+- [x] Storage slot capacity, measured against the civic costs and house needs.
+- [x] `world.add_stock` checks all goods together; remove its known-issues entry.
+- [x] The Resources dialog passes `ui.layout_issues` with the new goods.
+- [x] Update `renovation.jsonl`, `smoke.jsonl` and the tests if the ladder change moves them.
+
+**Notes (2026-11-06):**
+- **Ladder:** level 2 needs Rice, Meat or Fish, and Pottery; levels 3 and 4 add Wine. `test_houses_need_pottery_from_level_2` (`tests/house_consumption.rs`) pins it to mission I-2. No scenario reaches level 2, so none moved.
+- **Storage:** `slot_capacity` 8 for the storage yard and granary (and the config default). Measured: the citadel's 48 units of materials take 6 slots of 8 in one yard (12 slots of 4 before, more than a yard has); two temples' 36 units take 5 (9 before), so `construction.jsonl` is back to one yard. A granary holds 64 units of food. House stocks (5–20 per good) and markets (10) are unchanged. Slot capacity reaches old saves through `post_load`.
+- **`world.add_stock`:** `CityStock::check_room_for_all` runs the whole deposit on copies of the yards' slots, in deposit order, and names the first good that doesn't fit and how much of it would. With a `cell`, a storage yard is checked the same way; other buildings keep a separate capacity per good. Tested by `test_room_for_goods_together`, and in a debug build 40 Wood and 40 Rice into an empty yard now fails with nothing stored.
+- `test_yard_accessors_see_every_slot` no longer assumes slots of 4.
+- **Sample saves:** `test_map_256x256`, `test_save_2` and `tiny_island` have 15, 6 and 13 houses at level 2 or 3, none holding pottery. They load, and will downgrade after the grace period unless the city makes pottery: the ladder working as designed, not a load problem.
+- Verified: `cargo test --workspace`, every CI scenario, `determinism.jsonl` twice, `--smoke-test-saves`, the web target.
 
 ### Phase 3: Documentation (small)
 
@@ -154,6 +162,6 @@ A saved good the config no longer accepts stays accepted while the stock holds a
 
 1. **Vegetables and other new foods.** The roadmap named vegetables, but missions 1–5 don't need them. Default: leave them out of M5. Phase 0 makes adding them later cheap, when a mission or M7's farming needs them.
 2. **Which buildings cost roof tiles.** Default: the civic buildings from mission 3 on (temple, hospital, theatre, university, palace, citadel), not mission 2's tax office, police station, apothecary and distillery.
-3. **Storage sizes.** Default: slot capacity 8 for the storage yard and granary, confirmed by the Phase 2 measurement.
+3. **Storage sizes.** Slot capacity 8 for the storage yard and granary, confirmed by the Phase 2 measurement (2026-11-06).
 4. **Common house level 5.** Missions 1–5 ask for levels 1 and 2 (mission 2's goal) and Prosperity 30 (mission 4), which levels 1–4 can give. Default: no level 5 in M5; revisit with M9's ratings.
 5. **A data-driven goods list.** Goods stay a compile-time `ResourceKind`. A goods list in `assets/configs/` would follow the roadmap's "data first" convention better, for realm-specific goods in phases 3 and 4. Default: not in M5. The name-keyed saves from Phase 0 are what such a change would need, so it stays open.
