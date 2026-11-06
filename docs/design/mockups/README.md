@@ -74,6 +74,15 @@ Each realm has its own typeface, set in `REALM_FONTS` in `generator/common.py`:
 
 Jaini and Amita have no Vietnamese, so Đại Long's names on Kambara's and Tampadesa's screens take their accented letters from a fallback (Spectral SC and Alegreya, from Google Fonts). Protest Revolution covers Vietnamese.
 
+## Live preview
+
+```bash
+cd docs/design/mockups/generator
+python3 serve.py --open
+```
+
+builds every screen and serves them at http://127.0.0.1:8765/ (`--port` and `--host` change that). The index links each screen; a screen's page fits it to the window, with links to the other realms and ← / → to step through all 27. Saving a file in this folder, or a font in `assets/fonts/`, re-runs only the scripts it affects (about a second) and the open page reloads itself. A failed build shows its traceback over the page and keeps the last good screens. It's the standard library only, but the scripts it runs need Pillow. It writes only the HTML in `build/`: run `shot.js` to update the committed JPEGs.
+
 ## Regenerating
 
 The generator lives in [generator/](generator/): `common.py` holds the shared geography and layout, `content.py` what each realm's map shows, and `world_map.py` the three styles. `screens.py` (with its text in `screens_content.py`) draws the intro, intermission and HUD screens in the same styles, and `menus.py` (text in `menus_content.py`) the main menu screens. It needs Python 3, Node with Playwright and Chromium, and network access to Google Fonts the first time.
