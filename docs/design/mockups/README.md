@@ -36,7 +36,7 @@ The debrief after a mission (gdd.md 4, *Mission flow*), shown after mission 5 of
 
 ## In-game HUD
 
-The minimal HUD of gdd.md 10 over a city: speed and date, population, treasury, food and the four ratings, the goals tracker, the build bar with a tooltip, the minimap and the message log. Đại Long uses parchment and wood, Kambara mossy sandstone, Tampadesa earthen brown with gilt trim.
+The minimal HUD of gdd.md 10 over a city: speed and date, population, treasury, food and the four ratings, the goals tracker, the build bar with a tooltip, the minimap and the message log. The minimap is the [minimap concept](#minimap) A drawn by `minimap.py` (the sample city, in each realm's palette) with its lens and tool buttons. Đại Long uses parchment and wood, Kambara mossy sandstone, Tampadesa earthen brown with gilt trim.
 
 | Realm | Image |
 |---|---|

@@ -142,13 +142,14 @@ class Minimap:
     """Draws one concept into a rect: the diamond map in tile space under the
     isometric matrix, clipped to the playable rectangle."""
 
-    def __init__(self, defs):
+    def __init__(self, defs, prefix=""):
         self.defs = defs
+        self.prefix = prefix
         self.n = 0
 
     def nid(self, p):
         self.n += 1
-        return f"{p}{self.n}"
+        return f"{self.prefix}{p}{self.n}"
 
     def frame(self, x, y, w):
         """Map area at (x, y) with width w (height w / 2). Returns (open, close, to_screen)."""
@@ -178,21 +179,22 @@ class Minimap:
                     segs.append(f"M{i + .5},{j + .5}V{j + 1.5}")
         return "".join(segs)
 
-    def camera(self, to_screen, style):
+    def camera(self, to_screen, style, k=1.0):
         cx, cy = to_screen(48, 40)
-        w, h = 150, 84
+        w, h = 150 * k, 84 * k
+        t, sw = 14 * k, max(2.5, 4 * k)
         if style == "ink":
             return (f'<rect x="{f(cx - w / 2)}" y="{f(cy - h / 2)}" width="{w}" height="{h}" fill="none" stroke="#a8261c" stroke-width="3" stroke-dasharray="14 5"/>')
         return (f'<rect x="{f(cx - w / 2)}" y="{f(cy - h / 2)}" width="{w}" height="{h}" rx="5" fill="#ffffff" fill-opacity="0.12" stroke="#fffaf0" stroke-width="2.5"/>'
-                + "".join(f'<path d="M{f(px)},{f(py + dy * 14)} V{f(py)} H{f(px + dx * 14)}" fill="none" stroke="#fffaf0" stroke-width="4" stroke-linecap="round"/>'
+                + "".join(f'<path d="M{f(px)},{f(py + dy * t)} V{f(py)} H{f(px + dx * t)}" fill="none" stroke="#fffaf0" stroke-width="{f(sw)}" stroke-linecap="round"/>'
                           for px, py, dx, dy in [(cx - w / 2, cy - h / 2, 1, 1), (cx + w / 2, cy - h / 2, -1, 1), (cx - w / 2, cy + h / 2, 1, -1), (cx + w / 2, cy + h / 2, -1, -1)]))
 
-    def ping(self, to_screen, i, j, color="#e8432f"):
+    def ping(self, to_screen, i, j, color="#e8432f", k=1.0):
         x, y = to_screen(i, j)
-        return (f'<circle cx="{f(x)}" cy="{f(y)}" r="22" fill="none" stroke="{color}" stroke-width="2" opacity="0.45"/>'
-                f'<circle cx="{f(x)}" cy="{f(y)}" r="13" fill="none" stroke="{color}" stroke-width="3"/>'
-                f'<circle cx="{f(x)}" cy="{f(y - 30)}" r="13" fill="{color}" stroke="#fff" stroke-width="2"/>'
-                + T(x, y - 24.5, "!", "sans-serif", 17, "#fff", "middle", 800))
+        return (f'<circle cx="{f(x)}" cy="{f(y)}" r="{f(22 * k)}" fill="none" stroke="{color}" stroke-width="2" opacity="0.45"/>'
+                f'<circle cx="{f(x)}" cy="{f(y)}" r="{f(13 * k)}" fill="none" stroke="{color}" stroke-width="{f(max(2, 3 * k))}"/>'
+                f'<circle cx="{f(x)}" cy="{f(y - 30 * k)}" r="{f(13 * k)}" fill="{color}" stroke="#fff" stroke-width="{f(max(1.2, 2 * k))}"/>'
+                + T(x, y - 24.5 * k, "!", "sans-serif", f(17 * k), "#fff", "middle", 800))
 
     # ------------------------------------------------------------ concept 0: today
     def current(self, x, y, w):
@@ -215,8 +217,14 @@ class Minimap:
     # ------------------------------------------------------------ concept A: painted relief
     PAINT = ["#e7c98b", "#a9b85a", "#b8553f", "#5b8fc9", "#8d8a83", "#9a5aa8", "#e0a93a", "#6fbf7a"]
 
-    def painted(self, x, y, w, lens=None):
+    # Concept A's colours; a realm can override any of them (see screens.py's HUD).
+    PALETTE = dict(land_low="#a7bd72", land_high="#cdbb83", forest="#5d8c48", rocks="#a19584",
+                   shallow="#6db3c2", deep="#2f6f8c", foam="#f3f0dc", field="#b7c560", field_row="#8fa843")
+
+    def painted(self, x, y, w, lens=None, palette=None, k=1.0):
+        """Concept A. `k` scales the camera frame, pings and icons for a smaller widget."""
         c = CITY
+        pal = {**self.PALETTE, **(palette or {})}
         px = 8
         water = up(c["water"], px, 2.2)
         deep = up(c["water"], px, 9)
@@ -224,29 +232,29 @@ class Minimap:
         rocks = up(c["rocks"], px, 3)
         hgt = up(c["height"], px, 6)
         tex = up(np.random.default_rng(5).random((N, N)) > 0.5, px, 1.2)
-        land = mix(np.zeros(water.shape + (3,)) + hexrgb("#a7bd72"), "#cdbb83", np.clip((hgt - 0.35) * 1.6, 0, 1))
-        land = mix(land, "#5d8c48", np.clip(veg * 1.4, 0, 1) * (0.8 + 0.2 * tex))
-        land = mix(land, "#a19584", np.clip(rocks * 1.5, 0, 1))
+        land = mix(np.zeros(water.shape + (3,)) + hexrgb(pal["land_low"]), pal["land_high"], np.clip((hgt - 0.35) * 1.6, 0, 1))
+        land = mix(land, pal["forest"], np.clip(veg * 1.4, 0, 1) * (0.8 + 0.2 * tex))
+        land = mix(land, pal["rocks"], np.clip(rocks * 1.5, 0, 1))
         gy, gx = np.gradient(hgt)
         shade = np.clip(1 + 14 * (gx * -1 + gy * -1), 0.75, 1.2)
         land = land * shade[..., None]
-        sea = mix(np.zeros(water.shape + (3,)) + hexrgb("#6db3c2"), "#2f6f8c", np.clip((deep - 0.5) * 2.2, 0, 1))
+        sea = mix(np.zeros(water.shape + (3,)) + hexrgb(pal["shallow"]), pal["deep"], np.clip((deep - 0.5) * 2.2, 0, 1))
         img = mix(land, "#000000", np.zeros_like(water))
         img = img * (1 - water[..., None]) + sea * water[..., None]
         foam = np.exp(-((water - 0.5) / 0.09) ** 2)
-        img = mix(img, "#f3f0dc", foam * 0.85)
+        img = mix(img, pal["foam"], foam * 0.85)
         if lens:
             gray = img.mean(axis=2, keepdims=True)
             img = img * 0.35 + (gray * 0.85 + 30) * 0.65
             img = mix(img, lens["color"], lens["field"](px) * lens.get("alpha", 0.6))
         img = img.transpose(1, 0, 2)
         a, b, e, ts = self.frame(x, y, w)
-        out = [f'<rect x="{x}" y="{y}" width="{w}" height="{w / 2}" rx="6" fill="#2f6f8c"/>', a, self.image(png_uri(img))]
+        out = [f'<rect x="{x}" y="{y}" width="{w}" height="{w / 2}" rx="6" fill="{pal["deep"]}"/>', a, self.image(png_uri(img))]
         rp = self.road_paths(c["roads"])
         out.append(f'<path d="{rp}" stroke="#6b5a40" stroke-width="0.75" stroke-linecap="round" fill="none" opacity="0.8"/>'
                    f'<path d="{rp}" stroke="#f4e8c8" stroke-width="0.45" stroke-linecap="round" fill="none"/>')
         pid = self.nid("paddy")
-        self.defs.append(f'<pattern id="{pid}" width="1" height="0.6" patternUnits="userSpaceOnUse"><rect width="1" height="0.6" fill="#b7c560"/><rect width="1" height="0.22" fill="#8fa843"/></pattern>')
+        self.defs.append(f'<pattern id="{pid}" width="1" height="0.6" patternUnits="userSpaceOnUse"><rect width="1" height="0.6" fill="{pal["field"]}"/><rect width="1" height="0.22" fill="{pal["field_row"]}"/></pattern>')
         for i, j, bw, bh, sec, name in sorted(c["buildings"], key=lambda q: q[0] + q[1]):
             col = (lens["building"](sec, name, i, j) if lens else self.PAINT[sec])
             if col is None:
@@ -262,18 +270,18 @@ class Minimap:
             for i, j, bw, bh, sec, name in c["buildings"]:
                 if name in ("palace", "temple", "market"):
                     sx, sy = ts(i + bw / 2, j + bh / 2)
-                    out.append(self.landmark(sx, sy, name))
-        out.append(self.camera(ts, "modern"))
+                    out.append(self.landmark(sx, sy, name, k))
+        out.append(self.camera(ts, "modern", k))
         if not lens:
-            out.append(self.ping(ts, 56.5, 32.5))
+            out.append(self.ping(ts, 56.5, 32.5, k=k))
         out.append(e)
         return "".join(out)
 
-    def landmark(self, x, y, name):
+    def landmark(self, x, y, name, k=1.0):
         glyph = {"palace": "M-7,4 V-2 L0,-8 L7,-2 V4Z M-3,4 V0 H3 V4", "temple": "M-8,-1 Q0,-7 8,-1 M-6,-5 Q0,-10 6,-5 M-5,-1 V5 M5,-1 V5 M-7,5 H7",
                  "market": "M-7,-3 H7 L5,4 H-5Z M-4,-3 Q0,-9 4,-3"}[name]
-        return (f'<circle cx="{f(x)}" cy="{f(y)}" r="12" fill="#fffaf0" stroke="#2b2418" stroke-width="1.5"/>'
-                f'<path d="{glyph}" transform="translate({f(x)},{f(y)})" fill="none" stroke="#2b2418" stroke-width="1.6" stroke-linejoin="round" stroke-linecap="round"/>')
+        return (f'<circle cx="{f(x)}" cy="{f(y)}" r="{f(12 * k)}" fill="#fffaf0" stroke="#2b2418" stroke-width="1.5"/>'
+                f'<path d="{glyph}" transform="translate({f(x)},{f(y)}) scale({f(k)})" fill="none" stroke="#2b2418" stroke-width="1.6" stroke-linejoin="round" stroke-linecap="round"/>')
 
     # ------------------------------------------------------------ concept B: ink map
     def ink(self, x, y, w):

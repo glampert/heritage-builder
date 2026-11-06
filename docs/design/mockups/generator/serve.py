@@ -49,7 +49,7 @@ AFFECTS = {
     "screens_content.py": ["screens"],
     "menus.py": ["menus"],
     "menus_content.py": ["menus"],
-    "minimap.py": ["minimap"],
+    "minimap.py": ["minimap", "screens", "menus"],
 }
 
 
