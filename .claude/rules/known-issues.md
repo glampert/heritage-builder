@@ -1,6 +1,6 @@
 # Known issues and unfinished work
 
-Last verified against the code on 2026-11-05. Remove an entry once it's resolved.
+Last verified against the code on 2026-11-06. Remove an entry once it's resolved.
 
 ## Unfinished features
 
@@ -17,7 +17,6 @@ Last verified against the code on 2026-11-05. Remove an entry once it's resolved
 - `world.add_stock` checks each good's room on its own, so goods that fit one at a time but not together (20 Rice and 20 Wood for an empty yard's 32 units) succeed with only part stored, and trip a `debug_assert` in debug builds — `crates/game/src/automation/commands/world.rs`.
 
 - Water shores are recomputed only when terrain is placed, so a save made before 2026-10-20, when the composed shore variations (channels, bays, several corners) were added, still draws plain water in a one-cell channel until the land next to it is placed again. Loading doesn't recompute them — `crates/game/src/session.rs`, see `.claude/rules/terrain-tiles.md`.
-- A stock keeps the goods it accepted when it was built, since each one saves its accepted kinds. In saves made before the storage yard took pottery and bricks (`tiny_island` and `test_map_64x64`, `_100x100`, `_128x128` and `_256x256` among the sample saves), its slots accept only Rice, Meat, Fish, Wine, Wood, Metal and Clay, so walkers and the city stock skip it for pottery and bricks: a brick maker or pottery kiln built there has nowhere to deliver, and construction can't draw bricks from it. Houses and markets saved before they took pottery don't take it either: all of those in the sample saves but `test_save_1` and `test_save_2`. Loading doesn't refresh what a stock accepts from the config — `StorageBuilding::post_load`, `crates/game/src/building/storage.rs`.
 
 ## Failure handling
 

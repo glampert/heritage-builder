@@ -13,8 +13,7 @@ use common::bitflags_with_display;
 use engine::log;
 use proc_macros::DrawDebugUi;
 use rand::{Rng, seq::IteratorRandom};
-use serde::{Deserialize, Deserializer, Serialize, de};
-use smallvec::SmallVec;
+use serde::{Deserialize, Serialize};
 
 use crate::{
     building::{Building, BuildingId, BuildingKind, BuildingKindAndId},
@@ -26,9 +25,14 @@ use crate::{
 // Resources (Consumer Goods, Raw Materials)
 // ----------------------------------------------
 
+// Saves store goods by name, never by bit position (see `per_kind_map`), so a good can be
+// added anywhere in this list without breaking older saves. Removing or renaming one breaks
+// them and needs a migration script. The bits must stay contiguous from 0 (checked below),
+// since a good's bit is its index in `[_; RESOURCE_KIND_COUNT]` arrays. Bit order is the
+// order goods are visited in, so changing it changes which of `A | B` a request takes first.
 bitflags_with_display! {
     #[derive(Copy, Clone, Default, PartialEq, Eq, Debug, Serialize, Deserialize)]
-    pub struct ResourceKind: u32 {
+    pub struct ResourceKind: u64 {
         // Foods:
         const Rice    = 1 << 0;
         const Meat    = 1 << 1;
@@ -102,6 +106,13 @@ impl ResourceKind {
         all
     }
 
+    // Name of a single-resource flag, as saves and configs spell it.
+    #[inline]
+    pub fn name(self) -> &'static str {
+        debug_assert!(self.is_single_resource());
+        Self::FLAGS.iter().find(|flag| *flag.value() == self).map_or("", |flag| flag.name())
+    }
+
     // Index of a single-resource flag, for use with `[_; RESOURCE_KIND_COUNT]` arrays.
     #[inline]
     pub fn index(self) -> usize {
@@ -111,6 +122,11 @@ impl ResourceKind {
 }
 
 pub const RESOURCE_KIND_COUNT: usize = ResourceKind::count();
+
+const _: () = assert!(
+    RESOURCE_KIND_COUNT < 64 && ResourceKind::all().bits() == (1u64 << RESOURCE_KIND_COUNT) - 1,
+    "ResourceKind bits must be contiguous from bit 0"
+);
 pub type ResourceKinds = ResourceList<ResourceKind, RESOURCE_KIND_COUNT>;
 
 // ----------------------------------------------
@@ -157,6 +173,74 @@ mod serialize_map_as_pairs {
     {
         let vec = Vec::<(K, V)>::deserialize(de)?;
         Ok(vec.into_iter().collect())
+    }
+}
+
+// ----------------------------------------------
+// Per-kind arrays saved by name
+// ----------------------------------------------
+
+// Serializes a `[T; RESOURCE_KIND_COUNT]` indexed by `ResourceKind::index()` as a map from
+// each good's name to its value, leaving out default (zero) entries: `{ "Rice": 2 }`.
+// A save then never depends on a good's position, so goods can be added or reordered
+// without breaking it. A name the code doesn't know is an error: the good was removed or
+// renamed, which needs a migration script.
+pub(crate) mod per_kind_map {
+    use std::{fmt, marker::PhantomData};
+
+    use serde::{
+        Deserialize, Deserializer, Serialize, Serializer,
+        de::{self, MapAccess, Visitor},
+        ser::SerializeMap,
+    };
+
+    use super::{RESOURCE_KIND_COUNT, ResourceKind};
+
+    pub fn serialize<T, S>(values: &[T; RESOURCE_KIND_COUNT], ser: S) -> Result<S::Ok, S::Error>
+    where
+        T: Serialize + Default + PartialEq,
+        S: Serializer,
+    {
+        let default = T::default();
+        let mut map = ser.serialize_map(None)?;
+        for kind in ResourceKind::all().iter() {
+            let value = &values[kind.index()];
+            if *value != default {
+                map.serialize_entry(&kind.name(), value)?;
+            }
+        }
+        map.end()
+    }
+
+    pub fn deserialize<'de, T, D>(de: D) -> Result<[T; RESOURCE_KIND_COUNT], D::Error>
+    where
+        T: Deserialize<'de> + Default + Copy,
+        D: Deserializer<'de>,
+    {
+        struct PerKindVisitor<T>(PhantomData<T>);
+
+        impl<'de, T> Visitor<'de> for PerKindVisitor<T>
+        where
+            T: Deserialize<'de> + Default + Copy,
+        {
+            type Value = [T; RESOURCE_KIND_COUNT];
+
+            fn expecting(&self, f: &mut fmt::Formatter) -> fmt::Result {
+                f.write_str("a map from resource kind names to values")
+            }
+
+            fn visit_map<A: MapAccess<'de>>(self, mut access: A) -> Result<Self::Value, A::Error> {
+                let mut values = [T::default(); RESOURCE_KIND_COUNT];
+                while let Some(name) = access.next_key::<String>()? {
+                    let kind = ResourceKind::from_name(&name)
+                        .ok_or_else(|| de::Error::custom(format!("unknown resource kind '{name}'")))?;
+                    values[kind.index()] = access.next_value()?;
+                }
+                Ok(values)
+            }
+        }
+
+        de.deserialize_map(PerKindVisitor(PhantomData))
     }
 }
 
@@ -824,9 +908,10 @@ pub struct StockItem {
     pub count: u32,
 }
 
-#[derive(Clone, Serialize)]
+#[derive(Clone, Serialize, Deserialize)]
 pub struct ResourceStock {
     kinds: ResourceKind, // If the kind flag bit is set, the stock accepts that resource.
+    #[serde(with = "per_kind_map")] // Saved by name: { "Rice": 2 }.
     counts: [u16; RESOURCE_KIND_COUNT],
 }
 
@@ -866,6 +951,23 @@ impl ResourceStock {
     #[must_use]
     pub fn accept_all_except(exclude: ResourceKind) -> Self {
         Self { kinds: ResourceKind::all_except(exclude), counts: [0; RESOURCE_KIND_COUNT] }
+    }
+
+    // Accepts `kinds` from now on, plus any good it still holds, so nothing held is lost.
+    // Used after a load, to take the accepted goods from the owner's config.
+    pub fn set_accepted_kinds_keeping_held(&mut self, kinds: ResourceKind) {
+        let mut held = ResourceKind::empty();
+        self.for_each(|_, item| {
+            if item.count != 0 {
+                held.insert(item.kind);
+            }
+        });
+        let accepted = kinds | held;
+        // Counts of goods no longer accepted are zero (see above); clear any leftovers.
+        for kind in ResourceKind::all().difference(accepted).iter() {
+            self.counts[kind.index()] = 0;
+        }
+        self.kinds = accepted;
     }
 
     #[inline]
@@ -1005,38 +1107,6 @@ impl Display for StockItem {
     }
 }
 
-// NOTE:
-//  Custom deserialize allows us to change RESOURCE_KIND_COUNT
-//  and keep backwards compatibility with older save games.
-impl<'de> Deserialize<'de> for ResourceStock {
-    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
-    where
-        D: Deserializer<'de>,
-    {
-        #[derive(Deserialize)]
-        struct SerializedStock {
-            kinds: ResourceKind,
-            counts: SmallVec<[u16; RESOURCE_KIND_COUNT]>, // allow flexible length
-        }
-
-        let stock = SerializedStock::deserialize(deserializer)?;
-
-        if stock.counts.len() > RESOURCE_KIND_COUNT {
-            return Err(de::Error::invalid_length(
-                stock.counts.len(),
-                &format!("at most {RESOURCE_KIND_COUNT} entries for ResourceStock").as_str(),
-            ));
-        }
-
-        let mut counts = [0u16; RESOURCE_KIND_COUNT];
-        for (i, value) in stock.counts.into_iter().enumerate() {
-            counts[i] = value;
-        }
-
-        Ok(ResourceStock { kinds: stock.kinds, counts })
-    }
-}
-
 // ----------------------------------------------
 // ResourceList
 // ----------------------------------------------
@@ -1090,6 +1160,12 @@ where
     #[inline]
     pub fn iter(&self) -> Iter<'_, T> {
         self.kinds.iter()
+    }
+
+    // Every kind in the list, ORed together.
+    #[inline]
+    pub fn combined(&self) -> T {
+        self.kinds.iter().fold(T::empty(), |all, kind| all.union(*kind))
     }
 
     #[inline]
@@ -1250,5 +1326,63 @@ mod tests {
 
         stock.for_each_mut(|_, item| item.count = 0);
         assert!(stock.is_empty());
+    }
+
+    // Saves hold goods by name, never by position (docs/plans/goods.md, Phase 0).
+    #[test]
+    fn stock_saves_counts_by_name() {
+        let json = serde_json::to_value(wood_and_bricks()).unwrap();
+        assert_eq!(json, serde_json::json!({ "kinds": "Wood | Bricks", "counts": { "Wood": 3, "Bricks": 5 } }));
+
+        let stock: ResourceStock = serde_json::from_value(json).unwrap();
+        assert_eq!(stock.count(ResourceKind::Wood), 3);
+        assert_eq!(stock.count(ResourceKind::Bricks), 5);
+        assert_eq!(stock.accepted_kinds(), ResourceKind::Wood | ResourceKind::Bricks);
+    }
+
+    // Key order and missing goods don't matter, so a save made before a good was added, or
+    // with goods declared in another order, loads with every count on its own good.
+    #[test]
+    fn stock_loads_counts_in_any_order() {
+        let stock: ResourceStock = serde_json::from_value(serde_json::json!({
+            "kinds": "Bricks | Rice | Pottery",
+            "counts": { "Pottery": 1, "Bricks": 7, "Rice": 2 },
+        }))
+        .unwrap();
+        assert_eq!(stock.count(ResourceKind::Rice), 2);
+        assert_eq!(stock.count(ResourceKind::Pottery), 1);
+        assert_eq!(stock.count(ResourceKind::Bricks), 7);
+        assert_eq!(stock.count(ResourceKind::Wood), 0);
+
+        let empty: ResourceStock = serde_json::from_value(serde_json::json!({ "kinds": "Rice", "counts": {} })).unwrap();
+        assert!(empty.is_empty());
+    }
+
+    // A good the code doesn't know was removed or renamed: that needs a migration script.
+    #[test]
+    fn stock_rejects_unknown_goods() {
+        let result: Result<ResourceStock, _> =
+            serde_json::from_value(serde_json::json!({ "kinds": "Rice", "counts": { "Unobtainium": 1 } }));
+        assert!(result.err().expect("unknown good must fail").to_string().contains("unknown resource kind 'Unobtainium'"));
+    }
+
+    #[test]
+    fn set_accepted_kinds_keeps_held_goods() {
+        let mut stock = wood_and_bricks();
+        stock.remove(ResourceKind::Wood, 3);
+        stock.set_accepted_kinds_keeping_held(ResourceKind::Clay | ResourceKind::Pottery);
+
+        // Bricks are still held, so still accepted; Wood is empty and dropped.
+        assert_eq!(stock.accepted_kinds(), ResourceKind::Clay | ResourceKind::Pottery | ResourceKind::Bricks);
+        assert_eq!(stock.count(ResourceKind::Bricks), 5);
+        stock.add(ResourceKind::Pottery, 2);
+        assert_eq!(stock.count(ResourceKind::Pottery), 2);
+    }
+
+    #[test]
+    fn kind_names_round_trip() {
+        for kind in ResourceKind::all().iter() {
+            assert_eq!(ResourceKind::from_name(kind.name()), Some(kind));
+        }
     }
 }

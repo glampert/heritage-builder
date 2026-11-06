@@ -229,8 +229,9 @@ impl BuildingBehavior for ServiceBuilding {
 
         let config = BuildingConfigs::get().find_service_config(kind);
 
-        if let StockOrTreasury::Stock { update_timer, .. } = &mut self.stock_or_treasury {
+        if let StockOrTreasury::Stock { update_timer, stock } = &mut self.stock_or_treasury {
             update_timer.post_load(config.stock_update_frequency_secs);
+            stock.refresh_from_config(config.resources_required.combined(), config.stock_capacity);
         }
 
         self.patrol_timer.post_load(config.patrol_frequency_secs);

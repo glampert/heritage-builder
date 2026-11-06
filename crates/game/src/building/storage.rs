@@ -210,7 +210,9 @@ impl BuildingBehavior for StorageBuilding {
 
     fn post_load(&mut self, _context: &mut PostLoadContext, kind: BuildingKind, _tile: &Tile) {
         debug_assert!(kind.intersects(BuildingKind::storage()));
-        self.config = Some(BuildingConfigs::get().find_storage_config(kind));
+        let config = BuildingConfigs::get().find_storage_config(kind);
+        self.storage_slots.refresh_from_config(&config.resources_accepted, config.num_slots, config.slot_capacity);
+        self.config = Some(config);
     }
 
     // ----------------------
@@ -493,6 +495,33 @@ impl StorageSlots {
         }
 
         Box::new(Self { slots, slot_capacity })
+    }
+
+    // After a load: the goods, slot count and slot capacity the config asks for now, so config
+    // changes reach saved buildings. A slot keeps the good it holds, clamped to the capacity;
+    // slots are added, never removed.
+    fn refresh_from_config(&mut self, resources_accepted: &ResourceKinds, num_slots: u32, slot_capacity: u32) {
+        let accepted_kinds = resources_accepted.combined();
+        self.slot_capacity = slot_capacity;
+
+        for slot in &mut self.slots {
+            slot.stock.set_accepted_kinds_keeping_held(accepted_kinds);
+            slot.stock.for_each_mut(|_, item| item.count = item.count.min(slot_capacity));
+            // A slot allocated to a good it no longer holds or accepts is free again.
+            if let Some(kind) = slot.allocated_resource_kind
+                && slot.stock.count(kind) == 0
+                && !accepted_kinds.intersects(kind)
+            {
+                slot.allocated_resource_kind = None;
+            }
+        }
+
+        while self.slots.len() < (num_slots as usize).min(MAX_STORAGE_SLOTS) {
+            self.slots.push(StorageSlot {
+                stock: ResourceStock::with_accepted_list(resources_accepted),
+                allocated_resource_kind: None,
+            });
+        }
     }
 
     #[inline]

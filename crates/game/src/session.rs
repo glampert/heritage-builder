@@ -792,7 +792,7 @@ impl Load for GameSession {
 // Save file format version. Bumped whenever the serialized layout changes in a
 // way that older saves cannot be deserialized directly. Old saves must be run
 // through the matching script in crates/tools/save-migration-scripts/.
-const CURRENT_SAVE_VERSION: u32 = 4;
+const CURRENT_SAVE_VERSION: u32 = 5;
 
 // Minimal struct to read just the save version ahead of a full deserialize.
 #[derive(Deserialize)]

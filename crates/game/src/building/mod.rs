@@ -1,8 +1,7 @@
 use arrayvec::ArrayVec;
-use smallvec::SmallVec;
 use bitflags::Flags;
 use enum_dispatch::enum_dispatch;
-use serde::{Deserialize, Deserializer, Serialize, de};
+use serde::{Deserialize, Serialize};
 use strum::{Display, EnumCount, EnumDiscriminants, EnumIter, IntoDiscriminant};
 
 use common::{
@@ -33,6 +32,7 @@ use super::{
         resources::{
             Population,
             RESOURCE_KIND_COUNT,
+            per_kind_map,
             ResourceKind,
             ResourceKinds,
             ResourceStock,
@@ -1351,27 +1351,26 @@ impl<'game> BuildingContext<'game> {
 // BuildingStock
 // ----------------------------------------------
 
-#[derive(Clone, Serialize)]
+#[derive(Clone, Serialize, Deserialize)]
 pub struct BuildingStock {
     pub(crate) resources: ResourceStock,
+    #[serde(with = "per_kind_map")] // Saved by name: { "Rice": 5 }.
     pub(crate) capacities: [u8; RESOURCE_KIND_COUNT],
 }
 
 impl BuildingStock {
     fn with_accepted_list_and_capacity(accepted_resources: &ResourceKinds, capacity: u32) -> Self {
-        let capacity_u8: u8 = capacity.try_into().expect("Stock capacity must be < 256");
-        Self {
-            resources: ResourceStock::with_accepted_list(accepted_resources),
-            capacities: [capacity_u8; RESOURCE_KIND_COUNT],
-        }
+        let mut stock =
+            Self { resources: ResourceStock::with_accepted_list(accepted_resources), capacities: [0; RESOURCE_KIND_COUNT] };
+        stock.update_capacities(capacity);
+        stock
     }
 
     fn with_accepted_kinds_and_capacity(accepted_kinds: ResourceKind, capacity: u32) -> Self {
-        let capacity_u8: u8 = capacity.try_into().expect("Stock capacity must be < 256");
-        Self {
-            resources: ResourceStock::with_accepted_kinds(accepted_kinds),
-            capacities: [capacity_u8; RESOURCE_KIND_COUNT],
-        }
+        let mut stock =
+            Self { resources: ResourceStock::with_accepted_kinds(accepted_kinds), capacities: [0; RESOURCE_KIND_COUNT] };
+        stock.update_capacities(capacity);
+        stock
     }
 
     fn available_resources(&self, kind: ResourceKind) -> u32 {
@@ -1415,13 +1414,23 @@ impl BuildingStock {
         0
     }
 
+    // After a load: accept what the owner's config accepts (plus any good still held) at its
+    // capacity, so config changes reach saved buildings. Counts over the capacity are clamped.
+    pub(crate) fn refresh_from_config(&mut self, accepted_kinds: ResourceKind, capacity: u32) {
+        self.resources.set_accepted_kinds_keeping_held(accepted_kinds);
+        self.update_capacities(capacity);
+    }
+
     fn update_capacities(&mut self, capacity: u32) {
         let capacity_u8: u8 = capacity.try_into().expect("Stock capacity must be < 256");
-        self.capacities = [capacity_u8; RESOURCE_KIND_COUNT];
 
+        // Accepted goods only, so a save lists no capacities for goods the stock never takes.
         // Clamp any existing resources to the new capacity.
+        self.capacities = [0; RESOURCE_KIND_COUNT];
+        let capacities = &mut self.capacities;
         self.resources.for_each_mut(|index, item| {
-            item.count = item.count.min(self.capacities[index] as u32);
+            capacities[index] = capacity_u8;
+            item.count = item.count.min(capacity);
         });
     }
 
@@ -1507,38 +1516,6 @@ impl BuildingStock {
     }
 }
 
-// NOTE:
-//  Custom deserialize allows us to change RESOURCE_KIND_COUNT
-//  and keep backwards compatibility with older save games.
-impl<'de> Deserialize<'de> for BuildingStock {
-    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
-    where
-        D: Deserializer<'de>,
-    {
-        #[derive(Deserialize)]
-        struct SerializedStock {
-            resources: ResourceStock,
-            capacities: SmallVec<[u8; RESOURCE_KIND_COUNT]>, // allow flexible length
-        }
-
-        let stock = SerializedStock::deserialize(deserializer)?;
-
-        if stock.capacities.len() > RESOURCE_KIND_COUNT {
-            return Err(de::Error::invalid_length(
-                stock.capacities.len(),
-                &format!("at most {RESOURCE_KIND_COUNT} entries for BuildingStock capacities").as_str(),
-            ));
-        }
-
-        let mut capacities = [0u8; RESOURCE_KIND_COUNT];
-        for (i, value) in stock.capacities.into_iter().enumerate() {
-            capacities[i] = value;
-        }
-
-        Ok(BuildingStock { resources: stock.resources, capacities })
-    }
-}
-
 // ----------------------------------------------
 // Construction site tile flags
 // ----------------------------------------------
@@ -1586,5 +1563,28 @@ mod tests {
         assert_eq!(stock.available_resources(ResourceKind::Bricks), stock.capacity_for(ResourceKind::Bricks));
         assert_eq!(stock.available_resources(ResourceKind::Bricks), 2);
         assert!(stock.is_full());
+    }
+
+    #[test]
+    fn stock_saves_capacities_by_name() {
+        let stock = BuildingStock::with_accepted_kinds_and_capacity(ResourceKind::Wood | ResourceKind::Bricks, 4);
+        let json = serde_json::to_value(&stock).unwrap();
+        assert_eq!(json["capacities"], serde_json::json!({ "Wood": 4, "Bricks": 4 }));
+
+        let loaded: BuildingStock = serde_json::from_value(json).unwrap();
+        assert_eq!(loaded.capacity_for(ResourceKind::Bricks), 4);
+    }
+
+    // After a load a stock takes its config's goods and capacity, keeping what it holds.
+    #[test]
+    fn stock_refresh_from_config_keeps_held_goods() {
+        let mut stock = BuildingStock::with_accepted_kinds_and_capacity(ResourceKind::Wood | ResourceKind::Bricks, 4);
+        stock.receive_resources(ResourceKind::Bricks, 3);
+
+        stock.refresh_from_config(ResourceKind::Wood | ResourceKind::Pottery, 2);
+        assert_eq!(stock.capacity_for(ResourceKind::Pottery), 2);
+        assert_eq!(stock.receivable_resources(ResourceKind::Pottery), 2);
+        // Bricks are still held, so still accepted, clamped to the new capacity.
+        assert_eq!(stock.available_resources(ResourceKind::Bricks), 2);
     }
 }

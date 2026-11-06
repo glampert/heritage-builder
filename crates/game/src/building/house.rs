@@ -38,6 +38,7 @@ use crate::{
         resources::{
             Population,
             RESOURCE_KIND_COUNT,
+            per_kind_map,
             ResourceKind,
             ResourceKinds,
             ServiceKind,
@@ -270,8 +271,8 @@ pub struct HouseBuilding {
     pub(crate) stock: BuildingStock,
 
     // Fractional resource consumption carried between stock updates, per ResourceKind.
-    // Whole units are removed from stock once an entry reaches >= 1.0.
-    #[serde(default)]
+    // Whole units are removed from stock once an entry reaches >= 1.0. Saved by name.
+    #[serde(with = "per_kind_map")]
     consumption_accumulator: [f32; RESOURCE_KIND_COUNT],
 
     pub(crate) upgrade_update_timer: UpdateTimer,
@@ -370,6 +371,7 @@ impl BuildingBehavior for HouseBuilding {
         self.upgrade_update_timer.post_load(config.upgrade_update_frequency_secs);
         self.upgrade_state.post_load();
         self.generate_tax_timer.post_load(config.generate_tax_frequency_secs);
+        self.stock.refresh_from_config(Self::accepted_kinds(), self.current_level_config().stock_capacity);
         self.ambient_patrol.post_load(context, config.ambient_patrol.spawn_frequency_secs);
     }
 
@@ -544,7 +546,7 @@ impl HouseBuilding {
         let upgrade_state = HouseUpgradeState::new(level, configs);
 
         let stock = BuildingStock::with_accepted_kinds_and_capacity(
-            ResourceKind::foods() | ResourceKind::consumer_goods(),
+            Self::accepted_kinds(),
             upgrade_state.curr_level_config.unwrap().stock_capacity,
         );
 
@@ -566,6 +568,12 @@ impl HouseBuilding {
     }
 
     pub fn register_callbacks() {}
+
+    // Houses stock every food and consumer good; their level decides which ones they need.
+    #[inline]
+    fn accepted_kinds() -> ResourceKind {
+        ResourceKind::foods() | ResourceKind::consumer_goods()
+    }
 
     #[inline]
     fn current_level_config(&self) -> &'static HouseLevelConfig {

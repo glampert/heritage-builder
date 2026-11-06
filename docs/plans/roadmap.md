@@ -47,7 +47,7 @@ These follow [overview.md](../design/overview.md#development-phases).
 | M2 | Placeholder art pipeline | Medium | — (runs alongside) | [placeholder-art.md](placeholder-art.md) | In progress: the pipeline is done (Phases 0–2); recipes and the building set next |
 | M3 | Building costs and construction | Medium to large | M1 | [construction.md](construction.md) | Done (fast build option waits for Custom Game) |
 | M4 | Finance | Medium | M1 | — | Not started |
-| M5 | Goods and production for missions I-1 to I-5 | Medium | M3 | — | Not started |
+| M5 | Goods and production for missions I-1 to I-5 | Medium | M3 | [goods.md](goods.md) | In progress: Phase 0 (goods saved by name) done; roof tiles next |
 | M6 | City risks: fire and collapse | Medium | M3, M1 | — | Not started |
 | M7 | Seasons, floods and irrigation | Large | M1, M5 | — | Not started |
 | M8 | Faith and festivals | Medium | M1 | — | Not started |
@@ -117,6 +117,8 @@ GDD 5.7: wages, tax rate, upkeep, yearly accounts and debt. Building on `GlobalT
 - **Tests:** a new `finance.rs` test.
 
 ### M5: Goods and production for missions I-1 to I-5 (medium)
+
+Plan: [goods.md](goods.md). It starts by saving goods by name, so that adding a good later needs no save-version bump.
 
 - **New `ResourceKind`s** that missions 1–5 use, such as roof tiles and vegetables (see GDD §8). `ResourceKind` is a `u32` bitflag with 10 bits used. Check how it serializes, because adding kinds may change the save format.
 - **New producers:** a roof-tile kiln, plus any others the missions need. Config entries in `buildings/configs.json`, art from M2.
@@ -258,7 +260,8 @@ Bumps should be grouped where milestones land close together. Each bump needs a 
 | 2 | Current | — | Shipped |
 | 3 | Calendar | M1 | Done |
 | 4 | Building construction state; house renovation timers | M3 | Done |
-| 5 | Elevation map | T | Planned |
+| 5 | Goods saved by name, not position | M5 | Done |
+| 6 | Elevation map | T | Planned |
 | … | Finance, risk, flood, favour and ratings state | M4–M9 | Planned; group them where possible |
 
 ## Conventions for every milestone

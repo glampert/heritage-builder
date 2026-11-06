@@ -304,6 +304,8 @@ impl BuildingBehavior for ProducerBuilding {
         let config = BuildingConfigs::get().find_producer_config(kind, tile_def.hash, &tile_def.name);
 
         self.production_update_timer.post_load(config.production_output_frequency_secs);
+        self.production_input_stock.refresh_from_config(&config.resources_required, config.resources_capacity);
+        self.production_output_stock.refresh_from_config(config.production_output, config.production_capacity);
 
         self.runner.post_load();
         self.harvester.post_load();
@@ -777,6 +779,15 @@ impl ProducerOutputLocalStock {
         Self { item: StockItem { kind: output_kind, count: 0 }, capacity }
     }
 
+    // After a load: the config's capacity, and its output once the saved output is gone.
+    fn refresh_from_config(&mut self, output_kind: ResourceKind, capacity: u32) {
+        if self.item.count == 0 {
+            self.item.kind = output_kind;
+        }
+        self.capacity = capacity;
+        self.item.count = self.item.count.min(capacity);
+    }
+
     pub(crate) fn fill(&mut self) {
         self.item.count = self.capacity;
     }
@@ -853,6 +864,18 @@ impl ProducerInputsLocalStock {
             true
         });
         Self { slots, capacity }
+    }
+
+    // After a load: the inputs and capacity the config asks for now, keeping the count of
+    // each input it still asks for (clamped to the capacity).
+    fn refresh_from_config(&mut self, resources_required: &ResourceKinds, capacity: u32) {
+        let mut refreshed = Self::new(resources_required, capacity);
+        for slot in &mut refreshed.slots {
+            if let Some(saved) = self.slots.iter().find(|saved| saved.kind == slot.kind) {
+                slot.count = saved.count.min(capacity);
+            }
+        }
+        *self = refreshed;
     }
 
     pub(crate) fn fill(&mut self) {
