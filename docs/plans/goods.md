@@ -1,6 +1,6 @@
 # Goods and production for missions I-1 to I-5
 
-**Status (2026-11-06): Phases 0–2 done; Phase 3, the documentation pass, remains.** This plan is milestone M5 of the [roadmap](roadmap.md). It adds the goods and producers that missions I-1 to I-5 need ([campaigns.md](../design/campaigns.md#campaign-i--the-dragon-legacy-đại-long), GDD §8), and rebalances storage against construction costs and house needs. First it changes how goods are saved, so that adding a good later never breaks the save format (user request, 2026-11-06). It was researched against `9635bff` on `claude`. File and line references point at that commit, so re-check them before relying on them.
+**Status (2026-11-06): Done.** All phases are in; the open decisions below record what was deferred. This plan is milestone M5 of the [roadmap](roadmap.md). It adds the goods and producers that missions I-1 to I-5 need ([campaigns.md](../design/campaigns.md#campaign-i--the-dragon-legacy-đại-long), GDD §8), and rebalances storage against construction costs and house needs. First it changes how goods are saved, so that adding a good later never breaks the save format (user request, 2026-11-06). It was researched against `9635bff` on `claude`. File and line references point at that commit, so re-check them before relying on them.
 
 ## How to resume this work
 
@@ -149,8 +149,12 @@ A saved good the config no longer accepts stays accepted while the stock holds a
 
 ### Phase 3: Documentation (small)
 
-- [ ] AGENTS.md: the goods save rule ("names, not positions") and how to add a good.
-- [ ] Roadmap: M5 status and the save-version log.
+- [x] AGENTS.md: the goods save rule ("names, not positions") and how to add a good.
+- [x] Roadmap: M5 status and the save-version log.
+
+**Notes (2026-11-06):**
+- AGENTS.md: the save rule and the config-refresh rule under Saves (Phase 0), and a "Goods" entry with the four steps to add a good.
+- **Deviation:** [game-time.md](game-time.md) expected M5 to move house consumption rates from `seconds_per_day` (600 s) to calendar months when it rebalanced them. M5 didn't retune consumption, and the move would rename a `SimConfigs` field that `configs.json`, the settings dialog and recordings carry, so it's left to M13's balance pass; the roadmap's M13 entry, game-time.md and AGENTS.md say so.
 
 ## Risks
 
@@ -163,5 +167,6 @@ A saved good the config no longer accepts stays accepted while the stock holds a
 1. **Vegetables and other new foods.** The roadmap named vegetables, but missions 1–5 don't need them. Default: leave them out of M5. Phase 0 makes adding them later cheap, when a mission or M7's farming needs them.
 2. **Which buildings cost roof tiles.** Default: the civic buildings from mission 3 on (temple, hospital, theatre, university, palace, citadel), not mission 2's tax office, police station, apothecary and distillery.
 3. **Storage sizes.** Slot capacity 8 for the storage yard and granary, confirmed by the Phase 2 measurement (2026-11-06).
-4. **Common house level 5.** Missions 1–5 ask for levels 1 and 2 (mission 2's goal) and Prosperity 30 (mission 4), which levels 1–4 can give. Default: no level 5 in M5; revisit with M9's ratings.
+4. **Common house level 5.** Missions 1–5 ask for levels 1 and 2 (mission 2's goal) and Prosperity 30 (mission 4), which levels 1–4 can give. No level 5 in M5; revisit with M9's ratings.
+6. **Consumption rates per month.** Deferred to M13 (see the Phase 3 notes).
 5. **A data-driven goods list.** Goods stay a compile-time `ResourceKind`. A goods list in `assets/configs/` would follow the roadmap's "data first" convention better, for realm-specific goods in phases 3 and 4. Default: not in M5. The name-keyed saves from Phase 0 are what such a change would need, so it stays open.

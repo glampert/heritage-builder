@@ -1,6 +1,6 @@
 # Technical roadmap
 
-**Status (2026-11-05): Phase 1 in progress: M1 and M3 done.** This is the top-level implementation plan. It turns the design in [docs/design/](../design/README.md) into milestones, puts them in order, and links to a detailed plan for each one. It was researched against `d0696fe` on `main`.
+**Status (2026-11-06): Phase 1 in progress: M1, M3 and M5 done.** This is the top-level implementation plan. It turns the design in [docs/design/](../design/README.md) into milestones, puts them in order, and links to a detailed plan for each one. It was researched against `d0696fe` on `main`.
 
 ## How to use this file
 
@@ -47,7 +47,7 @@ These follow [overview.md](../design/overview.md#development-phases).
 | M2 | Placeholder art pipeline | Medium | — (runs alongside) | [placeholder-art.md](placeholder-art.md) | In progress: the pipeline is done (Phases 0–2); recipes and the building set next |
 | M3 | Building costs and construction | Medium to large | M1 | [construction.md](construction.md) | Done (fast build option waits for Custom Game) |
 | M4 | Finance | Medium | M1 | — | Not started |
-| M5 | Goods and production for missions I-1 to I-5 | Medium | M3 | [goods.md](goods.md) | In progress: goods saved by name, roof tiles and the kiln, house ladder and storage balance done; docs pass remains |
+| M5 | Goods and production for missions I-1 to I-5 | Medium | M3 | [goods.md](goods.md) | Done (vegetables, house level 5 and month-based consumption rates deferred; see the plan) |
 | M6 | City risks: fire and collapse | Medium | M3, M1 | — | Not started |
 | M7 | Seasons, floods and irrigation | Large | M1, M5 | — | Not started |
 | M8 | Faith and festivals | Medium | M1 | — | Not started |
@@ -199,7 +199,7 @@ GDD 5.12 and 5.14:
 - Build the five maps in the developer editor, as saves (`campaigns.json` `MissionMap::SaveGame`). Mission 5 uses terrain height if T has landed.
 - **Starting conditions:** gold, a pre-placed storage yard with starting stock (bootstrap rule, GDD 5.1.1), the season table, the flood profile, world-map partners and the request schedule.
 - **Unlocks per mission:** which buildings appear in the build menu (a new field in the mission config).
-- **Balance** against the 1-hour target.
+- **Balance** against the 1-hour target. House consumption rates are still per `seconds_per_day` (600 s), not per calendar month; move them to months here if retuning them (M5 left them as they were, [goods.md](goods.md)).
 - **One scenario per mission** that plays it to victory with `time.fast_forward`, in CI.
 
 ### T: Terrain height (medium to large)

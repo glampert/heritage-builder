@@ -16,7 +16,7 @@ A saved game clock with a date, the season and the realm's era, that every later
 ## Decisions
 
 - **Month length:** 60 simulated seconds per month and 30 days per month (2 s per day), 12 months per year, so a year is 12 minutes at 1× speed. Mission I-4 (WY 9–15) is then 72 minutes at 1×, less at higher speeds. `SimConfigs::seconds_per_month` and `days_per_month` hold them; balance can change them later.
-- **House consumption keeps `seconds_per_day`.** It's a rate unit (units per 600 s), not a calendar day. Moving it to the calendar's day would multiply consumption by 300. M5 (goods) moves rates to per-month units when it rebalances them.
+- **House consumption keeps `seconds_per_day`.** It's a rate unit (units per 600 s), not a calendar day. Moving it to the calendar's day would multiply consumption by 300. M5 (goods) was to move rates to per-month units when it rebalanced them; it didn't retune consumption, so this moved to M13's balance pass (2026-11-06).
 - **Where it lives:** `GameCalendar` ([sim/calendar.rs](../../crates/game/src/sim/calendar.rs)) is a field of `Simulation`, saved with it. It stores whole months elapsed and the seconds into the current month, so a later change to the month length keeps every save's date. `SimContext::calendar()` reads it.
 - **Settings:** a `CalendarSettings` (start World Year and month, wet months, eras) is saved inside the calendar, so a save never depends on the campaign configs. Sandbox games use `SimConfigs::calendar`. A campaign mission's start applies its `calendar` (start year, start month, wet months) from `campaigns.json`, with the campaign's `eras`.
 - **Seasons:** a month is wet if it's in `wet_months`, else dry. Default: months 5 to 10, the delta's monsoon.
