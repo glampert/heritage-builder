@@ -19,7 +19,7 @@ def save(img, name):
 
 
 def main():
-    proto = Image.open(IMAGES / "prototype_apr_2026_3.jpg").convert("RGB")
+    proto = Image.open(IMAGES / "prototypes/prototype_apr_2026_3.jpg").convert("RGB")
     save(proto.crop((330, 100, 2640, 1400)), "city_dailong.jpg")
     for realm, name in [("kambara", "mock_khr.jpg"), ("tampadesa", "mock_burma.jpg")]:
         mock = Image.open(IMAGES / "references" / name).convert("RGB")
