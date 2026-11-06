@@ -247,16 +247,16 @@ instead. `#[serde(skip)]` is still the right choice for runtime-only state that 
 
 ---
 
-## Screenshots
+## Screenshots (April 2026 Prototype)
 
 #### Main Menu
-![Main Menu](docs/images/prototype_apr_2026_1.jpg)
+![Main Menu](docs/images/prototypes/prototype_apr_2026_1.jpg)
 
 #### Tiny Island (Sample Map)
-![Tiny Island](docs/images/prototype_apr_2026_2.jpg)
+![Tiny Island](docs/images/prototypes/prototype_apr_2026_2.jpg)
 
 #### City Closeup
-![City Closeup](docs/images/prototype_apr_2026_3.jpg)
+![City Closeup](docs/images/prototypes/prototype_apr_2026_3.jpg)
 
 ---
 
