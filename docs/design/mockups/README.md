@@ -68,7 +68,7 @@ Each realm has its own typeface, set in `REALM_FONTS` in `generator/common.py`:
 
 | Realm | Font | Source |
 |---|---|---|
-| Đại Long | Protest Revolution | `assets/fonts/protest_revolution_regular.ttf` |
+| Đại Long | Protest Revolution | `assets/fonts/protest_revolution_regular.ttf` (SIL OFL, `protest_revolution_OFL.txt`) |
 | Kambara | Jaini, a carved-stone look | `assets/fonts/jaini_regular.ttf` (SIL OFL, `jaini_OFL.txt`) |
 | Tampadesa | Amita, thin strokes and round letters | `assets/fonts/amita_regular.ttf`, `amita_bold.ttf` (SIL OFL, `amita_OFL.txt`) |
 
