@@ -64,7 +64,7 @@ The home menu and its dialogs: load / save, settings, custom game and about. The
 
 ## In-game dialogs and the campaign flow
 
-The screens the [realm UI plan](../../plans/realm-ui.md#mockups-to-make) listed as missing. The in-game ones sit over each realm's HUD; the campaign picker sits over the home backdrop, the briefing over the mission's city. The briefing is each campaign's mission 6, the one after the intermission's mission 5.
+The screens the [realm UI plan](../../plans/realm-ui.md#mockups) found missing. The in-game ones sit over each realm's HUD; the campaign picker sits over the home backdrop, the briefing over the mission's city. The briefing is each campaign's mission 6, the one after the intermission's mission 5.
 
 | Screen | Đại Long | Kambara | Tampadesa |
 |---|---|---|---|

@@ -1,6 +1,6 @@
 # Realm UI: menus, screens and HUD in each realm's style
 
-**Status (2026-11-07): Draft; not started.** This plan builds and restyles every retail screen after the [UI mockups](../design/mockups/README.md): the main menus, the world map, the intermission, the story comics, the HUD and the city management pages. Each screen gets one look per realm: Đại Long, Kambara and Tampadesa. It is milestone **UI** of the [roadmap](roadmap.md). It was researched against `ccca1df` on `claude`. File and line references point at that commit, so re-check them before relying on them.
+**Status (2026-11-07): Reviewed; not started.** The user reviewed it on 2026-11-07: their notes are folded in (see [Review notes](#review-notes)), the open decisions' defaults are accepted, and every mockup the phases need now exists. This plan builds and restyles every retail screen after the [UI mockups](../design/mockups/README.md): the main menus, the world map, the intermission, the story comics, the HUD and the city management pages. Each screen gets one look per realm: Đại Long, Kambara and Tampadesa. It is milestone **UI** of the [roadmap](roadmap.md). It was researched against `ccca1df` on `claude`. File and line references point at that commit, so re-check them before relying on them.
 
 ![Home menu, Đại Long](../design/mockups/menu-home-dailong.jpg)
 
@@ -9,14 +9,15 @@
 - Work through the [phases](#phases) in order. Phase 0 builds what every later phase uses. Each later phase delivers one set of working screens, for all three realms, with its art, automation and tests.
 - Tick the checkboxes as tasks land, and add a short dated note under the phase: the commit, the deviations, and what was verified. This file is the source of truth for progress.
 - The [open decisions](#open-decisions) each have a default. Proceed with the default unless the user has decided otherwise, and record the answer here.
-- The mockups are the visual reference. Their generator (`docs/design/mockups/generator/`) also draws the placeholder art (see [Art pipeline](#art-pipeline)), and `serve.py` shows changes to it live. Screens without a mockup get one before their phase starts (see [Mockups to make](#mockups-to-make)).
+- The mockups are the visual reference. Their generator (`docs/design/mockups/generator/`) also draws the placeholder art (see [Art pipeline](#art-pipeline)), and `serve.py` shows changes to it live. Every screen in the phases has a mockup (see [Mockups](#mockups)).
 - Follow [AGENTS.md](../../AGENTS.md) throughout:
   - Keep desktop and web compiling.
   - Only `engine/src/ui/immediate.rs` and the retained widgets call egui.
   - Every retail screen passes `ui.layout_issues`.
   - Run `cargo test --workspace` and the scenario scripts before pushing.
   - Regenerate `web/asset_manifest.json` after adding or removing assets.
-- No save-format change is planned. The player's campaign progress goes in a profile file, not in session saves (see [Realm and progress](#realm-and-progress)).
+- No save-format change is planned. The player's campaign progress goes in a profile file among the user configs, not in session saves (see [Realm and progress](#realm-and-progress)).
+- New UI code leaves its sound hooks ready (see [Sounds](#sounds)), and its text goes through localized strings (see [Text](#text)).
 
 ## Goals
 
@@ -37,7 +38,7 @@
 
 **Not goals:**
 - Final hand-drawn art. The pipeline swaps it in by file name when it exists.
-- Localisation. Strings move into text files, ready for it.
+- Translations. Every string moves into the localized string store, with English as its only language for now.
 - Rebinding keys. The Controls tab exists and lists the bindings; editing them is Phase 5 of the game.
 - Gameplay systems. Finance, ratings, trade, messages and story timing belong to their milestones. This plan builds their screens and the hooks those milestones fill.
 
@@ -73,7 +74,9 @@ From a survey of the code at `ccca1df`.
 - **Unused:** `misc/home_menu_anim/` (30 frames, behind a `false` constant), `icons/app_icon_bg_large.png`, `icons/player_icon_no_bg.png` and `buttons/minimap/close_*`.
 
 **Engine** (`crates/engine/src/ui/`):
-- **Widgets:** 17 retained types (`widgets.rs`).
+- **Widgets:** 17 retained types, all in one file (`widgets.rs`, about 3,900 lines).
+- **Text:** `ui/text.rs` is a keyed string store loaded from `assets/configs/ui/text.json`, with two categories (TileDescription, UnitDialog) looked up by hashed key.
+- **Sounds:** `ui/sound.rs` has seven `UiSoundKey`s, all placeholders (`buttons/default/*`, `misc/default/*`). Only text and sprite buttons play them (hovered and pressed); toggles, sliders, tabs, lists and dialogs play nothing.
 - **Sprites:** every sprite is stretched over its rect (`uv_full`), with **no 9-slice**. Menu insets are clamped to 127 points.
 - **Themes:** `UiTheme` is a fixed enum, `{Dev, InGame}` (`mod.rs:93`), with one style file each.
 - **Style files** (`styles/game.json`): fonts, text styles, colours and egui widget visuals, but no sprites.
@@ -119,7 +122,9 @@ pub struct Profile {
 
 - **Campaigns name their realm:** a `realm` field on `CampaignDef` in `campaigns.json`.
 - **The profile file:**
-  - It's `saves/profile.json`, written through `file_sys`, so it lands in local storage on web.
+  - It's `saves/user/profile.json`, beside the user configs (`saves/user/configs.json`). It's read and written with the user-file functions in `engine::save::storage` (`read_user_file`, `write_user_file`, `delete_user_file`), so on the web it lands in localStorage under `heritage_builder/saves/user/profile.json`, and `saves/user/` isn't listed as saves.
+  - Unlike the configs, it isn't an overlay on defaults: the whole profile is written each time.
+  - `--default-configs` leaves the user configs out but still reads the profile; a new `--fresh-profile` option starts from an empty one without touching the file, for scenarios and tests.
   - It's updated when a mission starts or ends, and on every save (`last_save`).
   - It isn't part of `GameSession`, so there's no save-version bump.
   - A missing or broken file means a fresh profile, with a logged warning.
@@ -190,7 +195,18 @@ Today's `make_tooltip`, `make_text_button`, `make_dialog_popup` and the dialog d
 
 ### Widgets to add
 
-All retained widgets in `engine/src/ui/widgets.rs`. Each records itself for `ui.tree` and supports `ui.set` where it takes a value.
+First, `engine/src/ui/widgets.rs` (about 3,900 lines) becomes a folder, `engine/src/ui/widgets/`, with no change in behaviour:
+- `mod.rs`: the `UiWidget` trait, `UiWidgetImpl`, the widget context and the shared helpers, re-exporting every widget so `ui::widgets::*` paths stay as they are;
+- `menu.rs`: `UiMenu` and its flags, positions and insets;
+- `text.rs`: text, headings and sized labels;
+- `group.rs`: plain and labeled widget groups;
+- `button.rs`: text and sprite buttons;
+- `list.rs`, `input.rs` (sliders, checkboxes, dropdowns, text and number inputs), `tooltip.rs` and so on for the rest, one family per file;
+- the new widgets below, each in its family's file or a file of its own.
+
+The split goes in on its own, before any new widget, so its diff only moves code.
+
+All retained widgets live in that folder. Each records itself for `ui.tree` and supports `ui.set` where it takes a value.
 
 | Widget | For | Notes |
 |---|---|---|
@@ -278,7 +294,16 @@ The realm fonts are those of the mockups (`generator/common.py`, `REALM_FONTS`):
 
 ### Text
 
-- **Strings move into `assets/configs/ui/text.json`** as each screen is rebuilt. New categories are Menu, Hud, City, Story and Realm, read through `engine::ui::text`, ready for localisation.
+- **Every string moves to localized strings** as each screen is rebuilt, through `engine::ui::text`. No new retail UI code holds a literal the player reads.
+- **The store grows into a localization layer:**
+  - one file per language, `assets/configs/ui/text/<language>.json` (today's `text.json` becomes `en.json`), with the language from the Game settings tab (English only for now);
+  - new categories: Menu, Hud, City, Story, Realm, Messages;
+  - **arguments:** `{name}` placeholders filled at lookup (`text::format(category, key, &[("count", "3")])`), since most labels carry numbers, names or dates;
+  - **plural forms:** a key may hold `one` and `other` forms, picked by a count argument;
+  - a `UiText` value for widgets, either a key or literal text, so widget labels can take a key and look it up when drawn and again when the language changes;
+  - **a fallback:** a key missing in a language falls back to English and is logged once; a key missing in English shows the key itself, so it's caught on screen;
+  - a test that every key the code names exists in `en.json`, and that no language file has a key `en.json` lacks.
+- **Tile and unit names** move into the store too, with their descriptions.
 - **Realm-specific wording comes from data:**
   - era names;
   - season names;
@@ -286,12 +311,22 @@ The realm fonts are those of the mockups (`generator/common.py`, `REALM_FONTS`):
   - campaign subtitles.
 - **No real-world names** appear anywhere (world.md, "Rules for the fiction").
 
+### Sounds
+
+The UI sounds are placeholders today (see [What exists today](#what-exists-today)) and will be redone with the art. New UI code gets the hooks now, so the sounds are a data change later:
+- **Every interactive widget plays a sound key** for its events: hovered and pressed for buttons, menu items, tabs and list rows; toggled for toggles and checkboxes; changed for sliders and step selectors (rate-limited by the existing cooldown); opened and closed for dropdowns.
+- **Dialogs** play an open and a close sound, and popups their own.
+- **Keys are named by role**, not by file: `UiSoundKey` grows `TabSelected`, `Toggled`, `SliderChanged`, `ItemSelected`, `DialogOpened`, `DialogClosed`, `PopupOpened`, `Notification`, `Alert`, and so on. Each widget takes an optional override, as sprite buttons' `UiButtonSoundsEnabled` does today.
+- **The skin maps roles to files** (its `sounds` block), so each realm can sound different. A role a skin doesn't name falls back to Đại Long's, and a role nobody names plays nothing. Until real sounds exist, every role maps to today's placeholders.
+- `tests/ui_skins.rs` checks that every sound file a skin names exists.
+
 ### Automation and tests
 
 - **New commands:**
   - `ui.realm realm=...` switches the skin for testing;
   - `ui.reload_skin` reloads the skin files and rebuilds;
-  - `profile.state`, `profile.set` and `profile.reset` read and edit the profile.
+  - `profile.state`, `profile.set` and `profile.reset` read and edit the profile;
+  - `text.language` and `text.missing` switch the language and list the keys a screen looked up and didn't find.
 - **Kept, or renamed with their scenarios in the same commit:**
   - dialog kind names;
   - button labels;
@@ -304,6 +339,20 @@ The realm fonts are those of the mockups (`generator/common.py`, `REALM_FONTS`):
   - every sprite it names exists;
   - the 9-slice borders fit their sprites;
   - the fonts cover the test strings.
+
+## Review notes
+
+The user's notes from the 2026-11-07 review, and where each landed:
+
+| Note | Where |
+|---|---|
+| Break `ui/widgets.rs` up into a folder of smaller files | [Widgets to add](#widgets-to-add), Phase 0 |
+| The profile goes in the user configs folder, `saves/user/` | [Realm and progress](#realm-and-progress), open decision 4 |
+| Move all text to localized strings, growing `ui/text.rs` | [Text](#text), Phase 0 |
+| Save thumbnails at the save's camera position, at a configurable size | Phase 1's save metadata, open decision 10 |
+| Animated home backdrops later, as video rather than still frames | [Later](#later) |
+| UI sounds are placeholders: new UI code leaves the hooks ready | [Sounds](#sounds), Phase 0 |
+| Record the mockups already made | [Mockups](#mockups) |
 
 ## Phases
 
@@ -318,10 +367,13 @@ Phases 1 to 6 follow the order the user set. [Dependencies](#dependencies-on-oth
 
 The existing dialogs keep their layouts but take their panels from the Đại Long skin.
 
-- [ ] `Realm`, `Profile` (`saves/profile.json`), `realm::ui_realm()`, a `realm` field in `campaigns.json`; `profile.*` and `ui.realm` commands; tests.
+- [ ] `Realm`, `Profile` (`saves/user/profile.json`, `--fresh-profile`), `realm::ui_realm()`, a `realm` field in `campaigns.json`; `profile.*` and `ui.realm` commands; tests.
 - [ ] Engine: data-driven themes (`UiThemeId`), `UiNineSlice` and `UiPainter::nine_slice`, menus laying out in their own inner rect (no `i8` insets).
 - [ ] Skins: `assets/configs/ui/skins/{dailong,kambara,tampadesa}.json`; `menu/skin.rs`; the skin version counter and `dialog::rebuild_all()`; `ui.reload_skin`. `styles/game.json` folds into Đại Long's skin.
 - [ ] Fonts: add Spectral SC and Alegreya (and their OFL files); realm text styles with fallbacks; the Vietnamese glyph test.
+- [ ] Split `engine/src/ui/widgets.rs` into `engine/src/ui/widgets/`, one widget family per file, with no change in behaviour, in a commit of its own.
+- [ ] Localized strings: `text/<language>.json`, the new categories, arguments, plural forms, `UiText`, the fallback and its test; `text.*` commands. Move today's strings for the screens Phase 0 touches.
+- [ ] Sound hooks: the role keys, per-widget sound events and overrides, the skin's `sounds` block with placeholder mappings, dialog and popup open and close sounds.
 - [ ] Widgets: `UiTabBar`, `UiToggle`, framed `UiTextButton`, `UiMenuItem`, `UiListRow`, `UiImage`, `UiKeyValues`, `UiTable`, `UiMeter`, `UiColumns`, `UiStepSelector`, `UiRichText`, each in the developer sample menus (`engine/src/ui/tests.rs`).
 - [ ] Dialog framework: each dialog its own window, from the skin's `dialogs` block; the "keep the dialog under it visible" flag; paths take the dialog's own label (update `ui_new_game.jsonl`, `ui_snapshot.jsonl`, AGENTS.md).
 - [ ] `crates/tools/ui-art/`: the catalog, `make_ui_art.py` (render, manifest, `--check`), the first sprites for all three realms (panels, buttons, controls, separators, emblems); `--check` in CI.
@@ -349,7 +401,9 @@ The existing dialogs keep their layouts but take their panels from the Đại Lo
 - [ ] **Preview:** thumbnail; Mission, Campaign, Date, Population, Treasury, Time played.
 - [ ] **Save as** field, and Delete (new, with a confirm popup), Cancel, Save and Load.
 - [ ] **Save metadata:**
-  - The save writes a small header, beside the version the loader already probes for, plus a 320 × 180 thumbnail (`saves/<name>.jpg`, from `Engine::request_screenshot` with the UI left out).
+  - The save writes a small header, beside the version the loader already probes for, plus a thumbnail (`saves/<name>.jpg`).
+  - The thumbnail is a screenshot of the city at the camera position the save was taken from, with the UI left out (`Engine::request_screenshot`), scaled down.
+  - Its size is a config, `SaveConfigs::thumbnail_size` (default 320 × 180), so it can be raised if it looks blurry in the preview, which shows it larger than that. The preview fits whatever size the file has.
   - Both are read without loading the session.
   - Old saves without them show a blank thumbnail and "—".
   - This is the only save-adjacent change. The header is new top-level fields read before the session, and needs a migration script only if the loader requires them. The default is optional fields with a fallback, as the version probe allows.
@@ -498,7 +552,7 @@ The existing dialogs keep their layouts but take their panels from the Đại Lo
 
 ### Phase 6: City management pages
 
-**Delivers:** the City book, one dialog with a tab or page per area, replacing CityManagement and its three text dialogs. Mockups: `city-<page>-<realm>.jpg` (see [Mockups to make](#mockups-to-make)).
+**Delivers:** the City book, one dialog with a tab or page per area, replacing CityManagement and its three text dialogs. Mockups: `city-<page>-<realm>.jpg` (see [Mockups](#mockups)).
 
 - [ ] **Page framework:** the City dialog with side tabs (`UiTabBar`, vertical).
   - Each page is a `CityPage` impl: title, icon, build, refresh.
@@ -531,9 +585,9 @@ The existing dialogs keep their layouts but take their panels from the Đại Lo
 
 The roadmap's convention stands: new retail screens go through the skins and pass `ui.layout_issues`. From Phase 0 on, a milestone that adds a screen builds it with this plan's widgets and skin helpers.
 
-## Mockups to make
+## Mockups
 
-Drawn on 2026-11-07, in the same generator and style as the existing mockups, for all three realms (see the mockups [README](../design/mockups/README.md)):
+Every screen the phases build has a mockup in all three realms, in [docs/design/mockups/](../design/mockups/README.md). The first set came with the plan's research: the world map, the intro comic, the intermission, the HUD and the main menus (`world-map`, `intro`, `intermission`, `hud`, `menu-{home,load-save,settings,custom-game,about}`). The screens it found missing were drawn on 2026-11-07 (commit `8a44c00`):
 
 | Screen | Phase | Mockup |
 |---|---|---|
@@ -559,24 +613,27 @@ The HUD's menu buttons got their own bar left of the build bar, not the left end
 
 ## Open decisions
 
+The user accepted every default on 2026-11-07, with the changes marked below.
+
 | # | Question | Default |
 |---|---|---|
 | 1 | Body text in the realm font, as the mockups have it, or a plainer face for small text? | Realm font. A skin can set a plainer body face if small text reads poorly in testing. |
 | 2 | Đại Long's home backdrop | Keep the painting, as the mockup does. Only the UI sprites go. |
 | 3 | New Game (map size and terrain) on Home | Remove it. A Blank map entry in Custom Game takes its options. |
-| 4 | Where the profile lives | `saves/profile.json`, in local storage on web. |
+| 4 | Where the profile lives | `saves/user/profile.json`, beside the user configs; localStorage on web. (Changed in review.) |
 | 5 | 9-slice centres | Stretch. `center: "tile"` per panel where grain shows. |
 | 6 | Dialogs: each its own window, or stacked inside the root as today | Each its own window. |
 | 7 | Build bar categories: the mockup's nine (house, water, farm, industry, trade, temple, learning, defence, monument) or today's sectors | Today's sectors with the mockup's icons. New categories come only with buildings that need them. |
 | 8 | Where the game menu buttons go in the HUD | Their own bar, left of the build bar (`hud-menus-<realm>.jpg`). |
 | 9 | The art renderer | Playwright's Chromium on the generator's SVG; Pillow stays for glyph icons. |
-| 10 | Save thumbnails | A 320 × 180 JPEG beside each save. Old saves show none. |
+| 10 | Save thumbnails | A JPEG beside each save, taken at the save's camera position; its size is a config (default 320 × 180). Old saves show none. (Changed in review.) |
 | 11 | Ratings and distinctions before M9 | Hidden, not shown as placeholders. |
 
 ## Later
 
-- Animated home backdrops per realm (the unused animation frames show the idea).
+- Animated home backdrops per realm. Play a short looping video in a simple format (for example VP9 or AV1 in WebM, decoded to a texture) rather than a sequence of still frames, to keep the size down; the unused `misc/home_menu_anim/` frames show the idea. The web build can use the browser's own video decoder.
+- Real UI sounds per realm, mapped to the role keys the skins already name.
 - Hand-made art replacing the placeholders, file by file.
-- Localisation, with the strings already in text files.
+- Translations, into the language files the strings already live in.
 - Key rebinding on the Controls tab.
 - An encyclopedia (overview.md's content budget mentions entries).

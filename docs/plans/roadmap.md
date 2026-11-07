@@ -61,7 +61,7 @@ These follow [overview.md](../design/overview.md#development-phases).
 | T | Terrain height | Medium to large | M3 (spike after) | [terrain-height.md](terrain-height.md) | Not started |
 | U | Eight-direction movement for off-road walkers | Medium | M3; art from M2 Phase 6 | [unit-movement.md](unit-movement.md) | Not started |
 | MM | Minimap: painted relief, lenses and tools | Medium | — (lenses grow with M6, M7, M8) | [minimap.md](minimap.md) | Done (Risk, Faith, Flood and Fertility lenses come with M6, M8, M7) |
-| UI | Realm UI: menus, world map, intermission, comics, HUD and city pages in each realm's style | Large | — (screens fill in with M4, M9, M10, M11, M12) | [realm-ui.md](realm-ui.md) | Draft; not started |
+| UI | Realm UI: menus, world map, intermission, comics, HUD and city pages in each realm's style | Large | — (screens fill in with M4, M9, M10, M11, M12) | [realm-ui.md](realm-ui.md) | Reviewed; not started |
 
 Suggested order:
 - **First:** M1 → M3 → M5, with M2 running alongside from the start.
@@ -246,7 +246,8 @@ See [realm-ui.md](realm-ui.md):
 - the HUD restyle (goals tracker, rating badges, message log) and the City book of management pages;
 - Đại Long moves to the mockup style, and the prototype's UI sprites go.
 
-No save-version bump: progress lives in a profile file beside the saves.
+No save-version bump: progress lives in a profile file in the user configs folder (`saves/user/profile.json`).
+
 ## Phase 2 outline
 
 These get their own plans when Phase 2 begins:
