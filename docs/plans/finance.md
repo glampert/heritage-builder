@@ -1,6 +1,6 @@
 # Finance
 
-**Status (2026-11-07): In progress: Phases 0 and 1 done, Phase 2 next.** The open decisions were settled on 2026-11-07. This plan is milestone M4 of the [roadmap](roadmap.md). It covers GDD 5.7: one city treasury that can go into debt, monthly wages and building upkeep, a tax rate the player sets, and yearly accounts in the finances dialog. Mission I-2 teaches "the tax office, the treasury and wages" ([campaigns.md](../design/campaigns.md#2-fish-and-clay)), and M9's failure rule "the city stays in debt too long" (GDD §7) needs the debt state. It was researched against `14fbc02` on `claude`. File and line references point at that commit, so re-check them before relying on them.
+**Status (2026-11-07): Done.** The open decisions were settled on 2026-11-07. This plan is milestone M4 of the [roadmap](roadmap.md). It covers GDD 5.7: one city treasury that can go into debt, monthly wages and building upkeep, a tax rate the player sets, and yearly accounts in the finances dialog. Mission I-2 teaches "the tax office, the treasury and wages" ([campaigns.md](../design/campaigns.md#2-fish-and-clay)), and M9's failure rule "the city stays in debt too long" (GDD §7) needs the debt state. It was researched against `14fbc02` on `claude`. File and line references point at that commit, so re-check them before relying on them.
 
 ## How to resume this work
 
@@ -261,16 +261,46 @@ The HUD shows a negative balance with a minus sign, in a warning color if the st
 
 ### Phase 2: Tax rate, the dialog and missions (medium)
 
-- [ ] The tax level in house tax generation.
-- [ ] The finances dialog: yearly accounts, the rate controls and the debt status; `ui.layout_issues` at 0.
-- [ ] The HUD's negative balance.
-- [ ] The mission `finance` block.
-- [ ] `finance.jsonl`, added to CI; `ui_snapshot.jsonl` still lists the dialog.
+- [x] The tax level in house tax generation.
+- [x] The finances dialog: yearly accounts, the rate controls and the debt status; `ui.layout_issues` at 0.
+- [x] The HUD's negative balance.
+- [x] The mission `finance` block.
+- [x] `finance.jsonl`, added to CI; `ui_snapshot.jsonl` still lists the dialog.
+
+**Notes (2026-11-07):**
+- **Tax level:** `HouseBuilding::generate_tax` takes `Finance::tax_percent()`, the level's percentage from `FinanceConfigs::tax_level_percent`. `calc_household_tax` scales the base tax by it before the full-employment bonus and the rounding. A unit test checks each level.
+  - The house inspector and the debug panel show the house's tax at the current level.
+  - **Deviation:** `WorldStats::treasury.tax_generated` counts the base tax (`BASE_TAX_PERCENT`), since a building's tally has no finance to read. Nothing but the debug window shows it.
+  - Taxes a house already owes keep their amount when the level changes.
+- **The dialog** (`menu/dialog/city_management/finances.rs`):
+  - "This Year's Accounts": each category with last year's figure in brackets ("Wages: -453 (last year -380)"), income positive and spending negative, then the net.
+  - "Treasury": the balance with the debt clock ("-4826 gold, in debt: overdue in 10 months"), and the taxes the houses owe.
+  - A "Tax Level" dropdown (None to Harsh) and a "Yearly Wage" slider (0–24), which write to the treasury as they change.
+  - **Deviation:** the accounts are one list with last year in brackets, not two columns. Retail text widgets have no table, and a first layout of three sections overflowed the dialog. A long wage label also widened the rows past the scroll's edge; "Yearly Wage" fits.
+  - `ui.layout_issues` is 0 at 1280x720 and on a 1440x795 window; the Ok button scrolls into view.
+- **HUD:** `UiSizedTextLabel::set_alert` draws a label in the style's `error` color. The top bar turns it on for a negative balance.
+- **Missions:** `MissionDef::finance` (`MissionFinanceDef`: `starting_gold`, `tax_level`, `wage`, all optional, `deny_unknown_fields`). `GameSession::start_mission`, which replaces `start_mission_calendar`, applies it with the calendar through `Finance::start_mission`. That gives a new treasury with fresh accounts and no debt; the map's balance stays if `starting_gold` is left out. No mission in `campaigns.json` sets one yet; that's M13.
+- **Scenario** `finance.jsonl`, in the CI loop:
+  1. Two level-1 houses, a market fed from a granary, and a tax office paid for from a storage yard (the worker cheat staffs it). After 300 s, taxes, wages and upkeep are all recorded.
+  2. At tax level None with an empty treasury, the city goes into debt with the notice, and the clock counts two months.
+  3. Paid off, the clock resets.
+  4. The dialog has no layout issues, and its dropdown and slider set the tax level and wage.
+- **Tests:** `test_mission_start_sets_the_finances` (a full block, a partial one, a misspelt field refused).
+- **Verified:**
+  - `cargo test --workspace`;
+  - every CI scenario except `minimap.jsonl`, which fails only on an uncommitted local edit to `assets/configs/ui/minimap/dailong.json` (`map_size` 300 → 250) that isn't part of this work; the committed tree passes it;
+  - `determinism.jsonl` twice (checksum unchanged, `3801c7bcb809de76`);
+  - record and replay;
+  - the web target.
 
 ### Phase 3: Documentation (small)
 
-- [ ] AGENTS.md: the finance model (one balance, yearly rates paid monthly, the ledger saved by name, how to add a category) and the new commands.
-- [ ] Roadmap: the M4 row and the save-version log. `.claude/rules/known-issues.md` if anything is left open.
+- [x] AGENTS.md: the finance model (one balance, yearly rates paid monthly, the ledger saved by name, how to add a category) and the new commands.
+- [x] Roadmap: the M4 row and the save-version log. `.claude/rules/known-issues.md` if anything is left open.
+
+**Notes (2026-11-07):**
+- AGENTS.md has a "Finance" entry under the runtime architecture: the model, the commands, and how to add a ledger category. The Saves section has the rule that the accounts are saved by category name, and the scenario list describes `finance.jsonl`.
+- Nothing is left for known-issues: what M4 leaves to later milestones (the effects of the tax level and wage on ratings, the overdue debt's failure, mission numbers) is in the roadmap's M9 and M13 entries.
 
 ## Risks
 

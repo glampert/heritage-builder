@@ -1,6 +1,6 @@
 # Technical roadmap
 
-**Status (2026-11-06): Phase 1 in progress: M1, M3 and M5 done.** This is the top-level implementation plan. It turns the design in [docs/design/](../design/README.md) into milestones, puts them in order, and links to a detailed plan for each one. It was researched against `d0696fe` on `main`.
+**Status (2026-11-07): Phase 1 in progress: M1, M3, M4 and M5 done.** This is the top-level implementation plan. It turns the design in [docs/design/](../design/README.md) into milestones, puts them in order, and links to a detailed plan for each one. It was researched against `d0696fe` on `main`.
 
 ## How to use this file
 
@@ -47,7 +47,7 @@ These follow [overview.md](../design/overview.md#development-phases).
 | M1 | Game time and calendar | Small | — | [game-time.md](game-time.md) | Done (hand check on macOS pending) |
 | M2 | Placeholder art pipeline | Medium | — (runs alongside) | [placeholder-art.md](placeholder-art.md) | In progress: the pipeline is done (Phases 0–2); recipes and the building set next |
 | M3 | Building costs and construction | Medium to large | M1 | [construction.md](construction.md) | Done (fast build option waits for Custom Game) |
-| M4 | Finance | Medium | M1 | [finance.md](finance.md) | In progress: one treasury, wages, upkeep and debt done; tax levels and the dialog next |
+| M4 | Finance | Medium | M1 | [finance.md](finance.md) | Done (the tax level's and wage's effects on ratings, and the overdue debt's failure, come with M9) |
 | M5 | Goods and production for missions I-1 to I-5 | Medium | M3 | [goods.md](goods.md) | Done (vegetables, house level 5 and month-based consumption rates deferred; see the plan) |
 | M6 | City risks: fire and collapse | Medium | M3, M1 | — | Not started |
 | M7 | Seasons, floods and irrigation | Large | M1, M5 | — | Not started |
@@ -170,7 +170,7 @@ GDD 5.11:
 GDD 5.17 and 7:
 - **Ratings:** Prosperity, Culture, Security and Legitimacy (the Mandate), recomputed monthly, each with a breakdown of what drives it.
 - **Goals:** extend `MissionGoal` (`campaign/config.rs:53`) with `Rating`, `HousesAtLevel`, `TradeIncome`, `Stockpile`, `RequestsFulfilled`, `SeasonsSurvived`, `SurviveUntil` and `SurviveAttacks`. The last two are for Phase 2.
-- **Failure conditions:** debt (M4), Legitimacy near zero, and time limits.
+- **Failure conditions:** debt (M4: `Finance::is_debt_overdue`, at `FinanceConfigs::debt_limit_months`), Legitimacy near zero, and time limits. Fair taxes and wages feed Legitimacy and Prosperity from the tax level and wage M4 records.
 - **Optional distinctions** for the stele.
 - **Goals panel** in the HUD, live; a ratings dialog.
 - **Tests:** extend `tests/campaign.rs`.
