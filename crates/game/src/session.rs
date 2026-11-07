@@ -512,7 +512,7 @@ impl GameSession {
             let _ = session.load_save_game(engine, configs, PathRef::from_path(save_file)); // Failures are logged.
         } else if campaign::take_mission_start() {
             // A preset mission map: a save load would have started the calendar in post_load.
-            session.start_mission_calendar();
+            session.start_mission();
         }
 
         if configs.sim.start_paused {
@@ -528,10 +528,14 @@ impl GameSession {
         session
     }
 
-    // The active campaign mission's calendar, from its first day.
-    fn start_mission_calendar(&mut self) {
+    // The active campaign mission's start: its calendar from the first day, and its finances.
+    fn start_mission(&mut self) {
         if let Some(settings) = campaign::active_mission_calendar() {
             self.sim.calendar_mut().restart(settings);
+        }
+        if let Some(finance) = campaign::active_mission_finance() {
+            self.sim.finance_mut().start_mission(&finance, &GameConfigs::get().sim.finance);
+            self.refresh_world_stats();
         }
     }
 
@@ -780,7 +784,7 @@ impl Load for GameSession {
         // mission loads (the manager keeps its intended active mission instead),
         // which start the mission's calendar instead of the map's.
         if campaign::restore_snapshot(self.campaign_progress.clone()) {
-            self.start_mission_calendar();
+            self.start_mission();
         }
     }
 }

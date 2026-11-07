@@ -15,7 +15,7 @@
 
 pub mod config;
 
-use config::{CampaignConfigs, MissionMap};
+use config::{CampaignConfigs, MissionFinanceDef, MissionMap};
 use serde::{Deserialize, Serialize};
 
 use engine::log;
@@ -167,6 +167,13 @@ pub fn restore_snapshot(progress: CampaignProgress) -> bool {
 // mission map, which isn't a save, takes it when its session is created.
 pub fn take_mission_start() -> bool {
     std::mem::take(&mut CampaignManager::get_mut().suppress_snapshot_restore)
+}
+
+// The finances the active mission starts with, if it sets any. None outside a campaign.
+pub fn active_mission_finance() -> Option<MissionFinanceDef> {
+    let active = CampaignManager::get().progress.active.clone()?;
+    let campaign = CampaignConfigs::get().campaign(active.campaign_id)?;
+    campaign.missions.get(active.mission_index)?.finance.clone()
 }
 
 // The calendar the active mission starts with: its own start and wet months over

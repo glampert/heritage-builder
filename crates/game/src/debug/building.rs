@@ -94,7 +94,7 @@ impl Building {
 
         if self.archetype_kind() == BuildingArchetypeKind::HouseBuilding {
             let house = self.as_house();
-            ui::bullet_text(ui_sys, format_small!("Tax: (generated: {}, avail: {})", house.tax_generated(), house.tax_available()));
+            ui::bullet_text(ui_sys, format_small!("Tax: (generated: {}, avail: {})", house.tax_generated(context.sim_ctx.finance().tax_percent()), house.tax_available()));
 
             if !house.level().is_max() {
                 let upgrade_requirements = house.upgrade_requirements(context);

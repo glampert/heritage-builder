@@ -1,7 +1,7 @@
 use serde::{Deserialize, Serialize};
 
 use crate::{
-    sim::{calendar::EraDef, resources::ResourceKind},
+    sim::{calendar::EraDef, finance::TaxLevel, resources::ResourceKind},
     world::stats::WorldStats,
 };
 
@@ -38,6 +38,9 @@ pub struct MissionDef {
     // When the mission starts, and its seasons. None: the defaults from SimConfigs::calendar.
     #[serde(default)]
     pub calendar: Option<MissionCalendarDef>,
+    // The treasury, tax level and wage the mission starts with. None: the map's own.
+    #[serde(default)]
+    pub finance: Option<MissionFinanceDef>,
 }
 
 // The calendar a mission starts with. Fields left out keep SimConfigs::calendar's.
@@ -49,6 +52,17 @@ pub struct MissionCalendarDef {
     pub start_month: Option<u32>,
     // Months (1 to 12) of the wet season.
     pub wet_months: Option<Vec<u32>>,
+}
+
+// The finances a mission starts with: a new treasury with fresh accounts and no debt. Fields
+// left out take FinanceConfigs' defaults, and the map's balance if `starting_gold` is.
+#[derive(Clone, Default, Serialize, Deserialize)]
+#[serde(default, deny_unknown_fields)]
+pub struct MissionFinanceDef {
+    pub starting_gold: Option<u32>,
+    pub tax_level: Option<TaxLevel>,
+    // Gold per employed worker per year.
+    pub wage: Option<u32>,
 }
 
 // How a mission's starting map is loaded.

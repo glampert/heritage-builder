@@ -275,7 +275,7 @@ impl BuildingInspector {
             return;
         }
 
-        self.set_population_and_workers(building);
+        self.set_population_and_workers(building, context.sim.finance().tax_percent());
 
         let building_ctx = building.new_context(&sim_context);
         self.set_stats_info(&building_ctx, building);
@@ -288,7 +288,7 @@ impl BuildingInspector {
         body
     }
 
-    fn set_population_and_workers(&mut self, building: &Building) {
+    fn set_population_and_workers(&mut self, building: &Building, tax_percent: u32) {
         let mut headings = InspectorMenuHeadings::new();
 
         // Population + Workers: Household.
@@ -306,7 +306,7 @@ impl BuildingInspector {
             }
 
             let house = building.as_house();
-            let tax_generated = house.tax_generated();
+            let tax_generated = house.tax_generated(tax_percent);
 
             if tax_generated != 0 {
                 add_heading!(&mut headings, "Tax", "Generated {} / Available {}", tax_generated, house.tax_available());

@@ -157,6 +157,11 @@ impl TopBarIcon {
         }
     }
 
+    // A treasury in debt shows its balance in the style's error color.
+    fn is_alert(self, stats: &TopBarStats) -> bool {
+        matches!(self, Self::Gold) && stats.gold < 0
+    }
+
     fn max_label_size(context: &GameUiContext) -> Vec2 {
         const PLACEHOLDER_LABEL: &str = "0000000"; // Estimate max 7 digits label.
         let mut size = context.calc_text_size(TOOLTIP_FONT_SCALE, PLACEHOLDER_LABEL);
@@ -253,9 +258,10 @@ impl TopBar {
             group.add_widget(icon_sprite);
 
             if let Some(label_text) = icon.label_for_stats(&stats) {
-                let icon_label = UiSizedTextLabel::new(label_text)
+                let mut icon_label = UiSizedTextLabel::new(label_text)
                     .with_font_scale(TOOLTIP_FONT_SCALE)
                     .with_size(TopBarIcon::max_label_size(context));
+                icon_label.set_alert(icon.is_alert(&stats));
 
                 icon_label_indices[icon_index] = Some(group.add_widget(icon_label));
             }
@@ -302,6 +308,7 @@ impl TopBar {
                 let icon = TopBarIcon::try_from_primitive(icon_index).unwrap();
                 let label = group.widget_as_mut::<UiSizedTextLabel>(widget_index).unwrap();
                 label.set_label(icon.label_for_stats(&stats).unwrap());
+                label.set_alert(icon.is_alert(&stats));
             }
         }
     }

@@ -15,6 +15,7 @@ use engine::log;
 
 use super::calendar::CalendarEvent;
 use crate::{
+    campaign::config::MissionFinanceDef,
     cheats,
     config::{FinanceConfigs, GameConfigs},
     tile::{TileKind, TileMap},
@@ -141,6 +142,9 @@ pub enum TaxLevel {
     Harsh,
 }
 
+// A tax percentage that pays the houses' base tax, as the Normal level does by default.
+pub const BASE_TAX_PERCENT: u32 = 100;
+
 impl TaxLevel {
     #[inline]
     pub fn index(self) -> usize {
@@ -238,6 +242,22 @@ impl Finance {
         }
     }
 
+    // A campaign mission's start: a new treasury with fresh accounts and no debt, from the
+    // mission's settings over the configs' defaults. Without a starting gold, the balance stays.
+    pub fn start_mission(&mut self, mission: &MissionFinanceDef, configs: &FinanceConfigs) {
+        let starting_gold = mission.starting_gold.map_or(self.balance, i64::from);
+        *self = Self::new(0, configs);
+        self.balance = starting_gold;
+        self.this_year = YearAccounts::new(starting_gold);
+        self.last_year = YearAccounts::new(starting_gold);
+        if let Some(level) = mission.tax_level {
+            self.tax_level = level;
+        }
+        if let Some(wage) = mission.wage {
+            self.wage = wage;
+        }
+    }
+
     // ----------------------
     // Balance:
     // ----------------------
@@ -315,6 +335,12 @@ impl Finance {
     #[inline]
     pub fn tax_level(&self) -> TaxLevel {
         self.tax_level
+    }
+
+    // Percentage of the base tax houses pay at the current tax level.
+    #[inline]
+    pub fn tax_percent(&self) -> u32 {
+        self.tax_level.percent(&GameConfigs::get().sim.finance)
     }
 
     #[inline]

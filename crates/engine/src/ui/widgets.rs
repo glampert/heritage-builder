@@ -1119,6 +1119,7 @@ pub struct UiSizedTextLabel {
     font_scale: UiFontScale,
     label: String,
     size: Vec2,
+    alert: bool, // Drawn in the style's error color, e.g. a treasury in debt.
 }
 
 impl UiWidget for UiSizedTextLabel {
@@ -1136,7 +1137,7 @@ impl UiWidget for UiSizedTextLabel {
         ui_sys.with_ui(|ui| {
             let (rect, response) = ui.allocate_exact_size(egui_vec2(size), Sense::hover());
 
-            let color = ui.visuals().text_color();
+            let color = if self.alert { ui.visuals().error_fg_color } else { ui.visuals().text_color() };
             let galley = ui.painter().layout_no_wrap(self.label.clone(), internal::font(ui_sys, self.font_scale), color);
             ui.painter().galley(rect.center() - galley.size() * 0.5, galley, color);
 
@@ -1173,7 +1174,7 @@ impl UiSizedTextLabel {
         let label = label.into();
         debug_assert!(!label.is_empty());
 
-        Self { font_scale: UiFontScale::default(), label, size: Vec2::zero() }
+        Self { font_scale: UiFontScale::default(), label, size: Vec2::zero(), alert: false }
     }
 
     pub fn with_font_scale(mut self, font_scale: UiFontScale) -> Self {
@@ -1196,6 +1197,12 @@ impl UiSizedTextLabel {
     #[inline]
     pub fn set_size(&mut self, size: Vec2) {
         self.size = size;
+    }
+
+    // Draws the text in the style's error color while on.
+    #[inline]
+    pub fn set_alert(&mut self, alert: bool) {
+        self.alert = alert;
     }
 }
 

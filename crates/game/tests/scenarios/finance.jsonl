@@ -1,0 +1,60 @@
+# Finance: a small city with a tax office takes taxes into the treasury and pays wages and upkeep at
+# each month's end; without taxes it runs into debt, and the debt clock counts the months until it's
+# paid off. The finances dialog shows the accounts. From the repository root:
+#   cargo run -p HeritageBuilder -- --script crates/game/tests/scenarios/finance.jsonl
+# A month is 60 simulated seconds. Buildings are finished at once, so the timings are the city's, and
+# the worker cheat runs the tax office with the few residents the houses have; wages are paid for
+# the residents who hold a job.
+{"method": "time.fixed_dt", "params": {"dt": 0.016667}}
+{"method": "session.new_map", "params": {"size": [24, 24]}}
+{"method": "cheats.set", "params": {"name": "instant_construction", "value": true}}
+{"method": "cheats.set", "params": {"name": "ignore_worker_requirements", "value": true}}
+{"method": "finance.set", "params": {"balance": 1000}}
+{"method": "world.road", "params": {"from": [3, 10], "to": [20, 10]}}
+
+# Two houses with a well, a market and food reach level 1, whose residents work and pay taxes. The
+# tax office's collectors bring the taxes in; the tax office has an upkeep. Its wood and bricks come
+# from a storage yard, and the market takes rice from a granary.
+{"method": "world.place", "params": {"tile": "storage_yard", "cell": [4, 11]}}
+{"method": "world.add_stock", "params": {"resources": {"Wood": 4, "Bricks": 4}}}
+{"method": "world.place", "params": {"tile": "granary", "cell": [17, 11]}}
+{"method": "world.add_stock", "params": {"cell": [17, 11], "resources": {"Rice": 40}}}
+{"method": "world.place", "params": {"tile": "house0", "cell": [8, 9]}}
+{"method": "world.place", "params": {"tile": "house0", "cell": [13, 9]}}
+{"method": "world.place", "params": {"tile": "small_well", "cell": [11, 9]}}
+{"method": "world.place", "params": {"tile": "market", "cell": [10, 11]}}
+{"method": "world.place", "params": {"tile": "tax_office", "cell": [14, 11]}}
+{"method": "world.add_stock", "params": {"cell": [8, 9], "resources": {"Rice": 5}}}
+{"method": "world.add_stock", "params": {"cell": [13, 9], "resources": {"Rice": 5}}}
+{"method": "assert.eq", "params": {"query": "finance.state", "path": "/yearly_upkeep", "value": 6}}
+{"method": "time.fast_forward", "params": {"sim_secs": 300}}
+{"method": "finance.state"}
+{"method": "assert.gt", "params": {"query": "finance.state", "path": "/this_year/categories/Taxes", "value": 0}}
+{"method": "assert.gt", "params": {"query": "finance.state", "path": "/this_year/categories/Wages", "value": 0}}
+{"method": "assert.gt", "params": {"query": "finance.state", "path": "/this_year/categories/Upkeep", "value": 0}}
+{"method": "assert.eq", "params": {"query": "finance.state", "path": "/in_debt", "value": false}}
+
+# No taxes and an empty treasury: wages put the city in debt at the next month's end.
+{"method": "finance.set", "params": {"tax_level": "None", "balance": 0}}
+{"method": "time.fast_forward", "params": {"sim_secs": 130}}
+{"method": "assert.eq", "params": {"query": "finance.state", "path": "/in_debt", "value": true}}
+{"method": "assert.ge", "params": {"query": "finance.state", "path": "/months_in_debt", "value": 2}}
+{"method": "assert.lt", "params": {"query": "sim.state", "path": "/gold", "value": 0}}
+{"method": "assert.eq", "params": {"query": "logs.tail", "args": {"channel": "finance", "limit": 1}, "path": "/records/0/message", "value": "The treasury is in debt: -4 gold."}}
+
+# Paid off, the clock resets at the next month's end.
+{"method": "finance.set", "params": {"tax_level": "Normal", "balance": 500}}
+{"method": "time.fast_forward", "params": {"sim_secs": 60}}
+{"method": "assert.eq", "params": {"query": "finance.state", "path": "/months_in_debt", "value": 0}}
+
+# The finances dialog: the accounts, the treasury, and the tax level and wage controls.
+{"method": "dialog.open", "params": {"name": "FinancesManagement"}}
+{"method": "input.move", "params": {"park": true}}
+{"method": "wait.frames", "params": {"frames": 3}}
+{"method": "ui.tree", "params": {"fields": ["path", "kind", "value"]}}
+{"method": "assert.eq", "params": {"query": "ui.layout_issues", "path": "/count", "value": 0}}
+{"method": "ui.set", "params": {"path": "FinancesManagement/Tax Level", "value": "High"}}
+{"method": "ui.set", "params": {"path": "FinancesManagement/Yearly Wage", "value": 8}}
+{"method": "assert.eq", "params": {"query": "finance.state", "path": "/tax_level", "value": "High"}}
+{"method": "assert.eq", "params": {"query": "finance.state", "path": "/wage", "value": 8}}
+{"method": "screenshot", "params": {"path": "out/finance.png"}}

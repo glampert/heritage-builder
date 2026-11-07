@@ -33,6 +33,7 @@ use crate::{
     sim::{
         SimCmds,
         SimCmdQueue,
+        finance::BASE_TAX_PERCENT,
         commands::ImmediateModeSimCmds,
         RandomGenerator,
         resources::{
@@ -334,7 +335,7 @@ impl BuildingBehavior for HouseBuilding {
         }
 
         if self.generate_tax_timer.tick(delta_time_secs).should_update() && !self.debug.freeze_tax_generation() {
-            self.generate_tax();
+            self.generate_tax(context.sim_ctx.finance().tax_percent());
         }
 
         if self.ambient_patrol.spawn_timer.tick(delta_time_secs).should_update() {
@@ -422,7 +423,8 @@ impl BuildingBehavior for HouseBuilding {
             stats.add_house_resources(item.kind, item.count);
         });
 
-        stats.treasury.tax_generated += self.tax_generated();
+        // The world stats have no finance to read the tax level from: they count the base tax.
+        stats.treasury.tax_generated += self.tax_generated(BASE_TAX_PERCENT);
         stats.treasury.tax_available += self.tax_available();
     }
 
@@ -1110,7 +1112,9 @@ impl HouseBuilding {
         self.tax_available
     }
 
-    pub fn tax_generated(&self) -> u32 {
+    // The tax the house generates each tax cycle at `tax_percent` of its base tax (the tax
+    // level's percentage: Normal is 100).
+    pub fn tax_generated(&self, tax_percent: u32) -> u32 {
         let workers = self.workers.as_household_worker_pool().unwrap();
         let level_config = self.current_level_config();
 
@@ -1120,18 +1124,25 @@ impl HouseBuilding {
         let base_tax_generated = level_config.base_tax_generated;
         let tax_bonus = level_config.tax_bonus.min(100); // 0-100%
 
-        Self::calc_household_tax(employed_residents, total_residents, base_tax_generated, tax_bonus)
+        Self::calc_household_tax(employed_residents, total_residents, base_tax_generated, tax_bonus, tax_percent)
     }
 
     // - `base_tax_generated`: base tax per employed resident
     // - `tax_bonus`: percentage bonus applied if all residents are employed (0–100)
-    fn calc_household_tax(employed_residents: u32, total_residents: u32, base_tax_generated: u32, tax_bonus: u32) -> u32 {
+    // - `tax_percent`: the tax level's percentage of the base tax (Normal is 100)
+    pub(crate) fn calc_household_tax(
+        employed_residents: u32,
+        total_residents: u32,
+        base_tax_generated: u32,
+        tax_bonus: u32,
+        tax_percent: u32,
+    ) -> u32 {
         if employed_residents == 0 || total_residents == 0 || base_tax_generated == 0 {
             // If we have no working population we can't generate any tax income!
             return 0;
         }
 
-        let mut tax = (employed_residents * base_tax_generated) as f32;
+        let mut tax = (employed_residents * base_tax_generated) as f32 * (tax_percent as f32 / 100.0);
 
         // Apply bonus if the household is fully employed.
         if employed_residents == total_residents && tax_bonus != 0 {
@@ -1141,8 +1152,8 @@ impl HouseBuilding {
         tax.round() as u32
     }
 
-    fn generate_tax(&mut self) {
-        let tax_generated = self.tax_generated();
+    fn generate_tax(&mut self, tax_percent: u32) {
+        let tax_generated = self.tax_generated(tax_percent);
         if tax_generated != 0 {
             self.tax_available += tax_generated;
             debug_popup_msg_color!(self.debug, Color::yellow(), "Tax available +{tax_generated}");
@@ -1756,5 +1767,16 @@ mod tests {
         assert_eq!(state.downgrade_pending_secs, 0.0);
 
         assert_eq!(run(&mut state, &[DOWN, DOWN, DOWN, DOWN]), [NOTHING, NOTHING, NOTHING, Downgrade]);
+    }
+
+    #[test]
+    fn tax_levels_scale_the_household_tax() {
+        // 6 of 8 residents employed at a base tax of 2, so no full-employment bonus: 12 at 100%.
+        let tax = |percent| HouseBuilding::calc_household_tax(6, 8, 2, 20, percent);
+        assert_eq!([tax(0), tax(50), tax(100), tax(150), tax(200)], [0, 6, 12, 18, 24]);
+
+        // Fully employed, the bonus applies on top of the level: 12 at 100% plus 20%.
+        assert_eq!(HouseBuilding::calc_household_tax(6, 6, 2, 20, 100), 14);
+        assert_eq!(HouseBuilding::calc_household_tax(6, 6, 2, 20, 50), 7);
     }
 }

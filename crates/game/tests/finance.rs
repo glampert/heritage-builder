@@ -1,12 +1,13 @@
 use common::coords::Cell;
 use game::{
+    campaign::config::MissionFinanceDef,
     building::{BuildingKind, construction::ConstructionMode},
     cheats,
     menu::{PlaceOrClearResult, TilePlacement},
     config::GameConfigs,
     sim::{
         calendar::{CalendarDate, CalendarEvent},
-        finance::{self, Finance, LedgerCategory},
+        finance::{self, Finance, LedgerCategory, TaxLevel},
         resources::ResourceKind,
     },
     undo_redo,
@@ -36,6 +37,8 @@ fn main() {
         // Debt:
         test_utils::test_fn!(test_debt_blocks_gold_placements),
         test_utils::test_fn!(test_wages_run_the_city_into_debt),
+        // Missions:
+        test_utils::test_fn!(test_mission_start_sets_the_finances),
     ]);
 }
 
@@ -269,4 +272,39 @@ fn test_wages_run_the_city_into_debt() {
     end_month(&mut env, 6, 10);
     assert_eq!(finance(&env).months_in_debt(), 0);
     assert_eq!(finance::take_notices(), vec!["The treasury is out of debt.".to_string()]);
+}
+
+// ----------------------------------------------
+// Missions
+// ----------------------------------------------
+
+// A mission's finance block starts a new treasury: its gold, tax level and wage, fresh accounts
+// and no debt. A block without starting gold keeps the map's balance.
+fn test_mission_start_sets_the_finances() {
+    let configs = &GameConfigs::get().sim.finance;
+    let mut env = TestEnvironment::new();
+    env.sim.finance_mut().set_balance_unrecorded(-40);
+    env.sim.finance_mut().spend(LedgerCategory::Wages, 10);
+    end_month(&mut env, 3, 0);
+    assert!(finance(&env).months_in_debt() > 0);
+
+    let mission: MissionFinanceDef =
+        serde_json::from_str(r#"{ "starting_gold": 800, "tax_level": "Low", "wage": 4 }"#).expect("a valid finance block");
+    env.sim.finance_mut().start_mission(&mission, configs);
+
+    assert_eq!(finance(&env).balance(), 800);
+    assert!(finance(&env).tax_level() == TaxLevel::Low);
+    assert_eq!(finance(&env).wage(), 4);
+    assert_eq!(finance(&env).months_in_debt(), 0);
+    assert_eq!(finance(&env).this_year().spending(), 0);
+    assert_eq!(finance(&env).this_year().start_balance(), 800);
+
+    // Only a tax level: the balance stays, the wage is the default.
+    let mission: MissionFinanceDef = serde_json::from_str(r#"{ "tax_level": "High" }"#).unwrap();
+    env.sim.finance_mut().start_mission(&mission, configs);
+    assert_eq!(finance(&env).balance(), 800);
+    assert_eq!(finance(&env).wage(), configs.default_wage);
+
+    // A misspelt field is refused rather than ignored.
+    assert!(serde_json::from_str::<MissionFinanceDef>(r#"{ "starting_golds": 1 }"#).is_err());
 }
