@@ -20,9 +20,9 @@ enum TaxStatsIdx {
 #[derive(EnumCount)]
 enum TreasuryStatsIdx {
     Treasury,
-    TotalGoldUnits,
-    GoldInGlobalTreasury,
-    GoldInBuildings,
+    Balance,
+    IncomeThisYear,
+    SpendingThisYear,
 }
 
 // ----------------------------------------------
@@ -82,7 +82,7 @@ impl FinancesManagement {
     fn update_stats(&mut self, context: &GameUiContext) {
         const FMT_LEN: usize = 128;
 
-        let global_treasury = context.sim.treasury();
+        let finance = context.sim.finance();
         let treasury_stats = &context.world.stats().treasury;
 
         {
@@ -112,18 +112,18 @@ impl FinancesManagement {
             heading.set_line_string(TreasuryStatsIdx::Treasury as usize, "Treasury");
 
             heading.set_line_string(
-                TreasuryStatsIdx::TotalGoldUnits as usize,
-                &format_fixed_string!(FMT_LEN, "Total Gold Units: {}", treasury_stats.gold_units_total),
+                TreasuryStatsIdx::Balance as usize,
+                &format_fixed_string!(FMT_LEN, "Balance: {}", finance.balance()),
             );
 
             heading.set_line_string(
-                TreasuryStatsIdx::GoldInGlobalTreasury as usize,
-                &format_fixed_string!(FMT_LEN, "Gold Units In City Treasury: {}", global_treasury.gold_units()),
+                TreasuryStatsIdx::IncomeThisYear as usize,
+                &format_fixed_string!(FMT_LEN, "Income This Year: {}", finance.this_year().income()),
             );
 
             heading.set_line_string(
-                TreasuryStatsIdx::GoldInBuildings as usize,
-                &format_fixed_string!(FMT_LEN, "Gold Units In Tax Offices: {}", treasury_stats.gold_units_in_buildings),
+                TreasuryStatsIdx::SpendingThisYear as usize,
+                &format_fixed_string!(FMT_LEN, "Spending This Year: {}", finance.this_year().spending()),
             );
         }
     }

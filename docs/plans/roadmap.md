@@ -47,7 +47,7 @@ These follow [overview.md](../design/overview.md#development-phases).
 | M1 | Game time and calendar | Small | — | [game-time.md](game-time.md) | Done (hand check on macOS pending) |
 | M2 | Placeholder art pipeline | Medium | — (runs alongside) | [placeholder-art.md](placeholder-art.md) | In progress: the pipeline is done (Phases 0–2); recipes and the building set next |
 | M3 | Building costs and construction | Medium to large | M1 | [construction.md](construction.md) | Done (fast build option waits for Custom Game) |
-| M4 | Finance | Medium | M1 | [finance.md](finance.md) | Planned |
+| M4 | Finance | Medium | M1 | [finance.md](finance.md) | In progress: Phase 0 done; wages, upkeep and debt next |
 | M5 | Goods and production for missions I-1 to I-5 | Medium | M3 | [goods.md](goods.md) | Done (vegetables, house level 5 and month-based consumption rates deferred; see the plan) |
 | M6 | City risks: fire and collapse | Medium | M3, M1 | — | Not started |
 | M7 | Seasons, floods and irrigation | Large | M1, M5 | — | Not started |
@@ -243,6 +243,7 @@ These get their own plans when Phase 2 begins:
 - **Defence and attacks:**
   - walls, gatehouses, moats, towers, watchtowers and fortresses with automatic militia, and the weapons workshop;
   - attacker AI, raids, warnings and damage (GDD 5.16);
+  - plunder: losing a tax office to an attack takes gold from the city treasury (decided in [finance.md](finance.md));
   - uses terrain height for chokepoints.
 - **Sea trade and docks;** foreign partners on the world map; gifts, relations and tribute (GDD 5.12 and 5.14).
 - **The silk chain;** Đại Long's signature goods.
@@ -264,6 +265,7 @@ These are bugs or gaps, each tied to the milestone that fixes it:
 | Undo refunds gold without updating `world.stats` | `undo_redo.rs`, `sim/resources.rs` | M3 Phase 1 (fixed) |
 | Storage accessors see only the first slot holding a good, so walkers fetch at most 4 at a time; a granary reports room for goods it can't hold, and a runner taking wine there crashes | `building/storage.rs` | After M3 (fixed) |
 | A market full of one good still asks for 0 of it; with nothing else in storage, its runner stays at a storage holding that good, taking nothing, and the market can't send another | `building/service.rs`, `unit/task/fetch.rs` | After M3 (fixed) |
+| Demolishing a tax office throws away the gold it holds | `building/service.rs` | M4 Phase 0 (fixed: collectors pay into one city treasury) |
 | Save and load failures are only logged (known-issues) | `session.rs` | M11, which can now show them |
 
 ## Save-version log
@@ -276,7 +278,7 @@ Bumps should be grouped where milestones land close together. Each bump needs a 
 | 3 | Calendar | M1 | Done |
 | 4 | Building construction state; house renovation timers | M3 | Done |
 | 5 | Goods saved by name, not position | M5 | Done |
-| 6 | One signed treasury (tax offices hold no gold); the yearly ledger, saved by category name; the finance rates and debt counter | M4 | Planned |
+| 6 | One signed treasury (tax offices hold no gold); the yearly ledger, saved by category name; the finance rates and debt counter | M4 | Done |
 | 7 | Elevation map | T | Planned |
 | … | Risk, flood, favour and ratings state | M6–M9 | Planned; group them where possible |
 

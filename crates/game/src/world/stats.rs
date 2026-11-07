@@ -61,8 +61,7 @@ pub struct WorkerStats {
 
 #[derive(Default)]
 pub struct TreasuryStats {
-    pub gold_units_total: u32,
-    pub gold_units_in_buildings: u32,
+    pub gold_units_total: i64, // The treasury's balance (sim::Finance); negative is debt.
     pub tax_generated: u32,
     pub tax_available: u32,
     pub tax_collected: u32,

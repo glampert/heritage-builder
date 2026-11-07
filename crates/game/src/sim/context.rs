@@ -16,7 +16,7 @@ use common::{
 };
 use engine::log;
 
-use super::{GameCalendar, GlobalTreasury, RandomGenerator, SimCmds};
+use super::{Finance, GameCalendar, RandomGenerator, SimCmds};
 use crate::{
     world::{World, object::GameObject},
     building::{Building, BuildingId, BuildingKind},
@@ -73,8 +73,8 @@ pub struct SimContext {
     world: RawPtr<World>,
     tile_map: RawPtr<TileMap>,
 
-    // World resource stats:
-    treasury: RawPtr<GlobalTreasury>,
+    // The city's treasury and accounts:
+    finance: RawPtr<Finance>,
 
     // Date and season:
     calendar: RawPtr<GameCalendar>,
@@ -104,7 +104,7 @@ impl SimContext {
         task_manager: &mut UnitTaskManager,
         world: &mut World,
         tile_map: &mut TileMap,
-        treasury: &mut GlobalTreasury,
+        finance: &mut Finance,
         calendar: &mut GameCalendar,
         cmds: &mut SimCmds,
         delta_time_secs: Seconds,
@@ -117,7 +117,7 @@ impl SimContext {
             task_manager: RawPtr::from_ref(task_manager),
             world: RawPtr::from_ref(world),
             tile_map: RawPtr::from_ref(tile_map),
-            treasury: RawPtr::from_ref(treasury),
+            finance: RawPtr::from_ref(finance),
             calendar: RawPtr::from_ref(calendar),
             cmds: RawPtr::from_ref(cmds),
             delta_time_secs,
@@ -187,8 +187,8 @@ impl SimContext {
     }
 
     #[inline(always)]
-    pub fn treasury(&self) -> &GlobalTreasury {
-        &self.treasury
+    pub fn finance(&self) -> &Finance {
+        &self.finance
     }
 
     #[inline(always)]
@@ -582,9 +582,9 @@ impl SimContext {
     }
 
     #[inline(always)]
-    pub fn treasury_mut(&self) -> &mut GlobalTreasury {
+    pub fn finance_mut(&self) -> &mut Finance {
         debug_assert!(!self.is_read_only, "Called mutable method on a read-only SimContext!");
-        self.treasury.mut_ref_cast()
+        self.finance.mut_ref_cast()
     }
 
     #[inline]
@@ -740,7 +740,7 @@ macro_rules! make_context {
             &mut $self.task_manager,
             $world,
             $tile_map,
-            &mut $self.treasury,
+            &mut $self.finance,
             &mut $self.calendar,
             &mut $self.cmds,
             $delta_time_secs,

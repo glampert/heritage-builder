@@ -83,7 +83,7 @@ impl MissionGoal {
         match self {
             Self::Population { min } => stats.population.total >= *min,
             Self::Employment { min_employed } => stats.population.employed >= *min_employed,
-            Self::Treasury   { min_gold } => stats.treasury.gold_units_total >= *min_gold,
+            Self::Treasury   { min_gold } => stats.treasury.gold_units_total >= i64::from(*min_gold),
             Self::Resource   { kind, min } => stats.resources.all.count(*kind) >= *min,
         }
     }

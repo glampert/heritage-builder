@@ -829,7 +829,6 @@ fn world_stats_json(stats: &WorldStats) -> Value {
         },
         "treasury": {
             "gold": stats.treasury.gold_units_total,
-            "gold_in_buildings": stats.treasury.gold_units_in_buildings,
             "tax_generated": stats.treasury.tax_generated,
             "tax_available": stats.treasury.tax_available,
             "tax_collected": stats.treasury.tax_collected,

@@ -64,7 +64,6 @@ fn as_player<F: FnOnce()>(test: F) {
 
 fn place(env: &mut TestEnvironment, cell: Cell, name: &str, mode: ConstructionMode) -> bool {
     let tile_def = test_utils::find_building_def(name);
-    env.world.refresh_stats(env.sim.treasury()); // Placement checks the treasury through the stats.
     let context = env.new_sim_context(0.0);
     match TilePlacement::place(&context, cell, tile_def, true, true, mode) {
         PlaceOrClearResult::Failed { message, .. } => panic!("placing {name} at {cell} failed: {message}"),
@@ -89,10 +88,9 @@ fn run_for(env: &mut TestEnvironment, secs: Seconds) {
     test_utils::tick_n(env, steps, STEP);
 }
 
-// Gold the HUD and the affordability checks see: the world stats, recounted now.
+// Gold in the treasury, which the HUD and the affordability checks read.
 fn gold(env: &mut TestEnvironment) -> u32 {
-    env.world.refresh_stats(env.sim.treasury());
-    env.world.stats().treasury.gold_units_total
+    u32::try_from(env.sim.finance().balance()).expect("a treasury out of debt")
 }
 
 fn materials(items: &[(ResourceKind, u32)]) -> ConstructionMaterials {
@@ -229,14 +227,13 @@ fn test_city_stock_counts_every_yard() {
         let mut env = TestEnvironment::new();
         spawn_yard(&mut env, Cell::new(2, 2), 3);
         spawn_yard(&mut env, Cell::new(8, 2), 4);
-        env.world.refresh_stats(env.sim.treasury());
 
         assert_eq!(CityStock::available(&env.world, ResourceKind::Bricks), 7);
         assert_eq!(CityStock::available(&env.world, ResourceKind::Wood), 0);
 
-        assert!(CityStock::can_afford(&env.world, 10, &materials(&[(ResourceKind::Bricks, 7)])).is_ok());
+        assert!(CityStock::can_afford(&env.world, env.sim.finance(), 10, &materials(&[(ResourceKind::Bricks, 7)])).is_ok());
 
-        let missing = CityStock::can_afford(&env.world, 1000, &materials(&[(ResourceKind::Bricks, 8), (ResourceKind::Wood, 2)]))
+        let missing = CityStock::can_afford(&env.world, env.sim.finance(), 1000, &materials(&[(ResourceKind::Bricks, 8), (ResourceKind::Wood, 2)]))
             .unwrap_err();
         assert_eq!(missing.gold, 1000 - gold(&mut env));
         assert_eq!(missing.materials.as_slice(), &[

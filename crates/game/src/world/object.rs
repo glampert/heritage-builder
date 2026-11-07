@@ -23,7 +23,7 @@ use crate::{
     constants::*,
     save_context::*,
     debug::DebugUiMode,
-    sim::{SimCmds, SimContext},
+    sim::{SimCmds, SimContext, finance::LedgerCategory},
     undo_redo::GameObjectSavedState,
     prop::{Prop, PropId},
     building::{
@@ -792,7 +792,7 @@ impl<'game> Spawner<'game> {
     // Ok if the tile is free, charging is off, or the city can pay; otherwise what it lacks.
     pub fn check_tile_cost(&self, tile_def: &'static TileDef) -> Result<(), MissingCost> {
         if self.subtract_tile_cost && tile_def.has_cost() && !cheats::get().ignore_tile_cost {
-            return CityStock::can_afford(self.context.world(), tile_def.cost, &tile_def.materials);
+            return CityStock::can_afford(self.context.world(), self.context.finance(), tile_def.cost, &tile_def.materials);
         }
         Ok(())
     }
@@ -806,7 +806,7 @@ impl<'game> Spawner<'game> {
 
         if self.subtract_tile_cost && tile_def.has_cost() && !cheats::get().ignore_tile_cost {
             if tile_def.cost != 0 {
-                self.context.treasury_mut().subtract_gold_units_global(self.context.world_mut(), tile_def.cost);
+                self.context.finance_mut().spend(LedgerCategory::Construction, tile_def.cost);
                 paid_gold = tile_def.cost;
             }
             if !tile_def.materials.is_empty() {
@@ -821,7 +821,7 @@ impl<'game> Spawner<'game> {
     // back into the yards they came from; what no yard has room for is logged and lost.
     pub fn refund_construction_site(&self, site: &ConstructionSite, name: &str) {
         if site.paid_gold() != 0 {
-            self.context.treasury_mut().add_gold_units_global(self.context.world_mut(), site.paid_gold());
+            self.context.finance_mut().refund(LedgerCategory::Construction, site.paid_gold());
         }
         if !site.withdrawal().is_empty() {
             for item in &CityStock::refund(self.context.world_mut(), site.withdrawal()) {
@@ -840,7 +840,7 @@ impl<'game> Spawner<'game> {
     fn restore_tile_cost(&self, tile_def: &'static TileDef) {
         if self.restore_tile_cost && tile_def.has_cost() && !cheats::get().ignore_tile_cost {
             if tile_def.cost != 0 {
-                self.context.treasury_mut().add_gold_units_global(self.context.world_mut(), tile_def.cost);
+                self.context.finance_mut().refund(LedgerCategory::Construction, tile_def.cost);
             }
             if !tile_def.materials.is_empty() {
                 let lost = CityStock::deposit(self.context.world_mut(), &tile_def.materials);

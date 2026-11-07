@@ -106,7 +106,7 @@ fn clear_selection(context: &mut GameUiContext) {
 }
 
 fn can_afford_cost(context: &GameUiContext, cost: u32) -> bool {
-    context.sim.treasury().can_afford(context.world, cost)
+    context.sim.finance().can_afford(cost)
 }
 
 // ----------------------------------------------
@@ -472,7 +472,7 @@ impl TilePlacement {
         if !segment.is_valid {
             return Err(RoadSegmentError::Blocked);
         }
-        if !context.treasury().can_afford(context.world(), segment.cost()) {
+        if !context.finance().can_afford(segment.cost()) {
             return Err(RoadSegmentError::CannotAffordCost(segment.cost()));
         }
 

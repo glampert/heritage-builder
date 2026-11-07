@@ -4,9 +4,12 @@ use common::{Size, time::Seconds};
 use engine::{config::EngineConfigs, runner::RunLoopConfigs};
 use proc_macros::DrawDebugUi;
 use serde::{Deserialize, Serialize};
-use strum::Display;
+use strum::{Display, EnumCount};
 
-use crate::{camera::*, sim::calendar::CalendarSettings};
+use crate::{
+    camera::*,
+    sim::{calendar::CalendarSettings, finance::TaxLevel},
+};
 
 // ----------------------------------------------
 // GameConfigs
@@ -148,6 +151,10 @@ pub struct SimConfigs {
     #[debug_ui(nested)]
     pub construction: ConstructionConfigs,
 
+    // Wages, tax levels and debt (docs/plans/finance.md).
+    #[debug_ui(nested)]
+    pub finance: FinanceConfigs,
+
     // Workers/Population:
     pub workers_search_radius: i32,
     pub workers_update_frequency_secs: Seconds,
@@ -173,6 +180,7 @@ impl Default for SimConfigs {
             days_per_month: 30,
             calendar: CalendarSettings::default(),
             construction: ConstructionConfigs::default(),
+            finance: FinanceConfigs::default(),
             // Workers/Population:
             workers_search_radius: 20,
             workers_update_frequency_secs: 20.0,
@@ -209,6 +217,36 @@ impl Default for ConstructionConfigs {
             grand_secs: 75.0,
             house_build_secs: 4.0,
             time_scale: 1.0,
+        }
+    }
+}
+
+// The defaults of a new game's finances, and the tax levels' rates (sim::finance).
+#[derive(DrawDebugUi, Serialize, Deserialize)]
+#[serde(default)]
+pub struct FinanceConfigs {
+    // Gold per employed worker per year, paid monthly.
+    pub default_wage: u32,
+
+    #[debug_ui(skip)]
+    pub default_tax_level: TaxLevel,
+
+    // Percentage of the houses' base tax each level pays, in TaxLevel order: None, Low, Normal,
+    // High, Harsh.
+    #[debug_ui(skip)]
+    pub tax_level_percent: [u32; TaxLevel::COUNT],
+
+    // Months in debt before the debt is overdue (a mission failure from M9).
+    pub debt_limit_months: u32,
+}
+
+impl Default for FinanceConfigs {
+    fn default() -> Self {
+        Self {
+            default_wage: 6,
+            default_tax_level: TaxLevel::Normal,
+            tax_level_percent: [0, 50, 100, 150, 200],
+            debt_limit_months: 12,
         }
     }
 }

@@ -28,7 +28,7 @@ use crate::{
         house::{HouseBuilding, HouseLevel, HouseLevelRequirements, HouseUpgradeDirection},
         house_upgrade::{CANDIDATE_RECTS_COUNT, candidate_target_rects},
         producer::{ProducerBuilding, ProducerInputsLocalStock, ProducerOutputLocalStock},
-        service::{ServiceBuilding, StockOrTreasury},
+        service::{ServiceBuilding, ServiceStock},
         storage::{MAX_STORAGE_SLOTS, StorageBuilding, StorageSlots},
     },
     pathfind,
@@ -616,11 +616,10 @@ impl ServiceBuilding {
     pub(crate) fn draw_debug_ui_dispatch(&mut self, _cmds: &mut SimCmds, context: &BuildingContext, ui_sys: &UiSystem) {
         self.draw_debug_ui_resources_stock(context, ui_sys);
         self.draw_debug_ui_patrol(ui_sys);
-        self.draw_debug_ui_treasury(ui_sys);
     }
 
     fn draw_debug_ui_resources_stock(&mut self, context: &BuildingContext, ui_sys: &UiSystem) {
-        if !self.stock_or_treasury.is_stock_and_requires_resources() {
+        if !self.service_stock.is_stock_and_requires_resources() {
             return;
         }
         let Some(_path) = ui::collapsing_header_scope(ui_sys, "Stock", false) else {
@@ -643,7 +642,7 @@ impl ServiceBuilding {
             }
         }
 
-        if let StockOrTreasury::Stock { update_timer, stock } = &mut self.stock_or_treasury {
+        if let ServiceStock::Stock { update_timer, stock } = &mut self.service_stock {
             update_timer.draw_debug_ui_with_header("Update", ui_sys);
 
             ui::horizontal(ui_sys, |ui_sys| {
@@ -684,14 +683,6 @@ impl ServiceBuilding {
         ui::text(ui_sys, format_small!("Spawn State: {:?}", self.patrol.spawn_state()));
 
         self.patrol.draw_debug_ui_with_header("Patrol Params", ui_sys);
-    }
-
-    fn draw_debug_ui_treasury(&mut self, ui_sys: &UiSystem) {
-        if let StockOrTreasury::Treasury { gold_units } = &mut self.stock_or_treasury {
-            if let Some(_path) = ui::collapsing_header_scope(ui_sys, "Treasury", false) {
-                ui::input_scalar(ui_sys, "Gold Units", gold_units, 1);
-            }
-        }
     }
 }
 

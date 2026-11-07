@@ -29,6 +29,7 @@ use crate::{
     sim::{
         SimCmds,
         SimContext,
+        finance::LedgerCategory,
         resources::{RESOURCE_KIND_COUNT, ResourceKind, ResourceKinds, ShoppingList, StockItem, Workers},
     },
     unit::{
@@ -130,7 +131,7 @@ game_object_debug_options! {
 game_object_undo_redo_state! {
     ServiceUndoRedoSavedState,
 
-    stock_or_treasury: StockOrTreasury,
+    service_stock: ServiceStock,
 }
 
 // ----------------------------------------------
@@ -144,8 +145,9 @@ pub struct ServiceBuilding {
 
     workers: Workers,
 
-    // Stock of required resources for this service or a treasury for a TaxOffice.
-    pub(crate) stock_or_treasury: StockOrTreasury,
+    // Stock of the resources this service requires, if any. (Tax offices hold no gold: their
+    // collectors pay it into the city treasury.)
+    pub(crate) service_stock: ServiceStock,
 
     pub(crate) runner: Runner,            // Runner Unit we may send out to fetch resources from storage.
     pub(crate) patrol: Patrol,            // Unit we may send out on patrol to provide the service.
@@ -185,7 +187,7 @@ impl BuildingBehavior for ServiceBuilding {
 
         let delta_time_secs = context.sim_ctx.delta_time_secs();
         let has_min_required_workers = self.has_min_required_workers();
-        let has_stock_requirements = self.stock_or_treasury.is_stock_and_requires_resources();
+        let has_stock_requirements = self.service_stock.is_stock_and_requires_resources();
         let has_patrol_unit = self.has_patrol_unit();
 
         // Under-staffed services run slower: stock procurement and patrol dispatch
@@ -195,7 +197,7 @@ impl BuildingBehavior for ServiceBuilding {
 
         // Procure resources from storage periodically if we need them.
         if has_stock_requirements && has_min_required_workers && !self.debug.freeze_stock_update() {
-            if let StockOrTreasury::Stock { update_timer, .. } = &mut self.stock_or_treasury {
+            if let ServiceStock::Stock { update_timer, .. } = &mut self.service_stock {
                 if update_timer.tick(service_delta_secs).should_update() {
                     self.stock_update(cmds, context);
                 }
@@ -229,7 +231,7 @@ impl BuildingBehavior for ServiceBuilding {
 
         let config = BuildingConfigs::get().find_service_config(kind);
 
-        if let StockOrTreasury::Stock { update_timer, stock } = &mut self.stock_or_treasury {
+        if let ServiceStock::Stock { update_timer, stock } = &mut self.service_stock {
             update_timer.post_load(config.stock_update_frequency_secs);
             stock.refresh_from_config(config.resources_required.combined(), config.stock_capacity);
         }
@@ -243,76 +245,58 @@ impl BuildingBehavior for ServiceBuilding {
     // ----------------------
 
     fn has_stock(&self) -> bool {
-        matches!(&self.stock_or_treasury, StockOrTreasury::Stock { .. })
+        matches!(&self.service_stock, ServiceStock::Stock { .. })
     }
 
     fn is_stock_full(&self) -> bool {
-        match &self.stock_or_treasury {
-            StockOrTreasury::Stock { stock, .. } => stock.is_full(),
-            StockOrTreasury::Treasury { .. } => false,
-            StockOrTreasury::None => false,
+        match &self.service_stock {
+            ServiceStock::Stock { stock, .. } => stock.is_full(),
+            ServiceStock::None => false,
         }
     }
 
     fn stock(&self) -> ArrayVec<StockItem, RESOURCE_KIND_COUNT> {
         let mut items = ArrayVec::new();
 
-        match &self.stock_or_treasury {
-            StockOrTreasury::Stock { stock, .. } => {
+        match &self.service_stock {
+            ServiceStock::Stock { stock, .. } => {
                 stock.for_each(|_, item| {
                     items.push(*item);
                 });
             }
-            StockOrTreasury::Treasury { gold_units } => {
-                items.push(StockItem { kind: ResourceKind::Gold, count: *gold_units });
-            }
-            StockOrTreasury::None => {}
+            ServiceStock::None => {}
         }
 
         items
     }
 
     fn has_min_required_resources(&self) -> bool {
-        match &self.stock_or_treasury {
-            StockOrTreasury::Stock { stock, .. } => stock.accepts_any() && !stock.is_empty(),
-            StockOrTreasury::Treasury { .. } => true,
-            StockOrTreasury::None => true,
+        match &self.service_stock {
+            ServiceStock::Stock { stock, .. } => stock.accepts_any() && !stock.is_empty(),
+            ServiceStock::None => true,
         }
     }
 
     fn available_resources(&self, kind: ResourceKind) -> u32 {
-        match &self.stock_or_treasury {
-            StockOrTreasury::Stock { stock, .. } => {
+        match &self.service_stock {
+            ServiceStock::Stock { stock, .. } => {
                 if self.has_min_required_workers() {
                     return stock.available_resources(kind);
                 }
             }
-            StockOrTreasury::Treasury { gold_units } => {
-                // NOTE: Treasury can receive gold even if !has_min_required_workers.
-                if kind == ResourceKind::Gold {
-                    return *gold_units;
-                }
-            }
-            StockOrTreasury::None => {}
+            ServiceStock::None => {}
         }
         0
     }
 
     fn receivable_resources(&self, kind: ResourceKind) -> u32 {
-        match &self.stock_or_treasury {
-            StockOrTreasury::Stock { stock, .. } => {
+        match &self.service_stock {
+            ServiceStock::Stock { stock, .. } => {
                 if self.has_min_required_workers() {
                     return stock.receivable_resources(kind);
                 }
             }
-            StockOrTreasury::Treasury { .. } => {
-                // NOTE: Treasury can receive gold even if !has_min_required_workers.
-                // No max limit on the amount it can receive.
-                if kind == ResourceKind::Gold {
-                    return u32::MAX;
-                }
-            }
-            StockOrTreasury::None => {}
+            ServiceStock::None => {}
         }
         0
     }
@@ -320,23 +304,15 @@ impl BuildingBehavior for ServiceBuilding {
     fn receive_resources(&mut self, kind: ResourceKind, count: u32) -> u32 {
         if count != 0 {
             let has_min_required_workers = self.has_min_required_workers();
-            match &mut self.stock_or_treasury {
-                StockOrTreasury::Stock { stock, .. } => {
+            match &mut self.service_stock {
+                ServiceStock::Stock { stock, .. } => {
                     if has_min_required_workers {
                         let received_count = stock.receive_resources(kind, count);
                         self.debug.log_resources_gained(kind, received_count);
                         return received_count;
                     }
                 }
-                StockOrTreasury::Treasury { gold_units } => {
-                    // NOTE: Treasury can receive gold even if !has_min_required_workers.
-                    if kind == ResourceKind::Gold {
-                        *gold_units += count;
-                        self.debug.log_resources_gained(kind, count);
-                        return count;
-                    }
-                }
-                StockOrTreasury::None => {}
+                ServiceStock::None => {}
             }
         }
         0
@@ -345,33 +321,23 @@ impl BuildingBehavior for ServiceBuilding {
     fn remove_resources(&mut self, kind: ResourceKind, count: u32) -> u32 {
         if count != 0 {
             let has_min_required_workers = self.has_min_required_workers();
-            match &mut self.stock_or_treasury {
-                StockOrTreasury::Stock { stock, .. } => {
+            match &mut self.service_stock {
+                ServiceStock::Stock { stock, .. } => {
                     if has_min_required_workers {
                         let removed_count = stock.remove_resources(kind, count);
                         self.debug.log_resources_lost(kind, removed_count);
                         return removed_count;
                     }
                 }
-                StockOrTreasury::Treasury { gold_units } => {
-                    // NOTE: Can withdraw from the treasury even if !has_min_required_workers.
-                    if kind == ResourceKind::Gold {
-                        let prev_count = *gold_units;
-                        *gold_units = gold_units.saturating_sub(count);
-                        let removed_count = prev_count - *gold_units;
-                        self.debug.log_resources_lost(kind, removed_count);
-                        return removed_count;
-                    }
-                }
-                StockOrTreasury::None => {}
+                ServiceStock::None => {}
             }
         }
         0
     }
 
     fn tally(&self, stats: &mut WorldStats, kind: BuildingKind) {
-        match &self.stock_or_treasury {
-            StockOrTreasury::Stock { stock, .. } => {
+        match &self.service_stock {
+            ServiceStock::Stock { stock, .. } => {
                 if kind.intersects(BuildingKind::Market) {
                     stock.for_each(|_, item| {
                         stats.add_market_resources(item.kind, item.count);
@@ -382,11 +348,7 @@ impl BuildingBehavior for ServiceBuilding {
                     });
                 }
             }
-            StockOrTreasury::Treasury { gold_units } => {
-                stats.treasury.gold_units_total += gold_units;
-                stats.treasury.gold_units_in_buildings += gold_units;
-            }
-            StockOrTreasury::None => {}
+            ServiceStock::None => {}
         }
     }
 
@@ -424,7 +386,7 @@ impl BuildingBehavior for ServiceBuilding {
 
     fn undo_redo_record(&self) -> Option<Box<dyn GameObjectSavedState>> {
         ServiceUndoRedoSavedState::new_state(ServiceUndoRedoSavedState {
-            stock_or_treasury: self.stock_or_treasury.clone(),
+            service_stock: self.service_stock.clone(),
         })
     }
 
@@ -432,15 +394,12 @@ impl BuildingBehavior for ServiceBuilding {
         let saved_state = ServiceUndoRedoSavedState::downcast(state);
 
         // NOTE: Only stock is preserved on undo/redo. Runners/patrols and workers are reset.
-        match &mut self.stock_or_treasury {
-            StockOrTreasury::Stock { stock, .. } => {
-                *stock = saved_state.stock_or_treasury.as_stock().clone();
+        match &mut self.service_stock {
+            ServiceStock::Stock { stock, .. } => {
+                *stock = saved_state.service_stock.as_stock().clone();
             }
-            StockOrTreasury::Treasury { gold_units } => {
-                *gold_units = saved_state.stock_or_treasury.as_treasury();
-            }
-            StockOrTreasury::None => {
-                debug_assert!(matches!(saved_state.stock_or_treasury, StockOrTreasury::None));
+            ServiceStock::None => {
+                debug_assert!(matches!(saved_state.service_stock, ServiceStock::None));
             }
         }
     }
@@ -468,7 +427,7 @@ impl ServiceBuilding {
         Self {
             config: Some(config),
             workers: Workers::employer(config.min_workers, config.max_workers),
-            stock_or_treasury: StockOrTreasury::new(config),
+            service_stock: ServiceStock::new(config),
             runner: Runner::default(),
             patrol: Patrol::default(),
             patrol_timer: UpdateTimer::new(config.patrol_frequency_secs),
@@ -525,10 +484,9 @@ impl ServiceBuilding {
 
     #[inline]
     fn is_stock_empty(&self) -> bool {
-        match &self.stock_or_treasury {
-            StockOrTreasury::Stock { stock, .. } => stock.is_empty(),
-            StockOrTreasury::Treasury { gold_units } => *gold_units == 0,
-            StockOrTreasury::None => true,
+        match &self.service_stock {
+            ServiceStock::Stock { stock, .. } => stock.is_empty(),
+            ServiceStock::None => true,
         }
     }
 
@@ -551,7 +509,7 @@ impl ServiceBuilding {
         // Try unload cargo. Any surplus stays in the runner's inventory -- the fetch
         // task's recovery path will ship it to a storage that can accept it.
         if let Some(item) = runner_unit.peek_inventory() {
-            debug_assert!(item.count <= this_service.stock_or_treasury.as_stock().capacity_for(item.kind));
+            debug_assert!(item.count <= this_service.service_stock.as_stock().capacity_for(item.kind));
 
             let received_count = this_service.receive_resources(item.kind, item.count);
             if received_count != 0 {
@@ -567,7 +525,7 @@ impl ServiceBuilding {
 
     fn resource_fetch_list(&self) -> ShoppingList {
         let mut list = ShoppingList::default();
-        let stock = self.stock_or_treasury.as_stock();
+        let stock = self.service_stock.as_stock();
 
         // Only goods there's room for: a runner sent for a full one would bring nothing back.
         stock.for_each(|index, item| {
@@ -640,12 +598,11 @@ impl ServiceBuilding {
         );
 
         if let Some(item) = patrol_unit.peek_inventory() {
-            // Only tax collector patrols will bring back resources (Gold).
-            if let StockOrTreasury::Treasury { gold_units } = &mut this_service.stock_or_treasury {
-                debug_assert!(item.kind == ResourceKind::Gold, "ServiceBuilding Treasury: Expected Gold but got: {item}");
-
+            // Only tax collector patrols bring back resources: the gold goes straight into the
+            // city treasury, as tax income. Tax offices hold no gold of their own.
+            if this_building_kind.intersects(BuildingKind::TaxOffice) && item.kind == ResourceKind::Gold {
                 let tax_collected = patrol_unit.remove_resources(item.kind, item.count);
-                *gold_units += tax_collected;
+                context.finance_mut().earn(LedgerCategory::Taxes, tax_collected);
 
                 debug_popup_msg_color!(this_service.debug, Color::yellow(), "Tax collected +{tax_collected}");
             } else {
@@ -667,27 +624,21 @@ impl ServiceBuilding {
 }
 
 // ----------------------------------------------
-// StockOrTreasury
+// ServiceStock
 // ----------------------------------------------
 
 #[derive(Clone, Serialize, Deserialize)]
-pub(crate) enum StockOrTreasury {
+pub(crate) enum ServiceStock {
     None,
     Stock {
         update_timer: UpdateTimer,
         stock: BuildingStock, // Current local stock of resources required (if any).
     },
-    Treasury {
-        // Local treasury for a TaxOffice.
-        gold_units: u32,
-    },
 }
 
-impl StockOrTreasury {
+impl ServiceStock {
     fn new(config: &'static ServiceConfig) -> Self {
-        if config.kind.intersects(BuildingKind::treasury()) {
-            Self::Treasury { gold_units: 0 }
-        } else if !config.resources_required.is_empty() && config.stock_capacity != 0 {
+        if !config.resources_required.is_empty() && config.stock_capacity != 0 {
             Self::Stock {
                 update_timer: UpdateTimer::new(config.stock_update_frequency_secs),
                 stock: BuildingStock::with_accepted_list_and_capacity(&config.resources_required, config.stock_capacity),
@@ -708,13 +659,6 @@ impl StockOrTreasury {
         match self {
             Self::Stock { stock, .. } => stock,
             _ => panic!("Not a BuildingStock!"),
-        }
-    }
-
-    fn as_treasury(&self) -> u32 {
-        match self {
-            Self::Treasury { gold_units, .. } => *gold_units,
-            _ => panic!("Not a Treasury!"),
         }
     }
 }

@@ -172,12 +172,12 @@ impl TopBarIcon {
 #[derive(Copy, Clone, PartialEq, Eq)]
 struct TopBarStats {
     population: u32,
-    gold: u32,
+    gold: i64,
 }
 
 impl TopBarStats {
     fn new(context: &GameUiContext) -> Self {
-        Self { population: context.world.stats().population.total, gold: context.world.stats().treasury.gold_units_total }
+        Self { population: context.world.stats().population.total, gold: context.sim.finance().balance() }
     }
 }
 

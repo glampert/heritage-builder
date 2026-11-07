@@ -2,7 +2,7 @@ use common::{Color, format_small};
 use engine::ui::{self, DrawDebugUi, UiStaticVar, UiSystem};
 
 use crate::{
-    sim::resources::GlobalTreasury,
+    sim::Finance,
     world::{World, stats::WorldStats},
 };
 
@@ -11,13 +11,13 @@ use crate::{
 // ----------------------------------------------
 
 impl World {
-    pub(crate) fn draw_debug_ui(&mut self, treasury: &mut GlobalTreasury, ui_sys: &UiSystem) {
-        self.stats_mut().draw_debug_ui(treasury, ui_sys);
+    pub(crate) fn draw_debug_ui(&mut self, finance: &mut Finance, ui_sys: &UiSystem) {
+        self.stats_mut().draw_debug_ui(finance, ui_sys);
     }
 }
 
 impl WorldStats {
-    pub(crate) fn draw_debug_ui(&mut self, treasury: &mut GlobalTreasury, ui_sys: &UiSystem) {
+    pub(crate) fn draw_debug_ui(&mut self, finance: &mut Finance, ui_sys: &UiSystem) {
         let highlight_value = |label: &str, value: u32, highlight: bool, color: Color| {
             ui::horizontal(ui_sys, |ui_sys| {
                 ui::text(ui_sys, format_small!("{label} :"));
@@ -85,21 +85,29 @@ impl WorldStats {
             ui::separator(ui_sys);
 
             ui::bullet_text(ui_sys, "Treasury:");
-            highlight_zero_value("Total Gold Units", self.treasury.gold_units_total, Color::red());
-            highlight_zero_value("Gold In Global Treasury", treasury.gold_units(), Color::red());
-            highlight_zero_value("Gold In Buildings", self.treasury.gold_units_in_buildings, Color::gray());
+            let balance = finance.balance();
+            ui::horizontal(ui_sys, |ui_sys| {
+                ui::text(ui_sys, "Balance :");
+                if balance <= 0 {
+                    ui::text_colored(ui_sys, Color::red(), format_small!("{balance}"));
+                } else {
+                    ui::text(ui_sys, format_small!("{balance}"));
+                }
+            });
+            highlight_nonzero_value("Months In Debt", finance.months_in_debt(), Color::red());
 
             ui::separator(ui_sys);
 
             static GOLD_UNITS: UiStaticVar<u32> = UiStaticVar::new(0);
             ui::input_scalar(ui_sys, "Gold Units", GOLD_UNITS.as_mut(), 100);
 
+            // Cheats: they change the balance without recording it in the accounts.
             if ui::button(ui_sys, "Give Gold") {
-                treasury.add_gold_units(*GOLD_UNITS);
+                finance.add_unrecorded(i64::from(*GOLD_UNITS));
             }
 
             if ui::button(ui_sys, "Subtract Gold") {
-                treasury.subtract_gold_units(*GOLD_UNITS);
+                finance.add_unrecorded(-i64::from(*GOLD_UNITS));
             }
         }
 

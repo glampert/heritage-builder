@@ -1,6 +1,6 @@
 # Finance
 
-**Status (2026-11-07): Draft; not started.** This plan is milestone M4 of the [roadmap](roadmap.md). It covers GDD 5.7: one city treasury that can go into debt, monthly wages and building upkeep, a tax rate the player sets, and yearly accounts in the finances dialog. Mission I-2 teaches "the tax office, the treasury and wages" ([campaigns.md](../design/campaigns.md#2-fish-and-clay)), and M9's failure rule "the city stays in debt too long" (GDD §7) needs the debt state. It was researched against `14fbc02` on `claude`. File and line references point at that commit, so re-check them before relying on them.
+**Status (2026-11-07): In progress: Phase 0 done, Phase 1 next.** The open decisions were settled on 2026-11-07. This plan is milestone M4 of the [roadmap](roadmap.md). It covers GDD 5.7: one city treasury that can go into debt, monthly wages and building upkeep, a tax rate the player sets, and yearly accounts in the finances dialog. Mission I-2 teaches "the tax office, the treasury and wages" ([campaigns.md](../design/campaigns.md#2-fish-and-clay)), and M9's failure rule "the city stays in debt too long" (GDD §7) needs the debt state. It was researched against `14fbc02` on `claude`. File and line references point at that commit, so re-check them before relying on them.
 
 ## How to resume this work
 
@@ -67,7 +67,7 @@
 - **Taxes go straight to the treasury.** A tax collector's patrol deposits its gold into the balance when it returns to the office, recorded as tax income, as it lands today. Tax offices no longer hold gold:
   - `StockOrTreasury::Treasury` and `BuildingKind::treasury()` go away, and a tax office has `StockOrTreasury::None`.
   - Demolishing an office no longer loses money. A collector still out on patrol when its office is demolished loses what it carries, as any walker's goods are lost today.
-  - Phase 2's raids loot the city treasury through the palace instead of an office's stock (GDD 5.15).
+  - **Plunder (user decision, 2026-11-07):** when city defence and attacks come (roadmap Phase 2, GDD 5.16), losing a tax office to an enemy attack counts as plunder and takes some gold from the city treasury, recorded in the ledger.
 - **Signed stats.** `WorldStats::treasury` keeps `gold_units_total`, now an `i64` equal to the balance. `gold_units_in_buildings` goes away. The HUD, the queries and the `Treasury { min_gold }` goal read the signed total.
 - **Affordability.** A placement still needs `balance ≥ cost`. In debt, nothing with a gold cost can be built, which is how debt bites in M4.
 - **Construction in the ledger.** Placement charges are recorded as construction spending, and refunds (undo, a cancelled site) are taken back off it in the year they happen.
@@ -119,13 +119,16 @@
 
 ### 5. Tax rate (Phase 2)
 
-- **The rate** is a percentage from 0 to 20%. The default, 10%, pays exactly today's base amounts, so a level-1 house pays `employed × base_tax_generated × rate / 10`, plus the full-employment bonus, rounded as today. `FinanceConfigs` sets the default and the maximum.
+- **The player sees five levels** (user decision, 2026-11-07): None, Low, Normal, High and Harsh.
+- **Internally**, a `TaxLevel` enum, saved by name. Each level has a percentage of the base tax in `FinanceConfigs::tax_level_percent`. The defaults are 0, 50, 100, 150 and 200.
+  - Normal pays exactly today's base amounts: a house pays `employed × base_tax_generated × percent / 100`, plus the full-employment bonus, rounded as today.
+  - `FinanceConfigs::default_tax_level` is Normal.
 - **When it applies:** to every tax a house generates after the change. Taxes already owed keep their amount.
 - **Later effects:** M9's Legitimacy ("fair taxes") compares the rate with a mission's fair rate, and Phase 2's unrest reacts to high taxes. M4 only records the rate.
 
 ### 6. Missions (Phase 2)
 
-- `MissionDef` gains an optional `finance` block: `starting_gold`, `tax_rate` and `wage`. It is applied when a mission starts, as its `calendar` block is (`campaign::active_mission_calendar`).
+- `MissionDef` gains an optional `finance` block: `starting_gold`, `tax_level` and `wage`. It is applied when a mission starts, as its `calendar` block is (`campaign::active_mission_calendar`).
 - `SimConfigs::starting_gold_units` stays the default for a new map. It moves into `FinanceConfigs` only if that's free to do; recordings and the settings dialog carry `SimConfigs`.
 - M13 sets the actual numbers for missions I-1 to I-5.
 
@@ -142,7 +145,7 @@ The dialog becomes the yearly accounts:
   - the balance;
   - the taxes owed by houses that a collector hasn't taken yet (today's `tax_available`);
   - in debt, how many months the city has left before the limit.
-- **Controls:** the tax rate and the wage, as sliders or as − and + buttons, whichever fits the retail style. They take effect at once.
+- **Controls:** the tax level and the wage, as sliders or as − and + buttons, whichever fits the retail style. They take effect at once.
 - **Layout:** it passes `ui.layout_issues`, and the `ui_snapshot.jsonl` and `ui_build.jsonl` paths still work.
 
 The HUD shows a negative balance with a minus sign, in a warning color if the style has one.
@@ -150,13 +153,13 @@ The HUD shows a negative balance with a minus sign, in a warning color if the st
 ### 8. Automation, tests and scenario
 
 - **Query:** `finance.state` reports the balance, the rates, `months_in_debt`, whether the debt is overdue, and the ledger for this year and last year, by category name. `sim.state`, `session.state` and `world.stats` keep their `gold` fields, now signed.
-- **Command:** `finance.set` takes any of `tax_rate`, `wage` and `balance`. The balance is for scenarios: it puts a city into debt quickly, and it isn't recorded in the ledger. Its values are validated before use.
+- **Command:** `finance.set` takes any of `tax_level` (`None`, `Low`, `Normal`, `High` or `Harsh`), `wage` and `balance`. The balance is for scenarios: it puts a city into debt quickly, and it isn't recorded in the ledger. Its values are validated before use.
 - **Tests** in a new `crates/game/tests/finance.rs`, with a `[[test]]` entry:
   - wages with the carry over 12 months, which total exactly one year's rate;
   - upkeep for finished buildings, and none for sites;
   - a tax collector's return records tax income;
   - a demolished tax office loses nothing;
-  - the tax rate scales a house's tax;
+  - each tax level scales a house's tax;
   - the new year moves the accounts;
   - the debt counter and the overdue flag;
   - placement is refused in debt;
@@ -171,21 +174,56 @@ The HUD shows a negative balance with a minus sign, in a warning color if the st
 
 ### Phase 0: One treasury and the ledger (medium)
 
-- [ ] `sim::finance::Finance` in `Simulation`, a signed balance in place of `GlobalTreasury`; signed `gold_units_total`; the HUD, queries and goal read it.
-- [ ] Tax collectors deposit into the treasury; remove `StockOrTreasury::Treasury` and `BuildingKind::treasury()`.
-- [ ] The ledger: categories, this year and last, saved by name; the year rollover; construction charges and refunds recorded.
-- [ ] Save version 6 and `v5_to_v6.py`:
+- [x] `sim::finance::Finance` in `Simulation`, a signed balance in place of `GlobalTreasury`; signed `gold_units_total`; the HUD, queries and goal read it.
+- [x] Tax collectors deposit into the treasury; remove `StockOrTreasury::Treasury` and `BuildingKind::treasury()`.
+- [x] The ledger: categories, this year and last, saved by name; the year rollover; construction charges and refunds recorded.
+- [x] Save version 6 and `v5_to_v6.py`:
   - move `Simulation.treasury.gold_units`, plus every tax office's gold, into the balance;
   - rewrite tax offices to `"None"`;
   - add empty accounts and the default rates.
 
   Then migrate the local saves, run `--smoke-test-saves` and regenerate `saves/sample_saves.zip`.
-- [ ] Tests: deposits, demolition, the ledger round trip, refunds; `determinism.jsonl` twice.
-- [ ] Roadmap: the tax office gold bug in "Fixes the research turned up".
+- [x] Tests: deposits, demolition, the ledger round trip, refunds; `determinism.jsonl` twice.
+- [x] Roadmap: the tax office gold bug in "Fixes the research turned up".
+
+**Notes (2026-11-07):**
+- **`sim::finance`:**
+  - `Finance` holds the balance (`i64`), the tax level and wage, `months_in_debt`, the monthly carries, and `this_year` and `last_year` (`YearAccounts`: the starting balance and a total per category).
+  - The methods are `earn`, `spend` and `refund`, which record in the ledger, and `add_unrecorded` and `set_balance_unrecorded` for cheats and debug.
+  - `on_calendar_events` runs after a world step's `SimCmds`, with the new-year rollover only for now.
+  - `per_category_map` saves the per-category arrays by name, like `per_kind_map`.
+  - `LedgerCategory` is `Taxes`, `Construction`, `Wages` and `Upkeep`; `TaxLevel` is `None` to `Harsh`, saved by name.
+- **Deviation: everything Phases 1 and 2 save is in version 6 already.** The tax level, the wage, the debt counter and the carries are saved now, so the later phases need no second bump. `FinanceConfigs` (the default wage and tax level, the levels' percentages, the debt limit) came forward from Phase 1 to give them defaults.
+- **Affordability reads the balance.** `Finance::can_afford` and `shortfall` replace the world-stats check, so the `_global` add and subtract helpers that kept the stats in step are gone. In debt, the shortfall is the whole cost. `CityStock::can_afford` takes the `Finance`. The HUD reads the balance too.
+- **Renamed:** `StockOrTreasury` is now `ServiceStock`, and its field `service_stock`, since it no longer holds a treasury. The migration renames the key.
+- **Tax deposits:** `ServiceBuilding::on_patrol_completed` pays a tax office collector's gold into the treasury, as `Taxes`. It runs deferred, with a mutable context.
+- **Debug and UI:**
+  - World Debug's Tax/Treasury tab shows the balance and the months in debt. Its Give Gold and Subtract Gold buttons don't record in the ledger; `ui_dev_menus.jsonl` still uses them.
+  - Until Phase 2, the finances dialog's treasury heading shows the balance and this year's income and spending.
+- **Migration:** the sample saves' tax offices held 84 to 12,272 gold in all, now in the balance. For example, `tiny_island` has 11,343 from its 5 offices.
+- **Tests:** `tests/finance.rs`, registered in `Cargo.toml`, covers:
+  - a tax office holds and takes no gold;
+  - the stats count a negative balance;
+  - a placement is recorded as construction;
+  - a cancelled site takes its cost back;
+  - cheats aren't recorded;
+  - debt blocks a gold placement.
+
+  Unit tests in `sim/finance.rs` cover the ledger, debt, the year rollover, saving by name, refusing unknown categories, and the tax levels.
+- **Deviation: the collector's round trip isn't in the harness.** It needs houses with employed residents. It was checked in the game instead: `tiny_island`'s balance went from 11,343 to 12,100 over two months. Phase 2's `finance.jsonl` covers it in CI.
+- **Verified:**
+  - `cargo test --workspace`;
+  - every CI scenario;
+  - `determinism.jsonl` twice, with the same output and save (checksum `168927be62deb113` with `--seed 7` at 1280x720);
+  - record and replay of `ui_build` and `determinism`;
+  - the web target checks;
+  - `--smoke-test-saves` loads all 13 migrated saves (the stale v2 `mcp_extended_test.json` set aside).
+
+  The local v5 saves are backed up outside the repository.
 
 ### Phase 1: Wages, upkeep and debt (medium)
 
-- [ ] `FinanceConfigs` in `SimConfigs`: default wage, debt limit, tax rate default and maximum.
+- [x] `FinanceConfigs` in `SimConfigs`: default wage, debt limit, the tax levels' percentages and the default level (done in Phase 0).
 - [ ] Monthly wages and upkeep with carries; the tile def `upkeep` field and its values (hand-made defs in `tile_set.json`, generated ones through the catalog and `sync_tileset.py`).
 - [ ] The debt counter, the overdue flag, and toasts.
 - [ ] `finance.state` and `finance.set`.
@@ -193,7 +231,7 @@ The HUD shows a negative balance with a minus sign, in a warning color if the st
 
 ### Phase 2: Tax rate, the dialog and missions (medium)
 
-- [ ] The tax rate in house tax generation.
+- [ ] The tax level in house tax generation.
 - [ ] The finances dialog: yearly accounts, the rate controls and the debt status; `ui.layout_issues` at 0.
 - [ ] The HUD's negative balance.
 - [ ] The mission `finance` block.
@@ -213,12 +251,14 @@ The HUD shows a negative balance with a minus sign, in a warning color if the st
 
 ## Open decisions
 
-1. **Do tax offices keep their gold?** Default: no. Collectors deposit straight into one city treasury, which fixes the demolition bug and keeps debt on one balance. The alternative is to keep the offices' local gold as the only real treasury, with debt held as a separate figure; that's closer to Pharaoh's stored money but needs two places to read and protect.
-2. **The tax rate's form.** Default: a percentage, 0 to 20%, with 10% paying today's base amounts. The alternative is named levels (none, low, normal, high, harsh) as multipliers.
-3. **Wage units and default.** Default: gold per worker per year, 6, paid monthly with a carry. A court "standard wage" to compare with belongs to M9's Prosperity.
-4. **Upkeep source and values.** Default: a tile def `upkeep` field, on civic and grand buildings only, with the values in [section 3](#3-wages-and-upkeep-phase-1).
-5. **What debt does in M4.** Default: it blocks building anything with a gold cost, and starts the clock. Nothing else until M9.
-6. **The debt limit.** Default: 12 months, set in `FinanceConfigs`. M9 decides what an overdue debt does, and may change it per mission.
-7. **Do wages affect labour?** For example, workers leaving low-wage jobs. Default: no. Wages feed Prosperity in M9.
-8. **How many years of accounts.** Default: this year and last year, as GDD 5.7 says. A longer history, for a chart, can come later without a format change if each year is saved as its own entry.
-9. **Save version numbering.** Default: finance takes version 6, and terrain elevation moves to the next free number in the roadmap's save-version log.
+Settled with the user on 2026-11-07:
+
+1. **Tax offices hold no gold.** Collectors deposit straight into one city treasury. Losing a tax office to an enemy attack will count as plunder and take gold from the treasury (Phase 2 defence and attacks).
+2. **The tax rate is five levels** for the player: None, Low, Normal, High and Harsh. Internally each one is a percentage of the base tax (0, 50, 100, 150 and 200 by default), from `FinanceConfigs`.
+3. **Wages:** gold per worker per year, 6 by default, paid monthly with a carry. A court "standard wage" to compare with belongs to M9's Prosperity.
+4. **Upkeep:** a tile def `upkeep` field, on civic and grand buildings only, with the values in [section 3](#3-wages-and-upkeep-phase-1).
+5. **What debt does in M4:** it blocks building anything with a gold cost and starts the clock. Nothing else until M9.
+6. **The debt limit:** 12 months, set in `FinanceConfigs`. M9 decides what an overdue debt does, and may change it per mission.
+7. **Wages don't affect labour.** Wages feed Prosperity in M9.
+8. **Accounts for this year and last year,** as GDD 5.7 says. A longer history, for a chart, can come later without a format change if each year is saved as its own entry.
+9. **Save version 6 is finance;** terrain elevation moves to 7.

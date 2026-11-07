@@ -33,7 +33,9 @@ pub mod context;
 pub use context::SimContext;
 
 pub mod resources;
-pub use resources::GlobalTreasury;
+
+pub mod finance;
+pub use finance::Finance;
 
 pub mod calendar;
 pub use calendar::{CalendarEvents, CalendarSettings, GameCalendar};
@@ -68,7 +70,7 @@ pub struct Simulation {
     #[serde(skip)]
     cmds: RcMut<SimCmds>,
     task_manager: UnitTaskManager,
-    treasury: GlobalTreasury,
+    finance: Finance,
     calendar: GameCalendar,
 
     // Path finding:
@@ -93,7 +95,7 @@ impl Simulation {
             paused_update_timer: UpdateTimer::new(configs.sim.paused_update_frequency_secs),
             cmds: RcMut::new(commands::DeferredSimCmds::new(SIM_CMDS_CAPACITY)),
             task_manager: UnitTaskManager::new(UNIT_TASK_POOL_CAPACITY),
-            treasury: GlobalTreasury::new(configs.sim.starting_gold_units),
+            finance: Finance::new(configs.sim.starting_gold_units, &configs.sim.finance),
             calendar: GameCalendar::new(configs.sim.calendar.clone()),
             search: Search::with_grid_size(map_size_in_cells),
             speed: Self::MIN_SIM_SPEED,
@@ -118,13 +120,13 @@ impl Simulation {
     }
 
     #[inline]
-    pub fn treasury(&self) -> &GlobalTreasury {
-        &self.treasury
+    pub fn finance(&self) -> &Finance {
+        &self.finance
     }
 
     #[inline]
-    pub fn treasury_mut(&mut self) -> &mut GlobalTreasury {
-        &mut self.treasury
+    pub fn finance_mut(&mut self) -> &mut Finance {
+        &mut self.finance
     }
 
     #[inline]
@@ -211,6 +213,9 @@ impl Simulation {
                 let context = context::make_update_context_mut!(self, step.delta_time_secs, tile_map, world);
                 self.cmds.execute(&context);
             }
+
+            // Month-end charges and the new year's accounts, once the world is unlocked.
+            self.finance.on_calendar_events(&step.calendar_events);
 
             debug_assert!(self.cmds.is_empty());
         }
@@ -327,7 +332,7 @@ impl Simulation {
 
     // World:
     pub fn draw_world_debug_ui(&mut self, context: &mut GameUiContext) {
-        context.world.draw_debug_ui(&mut self.treasury, context.ui_sys);
+        context.world.draw_debug_ui(&mut self.finance, context.ui_sys);
     }
 
     // Game Systems:

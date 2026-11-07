@@ -17,7 +17,10 @@ use crate::{
         storage::StorageSlots,
     },
     cheats,
-    sim::resources::{ResourceKind, StockItem},
+    sim::{
+        Finance,
+        resources::{ResourceKind, StockItem},
+    },
     world::{World, object::GameObject},
 };
 
@@ -160,17 +163,15 @@ impl CityStock {
         Ok(())
     }
 
-    // Ok if the city has `gold` (as the world stats count it, tax offices included) and every
-    // material; otherwise what's missing. The tile cost cheat makes everything affordable.
-    pub fn can_afford(world: &World, gold: u32, materials: &ConstructionMaterials) -> Result<(), MissingCost> {
+    // Ok if the treasury has `gold` and the storage yards every material; otherwise what's
+    // missing. A treasury in debt can't pay any gold. The tile cost cheat makes everything
+    // affordable.
+    pub fn can_afford(world: &World, finance: &Finance, gold: u32, materials: &ConstructionMaterials) -> Result<(), MissingCost> {
         if cheats::get().ignore_tile_cost {
             return Ok(());
         }
 
-        let mut missing = MissingCost {
-            gold: gold.saturating_sub(world.stats().treasury.gold_units_total),
-            materials: ArrayVec::new(),
-        };
+        let mut missing = MissingCost { gold: finance.shortfall(gold), materials: ArrayVec::new() };
 
         for item in materials.iter() {
             let available = Self::available(world, item.kind);
