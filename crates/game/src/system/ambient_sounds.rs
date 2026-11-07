@@ -85,11 +85,12 @@ impl GameSystem for AmbientSoundsSystem {
     }
 
     fn update(&mut self, engine: &mut Engine, _cmds: &mut SimCmds, _context: &SimContext) {
-        if !self.is_enabled() {
+        let sound_sys = engine.sound_system_mut();
+
+        // Without a sound device nothing ever plays, so don't start a new sound every update.
+        if !self.is_enabled() || !sound_sys.is_initialized() {
             return;
         }
-
-        let sound_sys = engine.sound_system_mut();
 
         if !self.sounds_are_loaded() {
             self.load_sounds(sound_sys);

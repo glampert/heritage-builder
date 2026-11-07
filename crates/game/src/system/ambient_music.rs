@@ -235,11 +235,12 @@ impl AmbientMusicSystem {
     }
 
     fn update_internal(&mut self, engine: &mut Engine) {
-        if !self.is_enabled() {
+        let sound_sys = engine.sound_system_mut();
+
+        // Without a sound device nothing ever plays, so don't start a new sound every update.
+        if !self.is_enabled() || !sound_sys.is_initialized() {
             return;
         }
-
-        let sound_sys = engine.sound_system_mut();
 
         if !self.tracks_are_loaded() {
             self.load_tracks(sound_sys);
