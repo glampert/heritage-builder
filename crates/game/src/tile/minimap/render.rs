@@ -6,6 +6,7 @@ use strum::{EnumCount, EnumIter, IntoEnumIterator};
 use common::{Color, Rect, Vec2, coords::Cell, format_fixed_string};
 use engine::{
     file_sys::paths::PathRef,
+    render::texture::TextureHandle,
     ui::{self, UiCondition, UiFontScale, UiLayer, UiNumberFormat, UiPainter, UiStaticVar, UiSystem, UiWindow, sound::UiButtonSoundsEnabled, widgets::*},
 };
 
@@ -15,7 +16,7 @@ use super::{
     model::MinimapFeature,
     shapes::{self, CellBox, MeshParams},
     style::{self, MinimapRealm, MinimapStyle},
-    widget::{BUTTON_SIZE, GAP, MinimapLayout},
+    widget::{BUTTON_SIZE, GAP, LEGEND_ROW_HEIGHT, MinimapLayout},
 };
 use crate::ui_context::GameUiContext;
 
@@ -82,6 +83,7 @@ struct BaseMinimapRenderer {
     minimap_menu: Option<UiMenuRcMut>,
     open_button_menu: Option<UiMenuRcMut>,
     buttons: Option<MinimapButtons>,
+    tooltip_background: Option<TextureHandle>, // The style's frame, behind the map's hover tooltip.
     style_version: u32,
     button_sounds_enabled: UiButtonSoundsEnabled,
     font_scale: UiFontScale,
@@ -96,6 +98,7 @@ impl BaseMinimapRenderer {
             minimap_menu: None,
             open_button_menu: None,
             buttons: None,
+            tooltip_background: None,
             style_version: 0,
             button_sounds_enabled,
             font_scale,
@@ -110,14 +113,16 @@ impl BaseMinimapRenderer {
         let font_scale = self.font_scale;
         let sounds = self.button_sounds_enabled;
         let frame = self.with_frame.then(|| style.frame.clone());
+        let tooltip_frame = self.with_frame.then(|| style.tooltip_frame().to_string());
 
         let make_menu = |context: &mut GameUiContext, label: &str| match &frame {
             Some(sprite) => UiMenu::new(label).with_background(context, PathRef::from_str(sprite)),
             None => UiMenu::new(label),
         };
+        let tooltip_opacity = style.tooltip_opacity;
         let make_tooltip = |context: &mut GameUiContext, text: &str| {
-            let tooltip = UiTooltipText::new(text).with_font_scale(font_scale);
-            match &frame {
+            let tooltip = UiTooltipText::new(text).with_font_scale(font_scale).with_opacity(tooltip_opacity);
+            match &tooltip_frame {
                 Some(sprite) => tooltip.with_background(context, PathRef::from_str(sprite)),
                 None => tooltip,
             }
@@ -127,26 +132,29 @@ impl BaseMinimapRenderer {
             UiSpriteButton::new(context, sprite, Vec2::new(BUTTON_SIZE, BUTTON_SIZE)).with_tooltip(tooltip).with_sounds(sounds)
         };
 
-        let layout_size = MinimapLayout::size();
+        // Its size follows the layout every frame (the style's map size, the lens legend).
+        let layout_size = context.tile_map.minimap().layout().window.size();
         let minimap_menu = make_menu(context, "Minimap")
             .with_flags(UiMenuFlags::IsOpen | UiMenuFlags::NoTitleBar)
-            .with_size(layout_size)
+            .with_size(layout_size.max(Vec2::one()))
             .with_content_insets(UiMenuInsets::same(super::widget::PADDING))
             .with_position(UiMenuPosition::callback(|_menu, context| {
-                MinimapLayout::new(ui::screen_size(context.ui_sys()), TOOL_COUNT).window.min
+                ui::widgets::context_as_mut::<GameUiContext>(context).tile_map.minimap().layout().window.min
             }))
             .into_rc();
 
-        // Unlabeled: its button is named "open" in widget paths.
-        let open_button_size = Vec2::new(20.0, 20.0);
+        // Unlabeled: its button is named "open" in widget paths. In the bottom left corner, where
+        // the minimap's tools were.
+        const OPEN_MENU_PADDING: f32 = 6.0;
+        let open_menu_size = Vec2::new(BUTTON_SIZE + OPEN_MENU_PADDING * 2.0, BUTTON_SIZE + OPEN_MENU_PADDING * 2.0);
         let mut open_button_menu = make_menu(context, "")
-            .with_flags(UiMenuFlags::AdjustSizeToContents)
-            .with_size(open_button_size)
-            .with_position(UiMenuPosition::callback(|_menu, context| {
-                Vec2::new(0.0, ui::screen_size(context.ui_sys()).y - 60.0)
+            .with_size(open_menu_size)
+            .with_content_insets(UiMenuInsets::same(OPEN_MENU_PADDING))
+            .with_position(UiMenuPosition::callback(move |_menu, context| {
+                Vec2::new(0.0, ui::screen_size(context.ui_sys()).y - open_menu_size.y)
             }))
             .into_rc();
-        let open_button = make_button(context, "minimap/open", "Open Map").on_state_changed(|button, context, _| {
+        let open_button = make_button(context, &format!("{}/open", style.buttons), "Open the map").on_state_changed(|button, context, _| {
             if button.is_pressed() {
                 ui::widgets::context_as_mut::<GameUiContext>(context).tile_map.minimap_mut().set_open(true);
                 button.press(false); // Single click button.
@@ -169,7 +177,8 @@ impl BaseMinimapRenderer {
             })
             .collect();
 
-        let debug = self.with_debug_button.then(|| make_button(context, "minimap/debug", "Debug"));
+        let debug = self.with_debug_button.then(|| make_button(context, &format!("{}/debug", style.buttons), "Debug"));
+        self.tooltip_background = tooltip_frame.as_ref().map(|sprite| context.load_texture(PathRef::from_str(sprite)));
 
         self.minimap_menu = Some(minimap_menu);
         self.open_button_menu = Some(open_button_menu);
@@ -212,11 +221,20 @@ impl BaseMinimapRenderer {
             context.tile_map.minimap_mut().refresh_lens(&sim_context);
         }
 
-        // The active lens's button shows pressed.
+        // The active lens's button shows pressed, and the alerts tool is off without alerts.
         let current_lens = context.tile_map.minimap().lens();
-        for (lens, button) in &mut self.buttons.as_mut().unwrap().lenses {
+        let has_alerts = context.tile_map.minimap().alert_count() > 0;
+        let buttons = self.buttons.as_mut().unwrap();
+        for (lens, button) in &mut buttons.lenses {
             button.press(*lens == current_lens);
         }
+        for (tool, button) in &mut buttons.tools {
+            if *tool == MinimapTool::Alerts {
+                button.enable(has_alerts);
+            }
+        }
+
+        minimap_menu.set_size(context.tile_map.minimap().layout().window.size());
 
         let flags = minimap_menu.flags();
         minimap_menu.draw_custom(context, flags, UiMenu::close, UiMenu::message_box, |_menu, context| {
@@ -376,7 +394,7 @@ impl BaseMinimapRenderer {
         painter.rect_stroke(layout.map, 0.0, 1.0, style.palette.outline.color());
 
         if lens_on {
-            Self::paint_legend(&painter, &lens_data.legend, layout.map, style);
+            Self::paint_legend(&painter, &lens_data.legend, layout, style);
         }
     }
 
@@ -385,14 +403,17 @@ impl BaseMinimapRenderer {
             return;
         }
         let radius = style.landmark.size * 0.5;
+        let opacity = style.landmark.opacity.clamp(0.0, 1.0);
+        let faded = |color: Color| Color::new(color.r, color.g, color.b, color.a * opacity);
+        let (fill, ink) = (faded(style.landmark.fill.color()), faded(style.landmark.ink.color()));
         for (center, kind, _) in &minimap.shapes.landmarks {
             let p = transform.apply(center.x, center.y);
-            painter.circle_filled(p, radius, style.landmark.fill.color());
-            painter.circle_stroke(p, radius, 1.5, style.landmark.ink.color());
+            painter.circle_filled(p, radius, fill);
+            painter.circle_stroke(p, radius, 1.5, ink);
             let icon = minimap.textures.landmarks[*kind as usize];
             if icon.is_valid() {
                 let half = Vec2::new(radius * 0.72, radius * 0.72);
-                painter.image(icon, Rect::from_extents(p - half, p + half), style.landmark.ink.color());
+                painter.image(icon, Rect::from_extents(p - half, p + half), ink);
             }
         }
     }
@@ -424,7 +445,7 @@ impl BaseMinimapRenderer {
                 continue;
             }
             let age = 1.0 - (ping.time_left / ping.lifetime).clamp(0.0, 1.0);
-            let fade = (ping.time_left / ping.lifetime).clamp(0.0, 1.0);
+            let fade = (ping.time_left / ping.lifetime).clamp(0.0, 1.0) * style.ping_opacity.clamp(0.0, 1.0);
 
             // Two rings growing out of the point, half a period apart.
             for k in 0..2 {
@@ -444,22 +465,19 @@ impl BaseMinimapRenderer {
         }
     }
 
-    fn paint_legend(painter: &UiPainter, legend: &[(Color, &'static str)], map: Rect, style: &MinimapStyle) {
-        if legend.is_empty() {
+    // The legend in its rows under the map, on the widget's frame.
+    fn paint_legend(painter: &UiPainter, legend: &[(Color, &'static str)], layout: &MinimapLayout, style: &MinimapStyle) {
+        if legend.is_empty() || !layout.legend.is_valid() {
             return;
         }
-        const PER_ROW: usize = 4;
-        const ROW_HEIGHT: f32 = 13.0;
-        let rows = legend.len().div_ceil(PER_ROW);
-        let column = map.width() / PER_ROW as f32;
-        let strip = Rect::from_extents(Vec2::new(map.min.x, map.max.y - rows as f32 * ROW_HEIGHT - 4.0), map.max);
-        painter.rect_filled(strip, Color::new(1.0, 0.98, 0.94, 0.82), 0.0);
-
+        let columns = layout.legend_columns;
+        let column_width = layout.legend.width() / columns as f32;
         for (index, (color, label)) in legend.iter().enumerate() {
-            let (row, col) = (index / PER_ROW, index % PER_ROW);
-            let origin = Vec2::new(strip.min.x + 4.0 + col as f32 * column, strip.min.y + 3.0 + row as f32 * ROW_HEIGHT);
-            painter.rect_filled(Rect::from_pos_and_size(origin + Vec2::new(0.0, 2.0), Vec2::new(8.0, 8.0)), *color, 1.5);
-            painter.text_scaled(origin + Vec2::new(11.0, -1.0), style.landmark.ink.color(), 0.55, *label);
+            let (row, col) = (index / columns, index % columns);
+            let origin = Vec2::new(layout.legend.min.x + col as f32 * column_width, layout.legend.min.y + row as f32 * LEGEND_ROW_HEIGHT);
+            painter.rect_filled(Rect::from_pos_and_size(origin + Vec2::new(0.0, 3.0), Vec2::new(8.0, 8.0)), *color, 1.5);
+            painter.rect_stroke(Rect::from_pos_and_size(origin + Vec2::new(0.0, 3.0), Vec2::new(8.0, 8.0)), 1.5, 0.8, style.palette.outline.color());
+            painter.text_scaled(origin + Vec2::new(11.0, 0.0), style.landmark.ink.color(), 0.55, *label);
         }
     }
 
@@ -492,8 +510,9 @@ impl BaseMinimapRenderer {
         };
         let cell = Cell::new(cell.0.x.round() as i32, cell.0.y.round() as i32);
         if let Some(name) = minimap.describe_cell(cell) {
-            let font_scale = self.font_scale.0;
-            ui::tooltip(context.ui_sys, |ui_sys| ui::with_font_scale(ui_sys, font_scale, |ui_sys| ui::text(ui_sys, &name)));
+            // Styled as the buttons' tooltips: the realm's frame, at the style's opacity.
+            let opacity = style::current().tooltip_opacity;
+            ui::pointer_tooltip(context.ui_sys, self.font_scale, self.tooltip_background, opacity, |ui_sys| ui::text(ui_sys, &name));
         }
     }
 }

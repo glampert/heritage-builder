@@ -19,13 +19,23 @@
 {"method": "assert.eq", "params": {"query": "minimap.state", "path": "/landmarks/1", "value": {"kind": "Temple", "cell": [70, 65]}}}
 {"method": "world.clear", "params": {"cell": [53, 66]}}
 {"method": "assert.eq", "params": {"query": "minimap.state", "path": "/features", "value": 2}}
-# Lenses through the lens bar.
+# Without alerts, the alerts tool is off.
+{"method": "ui.tree", "params": {"filter": "Minimap"}}
+{"method": "assert.eq", "params": {"query": "ui.tree", "args": {"filter": "Minimap/alerts", "fields": ["enabled"]}, "path": "/widgets/0/enabled", "value": false}}
+# Lenses through the lens bar. A lens's legend gets rows under the map: the widget grows (360 x 210
+# without one), and shrinks back for City.
+{"method": "assert.eq", "params": {"query": "minimap.state", "path": "/window_size", "value": [360.0, 210.0]}}
 {"method": "ui.click", "params": {"path": "Minimap/lens_water"}}
 {"method": "assert.eq", "params": {"query": "minimap.state", "path": "/lens", "value": "water"}}
+{"method": "wait.frames", "params": {"frames": 2}}
+{"method": "assert.gt", "params": {"query": "minimap.state", "path": "/window_size/1", "value": 210.0}}
+{"method": "assert.eq", "params": {"query": "minimap.state", "path": "/map_rect_size", "value": [300.0, 150.0]}}
 {"method": "ui.click", "params": {"path": "Minimap/lens_sectors"}}
 {"method": "assert.eq", "params": {"query": "minimap.state", "path": "/lens", "value": "sectors"}}
 {"method": "ui.click", "params": {"path": "Minimap/lens_city"}}
 {"method": "assert.eq", "params": {"query": "minimap.state", "path": "/lens", "value": "city"}}
+{"method": "wait.frames", "params": {"frames": 1}}
+{"method": "assert.eq", "params": {"query": "minimap.state", "path": "/window_size", "value": [360.0, 210.0]}}
 # Tools: zoom in and out stop the auto zoom.
 {"method": "minimap.set", "params": {"zoom": 2}}
 {"method": "ui.click", "params": {"path": "Minimap/zoom_in"}}
@@ -41,6 +51,8 @@
 {"method": "minimap.alert", "params": {"cell": [72, 58]}}
 {"method": "minimap.alert", "params": {"cell": [56, 72]}}
 {"method": "assert.eq", "params": {"query": "minimap.state", "path": "/alerts", "value": 2}}
+{"method": "wait.frames", "params": {"frames": 1}}
+{"method": "assert.eq", "params": {"query": "ui.tree", "args": {"filter": "Minimap/alerts", "fields": ["enabled"]}, "path": "/widgets/0/enabled", "value": true}}
 {"method": "ui.click", "params": {"path": "Minimap/alerts"}}
 {"method": "assert.eq", "params": {"query": "camera.state", "path": "/center_cell", "value": [72, 58]}}
 {"method": "ui.click", "params": {"path": "Minimap/alerts"}}

@@ -15,6 +15,8 @@
     "home": "M-9,0 L0,-9 L9,0 M-6,-2 V9 H6 V-2",
     "world": "M-10,-6 L-3,-9 L3,-6 L10,-9 V6 L3,9 L-3,6 L-10,9Z M-3,-9 V6 M3,-6 V9",
     "collapse": "M-7,-3 L0,4 L7,-3",
+    "scroll": "M-11,-8 Q-11,-10 -9,-10 Q-7,-10 -7,-8 V8 Q-7,10 -9,10 Q-11,10 -11,8Z M11,-8 Q11,-10 9,-10 Q7,-10 7,-8 V8 Q7,10 9,10 Q11,10 11,8Z M-7,-8 Q-3,-9.5 0,-8 Q3,-6.5 7,-8 M-7,8 Q-3,6.5 0,8 Q3,9.5 7,8 M-4,4 Q-2,-1 0.5,1 Q3,3 4,-3",
+    "ladybug": "M0,-5 C6,-5 9,-1 9,3.5 C9,8.5 5,11 0,11 C-5,11 -9,8.5 -9,3.5 C-9,-1 -6,-5 0,-5Z M-4.5,-5 Q-4,-10 0,-10 Q4,-10 4.5,-5 M0,-5 V11 M-2,-10 L-4.5,-13 M2,-10 L4.5,-13 M-4.6,1 L-4.4,1 M4.4,1 L4.6,1 M-4.1,6.5 L-3.9,6.5 M3.9,6.5 L4.1,6.5",
     "palace": "M-7,4 V-2 L0,-8 L7,-2 V4Z M-3,4 V0 H3 V4",
     "temple": "M-8,-1 Q0,-7 8,-1 M-6,-5 Q0,-10 6,-5 M-5,-1 V5 M5,-1 V5 M-7,5 H7",
     "market": "M-7,-3 H7 L5,4 H-5Z M-4,-3 Q0,-9 4,-3",
@@ -41,7 +43,9 @@
       { "name": "alerts", "glyph": "alert", "ink": "alert" },
       { "name": "home", "glyph": "home" },
       { "name": "world_map", "glyph": "world" },
-      { "name": "collapse", "glyph": "collapse" }
+      { "name": "collapse", "glyph": "collapse" },
+      { "name": "open", "glyph": "scroll" },
+      { "name": "debug", "glyph": "ladybug" }
     ],
     "realms": {
       "dailong": { "folder": "minimap", "fill": "#efe0b8", "fill_hovered": "#f7ebcc", "fill_pressed": "#a8261c", "stroke": "#c9b083", "stroke_hovered": "#a8261c", "ink": "#2b2118", "ink_pressed": "#fff4dc", "alert": "#a8261c" },
@@ -61,6 +65,7 @@
 
   "frames": {
     "kambara": { "size": [720, 420], "style": "stone", "base": "#b3a789", "moss": "#5f7a3a", "border": "#1c1a14", "inner": "#5d5646" },
+    "tooltip_tampadesa": { "size": [360, 120], "style": "paper", "base": "#ecd3a3", "grain": "#9c5c28", "gold": "#d4a94e", "rim": "#5a3a1e" },
     "tampadesa": { "size": [720, 420], "style": "lacquer", "top": "#6e5038", "bottom": "#4f3825", "rim": "#2a1c10", "gold": "#d4a94e", "inner": "#d9b98a" }
   }
 }

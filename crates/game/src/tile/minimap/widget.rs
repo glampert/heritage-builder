@@ -22,11 +22,15 @@ use crate::camera::Camera;
 // ----------------------------------------------
 
 // The widget, as in the HUD mockups (docs/design/mockups, `widget_layout` in minimap.py): lens
-// buttons in a row across the top, the map under them, the tools in a column on the right.
-pub const MAP_SIZE: Vec2 = Vec2::new(300.0, 150.0);
+// buttons in a row across the top, the map under them, the tools in a column on the right. The
+// map's size comes from the style; while a lens is open, its legend gets rows under the map and
+// the widget grows to fit them.
 pub const BUTTON_SIZE: f32 = 28.0;
 pub const GAP: f32 = 8.0;
 pub const PADDING: f32 = 12.0;
+pub const TOOL_MIN_SPACING: f32 = 3.0;
+pub const LEGEND_ROW_HEIGHT: f32 = 14.0;
+pub const LEGEND_COLUMN_WIDTH: f32 = 75.0;
 
 #[derive(Copy, Clone, Default)]
 pub struct MinimapLayout {
@@ -34,29 +38,42 @@ pub struct MinimapLayout {
     pub map: Rect,      // The map area: also its clip rect.
     pub lens_row: Rect, // Where the lens buttons go, left to right.
     pub tools: Rect,    // Where the tool buttons go, top to bottom.
+    pub legend: Rect,   // The lens legend's rows, under the map; empty without a lens.
     pub tool_spacing: f32,
+    pub legend_columns: usize,
 }
 
 impl MinimapLayout {
-    pub fn size() -> Vec2 {
-        Vec2::new(PADDING * 2.0 + MAP_SIZE.x + GAP + BUTTON_SIZE, PADDING * 2.0 + BUTTON_SIZE + GAP + MAP_SIZE.y)
+    // Legend entries per row for a map `map_width` points wide.
+    pub fn legend_columns(map_width: f32) -> usize {
+        ((map_width / LEGEND_COLUMN_WIDTH).floor() as usize).max(1)
     }
 
-    // In the bottom left corner of a screen of `screen_size` points, with `tool_count` tools.
-    pub fn new(screen_size: Vec2, tool_count: usize) -> Self {
-        let size = Self::size();
+    // In the bottom left corner of a screen of `screen_size` points, with `tool_count` tools, a map
+    // of `map_size` points and `legend_entries` legend entries (0 without a lens).
+    pub fn new(screen_size: Vec2, tool_count: usize, map_size: Vec2, legend_entries: usize) -> Self {
+        let legend_columns = Self::legend_columns(map_size.x);
+        let legend_rows = legend_entries.div_ceil(legend_columns);
+        let legend_height = if legend_rows > 0 { GAP + legend_rows as f32 * LEGEND_ROW_HEIGHT } else { 0.0 };
+
+        // The tools take the lens row and the map's height, or more if they don't fit in it.
+        let tools_height = (BUTTON_SIZE + GAP + map_size.y)
+            .max(BUTTON_SIZE * tool_count as f32 + TOOL_MIN_SPACING * tool_count.saturating_sub(1) as f32);
+        let inner_height = tools_height.max(BUTTON_SIZE + GAP + map_size.y + legend_height);
+        let size = Vec2::new(PADDING * 2.0 + map_size.x + GAP + BUTTON_SIZE, PADDING * 2.0 + inner_height);
+
         let window = Rect::from_pos_and_size(Vec2::new(0.0, screen_size.y - size.y), size);
         let inner_min = window.min + Vec2::new(PADDING, PADDING);
-        let lens_row = Rect::from_pos_and_size(inner_min, Vec2::new(MAP_SIZE.x, BUTTON_SIZE));
-        let map = Rect::from_pos_and_size(inner_min + Vec2::new(0.0, BUTTON_SIZE + GAP), MAP_SIZE);
-        let inner_height = BUTTON_SIZE + GAP + MAP_SIZE.y;
-        let tools = Rect::from_pos_and_size(Vec2::new(map.max.x + GAP, inner_min.y), Vec2::new(BUTTON_SIZE, inner_height));
+        let lens_row = Rect::from_pos_and_size(inner_min, Vec2::new(map_size.x, BUTTON_SIZE));
+        let map = Rect::from_pos_and_size(inner_min + Vec2::new(0.0, BUTTON_SIZE + GAP), map_size);
+        let legend = Rect::from_pos_and_size(Vec2::new(map.min.x, map.max.y + GAP), Vec2::new(map_size.x, legend_height - GAP).max(Vec2::zero()));
+        let tools = Rect::from_pos_and_size(Vec2::new(map.max.x + GAP, inner_min.y), Vec2::new(BUTTON_SIZE, tools_height));
         let tool_spacing = if tool_count > 1 {
-            ((inner_height - BUTTON_SIZE * tool_count as f32) / (tool_count - 1) as f32).max(0.0)
+            ((tools_height - BUTTON_SIZE * tool_count as f32) / (tool_count - 1) as f32).max(0.0)
         } else {
             0.0
         };
-        Self { window, map, lens_row, tools, tool_spacing }
+        Self { window, map, lens_row, tools, legend, tool_spacing, legend_columns }
     }
 }
 
@@ -195,9 +212,17 @@ impl MinimapView {
         (self.map_rect.width() / window.x).min(self.map_rect.height() / window.y)
     }
 
-    // The part of the world the map shows, in world points.
+    // The part of the world the map shows, in world points: the largest rectangle of the map
+    // area's shape inside the playable area, at zoom 1.
     pub fn window_size(&self) -> Vec2 {
-        self.playable.size() / self.zoom
+        let full = self.playable.size();
+        let map = self.map_rect.size();
+        if map.x <= 0.0 || map.y <= 0.0 || full.y <= 0.0 {
+            return full / self.zoom;
+        }
+        let aspect = map.x / map.y;
+        let fitted = if full.x / full.y > aspect { Vec2::new(full.y * aspect, full.y) } else { Vec2::new(full.x, full.x / aspect) };
+        fitted / self.zoom
     }
 
     pub fn cell_to_minimap(&self) -> CellToMinimap {
@@ -334,7 +359,7 @@ mod tests {
 
     #[test]
     fn cell_to_minimap_matches_world_to_minimap() {
-        let mut view = MinimapView { map_rect: Rect::from_pos_and_size(Vec2::new(10.0, 20.0), MAP_SIZE), map_size: Size::new(64, 64), ..Default::default() };
+        let mut view = MinimapView { map_rect: Rect::from_pos_and_size(Vec2::new(10.0, 20.0), Vec2::new(300.0, 150.0)), map_size: Size::new(64, 64), ..Default::default() };
         view.playable = IsoDiamond::from_tile_map(view.map_size, WorldToScreenTransform::default()).inner_rect();
         view.center = view.playable.center();
         view.zoom = 1.3;
@@ -350,12 +375,12 @@ mod tests {
 
     #[test]
     fn playable_area_fills_the_map_at_zoom_one() {
-        let mut view = MinimapView { map_rect: Rect::from_pos_and_size(Vec2::zero(), MAP_SIZE), map_size: Size::new(80, 80), ..Default::default() };
+        let mut view = MinimapView { map_rect: Rect::from_pos_and_size(Vec2::zero(), Vec2::new(300.0, 150.0)), map_size: Size::new(80, 80), ..Default::default() };
         view.playable = IsoDiamond::from_tile_map(view.map_size, WorldToScreenTransform::default()).inner_rect();
         view.center = view.playable.center();
         let min = view.world_to_minimap(view.playable.min);
         let max = view.world_to_minimap(view.playable.max);
         assert!(min.x.abs() < 1e-3 && min.y.abs() < 1e-3, "{min:?}");
-        assert!((max.x - MAP_SIZE.x).abs() < 1e-3 && (max.y - MAP_SIZE.y).abs() < 1e-3, "{max:?}");
+        assert!((max.x - 300.0).abs() < 1e-3 && (max.y - 150.0).abs() < 1e-3, "{max:?}");
     }
 }

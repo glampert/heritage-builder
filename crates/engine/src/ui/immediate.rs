@@ -1010,31 +1010,66 @@ pub fn item_tooltip_text(ui_sys: &UiSystem, tooltip_text: impl UiTextArg) {
     tooltip_text.with_str(|tooltip_text| item_tooltip(ui_sys, |ui_sys| text(ui_sys, tooltip_text)));
 }
 
-// A tooltip for the widget drawn last, with its own font scale and an optional background image.
+// A tooltip for the widget drawn last, with its own font scale, an optional background image and
+// an opacity (1 is opaque).
 pub fn custom_tooltip(
     ui_sys: &UiSystem,
     font_scale: UiFontScale,
     background: Option<TextureHandle>,
     placement: UiTooltipPlacement,
+    opacity: f32,
     contents: impl FnOnce(&UiSystem),
 ) {
     let Some(response) = ui_sys.last_response() else {
         return;
     };
 
-    let tooltip = placed_tooltip(&response, placement);
+    show_styled_tooltip(ui_sys, placed_tooltip(&response, placement), font_scale, background, opacity, contents);
+}
 
+// A tooltip at the pointer, not tied to a widget, styled like custom_tooltip: shows while this is
+// called.
+pub fn pointer_tooltip(
+    ui_sys: &UiSystem,
+    font_scale: UiFontScale,
+    background: Option<TextureHandle>,
+    opacity: f32,
+    contents: impl FnOnce(&UiSystem),
+) {
+    let (layer_id, widget_id) = ui_sys.with_ui(|ui| (ui.layer_id(), ui.scope_id().with("pointer_tooltip")));
+    let tooltip = egui::Tooltip::always_open(ui_sys.ctx().clone(), layer_id, widget_id, egui::PopupAnchor::Pointer).gap(12.0);
+    show_styled_tooltip(ui_sys, tooltip, font_scale, background, opacity, contents);
+}
+
+fn show_styled_tooltip(
+    ui_sys: &UiSystem,
+    tooltip: egui::Tooltip<'_>,
+    font_scale: UiFontScale,
+    background: Option<TextureHandle>,
+    opacity: f32,
+    contents: impl FnOnce(&UiSystem),
+) {
     let previous_scale = ui_sys.current_window_front_scale();
     ui_sys.set_tooltip_font_scale(font_scale);
 
+    // A background sprite replaces the popup's own fill, outline and shadow; the margins stay.
+    let mut tooltip = tooltip;
+    if background.is_some() {
+        let frame = egui::Frame::popup(&ui_sys.egui_style()).fill(Color32::TRANSPARENT).stroke(Stroke::NONE).shadow(egui::Shadow::NONE);
+        tooltip.popup = tooltip.popup.frame(frame);
+    }
+
     tooltip.show(|ui| {
+        ui.set_opacity(opacity.clamp(0.0, 1.0));
+
         // The background goes in a slot under the contents, filled once their size is known.
         let background_slot = background.map(|_| ui.painter().add(egui::Shape::Noop));
         ui_sys.ui_scope(ui, contents);
 
         if let (Some(slot), Some(texture)) = (background_slot, background) {
             let rect = ui.min_rect().expand2(ui.spacing().window_margin.left_top()); // Its frame's.
-            let image = egui::Shape::image(egui_texture(texture), rect, uv_full(), Color32::WHITE);
+            let tint = Color32::WHITE.gamma_multiply(opacity.clamp(0.0, 1.0));
+            let image = egui::Shape::image(egui_texture(texture), rect, uv_full(), tint);
             ui.painter().set(slot, image);
         }
     });

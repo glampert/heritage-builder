@@ -487,6 +487,11 @@ impl UiMenu {
         self.position = position.into();
     }
 
+    // A fixed size from now on (see with_size).
+    pub fn set_size(&mut self, size: Vec2) {
+        self.size = Some(size);
+    }
+
     #[inline]
     pub fn set_flags(&mut self, new_flags: UiMenuFlags, value: bool) {
         self.flags.set(new_flags, value);
@@ -2179,6 +2184,7 @@ pub struct UiTooltipText {
     font_scale: UiFontScale,
     background: Option<TextureHandle>,
     placement: UiTooltipPlacement,
+    opacity: f32,
 }
 
 impl UiTooltipText {
@@ -2186,7 +2192,7 @@ impl UiTooltipText {
         let text = text.into();
         debug_assert!(!text.is_empty());
 
-        Self { text, font_scale: UiFontScale::default(), background: None, placement: UiTooltipPlacement::default() }
+        Self { text, font_scale: UiFontScale::default(), background: None, placement: UiTooltipPlacement::default(), opacity: 1.0 }
     }
 
     pub fn with_font_scale(mut self, font_scale: UiFontScale) -> Self {
@@ -2207,11 +2213,17 @@ impl UiTooltipText {
         self
     }
 
+    // 1 is opaque; less lets what's under the tooltip show through, background and text alike.
+    pub fn with_opacity(mut self, opacity: f32) -> Self {
+        self.opacity = opacity.clamp(0.0, 1.0);
+        self
+    }
+
     // For the widget drawn last.
     fn draw(&self, context: &mut dyn UiWidgetContext) {
         debug_assert!(context.is_inside_widget_window());
 
-        super::custom_tooltip(context.ui_sys(), self.font_scale, self.background, self.placement, |ui_sys| {
+        super::custom_tooltip(context.ui_sys(), self.font_scale, self.background, self.placement, self.opacity, |ui_sys| {
             super::text(ui_sys, &self.text);
         });
     }
