@@ -36,6 +36,12 @@
 {"method": "assert.eq", "params": {"query": "minimap.state", "path": "/lens", "value": "city"}}
 {"method": "wait.frames", "params": {"frames": 1}}
 {"method": "assert.eq", "params": {"query": "minimap.state", "path": "/window_size", "value": [360.0, 210.0]}}
+# The building icons toggle: one button per state.
+{"method": "assert.eq", "params": {"query": "minimap.state", "path": "/landmarks", "value": true}}
+{"method": "ui.click", "params": {"path": "Minimap/landmarks_on"}}
+{"method": "assert.eq", "params": {"query": "minimap.state", "path": "/landmarks", "value": false}}
+{"method": "ui.click", "params": {"path": "Minimap/landmarks_off"}}
+{"method": "assert.eq", "params": {"query": "minimap.state", "path": "/landmarks", "value": true}}
 # Tools: zoom in and out stop the auto zoom.
 {"method": "minimap.set", "params": {"zoom": 2}}
 {"method": "ui.click", "params": {"path": "Minimap/zoom_in"}}

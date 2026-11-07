@@ -38,6 +38,7 @@ fn main() {
         // Data:
         test_utils::test_fn!(test_every_building_resolves_to_a_class),
         test_utils::test_fn!(test_styles_load_with_their_sprites),
+        test_utils::test_fn!(test_realm_styles_inherit_dai_long),
     ]);
 }
 
@@ -222,7 +223,7 @@ fn test_styles_load_with_their_sprites() {
         let sprites = MinimapLens::iter()
             .map(|lens| lens.sprite())
             .chain(MinimapTool::iter().map(|tool| tool.sprite()))
-            .chain(["open", "debug"]); // The open button, and the developer editor's debug toggle.
+            .chain(["open", "debug", "landmarks_on", "landmarks_off"]); // The open button and the top row's toggles.
         for sprite in sprites {
             for state in ["idle", "hovered", "pressed", "disabled"] {
                 exists(&format!("buttons/{}/{sprite}_{state}.png", style.buttons));
@@ -231,4 +232,17 @@ fn test_styles_load_with_their_sprites() {
     }
 
     let _ = TileMap::new(Size::new(4, 4), None); // An empty map makes an empty minimap.
+}
+
+// Kambara's and Tampadesa's files hold only what they change: the rest comes from Đại Long's.
+fn test_realm_styles_inherit_dai_long() {
+    let base = MinimapStyle::load(MinimapRealm::DaiLong).unwrap();
+    for realm in [MinimapRealm::Kambara, MinimapRealm::Tampadesa] {
+        let style = MinimapStyle::load(realm).unwrap();
+        assert_eq!(style.map_size, base.map_size, "{realm} map_size");
+        assert_eq!(style.lenses.water_access, base.lenses.water_access, "{realm} lenses.water_access");
+        assert_eq!(style.palette.road, base.palette.road, "{realm} palette.road (a field its palette doesn't set)");
+        assert_ne!(style.palette.land_low, base.palette.land_low, "{realm} sets its own land colour");
+        assert_ne!(style.buttons, base.buttons, "{realm} has its own buttons");
+    }
 }

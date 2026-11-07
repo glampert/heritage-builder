@@ -803,7 +803,7 @@ const TEXT_BUTTON_HOVERED_SPRITE: PathRef = PathRef::from_str("misc/brush_stroke
 // ----------------------------------------------
 
 // A tooltip in the retail style: small text on the wide page sprite.
-fn make_tooltip(context: &mut dyn UiWidgetContext, text: impl Into<String>) -> UiTooltipText {
+pub(crate) fn make_tooltip(context: &mut dyn UiWidgetContext, text: impl Into<String>) -> UiTooltipText {
     UiTooltipText::new(text).with_font_scale(TOOLTIP_FONT_SCALE).with_background(context, TOOLTIP_BACKGROUND_SPRITE)
 }
 

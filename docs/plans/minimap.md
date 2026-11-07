@@ -386,6 +386,13 @@ Budgets, release build, desktop; web within 2× of them:
 - The open button (a map scroll) and the developer editor's debug toggle (a ladybug) are icon-script sprites in each realm's button folder, replacing the hand-made placeholders in `buttons/minimap/`. Their widget paths stay `open` and `Minimap/debug`.
 - The alerts tool is disabled while there are no alerts.
 
+**Follow-up 2 (2026-11-07):**
+- Realm style files inherit Đại Long's: `MinimapStyle::load` merges a realm's file over `dailong.json` (objects key by key), so a setting changed there, such as `map_size`, reaches every realm that doesn't set it. Fields neither file sets take the defaults in code. `tests/minimap.rs` checks it.
+- `tooltip_opacity`, `tooltip_frame` and the new `tooltip_background` (false: no background at all) apply only to the map's hover tooltip. The buttons' tooltips use the HUD's own (`menu::make_tooltip`), plain ones in the developer UI.
+- `legend: { "text_scale", "text" }`: the legend's text size (its swatches, rows and columns scale with it) and colour. In the developer UI's dark window the legend is white.
+- A building icons toggle on the top row, left of the tools: `landmarks_on` while they show (the default), `landmarks_off` while hidden, one sprite each. Alerts show either way. `minimap.set landmarks=...` and `minimap.state`'s `landmarks` do the same from automation.
+- The tooltips read "Hide map" and "Open map".
+
 ## Later
 
 - **Concept B as a style:** parchment base, ink coastline with contour lines, tree and hill glyph layers, hatched housing, seal landmarks. It needs a glyph scatter layer (a fixed, seeded set of points per vegetation and rock cell, drawn as small textured quads) and a contour pass in the bake. Worth it if a realm wants it.
