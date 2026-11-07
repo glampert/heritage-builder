@@ -431,7 +431,8 @@ impl Minimap {
         self.update_pings(delta_time_secs);
         self.update_alerts(delta_time_secs);
 
-        self.layout = MinimapLayout::new(ui::screen_size(ui_sys), render::TOOL_COUNT);
+        let legend_entries = if self.lens == MinimapLens::City { 0 } else { self.lens_data.legend.len() };
+        self.layout = MinimapLayout::new(ui::screen_size(ui_sys), render::TOOL_COUNT, style.map_size(), legend_entries);
         if !self.is_open || !self.grid.size().is_valid() {
             return;
         }

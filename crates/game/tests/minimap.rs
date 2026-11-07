@@ -212,13 +212,17 @@ fn test_styles_load_with_their_sprites() {
     for realm in MinimapRealm::iter() {
         let style = MinimapStyle::load(realm).unwrap_or_else(|err| panic!("{err}"));
         exists(&style.frame);
+        exists(style.tooltip_frame());
         exists(&style.field_texture);
         exists(&style.alert_icon);
         for landmark in LandmarkKind::iter() {
             let path = style.landmark_icons.get(&landmark).unwrap_or_else(|| panic!("{realm} has no icon for {landmark}"));
             exists(path);
         }
-        let sprites = MinimapLens::iter().map(|lens| lens.sprite()).chain(MinimapTool::iter().map(|tool| tool.sprite()));
+        let sprites = MinimapLens::iter()
+            .map(|lens| lens.sprite())
+            .chain(MinimapTool::iter().map(|tool| tool.sprite()))
+            .chain(["open", "debug"]); // The open button, and the developer editor's debug toggle.
         for sprite in sprites {
             for state in ["idle", "hovered", "pressed", "disabled"] {
                 exists(&format!("buttons/{}/{sprite}_{state}.png", style.buttons));

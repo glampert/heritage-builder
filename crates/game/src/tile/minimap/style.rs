@@ -101,6 +101,10 @@ pub struct MinimapStyle {
     // Cells baked per frame after edits; more stays for the next frames. Loads bake everything.
     pub bake_budget_cells: u32,
 
+    // The map area in points, [width, height]: the widget grows around it. The world is 2:1, so
+    // another shape shows a crop of the playable area at zoom 1.
+    pub map_size: [f32; 2],
+
     pub palette: MinimapPalette,
     pub sector_colors: SectorColors,
 
@@ -127,6 +131,7 @@ pub struct MinimapStyle {
     // Sprites, under assets/ui.
     pub field_texture: String,
     pub frame: String,
+    pub tooltip_frame: String, // Behind the minimap's tooltips; empty for `frame`.
     pub buttons: String, // Folder of the tool and lens buttons under buttons/, e.g. "minimap".
     pub landmark_icons: BTreeMap<LandmarkKind, String>,
     pub alert_icon: String,
@@ -134,6 +139,8 @@ pub struct MinimapStyle {
     pub landmark: LandmarkStyle,
     pub camera: CameraStyle,
     pub ping: HexColor,
+    pub ping_opacity: f32,    // Of alert pings: their rings and icon, 1 opaque.
+    pub tooltip_opacity: f32, // Of the minimap's tooltips (buttons and the map), 1 opaque.
     pub badge: HexColor,
     pub badge_text: HexColor,
     pub lenses: LensStyle,
@@ -216,6 +223,7 @@ pub struct LandmarkStyle {
     pub ink: HexColor,
     pub size: f32,         // Diameter in points.
     pub min_cell_px: f32,  // Shown once a cell is this many points across.
+    pub opacity: f32,      // 1 opaque.
 }
 
 #[derive(Clone, Deserialize)]
@@ -249,6 +257,7 @@ impl Default for MinimapStyle {
         Self {
             max_texture_side: 1024,
             bake_budget_cells: 4096,
+            map_size: [300.0, 150.0],
             palette: MinimapPalette::default(),
             sector_colors: SectorColors::default(),
             blur_cells: BlurCells::default(),
@@ -269,12 +278,15 @@ impl Default for MinimapStyle {
             field_stripes_per_cell: 1.6,
             field_texture: "minimap/field_stripes.png".into(),
             frame: "misc/square_page_bg.png".into(),
+            tooltip_frame: String::new(),
             buttons: "minimap".into(),
             landmark_icons,
             alert_icon: "icons/alert_icon.png".into(),
             landmark: LandmarkStyle::default(),
             camera: CameraStyle::default(),
             ping: HexColor::rgb(0xe8432f),
+            ping_opacity: 1.0,
+            tooltip_opacity: 1.0,
             badge: HexColor::rgb(0xa8261c),
             badge_text: HexColor::rgb(0xfff4dc),
             lenses: LensStyle::default(),
@@ -346,7 +358,7 @@ impl Default for BlurCells {
 
 impl Default for LandmarkStyle {
     fn default() -> Self {
-        Self { fill: HexColor::rgb(0xfffaf0), ink: HexColor::rgb(0x2b2418), size: 15.0, min_cell_px: 3.0 }
+        Self { fill: HexColor::rgb(0xfffaf0), ink: HexColor::rgb(0x2b2418), size: 15.0, min_cell_px: 3.0, opacity: 1.0 }
     }
 }
 
@@ -375,6 +387,16 @@ impl MinimapStyle {
         let path = config::configs_path().join(realm.file_name());
         let json = file_sys::load_string(&path).map_err(|err| format!("Can't read minimap style {path}: {err}"))?;
         serde_json::from_str(&json).map_err(|err| format!("Invalid minimap style {path}: {err}"))
+    }
+
+    // The sprite behind tooltips.
+    pub fn tooltip_frame(&self) -> &str {
+        if self.tooltip_frame.is_empty() { &self.frame } else { &self.tooltip_frame }
+    }
+
+    // The map area's size, kept large enough for the lens buttons.
+    pub fn map_size(&self) -> common::Vec2 {
+        common::Vec2::new(self.map_size[0].max(160.0), self.map_size[1].max(80.0))
     }
 
     // The bake's settings.

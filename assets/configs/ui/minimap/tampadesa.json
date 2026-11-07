@@ -4,6 +4,7 @@
     "water_shallow": "#79aeb0", "water_deep": "#3b7882", "field": "#c9c46a", "background": "#3b7882"
   },
   "frame": "minimap/frame_tampadesa.png",
+  "tooltip_frame": "minimap/frame_tooltip_tampadesa.png",
   "buttons": "minimap_tampadesa",
   "landmark": { "fill": "#f6e3b8", "ink": "#3b2412" },
   "badge": "#8a2216"

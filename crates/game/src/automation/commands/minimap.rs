@@ -26,7 +26,7 @@ pub(super) const COMMANDS: &[CommandDef] = &[
     CommandDef {
         name: "minimap.state",
         help: "The minimap: open, lens and the lenses on offer, zoom, visible cells, the cell at the centre of its view, \
-               alerts, features and landmarks, the baked texture's size and pixels per cell, the last bake's time, and the style's realm.",
+               alerts, features and landmarks, the baked texture's size and pixels per cell, the last bake's time, the widget's and the map area's sizes in points, and the style's realm.",
         params: &[],
         run: cmd_state,
     },
@@ -101,6 +101,8 @@ fn minimap_state(context: &CommandContext) -> Value {
         "map_size": [size.width, size.height],
         "texture_size": [texture.width, texture.height],
         "px_per_cell": minimap.px_per_cell(),
+        "window_size": [minimap.layout().window.width(), minimap.layout().window.height()],
+        "map_rect_size": [minimap.layout().map.width(), minimap.layout().map.height()],
         "last_bake_ms": minimap.last_bake_secs() * 1000.0,
         "realm": style::current_realm().to_string(),
     })

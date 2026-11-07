@@ -369,7 +369,7 @@ Budgets, release build, desktop; web within 2× of them:
 - **Noise:** computed in the bake, not loaded from `noise_foliage.png`: the elevation is value noise sampled at cell corners and interpolated, and the foliage noise is a tile that repeats every 24 cells. No file, and the bake stays a pure function.
 - **Mipmaps:** the base is baked at 4–8 pixels per cell but drawn at 2–5 on a 1× display, so thin lines (the foam) shimmered. `BaseTexture::upload` builds the mip chain on the CPU, for patches too, since neither backend rebuilds mips after an update.
 - **The icon script uses Pillow only:** `crates/tools/ui-icons/make_icons.py` strokes the SVG paths at 8× and downsamples, instead of rendering them in Chromium. The mockup generator reads the same `icons.json`.
-- **Names:** the style files are `dailong.json`, `kambara.json` and `tampadesa.json`. Đại Long's buttons are in `buttons/minimap/` beside the hand-made `open` and `debug` sprites; the others are in `buttons/minimap_kambara/` and `buttons/minimap_tampadesa/`. Đại Long keeps the parchment page as its frame; the other two frames are made by the script. The old `close_*` sprites are no longer used, and are left in place as hand-made art.
+- **Names:** the style files are `dailong.json`, `kambara.json` and `tampadesa.json`. Đại Long's buttons are in `buttons/minimap/` beside the hand-made `open` and `debug` sprites; the others are in `buttons/minimap_kambara/` and `buttons/minimap_tampadesa/`. Đại Long keeps the parchment page as its frame; the other two frames are made by the script. The old `close_*` sprites are no longer used, and are left in place as hand-made art (the `open` and `debug` placeholders were replaced, see the follow-up below).
 - **Smaller things:** the lens refresh timer counts real time, not game time. `MinimapLens::Risk` has no `RiskKind` yet (M6 adds it). Construction sites are an outline with a faint fill, not a dashed pattern. `minimap.alert` raises an alert from automation, for testing the alerts tool. `UiSpriteButton` now reports a disabled button as `enabled: false` in `ui.tree`.
 
 **Verified:**
@@ -378,6 +378,13 @@ Budgets, release build, desktop; web within 2× of them:
 - Screenshots on OpenGL and Wgpu (lavapipe), on the 9 × 9 preset and the 128 × 128 sample save: City, Sectors and Water lenses, the three realm styles, a ping with the alert badge, the developer editor's debug window.
 - The wasm build compiles (`--features web`). It wasn't run in a browser.
 - Bake times, release build (`cargo test -p minimap_bake --release -- --ignored --nocapture`): a full bake is 49 ms at 128 × 128 (8 px per cell) and 57 ms at 256 × 256 (4 px per cell), within the 60 ms budget; a patch for one edit is 0.65 ms and 0.25 ms. In the release game on the 256 × 256 sample save (`minimap.state`'s `last_bake_ms`, `debug.stats`): the load's full bake took 57 ms, a patch after placing one tile 0.23 ms, and with the minimap open the UI's CPU time (`ui_end`, `ui_render`) stayed under 0.5 ms a frame with 183 buildings, the minimap adding about 14,500 triangles.
+
+**Follow-up (2026-11-07, after review):**
+- Style options for tuning live (edit the realm's file, then the debug window's Reload Style or `minimap.reload_style`): `map_size` ([width, height] in points; the widget grows around it, and a shape other than 2:1 shows a crop of the playable area at zoom 1), `landmark.opacity`, `ping_opacity` (alert rings and icon), `tooltip_opacity` (the buttons' and the map's tooltips) and `tooltip_frame` (the sprite behind tooltips; empty for `frame`).
+- A lens's legend no longer covers the map: the widget grows by its rows while the lens is open and shrinks back for City. `minimap.state` reports `window_size` and `map_rect_size`.
+- The hover tooltip uses the realm's frame like the buttons' tooltips (`ui::pointer_tooltip`, and `UiTooltipText::with_opacity`). Tampadesa's dark lacquer frame made tooltip text unreadable, so it gets a light paper tooltip frame, `frame_tooltip_tampadesa.png`.
+- The open button (a map scroll) and the developer editor's debug toggle (a ladybug) are icon-script sprites in each realm's button folder, replacing the hand-made placeholders in `buttons/minimap/`. Their widget paths stay `open` and `Minimap/debug`.
+- The alerts tool is disabled while there are no alerts.
 
 ## Later
 
