@@ -377,7 +377,7 @@ Budgets, release build, desktop; web within 2× of them:
 - Every CI scenario plus `minimap.jsonl` (51 commands), determinism twice, record and replay of `ui_build` and `determinism`, and `ui_snapshot.jsonl` with its layout checks, on Xvfb with Mesa.
 - Screenshots on OpenGL and Wgpu (lavapipe), on the 9 × 9 preset and the 128 × 128 sample save: City, Sectors and Water lenses, the three realm styles, a ping with the alert badge, the developer editor's debug window.
 - The wasm build compiles (`--features web`). It wasn't run in a browser.
-- Bake times, release build (`cargo test -p minimap_bake --release -- --ignored --nocapture`): a full bake is 49 ms at 128 × 128 (8 px per cell) and 57 ms at 256 × 256 (4 px per cell), within the 60 ms budget; a patch for one edit is 0.65 ms and 0.25 ms.
+- Bake times, release build (`cargo test -p minimap_bake --release -- --ignored --nocapture`): a full bake is 49 ms at 128 × 128 (8 px per cell) and 57 ms at 256 × 256 (4 px per cell), within the 60 ms budget; a patch for one edit is 0.65 ms and 0.25 ms. In the release game on the 256 × 256 sample save (`minimap.state`'s `last_bake_ms`, `debug.stats`): the load's full bake took 57 ms, a patch after placing one tile 0.23 ms, and with the minimap open the UI's CPU time (`ui_end`, `ui_render`) stayed under 0.5 ms a frame with 183 buildings, the minimap adding about 14,500 triangles.
 
 ## Later
 
