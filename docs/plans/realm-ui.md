@@ -338,7 +338,7 @@ The existing dialogs keep their layouts but take their panels from the Đại Lo
 - [ ] The **campaign row** of three emblems: reached, current, or "Locked", from the profile.
 - [ ] **Menu items:**
   - **Continue** loads `profile.last_save`, with the subline "<mission> · <campaign> · autosave";
-  - **Campaign** starts or resumes the reached campaign at its next mission (a campaign picker when more than one is reached; mockup to make);
+  - **Campaign** starts or resumes the reached campaign at its next mission (a campaign picker when more than one is reached: `campaign-picker-<realm>.jpg`);
   - **Custom Game**, Load Game, Settings, About, Quit Game.
 - [ ] The realm marker on the hovered item, and the version string.
 - [ ] **Backdrop:** Đại Long's painting; Kambara's and Tampadesa's generated scenes. The skin decides.
@@ -445,7 +445,7 @@ The existing dialogs keep their layouts but take their panels from the Đại Lo
   - the "joins the world map" note;
   - "Keep playing" and "Continue to the world map". The second goes to Phase 2's screen, or to the next mission when no world map is configured.
 - [ ] **Campaign complete:** the whole stele, a closing line, "Return to the menu". The profile marks the next campaign reached, which switches the home realm.
-- [ ] **Briefing** (mockup to make): a scroll or tablet with the mission's name, its stele lead-in, its text (`MissionDef.description`, which nothing shows today), its goals, and an image slot. "Begin". It opens when a mission's map loads and from a HUD button during the mission.
+- [ ] **Briefing** (`briefing-<realm>.jpg`): a scroll or tablet with the mission's name, its stele lead-in, its text (`MissionDef.description`, which nothing shows today), its goals, and an image slot. "Begin". It opens when a mission's map loads and from a HUD button during the mission.
 - [ ] **Flow:** `campaign::take_pending_prompt` opens the debrief. The `MissionComplete` and `CampaignComplete` kind names stay, so the snapshot scenario still finds them.
 - [ ] Scenario `ui_intermission.jsonl`: finish a test mission (by meeting its goals with `world.*` and `time.fast_forward`), check the debrief's goals, continue, finish the campaign, and check that the profile reached the next one.
 
@@ -477,7 +477,7 @@ The existing dialogs keep their layouts but take their panels from the Đại Lo
 - [ ] **Top-centre bar:**
   - population, treasury and food, each with its icon;
   - four rating badges (ring meters with the realm's Legitimacy initial), showing "—" until M9.
-- [ ] **Game menu buttons:** Game, Load/Save, Settings, City and the briefing. The mockup has no place for them. Default: a small icon group at the right end of the top-left bar; mockup to make.
+- [ ] **Game menu buttons:** Game, Load/Save, Settings, City and the briefing. The HUD mockup has no place for them; `hud-menus-<realm>.jpg` puts them in their own bar left of the build bar.
 - [ ] **Goals tracker,** left: the mission name, each goal with its tick, text, progress and bar, live from the mission's requirements. Collapsible. It's hidden in custom games without goals.
 - [ ] **Build bar,** right:
   - the mockup's column of category buttons in the realm style;
@@ -489,7 +489,7 @@ The existing dialogs keep their layouts but take their panels from the Đại Lo
   - Until M11 it shows the notices the game already raises: construction completed, minimap alerts, saves.
   - It goes through a small `MessageLog` store that M11 replaces with its typed messages.
   - Toasts stay for screenshots and the like.
-- [ ] **Inspector:** the building, unit, prop and terrain inspectors on the skin's side panel or card (mockup to make). The `BuildingInspector/Close` paths stay.
+- [ ] **Inspector:** the building, unit, prop and terrain inspectors on the skin's side panel or card (`inspector-<realm>.jpg`). The `BuildingInspector/Close` paths stay.
 - [ ] **Minimap:** its frame, tooltips and button folder come from the skin, so `assets/configs/ui/minimap/<realm>.json` keeps only the map's own settings.
 - [ ] Delete the old sprites: `buttons/menu_bar/*`, `buttons/palette/*`, `icons/{population,gold,player}_icon.png`, `misc/{wide,tall,square}_page_bg.png`, the brush strokes.
 - [ ] Scenarios:
@@ -498,7 +498,7 @@ The existing dialogs keep their layouts but take their panels from the Đại Lo
 
 ### Phase 6: City management pages
 
-**Delivers:** the City book, one dialog with a tab or page per area, replacing CityManagement and its three text dialogs. Mockups first: none exist yet (see [Mockups to make](#mockups-to-make)).
+**Delivers:** the City book, one dialog with a tab or page per area, replacing CityManagement and its three text dialogs. Mockups: `city-<page>-<realm>.jpg` (see [Mockups to make](#mockups-to-make)).
 
 - [ ] **Page framework:** the City dialog with side tabs (`UiTabBar`, vertical).
   - Each page is a `CityPage` impl: title, icon, build, refresh.
@@ -533,19 +533,21 @@ The roadmap's convention stands: new retail screens go through the skins and pas
 
 ## Mockups to make
 
-Before their phase, in the same generator and style as the existing mockups, for all three realms:
+Drawn on 2026-11-07, in the same generator and style as the existing mockups, for all three realms (see the mockups [README](../design/mockups/README.md)):
 
-| Screen | Phase |
-|---|---|
-| Campaign picker (more than one campaign reached) | 1 |
-| In-game Game menu and the Quit popup | 1 |
-| Briefing scroll | 3 |
-| Campaign complete (the finished stele) | 3 |
-| HUD game-menu buttons, the build bar's child menu and its tooltip with costs | 5 |
-| Building inspector | 5 |
-| City book: Overview, Population, Goods, Finances | 6 |
-| City book: Ratings, Labour, Food | 6, for M9 and M11 |
-| Important-event popup (flood, fire, court request) | 5, for M11 |
+| Screen | Phase | Mockup |
+|---|---|---|
+| Campaign picker (more than one campaign reached) | 1 | `campaign-picker-<realm>.jpg` |
+| In-game Game menu and the Quit popup | 1 | `game-menu-<realm>.jpg`, `game-quit-<realm>.jpg` |
+| Briefing scroll | 3 | `briefing-<realm>.jpg` |
+| Campaign complete (the finished stele) | 3 | `campaign-complete-<realm>.jpg` |
+| HUD game-menu buttons, the build bar's child menu and its tooltip with costs | 5 | `hud-menus-<realm>.jpg` |
+| Building inspector | 5 | `inspector-<realm>.jpg` |
+| City book: Overview, Population, Goods, Finances | 6 | `city-{overview,population,goods,finances}-<realm>.jpg` |
+| City book: Ratings, Labour, Food | 6, for M9 and M11 | `city-{ratings,labour,food}-<realm>.jpg` |
+| Important-event popup (flood, fire, court request) | 5, for M11 | `event-<realm>.jpg` |
+
+The HUD's menu buttons got their own bar left of the build bar, not the left end of the top-left bar (Phase 5's default): the date leaves no room there.
 
 ## Performance
 
@@ -566,7 +568,7 @@ Before their phase, in the same generator and style as the existing mockups, for
 | 5 | 9-slice centres | Stretch. `center: "tile"` per panel where grain shows. |
 | 6 | Dialogs: each its own window, or stacked inside the root as today | Each its own window. |
 | 7 | Build bar categories: the mockup's nine (house, water, farm, industry, trade, temple, learning, defence, monument) or today's sectors | Today's sectors with the mockup's icons. New categories come only with buildings that need them. |
-| 8 | Where the game menu buttons go in the HUD | An icon group at the right end of the top-left bar (mockup to make). |
+| 8 | Where the game menu buttons go in the HUD | Their own bar, left of the build bar (`hud-menus-<realm>.jpg`). |
 | 9 | The art renderer | Playwright's Chromium on the generator's SVG; Pillow stays for glyph icons. |
 | 10 | Save thumbnails | A 320 × 180 JPEG beside each save. Old saves show none. |
 | 11 | Ratings and distinctions before M9 | Hidden, not shown as placeholders. |

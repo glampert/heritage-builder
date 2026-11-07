@@ -62,6 +62,43 @@ The home menu and its dialogs: load / save, settings, custom game and about. The
 
 Đại Long's home backdrop is the game's own painting (`assets/ui/misc/home_menu_static_bg.png`); Kambara's and Tampadesa's are flat vector stand-ins drawn by `menus.py`. Placeholders: the save names, maps, numbers and credit names.
 
+## In-game dialogs and the campaign flow
+
+The screens the [realm UI plan](../../plans/realm-ui.md#mockups-to-make) listed as missing. The in-game ones sit over each realm's HUD; the campaign picker sits over the home backdrop, the briefing over the mission's city. The briefing is each campaign's mission 6, the one after the intermission's mission 5.
+
+| Screen | Đại Long | Kambara | Tampadesa |
+|---|---|---|---|
+| In-game Game menu | [game-menu-dailong.jpg](game-menu-dailong.jpg) | [game-menu-kambara.jpg](game-menu-kambara.jpg) | [game-menu-tampadesa.jpg](game-menu-tampadesa.jpg) |
+| Quit popup | [game-quit-dailong.jpg](game-quit-dailong.jpg) | [game-quit-kambara.jpg](game-quit-kambara.jpg) | [game-quit-tampadesa.jpg](game-quit-tampadesa.jpg) |
+| Campaign picker | [campaign-picker-dailong.jpg](campaign-picker-dailong.jpg) | [campaign-picker-kambara.jpg](campaign-picker-kambara.jpg) | [campaign-picker-tampadesa.jpg](campaign-picker-tampadesa.jpg) |
+| Briefing | [briefing-dailong.jpg](briefing-dailong.jpg) | [briefing-kambara.jpg](briefing-kambara.jpg) | [briefing-tampadesa.jpg](briefing-tampadesa.jpg) |
+| Campaign complete (the finished stele) | [campaign-complete-dailong.jpg](campaign-complete-dailong.jpg) | [campaign-complete-kambara.jpg](campaign-complete-kambara.jpg) | [campaign-complete-tampadesa.jpg](campaign-complete-tampadesa.jpg) |
+| HUD menu buttons, build menu and its tooltip with costs | [hud-menus-dailong.jpg](hud-menus-dailong.jpg) | [hud-menus-kambara.jpg](hud-menus-kambara.jpg) | [hud-menus-tampadesa.jpg](hud-menus-tampadesa.jpg) |
+| Building inspector | [inspector-dailong.jpg](inspector-dailong.jpg) | [inspector-kambara.jpg](inspector-kambara.jpg) | [inspector-tampadesa.jpg](inspector-tampadesa.jpg) |
+| Important-event popup (flood, court request, fire) | [event-dailong.jpg](event-dailong.jpg) | [event-kambara.jpg](event-kambara.jpg) | [event-tampadesa.jpg](event-tampadesa.jpg) |
+
+- The HUD's menu buttons (Game, Load / Save, Settings, City book, Briefing) get their own bar left of the build bar, not the left end of the top-left bar: the date leaves no room there.
+- The campaign picker only appears once a second campaign is reached, so Đại Long's version, with Campaign I alone open, shows its look rather than a state the game would show.
+- The build menu's costs are the game's own (`assets/tiles/objects/tile_set.json`); the bricks and roof tiles in storage are the Goods page's.
+
+Placeholders: the briefing and event text (from campaigns.md where it has it), the last three stele lines of each campaign, the distinctions, and the inspector's numbers.
+
+## City book
+
+The City book: one dialog with a page per area, opened from the HUD. Each realm's set shows its HUD city, so the population, treasury, food and ratings are the HUD's, and the pages agree with each other: the houses' residents add up to the population, the labour sectors to the workforce, the ledger to the treasury.
+
+| Page | Đại Long | Kambara | Tampadesa |
+|---|---|---|---|
+| Overview | [city-overview-dailong.jpg](city-overview-dailong.jpg) | [city-overview-kambara.jpg](city-overview-kambara.jpg) | [city-overview-tampadesa.jpg](city-overview-tampadesa.jpg) |
+| Population | [city-population-dailong.jpg](city-population-dailong.jpg) | [city-population-kambara.jpg](city-population-kambara.jpg) | [city-population-tampadesa.jpg](city-population-tampadesa.jpg) |
+| Goods | [city-goods-dailong.jpg](city-goods-dailong.jpg) | [city-goods-kambara.jpg](city-goods-kambara.jpg) | [city-goods-tampadesa.jpg](city-goods-tampadesa.jpg) |
+| Finances (M4's yearly accounts, tax level and wage) | [city-finances-dailong.jpg](city-finances-dailong.jpg) | [city-finances-kambara.jpg](city-finances-kambara.jpg) | [city-finances-tampadesa.jpg](city-finances-tampadesa.jpg) |
+| Ratings (M9) | [city-ratings-dailong.jpg](city-ratings-dailong.jpg) | [city-ratings-kambara.jpg](city-ratings-kambara.jpg) | [city-ratings-tampadesa.jpg](city-ratings-tampadesa.jpg) |
+| Labour (M11) | [city-labour-dailong.jpg](city-labour-dailong.jpg) | [city-labour-kambara.jpg](city-labour-kambara.jpg) | [city-labour-tampadesa.jpg](city-labour-tampadesa.jpg) |
+| Food (M11) | [city-food-dailong.jpg](city-food-dailong.jpg) | [city-food-kambara.jpg](city-food-kambara.jpg) | [city-food-tampadesa.jpg](city-food-tampadesa.jpg) |
+
+Placeholders: every number, the rating drivers, the labour sectors and priorities, and the houses' next-level needs. The ledger's categories and the tax levels are M4's; the money's scale is the finance plan's (about 13 gold a year in tax per worker, a wage of 6), not today's building costs, which wait for M13's balance pass.
+
 ## Minimap
 
 Concepts for a more modern minimap, on one 80 × 80 sample city drawn in the minimap's real projection (an isometric diamond clipped to the playable area, as in `crates/game/src/tile/minimap.rs`).
@@ -96,7 +133,7 @@ builds every screen and serves them at http://127.0.0.1:8765/ (`--port` and `--h
 
 ## Regenerating
 
-The generator lives in [generator/](generator/): `common.py` holds the shared geography and layout, `content.py` what each realm's map shows, and `world_map.py` the three styles. `screens.py` (with its text in `screens_content.py`) draws the intro, intermission and HUD screens in the same styles, and `menus.py` (text in `menus_content.py`) the main menu screens. It needs Python 3, Node with Playwright and Chromium, and network access to Google Fonts the first time.
+The generator lives in [generator/](generator/): `common.py` holds the shared geography and layout, `content.py` what each realm's map shows, and `world_map.py` the three styles. `screens.py` (with its text in `screens_content.py`) draws the intro, intermission and HUD screens in the same styles, and `menus.py` (text in `menus_content.py`) the main menu screens. `pages.py` (text in `pages_content.py`) draws the City book, and `dialogs.py` (text in `dialogs_content.py`) the in-game dialogs and the campaign flow screens. It needs Python 3, Node with Playwright and Chromium, and network access to Google Fonts the first time.
 
 ```bash
 cd docs/design/mockups/generator
@@ -108,6 +145,9 @@ node shot.js intro-dailong intermission-dailong hud-dailong   # and so on per re
 python3 minimap.py      # writes build/minimap-concepts.html and minimap-lenses.html
 python3 menus.py        # writes build/menu-{home,load-save,settings,custom-game,about}-<realm>.html
 node shot.js menu-home-dailong   # and so on
+python3 pages.py        # writes build/city-{overview,population,goods,finances,ratings,labour,food}-<realm>.html
+python3 dialogs.py      # writes build/{game-menu,game-quit,campaign-picker,briefing,campaign-complete,hud-menus,inspector,event}-<realm>.html
+node shot.js city-overview-dailong game-menu-dailong   # and so on
 ```
 
 `node prev.js NAME...` saves quick 1x previews as `build/prev-<name>.jpg`, and `OUTDIR=DIR node shot.js ...` writes the full-size images somewhere other than this folder, e.g. to compare before replacing them.

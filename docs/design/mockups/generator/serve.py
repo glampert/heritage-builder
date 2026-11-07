@@ -33,6 +33,12 @@ SCREENS = [
     ("world-map", "World map"), ("intro", "Intro"), ("intermission", "Intermission"), ("hud", "In-game HUD"),
     ("menu-home", "Home"), ("menu-load-save", "Load / save"), ("menu-settings", "Settings"),
     ("menu-custom-game", "Custom game"), ("menu-about", "About"),
+    ("campaign-picker", "Campaign picker"), ("game-menu", "Game menu"), ("game-quit", "Quit popup"),
+    ("briefing", "Briefing"), ("campaign-complete", "Campaign complete"), ("hud-menus", "HUD menus and build menu"),
+    ("inspector", "Building inspector"), ("event", "Event popup"),
+    ("city-overview", "City book: overview"), ("city-population", "City book: population"), ("city-goods", "City book: goods"),
+    ("city-finances", "City book: finances"), ("city-ratings", "City book: ratings"), ("city-labour", "City book: labour"),
+    ("city-food", "City book: food"),
 ]
 ORDER = [f"{s}-{r}" for s, _ in SCREENS for r, _ in REALMS] + ["minimap-concepts", "minimap-lenses"]
 SHEETS = [("minimap-concepts", "Minimap concepts"), ("minimap-lenses", "Minimap widget and lenses")]
@@ -40,18 +46,22 @@ SHEETS = [("minimap-concepts", "Minimap concepts"), ("minimap-lenses", "Minimap 
 # Which build steps a changed file needs. The scripts import each other
 # (screens imports world_map, menus imports both), so a change to a shared
 # file rebuilds everything that depends on it.
-STEPS = ["fonts", "backdrops", "world_map", "screens", "menus", "minimap"]
+STEPS = ["fonts", "backdrops", "world_map", "screens", "menus", "minimap", "pages", "dialogs"]
 AFFECTS = {
-    "fonts.py": ["fonts", "world_map", "screens", "menus", "minimap"],
-    "backdrops.py": ["backdrops", "screens", "menus"],
-    "common.py": ["world_map", "screens", "menus", "minimap"],
-    "world_map.py": ["world_map", "screens", "menus", "minimap"],
+    "fonts.py": ["fonts", "world_map", "screens", "menus", "minimap", "pages", "dialogs"],
+    "backdrops.py": ["backdrops", "screens", "menus", "pages", "dialogs"],
+    "common.py": ["world_map", "screens", "menus", "minimap", "pages", "dialogs"],
+    "world_map.py": ["world_map", "screens", "menus", "minimap", "pages", "dialogs"],
     "content.py": ["world_map"],
-    "screens.py": ["screens", "menus"],
-    "screens_content.py": ["screens"],
-    "menus.py": ["menus"],
-    "menus_content.py": ["menus"],
-    "minimap.py": ["minimap", "screens", "menus"],
+    "screens.py": ["screens", "menus", "pages", "dialogs"],
+    "screens_content.py": ["screens", "dialogs"],
+    "menus.py": ["menus", "pages", "dialogs"],
+    "menus_content.py": ["menus", "pages", "dialogs"],
+    "minimap.py": ["minimap", "screens", "menus", "pages", "dialogs"],
+    "pages.py": ["pages", "dialogs"],
+    "pages_content.py": ["pages", "dialogs"],
+    "dialogs.py": ["dialogs"],
+    "dialogs_content.py": ["dialogs"],
 }
 
 
