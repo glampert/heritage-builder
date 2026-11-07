@@ -1,0 +1,580 @@
+# Realm UI: menus, screens and HUD in each realm's style
+
+**Status (2026-11-07): Draft; not started.** This plan builds and restyles every retail screen after the [UI mockups](../design/mockups/README.md): the main menus, the world map, the intermission, the story comics, the HUD and the city management pages. Each screen gets one look per realm: Đại Long, Kambara and Tampadesa. It is milestone **UI** of the [roadmap](roadmap.md). It was researched against `ccca1df` on `claude`. File and line references point at that commit, so re-check them before relying on them.
+
+![Home menu, Đại Long](../design/mockups/menu-home-dailong.jpg)
+
+## How to resume this work
+
+- Work through the [phases](#phases) in order. Phase 0 builds what every later phase uses. Each later phase delivers one set of working screens, for all three realms, with its art, automation and tests.
+- Tick the checkboxes as tasks land, and add a short dated note under the phase: the commit, the deviations, and what was verified. This file is the source of truth for progress.
+- The [open decisions](#open-decisions) each have a default. Proceed with the default unless the user has decided otherwise, and record the answer here.
+- The mockups are the visual reference. Their generator (`docs/design/mockups/generator/`) also draws the placeholder art (see [Art pipeline](#art-pipeline)), and `serve.py` shows changes to it live. Screens without a mockup get one before their phase starts (see [Mockups to make](#mockups-to-make)).
+- Follow [AGENTS.md](../../AGENTS.md) throughout:
+  - Keep desktop and web compiling.
+  - Only `engine/src/ui/immediate.rs` and the retained widgets call egui.
+  - Every retail screen passes `ui.layout_issues`.
+  - Run `cargo test --workspace` and the scenario scripts before pushing.
+  - Regenerate `web/asset_manifest.json` after adding or removing assets.
+- No save-format change is planned. The player's campaign progress goes in a profile file, not in session saves (see [Realm and progress](#realm-and-progress)).
+
+## Goals
+
+1. **Every retail screen in its realm's style**, as the mockups draw it: materials, frames, fonts, colours and motifs. The look follows the realm the player has reached (menus) or is playing (in game).
+2. **Đại Long moves to the mockup style.** The prototype's sprites go: the parchment scrolls, page backgrounds, brush strokes, and the red menu-bar and palette buttons. Đại Long's home backdrop painting stays (see [open decisions](#open-decisions)).
+3. **Skins as data.** One skin file per realm, merged over Đại Long's, names the sprites, fonts, colours and sizes. A new realm needs a skin file and an art run, not code. This follows the minimap's [style files](minimap.md#style-files).
+4. **Placeholder art made by script**, from the same drawing code as the mockups, so the game and the mockups stay alike. It's never hand-placed, and hand-made art is never overwritten.
+5. **The screens that don't exist yet are built now**, with the data the game has today:
+   - the world map;
+   - the intermission and its stele;
+   - the briefing and the comic viewer;
+   - the goals tracker, the rating badges and the message log;
+   - the city management pages.
+
+   Each grows as its milestone (M4, M9, M10, M11, M12) brings data, through a defined hook, not a rewrite.
+6. **Testable.** Every screen opens with `dialog.open` or `ui.click`. It passes `ui.layout_issues` in all three skins and is covered by a scenario in CI.
+7. **Works everywhere:** desktop and web, OpenGL and Wgpu, UI scales from 75% to 200%, and Vietnamese text in every skin.
+
+**Not goals:**
+- Final hand-drawn art. The pipeline swaps it in by file name when it exists.
+- Localisation. Strings move into text files, ready for it.
+- Rebinding keys. The Controls tab exists and lists the bindings; editing them is Phase 5 of the game.
+- Gameplay systems. Finance, ratings, trade, messages and story timing belong to their milestones. This plan builds their screens and the hooks those milestones fill.
+
+## What exists today
+
+From a survey of the code at `ccca1df`.
+
+**Screens:**
+- **Dialogs** (`crates/game/src/menu/dialog/`), all registered in `DialogMenuImpl` / `DialogMenuKind` (`dialog/mod.rs:66-119`):
+  - Home, About, NewGame;
+  - LoadGame, SaveGame and LoadOrSaveGame, all from one `SaveGameHelper` (`load_save.rs`);
+  - MainSettings, with separate stacked Game, Sound and Graphics dialogs (the mockups have tabs);
+  - MainGame, the in-game "pause" menu;
+  - CityManagement, with Population, Resources and Finances (text only);
+  - MissionComplete and CampaignComplete, which are placeholders: a title and buttons.
+- **HUD** (`crates/game/src/menu/in_game/`):
+  - `bars.rs`: TopBar with population, player icon, gold and date; LeftBar with Game, Load/Save, Settings and City buttons; SpeedControlsBar.
+  - `palette.rs`: twelve 50-point sprite buttons, plus child menus of text buttons.
+  - `inspector/`: four modal inspectors with the tile's sprite, a heading and text.
+- **Toasts** (`engine/src/ui/toast.rs`): painter-drawn with hard-coded colours.
+- **Not built:** no world map, briefing, intermission, comic viewer, goals tracker or message log.
+
+**Art** (`assets/ui/`):
+- **Stretched page sprites:**
+  - `misc/scroll_bg.png` (every dialog);
+  - `square_page_bg.png` (popups, inspector, minimap frame);
+  - `tall_page_bg.png` (left bar, palette);
+  - `wide_page_bg.png` (tooltips, top bar, speed bar, child menus).
+- **Brush strokes:** `brush_stroke_divider.png` and its vertical twin.
+- **Buttons:** `buttons/menu_bar/*` and `buttons/palette/*`, four states each.
+- **Icons:** `icons/{population,gold,player,red_x}_icon.png`.
+- **Home backdrop:** `misc/home_menu_static_bg.png`.
+- **Unused:** `misc/home_menu_anim/` (30 frames, behind a `false` constant), `icons/app_icon_bg_large.png`, `icons/player_icon_no_bg.png` and `buttons/minimap/close_*`.
+
+**Engine** (`crates/engine/src/ui/`):
+- **Widgets:** 17 retained types (`widgets.rs`).
+- **Sprites:** every sprite is stretched over its rect (`uv_full`), with **no 9-slice**. Menu insets are clamped to 127 points.
+- **Themes:** `UiTheme` is a fixed enum, `{Dev, InGame}` (`mod.rs:93`), with one style file each.
+- **Style files** (`styles/game.json`): fonts, text styles, colours and egui widget visuals, but no sprites.
+- **Plain egui widgets:** sliders, checkboxes, dropdowns and text inputs get their look only from the style file.
+- **Sprite buttons** load `buttons/<name>_<state>.png` when built.
+
+**Dialog framework** (`dialog/mod.rs`):
+- Every dialog is built once per process (`initialize`, `:133`).
+- A stacked dialog is drawn **inside the root dialog's window** (`draw_child_menu`, `:258`). It shares the root's size, background and insets, and its widgets take the root's path label (e.g. `Home/New Map Width`). That rules out per-dialog sizes and art.
+
+**Realm:**
+- The game has no current realm and no persistent campaign progress.
+- `CampaignDef` has no realm (`campaign/config.rs`).
+- Progress lives only inside session saves (`session.rs:707`, `:782`).
+- So Continue and Custom Game are disabled TODOs, and Campaign always starts campaign 0 (`dialog/home.rs`).
+- The minimap's `MinimapRealm` (`tile/minimap/style.rs:71`) is the only realm type.
+
+**Automation that depends on today's names:**
+- `ui_new_game.jsonl`: New Game, the map size inputs, Terrain Kind, Start New Game.
+- `ui_build.jsonl`: the palette tooltips "Services" and "Roads", and the tile buttons.
+- `ui_snapshot.jsonl`: dialog kind names, `LeftBar/settings`, `TilePaletteMenu/services` and `BuildingInspector/Close`.
+- The `dialog.*` commands, by `DialogMenuKind` name.
+
+## Design
+
+### Realm and progress
+
+```rust
+// game/src/realm.rs: replaces MinimapRealm
+#[derive(Copy, Clone, PartialEq, Eq, Debug, Display, EnumIter, EnumString, Serialize, Deserialize)]
+#[strum(serialize_all = "lowercase")]
+pub enum Realm { DaiLong, Kambara, Tampadesa }
+
+// game/src/profile.rs: the player's progress across sessions
+#[derive(Serialize, Deserialize, Default)]
+pub struct Profile {
+    pub version: u32,
+    pub campaigns: Vec<CampaignProgress>,   // By campaign id: reached, missions finished, distinctions earned.
+    pub last_save: Option<String>,          // What Continue loads.
+    pub custom_realms: Vec<Realm>,          // Unlocked when their campaign is started (gdd.md 4).
+}
+```
+
+- **Campaigns name their realm:** a `realm` field on `CampaignDef` in `campaigns.json`.
+- **The profile file:**
+  - It's `saves/profile.json`, written through `file_sys`, so it lands in local storage on web.
+  - It's updated when a mission starts or ends, and on every save (`last_save`).
+  - It isn't part of `GameSession`, so there's no save-version bump.
+  - A missing or broken file means a fresh profile, with a logged warning.
+- **`realm::ui_realm()`** decides which skin shows:
+  - in game: the active campaign's realm, else the Custom Game's realm, else Đại Long;
+  - in the menus: the latest realm the profile has reached;
+  - an override from `ui.realm realm=...` (automation and the developer editor), so every skin can be tested without playing.
+- **The minimap's style follows `ui_realm()`.** `MinimapRealm` and its reload command fold into this; `minimap.reload_style` stays as an alias.
+- **Tests:**
+  - a profile round-trips;
+  - reaching campaign II switches the home realm;
+  - a broken profile file falls back cleanly.
+
+### Skins
+
+A skin is everything realm-specific about the UI: one JSON file per realm, `assets/configs/ui/skins/<realm>.json`. Like the minimap styles, a realm's file holds only what it changes and is merged over `dailong.json` (move `merge_json` from `tile/minimap/style.rs` to a shared config helper).
+
+```json
+{
+  "style": { "fonts": {...}, "text_styles": {...}, "colors": {...}, "widgets": {...}, "spacing": {...} },
+  "text": { "title": "#2b2118", "accent": "#a8261c", "ink": "#2b2118", "sub": "#6b4f33", "on_accent": "#fff4dc", "disabled": "#8a7d68" },
+  "panels": {
+    "dialog":   { "sprite": "skins/dailong/panel_scroll.png", "slice": [96, 120, 96, 120], "content": [64, 84, 64, 84] },
+    "popup":    { "sprite": "skins/dailong/panel_paper.png",  "slice": [40, 40, 40, 40],  "content": [28, 28, 28, 28] },
+    "bar":      { ... }, "side": { ... }, "tooltip": { ... }, "card": { ... }, "well": { ... },
+    "row": { ... }, "row_selected": { ... }, "field": { ... }, "caption": { ... }, "bubble": { ... }
+  },
+  "buttons": {
+    "primary":   { "sprite": "skins/dailong/button_primary", "slice": [16, 16, 16, 16], "text": "on_accent" },
+    "secondary": { ... }, "tab": { ... }, "tab_selected": { ... }, "menu_item": { "marker": "skins/dailong/marker_seal.png" },
+    "icon": { "folder": "skins/dailong/icons", "size": 28 }
+  },
+  "controls": { "toggle": {...}, "checkbox": {...}, "slider": {...}, "dropdown": {...}, "scrollbar": {...} },
+  "separators": { "rule": {...}, "ornament": {...} },
+  "emblems": { "dailong": "skins/emblems/dailong.png", "locked": "skins/dailong/emblem_locked.png" },
+  "backdrops": { "home": "misc/home_menu_static_bg.png", "dim": "#00000033" },
+  "dialogs": { "Home": { "panel": "dialog", "size": [380, 980], "align": "left" }, "Settings": { "panel": "dialog", "size": [900, 640] } },
+  "sounds": { "click": "ui/click", "open": "ui/scroll_open" }
+}
+```
+
+- **`style`:** today's `UiStyleDef` (fonts, text styles, colours, egui widget visuals, spacing), moved into the skin unchanged. `styles/game.json` becomes Đại Long's skin's `style` block. `dev.json` stays as it is.
+- **`panels`:** the 9-slice backgrounds. `slice` is the sprite's border in pixels, left, top, right, bottom; those parts never stretch. `content` is the inset of the content in points. An optional `center: "tile"` repeats the centre instead of stretching it, for paper or stone grain.
+- **`buttons`:** framed text buttons per role, each with four state sprites (the existing `_idle/_hovered/_pressed/_disabled` convention), plus the icon folder for sprite buttons.
+- **`controls`:** sprites or colours for the toggle, checkbox, slider, dropdown and scrollbar, so they look like the mockups instead of egui's defaults.
+- **`dialogs`:** each dialog's panel, size and placement, so a skin can lay out a screen differently without code.
+- **Every sprite path in the UI code comes from the skin.** A unit test checks that `crates/game/src/menu/` has no `misc/` or `buttons/` string literals left.
+
+**Engine changes:**
+- **Data-driven themes:** `UiTheme` becomes a `UiThemeId` handle.
+  - `UiSystem::load_styles` takes a list of named style definitions: `dev`, plus one per realm skin.
+  - `set_ui_theme(id)` switches the theme, as today.
+  - Fonts are already registered per style name (`style.rs:53-98`), so a realm's fonts sit beside the others.
+- **9-slice:** `UiNineSlice { texture, slice_px: [f32; 4], scale, center: Stretch | Tile }` as 9 quads in one egui mesh.
+  - Used by `UiMenu::with_panel`, `UiTooltipText::with_panel`, `UiTextButton::with_frame`, item list rows and tabs.
+  - Also usable directly: `UiPainter::nine_slice(rect, &slice, tint)`.
+  - Menu content insets stop going through egui's `i8` margin. The menu lays its contents out in its own inner rect, so the 127-point clamp goes away.
+- **A skin version counter:**
+  - Dialogs are built once per process today. `dialog::rebuild_all()` rebuilds them when the skin changes: a realm switch, entering a session, or `ui.reload_skin`.
+  - The HUD menus are already rebuilt per session; they listen for the same counter.
+
+**Game side:** `menu/skin.rs` holds the loaded `UiSkin`, with its textures loaded once per skin. It provides the helpers every screen builds with:
+- `skin::dialog(kind)` and `skin::button(role, label)`;
+- `skin::panel(name)` and `skin::tooltip(text)`;
+- `skin::heading(text, level)` and `skin::separator(kind)`.
+
+Today's `make_tooltip`, `make_text_button`, `make_dialog_popup` and the dialog defaults become these helpers.
+
+### Widgets to add
+
+All retained widgets in `engine/src/ui/widgets.rs`. Each records itself for `ui.tree` and supports `ui.set` where it takes a value.
+
+| Widget | For | Notes |
+|---|---|---|
+| `UiTabBar` | Settings, city pages, custom game options | Kind `tab`; tabs get the selected label in their paths, as the developer UI's `ui::tab_bar` does. |
+| `UiToggle` | Settings | A pill switch, as in the mockups, with its on and off text. Sprites from `controls.toggle`, or painted from skin colours. |
+| Framed `UiTextButton` | Every dialog's buttons | `with_frame(skin button)`, fixed or content width, primary and secondary roles. |
+| `UiMenuItem` | Home's menu | A label with a subline under it ("Campaign I · mission 6 of 10"), a hover fill and the realm marker (seal, lotus, umbrella). |
+| `UiListRow` template for `UiItemList` | Load/save, custom game maps, realms | Icon or emblem, title, subtitle, right-hand title and subtitle, and the selected-row panel. |
+| `UiImage` | Save thumbnails, map previews, emblems, briefing art, comic panels | A texture in a rect, with an optional frame panel and fit (contain, cover, stretch). |
+| `UiKeyValues` | Previews, intermission stats, city pages | Label and value pairs in two columns, values right-aligned. |
+| `UiTable` | Goals (target and achieved), finance accounts | Header row, columns with alignment, an optional status icon column. |
+| `UiMeter` | Goals tracker, ratings, relations | A bar, a ring (the rating badges), or a stepped meter (relations 0–5). Painted. |
+| `UiColumns` | Two-column dialogs | Fixed or fractional column widths, each column a widget group. |
+| `UiStepSelector` | Difficulty | Five steps, or any list. A dropdown would do, but the mockup shows steps. |
+| `UiRichText` | Captions, briefing, stele lines | Wrapped text with inline emphasis and a per-span colour, e.g. a highlighted newest stele line. |
+
+Toasts move onto the skin's `caption` panel and text colours.
+
+### Dialog framework
+
+- **Each dialog is its own window**, with its own panel, size and placement from the skin's `dialogs` block. This replaces drawing a stacked dialog inside the root.
+  - The stack and Escape handling stay as they are.
+  - A dialog flag says whether the dialog under it stays visible. Home's panel is hidden under Settings in the mockups.
+- **Widget paths take the dialog's own label** (e.g. `Settings/Game/Autosave`). The scenarios and AGENTS.md's path notes are updated in the phase that changes them.
+- **Dialog sizes are in points at 1920 × 1080** and scale down to fit smaller windows (minimum 1280 × 720), and with the UI scale setting.
+- **Full-screen screens are dialogs with a `Fullscreen` panel:** the world map, the intermission and the comic viewer. They pause the simulation as dialogs do today.
+
+### Fonts
+
+The realm fonts are those of the mockups (`generator/common.py`, `REALM_FONTS`):
+
+| Realm | Font | Vietnamese fallback |
+|---|---|---|
+| Đại Long | Protest Revolution | Covers Vietnamese itself |
+| Kambara | Jaini | Spectral SC |
+| Tampadesa | Amita (regular and bold) | Alegreya |
+
+- **Fallback fonts:** add Spectral SC and Alegreya to `assets/fonts/` with their OFL files, as Jaini and Amita were added.
+- **Glyph-by-glyph fallback:** egui text styles already take a fallback list (`text_styles.*.fallbacks`), so a Kambara heading shows "Đại Long" with Spectral SC's accented letters.
+- **Body text** uses the realm font too, as in the mockups. A skin can give its body style a plainer face if small text reads poorly (see [open decisions](#open-decisions)).
+- **Test:** a unit test lays out "Đại Long · Thái Ninh · Hội Thủy" in every skin's text styles and checks that no glyph falls back to the replacement character.
+
+### Art pipeline
+
+**`crates/tools/ui-art/`** draws every skin sprite and backdrop from the mockup generator's own drawing code.
+
+**How it renders:**
+- It imports the theme classes in `docs/design/mockups/generator/` (`world_map.py`, `screens.py`, `menus.py`). Those already draw each realm's materials as SVG: Đại Long's scrolls, parchment, wood and lacquer; Kambara's sandstone, moss and vines; Tampadesa's brick, teak, lacquer and gilt.
+- It wraps each sprite in a page of its own size and shoots it with Playwright's Chromium, on a transparent background (`omitBackground`) at 2×. The browser is pre-installed in cloud sessions; locally, `npm i playwright` is enough.
+- Small glyph icons stay with `crates/tools/ui-icons/` (Pillow, no browser). Its `icons.json` grows the HUD and build-bar glyphs from the mockups' `icon()` (`screens.py:302`).
+
+**What drives it:**
+- A **catalog**, `crates/tools/ui-art/art.json`. Each sprite entry gives:
+  - realm, id and output path;
+  - the generator call and its parameters;
+  - size, slice borders and states.
+- **`make_ui_art.py [--realm R] [ID...]`** renders what changed. It records each sprite's hash in `manifest.json` and never overwrites a file the manifest doesn't list, i.e. hand-made art.
+- **`--check`** compares the catalog's slice borders and paths with the skin files, with no rendering. It runs in CI beside the tile generator's check.
+
+**Output:**
+- **Location:** `assets/ui/skins/<realm>/`.
+- **Format:** PNG for sprites with alpha; JPEG for backdrops and comic placeholders.
+- **9-slice sprites are small:** a dialog panel is about 512 × 512 at 2× however big the dialog. A realm's skin should come to 2–4 MB, plus about 0.5 MB per backdrop.
+
+**What it makes per realm:**
+- **Panels:** dialog, popup, bar, side, tooltip, card, well, row, selected row, field, caption, bubble.
+- **Buttons:** primary, secondary, tab and selected tab, each in four states; menu item markers; icon button frames.
+- **Controls:** toggle, checkbox, slider rail and knob, dropdown arrow, scrollbar.
+- **Separators** and ornaments.
+- **Emblems:** the three realm emblems, plus locked and current states.
+- **HUD and page icons:** population, treasury, food, ratings, goals, message types, build categories, speed controls, the left-bar actions.
+- **Home backdrops:** for Kambara and Tampadesa, from `menus.py`'s `home_scene`. Đại Long keeps its painting.
+- **The world map base,** without markers (`world_map.py`'s map layers).
+- **The stele**, without text (`screens.py`'s `stele`).
+- **Comic placeholder panels:** the realm frame, an intro scene from `screens.py`'s `intro_scene`, and the panel's description as a dim caption. They're placeholders until real art exists.
+
+**Old art:**
+- Each phase deletes the old sprites its screens no longer use, with the web manifest regenerated.
+- Phase 5 removes the last of them:
+  - `misc/*_bg.png`;
+  - the brush strokes;
+  - `buttons/menu_bar/*` and `buttons/palette/*`;
+  - the old icons.
+- The unused files listed under [What exists today](#what-exists-today) go in Phase 0.
+
+### Text
+
+- **Strings move into `assets/configs/ui/text.json`** as each screen is rebuilt. New categories are Menu, Hud, City, Story and Realm, read through `engine::ui::text`, ready for localisation.
+- **Realm-specific wording comes from data:**
+  - era names;
+  - season names;
+  - the Legitimacy rating's name (Mandate, Divine Favour, Merit);
+  - campaign subtitles.
+- **No real-world names** appear anywhere (world.md, "Rules for the fiction").
+
+### Automation and tests
+
+- **New commands:**
+  - `ui.realm realm=...` switches the skin for testing;
+  - `ui.reload_skin` reloads the skin files and rebuilds;
+  - `profile.state`, `profile.set` and `profile.reset` read and edit the profile.
+- **Kept, or renamed with their scenarios in the same commit:**
+  - dialog kind names;
+  - button labels;
+  - sprite-button names;
+  - menu labels: `TopBar`, `LeftBar`, `TilePaletteMenu`, `BuildingInspector`.
+- **Scenarios:** each phase adds one in CI, `ui_<phase>.jsonl`. It visits every screen of the phase in all three skins, clicks its buttons, checks `ui.layout_issues` is 0, and takes screenshots for the CI artifact.
+- **Goldens:** `ui_snapshot.jsonl` loops over the three skins, and its goldens are regenerated per backend locally.
+- **`tests/ui_skins.rs`** checks that:
+  - every skin loads;
+  - every sprite it names exists;
+  - the 9-slice borders fit their sprites;
+  - the fonts cover the test strings.
+
+## Phases
+
+Phases 1 to 6 follow the order the user set. [Dependencies](#dependencies-on-other-milestones) lists what each screen needs from other milestones; every phase ships with today's data and leaves a hook for the rest.
+
+### Phase 0: Foundations
+
+**Delivers:**
+- the skins, the art pipeline and the new widgets;
+- a developer **Skin Gallery** window that shows every panel, button, control and widget in the chosen realm;
+- popups, tooltips and toasts restyled.
+
+The existing dialogs keep their layouts but take their panels from the Đại Long skin.
+
+- [ ] `Realm`, `Profile` (`saves/profile.json`), `realm::ui_realm()`, a `realm` field in `campaigns.json`; `profile.*` and `ui.realm` commands; tests.
+- [ ] Engine: data-driven themes (`UiThemeId`), `UiNineSlice` and `UiPainter::nine_slice`, menus laying out in their own inner rect (no `i8` insets).
+- [ ] Skins: `assets/configs/ui/skins/{dailong,kambara,tampadesa}.json`; `menu/skin.rs`; the skin version counter and `dialog::rebuild_all()`; `ui.reload_skin`. `styles/game.json` folds into Đại Long's skin.
+- [ ] Fonts: add Spectral SC and Alegreya (and their OFL files); realm text styles with fallbacks; the Vietnamese glyph test.
+- [ ] Widgets: `UiTabBar`, `UiToggle`, framed `UiTextButton`, `UiMenuItem`, `UiListRow`, `UiImage`, `UiKeyValues`, `UiTable`, `UiMeter`, `UiColumns`, `UiStepSelector`, `UiRichText`, each in the developer sample menus (`engine/src/ui/tests.rs`).
+- [ ] Dialog framework: each dialog its own window, from the skin's `dialogs` block; the "keep the dialog under it visible" flag; paths take the dialog's own label (update `ui_new_game.jsonl`, `ui_snapshot.jsonl`, AGENTS.md).
+- [ ] `crates/tools/ui-art/`: the catalog, `make_ui_art.py` (render, manifest, `--check`), the first sprites for all three realms (panels, buttons, controls, separators, emblems); `--check` in CI.
+- [ ] Popups (Quit, Overwrite), tooltips and toasts on skin panels.
+- [ ] Remove the unused old files (see [What exists today](#what-exists-today)).
+- [ ] `tests/ui_skins.rs`; a `ui_skins.jsonl` scenario that opens the Skin Gallery in each realm and checks `ui.layout_issues`.
+
+### Phase 1: Main menus
+
+**Delivers:** the home menu and every dialog under it, as in the mockups (`menu-*-<realm>.jpg`), in all three realms. The in-game Game menu and its popups get the same look.
+
+**Home:**
+- [ ] Tall panel on the left with the crest, title and campaign subtitle.
+- [ ] The **campaign row** of three emblems: reached, current, or "Locked", from the profile.
+- [ ] **Menu items:**
+  - **Continue** loads `profile.last_save`, with the subline "<mission> · <campaign> · autosave";
+  - **Campaign** starts or resumes the reached campaign at its next mission (a campaign picker when more than one is reached; mockup to make);
+  - **Custom Game**, Load Game, Settings, About, Quit Game.
+- [ ] The realm marker on the hovered item, and the version string.
+- [ ] **Backdrop:** Đại Long's painting; Kambara's and Tampadesa's generated scenes. The skin decides.
+- [ ] `HomeButtonKind` loses New Game, whose options move into Custom Game (see [open decisions](#open-decisions)).
+
+**Load / Save** (one dialog, `LoadOrSaveGame`):
+- [ ] **Save rows:** realm emblem, name, "Campaign I · mission 6 · <city>", the save time, and the in-game date in the realm's era.
+- [ ] **Preview:** thumbnail; Mission, Campaign, Date, Population, Treasury, Time played.
+- [ ] **Save as** field, and Delete (new, with a confirm popup), Cancel, Save and Load.
+- [ ] **Save metadata:**
+  - The save writes a small header, beside the version the loader already probes for, plus a 320 × 180 thumbnail (`saves/<name>.jpg`, from `Engine::request_screenshot` with the UI left out).
+  - Both are read without loading the session.
+  - Old saves without them show a blank thumbnail and "—".
+  - This is the only save-adjacent change. The header is new top-level fields read before the session, and needs a migration script only if the loader requires them. The default is optional fields with a fallback, as the version probe allows.
+
+**Settings** (`MainSettings` with tabs; the Game, Sound and Graphics dialogs become tabs):
+- [ ] **Game:**
+  - autosave toggle and interval;
+  - default game speed;
+  - edge scrolling;
+  - the three camera zoom toggles;
+  - UI scale (75–200%);
+  - colour-blind-safe overlays (a stored flag; the overlays follow in M6 and M7);
+  - language (English only for now).
+- [ ] **Sound:** master, music, SFX, ambience, narration and spatial volume; mute in the background.
+- [ ] **Graphics:** window mode, resolution, renderer, VSync, frame rate limit, texture filtering, mipmaps, animated water. Settings the engine can't change live say "after a restart".
+- [ ] **Controls:** the key bindings, read-only.
+- [ ] Restore defaults, Cancel, Ok, through the existing `SettingsCategory` commit path.
+
+**Custom Game:**
+- [ ] **Realm rows**, locked until their campaign is started ("Start Campaign N to unlock").
+- [ ] **Map rows** (a new `assets/configs/game/maps.json`: the preset maps, the sample saves' maps, and a **Blank map** entry with width, height and terrain, which replaces New Game).
+- [ ] **Preview:** the minimap bake of the map, and its stats.
+- [ ] **Options:**
+  - starting date, from the realm's eras;
+  - goals (Sandbox, or a goal set);
+  - starting treasury;
+  - difficulty in 5 steps (stored; applied by M4 and M9);
+  - toggles: seasons and floods, fires and collapses, raids, and fast construction. Fast construction is `construction.time_scale`, which closes the construction plan's open item. The others are stored and disabled with "coming in M6/M7/…" tooltips until their systems exist.
+- [ ] Cancel and Start. A custom game sets the realm the in-game skin uses.
+
+**About:**
+- [ ] Crest, title, the studio line, the credit sections, "Built with", the quote, version and copyright, Back.
+
+**In-game Game menu (MainGame):**
+- [ ] Resume, Save, Load, Settings, Quit to menu, Exit, in the dialog style.
+- [ ] Quit's confirm popup.
+
+**Wrap-up:**
+- [ ] Art: home backdrops for Kambara and Tampadesa; the save-row emblems; the remaining menu sprites.
+- [ ] Delete `misc/scroll_bg.png` once nothing uses it.
+- [ ] Scenarios:
+  - `ui_menus.jsonl` (every dialog, every realm, Continue, Custom Game start, settings commit);
+  - update `ui_new_game.jsonl` to the Blank map path.
+
+### Phase 2: World map
+
+**Delivers:** the world map screen (`world-map-<realm>.jpg`), opened from the minimap's World map tool (enabled at last), from the intermission, and from the HUD. Trade and diplomacy show their data read-only until M10 makes them act.
+
+- [ ] **Data:** a `world_map` block per campaign in `campaigns.json`, or its own file (`assets/configs/game/world/<campaign>.json`). It holds:
+  - **cities:** id, name, position, kind (capital, city, monument), owner realm or power, role;
+  - **routes:** kind (river, sea, land), points, state;
+  - **region labels**, uncharted areas and threats.
+  - Player cities come from the profile's finished missions: each mission names the city it founds.
+- [ ] **Base art:** the map without markers, rendered per campaign by `ui-art` from `world_map.py`'s layers (sea, land, rivers, relief, frame) at 2×.
+- [ ] **Markers and labels** drawn live over it, so a city joining the map needs no new art:
+  - cities and their seals or lotus or stupa marks, in the realm font;
+  - routes by kind and state;
+  - the next mission's A/B choice sites;
+  - the compass.
+- [ ] **Top bar:** title, realm subtitle, date and season, treasury, "Return to the city".
+- [ ] **Side panel for the selected city:**
+  - emblem, name, role;
+  - relations meter;
+  - route line;
+  - "They sell" and "They buy" with prices;
+  - the court's request box;
+  - "Set trade limits" and "Send a gift" (disabled, "coming with trade" until M10).
+- [ ] **Legend bar.**
+- [ ] **Next mission choice:** the choice box with both sites. Picking one starts that mission's map. Only missions with `choices` in their config show it. Campaign I's missions 6–8 get them in Phase 2 of the game; until then a test mission in config exercises it.
+- [ ] **Hooks for M10:** `WorldMapProvider` gives trade data (prices, limits, requests, relations) when trade exists. Until then the panel reads the config's static values.
+- [ ] Scenario `ui_world_map.jsonl`: open it in each realm, select a city, pick a choice site in the test campaign, return.
+
+### Phase 3: Intermission and briefing
+
+**Delivers:**
+- **The debrief** after a mission (`intermission-<realm>.jpg`), replacing MissionComplete;
+- **the finished stele** at the end of a campaign, replacing CampaignComplete;
+- **the briefing** before a mission.
+
+- [ ] **Stele, left:**
+  - the stele art per realm (from `ui-art`), with text set live;
+  - the campaign's stele title;
+  - one carved line per finished mission (from mission config: `stele_line`, plus a line per distinction earned);
+  - the newest line highlighted and freshly marked;
+  - empty rows for the missions to come.
+  - "Carved" text is the realm font drawn twice, with an offset shadow and highlight from skin colours.
+- [ ] **Panel, right:**
+  - "MISSION N COMPLETE", the name, the city and its era year;
+  - goals table, target and achieved, from the mission's requirements;
+  - distinctions: hidden until M9 brings them;
+  - ratings: four meters, hidden until M9;
+  - stats: population, treasury, years taken;
+  - the "joins the world map" note;
+  - "Keep playing" and "Continue to the world map". The second goes to Phase 2's screen, or to the next mission when no world map is configured.
+- [ ] **Campaign complete:** the whole stele, a closing line, "Return to the menu". The profile marks the next campaign reached, which switches the home realm.
+- [ ] **Briefing** (mockup to make): a scroll or tablet with the mission's name, its stele lead-in, its text (`MissionDef.description`, which nothing shows today), its goals, and an image slot. "Begin". It opens when a mission's map loads and from a HUD button during the mission.
+- [ ] **Flow:** `campaign::take_pending_prompt` opens the debrief. The `MissionComplete` and `CampaignComplete` kind names stay, so the snapshot scenario still finds them.
+- [ ] Scenario `ui_intermission.jsonl`: finish a test mission (by meeting its goals with `world.*` and `time.fast_forward`), check the debrief's goals, continue, finish the campaign, and check that the profile reached the next one.
+
+### Phase 4: Story comics
+
+**Delivers:** the comic viewer (`intro-<realm>.jpg`), with sequences I-A (before mission 1) and I-B (after mission 5) of story-script.md as data with placeholder panels. Every other sequence is data only, later.
+
+- [ ] **Data:** `assets/configs/story/<campaign>.json`. Sequences have an id, a title and a trigger ("before mission N", "after mission N", "epilogue"). Panels have:
+  - an image;
+  - a narration caption;
+  - bubbles: speaker, text, kind (speech, whisper, group, bold), anchor and tail point;
+  - an optional sepia flag for flashbacks.
+- [ ] **Viewer:**
+  - the full-screen panel in the realm frame;
+  - the caption on the skin's `caption` panel;
+  - bubbles painted (rounded panel and tail) or 9-sliced from the skin's `bubble`;
+  - **bottom bar:** campaign line, sequence title, panel dots (done, current, to come), "Panel N of M", Skip, Next.
+  - Keys: Space, Enter and Right go forward; Left goes back; Escape skips.
+- [ ] **Triggers:** the campaign flow plays a sequence before a mission's briefing or after its debrief, as its trigger says. Each sequence plays once per profile, and Home gets "Replay the story" when one has been seen.
+- [ ] **Dynamic panels:** a panel can list the player's stele lines (I-E, the epilogue).
+- [ ] **Placeholder art:** `ui-art` makes each panel from the realm's scene drawing and frame, with the panel's description from the script as a dim caption. Real art replaces a file of the same name.
+- [ ] Scenario `ui_story.jsonl`: start campaign I, step through I-A, check the panel count and that Skip lands on the briefing.
+
+### Phase 5: HUD
+
+**Delivers:** the in-game HUD as in `hud-<realm>.jpg`, with every old sprite gone.
+
+- [ ] **Top-left bar:** speed controls (pause, play, fast, faster) and the date in the realm's era with the season under it. This replaces SpeedControlsBar and the TopBar's date.
+- [ ] **Top-centre bar:**
+  - population, treasury and food, each with its icon;
+  - four rating badges (ring meters with the realm's Legitimacy initial), showing "—" until M9.
+- [ ] **Game menu buttons:** Game, Load/Save, Settings, City and the briefing. The mockup has no place for them. Default: a small icon group at the right end of the top-left bar; mockup to make.
+- [ ] **Goals tracker,** left: the mission name, each goal with its tick, text, progress and bar, live from the mission's requirements. Collapsible. It's hidden in custom games without goals.
+- [ ] **Build bar,** right:
+  - the mockup's column of category buttons in the realm style;
+  - the hovered button's tooltip (title and subtitle);
+  - child menus as skin lists with each building's icon, cost and materials, greyed out with the reason when unaffordable (the construction plan's tooltip);
+  - clear, roads, undo and redo kept (see [open decisions](#open-decisions) on categories).
+  - The `TilePaletteMenu/<sector>` paths and their tooltips stay, so `ui_build.jsonl` keeps working.
+- [ ] **Message log,** bottom centre: the three latest messages with type icons, the newest bold with "now".
+  - Until M11 it shows the notices the game already raises: construction completed, minimap alerts, saves.
+  - It goes through a small `MessageLog` store that M11 replaces with its typed messages.
+  - Toasts stay for screenshots and the like.
+- [ ] **Inspector:** the building, unit, prop and terrain inspectors on the skin's side panel or card (mockup to make). The `BuildingInspector/Close` paths stay.
+- [ ] **Minimap:** its frame, tooltips and button folder come from the skin, so `assets/configs/ui/minimap/<realm>.json` keeps only the map's own settings.
+- [ ] Delete the old sprites: `buttons/menu_bar/*`, `buttons/palette/*`, `icons/{population,gold,player}_icon.png`, `misc/{wide,tall,square}_page_bg.png`, the brush strokes.
+- [ ] Scenarios:
+  - `ui_build.jsonl` updated;
+  - `ui_hud.jsonl`: speed controls, goals progress after placements, the message log after a building completes, all in three realms.
+
+### Phase 6: City management pages
+
+**Delivers:** the City book, one dialog with a tab or page per area, replacing CityManagement and its three text dialogs. Mockups first: none exist yet (see [Mockups to make](#mockups-to-make)).
+
+- [ ] **Page framework:** the City dialog with side tabs (`UiTabBar`, vertical).
+  - Each page is a `CityPage` impl: title, icon, build, refresh.
+  - A page registers itself, so M4, M9 and M11 each add theirs without touching the others.
+  - Pages refresh on open and once a game month.
+- [ ] **Overview:** population, treasury, food months, employment, rating badges, warnings (no water, no food, unemployment).
+- [ ] **Population:**
+  - housing by level (counts, with the next level's needs);
+  - workforce: employed, unemployed, by sector;
+  - a monthly trend line.
+  - A `CityHistory` ring buffer is sampled each game month. It's runtime only, rebuilt from zero after a load, until a milestone needs history in saves.
+- [ ] **Goods:** storage yards and granaries by good, grouped (foods, consumer goods, raw materials) with icons, capacity bars and monthly change. This replaces the Resources dialog and fixes its overflow (goods.md).
+- [ ] **Finances:** treasury, tax income, costs. M4 fills in the yearly accounts table (this year against last), wages and tax rates.
+- [ ] **Hooks:** the pages M9 (Ratings, with what drives each), M11 (Labour, Food, advisors' notes) and later milestones (Faith, Trade, Military, the Court) add. Each milestone's plan gets a checkbox for its page.
+- [ ] **Paths:** `CityManagement` stays as the dialog kind, with the page names as tabs. `PopulationManagement`, `ResourcesManagement` and `FinancesManagement` open the City dialog on their page, so `ui_snapshot.jsonl`'s `dialog.open` calls still work.
+- [ ] Scenario `ui_city.jsonl`: open each page in each realm after building a small town; check the numbers against `world.stats`.
+
+## Dependencies on other milestones
+
+| Screen | Works now with | Filled in by |
+|---|---|---|
+| Home, Continue, Campaign | Profile (Phase 0) | Campaigns II and III configs (game Phases 3 and 4) |
+| Custom Game options | Fast construction | Seasons and floods (M7), fires (M6), raids (game Phase 2), difficulty (M4, M9) |
+| World map | Config cities, routes, choices | Trade, prices, limits, requests, relations (M10); sea routes and gifts (game Phase 2) |
+| Intermission | Goals from requirements, stats | Distinctions and ratings (M9) |
+| Briefing and comics | Mission text, I-A and I-B data | Story events, the other sequences (game Phase 2) |
+| HUD ratings, goals | Requirements progress | Ratings (M9), new goal types (M9) |
+| Message log | Existing notices | Typed messages, popups for important events (M11) |
+| City pages | Population, goods, treasury | Accounts (M4), ratings (M9), labour and food advisors (M11) |
+
+The roadmap's convention stands: new retail screens go through the skins and pass `ui.layout_issues`. From Phase 0 on, a milestone that adds a screen builds it with this plan's widgets and skin helpers.
+
+## Mockups to make
+
+Before their phase, in the same generator and style as the existing mockups, for all three realms:
+
+| Screen | Phase |
+|---|---|
+| Campaign picker (more than one campaign reached) | 1 |
+| In-game Game menu and the Quit popup | 1 |
+| Briefing scroll | 3 |
+| Campaign complete (the finished stele) | 3 |
+| HUD game-menu buttons, the build bar's child menu and its tooltip with costs | 5 |
+| Building inspector | 5 |
+| City book: Overview, Population, Goods, Finances | 6 |
+| City book: Ratings, Labour, Food | 6, for M9 and M11 |
+| Important-event popup (flood, fire, court request) | 5, for M11 |
+
+## Performance
+
+- Skins load once per realm switch: tens of sprites, a few MB.
+- **9-slice:** 9 quads per panel, the same draw path as today's stretched sprites.
+- **World map:** one textured quad for the base, plus tens of painted markers.
+- **Comics:** one panel image loaded at a time, the next prefetched.
+- **City pages:** the history buffer is 120 samples per series, sampled monthly.
+
+## Open decisions
+
+| # | Question | Default |
+|---|---|---|
+| 1 | Body text in the realm font, as the mockups have it, or a plainer face for small text? | Realm font. A skin can set a plainer body face if small text reads poorly in testing. |
+| 2 | Đại Long's home backdrop | Keep the painting, as the mockup does. Only the UI sprites go. |
+| 3 | New Game (map size and terrain) on Home | Remove it. A Blank map entry in Custom Game takes its options. |
+| 4 | Where the profile lives | `saves/profile.json`, in local storage on web. |
+| 5 | 9-slice centres | Stretch. `center: "tile"` per panel where grain shows. |
+| 6 | Dialogs: each its own window, or stacked inside the root as today | Each its own window. |
+| 7 | Build bar categories: the mockup's nine (house, water, farm, industry, trade, temple, learning, defence, monument) or today's sectors | Today's sectors with the mockup's icons. New categories come only with buildings that need them. |
+| 8 | Where the game menu buttons go in the HUD | An icon group at the right end of the top-left bar (mockup to make). |
+| 9 | The art renderer | Playwright's Chromium on the generator's SVG; Pillow stays for glyph icons. |
+| 10 | Save thumbnails | A 320 × 180 JPEG beside each save. Old saves show none. |
+| 11 | Ratings and distinctions before M9 | Hidden, not shown as placeholders. |
+
+## Later
+
+- Animated home backdrops per realm (the unused animation frames show the idea).
+- Hand-made art replacing the placeholders, file by file.
+- Localisation, with the strings already in text files.
+- Key rebinding on the Controls tab.
+- An encyclopedia (overview.md's content budget mentions entries).
