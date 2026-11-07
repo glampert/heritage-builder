@@ -2,6 +2,7 @@
 resolver = "3"
 members = [
     "crates/common",
+    "crates/minimap_bake",
     "crates/engine",
     "crates/game",
     "crates/launcher",
@@ -38,6 +39,10 @@ opt-level = 3
 [profile.dev.package.crc32fast]
 opt-level = 3
 [profile.dev.package.simd-adler32]
+opt-level = 3
+
+# The minimap's bake (crates/minimap_bake): unoptimized, a full bake takes seconds.
+[profile.dev.package.minimap_bake]
 opt-level = 3
 
 # egui, the UI library: unoptimized, its layout and tessellation cost a debug build several

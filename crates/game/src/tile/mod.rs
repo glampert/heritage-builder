@@ -2292,6 +2292,13 @@ impl TileMap {
         }
 
         self.graph = Graph::from_tile_map(self);
+
+        // The fill only covers the playable area: the minimap reads it from the layers.
+        if fill_with_def.is_some() {
+            let mut minimap = std::mem::take(&mut self.minimap);
+            minimap.rebuild_from(self);
+            self.minimap = minimap;
+        }
     }
 
     pub fn memory_usage_estimate(&self) -> usize {
@@ -2477,10 +2484,16 @@ impl TileMap {
         let layers = self.layers();
         let mut graph = RawPtr::from_ref(&self.graph);
 
+        let mut changed = None;
         if let Some(tile) = self.find_tile_mut(cell, tile_kinds) {
             tile.set_flags(flags, value);
 
             update_search_graph!(layers, graph, tile, flags, TileFlagsChanged);
+            changed = Some((tile.base_cell(), tile.flags()));
+        }
+
+        if let Some((base_cell, tile_flags)) = changed {
+            self.minimap.on_tile_flags_changed(base_cell, tile_flags);
         }
     }
 
@@ -2500,6 +2513,9 @@ impl TileMap {
         tile.set_flags(flags, value);
 
         update_search_graph!(layers, graph, tile, flags, TileFlagsChanged);
+
+        let (base_cell, tile_flags) = (tile.base_cell(), tile.flags());
+        self.minimap.on_tile_flags_changed(base_cell, tile_flags);
     }
 
     #[inline]
@@ -2727,12 +2743,13 @@ impl TileMap {
         }
 
         let layers = self.layers();
+        let base_cell = self.try_tile_from_layer(target_cell, layer_kind).map_or(target_cell, |tile| tile.base_cell());
 
         let result =
             placement::internal::try_clear_tile_from_layer(self.layer_mut(layer_kind), target_cell);
 
         if let Ok(tile_def) = result {
-            self.minimap.clear_tile(target_cell, tile_def);
+            self.minimap.clear_tile(base_cell, tile_def);
 
             let tile_cells = tile_def.cell_range(target_cell);
             let tile_kind  = tile_def.kind();
@@ -2764,12 +2781,13 @@ impl TileMap {
         }
 
         let layers = self.layers();
+        let base_cell = self.tile_at_index(target_index, layer_kind).base_cell();
 
         let result =
             placement::internal::try_clear_tile_from_layer_by_index(self.layer_mut(layer_kind), target_index, target_cell);
 
         if let Ok(tile_def) = result {
-            self.minimap.clear_tile(target_cell, tile_def);
+            self.minimap.clear_tile(base_cell, tile_def);
 
             let tile_cells = tile_def.cell_range(target_cell);
             let tile_kind  = tile_def.kind();
@@ -2840,7 +2858,14 @@ impl TileMap {
 
         tile.set_base_cell(to_cell);
 
+        let moved = (!tile.is(TileKind::Unit)).then(|| tile.tile_def());
+
         update_search_graph!(layers, self.graph, tile, TileMoved(from_cell_range));
+
+        if let Some(tile_def) = moved {
+            self.minimap.clear_tile(from_cell_range.start, tile_def);
+            self.minimap.place_tile(to_cell, tile_def);
+        }
 
         true
     }

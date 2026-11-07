@@ -59,7 +59,7 @@ These follow [overview.md](../design/overview.md#development-phases).
 | M13 | Missions I-1 to I-5: maps, configs, balance, scenarios | Large | All of the above | — | Not started |
 | T | Terrain height | Medium to large | M3 (spike after) | [terrain-height.md](terrain-height.md) | Not started |
 | U | Eight-direction movement for off-road walkers | Medium | M3; art from M2 Phase 6 | [unit-movement.md](unit-movement.md) | Not started |
-| MM | Minimap: painted relief, lenses and tools | Medium | — (lenses grow with M6, M7, M8) | [minimap.md](minimap.md) | Not started |
+| MM | Minimap: painted relief, lenses and tools | Medium | — (lenses grow with M6, M7, M8) | [minimap.md](minimap.md) | Done (Risk, Faith, Flood and Fertility lenses come with M6, M8, M7) |
 
 Suggested order:
 - **First:** M1 → M3 → M5, with M2 running alongside from the start.

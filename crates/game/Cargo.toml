@@ -28,6 +28,7 @@ web = [
 [dependencies]
 common         = { path = "../common", default-features = false }
 engine         = { path = "../engine", default-features = false }
+minimap_bake   = { path = "../minimap_bake" }
 proc_macros    = { path = "../proc_macros" }
 
 # Game-specific deps:
@@ -88,6 +89,10 @@ harness = false
 
 [[test]]
 name    = "construction"
+harness = false
+
+[[test]]
+name    = "minimap"
 harness = false
 
 [[test]]

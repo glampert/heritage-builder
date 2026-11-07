@@ -1,0 +1,62 @@
+# Minimap (docs/plans/minimap.md): its model follows placements, its tools and lenses work through
+# the UI, and its base exports. From the repository root:
+#   cargo run -p HeritageBuilder -- --script crates/game/tests/scenarios/minimap.jsonl --window-size 1600x900
+{"method": "time.fixed_dt", "params": {"dt": 0.016667}}
+{"method": "cheats.set", "params": {"name": "ignore_tile_cost", "value": true}}
+{"method": "session.new_map", "params": {"size": [128, 128]}}
+{"method": "wait.frames", "params": {"frames": 2}}
+{"method": "assert.eq", "params": {"query": "minimap.state", "path": "/map_size", "value": [128, 128]}}
+{"method": "assert.eq", "params": {"query": "minimap.state", "path": "/px_per_cell", "value": 8}}
+{"method": "assert.eq", "params": {"query": "minimap.state", "path": "/features", "value": 0}}
+{"method": "assert.gt", "params": {"query": "minimap.state", "path": "/zoom", "value": 1.0}}
+# A street with the palace, a temple and a rice farm: features and landmarks follow.
+{"method": "world.road", "params": {"from": [50, 64], "to": [80, 64]}}
+{"method": "world.place", "params": {"tile": "governor_palace", "cell": [60, 65]}}
+{"method": "world.place", "params": {"tile": "temple", "cell": [70, 65]}}
+{"method": "world.place", "params": {"tile": "rice_farm", "cell": [52, 65]}}
+{"method": "assert.eq", "params": {"query": "minimap.state", "path": "/features", "value": 3}}
+{"method": "assert.eq", "params": {"query": "minimap.state", "path": "/landmarks/0", "value": {"kind": "Seat", "cell": [60, 65]}}}
+{"method": "assert.eq", "params": {"query": "minimap.state", "path": "/landmarks/1", "value": {"kind": "Temple", "cell": [70, 65]}}}
+{"method": "world.clear", "params": {"cell": [53, 66]}}
+{"method": "assert.eq", "params": {"query": "minimap.state", "path": "/features", "value": 2}}
+# Lenses through the lens bar.
+{"method": "ui.click", "params": {"path": "Minimap/lens_water"}}
+{"method": "assert.eq", "params": {"query": "minimap.state", "path": "/lens", "value": "water"}}
+{"method": "ui.click", "params": {"path": "Minimap/lens_sectors"}}
+{"method": "assert.eq", "params": {"query": "minimap.state", "path": "/lens", "value": "sectors"}}
+{"method": "ui.click", "params": {"path": "Minimap/lens_city"}}
+{"method": "assert.eq", "params": {"query": "minimap.state", "path": "/lens", "value": "city"}}
+# Tools: zoom in and out stop the auto zoom.
+{"method": "minimap.set", "params": {"zoom": 2}}
+{"method": "ui.click", "params": {"path": "Minimap/zoom_in"}}
+{"method": "assert.eq", "params": {"query": "minimap.state", "path": "/zoom", "value": 3.0}}
+{"method": "ui.click", "params": {"path": "Minimap/zoom_out"}}
+{"method": "assert.eq", "params": {"query": "minimap.state", "path": "/zoom", "value": 2.0}}
+{"method": "assert.eq", "params": {"query": "minimap.state", "path": "/auto_zoom", "value": false}}
+# Home centres the camera on the palace (4x4 at [60, 65]: its centre cell is [62, 67]).
+{"method": "camera.teleport", "params": {"cell": [20, 20]}}
+{"method": "ui.click", "params": {"path": "Minimap/home"}}
+{"method": "assert.eq", "params": {"query": "camera.state", "path": "/center_cell", "value": [62, 67]}}
+# Alerts: the badge counts them and the tool goes to them in turn.
+{"method": "minimap.alert", "params": {"cell": [72, 58]}}
+{"method": "minimap.alert", "params": {"cell": [56, 72]}}
+{"method": "assert.eq", "params": {"query": "minimap.state", "path": "/alerts", "value": 2}}
+{"method": "ui.click", "params": {"path": "Minimap/alerts"}}
+{"method": "assert.eq", "params": {"query": "camera.state", "path": "/center_cell", "value": [72, 58]}}
+{"method": "ui.click", "params": {"path": "Minimap/alerts"}}
+{"method": "assert.eq", "params": {"query": "camera.state", "path": "/center_cell", "value": [56, 72]}}
+# The world map isn't there yet: its button is disabled.
+{"method": "assert.eq", "params": {"query": "ui.tree", "args": {"filter": "Minimap/world_map", "fields": ["enabled"]}, "path": "/widgets/0/enabled", "value": false}}
+# Collapse and open again.
+{"method": "ui.click", "params": {"path": "Minimap/collapse"}}
+{"method": "assert.eq", "params": {"query": "minimap.state", "path": "/open", "value": false}}
+{"method": "ui.click", "params": {"path": "open"}}
+{"method": "assert.eq", "params": {"query": "minimap.state", "path": "/open", "value": true}}
+{"method": "assert.eq", "params": {"query": "ui.layout_issues", "path": "/count", "value": 0}}
+# Another realm's style, and back.
+{"method": "minimap.reload_style", "params": {"realm": "kambara"}}
+{"method": "assert.eq", "params": {"query": "minimap.state", "path": "/realm", "value": "kambara"}}
+{"method": "wait.frames", "params": {"frames": 2}}
+{"method": "minimap.reload_style", "params": {"realm": "dailong"}}
+{"method": "minimap.export", "params": {"path": "out/minimap.png"}}
+{"method": "screenshot", "params": {"path": "out/minimap-hud.png"}}

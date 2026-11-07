@@ -29,6 +29,7 @@ use super::{
     TileMapLayerKind,
     atlas::{self, *},
 };
+use super::minimap::model::MinimapTileDef;
 use crate::{
     building::construction::{ConstructionMaterials, ConstructionTier},
     pathfind::NodeKind as PathNodeKind,
@@ -622,6 +623,11 @@ pub struct TileDef {
     // Building sector; Also name of UI tile palette button this tile displays under.
     #[serde(default)]
     pub sector: TileSector,
+
+    // How the tile shows on the minimap: its class (Building, Field, Plaza, Decor, None), a
+    // landmark icon and a colour override. Optional: see tile::minimap::model.
+    #[serde(default)]
+    pub minimap: Option<MinimapTileDef>,
 
     // Tile kind & archetype combined, also defines which layer the tile can be placed on.
     // Resolved post-load based on layer and category.

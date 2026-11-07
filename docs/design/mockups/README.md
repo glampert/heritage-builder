@@ -71,7 +71,7 @@ Concepts for a more modern minimap, on one 80 × 80 sample city drawn in the min
 | Today's minimap beside three directions: A, painted relief (recommended); B, an ink map like the world map; C, lenses (A with one data layer) | [minimap-concepts.jpg](minimap-concepts.jpg) |
 | Concept A in Đại Long's HUD frame: lens icons across the top, tools down the right (zoom, alerts, home, world map, collapse), and the four lenses: sectors, water, fire risk, faith | [minimap-lenses.jpg](minimap-lenses.jpg) |
 
-Drawn by `minimap.py` (needs numpy and Pillow). The implementation plan is [docs/plans/minimap.md](../../plans/minimap.md).
+Drawn by `minimap.py` (needs numpy and Pillow). Its icon paths come from [crates/tools/ui-icons/icons.json](../../../crates/tools/ui-icons/icons.json), which also makes the game's button and landmark sprites, so the two stay alike. The implementation plan is [docs/plans/minimap.md](../../plans/minimap.md); the game's minimap now follows concept A with the layout above.
 
 ## Fonts
 

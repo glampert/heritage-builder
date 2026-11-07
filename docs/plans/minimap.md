@@ -1,6 +1,6 @@
 # Minimap: painted relief, lenses and tools
 
-**Status (2026-11-06): Draft; not started.** This plan turns the minimap concepts in [docs/design/mockups/](../design/mockups/README.md#minimap) into code: concept A (painted relief) as the default view, concept C (lenses) on top of it, and a toolbar. It is milestone MM of the [roadmap](roadmap.md). It was researched against `701b947` on `claude`. File and line references point at that commit, so re-check them before relying on them.
+**Status (2026-11-07): Done.** Phases 0–5 landed on `claude`; the [notes](#notes-2026-11-07) record the deviations and what was verified. The Risk, Faith, Flood and Fertility lenses come with M6, M8 and M7. This plan turns the minimap concepts in [docs/design/mockups/](../design/mockups/README.md#minimap) into code: concept A (painted relief) as the default view, concept C (lenses) on top of it, and a toolbar. It is milestone MM of the [roadmap](roadmap.md). It was researched against `701b947` on `claude`. File and line references point at that commit, so re-check them before relying on them.
 
 ![Concepts](../design/mockups/minimap-concepts.jpg)
 
@@ -295,50 +295,50 @@ Budgets, release build, desktop; web within 2× of them:
 
 ### Phase 0: Model refactor, no visible change
 
-- [ ] Split `minimap.rs` into `tile/minimap/{mod,model,widget,render}.rs`. Keep public names and behaviour.
-- [ ] `MinimapGrid` and `MinimapFeatures` replace the per-pixel colours as the source of truth. Today's texture is generated from them (one pixel per cell, same colours), so screenshots don't change.
-- [ ] Extend `UiPainter` (`engine/src/ui/immediate.rs`) with `line(a, b, width, color)`, `polyline(points, width, color, closed)`, `convex_polygon(points, fill, stroke)`, `mesh(&UiMesh)` (positions, UVs, colours, indices, texture) and `circle_stroke(center, radius, width, color)`. These are thin wrappers over epaint; keep egui types out of the game crate.
-- [ ] Automation: `minimap.state` returns open, zoom, lens, alert count, feature count, texture size and px per cell. `minimap.set` takes `open`, `zoom` and `lens`.
-- [ ] Tests: `tests/minimap.rs`, a new `[[test]]` with the custom harness. It places and clears tiles, then checks the grid and the features against the tile map. Also a scenario, `minimap.jsonl`, that queries `minimap.state` after placements.
+- [x] Split `minimap.rs` into `tile/minimap/{mod,model,widget,render}.rs`. Keep public names and behaviour.
+- [x] `MinimapGrid` and `MinimapFeatures` replace the per-pixel colours as the source of truth. Today's texture is generated from them (one pixel per cell, same colours), so screenshots don't change.
+- [x] Extend `UiPainter` (`engine/src/ui/immediate.rs`) with `line(a, b, width, color)`, `polyline(points, width, color, closed)`, `convex_polygon(points, fill, stroke)`, `mesh(&UiMesh)` (positions, UVs, colours, indices, texture) and `circle_stroke(center, radius, width, color)`. These are thin wrappers over epaint; keep egui types out of the game crate.
+- [x] Automation: `minimap.state` returns open, zoom, lens, alert count, feature count, texture size and px per cell. `minimap.set` takes `open`, `zoom` and `lens`.
+- [x] Tests: `tests/minimap.rs`, a new `[[test]]` with the custom harness. It places and clears tiles, then checks the grid and the features against the tile map. Also a scenario, `minimap.jsonl`, that queries `minimap.state` after placements.
 
 ### Phase 1: The painted base
 
-- [ ] `MinimapStyle` and `assets/configs/ui/minimap/daiLong.json`, loaded at boot; `minimap.reload_style`.
-- [ ] `bake.rs`: masks, box blurs, distance transform, value-noise elevation, colour mixing, foam, all per the [bake](#the-bake). Unit tests on small grids: a pond's centre is darker than its shore; foam lies on the shoreline; output is deterministic (hash the pixels).
-- [ ] The texture becomes `px_per_cell` times larger, `Linear` filtered. The widget's UV maths is unchanged, since UVs are relative.
-- [ ] Incremental updates: dirty rects, margin, per-frame budget, sub-rect upload. Test: after random edits, a patched texture equals a full rebake byte for byte.
-- [ ] `noise_foliage.png` from the new `crates/tools/ui-icons/` script.
-- [ ] `minimap.export`.
-- [ ] Check desktop on both backends and web; measure the bake against the budgets.
+- [x] `MinimapStyle` and `assets/configs/ui/minimap/daiLong.json`, loaded at boot; `minimap.reload_style`.
+- [x] `bake.rs`: masks, box blurs, distance transform, value-noise elevation, colour mixing, foam, all per the [bake](#the-bake). Unit tests on small grids: a pond's centre is darker than its shore; foam lies on the shoreline; output is deterministic (hash the pixels).
+- [x] The texture becomes `px_per_cell` times larger, `Linear` filtered. The widget's UV maths is unchanged, since UVs are relative.
+- [x] Incremental updates: dirty rects, margin, per-frame budget, sub-rect upload. Test: after random edits, a patched texture equals a full rebake byte for byte.
+- [x] ~~`noise_foliage.png` from the new `crates/tools/ui-icons/` script.~~ The noise is computed in the bake instead (see the notes).
+- [x] `minimap.export`.
+- [x] Check desktop on both backends and web; measure the bake against the budgets. Web: the wasm build compiles; not run in a browser here (see the notes).
 
 ### Phase 2: Shapes, overlays and art data
 
-- [ ] The `minimap` tile def block, the default derivation, and the entries for existing tiles. Catalog support in the Blender generator (`hbgen/tileset.py`, the sync check, README).
-- [ ] `shapes.rs`: the shape cache, the per-frame affine transform, culling, batched meshes with feather rings, roads with casing, field stripes, construction and renovation states, level of detail.
-- [ ] Landmark icons (script-made) and the landmark layer.
-- [ ] Camera frame with corner ticks; pings with animated rings; the alert queue.
-- [ ] Check large maps (256 × 256 sample saves) for frame time, and small maps for crispness at 2× display scale.
+- [x] The `minimap` tile def block, the default derivation, and the entries for existing tiles. Catalog support in the Blender generator (`hbgen/tileset.py`, the sync check, README).
+- [x] `shapes.rs`: the shape cache, the per-frame affine transform, culling, batched meshes with feather rings, roads with casing, field stripes, construction and renovation states, level of detail.
+- [x] Landmark icons (script-made) and the landmark layer.
+- [x] Camera frame with corner ticks; pings with animated rings; the alert queue.
+- [x] Check large maps (256 × 256 sample saves) for frame time, and small maps for crispness at 2× display scale.
 
 ### Phase 3: Toolbar and frame
 
-- [ ] Tool column: zoom in and out, alerts with count, home, world map (disabled), collapse. Button sprites from the icon script, four states each.
-- [ ] Realm frame sprite from the style.
-- [ ] Widgets record themselves for `ui.tree`; `ui_snapshot.jsonl` and `ui.layout_issues` pass with the new layout.
-- [ ] Scenario: click each tool through `ui.click` and check `minimap.state` and the camera position.
+- [x] Tool column: zoom in and out, alerts with count, home, world map (disabled), collapse. Button sprites from the icon script, four states each.
+- [x] Realm frame sprite from the style.
+- [x] Widgets record themselves for `ui.tree`; `ui_snapshot.jsonl` and `ui.layout_issues` pass with the new layout.
+- [x] Scenario: click each tool through `ui.click` and check `minimap.state` and the camera position.
 
 ### Phase 4: Lenses
 
-- [ ] `MinimapLens`, `LensProvider`, the lens texture, the veil and the legend.
-- [ ] The lens bar, showing only lenses that have a provider.
-- [ ] Providers: Sectors and Water now. Risk (M6), Faith (M8), Flood and Fertility (M7) land with those milestones, each of which adds a checkbox to its own plan.
-- [ ] Decide veil or desaturated copy by looking at both (see [open decisions](#open-decisions)).
+- [x] `MinimapLens`, `LensProvider`, the lens texture, the veil and the legend.
+- [x] The lens bar, showing only lenses that have a provider.
+- [x] Providers: Sectors and Water now. Risk (M6), Faith (M8), Flood and Fertility (M7) land with those milestones, each of which adds a checkbox to its own plan.
+- [x] Decide veil or desaturated copy by looking at both (see [open decisions](#open-decisions)). The veil reads well: no desaturated copy.
 
 ### Phase 5: Realm styles and polish
 
-- [ ] Kambara and Tampadesa style files and frames, when those realms start (game Phases 3 and 4), or earlier for the mockups' sake.
-- [ ] Hover tooltip.
-- [ ] Profile on the web build; add `rayon` to the desktop full bake only if the budget is missed.
-- [ ] Update AGENTS.md (the minimap's module layout, `minimap.*` commands, the style file) and `.claude/rules/` if anything durable came up.
+- [x] Kambara and Tampadesa style files and frames, when those realms start (game Phases 3 and 4), or earlier for the mockups' sake. Made now; `minimap.reload_style realm=kambara` shows them.
+- [x] Hover tooltip.
+- [ ] Profile on the web build. Not done: this environment has no browser WebGPU to run it in. `rayon` isn't needed on desktop: the release full bake is within budget.
+- [x] Update AGENTS.md (the minimap's module layout, `minimap.*` commands, the style file) and `.claude/rules/` if anything durable came up.
 
 ## Open decisions
 
@@ -346,11 +346,38 @@ Budgets, release build, desktop; web within 2× of them:
 |---|---|---|
 | 1 | Concept A as the default view? | Yes (user, 2026-11-06: "they look good"). B and C stay as above. |
 | 2 | Does the lens bar also switch the main view's overlay? | No, separate, until main-view overlays exist (M6/M7). Then revisit. |
-| 3 | Veil or desaturated copy for lenses? | Veil first; desaturated copy if the veil looks muddy. |
+| 3 | Veil or desaturated copy for lenses? | Veil (2026-11-07: it reads well in the screenshots, so no second texture). |
 | 4 | Elevation before terrain height (T) lands? | Seeded value noise, low contrast. Switch to real elevation in T. |
 | 5 | Pixels per cell cap | `max_texture_side` 1024 (4 MB). Raise to 2048 if 2× displays look soft on 128 × 128 maps. |
 | 6 | Where the icon script lives | `crates/tools/ui-icons/`, with the mockup generator importing its icon paths. |
 | 7 | World map button before M10 | Shown, disabled, tooltip "Coming with trade routes". |
+
+## Notes (2026-11-07)
+
+**What was built**, phase by phase:
+- **Phase 0:** `tile/minimap/` with `mod.rs` (the `Minimap`, textures, pings and alerts), `model.rs` (`MinimapGrid`: terrain, cover and roads per cell; `MinimapFeatures`: one feature per building, keyed by base cell), `widget.rs`, `shapes.rs`, `lens.rs`, `render.rs` and `style.rs`. `TileMap` updates the model on place, clear (always with the tile's base cell, even when cleared from a blocker cell), move and tile-flag changes, and rebuilds it after `reset`, since a fill only covers the playable area. `UiPainter` gained `line`, `polyline`, `convex_polygon`, `circle_stroke`, `rect_stroke`, `text_scaled`, `text_centered` and `mesh(UiMesh)`; `ui::place_at` lays widgets out in a given rect, and `ui::pixels_per_point` gives the display scale.
+- **Phase 1:** the bake, the style files, patch bakes within `bake_budget_cells` a frame and sub-rect uploads, and `minimap.export`.
+- **Phase 2:** the `minimap` tile def block (farms are `Field`, the garden `Decor`; the palace is the `Seat`, plus `Temple`, `Market`, `Port` for the fishing wharf and a new `Fort` for the citadel), the Blender generator's support for it (`INLINE_OBJECT_KEYS`, a unit test, README), shapes, landmark icons, the camera frame, pings and the alert queue.
+- **Phase 3:** the lens row and tool column, button sprites in four states for each realm, and the realm frame. `minimap.jsonl` clicks every tool and lens; `ui_snapshot.jsonl` and `ui.layout_issues` pass.
+- **Phase 4:** the lenses with the veil, the heat texture and a legend strip. The Water lens colours houses with the house's own check (`is_near_building` from the road link to a well within its effect radius); its heat field is each well's reach.
+- **Phase 5:** Kambara's and Tampadesa's styles and frames, the hover tooltip (the building or ground under the cursor), the debug window (zoom, scroll, style picker, bake time, counts), AGENTS.md.
+
+**Deviations:**
+- **The view maths changed.** Today's minimap drew the map as a rotated square, not the world's 2:1 diamond, so it couldn't match the mockups' 300 × 150 map. `MinimapView` now uses the world's isometric projection scaled down: a cell's minimap position is its screen position at zoom 1, scaled and moved. The playable rectangle fills the map at zoom 1, the camera's view is an axis-aligned rectangle, and picking is the same affine map backwards. Auto zoom (about 95 visible cells), auto scroll (follows the camera with a margin) and click-and-drag behave as before.
+- **The bake is its own crate,** `crates/minimap_bake`, not `tile/minimap/bake.rs`, so the dev profile can build it optimized (a debug full bake took seconds). Same pure interface; it also holds the mip filter.
+- **Blur:** each mask is blurred by a Gaussian integrated over each cell's box (a difference of normal CDFs), separable and tabulated per sub-pixel, rather than three box blurs. Every pixel is computed the same way whatever region is baked, so a patch bake equals a full bake byte for byte (tested in both crates).
+- **Noise:** computed in the bake, not loaded from `noise_foliage.png`: the elevation is value noise sampled at cell corners and interpolated, and the foliage noise is a tile that repeats every 24 cells. No file, and the bake stays a pure function.
+- **Mipmaps:** the base is baked at 4–8 pixels per cell but drawn at 2–5 on a 1× display, so thin lines (the foam) shimmered. `BaseTexture::upload` builds the mip chain on the CPU, for patches too, since neither backend rebuilds mips after an update.
+- **The icon script uses Pillow only:** `crates/tools/ui-icons/make_icons.py` strokes the SVG paths at 8× and downsamples, instead of rendering them in Chromium. The mockup generator reads the same `icons.json`.
+- **Names:** the style files are `dailong.json`, `kambara.json` and `tampadesa.json`. Đại Long's buttons are in `buttons/minimap/` beside the hand-made `open` and `debug` sprites; the others are in `buttons/minimap_kambara/` and `buttons/minimap_tampadesa/`. Đại Long keeps the parchment page as its frame; the other two frames are made by the script. The old `close_*` sprites are no longer used, and are left in place as hand-made art.
+- **Smaller things:** the lens refresh timer counts real time, not game time. `MinimapLens::Risk` has no `RiskKind` yet (M6 adds it). Construction sites are an outline with a faint fill, not a dashed pattern. `minimap.alert` raises an alert from automation, for testing the alerts tool. `UiSpriteButton` now reports a disabled button as `enabled: false` in `ui.tree`.
+
+**Verified:**
+- `cargo test --workspace`, including `tests/minimap.rs` (8 tests: the model against the tile map, a rebuild against incremental updates, a budgeted patch bake against a full one, every building's class, every realm's style and sprites) and the bake crate's unit tests (pond depth, foam on the shore, determinism, patch against full bake).
+- Every CI scenario plus `minimap.jsonl` (51 commands), determinism twice, record and replay of `ui_build` and `determinism`, and `ui_snapshot.jsonl` with its layout checks, on Xvfb with Mesa.
+- Screenshots on OpenGL and Wgpu (lavapipe), on the 9 × 9 preset and the 128 × 128 sample save: City, Sectors and Water lenses, the three realm styles, a ping with the alert badge, the developer editor's debug window.
+- The wasm build compiles (`--features web`). It wasn't run in a browser.
+- Bake times, release build (`cargo test -p minimap_bake --release -- --ignored --nocapture`): a full bake is 49 ms at 128 × 128 (8 px per cell) and 57 ms at 256 × 256 (4 px per cell), within the 60 ms budget; a patch for one edit is 0.65 ms and 0.25 ms. In the release game on the 256 × 256 sample save (`minimap.state`'s `last_bake_ms`, `debug.stats`): the load's full bake took 57 ms, a patch after placing one tile 0.23 ms, and with the minimap open the UI's CPU time (`ui_end`, `ui_render`) stayed under 0.5 ms a frame with 183 buildings, the minimap adding about 14,500 triangles.
 
 ## Later
 

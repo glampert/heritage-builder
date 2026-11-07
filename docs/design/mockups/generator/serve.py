@@ -3,7 +3,8 @@
     python3 serve.py [--port 8765] [--host 127.0.0.1] [--open]
 
 Builds every screen, serves them at http://127.0.0.1:8765/ and watches the
-generator's files and assets/fonts. On a save it re-runs only the scripts
+generator's files, assets/fonts and the icon paths in
+crates/tools/ui-icons/icons.json. On a save it re-runs only the scripts
 that the change affects, and the open page reloads itself. A failed build
 shows its error over the page and keeps the last good screens.
 
@@ -25,6 +26,7 @@ from urllib.parse import unquote, urlparse
 HERE = pathlib.Path(__file__).resolve().parent
 BUILD = HERE / "build"
 FONTS_DIR = (HERE / "../../../../assets/fonts").resolve()
+ICONS = (HERE / "../../../../crates/tools/ui-icons/icons.json").resolve()  # The icon paths minimap.py reads.
 
 REALMS = [("dailong", "Đại Long"), ("kambara", "Kambara"), ("tampadesa", "Tampadesa")]
 SCREENS = [
@@ -106,6 +108,7 @@ def watched_files():
     files = {p: AFFECTS[p.name] for p in HERE.glob("*.py") if p.name in AFFECTS}
     for p in FONTS_DIR.glob("*.ttf"):
         files[p] = AFFECTS["fonts.py"]
+    files[ICONS] = AFFECTS["minimap.py"]
     return files
 
 

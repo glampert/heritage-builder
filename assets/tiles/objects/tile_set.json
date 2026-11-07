@@ -304,6 +304,7 @@
           "name": "market",
           "cost": 10,
           "sector": "FoodAndFarming",
+          "minimap": { "landmark": "Market" },
           "logical_size": {
             "width": 128,
             "height": 64
@@ -378,6 +379,7 @@
           "name": "rice_farm",
           "cost": 5,
           "sector": "FoodAndFarming",
+          "minimap": { "class": "Field" },
           "logical_size": {
             "width": 192,
             "height": 96
@@ -404,6 +406,7 @@
           "name": "livestock_farm",
           "cost": 6,
           "sector": "FoodAndFarming",
+          "minimap": { "class": "Field" },
           "logical_size": {
             "width": 192,
             "height": 96
@@ -430,6 +433,7 @@
           "name": "fishing_wharf",
           "cost": 5,
           "sector": "FoodAndFarming",
+          "minimap": { "landmark": "Port" },
           "logical_size": {
             "width": 128,
             "height": 64
@@ -656,6 +660,7 @@
           "materials": { "Wood": 6, "Bricks": 8, "RoofTiles": 4 },
           "construction": "Civic",
           "sector": "CultureAndReligion",
+          "minimap": { "landmark": "Temple" },
           "logical_size": {
             "width": 192,
             "height": 96
@@ -821,6 +826,7 @@
           "materials": { "Bricks": 16, "Wood": 8, "Metal": 4, "RoofTiles": 8 },
           "construction": "Grand",
           "sector": "Infrastructure",
+          "minimap": { "landmark": "Seat" },
           "logical_size": {
             "width": 256,
             "height": 128
@@ -849,6 +855,7 @@
           "materials": { "Bricks": 24, "Wood": 8, "Metal": 8, "RoofTiles": 8 },
           "construction": "Grand",
           "sector": "Infrastructure",
+          "minimap": { "landmark": "Fort" },
           "logical_size": {
             "width": 320,
             "height": 160
@@ -876,6 +883,7 @@
           "cost": 10,
           "construction": "Decorative",
           "sector": "Beautification",
+          "minimap": { "class": "Decor" },
           "logical_size": {
             "width": 192,
             "height": 96

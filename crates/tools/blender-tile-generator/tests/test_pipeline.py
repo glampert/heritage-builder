@@ -136,6 +136,13 @@ class Sync(unittest.TestCase):
         again, _ = self.sync(new, [e], {cat.sprite_path(e, ""): sprite_rec()})
         self.assertEqual(again, new, "a second sync must change nothing")
 
+    def test_writes_the_minimap_block_on_one_line(self):
+        e = entry("kiln", tile_set={"cost": 10, "minimap": {"class": "Field", "landmark": "Temple"}})
+        new, _ = self.sync(TILE_SET, [e], {cat.sprite_path(e, ""): sprite_rec()})
+        self.assertIn('"minimap": { "class": "Field", "landmark": "Temple" }', new)
+        d = json.loads(new)["categories"][0]["tile_defs"][1]
+        self.assertEqual(d["minimap"], {"class": "Field", "landmark": "Temple"})
+
     def test_updates_sizes_in_place(self):
         e = entry("kiln")
         one, _ = self.sync(TILE_SET, [e], {cat.sprite_path(e, ""): sprite_rec()})

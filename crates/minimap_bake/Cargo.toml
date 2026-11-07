@@ -1,0 +1,13 @@
+[package]
+name    = "minimap_bake"
+version = "0.1.0"
+edition = "2024"
+
+# The minimap's painted base (docs/plans/minimap.md): a pure function from per-cell terrain to
+# RGBA pixels. Its own crate so the dev profile can optimize it (see the workspace Cargo.toml):
+# unoptimized, a full bake takes seconds.
+
+[lints]
+workspace = true
+
+[dependencies]

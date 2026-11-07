@@ -1,0 +1,10 @@
+{
+  "palette": {
+    "land_low": "#8fb565", "land_high": "#a9b874", "forest": "#3f7a3c",
+    "water_shallow": "#5fb0ae", "water_deep": "#2a6a72", "background": "#2a6a72"
+  },
+  "frame": "minimap/frame_kambara.png",
+  "buttons": "minimap_kambara",
+  "landmark": { "fill": "#e9e2cc", "ink": "#2c2a22" },
+  "badge": "#9a4a2e"
+}

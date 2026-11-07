@@ -262,6 +262,15 @@ zoom 5. A building needs a building config to be placed (`world.place`).
       "generated": true                    // false: hand-made art, left alone
     }
 
+A building's `tile_set` also sets how it shows on the minimap (see
+[docs/plans/minimap.md](../../../docs/plans/minimap.md#art-pipeline-changes)):
+`"minimap": {"class": "Field", "landmark": "Temple"}`. `class` is `Building`
+(the default), `Field` (striped, for farms), `Plaza`, `Decor` or `None`;
+`landmark` is `Seat`, `Temple`, `Market`, `Monument`, `Port` or `Fort` and gives
+it an icon; `color` (`"#RRGGBB"`) overrides its sector colour. All optional:
+every milestone that adds a building sets its class and landmark here. It's
+written on one line, like `materials`.
+
 `layer` (default `objects`), `category` (default `buildings`), `palette` and
 `density` are optional; the file sets defaults for the last two. Without
 `variations` a tile has one unnamed variation. A variation can carry its own
