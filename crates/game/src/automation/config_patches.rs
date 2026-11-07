@@ -1,6 +1,6 @@
 // Runtime changes to GameConfigs made by config.set. They live in memory only. The settings
-// dialog saves the whole GameConfigs struct to configs.json, so it saves through
-// save_game_configs(), which writes the original values in place of patched ones.
+// dialog saves the whole GameConfigs struct to the user configs (saves/user/configs.json), so it
+// saves through save_game_configs(), which writes the original values in place of patched ones.
 
 use std::sync::Mutex;
 
@@ -48,7 +48,7 @@ pub fn set(pointer: &str, value: Value) -> Result<(Value, Value), String> {
 }
 
 // GameConfigs::save(), without the changes made by config.set: patched settings keep their
-// original values in configs.json. A setting changed again since its patch (in the settings
+// original values in the user configs. A setting changed again since its patch (in the settings
 // dialog, for instance) is saved as it is now, and stops counting as patched.
 pub fn save_game_configs() -> bool {
     let mut patches = PATCHES.lock().unwrap();

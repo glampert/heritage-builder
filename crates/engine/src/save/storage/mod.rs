@@ -46,6 +46,22 @@ trait SaveGameStorageBackend: Sized {
     // Deletes a named save file.
     // `save_file` is relative to save_files_path.
     fn delete_save_file(&self, save_file: PathRef) -> SaveResult;
+
+    // User files: the player's own settings, such as the user configs (engine::config), kept in
+    // `user_files_path`, a subdirectory of the saves that list_save_files leaves out. `user_file`
+    // is a name without extension; the file is JSON text.
+
+    // Returns the directory/prefix where user files are stored.
+    fn user_files_path(&self) -> FixedPath;
+
+    // The file's contents, or None if there's no such file.
+    fn read_user_file(&self, user_file: PathRef) -> Result<Option<String>, String>;
+
+    // Writes a user file. Overwrites any existing file with the same name.
+    fn write_user_file(&self, user_file: PathRef, contents: &str) -> SaveResult;
+
+    // Deletes a user file. Succeeds if there's no such file.
+    fn delete_user_file(&self, user_file: PathRef) -> SaveResult;
 }
 
 // ----------------------------------------------
@@ -92,4 +108,26 @@ where
 #[inline]
 pub fn delete_save_file(save_file: PathRef) -> SaveResult {
     SaveGameStorageBackendImpl::get().delete_save_file(save_file)
+}
+
+// User files (see SaveGameStorageBackend): saves/user/ on desktop, browser localStorage on the web.
+
+#[inline]
+pub fn user_file_path(user_file: PathRef) -> FixedPath {
+    SaveGameStorageBackendImpl::get().user_files_path().join(user_file).with_extension("json")
+}
+
+#[inline]
+pub fn read_user_file(user_file: PathRef) -> Result<Option<String>, String> {
+    SaveGameStorageBackendImpl::get().read_user_file(user_file)
+}
+
+#[inline]
+pub fn write_user_file(user_file: PathRef, contents: &str) -> SaveResult {
+    SaveGameStorageBackendImpl::get().write_user_file(user_file, contents)
+}
+
+#[inline]
+pub fn delete_user_file(user_file: PathRef) -> SaveResult {
+    SaveGameStorageBackendImpl::get().delete_user_file(user_file)
 }

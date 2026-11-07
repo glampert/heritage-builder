@@ -295,4 +295,6 @@ impl RunLoopConfigs for GameConfigs {
 // GameConfigs Global Singleton
 // ----------------------------------------------
 
-engine::configurations! { GAME_CONFIGS_SINGLETON, GameConfigs, "game/configs" }
+// Defaults in assets/configs/game/configs.json; the settings dialog's changes go to the user
+// configs, saves/user/configs.json (see engine::config).
+engine::configurations! { GAME_CONFIGS_SINGLETON, GameConfigs, "game/configs", user_configs: "configs" }

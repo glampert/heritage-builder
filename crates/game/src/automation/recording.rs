@@ -11,8 +11,8 @@ use crate::session::GameSession;
 const GAME_INFO_KEY: &str = "game";
 
 // Called first thing in GameLoop::start: a replay runs with the configs it was recorded with,
-// which may differ from configs.json, e.g. after the settings dialog saved them. Applied like
-// config.set, so configs.json keeps its own values if the settings dialog saves.
+// which may differ from the configs loaded now, e.g. after the settings dialog saved them.
+// Applied like config.set, so the user configs keep their own values if the settings dialog saves.
 pub fn use_recorded_configs(engine: &Engine) {
     let Some(game_info) = engine.replay_info(GAME_INFO_KEY) else {
         return;
@@ -37,7 +37,7 @@ pub fn use_recorded_configs(engine: &Engine) {
     }
 
     match config_patches::set("", configs.clone()) {
-        Ok(_) => log::info!(log::channel!("game"), "Using the recording's game configs, which differ from configs.json."),
+        Ok(_) => log::info!(log::channel!("game"), "Using the recording's game configs, which differ from the loaded ones."),
         Err(err) => {
             log::warning!(log::channel!("game"), "Can't use the recording's game configs, so the replay may differ: {err}")
         }

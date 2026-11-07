@@ -47,7 +47,7 @@ fn setup(test_suite_name: &str) {
 
     log::set_level(log::Level::Warning);
 
-    GameConfigs::load();
+    GameConfigs::load_defaults(); // Not the user configs of whoever runs the tests.
     UnitConfigs::load();
     PropConfigs::load();
     BuildingConfigs::load();

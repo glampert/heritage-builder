@@ -8,13 +8,13 @@ use crate::automation::{CommandContext, CommandDef, CommandError, CommandResult,
 pub(super) const COMMANDS: &[CommandDef] = &[
     CommandDef {
         name: "config.get",
-        help: "The game configs (configs.json) as JSON, or the value at a JSON pointer.",
+        help: "The game configs (defaults with the user configs over them) as JSON, or the value at a JSON pointer.",
         params: &[ParamDef { name: "path", kind: "string", required: false, help: "JSON pointer, e.g. /sim/starting_gold_units." }],
         run: cmd_get,
     },
     CommandDef {
         name: "config.set",
-        help: "Change a config for this run only; configs.json keeps its value. Many settings are only read at startup.",
+        help: "Change a config for this run only; the user configs keep their value. Many settings are only read at startup.",
         params: &[
             ParamDef { name: "path", kind: "string", required: true, help: "JSON pointer, e.g. /debug/show_popups." },
             ParamDef { name: "value", kind: "any", required: true, help: "New value, of the setting's type." },

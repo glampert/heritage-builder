@@ -49,13 +49,19 @@ pub const ENGINE_CLI_OPTIONS: &[CliOption] = &[
     CliOption {
         name: "app-api",
         value_name: Some("Glfw|Winit"),
-        help: "Window and input backend, instead of engine.app_api from configs.json. Desktop only.",
+        help: "Window and input backend, instead of engine.app_api from the configs. Desktop only.",
     },
     CliOption {
         name: "render-api",
         value_name: Some("OpenGl|Wgpu"),
-        help: "Renderer, instead of engine.render_api from configs.json. Wgpu also picks the Winit app backend \
+        help: "Renderer, instead of engine.render_api from the configs. Wgpu also picks the Winit app backend \
                unless --app-api says otherwise. Desktop only.",
+    },
+    CliOption {
+        name: "default-configs",
+        value_name: None,
+        help: "Run with the default configs from assets/configs, leaving out the user configs that the settings \
+               dialog saves to saves/user/configs.json.",
     },
     CliOption {
         name: "screenshot-after-frames",

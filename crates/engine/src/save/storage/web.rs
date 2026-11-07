@@ -41,7 +41,10 @@ impl SaveGameStorageBackend for WebSaveGameStorageBackend {
 
         for i in 0..len {
             if let Ok(Some(key)) = storage.key(i) {
-                if let Some(name) = key.strip_prefix(Self::SAVE_KEY_PREFIX) {
+                // Keys below the prefix's subdirectories (user files) aren't saves.
+                if let Some(name) = key.strip_prefix(Self::SAVE_KEY_PREFIX)
+                    && !name.contains('/')
+                {
                     // Return file name without path or extension.
                     files.push(Path::new(name).with_extension(""));
                 }
@@ -117,6 +120,41 @@ impl SaveGameStorageBackend for WebSaveGameStorageBackend {
         storage
             .remove_item(key.as_str())
             .map_err(|_| format!("Failed to delete save '{save_file}' from Browser Local Storage."))
+    }
+
+    // heritage_builder/saves/user/: list_save_files skips the keys below a subdirectory.
+    fn user_files_path(&self) -> FixedPath {
+        self.save_files_path().join("user")
+    }
+
+    fn read_user_file(&self, user_file: PathRef) -> Result<Option<String>, String> {
+        let storage = Self::browser_local_storage().ok_or_else(|| "Browser Local Storage not available.".to_string())?;
+
+        let key = super::user_file_path(user_file);
+
+        storage
+            .get_item(key.as_str())
+            .map_err(|_| format!("Failed to read user file '{key}' from Browser Local Storage."))
+    }
+
+    fn write_user_file(&self, user_file: PathRef, contents: &str) -> SaveResult {
+        let storage = Self::browser_local_storage().ok_or_else(|| "Browser Local Storage not available.".to_string())?;
+
+        let key = super::user_file_path(user_file);
+
+        storage
+            .set_item(key.as_str(), contents)
+            .map_err(|_| format!("Failed to write user file '{key}' to Browser Local Storage (quota exceeded?)"))
+    }
+
+    fn delete_user_file(&self, user_file: PathRef) -> SaveResult {
+        let storage = Self::browser_local_storage().ok_or_else(|| "Browser Local Storage not available.".to_string())?;
+
+        let key = super::user_file_path(user_file);
+
+        storage
+            .remove_item(key.as_str())
+            .map_err(|_| format!("Failed to delete user file '{key}' from Browser Local Storage."))
     }
 }
 

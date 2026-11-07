@@ -83,6 +83,44 @@ impl SaveGameStorageBackend for FileSysSaveGameStorageBackend {
 
         file_sys::remove_file(&absolute_path).map_err(|err| format!("Failed to delete save file '{absolute_path}': {err}"))
     }
+
+    // saves/user/: list_save_files only looks at the files directly in saves/.
+    fn user_files_path(&self) -> FixedPath {
+        self.save_files_path().join("user")
+    }
+
+    fn read_user_file(&self, user_file: PathRef) -> Result<Option<String>, String> {
+        let absolute_path = super::user_file_path(user_file);
+
+        if !file_sys::exists(&absolute_path) {
+            return Ok(None);
+        }
+
+        file_sys::load_string(&absolute_path)
+            .map(Some)
+            .map_err(|err| format!("Failed to read user file '{absolute_path}': {err}"))
+    }
+
+    fn write_user_file(&self, user_file: PathRef, contents: &str) -> SaveResult {
+        let absolute_path = super::user_file_path(user_file);
+
+        // First make sure the directory exists. Ignore any errors since
+        // this function might fail if any element of the path already exists.
+        let _ = file_sys::create_path(&absolute_path);
+
+        file_sys::write_file(&absolute_path, contents)
+            .map_err(|err| format!("Failed to write user file '{absolute_path}': {err}"))
+    }
+
+    fn delete_user_file(&self, user_file: PathRef) -> SaveResult {
+        let absolute_path = super::user_file_path(user_file);
+
+        if !file_sys::exists(&absolute_path) {
+            return Ok(());
+        }
+
+        file_sys::remove_file(&absolute_path).map_err(|err| format!("Failed to delete user file '{absolute_path}': {err}"))
+    }
 }
 
 // ----------------------------------------------
