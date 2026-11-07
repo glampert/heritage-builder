@@ -106,7 +106,8 @@ def run_steps(steps):
 
 
 def initial_steps():
-    steps = {"world_map", "screens", "menus", "minimap"}
+    # Every screen script, every time; fonts and backdrops only when their output is missing.
+    steps = set(STEPS) - {"fonts", "backdrops"}
     if not (BUILD / "fonts.css").exists():
         steps.add("fonts")
     if not all((BUILD / f"city_{r}.jpg").exists() for r, _ in REALMS):
