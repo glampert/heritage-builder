@@ -47,7 +47,7 @@ These follow [overview.md](../design/overview.md#development-phases).
 | M1 | Game time and calendar | Small | — | [game-time.md](game-time.md) | Done (hand check on macOS pending) |
 | M2 | Placeholder art pipeline | Medium | — (runs alongside) | [placeholder-art.md](placeholder-art.md) | In progress: the pipeline is done (Phases 0–2); recipes and the building set next |
 | M3 | Building costs and construction | Medium to large | M1 | [construction.md](construction.md) | Done (fast build option waits for Custom Game) |
-| M4 | Finance | Medium | M1 | — | Not started |
+| M4 | Finance | Medium | M1 | [finance.md](finance.md) | Planned |
 | M5 | Goods and production for missions I-1 to I-5 | Medium | M3 | [goods.md](goods.md) | Done (vegetables, house level 5 and month-based consumption rates deferred; see the plan) |
 | M6 | City risks: fire and collapse | Medium | M3, M1 | — | Not started |
 | M7 | Seasons, floods and irrigation | Large | M1, M5 | — | Not started |
@@ -110,6 +110,8 @@ See [construction.md](construction.md):
 - save v3.
 
 ### M4: Finance (medium)
+
+Plan: [finance.md](finance.md). It starts by putting all the city's gold in one signed treasury.
 
 GDD 5.7: wages, tax rate, upkeep, yearly accounts and debt. Building on `GlobalTreasury` (`sim/resources.rs:739`), the tax collectors and the existing finances dialog (`menu/dialog/city_management/finances`):
 - **Wages:** paid monthly per employed worker from the treasury, at a rate the player can set; wages affect Prosperity later.
@@ -274,8 +276,9 @@ Bumps should be grouped where milestones land close together. Each bump needs a 
 | 3 | Calendar | M1 | Done |
 | 4 | Building construction state; house renovation timers | M3 | Done |
 | 5 | Goods saved by name, not position | M5 | Done |
-| 6 | Elevation map | T | Planned |
-| … | Finance, risk, flood, favour and ratings state | M4–M9 | Planned; group them where possible |
+| 6 | One signed treasury (tax offices hold no gold); the yearly ledger, saved by category name; the finance rates and debt counter | M4 | Planned |
+| 7 | Elevation map | T | Planned |
+| … | Risk, flood, favour and ratings state | M6–M9 | Planned; group them where possible |
 
 ## Conventions for every milestone
 
