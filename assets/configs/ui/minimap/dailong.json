@@ -1,7 +1,7 @@
 {
   "max_texture_side": 1024,
   "bake_budget_cells": 4096,
-  "map_size": [300, 150],
+  "map_size": [250, 150],
   "palette": {
     "land_low": "#a7bd72", "land_high": "#cdbb83", "forest": "#5d8c48", "rocks": "#a19584",
     "water_shallow": "#6db3c2", "water_deep": "#2f6f8c", "foam": "#f3f0dc", "vacant_lot": "#d8c99a",
@@ -38,13 +38,13 @@
     "Monument": "minimap/icons/monument.png", "Port": "minimap/icons/port.png", "Fort": "minimap/icons/fort.png"
   },
   "alert_icon": "icons/alert_icon.png",
-  "landmark": { "fill": "#fffaf0", "ink": "#2b2418", "size": 15.0, "min_cell_px": 3.0, "opacity": 1.0 },
+  "landmark": { "fill": "#fffaf0", "ink": "#2b2418", "size": 15.0, "min_cell_px": 3.0, "opacity": 0.8 },
   "camera": { "fill": "#ffffff1f", "outline": "#fffaf0", "width": 1.5, "ticks": 7.0 },
   "ping": "#e8432f",
   "ping_opacity": 1.0,
-  "tooltip_opacity": 1.0,
+  "tooltip_opacity": 0.8,
   "tooltip_background": true,
-  "legend": { "text_scale": 0.55, "text": "#2b2418" },
+  "legend": { "text_scale": 0.6, "text": "#2b2418" },
   "badge": "#a8261c",
   "badge_text": "#fff4dc",
   "lenses": {
