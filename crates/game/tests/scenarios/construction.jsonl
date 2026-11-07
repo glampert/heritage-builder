@@ -30,16 +30,18 @@
 {"method": "assert.eq", "params": {"query": "world.building_at", "args": {"cell": [12, 10]}, "path": "/operational", "value": true}}
 {"method": "assert.eq", "params": {"query": "logs.tail", "args": {"channel": "construction", "limit": 1}, "path": "/records/0/message", "value": "Temple completed at [12,10]."}}
 
-# A second temple, cleared while it's a site, is refunded in full.
+# A second temple, cleared while it's a site, is refunded in full. The run crosses its first month's
+# end meanwhile, which charges the finished temple's upkeep, so the refund is checked in the accounts:
+# construction spending is the road (18), the yard (10) and the first temple (15).
 {"method": "world.place", "params": {"tile": "temple", "cell": [16, 10]}}
 {"method": "assert.eq", "params": {"query": "sim.state", "path": "/gold", "value": 42}}
 {"method": "assert.eq", "params": {"query": "world.stats", "path": "/city_stock", "value": {}}}
 {"method": "time.fast_forward", "params": {"sim_secs": 10}}
 {"method": "world.clear", "params": {"cell": [16, 10]}}
-{"method": "assert.eq", "params": {"query": "sim.state", "path": "/gold", "value": 57}}
+{"method": "assert.eq", "params": {"query": "finance.state", "path": "/this_year/categories/Construction", "value": 43}}
 {"method": "assert.eq", "params": {"query": "world.stats", "path": "/city_stock", "value": {"Bricks": 8, "RoofTiles": 4, "Wood": 6}}}
 
 # Demolishing the finished temple refunds nothing.
 {"method": "world.clear", "params": {"cell": [12, 10]}}
-{"method": "assert.eq", "params": {"query": "sim.state", "path": "/gold", "value": 57}}
+{"method": "assert.eq", "params": {"query": "finance.state", "path": "/this_year/categories/Construction", "value": 43}}
 {"method": "assert.eq", "params": {"query": "world.stats", "path": "/city_stock", "value": {"Bricks": 8, "RoofTiles": 4, "Wood": 6}}}

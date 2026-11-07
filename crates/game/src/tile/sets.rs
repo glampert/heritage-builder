@@ -615,6 +615,11 @@ pub struct TileDef {
     #[serde(default)]
     pub materials: ConstructionMaterials,
 
+    // Gold a finished building costs to keep per year, charged a twelfth each month
+    // (sim::finance). Optional, can be zero.
+    #[serde(default)]
+    pub upkeep: u32,
+
     // How long the tile takes to build. Optional: Basic for buildings, Instant for the rest.
     // See construction_tier().
     #[serde(default)]

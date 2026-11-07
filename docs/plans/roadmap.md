@@ -47,7 +47,7 @@ These follow [overview.md](../design/overview.md#development-phases).
 | M1 | Game time and calendar | Small | — | [game-time.md](game-time.md) | Done (hand check on macOS pending) |
 | M2 | Placeholder art pipeline | Medium | — (runs alongside) | [placeholder-art.md](placeholder-art.md) | In progress: the pipeline is done (Phases 0–2); recipes and the building set next |
 | M3 | Building costs and construction | Medium to large | M1 | [construction.md](construction.md) | Done (fast build option waits for Custom Game) |
-| M4 | Finance | Medium | M1 | [finance.md](finance.md) | In progress: Phase 0 done; wages, upkeep and debt next |
+| M4 | Finance | Medium | M1 | [finance.md](finance.md) | In progress: one treasury, wages, upkeep and debt done; tax levels and the dialog next |
 | M5 | Goods and production for missions I-1 to I-5 | Medium | M3 | [goods.md](goods.md) | Done (vegetables, house level 5 and month-based consumption rates deferred; see the plan) |
 | M6 | City risks: fire and collapse | Medium | M3, M1 | — | Not started |
 | M7 | Seasons, floods and irrigation | Large | M1, M5 | — | Not started |

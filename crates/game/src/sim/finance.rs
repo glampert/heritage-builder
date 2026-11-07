@@ -3,14 +3,23 @@
 //
 // - Taxes come in when a tax collector returns to its office (`Finance::earn`).
 // - Placement charges and refunds go through `spend` and `refund` (Spawner).
-// - Wages and upkeep are charged monthly (Phase 1).
+// - Wages and upkeep are set per year and charged monthly, a twelfth at a time, at each
+//   month's end (`on_calendar_events`). Then the debt clock counts the month if the balance is
+//   negative.
 // - Cheats and debug edits change the balance without touching the accounts.
 
 use serde::{Deserialize, Serialize};
 use strum::{Display, EnumCount, EnumIter, EnumString, IntoEnumIterator};
 
+use engine::log;
+
 use super::calendar::CalendarEvent;
-use crate::{cheats, config::FinanceConfigs, world::stats::WorldStats};
+use crate::{
+    cheats,
+    config::{FinanceConfigs, GameConfigs},
+    tile::{TileKind, TileMap},
+    world::{World, stats::WorldStats},
+};
 
 // ----------------------------------------------
 // LedgerCategory
@@ -358,14 +367,123 @@ impl Finance {
     }
 
     // A world step's calendar events, after its commands ran: each new month's charges, then
-    // the new year's accounts, so a month's charges count in the year it belongs to.
-    pub fn on_calendar_events(&mut self, events: &[CalendarEvent]) {
+    // the new year's accounts, so a month's charges count in the year it belongs to. The world
+    // stats were recounted by the step's update, so they hold the month's employed workers.
+    pub fn on_calendar_events(&mut self, events: &[CalendarEvent], world: &World, tile_map: &TileMap) {
         for event in events {
-            if let CalendarEvent::NewYear(_) = event {
-                self.on_new_year();
+            match event {
+                CalendarEvent::NewMonth(_) => {
+                    let employed = world.stats().population.employed;
+                    let upkeep = yearly_upkeep(world, tile_map);
+                    self.on_month_end(employed, upkeep, &GameConfigs::get().sim.finance);
+                }
+                CalendarEvent::NewYear(_) => self.on_new_year(),
+                CalendarEvent::NewSeason(_) => {}
             }
         }
     }
+
+    // The month's charges: wages for `employed` workers at the yearly wage, and a twelfth of
+    // the city's `yearly_upkeep`, each with its carry; then the debt clock.
+    pub fn on_month_end(&mut self, employed: u32, yearly_upkeep: u64, configs: &FinanceConfigs) {
+        let wages = self.monthly_share(LedgerCategory::Wages, u64::from(employed) * u64::from(self.wage));
+        self.spend(LedgerCategory::Wages, wages);
+
+        let upkeep = self.monthly_share(LedgerCategory::Upkeep, yearly_upkeep);
+        self.spend(LedgerCategory::Upkeep, upkeep);
+
+        log::verbose!(
+            log::channel!("finance"),
+            "Month's end: {wages} gold in wages ({employed} workers), {upkeep} in upkeep. Balance: {}.",
+            self.balance
+        );
+
+        self.count_month_in_debt(configs);
+    }
+
+    // A twelfth of a yearly amount, with what the last month's division left over; the new
+    // remainder carries to the next month. Twelve months pay exactly the yearly amount.
+    fn monthly_share(&mut self, category: LedgerCategory, yearly: u64) -> u32 {
+        let carry = &mut self.carries[category.index()];
+        let total = yearly as i64 + *carry;
+        *carry = total % 12;
+        u32::try_from(total / 12).unwrap_or(u32::MAX)
+    }
+
+    // ----------------------
+    // Debt clock:
+    // ----------------------
+
+    // True once the city has been in debt for the configured limit of months in a row. M9's
+    // ratings make it a mission failure.
+    #[inline]
+    pub fn is_debt_overdue(&self, configs: &FinanceConfigs) -> bool {
+        configs.debt_limit_months != 0 && self.months_in_debt >= configs.debt_limit_months
+    }
+
+    // Counts the month if it ends in debt, or resets the clock, and tells the player: going
+    // into debt, each of the last three months before the limit, the limit, and getting out.
+    fn count_month_in_debt(&mut self, configs: &FinanceConfigs) {
+        const WARNING_MONTHS: u32 = 3;
+
+        let months_before = self.months_in_debt;
+        self.months_in_debt = if self.is_in_debt() { months_before + 1 } else { 0 };
+
+        let months = self.months_in_debt;
+        let limit = configs.debt_limit_months;
+
+        let notice = if months == 0 {
+            (months_before != 0).then(|| "The treasury is out of debt.".to_string())
+        } else if limit != 0 && months == limit {
+            Some(format!("The city's debt is overdue: {months} months in debt."))
+        } else if months == 1 {
+            Some(format!("The treasury is in debt: {} gold.", self.balance))
+        } else if limit != 0 && months < limit && limit - months <= WARNING_MONTHS {
+            let left = limit - months;
+            Some(format!("{months} months in debt: {left} {} left before the debt is overdue.", if left == 1 { "month" } else { "months" }))
+        } else {
+            None
+        };
+
+        if let Some(message) = notice {
+            log::info!(log::channel!("finance"), "{message}");
+            notify(message);
+        }
+    }
+}
+
+// Gold per year the city's finished buildings cost to keep: each one's tile def `upkeep`.
+// Construction sites pay none.
+pub fn yearly_upkeep(world: &World, tile_map: &TileMap) -> u64 {
+    let mut total = 0;
+    world.for_each_building_of_any_kind(|building| {
+        if !building.is_under_construction() {
+            if let Some(tile) = tile_map.find_tile(building.base_cell(), TileKind::Building) {
+                total += u64::from(tile.tile_def().upkeep);
+            }
+        }
+        true
+    });
+    total
+}
+
+// ----------------------------------------------
+// Notices
+// ----------------------------------------------
+
+// Debt notices since the GameLoop last took them; it shows each as a toast
+// (GameLoop::notify_finances). The simulation step that raises them has no Engine, hence the
+// queue, as for construction notices.
+thread_local! {
+    static NOTICES: std::cell::RefCell<Vec<String>> = const { std::cell::RefCell::new(Vec::new()) };
+}
+
+fn notify(message: String) {
+    NOTICES.with_borrow_mut(|notices| notices.push(message));
+}
+
+pub fn take_notices() -> Vec<String> {
+    NOTICES.with_borrow_mut(std::mem::take)
 }
 
 // ----------------------------------------------
@@ -435,6 +553,62 @@ mod tests {
         let result: Result<YearAccounts, _> =
             serde_json::from_value(serde_json::json!({ "start_balance": 0, "totals": { "Bribes": 1 } }));
         assert!(result.err().expect("an unknown category must fail").to_string().contains("unknown ledger category 'Bribes'"));
+    }
+
+    #[test]
+    fn twelve_months_pay_a_year_exactly() {
+        let configs = FinanceConfigs::default();
+        let mut finance = finance();
+        finance.set_balance_unrecorded(10_000);
+        finance.set_wage(6);
+
+        // 7 workers at 6 a year: 42 a year, 3.5 a month. Upkeep of 30 a year: 2.5 a month.
+        let mut monthly_wages = Vec::new();
+        for _ in 0..12 {
+            let before = finance.this_year().total(LedgerCategory::Wages);
+            finance.on_month_end(7, 30, &configs);
+            monthly_wages.push(finance.this_year().total(LedgerCategory::Wages) - before);
+        }
+
+        assert_eq!(finance.this_year().total(LedgerCategory::Wages), 42);
+        assert_eq!(finance.this_year().total(LedgerCategory::Upkeep), 30);
+        assert_eq!(finance.balance(), 10_000 - 72);
+        assert_eq!(monthly_wages.iter().min(), Some(&3));
+        assert_eq!(monthly_wages.iter().max(), Some(&4));
+        assert_eq!(finance.carry(LedgerCategory::Wages), 0);
+    }
+
+    #[test]
+    fn the_debt_clock_counts_months_in_debt() {
+        let configs = FinanceConfigs { debt_limit_months: 4, ..FinanceConfigs::default() };
+        let mut finance = finance();
+        finance.set_wage(12);
+        finance.set_balance_unrecorded(5);
+        let _ = take_notices();
+
+        // 10 workers at 12 a year cost 10 a month.
+        finance.on_month_end(10, 0, &configs);
+        assert_eq!((finance.balance(), finance.months_in_debt()), (-5, 1));
+        assert!(!finance.is_debt_overdue(&configs));
+
+        for _ in 0..3 {
+            finance.on_month_end(10, 0, &configs);
+        }
+        assert_eq!(finance.months_in_debt(), 4);
+        assert!(finance.is_debt_overdue(&configs));
+
+        finance.add_unrecorded(1_000);
+        finance.on_month_end(10, 0, &configs);
+        assert_eq!(finance.months_in_debt(), 0);
+        assert!(!finance.is_debt_overdue(&configs));
+
+        assert_eq!(take_notices(), vec![
+            "The treasury is in debt: -5 gold.".to_string(),
+            "2 months in debt: 2 months left before the debt is overdue.".to_string(),
+            "3 months in debt: 1 month left before the debt is overdue.".to_string(),
+            "The city's debt is overdue: 4 months in debt.".to_string(),
+            "The treasury is out of debt.".to_string(),
+        ]);
     }
 
     #[test]

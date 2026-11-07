@@ -432,6 +432,21 @@ impl World {
             .find(|building| building.name() == name && building.is(kind))
     }
 
+    // Iterates every building in the world, whatever its kind: pool by pool, in a fixed order.
+    // Visitor function should return true to continue iterating or false to stop.
+    pub fn for_each_building_of_any_kind<F>(&self, mut visitor_fn: F)
+    where
+        F: FnMut(&Building) -> bool,
+    {
+        for (_, buildings) in &self.building_spawn_pools {
+            for building in buildings.iter() {
+                if !visitor_fn(building) {
+                    return;
+                }
+            }
+        }
+    }
+
     // Iterates *all* buildings of a kind in the world, in unspecified order.
     // Visitor function should return true to continue iterating or false to stop.
     // `building_kinds` can be a combination of ORed BuildingKind flags.

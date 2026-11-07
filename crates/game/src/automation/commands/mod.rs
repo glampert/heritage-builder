@@ -14,6 +14,7 @@ use crate::{
 mod assert;
 mod camera;
 mod config;
+mod finance;
 mod input;
 mod meta;
 mod minimap;
@@ -32,6 +33,7 @@ pub(super) const COMMAND_GROUPS: &[&[CommandDef]] = &[
     sim::COMMANDS,
     time::COMMANDS,
     world::COMMANDS,
+    finance::COMMANDS,
     camera::COMMANDS,
     minimap::COMMANDS,
     input::COMMANDS,

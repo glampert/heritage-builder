@@ -1,6 +1,6 @@
 # Finance
 
-**Status (2026-11-07): In progress: Phase 0 done, Phase 1 next.** The open decisions were settled on 2026-11-07. This plan is milestone M4 of the [roadmap](roadmap.md). It covers GDD 5.7: one city treasury that can go into debt, monthly wages and building upkeep, a tax rate the player sets, and yearly accounts in the finances dialog. Mission I-2 teaches "the tax office, the treasury and wages" ([campaigns.md](../design/campaigns.md#2-fish-and-clay)), and M9's failure rule "the city stays in debt too long" (GDD §7) needs the debt state. It was researched against `14fbc02` on `claude`. File and line references point at that commit, so re-check them before relying on them.
+**Status (2026-11-07): In progress: Phases 0 and 1 done, Phase 2 next.** The open decisions were settled on 2026-11-07. This plan is milestone M4 of the [roadmap](roadmap.md). It covers GDD 5.7: one city treasury that can go into debt, monthly wages and building upkeep, a tax rate the player sets, and yearly accounts in the finances dialog. Mission I-2 teaches "the tax office, the treasury and wages" ([campaigns.md](../design/campaigns.md#2-fish-and-clay)), and M9's failure rule "the city stays in debt too long" (GDD §7) needs the debt state. It was researched against `14fbc02` on `claude`. File and line references point at that commit, so re-check them before relying on them.
 
 ## How to resume this work
 
@@ -224,10 +224,40 @@ The HUD shows a negative balance with a minus sign, in a warning color if the st
 ### Phase 1: Wages, upkeep and debt (medium)
 
 - [x] `FinanceConfigs` in `SimConfigs`: default wage, debt limit, the tax levels' percentages and the default level (done in Phase 0).
-- [ ] Monthly wages and upkeep with carries; the tile def `upkeep` field and its values (hand-made defs in `tile_set.json`, generated ones through the catalog and `sync_tileset.py`).
-- [ ] The debt counter, the overdue flag, and toasts.
-- [ ] `finance.state` and `finance.set`.
-- [ ] `tests/finance.rs` for wages, upkeep and debt.
+- [x] Monthly wages and upkeep with carries; the tile def `upkeep` field and its values (hand-made defs in `tile_set.json`, generated ones through the catalog and `sync_tileset.py`).
+- [x] The debt counter, the overdue flag, and toasts.
+- [x] `finance.state` and `finance.set`.
+- [x] `tests/finance.rs` for wages, upkeep and debt.
+
+**Notes (2026-11-07):**
+- **Month-end charges:** `Finance::on_calendar_events` runs each new month's `on_month_end`, then the new year's rollover. It runs from `Simulation::update` once the step's `SimCmds` have run.
+  - Wages are `population.employed` (recounted by the step's update) times the yearly wage.
+  - Upkeep is `finance::yearly_upkeep`: the tile def `upkeep` of every finished building, read from its tile, so houses and sites pay none. It uses a new `World::for_each_building_of_any_kind`.
+  - Each is a twelfth of the yearly amount, with its carry, so twelve months pay the year exactly. December's charges land in the year that ends.
+- **Upkeep values** (gold per year), on the hand-made tile defs in `assets/tiles/objects/tile_set.json`: tax office, police station and apothecary 6; temple, hospital and theater 12; university 24; governor's palace 120; citadel 240. None of them is generated. The generator's catalog passes any `tile_set` field through, so a generated building takes `tile_set.upkeep`.
+- **The debt clock:**
+  - `months_in_debt` counts the month-ends in debt in a row, and resets once the balance is 0 or more.
+  - `is_debt_overdue` is true at `FinanceConfigs::debt_limit_months` (12; 0 turns the limit off).
+  - Notices are logged on the `finance` channel and queued like construction notices; `GameLoop::notify_finances` shows each as a toast. They fire on going into debt, each of the last three months before the limit, the limit itself, and getting out of debt.
+- **Commands:**
+  - `finance.state` reports the balance, the debt clock, the tax level and its percentage, the wage, the yearly upkeep, and both years' accounts with every category listed.
+  - `finance.set` takes `tax_level`, `wage` (0–1000) and `balance` (not recorded), validates them all before changing anything, and reports the state.
+- **Scenario change:** in `construction.jsonl`, the finished temple's upkeep is charged at the first month's end, before the cancelled site's refund is checked. Those two checks now read `/this_year/categories/Construction` (43: the road, the yard and one temple) instead of the balance.
+- **In the game:** `tiny_island` over three months paid 453 in wages (303 workers) and 147 in upkeep (588 a year), and took 966 in taxes, so a city with tax coverage still gains. Set to a balance of 10, it went into debt at the next month's end with the notice "The treasury is in debt: -47 gold."
+- **Tests:** in `tests/finance.rs`:
+  - the month's end pays wages and upkeep;
+  - sites pay no upkeep;
+  - December's charges count in the old year;
+  - wages run an empty treasury into debt until it's overdue, with the notices, and income clears it.
+
+  Unit tests check that twelve months pay a year exactly, and the debt clock with its notices.
+- **Verified:**
+  - `cargo test --workspace`;
+  - every CI scenario;
+  - `determinism.jsonl` twice (checksum `3801c7bcb809de76` with `--seed 7` at 1280x720);
+  - record and replay;
+  - the web target;
+  - `sync_tileset.py --check`.
 
 ### Phase 2: Tax rate, the dialog and missions (medium)
 

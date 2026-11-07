@@ -215,7 +215,7 @@ impl Simulation {
             }
 
             // Month-end charges and the new year's accounts, once the world is unlocked.
-            self.finance.on_calendar_events(&step.calendar_events);
+            self.finance.on_calendar_events(&step.calendar_events, world, tile_map);
 
             debug_assert!(self.cmds.is_empty());
         }

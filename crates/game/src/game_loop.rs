@@ -32,7 +32,7 @@ use crate::{
     unit::config::UnitConfigs,
     building::{self, config::BuildingConfigs},
     prop::config::PropConfigs,
-    sim::Simulation,
+    sim::{self, Simulation},
     system::GameSystems,
     session::{self, GameSession, GameSessionCmdQueue},
     campaign::{self, config::CampaignConfigs},
@@ -230,6 +230,7 @@ impl RunLoop for GameLoop {
         self.update_autosave();
         self.update_screenshots();
         self.notify_constructions_completed();
+        self.notify_finances();
         self.session_cmd_queue.execute(&mut self.session, self.engine, self.configs);
 
         // Automation commands run here: the world is unlocked and no SimContext is live.
@@ -518,6 +519,13 @@ impl GameLoop {
             self.engine.ui_system().show_toast(format!("{name} completed."));
         }
         ui::sound::play(self.engine.sound_system_mut(), ui::sound::UiSoundKey::ConstructionCompleted);
+    }
+
+    // A toast for each debt notice the simulation raised last frame (sim::finance).
+    fn notify_finances(&mut self) {
+        for message in sim::finance::take_notices() {
+            self.engine.ui_system().show_toast(message);
+        }
     }
 
     // Saves the current frame to screenshots/. A toast reports the result once it's written.
