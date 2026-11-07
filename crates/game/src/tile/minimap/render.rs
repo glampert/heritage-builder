@@ -7,7 +7,7 @@ use common::{Color, Rect, Vec2, coords::Cell, format_fixed_string};
 use engine::{
     file_sys::paths::PathRef,
     render::texture::TextureHandle,
-    ui::{self, UiCondition, UiFontScale, UiLayer, UiNumberFormat, UiPainter, UiStaticVar, UiSystem, UiWindow, sound::UiButtonSoundsEnabled, widgets::*},
+    ui::{self, UiCondition, UiFontScale, UiLayer, UiNumberFormat, UiPainter, UiStaticVar, UiSystem, UiTooltipBackground, UiWindow, sound::UiButtonSoundsEnabled, widgets::*},
 };
 
 use super::{
@@ -55,7 +55,7 @@ impl MinimapTool {
             Self::Alerts => "Next alert",
             Self::Home => "Centre on the palace",
             Self::WorldMap => "World map: coming with trade routes",
-            Self::Collapse => "Hide the map",
+            Self::Collapse => "Hide map",
         }
     }
 }
@@ -72,6 +72,9 @@ pub trait MinimapRenderer {
 struct MinimapButtons {
     lenses: Vec<(MinimapLens, UiSpriteButton)>,
     tools: Vec<(MinimapTool, UiSpriteButton)>,
+    // The building icons toggle: a button per state, the one showing the current state drawn.
+    landmarks_on: UiSpriteButton,
+    landmarks_off: UiSpriteButton,
     debug: Option<UiSpriteButton>,
 }
 
@@ -119,13 +122,11 @@ impl BaseMinimapRenderer {
             Some(sprite) => UiMenu::new(label).with_background(context, PathRef::from_str(sprite)),
             None => UiMenu::new(label),
         };
-        let tooltip_opacity = style.tooltip_opacity;
+        // The buttons' tooltips look like the rest of the HUD's (the developer UI's are plain);
+        // the style's tooltip settings are for the map's hover tooltip.
+        let with_frame = self.with_frame;
         let make_tooltip = |context: &mut GameUiContext, text: &str| {
-            let tooltip = UiTooltipText::new(text).with_font_scale(font_scale).with_opacity(tooltip_opacity);
-            match &tooltip_frame {
-                Some(sprite) => tooltip.with_background(context, PathRef::from_str(sprite)),
-                None => tooltip,
-            }
+            if with_frame { crate::menu::make_tooltip(context, text) } else { UiTooltipText::new(text).with_font_scale(font_scale) }
         };
         let make_button = |context: &mut GameUiContext, sprite: &str, tooltip: &str| {
             let tooltip = make_tooltip(context, tooltip);
@@ -154,7 +155,7 @@ impl BaseMinimapRenderer {
                 Vec2::new(0.0, ui::screen_size(context.ui_sys()).y - open_menu_size.y)
             }))
             .into_rc();
-        let open_button = make_button(context, &format!("{}/open", style.buttons), "Open the map").on_state_changed(|button, context, _| {
+        let open_button = make_button(context, &format!("{}/open", style.buttons), "Open map").on_state_changed(|button, context, _| {
             if button.is_pressed() {
                 ui::widgets::context_as_mut::<GameUiContext>(context).tile_map.minimap_mut().set_open(true);
                 button.press(false); // Single click button.
@@ -178,11 +179,13 @@ impl BaseMinimapRenderer {
             .collect();
 
         let debug = self.with_debug_button.then(|| make_button(context, &format!("{}/debug", style.buttons), "Debug"));
+        let landmarks_on = make_button(context, &format!("{}/landmarks_on", style.buttons), "Hide building icons");
+        let landmarks_off = make_button(context, &format!("{}/landmarks_off", style.buttons), "Show building icons");
         self.tooltip_background = tooltip_frame.as_ref().map(|sprite| context.load_texture(PathRef::from_str(sprite)));
 
         self.minimap_menu = Some(minimap_menu);
         self.open_button_menu = Some(open_button_menu);
-        self.buttons = Some(MinimapButtons { lenses, tools, debug });
+        self.buttons = Some(MinimapButtons { lenses, tools, landmarks_on, landmarks_off, debug });
     }
 
     fn draw<F>(&mut self, context: &mut GameUiContext, custom_draw_fn: F)
@@ -251,15 +254,25 @@ impl BaseMinimapRenderer {
         let layout = *context.tile_map.minimap().layout();
         let buttons = self.buttons.as_mut().unwrap();
 
-        ui::place_at(ui_sys, layout.lens_row, true, GAP, |_| {
-            for (_, button) in &mut buttons.lenses {
-                button.draw(context);
-            }
-        });
+        // The top row, right-aligned against the tool column. From right to left: the lenses (City
+        // first), the building icons toggle, then the debug toggle in the developer UI.
+        let right_slot = |slot: usize| {
+            let x = layout.lens_row.max.x - BUTTON_SIZE - slot as f32 * (BUTTON_SIZE + GAP);
+            Rect::from_pos_and_size(Vec2::new(x, layout.lens_row.min.y), Vec2::new(BUTTON_SIZE, BUTTON_SIZE))
+        };
+
+        let mut slot = 0;
+        for (_, button) in &mut buttons.lenses {
+            ui::place_at(ui_sys, right_slot(slot), true, GAP, |_| button.draw(context));
+            slot += 1;
+        }
+
+        let toggle = if context.tile_map.minimap().shows_landmarks() { &mut buttons.landmarks_on } else { &mut buttons.landmarks_off };
+        ui::place_at(ui_sys, right_slot(slot), true, GAP, |_| toggle.draw(context));
+        slot += 1;
 
         if let Some(debug) = &mut buttons.debug {
-            let rect = Rect::from_pos_and_size(Vec2::new(layout.lens_row.max.x - BUTTON_SIZE, layout.lens_row.min.y), Vec2::new(BUTTON_SIZE, BUTTON_SIZE));
-            ui::place_at(ui_sys, rect, true, GAP, |_| debug.draw(context));
+            ui::place_at(ui_sys, right_slot(slot), true, GAP, |_| debug.draw(context));
         }
 
         ui::place_at(ui_sys, layout.tools, false, layout.tool_spacing, |_| {
@@ -308,6 +321,13 @@ impl BaseMinimapRenderer {
                     minimap.set_open(false);
                     minimap.view_mut().auto_zoom = true; // Reopening resets the zoom.
                 }
+            }
+        }
+
+        for (button, show) in [(&mut buttons.landmarks_on, false), (&mut buttons.landmarks_off, true)] {
+            if button.is_pressed() {
+                button.press(false);
+                minimap.set_show_landmarks(show);
             }
         }
 
@@ -384,7 +404,7 @@ impl BaseMinimapRenderer {
             painter.mesh(meshes.fields);
             painter.mesh(meshes.top);
 
-            if !lens_on {
+            if !lens_on && minimap.shows_landmarks() {
                 Self::paint_landmarks(painter, minimap, style, &transform);
             }
             Self::paint_camera(painter, view.camera_rect, style);
@@ -394,7 +414,9 @@ impl BaseMinimapRenderer {
         painter.rect_stroke(layout.map, 0.0, 1.0, style.palette.outline.color());
 
         if lens_on {
-            Self::paint_legend(&painter, &lens_data.legend, layout, style);
+            // On the developer UI's dark window, the legend is white.
+            let text_color = if self.with_frame { style.legend.text.color() } else { Color::white() };
+            Self::paint_legend(&painter, &lens_data.legend, layout, style, text_color);
         }
     }
 
@@ -466,18 +488,22 @@ impl BaseMinimapRenderer {
     }
 
     // The legend in its rows under the map, on the widget's frame.
-    fn paint_legend(painter: &UiPainter, legend: &[(Color, &'static str)], layout: &MinimapLayout, style: &MinimapStyle) {
+    fn paint_legend(painter: &UiPainter, legend: &[(Color, &'static str)], layout: &MinimapLayout, style: &MinimapStyle, text_color: Color) {
         if legend.is_empty() || !layout.legend.is_valid() {
             return;
         }
+        let k = layout.legend_scale;
         let columns = layout.legend_columns;
         let column_width = layout.legend.width() / columns as f32;
+        let row_height = LEGEND_ROW_HEIGHT * k;
+        let swatch = Rect::from_pos_and_size(Vec2::new(0.0, 3.0 * k), Vec2::new(8.0 * k, 8.0 * k));
         for (index, (color, label)) in legend.iter().enumerate() {
             let (row, col) = (index / columns, index % columns);
-            let origin = Vec2::new(layout.legend.min.x + col as f32 * column_width, layout.legend.min.y + row as f32 * LEGEND_ROW_HEIGHT);
-            painter.rect_filled(Rect::from_pos_and_size(origin + Vec2::new(0.0, 3.0), Vec2::new(8.0, 8.0)), *color, 1.5);
-            painter.rect_stroke(Rect::from_pos_and_size(origin + Vec2::new(0.0, 3.0), Vec2::new(8.0, 8.0)), 1.5, 0.8, style.palette.outline.color());
-            painter.text_scaled(origin + Vec2::new(11.0, 0.0), style.landmark.ink.color(), 0.55, *label);
+            let origin = Vec2::new(layout.legend.min.x + col as f32 * column_width, layout.legend.min.y + row as f32 * row_height);
+            let swatch = Rect::from_extents(origin + swatch.min, origin + swatch.max);
+            painter.rect_filled(swatch, *color, 1.5 * k);
+            painter.rect_stroke(swatch, 1.5 * k, 0.8, style.palette.outline.color());
+            painter.text_scaled(origin + Vec2::new(11.0 * k, 0.0), text_color, style.legend.text_scale, *label);
         }
     }
 
@@ -510,9 +536,15 @@ impl BaseMinimapRenderer {
         };
         let cell = Cell::new(cell.0.x.round() as i32, cell.0.y.round() as i32);
         if let Some(name) = minimap.describe_cell(cell) {
-            // Styled as the buttons' tooltips: the realm's frame, at the style's opacity.
-            let opacity = style::current().tooltip_opacity;
-            ui::pointer_tooltip(context.ui_sys, self.font_scale, self.tooltip_background, opacity, |ui_sys| ui::text(ui_sys, &name));
+            // The style's tooltip settings: the realm's frame (or none), at its opacity. The
+            // developer UI's is plain.
+            let style = style::current();
+            let background = match self.tooltip_background {
+                _ if !style.tooltip_background => UiTooltipBackground::None,
+                Some(sprite) => UiTooltipBackground::Sprite(sprite),
+                None => UiTooltipBackground::Style,
+            };
+            ui::pointer_tooltip(context.ui_sys, self.font_scale, background, style.tooltip_opacity, |ui_sys| ui::text(ui_sys, &name));
         }
     }
 }

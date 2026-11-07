@@ -1027,18 +1027,39 @@ pub fn custom_tooltip(
     show_styled_tooltip(ui_sys, placed_tooltip(&response, placement), font_scale, background, opacity, contents);
 }
 
+// What a pointer_tooltip draws behind its contents.
+#[derive(Copy, Clone, PartialEq, Eq)]
+pub enum UiTooltipBackground {
+    Style,                  // The UI style's popup frame.
+    Sprite(TextureHandle),  // A sprite stretched behind the contents.
+    None,                   // Nothing: the contents alone.
+}
+
 // A tooltip at the pointer, not tied to a widget, styled like custom_tooltip: shows while this is
 // called.
 pub fn pointer_tooltip(
     ui_sys: &UiSystem,
     font_scale: UiFontScale,
-    background: Option<TextureHandle>,
+    background: UiTooltipBackground,
     opacity: f32,
     contents: impl FnOnce(&UiSystem),
 ) {
     let (layer_id, widget_id) = ui_sys.with_ui(|ui| (ui.layer_id(), ui.scope_id().with("pointer_tooltip")));
-    let tooltip = egui::Tooltip::always_open(ui_sys.ctx().clone(), layer_id, widget_id, egui::PopupAnchor::Pointer).gap(12.0);
-    show_styled_tooltip(ui_sys, tooltip, font_scale, background, opacity, contents);
+    let mut tooltip = egui::Tooltip::always_open(ui_sys.ctx().clone(), layer_id, widget_id, egui::PopupAnchor::Pointer).gap(12.0);
+    let sprite = match background {
+        UiTooltipBackground::Style => None,
+        UiTooltipBackground::Sprite(texture) => Some(texture),
+        UiTooltipBackground::None => {
+            tooltip.popup = tooltip.popup.frame(transparent_popup_frame(ui_sys));
+            None
+        }
+    };
+    show_styled_tooltip(ui_sys, tooltip, font_scale, sprite, opacity, contents);
+}
+
+// The popup frame with no fill, outline or shadow: the same margins.
+fn transparent_popup_frame(ui_sys: &UiSystem) -> egui::Frame {
+    egui::Frame::popup(&ui_sys.egui_style()).fill(Color32::TRANSPARENT).stroke(Stroke::NONE).shadow(egui::Shadow::NONE)
 }
 
 fn show_styled_tooltip(
@@ -1055,8 +1076,7 @@ fn show_styled_tooltip(
     // A background sprite replaces the popup's own fill, outline and shadow; the margins stay.
     let mut tooltip = tooltip;
     if background.is_some() {
-        let frame = egui::Frame::popup(&ui_sys.egui_style()).fill(Color32::TRANSPARENT).stroke(Stroke::NONE).shadow(egui::Shadow::NONE);
-        tooltip.popup = tooltip.popup.frame(frame);
+        tooltip.popup = tooltip.popup.frame(transparent_popup_frame(ui_sys));
     }
 
     tooltip.show(|ui| {

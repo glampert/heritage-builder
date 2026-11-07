@@ -32,10 +32,11 @@ pub(super) const COMMANDS: &[CommandDef] = &[
     },
     CommandDef {
         name: "minimap.set",
-        help: "Open or close the minimap, pick a lens, set its zoom (stops the auto zoom) or centre its view on a cell.",
+        help: "Open or close the minimap, pick a lens, show or hide the building icons, set its zoom (stops the auto zoom) or centre its view on a cell.",
         params: &[
             ParamDef { name: "open", kind: "bool", required: false, help: "Show the minimap, or only its open button." },
             ParamDef { name: "lens", kind: "string", required: false, help: "city, sectors or water." },
+            ParamDef { name: "show_landmarks", kind: "bool", required: false, help: "Show the building icons in the City view, as the toggle does." },
             ParamDef { name: "zoom", kind: "number", required: false, help: "1 shows the whole playable area; more zooms in." },
             ParamDef { name: "auto_zoom", kind: "bool", required: false, help: "Zoom to about 95 visible cells, as on opening." },
             ParamDef { name: "center", kind: "cell", required: false, help: "[x, y]: centre the view there (when zoomed in)." },
@@ -90,6 +91,7 @@ fn minimap_state(context: &CommandContext) -> Value {
     json!({
         "open": minimap.is_open(),
         "lens": minimap.lens().to_string(),
+        "show_landmarks": minimap.shows_landmarks(),
         "lenses": MinimapLens::available().iter().map(|lens| lens.to_string()).collect::<Vec<_>>(),
         "zoom": view.zoom,
         "auto_zoom": view.auto_zoom,
@@ -114,6 +116,7 @@ fn cmd_set(context: &mut CommandContext, params: Value) -> CommandResult {
     struct Params {
         open: Option<bool>,
         lens: Option<String>,
+        show_landmarks: Option<bool>,
         zoom: Option<f32>,
         auto_zoom: Option<bool>,
         center: Option<CellParam>,
@@ -147,6 +150,9 @@ fn cmd_set(context: &mut CommandContext, params: Value) -> CommandResult {
     }
     if let Some(lens) = lens {
         minimap.set_lens(lens);
+    }
+    if let Some(show) = params.show_landmarks {
+        minimap.set_show_landmarks(show);
     }
     if let Some(auto_zoom) = params.auto_zoom {
         minimap.view_mut().auto_zoom = auto_zoom;

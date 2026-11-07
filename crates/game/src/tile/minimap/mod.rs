@@ -381,6 +381,7 @@ pub struct Minimap {
     view: MinimapView,
     layout: MinimapLayout,
     is_open: bool,
+    show_landmarks: bool, // The building icons in the City view; alerts show either way.
 }
 
 impl Default for Minimap {
@@ -401,6 +402,7 @@ impl Default for Minimap {
             view: MinimapView::default(),
             layout: MinimapLayout::default(),
             is_open: true,
+            show_landmarks: true,
         }
     }
 }
@@ -432,7 +434,7 @@ impl Minimap {
         self.update_alerts(delta_time_secs);
 
         let legend_entries = if self.lens == MinimapLens::City { 0 } else { self.lens_data.legend.len() };
-        self.layout = MinimapLayout::new(ui::screen_size(ui_sys), render::TOOL_COUNT, style.map_size(), legend_entries);
+        self.layout = MinimapLayout::new(ui::screen_size(ui_sys), render::TOOL_COUNT, style.map_size(), legend_entries, style.legend.scale());
         if !self.is_open || !self.grid.size().is_valid() {
             return;
         }
@@ -667,6 +669,16 @@ impl Minimap {
     #[inline]
     pub fn set_open(&mut self, open: bool) {
         self.is_open = open;
+    }
+
+    #[inline]
+    pub fn shows_landmarks(&self) -> bool {
+        self.show_landmarks
+    }
+
+    #[inline]
+    pub fn set_show_landmarks(&mut self, show: bool) {
+        self.show_landmarks = show;
     }
 
     #[inline]

@@ -131,7 +131,7 @@ pub struct MinimapStyle {
     // Sprites, under assets/ui.
     pub field_texture: String,
     pub frame: String,
-    pub tooltip_frame: String, // Behind the minimap's tooltips; empty for `frame`.
+    pub tooltip_frame: String, // Behind the map's hover tooltip; empty for `frame`.
     pub buttons: String, // Folder of the tool and lens buttons under buttons/, e.g. "minimap".
     pub landmark_icons: BTreeMap<LandmarkKind, String>,
     pub alert_icon: String,
@@ -140,7 +140,11 @@ pub struct MinimapStyle {
     pub camera: CameraStyle,
     pub ping: HexColor,
     pub ping_opacity: f32,    // Of alert pings: their rings and icon, 1 opaque.
-    pub tooltip_opacity: f32, // Of the minimap's tooltips (buttons and the map), 1 opaque.
+    // The tooltip naming what's under the cursor on the map (not the buttons', which follow the
+    // rest of the HUD): its opacity (1 opaque), and whether it has a background at all.
+    pub tooltip_opacity: f32,
+    pub tooltip_background: bool,
+    pub legend: LegendStyle,
     pub badge: HexColor,
     pub badge_text: HexColor,
     pub lenses: LensStyle,
@@ -226,6 +230,27 @@ pub struct LandmarkStyle {
     pub opacity: f32,      // 1 opaque.
 }
 
+// The lens legend under the map.
+#[derive(Clone, Deserialize)]
+#[serde(default, deny_unknown_fields)]
+pub struct LegendStyle {
+    pub text_scale: f32, // Of the UI font; the colour swatches and rows scale with it.
+    pub text: HexColor,  // On the widget's frame. The developer UI's dark window uses white.
+}
+
+impl Default for LegendStyle {
+    fn default() -> Self {
+        Self { text_scale: 0.55, text: HexColor::rgb(0x2b2418) }
+    }
+}
+
+impl LegendStyle {
+    // Rows, columns and swatches grow with the text, from their size at the default scale.
+    pub fn scale(&self) -> f32 {
+        (self.text_scale / 0.55).clamp(0.5, 3.0)
+    }
+}
+
 #[derive(Clone, Deserialize)]
 #[serde(default, deny_unknown_fields)]
 pub struct CameraStyle {
@@ -287,6 +312,8 @@ impl Default for MinimapStyle {
             ping: HexColor::rgb(0xe8432f),
             ping_opacity: 1.0,
             tooltip_opacity: 1.0,
+            tooltip_background: true,
+            legend: LegendStyle::default(),
             badge: HexColor::rgb(0xa8261c),
             badge_text: HexColor::rgb(0xfff4dc),
             lenses: LensStyle::default(),
@@ -383,10 +410,21 @@ impl Default for LensStyle {
 }
 
 impl MinimapStyle {
+    // Đại Long's file is the base: another realm's file holds only what it changes, merged over
+    // it (objects field by field, anything else replaced). Fields neither file sets take the
+    // defaults in code.
     pub fn load(realm: MinimapRealm) -> Result<Self, String> {
-        let path = config::configs_path().join(realm.file_name());
-        let json = file_sys::load_string(&path).map_err(|err| format!("Can't read minimap style {path}: {err}"))?;
-        serde_json::from_str(&json).map_err(|err| format!("Invalid minimap style {path}: {err}"))
+        let read = |realm: MinimapRealm| -> Result<serde_json::Value, String> {
+            let path = config::configs_path().join(realm.file_name());
+            let json = file_sys::load_string(&path).map_err(|err| format!("Can't read minimap style {path}: {err}"))?;
+            serde_json::from_str(&json).map_err(|err| format!("Invalid minimap style {path}: {err}"))
+        };
+
+        let mut value = read(MinimapRealm::DaiLong)?;
+        if realm != MinimapRealm::DaiLong {
+            merge_json(&mut value, read(realm)?);
+        }
+        serde_json::from_value(value).map_err(|err| format!("Invalid minimap style for {realm}: {err}"))
     }
 
     // The sprite behind tooltips.
@@ -394,9 +432,9 @@ impl MinimapStyle {
         if self.tooltip_frame.is_empty() { &self.frame } else { &self.tooltip_frame }
     }
 
-    // The map area's size, kept large enough for the lens buttons.
+    // The map area's size, kept large enough for the top row's buttons.
     pub fn map_size(&self) -> common::Vec2 {
-        common::Vec2::new(self.map_size[0].max(160.0), self.map_size[1].max(80.0))
+        common::Vec2::new(self.map_size[0].max(200.0), self.map_size[1].max(80.0))
     }
 
     // The bake's settings.
@@ -426,6 +464,23 @@ impl MinimapStyle {
             forest_texture: self.forest_texture,
             land_texture: self.land_texture,
         }
+    }
+}
+
+// `overlay` over `base`: objects merged key by key, anything else replaced.
+fn merge_json(base: &mut serde_json::Value, overlay: serde_json::Value) {
+    match (base, overlay) {
+        (serde_json::Value::Object(base), serde_json::Value::Object(overlay)) => {
+            for (key, value) in overlay {
+                match base.get_mut(&key) {
+                    Some(existing) => merge_json(existing, value),
+                    None => {
+                        base.insert(key, value);
+                    }
+                }
+            }
+        }
+        (base, overlay) => *base = overlay,
     }
 }
 

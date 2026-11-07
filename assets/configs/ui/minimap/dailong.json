@@ -43,6 +43,8 @@
   "ping": "#e8432f",
   "ping_opacity": 1.0,
   "tooltip_opacity": 1.0,
+  "tooltip_background": true,
+  "legend": { "text_scale": 0.55, "text": "#2b2418" },
   "badge": "#a8261c",
   "badge_text": "#fff4dc",
   "lenses": {

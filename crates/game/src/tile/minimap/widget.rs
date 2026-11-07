@@ -36,25 +36,26 @@ pub const LEGEND_COLUMN_WIDTH: f32 = 75.0;
 pub struct MinimapLayout {
     pub window: Rect,   // The whole widget, in window points.
     pub map: Rect,      // The map area: also its clip rect.
-    pub lens_row: Rect, // Where the lens buttons go, left to right.
+    pub lens_row: Rect, // The top row: lens buttons and toggles, right-aligned against the tools.
     pub tools: Rect,    // Where the tool buttons go, top to bottom.
     pub legend: Rect,   // The lens legend's rows, under the map; empty without a lens.
     pub tool_spacing: f32,
     pub legend_columns: usize,
+    pub legend_scale: f32, // Of the legend's rows, columns and swatches (1 at the default text size).
 }
 
 impl MinimapLayout {
     // Legend entries per row for a map `map_width` points wide.
-    pub fn legend_columns(map_width: f32) -> usize {
-        ((map_width / LEGEND_COLUMN_WIDTH).floor() as usize).max(1)
+    pub fn legend_columns(map_width: f32, legend_scale: f32) -> usize {
+        ((map_width / (LEGEND_COLUMN_WIDTH * legend_scale)).floor() as usize).max(1)
     }
 
     // In the bottom left corner of a screen of `screen_size` points, with `tool_count` tools, a map
-    // of `map_size` points and `legend_entries` legend entries (0 without a lens).
-    pub fn new(screen_size: Vec2, tool_count: usize, map_size: Vec2, legend_entries: usize) -> Self {
-        let legend_columns = Self::legend_columns(map_size.x);
+    // of `map_size` points and `legend_entries` legend entries (0 without a lens) at `legend_scale`.
+    pub fn new(screen_size: Vec2, tool_count: usize, map_size: Vec2, legend_entries: usize, legend_scale: f32) -> Self {
+        let legend_columns = Self::legend_columns(map_size.x, legend_scale);
         let legend_rows = legend_entries.div_ceil(legend_columns);
-        let legend_height = if legend_rows > 0 { GAP + legend_rows as f32 * LEGEND_ROW_HEIGHT } else { 0.0 };
+        let legend_height = if legend_rows > 0 { GAP + legend_rows as f32 * LEGEND_ROW_HEIGHT * legend_scale } else { 0.0 };
 
         // The tools take the lens row and the map's height, or more if they don't fit in it.
         let tools_height = (BUTTON_SIZE + GAP + map_size.y)
@@ -73,7 +74,7 @@ impl MinimapLayout {
         } else {
             0.0
         };
-        Self { window, map, lens_row, tools, legend, tool_spacing, legend_columns }
+        Self { window, map, lens_row, tools, legend, tool_spacing, legend_columns, legend_scale }
     }
 }
 

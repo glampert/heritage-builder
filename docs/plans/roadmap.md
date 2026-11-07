@@ -11,7 +11,8 @@
   - [placeholder-art.md](placeholder-art.md) (M2);
   - [terrain-height.md](terrain-height.md) (T);
   - [unit-movement.md](unit-movement.md) (U);
-  - [minimap.md](minimap.md) (MM).
+  - [minimap.md](minimap.md) (MM);
+  - [realm-ui.md](realm-ui.md) (UI).
 - When a milestone starts, finishes or changes scope, update its row in the [Phase 1 table](#phase-1-campaign-i-missions-15-the-vertical-slice) and its entry in the [save-version log](#save-version-log).
 - Follow [AGENTS.md](../../AGENTS.md) throughout:
   - keep desktop and web compiling;
@@ -60,6 +61,7 @@ These follow [overview.md](../design/overview.md#development-phases).
 | T | Terrain height | Medium to large | M3 (spike after) | [terrain-height.md](terrain-height.md) | Not started |
 | U | Eight-direction movement for off-road walkers | Medium | M3; art from M2 Phase 6 | [unit-movement.md](unit-movement.md) | Not started |
 | MM | Minimap: painted relief, lenses and tools | Medium | — (lenses grow with M6, M7, M8) | [minimap.md](minimap.md) | Done (Risk, Faith, Flood and Fertility lenses come with M6, M8, M7) |
+| UI | Realm UI: menus, world map, intermission, comics, HUD and city pages in each realm's style | Large | — (screens fill in with M4, M9, M10, M11, M12) | [realm-ui.md](realm-ui.md) | Draft; not started |
 
 Suggested order:
 - **First:** M1 → M3 → M5, with M2 running alongside from the start.
@@ -68,6 +70,7 @@ Suggested order:
 - **Last:** M13, with M12 slotted in anywhere.
 - **Terrain height:** the T spike runs after M3, and Stages 1–4 come before M13 builds mission 5's map.
 - **Minimap:** MM can run any time; its Risk, Faith, Flood and Fertility lenses come with M6, M8 and M7.
+- **Realm UI:** UI's Phase 0 (skins, widgets, art pipeline) should land before M4, M9, M10, M11 and M12 build their screens, so they build them in the new style. Its later phases ship with today's data and leave hooks those milestones fill.
 - **Eight-direction movement:** U runs after M3 and, ideally, before T's pathfinding stage (Stage 4), since both change the same step check. Its art waits on the Blender walker experiment (M2, placeholder-art Phase 6), with a fallback to existing directions until then.
 
 ### M1: Game time and calendar (small)
@@ -233,6 +236,17 @@ See [minimap.md](minimap.md):
 
 No save-version bump: the minimap is rebuilt on load.
 
+
+### UI: Realm UI (large)
+
+See [realm-ui.md](realm-ui.md):
+- skins per realm as data (9-slice panels, buttons, controls, fonts, colours), and a script that draws their placeholder art from the mockup generator;
+- the main menus with a persistent profile (Continue, campaign progress, Custom Game);
+- the world map, the intermission and briefing, the comic viewer;
+- the HUD restyle (goals tracker, rating badges, message log) and the City book of management pages;
+- Đại Long moves to the mockup style, and the prototype's UI sprites go.
+
+No save-version bump: progress lives in a profile file beside the saves.
 ## Phase 2 outline
 
 These get their own plans when Phase 2 begins:
