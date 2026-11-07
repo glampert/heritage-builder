@@ -1888,7 +1888,8 @@ impl UiWidget for UiSpriteButton {
         let name = self.label.rsplit('/').next().unwrap_or(&self.label);
         let tooltip = self.tooltip.as_ref().map(|tooltip| tooltip.text.as_str());
         let pressed = Some(serde_json::Value::Bool(self.is_pressed()));
-        ui_sys.with_ui(|ui| immediate::record(ui_sys, ui, &response, "sprite_button", name, tooltip, true, pressed));
+        let enabled = self.is_enabled();
+        ui_sys.with_ui(|ui| immediate::record(ui_sys, ui, &response, "sprite_button", name, tooltip, enabled, pressed));
 
         if let Some(tooltip) = &self.tooltip {
             let show_tooltip = hovered && (!self.is_pressed() || self.show_tooltip_when_pressed);

@@ -16,6 +16,7 @@ mod camera;
 mod config;
 mod input;
 mod meta;
+mod minimap;
 mod observe;
 mod session;
 mod sim;
@@ -32,6 +33,7 @@ pub(super) const COMMAND_GROUPS: &[&[CommandDef]] = &[
     time::COMMANDS,
     world::COMMANDS,
     camera::COMMANDS,
+    minimap::COMMANDS,
     input::COMMANDS,
     ui::COMMANDS,
     config::COMMANDS,

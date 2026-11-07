@@ -1,0 +1,66 @@
+{
+  "_comment": "Icon paths for the minimap's buttons and landmarks, shared with the mockup generator (docs/design/mockups/generator/minimap.py). SVG path data in a 24-unit box centred on 0, drawn as strokes. make_icons.py turns them into PNGs.",
+
+  "glyphs": {
+    "city": "M-9,8 V-2 L-4,-6 L1,-2 V8 M1,8 V-8 L9,-8 V8 M-11,8 H11",
+    "sectors": "M-9,-9 H-1 V-1 H-9Z M1,-9 H9 V-1 H1Z M-9,1 H-1 V9 H-9Z M1,1 H9 V9 H1Z",
+    "water": "M0,-10 C6,-2 8,2 8,5 C8,10 4,12 0,12 C-4,12 -8,10 -8,5 C-8,2 -6,-2 0,-10Z",
+    "fire": "M0,-11 C6,-4 9,0 9,4 C9,9 5,12 0,12 C-5,12 -9,9 -9,4 C-9,0 -5,-3 -3,-7 C-2,-3 0,-1 2,-1 C2,-5 1,-8 0,-11Z",
+    "religion": "M-9,-2 Q0,-9 9,-2 M-6,-6 Q0,-12 6,-6 M-6,-2 V9 M6,-2 V9 M-9,9 H9 M0,-11 V-14",
+    "flood": "M-10,-3 Q-5,-7 0,-3 Q5,1 10,-3 M-10,3 Q-5,-1 0,3 Q5,7 10,3 M-10,9 Q-5,5 0,9 Q5,13 10,9",
+    "fertility": "M0,10 V-2 M0,2 Q-8,2 -8,-6 Q0,-6 0,2 M0,-2 Q8,-2 8,-10 Q0,-10 0,-2 M-9,10 H9",
+    "minus": "M-7,0 H7",
+    "plus": "M-7,0 H7 M0,-7 V7",
+    "alert": "M0,-10 L11,9 H-11Z M0,-3 V3 M0,6.5 V7",
+    "home": "M-9,0 L0,-9 L9,0 M-6,-2 V9 H6 V-2",
+    "world": "M-10,-6 L-3,-9 L3,-6 L10,-9 V6 L3,9 L-3,6 L-10,9Z M-3,-9 V6 M3,-6 V9",
+    "collapse": "M-7,-3 L0,4 L7,-3",
+    "palace": "M-7,4 V-2 L0,-8 L7,-2 V4Z M-3,4 V0 H3 V4",
+    "temple": "M-8,-1 Q0,-7 8,-1 M-6,-5 Q0,-10 6,-5 M-5,-1 V5 M5,-1 V5 M-7,5 H7",
+    "market": "M-7,-3 H7 L5,4 H-5Z M-4,-3 Q0,-9 4,-3",
+    "monument": "M-2,-8 L2,-8 L3,4 H-3Z M-6,4 H6 V7 H-6Z",
+    "port": "M0,-8 V7 M-4,-5 H4 M-7,2 Q-6,7 0,7 Q6,7 7,2",
+    "fort": "M-7,6 V-4 H-4 V-1 H-1 V-4 H1 V-1 H4 V-4 H7 V6Z M-2,6 V2 H2 V6"
+  },
+
+  "buttons": {
+    "size": 56,
+    "glyph_scale": 1.0,
+    "stroke": 2.8,
+    "corner_radius": 0.16,
+    "items": [
+      { "name": "lens_city", "glyph": "city" },
+      { "name": "lens_sectors", "glyph": "sectors" },
+      { "name": "lens_water", "glyph": "water" },
+      { "name": "lens_risk", "glyph": "fire" },
+      { "name": "lens_faith", "glyph": "religion" },
+      { "name": "lens_flood", "glyph": "flood" },
+      { "name": "lens_fertility", "glyph": "fertility" },
+      { "name": "zoom_in", "glyph": "plus" },
+      { "name": "zoom_out", "glyph": "minus" },
+      { "name": "alerts", "glyph": "alert", "ink": "alert" },
+      { "name": "home", "glyph": "home" },
+      { "name": "world_map", "glyph": "world" },
+      { "name": "collapse", "glyph": "collapse" }
+    ],
+    "realms": {
+      "dailong": { "folder": "minimap", "fill": "#efe0b8", "fill_hovered": "#f7ebcc", "fill_pressed": "#a8261c", "stroke": "#c9b083", "stroke_hovered": "#a8261c", "ink": "#2b2118", "ink_pressed": "#fff4dc", "alert": "#a8261c" },
+      "kambara": { "folder": "minimap_kambara", "fill": "#c4b796", "fill_hovered": "#d8ccae", "fill_pressed": "#9a4a2e", "stroke": "#a1957a", "stroke_hovered": "#9a4a2e", "ink": "#2c2a22", "ink_pressed": "#fff4dc", "alert": "#9a4a2e" },
+      "tampadesa": { "folder": "minimap_tampadesa", "fill": "#e8cfa0", "fill_hovered": "#f6e3b8", "fill_pressed": "#8a2216", "stroke": "#c79d64", "stroke_hovered": "#8a2216", "ink": "#3b2412", "ink_pressed": "#fff4dc", "alert": "#8a2216" }
+    }
+  },
+
+  "landmarks": {
+    "size": 48,
+    "glyph_scale": 1.55,
+    "stroke": 3.4,
+    "items": { "seat": "palace", "temple": "temple", "market": "market", "monument": "monument", "port": "port", "fort": "fort" }
+  },
+
+  "field_stripes": { "size": 32, "row": 0.37, "row_value": 0.78 },
+
+  "frames": {
+    "kambara": { "size": [720, 420], "style": "stone", "base": "#b3a789", "moss": "#5f7a3a", "border": "#1c1a14", "inner": "#5d5646" },
+    "tampadesa": { "size": [720, 420], "style": "lacquer", "top": "#6e5038", "bottom": "#4f3825", "rim": "#2a1c10", "gold": "#d4a94e", "inner": "#d9b98a" }
+  }
+}

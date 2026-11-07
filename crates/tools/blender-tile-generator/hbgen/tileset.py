@@ -18,7 +18,7 @@ import os
 from . import catalog as cat
 from . import pngio
 
-INLINE_OBJECT_KEYS = {"materials"}          # written on one line, as the hand-made defs do
+INLINE_OBJECT_KEYS = {"materials", "minimap"}  # written on one line, as the hand-made defs do
 _RESERVED = {"name", "logical_size", "draw_size", "variations"}
 
 

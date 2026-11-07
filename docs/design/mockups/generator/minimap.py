@@ -1,18 +1,25 @@
 """Minimap concepts: the same sample city drawn four ways, with the minimap's
 real projection (an isometric diamond clipped to the playable rectangle, as
-in crates/game/src/tile/minimap.rs), and the widget's toolbar.
+in crates/game/src/tile/minimap/), and the widget's toolbar. The icon paths
+come from crates/tools/ui-icons/icons.json, which also makes the game's sprites.
 
 Writes build/minimap-concepts.html and build/minimap-lenses.html.
 Needs numpy and Pillow.
 """
 import base64
 import io
+import json
 import math
+import pathlib
 
 import numpy as np
 from PIL import Image, ImageFilter
 
 from world_map import T, f, FONTS_CSS, BUILD
+
+# The icons' SVG paths, shared with the game (crates/tools/ui-icons/make_icons.py).
+ICONS = pathlib.Path(__file__).resolve().parents[4] / "crates" / "tools" / "ui-icons" / "icons.json"
+GLYPHS = json.loads(ICONS.read_text())["glyphs"]
 
 N = 80                       # map size in tiles
 RNG = np.random.default_rng(7)
@@ -278,8 +285,7 @@ class Minimap:
         return "".join(out)
 
     def landmark(self, x, y, name, k=1.0):
-        glyph = {"palace": "M-7,4 V-2 L0,-8 L7,-2 V4Z M-3,4 V0 H3 V4", "temple": "M-8,-1 Q0,-7 8,-1 M-6,-5 Q0,-10 6,-5 M-5,-1 V5 M5,-1 V5 M-7,5 H7",
-                 "market": "M-7,-3 H7 L5,4 H-5Z M-4,-3 Q0,-9 4,-3"}[name]
+        glyph = GLYPHS[name]
         return (f'<circle cx="{f(x)}" cy="{f(y)}" r="{f(12 * k)}" fill="#fffaf0" stroke="#2b2418" stroke-width="1.5"/>'
                 f'<path d="{glyph}" transform="translate({f(x)},{f(y)}) scale({f(k)})" fill="none" stroke="#2b2418" stroke-width="1.6" stroke-linejoin="round" stroke-linecap="round"/>')
 
@@ -372,18 +378,7 @@ class Minimap:
 
 # ====================================================================== chrome
 def icon(kind, x, y, s, c):
-    p = {
-        "city": "M-9,8 V-2 L-4,-6 L1,-2 V8 M1,8 V-8 L9,-8 V8 M-11,8 H11",
-        "sectors": "M-9,-9 H-1 V-1 H-9Z M1,-9 H9 V-1 H1Z M-9,1 H-1 V9 H-9Z M1,1 H9 V9 H1Z",
-        "water": "M0,-10 C6,-2 8,2 8,5 C8,10 4,12 0,12 C-4,12 -8,10 -8,5 C-8,2 -6,-2 0,-10Z",
-        "fire": "M0,-11 C6,-4 9,0 9,4 C9,9 5,12 0,12 C-5,12 -9,9 -9,4 C-9,0 -5,-3 -3,-7 C-2,-3 0,-1 2,-1 C2,-5 1,-8 0,-11Z",
-        "religion": "M-9,-2 Q0,-9 9,-2 M-6,-6 Q0,-12 6,-6 M-6,-2 V9 M6,-2 V9 M-9,9 H9 M0,-11 V-14",
-        "minus": "M-7,0 H7", "plus": "M-7,0 H7 M0,-7 V7",
-        "alert": "M0,-10 L11,9 H-11Z M0,-3 V3 M0,6.5 V7",
-        "home": "M-9,0 L0,-9 L9,0 M-6,-2 V9 H6 V-2",
-        "world": "M-10,-6 L-3,-9 L3,-6 L10,-9 V6 L3,9 L-3,6 L-10,9Z M-3,-9 V6 M3,-6 V9",
-        "collapse": "M-7,-3 L0,4 L7,-3",
-    }[kind]
+    p = GLYPHS[kind]
     return f'<path d="{p}" transform="translate({f(x)},{f(y)}) scale({s})" fill="none" stroke="{c}" stroke-width="{2.2 / s}" stroke-linecap="round" stroke-linejoin="round"/>'
 
 

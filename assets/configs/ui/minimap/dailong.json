@@ -1,0 +1,57 @@
+{
+  "max_texture_side": 1024,
+  "bake_budget_cells": 4096,
+  "palette": {
+    "land_low": "#a7bd72", "land_high": "#cdbb83", "forest": "#5d8c48", "rocks": "#a19584",
+    "water_shallow": "#6db3c2", "water_deep": "#2f6f8c", "foam": "#f3f0dc", "vacant_lot": "#d8c99a",
+    "void": "#1a1611", "road": "#f4e8c8", "paved_road": "#e2d6c0", "road_casing": "#6b5a40cc",
+    "shadow": "#1f1a1259", "outline": "#2b24188c", "field": "#b7c560", "background": "#2f6f8c"
+  },
+  "sector_colors": {
+    "Housing": "#e7c98b", "FoodAndFarming": "#a9b85a", "IndustryAndResources": "#b8553f",
+    "Services": "#5b8fc9", "Infrastructure": "#8d8a83", "CultureAndReligion": "#9a5aa8",
+    "TradeAndEconomy": "#e0a93a", "Beautification": "#6fbf7a", "None": "#d9d3c4"
+  },
+  "blur_cells": { "water": 0.3, "vegetation": 0.4, "rocks": 0.4, "vacant_lot": 0.15 },
+  "max_depth_cells": 6,
+  "foam_width": 0.09,
+  "foam_strength": 0.85,
+  "hill_shade": [0.75, 1.2],
+  "hill_strength": 2.2,
+  "elevation_cells": 14.0,
+  "forest_texture": 0.2,
+  "land_texture": 0.04,
+  "vacant_lot_alpha": 0.7,
+  "building_inset_cells": 0.14,
+  "shadow_offset_cells": [0.32, 0.32],
+  "outline_cells": 0.1,
+  "road_width_cells": 0.45,
+  "road_casing_cells": 0.75,
+  "field_stripes_per_cell": 1.6,
+  "field_texture": "minimap/field_stripes.png",
+  "frame": "misc/square_page_bg.png",
+  "buttons": "minimap",
+  "landmark_icons": {
+    "Seat": "minimap/icons/seat.png", "Temple": "minimap/icons/temple.png", "Market": "minimap/icons/market.png",
+    "Monument": "minimap/icons/monument.png", "Port": "minimap/icons/port.png", "Fort": "minimap/icons/fort.png"
+  },
+  "alert_icon": "icons/alert_icon.png",
+  "landmark": { "fill": "#fffaf0", "ink": "#2b2418", "size": 15.0, "min_cell_px": 3.0 },
+  "camera": { "fill": "#ffffff1f", "outline": "#fffaf0", "width": 1.5, "ticks": 7.0 },
+  "ping": "#e8432f",
+  "badge": "#a8261c",
+  "badge_text": "#fff4dc",
+  "lenses": {
+    "veil": "#d8d2c48c",
+    "neutral": "#d9d3c4",
+    "sector_colors": {
+      "Housing": "#f2c45a", "FoodAndFarming": "#9cc24a", "IndustryAndResources": "#d4463a",
+      "Services": "#3f8fe0", "Infrastructure": "#7d8794", "CultureAndReligion": "#9b59c2",
+      "TradeAndEconomy": "#f08c2a", "Beautification": "#3dbf8a", "None": "#d9d3c4"
+    },
+    "water_ramp": ["#3d8fd100", "#3d8fd1b0"],
+    "water_access": "#2f78c4",
+    "water_no_access": "#e0893a",
+    "refresh_secs": 1.0
+  }
+}

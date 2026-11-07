@@ -345,6 +345,32 @@ pub fn dummy(ui_sys: &UiSystem, size: Vec2) {
     ui_sys.with_ui(|ui| ui.allocate_exact_size(egui_vec2(size), Sense::hover()));
 }
 
+// Lays out the widgets drawn in `contents` inside `rect`, in window points, wherever the layout
+// was: in a row if `horizontal`, else in a column, `spacing` apart. The space it takes is
+// allocated as if it had been laid out there.
+pub fn place_at<R>(ui_sys: &UiSystem, rect: Rect, horizontal: bool, spacing: f32, contents: impl FnOnce(&UiSystem) -> R) -> R {
+    ui_sys.with_parent_ui(|parent| {
+        let layout = if horizontal { egui::Layout::left_to_right(Align::Min) } else { egui::Layout::top_down(Align::Min) };
+        let builder = egui::UiBuilder::new().max_rect(egui_rect(rect)).layout(layout);
+        ui_sys
+            .child_ui_scope(parent, builder, true, |ui_sys| {
+                ui_sys.with_ui(|ui| ui.spacing_mut().item_spacing = vec2(spacing, spacing));
+                contents(ui_sys)
+            })
+            .0
+    })
+}
+
+// The rect the widgets drawn next can take, in window points.
+pub fn available_rect(ui_sys: &UiSystem) -> Rect {
+    ui_sys.with_ui(|ui| to_rect(ui.available_rect_before_wrap()))
+}
+
+// Physical pixels per window point, e.g. 2 on a Retina display.
+pub fn pixels_per_point(ui_sys: &UiSystem) -> f32 {
+    ui_sys.ctx().pixels_per_point()
+}
+
 // Lays out the widgets drawn in `contents` in a row, with the default spacing between them.
 pub fn horizontal<R>(ui_sys: &UiSystem, contents: impl FnOnce(&UiSystem) -> R) -> R {
     ui_sys.with_parent_ui(|parent| parent.horizontal(|ui| ui_sys.ui_scope(ui, contents)).inner)
@@ -1931,6 +1957,49 @@ pub enum UiLayer {
     Foreground, // Over every window.
 }
 
+// Triangles to draw in one go, untextured (TextureHandle::White) or with a texture, e.g. the
+// minimap's buildings. Positions are in window points, `uv`s with (0, 0) at the texture's top
+// left (past 1 for a texture that repeats), colours straight alpha, multiplying the texture.
+pub struct UiMesh {
+    mesh: egui::Mesh,
+}
+
+impl UiMesh {
+    pub fn new(texture: TextureHandle) -> Self {
+        Self { mesh: egui::Mesh::with_texture(egui_texture(texture)) }
+    }
+
+    pub fn with_capacity(texture: TextureHandle, vertices: usize, indices: usize) -> Self {
+        let mut mesh = egui::Mesh::with_texture(egui_texture(texture));
+        mesh.vertices.reserve(vertices);
+        mesh.indices.reserve(indices);
+        Self { mesh }
+    }
+
+    // Its index, for add_triangle.
+    #[inline]
+    pub fn add_vertex(&mut self, position: Vec2, uv: Vec2, color: Color) -> u32 {
+        let index = self.mesh.vertices.len() as u32;
+        self.mesh.vertices.push(egui::epaint::Vertex { pos: egui_pos2(position), uv: egui_pos2(uv), color: color32(color) });
+        index
+    }
+
+    #[inline]
+    pub fn add_triangle(&mut self, a: u32, b: u32, c: u32) {
+        self.mesh.add_triangle(a, b, c);
+    }
+
+    #[inline]
+    pub fn vertex_count(&self) -> usize {
+        self.mesh.vertices.len()
+    }
+
+    #[inline]
+    pub fn is_empty(&self) -> bool {
+        self.mesh.indices.is_empty()
+    }
+}
+
 // Draws shapes, text and images in window points. Get one with ui::painter, and keep it only
 // while drawing.
 pub struct UiPainter {
@@ -1989,6 +2058,59 @@ impl UiPainter {
         mesh.add_triangle(0, 1, 2);
         mesh.add_triangle(0, 2, 3);
         self.painter.add(egui::Shape::mesh(mesh));
+    }
+
+    // An outline `width` points wide, inside `rect`, with rounded corners.
+    pub fn rect_stroke(&self, rect: Rect, rounding: f32, width: f32, color: Color) {
+        self.painter.rect_stroke(egui_rect(rect), rounding, Stroke::new(width, color32(color)), StrokeKind::Inside);
+    }
+
+    pub fn circle_stroke(&self, center: Vec2, radius: f32, width: f32, color: Color) {
+        self.painter.circle_stroke(egui_pos2(center), radius, Stroke::new(width, color32(color)));
+    }
+
+    pub fn line(&self, a: Vec2, b: Vec2, width: f32, color: Color) {
+        self.painter.line_segment([egui_pos2(a), egui_pos2(b)], Stroke::new(width, color32(color)));
+    }
+
+    // Connected segments, back to the first point if `closed`.
+    pub fn polyline(&self, points: &[Vec2], width: f32, color: Color, closed: bool) {
+        let points: Vec<Pos2> = points.iter().map(|p| egui_pos2(*p)).collect();
+        let stroke = Stroke::new(width, color32(color));
+        let shape = if closed { egui::Shape::closed_line(points, stroke) } else { egui::Shape::line(points, stroke) };
+        self.painter.add(shape);
+    }
+
+    // A filled convex polygon with an optional outline (`stroke_width` 0 for none).
+    pub fn convex_polygon(&self, points: &[Vec2], fill: Color, stroke_width: f32, stroke: Color) {
+        let points: Vec<Pos2> = points.iter().map(|p| egui_pos2(*p)).collect();
+        self.painter.add(egui::Shape::convex_polygon(points, color32(fill), Stroke::new(stroke_width, color32(stroke))));
+    }
+
+    // Text with its top left corner at `position`, in the current font scaled by `scale`. Returns
+    // the text's size.
+    pub fn text_scaled(&self, position: Vec2, color: Color, scale: f32, text: impl UiTextArg) -> Vec2 {
+        let mut font = self.font.clone();
+        font.size *= scale;
+        text.with_str(|text| {
+            let rect = self.painter.text(egui_pos2(position), Align2::LEFT_TOP, text, font, color32(color));
+            Vec2::new(rect.width(), rect.height())
+        })
+    }
+
+    // Text centred on `center`, in the current font scaled by `scale`.
+    pub fn text_centered(&self, center: Vec2, color: Color, scale: f32, text: impl UiTextArg) {
+        let mut font = self.font.clone();
+        font.size *= scale;
+        text.with_str(|text| {
+            self.painter.text(egui_pos2(center), Align2::CENTER_CENTER, text, font, color32(color));
+        });
+    }
+
+    pub fn mesh(&self, mesh: UiMesh) {
+        if !mesh.is_empty() {
+            self.painter.add(egui::Shape::mesh(mesh.mesh));
+        }
     }
 
     // What `draw` paints is clipped to `clip_rect`, within the current clip rect.
