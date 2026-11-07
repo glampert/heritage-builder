@@ -36,7 +36,7 @@ pub const LEGEND_COLUMN_WIDTH: f32 = 75.0;
 pub struct MinimapLayout {
     pub window: Rect,   // The whole widget, in window points.
     pub map: Rect,      // The map area: also its clip rect.
-    pub lens_row: Rect, // Where the lens buttons go, left to right.
+    pub lens_row: Rect, // The top row: lens buttons and toggles, right-aligned against the tools.
     pub tools: Rect,    // Where the tool buttons go, top to bottom.
     pub legend: Rect,   // The lens legend's rows, under the map; empty without a lens.
     pub tool_spacing: f32,

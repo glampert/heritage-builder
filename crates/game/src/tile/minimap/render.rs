@@ -254,22 +254,25 @@ impl BaseMinimapRenderer {
         let layout = *context.tile_map.minimap().layout();
         let buttons = self.buttons.as_mut().unwrap();
 
-        ui::place_at(ui_sys, layout.lens_row, true, GAP, |_| {
-            for (_, button) in &mut buttons.lenses {
-                button.draw(context);
-            }
-        });
-
-        // At the row's right end: the building icons toggle, and the debug toggle left of it.
-        let right_slot = |slot: f32| {
-            let x = layout.lens_row.max.x - BUTTON_SIZE - slot * (BUTTON_SIZE + GAP);
+        // The top row, right-aligned against the tool column. From right to left: the lenses (City
+        // first), the building icons toggle, then the debug toggle in the developer UI.
+        let right_slot = |slot: usize| {
+            let x = layout.lens_row.max.x - BUTTON_SIZE - slot as f32 * (BUTTON_SIZE + GAP);
             Rect::from_pos_and_size(Vec2::new(x, layout.lens_row.min.y), Vec2::new(BUTTON_SIZE, BUTTON_SIZE))
         };
+
+        let mut slot = 0;
+        for (_, button) in &mut buttons.lenses {
+            ui::place_at(ui_sys, right_slot(slot), true, GAP, |_| button.draw(context));
+            slot += 1;
+        }
+
         let toggle = if context.tile_map.minimap().shows_landmarks() { &mut buttons.landmarks_on } else { &mut buttons.landmarks_off };
-        ui::place_at(ui_sys, right_slot(0.0), true, GAP, |_| toggle.draw(context));
+        ui::place_at(ui_sys, right_slot(slot), true, GAP, |_| toggle.draw(context));
+        slot += 1;
 
         if let Some(debug) = &mut buttons.debug {
-            ui::place_at(ui_sys, right_slot(1.0), true, GAP, |_| debug.draw(context));
+            ui::place_at(ui_sys, right_slot(slot), true, GAP, |_| debug.draw(context));
         }
 
         ui::place_at(ui_sys, layout.tools, false, layout.tool_spacing, |_| {

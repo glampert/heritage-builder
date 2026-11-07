@@ -390,7 +390,7 @@ Budgets, release build, desktop; web within 2× of them:
 - Realm style files inherit Đại Long's: `MinimapStyle::load` merges a realm's file over `dailong.json` (objects key by key), so a setting changed there, such as `map_size`, reaches every realm that doesn't set it. Fields neither file sets take the defaults in code. `tests/minimap.rs` checks it.
 - `tooltip_opacity`, `tooltip_frame` and the new `tooltip_background` (false: no background at all) apply only to the map's hover tooltip. The buttons' tooltips use the HUD's own (`menu::make_tooltip`), plain ones in the developer UI.
 - `legend: { "text_scale", "text" }`: the legend's text size (its swatches, rows and columns scale with it) and colour. In the developer UI's dark window the legend is white.
-- A building icons toggle on the top row, left of the tools: `landmarks_on` while they show (the default), `landmarks_off` while hidden, one sprite each. Alerts show either way. `minimap.set show_landmarks=...` and `minimap.state`'s `show_landmarks` do the same from automation.
+- The top row is right-aligned against the tool column; from right to left: City, Sectors, Water, the building icons toggle, then the developer UI's debug toggle. The toggle: `landmarks_on` while they show (the default), `landmarks_off` while hidden, one sprite each. Alerts show either way. `minimap.set show_landmarks=...` and `minimap.state`'s `show_landmarks` do the same from automation.
 - The tooltips read "Hide map" and "Open map".
 
 ## Later
