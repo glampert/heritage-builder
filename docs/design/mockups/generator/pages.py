@@ -74,7 +74,8 @@ class Pages:
                 "goods": "In storage yards and granaries", "finances": f"Year {self.pd['date'].split('year ')[-1]} · month {self.pd['month']}"
                 if "year " in self.pd["date"] else f"Month {self.pd['month']}",
                 "ratings": "What raises and lowers each rating", "labour": "Workers go to the highest priority first",
-                "food": "Granaries and what the houses eat"}[page]
+                "food": "Granaries and what the houses eat",
+                "heritage": "The monument, the patrons and the festivals"}[page]
 
     # ------------------------------------------------------------ widgets
     def glyph(self, kind, x, y, s, c, sw=2.4):
@@ -511,6 +512,156 @@ class Pages:
         parts.append(self.card(x0, cy, x1 - x0, y1 - cy, "Food in granaries", "the last twelve months"))
         parts.append(self.chart(x0 + 84, cy + 66, x1 - x0 - 120, y1 - cy - 130, d["food_trend"]))
         self.page(f"city-food-{d['key']}", parts)
+
+
+    # ------------------------------------------------------------ heritage
+    def heritage_book(self):
+        """The book with the Heritage tab open, in the monument mission's city."""
+        hd = PC.HERITAGE[self.pd["key"]]
+        saved = self.pd
+        self.pd = dict(saved, city=hd["city"], date=hd["date"], month=hd["month"], season=hd["season"])
+        parts, box = self.book("heritage")
+        self.pd = saved
+        return hd, parts, box
+
+    def stage_mark(self, x, y, v):
+        if v >= 1:
+            return self.check(x, y, True)
+        if v > 0:
+            return (f'<circle cx="{x}" cy="{y}" r="12" fill="{self.field_fill}" stroke="{self.accent}" stroke-width="3"/>'
+                    f'<path d="M{x},{y - 12} A12,12 0 {1 if v > 0.5 else 0} 1 {f(x + 12 * math.sin(v * 2 * math.pi))},{f(y - 12 * math.cos(v * 2 * math.pi))} L{x},{y}Z" fill="{self.accent}"/>')
+        return f'<circle cx="{x}" cy="{y}" r="11" fill="none" stroke="{self.panel_sub}" stroke-width="1.5" opacity="0.8"/>'
+
+    def monument_card(self, hd, x, y, w, h):
+        out = [self.card(x, y, w, h, "Monument", hd["mission"])]
+        out.append(T(x + 24, y + 86, hd["monument"], self.title_font, 32, self.panel_text, "start", 700))
+        out.append(self.t(x + 24, y + 114, hd["site"], 17, self.panel_sub, italic=True))
+        stages = hd["stages"]
+        done = sum(1 for _, v, _ in stages if v >= 1)
+        out.append(self.t(x + w - 24, y + 86, f"Stage {done + 1} of {len(stages)}", 19, self.panel_text, "end", 700))
+        out.append(self.t(x + w - 24, y + 114, hd["eta"], 17, self.panel_sub, "end", italic=True))
+        sy = y + 152
+        for k, (name, v, needs) in enumerate(stages):
+            current = 0 < v < 1
+            out.append(self.rule(x + 24, x + w - 24, sy - 22))
+            out.append(self.stage_mark(x + 40, sy, v))
+            out.append(self.t(x + 64, sy + 7, f"{k + 1}. {name}", 20, self.panel_text if v > 0 else self.panel_sub, "start", 700 if current else 600))
+            out.append(self.t(x + w - 24, sy + 7, "built" if v >= 1 else f"{round(v * 100)}%" if current else "to come", 18,
+                              self.good_col if v >= 1 else self.accent if current else self.panel_sub, "end", 700, italic=v == 0))
+            sy += 40
+            if current:
+                out.append(f'<rect x="{x + 52}" y="{sy - 18}" width="{w - 76}" height="{len(needs) * 34 + 18}" rx="6" fill="{self.field_fill}" stroke="{self.accent}" stroke-width="1.5"/>')
+                for j, (good, have, need) in enumerate(needs):
+                    ny = sy + 10 + j * 34
+                    worker = good.endswith("s") and good not in ("Bricks", "Roof Tiles")
+                    out.append(self.glyph("population", x + 78, ny - 6, 0.55, self.accent) if worker else self.good_bullet(x + 78, ny - 6))
+                    out.append(self.t(x + 96, ny, good, 18, self.panel_text, "start", 600))
+                    out.append(self.bar(x + 250, ny - 11, w - 420, 9, have / need))
+                    out.append(self.t(x + w - 40, ny, f"{have} / {need}", 17, self.panel_text, "end", 600))
+                sy += len(needs) * 34 + 28
+        by = y + h - 124
+        out.append(self.rule(x + 24, x + w - 24, by - 12))
+        out.append(self.section_title(x + 24, by + 18, "When it is finished"))
+        for k, b in enumerate(hd["bonuses"]):
+            bx = x + 24 + (k % 2) * (w - 48) / 2
+            out.append(self.glyph("star", bx + 10, by + 48 + (k // 2) * 30 - 6, 0.45, self.accent, 3))
+            out.append(self.t(bx + 28, by + 48 + (k // 2) * 30, b, 18, self.panel_text, "start", 600))
+        return "".join(out)
+
+    def patron_row(self, x, y, w, patron, compact=False):
+        name, domain, ic, favour, mood, effect = patron
+        low = favour < 40
+        out = [f'<circle cx="{x + 30}" cy="{y + 2}" r="22" fill="{self.field_fill}" stroke="{self.accent if not low else self.panel_sub}" stroke-width="2"/>',
+               self.glyph(ic, x + 30, y + 2, 0.8, self.accent),
+               T(x + 66, y - 2, name, self.title_font, 20, self.panel_text, "start", 700),
+               self.t(x + 66, y + 22, domain, 16, self.panel_sub, italic=True)]
+        out.append(self.t(x + w - 24, y - 2, f"{mood} · {favour}", 17, self.accent if low else self.good_col, "end", 700))
+        bw = 120 if compact else 200
+        out.append(self.bar(x + w - 24 - bw, y + 12, bw, 9, favour / 100))
+        if not compact:
+            out.append(self.t(x + w - 44 - bw, y + 22, ("Below 30: " if low else "Above 70: ") + effect.lower(), 15, self.panel_sub, "end", 600, italic=True))
+        return "".join(out)
+
+    def festival_planner(self, hd, x, y, w, h, title="Next festival", detail=False, button="Hold festival"):
+        fe = hd["festival"]
+        out = [self.card(x, y, w, h, title, f"month {fe['month']}")]
+        out.append(T(x + 24, y + 84, fe["name"], self.title_font, 28, self.panel_text, "start", 700))
+        cy = y + 104
+        if detail:
+            out.append(self.t(x + 24, y + 110, fe["venue"], 17, self.panel_sub, italic=True))
+            lines = self.wrap(fe["text"], w - 48, 18, 0.48)
+            for k, line in enumerate(lines):
+                out.append(self.t(x + 24, y + 144 + k * 26, line, 18, self.panel_text, "start", 600, italic=True))
+            cy = y + 144 + len(lines) * 26
+        bw = 230
+        out.append(self.segments(x + 24, cy, w - 72 - bw, fe["scales"], fe["scale"]))
+        out.append(self.button(x + w - 24 - bw, cy - 3, bw, 52, button, True))
+        cy += 86
+        out.append(self.t(x + 24, cy, "Costs", 17, self.panel_sub, "start", 700))
+        out.append(self.t(x + w / 2 + 10, cy, "Effects", 17, self.panel_sub, "start", 700))
+        for k, (good, n, have) in enumerate(fe["cost"]):
+            ry = cy + 30 + k * 28
+            short = have < n
+            out.append(self.t(x + 24, ry, good, 18, self.panel_text, "start", 600))
+            out.append(self.t(x + w / 2 - 20, ry, f"{n}" + (f"  ·  {have} held" if short else ""), 18, self.accent if short else self.panel_text, "end", 700))
+        for k, (what, v) in enumerate(fe["effects"]):
+            ry = cy + 30 + k * 28
+            out.append(self.t(x + w / 2 + 10, ry, what, 18, self.panel_text, "start", 600))
+            out.append(self.t(x + w - 24, ry, v, 18, self.good_col, "end", 700, italic=not v.startswith("+")))
+        return "".join(out), cy + 30 + max(len(fe["cost"]), len(fe["effects"])) * 28
+
+    def heritage(self):
+        """Sub-tabs for Monument, Patrons and Festivals; the Festivals tab is open. monument_card and
+        patron_row draw the other two tabs' contents, for when they get mockups of their own."""
+        hd, parts, (x0, y0, x1, y1) = self.heritage_book()
+        tw = 200
+        for k, lab in enumerate(["Monument", "Patrons", "Festivals"]):
+            parts.append(self.tab(x0 + k * (tw + 12), y0 - 6, tw, lab, lab == "Festivals"))
+        y0 += 64
+        # The year's festivals on a month strip.
+        sh = 172
+        parts.append(self.card(x0, y0, x1 - x0, sh, "The festival year", "dots mark festivals"))
+        sx0, sx1 = x0 + 40, x1 - 40
+        step = (sx1 - sx0) / 11
+        ly = y0 + 84
+        parts.append(f'<line x1="{sx0}" y1="{ly}" x2="{sx1}" y2="{ly}" stroke="{self.panel_rule}" stroke-width="3"/>')
+        month = hd["month"]
+        for m in range(12):
+            mx = sx0 + m * step
+            parts.append(f'<line x1="{f(mx)}" y1="{ly - 6}" x2="{f(mx)}" y2="{ly + 6}" stroke="{self.panel_sub}" stroke-width="1.5"/>')
+            parts.append(self.t(mx, ly + 30, str(m + 1), 15, self.panel_text if m + 1 == month else self.panel_sub, "middle", 800 if m + 1 == month else 600))
+        nx = sx0 + (month - 1) * step
+        parts.append(f'<path d="M{f(nx)},{ly - 14} l-7,-10 h14z" fill="{self.panel_text}"/>')
+        parts.append(self.t(nx, ly - 30, "now", 14, self.panel_text, "middle", 700, italic=True))
+        for n, (name, m, patron, state) in enumerate(hd["festivals"]):
+            mx = sx0 + (m - 1) * step
+            on = state == "next"
+            parts.append(f'<circle cx="{f(mx)}" cy="{ly}" r="{11 if on else 8}" fill="{self.accent if state != "past" else self.panel_sub}" stroke="{self.knob_fill}" stroke-width="2"/>')
+            # Labels near the strip's ends align to the dot's outer side so they stay in the card.
+            lx, anchor = (mx - 12, "start") if m <= 1 else (mx + 12, "end") if m >= 12 else (mx, "middle")
+            parts.append(self.t(lx, ly + 54 + (n % 2) * 22, name, 15, self.accent if on else self.panel_text, anchor, 700 if on else 600))
+        # Left: the festivals, with their patron and when last held.
+        cy = y0 + sh + 20
+        lw = 470
+        parts.append(self.card(x0, cy, lw, y1 - cy, "Festivals"))
+        for k, (name, m, patron, state) in enumerate(hd["festivals"]):
+            ry = cy + 90 + k * 76
+            on = state == "next"
+            if on:
+                parts.append(f'<rect x="{x0 + 12}" y="{ry - 34}" width="{lw - 24}" height="66" rx="6" fill="{self.field_fill}" stroke="{self.accent}" stroke-width="2"/>')
+            parts.append(T(x0 + 24, ry, name, self.title_font, 21, self.panel_text, "start", 700))
+            parts.append(self.t(x0 + lw - 24, ry, f"month {m}", 17, self.panel_sub, "end", 600))
+            parts.append(self.t(x0 + 24, ry + 22, f"For {patron[0].lower() + patron[1:] if patron.startswith('every') else patron}", 16, self.panel_sub, "start", 600, italic=True))
+            parts.append(self.t(x0 + lw - 24, ry + 22, {"past": "held this year", "next": "next", "later": "to come"}[state], 16,
+                                self.accent if on else self.panel_sub, "end", 700, italic=True))
+        # Right: the planner for the selected one.
+        rx, rw = x0 + lw + 20, x1 - x0 - lw - 20
+        planner, end = self.festival_planner(hd, rx, cy, rw, y1 - cy, "Plan the festival", detail=True,
+                                             button=f"Hold in month {hd['festival']['month']}")
+        parts.append(planner)
+        parts.append(self.t(x0 + 24, y1 - 48, "Last held:", 15, self.panel_sub, "start", 700))
+        parts.append(self.t(x0 + 24, y1 - 24, hd["festival"]["last"], 15, self.panel_sub, italic=True))
+        self.page(f"city-heritage-{self.pd['key']}", parts)
 
 
 class DaiLongPages(Pages, DaiLongMenus):

@@ -96,6 +96,9 @@ The City book: one dialog with a page per area, opened from the HUD. Each realm'
 | Ratings (M9) | [city-ratings-dailong.jpg](city-ratings-dailong.jpg) | [city-ratings-kambara.jpg](city-ratings-kambara.jpg) | [city-ratings-tampadesa.jpg](city-ratings-tampadesa.jpg) |
 | Labour (M11) | [city-labour-dailong.jpg](city-labour-dailong.jpg) | [city-labour-kambara.jpg](city-labour-kambara.jpg) | [city-labour-tampadesa.jpg](city-labour-tampadesa.jpg) |
 | Food (M11) | [city-food-dailong.jpg](city-food-dailong.jpg) | [city-food-kambara.jpg](city-food-kambara.jpg) | [city-food-tampadesa.jpg](city-food-tampadesa.jpg) |
+| Heritage (faith and monuments): Monument, Patrons and Festivals sub-tabs, Festivals open | [city-heritage-dailong.jpg](city-heritage-dailong.jpg) | [city-heritage-kambara.jpg](city-heritage-kambara.jpg) | [city-heritage-tampadesa.jpg](city-heritage-tampadesa.jpg) |
+
+The Heritage page (GDD 5.11 and 5.15) groups the monument, the patrons and the festivals under sub-tabs; the mockup shows the Festivals tab. Each realm shows the mission that builds its first monument (the Temple of Learning, Suryagiri, the Gilded Stupa), so its city and date are that mission's, not the HUD's. Patron names follow world.md's rule that faiths go unnamed.
 
 Placeholders: every number, the rating drivers, the labour sectors and priorities, and the houses' next-level needs. The ledger's categories and the tax levels are M4's; the money's scale is the finance plan's (about 13 gold a year in tax per worker, a wage of 6), not today's building costs, which wait for M13's balance pass.
 

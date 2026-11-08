@@ -11,7 +11,7 @@ docs/plans/finance.md (M4).
 
 PAGES = [("overview", "Overview", "learning"), ("population", "Population", "population"), ("goods", "Goods", "jar"),
          ("finances", "Finances", "coin"), ("ratings", "Ratings", "star"), ("labour", "Labour", "industry"),
-         ("food", "Food", "food")]
+         ("food", "Food", "food"), ("heritage", "Heritage", "monument")]
 
 # Goods other than food: (name, stored, capacity, change a month). Foods come from each realm's FOOD.
 GOODS = [
@@ -125,3 +125,73 @@ TAMPADESA = dict(
 )
 
 REALMS = [DAILONG, KAMBARA, TAMPADESA]
+
+# The Heritage page: the mission's monument, the realm's patrons and its festivals (GDD 5.11, 5.15).
+# Each realm shows the mission that builds its first monument, so the city and date are that
+# mission's, not the HUD's. Stages and guilds follow campaigns.md; favour, costs and effects are
+# placeholders.
+HERITAGE = {
+    "dailong": dict(
+        city="An Lạc", date="Thái Ninh era, year 22", month=8, season="Wet season",
+        monument="The Temple of Learning", site="On the hill above the prefecture school", mission="Mission 7 · The Scholar's Gate",
+        stages=[("Gate", 1.0, []), ("Courtyards", 1.0, []),
+                ("Hall", 0.55, [("Wood", 84, 120), ("Bricks", 150, 240), ("Roof Tiles", 36, 80), ("Carpenters", 14, 20)]),
+                ("Stele garden", 0.0, [])],
+        eta="about 9 months at this rate",
+        bonuses=["Culture +15", "The Mandate +10", "Scholars for the tax offices", "A line on the stele"],
+        patrons=[("The Mountain Lord", "Dykes, hills and patience", "farm", 74, "Pleased", "A gentle flood"),
+                 ("The Water Lord", "The river and its floods", "water", 38, "Restless", "A severe flood"),
+                 ("The Village Guardian", "Homes, harvests and the communal hall", "house", 61, "Content", "A rich harvest"),
+                 ("The Ancestors", "Learning, duty and the family altar", "learning", 55, "Content", "Scholars come from afar")],
+        festivals=[("New Year", 1, "every patron", "past"), ("Dragon-boat races", 5, "The Water Lord", "past"),
+                   ("Floodwater offering", 8, "The Water Lord", "next"), ("Mid-autumn lanterns", 9, "The Village Guardian", "later")],
+        festival=dict(name="Floodwater offering", month=8, venue="The festival square by the river",
+                      text="Boats carry offerings out to the river before the high water, to calm the Water Lord.",
+                      scales=["Modest", "Grand", "Imperial"], scale=1,
+                      cost=[("Gold", 240, 2315), ("Rice", 60, 340), ("Wine", 12, 18)],
+                      effects=[("The Water Lord", "+18"), ("Culture", "+6"), ("The Mandate", "+3"), ("Unrest", "calmed for a season")],
+                      last="Dragon-boat races, month 5: grand, Culture +5"),
+    ),
+    "kambara": dict(
+        city="Suryagiri", date="Suryadeva, year 35", month=3, season="Season of high water",
+        monument="Suryagiri", site="The sacred site east of the capital", mission="Mission 5 · Suryagiri",
+        stages=[("Moat", 1.0, []), ("Causeway", 1.0, []), ("Outer gallery", 1.0, []),
+                ("Terraces", 0.62, [("Sandstone", 186, 300), ("Laterite", 96, 120), ("Bricks", 260, 300), ("Stone carvers", 18, 24)]),
+                ("The five towers", 0.0, []), ("Reliefs and consecration", 0.0, [])],
+        eta="about 14 months at this rate",
+        bonuses=["Divine Favour +20", "Culture +15", "Pilgrims bring trade", "A line on the stele"],
+        patrons=[("The Serpent King", "The lake, the rains and the barays", "water", 66, "Pleased", "Full reservoirs"),
+                 ("The Sky Deva", "The king's mandate from the heavens", "monument", 58, "Content", "Envoys bring gifts"),
+                 ("The Lady of the Earth", "Rice fields and the harvest", "farm", 47, "Watchful", "A rich harvest"),
+                 ("The Compassionate One", "Hospitals, rest houses and the poor", "temple", 29, "Neglected", "Sickness in the quarters")],
+        festivals=[("New Year", 4, "every patron", "next"), ("Ploughing ceremony", 5, "The Lady of the Earth", "later"),
+                   ("Festival of the waters", 11, "The Serpent King", "later"), ("Lamps on the baray", 12, "The Sky Deva", "later")],
+        festival=dict(name="New Year", month=4, venue="The dance hall and the temple court",
+                      text="Three days of dancing, offerings at every temple, and sand stupas built for luck.",
+                      scales=["Modest", "Grand", "Royal"], scale=2,
+                      cost=[("Gold", 520, 4880), ("Rice", 120, 642), ("Wine", 30, 18)],
+                      effects=[("Every patron", "+10"), ("Culture", "+9"), ("Divine Favour", "+5"), ("Unrest", "calmed for a season")],
+                      last="Festival of the waters, month 11: royal, Culture +8"),
+    ),
+    "tampadesa": dict(
+        city="Pugara", date="Year 444 of the Pugara Era", month=2, season="Dry season",
+        monument="The Gilded Stupa", site="The riverside terrace at Pugara", mission="Mission 4 · The Gilded Stupa",
+        stages=[("Terraces", 1.0, []),
+                ("The bell", 0.4, [("Bricks", 320, 600), ("Wood", 40, 60), ("Gold leaf", 12, 40), ("Bricklayers", 22, 30)]),
+                ("The spire", 0.0, []), ("Gilding and the relic chamber", 0.0, [])],
+        eta="about 20 months at this rate",
+        bonuses=["Merit +20", "Culture +10", "The relic procession festival", "A line on the stele"],
+        patrons=[("The Teaching of the Elders", "Monasteries, monks and alms", "temple", 71, "Pleased", "Novices join the monasteries"),
+                 ("The Lord of the Mountain", "The hills, the mines and the house post", "monument", 52, "Content", "Rich seams in the mines"),
+                 ("The River Spirit", "The river, the weirs and the boats", "water", 44, "Watchful", "Easy river trade"),
+                 ("The House Guardian", "Homes, kitchens and fire", "house", 33, "Restless", "Fires in the quarters")],
+        festivals=[("Relic procession", 3, "The Teaching of the Elders", "next"), ("Water festival", 4, "The River Spirit", "later"),
+                   ("Robe offering", 8, "The Teaching of the Elders", "later"), ("Festival of lights", 10, "every patron", "later")],
+        festival=dict(name="Relic procession", month=3, venue="The festival ground by the stupa",
+                      text="The relic is carried through the streets under gold umbrellas, and the people give alms.",
+                      scales=["Modest", "Grand", "Royal"], scale=1,
+                      cost=[("Gold", 380, 6040), ("Rice", 80, 260), ("Pottery", 40, 64)],
+                      effects=[("The Teaching of the Elders", "+15"), ("Merit", "+6"), ("Culture", "+5"), ("Unrest", "calmed for a season")],
+                      last="Festival of lights, month 10: royal, Merit +7"),
+    ),
+}

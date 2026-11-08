@@ -39,6 +39,7 @@ SCREENS = [
     ("city-overview", "City book: overview"), ("city-population", "City book: population"), ("city-goods", "City book: goods"),
     ("city-finances", "City book: finances"), ("city-ratings", "City book: ratings"), ("city-labour", "City book: labour"),
     ("city-food", "City book: food"),
+    ("city-heritage", "City book: heritage"),
 ]
 ORDER = [f"{s}-{r}" for s, _ in SCREENS for r, _ in REALMS] + ["minimap-concepts", "minimap-lenses"]
 SHEETS = [("minimap-concepts", "Minimap concepts"), ("minimap-lenses", "Minimap widget and lenses")]

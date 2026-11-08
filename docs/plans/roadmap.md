@@ -167,6 +167,7 @@ GDD 5.11:
 - **Blessings and misfortunes** come from an event table, through the message system (M11).
 - **Festivals:** a festival square building; hosting a festival costs gold and goods and raises Culture, favour and calm.
 - **Đại Long:** the Mountain Lord and the Water Lord hook into the flood severity (M7).
+- **UI:** the City book's Heritage page, Patrons and Festivals tabs (realm-ui.md Phase 6; mockup `city-heritage-<realm>.jpg`).
 
 ### M9: Ratings, goals and failure (medium)
 

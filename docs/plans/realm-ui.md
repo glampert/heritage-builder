@@ -566,7 +566,12 @@ The existing dialogs keep their layouts but take their panels from the Đại Lo
   - A `CityHistory` ring buffer is sampled each game month. It's runtime only, rebuilt from zero after a load, until a milestone needs history in saves.
 - [ ] **Goods:** storage yards and granaries by good, grouped (foods, consumer goods, raw materials) with icons, capacity bars and monthly change. This replaces the Resources dialog and fixes its overflow (goods.md).
 - [ ] **Finances:** treasury, tax income, costs. M4 fills in the yearly accounts table (this year against last), wages and tax rates.
-- [ ] **Hooks:** the pages M9 (Ratings, with what drives each), M11 (Labour, Food, advisors' notes) and later milestones (Faith, Trade, Military, the Court) add. Each milestone's plan gets a checkbox for its page.
+- [ ] **Heritage** (`city-heritage-<realm>.jpg`): faith and monuments (GDD 5.11 and 5.15), in three sub-tabs (`UiTabBar` inside the page; chosen over a single page on 2026-11-08 so each part has room to grow):
+  - **Monument:** for missions that have one. The monument and its site, its stages (built, in progress, to come), the current stage's materials delivered and specialist workers against what it needs, the time left at the current rate, and its bonuses when finished. Missions without one show the tab disabled, with "No monument in this mission".
+  - **Patrons:** the realm's 3–5 patrons, each with its domain, favour, mood, and the blessing or misfortune its favour is heading towards.
+  - **Festivals:** the festival year on a month strip, the realm's festivals with their patron and status, and a planner for the selected one: venue, scale (modest, grand, royal), costs against stock, effects, and a Hold button. The mockup shows this tab.
+  - The page and its tabs exist from Phase 6 with whatever data the game has; faith and festivals (M8) fill in Patrons and Festivals, and monuments (game Phase 2) fill in Monument (see [Dependencies](#dependencies-on-other-milestones)).
+- [ ] **Hooks:** the pages M9 (Ratings, with what drives each), M11 (Labour, Food, advisors' notes) and later milestones (Trade, Military, the Court) add. Each milestone's plan gets a checkbox for its page.
 - [ ] **Paths:** `CityManagement` stays as the dialog kind, with the page names as tabs. `PopulationManagement`, `ResourcesManagement` and `FinancesManagement` open the City dialog on their page, so `ui_snapshot.jsonl`'s `dialog.open` calls still work.
 - [ ] Scenario `ui_city.jsonl`: open each page in each realm after building a small town; check the numbers against `world.stats`.
 
@@ -582,6 +587,7 @@ The existing dialogs keep their layouts but take their panels from the Đại Lo
 | HUD ratings, goals | Requirements progress | Ratings (M9), new goal types (M9) |
 | Message log | Existing notices | Typed messages, popups for important events (M11) |
 | City pages | Population, goods, treasury | Accounts (M4), ratings (M9), labour and food advisors (M11) |
+| Heritage page | The tabs, empty | Faith and festivals (M8): patrons, favour, blessings, festivals; monuments and guilds (game Phase 2) |
 
 The roadmap's convention stands: new retail screens go through the skins and pass `ui.layout_issues`. From Phase 0 on, a milestone that adds a screen builds it with this plan's widgets and skin helpers.
 
@@ -599,6 +605,7 @@ Every screen the phases build has a mockup in all three realms, in [docs/design/
 | Building inspector | 5 | `inspector-<realm>.jpg` |
 | City book: Overview, Population, Goods, Finances | 6 | `city-{overview,population,goods,finances}-<realm>.jpg` |
 | City book: Ratings, Labour, Food | 6, for M9 and M11 | `city-{ratings,labour,food}-<realm>.jpg` |
+| City book: Heritage (monument, patrons, festivals; added 2026-11-08) | 6, for M8 and game Phase 2 | `city-heritage-<realm>.jpg` (Festivals tab) |
 | Important-event popup (flood, fire, court request) | 5, for M11 | `event-<realm>.jpg` |
 
 The HUD's menu buttons got their own bar left of the build bar, not the left end of the top-left bar (Phase 5's default): the date leaves no room there.
