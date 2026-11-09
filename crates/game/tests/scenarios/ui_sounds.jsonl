@@ -1,6 +1,7 @@
 # UI sound hooks (engine::ui::sound): the roles the widgets, dialogs, popups, toasts and minimap
-# alerts play, as ui.sounds records them (with or without an audio device), and the default mapping
-# (assets/configs/ui/sounds.json). From the repository root:
+# alerts play, as ui.sounds records them (with or without an audio device), the default mapping
+# (Đại Long's skin's `sounds` block, assets/configs/ui/skins/dailong.json), and the dialogs' sounds
+# through a skin switch. From the repository root:
 #   cargo run -p HeritageBuilder -- --fresh-profile --script crates/game/tests/scenarios/ui_sounds.jsonl
 # Run it without an audio device, as CI does: with one, a sound still playing can hold back the next
 # (exclusivity). Cooldowns run on frame time, so with time.fixed_dt the list is the same every run.
@@ -133,3 +134,26 @@
 {"method": "wait.frames", "params": {"frames": 3}}
 {"method": "assert.eq", "params": {"query": "finance.state", "path": "/months_in_debt", "value": 0}}
 {"method": "assert.eq", "params": {"query": "ui.sounds", "args": {"clear": true}, "path": "/roles", "value": ["notification"]}}
+
+# A realm switch rebuilds the dialogs from the new skin (dialog::sync) while two are stacked: the
+# stack stays, the reopened dialogs don't play their open sound again, and their close sound
+# survives the rebuild. First the last sounds' cooldowns run out.
+{"method": "wait.frames", "params": {"frames": 70}}
+{"method": "dialog.open", "params": {"name": "MainGame"}}
+{"method": "ui.click", "params": {"path": "MainGame/Settings"}}
+{"method": "assert.eq", "params": {"query": "dialog.current", "path": "/current", "value": "MainSettings"}}
+{"method": "wait.frames", "params": {"frames": 30}}
+{"method": "ui.sounds", "params": {"clear": true}}
+{"method": "ui.realm", "params": {"realm": "tampadesa"}}
+{"method": "wait.frames", "params": {"frames": 3}}
+{"method": "assert.eq", "params": {"query": "dialog.current", "path": "/current", "value": "MainSettings"}}
+{"method": "assert.eq", "params": {"query": "ui.sounds", "args": {"roles": ["dialog_opened", "dialog_closed"], "clear": true}, "path": "/count", "value": 0}}
+{"method": "assert.eq", "params": {"query": "ui.layout_issues", "path": "/count", "value": 0}}
+{"method": "ui.reload_skin"}
+{"method": "wait.frames", "params": {"frames": 3}}
+{"method": "dialog.close", "params": {"name": "MainSettings"}}
+{"method": "wait.frames", "params": {"frames": 2}}
+{"method": "assert.eq", "params": {"query": "dialog.current", "path": "/current", "value": "MainGame"}}
+{"method": "assert.eq", "params": {"query": "ui.sounds", "args": {"roles": ["dialog_opened", "dialog_closed"], "clear": true}, "path": "/roles", "value": ["dialog_closed"]}}
+{"method": "dialog.close", "params": {"name": "MainGame"}}
+{"method": "ui.realm", "params": {"realm": "auto"}}

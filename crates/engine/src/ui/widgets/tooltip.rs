@@ -1,6 +1,9 @@
+use common::Color;
+
 use super::UiWidgetContext;
 use crate::{
     file_sys::paths::PathRef,
+    render::texture::TextureHandle,
     ui::{UiFontScale, UiNineSlice, UiString, UiTooltipBackground, UiTooltipPlacement},
 };
 
@@ -15,6 +18,7 @@ pub struct UiTooltipText {
     background: UiTooltipBackground,
     placement: UiTooltipPlacement,
     opacity: f32,
+    text_color: Option<Color>, // The style's if None.
 }
 
 impl UiTooltipText {
@@ -22,7 +26,7 @@ impl UiTooltipText {
         let text = text.into();
         debug_assert!(!text.is_empty());
 
-        Self { text, font_scale: UiFontScale::default(), background: UiTooltipBackground::Style, placement: UiTooltipPlacement::default(), opacity: 1.0 }
+        Self { text, font_scale: UiFontScale::default(), background: UiTooltipBackground::Style, placement: UiTooltipPlacement::default(), opacity: 1.0, text_color: None }
     }
 
     pub fn with_font_scale(mut self, font_scale: UiFontScale) -> Self {
@@ -34,6 +38,12 @@ impl UiTooltipText {
     // A sprite stretched behind the text, in place of the style's tooltip frame.
     pub fn with_background<'a>(mut self, context: &mut dyn UiWidgetContext, sprite: impl Into<PathRef<'a>>) -> Self {
         self.background = UiTooltipBackground::Sprite(context.load_texture(sprite.into()));
+        self
+    }
+
+    // A loaded texture stretched behind the text, as with_background.
+    pub fn with_background_texture(mut self, texture: TextureHandle) -> Self {
+        self.background = UiTooltipBackground::Sprite(texture);
         self
     }
 
@@ -56,12 +66,21 @@ impl UiTooltipText {
         self
     }
 
+    // The text's color, e.g. light text on a dark panel; the style's by default.
+    pub fn with_text_color(mut self, color: Option<Color>) -> Self {
+        self.text_color = color;
+        self
+    }
+
     // For the widget drawn last.
     pub(super) fn draw(&self, context: &mut dyn UiWidgetContext) {
         debug_assert!(context.is_inside_widget_window());
 
         crate::ui::custom_tooltip(context.ui_sys(), self.font_scale, self.background, self.placement, self.opacity, |ui_sys| {
-            crate::ui::text(ui_sys, self.text.resolve());
+            match self.text_color {
+                Some(color) => crate::ui::text_colored(ui_sys, color, self.text.resolve()),
+                None => crate::ui::text(ui_sys, self.text.resolve()),
+            }
         });
     }
 }

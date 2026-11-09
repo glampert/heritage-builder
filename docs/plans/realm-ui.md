@@ -1,6 +1,6 @@
 # Realm UI: menus, screens and HUD in each realm's style
 
-**Status (2026-11-09): Phase 0 in progress; the `widgets.rs` split, the realm and player profile, localized strings, the sound hooks, the engine's themes, 9-slice panels and menu inner rect, the realm fonts and the ui-art pipeline are done.** The user reviewed it on 2026-11-07: their notes are folded in (see [Review notes](#review-notes)), the open decisions' defaults are accepted, and every mockup the phases need now exists. This plan builds and restyles every retail screen after the [UI mockups](../design/mockups/README.md): the main menus, the world map, the intermission, the story comics, the HUD and the city management pages. Each screen gets one look per realm: Đại Long, Kambara and Tampadesa. It is milestone **UI** of the [roadmap](roadmap.md). It was researched against `ccca1df` on `claude`. File and line references point at that commit, so re-check them before relying on them.
+**Status (2026-11-09): Phase 0 in progress; the `widgets.rs` split, the realm and player profile, localized strings, the sound hooks, the engine's themes, 9-slice panels and menu inner rect, the realm fonts, the ui-art pipeline and the skins are done.** The user reviewed it on 2026-11-07: their notes are folded in (see [Review notes](#review-notes)), the open decisions' defaults are accepted, and every mockup the phases need now exists. This plan builds and restyles every retail screen after the [UI mockups](../design/mockups/README.md): the main menus, the world map, the intermission, the story comics, the HUD and the city management pages. Each screen gets one look per realm: Đại Long, Kambara and Tampadesa. It is milestone **UI** of the [roadmap](roadmap.md). It was researched against `ccca1df` on `claude`. File and line references point at that commit, so re-check them before relying on them.
 
 ![Home menu, Đại Long](../design/mockups/menu-home-dailong.jpg)
 
@@ -369,7 +369,7 @@ The existing dialogs keep their layouts but take their panels from the Đại Lo
 
 - [x] `Realm`, `Profile` (`saves/user/profile.json`, `--fresh-profile`), `realm::ui_realm()`, a `realm` field in `campaigns.json`; `profile.*` and `ui.realm` commands; tests.
 - [x] Engine: data-driven themes (`UiThemeId`), `UiNineSlice` and `UiPainter::nine_slice`, menus laying out in their own inner rect (no `i8` insets).
-- [ ] Skins: `assets/configs/ui/skins/{dailong,kambara,tampadesa}.json`; `menu/skin.rs`; the skin version counter and `dialog::rebuild_all()`; `ui.reload_skin`. `styles/game.json` folds into Đại Long's skin. The skin's `sounds` block, applied with `ui::sound::set_mapping` on each skin switch; `assets/configs/ui/sounds.json` folds into Đại Long's skin.
+- [x] Skins: `assets/configs/ui/skins/{dailong,kambara,tampadesa}.json`; `menu/skin.rs`; the skin version counter and `dialog::rebuild_all()`; `ui.reload_skin`. `styles/game.json` folds into Đại Long's skin. The skin's `sounds` block, applied with `ui::sound::set_mapping` on each skin switch; `assets/configs/ui/sounds.json` folds into Đại Long's skin.
 - [x] Fonts: add Spectral SC and Alegreya (and their OFL files); realm text styles with fallbacks; the Vietnamese glyph test.
 - [x] Split `engine/src/ui/widgets.rs` into `engine/src/ui/widgets/`, one widget family per file, with no change in behaviour, in a commit of its own.
 - [x] Localized strings: `text/<language>.json`, the new categories, arguments, plural forms, `UiText`, the fallback and its test; `text.*` commands. Move today's strings for the screens Phase 0 touches.
@@ -439,6 +439,14 @@ The existing dialogs keep their layouts but take their panels from the Đại Lo
 - Deviations: Node's Playwright. Hovered, pressed and disabled are CSS filters of idle. Tiled panels repeat through theme overrides (stitched noise moved onto the middle, no vignette, flat teak, repeating gilt, blotches at 45% contrast, so plainer than the mockups). The engine cuts the last tile, so motif edges (petals, gilt) end cut at the right and bottom corners: the skins should snap middles to whole tiles or add a `round` 9-slice mode (README §2). The scrollbar is the slider turned, the bubble the speech call's body: the generator has neither. No generator file changed.
 - Verified: a second run renders nothing; `--force` is byte-identical; `--check` under `python3 -I -S`; unit tests; sprites against the mockups, as 9-slices at dialog size; build and `cargo test --workspace`.
 
+**Notes (2026-11-09, skins; commit TODO):**
+- `menu/skin.rs`: `UiSkinDef` (strict serde), the three files read once at boot, merged with `engine::config::merge_json` (moved from the minimap), styles loaded as themes `dailong`, `kambara`, `tampadesa`; `follow`, `apply_theme`, `version`, `reload`; helpers `dialog`, `button` (roles), `panel`, `tooltip`, `heading` (levels), `separator`, `popup`, `icon`, `sprite_button`. `styles/game.json` and `sounds.json` are gone (Đại Long's `style` and `sounds`; `sound::set_default_mapping`).
+- Dialogs: menu items (hover panel), framed primary and secondary buttons, the realm rule under headings, skin popups and tooltips. The HUD keeps its old art through legacy entries (`hud_*` panels, `icon_sets`, `icons`). Sprite buttons take a stem (`with_sprite_stem`), no `buttons/` prefix or 64-byte limit.
+- Rebuild: `GameMenusSystem::sync_skin` each frame; `dialog::sync`/`rebuild_all` reopen the stack without open sounds (sounds are set in `build_menu`); the HUD rebuilds too. `ui.reload_skin`.
+- Engine: `UiNineSliceCenter::Round` (tests), `UiSeparatorArt`, `UiTextButton::with_hover_panel`/`with_text_colors`, tooltip text colour, `with_background_texture`.
+- Deviations: Kambara's vines and the crests aren't drawn (no panel ornaments yet); panels ignore the art's bleed (shadows sit inside the rect); toasts, controls and emblems aren't skinned yet (data only); a popup open during a rebuild closes, and a dialog's unsaved edits are lost; on web `ui.reload_skin` only rebuilds; a widget under the cursor plays its hover again after a rebuild; tooltip content insets come from the style's `menu_margin`.
+- Verified: build, `cargo test --workspace`, web check, `make_ui_art.py --check` and its tests; the CI scenarios at 1440 × 800 (`ui_sounds` now switches realm with two dialogs stacked); `ui_build` record and replay; `ui_snapshot` in all three realms: Đại Long's `ui.tree` listings equal the pre-skin ones, `ui.layout_issues` 0 on every retail screen, plus the Quit and Overwrite popups; screenshots compared with the mockups.
+
 ### Phase 1: Main menus
 
 **Delivers:** the home menu and every dialog under it, as in the mockups (`menu-*-<realm>.jpg`), in all three realms. The in-game Game menu and its popups get the same look.
@@ -475,6 +483,7 @@ The existing dialogs keep their layouts but take their panels from the Đại Lo
   - UI scale (75–200%);
   - colour-blind-safe overlays (a stored flag; the overlays follow in M6 and M7);
   - language (English only for now).
+  - A language or realm change rebuilds the open dialogs (`dialog::rebuild_all`), which drops what their widgets hold: Settings must carry its pending edits across (the `TODO(realm-ui)` there).
 - [ ] **Sound:** master, music, SFX, ambience, narration and spatial volume; mute in the background.
 - [ ] **Graphics:** window mode, resolution, renderer, VSync, frame rate limit, texture filtering, mipmaps, animated water. Settings the engine can't change live say "after a restart".
 - [ ] **Controls:** the key bindings, read-only.

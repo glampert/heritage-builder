@@ -113,13 +113,13 @@ impl SaveGameHelper {
         menu.open_message_box(context, |context| {
             let lines = [UiString::key(UiTextCategory::Menu, "popup.overwrite_save.title")];
             make_dialog_popup(context, "Overwrite Save Game Popup", lines).with_buttons([
-                make_text_button(context, UiString::key(UiTextCategory::Menu, "button.yes"), move |_, context| {
+                make_text_button(context, ButtonRole::Primary, UiString::key(UiTextCategory::Menu, "button.yes"), move |_, context| {
                     let mut save_game_menu = yes_button_menu_weak_ref.upgrade().unwrap();
                     let (save_file_name, _) = Self::current_save_file_selection(&save_game_menu);
                     GameLoop::get_mut().save_game(save_file_name);
                     save_game_menu.close_message_box(context);
                 }),
-                make_text_button(context, UiString::key(UiTextCategory::Menu, "button.no"), move |_, context| {
+                make_text_button(context, ButtonRole::Secondary, UiString::key(UiTextCategory::Menu, "button.no"), move |_, context| {
                     let mut save_game_menu = no_button_menu_weak_ref.upgrade().unwrap();
                     save_game_menu.close_message_box(context);
                 }),
@@ -170,7 +170,7 @@ impl SaveGameHelper {
         if self.actions.intersects(SaveGameActions::Load) {
             let menu_weak_ref = menu.downgrade().into_not_mut();
 
-            let load_game_button = make_text_button(context, "Load Game", move |_, _context| {
+            let load_game_button = make_text_button(context, ButtonRole::Primary, "Load Game", move |_, _context| {
                 let menu_rc = menu_weak_ref.upgrade().unwrap();
                 let (save_file_name, _) = Self::current_save_file_selection(&menu_rc);
                 GameLoop::get_mut().load_save_game(save_file_name);
@@ -182,7 +182,7 @@ impl SaveGameHelper {
         if self.actions.intersects(SaveGameActions::Save) {
             let menu_weak_ref = menu.downgrade();
 
-            let save_game_button = make_text_button(context, "Save Game", move |_, context| {
+            let save_game_button = make_text_button(context, ButtonRole::Primary, "Save Game", move |_, context| {
                 let mut menu_rc = menu_weak_ref.upgrade().unwrap();
 
                 let (save_file_name, existing_save_files) = Self::current_save_file_selection(&menu_rc);
@@ -202,7 +202,7 @@ impl SaveGameHelper {
             side_by_side_button_group.add_widget(save_game_button);
         }
 
-        side_by_side_button_group.add_widget(make_dialog_close_button(context, "Cancel"));
+        side_by_side_button_group.add_widget(make_dialog_close_button(context, ButtonRole::Secondary, "Cancel"));
 
         // -------------
         // Link all:

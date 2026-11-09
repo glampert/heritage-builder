@@ -816,7 +816,6 @@ mod tests {
         assert!(UiStyleSource::json_str("realm", "{ not json").is_err());
         assert!(UiStyleSource::json_str("realm", &style_json(15.0).to_string()).unwrap().validate().is_ok());
         assert!(UiStyleSource::file("dev", "ui/styles/dev.json").validate().is_ok());
-        assert!(UiStyleSource::file("game", "ui/styles/game.json").validate().is_ok());
     }
 
     #[test]
@@ -893,8 +892,9 @@ mod tests {
 
     #[test]
     fn checks_glyph_coverage() {
-        // Today's style files draw Vietnamese with their own fonts.
-        let sources = [UiStyleSource::file("dev", "ui/styles/dev.json"), UiStyleSource::file("game", "ui/styles/game.json")];
+        // The developer UI's style file draws Vietnamese with its own fonts (the game's realm skins
+        // are checked by the game's tests/ui_fonts.rs).
+        let sources = [UiStyleSource::file("dev", "ui/styles/dev.json")];
         check_glyph_coverage(&sources, GLYPH_TEST_TEXTS, GLYPH_TEST_ICONS).unwrap();
 
         // Jaini has Đ and á, but not ạ, ộ, ủ: each text style that draws with it alone fails,

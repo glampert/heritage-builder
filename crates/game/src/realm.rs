@@ -177,9 +177,8 @@ pub fn ui_realm_for(in_home_menu: bool) -> UiRealm {
 // a session's menus are built: during GameLoop::start (GameLoop isn't initialized yet, so the
 // in-game rule applies) and during a session switch (GameLoop still holds the old session). Code
 // that builds menus must call ui_realm_for(mode == GameMenusMode::Home) with the menus mode it
-// builds instead. Outside a running game (tests), the in-game rule applies.
-// TODO(realm-ui): the skins step (Phase 0) picks a menu's skin when it's built: pass it the menus
-// mode being built and call ui_realm_for, not this.
+// builds instead, as the retail menus do for their skin (menu::skin::follow). Outside a running
+// game (tests), the in-game rule applies.
 pub fn ui_realm() -> Realm {
     ui_realm_choice().realm
 }

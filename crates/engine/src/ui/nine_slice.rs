@@ -31,6 +31,20 @@ pub enum UiNineSliceCenter {
     // border's color at the seams when the art is drawn larger than its pixels; the art should
     // repeat cleanly at its edges.
     Tile,
+
+    // Like Tile, but each tile is scaled a little, up or down, so a whole number of them fills
+    // the middle and the edges along their length, as CSS's `border-image-repeat: round` does: no
+    // tile is cut, so a motif (petals, gilt) or the grain ends at the borders as it starts. A
+    // tile changes size by at most half its own. For art drawn to repeat.
+    Round,
+}
+
+impl UiNineSliceCenter {
+    // Whether the middle and the edges repeat (Tile or Round).
+    #[inline]
+    pub fn repeats(self) -> bool {
+        !matches!(self, Self::Stretch)
+    }
 }
 
 // ----------------------------------------------
@@ -111,12 +125,14 @@ impl UiNineSlice {
         let us = [0.0, left / texture_size.x, (texture_size.x - right) / texture_size.x, 1.0];
         let vs = [0.0, top / texture_size.y, (texture_size.y - bottom) / texture_size.y, 1.0];
 
-        // A tiled middle repeats at the centre's own size in points, half a texel in.
-        let tile = self.center == UiNineSliceCenter::Tile;
+        // A tiled middle repeats at the centre's own size in points, half a texel in; a round one
+        // at the nearest size that fits a whole number of tiles.
+        let tile = self.center.repeats();
+        let round = self.center == UiNineSliceCenter::Round;
         let tile_width = (texture_size.x - left - right) * points_per_pixel;
         let tile_height = (texture_size.y - top - bottom) * points_per_pixel;
-        let row_tile = Tiling { size: tile_height, inset: 0.5 / texture_size.y };
-        let column_tile = Tiling { size: tile_width, inset: 0.5 / texture_size.x };
+        let row_tile = Tiling { size: tile_height, inset: 0.5 / texture_size.y, round };
+        let column_tile = Tiling { size: tile_width, inset: 0.5 / texture_size.x, round };
 
         for row in 0..3 {
             let row_spans = spans(ys[row], ys[row + 1], vs[row], vs[row + 1], (tile && row == 1).then_some(row_tile));
@@ -170,12 +186,20 @@ fn edges(min: f32, max: f32, start: f32, end: f32) -> [f32; 4] {
     [min, first, last, max]
 }
 
-// How a part repeats along an axis: its tiles' length in points, and how far in from the part's
-// edges, in texture coordinates, each tile's texture starts and ends (half a texel).
+// How a part repeats along an axis: its tiles' length in points, how far in from the part's
+// edges, in texture coordinates, each tile's texture starts and ends (half a texel), and whether
+// the tiles are resized so a whole number of them fits (UiNineSliceCenter::Round).
 #[derive(Copy, Clone)]
 struct Tiling {
     size: f32,
     inset: f32,
+    round: bool,
+}
+
+// The number of whole tiles of `tile` points that best fills `length` points, at least one: the
+// nearest count, so each tile is resized by at most half its size.
+fn round_tile_count(length: f32, tile: f32) -> usize {
+    ((length / tile).round() as usize).max(1)
 }
 
 // The spans of one part along an axis, from `p0` to `p1` in points and `t0` to `t1` in texture
@@ -189,8 +213,8 @@ fn spans(p0: f32, p1: f32, t0: f32, t1: f32, tiling: Option<Tiling>) -> SmallVec
         return spans;
     }
 
-    let (tile, inset) = match tiling {
-        Some(tiling) if tiling.size > EPSILON => (tiling.size, tiling.inset),
+    let (tile, inset, round) = match tiling {
+        Some(tiling) if tiling.size > EPSILON => (tiling.size, tiling.inset, tiling.round),
         _ => {
             spans.push((p0, p1, t0, t1));
             return spans;
@@ -202,11 +226,18 @@ fn spans(p0: f32, p1: f32, t0: f32, t1: f32, tiling: Option<Tiling>) -> SmallVec
     let inset = inset.clamp(0.0, (t1 - t0).max(0.0) * 0.5);
     let (t0, t1) = (t0 + inset, t1 - inset);
 
-    // Larger tiles past the cap: exactly MAX_TILES_PER_AXIS of them, none cut.
+    // Larger tiles past the cap: exactly MAX_TILES_PER_AXIS of them, none cut. Round: the
+    // nearest whole number of tiles, resized to fill the part exactly.
     const MAX_TILES: usize = UiNineSlice::MAX_TILES_PER_AXIS;
     let tiles = length / tile;
-    let (tile, count) =
-        if tiles > MAX_TILES as f32 { (length / MAX_TILES as f32, MAX_TILES) } else { (tile, ((tiles - 1e-3).ceil() as usize).max(1)) };
+    let (tile, count) = if tiles > MAX_TILES as f32 {
+        (length / MAX_TILES as f32, MAX_TILES)
+    } else if round {
+        let count = round_tile_count(length, tile);
+        (length / count as f32, count)
+    } else {
+        (tile, ((tiles - 1e-3).ceil() as usize).max(1))
+    };
 
     for index in 0..count {
         let start = p0 + tile * index as f32;
@@ -348,6 +379,71 @@ mod tests {
         let left_edge: Vec<_> = quads.iter().filter(|quad| quad.rect.min.x == 0.0 && quad.rect.min.y >= 10.0 && quad.rect.max.y <= 30.0).collect();
         assert_eq!(left_edge.len(), 1);
         assert_rect(left_edge[0].uv, rect(0.0, c0, 0.25, c1));
+    }
+
+    #[test]
+    fn round_center_fits_whole_tiles() {
+        // A 20 × 20 pixel centre. A 70 point middle: 4 tiles of 17.5 (3.5 rounds to 4), none cut.
+        let slice = slice((40.0, 40.0), [10.0, 10.0, 10.0, 10.0]).with_center(UiNineSliceCenter::Round);
+        let quads = slice.quads(rect(0.0, 0.0, 90.0, 40.0));
+
+        const HALF_TEXEL: f32 = 0.5 / 40.0;
+        let (c0, c1) = (0.25 + HALF_TEXEL, 0.75 - HALF_TEXEL);
+
+        let top_edge: Vec<_> = quads.iter().filter(|quad| quad.rect.min.y == 0.0 && quad.rect.min.x >= 10.0 && quad.rect.max.x <= 80.0).collect();
+        assert_eq!(top_edge.len(), 4);
+        for (index, quad) in top_edge.iter().enumerate() {
+            let x0 = 10.0 + 17.5 * index as f32;
+            assert_rect(quad.rect, rect(x0, 0.0, x0 + 17.5, 10.0));
+            assert_rect(quad.uv, rect(c0, 0.0, c1, 0.25)); // Every tile whole.
+        }
+
+        // 20 points down: one whole tile, as Tile would draw it.
+        let left_edge: Vec<_> = quads.iter().filter(|quad| quad.rect.min.x == 0.0 && quad.rect.min.y >= 10.0 && quad.rect.max.y <= 30.0).collect();
+        assert_eq!(left_edge.len(), 1);
+        assert_rect(left_edge[0].rect, rect(0.0, 10.0, 10.0, 30.0));
+        assert_rect(left_edge[0].uv, rect(0.0, c0, 0.25, c1));
+
+        // The centre: 4 × 1 whole tiles.
+        let center: Vec<_> = quads.iter().filter(|quad| quad.rect.min.x >= 10.0 && quad.rect.max.x <= 80.0 && quad.rect.min.y >= 10.0 && quad.rect.max.y <= 30.0).collect();
+        assert_eq!(center.len(), 4);
+        for quad in &center {
+            assert_rect(quad.uv, rect(c0, c0, c1, c1));
+            assert_near(quad.rect.width(), 17.5);
+            assert_near(quad.rect.height(), 20.0);
+        }
+    }
+
+    #[test]
+    fn round_center_shrinks_or_grows_by_at_most_half_a_tile() {
+        // 2.4 tiles round down to 2 larger ones; 2.6 up to 3 smaller ones; less than one half
+        // still draws one tile, stretched or squeezed to fit.
+        assert_eq!(round_tile_count(48.0, 20.0), 2);
+        assert_eq!(round_tile_count(52.0, 20.0), 3);
+        assert_eq!(round_tile_count(5.0, 20.0), 1);
+        assert_eq!(round_tile_count(60.0, 20.0), 3);
+
+        let slice = slice((40.0, 40.0), [10.0, 10.0, 10.0, 10.0]).with_center(UiNineSliceCenter::Round);
+        for width in [25.0, 47.0, 68.0, 71.0, 133.3, 500.0] {
+            let quads = slice.quads(rect(0.0, 0.0, width + 20.0, 40.0));
+            let top_edge: Vec<_> = quads.iter().filter(|quad| quad.rect.min.y == 0.0 && quad.rect.min.x >= 10.0 && quad.rect.max.x <= width + 10.0).collect();
+            let count = top_edge.len();
+            assert_eq!(count, round_tile_count(width, 20.0), "{width}");
+            for quad in &top_edge {
+                // Same size, the whole tile's texture, between 2/3 and 2 times the tile's size.
+                assert_near(quad.rect.width(), width / count as f32);
+                assert!(quad.rect.width() >= 20.0 * 2.0 / 3.0 - 1e-3 && quad.rect.width() <= 20.0 * 2.0 + 1e-3, "{width}");
+                assert_near(quad.uv.max.x - quad.uv.min.x, 0.5 - 2.0 * (0.5 / 40.0));
+            }
+            // They fill the edge exactly.
+            assert_near(top_edge.last().unwrap().rect.max.x, width + 10.0);
+        }
+
+        // The cap holds for round tiles too.
+        let tiny = self::slice((3.0, 3.0), [1.0, 1.0, 1.0, 1.0]).with_center(UiNineSliceCenter::Round);
+        let quads = tiny.quads(rect(0.0, 0.0, 1002.0, 3.0));
+        let middle = quads.iter().filter(|quad| quad.rect.min.x >= 1.0 && quad.rect.max.x <= 1001.0 && quad.rect.min.y == 1.0).count();
+        assert_eq!(middle, UiNineSlice::MAX_TILES_PER_AXIS);
     }
 
     #[test]

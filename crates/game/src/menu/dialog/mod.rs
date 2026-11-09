@@ -1,7 +1,7 @@
 use std::any::Any;
 
 use arrayvec::ArrayVec;
-use common::{Color, Vec2, mem};
+use common::{Vec2, mem};
 use engine::{
     file_sys::paths::PathRef,
     ui::{
@@ -17,7 +17,10 @@ use engine::{
 use enum_dispatch::enum_dispatch;
 use strum::{Display, EnumCount, EnumDiscriminants, EnumIter, IntoEnumIterator};
 
-use super::{LARGE_HORIZONTAL_SEPARATOR_SPRITE, make_text_button};
+use super::{
+    make_text_button,
+    skin::{self, ButtonRole, HeadingLevel},
+};
 use crate::{menu::ButtonDef, ui_context::GameUiContext, campaign::config::MissionMap};
 
 mod home;
@@ -154,6 +157,29 @@ pub fn reset() {
     DialogMenusSingleton::get_mut().reset();
 }
 
+// Rebuilds every dialog if the skin or the language changed since they were built (a realm
+// switch, entering a session, ui.reload_skin, text.language), keeping the open ones open. The
+// retail menus call it at the start of every frame.
+pub fn sync(context: &mut GameUiContext) {
+    if DialogMenusSingleton::is_initialized() && DialogMenusSingleton::get().built != built_versions() {
+        rebuild_all(context);
+    }
+}
+
+// Builds every dialog again, from the current skin and strings. The stack stays: each open
+// dialog is opened again, bottom up, without its open sound (its open callback runs, refreshing
+// its contents). A popup that was open closes.
+pub fn rebuild_all(context: &mut GameUiContext) {
+    if DialogMenusSingleton::is_initialized() {
+        DialogMenusSingleton::get_mut().rebuild_all(context);
+    }
+}
+
+// What the dialogs are built from: the skin's and the strings' versions.
+fn built_versions() -> (u32, u32) {
+    (skin::version(), ui::text::version())
+}
+
 // Dialogs exist once the home or in-game menus have set them up (not in the dev editor alone).
 pub fn is_initialized() -> bool {
     DialogMenusSingleton::is_initialized()
@@ -204,9 +230,9 @@ pub fn set_global_menu_flags(flags: UiMenuFlags) {
     DialogMenusSingleton::get_mut().set_global_menu_flags(flags);
 }
 
-pub fn set_bg_dim_alpha(context: &mut GameUiContext, alpha: f32) {
-    debug_assert!((0.0..=1.0).contains(&alpha));
-    context.ui_sys.set_modal_backdrop_color(Color::new(0.0, 0.0, 0.0, alpha));
+// Dims the screen behind the dialogs with the skin's colour for the home menu or the game.
+pub fn set_backdrop_dim(context: &mut GameUiContext, home_menu: bool) {
+    context.ui_sys.set_modal_backdrop_color(skin::backdrop_dim(home_menu));
 }
 
 // Load the starting map for a campaign mission. Routes through the GameLoop
@@ -345,6 +371,7 @@ const DIALOG_MENU_STACK_MAX_DEPTH: usize = 8;
 struct DialogMenusSingleton {
     dialog_menus: ArrayVec<DialogMenuImpl, DIALOG_MENU_COUNT>,
     menu_stack: ArrayVec<DialogMenuKind, DIALOG_MENU_STACK_MAX_DEPTH>,
+    built: (u32, u32), // built_versions() when the dialogs were built.
 }
 
 impl DialogMenusSingleton {
@@ -355,7 +382,34 @@ impl DialogMenusSingleton {
             dialog_menus.push(dialog_menu_kind.build_menu(context));
         }
 
-        Self { dialog_menus, menu_stack: ArrayVec::new() }
+        Self { dialog_menus, menu_stack: ArrayVec::new(), built: built_versions() }
+    }
+
+    fn rebuild_all(&mut self, context: &mut GameUiContext) {
+        let stack = self.menu_stack.clone();
+        self.built = built_versions();
+
+        // The old dialogs go without closing (their callbacks would resume the simulation and
+        // play sounds); the new ones open below.
+        // TODO(realm-ui): what an open dialog's widgets hold is lost here (unsaved Settings edits,
+        // a typed save name, the selected save): opening refreshes from the configs and saves.
+        // Phase 1's language and realm controls in Settings rebuild the very dialog they're in, so
+        // a dialog will need to hand its pending edits to the one that replaces it.
+        for dialog_menu_kind in DialogMenuKind::iter() {
+            self.dialog_menus[dialog_menu_kind as usize] = dialog_menu_kind.build_menu(context);
+        }
+
+        self.menu_stack.clear();
+        for dialog_menu_kind in stack {
+            let dialog = self.find_dialog(dialog_menu_kind);
+            let open_sound = (dialog_menu_kind != DialogMenuKind::Home).then_some(UiSoundKey::DialogOpened);
+            dialog.menu_mut().set_sound(UiSoundEvent::Opened, None);
+            let opened = dialog.open(context);
+            dialog.menu_mut().set_sound(UiSoundEvent::Opened, open_sound);
+            if opened {
+                self.push_dialog(dialog_menu_kind);
+            }
+        }
     }
 
     fn reset(&mut self) {
@@ -369,9 +423,10 @@ impl DialogMenusSingleton {
         GLOBAL_DIALOG_MENU_FLAGS.set(flags | DEFAULT_DIALOG_MENU_FLAGS);
 
         for dialog in &mut self.dialog_menus {
+            let kind = dialog.kind();
             let menu = dialog.menu_mut();
 
-            let mut new_flags = flags;
+            let mut new_flags = dialog_menu_flags(kind);
 
             // Preserve this flag.
             if menu.has_flags(UiMenuFlags::HideWhenMessageBoxOpen) {
@@ -560,30 +615,29 @@ const DEFAULT_DIALOG_MENU_TEXT_SPACING:   Vec2 = Vec2::new(4.0, 4.0); // Lines o
 const DEFAULT_DIALOG_MENU_WIDGET_LABEL_SPACING: f32 = 12.0;
 const DEFAULT_DIALOG_MENU_HEADING_MARGIN_BOTTOM: f32 = 10.0;
 const DEFAULT_DIALOG_MENU_WIDGET_FONT_SCALE: UiFontScale = UiFontScale(1.0);
-const DEFAULT_DIALOG_MENU_HEADING_FONT_SCALE: UiFontScale = UiFontScale(1.8);
-const DEFAULT_DIALOG_MENU_BACKGROUND_SPRITE: PathRef = PathRef::from_str("misc/scroll_bg.png");
-
-// The scroll sprite's rollers and the paper's torn edges, as fractions of the sprite: its paper
-// spans x 112..752 of its 875 px and y 140..935 of its 1076 px, plus a margin. Contents stay on it.
-const DEFAULT_DIALOG_MENU_CONTENT_INSETS: UiMenuInsets = UiMenuInsets::fractions(0.14, 0.14, 0.15, 0.14);
-
-// For popup message boxes:
-const DEFAULT_DIALOG_POPUP_FONT_SCALE: UiFontScale = UiFontScale(1.5);
-const DEFAULT_DIALOG_POPUP_BACKGROUND_SPRITE: PathRef = PathRef::from_str("misc/square_page_bg.png");
-const DEFAULT_DIALOG_POPUP_CONTENT_INSETS: UiMenuInsets = UiMenuInsets::same(20.0); // The page's torn edges.
 
 const DEFAULT_DIALOG_MENU_FLAGS: UiMenuFlags = UiMenuFlags::from_bits_retain(
     UiMenuFlags::Modal.bits() | UiMenuFlags::CloseModalOnEscape.bits() | UiMenuFlags::PauseSimIfOpen.bits(),
 );
 
+const ALIGN_FLAGS: UiMenuFlags = UiMenuFlags::from_bits_retain(
+    UiMenuFlags::AlignCenter.bits() | UiMenuFlags::AlignCenterTop.bits() | UiMenuFlags::AlignLeft.bits() | UiMenuFlags::AlignRight.bits(),
+);
+
 static GLOBAL_DIALOG_MENU_FLAGS: UiStaticVar<UiMenuFlags> = UiStaticVar::new(DEFAULT_DIALOG_MENU_FLAGS);
 
-fn default_dialog_menu_size(context: &GameUiContext) -> Vec2 {
-    Vec2::new(550.0, context.viewport_size.height as f32 - 120.0)
+// A dialog's flags: the menus mode's (set_global_menu_flags), placed where the skin says if it
+// gives the dialog an alignment.
+fn dialog_menu_flags(dialog_menu_kind: DialogMenuKind) -> UiMenuFlags {
+    let flags = *GLOBAL_DIALOG_MENU_FLAGS;
+    match skin::dialog_def(&dialog_menu_kind.to_string()).align {
+        Some(align) => (flags & !ALIGN_FLAGS) | align.menu_flags(),
+        None => flags,
+    }
 }
 
-// The dialogs' shared layout: the title heading on the scroll, then `widgets`, if any, stacked in
-// a group with `widget_spacing` between them.
+// The dialogs' shared layout: the skin's dialog (its panel and size) with the title heading, then
+// `widgets`, if any, stacked in a group with `widget_spacing` between them.
 fn make_default_layout_dialog_menu(
     context: &mut GameUiContext,
     dialog_menu_kind: DialogMenuKind,
@@ -591,16 +645,9 @@ fn make_default_layout_dialog_menu(
     widget_spacing: Vec2,
     widgets: impl IntoIterator<Item = UiWidgetImpl>,
 ) -> UiMenuRcMut {
-    let heading_lines = heading_title.iter().map(|line| UiText::new(*line, DEFAULT_DIALOG_MENU_HEADING_FONT_SCALE));
-    let heading = UiMenuHeading::new(heading_lines)
-        .with_separator(context, LARGE_HORIZONTAL_SEPARATOR_SPRITE)
-        .with_margin_bottom(DEFAULT_DIALOG_MENU_HEADING_MARGIN_BOTTOM);
+    let heading = skin::heading(context, heading_title.iter().map(|line| UiString::from(*line)), HeadingLevel::Dialog);
 
-    let mut menu = UiMenu::new(dialog_menu_kind.to_string())
-        .with_flags(*GLOBAL_DIALOG_MENU_FLAGS)
-        .with_size(default_dialog_menu_size(context))
-        .with_background(context, DEFAULT_DIALOG_MENU_BACKGROUND_SPRITE)
-        .with_content_insets(DEFAULT_DIALOG_MENU_CONTENT_INSETS)
+    let mut menu = skin::dialog(context, &dialog_menu_kind.to_string(), dialog_menu_flags(dialog_menu_kind))
         .with_widget_spacing(widget_spacing) // Between its widgets and the lines of its text.
         .with_widget(heading);
 
@@ -613,7 +660,7 @@ fn make_default_layout_dialog_menu(
     menu.into_rc()
 }
 
-// A large button per variant of `ButtonKind`, pressing which runs its on_pressed.
+// A menu item button per variant of `ButtonKind`, pressing which runs its on_pressed.
 fn make_dialog_button_widgets<ButtonKind, const COUNT: usize>(context: &mut GameUiContext) -> ArrayVec<UiWidgetImpl, COUNT>
 where
     ButtonKind: ButtonDef + EnumCount + IntoEnumIterator + 'static,
@@ -621,7 +668,7 @@ where
     let mut buttons = ArrayVec::<UiWidgetImpl, COUNT>::new();
 
     for button_kind in ButtonKind::iter() {
-        let button = button_kind.new_text_button(context, UiTextButtonSize::Large, move |_, context| {
+        let button = button_kind.new_text_button(context, ButtonRole::MenuItem, move |_, context| {
             button_kind.on_pressed(context_as_mut::<GameUiContext>(context));
         });
 
@@ -631,26 +678,19 @@ where
     buttons
 }
 
-// A button that closes the current dialog.
-fn make_dialog_close_button(context: &mut dyn UiWidgetContext, label: &str) -> UiTextButton {
-    make_text_button(context, label, |_, context| {
+// A button of `role` that closes the current dialog.
+fn make_dialog_close_button(context: &mut dyn UiWidgetContext, role: ButtonRole, label: &str) -> UiTextButton {
+    make_text_button(context, role, label, |_, context| {
         close_current(context_as_mut::<GameUiContext>(context));
     })
 }
 
-// A popup message box of a dialog: `lines` on the square page sprite, with its buttons under them.
+// A popup message box of a dialog: `lines` on the skin's popup panel, with its buttons under them.
 // `label` names the popup for automation (`<label>/<button>`); it isn't drawn.
 fn make_dialog_popup(
     context: &mut dyn UiWidgetContext,
     label: &str,
     lines: impl IntoIterator<Item = UiString>,
 ) -> UiMessageBox {
-    let heading = UiMenuHeading::new(lines.into_iter().map(|line| UiText::new(line, DEFAULT_DIALOG_POPUP_FONT_SCALE)))
-        .with_separator(context, LARGE_HORIZONTAL_SEPARATOR_SPRITE)
-        .with_margin_top(2.0);
-
-    UiMessageBox::new(label)
-        .with_background(context, DEFAULT_DIALOG_POPUP_BACKGROUND_SPRITE)
-        .with_content_insets(DEFAULT_DIALOG_POPUP_CONTENT_INSETS)
-        .with_content(heading)
+    skin::popup(context, label, lines)
 }

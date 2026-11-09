@@ -1,0 +1,311 @@
+{
+  "sprite_scale": 2.0,
+  "style": {
+    "fonts": {
+      "title": { "file": "protest_revolution_regular.ttf", "scale": 0.8333, "y_offset_factor": 0.0 },
+      "body": { "file": "protest_revolution_regular.ttf", "scale": 0.8333, "y_offset_factor": 0.0 },
+      "mono": { "file": "source_code_pro_semi_bold.ttf", "scale": 0.7955, "y_offset_factor": 0.0 },
+      "icons": { "file": "fa-solid-900.ttf", "scale": 1.0, "y_offset_factor": 0.0 }
+    },
+    "text_styles": {
+      "body": { "font": "body", "size": 20.0, "fallbacks": ["mono", "icons"] },
+      "heading": { "font": "title", "size": 28.0, "fallbacks": ["mono", "icons"] },
+      "button": { "font": "title", "size": 20.0, "fallbacks": ["mono", "icons"] },
+      "small": { "font": "body", "size": 16.0, "fallbacks": ["mono", "icons"] },
+      "monospace": { "font": "mono", "size": 14.0, "fallbacks": ["icons"] },
+      "icon": { "font": "icons", "size": 16.0, "fallbacks": [] }
+    },
+    "colors": {
+      "text": "#2b2118",
+      "text_disabled": "#8a7d68",
+      "window_fill": "#f2e4c0",
+      "panel_fill": "#333338",
+      "border": "#6b4f33",
+      "separator": "#c9b083",
+      "faint_fill": "#f7ead08c",
+      "extreme_fill": "#f7ead0",
+      "text_edit_fill": "#f7ead0",
+      "selection": "#a8261c",
+      "selection_text": "#fff4dc",
+      "hyperlink": "#a8261c",
+      "warning": "#8C5A00",
+      "error": "#B00020",
+      "modal_backdrop": "#00000026"
+    },
+    "widgets": {
+      "noninteractive": {
+        "fill": "#f2e4c0",
+        "weak_fill": "#f7ead08c",
+        "stroke": "#c9b083",
+        "stroke_width": 1.0,
+        "text": "#2b2118",
+        "text_width": 1.0,
+        "corner_radius": 4.0
+      },
+      "inactive": {
+        "fill": "#f7ead0",
+        "weak_fill": "#efe0b8",
+        "stroke": "#6b4f33",
+        "stroke_width": 1.5,
+        "text": "#2b2118",
+        "text_width": 1.0,
+        "corner_radius": 4.0
+      },
+      "hovered": {
+        "fill": "#f7ead0",
+        "weak_fill": "#f7ebcc",
+        "stroke": "#a8261c",
+        "stroke_width": 1.5,
+        "text": "#2b2118",
+        "text_width": 1.5,
+        "corner_radius": 4.0
+      },
+      "active": {
+        "fill": "#efe0b8",
+        "weak_fill": "#a8261c",
+        "stroke": "#a8261c",
+        "stroke_width": 1.5,
+        "text": "#fff4dc",
+        "text_width": 2.0,
+        "corner_radius": 4.0
+      },
+      "open": {
+        "fill": "#f7ead0",
+        "weak_fill": "#efe0b8",
+        "stroke": "#6b4f33",
+        "stroke_width": 1.5,
+        "text": "#2b2118",
+        "text_width": 1.0,
+        "corner_radius": 4.0
+      }
+    },
+    "spacing": {
+      "item_spacing": [6.0, 6.0],
+      "button_padding": [5.0, 2.0],
+      "window_margin": 8.0,
+      "menu_margin": 10.0,
+      "indent": 25.0,
+      "interact_size": [40.0, 18.0],
+      "icon_width": 16.0,
+      "icon_spacing": 6.0,
+      "slider_width": 160.0,
+      "slider_rail_height": 10.0,
+      "combo_width": 160.0,
+      "text_edit_width": 200.0,
+      "scroll_bar_width": 11.0
+    },
+    "window": { "corner_radius": 7.0, "stroke_width": 1.0 },
+    "popup": { "corner_radius": 4.0 },
+    "animation_time": 0.0,
+    "tooltip_delay": 0.0,
+    "resize_grab_radius_side": 3.0,
+    "resize_grab_radius_corner": 6.0
+  },
+  "text": {
+    "ink": "#2b2118",
+    "title": "#2b2118",
+    "accent": "#a8261c",
+    "sub": "#6b4f33",
+    "on_accent": "#fff4dc",
+    "disabled": "#8a7d68",
+    "light": "#f3e3bd"
+  },
+  "headings": {
+    "dialog": { "font_scale": 1.8, "separator": "rule", "margin_top": 0.0, "margin_bottom": 10.0 },
+    "popup": { "font_scale": 1.5, "separator": "rule", "margin_top": 2.0, "margin_bottom": 6.0 },
+    "section": { "font_scale": 1.2, "separator": "plain", "margin_top": 0.0, "margin_bottom": 4.0 }
+  },
+  "panels": {
+    "dialog": {
+      "sprite": "skins/dailong/panel_dialog.png",
+      "slice": [126, 112, 126, 112],
+      "center": "round",
+      "content": [72, 66, 72, 66]
+    },
+    "popup": {
+      "sprite": "skins/dailong/panel_popup.png",
+      "slice": [126, 112, 126, 112],
+      "center": "round",
+      "content": [72, 62, 72, 62]
+    },
+    "tooltip": {
+      "sprite": "skins/dailong/panel_tooltip.png",
+      "slice": [28, 28, 28, 28],
+      "center": "round",
+      "content": [14, 12, 14, 12]
+    },
+    "card": {
+      "sprite": "skins/dailong/panel_card.png",
+      "slice": [28, 28, 28, 28],
+      "center": "round",
+      "content": [18.0, 18.0, 18.0, 18.0]
+    },
+    "bar": {
+      "sprite": "skins/dailong/panel_bar.png",
+      "slice": [20, 20, 20, 20],
+      "center": "stretch",
+      "content": [14.0, 14.0, 14.0, 14.0]
+    },
+    "side": {
+      "sprite": "skins/dailong/panel_side.png",
+      "slice": [48, 48, 48, 48],
+      "center": "round",
+      "content": [28.0, 28.0, 28.0, 28.0]
+    },
+    "caption": {
+      "sprite": "skins/dailong/panel_caption.png",
+      "slice": [48, 48, 116, 96],
+      "center": "stretch",
+      "content": [28.0, 28.0, 62.0, 52.0]
+    },
+    "well": {
+      "sprite": "skins/dailong/panel_well.png",
+      "slice": [16, 16, 16, 16],
+      "center": "stretch",
+      "content": [12.0, 12.0, 12.0, 12.0]
+    },
+    "row": {
+      "sprite": "skins/dailong/panel_row.png",
+      "slice": [20, 0, 20, 4],
+      "center": "stretch",
+      "content": [14.0, 8, 14.0, 8]
+    },
+    "row_selected": {
+      "sprite": "skins/dailong/panel_row_selected.png",
+      "slice": [20, 20, 20, 20],
+      "center": "stretch",
+      "content": [14.0, 14.0, 14.0, 14.0]
+    },
+    "field": {
+      "sprite": "skins/dailong/panel_field.png",
+      "slice": [16, 16, 16, 16],
+      "center": "stretch",
+      "content": [12.0, 12.0, 12.0, 12.0]
+    },
+    "bubble": {
+      "sprite": "skins/dailong/panel_bubble.png",
+      "slice": [88, 88, 88, 88],
+      "center": "stretch",
+      "content": [48.0, 48.0, 48.0, 48.0]
+    },
+    "hud_wide": { "sprite": "misc/wide_page_bg.png" },
+    "hud_tall": { "sprite": "misc/tall_page_bg.png" },
+    "hud_page": { "sprite": "misc/square_page_bg.png", "content": [20.0, 20.0, 20.0, 20.0] }
+  },
+  "buttons": {
+    "primary": {
+      "sprite": "skins/dailong/button_primary",
+      "slice": [20, 20, 20, 20],
+      "center": "stretch",
+      "padding": [16.0, 5.0],
+      "text": "on_accent",
+      "font": "small"
+    },
+    "secondary": {
+      "sprite": "skins/dailong/button_secondary",
+      "slice": [20, 20, 20, 20],
+      "center": "stretch",
+      "padding": [16.0, 5.0],
+      "text": "on_accent",
+      "font": "small"
+    },
+    "tab": {
+      "sprite": "skins/dailong/tab",
+      "slice": [16, 16, 16, 16],
+      "center": "stretch",
+      "padding": [14.0, 5.0],
+      "text": "ink",
+      "font": "small"
+    },
+    "tab_selected": {
+      "sprite": "skins/dailong/tab_selected",
+      "slice": [16, 16, 16, 16],
+      "center": "stretch",
+      "padding": [14.0, 5.0],
+      "text": "on_accent",
+      "font": "small"
+    },
+    "menu_item": {
+      "hover": "row_selected",
+      "hover_grow": [28.0, 1.0],
+      "text": "ink",
+      "text_hovered": "accent",
+      "marker": "skins/dailong/marker.png",
+      "font": "large"
+    },
+    "icon": {
+      "sprite": "skins/dailong/icon_frame",
+      "slice": [20, 20, 20, 20],
+      "selected": "skins/dailong/icon_frame_selected.png",
+      "size": 28.0
+    },
+    "hud_item": { "hover_sprite": "misc/brush_stroke_divider.png", "font": "normal" }
+  },
+  "icon_sets": { "menu_bar": "buttons/menu_bar", "palette": "buttons/palette" },
+  "icons": {
+    "population": "icons/population_icon.png",
+    "player": "icons/player_icon.png",
+    "gold": "icons/gold_icon.png",
+    "clear_tool": "icons/red_x_icon.png"
+  },
+  "controls": {
+    "toggle": {
+      "off": "skins/dailong/toggle_off.png",
+      "on": "skins/dailong/toggle_on.png",
+      "knob": "skins/dailong/toggle_knob.png",
+      "size": [62.0, 30.0]
+    },
+    "checkbox": { "off": "skins/dailong/checkbox_off.png", "on": "skins/dailong/checkbox_on.png", "size": [28.0, 28.0] },
+    "slider": {
+      "rail": { "sprite": "skins/dailong/slider_rail.png", "slice": [14, 0, 14, 0] },
+      "fill": { "sprite": "skins/dailong/slider_fill.png", "slice": [10, 0, 10, 0] },
+      "knob": "skins/dailong/slider_knob.png"
+    },
+    "dropdown": { "field": "field", "arrow": "skins/dailong/dropdown_arrow.png" },
+    "scrollbar": {
+      "track": { "sprite": "skins/dailong/scrollbar_track.png", "slice": [0, 14, 0, 14] },
+      "thumb": { "sprite": "skins/dailong/scrollbar_thumb.png", "slice": [0, 10, 0, 10] }
+    }
+  },
+  "separators": {
+    "rule": {
+      "sprite": "skins/dailong/rule.png",
+      "slice": [8, 0, 8, 0],
+      "height": 6.0,
+      "ornament": "skins/dailong/ornament.png",
+      "ornament_size": [18.0, 18.0]
+    },
+    "plain": { "sprite": "skins/dailong/rule.png", "slice": [8, 0, 8, 0], "height": 6.0 },
+    "hud": { "sprite": "misc/brush_stroke_divider.png" },
+    "hud_vertical": { "sprite": "misc/brush_stroke_divider_vertical.png" }
+  },
+  "emblems": {
+    "dailong": "skins/dailong/emblem_dailong",
+    "kambara": "skins/dailong/emblem_kambara",
+    "tampadesa": "skins/dailong/emblem_tampadesa"
+  },
+  "backdrops": { "home": ["misc/home_menu_static_bg.png"], "dim_home": "#00000000", "dim_game": "#00000026" },
+  "dialogs": { "default": {"panel": "dialog", "size": [550.0, -120.0]} },
+  "sounds": {
+    "button_hovered": "buttons/default/hovered.wav",
+    "button_pressed": "buttons/default/pressed.wav",
+    "item_hovered": "buttons/default/hovered.wav",
+    "item_selected": "buttons/default/pressed.wav",
+    "tab_selected": "buttons/default/pressed.wav",
+    "toggled": "buttons/default/pressed.wav",
+    "slider_changed": "buttons/default/hovered.wav",
+    "dropdown_opened": "buttons/default/pressed.wav",
+    "dropdown_closed": "buttons/default/hovered.wav",
+    "dialog_opened": "buttons/default/pressed.wav",
+    "dialog_closed": "buttons/default/pressed.wav",
+    "popup_opened": "buttons/default/pressed.wav",
+    "popup_closed": "buttons/default/pressed.wav",
+    "notification": "misc/default/tile_placed.wav",
+    "alert": "misc/default/tile_placement_failed.wav",
+    "tile_placed": "misc/default/tile_placed.wav",
+    "tile_cleared": "misc/default/tile_cleared.wav",
+    "tile_placement_canceled": "misc/default/tile_placement_canceled.wav",
+    "tile_placement_failed": "misc/default/tile_placement_failed.wav",
+    "construction_completed": "misc/default/tile_placed.wav"
+  }
+}

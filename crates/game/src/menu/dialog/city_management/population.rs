@@ -64,14 +64,14 @@ impl PopulationManagement {
             make_default_layout_dialog_menu(context, Self::KIND, Self::TITLE, DEFAULT_DIALOG_MENU_TEXT_SPACING, []);
 
         let population_stats_heading =
-            UiMenuHeading::new(POPULATION_STATS_TEXT).with_separator(context, LARGE_HORIZONTAL_SEPARATOR_SPRITE);
+            skin::with_heading_separator(context, UiMenuHeading::new(POPULATION_STATS_TEXT), HeadingLevel::Section);
         let population_stats_heading_index = menu.add_widget(population_stats_heading);
 
         let worker_stats_heading =
-            UiMenuHeading::new(WORKER_STATS_TEXT).with_separator(context, LARGE_HORIZONTAL_SEPARATOR_SPRITE);
+            skin::with_heading_separator(context, UiMenuHeading::new(WORKER_STATS_TEXT), HeadingLevel::Section);
         let worker_stats_heading_index = menu.add_widget(worker_stats_heading);
 
-        menu.add_widget(UiWidgetGroup::new().with_widget(make_dialog_close_button(context, "Ok")));
+        menu.add_widget(UiWidgetGroup::new().with_widget(make_dialog_close_button(context, ButtonRole::Primary, "Ok")));
 
         // Refresh body text when menu is opened.
         menu.set_open_close_callback(|_, context, is_open| {

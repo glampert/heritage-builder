@@ -26,6 +26,7 @@ drawing turned a quarter clockwise about the rect's centre, so the sprite is hei
 "out" (another output path pattern) and, per state, "css" (a CSS filter), "args" and "call".
 """
 
+import copy
 import hashlib
 import json
 import os
@@ -417,13 +418,30 @@ def check_web_manifest(root, paths):
     return [f"not in {WEB_MANIFEST}: {shown}; run `cargo run -p web-builder -- manifest`"]
 
 
+# A skin's 9-slice `center` that suits each catalog `center`: art drawn to repeat (tile) may
+# repeat cut (tile) or resized to whole tiles (round); stretched art only stretches.
+SKIN_CENTERS = {"tile": ("tile", "round"), "stretch": ("stretch",)}
+
+# Skin blocks that hold no sprite paths: the style (fonts are under assets/fonts/), colours, and
+# sounds (under assets/sounds/sfx/ui/).
+SKIN_NON_SPRITE_BLOCKS = ("style", "text", "sounds")
+
+# The skin every other realm's file is merged over.
+SKIN_BASE_FILE = "dailong.json"
+
+
 def check_skins(root, records):
     """Compares the skin files (assets/configs/ui/skins/*.json), when they exist, with the
-    catalog: every skins/... path a skin names exists (a path without .png is a folder, or a
-    stem that takes a state suffix), and a 9-slice's slice and center equal the catalog's.
+    catalog: every sprite path a skin names exists under assets/ui/ (a path without an image
+    extension is a folder, such as an icon set's, or a stem that takes a state suffix), and a
+    9-slice of a catalog sprite has the catalog's slice and a center that suits it.
 
-    A skin object that holds "sprite" and "slice" is a 9-slice; other string values starting
-    with "skins/" are sprite paths. Extend this as the skin format grows."""
+    A realm's file is checked as the game reads it, merged over dailong.json (objects key by key,
+    anything else replaced), so a slice or center it doesn't repeat comes from Đại Long's.
+
+    A skin object that holds "sprite" is a panel, button or separator: with "slice" a 9-slice,
+    without one a stretched sprite, which a catalog 9-slice may not be. Other strings that hold a
+    "/" are sprite paths, outside the style, text and sounds blocks."""
     sdir = os.path.join(root, SKIN_CONFIG_DIR)
     if not os.path.isdir(sdir):
         return []
@@ -434,6 +452,7 @@ def check_skins(root, records):
             if st["state"]:
                 by_stem[st["out"][: -len(f"_{st['state']}.png")]] = rec
     errors = []
+    files = {}
     for name in sorted(os.listdir(sdir)):
         if not name.endswith(".json"):
             continue
@@ -444,13 +463,27 @@ def check_skins(root, records):
         except (OSError, ValueError) as e:
             errors.append(f"{SKIN_CONFIG_DIR}/{name}: {e}")
             continue
-        for where, node in _walk(skin, name):
-            if isinstance(node, str) and node.startswith(SKIN_ART_DIR + "/"):
+        if not isinstance(skin, dict):
+            errors.append(f"{SKIN_CONFIG_DIR}/{name}: not a JSON object")
+            continue
+        files[name] = skin
+    base = files.get(SKIN_BASE_FILE, {})
+    for name, skin in files.items():
+        if name != SKIN_BASE_FILE:
+            skin = merge_json(copy.deepcopy(base), skin)
+        blocks = {k: v for k, v in skin.items() if k not in SKIN_NON_SPRITE_BLOCKS}
+        for where, node in _walk(blocks, name):
+            if isinstance(node, str) and "/" in node and not node.startswith("#"):
                 if not _sprite_exists(root, node):
                     errors.append(f"{SKIN_CONFIG_DIR}/{where}: {node} doesn't exist under {UI_DIR}/")
-            elif isinstance(node, dict) and isinstance(node.get("sprite"), str) and "slice" in node:
+            elif isinstance(node, dict) and isinstance(node.get("sprite"), str):
                 rec = by_path.get(node["sprite"]) or by_stem.get(node["sprite"])
                 if rec is None:
+                    continue
+                if "slice" not in node:
+                    if rec["slice"] is not None:
+                        errors.append(f"{SKIN_CONFIG_DIR}/{where}: {node['sprite']} is a 9-slice in the catalog "
+                                      f"({rec['realm']}/{rec['id']}, slice {rec['slice']}); give its slice")
                     continue
                 if rec["slice"] is None:
                     errors.append(f"{SKIN_CONFIG_DIR}/{where}: {node['sprite']} isn't a 9-slice in the catalog")
@@ -458,10 +491,21 @@ def check_skins(root, records):
                 if node["slice"] != rec["slice"]:
                     errors.append(f"{SKIN_CONFIG_DIR}/{where}: slice {node['slice']}, the catalog's "
                                   f"{rec['realm']}/{rec['id']} has {rec['slice']}")
-                if "center" in node and node["center"] != rec["center"]:
-                    errors.append(f"{SKIN_CONFIG_DIR}/{where}: center {node['center']!r}, the catalog's "
-                                  f"{rec['realm']}/{rec['id']} has {rec['center']!r}")
+                center = node.get("center", "stretch")
+                if center not in SKIN_CENTERS.get(rec["center"], (rec["center"],)):
+                    errors.append(f"{SKIN_CONFIG_DIR}/{where}: center {center!r} doesn't suit the catalog's "
+                                  f"{rec['realm']}/{rec['id']}, drawn to {rec['center']!r}")
     return errors
+
+
+def merge_json(base, overlay):
+    """The game's engine::config::merge_json: objects merge key by key, recursively, and any other
+    value replaces the base's."""
+    if isinstance(base, dict) and isinstance(overlay, dict):
+        for k, v in overlay.items():
+            base[k] = merge_json(base[k], v) if k in base else v
+        return base
+    return overlay
 
 
 def _walk(node, where):
@@ -475,9 +519,9 @@ def _walk(node, where):
 
 
 def _sprite_exists(root, rel):
-    # A .png file, a folder (e.g. an icon set's "folder"), or a stem that takes a state suffix.
+    # An image file, a folder (e.g. an icon set's), or a stem that takes a state suffix.
     base = os.path.join(root, UI_DIR, rel)
-    if rel.endswith(".png"):
+    if rel.endswith((".png", ".jpg", ".jpeg")):
         return os.path.isfile(base)
     if os.path.isdir(base):
         return True

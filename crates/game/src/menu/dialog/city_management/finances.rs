@@ -59,9 +59,9 @@ impl FinancesManagement {
             make_default_layout_dialog_menu(context, Self::KIND, Self::TITLE, DEFAULT_DIALOG_MENU_TEXT_SPACING, []);
 
         let accounts_heading_index =
-            menu.add_widget(UiMenuHeading::new(ACCOUNTS_TEXT).with_separator(context, LARGE_HORIZONTAL_SEPARATOR_SPRITE));
+            menu.add_widget(skin::with_heading_separator(context, UiMenuHeading::new(ACCOUNTS_TEXT), HeadingLevel::Section));
         let treasury_heading_index =
-            menu.add_widget(UiMenuHeading::new(TREASURY_TEXT).with_separator(context, LARGE_HORIZONTAL_SEPARATOR_SPRITE));
+            menu.add_widget(skin::with_heading_separator(context, UiMenuHeading::new(TREASURY_TEXT), HeadingLevel::Section));
 
         // The player's settings, read from and written to the treasury as they change.
         let tax_level = UiDropdown::new(TaxLevel::iter())
@@ -88,7 +88,7 @@ impl FinancesManagement {
         menu.add_widget(settings);
 
         menu.add_widget(UiSeparator::new().with_thickness(DEFAULT_DIALOG_MENU_WIDGET_SPACING.x));
-        menu.add_widget(UiWidgetGroup::new().with_widget(make_dialog_close_button(context, "Ok")));
+        menu.add_widget(UiWidgetGroup::new().with_widget(make_dialog_close_button(context, ButtonRole::Primary, "Ok")));
 
         // Refresh the accounts when the menu is opened.
         menu.set_open_close_callback(|_, context, is_open| {

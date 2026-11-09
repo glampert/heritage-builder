@@ -98,6 +98,12 @@ impl GameMenusSystem for DevEditorMenus {
         DevEditorMenusSingleton::get().debug_settings_menu.selected_render_flags()
     }
 
+    // The editor stays on the developer UI's theme, but follows the UI realm's skin, so the sample
+    // menus' retail theme (retail_ui_theme) is the realm's that ui.realm shows.
+    fn sync_skin(&mut self, context: &mut GameUiContext) {
+        skin::follow(context, crate::realm::ui_realm_for(false).realm);
+    }
+
     fn end_frame(&mut self, context: &mut GameUiContext, visible_range: CellRange) {
         DevEditorMenusSingleton::get_mut().draw_debug_menus(context, visible_range);
     }

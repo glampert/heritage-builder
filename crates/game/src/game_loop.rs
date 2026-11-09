@@ -430,9 +430,11 @@ impl GameLoop {
 
         // Before any menu is built: widgets read the style and measure text when they're created.
         let pixels_per_point = engine.app().content_scale().x;
-        if let Err(err) = engine.ui_system_mut().load_styles(&menu::ui_style_sources(), pixels_per_point) {
-            panic!("Can't load the UI styles: {err}"); // No text can be drawn without their fonts.
+        // The UI skins hold the retail styles and sounds (menu::skin).
+        if let Err(err) = menu::skin::load(engine.ui_system_mut(), pixels_per_point) {
+            panic!("Can't load the UI skins: {err}"); // No text can be drawn without their fonts.
         }
+        menu::skin::apply_sounds(engine.sound_system_mut());
 
         let load_assets_time_ms = load_assets_timer.end();
         log::info!(log::channel!("game"), "Load Assets took: {:.1}ms", load_assets_time_ms);
@@ -760,6 +762,9 @@ impl GameLoop {
 }
 
 // Shows a toast and plays its sound.
+// TODO(realm-ui): toasts (these and the construction toasts above) move onto the skin's `caption`
+// panel and text colours (Phase 0, popups, tooltips and toasts on skin panels); the engine's
+// toast drawing (engine/src/ui/toast.rs) needs to take a UiNineSlice and colours for it.
 fn show_toast(engine: &mut Engine, message: String, sound: UiSoundKey) {
     engine.ui_system().show_toast(message);
     ui::sound::play(engine.sound_system_mut(), sound);

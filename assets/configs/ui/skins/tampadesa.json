@@ -1,0 +1,119 @@
+{
+  "style": {
+    "fonts": {
+      "title": { "file": "amita_regular.ttf", "scale": 0.5149, "y_offset_factor": 0.0 },
+      "body": { "file": "amita_bold.ttf", "scale": 0.5149, "y_offset_factor": 0.0 },
+      "title_vi": { "file": "alegreya_medium.ttf", "scale": 0.5149, "y_offset_factor": -0.015 },
+      "body_vi": { "file": "alegreya_bold.ttf", "scale": 0.5149, "y_offset_factor": -0.015 }
+    },
+    "text_styles": {
+      "body": { "size": 28.0, "fallbacks": ["body_vi", "mono", "icons"] },
+      "heading": { "size": 36.0, "fallbacks": ["title_vi", "mono", "icons"] },
+      "button": { "size": 28.0, "fallbacks": ["title_vi", "mono", "icons"] },
+      "small": { "size": 22.0, "fallbacks": ["body_vi", "mono", "icons"] }
+    },
+    "colors": {
+      "text": "#3b2412",
+      "text_disabled": "#8f7a5c",
+      "window_fill": "#f3dfb4",
+      "border": "#6b4a2a",
+      "separator": "#c79d64",
+      "faint_fill": "#f6e3bc8c",
+      "extreme_fill": "#f6e3bc",
+      "text_edit_fill": "#f6e3bc",
+      "selection": "#8a2216",
+      "hyperlink": "#8a2216"
+    },
+    "widgets": {
+      "noninteractive": { "fill": "#f3dfb4", "weak_fill": "#f6e3bc8c", "stroke": "#c79d64", "text": "#3b2412" },
+      "inactive": { "fill": "#f6e3bc", "weak_fill": "#e8cfa0", "stroke": "#6b4a2a", "text": "#3b2412" },
+      "hovered": { "fill": "#f6e3bc", "weak_fill": "#f6e3b8", "stroke": "#8a2216", "text": "#3b2412" },
+      "active": { "fill": "#e8cfa0", "weak_fill": "#8a2216", "stroke": "#8a2216" },
+      "open": { "fill": "#f6e3bc", "weak_fill": "#e8cfa0", "stroke": "#6b4a2a", "text": "#3b2412" }
+    }
+  },
+  "text": {
+    "ink": "#3b2412",
+    "title": "#3b2412",
+    "accent": "#8a2216",
+    "sub": "#7a4f2a",
+    "disabled": "#8f7a5c",
+    "light": "#f7e3b0"
+  },
+  "headings": {
+    "dialog": { "margin_bottom": 2.0 }
+  },
+  "panels": {
+    "dialog": { "sprite": "skins/tampadesa/panel_dialog.png", "slice": [100, 110, 100, 104], "content": [62, 66, 62, 62] },
+    "popup": { "sprite": "skins/tampadesa/panel_popup.png", "slice": [100, 110, 100, 104], "content": [62, 64, 62, 60] },
+    "tooltip": {
+      "sprite": "skins/tampadesa/panel_tooltip.png",
+      "slice": [24, 24, 24, 28],
+      "center": "stretch",
+      "content": [14, 12, 14, 14],
+      "text": "#f3e2bf"
+    },
+    "card": { "sprite": "skins/tampadesa/panel_card.png", "slice": [20, 20, 20, 20], "content": [14.0, 14.0, 14.0, 14.0] },
+    "bar": { "sprite": "skins/tampadesa/panel_bar.png", "slice": [16, 16, 24, 28], "content": [12.0, 12.0, 16.0, 18.0] },
+    "side": { "sprite": "skins/tampadesa/panel_side.png", "slice": [48, 48, 48, 48] },
+    "caption": {
+      "sprite": "skins/tampadesa/panel_caption.png",
+      "slice": [16, 16, 20, 24],
+      "content": [12.0, 12.0, 14.0, 16.0]
+    },
+    "well": { "sprite": "skins/tampadesa/panel_well.png", "slice": [16, 16, 16, 16] },
+    "row": { "sprite": "skins/tampadesa/panel_row.png", "slice": [20, 0, 20, 4] },
+    "row_selected": { "sprite": "skins/tampadesa/panel_row_selected.png", "slice": [20, 20, 20, 20] },
+    "field": { "sprite": "skins/tampadesa/panel_field.png", "slice": [16, 16, 16, 16] },
+    "bubble": {
+      "sprite": "skins/tampadesa/panel_bubble.png",
+      "slice": [72, 72, 72, 72],
+      "content": [40.0, 40.0, 40.0, 40.0]
+    }
+  },
+  "buttons": {
+    "primary": { "sprite": "skins/tampadesa/button_primary", "slice": [20, 20, 24, 28] },
+    "secondary": { "sprite": "skins/tampadesa/button_secondary", "slice": [20, 20, 24, 28] },
+    "tab": { "sprite": "skins/tampadesa/tab", "slice": [16, 16, 16, 16] },
+    "tab_selected": { "sprite": "skins/tampadesa/tab_selected", "slice": [16, 16, 16, 16] },
+    "menu_item": { "marker": "skins/tampadesa/marker.png" },
+    "icon": {
+      "sprite": "skins/tampadesa/icon_frame",
+      "slice": [20, 20, 20, 20],
+      "selected": "skins/tampadesa/icon_frame_selected.png"
+    }
+  },
+  "controls": {
+    "toggle": {
+      "off": "skins/tampadesa/toggle_off.png",
+      "on": "skins/tampadesa/toggle_on.png",
+      "knob": "skins/tampadesa/toggle_knob.png"
+    },
+    "checkbox": { "off": "skins/tampadesa/checkbox_off.png", "on": "skins/tampadesa/checkbox_on.png" },
+    "slider": {
+      "rail": { "sprite": "skins/tampadesa/slider_rail.png", "slice": [14, 0, 14, 0] },
+      "fill": { "sprite": "skins/tampadesa/slider_fill.png", "slice": [10, 0, 10, 0] },
+      "knob": "skins/tampadesa/slider_knob.png"
+    },
+    "dropdown": { "arrow": "skins/tampadesa/dropdown_arrow.png" },
+    "scrollbar": {
+      "track": { "sprite": "skins/tampadesa/scrollbar_track.png", "slice": [0, 14, 0, 14] },
+      "thumb": { "sprite": "skins/tampadesa/scrollbar_thumb.png", "slice": [0, 10, 0, 10] }
+    }
+  },
+  "separators": {
+    "rule": {
+      "sprite": "skins/tampadesa/rule.png",
+      "slice": [8, 0, 8, 0],
+      "height": 4.0,
+      "ornament": "skins/tampadesa/ornament.png",
+      "ornament_size": [14.0, 21.0]
+    },
+    "plain": { "sprite": "skins/tampadesa/rule.png", "slice": [8, 0, 8, 0], "height": 4.0 }
+  },
+  "emblems": {
+    "dailong": "skins/tampadesa/emblem_dailong",
+    "kambara": "skins/tampadesa/emblem_kambara",
+    "tampadesa": "skins/tampadesa/emblem_tampadesa"
+  }
+}

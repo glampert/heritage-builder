@@ -5,7 +5,7 @@ use strum::EnumCount;
 
 use super::{TileInspector, TileInspectorMenuWeakMut};
 use crate::{
-    menu::make_text_button,
+    menu::{make_text_button, skin::{self, ButtonRole}},
     tile::{TileKind, sets::TileIconSprite},
     ui_context::GameUiContext,
 };
@@ -242,7 +242,7 @@ impl InspectorMenuRenderer {
         let heading_index = icon_and_heading_group.add_widget(heading);
 
         let close_button_inspector_menu_weak_ref = tile_inspector_menu_weak_ref.clone();
-        let close_button = make_text_button(context, "Close", move |_, context| {
+        let close_button = make_text_button(context, ButtonRole::HudItem, "Close", move |_, context| {
             let mut inspector_menu = close_button_inspector_menu_weak_ref.upgrade().unwrap();
             inspector_menu.close(context_as_mut::<GameUiContext>(context));
         });
@@ -257,7 +257,7 @@ impl InspectorMenuRenderer {
 
         let separator = UiSeparator::new(); // Includes widget_spacing/item_spacing.
 
-        let mut menu = UiMenu::new(menu_name)
+        let menu = UiMenu::new(menu_name)
             .with_flags(
                 UiMenuFlags::PauseSimIfOpen
                     | UiMenuFlags::AlignCenter
@@ -266,9 +266,9 @@ impl InspectorMenuRenderer {
                     | UiMenuFlags::AdjustSizeToContents,
             )
             .with_size(menu_size)
-            .with_background(context, "misc/square_page_bg.png")
-            .with_content_insets(UiMenuInsets::same(INSPECTOR_CONTENT_INSET))
             .with_widget_spacing(Vec2::new(0.0, 10.0));
+        // The skin's old page art (Phase 5 restyles the inspector), insets as before.
+        let mut menu = skin::panel(context, "hud_page").apply_to_menu(menu).with_content_insets(UiMenuInsets::same(INSPECTOR_CONTENT_INSET));
 
         menu.add_widget(separator.clone());
         let icon_and_heading_group_index = menu.add_widget(icon_and_heading_group);

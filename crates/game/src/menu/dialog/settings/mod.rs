@@ -280,7 +280,7 @@ impl SettingsCategory {
         // -------------
 
         let ok_button_weak_ref = this.clone().into_not_mut();
-        let ok_button = make_text_button(context, "Ok", move |_, context| {
+        let ok_button = make_text_button(context, ButtonRole::Primary, "Ok", move |_, context| {
             let settings = ok_button_weak_ref.upgrade().unwrap();
             settings.commit_settings();
             super::close_current(context_as_mut::<GameUiContext>(context));
@@ -290,7 +290,7 @@ impl SettingsCategory {
             .with_widget_spacing(DEFAULT_DIALOG_MENU_WIDGET_SPACING * 4.0)
             .with_stack_vertically(false)
             .with_widget(ok_button)
-            .with_widget(make_dialog_close_button(context, "Cancel"));
+            .with_widget(make_dialog_close_button(context, ButtonRole::Secondary, "Cancel"));
 
         // -------------
         // Menu:

@@ -66,7 +66,7 @@ impl NewGame {
         // Buttons:
         // -------------
 
-        let start_new_game_button = make_text_button(context, "Start New Game", |_button, _context| {
+        let start_new_game_button = make_text_button(context, ButtonRole::Primary, "Start New Game", |_button, _context| {
             let new_game_menu = super::find::<NewGame>();
 
             let new_map_size = Some(new_game_menu.new_map_size);
@@ -80,7 +80,7 @@ impl NewGame {
             .with_widget_spacing(DEFAULT_DIALOG_MENU_WIDGET_SPACING * 2.0)
             .with_stack_vertically(false)
             .with_widget(start_new_game_button)
-            .with_widget(make_dialog_close_button(context, "Cancel"));
+            .with_widget(make_dialog_close_button(context, ButtonRole::Secondary, "Cancel"));
 
         // -------------
         // Menu:

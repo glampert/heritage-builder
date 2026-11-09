@@ -9,8 +9,9 @@ use engine::{
 use inspector::{TileInspectorMenu, TileInspectorMenuRcMut};
 use palette::{TilePaletteMenu, TilePaletteMenuRcMut};
 
-use super::{GameMenusInputArgs, GameMenusMode, GameMenusSystem, TileInspector, TilePalette, TilePlacement, dialog};
+use super::{GameMenusInputArgs, GameMenusMode, GameMenusSystem, TileInspector, TilePalette, TilePlacement, dialog, skin};
 use crate::{
+    realm,
     campaign::{self, CampaignPrompt},
     save_context::{Load, PreLoadContext, Save},
     tile::minimap::{InGameUiMinimapRenderer, MinimapRenderer},
@@ -31,15 +32,18 @@ pub struct InGameMenus {
     tile_inspector: TileInspectorMenuRcMut,
     menu_bars: InGameMenuBarsRcMut,
     minimap_renderer: InGameUiMinimapRenderer,
+    built: (u32, u32), // The skin's and the strings' versions the HUD was built with.
 }
 
 impl InGameMenus {
     pub fn new(context: &mut GameUiContext) -> Self {
-        context.ui_sys.set_ui_theme(super::retail_ui_theme(context.ui_sys));
+        // The game's realm's skin, before anything is built with it.
+        skin::follow(context, realm::ui_realm_for(false).realm);
+        skin::apply_theme(context.ui_sys);
 
         dialog::initialize(context);
         dialog::set_global_menu_flags(UiMenuFlags::AlignCenter);
-        dialog::set_bg_dim_alpha(context, 0.15);
+        dialog::set_backdrop_dim(context, false);
 
         Self {
             tile_placement: TilePlacement::new(),
@@ -47,7 +51,29 @@ impl InGameMenus {
             tile_inspector: TileInspectorMenu::new(context),
             menu_bars: InGameMenuBars::new(context),
             minimap_renderer: InGameUiMinimapRenderer::new(context),
+            built: Self::versions(),
         }
+    }
+
+    fn versions() -> (u32, u32) {
+        (skin::version(), engine::ui::text::version())
+    }
+
+    // Builds the HUD again from the current skin and strings: the palette (its selection
+    // dropped), the bars and the inspector (closed). The minimap follows the skin's realm itself.
+    // Closing the inspector resumes the simulation (`PauseSimIfOpen`), so the pause state from
+    // before the rebuild is put back: a dialog open over the inspector keeps the game paused.
+    fn rebuild_hud(&mut self, context: &mut GameUiContext) {
+        let was_paused = context.sim.is_paused();
+        self.tile_palette.clear_current_selection(context);
+        self.tile_inspector.close(context);
+        if was_paused {
+            context.sim.pause();
+        }
+        self.tile_palette = TilePaletteMenu::new(context);
+        self.tile_inspector = TileInspectorMenu::new(context);
+        self.menu_bars = InGameMenuBars::new(context);
+        self.built = Self::versions();
     }
 }
 
@@ -70,6 +96,17 @@ impl GameMenusSystem for InGameMenus {
 
     fn tile_inspector(&mut self) -> Option<&mut dyn TileInspector> {
         Some(self.tile_inspector.as_mut())
+    }
+
+    fn sync_skin(&mut self, context: &mut GameUiContext) {
+        skin::follow(context, realm::ui_realm_for(false).realm);
+        skin::apply_theme(context.ui_sys);
+        dialog::set_backdrop_dim(context, false);
+        dialog::sync(context);
+
+        if self.built != Self::versions() {
+            self.rebuild_hud(context);
+        }
     }
 
     fn handle_custom_input(&mut self, context: &mut GameUiContext, args: GameMenusInputArgs) -> UiInputEvent {

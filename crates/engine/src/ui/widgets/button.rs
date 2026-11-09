@@ -3,11 +3,11 @@ use smallbox::smallbox;
 use egui::{Align2, Color32, Sense, vec2};
 use strum::{EnumCount, EnumIter, EnumProperty, IntoEnumIterator};
 
-use common::{Color, Vec2, format_fixed_string, mem, time::{CountdownTimer, Seconds}};
+use common::{Color, Vec2, mem, time::{CountdownTimer, Seconds}};
 
 use super::{UiTooltipText, UiWidget, UiWidgetCallback, UiWidgetContext};
 use crate::{
-    file_sys::paths::{AssetPath, PathRef},
+    file_sys::paths::PathRef,
     render::texture::TextureHandle,
     ui::{
         UiFontScale, UiNineSlice, UiNineSliceCenter, UiString,
@@ -57,6 +57,9 @@ pub struct UiTextButton {
     tooltip: Option<UiTooltipText>,
     font_scale: UiFontScale,
     hover: Option<TextureHandle>,
+    hover_panel: Option<(UiNineSlice, Vec2)>, // Drawn behind the text while hovered, grown by the Vec2.
+    text_color: Option<Color>,
+    hover_text_color: Option<Color>,
     frame: Option<UiTextButtonFrame>,
     sounds: UiWidgetSounds, // Hovered: ButtonHovered, Pressed: ButtonPressed.
     enabled: bool,
@@ -77,10 +80,14 @@ impl UiWidget for UiTextButton {
         let enabled = self.is_enabled();
 
         let (pressed, hovered) = ui_sys.with_ui(|ui| {
-            // Faded text if disabled. It still takes the mouse, for its tooltip.
+            // Faded text if disabled. It still takes the mouse, for its tooltip. The hover color
+            // follows last frame's hover, as the text is drawn before this frame's is known.
             let text_color = match &self.frame {
                 Some(frame) => frame.text_color.map_or_else(|| ui.visuals().text_color(), color32),
-                None => ui.visuals().text_color(),
+                None => {
+                    let color = if self.hovered && enabled { self.hover_text_color.or(self.text_color) } else { self.text_color };
+                    color.map_or_else(|| ui.visuals().text_color(), color32)
+                }
             };
             let text_color = if enabled { text_color } else { text_color.gamma_multiply(0.5) };
 
@@ -113,9 +120,25 @@ impl UiWidget for UiTextButton {
                 None => {
                     let text = rich_text(ui_sys, ui, self.label.resolve()).color(text_color);
 
-                    // With a hover effect texture (underline effect) the button draws fully transparent.
-                    let button = egui::Button::new(text).frame(self.hover.is_none());
+                    // With a hover effect texture (underline effect) or panel the button draws fully
+                    // transparent. The panel goes in a slot under the text, filled once the
+                    // button's rect is known.
+                    let frameless = self.hover.is_some() || self.hover_panel.is_some();
+                    let panel_slot = self.hover_panel.is_some().then(|| ui.painter().add(egui::Shape::Noop));
+                    let button = egui::Button::new(text).frame(!frameless);
                     let response = ui.add(button);
+
+                    if let (Some(slot), Some((panel, grow))) = (panel_slot, &self.hover_panel)
+                        && response.hovered()
+                    {
+                        let rect = response.rect.expand2(egui_vec2(*grow));
+                        let tint = if response.is_pointer_button_down_on() || !enabled {
+                            Color32::from_white_alpha(160)
+                        } else {
+                            Color32::WHITE
+                        };
+                        ui.painter().set(slot, nine_slice_shape(rect, panel, tint));
+                    }
 
                     // Draw underline effect when hovered / active:
                     if let Some(hover) = self.hover
@@ -198,6 +221,9 @@ impl UiTextButton {
             tooltip: None,
             font_scale: UiTextButtonSize::default().font_scale(),
             hover: None,
+            hover_panel: None,
+            text_color: None,
+            hover_text_color: None,
             frame: None,
             sounds: UiWidgetSounds::new(),
             enabled: true,
@@ -219,6 +245,21 @@ impl UiTextButton {
     // Drawn under the text while hovered, in place of the style's button frame.
     pub fn with_hover_sprite<'a>(mut self, context: &mut dyn UiWidgetContext, sprite: impl Into<PathRef<'a>>) -> Self {
         self.hover = Some(context.load_texture(sprite.into()));
+        self
+    }
+
+    // A 9-slice panel behind the text while hovered, `grow` points past the button on each side,
+    // in place of the style's button frame, e.g. a skin's menu item highlight.
+    pub fn with_hover_panel(mut self, panel: UiNineSlice, grow: Vec2) -> Self {
+        self.hover_panel = Some((panel, grow));
+        self
+    }
+
+    // The text's color, and its color while hovered (the text color if None); the style's by
+    // default. A framed button takes its frame's.
+    pub fn with_text_colors(mut self, color: Option<Color>, hovered: Option<Color>) -> Self {
+        self.text_color = color;
+        self.hover_text_color = hovered;
         self
     }
 
@@ -450,15 +491,24 @@ impl UiWidget for UiSpriteButton {
 }
 
 impl UiSpriteButton {
-    // `sprite` names its state sprites, e.g. "palette/housing" for buttons/palette/housing_idle.png
-    // and the other states', and labels the button. It starts idle, with its press sound on, and
-    // shows a press at once.
+    // `sprite` names its state sprites under assets/ui/buttons/, e.g. "palette/housing" for
+    // buttons/palette/housing_idle.png and the other states', and labels the button. It starts
+    // idle, with its press sound on, and shows a press at once.
     pub fn new(context: &mut dyn UiWidgetContext, sprite: impl Into<String>, size: Vec2) -> Self {
         let label = sprite.into();
-        debug_assert!(!label.is_empty());
+        let stem = format!("buttons/{label}");
+        Self::with_sprite_stem(context, label, &stem, size)
+    }
+
+    // A button labeled `label` (its last '/' part names it in widget paths) whose state sprites
+    // are `<stem>_idle.png` and the others' under assets/ui/, e.g. a skin's
+    // "skins/kambara/icons/settings". Otherwise as new().
+    pub fn with_sprite_stem(context: &mut dyn UiWidgetContext, label: impl Into<String>, stem: &str, size: Vec2) -> Self {
+        let label = label.into();
+        debug_assert!(!label.is_empty() && !stem.is_empty());
         debug_assert!(size.x > 0.0 && size.y > 0.0);
 
-        let textures = UiSpriteButtonTextures::load(PathRef::from_str(&label), context);
+        let textures = UiSpriteButtonTextures::load(stem, context);
 
         Self {
             label,
@@ -649,16 +699,13 @@ impl UiSpriteButtonTextures {
         Self { textures: [TextureHandle::invalid(); UI_SPRITE_BUTTON_STATE_COUNT] }
     }
 
-    fn load(sprite_path: PathRef, context: &mut dyn UiWidgetContext) -> Self {
+    // `stem`: the sprites' path under assets/ui/ without the state suffix.
+    fn load(stem: &str, context: &mut dyn UiWidgetContext) -> Self {
         let mut sprites = Self::unloaded();
-        sprites.load_textures(sprite_path, context);
-        sprites
-    }
-
-    fn load_textures(&mut self, sprite_path: PathRef, context: &mut dyn UiWidgetContext) {
         for state in UiSpriteButtonState::iter() {
-            self.textures[state as usize] = state.load_texture(sprite_path, context);
+            sprites.textures[state as usize] = context.load_texture(PathRef::from_str(&state.frame_sprite_path(stem)));
         }
+        sprites
     }
 
     #[inline]
@@ -696,19 +743,8 @@ pub enum UiSpriteButtonState {
 }
 
 impl UiSpriteButtonState {
-    fn asset_path(self, sprite_path: PathRef) -> AssetPath {
-        debug_assert!(!sprite_path.is_empty());
-        let sprite_suffix = self.get_str("Suffix").unwrap();
-        let sprite_name = format_fixed_string!(64, "{sprite_path}_{sprite_suffix}.png");
-        AssetPath::from_str("buttons").join(sprite_name)
-    }
-
-    fn load_texture(self, sprite_path: PathRef, context: &mut dyn UiWidgetContext) -> TextureHandle {
-        let asset_path = self.asset_path(sprite_path);
-        context.load_texture((&asset_path).into())
-    }
-
-    // A framed text button's sprite for this state (UiTextButtonFrame::load), under assets/ui/.
+    // This state's sprite of a sprite button or a framed text button (UiTextButtonFrame::load),
+    // `<stem>_<state>.png`, under assets/ui/.
     fn frame_sprite_path(self, sprite: &str) -> String {
         format!("{sprite}_{}.png", self.get_str("Suffix").unwrap())
     }

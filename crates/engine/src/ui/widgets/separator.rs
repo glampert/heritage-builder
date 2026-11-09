@@ -3,7 +3,7 @@ use egui::{Color32, Sense};
 
 use common::Vec2;
 
-use super::{UiWidget, UiWidgetContext};
+use super::{UiSeparatorArt, UiWidget, UiWidgetContext};
 use crate::{
     file_sys::paths::PathRef,
     render::texture::TextureHandle,
@@ -18,6 +18,7 @@ use crate::{
 #[derive(Clone)]
 pub struct UiSeparator {
     separator: Option<TextureHandle>,
+    art: Option<UiSeparatorArt>, // In place of `separator`.
     size: Option<Vec2>, // Across the menu if None.
     thickness: f32,
     vertical: bool,
@@ -38,7 +39,9 @@ impl UiWidget for UiSeparator {
             // Empty space, optionally with a texture over it.
             let (rect, _) = ui.allocate_exact_size(egui_vec2(size), Sense::hover());
 
-            if let Some(separator) = self.separator {
+            if let Some(art) = &self.art {
+                art.paint(ui, rect);
+            } else if let Some(separator) = self.separator {
                 ui.painter().image(egui_texture(separator), rect, uv_full(), Color32::WHITE);
             }
         });
@@ -58,12 +61,18 @@ impl Default for UiSeparator {
 impl UiSeparator {
     // A blank, one point thick line across the menu.
     pub fn new() -> Self {
-        Self { separator: None, size: None, thickness: 1.0, vertical: false }
+        Self { separator: None, art: None, size: None, thickness: 1.0, vertical: false }
     }
 
     // A sprite stretched over the line.
     pub fn with_sprite<'a>(mut self, context: &mut dyn UiWidgetContext, sprite: impl Into<PathRef<'a>>) -> Self {
         self.separator = Some(context.load_texture(sprite.into()));
+        self
+    }
+
+    // A skin's rule and ornament over the line, in place of a sprite.
+    pub fn with_art(mut self, art: UiSeparatorArt) -> Self {
+        self.art = Some(art);
         self
     }
 

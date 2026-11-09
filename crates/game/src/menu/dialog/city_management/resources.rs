@@ -40,7 +40,7 @@ impl ResourcesManagement {
         let granary_resources_heading_index =
             side_by_side_heading_group.add_widget(UiMenuHeading::new(granary_resources_text));
 
-        let button_group = UiWidgetGroup::new().with_widget(make_dialog_close_button(context, "Ok"));
+        let button_group = UiWidgetGroup::new().with_widget(make_dialog_close_button(context, ButtonRole::Primary, "Ok"));
 
         let mut menu =
             make_default_layout_dialog_menu(context, Self::KIND, Self::TITLE, DEFAULT_DIALOG_MENU_TEXT_SPACING, []);

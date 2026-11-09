@@ -1,8 +1,8 @@
 // UI sounds, by role. A role (UiSoundKey) is named by what it's for, such as a button pressed or a
 // dialog opened, not by its file: a mapping, which is data, gives each role a file under
-// assets/sounds/sfx/ui/. The default mapping is assets/configs/ui/sounds.json, read once at init;
-// set_mapping lays overrides over it (a realm skin's `sounds` block), and a role neither names
-// plays nothing.
+// assets/sounds/sfx/ui/. The game gives the default mapping (set_default_mapping: Đại Long's skin's
+// `sounds` block, assets/configs/ui/skins/dailong.json); set_mapping lays overrides over it (the
+// current realm skin's), and a role neither names plays nothing.
 //
 // Each role has its own flags and cooldown (UiSoundKey::default_flags, default_cooldown), measured
 // in frame time. Retained widgets play their roles through UiWidgetSounds, which lets a widget swap
@@ -22,8 +22,7 @@ use common::{singleton_late_init, time::Seconds};
 
 use super::widgets::UiWidgetContext;
 use crate::{
-    config, log,
-    file_sys::paths::{AssetPath, PathRef},
+    file_sys::paths::AssetPath,
     sound::{SfxSoundKey, SoundHandle, SoundKey, SoundKind, SoundSystem},
 };
 
@@ -34,7 +33,7 @@ use crate::{
 pub const UI_SOUND_DEFAULT_COOLDOWN: Seconds = 0.2;
 
 // What a sound is for. Mappings and automation name a role in snake_case ("dialog_opened").
-// New roles can go anywhere in the list; give each a file in assets/configs/ui/sounds.json.
+// New roles can go anywhere in the list; give each a file in Đại Long's skin's `sounds` block.
 #[derive(
     Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Debug,
     EnumCount, EnumIter, Display, EnumString, IntoStaticStr, Serialize, Deserialize,
@@ -140,9 +139,6 @@ bitflags! {
 // "buttons/default/pressed.wav". None plays nothing.
 pub type UiSoundMapping = BTreeMap<UiSoundKey, Option<String>>;
 
-// The default mapping file, under assets/configs.
-pub const UI_SOUND_MAPPING_FILE: &str = "ui/sounds";
-
 // A mapping from role names, as a JSON file holds them. Unknown roles and empty file names are
 // left out and returned as problems.
 pub fn mapping_from_names(names: BTreeMap<String, Option<String>>) -> (UiSoundMapping, Vec<String>) {
@@ -175,19 +171,22 @@ pub fn mapped_file<'a>(defaults: &'a UiSoundMapping, overrides: &'a UiSoundMappi
 // Global UI Sound Effects API
 // ----------------------------------------------
 
-// Loads the default mapping (assets/configs/ui/sounds.json) and every role's sound. Once.
+// Sets up the UI sounds, with no mapping yet: every role plays nothing until the game gives the
+// default mapping (set_default_mapping), Đại Long's skin's. Once.
 pub fn initialize(sound_sys: &mut SoundSystem) {
     if UiSoundManagerSingleton::is_initialized() {
         return; // Initialize only once.
     }
 
-    let names: BTreeMap<String, Option<String>> = config::load_asset_file(PathRef::from_str(UI_SOUND_MAPPING_FILE));
-    let (defaults, problems) = mapping_from_names(names);
-    for problem in problems {
-        log::error!(log::channel!("sound"), "assets/configs/{UI_SOUND_MAPPING_FILE}.json: {problem}");
-    }
+    UiSoundManagerSingleton::initialize(UiSoundManagerSingleton::new(sound_sys, UiSoundMapping::new()));
+}
 
-    UiSoundManagerSingleton::initialize(UiSoundManagerSingleton::new(sound_sys, defaults));
+// The mapping roles fall back to when set_mapping's overrides don't name them: the game's base
+// skin's (Đại Long's `sounds` block). Clears the overrides.
+pub fn set_default_mapping(sound_sys: &mut SoundSystem, defaults: UiSoundMapping) {
+    let manager = UiSoundManagerSingleton::get_mut();
+    manager.defaults = defaults;
+    manager.set_mapping(sound_sys, &UiSoundMapping::new());
 }
 
 // Lays `overrides` over the default mapping, e.g. a realm skin's sounds: a role it names takes
@@ -197,7 +196,7 @@ pub fn set_mapping(sound_sys: &mut SoundSystem, overrides: &UiSoundMapping) {
     UiSoundManagerSingleton::get_mut().set_mapping(sound_sys, overrides);
 }
 
-// The default mapping, from assets/configs/ui/sounds.json.
+// The default mapping (set_default_mapping).
 pub fn default_mapping() -> &'static UiSoundMapping {
     &UiSoundManagerSingleton::get().defaults
 }
@@ -464,13 +463,7 @@ singleton_late_init! { UI_SOUND_MANAGER_SINGLETON, UiSoundManagerSingleton }
 
 #[cfg(test)]
 mod tests {
-    use std::path::{Path, PathBuf};
-
     use super::*;
-
-    fn repo_path(relative: &str) -> PathBuf {
-        Path::new(env!("CARGO_MANIFEST_DIR")).join("../..").join(relative)
-    }
 
     #[test]
     fn role_names_round_trip() {
@@ -528,25 +521,6 @@ mod tests {
         let silent = UiWidgetSounds::silent();
         for event in UiSoundEvent::iter() {
             assert_eq!(silent.role(event, Some(UiSoundKey::ButtonPressed)), None);
-        }
-    }
-
-    // The default mapping names every role, only known roles, and files that exist.
-    #[test]
-    fn default_mapping_files_exist() {
-        let path = repo_path(&format!("assets/configs/{UI_SOUND_MAPPING_FILE}.json"));
-        let json = std::fs::read_to_string(&path).unwrap_or_else(|err| panic!("{}: {err}", path.display()));
-        let names: BTreeMap<String, Option<String>> =
-            serde_json::from_str(&json).unwrap_or_else(|err| panic!("{}: {err}", path.display()));
-
-        let (mapping, problems) = mapping_from_names(names);
-        assert!(problems.is_empty(), "{}: {problems:?}", path.display());
-
-        for role in UiSoundKey::iter() {
-            let file = mapping.get(&role).unwrap_or_else(|| panic!("{}: no file for '{role}'.", path.display()));
-            let file = file.as_deref().unwrap_or_else(|| panic!("{}: '{role}' is mapped to null.", path.display()));
-            let sound = repo_path("assets/sounds/sfx/ui").join(file);
-            assert!(sound.is_file(), "{}: '{role}' names {}, which doesn't exist.", path.display(), sound.display());
         }
     }
 }

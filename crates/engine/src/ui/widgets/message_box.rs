@@ -5,6 +5,7 @@ use common::Vec2;
 use super::{UiMenu, UiMenuBackground, UiMenuFlags, UiMenuInsets, UiMenuRcMut, UiWidget, UiWidgetContext, UiWidgetGroup, UiWidgetImpl};
 use crate::{
     file_sys::paths::PathRef,
+    render::texture::TextureHandle,
     ui::{UiFontScale, UiNineSlice, sound::{UiSoundEvent, UiSoundKey}},
 };
 
@@ -70,6 +71,12 @@ impl UiMessageBox {
     // A sprite stretched over the popup, in place of the style's frame.
     pub fn with_background<'a>(mut self, context: &mut dyn UiWidgetContext, sprite: impl Into<PathRef<'a>>) -> Self {
         self.menu_mut().background = Some(UiMenuBackground::Sprite(context.load_texture(sprite.into())));
+        self
+    }
+
+    // A loaded texture stretched over the popup, as with_background.
+    pub fn with_background_texture(mut self, texture: TextureHandle) -> Self {
+        self.menu_mut().background = Some(UiMenuBackground::Sprite(texture));
         self
     }
 

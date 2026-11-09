@@ -275,6 +275,12 @@ impl UiMenu {
         self
     }
 
+    // A loaded texture stretched over the window, as with_background.
+    pub fn with_background_texture(mut self, texture: TextureHandle) -> Self {
+        self.background = Some(UiMenuBackground::Sprite(texture));
+        self
+    }
+
     // A 9-slice panel over the window, in place of the style's frame and title bar, with the
     // contents inside `content_insets` (see with_content_insets).
     pub fn with_panel(mut self, panel: UiNineSlice, content_insets: UiMenuInsets) -> Self {

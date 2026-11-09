@@ -87,7 +87,7 @@ struct BaseMinimapRenderer {
     open_button_menu: Option<UiMenuRcMut>,
     buttons: Option<MinimapButtons>,
     tooltip_background: Option<TextureHandle>, // The style's frame, behind the map's hover tooltip.
-    style_version: u32,
+    style_version: (u32, u32), // The minimap style's and the UI skin's versions the menus were built with.
     button_sounds: UiWidgetSounds,
     font_scale: UiFontScale,
     with_frame: bool, // The style's frame sprite; the developer UI uses a plain window.
@@ -102,7 +102,7 @@ impl BaseMinimapRenderer {
             open_button_menu: None,
             buttons: None,
             tooltip_background: None,
-            style_version: 0,
+            style_version: (0, 0),
             button_sounds,
             font_scale,
             with_frame,
@@ -192,7 +192,9 @@ impl BaseMinimapRenderer {
     where
         F: FnOnce(&mut GameUiContext),
     {
-        let style_version = style::version();
+        // The retail minimap's button tooltips are the skin's, so a skin reload rebuilds them too.
+        let skin_version = if self.with_frame { crate::menu::skin::version() } else { 0 };
+        let style_version = (style::version(), skin_version);
         if self.minimap_menu.is_none() || self.style_version != style_version {
             self.create_menus(context);
             self.style_version = style_version;

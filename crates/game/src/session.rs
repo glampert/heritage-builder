@@ -902,7 +902,9 @@ fn log_session_error(message: String) -> String {
 impl GameSession {
     pub fn menus_begin_frame(&mut self, engine: &mut Engine) -> TileMapRenderFlags {
         if let Some(menus) = &mut self.menus {
-            menus.begin_frame(&mut make_ui_widget_context!(self, engine));
+            let mut context = make_ui_widget_context!(self, engine);
+            menus.sync_skin(&mut context);
+            menus.begin_frame(&mut context);
             menus.selected_render_flags()
         } else {
             TileMapRenderFlags::DrawTerrainAndObjects

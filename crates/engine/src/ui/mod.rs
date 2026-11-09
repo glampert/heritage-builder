@@ -425,6 +425,11 @@ impl UiSystem {
     // Ui Theme:
     // ----------------------
 
+    // Pixels per point the UI draws at: the window's content scale.
+    pub fn pixels_per_point(&self) -> f32 {
+        self.ctx().pixels_per_point()
+    }
+
     // Switches to a theme loaded by load_styles. An id that isn't loaded is ignored.
     pub fn set_ui_theme(&self, theme: UiThemeId) {
         if self.theme.get() == theme {

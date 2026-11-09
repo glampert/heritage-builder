@@ -90,13 +90,13 @@ impl MainGame {
                 UiString::key(UiTextCategory::Menu, "popup.quit.body"),
             ];
             make_dialog_popup(context, "Quit Game Popup", lines).with_buttons([
-                make_text_button(context, UiString::key(UiTextCategory::Menu, "popup.quit.quit_to_main_menu"), |_, _| {
+                make_text_button(context, ButtonRole::Secondary, UiString::key(UiTextCategory::Menu, "popup.quit.quit_to_main_menu"), |_, _| {
                     GameLoop::get_mut().quit_to_main_menu()
                 }),
-                make_text_button(context, UiString::key(UiTextCategory::Menu, "popup.quit.exit_game"), |_, _| {
+                make_text_button(context, ButtonRole::Primary, UiString::key(UiTextCategory::Menu, "popup.quit.exit_game"), |_, _| {
                     GameLoop::get_mut().quit_game()
                 }),
-                make_text_button(context, UiString::key(UiTextCategory::Menu, "button.cancel"), move |_, context| {
+                make_text_button(context, ButtonRole::Secondary, UiString::key(UiTextCategory::Menu, "button.cancel"), move |_, context| {
                     let mut main_menu = menu_weak_ref.upgrade().unwrap();
                     main_menu.close_message_box(context);
                 }),

@@ -11,18 +11,14 @@ use common::{
 };
 use engine::{
     log,
-    file_sys::paths::PathRef,
     app::input::{InputAction, InputKey, InputModifiers, MouseButton},
     ui::{
-        DEV_UI_THEME,
-        UiFontScale,
         UiInputEvent,
         UiStyleSource,
         UiString,
         UiSystem,
         UiThemeId,
-        UiTooltipPlacement,
-        widgets::{UiSpriteButton, UiSpriteButtonState, UiTextButton, UiTextButtonSize, UiTooltipText, UiWidgetContext},
+        widgets::{UiSpriteButton, UiSpriteButtonState, UiTextButton, UiTooltipText, UiWidgetContext},
     },
 };
 
@@ -49,6 +45,9 @@ use crate::{
 pub(crate) mod dialog;
 pub mod home;
 pub mod in_game;
+pub mod skin;
+
+use skin::ButtonRole;
 
 // ----------------------------------------------
 // Helper types
@@ -139,6 +138,10 @@ pub trait GameMenusSystem: Any + Save + Load {
     fn selected_render_flags(&self) -> TileMapRenderFlags {
         TileMapRenderFlags::DrawTerrainAndObjects
     }
+
+    // Called before begin_frame every frame: the retail menus follow the UI realm's skin here,
+    // rebuilding what it changed (skin::follow, dialog::sync).
+    fn sync_skin(&mut self, _context: &mut GameUiContext) {}
 
     fn begin_frame(&mut self, context: &mut GameUiContext) {
         // Bail if we're hovering over a UI menu...
@@ -792,55 +795,32 @@ pub trait TileInspector {
 // UI themes
 // ----------------------------------------------
 
-// The retail UI's theme: home menus, dialogs and the HUD.
-// TODO(realm-ui): the skins step gives each realm a theme of its own, from its skin's style block
-// (UiStyleSource::json), and picks the one realm::ui_realm() names here.
-pub const RETAIL_UI_THEME: &str = "game";
-
 // The UI styles the game loads at boot (UiSystem::load_styles), each naming its theme: the
-// developer UI's first, as the engine requires, then the retail UI's.
+// developer UI's first, as the engine requires, then each realm skin's (skin::style_sources).
 pub fn ui_style_sources() -> Vec<UiStyleSource> {
-    vec![
-        UiStyleSource::file(DEV_UI_THEME, "ui/styles/dev.json"),
-        UiStyleSource::file(RETAIL_UI_THEME, "ui/styles/game.json"),
-    ]
+    skin::style_sources().unwrap_or_else(|err| panic!("Can't read the UI skins: {err}"))
 }
 
-// The retail UI's theme; the developer UI's if it isn't loaded.
+// The retail UI's theme: the current skin's; the developer UI's if it isn't loaded.
 pub fn retail_ui_theme(ui_sys: &UiSystem) -> UiThemeId {
-    ui_sys.theme_id(RETAIL_UI_THEME).unwrap_or(UiThemeId::DEV)
+    skin::theme(ui_sys)
 }
-
-// ----------------------------------------------
-// Internal Shared Constants
-// ----------------------------------------------
-
-const TOOLTIP_FONT_SCALE: UiFontScale = UiFontScale(0.8);
-const TOOLTIP_BACKGROUND_SPRITE: PathRef = PathRef::from_str("misc/wide_page_bg.png");
-
-const SMALL_HORIZONTAL_SEPARATOR_SPRITE: PathRef = PathRef::from_str("misc/brush_stroke_divider.png");
-const SMALL_VERTICAL_SEPARATOR_SPRITE: PathRef = PathRef::from_str("misc/brush_stroke_divider_vertical.png");
-
-const LARGE_HORIZONTAL_SEPARATOR_SPRITE: PathRef = PathRef::from_str("misc/brush_stroke_divider.png");
-const LARGE_VERTICAL_SEPARATOR_SPRITE: PathRef = PathRef::from_str("misc/brush_stroke_divider_vertical.png");
-
-const TEXT_BUTTON_HOVERED_SPRITE: PathRef = PathRef::from_str("misc/brush_stroke_divider.png");
 
 // ----------------------------------------------
 // Internal Shared Widget Helpers
 // ----------------------------------------------
 
-// A tooltip in the retail style: small text on the wide page sprite.
+// A tooltip in the retail style: the skin's (skin::tooltip). Also the minimap's buttons'.
 pub(crate) fn make_tooltip(context: &mut dyn UiWidgetContext, text: impl Into<UiString>) -> UiTooltipText {
-    UiTooltipText::new(text).with_font_scale(TOOLTIP_FONT_SCALE).with_background(context, TOOLTIP_BACKGROUND_SPRITE)
+    skin::tooltip(context, text)
 }
 
-// A text button in the retail style: underlined with the brush stroke while hovered.
-fn make_text_button<F>(context: &mut dyn UiWidgetContext, label: impl Into<UiString>, on_pressed: F) -> UiTextButton
+// A text button in the retail style, as the skin draws `role` (skin::button).
+fn make_text_button<F>(context: &mut dyn UiWidgetContext, role: ButtonRole, label: impl Into<UiString>, on_pressed: F) -> UiTextButton
 where
     F: for<'a> Fn(&'a UiTextButton, &mut dyn UiWidgetContext) + 'static,
 {
-    UiTextButton::new(label).with_hover_sprite(context, TEXT_BUTTON_HOVERED_SPRITE).on_pressed(on_pressed)
+    skin::button(context, role, label, on_pressed)
 }
 
 // ----------------------------------------------
@@ -891,11 +871,11 @@ trait ButtonDef: Sized + Copy + Clone + EnumProperty {
         self.get_bool("Enabled").unwrap_or(true)
     }
 
-    fn new_text_button<F>(self, context: &mut GameUiContext, size: UiTextButtonSize, on_pressed: F) -> UiTextButton
+    fn new_text_button<F>(self, context: &mut GameUiContext, role: ButtonRole, on_pressed: F) -> UiTextButton
     where
         F: for<'a> Fn(&'a UiTextButton, &mut dyn UiWidgetContext) + 'static,
     {
-        let mut button = make_text_button(context, self.label(), on_pressed).with_size(size).with_enabled(self.is_enabled());
+        let mut button = make_text_button(context, role, self.label(), on_pressed).with_enabled(self.is_enabled());
 
         // Only give it a tooltip if we have a Tooltip property.
         if self.has_custom_tooltip() {
@@ -905,15 +885,17 @@ trait ButtonDef: Sized + Copy + Clone + EnumProperty {
         button
     }
 
-    fn new_sprite_button<F>(self, context: &mut GameUiContext, size: Vec2, on_state_changed: F) -> UiSpriteButton
+    // A sprite button from the skin's icon set `icon_set` (e.g. "palette"), its sprites named by
+    // the Label prop, which also names the button.
+    fn new_sprite_button<F>(self, context: &mut GameUiContext, icon_set: &str, size: Vec2, on_state_changed: F) -> UiSpriteButton
     where
         F: for<'a> Fn(&'a mut UiSpriteButton, &mut dyn UiWidgetContext, UiSpriteButtonState) + 'static,
     {
         // Always give a tooltip for sprite buttons, beside the button: they sit in bars along the
         // screen's edges, where a tooltip at the pointer would cover the buttons next to it.
-        let tooltip = make_tooltip(context, self.tooltip()).with_placement(UiTooltipPlacement::BesideWidget);
+        let tooltip = skin::tooltip_beside(context, self.tooltip());
 
-        UiSpriteButton::new(context, self.label(), size).with_tooltip(tooltip).on_state_changed(on_state_changed)
+        skin::sprite_button(context, icon_set, &self.label(), size).with_tooltip(tooltip).on_state_changed(on_state_changed)
     }
 
     fn on_pressed(self, _context: &mut GameUiContext) -> bool {

@@ -1,6 +1,6 @@
 use std::any::Any;
 
-use common::{coords::CellRange, format_fixed_string, time::Seconds};
+use common::coords::CellRange;
 use engine::{
     app::input::{InputAction, InputKey},
     file_sys::paths::AssetPath,
@@ -18,14 +18,14 @@ use super::{
     TilePalette,
     TilePlacement,
     dialog::{self, DialogMenuKind},
+    skin,
 };
 use crate::{
+    realm,
     save_context::{Load, PreLoadContext, Save},
     tile::rendering::TileMapRenderFlags,
     ui_context::GameUiContext,
 };
-
-const ANIMATED_BACKGROUND: bool = false;
 
 // ----------------------------------------------
 // HomeMenus
@@ -33,35 +33,32 @@ const ANIMATED_BACKGROUND: bool = false;
 
 pub struct HomeMenus {
     slideshow: UiSlideshow,
+    skin_version: u32, // The skin the backdrop was built with.
 }
 
 impl HomeMenus {
     pub fn new(context: &mut GameUiContext) -> Self {
-        context.ui_sys.set_ui_theme(super::retail_ui_theme(context.ui_sys));
+        // The home menu's realm's skin, before anything is built with it.
+        skin::follow(context, realm::ui_realm_for(true).realm);
+        skin::apply_theme(context.ui_sys);
 
         dialog::initialize(context);
         dialog::set_global_menu_flags(UiMenuFlags::AlignCenter | UiMenuFlags::AlignLeft);
-        dialog::set_bg_dim_alpha(context, 0.0); // No bg dimming.
+        dialog::set_backdrop_dim(context, true);
 
-        Self { slideshow: Self::make_background_slideshow(context) }
+        Self { slideshow: Self::make_background_slideshow(context), skin_version: skin::version() }
     }
 
-    // The menu's full-screen background: animated, or a static single frame.
+    // The menu's full-screen background, from the skin: a still, or an animation's frames whose
+    // last two loop.
     fn make_background_slideshow(context: &mut GameUiContext) -> UiSlideshow {
-        if ANIMATED_BACKGROUND {
-            const SLIDESHOW_FRAME_COUNT: usize = 30;
-            const SLIDESHOW_FRAME_DURATION: Seconds = 0.3;
-
-            let frames: Vec<AssetPath> = (0..SLIDESHOW_FRAME_COUNT)
-                .map(|i| AssetPath::from_str(&format_fixed_string!(64, "misc/home_menu_anim/frame{i}.jpg")))
-                .collect();
-
-            UiSlideshow::new(context, frames.iter())
-                .with_flags(UiSlideshowFlags::Fullscreen)
-                .with_loop_mode(UiSlideshowLoopMode::FramesFromEnd(2)) // Loop last two frames from end.
-                .with_frame_duration_secs(SLIDESHOW_FRAME_DURATION)
+        let (frames, frame_secs) = skin::home_backdrop();
+        let frames: Vec<AssetPath> = frames.iter().map(|frame| AssetPath::from_str(frame)).collect();
+        let slideshow = UiSlideshow::new(context, frames.iter()).with_flags(UiSlideshowFlags::Fullscreen);
+        if frames.len() > 1 {
+            slideshow.with_loop_mode(UiSlideshowLoopMode::FramesFromEnd(2)).with_frame_duration_secs(frame_secs)
         } else {
-            UiSlideshow::new(context, ["misc/home_menu_static_bg.png"]).with_flags(UiSlideshowFlags::Fullscreen)
+            slideshow
         }
     }
 }
@@ -89,6 +86,18 @@ impl GameMenusSystem for HomeMenus {
 
     fn selected_render_flags(&self) -> TileMapRenderFlags {
         TileMapRenderFlags::empty()
+    }
+
+    fn sync_skin(&mut self, context: &mut GameUiContext) {
+        skin::follow(context, realm::ui_realm_for(true).realm);
+        skin::apply_theme(context.ui_sys);
+        dialog::set_backdrop_dim(context, true);
+        dialog::sync(context);
+
+        if self.skin_version != skin::version() {
+            self.skin_version = skin::version();
+            self.slideshow = Self::make_background_slideshow(context);
+        }
     }
 
     fn begin_frame(&mut self, _context: &mut GameUiContext) {}

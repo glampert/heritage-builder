@@ -76,17 +76,14 @@ engine repeats both the middle and the edges:
 Kambara's lotus-petal bands repeat every 22 points, so the sprite's middle width is a multiple
 of 22, and its heights keep the petals on the 16-point pattern rows (`pad` 88).
 
-Limits of a tiled 9-slice, for the skins: the engine repeats the middle and the edges from the
-top left and cuts the last tile wherever the middle ends (`UiNineSliceCenter::Tile`,
-`nine_slice.rs`), and a panel's size is arbitrary. So:
-- an edge with a motif along it (Kambara's petals, Tampadesa's gilt rules, the teak and stone
-  grain) ends in a cut motif or a small colour step where it meets the right or bottom corner;
-- the material shows a faint step where the cut tile meets the right and bottom borders, since
-  those continue from the start of a tile (the lowered blotch contrast keeps it faint).
-
-Ways out, when it shows: size the panels so their middles hold whole tiles, add a `round` mode
-to the engine's 9-slice (scale the tiles slightly so a whole number fits, like CSS
-`border-image-repeat: round`), or stretch the motif edges and tile only the middle.
+Tiled 9-slices in the skins: the engine's `UiNineSliceCenter::Tile` repeats the middle and the
+edges from the top left and cuts the last tile wherever the middle ends, so an edge with a motif
+along it (Kambara's petals, Tampadesa's gilt rules, the teak and stone grain) would end in a cut
+motif at the right or bottom corner. The skins use `center: round` instead
+(`UiNineSliceCenter::Round`, like CSS `border-image-repeat: round`): each tile is resized a little
+so a whole number of them fills the middle and the edges, and nothing is cut. `--check` accepts
+`round` or `tile` in a skin for a sprite the catalog draws to repeat (`center: tile`), and only
+`stretch` for one it doesn't.
 
 The output is byte-identical from run to run on one machine. The source hash covers the SVG
 page, the state's CSS, the crop and `RENDERER_VERSION` (bump it when the post-processing
@@ -161,10 +158,13 @@ With the standard library only (CI has no Pillow or browser), it checks that:
   `skins/`; whole-pixel sizes; borders that fit, with a middle when it tiles;
 - every sprite exists at the catalog's pixel size, is in `manifest.json` with the same hash,
   and is in `web/asset_manifest.json`; the manifest lists nothing else;
-- when `assets/configs/ui/skins/` exists, every `skins/...` path a skin file names exists (a
-  path without `.png` is a folder, such as an icon set's, or a stem that takes a state
-  suffix), and a 9-slice's `slice` and
-  `center` equal the catalog's (`catalog.check_skins`, for the skins step to extend).
+- for each skin file in `assets/configs/ui/skins/`, merged over `dailong.json` as the game
+  merges it (a slice or `center` a realm doesn't repeat is Đại Long's): every sprite path it
+  names exists under `assets/ui/` (any string with a `/` outside its `style`, `text` and
+  `sounds` blocks; a path without an image extension is a folder, such as an icon set's, or a
+  stem that takes a state suffix), and every panel, button or separator (an object with a `sprite`) that is a catalog
+  sprite has the catalog's `slice` (a catalog 9-slice must be given one) and a `center` that
+  suits it (`catalog.check_skins`).
 
 CI runs it with the unit tests, beside the tile generator's check.
 

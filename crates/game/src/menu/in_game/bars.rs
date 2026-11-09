@@ -13,10 +13,9 @@ use strum::{Display, EnumCount, EnumIter, EnumProperty, IntoEnumIterator};
 use crate::{
     menu::{
         ButtonDef,
-        SMALL_VERTICAL_SEPARATOR_SPRITE,
-        TOOLTIP_FONT_SCALE,
         dialog::{self, DialogMenuKind},
         make_tooltip,
+        skin::{self, TOOLTIP_FONT_SCALE},
     },
     config::GameConfigs,
     sim::GameCalendar,
@@ -98,12 +97,12 @@ const TOP_BAR_ICON_COUNT: usize = TopBarIcon::COUNT;
 #[repr(usize)]
 #[derive(Copy, Clone, Debug, PartialEq, Eq, EnumCount, EnumProperty, EnumIter, Display, TryFromPrimitive)]
 enum TopBarIcon {
-    #[strum(props(AssetPath = "icons/population_icon.png", WithTooltip = true, Width = 35, Height = 20))]
+    #[strum(props(Icon = "population", WithTooltip = true, Width = 35, Height = 20))]
     Population,
 
     // The player icon overflows the menu bar: it draws at its unclipped size.
     #[strum(props(
-        AssetPath = "icons/player_icon.png",
+        Icon = "player",
         WithTooltip = false,
         Width = 45,
         Height = 20,
@@ -112,15 +111,14 @@ enum TopBarIcon {
     ))]
     Player,
 
-    #[strum(props(AssetPath = "icons/gold_icon.png", WithTooltip = true, Width = 35, Height = 20))]
+    #[strum(props(Icon = "gold", WithTooltip = true, Width = 35, Height = 20))]
     Gold,
 }
 
 impl TopBarIcon {
+    // The skin's icon (skin::icon).
     fn asset_path(self) -> PathRef<'static> {
-        // ui/icons/{sprite}.png
-        let path = self.get_str("AssetPath").unwrap();
-        PathRef::from_str(path)
+        PathRef::from_str(skin::icon(self.get_str("Icon").unwrap()))
     }
 
     fn with_tooltip(self) -> bool {
@@ -277,10 +275,8 @@ impl TopBar {
 
         let menu = UiMenu::new("TopBar")
             .with_flags(UiMenuFlags::IsOpen | UiMenuFlags::AlignCenterTop)
-            .with_widget_spacing(TOP_BAR_ICON_SPACING)
-            .with_background(context, "misc/wide_page_bg.png")
-            .with_widget(group)
-            .into_rc();
+            .with_widget_spacing(TOP_BAR_ICON_SPACING);
+        let menu = skin::panel(context, "hud_wide").apply_to_menu(menu).with_widget(group).into_rc();
 
         Rc::new(Self { current_stats: stats, icon_label_indices, current_date, date_label_index, date_label_size, menu })
     }
@@ -326,16 +322,16 @@ const LEFT_BAR_BUTTON_COUNT: usize = LeftBarButtonKind::COUNT;
 
 #[derive(Copy, Clone, Debug, PartialEq, Eq, EnumCount, EnumProperty, EnumIter)]
 enum LeftBarButtonKind {
-    #[strum(props(Label = "menu_bar/main_menu", Tooltip = "Game"))]
+    #[strum(props(Label = "main_menu", Tooltip = "Game"))]
     MainMenu,
 
-    #[strum(props(Label = "menu_bar/save_game", Tooltip = "Load / Save"))]
+    #[strum(props(Label = "save_game", Tooltip = "Load / Save"))]
     SaveGame,
 
-    #[strum(props(Label = "menu_bar/settings"))]
+    #[strum(props(Label = "settings"))]
     Settings,
 
-    #[strum(props(Label = "menu_bar/city_management", Tooltip = "City Management"))]
+    #[strum(props(Label = "city_management", Tooltip = "City Management"))]
     CityManagement,
 }
 
@@ -367,15 +363,15 @@ impl MenuBar for LeftBar {
 
 impl LeftBar {
     fn new(context: &mut GameUiContext) -> Rc<Self> {
-        let mut menu = UiMenu::new("LeftBar")
+        let menu = UiMenu::new("LeftBar")
             .with_flags(UiMenuFlags::IsOpen | UiMenuFlags::AlignLeft)
             .with_position(Vec2::new(0.0, 60.0))
-            .with_widget_spacing(Vec2::new(LEFT_BAR_BUTTON_SPACING, LEFT_BAR_BUTTON_SPACING))
-            .with_background(context, "misc/tall_page_bg.png");
+            .with_widget_spacing(Vec2::new(LEFT_BAR_BUTTON_SPACING, LEFT_BAR_BUTTON_SPACING));
+        let mut menu = skin::panel(context, "hud_tall").apply_to_menu(menu);
 
         for button_kind in LeftBarButtonKind::iter() {
             let button = button_kind
-                .new_sprite_button(context, LEFT_BAR_BUTTON_SIZE, move |button, context, _| {
+                .new_sprite_button(context, "menu_bar", LEFT_BAR_BUTTON_SIZE, move |button, context, _| {
                     if button.is_pressed() {
                         button_kind.on_pressed(context_as_mut::<GameUiContext>(context));
 
@@ -404,16 +400,16 @@ const SPEED_CONTROLS_BUTTON_COUNT: usize = SpeedControlsButtonKind::COUNT;
 
 #[derive(Copy, Clone, Debug, PartialEq, Eq, EnumCount, EnumProperty, EnumIter)]
 enum SpeedControlsButtonKind {
-    #[strum(props(Label = "menu_bar/play"))]
+    #[strum(props(Label = "play"))]
     Play,
 
-    #[strum(props(Label = "menu_bar/pause"))]
+    #[strum(props(Label = "pause"))]
     Pause,
 
-    #[strum(props(Label = "menu_bar/slowdown"))]
+    #[strum(props(Label = "slowdown"))]
     Slowdown,
 
-    #[strum(props(Label = "menu_bar/speedup"))]
+    #[strum(props(Label = "speedup"))]
     Speedup,
 }
 
@@ -469,7 +465,7 @@ impl SpeedControlsBar {
 
         for button_kind in SpeedControlsButtonKind::iter() {
             let button = button_kind
-                .new_sprite_button(context, SPEED_CONTROLS_BUTTON_SIZE, move |button, context, _| {
+                .new_sprite_button(context, "menu_bar", SPEED_CONTROLS_BUTTON_SIZE, move |button, context, _| {
                     if button.is_pressed() {
                         button_kind.on_pressed(context_as_mut::<GameUiContext>(context));
 
@@ -483,8 +479,7 @@ impl SpeedControlsBar {
         }
 
         const SEPARATOR_THICKNESS: f32 = 8.0;
-        let separator = UiSeparator::new()
-            .with_sprite(context, SMALL_VERTICAL_SEPARATOR_SPRITE)
+        let separator = skin::separator(context, "hud_vertical")
             .with_thickness(SEPARATOR_THICKNESS)
             .with_vertical(true);
 
@@ -498,10 +493,8 @@ impl SpeedControlsBar {
 
         let menu = UiMenu::new("SpeedControlsBar")
             .with_flags(UiMenuFlags::IsOpen | UiMenuFlags::AlignLeft)
-            .with_widget_spacing(SPEED_CONTROLS_BUTTON_SPACING)
-            .with_background(context, "misc/wide_page_bg.png")
-            .with_widget(group)
-            .into_rc();
+            .with_widget_spacing(SPEED_CONTROLS_BUTTON_SPACING);
+        let menu = skin::panel(context, "hud_wide").apply_to_menu(menu).with_widget(group).into_rc();
 
         Rc::new(Self { current_sim_state: sim_state, menu })
     }

@@ -47,8 +47,9 @@ use crate::{
 // Constants
 // ----------------------------------------------
 
-const TILE_PALETTE_BACKGROUND_SPRITE: PathRef = PathRef::from_str("misc/tall_page_bg.png");
-const TILE_PALETTE_CHILD_MENU_BACKGROUND_SPRITE: PathRef = PathRef::from_str("misc/wide_page_bg.png");
+// The skin's panels behind the palette and its lists (the old HUD art until Phase 5).
+const TILE_PALETTE_PANEL: &str = "hud_tall";
+const TILE_PALETTE_CHILD_MENU_PANEL: &str = "hud_wide";
 
 const TILE_PALETTE_BUTTON_SPACING: Vec2 = Vec2::new(4.0, 4.0); // Vertical spacing between buttons, in pixels.
 const TILE_PALETTE_MAIN_BUTTON_SIZE: Vec2 = Vec2::new(50.0, 50.0); // In pixels.
@@ -63,40 +64,40 @@ const TILE_PALETTE_MAIN_BUTTON_COUNT: usize = TilePaletteMainButtonDef::COUNT;
 
 #[derive(Copy, Clone, Debug, PartialEq, Eq, EnumCount, EnumProperty, EnumIter)]
 enum TilePaletteMainButtonDef {
-    #[strum(props(Label = "palette/clear_land"))]
+    #[strum(props(Label = "clear_land"))]
     ClearLand,
 
-    #[strum(props(Label = "palette/housing", Tooltip = "Vacant Lot\nCost: 1 gold"))]
+    #[strum(props(Label = "housing", Tooltip = "Vacant Lot\nCost: 1 gold"))]
     Housing,
 
-    #[strum(props(Label = "palette/roads", SeparatorFollows = true))]
+    #[strum(props(Label = "roads", SeparatorFollows = true))]
     Roads,
 
-    #[strum(props(Label = "palette/food_and_farming", DisabledIfEmpty = true))]
+    #[strum(props(Label = "food_and_farming", DisabledIfEmpty = true))]
     FoodAndFarming,
 
-    #[strum(props(Label = "palette/industry_and_resources", DisabledIfEmpty = true))]
+    #[strum(props(Label = "industry_and_resources", DisabledIfEmpty = true))]
     IndustryAndResources,
 
-    #[strum(props(Label = "palette/services", DisabledIfEmpty = true))]
+    #[strum(props(Label = "services", DisabledIfEmpty = true))]
     Services,
 
-    #[strum(props(Label = "palette/infrastructure", DisabledIfEmpty = true))]
+    #[strum(props(Label = "infrastructure", DisabledIfEmpty = true))]
     Infrastructure,
 
-    #[strum(props(Label = "palette/culture_and_religion", DisabledIfEmpty = true))]
+    #[strum(props(Label = "culture_and_religion", DisabledIfEmpty = true))]
     CultureAndReligion,
 
-    #[strum(props(Label = "palette/trade_and_economy", DisabledIfEmpty = true))]
+    #[strum(props(Label = "trade_and_economy", DisabledIfEmpty = true))]
     TradeAndEconomy,
 
-    #[strum(props(Label = "palette/beautification", DisabledIfEmpty = true, SeparatorFollows = true))]
+    #[strum(props(Label = "beautification", DisabledIfEmpty = true, SeparatorFollows = true))]
     Beautification,
 
-    #[strum(props(Label = "palette/undo", StateTransitionSecs = "0.5"))]
+    #[strum(props(Label = "undo", StateTransitionSecs = "0.5"))]
     Undo,
 
-    #[strum(props(Label = "palette/redo", StateTransitionSecs = "0.5"))]
+    #[strum(props(Label = "redo", StateTransitionSecs = "0.5"))]
     Redo,
 }
 
@@ -203,7 +204,7 @@ impl TilePaletteMainButtonsBuilder {
             let child_menu_weak_ref = main_button.child_menu_weak_mut();
 
             let ui_button = main_button_def
-                .new_sprite_button(context, TILE_PALETTE_MAIN_BUTTON_SIZE, move |button, context, prev_state| {
+                .new_sprite_button(context, "palette", TILE_PALETTE_MAIN_BUTTON_SIZE, move |button, context, prev_state| {
                     let mut tile_palette_rc = tile_palette_weak_ref.upgrade().unwrap();
 
                     let is_pressed = button.is_pressed();
@@ -291,10 +292,9 @@ impl TilePaletteMainButton {
         tile_palette: &TilePaletteMenuWeakMut,
         children: Vec<TilePaletteChildButtonDef>,
     ) -> UiMenuRcMut {
-        let mut child_menu = UiMenu::new(format!("TilePaletteChildMenu: {}", main_button_def.name()))
-            .with_background(context, TILE_PALETTE_CHILD_MENU_BACKGROUND_SPRITE)
-            .with_widget_spacing(TILE_PALETTE_BUTTON_SPACING)
-            .into_rc();
+        let child_menu = UiMenu::new(format!("TilePaletteChildMenu: {}", main_button_def.name()))
+            .with_widget_spacing(TILE_PALETTE_BUTTON_SPACING);
+        let mut child_menu = skin::panel(context, TILE_PALETTE_CHILD_MENU_PANEL).apply_to_menu(child_menu).into_rc();
 
         let mut child_button_group = UiWidgetGroup::new().with_widget_spacing(TILE_PALETTE_BUTTON_SPACING);
 
@@ -305,7 +305,7 @@ impl TilePaletteMainButton {
             let tile_palette_weak_ref = tile_palette.clone();
             let child_menu_weak_ref = child_menu.downgrade();
 
-            let mut child_button = make_text_button(context, child_def.label, move |_button, context| {
+            let mut child_button = make_text_button(context, ButtonRole::HudItem, child_def.label, move |_button, context| {
                 let mut tile_palette_rc = tile_palette_weak_ref.upgrade().unwrap();
                 let mut child_menu_rc = child_menu_weak_ref.upgrade().unwrap();
 
@@ -441,18 +441,16 @@ impl TilePaletteMenu {
         TilePaletteMenuRcMut::new_cyclic(|tile_palette_weak_ref| {
             let buttons = TilePaletteMainButtonsBuilder::build_all(context, &tile_palette_weak_ref);
 
-            let mut palette_menu = UiMenu::new("TilePaletteMenu")
+            let palette_menu = UiMenu::new("TilePaletteMenu")
                 .with_flags(UiMenuFlags::IsOpen | UiMenuFlags::AlignRight)
-                .with_background(context, TILE_PALETTE_BACKGROUND_SPRITE)
                 .with_widget_spacing(TILE_PALETTE_BUTTON_SPACING);
+            let mut palette_menu = skin::panel(context, TILE_PALETTE_PANEL).apply_to_menu(palette_menu);
 
             for (index, ui_button) in buttons.ui.into_iter().enumerate() {
                 palette_menu.add_widget(ui_button);
 
                 if buttons.main[index].def.separator_follows() {
-                    let separator = UiSeparator::new()
-                        .with_sprite(context, SMALL_HORIZONTAL_SEPARATOR_SPRITE)
-                        .with_thickness(2.0);
+                    let separator = skin::separator(context, "hud").with_thickness(2.0);
                     palette_menu.add_widget(separator);
                 }
             }
@@ -555,7 +553,7 @@ struct TileSelectionRenderer {
 
 impl TileSelectionRenderer {
     fn new(context: &mut GameUiContext) -> Self {
-        Self { clear_icon: context.load_texture(PathRef::from_str("icons/red_x_icon.png")) }
+        Self { clear_icon: context.load_texture(PathRef::from_str(skin::icon("clear_tool"))) }
     }
 
     fn draw(&self, context: &mut GameUiContext, current_selection: TilePaletteSelection) {

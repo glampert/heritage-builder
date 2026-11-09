@@ -199,6 +199,27 @@ fn apply_overlay(base: &mut Value, overlay: Value) {
     }
 }
 
+// Lays `overlay` over `base` with no other rule: objects merge key by key, recursively, and any
+// other value (numbers, strings, arrays, null) replaces the base's. For data files that a variant
+// overrides in part, such as a realm's minimap style or UI skin over Đại Long's. Unlike the user
+// configs' overlay, an object with one key always merges: a skin's map (dialogs, sounds, fonts)
+// with one entry adds to the base's, it doesn't replace it.
+pub fn merge_json(base: &mut Value, overlay: Value) {
+    match (base, overlay) {
+        (Value::Object(base), Value::Object(overlay)) => {
+            for (key, value) in overlay {
+                match base.get_mut(&key) {
+                    Some(base_value) => merge_json(base_value, value),
+                    None => {
+                        base.insert(key, value);
+                    }
+                }
+            }
+        }
+        (base, overlay) => *base = overlay,
+    }
+}
+
 // What apply_overlay needs to turn `base` into `current`: the values that differ, under their
 // objects' keys. None if nothing differs. It can't remove a key, which configs structs never
 // need (serde writes every field); a map-typed setting would have to be saved whole.
@@ -375,6 +396,21 @@ mod tests {
     use serde_json::json;
 
     use super::*;
+
+    #[test]
+    fn merge_json_merges_objects_and_replaces_the_rest() {
+        let mut base = json!({ "sounds": { "pressed": "a.wav" }, "size": [1, 2], "fonts": { "body": { "file": "x", "scale": 0.8 } } });
+        merge_json(&mut base, json!({ "sounds": { "alert": null }, "size": [3], "fonts": { "body": { "file": "y" } }, "new": 1 }));
+        assert_eq!(
+            base,
+            json!({
+                "sounds": { "pressed": "a.wav", "alert": null }, // One key each: still merged.
+                "size": [3],
+                "fonts": { "body": { "file": "y", "scale": 0.8 } },
+                "new": 1
+            })
+        );
+    }
 
     fn round_trip(base: Value, current: Value) -> Option<Value> {
         let diff = overlay_diff(&base, &current);

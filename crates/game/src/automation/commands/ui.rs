@@ -22,6 +22,7 @@ use crate::{
     menu::{
         GameMenusMode,
         dialog::{self, DialogMenuKind},
+        skin,
     },
     realm::{self, Realm},
 };
@@ -88,10 +89,21 @@ pub(super) const COMMANDS: &[CommandDef] = &[
     },
     CommandDef {
         name: "ui.reload_styles",
-        help: "Load the UI style files again (assets/configs/ui/styles/), e.g. after editing one. Keeps the current \
-               styles if one fails to load.",
+        help: "Load the developer UI's style file again (assets/configs/ui/styles/dev.json), e.g. after editing it; \
+               the skins' styles stay as loaded (ui.reload_skin reads those). Keeps the current styles if one fails \
+               to load.",
         params: &[],
         run: cmd_reload_styles,
+    },
+    CommandDef {
+        name: "ui.reload_skin",
+        help: "Load the UI skin files again (assets/configs/ui/skins/), e.g. after editing one: their styles, \
+               sprite paths, borders and sounds, and rebuild the dialogs and HUD with them from the next frame. \
+               Keeps the current skins if one fails to load. Loaded images stay cached, so an image changed under \
+               the same path needs a restart. The web build can read a file only once, so there it only rebuilds \
+               the menus with the skins as loaded at boot.",
+        params: &[],
+        run: cmd_reload_skin,
     },
     CommandDef {
         name: "ui.realm",
@@ -528,6 +540,12 @@ fn check_value(widget: &UiWidgetInfo, value: &Value) -> Result<(), CommandError>
 fn cmd_reload_styles(context: &mut CommandContext, _params: Value) -> CommandResult {
     context.engine.ui_system_mut().reload_styles().map_err(CommandError::failed)?;
     done(json!({ "reloaded": true }))
+}
+
+fn cmd_reload_skin(context: &mut CommandContext, _params: Value) -> CommandResult {
+    skin::reload(context.engine.ui_system_mut()).map_err(CommandError::failed)?;
+    skin::apply_sounds(context.engine.sound_system_mut());
+    done(json!({ "reloaded": true, "realm": skin::current_realm().to_string(), "version": skin::version() }))
 }
 
 // ----------------------------------------------

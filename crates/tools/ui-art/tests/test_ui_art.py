@@ -191,12 +191,25 @@ class CheckTest(unittest.TestCase):
             json.dump(skin, f)
 
     def test_skins(self):
+        write_png(os.path.join(self.root, cat.UI_DIR, "misc/home_menu_static_bg.png"), 4, 4)
         self.write_skin("dailong", {
-            "panels": {"dialog": {"sprite": "skins/dailong/panel.png", "slice": [20, 20, 24, 28], "center": "tile"}},
+            "style": {"fonts": {"body": {"file": "fonts/not_a_sprite.ttf"}}},
+            "panels": {"dialog": {"sprite": "skins/dailong/panel.png", "slice": [20, 20, 24, 28], "center": "round"}},
             "buttons": {"primary": {"sprite": "skins/dailong/button", "content": [1, 2, 3, 4]}},
-            "backdrops": {"home": "misc/home_menu_static_bg.png"},
+            "backdrops": {"home": ["misc/home_menu_static_bg.png"]},
+            "sounds": {"button_pressed": "buttons/default/pressed.wav"},
         })
         self.assertEqual(self.errors(), [])
+        # A realm's file is merged over Đại Long's: its dialog takes Đại Long's slice and center.
+        self.write_skin("tampadesa", {"panels": {"dialog": {"sprite": "skins/dailong/panel.png"}}})
+        self.assertEqual(self.errors(), [])
+        self.write_skin("tampadesa", {
+            "panels": {"card": {"sprite": "skins/dailong/panel.png"}, "page": {"sprite": "misc/page.png"}},
+        })
+        errs = self.errors()
+        self.assertTrue(any("tampadesa.json:panels:card" in e and "give its slice" in e for e in errs), errs)
+        self.assertTrue(any("misc/page.png doesn't exist" in e for e in errs), errs)
+        os.remove(os.path.join(self.root, cat.SKIN_CONFIG_DIR, "tampadesa.json"))
         self.write_skin("kambara", {
             "panels": {"dialog": {"sprite": "skins/kambara/panel.png", "slice": [20, 20, 20, 20], "center": "stretch"}},
             "buttons": {"primary": {"sprite": "skins/kambara/buton"}},
@@ -205,7 +218,7 @@ class CheckTest(unittest.TestCase):
         })
         errs = self.errors()
         self.assertTrue(any("kambara.json:panels:dialog" in e and "slice [20, 20, 20, 20]" in e for e in errs), errs)
-        self.assertTrue(any("center 'stretch'" in e for e in errs), errs)
+        self.assertTrue(any("center 'stretch' doesn't suit" in e for e in errs), errs)
         self.assertTrue(any("skins/kambara/buton doesn't exist" in e for e in errs), errs)
         self.assertTrue(any("skins/kambara/emblem.png doesn't exist" in e for e in errs), errs)
         self.assertTrue(any("isn't a 9-slice" in e for e in errs), errs)

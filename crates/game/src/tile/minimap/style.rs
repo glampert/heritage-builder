@@ -397,7 +397,7 @@ impl MinimapStyle {
     fn load_with(realm: Realm, mut read: impl FnMut(Realm) -> Result<serde_json::Value, String>) -> Result<Self, String> {
         let mut value = read(Realm::DaiLong)?;
         if realm != Realm::DaiLong {
-            merge_json(&mut value, read(realm)?);
+            config::merge_json(&mut value, read(realm)?);
         }
         serde_json::from_value(value).map_err(|err| format!("Invalid minimap style for {realm}: {err}"))
     }
@@ -449,23 +449,6 @@ fn read_style_file(realm: Realm) -> Result<String, String> {
 
 fn parse_style_file(realm: Realm, json: &str) -> Result<serde_json::Value, String> {
     serde_json::from_str(json).map_err(|err| format!("Invalid minimap style {}: {err}", realm.minimap_style_file()))
-}
-
-// `overlay` over `base`: objects merged key by key, anything else replaced.
-fn merge_json(base: &mut serde_json::Value, overlay: serde_json::Value) {
-    match (base, overlay) {
-        (serde_json::Value::Object(base), serde_json::Value::Object(overlay)) => {
-            for (key, value) in overlay {
-                match base.get_mut(&key) {
-                    Some(existing) => merge_json(existing, value),
-                    None => {
-                        base.insert(key, value);
-                    }
-                }
-            }
-        }
-        (base, overlay) => *base = overlay,
-    }
 }
 
 // ----------------------------------------------

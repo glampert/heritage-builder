@@ -7,7 +7,7 @@ use super::{UiWidget, UiWidgetContext};
 use crate::{
     file_sys::paths::PathRef,
     render::texture::TextureHandle,
-    ui::{UiFontScale, UiString, immediate::{self, egui_vec2, uv_full}, internal, renderer::egui_texture},
+    ui::{UiFontScale, UiNineSlice, UiString, immediate::{self, egui_vec2, nine_slice_shape, uv_full}, internal, renderer::egui_texture},
 };
 
 // ----------------------------------------------
@@ -53,6 +53,7 @@ impl UiText {
 pub struct UiMenuHeading {
     lines: Vec<UiText>,
     separator: Option<TextureHandle>,
+    separator_art: Option<UiSeparatorArt>, // In place of `separator`.
     margin_top: f32,
     margin_bottom: f32,
     center_vertically: bool,
@@ -79,7 +80,16 @@ impl UiWidget for UiMenuHeading {
             immediate::record_rect(ui_sys, "heading", &text.join(" "), group, false, None);
         }
 
-        if let Some(separator) = self.separator
+        if let Some(art) = &self.separator_art
+            && group.is_positive()
+        {
+            ui_sys.with_ui(|ui| {
+                // Room for the ornament too, as UiSeparator gives it; the rule along its middle.
+                let rect = egui::Rect::from_min_size(pos2(group.left(), ui.cursor().top()), vec2(group.width(), art.total_height()));
+                art.paint(ui, rect);
+                ui.advance_cursor_after_rect(rect);
+            });
+        } else if let Some(separator) = self.separator
             && group.is_positive()
         {
             // As tall as the last line's font.
@@ -116,6 +126,16 @@ impl UiWidget for UiMenuHeading {
         if non_empty_lines_count > 0 {
             // Add inter-line spacing.
             size.y += internal::item_spacing(context.ui_sys()).y * (non_empty_lines_count - 1) as f32;
+
+            // The separator under the lines and the margins, as draw() lays them out.
+            if let Some(art) = &self.separator_art {
+                size.y += art.total_height();
+            } else if self.separator.is_some()
+                && let Some(last_line) = self.lines.iter().rev().find(|line| !line.string.is_empty())
+            {
+                size.y += internal::font(context.ui_sys(), last_line.font_scale).size;
+            }
+            size.y += self.margin_top + self.margin_bottom;
         }
 
         size
@@ -136,6 +156,7 @@ impl UiMenuHeading {
         Self {
             lines,
             separator: None,
+            separator_art: None,
             margin_top: 0.0,
             margin_bottom: 0.0,
             center_vertically: false,
@@ -146,6 +167,13 @@ impl UiMenuHeading {
     // A sprite under the last line, as wide as the heading.
     pub fn with_separator<'a>(mut self, context: &mut dyn UiWidgetContext, sprite: impl Into<PathRef<'a>>) -> Self {
         self.separator = Some(context.load_texture(sprite.into()));
+        self
+    }
+
+    // A 9-slice rule under the last line, as wide as the heading, with an optional ornament at
+    // its middle: a skin's separator.
+    pub fn with_separator_art(mut self, art: UiSeparatorArt) -> Self {
+        self.separator_art = Some(art);
         self
     }
 
@@ -207,6 +235,46 @@ impl UiMenuHeading {
     pub fn clear_all_lines(&mut self) {
         for line in &mut self.lines {
             line.string.clear();
+        }
+    }
+}
+
+// ----------------------------------------------
+// UiSeparatorArt
+// ----------------------------------------------
+
+// A separator's look: a 9-slice rule `height` points tall across its rect, with an ornament
+// centred on it, e.g. a skin's divider (its rule and its diamond or lotus). Used by
+// UiMenuHeading::with_separator_art and UiSeparator::with_art.
+#[derive(Copy, Clone, PartialEq, Debug)]
+pub struct UiSeparatorArt {
+    pub rule: UiNineSlice,
+    pub height: f32,
+    pub ornament: Option<(TextureHandle, Vec2)>, // Its texture and size in points.
+}
+
+impl UiSeparatorArt {
+    pub fn new(rule: UiNineSlice, height: f32) -> Self {
+        Self { rule, height: height.max(0.0), ornament: None }
+    }
+
+    pub fn with_ornament(mut self, texture: TextureHandle, size: Vec2) -> Self {
+        self.ornament = Some((texture, size));
+        self
+    }
+
+    // The height it takes: the rule's, or the ornament's if that's taller.
+    pub fn total_height(&self) -> f32 {
+        self.ornament.map_or(self.height, |(_, size)| self.height.max(size.y))
+    }
+
+    // The rule along the middle of `rect`, `height` tall, and the ornament at its centre.
+    pub(crate) fn paint(&self, ui: &egui::Ui, rect: egui::Rect) {
+        let rule_rect = egui::Rect::from_center_size(rect.center(), vec2(rect.width(), self.height));
+        ui.painter().add(nine_slice_shape(rule_rect, &self.rule, Color32::WHITE));
+        if let Some((texture, size)) = self.ornament {
+            let ornament_rect = egui::Rect::from_center_size(rect.center(), egui_vec2(size));
+            ui.painter().image(egui_texture(texture), ornament_rect, uv_full(), Color32::WHITE);
         }
     }
 }
