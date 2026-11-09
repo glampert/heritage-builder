@@ -80,6 +80,7 @@ use destruction::{Destruction, FIRE_ALERT_TINT};
 use risks::{BuildingRisks, MAX_RISK, RiskKind};
 use construction::{CONSTRUCTION_STAGES, ConstructionSite};
 pub use house::{HouseLevel, HouseUpgradeDirection};
+pub use service::PatrolVisits;
 
 pub(crate) mod house;
 pub(crate) mod house_upgrade;

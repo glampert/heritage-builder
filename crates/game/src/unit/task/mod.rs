@@ -18,6 +18,7 @@ mod common;
 mod despawn;
 mod deliver;
 mod fetch;
+mod fight_fire;
 mod follow_path;
 mod harvest;
 mod manager;
@@ -29,6 +30,7 @@ pub use common::*;
 pub use despawn::*;
 pub use deliver::*;
 pub use fetch::*;
+pub use fight_fire::*;
 pub use follow_path::*;
 pub use harvest::*;
 pub use manager::*;
@@ -79,6 +81,7 @@ pub enum UnitTaskArchetype {
     UnitTaskSettler(UnitTaskSettler),
     UnitTaskHarvestWood(UnitTaskHarvestWood),
     UnitTaskFollowPath(UnitTaskFollowPath),
+    UnitTaskFightFire(UnitTaskFightFire),
 }
 
 // Dispatches a method call to the wrapped concrete task, for every variant.
@@ -93,6 +96,7 @@ macro_rules! archetype_dispatch {
             UnitTaskArchetype::UnitTaskSettler($task) => $body,
             UnitTaskArchetype::UnitTaskHarvestWood($task) => $body,
             UnitTaskArchetype::UnitTaskFollowPath($task) => $body,
+            UnitTaskArchetype::UnitTaskFightFire($task) => $body,
         }
     };
 }
@@ -153,4 +157,5 @@ archetype_from!(
     UnitTaskSettler,
     UnitTaskHarvestWood,
     UnitTaskFollowPath,
+    UnitTaskFightFire,
 );

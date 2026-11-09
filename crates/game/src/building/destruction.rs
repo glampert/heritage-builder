@@ -77,6 +77,32 @@ pub fn destroy_building(context: &SimContext, kind_and_id: BuildingKindAndId, ca
     true
 }
 
+// ----------------------------------------------
+// Requests
+// ----------------------------------------------
+
+// Destructions asked for while the building can't be despawned: the developer inspector draws it
+// when its Collapse button is pressed. Simulation::update runs them at the start of the next
+// frame, paused or not, when nothing holds the building.
+thread_local! {
+    static REQUESTS: std::cell::RefCell<Vec<(BuildingKindAndId, Destruction)>> = const { std::cell::RefCell::new(Vec::new()) };
+}
+
+pub fn request(kind_and_id: BuildingKindAndId, cause: Destruction) {
+    REQUESTS.with_borrow_mut(|requests| requests.push((kind_and_id, cause)));
+}
+
+#[inline]
+pub fn has_requests() -> bool {
+    REQUESTS.with_borrow(|requests| !requests.is_empty())
+}
+
+pub fn run_requests(context: &SimContext) {
+    for (kind_and_id, cause) in REQUESTS.with_borrow_mut(std::mem::take) {
+        destroy_building(context, kind_and_id, cause);
+    }
+}
+
 // "The storage yard burnt down. Lost: 40 rice, 12 wood."
 fn destruction_notice(name: &str, what: &str, lost: &[StockItem]) -> String {
     let mut notice = format!("The {} {what}.", name.to_lowercase());

@@ -24,7 +24,7 @@ use super::BuildingKind;
 use crate::{
     config::{GameConfigs, RiskConfigs},
     sim::SimContext,
-    unit::Unit,
+    unit::{Unit, task::UnitTaskFightFire},
 };
 
 // A risk's ceiling: a building at MAX_RISK is due to catch fire or collapse.
@@ -283,11 +283,14 @@ impl BuildingRisks {
     }
 }
 
-// The risk a walker's visit resets, if any: a fire watcher's (a patrol from a fire watch) the
-// fire risk, a builder's (from a builders' guild) the collapse risk. Walkers are told apart by
-// the building their patrol came from, as tax collectors are, so a builder can wear a
-// peasant's sprites.
+// The risk a walker's visit resets, if any: a fire watcher's (a patrol from a fire watch, or one
+// sent to a fire) the fire risk, a builder's (from a builders' guild) the collapse risk. Walkers
+// are told apart by their task and the building their patrol came from, as tax collectors are,
+// so a builder can wear a peasant's sprites.
 pub fn risk_reset_by(unit: &Unit, context: &SimContext) -> Option<RiskKind> {
+    if unit.is_running_task::<UnitTaskFightFire>(context.task_manager()) {
+        return Some(RiskKind::Fire);
+    }
     let origin = unit.patrol_task_building_kind(context)?;
     if origin == BuildingKind::FireWatch {
         Some(RiskKind::Fire)

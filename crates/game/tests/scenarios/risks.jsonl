@@ -2,8 +2,8 @@
 # well, and stops while risks are off for the game. A building on fire burns down and one that
 # collapses falls at once; both leave rubble, which the clear tool removes. From the repository root:
 #   cargo run -p HeritageBuilder -- --script crates/game/tests/scenarios/risks.jsonl
-# A month is 60 simulated seconds, and a fire burns for 30. The fire watch and the builders' guild
-# join with Phase 2 of docs/plans/city-risks.md.
+# A month is 60 simulated seconds, and a fire burns for 30. A fire watch sends a fire watcher to a
+# fire within its reach, who puts it out (docs/plans/city-risks.md).
 {"method": "time.fixed_dt", "params": {"dt": 0.016667}}
 {"method": "session.new_map", "params": {"size": [32, 24]}}
 {"method": "cheats.set", "params": {"name": "instant_construction", "value": true}}
@@ -61,3 +61,16 @@
 {"method": "assert.eq", "params": {"query": "tile.at", "args": {"cell": [3, 11]}, "path": "/objects/0/variation_name", "value": "1001"}}
 {"method": "assert.eq", "params": {"query": "risks.state", "path": "/buildings", "value": 1}}
 {"method": "risks.state"}
+
+# The fire watch and the builders' guild, staffed without residents: a fire in the fire watch's
+# reach is put out before the yard burns down.
+{"method": "cheats.set", "params": {"name": "ignore_worker_requirements", "value": true}}
+{"method": "world.place", "params": {"tile": "fire_watch", "cell": [12, 11]}}
+{"method": "world.place", "params": {"tile": "builders_guild", "cell": [14, 11]}}
+{"method": "world.place", "params": {"tile": "storage_yard", "cell": [20, 11]}}
+{"method": "risks.ignite", "params": {"cell": [20, 11]}}
+{"method": "time.fast_forward", "params": {"sim_secs": 20}}
+{"method": "assert.eq", "params": {"query": "risks.state", "path": "/burning", "value": 0}}
+{"method": "assert.eq", "params": {"query": "world.building_at", "args": {"cell": [20, 11]}, "path": "/name", "value": "Storage Yard"}}
+# Its fire risk went back to 0 and has built up for some seconds since.
+{"method": "assert.lt", "params": {"query": "world.building_at", "args": {"cell": [20, 11]}, "path": "/risks/fire", "value": 2.0}}

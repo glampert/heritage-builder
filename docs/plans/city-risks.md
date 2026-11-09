@@ -1,6 +1,6 @@
 # City risks: fire and collapse
 
-**Status (2026-11-09): The art, Phase 0 and Phase 1 are done; Phase 2 next.** This plan is milestone M6 of the [roadmap](roadmap.md). It covers the fire and collapse rows of GDD 5.9: each building's fire and collapse risk builds up over time, a patrol walker from the fire watch or the builders' guild resets it, and a building whose risk runs out catches fire or collapses and leaves rubble. Mission I-3 teaches "the fire watch and the builders' guild (fire and collapse risk)" ([campaigns.md](../design/campaigns.md#3-the-village-of-spirits)). Disease and crime come in Phase 2 of the roadmap. It was researched against `063d306` on `claude`. File and line references point at that commit, so re-check them before relying on them.
+**Status (2026-11-09): The art and Phases 0–2 are done; Phase 3 next.** This plan is milestone M6 of the [roadmap](roadmap.md). It covers the fire and collapse rows of GDD 5.9: each building's fire and collapse risk builds up over time, a patrol walker from the fire watch or the builders' guild resets it, and a building whose risk runs out catches fire or collapses and leaves rubble. Mission I-3 teaches "the fire watch and the builders' guild (fire and collapse risk)" ([campaigns.md](../design/campaigns.md#3-the-village-of-spirits)). Disease and crime come in Phase 2 of the roadmap. It was researched against `063d306` on `claude`. File and line references point at that commit, so re-check them before relying on them.
 
 ## How to resume this work
 
@@ -145,7 +145,7 @@
     The spear shaft (`#503b1a`) and the leg wraps (`#40381f`, `#393016`, `#2a2313`) lie between the same colours, so they're listed to keep. A prototype on three frames (2026-11-09) gave a red jacket and cap with the spear and legs unchanged; the leg laces pick up a slight tint, which the keep list can fix.
   - Both walkers wait on the Blender walker experiment (placeholder-art Phase 6) for art of their own.
 - **Patrols that visit every building.** `ServiceConfig` gets `visits: "Houses" | "AllBuildings"` (default `Houses`, today's behaviour). The fire watch and the builders' guild visit all buildings, so their walkers reset the risks of workshops, storage and services as well as houses.
-- **Dispatch to a fire.** When a building catches fire, the nearest fire watch within its `effect_radius` whose walker is at home sends it straight to the fire: it walks to the building's road link, puts the fire out on arrival, and goes home on a normal patrol. This is a new short task built from the existing follow-path and patrol tasks. If no walker is free, the fire burns until a patrolling one passes.
+- **Dispatch to a fire.** A fire watch sends a second walker, from its runner slot (it has no stock to fetch), straight to the nearest building burning within its `effect_radius` by road: he walks to the building's road link, puts the fire out on arrival, and walks home. This is a new short task, `UnitTaskFightFire`. A fire watch with its responder out answers no other fire until he's back; its patrol goes on meanwhile. (Planned as the patrol walker sent when at home; built as a second walker, see the Phase 2 notes.)
 - **Configs:**
 
   | | Fire watch | Builders' guild |
@@ -226,7 +226,7 @@ The user is redesigning the UI on another branch, so this is every UI change thi
 | Minimap alerts | A fire or collapse raises an alert at the building, through the existing alerts. | 1 | Call sites only, in `building/` and `menu/mod.rs`; `tile/minimap/` is unchanged |
 | Minimap lens bar | A fourth lens button, Risks, after Water. Its sprites exist. | 3 | `tile/minimap/lens.rs`, `assets/configs/ui/minimap/dailong.json` (`lenses`: `risk_ramp`, `risk_low`, `risk_high`, `risk_burning`) |
 | Tile inspector, building panel | Two or three more body text lines: fire risk, collapse risk, on fire. The redesign is likely to change this panel, so expect to move these lines when the branches merge. | 3 | `menu/in_game/inspector/mod.rs` |
-| Developer UI only | Tile Inspector risk section, World Debug Risks tab. Not retail. | 3 | `debug/` |
+| Developer UI only | Tile Inspector risk section (raw values, Set On Fire and Collapse buttons; done in Phase 2, at the user's request), World Debug Risks tab. Not retail. | 2, 3 | `debug/building.rs`, `debug/` |
 | Map drawing | Burning buildings darkened with a fire overlay; rubble tiles. Not UI, but visible. | 1 | `tile/rendering.rs`, tile sets |
 
 ## Phases
@@ -305,20 +305,39 @@ Notes (2026-11-09):
 
 ### Phase 2: The fire watch and the builders' guild (medium)
 
-- [ ] Service configs for `BuildingKind::FireWatch` and `BuildingKind::BuildersGuild` (the kinds came with Phase 0), and `"sector": "Services"` in their catalog entries.
-- [ ] `UnitConfigKey::FireWatcher` and its unit config on a new `fire_watcher` tile def. The builder is a `Peasant` (§3).
-- [ ] `crates/tools/unit-recolor/` (`recolor.py`, its recipe and manifest, a README section or file); the red `fire_watcher` frames from the guard's; the web asset manifest refreshed. List the tool in AGENTS.md's workspace layout.
-- [ ] `ServiceConfig::visits`; the patrol's buildings to visit follow it.
-- [ ] A fire watcher puts out a fire it passes (its visit does since Phase 1; patrols reach every building with `visits` above); a fire watch sends its free walker to a fire in its radius.
+- [x] Service configs for `BuildingKind::FireWatch` and `BuildingKind::BuildersGuild` (the kinds came with Phase 0), and `"sector": "Services"` in their catalog entries.
+- [x] `UnitConfigKey::FireWatcher` and its unit config on a new `fire_watcher` tile def. The builder is a `Peasant` (§3).
+- [x] `crates/tools/unit-recolor/` (`recolor.py`, its recipe and manifest, a README section or file); the red `fire_watcher` frames from the guard's; the web asset manifest refreshed. List the tool in AGENTS.md's workspace layout.
+- [x] `ServiceConfig::visits`; the patrol's buildings to visit follow it.
+- [x] A fire watcher puts out a fire it passes (its visit does since Phase 1; patrols reach every building with `visits` above); a fire watch sends its free walker to a fire in its radius.
 - [x] Art: the `fire_watch` and `builders_guild` recipes and catalog entries, rendered with `tilegen.sh`. Their tile defs have no `sector` yet, so the build menu leaves them out until their configs land; add `"sector": "Services"` to their catalog entries then.
-- [ ] Tests: patrols visit all buildings, putting out a fire, dispatch.
-- [ ] `risks.jsonl`, in CI.
+- [x] Tests: patrols visit all buildings, putting out a fire, dispatch.
+- [x] `risks.jsonl`, in CI.
+- [x] Added at the user's request: the developer Tile Inspector's Risks section, with buttons to set the building on fire and to collapse it (a Phase 3 item, done early).
+
+Notes (2026-11-09):
+- **Configs** as the table in §3, with the services' risk rates (3 fire, 2 collapse a month) and `"visits": "AllBuildings"`. The build menu lists them as "Fire Watch" and "Builders Guild", from their tile def names; the config's name is "Builders' Guild".
+- **`ServiceConfig::visits`** is `PatrolVisits` (`Houses`, the default, or `AllBuildings`), re-exported from `building`. Their walkers' visits never reach a building's archetype: `Building::visited_by` takes them first.
+- **The fire watcher:** `crates/tools/unit-recolor/recolor.py` recolours the guard's 20 frames from `recipes.json` and copied the guard's tile def as `fire_watcher`, keeping the tile set's formatting. The prototype's keep list turned out short: the spearhead (`#776f47`, `#776c47`) lies near the jacket's blend line and came out red, so it's kept too. The output is the same on every run.
+- **Dispatch deviates from the plan.** The plan sent the fire watch's patrol walker when he was at home. But a patrol takes about as long as the 30 s between patrols, so he's almost never home, and fires would mostly burn until a patrol passed. Instead a fire watch sends a second walker from its runner slot, which no fire watch uses, so the save format doesn't change. Each staffed fire watch with its responder home looks for fires every step: first a scan of the buildings for one burning within its radius as the crow flies (a flag check per building), then, only if there's one, a road search bounded by the radius for the nearest one by road. Every fire watch in reach answers, not only the nearest, so two may send someone to the same fire; the second finds it out and walks home. He walks home straight, without a patrol, and a fire that's out by the time he sets out needs no one.
+- **`risk_reset_by`** knows the responder by his task, `UnitTaskFightFire`, and the patrolling fire watcher and builder by their patrol's origin.
+- **The inspector's Risks section** (`debug/building.rs`) shows both risks with their rates, water, jitter and the fire's time left, and a note while risks are off. `Set On Fire` and `Collapse` show only when the building can (otherwise the reason does). Set On Fire acts at once, through the immediate-mode commands the inspector gets. Collapse can't despawn the building the inspector is drawing, so it's queued (`destruction::request`) and runs at the start of the next frame, paused or not (`Simulation::update`).
+- **Not done:** a fire watch's patrol and responder don't prefer the riskiest buildings, and the builder has no dispatch (a collapse is instant). M13 balances the rates and radii.
+- **Verified:**
+  - `cargo test --workspace`, with 26 tests in `tests/risks.rs`: the configs, both patrols resetting a yard's risk, the dispatch putting a fire out before it burns down, no dispatch out of reach, and the queued collapse;
+  - all 12 CI scenarios in release: `risks.jsonl` has a fire watch put out a yard's fire, and `ui_dev_menus.jsonl` clicks Set On Fire and Collapse in the inspector;
+  - `determinism.jsonl` twice: the same output and save, checksum `b10f4eeae3845660` as after Phase 1;
+  - record and replay of `ui_build` and `determinism`;
+  - the save smoke test on all 13 local saves;
+  - the web check and `sync_tileset.py --check`;
+  - `ui.layout_issues` is 0 with the Services menu open, and a fire watch placed through the HUD with 3 wood in a yard starts as a construction site;
+  - a screenshot of a fire watcher in red walking to a burning yard past the builders' guild.
 
 ### Phase 3: The Risk lens, the info panel and documentation (small)
 
 - [ ] `RiskLens` and its style colours; `MinimapLens::available()`; tick the Risk provider in [minimap.md](minimap.md).
 - [ ] The inspector's risk lines.
-- [ ] Developer tools: the Tile Inspector section and the World Debug Risks tab.
+- [ ] Developer tools: the World Debug Risks tab. (The Tile Inspector section came with Phase 2.)
 - [ ] `risks.jsonl` covers the lens; `ui.layout_issues` stays 0 on the inspector with the new lines.
 - [x] `.claude/rules/terrain-tiles.md`: a Rubble section beside Roads (the neighbour mask, when variations are picked, the anchor). Written with Phase 1.
 - [ ] AGENTS.md (a City risks entry under Runtime architecture, `risks.jsonl` in the scenario list, `risks` in the test list), the roadmap's M6 row and save-version log, known-issues for what's left.

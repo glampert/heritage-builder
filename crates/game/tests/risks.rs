@@ -10,8 +10,10 @@ use game::{
         BuildingKindAndId,
         BuildingTileInfo,
         BuildingVisitResult,
+        config::BuildingConfigs,
         construction::ConstructionMode,
-        destruction::Destruction,
+        destruction::{self, Destruction},
+        PatrolVisits,
         risks::{self, BuildingRisks, MAX_RISK, RiskKind, RiskRates},
     },
     campaign::config::MissionRisksDef,
@@ -25,10 +27,12 @@ use game::{
     world::city_stock::CityStock,
     unit::{
         Unit,
+        UnitTaskHelper,
         config::UnitConfigKey,
         task::{
             UnitPatrolPathRecord,
             UnitTaskDespawn,
+            UnitTaskFightFire,
             UnitTaskPatrolCompletionCallback,
             UnitTaskPatrolState,
             UnitTaskRandomizedPatrol,
@@ -72,6 +76,12 @@ fn main() {
         test_utils::test_fn!(test_commands_for_a_destroyed_building_are_skipped),
         test_utils::test_fn!(test_a_burnt_yard_loses_its_goods_at_once),
         test_utils::test_fn!(test_a_runner_comes_back_empty_from_a_collapsed_granary),
+        test_utils::test_fn!(test_a_requested_collapse_waits_for_the_next_frame),
+        // The fire watch and the builders' guild:
+        test_utils::test_fn!(test_fire_watch_and_guild_configs),
+        test_utils::test_fn!(test_their_patrols_visit_every_building),
+        test_utils::test_fn!(test_a_fire_watch_sends_a_walker_to_a_fire),
+        test_utils::test_fn!(test_a_fire_out_of_reach_gets_no_walker),
         // Saves:
         test_utils::test_fn!(test_risks_round_trip_through_a_save),
     ]);
@@ -801,6 +811,142 @@ fn test_a_runner_comes_back_empty_from_a_collapsed_granary() {
     let ticks = test_utils::tick_until(&mut env, 200, TICK, |env| !test_utils::unit_exists(env, runner));
     assert!(ticks < 200, "the runner should come home and despawn");
     assert_eq!(building(&env, market).available_resources(ResourceKind::Rice), 0, "it brought nothing back");
+}
+
+// The developer inspector's Collapse button can't despawn the building it's drawing: it asks, and
+// the collapse happens when the requests run (Simulation::update, at the start of a frame).
+fn test_a_requested_collapse_waits_for_the_next_frame() {
+    let mut env = TestEnvironment::new();
+    road(&mut env);
+    let house = test_utils::spawn_building(&mut env, Cell::new(10, 11), "house0");
+
+    destruction::request(house, Destruction::Collapsed);
+    assert!(destruction::has_requests());
+    assert!(exists(&env, house), "nothing happens until the requests run");
+
+    let context = env.new_sim_context(0.0);
+    destruction::run_requests(&context);
+    assert!(!destruction::has_requests());
+    assert!(!exists(&env, house));
+    assert_eq!(rubble_at(&env, Cell::new(10, 11)), Some("0000"));
+}
+
+// ----------------------------------------------
+// The fire watch and the builders' guild
+// ----------------------------------------------
+
+// Sets one of a building's bool debug options, e.g. "freeze_patrol".
+fn set_debug_bool(env: &mut TestEnvironment, handle: BuildingKindAndId, name: &str, mut value: bool) {
+    let ok = test_utils::find_building_mut(env, handle)
+        .debug_options()
+        .set_debug_option_by_name(name, GameObjectDebugVarRef::Bool(&mut value));
+    assert!(ok, "{} has no '{name}' debug option", handle.kind);
+}
+
+fn fire_response_is_out(env: &mut TestEnvironment, handle: BuildingKindAndId) -> bool {
+    test_utils::find_building_mut(env, handle).active_runner().unwrap().is_spawned_or_pending_spawn()
+}
+
+// The fire watch sends fire watchers, the builders' guild peasants, and both patrol every
+// building, while other services still visit houses only.
+fn test_fire_watch_and_guild_configs() {
+    let configs = BuildingConfigs::get();
+    let fire_watch = configs.find_service_config(BuildingKind::FireWatch);
+    assert_eq!(fire_watch.patrol_unit, UnitConfigKey::FireWatcher);
+    assert_eq!(fire_watch.visits, PatrolVisits::AllBuildings);
+    assert!(fire_watch.has_patrol_unit);
+
+    let guild = configs.find_service_config(BuildingKind::BuildersGuild);
+    assert_eq!(guild.patrol_unit, UnitConfigKey::Peasant, "a builder is a peasant from the guild");
+    assert_eq!(guild.visits, PatrolVisits::AllBuildings);
+
+    let police = configs.find_service_config(BuildingKind::PoliceStation);
+    assert_eq!(police.visits, PatrolVisits::Houses);
+    assert!(PatrolVisits::Houses.building_kinds() == BuildingKind::House);
+    assert!(PatrolVisits::AllBuildings.building_kinds().contains(BuildingKind::StorageYard | BuildingKind::House));
+}
+
+// A patrol from either building visits a storage yard by the road it walks, and resets the risk
+// it looks after. The yard sits across the road from the patrol's home, so the walker passes it
+// at least on coming home.
+fn test_their_patrols_visit_every_building() {
+    for (home, kind, walker, risk_kind) in [
+        ("fire_watch", BuildingKind::FireWatch, UnitConfigKey::FireWatcher, RiskKind::Fire),
+        ("builders_guild", BuildingKind::BuildersGuild, UnitConfigKey::Peasant, RiskKind::Collapse),
+    ] {
+        let mut env = TestEnvironment::new();
+        road(&mut env);
+        let service = test_utils::spawn_building(&mut env, Cell::new(10, 11), home);
+        assert!(service.kind == kind, "{home} should be a {kind}");
+        let road_link = building(&env, service).road_link().expect("road-linked");
+        // Three cells north of the road, its south edge on the road link's cell row.
+        let yard = test_utils::spawn_building(&mut env, Cell::new(road_link.x - 1, 7), "storage_yard");
+        assert!(building(&env, yard).cell_range().contains(Cell::new(road_link.x, 9)), "the yard should touch the road link");
+        test_utils::find_building_mut(&mut env, yard).risks_mut().set(risk_kind, 50.0);
+
+        test_utils::tick_until(&mut env, 200, TICK_SECS, |env| test_utils::find_unit_by_config(env, walker).is_some());
+        let walker_id = test_utils::find_unit_by_config(&env, walker).unwrap();
+        {
+            let unit = test_utils::find_unit(&env, walker_id);
+            let task = unit.current_task_as::<UnitTaskRandomizedPatrol>(env.sim.task_manager()).expect("a patrol");
+            assert!(task.buildings_to_visit == Some(BuildingKind::all()), "{home}'s patrol visits every building");
+        }
+
+        // One patrol is enough: the walker that's out finishes it, and no other sets out.
+        set_debug_bool(&mut env, service, "freeze_patrol", true);
+        test_utils::tick_until(&mut env, 600, TICK_SECS, |env| !test_utils::unit_exists(env, walker_id));
+        assert_eq!(risk(&env, yard, risk_kind), 0.0, "{home}'s walker resets the yard's {risk_kind} risk");
+    }
+}
+
+// A fire watch sends a fire watcher to a fire within its radius by road, who puts it out before it
+// burns down and comes home. Its patrol walker is held back, so the fire is the dispatch's.
+fn test_a_fire_watch_sends_a_walker_to_a_fire() {
+    with_risks(|| {
+        let _ = risks::take_notices();
+        let mut env = TestEnvironment::new();
+        road(&mut env);
+        let fire_watch = test_utils::spawn_building(&mut env, Cell::new(5, 11), "fire_watch");
+        set_debug_bool(&mut env, fire_watch, "freeze_patrol", true);
+        let house = test_utils::spawn_building(&mut env, Cell::new(20, 11), "house0");
+
+        top_out(&mut env, house, RiskKind::Fire);
+        assert!(is_burning(&env, house));
+        test_utils::tick(&mut env, TICK_SECS);
+        assert!(fire_response_is_out(&mut env, fire_watch), "the fire watch sends someone");
+
+        test_utils::tick_until(&mut env, (burn_secs() / TICK_SECS) as usize, TICK_SECS, |env| !is_burning(env, house));
+        assert!(exists(&env, house), "the fire is out before the house burns down");
+        assert_eq!(risk(&env, house, RiskKind::Fire), 0.0);
+        let walker = test_utils::find_unit_by_config(&env, UnitConfigKey::FireWatcher).expect("the fire watcher");
+        assert!(
+            test_utils::find_unit(&env, walker).is_running_task::<UnitTaskFightFire>(env.sim.task_manager()),
+            "the fire watcher who put it out was sent to it"
+        );
+
+        test_utils::tick_until(&mut env, 200, TICK_SECS, |env| !test_utils::unit_exists(env, walker));
+        assert!(!fire_response_is_out(&mut env, fire_watch), "back home, ready for the next fire");
+        let notices = risks::take_notices();
+        assert_eq!(notices.last().map(String::as_str), Some("The fire at the house is out."));
+    });
+}
+
+// A fire further than the fire watch's effect radius by road gets no one.
+fn test_a_fire_out_of_reach_gets_no_walker() {
+    with_risks(|| {
+        let mut env = TestEnvironment::with_map_size(common::Size::new(48, 24));
+        let cells: Vec<Cell> = (1..47).map(|x| Cell::new(x, 10)).collect();
+        test_utils::place_road(&mut env, &cells);
+        let fire_watch = test_utils::spawn_building(&mut env, Cell::new(2, 11), "fire_watch");
+        set_debug_bool(&mut env, fire_watch, "freeze_patrol", true);
+        let radius = BuildingConfigs::get().find_service_config(BuildingKind::FireWatch).effect_radius;
+        let house = test_utils::spawn_building(&mut env, Cell::new(2 + radius + 4, 11), "house0");
+
+        top_out(&mut env, house, RiskKind::Fire);
+        test_utils::tick_n(&mut env, 4, TICK_SECS);
+        assert!(!fire_response_is_out(&mut env, fire_watch), "too far by road");
+        assert!(is_burning(&env, house));
+    });
 }
 
 // ----------------------------------------------

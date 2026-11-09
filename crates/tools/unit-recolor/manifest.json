@@ -1,0 +1,24 @@
+{
+ "files": [
+  "fire_watcher/idle_ne/frame0.png",
+  "fire_watcher/idle_ne/frame1.png",
+  "fire_watcher/idle_se/frame0.png",
+  "fire_watcher/idle_se/frame1.png",
+  "fire_watcher/walk_ne/frame0.png",
+  "fire_watcher/walk_ne/frame1.png",
+  "fire_watcher/walk_ne/frame2.png",
+  "fire_watcher/walk_ne/frame3.png",
+  "fire_watcher/walk_ne/frame4.png",
+  "fire_watcher/walk_ne/frame5.png",
+  "fire_watcher/walk_ne/frame6.png",
+  "fire_watcher/walk_ne/frame7.png",
+  "fire_watcher/walk_se/frame0.png",
+  "fire_watcher/walk_se/frame1.png",
+  "fire_watcher/walk_se/frame2.png",
+  "fire_watcher/walk_se/frame3.png",
+  "fire_watcher/walk_se/frame4.png",
+  "fire_watcher/walk_se/frame5.png",
+  "fire_watcher/walk_se/frame6.png",
+  "fire_watcher/walk_se/frame7.png"
+ ]
+}

@@ -1,6 +1,7 @@
 use std::cmp::Reverse;
 use arrayvec::ArrayVec;
 use serde::{Deserialize, Serialize};
+use strum::Display;
 
 use common::{
     Color,
@@ -22,6 +23,7 @@ use super::{
 };
 use crate::{
     cheats,
+    pathfind::NodeKind as PathNodeKind,
     tile::Tile,
     save_context::PostLoadContext,
     world::{object::GameObject, stats::WorldStats},
@@ -39,9 +41,42 @@ use crate::{
         config::UnitConfigKey,
         patrol::*,
         runner::Runner,
-        task::{UnitTaskFetchCompletionCallback, UnitTaskFetchFromStorage, UnitTaskRandomizedPatrol},
+        task::{
+            UnitTaskDespawn,
+            UnitTaskFetchCompletionCallback,
+            UnitTaskFetchFromStorage,
+            UnitTaskFightFire,
+            UnitTaskFightFireCompletionCallback,
+            UnitTaskFightFireState,
+            UnitTaskRandomizedPatrol,
+        },
     },
 };
+
+// ----------------------------------------------
+// PatrolVisits
+// ----------------------------------------------
+
+// The buildings a service's patrol walker visits on its way.
+#[derive(Copy, Clone, Default, PartialEq, Eq, Debug, Display, Serialize, Deserialize)]
+pub enum PatrolVisits {
+    // Houses only: the services residents need.
+    #[default]
+    Houses,
+
+    // Every building: fire watchers and builders, who look after any building's risks.
+    AllBuildings,
+}
+
+impl PatrolVisits {
+    #[inline]
+    pub fn building_kinds(self) -> BuildingKind {
+        match self {
+            Self::Houses => BuildingKind::House,
+            Self::AllBuildings => BuildingKind::all(),
+        }
+    }
+}
 
 // ----------------------------------------------
 // ServiceConfig
@@ -72,6 +107,11 @@ pub struct ServiceConfig {
 
     #[serde(default)]
     pub patrol_frequency_secs: Seconds,
+
+    // Which buildings its patrol walker visits.
+    #[serde(default)]
+    #[debug_ui(format = "Patrol Visits : {}")]
+    pub visits: PatrolVisits,
 
     #[serde(default)] // Optional if no `resources_required`.
     pub stock_update_frequency_secs: Seconds,
@@ -105,6 +145,7 @@ impl Default for ServiceConfig {
             has_patrol_unit: false,
             patrol_unit: UnitConfigKey::default(),
             patrol_frequency_secs: 0.0,
+            visits: PatrolVisits::Houses,
             stock_update_frequency_secs: 0.0,
             resources_required: ResourceKinds::none(),
             stock_capacity: 0,
@@ -156,7 +197,9 @@ pub struct ServiceBuilding {
     // collectors pay it into the city treasury.)
     pub(crate) service_stock: ServiceStock,
 
-    pub(crate) runner: Runner,            // Runner Unit we may send out to fetch resources from storage.
+    // Runner Unit we may send out to fetch resources from storage. A fire watch, which has no
+    // stock, sends a fire watcher to a fire with it instead (send_out_to_fire).
+    pub(crate) runner: Runner,
     pub(crate) patrol: Patrol,            // Unit we may send out on patrol to provide the service.
     pub(crate) patrol_timer: UpdateTimer, // Min time before we can send out a new patrol unit.
 
@@ -217,6 +260,11 @@ impl BuildingBehavior for ServiceBuilding {
             && self.patrol_timer.tick(service_delta_secs).should_update()
         {
             self.send_out_patrol_unit(cmds, context);
+        }
+
+        // A fire watch answers fires as well as patrolling (freeze_patrol leaves this be).
+        if context.kind == BuildingKind::FireWatch && has_min_required_workers {
+            self.send_out_to_fire(cmds, context);
         }
     }
 
@@ -445,6 +493,7 @@ impl ServiceBuilding {
     pub fn register_callbacks() {
         let _: Callback<UnitTaskFetchCompletionCallback> = callback::register!(ServiceBuilding::on_resources_fetched);
         let _: Callback<PatrolCompletionCallback> = callback::register!(ServiceBuilding::on_patrol_completed);
+        let _: Callback<UnitTaskFightFireCompletionCallback> = callback::register!(ServiceBuilding::on_fire_fought);
     }
 
     // Fraction [0,1] the building runs at, based on how staffed it is relative to
@@ -568,17 +617,16 @@ impl ServiceBuilding {
             None => return, // We are not connected to a road!
         };
 
-        let unit_config = self.config.unwrap().patrol_unit;
-        let max_patrol_distance = self.config.unwrap().effect_radius;
+        let config = self.config.unwrap();
 
-        // Look for houses to visit:
+        // Visit houses, or every building (config.visits):
         self.patrol.start_randomized_patrol(
             cmds,
             context,
             unit_origin,
-            unit_config,
-            max_patrol_distance,
-            Some(BuildingKind::House),
+            config.patrol_unit,
+            config.effect_radius,
+            Some(config.visits.building_kinds()),
             callback::create!(ServiceBuilding::on_patrol_completed),
             None,
         );
@@ -627,6 +675,74 @@ impl ServiceBuilding {
 
         this_service.patrol.reset();
         debug_popup_msg_color!(this_service.debug, Color::magenta(), "Patrol complete");
+    }
+}
+
+impl ServiceBuilding {
+    // ----------------------
+    // Fires (fire watch):
+    // ----------------------
+
+    // Sends a fire watcher straight to the nearest building burning within the fire watch's
+    // effect radius by road, unless one is out already. Its patrol walker goes on patrolling.
+    fn send_out_to_fire(&mut self, cmds: &mut SimCmds, context: &BuildingContext) {
+        if self.runner.is_spawned_or_pending_spawn() {
+            return; // Out at a fire already.
+        }
+
+        let Some(road_link) = context.road_link else {
+            return;
+        };
+
+        let radius = self.config.unwrap().effect_radius;
+        let sim_ctx = context.sim_ctx;
+
+        // A cheap look first: a road search only when something burns near enough.
+        let mut fire_nearby = false;
+        sim_ctx.world().for_each_building_of_any_kind(|building| {
+            let near = building.is_burning()
+                && building.road_link().is_some_and(|link| (link.x - road_link.x).abs() + (link.y - road_link.y).abs() <= radius);
+            fire_nearby |= near;
+            !fire_nearby
+        });
+        if !fire_nearby {
+            return;
+        }
+
+        // The nearest burning building by road, within the radius.
+        let Some((fire, _path)) = sim_ctx.find_nearest_buildings(
+            road_link,
+            BuildingKind::all(),
+            PathNodeKind::Road,
+            Some(radius),
+            |building, _path| !building.is_burning(), // Keep searching past anything not burning.
+        ) else {
+            return;
+        };
+
+        let task = UnitTaskFightFire {
+            origin_building: context.kind_and_id(),
+            origin_building_tile: context.tile_info(),
+            fire: fire.kind_and_id(),
+            fire_tile: fire.tile_info(),
+            completion_callback: callback::create!(ServiceBuilding::on_fire_fought),
+            completion_task: sim_ctx.task_manager_mut().new_task(UnitTaskDespawn::default()),
+            state: UnitTaskFightFireState::default(),
+            completion_callback_done: false,
+        };
+
+        log::info!(log::channel!("risks"), "{} at {} sends a fire watcher to the fire at {}.", self.name(), context.base_cell(), fire.base_cell());
+        self.runner.try_spawn_with_task(context.debug_name(), cmds, sim_ctx, road_link, self.config.unwrap().patrol_unit, task);
+    }
+
+    fn on_fire_fought(context: &SimContext, this_building: &mut Building, fire_watcher: &mut Unit) {
+        let this_service = this_building.as_service_mut();
+
+        debug_assert!(this_service.runner.unit_id() == fire_watcher.id());
+        debug_assert!(this_service.runner.is_running_task::<UnitTaskFightFire>(context), "No fire watcher was sent out by this building!");
+
+        this_service.runner.reset();
+        debug_popup_msg_color!(this_service.debug, Color::magenta(), "Back from a fire");
     }
 }
 

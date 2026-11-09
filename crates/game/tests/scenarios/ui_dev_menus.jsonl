@@ -39,6 +39,25 @@
 {"method": "assert.eq", "params": {"query": "world.building_at", "args": {"cell": [10, 10]}, "path": "/name", "value": "House Level 1"}}
 {"method": "assert.eq", "params": {"query": "ui.tree", "args": {"kind": "window", "filter": "Tile Inspector"}, "path": "/widgets/0/value/tile", "value": "house1"}}
 {"method": "ui.click", "params": {"path": "Tile Inspector/Close"}}
+# Its Risks section: set one house on fire, and collapse another. Each building has its own
+# inspector window, so its headers start closed; close one before clicking a house it may cover.
+# The collapse waits for the next frame.
+{"method": "cheats.set", "params": {"name": "instant_construction", "value": true}}
+{"method": "world.place", "params": {"tile": "house0", "cell": [3, 12]}}
+{"method": "world.place", "params": {"tile": "house0", "cell": [5, 12]}}
+{"method": "cheats.set", "params": {"name": "instant_construction", "value": false}}
+{"method": "input.click", "params": {"cell": [3, 12]}}
+{"method": "ui.click", "params": {"path": "Tile Inspector/Building"}}
+{"method": "ui.click", "params": {"path": "Tile Inspector/Building/Risks"}}
+{"method": "ui.click", "params": {"path": "Tile Inspector/Building/Risks/Set On Fire"}}
+{"method": "assert.exists", "params": {"query": "world.building_at", "args": {"cell": [3, 12]}, "path": "/risks/burning"}}
+{"method": "ui.click", "params": {"path": "Tile Inspector/Close"}}
+{"method": "input.click", "params": {"cell": [5, 12]}}
+{"method": "ui.click", "params": {"path": "Tile Inspector/Building"}}
+{"method": "ui.click", "params": {"path": "Tile Inspector/Building/Risks"}}
+{"method": "ui.click", "params": {"path": "Tile Inspector/Building/Risks/Collapse"}}
+{"method": "assert.eq", "params": {"query": "tile.at", "args": {"cell": [5, 12]}, "path": "/objects/0/name", "value": "rubble"}}
+{"method": "ui.click", "params": {"path": "Tile Inspector/Close"}}
 # Debug windows: World Debug's tabs ("Tax/Treasury" is the tab's label; its path segment is "Tax∕Treasury").
 {"method": "ui.click", "params": {"path": "Debug"}}
 {"method": "ui.set", "params": {"path": "Debug/Show Game World Debug", "value": true}}

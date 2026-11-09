@@ -182,6 +182,12 @@ impl Simulation {
         tile_map: &mut TileMap,
         delta_time_secs: Seconds,
     ) {
+        // Collapses the developer inspector asked for last frame (building::destruction::request).
+        if crate::building::destruction::has_requests() {
+            let context = context::make_update_context_mut!(self, 0.0, tile_map, world);
+            crate::building::destruction::run_requests(&context);
+        }
+
         // Paused simulation update.
         if self.is_paused {
             if self.paused_update_timer.tick(delta_time_secs).should_update() {
