@@ -7,7 +7,7 @@ use common::{Color, Rect, Vec2, coords::Cell, format_fixed_string};
 use engine::{
     file_sys::paths::PathRef,
     render::texture::TextureHandle,
-    ui::{self, UiCondition, UiFontScale, UiLayer, UiNumberFormat, UiPainter, UiStaticVar, UiSystem, UiTooltipBackground, UiWindow, sound::UiButtonSoundsEnabled, widgets::*},
+    ui::{self, UiCondition, UiFontScale, UiLayer, UiNumberFormat, UiPainter, UiStaticVar, UiSystem, UiTooltipBackground, UiWindow, sound::UiWidgetSounds, widgets::*},
 };
 
 use super::{
@@ -88,7 +88,7 @@ struct BaseMinimapRenderer {
     buttons: Option<MinimapButtons>,
     tooltip_background: Option<TextureHandle>, // The style's frame, behind the map's hover tooltip.
     style_version: u32,
-    button_sounds_enabled: UiButtonSoundsEnabled,
+    button_sounds: UiWidgetSounds,
     font_scale: UiFontScale,
     with_frame: bool, // The style's frame sprite; the developer UI uses a plain window.
     with_debug_button: bool,
@@ -96,14 +96,14 @@ struct BaseMinimapRenderer {
 }
 
 impl BaseMinimapRenderer {
-    fn new(button_sounds_enabled: UiButtonSoundsEnabled, font_scale: UiFontScale, with_frame: bool, with_debug_button: bool) -> Self {
+    fn new(button_sounds: UiWidgetSounds, font_scale: UiFontScale, with_frame: bool, with_debug_button: bool) -> Self {
         Self {
             minimap_menu: None,
             open_button_menu: None,
             buttons: None,
             tooltip_background: None,
             style_version: 0,
-            button_sounds_enabled,
+            button_sounds,
             font_scale,
             with_frame,
             with_debug_button,
@@ -114,7 +114,7 @@ impl BaseMinimapRenderer {
     fn create_menus(&mut self, context: &mut GameUiContext) {
         let style = style::current();
         let font_scale = self.font_scale;
-        let sounds = self.button_sounds_enabled;
+        let sounds = self.button_sounds;
         let frame = self.with_frame.then(|| style.frame.clone());
         let tooltip_frame = self.with_frame.then(|| style.tooltip_frame().to_string());
 
@@ -567,7 +567,7 @@ impl InGameUiMinimapRenderer {
     const WIDGET_FONT_SCALE: UiFontScale = UiFontScale(0.8);
 
     pub fn new(_context: &mut GameUiContext) -> Self {
-        Self { base_renderer: BaseMinimapRenderer::new(UiButtonSoundsEnabled::Pressed, Self::WIDGET_FONT_SCALE, true, false) }
+        Self { base_renderer: BaseMinimapRenderer::new(UiWidgetSounds::new(), Self::WIDGET_FONT_SCALE, true, false) }
     }
 }
 
@@ -600,7 +600,7 @@ impl DevUiMinimapRenderer {
 
     pub fn new(_context: &mut GameUiContext) -> Self {
         Self {
-            base_renderer: BaseMinimapRenderer::new(UiButtonSoundsEnabled::empty(), Self::WIDGET_FONT_SCALE, false, true),
+            base_renderer: BaseMinimapRenderer::new(UiWidgetSounds::silent(), Self::WIDGET_FONT_SCALE, false, true),
             enable_debug_draw: false,
         }
     }

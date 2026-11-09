@@ -12,6 +12,13 @@
 //
 // Widgets record themselves in the widget registry (registry.rs) as they draw, for UI automation.
 //
+// Interactive widgets play UI sound roles for their events (ui::sound): buttons ButtonHovered and
+// ButtonPressed, checkboxes Toggled, sliders SliderChanged, dropdowns DropdownOpened, ItemHovered,
+// ItemSelected and DropdownClosed, item lists ItemHovered and ItemSelected, and menus that ask for
+// them their open and close sounds (dialogs, popups). Each holds a UiWidgetSounds, which
+// `with_sound` overrides per event; a new widget plays an event with one call to its
+// `sounds.play(context, event, Some(default role))`.
+//
 // This module holds what the widgets share: the context, the UiWidget trait, UiWidgetImpl and the
 // registry helpers. Each widget family has a file of its own, re-exported here, so every widget is
 // `ui::widgets::<Name>`:

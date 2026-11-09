@@ -1,0 +1,135 @@
+# UI sound hooks (engine::ui::sound): the roles the widgets, dialogs, popups, toasts and minimap
+# alerts play, as ui.sounds records them (with or without an audio device), and the default mapping
+# (assets/configs/ui/sounds.json). From the repository root:
+#   cargo run -p HeritageBuilder -- --fresh-profile --script crates/game/tests/scenarios/ui_sounds.jsonl
+# Run it without an audio device, as CI does: with one, a sound still playing can hold back the next
+# (exclusivity). Cooldowns run on frame time, so with time.fixed_dt the list is the same every run.
+# Each check reads the list and clears it (clear=true).
+{"method": "time.fixed_dt", "params": {"dt": 0.016667}}
+{"method": "assert.eq", "params": {"query": "ui.sounds", "args": {"mapping": true}, "path": "/mapping/dialog_opened", "value": "buttons/default/pressed.wav"}}
+{"method": "assert.eq", "params": {"query": "ui.sounds", "args": {"mapping": true}, "path": "/mapping/alert", "value": "misc/default/tile_placement_failed.wav"}}
+{"method": "wait.frames", "params": {"frames": 5}}
+{"method": "ui.sounds", "params": {"clear": true}}
+
+# A text button that opens a stacked dialog: its hover and press, then the dialog's open sound.
+{"method": "ui.click", "params": {"path": "Settings"}}
+{"method": "wait.frames", "params": {"frames": 15}}
+{"method": "assert.eq", "params": {"query": "ui.sounds", "args": {"clear": true}, "path": "/roles", "value": ["button_hovered", "button_pressed", "dialog_opened"]}}
+{"method": "ui.click", "params": {"path": "Game"}}
+{"method": "wait.frames", "params": {"frames": 15}}
+{"method": "assert.eq", "params": {"query": "ui.sounds", "args": {"clear": true}, "path": "/roles", "value": ["button_hovered", "button_pressed", "dialog_opened"]}}
+
+# A checkbox plays Toggled, and no hover sound. Cancel closes the dialog without saving the change.
+{"method": "ui.click", "params": {"path": "Autosave"}}
+{"method": "wait.frames", "params": {"frames": 15}}
+{"method": "assert.eq", "params": {"query": "ui.sounds", "args": {"clear": true}, "path": "/roles", "value": ["toggled"]}}
+{"method": "ui.click", "params": {"path": "Cancel"}}
+{"method": "wait.frames", "params": {"frames": 15}}
+{"method": "assert.eq", "params": {"query": "ui.sounds", "args": {"clear": true}, "path": "/roles", "value": ["button_hovered", "button_pressed", "dialog_closed"]}}
+{"method": "assert.eq", "params": {"query": "dialog.current", "path": "/current", "value": "MainSettings"}}
+
+# A dropdown: opened, an item hovered and picked (the pick closes it, so no dropdown_closed), then
+# opened and closed again without a pick.
+{"method": "ui.click", "params": {"path": "Graphics"}}
+{"method": "wait.frames", "params": {"frames": 15}}
+{"method": "ui.sounds", "params": {"clear": true}}
+{"method": "ui.click", "params": {"path": "Texture Filtering"}}
+{"method": "ui.click", "params": {"path": "Texture Filtering/Nearest"}}
+{"method": "wait.frames", "params": {"frames": 15}}
+{"method": "ui.click", "params": {"path": "Texture Filtering"}}
+{"method": "wait.frames", "params": {"frames": 15}}
+{"method": "ui.click", "params": {"path": "Texture Filtering"}}
+{"method": "wait.frames", "params": {"frames": 15}}
+{"method": "assert.eq", "params": {"query": "ui.sounds", "args": {"clear": true}, "path": "/roles", "value": ["dropdown_opened", "item_hovered", "item_selected", "dropdown_opened", "dropdown_closed"]}}
+
+# Escape closes the dialog: dialog_closed. (Escape in a stack of two closes both in one frame, as
+# it did before; the second dialog_closed falls within the first's cooldown.)
+{"method": "input.key", "params": {"key": "Escape"}}
+{"method": "wait.frames", "params": {"frames": 15}}
+{"method": "assert.eq", "params": {"query": "ui.sounds", "args": {"clear": true, "roles": ["dialog_closed"]}, "path": "/count", "value": 1}}
+
+# A slider plays slider_changed at most once per its cooldown (0.2 s of frame time): of three moves
+# in a few frames only the first plays, and a move after the cooldown plays again.
+{"method": "dialog.open", "params": {"name": "SoundSettings"}}
+{"method": "wait.frames", "params": {"frames": 15}}
+{"method": "ui.sounds", "params": {"clear": true}}
+{"method": "ui.set", "params": {"path": "SFX Volume", "value": 50}}
+{"method": "ui.set", "params": {"path": "SFX Volume", "value": 40}}
+{"method": "ui.set", "params": {"path": "SFX Volume", "value": 30}}
+{"method": "wait.frames", "params": {"frames": 15}}
+{"method": "ui.set", "params": {"path": "SFX Volume", "value": 20}}
+{"method": "wait.frames", "params": {"frames": 2}}
+{"method": "assert.eq", "params": {"query": "ui.sounds", "args": {"clear": true}, "path": "/roles", "value": ["slider_changed", "slider_changed"]}}
+{"method": "ui.click", "params": {"path": "Cancel"}}
+{"method": "wait.frames", "params": {"frames": 15}}
+
+# In game, a sprite button plays only its press (no hover sound by default), then its dialog opens.
+{"method": "session.new_map", "params": {"size": [16, 16]}}
+{"method": "wait.frames", "params": {"frames": 5}}
+{"method": "ui.sounds", "params": {"clear": true}}
+{"method": "ui.click", "params": {"path": "LeftBar/main_menu"}}
+{"method": "wait.frames", "params": {"frames": 15}}
+{"method": "assert.eq", "params": {"query": "ui.sounds", "args": {"clear": true}, "path": "/roles", "value": ["button_pressed", "dialog_opened"]}}
+
+# A popup opens and closes with its Cancel button, then opens and closes with Escape, which leaves
+# the dialog under it open. Escape again closes the dialog.
+{"method": "ui.click", "params": {"path": "MainGame/Quit"}}
+{"method": "wait.frames", "params": {"frames": 15}}
+{"method": "ui.click", "params": {"path": "Quit Game Popup/Cancel"}}
+{"method": "wait.frames", "params": {"frames": 15}}
+{"method": "ui.click", "params": {"path": "MainGame/Quit"}}
+{"method": "wait.frames", "params": {"frames": 15}}
+{"method": "input.key", "params": {"key": "Escape"}}
+{"method": "wait.frames", "params": {"frames": 15}}
+{"method": "assert.eq", "params": {"query": "ui.sounds", "args": {"clear": true, "roles": ["popup_opened", "popup_closed", "dialog_opened", "dialog_closed"]}, "path": "/roles", "value": ["popup_opened", "popup_closed", "popup_opened", "popup_closed"]}}
+{"method": "assert.eq", "params": {"query": "dialog.current", "path": "/current", "value": "MainGame"}}
+{"method": "input.key", "params": {"key": "Escape"}}
+{"method": "wait.frames", "params": {"frames": 15}}
+{"method": "assert.eq", "params": {"query": "ui.sounds", "args": {"clear": true, "roles": ["popup_closed", "dialog_closed"]}, "path": "/roles", "value": ["dialog_closed"]}}
+{"method": "assert.eq", "params": {"query": "dialog.current", "path": "", "value": {"current": null}}}
+
+# The build palette's sounds play as before: a road drawn, then the tool put away with Escape.
+{"method": "ui.click", "params": {"path": "Roads"}}
+{"method": "ui.click", "params": {"path": "Dirt Road"}}
+{"method": "wait.frames", "params": {"frames": 15}}
+{"method": "ui.sounds", "params": {"clear": true}}
+{"method": "input.drag", "params": {"from": [5, 5], "to": [5, 12], "cells": true}}
+{"method": "wait.frames", "params": {"frames": 5}}
+{"method": "input.key", "params": {"key": "Escape"}}
+{"method": "wait.frames", "params": {"frames": 5}}
+{"method": "assert.eq", "params": {"query": "ui.sounds", "args": {"clear": true}, "path": "/roles", "value": ["tile_placed", "tile_placement_canceled"]}}
+
+# A building the player had built finished: its toast plays construction_completed once, and not
+# notification.
+{"method": "world.place", "params": {"tile": "storage_yard", "cell": [10, 3]}}
+{"method": "time.fast_forward", "params": {"sim_secs": 16}}
+{"method": "wait.frames", "params": {"frames": 3}}
+{"method": "assert.eq", "params": {"query": "world.building_at", "args": {"cell": [10, 3]}, "path": "/kind", "value": "StorageYard"}}
+{"method": "assert.eq", "params": {"query": "ui.sounds", "args": {"clear": true}, "path": "/roles", "value": ["construction_completed"]}}
+
+# A new minimap alert plays alert; another at the same cell restarts that alert, quietly.
+{"method": "minimap.alert", "params": {"cell": [8, 8]}}
+{"method": "wait.frames", "params": {"frames": 3}}
+{"method": "assert.eq", "params": {"query": "ui.sounds", "args": {"clear": true}, "path": "/roles", "value": ["alert"]}}
+{"method": "wait.frames", "params": {"frames": 70}}
+{"method": "minimap.alert", "params": {"cell": [8, 8]}}
+{"method": "wait.frames", "params": {"frames": 3}}
+{"method": "assert.eq", "params": {"query": "ui.sounds", "args": {"clear": true}, "path": "/count", "value": 0}}
+{"method": "minimap.alert", "params": {"cell": [4, 9]}}
+{"method": "wait.frames", "params": {"frames": 3}}
+{"method": "assert.eq", "params": {"query": "ui.sounds", "args": {"clear": true}, "path": "/roles", "value": ["alert"]}}
+
+# Debt notices: going into debt is a warning and plays alert; getting out of it is good news and
+# plays notification. Each fast-forward crosses one month's end. First the last alert's cooldown
+# (1 s of frame time) runs out.
+{"method": "wait.frames", "params": {"frames": 70}}
+{"method": "finance.set", "params": {"balance": -10}}
+{"method": "time.fast_forward", "params": {"sim_secs": 60}}
+{"method": "wait.frames", "params": {"frames": 3}}
+{"method": "assert.eq", "params": {"query": "finance.state", "path": "/months_in_debt", "value": 1}}
+{"method": "assert.eq", "params": {"query": "ui.sounds", "args": {"clear": true}, "path": "/roles", "value": ["alert"]}}
+{"method": "finance.set", "params": {"balance": 100}}
+{"method": "time.fast_forward", "params": {"sim_secs": 60}}
+{"method": "wait.frames", "params": {"frames": 3}}
+{"method": "assert.eq", "params": {"query": "finance.state", "path": "/months_in_debt", "value": 0}}
+{"method": "assert.eq", "params": {"query": "ui.sounds", "args": {"clear": true}, "path": "/roles", "value": ["notification"]}}

@@ -5,7 +5,10 @@ use egui::{Sense, pos2, vec2};
 use common::{Vec2, bitflags_with_display};
 
 use super::{UiWidget, UiWidgetCallback, UiWidgetContext, list_index, record_settable, widget_id};
-use crate::ui::{UiFontScale, UiString, immediate, internal};
+use crate::ui::{
+    UiFontScale, UiString, immediate, internal,
+    sound::{UiSoundEvent, UiSoundKey, UiWidgetSounds},
+};
 
 // ----------------------------------------------
 // UiItemListFlags
@@ -37,6 +40,8 @@ pub struct UiItemList {
     current_item: Option<usize>,
     items: Vec<String>,
     text_input_field_buffer: Option<String>,
+    sounds: UiWidgetSounds,      // Hovered: ItemHovered, for a row; Selected: ItemSelected. Typing plays nothing.
+    hovered_item: Option<usize>, // Last frame.
     on_selection_changed: UiItemListSelectionChanged,
 }
 
@@ -71,6 +76,7 @@ impl UiWidget for UiItemList {
 
         let mut current_item = self.current_item;
         let mut text_input_field_changed = false;
+        let mut hovered_item = None;
 
         let list_response = ui_sys.with_ui(|ui| {
             let left = ui.cursor().left() + margin_left;
@@ -136,6 +142,9 @@ impl UiWidget for UiItemList {
                             if response.clicked() {
                                 current_item = Some(index);
                             }
+                            if response.hovered() {
+                                hovered_item = Some(index);
+                            }
                             immediate::record(ui_sys, ui, &response, "list_item", item, None, true, Some(serde_json::Value::Bool(is_selected)));
                         }
                     });
@@ -144,6 +153,11 @@ impl UiWidget for UiItemList {
 
             list_response
         });
+
+        if hovered_item.is_some() && hovered_item != self.hovered_item {
+            self.sounds.play(context, UiSoundEvent::Hovered, Some(UiSoundKey::ItemHovered));
+        }
+        self.hovered_item = hovered_item;
 
         if text_input_field_changed && self.text_input_field_buffer.is_some() {
             current_item = None;
@@ -154,6 +168,7 @@ impl UiWidget for UiItemList {
         if current_item != self.current_item
             && let Some(selected_index) = current_item
         {
+            self.sounds.play(context, UiSoundEvent::Selected, Some(UiSoundKey::ItemSelected));
             self.current_item = current_item;
             self.select_item(context, selected_index);
         }
@@ -164,6 +179,9 @@ impl UiWidget for UiItemList {
             record_settable(ui_sys, ui, &list_response, "item_list", self.label.resolve(), current.map_or(serde_json::Value::Null, serde_json::Value::String))
         });
         if let Some(index) = set_value.and_then(|value| list_index(&value, &self.items)) {
+            if self.current_item != Some(index) {
+                self.sounds.play(context, UiSoundEvent::Selected, Some(UiSoundKey::ItemSelected));
+            }
             self.current_item = Some(index);
             self.select_item(context, index);
         }
@@ -240,6 +258,8 @@ impl UiItemList {
             current_item: None,
             items: Vec::new(),
             text_input_field_buffer: None,
+            sounds: UiWidgetSounds::new(),
+            hovered_item: None,
             on_selection_changed: None,
         }
     }
@@ -284,6 +304,19 @@ impl UiItemList {
         debug_assert!(left >= 0.0 && right >= 0.0);
         self.margin_left = left;
         self.margin_right = right;
+        self
+    }
+
+    // Its sounds: ItemHovered for a row hovered and ItemSelected for one picked (events Hovered
+    // and Selected), unless overridden.
+    pub fn with_sounds(mut self, sounds: UiWidgetSounds) -> Self {
+        self.sounds = sounds;
+        self
+    }
+
+    // `event` plays `role` instead, or nothing for None.
+    pub fn with_sound(mut self, event: UiSoundEvent, role: Option<UiSoundKey>) -> Self {
+        self.sounds.set(event, role);
         self
     }
 

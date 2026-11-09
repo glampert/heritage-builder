@@ -401,6 +401,7 @@ impl Engine {
 
         self.render_system.begin_frame(self.app.window_size(), self.app.framebuffer_size());
         self.ui_system.begin_frame(&self.app, input_sys, self.frame_clock.delta_time());
+        crate::ui::sound::begin_frame(frame, self.frame_clock.delta_time()); // The UI sounds' cooldowns run on frame time.
 
         let begin_frame_time_ms = begin_frame_timer.end();
 

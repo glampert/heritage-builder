@@ -11,7 +11,7 @@ use engine::{
     save,
     Engine,
     cli::{self, CliOption},
-    ui::{self, UiInputEvent, text::UiTextCategory},
+    ui::{self, UiInputEvent, sound::UiSoundKey, text::UiTextCategory},
     runner::RunLoop,
     file_sys::paths::PathRef,
     screenshot::{self, ScreenshotId, ScreenshotOutput, ScreenshotRequest, ScreenshotScale},
@@ -247,6 +247,7 @@ impl RunLoop for GameLoop {
         self.update_screenshots();
         self.notify_constructions_completed();
         self.notify_finances();
+        self.notify_minimap_alerts();
         self.record_finished_missions();
         self.session_cmd_queue.execute(&mut self.session, self.engine, self.configs);
 
@@ -525,7 +526,8 @@ impl GameLoop {
         }));
     }
 
-    // A toast and a sound for each building the player had built that completed last frame.
+    // A toast for each building the player had built that completed last frame, and one
+    // ConstructionCompleted sound for them all (not Notification).
     fn notify_constructions_completed(&mut self) {
         let completed = building::construction::take_completed();
         if completed.is_empty() {
@@ -536,13 +538,27 @@ impl GameLoop {
             let message = ui::text::format(UiTextCategory::Messages, "toast.construction_completed", &[("building", name)]);
             self.engine.ui_system().show_toast(message);
         }
-        ui::sound::play(self.engine.sound_system_mut(), ui::sound::UiSoundKey::ConstructionCompleted);
+        ui::sound::play(self.engine.sound_system_mut(), UiSoundKey::ConstructionCompleted);
     }
 
-    // A toast for each debt notice the simulation raised last frame (sim::finance).
+    // A toast for each debt notice the simulation raised last frame (sim::finance). Going into
+    // debt and the warnings play Alert; getting out of debt is good news and plays Notification.
     fn notify_finances(&mut self) {
+        // TODO(realm-ui): sim::finance's notices should carry their severity, rather than
+        // being told apart by the out-of-debt message's text.
+        let out_of_debt = ui::text::get(UiTextCategory::Messages, "finance.out_of_debt");
         for message in sim::finance::take_notices() {
-            self.engine.ui_system().show_toast(message);
+            let sound = if message == out_of_debt { UiSoundKey::Notification } else { UiSoundKey::Alert };
+            show_toast(self.engine, message, sound);
+        }
+        // TODO(realm-ui): M11's message log: when a message arrives, show it and play
+        // UiSoundKey::Notification, or UiSoundKey::Alert for a warning (ui::sound::play).
+    }
+
+    // An Alert for the minimap alerts raised since last frame.
+    fn notify_minimap_alerts(&mut self) {
+        if self.session.tile_map_mut().minimap_mut().take_raised_alerts() > 0 {
+            ui::sound::play(self.engine.sound_system_mut(), UiSoundKey::Alert);
         }
     }
 
@@ -579,12 +595,12 @@ impl GameLoop {
                     let file_name = path.file_name().unwrap_or_default().to_string_lossy();
                     log::info!(log::channel!("game"), "Saved screenshot: {}", path.display());
                     let message = ui::text::format(UiTextCategory::Messages, "toast.screenshot_saved", &[("file", &file_name)]);
-                    engine.ui_system().show_toast(message);
+                    show_toast(engine, message, UiSoundKey::Notification);
                 }
                 Err(err) => {
                     log::error!(log::channel!("game"), "Screenshot failed: {err}");
                     let message = ui::text::format(UiTextCategory::Messages, "toast.screenshot_failed", &[("error", &err)]);
-                    engine.ui_system().show_toast(message);
+                    show_toast(engine, message, UiSoundKey::Alert);
                 }
             }
 
@@ -741,6 +757,12 @@ impl GameLoop {
     ) -> UiInputEvent {
         self.session.menus_on_mouse_button(self.engine, button, action, modifiers)
     }
+}
+
+// Shows a toast and plays its sound.
+fn show_toast(engine: &mut Engine, message: String, sound: UiSoundKey) {
+    engine.ui_system().show_toast(message);
+    ui::sound::play(engine.sound_system_mut(), sound);
 }
 
 // ----------------------------------------------

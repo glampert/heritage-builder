@@ -17,7 +17,7 @@ use engine::{
     ui::{
         UiInputEvent,
         UiTooltipPlacement,
-        sound::{self, UiButtonSoundsEnabled, UiSoundKey},
+        sound::{self, UiSoundEvent, UiSoundKey},
         widgets::*,
     },
 };
@@ -316,7 +316,7 @@ impl TilePaletteMainButton {
                 child_menu_rc.close(context);
             })
             .with_size(UiTextButtonSize::ExtraSmall)
-            .with_sounds(UiButtonSoundsEnabled::Pressed);
+            .with_sound(UiSoundEvent::Hovered, None);
 
             // Beside the item, so it doesn't cover the items around it.
             if let Some(tooltip_text) = child_def.tooltip {

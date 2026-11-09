@@ -1,6 +1,6 @@
 # Realm UI: menus, screens and HUD in each realm's style
 
-**Status (2026-11-09): Phase 0 in progress; the `widgets.rs` split, the realm and player profile, and localized strings are done.** The user reviewed it on 2026-11-07: their notes are folded in (see [Review notes](#review-notes)), the open decisions' defaults are accepted, and every mockup the phases need now exists. This plan builds and restyles every retail screen after the [UI mockups](../design/mockups/README.md): the main menus, the world map, the intermission, the story comics, the HUD and the city management pages. Each screen gets one look per realm: Đại Long, Kambara and Tampadesa. It is milestone **UI** of the [roadmap](roadmap.md). It was researched against `ccca1df` on `claude`. File and line references point at that commit, so re-check them before relying on them.
+**Status (2026-11-09): Phase 0 in progress; the `widgets.rs` split, the realm and player profile, localized strings and the sound hooks are done.** The user reviewed it on 2026-11-07: their notes are folded in (see [Review notes](#review-notes)), the open decisions' defaults are accepted, and every mockup the phases need now exists. This plan builds and restyles every retail screen after the [UI mockups](../design/mockups/README.md): the main menus, the world map, the intermission, the story comics, the HUD and the city management pages. Each screen gets one look per realm: Đại Long, Kambara and Tampadesa. It is milestone **UI** of the [roadmap](roadmap.md). It was researched against `ccca1df` on `claude`. File and line references point at that commit, so re-check them before relying on them.
 
 ![Home menu, Đại Long](../design/mockups/menu-home-dailong.jpg)
 
@@ -162,7 +162,7 @@ A skin is everything realm-specific about the UI: one JSON file per realm, `asse
   "emblems": { "dailong": "skins/emblems/dailong.png", "locked": "skins/dailong/emblem_locked.png" },
   "backdrops": { "home": "misc/home_menu_static_bg.png", "dim": "#00000033" },
   "dialogs": { "Home": { "panel": "dialog", "size": [380, 980], "align": "left" }, "Settings": { "panel": "dialog", "size": [900, 640] } },
-  "sounds": { "click": "ui/click", "open": "ui/scroll_open" }
+  "sounds": { "button_pressed": "buttons/dailong/pressed.wav", "dialog_opened": "misc/dailong/scroll_open.wav", "alert": null }
 }
 ```
 
@@ -369,12 +369,12 @@ The existing dialogs keep their layouts but take their panels from the Đại Lo
 
 - [x] `Realm`, `Profile` (`saves/user/profile.json`, `--fresh-profile`), `realm::ui_realm()`, a `realm` field in `campaigns.json`; `profile.*` and `ui.realm` commands; tests.
 - [ ] Engine: data-driven themes (`UiThemeId`), `UiNineSlice` and `UiPainter::nine_slice`, menus laying out in their own inner rect (no `i8` insets).
-- [ ] Skins: `assets/configs/ui/skins/{dailong,kambara,tampadesa}.json`; `menu/skin.rs`; the skin version counter and `dialog::rebuild_all()`; `ui.reload_skin`. `styles/game.json` folds into Đại Long's skin.
+- [ ] Skins: `assets/configs/ui/skins/{dailong,kambara,tampadesa}.json`; `menu/skin.rs`; the skin version counter and `dialog::rebuild_all()`; `ui.reload_skin`. `styles/game.json` folds into Đại Long's skin. The skin's `sounds` block, applied with `ui::sound::set_mapping` on each skin switch; `assets/configs/ui/sounds.json` folds into Đại Long's skin.
 - [ ] Fonts: add Spectral SC and Alegreya (and their OFL files); realm text styles with fallbacks; the Vietnamese glyph test.
 - [x] Split `engine/src/ui/widgets.rs` into `engine/src/ui/widgets/`, one widget family per file, with no change in behaviour, in a commit of its own.
 - [x] Localized strings: `text/<language>.json`, the new categories, arguments, plural forms, `UiText`, the fallback and its test; `text.*` commands. Move today's strings for the screens Phase 0 touches.
-- [ ] Sound hooks: the role keys, per-widget sound events and overrides, the skin's `sounds` block with placeholder mappings, dialog and popup open and close sounds.
-- [ ] Widgets: `UiTabBar`, `UiToggle`, framed `UiTextButton`, `UiMenuItem`, `UiListRow`, `UiImage`, `UiKeyValues`, `UiTable`, `UiMeter`, `UiColumns`, `UiStepSelector`, `UiRichText`, each in the developer sample menus (`engine/src/ui/tests.rs`).
+- [x] Sound hooks: the role keys, per-widget sound events and overrides, a placeholder role-to-file mapping in `assets/configs/ui/sounds.json` with `ui::sound::set_mapping` for the skins (the skin's `sounds` block: see Skins), dialog and popup open and close sounds.
+- [ ] Widgets: `UiTabBar`, `UiToggle`, framed `UiTextButton`, `UiMenuItem`, `UiListRow`, `UiImage`, `UiKeyValues`, `UiTable`, `UiMeter`, `UiColumns`, `UiStepSelector`, `UiRichText`, each in the developer sample menus (`engine/src/ui/tests.rs`). Each interactive one plays its roles through a `UiWidgetSounds` (`sounds.play(context, event, Some(role))`): `UiTabBar` `tab_selected`, `UiToggle` `toggled`, `UiMenuItem` and `UiListRow` `item_hovered` and `item_selected`, `UiStepSelector` `slider_changed`.
 - [ ] Dialog framework: each dialog its own window, from the skin's `dialogs` block; the "keep the dialog under it visible" flag; paths take the dialog's own label (update `ui_new_game.jsonl`, `ui_snapshot.jsonl`, AGENTS.md).
 - [ ] `crates/tools/ui-art/`: the catalog, `make_ui_art.py` (render, manifest, `--check`), the first sprites for all three realms (panels, buttons, controls, separators, emblems); `--check` in CI.
 - [ ] Popups (Quit, Overwrite), tooltips and toasts on skin panels.
@@ -406,6 +406,15 @@ The existing dialogs keep their layouts but take their panels from the Đại Lo
 - Limit: text a menu copies or measures when built (the inspector's descriptions, the bars' and palette's sizes) follows a switch only once rebuilt; nothing rebuilds on `text::version()` yet.
 - Verified: build, `cargo test --workspace`, web check; the key check fails on a missing key, a duplicate key, and a second file's extra key or placeholder. CI scenarios and `strings.jsonl` pass; `ui_snapshot`'s listings match; `ui_build` and `determinism` replay. A temporary second language switched live, fallbacks logged once. A broken or missing `en.json` logs errors and shows keys. Web in headless Chrome loads the text.
 - Still literal: the other screens (Home, About, New Game, the Game menu, Load/Save, Settings, City Management, Mission and Campaign Complete), the HUD, inspector and minimap text, and names from data (tiles, units, goods, tax levels, ledger categories, seasons, eras).
+
+**Notes (2026-11-09, sound hooks; commit TODO):**
+- `engine::ui::sound`: `UiSoundKey` has 20 roles (snake_case in data); per-role flags and cooldowns; `UiSoundEvent` and `UiWidgetSounds` (per event: the widget's default role, another, or silence) replace `UiButtonSoundsEnabled`. Buttons, checkboxes, sliders, number fields' steps, dropdowns and item lists play their roles; `UiMenu` plays open and close roles it's given; dialogs (all but Home) and `UiMessageBox` popups get theirs. Text inputs and the developer UI are silent.
+- Mapping: `assets/configs/ui/sounds.json`, read once at init; `set_mapping` lays overrides over it, for the skins step.
+- Game: `construction_completed` once per frame, `alert` for debt warnings and new minimap alerts, `notification` for the out-of-debt and screenshot toasts; `TODO(realm-ui)` for M11's messages.
+- `ui.sounds` lists the roles played (a ring of 64), with or without an audio device; `ui_sounds.jsonl` in CI; `cargo test -p engine --lib sound` checks the mapping.
+- Deviations: the default mapping is a config file until skins exist. Cooldowns run on frame time, not wall-clock time, so scripts are repeatable. Debt warnings play `alert`, not `notification`. A dropdown's pick plays `item_selected` instead of `dropdown_closed`. Two roles mapped to one file starting in the same frame play it once, so a press and the dialog it opens still click once. Escape's simulated button press became `dialog_closed`.
+- Seen, not changed: Escape in a two-deep stack closes both dialogs (the dialog framework step's Escape owner); the shared per-role cooldown drops a second press within 0.2 s, as before.
+- Verified: build, `cargo test --workspace`, web check; CI scenarios and `ui_sounds` (twice, same output); `ui_build` record and replay. Not run: real audio (no device here), web in a browser.
 
 ### Phase 1: Main menus
 

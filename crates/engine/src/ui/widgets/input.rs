@@ -5,7 +5,10 @@ use egui::vec2;
 use common::Vec2;
 
 use super::{UiWidget, UiWidgetCallback, UiWidgetContext, left_label, list_index, record_settable, widget_id};
-use crate::ui::{UiFontScale, UiString, immediate, internal};
+use crate::ui::{
+    UiFontScale, UiString, immediate, internal,
+    sound::{self, UiSoundEvent, UiSoundKey, UiWidgetSounds},
+};
 
 // ----------------------------------------------
 // UiSliderValue
@@ -54,6 +57,7 @@ pub struct UiSlider {
     min: f64,
     max: f64,
     integral: bool, // Shown and set in whole numbers.
+    sounds: UiWidgetSounds, // Changed: SliderChanged, at most once per its cooldown.
     on_read_value: UiSliderReadValue,
     on_update_value: UiSliderUpdateValue,
 }
@@ -75,10 +79,14 @@ impl UiWidget for UiSlider {
         let (new_value, set_value) = self.draw_slider(context, value);
 
         if let Some(new_value) = new_value {
+            self.sounds.play(context, UiSoundEvent::Changed, Some(UiSoundKey::SliderChanged));
             self.update_value(context, new_value);
         }
         if let Some(new_value) = set_value.and_then(|value| value.as_f64()) {
             let new_value = if self.integral { new_value.round() } else { new_value };
+            if new_value.clamp(self.min, self.max) != value {
+                self.sounds.play(context, UiSoundEvent::Changed, Some(UiSoundKey::SliderChanged));
+            }
             self.update_value(context, new_value);
         }
     }
@@ -110,6 +118,7 @@ impl UiSlider {
             min,
             max,
             integral: T::INTEGRAL,
+            sounds: UiWidgetSounds::new(),
             on_read_value: None,
             on_update_value: None,
         }
@@ -124,6 +133,18 @@ impl UiSlider {
     pub fn with_font_scale(mut self, font_scale: UiFontScale) -> Self {
         debug_assert!(font_scale.is_valid());
         self.font_scale = font_scale;
+        self
+    }
+
+    // Its sounds: SliderChanged when moved (event Changed), unless overridden.
+    pub fn with_sounds(mut self, sounds: UiWidgetSounds) -> Self {
+        self.sounds = sounds;
+        self
+    }
+
+    // `event` plays `role` instead, or nothing for None.
+    pub fn with_sound(mut self, event: UiSoundEvent, role: Option<UiSoundKey>) -> Self {
+        self.sounds.set(event, role);
         self
     }
 
@@ -195,6 +216,7 @@ pub type UiCheckboxUpdateValue = UiWidgetCallback<dyn Fn(&UiCheckbox, &mut dyn U
 pub struct UiCheckbox {
     label: UiString,
     font_scale: UiFontScale,
+    sounds: UiWidgetSounds, // Toggled: Toggled.
     on_read_value: UiCheckboxReadValue,
     on_update_value: UiCheckboxUpdateValue,
 }
@@ -228,9 +250,13 @@ impl UiWidget for UiCheckbox {
         });
 
         if value_changed {
+            self.sounds.play(context, UiSoundEvent::Toggled, Some(UiSoundKey::Toggled));
             self.update_value(context, value);
         }
         if let Some(new_value) = set_value.and_then(|value| value.as_bool()) {
+            if new_value != value {
+                self.sounds.play(context, UiSoundEvent::Toggled, Some(UiSoundKey::Toggled));
+            }
             self.update_value(context, new_value);
         }
     }
@@ -271,9 +297,22 @@ impl UiCheckbox {
         Self {
             label: UiString::default(),
             font_scale: UiFontScale::default(),
+            sounds: UiWidgetSounds::new(),
             on_read_value: None,
             on_update_value: None,
         }
+    }
+
+    // Its sounds: Toggled when toggled (event Toggled), unless overridden.
+    pub fn with_sounds(mut self, sounds: UiWidgetSounds) -> Self {
+        self.sounds = sounds;
+        self
+    }
+
+    // `event` plays `role` instead, or nothing for None.
+    pub fn with_sound(mut self, event: UiSoundEvent, role: Option<UiSoundKey>) -> Self {
+        self.sounds.set(event, role);
+        self
     }
 
     // To the checkbox's left.
@@ -324,6 +363,7 @@ pub struct UiIntInput {
     min: i32,
     max: i32,
     step: i32,
+    sounds: UiWidgetSounds, // Changed: SliderChanged, for a step or a drag (not for typing).
     on_read_value: UiIntInputReadValue,
     on_update_value: UiIntInputUpdateValue,
 }
@@ -345,7 +385,7 @@ impl UiWidget for UiIntInput {
             None => 0,
         };
 
-        let (value_changed, set_value) = ui_sys.with_ui(|ui| {
+        let (value_changed, stepped_or_dragged, set_value) = ui_sys.with_ui(|ui| {
             let (response, stepped) = ui
                 .horizontal(|ui| {
                     left_label(ui_sys, ui, self.label.resolve());
@@ -369,10 +409,14 @@ impl UiWidget for UiIntInput {
                 .inner;
 
             let set_value = record_settable(ui_sys, ui, &response, "int_input", self.label.resolve(), serde_json::json!(value));
-            (response.changed() || stepped, set_value)
+            let dragged = response.changed() && response.dragged();
+            (response.changed() || stepped, stepped || dragged, set_value)
         });
 
         if value_changed {
+            if stepped_or_dragged {
+                self.sounds.play(context, UiSoundEvent::Changed, Some(UiSoundKey::SliderChanged));
+            }
             self.update_value(context, value);
         }
         if let Some(new_value) = set_value.and_then(|value| value.as_i64()) {
@@ -410,6 +454,7 @@ impl UiIntInput {
             min: i32::MIN,
             max: i32::MAX,
             step: 1,
+            sounds: UiWidgetSounds::new(),
             on_read_value: None,
             on_update_value: None,
         }
@@ -439,6 +484,19 @@ impl UiIntInput {
     pub fn with_step(mut self, step: i32) -> Self {
         debug_assert!(step > 0);
         self.step = step;
+        self
+    }
+
+    // Its sounds: SliderChanged for a step or a drag (event Changed), unless overridden. Typing
+    // plays nothing.
+    pub fn with_sounds(mut self, sounds: UiWidgetSounds) -> Self {
+        self.sounds = sounds;
+        self
+    }
+
+    // `event` plays `role` instead, or nothing for None.
+    pub fn with_sound(mut self, event: UiSoundEvent, role: Option<UiSoundKey>) -> Self {
+        self.sounds.set(event, role);
         self
     }
 
@@ -610,6 +668,14 @@ pub struct UiDropdown {
     font_scale: UiFontScale,
     current_item: usize,
     items: Vec<String>,
+
+    // Opened: DropdownOpened; Hovered: ItemHovered, for an item of its list; Selected: ItemSelected;
+    // Closed: DropdownClosed, when closed without a pick.
+    sounds: UiWidgetSounds,
+    list_open_frame: Option<u64>, // The last frame its list was open (ui::sound's frame).
+    hovered_item: Option<usize>,  // In its open list.
+    picked_while_open: bool,
+
     on_selection_changed: UiDropdownSelectionChanged,
     on_get_current_selection: UiDropdownGetCurrentSelection,
 }
@@ -633,8 +699,8 @@ impl UiWidget for UiDropdown {
         let id = widget_id(self, self.label.id_source());
         let mut current_item = self.current_item;
 
-        let (selection_changed, set_value) = ui_sys.with_ui(|ui| {
-            let response = ui
+        let (selection_changed, set_value, list) = ui_sys.with_ui(|ui| {
+            let combo = ui
                 .horizontal(|ui| {
                     left_label(ui_sys, ui, self.label.resolve());
 
@@ -647,24 +713,37 @@ impl UiWidget for UiDropdown {
                         .show_ui(ui, |ui| {
                             // Its items, recorded under its label while it's open.
                             let _path = immediate::path_scope(ui_sys, self.label.resolve());
+                            let mut hovered_item = None;
                             for (index, item) in self.items.iter().enumerate() {
                                 let response = ui.selectable_value(&mut current_item, index, egui::RichText::new(item).font(font.clone()));
+                                if response.hovered() {
+                                    hovered_item = Some(index);
+                                }
                                 immediate::record(ui_sys, ui, &response, "list_item", item, None, true, Some(serde_json::Value::Bool(current_item == index)));
                             }
+                            hovered_item
                         })
-                        .response
                 })
                 .inner;
 
+            // Some(hovered item) while its list is open.
+            let list = combo.inner;
             let current = self.items.get(current_item).cloned().unwrap_or_default();
-            let set_value = record_settable(ui_sys, ui, &response, "dropdown", self.label.resolve(), serde_json::Value::String(current));
-            (current_item != self.current_item, set_value)
+            let set_value = record_settable(ui_sys, ui, &combo.response, "dropdown", self.label.resolve(), serde_json::Value::String(current));
+            (current_item != self.current_item, set_value, list)
         });
 
+        self.play_list_sounds(context, list);
+
         if selection_changed {
+            self.sounds.play(context, UiSoundEvent::Selected, Some(UiSoundKey::ItemSelected));
+            self.picked_while_open |= list.is_some();
             self.select_item(context, current_item);
         }
         if let Some(index) = set_value.and_then(|value| list_index(&value, &self.items)) {
+            if index != self.current_item {
+                self.sounds.play(context, UiSoundEvent::Selected, Some(UiSoundKey::ItemSelected));
+            }
             self.select_item(context, index);
         }
     }
@@ -697,6 +776,10 @@ impl UiDropdown {
             font_scale: UiFontScale::default(),
             current_item: 0,
             items,
+            sounds: UiWidgetSounds::new(),
+            list_open_frame: None,
+            hovered_item: None,
+            picked_while_open: false,
             on_selection_changed: None,
             on_get_current_selection: None,
         }
@@ -720,6 +803,19 @@ impl UiDropdown {
         self
     }
 
+    // Its sounds: DropdownOpened, ItemHovered, ItemSelected and DropdownClosed (events Opened,
+    // Hovered, Selected and Closed), unless overridden.
+    pub fn with_sounds(mut self, sounds: UiWidgetSounds) -> Self {
+        self.sounds = sounds;
+        self
+    }
+
+    // `event` plays `role` instead, or nothing for None.
+    pub fn with_sound(mut self, event: UiSoundEvent, role: Option<UiSoundKey>) -> Self {
+        self.sounds.set(event, role);
+        self
+    }
+
     // Called when the user picks an item; current_selection gives it.
     pub fn on_selection_changed<F>(mut self, f: F) -> Self
     where
@@ -736,6 +832,37 @@ impl UiDropdown {
     {
         self.on_get_current_selection = Some(smallbox!(f));
         self
+    }
+
+    // Its list's open and close sounds, and a hovered item's. `list` is Some(hovered item) while
+    // the list is open. A list open last frame and closed now closed (a pick plays ItemSelected
+    // instead); one seen open longer ago was left open when its menu last closed, so it's silent.
+    fn play_list_sounds(&mut self, context: &mut dyn UiWidgetContext, list: Option<Option<usize>>) {
+        let frame = sound::current_frame();
+        let was_open = self.list_open_frame.is_some_and(|open_frame| frame.saturating_sub(open_frame) <= 1);
+
+        match list {
+            Some(hovered_item) => {
+                if !was_open {
+                    self.sounds.play(context, UiSoundEvent::Opened, Some(UiSoundKey::DropdownOpened));
+                    self.picked_while_open = false;
+                    self.hovered_item = None;
+                }
+                if hovered_item.is_some() && hovered_item != self.hovered_item {
+                    self.sounds.play(context, UiSoundEvent::Hovered, Some(UiSoundKey::ItemHovered));
+                }
+                self.hovered_item = hovered_item;
+                self.list_open_frame = Some(frame);
+            }
+            None => {
+                if was_open && !self.picked_while_open {
+                    self.sounds.play(context, UiSoundEvent::Closed, Some(UiSoundKey::DropdownClosed));
+                }
+                self.list_open_frame = None;
+                self.hovered_item = None;
+                self.picked_while_open = false;
+            }
+        }
     }
 
     fn select_item(&mut self, context: &mut dyn UiWidgetContext, index: usize) {

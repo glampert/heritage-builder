@@ -8,7 +8,12 @@ use super::{UiMessageBox, UiWidget, UiWidgetCallback, UiWidgetClosure, UiWidgetC
 use crate::{
     file_sys::paths::PathRef,
     render::texture::TextureHandle,
-    ui::{UiSystem, immediate::{self, egui_pos2, egui_vec2, uv_full}, renderer::egui_texture},
+    ui::{
+        UiSystem,
+        immediate::{self, egui_pos2, egui_vec2, uv_full},
+        renderer::egui_texture,
+        sound::{UiSoundEvent, UiSoundKey, UiWidgetSounds},
+    },
 };
 
 // ----------------------------------------------
@@ -137,6 +142,7 @@ pub struct UiMenu {
     widgets: Vec<UiWidgetImpl>,
     widget_spacing: Option<Vec2>, // The style's item spacing if None.
     message_box: UiMessageBox,
+    sounds: UiWidgetSounds, // Opened and Closed: nothing by default; a dialog's or popup's role.
     on_open_close: UiMenuOpenClose,
 }
 
@@ -191,6 +197,7 @@ impl UiMenu {
             widgets: Vec::new(),
             widget_spacing: None,
             message_box: UiMessageBox::default(),
+            sounds: UiWidgetSounds::new(),
             on_open_close: None,
         }
     }
@@ -238,6 +245,17 @@ impl UiMenu {
     pub fn with_widget(mut self, widget: impl Into<UiWidgetImpl>) -> Self {
         self.add_widget(widget);
         self
+    }
+
+    // `event` (Opened or Closed) plays `role` when the menu opens or closes. A menu plays nothing
+    // by default; dialogs play DialogOpened and DialogClosed, popups PopupOpened and PopupClosed.
+    pub fn with_sound(mut self, event: UiSoundEvent, role: Option<UiSoundKey>) -> Self {
+        self.set_sound(event, role);
+        self
+    }
+
+    pub fn set_sound(&mut self, event: UiSoundEvent, role: Option<UiSoundKey>) {
+        self.sounds.set(event, role);
     }
 
     // Called with `true` when the menu opens and `false` when it closes.
@@ -297,6 +315,7 @@ impl UiMenu {
         }
 
         self.flags.insert(UiMenuFlags::IsOpen);
+        self.sounds.play(context, UiSoundEvent::Opened, None);
 
         if self.has_flags(UiMenuFlags::PauseSimIfOpen) {
             context.pause_simulation();
@@ -312,6 +331,7 @@ impl UiMenu {
         }
 
         self.flags.remove(UiMenuFlags::IsOpen);
+        self.sounds.play(context, UiSoundEvent::Closed, None);
 
         if self.has_flags(UiMenuFlags::PauseSimIfOpen) {
             context.resume_simulation();

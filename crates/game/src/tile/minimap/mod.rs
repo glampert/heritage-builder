@@ -377,6 +377,7 @@ pub struct Minimap {
     pings: Vec<MinimapPing>,
     alerts: VecDeque<MinimapAlert>,
     next_alert: usize,
+    raised_alerts: u32, // New alerts since take_raised_alerts, for the GameLoop's Alert sound.
 
     view: MinimapView,
     layout: MinimapLayout,
@@ -399,6 +400,7 @@ impl Default for Minimap {
             pings: Vec::new(),
             alerts: VecDeque::new(),
             next_alert: 0,
+            raised_alerts: 0,
             view: MinimapView::default(),
             layout: MinimapLayout::default(),
             is_open: true,
@@ -510,6 +512,7 @@ impl Minimap {
         self.view.reset();
         self.pings.clear();
         self.alerts.clear();
+        self.raised_alerts = 0;
         self.lens_data.clear(self.lens);
     }
 
@@ -568,16 +571,24 @@ impl Minimap {
     // ----------------------
 
     // Shows a ping at `target_cell` for `lifetime_secs`, and keeps an alert there for the alerts
-    // tool.
+    // tool. A new alert plays the Alert sound (GameLoop::notify_minimap_alerts).
+    // TODO(realm-ui): only debug tools and minimap.alert raise alerts so far; the game's warnings
+    // (M11's messages: fires, collapses, unrest) will push them here.
     pub fn push_icon(&mut self, icon: MinimapIcon, target_cell: Cell, tint: Color, lifetime_secs: Seconds) {
         self.pings.push(MinimapPing { icon, target_cell, tint, lifetime: lifetime_secs, time_left: lifetime_secs });
 
-        // One alert per cell: a repeat restarts its age.
+        // One alert per cell: a repeat restarts its age, quietly.
         if let Some(alert) = self.alerts.iter_mut().find(|alert| alert.cell == target_cell && alert.icon == icon) {
             alert.age = 0.0;
         } else {
             self.alerts.push_back(MinimapAlert { cell: target_cell, icon, age: 0.0 });
+            self.raised_alerts += 1;
         }
+    }
+
+    // How many new alerts were raised since the last call.
+    pub fn take_raised_alerts(&mut self) -> u32 {
+        std::mem::take(&mut self.raised_alerts)
     }
 
     // The alert after the last one visited, cycling, or None without alerts.

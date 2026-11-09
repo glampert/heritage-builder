@@ -1,7 +1,7 @@
-// UI automation commands: list the game's widgets, click them and set their values by name, and
-// open or close dialogs. Widgets come from the engine's widget registry (engine::ui::registry),
-// which records what the retained widgets drew each frame. These commands turn it on; the first
-// one waits a frame for it to fill.
+// UI automation commands: list the game's widgets, click them and set their values by name, open
+// or close dialogs, and list the UI sounds played. Widgets come from the engine's widget registry
+// (engine::ui::registry), which records what the retained widgets drew each frame. These commands
+// turn it on; the first one waits a frame for it to fill.
 
 use serde::Deserialize;
 use serde_json::{Map, Value, json};
@@ -11,7 +11,10 @@ use common::{Rect, Vec2};
 use engine::{
     app::input::MouseButton,
     automation::input::{self as gestures, GestureId},
-    ui::UiWidgetInfo,
+    ui::{
+        UiWidgetInfo,
+        sound::{self, UiSoundKey},
+    },
 };
 
 use crate::{
@@ -103,6 +106,29 @@ pub(super) const COMMANDS: &[CommandDef] = &[
             help: "dailong, kambara, tampadesa, or auto to follow the game again. Default: leave it as it is.",
         }],
         run: cmd_realm,
+    },
+    CommandDef {
+        name: "ui.sounds",
+        help: "The UI sound roles played lately, oldest first, with their frame and file (null for a role mapped to \
+               no file): those past their cooldown and exclusivity, recorded with or without an audio device. Keeps \
+               the last 64. With an audio device, a sound still playing holds back the next (exclusivity), so the \
+               list can vary; CI has none.",
+        params: &[
+            ParamDef {
+                name: "roles",
+                kind: "string[]",
+                required: false,
+                help: "Only these roles, e.g. [\"dialog_opened\", \"dialog_closed\"].",
+            },
+            ParamDef { name: "clear", kind: "bool", required: false, help: "Empty the list, every role's, after reading it." },
+            ParamDef {
+                name: "mapping",
+                kind: "bool",
+                required: false,
+                help: "Also give each role's file (assets/sounds/sfx/ui/...), or null if it plays nothing.",
+            },
+        ],
+        run: cmd_sounds,
     },
     CommandDef {
         name: "ui.layout_issues",
@@ -566,6 +592,49 @@ const LAYOUT_TOLERANCE: f32 = 1.0;
 
 // Widgets that hold other widgets: they're checked against their menu, not against siblings.
 const LAYOUT_CONTAINER_KINDS: &[&str] = &["menu_content", "window", "item_list"];
+
+fn cmd_sounds(_context: &mut CommandContext, params: Value) -> CommandResult {
+    #[derive(Deserialize)]
+    #[serde(deny_unknown_fields)]
+    struct Params {
+        roles: Option<Vec<String>>,
+        #[serde(default)]
+        clear: bool,
+        #[serde(default)]
+        mapping: bool,
+    }
+
+    let params: Params = parse_params(params)?;
+    let roles = match &params.roles {
+        Some(names) => Some(
+            names
+                .iter()
+                .map(|name| UiSoundKey::parse(name).ok_or_else(|| CommandError::invalid_params(format!("Unknown UI sound role '{name}'."))))
+                .collect::<Result<Vec<_>, _>>()?,
+        ),
+        None => None,
+    };
+
+    let played: Vec<_> = sound::recent()
+        .into_iter()
+        .filter(|played| roles.as_ref().is_none_or(|roles| roles.contains(&played.role)))
+        .collect();
+    if params.clear {
+        sound::clear_recent();
+    }
+
+    let mut result = json!({
+        "count": played.len(),
+        "roles": played.iter().map(|played| played.role.name()).collect::<Vec<_>>(),
+        "sounds": played,
+    });
+    if params.mapping {
+        let mapping: Map<String, Value> = UiSoundKey::iter().map(|role| (role.name().to_string(), json!(sound::file(role)))).collect();
+        result["mapping"] = Value::Object(mapping);
+    }
+
+    done(result)
+}
 
 fn cmd_layout_issues(context: &mut CommandContext, _params: Value) -> CommandResult {
     let ready_frame = registry_ready_frame(context);

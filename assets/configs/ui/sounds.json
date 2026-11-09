@@ -1,0 +1,22 @@
+{
+  "button_hovered": "buttons/default/hovered.wav",
+  "button_pressed": "buttons/default/pressed.wav",
+  "item_hovered": "buttons/default/hovered.wav",
+  "item_selected": "buttons/default/pressed.wav",
+  "tab_selected": "buttons/default/pressed.wav",
+  "toggled": "buttons/default/pressed.wav",
+  "slider_changed": "buttons/default/hovered.wav",
+  "dropdown_opened": "buttons/default/pressed.wav",
+  "dropdown_closed": "buttons/default/hovered.wav",
+  "dialog_opened": "buttons/default/pressed.wav",
+  "dialog_closed": "buttons/default/pressed.wav",
+  "popup_opened": "buttons/default/pressed.wav",
+  "popup_closed": "buttons/default/pressed.wav",
+  "notification": "misc/default/tile_placed.wav",
+  "alert": "misc/default/tile_placement_failed.wav",
+  "tile_placed": "misc/default/tile_placed.wav",
+  "tile_cleared": "misc/default/tile_cleared.wav",
+  "tile_placement_canceled": "misc/default/tile_placement_canceled.wav",
+  "tile_placement_failed": "misc/default/tile_placement_failed.wav",
+  "construction_completed": "misc/default/tile_placed.wav"
+}

@@ -13,7 +13,7 @@ use crate::{
         UiFontScale, UiString,
         immediate::{self, egui_vec2, rich_text, uv_full},
         renderer::egui_texture,
-        sound::{self, UiButtonSoundsEnabled, UiSoundKey},
+        sound::{UiSoundEvent, UiSoundKey, UiWidgetSounds},
     },
 };
 
@@ -56,7 +56,7 @@ pub struct UiTextButton {
     tooltip: Option<UiTooltipText>,
     font_scale: UiFontScale,
     hover: Option<TextureHandle>,
-    sounds_enabled: UiButtonSoundsEnabled,
+    sounds: UiWidgetSounds, // Hovered: ButtonHovered, Pressed: ButtonPressed.
     enabled: bool,
     hovered: bool,
     on_pressed: UiTextButtonPressed,
@@ -106,8 +106,8 @@ impl UiWidget for UiTextButton {
 
         if hovered {
             // Play sound on transition to hovered state.
-            if self.sounds_enabled.intersects(UiButtonSoundsEnabled::Hovered) && !self.hovered && !pressed && enabled {
-                sound::play(*context.sound_sys(), UiSoundKey::ButtonHovered);
+            if !self.hovered && !pressed && enabled {
+                self.sounds.play(context, UiSoundEvent::Hovered, Some(UiSoundKey::ButtonHovered));
             }
 
             if let Some(tooltip) = &self.tooltip {
@@ -118,9 +118,7 @@ impl UiWidget for UiTextButton {
 
         // Invoke on pressed callback.
         if pressed && enabled {
-            if self.sounds_enabled.intersects(UiButtonSoundsEnabled::Pressed) {
-                sound::play(*context.sound_sys(), UiSoundKey::ButtonPressed);
-            }
+            self.sounds.play(context, UiSoundEvent::Pressed, Some(UiSoundKey::ButtonPressed));
 
             if let Some(on_pressed) = &self.on_pressed {
                 on_pressed(self, context);
@@ -161,7 +159,7 @@ impl UiTextButton {
             tooltip: None,
             font_scale: UiTextButtonSize::default().font_scale(),
             hover: None,
-            sounds_enabled: UiButtonSoundsEnabled::all(),
+            sounds: UiWidgetSounds::new(),
             enabled: true,
             hovered: false,
             on_pressed: None,
@@ -184,8 +182,15 @@ impl UiTextButton {
         self
     }
 
-    pub fn with_sounds(mut self, sounds: UiButtonSoundsEnabled) -> Self {
-        self.sounds_enabled = sounds;
+    // Its sounds: ButtonHovered when hovered and ButtonPressed when pressed, unless overridden.
+    pub fn with_sounds(mut self, sounds: UiWidgetSounds) -> Self {
+        self.sounds = sounds;
+        self
+    }
+
+    // `event` (Hovered or Pressed) plays `role` instead, or nothing for None.
+    pub fn with_sound(mut self, event: UiSoundEvent, role: Option<UiSoundKey>) -> Self {
+        self.sounds.set(event, role);
         self
     }
 
@@ -229,7 +234,7 @@ pub struct UiSpriteButton {
     size: Vec2,
     position: Option<Vec2>, // NOTE: Position is only known after the first call to draw().
     textures: UiSpriteButtonTextures,
-    sounds_enabled: UiButtonSoundsEnabled,
+    sounds: UiWidgetSounds, // Hovered: nothing, Pressed: ButtonPressed.
 
     logical_state: UiSpriteButtonState,
     visual_state: UiSpriteButtonState,
@@ -311,7 +316,7 @@ impl UiSpriteButton {
             size,
             position: None, // Set after the first draw().
             textures,
-            sounds_enabled: UiButtonSoundsEnabled::Pressed,
+            sounds: UiWidgetSounds::new(),
             logical_state: UiSpriteButtonState::Idle,
             visual_state: UiSpriteButtonState::Idle,
             visual_state_transition_timer: CountdownTimer::new(0.0),
@@ -331,8 +336,15 @@ impl UiSpriteButton {
         self
     }
 
-    pub fn with_sounds(mut self, sounds: UiButtonSoundsEnabled) -> Self {
-        self.sounds_enabled = sounds;
+    // Its sounds: ButtonPressed when pressed and nothing when hovered, unless overridden.
+    pub fn with_sounds(mut self, sounds: UiWidgetSounds) -> Self {
+        self.sounds = sounds;
+        self
+    }
+
+    // `event` (Hovered or Pressed) plays `role` instead, or nothing for None.
+    pub fn with_sound(mut self, event: UiSoundEvent, role: Option<UiSoundKey>) -> Self {
+        self.sounds.set(event, role);
         self
     }
 
@@ -405,21 +417,13 @@ impl UiSpriteButton {
     // Internal:
     // ----------------------
 
-    fn play_sound(&mut self, context: &mut dyn UiWidgetContext, sound_key: UiSoundKey, new_state: UiSpriteButtonState) {
+    fn play_sound(&mut self, context: &mut dyn UiWidgetContext, new_state: UiSpriteButtonState) {
         // Play state transition sound if moving to a different state.
         if self.logical_state != new_state {
-            let mut play = false;
-
-            if sound_key == UiSoundKey::ButtonHovered && self.sounds_enabled.intersects(UiButtonSoundsEnabled::Hovered) {
-                play = true;
-            }
-
-            if sound_key == UiSoundKey::ButtonPressed && self.sounds_enabled.intersects(UiButtonSoundsEnabled::Pressed) {
-                play = true;
-            }
-
-            if play {
-                sound::play(*context.sound_sys(), sound_key);
+            match new_state {
+                UiSpriteButtonState::Pressed => self.sounds.play(context, UiSoundEvent::Pressed, Some(UiSoundKey::ButtonPressed)),
+                UiSpriteButtonState::Hovered => self.sounds.play(context, UiSoundEvent::Hovered, None),
+                UiSpriteButtonState::Idle | UiSpriteButtonState::Disabled => {}
             }
         }
     }
@@ -438,10 +442,10 @@ impl UiSpriteButton {
             UiSpriteButtonState::Idle | UiSpriteButtonState::Hovered => {
                 // Left click selects/presses button.
                 if left_click {
-                    self.play_sound(context, UiSoundKey::ButtonPressed, UiSpriteButtonState::Pressed);
+                    self.play_sound(context, UiSpriteButtonState::Pressed);
                     self.logical_state = UiSpriteButtonState::Pressed;
                 } else if hovered {
-                    self.play_sound(context, UiSoundKey::ButtonHovered, UiSpriteButtonState::Hovered);
+                    self.play_sound(context, UiSpriteButtonState::Hovered);
                     self.logical_state = UiSpriteButtonState::Hovered;
                 } else {
                     self.logical_state = UiSpriteButtonState::Idle;

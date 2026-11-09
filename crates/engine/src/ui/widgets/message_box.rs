@@ -3,7 +3,10 @@ use std::any::Any;
 use common::Vec2;
 
 use super::{UiMenu, UiMenuFlags, UiMenuInsets, UiMenuRcMut, UiWidget, UiWidgetContext, UiWidgetGroup, UiWidgetImpl};
-use crate::{file_sys::paths::PathRef, ui::UiFontScale};
+use crate::{
+    file_sys::paths::PathRef,
+    ui::{UiFontScale, sound::{UiSoundEvent, UiSoundKey}},
+};
 
 // ----------------------------------------------
 // UiMessageBox
@@ -49,11 +52,19 @@ impl UiMessageBox {
     const BUTTON_SPACING: Vec2 = Vec2::new(10.0, 10.0);
 
     // A closed popup centered on the screen, with the style's frame. `label` names it in widget
-    // paths. Escape closes it.
+    // paths. Escape closes it. It plays PopupOpened and PopupClosed.
     pub fn new(label: impl Into<String>) -> Self {
         let menu = UiMenu::new(label)
-            .with_flags(UiMenuFlags::AlignCenter | UiMenuFlags::Modal | UiMenuFlags::CloseModalOnEscape);
+            .with_flags(UiMenuFlags::AlignCenter | UiMenuFlags::Modal | UiMenuFlags::CloseModalOnEscape)
+            .with_sound(UiSoundEvent::Opened, Some(UiSoundKey::PopupOpened))
+            .with_sound(UiSoundEvent::Closed, Some(UiSoundKey::PopupClosed));
         Self { menu: Some(menu.into_rc()) }
+    }
+
+    // `event` (Opened or Closed) plays `role` instead, or nothing for None.
+    pub fn with_sound(mut self, event: UiSoundEvent, role: Option<UiSoundKey>) -> Self {
+        self.menu_mut().set_sound(event, role);
+        self
     }
 
     // A sprite stretched over the popup, in place of the style's frame.

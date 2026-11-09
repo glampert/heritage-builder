@@ -9,7 +9,7 @@ use engine::{
         UiFontScale,
         UiStaticVar,
         UiString,
-        sound::{self, UiSoundKey},
+        sound::{UiSoundEvent, UiSoundKey},
         text::UiTextCategory,
         widgets::*,
     },
@@ -122,8 +122,18 @@ const DIALOG_MENU_FACTORIES: [DialogMenuFactoryFn; DIALOG_MENU_COUNT] = dialog_m
 
 impl DialogMenuKind {
     fn build_menu(self, context: &mut GameUiContext) -> DialogMenuImpl {
-        let dialog = DIALOG_MENU_FACTORIES[self as usize](context);
+        let mut dialog = DIALOG_MENU_FACTORIES[self as usize](context);
         debug_assert!(dialog.kind() == self, "Wrong DialogMenuKind! Check DialogMenu::kind() impl!");
+
+        // Every dialog plays its open and close sounds (its menu plays them, so Escape, a Close
+        // button and a stacked dialog's close all do), but Home: it's the home screen itself,
+        // reopened whenever nothing is over it. Set here, so a rebuilt dialog keeps them.
+        if self != DialogMenuKind::Home {
+            let menu = dialog.menu_mut();
+            menu.set_sound(UiSoundEvent::Opened, Some(UiSoundKey::DialogOpened));
+            menu.set_sound(UiSoundEvent::Closed, Some(UiSoundKey::DialogClosed));
+        }
+
         dialog
     }
 }
@@ -509,15 +519,11 @@ impl DialogMenusSingleton {
                 dialog.draw_root_menu(context);
             }
 
-            // In case the menu was closed via [ESCAPE] key (handled internally by modal menus).
+            // In case the menu was closed via [ESCAPE] key (handled internally by modal menus). Its
+            // menu has played DialogClosed.
             let dialog_menu_kind = dialog.kind();
             if !dialog.is_open() && self.is_current_dialog(dialog_menu_kind) {
                 self.pop_dialog(dialog_menu_kind);
-
-                if dialog_menu_kind != DialogMenuKind::Home {
-                    // Simulate a UI button press sound when hitting [ESCAPE] while inside a modal dialog.
-                    sound::play(*context.sound_sys(), UiSoundKey::ButtonPressed);
-                }
 
                 // If we didn't close the last dialog, keep the game in paused state.
                 if !self.menu_stack.is_empty() {
