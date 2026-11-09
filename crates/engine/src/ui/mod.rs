@@ -1,7 +1,8 @@
 // The UI system, on top of egui. Only this module uses egui:
 // - immediate.rs: immediate-mode functions, re-exported here (ui::button, ui::text, ui::window, ...),
 //   for the developer UI and DrawDebugUi.
-// - widgets.rs: retained widgets for the game's menus and HUD (UiMenu, UiTextButton, ...).
+// - widgets/: retained widgets for the game's menus and HUD (UiMenu, UiTextButton, ...), a file per
+//   widget family.
 // - style.rs: styles and fonts, from JSON files under assets/configs/ui/styles/.
 // - backend.rs and renderer.rs: egui's frame, the engine's input, and what egui draws, handed to
 //   the RenderSystem as UiDrawData.

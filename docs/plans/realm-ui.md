@@ -1,6 +1,6 @@
 # Realm UI: menus, screens and HUD in each realm's style
 
-**Status (2026-11-07): Reviewed; not started.** The user reviewed it on 2026-11-07: their notes are folded in (see [Review notes](#review-notes)), the open decisions' defaults are accepted, and every mockup the phases need now exists. This plan builds and restyles every retail screen after the [UI mockups](../design/mockups/README.md): the main menus, the world map, the intermission, the story comics, the HUD and the city management pages. Each screen gets one look per realm: Đại Long, Kambara and Tampadesa. It is milestone **UI** of the [roadmap](roadmap.md). It was researched against `ccca1df` on `claude`. File and line references point at that commit, so re-check them before relying on them.
+**Status (2026-11-09): Phase 0 in progress; the `widgets.rs` split is done.** The user reviewed it on 2026-11-07: their notes are folded in (see [Review notes](#review-notes)), the open decisions' defaults are accepted, and every mockup the phases need now exists. This plan builds and restyles every retail screen after the [UI mockups](../design/mockups/README.md): the main menus, the world map, the intermission, the story comics, the HUD and the city management pages. Each screen gets one look per realm: Đại Long, Kambara and Tampadesa. It is milestone **UI** of the [roadmap](roadmap.md). It was researched against `ccca1df` on `claude`. File and line references point at that commit, so re-check them before relying on them.
 
 ![Home menu, Đại Long](../design/mockups/menu-home-dailong.jpg)
 
@@ -74,7 +74,7 @@ From a survey of the code at `ccca1df`.
 - **Unused:** `misc/home_menu_anim/` (30 frames, behind a `false` constant), `icons/app_icon_bg_large.png`, `icons/player_icon_no_bg.png` and `buttons/minimap/close_*`.
 
 **Engine** (`crates/engine/src/ui/`):
-- **Widgets:** 17 retained types, all in one file (`widgets.rs`, about 3,900 lines).
+- **Widgets:** 17 retained types, all in one file (`widgets.rs`, about 3,900 lines). Phase 0 split it into `widgets/`, one file per widget family.
 - **Text:** `ui/text.rs` is a keyed string store loaded from `assets/configs/ui/text.json`, with two categories (TileDescription, UnitDialog) looked up by hashed key.
 - **Sounds:** `ui/sound.rs` has seven `UiSoundKey`s, all placeholders (`buttons/default/*`, `misc/default/*`). Only text and sprite buttons play them (hovered and pressed); toggles, sliders, tabs, lists and dialogs play nothing.
 - **Sprites:** every sprite is stretched over its rect (`uv_full`), with **no 9-slice**. Menu insets are clamped to 127 points.
@@ -371,7 +371,7 @@ The existing dialogs keep their layouts but take their panels from the Đại Lo
 - [ ] Engine: data-driven themes (`UiThemeId`), `UiNineSlice` and `UiPainter::nine_slice`, menus laying out in their own inner rect (no `i8` insets).
 - [ ] Skins: `assets/configs/ui/skins/{dailong,kambara,tampadesa}.json`; `menu/skin.rs`; the skin version counter and `dialog::rebuild_all()`; `ui.reload_skin`. `styles/game.json` folds into Đại Long's skin.
 - [ ] Fonts: add Spectral SC and Alegreya (and their OFL files); realm text styles with fallbacks; the Vietnamese glyph test.
-- [ ] Split `engine/src/ui/widgets.rs` into `engine/src/ui/widgets/`, one widget family per file, with no change in behaviour, in a commit of its own.
+- [x] Split `engine/src/ui/widgets.rs` into `engine/src/ui/widgets/`, one widget family per file, with no change in behaviour, in a commit of its own.
 - [ ] Localized strings: `text/<language>.json`, the new categories, arguments, plural forms, `UiText`, the fallback and its test; `text.*` commands. Move today's strings for the screens Phase 0 touches.
 - [ ] Sound hooks: the role keys, per-widget sound events and overrides, the skin's `sounds` block with placeholder mappings, dialog and popup open and close sounds.
 - [ ] Widgets: `UiTabBar`, `UiToggle`, framed `UiTextButton`, `UiMenuItem`, `UiListRow`, `UiImage`, `UiKeyValues`, `UiTable`, `UiMeter`, `UiColumns`, `UiStepSelector`, `UiRichText`, each in the developer sample menus (`engine/src/ui/tests.rs`).
@@ -380,6 +380,12 @@ The existing dialogs keep their layouts but take their panels from the Đại Lo
 - [ ] Popups (Quit, Overwrite), tooltips and toasts on skin panels.
 - [ ] Remove the unused old files (see [What exists today](#what-exists-today)).
 - [ ] `tests/ui_skins.rs`; a `ui_skins.jsonl` scenario that opens the Skin Gallery in each realm and checks `ui.layout_issues`.
+
+**Notes (2026-11-09):**
+- The widgets split (commit: TODO, filled in when it lands): `engine/src/ui/widgets/mod.rs` keeps the context trait, `UiWidget`, `UiWidgetImpl`, the casts, callback types and shared helpers, and re-exports every family file (`pub use button::*;` and so on), so every `ui::widgets::<Name>` path is unchanged and nothing outside `engine/src/ui/` changed. The family files are `menu.rs`, `message_box.rs`, `text.rs`, `group.rs`, `button.rs`, `tooltip.rs`, `separator.rs`, `image.rs` (`UiSpriteIcon` and `UiSlideshow`), `input.rs` (sliders, checkboxes, number and text inputs, dropdowns) and `list.rs`. Each file keeps the old section banners.
+- The only edits that aren't moves are the ones the split forces: `pub(super)` on `UiMenu`'s `background` and `content_insets`, `UiMessageBox`'s `menu`, and `UiTooltipText`'s `text` and `draw`, which other family files use; and `crate::ui::` in place of `super::` for `screen_size` (twice), `custom_tooltip` and `text`. Comments naming `widgets.rs` in `ui/mod.rs`, `immediate.rs`, `internal.rs`, `registry.rs` and AGENTS.md now name the folder.
+- `widget_id` hashes the widget's type name, which now includes its file's module (`widgets::menu::UiMenu`; only `UiMenu`, `UiTextInput`, `UiDropdown` and `UiItemList` use it). That changes no behaviour: the id only has to stay the same from frame to frame and tell widgets apart, it also hashes the widget's address, and egui's memory isn't saved (no `persistence` feature).
+- Verified: `cargo build -p HeritageBuilder`, `cargo test --workspace` and the web target check; `ui_build`, `ui_new_game`, `ui_dev_menus`, `minimap` and `ui_snapshot` (the `ui.tree` listing of every screen, without rects) print the same results as before the split, apart from the minimap's bake time. A sorted-lines diff of the old file against the new files, and an in-order diff with the files put back in the old order, show only the edits above.
 
 ### Phase 1: Main menus
 

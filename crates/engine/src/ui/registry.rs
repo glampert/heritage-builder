@@ -1,4 +1,4 @@
-// Widget registry for UI automation: each frame, the retained widgets (widgets.rs) record what they
+// Widget registry for UI automation: each frame, the retained widgets (widgets/) record what they
 // drew, so automation can list them (ui.tree) and click or set them by name (ui.click, ui.set).
 //
 // A widget's path joins the labels of the menus and labeled groups around it with its own label,

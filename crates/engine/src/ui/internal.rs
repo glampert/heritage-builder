@@ -1,4 +1,4 @@
-// Layout helpers for the retained widgets (widgets.rs): measuring text and widgets, and drawing
+// Layout helpers for the retained widgets (widgets/): measuring text and widgets, and drawing
 // groups of them centered in a menu. Groups place each widget at a position they compute, in a
 // child Ui at that rect (UiSystem::draw_at), then move the menu's cursor past the whole group.
 

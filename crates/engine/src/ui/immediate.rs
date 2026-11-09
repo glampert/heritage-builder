@@ -1,6 +1,6 @@
 // Immediate-mode UI: the functions the developer and debug UI draws with, re-exported at
 // `engine::ui::` (ui::button, ui::text, ui::window, ...). They hide egui: only this module and the
-// retained widgets (widgets.rs, internal.rs) call it directly.
+// retained widgets (widgets/, internal.rs) call it directly.
 //
 // - Layout: widgets stack vertically. ui::horizontal lays out the widgets drawn in its closure
 //   in a row, ui::indent indents them and ui::grid puts them in a table.
