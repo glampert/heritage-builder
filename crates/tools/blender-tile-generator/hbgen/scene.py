@@ -123,9 +123,10 @@ def setup_render(samples=None):
         if hasattr(ev, k): setattr(ev, k, v)
 
 
-def setup_outlines(px_scale=1.0, wobble_scale=None):
+def setup_outlines(px_scale=1.0, wobble_scale=None, border=True):
     """px_scale multiplies the line thickness, for renders at more than one pixel
-    per logical pixel; wobble_scale (default px_scale) multiplies the noise and jitter."""
+    per logical pixel; wobble_scale (default px_scale) multiplies the noise and jitter.
+    border=False leaves out open mesh edges, for pieces cut to meet their neighbours."""
     O = dict(OUTLINE); sc = bpy.context.scene
     # The scene's line thickness multiplies the line style's, so only the style's
     # measures scale: the legacy renders get 1.6 x 1.6 = 2.56 px lines.
@@ -135,7 +136,7 @@ def setup_outlines(px_scale=1.0, wobble_scale=None):
     for k in ("noise_amp", "jitter_amp", "noise_period"): O[k] *= w
     fs = bpy.context.view_layer.freestyle_settings; fs.use_culling = True; fs.crease_angle = radians(120)
     for ls in list(fs.linesets): fs.linesets.remove(ls)
-    ls = fs.linesets.new("Ink"); ls.select_silhouette = True; ls.select_border = True; ls.select_crease = True; ls.select_contour = False
+    ls = fs.linesets.new("Ink"); ls.select_silhouette = True; ls.select_border = border; ls.select_crease = True; ls.select_contour = False
     st = ls.linestyle; st.color = O["color"]; st.thickness = O["thickness"]; st.alpha = O["alpha"]
     m = st.thickness_modifiers.new(name="Noise", type='NOISE'); m.amplitude = O["noise_amp"]; m.period = O["noise_period"]; m.seed = 3
     g = st.geometry_modifiers.new(name="Jitter", type='PERLIN_NOISE_1D'); g.amplitude = O["jitter_amp"]; g.frequency = O["jitter_freq"]; g.octaves = 2

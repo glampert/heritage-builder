@@ -37,7 +37,9 @@ def generate_engine(building, palette="viet", density=DEFAULT_DENSITY, out=None,
     B = Builder(mats, collection_name=building, seed=seed)
     G = RECIPES[building](B, **(params or {}))
     # Ink: thickness scales with density, but the wobble stays small so the lines stay crisp.
-    setup_lighting(); setup_render(samples); setup_outlines(density * ENGINE_OUTLINE_SCALE, wobble_scale=1.0); setup_grade()
+    # A recipe sets B.outline_border = False when its cut edges must not be inked (rubble pieces).
+    setup_lighting(); setup_render(samples)
+    setup_outlines(density * ENGINE_OUTLINE_SCALE, wobble_scale=1.0, border=getattr(B, "outline_border", True)); setup_grade()
     _, w, h = setup_camera_engine(G, density, B.col, height_px)
     if blend:
         bpy.ops.wm.save_as_mainfile(filepath=os.path.abspath(os.path.expanduser(blend)))

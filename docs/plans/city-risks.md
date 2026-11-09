@@ -1,6 +1,6 @@
 # City risks: fire and collapse
 
-**Status (2026-11-09): Planned; not started.** This plan is milestone M6 of the [roadmap](roadmap.md). It covers the fire and collapse rows of GDD 5.9: each building's fire and collapse risk builds up over time, a patrol walker from the fire watch or the builders' guild resets it, and a building whose risk runs out catches fire or collapses and leaves rubble. Mission I-3 teaches "the fire watch and the builders' guild (fire and collapse risk)" ([campaigns.md](../design/campaigns.md#3-the-village-of-spirits)). Disease and crime come in Phase 2 of the roadmap. It was researched against `063d306` on `claude`. File and line references point at that commit, so re-check them before relying on them.
+**Status (2026-11-09): The art is done; Phase 0 next.** This plan is milestone M6 of the [roadmap](roadmap.md). It covers the fire and collapse rows of GDD 5.9: each building's fire and collapse risk builds up over time, a patrol walker from the fire watch or the builders' guild resets it, and a building whose risk runs out catches fire or collapses and leaves rubble. Mission I-3 teaches "the fire watch and the builders' guild (fire and collapse risk)" ([campaigns.md](../design/campaigns.md#3-the-village-of-spirits)). Disease and crime come in Phase 2 of the roadmap. It was researched against `063d306` on `claude`. File and line references point at that commit, so re-check them before relying on them.
 
 ## How to resume this work
 
@@ -53,7 +53,7 @@
 
 **Walkers:** units are keyed by `UnitConfigKey` (`unit/config.rs:16`), a hash of the unit tile def's name. There's no fire watcher or builder walker, and no walker art beyond the hand-made set.
 
-**Art:** the Blender pipeline has recipes for the roof-tile kiln and the overlays (`crates/tools/blender-tile-generator/hbgen/recipes/`). The generic recipes of placeholder-art Phase 3 aren't written yet, so the fire watch and the builders' guild each need one.
+**Art:** the Blender pipeline has recipes for the roof-tile kiln and the overlays (`crates/tools/blender-tile-generator/hbgen/recipes/`). The generic recipes of placeholder-art Phase 3 aren't written yet, so the fire watch and the builders' guild each need one. (Done ahead of Phase 0 on 2026-11-09; see the [art notes](#art-notes-2026-11-09).)
 
 **Cheats:** `instant_construction` and `ignore_worker_requirements` exist (`cheats.rs:78`); the test harness turns on `instant_construction`.
 
@@ -108,7 +108,7 @@
   - Walkers that already left with goods keep them. A runner on its way to fetch from a building that's gone comes back empty, as when the player demolishes it. A delivery on its way to one goes to another building with room, or back to its producer, through the fetch and delivery tasks' recovery paths.
   - The burnt-down notice lists what was lost: "The storage yard burnt down. Lost: 40 rice, 12 wood."
 - **Visits to a building that's gone.** `SimCmd::VisitBuilding` and the other deferred building commands skip a building that no longer exists and log it at verbose level, instead of panicking. A walker can queue a visit in the same step that a fire destroys the building.
-- **Rubble** (decision Q4) is a 1×1 tile per cell in a new objects tile set category, `rubble`. Like a boulder (`TileKind::Rocks`) it blocks building and walking, the clear tool removes it for free, and the minimap shows it as rock cover. It has no game object, so it costs nothing to keep.
+- **Rubble** (decision Q4) is a 1×1 tile per cell, the `rubble` tile def in the objects tile set's `rocks` category, so it's a `TileKind::Rocks` tile. A new category would need its own `TileKind` mapping, and an unknown category panics at load (`TileKind::specialized_kind_for_category`). Like a boulder it blocks building and walking, the clear tool removes it for free, and the minimap shows it as rock cover. It has no game object, so it costs nothing to keep.
 - **Rubble piles from pieces**, as water shores and road junctions are built:
   - **Variation by neighbours.** A rubble tile's variation is the set of its four sides that border more rubble, as four digits in the order north, east, south, west, where 1 means rubble. This is the same mask `road::update_junctions` uses and the same naming as the water tile's shores ([terrain-tiles.md](../../.claude/rules/terrain-tiles.md)).
   - **What a building leaves.** A burnt-down 3×3 building leaves:
@@ -120,7 +120,7 @@
   - **Clearing part of a pile.** That leaves the other six: four ends (`1000`, ...) and two straight strips (`1010`, `0101`). All 16 are rendered so any pattern has a piece.
   - **Merging piles.** Rubble from neighbouring buildings joins into one pile.
   - **When variations are picked.** The `Spawner` and `SimCmds` tile spawns don't update neighbour variations (terrain-tiles.md). Destruction therefore picks the variations itself, once the whole footprint has its rubble: over the footprint and the ring of cells around it. `TilePlacement::clear` updates the four neighbours of a cleared rubble tile, as it does for roads.
-  - **Seamless edges.** The pieces must meet without seams, so rubble is drawn anchored like a 1×1 building, not with the prop offset that centres a boulder a quarter tile lower (`tile/mod.rs:642`).
+  - **Seamless edges.** The pieces must meet without seams, so rubble sits on its cell's diamond like a 1×1 building. The rocks anchor puts a sprite 8 logical px higher (`tile/mod.rs:642`), so every rubble variation carries `iso_offset {x: 0, y: 8}`. No renderer change is needed.
   - **Saves.** Saves store the variation as an index, so the list is append-only, as the water tile's is.
 - **Drawing a fire.** A new `TileFlags::Burning` (after widening `TileFlags` to `u32`) marks a burning building's tile. `TileMapRenderer::draw_tile` draws it darkened, with an animated `fire_1x1` overlay on each cell of its footprint. Smoke and sound are left for later.
 - **Notices.** A fire, a fire put out, a building burnt down and a collapse are logged on a new `risks` log channel and become toasts, as finance notices do. A fire or a collapse also raises a minimap alert at the building, which is resolved when the fire is put out or the rubble is cleared.
@@ -198,6 +198,24 @@
   It runs in CI with the other scenarios.
 - **Existing scenarios:** long runs (`finance.jsonl`, `goods.jsonl`, `construction.jsonl`, `determinism.jsonl`) set `cheats.set name=no_city_risks value=true` so a fire can't change what they check. `determinism.jsonl` keeps checking that two runs agree, risks included.
 
+### Art notes (2026-11-09)
+
+The art was made first, ahead of Phase 0, with the Blender pipeline:
+- **Recipes:** `hbgen/recipes/risks.py` (`rubble`, `fire`) and `hbgen/recipes/services.py` (`fire_watch`, `builders_guild`).
+- **Catalogs:**
+  - `catalog/risks.json` holds `rubble` (16 variations, in the `rocks` category) and `fire_1x1` (4 frames, in `overlays`);
+  - `buildings_daiLong.json` holds the two buildings.
+- **Rubble:**
+  - Each piece is a height field over its cell, sloping to the ground at an open side and ending raggedly a little inside the cell. Charred beams, bricks, tile shards, stones and now and then a stub of wall are kept clear of the cell's edges.
+  - Laid out as the engine will (`scr = 32·(x+y), 16·(x−y)`, back to front), 3×3 and 2×2 piles show no seams. Clearing a cell out of a pile leaves small V-notches at the diagonal corners, since the mask looks only at the four sides; fine for placeholder art.
+  - In the game, `world.place tile=rubble` puts the `0000` piece centred on its cell next to a hand-made well.
+- **Core change:** `setup_outlines` takes `border`, and `generate_engine` reads `B.outline_border`. The cut edges where pieces join must get no ink. Changing those core modules re-rendered every generated tile, and the kiln's and the overlays' pixels came out the same (at most one level off), so their committed files were kept.
+- **Fire:** the flames are seven tongues with yellow cores and rising embers, 4 frames of a loop; their heights and sway follow the frame's phase. Over a darkened 2×2 building, one per cell, they read clearly as a fire.
+- **Buildings:**
+  - The fire watch is a timber lookout with a hipped roof, a bell, a red pennant, a ladder and water jars. It matches the hand-made 1×1 shrine's scale.
+  - The builders' guild is a plastered hall, a timber shed, brick pallets, a log pile, a sawhorse and a section of bamboo scaffolding. It sits well beside the generated roof-tile kiln.
+  - Placing either fails cleanly until Phase 2 adds its building config ("Can't find Building config").
+
 ## UI changes
 
 The user is redesigning the UI on another branch, so this is every UI change this milestone makes. None adds a dialog, a widget type or a style file. The user confirmed on 2026-11-09 that only the tile inspector is likely to conflict with the redesign.
@@ -234,8 +252,9 @@ The user is redesigning the UI on another branch, so this is every UI change thi
 - [ ] Destruction through `SimCmds`, with rubble on each cell; the destroyed mark against double destruction.
 - [ ] Lost goods subtracted from the world stats at once; the burnt-down notice lists them.
 - [ ] Deferred building commands skip a building that's gone.
-- [ ] The `rubble` category and its tile def with the 16 neighbour-mask variations; `rubble::update_variations` (after destruction, over the footprint and its ring) and its call from `TilePlacement::clear`; rubble anchored like a 1×1 building.
-- [ ] Art, in the Blender catalog, rendered with `tilegen.sh`:
+- [x] The `rubble` tile def (`rocks` category) with the 16 neighbour-mask variations and their `iso_offset`. Done with the art.
+- [ ] `rubble::update_variations` (after destruction, over the footprint and its ring) and its call from `TilePlacement::clear`.
+- [x] Art, in the Blender catalog, rendered with `tilegen.sh`:
   - `rubble`: 16 pieces from one recipe. Each is a cut of the same pile surface: full height at a side that joins more rubble, sloping to the ground at an open side, so the pieces meet without seams. Debris (beams, bricks, tiles) is seeded per piece and kept inside the cell.
   - `fire_1x1`: an animated overlay, 4 frames.
 - [ ] Drawing: the darkened building and its fire overlay in `TileMapRenderer::draw_tile`.
@@ -254,7 +273,7 @@ The user is redesigning the UI on another branch, so this is every UI change thi
 - [ ] `crates/tools/unit-recolor/` (`recolor.py`, its recipe and manifest, a README section or file); the red `fire_watcher` frames from the guard's; the web asset manifest refreshed. List the tool in AGENTS.md's workspace layout.
 - [ ] `ServiceConfig::visits`; the patrol's buildings to visit follow it.
 - [ ] A fire watcher puts out a fire it passes; a fire watch sends its free walker to a fire in its radius.
-- [ ] Art: the `fire_watch` and `builders_guild` recipes and catalog entries, rendered with `tilegen.sh`; the primitives they need ticked in placeholder-art Phase 3.
+- [x] Art: the `fire_watch` and `builders_guild` recipes and catalog entries, rendered with `tilegen.sh`. Their tile defs have no `sector` yet, so the build menu leaves them out until their configs land; add `"sector": "Services"` to their catalog entries then.
 - [ ] Tests: patrols visit all buildings, putting out a fire, dispatch.
 - [ ] `risks.jsonl`, in CI.
 

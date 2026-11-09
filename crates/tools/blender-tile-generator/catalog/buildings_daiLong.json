@@ -8,6 +8,18 @@
       "recipe": "roof_tile_kiln",
       "notes": "M5: a 2x2 workshop that fires roof tiles from clay (producer config 'Roof Tile Kiln').",
       "tile_set": { "cost": 10, "sector": "IndustryAndResources" }
+    },
+    {
+      "tile": "fire_watch",
+      "recipe": "fire_watch",
+      "notes": "M6: a 1x1 lookout whose fire watchers reset fire risk and put out fires (service config 'Fire Watch', city-risks Phase 2). No sector until its config lands, so the build menu doesn't offer it yet.",
+      "tile_set": { "cost": 10, "materials": { "Wood": 3 }, "upkeep": 6, "construction": "Basic" }
+    },
+    {
+      "tile": "builders_guild",
+      "recipe": "builders_guild",
+      "notes": "M6: a 2x2 hall and yard whose builders reset collapse risk (service config 'Builders' Guild', city-risks Phase 2). No sector until its config lands.",
+      "tile_set": { "cost": 15, "materials": { "Wood": 4, "Bricks": 2 }, "upkeep": 6, "construction": "Civic" }
     }
   ]
 }
