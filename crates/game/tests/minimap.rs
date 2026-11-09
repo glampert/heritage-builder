@@ -1,6 +1,7 @@
 use common::{Size, coords::Cell};
 use game::{
     cheats,
+    realm::Realm,
     tile::{
         TileMap,
         TileMapLayerKind,
@@ -9,7 +10,7 @@ use game::{
             MinimapLens,
             MinimapTool,
             model::{FeatureState, LandmarkKind, MinimapClass, MinimapRoad, tile_class},
-            style::{MinimapRealm, MinimapStyle},
+            style::MinimapStyle,
         },
         sets::{OBJECTS_BUILDINGS_CATEGORY, TileSets},
     },
@@ -210,7 +211,7 @@ fn test_styles_load_with_their_sprites() {
     let ui = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../assets/ui");
     let exists = |path: &str| assert!(ui.join(path).is_file(), "missing sprite assets/ui/{path}");
 
-    for realm in MinimapRealm::iter() {
+    for realm in Realm::iter() {
         let style = MinimapStyle::load(realm).unwrap_or_else(|err| panic!("{err}"));
         exists(&style.frame);
         exists(style.tooltip_frame());
@@ -236,8 +237,8 @@ fn test_styles_load_with_their_sprites() {
 
 // Kambara's and Tampadesa's files hold only what they change: the rest comes from Đại Long's.
 fn test_realm_styles_inherit_dai_long() {
-    let base = MinimapStyle::load(MinimapRealm::DaiLong).unwrap();
-    for realm in [MinimapRealm::Kambara, MinimapRealm::Tampadesa] {
+    let base = MinimapStyle::load(Realm::DaiLong).unwrap();
+    for realm in [Realm::Kambara, Realm::Tampadesa] {
         let style = MinimapStyle::load(realm).unwrap();
         assert_eq!(style.map_size, base.map_size, "{realm} map_size");
         assert_eq!(style.lenses.water_access, base.lenses.water_access, "{realm} lenses.water_access");

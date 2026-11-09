@@ -19,6 +19,7 @@ use serde::{Deserialize, Serialize};
 use crate::{
     camera::*,
     launch::{self, LaunchOptions},
+    profile,
     undo_redo,
     world::World,
     campaign::{self, CampaignProgress},
@@ -529,7 +530,11 @@ impl GameSession {
     }
 
     // The active campaign mission's start: its calendar from the first day, and its finances.
+    // The player's profile records the mission and the campaign as reached.
     fn start_mission(&mut self) {
+        if let Some(mission) = campaign::active_mission() {
+            profile::on_mission_started(mission.campaign_id, mission.mission_index);
+        }
         if let Some(settings) = campaign::active_mission_calendar() {
             self.sim.calendar_mut().restart(settings);
         }
@@ -819,6 +824,11 @@ impl GameSession {
         self.pre_save(&mut PreSaveContext::new(self.sim.cmds().clone()));
         let save_result = save::storage::write_save_file(save_file, self);
         self.post_save(&mut PostSaveContext::new());
+
+        // What Continue loads: every save goes through here, the autosave and session.save included.
+        if save_result.is_ok() {
+            profile::on_game_saved(save_file.as_str());
+        }
 
         save_result.map_err(log_session_error)
     }

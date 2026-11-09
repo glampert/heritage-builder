@@ -55,6 +55,13 @@ pub const GAME_CLI_OPTIONS: &[CliOption] = &[
         value_name: None,
         help: "Make every assert.image save its screenshot as the golden instead of comparing, as with update=true.",
     },
+    CliOption {
+        name: "fresh-profile",
+        value_name: None,
+        help: "Start from an empty player profile (campaigns reached, last save) and never read or write \
+               saves/user/profile.json; in a replay, instead of the recording's profile. For scenarios and tests. \
+               --default-configs still reads the profile.",
+    },
 ];
 
 // Options a recording (--record) leaves out: it holds the script's commands, and its replay runs
@@ -88,6 +95,7 @@ pub struct LaunchOptions {
     pub script: Option<ScriptOptions>,     // --script
     pub golden_dir: Option<PathBuf>,       // --golden-dir, relative to the directory the game was started from.
     pub update_goldens: bool,              // --update-goldens
+    pub fresh_profile: bool,               // --fresh-profile
 }
 
 impl LaunchOptions {
@@ -125,6 +133,7 @@ impl LaunchOptions {
             script,
             golden_dir: cli::path_value("golden-dir"),
             update_goldens: command_line.has("update-goldens"),
+            fresh_profile: command_line.has("fresh-profile"),
         }
     }
 
@@ -189,6 +198,7 @@ pub fn get() -> &'static LaunchOptions {
         script: None,
         golden_dir: None,
         update_goldens: false,
+        fresh_profile: false,
     };
     LAUNCH_OPTIONS.get().unwrap_or(&DEFAULT)
 }

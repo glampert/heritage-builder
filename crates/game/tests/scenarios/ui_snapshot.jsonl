@@ -5,11 +5,12 @@
 # values) and for reviewing how it looks. Goldens depend on the machine and render backend, so keep
 # one directory per backend:
 #   cargo run -p HeritageBuilder -- --script crates/game/tests/scenarios/ui_snapshot.jsonl \
-#     --window-size 1280x720 --seed 1 --render-api OpenGl --golden-dir out/baseline/opengl --update-goldens
+#     --fresh-profile --window-size 1280x720 --seed 1 --render-api OpenGl --golden-dir out/baseline/opengl --update-goldens
 # Then, to compare against them (screenshots and -diff.png files go to out/ui_snapshot/):
 #   cargo run -p HeritageBuilder -- --script crates/game/tests/scenarios/ui_snapshot.jsonl \
-#     --window-size 1280x720 --seed 1 --render-api OpenGl --golden-dir out/baseline/opengl --script-continue-on-error
-# The Load Game and Save Game lists show the local saves/, so keep it unchanged between runs. Not run
+#     --fresh-profile --window-size 1280x720 --seed 1 --render-api OpenGl --golden-dir out/baseline/opengl --script-continue-on-error
+# The Load Game and Save Game lists show the local saves/, so keep it unchanged between runs;
+# --fresh-profile keeps the local profile, which picks the home menu's realm, out of it. Not run
 # in CI: there are no goldens there.
 {"method": "time.fixed_dt", "params": {"dt": 0.016667}}
 

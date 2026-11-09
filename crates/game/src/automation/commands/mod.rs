@@ -19,6 +19,7 @@ mod input;
 mod meta;
 mod minimap;
 mod observe;
+mod profile;
 mod session;
 mod sim;
 mod time;
@@ -38,6 +39,7 @@ pub(super) const COMMAND_GROUPS: &[&[CommandDef]] = &[
     minimap::COMMANDS,
     input::COMMANDS,
     ui::COMMANDS,
+    profile::COMMANDS,
     config::COMMANDS,
     observe::COMMANDS,
     assert::COMMANDS,

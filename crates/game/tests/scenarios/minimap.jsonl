@@ -76,5 +76,13 @@
 {"method": "assert.eq", "params": {"query": "minimap.state", "path": "/realm", "value": "kambara"}}
 {"method": "wait.frames", "params": {"frames": 2}}
 {"method": "minimap.reload_style", "params": {"realm": "dailong"}}
+# The style follows the UI realm: ui.realm's override, then the game's choice again (Đại Long outside a campaign).
+{"method": "ui.realm", "params": {"realm": "tampadesa"}}
+{"method": "assert.eq", "params": {"query": "ui.realm", "path": "/source", "value": "override"}}
+{"method": "assert.eq", "params": {"query": "minimap.state", "path": "/realm", "value": "tampadesa"}}
+{"method": "wait.frames", "params": {"frames": 2}}
+{"method": "ui.realm", "params": {"realm": "auto"}}
+{"method": "assert.eq", "params": {"query": "ui.realm", "path": "/source", "value": "default"}}
+{"method": "assert.eq", "params": {"query": "minimap.state", "path": "/realm", "value": "dailong"}}
 {"method": "minimap.export", "params": {"path": "out/minimap.png"}}
 {"method": "screenshot", "params": {"path": "out/minimap-hud.png"}}

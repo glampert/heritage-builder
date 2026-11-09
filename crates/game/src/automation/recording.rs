@@ -5,9 +5,12 @@ use engine::{Engine, log};
 use serde_json::{Value, json};
 
 use super::{commands::state_checksum, config_patches, query::json_eq, require_map};
-use crate::session::GameSession;
+use crate::{
+    profile::{self, Profile},
+    session::GameSession,
+};
 
-// Header key for the game's details: version, autosave and configs.
+// Header key for the game's details: version, autosave, configs and the player's profile.
 const GAME_INFO_KEY: &str = "game";
 
 // Called first thing in GameLoop::start: a replay runs with the configs it was recorded with,
@@ -50,6 +53,19 @@ pub fn recorded_autosave(engine: &Engine) -> Option<bool> {
     engine.replay_info(GAME_INFO_KEY)?.get("autosave")?.as_bool()
 }
 
+// The player's profile a replay runs with: the recorded run's, since the UI realm (and so the
+// layout) follows it. None when not replaying, or for a recording that doesn't hold one.
+pub fn recorded_profile(engine: &Engine) -> Option<Profile> {
+    let recorded = engine.replay_info(GAME_INFO_KEY)?.get("profile")?;
+    match Profile::from_value(recorded.clone()) {
+        Ok(profile) => Some(profile),
+        Err(err) => {
+            log::warning!(log::channel!("game"), "Can't use the recording's profile, so the replay may differ: it {err}");
+            None
+        }
+    }
+}
+
 // Called from GameLoop::start once the run's settings are known.
 pub fn record_game_info(engine: &mut Engine, autosave: bool) {
     if !engine.is_recording() {
@@ -57,8 +73,10 @@ pub fn record_game_info(engine: &mut Engine, autosave: bool) {
     }
 
     let configs = config_patches::get("").unwrap_or(Value::Null);
-    engine
-        .set_recording_info(GAME_INFO_KEY, json!({ "version": crate::version(), "autosave": autosave, "configs": configs }));
+    engine.set_recording_info(
+        GAME_INFO_KEY,
+        json!({ "version": crate::version(), "autosave": autosave, "configs": configs, "profile": profile::get().to_value() }),
+    );
 }
 
 // Called from GameLoop::finish_run. None at the home menu, where there's no map.

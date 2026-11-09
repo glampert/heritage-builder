@@ -1,6 +1,6 @@
 # Realm UI: menus, screens and HUD in each realm's style
 
-**Status (2026-11-09): Phase 0 in progress; the `widgets.rs` split is done.** The user reviewed it on 2026-11-07: their notes are folded in (see [Review notes](#review-notes)), the open decisions' defaults are accepted, and every mockup the phases need now exists. This plan builds and restyles every retail screen after the [UI mockups](../design/mockups/README.md): the main menus, the world map, the intermission, the story comics, the HUD and the city management pages. Each screen gets one look per realm: Đại Long, Kambara and Tampadesa. It is milestone **UI** of the [roadmap](roadmap.md). It was researched against `ccca1df` on `claude`. File and line references point at that commit, so re-check them before relying on them.
+**Status (2026-11-09): Phase 0 in progress; the `widgets.rs` split, and the realm and player profile, are done.** The user reviewed it on 2026-11-07: their notes are folded in (see [Review notes](#review-notes)), the open decisions' defaults are accepted, and every mockup the phases need now exists. This plan builds and restyles every retail screen after the [UI mockups](../design/mockups/README.md): the main menus, the world map, the intermission, the story comics, the HUD and the city management pages. Each screen gets one look per realm: Đại Long, Kambara and Tampadesa. It is milestone **UI** of the [roadmap](roadmap.md). It was researched against `ccca1df` on `claude`. File and line references point at that commit, so re-check them before relying on them.
 
 ![Home menu, Đại Long](../design/mockups/menu-home-dailong.jpg)
 
@@ -367,7 +367,7 @@ Phases 1 to 6 follow the order the user set. [Dependencies](#dependencies-on-oth
 
 The existing dialogs keep their layouts but take their panels from the Đại Long skin.
 
-- [ ] `Realm`, `Profile` (`saves/user/profile.json`, `--fresh-profile`), `realm::ui_realm()`, a `realm` field in `campaigns.json`; `profile.*` and `ui.realm` commands; tests.
+- [x] `Realm`, `Profile` (`saves/user/profile.json`, `--fresh-profile`), `realm::ui_realm()`, a `realm` field in `campaigns.json`; `profile.*` and `ui.realm` commands; tests.
 - [ ] Engine: data-driven themes (`UiThemeId`), `UiNineSlice` and `UiPainter::nine_slice`, menus laying out in their own inner rect (no `i8` insets).
 - [ ] Skins: `assets/configs/ui/skins/{dailong,kambara,tampadesa}.json`; `menu/skin.rs`; the skin version counter and `dialog::rebuild_all()`; `ui.reload_skin`. `styles/game.json` folds into Đại Long's skin.
 - [ ] Fonts: add Spectral SC and Alegreya (and their OFL files); realm text styles with fallbacks; the Vietnamese glyph test.
@@ -386,6 +386,16 @@ The existing dialogs keep their layouts but take their panels from the Đại Lo
 - The only edits that aren't moves are the ones the split forces: `pub(super)` on `UiMenu`'s `background` and `content_insets`, `UiMessageBox`'s `menu`, and `UiTooltipText`'s `text` and `draw`, which other family files use; and `crate::ui::` in place of `super::` for `screen_size` (twice), `custom_tooltip` and `text`. Comments naming `widgets.rs` in `ui/mod.rs`, `immediate.rs`, `internal.rs`, `registry.rs` and AGENTS.md now name the folder.
 - `widget_id` hashes the widget's type name, which now includes its file's module (`widgets::menu::UiMenu`; only `UiMenu`, `UiTextInput`, `UiDropdown` and `UiItemList` use it). That changes no behaviour: the id only has to stay the same from frame to frame and tell widgets apart, it also hashes the widget's address, and egui's memory isn't saved (no `persistence` feature).
 - Verified: `cargo build -p HeritageBuilder`, `cargo test --workspace` and the web target check; `ui_build`, `ui_new_game`, `ui_dev_menus`, `minimap` and `ui_snapshot` (the `ui.tree` listing of every screen, without rects) print the same results as before the split, apart from the minimap's bake time. A sorted-lines diff of the old file against the new files, and an in-order diff with the files put back in the old order, show only the edits above.
+
+**Notes (2026-11-09, realm and profile; commit TODO):**
+- `game/src/realm.rs`: `Realm` (lowercase in strum and serde) replaces `MinimapRealm`. `choose_ui_realm(&UiRealmInputs)` is the pure decision behind `ui_realm()`: the `ui.realm` override, else in game the active campaign's realm (Custom Game's is a `TODO(realm-ui)`), else in the home menu the latest campaign the profile reached, else Đại Long. The minimap's style follows it.
+- `game/src/profile.rs`: `Profile` and `CampaignRecord` (named so to avoid `campaign::CampaignProgress`), strict serde with a version check; the user file `profile` is written whole after each change. A missing, broken or other-version file gives a fresh profile with a warning and is left alone. `distinctions` waits for M9.
+- Never written by `--fresh-profile` (never read either), script mode, replays, `--smoke-test-saves` or the test harness. CI passes `--fresh-profile` to every scenario, determinism and replay run.
+- `CampaignDef` has `id` and `realm`; hooks: a mission start reaches its campaign, a finished mission is queued by `campaign::tick` and recorded by `GameLoop`, a campaign's last mission reaches the next one, a successful save sets `last_save`.
+- Commands: `ui.realm`, `profile.state`, `profile.set`, `profile.reset`.
+- Deviations: a recording's header holds the profile and its replay uses it (an explicit `--fresh-profile` wins, with a warning). The minimap keeps each style file's JSON from its first read, so realm switches work on web, which reads an asset only once. `minimap.reload_style realm=` is now an alias that sets the override, and puts it back if the reload fails.
+- Tests: `tests/realm_profile.rs`, the finished-missions queue in `tests/campaign.rs`, and `ui.realm` checks in `minimap.jsonl`.
+- Verified: build, `cargo test --workspace` and the web target check; the CI scenarios with `--fresh-profile`; determinism twice with the same checksum; record and replay of `ui_build` and `determinism`; a live game writing, reloading, rejecting broken and other-version files, and resetting the profile; no `saves/user/profile.json` after scripts, replays, the smoke test or tests. Not run: the mission-finished path end to end in a live game (it needs goals met), and the web build in a browser.
 
 ### Phase 1: Main menus
 

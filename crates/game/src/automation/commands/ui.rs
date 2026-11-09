@@ -16,7 +16,11 @@ use engine::{
 
 use crate::{
     automation::{CommandContext, CommandDef, CommandError, CommandResult, ErrorCode, ParamDef, done, parse_params, pending},
-    menu::dialog::{self, DialogMenuKind},
+    menu::{
+        GameMenusMode,
+        dialog::{self, DialogMenuKind},
+    },
+    realm::{self, Realm},
 };
 
 pub(super) const COMMANDS: &[CommandDef] = &[
@@ -85,6 +89,20 @@ pub(super) const COMMANDS: &[CommandDef] = &[
                styles if one fails to load.",
         params: &[],
         run: cmd_reload_styles,
+    },
+    CommandDef {
+        name: "ui.realm",
+        help: "The realm whose look the UI shows and why (source): override, campaign (in game, the active \
+               campaign's), custom_game (in game, the Custom Game's; not yet, as there's no Custom Game), profile (in \
+               the menus, the latest the profile reached) or default (Đại Long). realm= sets the override, which wins \
+               over the game's choice; auto clears it.",
+        params: &[ParamDef {
+            name: "realm",
+            kind: "string",
+            required: false,
+            help: "dailong, kambara, tampadesa, or auto to follow the game again. Default: leave it as it is.",
+        }],
+        run: cmd_realm,
     },
     CommandDef {
         name: "ui.layout_issues",
@@ -484,6 +502,39 @@ fn check_value(widget: &UiWidgetInfo, value: &Value) -> Result<(), CommandError>
 fn cmd_reload_styles(context: &mut CommandContext, _params: Value) -> CommandResult {
     context.engine.ui_system_mut().reload_styles().map_err(CommandError::failed)?;
     done(json!({ "reloaded": true }))
+}
+
+// ----------------------------------------------
+// Realm
+// ----------------------------------------------
+
+fn cmd_realm(context: &mut CommandContext, params: Value) -> CommandResult {
+    #[derive(Deserialize)]
+    #[serde(deny_unknown_fields)]
+    struct Params {
+        realm: Option<String>,
+    }
+
+    let params: Params = parse_params(params)?;
+    match params.realm.as_deref() {
+        Some("auto") => realm::set_override(None),
+        Some(name) => realm::set_override(Some(Realm::parse(name).map_err(CommandError::invalid_params)?)),
+        None => {}
+    }
+
+    done(ui_realm_json(context))
+}
+
+// The realm the UI shows now, why, and the override: ui.realm's result and profile.state's ui_realm.
+pub(super) fn ui_realm_json(context: &CommandContext) -> Value {
+    let in_home_menu = context.session.current_menus_mode() == Some(GameMenusMode::Home);
+    let choice = realm::ui_realm_for(in_home_menu);
+    json!({
+        "realm": choice.realm.to_string(),
+        "name": choice.realm.display_name(),
+        "source": choice.source.to_string(),
+        "override": realm::override_realm().map(|realm| realm.to_string()),
+    })
 }
 
 // ----------------------------------------------

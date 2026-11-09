@@ -7,6 +7,7 @@ use game::{
     },
     config::GameConfigs,
     debug::preset_maps,
+    realm::Realm,
     sim::{calendar::EraDef, resources::ResourceKind},
     world::stats::WorldStats,
 };
@@ -44,7 +45,9 @@ const TEST_PRESET: usize = preset_maps::PRESET_1_FARM_1_GRANARY_1_HOUSE_2_WELLS_
 fn build_test_configs() -> CampaignConfigs {
     CampaignConfigs {
         campaigns: vec![CampaignDef {
+            id: "test_campaign".into(),
             name: "Test Campaign".into(),
+            realm: Realm::DaiLong,
             missions: vec![
                 MissionDef {
                     name: "Mission 1".into(),
@@ -76,6 +79,7 @@ fn ensure_campaign_setup() {
     }
     campaign::initialize(); // No-op if already initialized.
     campaign::reset();
+    campaign::take_finished_missions(); // A reset keeps them queued: drop an earlier test's.
 }
 
 // ----------------------------------------------
@@ -164,6 +168,7 @@ fn test_tick_detects_mission_completion() {
     }
     assert!(!campaign::has_pending_prompt());
     assert!(!campaign::active_mission().unwrap().completed);
+    assert!(campaign::take_finished_missions().is_empty());
 
     // At threshold: mission completes and a MissionComplete prompt is raised.
     env.world.stats_mut().population.total = 10;
@@ -173,6 +178,26 @@ fn test_tick_detects_mission_completion() {
     }
     assert!(campaign::active_mission().unwrap().completed);
     assert_eq!(campaign::take_pending_prompt(), Some(CampaignPrompt::MissionComplete));
+
+    // The finished mission is queued once for the player's profile (GameLoop takes it).
+    assert_eq!(campaign::take_finished_missions(), vec![(0, 0)]);
+    {
+        let context = env.new_sim_context(0.0);
+        campaign::tick(&context);
+    }
+    assert!(campaign::take_finished_missions().is_empty());
+
+    // A reset in the frame a mission finishes (an automation command) keeps it queued for the
+    // profile.
+    campaign::reset();
+    campaign::start_campaign(0);
+    {
+        let context = env.new_sim_context(0.0);
+        campaign::tick(&context);
+    }
+    campaign::reset();
+    assert!(campaign::active_mission().is_none());
+    assert_eq!(campaign::take_finished_missions(), vec![(0, 0)]);
 }
 
 fn test_advance_to_next_mission() {

@@ -61,7 +61,7 @@ pub const ENGINE_CLI_OPTIONS: &[CliOption] = &[
         name: "default-configs",
         value_name: None,
         help: "Run with the default configs from assets/configs, leaving out the user configs that the settings \
-               dialog saves to saves/user/configs.json.",
+               dialog saves to saves/user/configs.json. The player's profile is still read.",
     },
     CliOption {
         name: "screenshot-after-frames",

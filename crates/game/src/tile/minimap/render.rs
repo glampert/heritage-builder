@@ -15,10 +15,10 @@ use super::{
     lens::LensData,
     model::MinimapFeature,
     shapes::{self, CellBox, MeshParams},
-    style::{self, MinimapRealm, MinimapStyle},
+    style::{self, MinimapStyle},
     widget::{BUTTON_SIZE, GAP, LEGEND_ROW_HEIGHT, MinimapLayout},
 };
-use crate::ui_context::GameUiContext;
+use crate::{realm::{self, Realm}, ui_context::GameUiContext};
 
 // ----------------------------------------------
 // MinimapTool
@@ -673,10 +673,15 @@ impl DevUiMinimapRenderer {
                 view.set_zoom(zoom);
             }
 
-            let realms = MinimapRealm::names();
-            let mut realm = MinimapRealm::iter().position(|realm| realm == style::current_realm()).unwrap_or(0);
-            if ui::combo(ui_sys, "Style", &mut realm, &realms) || ui::small_button(ui_sys, "Reload Style") {
-                if let Err(err) = style::reload(MinimapRealm::iter().nth(realm)) {
+            // The style follows the UI realm: picking one here sets the UI realm override, as
+            // ui.realm does, and "auto" clears it.
+            let realms: Vec<String> = std::iter::once("auto".to_string()).chain(Realm::names()).collect();
+            let mut choice = realm::override_realm().and_then(|chosen| Realm::iter().position(|realm| realm == chosen)).map_or(0, |index| index + 1);
+            if ui::combo(ui_sys, "Style", &mut choice, &realms) {
+                realm::set_override(choice.checked_sub(1).and_then(|index| Realm::iter().nth(index)));
+            }
+            if ui::small_button(ui_sys, "Reload Style") {
+                if let Err(err) = style::reload(realm::ui_realm()) {
                     engine::log::error!(engine::log::channel!("minimap"), "{err}");
                 }
             }

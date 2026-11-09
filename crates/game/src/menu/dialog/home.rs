@@ -43,6 +43,8 @@ impl ButtonDef for HomeButtonKind {
         match self {
             Self::NewGame    => super::open(DialogMenuKind::NewGame, CLOSE_ALL_OTHERS, context),
             Self::Campaign   => Self::on_campaign(),
+            // TODO(realm-ui): Phase 1 enables Continue: it loads profile::get().last_save (the
+            // last game saved, the autosave included) with GameLoop::load_save_game.
             Self::Continue   => false, // TODO: Continue last save game.
             Self::LoadGame   => super::open(DialogMenuKind::LoadGame, CLOSE_ALL_OTHERS, context),
             Self::CustomGame => false, // TODO: Play custom game/map.
@@ -61,6 +63,9 @@ impl HomeButtonKind {
 
     // Start the first campaign (placeholder: campaign 0) by loading its first
     // mission's map. The mission map load transitions out of the home menu.
+    // TODO(realm-ui): Phase 1 starts or resumes a reached campaign instead: the ones whose
+    // profile record is reached (profile::get().is_reached(id)), at the mission after its
+    // missions_finished, with a campaign picker when more than one is reached.
     fn on_campaign() -> bool {
         const FIRST_CAMPAIGN_ID: usize = 0;
         match campaign::start_campaign(FIRST_CAMPAIGN_ID) {

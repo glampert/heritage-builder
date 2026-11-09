@@ -1,7 +1,9 @@
 {
   "campaigns": [
     {
+      "id": "dragon_legacy",
       "name": "The Dragon Legacy",
+      "realm": "dailong",
       "eras": [
         { "name": "Long Thái", "start_year": 1 }
       ],

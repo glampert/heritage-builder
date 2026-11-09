@@ -107,7 +107,7 @@ jobs:
           mkdir -p logs
           for scenario in smoke water_edges calendar construction renovation goods finance ui_new_game ui_build ui_dev_menus minimap; do
             echo "::group::$scenario"
-            target/release/HeritageBuilder --script "crates/game/tests/scenarios/$scenario.jsonl" \
+            target/release/HeritageBuilder --fresh-profile --script "crates/game/tests/scenarios/$scenario.jsonl" \
               2> "logs/$scenario.log"
             echo "::endgroup::"
           done
@@ -119,7 +119,7 @@ jobs:
           LIBGL_ALWAYS_SOFTWARE: "1"
         run: |
           for run in 1 2; do
-            target/release/HeritageBuilder --seed 7 --window-size 1280x720 \
+            target/release/HeritageBuilder --fresh-profile --seed 7 --window-size 1280x720 \
               --script crates/game/tests/scenarios/determinism.jsonl \
               > "logs/determinism-$run.jsonl" 2> "logs/determinism-$run.log"
             cp saves/determinism.json "logs/determinism-$run.json"
@@ -136,10 +136,10 @@ jobs:
         run: |
           for scenario in ui_build determinism; do
             echo "::group::$scenario"
-            target/release/HeritageBuilder --seed 7 --window-size 1280x720 \
+            target/release/HeritageBuilder --fresh-profile --seed 7 --window-size 1280x720 \
               --script "crates/game/tests/scenarios/$scenario.jsonl" \
               --record "logs/$scenario.rec.jsonl" > /dev/null 2> "logs/$scenario-record.log"
-            target/release/HeritageBuilder --replay "logs/$scenario.rec.jsonl" > "logs/$scenario-replay.log" 2>&1 \
+            target/release/HeritageBuilder --fresh-profile --replay "logs/$scenario.rec.jsonl" > "logs/$scenario-replay.log" 2>&1 \
               || { tail -n 20 "logs/$scenario-replay.log"; exit 1; }
             grep 'Replay matched' "logs/$scenario-replay.log"
             echo "::endgroup::"

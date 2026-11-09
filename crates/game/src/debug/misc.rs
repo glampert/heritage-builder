@@ -201,6 +201,7 @@ impl CampaignConfigs {
             let campaign_header = format_small!("[{campaign_id}] {} ({} missions)", campaign.name, campaign.missions.len());
             if let Some(_path) = ui::collapsing_header_scope(ui_sys, &campaign_header, false) {
                 ui::indent(ui_sys, 10.0, |ui_sys| {
+                    ui::text(ui_sys, format_small!("Id: {}  Realm: {}", campaign.id, campaign.realm));
                     for (mission_index, mission) in campaign.missions.iter().enumerate() {
                         // Indices keep the collapsing_header id unique across missions
                         // (even when two missions share the same name).

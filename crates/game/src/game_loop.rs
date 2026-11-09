@@ -26,6 +26,7 @@ use crate::{
     cheats,
     debug::{self, log_viewer::LogViewer},
     launch,
+    profile,
     undo_redo,
     menu::GameMenusMode,
     config::GameConfigs,
@@ -157,6 +158,21 @@ impl RunLoop for GameLoop {
         // Command-line options (--map, --seed, ...):
         let launch_options = launch::initialize(configs);
 
+        // The player's profile, before the first session: the home menu's realm comes from it.
+        // GameLoop isn't initialized while that session's menus are built, so they must pass
+        // their menus mode to realm::ui_realm_for rather than call realm::ui_realm.
+        // Scripts, replays and the smoke test keep it in memory so their runs leave no file and
+        // don't depend on each other; a replay uses the recording's, unless --fresh-profile.
+        let fresh_profile = launch_options.fresh_profile;
+        profile::initialize(profile::ProfileOptions {
+            read_file: !fresh_profile,
+            write_file: !fresh_profile
+                && launch_options.script.is_none()
+                && !launch_options.smoke_test_saves
+                && !engine.is_replaying(),
+            recorded: automation::recording::recorded_profile(engine),
+        });
+
         // Optional save-load smoke test run mode:
         let smoke_test = launch_options.smoke_test_saves.then(SaveSmokeTest::new);
 
@@ -231,6 +247,7 @@ impl RunLoop for GameLoop {
         self.update_screenshots();
         self.notify_constructions_completed();
         self.notify_finances();
+        self.record_finished_missions();
         self.session_cmd_queue.execute(&mut self.session, self.engine, self.configs);
 
         // Automation commands run here: the world is unlocked and no SimContext is live.
@@ -525,6 +542,13 @@ impl GameLoop {
     fn notify_finances(&mut self) {
         for message in sim::finance::take_notices() {
             self.engine.ui_system().show_toast(message);
+        }
+    }
+
+    // The campaign missions whose goals were met last frame go in the player's profile.
+    fn record_finished_missions(&mut self) {
+        for (campaign_id, mission_index) in campaign::take_finished_missions() {
+            profile::on_mission_finished(campaign_id, mission_index);
         }
     }
 

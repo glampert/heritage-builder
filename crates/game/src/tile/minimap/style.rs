@@ -1,18 +1,19 @@
 // Minimap styles: one JSON file per realm under assets/configs/ui/minimap/, with the palette, bake
 // settings, shape sizes, frame and button sprites. Every field has a default (Đại Long's, from
-// the mockups); an unknown field is an error. Loaded on first use, and again by the
-// minimap.reload_style command.
+// the mockups); an unknown field is an error. The style follows the UI realm (realm::ui_realm):
+// loaded on first use and whenever that realm changes, and again by the minimap.reload_style
+// command.
 
 use std::collections::BTreeMap;
 
 use serde::{Deserialize, Deserializer};
-use strum::{Display, EnumIter, EnumString, IntoEnumIterator};
+use strum::IntoEnumIterator;
 
 use common::Color;
 use engine::{config, file_sys, log};
 
 use super::model::LandmarkKind;
-use crate::tile::sets::TileSector;
+use crate::{realm::{self, Realm}, tile::sets::TileSector};
 
 // ----------------------------------------------
 // HexColor
@@ -61,31 +62,6 @@ impl<'de> Deserialize<'de> for HexColor {
     fn deserialize<D: Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
         let text = String::deserialize(deserializer)?;
         Self::parse(&text).ok_or_else(|| serde::de::Error::custom(format!("expected a colour as \"#RRGGBB\" or \"#RRGGBBAA\", got \"{text}\"")))
-    }
-}
-
-// ----------------------------------------------
-// MinimapRealm
-// ----------------------------------------------
-
-// Which realm's style the minimap uses. The game doesn't track a current realm yet, so it's Đại
-// Long's unless minimap.reload_style picks another.
-#[derive(Copy, Clone, Default, PartialEq, Eq, Debug, Display, EnumIter, EnumString)]
-#[strum(serialize_all = "lowercase")]
-pub enum MinimapRealm {
-    #[default]
-    DaiLong,
-    Kambara,
-    Tampadesa,
-}
-
-impl MinimapRealm {
-    pub fn file_name(self) -> String {
-        format!("ui/minimap/{self}.json")
-    }
-
-    pub fn names() -> Vec<String> {
-        Self::iter().map(|realm| realm.to_string()).collect()
     }
 }
 
@@ -412,16 +388,15 @@ impl Default for LensStyle {
 impl MinimapStyle {
     // Đại Long's file is the base: another realm's file holds only what it changes, merged over
     // it (objects field by field, anything else replaced). Fields neither file sets take the
-    // defaults in code.
-    pub fn load(realm: MinimapRealm) -> Result<Self, String> {
-        let read = |realm: MinimapRealm| -> Result<serde_json::Value, String> {
-            let path = config::configs_path().join(realm.file_name());
-            let json = file_sys::load_string(&path).map_err(|err| format!("Can't read minimap style {path}: {err}"))?;
-            serde_json::from_str(&json).map_err(|err| format!("Invalid minimap style {path}: {err}"))
-        };
+    // defaults in code. Reads the files each time.
+    pub fn load(realm: Realm) -> Result<Self, String> {
+        Self::load_with(realm, |realm| parse_style_file(realm, &read_style_file(realm)?))
+    }
 
-        let mut value = read(MinimapRealm::DaiLong)?;
-        if realm != MinimapRealm::DaiLong {
+    // The same, with the files' JSON from `read`.
+    fn load_with(realm: Realm, mut read: impl FnMut(Realm) -> Result<serde_json::Value, String>) -> Result<Self, String> {
+        let mut value = read(Realm::DaiLong)?;
+        if realm != Realm::DaiLong {
             merge_json(&mut value, read(realm)?);
         }
         serde_json::from_value(value).map_err(|err| format!("Invalid minimap style for {realm}: {err}"))
@@ -467,6 +442,15 @@ impl MinimapStyle {
     }
 }
 
+fn read_style_file(realm: Realm) -> Result<String, String> {
+    let path = config::configs_path().join(realm.minimap_style_file());
+    file_sys::load_string(&path).map_err(|err| format!("Can't read minimap style {path}: {err}"))
+}
+
+fn parse_style_file(realm: Realm, json: &str) -> Result<serde_json::Value, String> {
+    serde_json::from_str(json).map_err(|err| format!("Invalid minimap style {}: {err}", realm.minimap_style_file()))
+}
+
 // `overlay` over `base`: objects merged key by key, anything else replaced.
 fn merge_json(base: &mut serde_json::Value, overlay: serde_json::Value) {
     match (base, overlay) {
@@ -490,34 +474,92 @@ fn merge_json(base: &mut serde_json::Value, overlay: serde_json::Value) {
 
 pub struct MinimapStyles {
     current: Option<MinimapStyle>,
-    realm: MinimapRealm,
+    realm: Realm, // The realm of the current style: Đại Long's for the defaults, before any loads.
+    // The realm follow() last asked for, whether its style loaded or not, so a broken file isn't
+    // retried every frame. None before the first.
+    followed: Option<Realm>,
     version: u32, // Goes up each time the style changes, so the minimap rebuilds what it baked.
+    // The files' JSON as last read, by realm. The web build can read an asset only once, so
+    // switching realms there takes the files from here.
+    files: Vec<(Realm, serde_json::Value)>,
 }
 
 impl MinimapStyles {
     const fn new() -> Self {
-        Self { current: None, realm: MinimapRealm::DaiLong, version: 0 }
+        Self { current: None, realm: Realm::DaiLong, followed: None, version: 0, files: Vec::new() }
+    }
+
+    // A realm's file as JSON: read again if `reread` (to see edits) or not read yet, else the
+    // copy from the last read. One that can't be read or doesn't parse is an error, except that
+    // the web build, which can read an asset only once, rereads the copy.
+    fn file_json(&mut self, realm: Realm, reread: bool) -> Result<serde_json::Value, String> {
+        let cached = self.files.iter().position(|(file_realm, _)| *file_realm == realm);
+        if let Some(index) = cached
+            && !reread
+        {
+            return Ok(self.files[index].1.clone());
+        }
+
+        let text = match (read_style_file(realm), cached) {
+            (Ok(text), _) => text,
+            (Err(_), Some(index)) if cfg!(feature = "web") => return Ok(self.files[index].1.clone()),
+            (Err(err), _) => return Err(err),
+        };
+
+        let value = parse_style_file(realm, &text)?;
+        match cached {
+            Some(index) => self.files[index].1 = value.clone(),
+            None => self.files.push((realm, value.clone())),
+        }
+        Ok(value)
+    }
+
+    // Loads `realm`'s style. If it fails, the current style and realm stay (the defaults, if
+    // there's no style yet).
+    fn load(&mut self, realm: Realm, reread: bool) -> Result<(), String> {
+        match MinimapStyle::load_with(realm, |realm| self.file_json(realm, reread)) {
+            Ok(style) => {
+                self.current = Some(style);
+                self.realm = realm;
+                self.version += 1;
+                Ok(())
+            }
+            Err(err) => {
+                if self.current.is_none() {
+                    self.current = Some(MinimapStyle::default());
+                    self.version += 1;
+                }
+                Err(err)
+            }
+        }
     }
 }
 
 common::singleton! { MINIMAP_STYLES, MinimapStyles }
 
-// The current style, loaded on first use. A file that fails to load logs an error and leaves
-// the defaults.
+// The current style: the UI realm's, loaded on first use and when that realm changes. A file
+// that fails to load logs an error once and leaves the defaults (or the style before).
 pub fn current() -> &'static MinimapStyle {
+    follow(realm::ui_realm())
+}
+
+// The style of `realm`, loaded if follow() didn't ask for it last. For callers that know the UI
+// realm, such as automation commands.
+pub fn follow(realm: Realm) -> &'static MinimapStyle {
     let styles = MinimapStyles::get_mut();
-    if styles.current.is_none() {
-        let style = MinimapStyle::load(styles.realm).unwrap_or_else(|err| {
-            log::error!(log::channel!("minimap"), "{err}");
-            MinimapStyle::default()
-        });
-        styles.current = Some(style);
-        styles.version += 1;
+    if styles.current.is_none() || styles.followed != Some(realm) {
+        styles.followed = Some(realm);
+        match styles.load(realm, false) {
+            Ok(()) => log::info!(log::channel!("minimap"), "Loaded minimap style '{realm}'."),
+            Err(err) => log::error!(log::channel!("minimap"), "{err}"),
+        }
     }
     styles.current.as_ref().unwrap()
 }
 
-pub fn current_realm() -> MinimapRealm {
+// The realm of the style in use: Đại Long while it's the defaults, and the one before when a
+// realm's style failed to load.
+pub fn current_realm() -> Realm {
     MinimapStyles::get().realm
 }
 
@@ -526,15 +568,13 @@ pub fn version() -> u32 {
     MinimapStyles::get().version
 }
 
-// Loads the style of `realm` (the current one if None) again. Keeps the current style if the
-// file fails to load.
-pub fn reload(realm: Option<MinimapRealm>) -> Result<MinimapRealm, String> {
+// Reads the style files of `realm` again, e.g. after editing them. If they fail to load, nothing
+// changes. Another realm than the UI's is taken back at the next current(): pick the realm with
+// realm::set_override (ui.realm) instead.
+pub fn reload(realm: Realm) -> Result<Realm, String> {
     let styles = MinimapStyles::get_mut();
-    let realm = realm.unwrap_or(styles.realm);
-    let style = MinimapStyle::load(realm)?;
-    styles.current = Some(style);
-    styles.realm = realm;
-    styles.version += 1;
+    styles.load(realm, true)?;
+    styles.followed = Some(realm);
     log::info!(log::channel!("minimap"), "Loaded minimap style '{realm}'.");
     Ok(realm)
 }

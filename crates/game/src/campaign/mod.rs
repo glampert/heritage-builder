@@ -60,6 +60,9 @@ pub struct CampaignManager {
     // Set while a campaign-driven mission load is in flight, so the loaded base
     // map's (empty) progress snapshot does not clobber the intended active mission.
     suppress_snapshot_restore: bool,
+    // Missions whose goals were met since GameLoop last took them, as (campaign id,
+    // mission index): the player's profile records them (take_finished_missions).
+    finished_missions: Vec<(usize, usize)>,
 }
 
 impl CampaignManager {
@@ -68,6 +71,7 @@ impl CampaignManager {
             progress: CampaignProgress::default(),
             pending_prompt: None,
             suppress_snapshot_restore: false,
+            finished_missions: Vec::new(),
         }
     }
 }
@@ -85,9 +89,14 @@ pub fn initialize() {
     CampaignManager::initialize(CampaignManager::new());
 }
 
-// Clear all campaign state (e.g. quitting to main menu or starting a sandbox game).
+// Clear all campaign state (e.g. quitting to main menu or starting a sandbox game). The missions
+// finished but not yet taken stay queued for the profile: an automation command can reset the
+// campaign in the frame a mission finishes (a time.fast_forward, then a session.new_map), before
+// GameLoop takes them.
 pub fn reset() {
-    *CampaignManager::get_mut() = CampaignManager::new();
+    let mgr = CampaignManager::get_mut();
+    let finished_missions = std::mem::take(&mut mgr.finished_missions);
+    *mgr = CampaignManager { finished_missions, ..CampaignManager::new() };
 }
 
 pub fn active_mission() -> Option<ActiveMission> {
@@ -142,6 +151,12 @@ pub fn has_pending_prompt() -> bool {
 
 pub fn take_pending_prompt() -> Option<CampaignPrompt> {
     CampaignManager::get_mut().pending_prompt.take()
+}
+
+// The missions finished since the last call, as (campaign id, mission index). tick() runs inside
+// the simulation step, so GameLoop takes them each frame and records them in the profile.
+pub fn take_finished_missions() -> Vec<(usize, usize)> {
+    std::mem::take(&mut CampaignManager::get_mut().finished_missions)
 }
 
 // Snapshot for the session save.
@@ -224,5 +239,6 @@ pub fn tick(context: &SimContext) {
             active.completed = true;
         }
         mgr.pending_prompt = Some(CampaignPrompt::MissionComplete);
+        mgr.finished_missions.push((campaign_id, mission_index));
     }
 }

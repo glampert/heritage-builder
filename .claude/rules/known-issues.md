@@ -16,7 +16,7 @@ Last verified against the code on 2026-11-07. Remove an entry once it's resolved
 
 - Water shores are recomputed only when terrain is placed, so a save made before 2026-10-20, when the composed shore variations (channels, bays, several corners) were added, still draws plain water in a one-cell channel until the land next to it is placed again. Loading doesn't recompute them — `crates/game/src/session.rs`, see `.claude/rules/terrain-tiles.md`.
 
-- In a MacOS `.app` bundle, `paths::base_path()` is `Contents/Resources`, the directory that holds `assets/`, so the game writes `saves/` (user configs included), `cache/`, `logs/` and `screenshots/` inside the bundle. That fails or breaks the code signature for an installed app; they belong in `~/Library/Application Support` — `crates/engine/src/file_sys/desktop.rs` (`find_base_path`).
+- In a MacOS `.app` bundle, `paths::base_path()` is `Contents/Resources`, the directory that holds `assets/`, so the game writes `saves/` (the user configs and the player's profile included), `cache/`, `logs/` and `screenshots/` inside the bundle. That fails or breaks the code signature for an installed app; they belong in `~/Library/Application Support` — `crates/engine/src/file_sys/desktop.rs` (`find_base_path`).
 
 ## Failure handling
 

@@ -1,6 +1,9 @@
 use serde::{Deserialize, Serialize};
 
+use engine::log;
+
 use crate::{
+    realm::Realm,
     sim::{calendar::EraDef, finance::TaxLevel, resources::ResourceKind},
     world::stats::WorldStats,
 };
@@ -19,7 +22,15 @@ pub struct CampaignConfigs {
 // A single campaign: an ordered sequence of missions.
 #[derive(Serialize, Deserialize)]
 pub struct CampaignDef {
+    // Names the campaign in the player's profile, so their progress survives reordering this
+    // file. One left out becomes "campaign_<index>" when the configs load.
+    #[serde(default)]
+    pub id: String,
     pub name: String,
+    // The realm whose look the UI takes while the campaign is played, and in the menus once the
+    // campaign is the latest reached (see realm::ui_realm).
+    #[serde(default)]
+    pub realm: Realm,
     pub missions: Vec<MissionDef>,
     // The realm's eras, in the order they start: the calendar counts years from the latest.
     #[serde(default)]
@@ -121,6 +132,26 @@ impl CampaignConfigs {
         self.campaign(campaign_id)?.missions.get(mission_index)
     }
 
+    // The index of the campaign with this id (CampaignDef::id).
+    pub fn find_by_id(&self, id: &str) -> Option<usize> {
+        self.campaigns.iter().position(|campaign| campaign.id == id)
+    }
+
+    // Called once the configs load (shadows engine::config::Configs::post_load): every campaign
+    // gets an id, since the profile records progress by id.
+    fn post_load(&'static mut self) {
+        for (index, campaign) in self.campaigns.iter_mut().enumerate() {
+            if campaign.id.is_empty() {
+                campaign.id = format!("campaign_{index}");
+                log::warning!(log::channel!("campaign"), "Campaign '{}' has no id: using '{}'.", campaign.name, campaign.id);
+            }
+        }
+        for (index, campaign) in self.campaigns.iter().enumerate() {
+            if self.campaigns[..index].iter().any(|other| other.id == campaign.id) {
+                log::error!(log::channel!("campaign"), "Two campaigns have the id '{}': the profile can't tell them apart.", campaign.id);
+            }
+        }
+    }
 }
 
 // ----------------------------------------------

@@ -13,12 +13,14 @@ use engine::{cli, render::capture::CapturedImage, screenshot};
 use super::{CellParam, cell_json};
 use crate::{
     automation::{CommandContext, CommandDef, CommandError, CommandResult, ParamDef, done, parse_params},
+    menu::GameMenusMode,
+    realm::{self, Realm},
     tile::minimap::{
         MINIMAP_ICON_DEFAULT_LIFETIME,
         MinimapIcon,
         MinimapLens,
         model::LandmarkKind,
-        style::{self, MinimapRealm},
+        style,
     },
 };
 
@@ -52,9 +54,15 @@ pub(super) const COMMANDS: &[CommandDef] = &[
     },
     CommandDef {
         name: "minimap.reload_style",
-        help: "Load the minimap's style file again (assets/configs/ui/minimap/<realm>.json), e.g. after editing it, or \
-               another realm's. Keeps the current style if the file fails to load.",
-        params: &[ParamDef { name: "realm", kind: "string", required: false, help: "dailong, kambara or tampadesa. Default: the current one." }],
+        help: "Load the minimap's style files again (assets/configs/ui/minimap/<realm>.json), e.g. after editing one. \
+               The style follows the UI realm: realm= sets the UI realm override first, as ui.realm does. If a file \
+               fails to load, nothing changes: the style, the realm and the override stay as they were.",
+        params: &[ParamDef {
+            name: "realm",
+            kind: "string",
+            required: false,
+            help: "dailong, kambara, tampadesa, or auto to clear the override. Default: the UI realm now.",
+        }],
         run: cmd_reload_style,
     },
     CommandDef {
@@ -70,6 +78,7 @@ pub(super) const COMMANDS: &[CommandDef] = &[
 
 fn cmd_state(context: &mut CommandContext, _params: Value) -> CommandResult {
     context.require_map()?;
+    style::follow(realm::ui_realm_for(false).realm); // So "realm" reports the UI realm's style, after a ui.realm.
     done(minimap_state(context))
 }
 
@@ -195,16 +204,24 @@ fn cmd_reload_style(context: &mut CommandContext, params: Value) -> CommandResul
     }
 
     let params: Params = parse_params(params)?;
-    let realm = match &params.realm {
-        Some(name) => Some(MinimapRealm::from_str(name).map_err(|_| {
-            CommandError::invalid_params(format!("Unknown realm '{name}'. Realms: {}.", MinimapRealm::names().join(", ")))
-        })?),
-        None => None,
-    };
 
-    let realm = style::reload(realm).map_err(CommandError::failed)?;
-    let _ = context;
-    done(json!({ "realm": realm.to_string() }))
+    // The override the realm= asks for goes in first, so the UI realm is the one to reload, and
+    // comes out again if the reload fails: a failure changes nothing.
+    let previous_override = realm::override_realm();
+    match params.realm.as_deref() {
+        Some("auto") => realm::set_override(None),
+        Some(name) => realm::set_override(Some(Realm::parse(name).map_err(CommandError::invalid_params)?)),
+        None => {}
+    }
+
+    let in_home_menu = context.session.current_menus_mode() == Some(GameMenusMode::Home);
+    match style::reload(realm::ui_realm_for(in_home_menu).realm) {
+        Ok(realm) => done(json!({ "realm": realm.to_string() })),
+        Err(err) => {
+            realm::set_override(previous_override);
+            Err(CommandError::failed(err))
+        }
+    }
 }
 
 fn cmd_export(context: &mut CommandContext, params: Value) -> CommandResult {

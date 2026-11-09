@@ -19,7 +19,7 @@ All three run the same commands with the same JSON parameters and results.
 
 - MCP: `game_launch` with `args`, e.g. `["--map", "preset:2", "--fixed-dt", "0.016667"]`. It builds the game first (slow the first time). `game_connect` attaches to one already running with `--automation`.
 - Bash: `cargo run -q -p hb-ctl -- launch --map preset:2 --fixed-dt 0.016667`. It prints the pid, port and log file (`logs/game-<pid>.log`).
-- Start options: `--map preset:N` (debug presets, 9x9 to 15x15; `session.list_presets`), `--map empty:WxH`, `--load-save NAME`, `--seed N`, `--fixed-dt SECONDS`, `--window-size WxH`. `--render-api Wgpu` (or `OpenGl`) picks the renderer without editing `configs.json`.
+- Start options: `--map preset:N` (debug presets, 9x9 to 15x15; `session.list_presets`), `--map empty:WxH`, `--load-save NAME`, `--seed N`, `--fixed-dt SECONDS`, `--window-size WxH`, `--fresh-profile` (an empty player profile; the run neither reads nor writes `saves/user/profile.json`, which a live game otherwise does). `--render-api Wgpu` (or `OpenGl`) picks the renderer without editing `configs.json`.
 - In a running game: `session.new_map size=[16,16]`, `session.load_preset preset=2`, `session.load_save name=...`.
 
 ## Act and look
@@ -54,7 +54,7 @@ To test what a player sees, drive the menus and the map with the simulated mouse
 ## Scripts
 
 ```bash
-cargo run -p HeritageBuilder -- --script crates/game/tests/scenarios/smoke.jsonl 2>/dev/null
+cargo run -p HeritageBuilder -- --fresh-profile --script crates/game/tests/scenarios/smoke.jsonl 2>/dev/null
 ```
 
 One command per line (`{"method": ..., "params": {...}}` or `name key=value ...`), `#` comments. Prints a JSON result line per command and a summary; exits 0 if all succeeded, 1 if not, 2 if the file is invalid. Logs go to stderr. Examples: `crates/game/tests/scenarios/`.
