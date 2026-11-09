@@ -1,12 +1,13 @@
 # Known issues and unfinished work
 
-Last verified against the code on 2026-11-07. Remove an entry once it's resolved.
+Last verified against the code on 2026-11-09. Remove an entry once it's resolved.
 
 ## Unfinished features
 
 - Home menu **Continue** (resume last save) and **Custom Game** buttons are disabled placeholders (`Enabled = false`; `on_pressed` returns `false` with a TODO) — `crates/game/src/menu/dialog/home.rs`.
 - Ambient sounds ignore game state; which sound plays is a placeholder (two TODOs) — `crates/game/src/system/ambient_sounds.rs`.
 - Construction art is generic, by footprint size only. A site draws the same scaffold for every building of its size, and the renovation overlay is a scaffold around the house's front corner. On the 3×3 and 4×4 houses, whose buildings stand at the back, that scaffold stands in the front courtyard (`crates/tools/blender-tile-generator/hbgen/recipes/overlays.py`). The art isn't tinted per realm yet (GDD 5.1.2). The completion sound reuses the UI's tile placed sound (`UiSoundKey::ConstructionCompleted`).
+- City risks are on outside campaigns, but the fire watch and the builders' guild have no building configs until M6 Phase 2, so nothing resets a risk or puts out a fire in play. An unvisited building burns down or collapses after its risk builds up (about a year for a thatch house), and a fire spreads to the buildings next to it. `risks.set enabled=false` or the `no_city_risks` cheat stops it — `docs/plans/city-risks.md`.
 - The construction plan's "fast build" option belongs in Custom Game settings, which don't exist yet. Until then `SimConfigs::construction.time_scale` is edited in the debug Game Configs window or with `config.set`, and the `instant_construction` cheat skips sites.
 
 ## Open bugs / design questions

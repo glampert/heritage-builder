@@ -186,7 +186,8 @@ impl Record {
         let tile_variation_index = tile_state.tile_variation_index;
 
         let mut tile_flags = tile_state.tile_flags;
-        tile_flags.set(TileFlags::Highlighted | TileFlags::Invalidated, false); // clear these.
+        // Clear these. A building comes back with new risks, not burning.
+        tile_flags.set(TileFlags::Highlighted | TileFlags::Invalidated | TileFlags::Burning, false);
 
         // A construction site goes back as a new site, charged again: its cost was refunded when
         // it was cleared or undone. The new site sets its own flags.

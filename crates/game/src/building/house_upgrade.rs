@@ -17,6 +17,7 @@ use super::{
     house::{HouseLevel, HouseLevelConfig},
 };
 use crate::{
+    config::GameConfigs,
     sim::SimCmds,
     world::object::{GameObject, Spawner},
     pathfind::{Node, NodeKind as PathNodeKind},
@@ -202,6 +203,8 @@ pub fn try_replace_tile(
     if new_cell_range != prev_cell_range {
         dest_house.map_cells = new_cell_range;
         context.update_cell_range(new_cell_range);
+        // Its risk rates' jitter follows the base cell, as a load would compute it.
+        dest_house.risks.refresh_jitter(new_cell_range.start, dest_house.kind, &GameConfigs::get().sim.risks);
     }
 
     true
@@ -570,9 +573,11 @@ fn house_for_id_mut<'game>(context: &'game BuildingContext, id: BuildingId) -> &
         .expect("Invalid Building id! Expected to have a valid House Building.")
 }
 
+// A house to merge with or expand into. A burning one is neither: the fire must burn it down
+// or be put out first.
 fn find_house_for_cell<'game>(context: &'game BuildingContext, cell: Cell) -> Option<&'game Building> {
     if let Some(building) = context.sim_ctx.find_building_for_cell(cell) {
-        if building.is(BuildingKind::House) {
+        if building.is(BuildingKind::House) && !building.is_burning() && !building.risks().is_doomed() {
             return Some(building);
         }
     }

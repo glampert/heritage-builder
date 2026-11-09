@@ -231,6 +231,7 @@ impl RunLoop for GameLoop {
         self.update_screenshots();
         self.notify_constructions_completed();
         self.notify_finances();
+        self.notify_risks();
         self.session_cmd_queue.execute(&mut self.session, self.engine, self.configs);
 
         // Automation commands run here: the world is unlocked and no SimContext is live.
@@ -524,6 +525,14 @@ impl GameLoop {
     // A toast for each debt notice the simulation raised last frame (sim::finance).
     fn notify_finances(&mut self) {
         for message in sim::finance::take_notices() {
+            self.engine.ui_system().show_toast(message);
+        }
+    }
+
+    // A toast for each fire, fire put out, building burnt down and collapse last frame
+    // (building::risks).
+    fn notify_risks(&mut self) {
+        for message in building::risks::take_notices() {
             self.engine.ui_system().show_toast(message);
         }
     }

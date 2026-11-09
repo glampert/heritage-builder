@@ -1,18 +1,21 @@
-// City risks commands: each building's fire and collapse risk, and whether they build up at all
-// (building::risks, sim::risks, docs/plans/city-risks.md).
+// City risks commands: each building's fire and collapse risk, whether they build up at all,
+// and fires and collapses on demand (building::risks, sim::risks, docs/plans/city-risks.md).
 
 use serde::Deserialize;
 use serde_json::{Value, json};
 
-use super::{CellParam, cell_json};
+use super::{CellParam, cell_json, refresh_world_stats};
 use crate::{
     automation::{CommandContext, CommandDef, CommandError, CommandResult, ParamDef, done, parse_params},
     building::{
         Building,
+        BuildingKindAndId,
+        destruction::{self, Destruction},
         risks::{MAX_RISK, RISK_HIGH, RiskKind},
     },
     cheats,
     config::GameConfigs,
+    sim::commands::ImmediateModeSimCmds,
 };
 
 // How many of the riskiest buildings risks.state lists.
@@ -22,7 +25,7 @@ pub(super) const COMMANDS: &[CommandDef] = &[
     CommandDef {
         name: "risks.state",
         help: "Whether fire and collapse risks build up, how many buildings are at high risk (75 or more), the \
-               highest risks, and the riskiest buildings with their risks (0 to 100).",
+               highest risks, the riskiest buildings with their risks (0 to 100), and the fires burning.",
         params: &[],
         run: cmd_state,
     },
@@ -37,6 +40,20 @@ pub(super) const COMMANDS: &[CommandDef] = &[
             ParamDef { name: "collapse", kind: "number", required: false, help: "Collapse risk, 0 to 100. Needs cell." },
         ],
         run: cmd_set,
+    },
+    CommandDef {
+        name: "risks.ignite",
+        help: "Set a building on fire, as a fire risk at 100 does. It burns down after burn_secs unless a fire \
+               watcher puts it out, and raises its neighbours' fire risk meanwhile; both only while risks are on.",
+        params: &[ParamDef { name: "cell", kind: "cell", required: true, help: "[x, y]: any cell of the building." }],
+        run: cmd_ignite,
+    },
+    CommandDef {
+        name: "risks.collapse",
+        help: "Collapse a building now, as a collapse risk at 100 does: it leaves rubble on its cells, and what it \
+               held is lost.",
+        params: &[ParamDef { name: "cell", kind: "cell", required: true, help: "[x, y]: any cell of the building." }],
+        run: cmd_collapse,
     },
 ];
 
@@ -70,15 +87,7 @@ fn cmd_set(context: &mut CommandContext, params: Value) -> CommandResult {
         }
     }
     let target = match params.cell {
-        Some(CellParam(cell)) => {
-            context.require_cell_in_map(cell)?;
-            let session = &*context.session;
-            let building = session
-                .world()
-                .find_building_for_cell(cell, session.tile_map())
-                .ok_or_else(|| CommandError::not_found(format!("No building at [{}, {}].", cell.x, cell.y)))?;
-            Some(building.kind_and_id())
-        }
+        Some(CellParam(cell)) => Some(building_at(context, cell)?),
         None => None,
     };
 
@@ -103,13 +112,102 @@ fn cmd_set(context: &mut CommandContext, params: Value) -> CommandResult {
     done(reply)
 }
 
+fn cmd_ignite(context: &mut CommandContext, params: Value) -> CommandResult {
+    #[derive(Deserialize)]
+    #[serde(deny_unknown_fields)]
+    struct Params {
+        cell: CellParam,
+    }
+
+    let params: Params = parse_params(params)?;
+    context.require_map()?;
+    let target = building_at(context, params.cell.0)?;
+    check_can(context, target, "catch fire", Building::can_catch_fire, "fire")?;
+
+    let delta_time_secs = context.engine.frame_clock().delta_time();
+    context.session.with_sim_context(delta_time_secs, |sim_context| {
+        let building = sim_context.find_building_mut(target.kind, target.id).unwrap();
+        let mut cmds = ImmediateModeSimCmds::new(sim_context);
+        building.ignite(&mut cmds, sim_context);
+    });
+
+    let building = context.session.world().find_building(target.kind, target.id).unwrap();
+    let mut reply = json!({ "name": building.name(), "cell": cell_json(building.base_cell()) });
+    reply["risks"] = building_risks_json(building);
+    done(reply)
+}
+
+fn cmd_collapse(context: &mut CommandContext, params: Value) -> CommandResult {
+    #[derive(Deserialize)]
+    #[serde(deny_unknown_fields)]
+    struct Params {
+        cell: CellParam,
+    }
+
+    let params: Params = parse_params(params)?;
+    context.require_map()?;
+    let target = building_at(context, params.cell.0)?;
+    check_can(context, target, "collapse", Building::can_collapse, "collapse")?;
+
+    let (name, footprint) = {
+        let building = context.session.world().find_building(target.kind, target.id).unwrap();
+        (building.name(), building.cell_range())
+    };
+
+    let delta_time_secs = context.engine.frame_clock().delta_time();
+    context.session.with_sim_context(delta_time_secs, |sim_context| {
+        destruction::destroy_building(sim_context, target, Destruction::Collapsed)
+    });
+    refresh_world_stats(context);
+
+    done(json!({
+        "name": name,
+        "cell": cell_json(footprint.start),
+        "rubble": [cell_json(footprint.start), cell_json(footprint.end)],
+    }))
+}
+
+// The building covering `cell`.
+fn building_at(context: &CommandContext, cell: common::coords::Cell) -> Result<BuildingKindAndId, CommandError> {
+    context.require_cell_in_map(cell)?;
+    let session = &*context.session;
+    session
+        .world()
+        .find_building_for_cell(cell, session.tile_map())
+        .map(Building::kind_and_id)
+        .ok_or_else(|| CommandError::not_found(format!("No building at [{}, {}].", cell.x, cell.y)))
+}
+
+// Fails with the reason when the building can't `what` now (see Building::can_catch_fire and
+// can_collapse); `risk` names the config rate it needs.
+fn check_can(
+    context: &CommandContext,
+    target: BuildingKindAndId,
+    what: &str,
+    can: fn(&Building) -> bool,
+    risk: &str,
+) -> Result<(), CommandError> {
+    let building = context.session.world().find_building(target.kind, target.id).unwrap();
+    if can(building) {
+        return Ok(());
+    }
+    let reason = if building.is_under_construction() {
+        "it's a construction site".to_string()
+    } else if building.is_burning() {
+        "it's burning".to_string()
+    } else {
+        format!("its config gives it no {risk} risk")
+    };
+    Err(CommandError::failed(format!("The {} can't {what}: {reason}.", building.name())))
+}
+
 // Risks are fractional; two decimals are plenty to read and compare.
 fn round(value: f32) -> f64 {
     (f64::from(value) * 100.0).round() / 100.0
 }
 
-// A building's risks, for world.building_at and risks.set: the two risks, whether a well reaches
-// it, the rates they build up at now (points per month), and the fire's state (Phase 1).
+// A building's risks, for world.building_at, risks.set and risks.ignite: the two risks, whether a
+// well reaches it, the rates they build up at now (points per month), and its fire, if any.
 pub(super) fn building_risks_json(building: &Building) -> Value {
     let risks = building.risks();
     let rates = building.risk_rates();
@@ -132,6 +230,7 @@ fn state_json(context: &CommandContext) -> Value {
     let (mut max_fire, mut max_collapse) = (0.0_f32, 0.0_f32);
     // (highest risk, cell, entry) per building, sorted below.
     let mut riskiest: Vec<(f32, (i32, i32), Value)> = Vec::new();
+    let mut fires: Vec<((i32, i32), Value)> = Vec::new();
 
     session.world().for_each_building_of_any_kind(|building| {
         // Sites and buildings whose configs give them no risks don't count.
@@ -148,6 +247,13 @@ fn state_json(context: &CommandContext) -> Value {
         max_collapse = max_collapse.max(collapse);
 
         let cell = building.base_cell();
+        if let Some(fire) = risks.burning() {
+            fires.push(((cell.y, cell.x), json!({
+                "name": building.name(),
+                "cell": cell_json(cell),
+                "secs_left": round(fire.secs_left),
+            })));
+        }
         riskiest.push((risks.highest(), (cell.y, cell.x), json!({
             "name": building.name(),
             "kind": building.kind().to_string(),
@@ -162,6 +268,8 @@ fn state_json(context: &CommandContext) -> Value {
     // Highest risk first; ties by cell, so the list reads the same on every run.
     riskiest.sort_by(|a, b| b.0.total_cmp(&a.0).then_with(|| a.1.cmp(&b.1)));
     let riskiest: Vec<Value> = riskiest.into_iter().take(RISKIEST_LISTED).map(|(_, _, entry)| entry).collect();
+    fires.sort_by(|a, b| a.0.cmp(&b.0));
+    let fires: Vec<Value> = fires.into_iter().map(|(_, entry)| entry).collect();
 
     json!({
         "enabled": city.is_enabled(),
@@ -174,5 +282,6 @@ fn state_json(context: &CommandContext) -> Value {
         "burning": burning,
         "highest": { "fire": round(max_fire), "collapse": round(max_collapse) },
         "riskiest": riskiest,
+        "fires": fires,
     })
 }

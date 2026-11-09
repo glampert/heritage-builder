@@ -2,8 +2,12 @@
 //
 // Each risk builds up from 0 to MAX_RISK at its building config's rate, in points per calendar
 // month, and a patrol walker's visit resets it: a fire watcher's the fire risk, a builder's the
-// collapse risk. A well within reach halves the fire risk's rate. What happens when a risk runs
-// out (fire, collapse, rubble) comes in the plan's Phase 1; until then a risk stops at the top.
+// collapse risk. A well within reach halves the fire risk's rate.
+//
+// A building whose collapse risk reaches the top collapses; one whose fire risk does catches
+// fire. A burning building stops working and raises its neighbours' fire risk, and burns down
+// after `burn_secs` unless a fire watcher puts the fire out. Building::update drives this, and
+// building::destruction removes what burns down or collapses and leaves rubble.
 
 use serde::{Deserialize, Serialize};
 use strum::{Display, EnumCount, EnumIter, EnumString};
@@ -13,6 +17,7 @@ use common::{
     hash,
     time::{Seconds, UpdateTimer},
 };
+use engine::log;
 use proc_macros::DrawDebugUi;
 
 use super::BuildingKind;
@@ -79,7 +84,7 @@ impl RiskRates {
 // BurningState
 // ----------------------------------------------
 
-// A building on fire (Phase 1). Saved now so that the fire doesn't need another save format.
+// A building on fire: the simulated seconds until it burns down.
 #[derive(Clone, Serialize, Deserialize)]
 pub struct BurningState {
     pub secs_left: Seconds,
@@ -98,8 +103,14 @@ pub struct BuildingRisks {
     near_water: bool,
     water_check_timer: UpdateTimer,
 
-    // Some while the building burns (Phase 1).
+    // Some while the building burns.
     burning: Option<BurningState>,
+
+    // Set when the building's destruction is queued (building::destruction), which runs at the
+    // end of the same step: nothing else happens to it, and it can't be queued twice. A save
+    // never sees it set, so it isn't saved.
+    #[serde(skip)]
+    doomed: bool,
 
     // This building's share of its config's rates (1 - rate_jitter to 1 + rate_jitter), so a row
     // of identical buildings built together doesn't burn all at once. It comes from the
@@ -121,6 +132,7 @@ impl Default for BuildingRisks {
             near_water: false,
             water_check_timer: UpdateTimer::default(),
             burning: None,
+            doomed: false,
             jitter: default_jitter(),
         }
     }
@@ -140,6 +152,12 @@ impl BuildingRisks {
 
     pub fn post_load(&mut self, base_cell: Cell, kind: BuildingKind, configs: &RiskConfigs) {
         self.water_check_timer.post_load(configs.water_check_secs);
+        self.refresh_jitter(base_cell, kind, configs);
+    }
+
+    // After the building's base cell moves (a house that expands, a debug teleport), so its
+    // jitter is the one a load will compute.
+    pub fn refresh_jitter(&mut self, base_cell: Cell, kind: BuildingKind, configs: &RiskConfigs) {
         self.jitter = jitter(base_cell, kind, configs.rate_jitter);
     }
 
@@ -190,6 +208,40 @@ impl BuildingRisks {
     #[inline]
     pub fn burning(&self) -> Option<&BurningState> {
         self.burning.as_ref()
+    }
+
+    // Sets the building on fire for `burn_secs`, its fire risk at the top.
+    pub fn start_burning(&mut self, burn_secs: Seconds) {
+        self.burning = Some(BurningState { secs_left: burn_secs.max(0.0) });
+        self.fire = MAX_RISK;
+    }
+
+    // Puts the fire out: the building is as it was, with no fire risk (decision Q9).
+    pub fn put_out(&mut self) {
+        self.burning = None;
+        self.fire = 0.0;
+        self.doomed = false;
+    }
+
+    // Burns for `delta_time_secs`: true once the building has burnt down.
+    pub fn advance_burning(&mut self, delta_time_secs: Seconds) -> bool {
+        match &mut self.burning {
+            Some(burning) => {
+                burning.secs_left = (burning.secs_left - delta_time_secs).max(0.0);
+                burning.secs_left <= 0.0
+            }
+            None => false,
+        }
+    }
+
+    #[inline]
+    pub fn is_doomed(&self) -> bool {
+        self.doomed
+    }
+
+    #[inline]
+    pub fn set_doomed(&mut self) {
+        self.doomed = true;
     }
 
     #[inline]
@@ -244,6 +296,27 @@ pub fn risk_reset_by(unit: &Unit, context: &SimContext) -> Option<RiskKind> {
     } else {
         None
     }
+}
+
+// ----------------------------------------------
+// Notices
+// ----------------------------------------------
+
+// Fires, fires put out, buildings burnt down and collapses since the GameLoop last took them;
+// it shows each as a toast (GameLoop::notify_risks). The simulation has no Engine, hence the
+// queue, as for construction and finance notices.
+thread_local! {
+    static NOTICES: std::cell::RefCell<Vec<String>> = const { std::cell::RefCell::new(Vec::new()) };
+}
+
+// Logs `message` on the risks channel and queues it as a toast.
+pub(crate) fn notify(message: String) {
+    log::info!(log::channel!("risks"), "{message}");
+    NOTICES.with_borrow_mut(|notices| notices.push(message));
+}
+
+pub fn take_notices() -> Vec<String> {
+    NOTICES.with_borrow_mut(std::mem::take)
 }
 
 // A factor in [1 - spread, 1 + spread] from the building's cell and kind: the same building in

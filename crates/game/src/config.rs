@@ -272,6 +272,13 @@ pub struct RiskConfigs {
 
     // Simulated seconds between a building's checks for a well within reach.
     pub water_check_secs: Seconds,
+
+    // How long a building burns before it burns down, in simulated seconds, unless a fire
+    // watcher puts the fire out first.
+    pub burn_secs: Seconds,
+
+    // Fire risk a burning building adds to each building next to it, per simulated second.
+    pub spread_per_sec: f32,
 }
 
 impl Default for RiskConfigs {
@@ -281,6 +288,8 @@ impl Default for RiskConfigs {
             near_water_fire_scale: 0.5,
             rate_jitter: 0.25,
             water_check_secs: 10.0,
+            burn_secs: 30.0,
+            spread_per_sec: 5.0,
         }
     }
 }

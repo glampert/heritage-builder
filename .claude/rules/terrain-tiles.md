@@ -1,6 +1,6 @@
-# Terrain tiles: water shores and road junctions
+# Terrain tiles: water shores, road junctions and rubble
 
-Last verified against the code on 2026-10-21.
+Last verified against the code on 2026-11-09.
 
 ## Water shores
 
@@ -16,6 +16,14 @@ Last verified against the code on 2026-10-21.
 ## Roads
 
 - A road tile's variation is its junction mask, the same four side bits (`road::update_junctions`, [tile/road.rs](../../crates/game/src/tile/road.rs)), updated by `TilePlacement::place` and `TilePlacement::clear`.
+
+## Rubble
+
+- What a building that burns down or collapses leaves (`building::destruction`): a 1×1 `rubble` tile on every cell of its footprint, from the objects tile set's `rocks` category, so it's a `TileKind::Rocks` tile. It blocks building and walking, shows as rock cover on the minimap, and the clear tool removes it for free. It has no game object.
+- A pile is built from pieces, as roads are: a rubble tile's variation is named by which of its four sides border more rubble, digits in the order north (+x), east (-y), south (-x), west (+y), 1 for rubble that way: `1111` is a pile's middle, `0000` a lone heap. All 16 masks have a piece ([tile/rubble.rs](../../crates/game/src/tile/rubble.rs), `update_variations`, looked up by name). A 2×2 pile is `1001` at its base cell, `0011`, `0110` and `1100` round it.
+- Variations are picked by `rubble::place_pile` (after a destruction, over the footprint and the ring around it) and by `TilePlacement::place` and `clear` for a rubble tile and its neighbours, so undo, the editor and `world.place tile=rubble` join piles too. Neighbouring piles join into one.
+- Each piece sits on its cell's diamond like a 1×1 building, so the pieces meet without seams: the rocks anchor puts a sprite 8 logical px higher (`calc_object_iso_coords`), so every rubble variation carries `iso_offset {x: 0, y: 8}`.
+- Saves store the variation as an index, so the list in `assets/tiles/objects/tile_set.json` is append-only. The tile generator owns it (`catalog/risks.json`).
 
 ## Map layout
 

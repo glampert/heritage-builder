@@ -481,6 +481,10 @@ impl TileMapRenderer {
                         let (rect, coords) = construction_site_rect(tile_screen_rect, tex_coords, stage);
                         render_sys.draw_textured_colored_rect(rect, &coords, texture, color * CONSTRUCTION_SITE_COLOR);
                     }
+                } else if tile.has_flags(TileFlags::Burning) {
+                    // On fire: darkened, with flames over each of its cells.
+                    render_sys.draw_textured_colored_rect(tile_screen_rect, tex_coords, texture, color * BURNING_COLOR);
+                    draw_fire_overlay(render_sys, tile, transform, tile_map.overlay_anim_secs(), highlight_color);
                 } else if tile.has_flags(TileFlags::Renovating) {
                     // A house being renovated before an upgrade: lightly tinted, with scaffolding over it.
                     render_sys.draw_textured_colored_rect(tile_screen_rect, tex_coords, texture, color * RENOVATION_COLOR);
@@ -683,6 +687,58 @@ fn construction_overlay(
     let sprite = frames.get(frame.min(frames.len().checked_sub(1)?))?;
     let iso = super::calc_object_iso_coords(TileKind::Building, tile.base_cell(), tile.logical_size(), def.draw_size);
     Some((coords::iso_to_screen_rect_f32(iso, def.draw_size, transform), &sprite.tex_info))
+}
+
+// ----------------------------------------------
+// Fires
+// ----------------------------------------------
+
+// The flames drawn over each cell of a burning building (building::risks), from the tile
+// generator, looping. Anchored like a 1x1 building on the cell.
+const FIRE_TILE: StrHashPair = StrHashPair::from_str("fire_1x1");
+
+// How long each frame of the flames shows, unless the tile def's anim set gives a duration.
+const FIRE_FRAME_SECS: f32 = 0.15;
+
+// A burning building, darkened under its flames.
+const BURNING_COLOR: Color = Color::new(0.5, 0.42, 0.38, 1.0);
+
+fn draw_fire_overlay(
+    render_sys: &mut RenderSystem,
+    tile: &Tile,
+    transform: WorldToScreenTransform,
+    anim_secs: f32,
+    color: Color,
+) {
+    let Some(def) = TileSets::get().try_find_tile_def_by_hash(TileMapLayerKind::Objects, OBJECTS_OVERLAYS_CATEGORY.hash, FIRE_TILE.hash)
+    else {
+        return;
+    };
+    let Some(anim_set) = def.anim_set_by_index(0, 0) else {
+        return;
+    };
+    let frames = &anim_set.frames;
+    if frames.is_empty() {
+        return;
+    }
+
+    let frame_secs = if anim_set.frame_duration_secs() > 0.0 { anim_set.frame_duration_secs() } else { FIRE_FRAME_SECS };
+    let tick = (anim_secs / frame_secs) as usize;
+
+    let mut flames = SmallVec::<[(Rect, &'static TileTexInfo); 25]>::new();
+    for cell in &tile.cell_range() {
+        // Each cell starts at its own frame, so a big fire doesn't flicker in step.
+        let phase = (cell.x * 3 + cell.y * 5).rem_euclid(frames.len() as i32) as usize;
+        let sprite = &frames[(tick + phase) % frames.len()];
+        let iso = super::calc_object_iso_coords(TileKind::Building, cell, def.logical_size, def.draw_size);
+        flames.push((coords::iso_to_screen_rect_f32(iso, def.draw_size, transform), &sprite.tex_info));
+    }
+
+    // Back to front: the flames lower on screen stand in front.
+    flames.sort_by(|a, b| a.0.max.y.total_cmp(&b.0.max.y));
+    for (rect, tex_info) in flames {
+        render_sys.draw_textured_colored_rect(rect, &tex_info.coords, tex_info.texture, color);
+    }
 }
 
 // Without scaffold art for its size, a construction site draws its building twice: a faint

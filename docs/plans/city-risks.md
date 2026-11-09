@@ -1,6 +1,6 @@
 # City risks: fire and collapse
 
-**Status (2026-11-09): The art and Phase 0 are done; Phase 1 next.** This plan is milestone M6 of the [roadmap](roadmap.md). It covers the fire and collapse rows of GDD 5.9: each building's fire and collapse risk builds up over time, a patrol walker from the fire watch or the builders' guild resets it, and a building whose risk runs out catches fire or collapses and leaves rubble. Mission I-3 teaches "the fire watch and the builders' guild (fire and collapse risk)" ([campaigns.md](../design/campaigns.md#3-the-village-of-spirits)). Disease and crime come in Phase 2 of the roadmap. It was researched against `063d306` on `claude`. File and line references point at that commit, so re-check them before relying on them.
+**Status (2026-11-09): The art, Phase 0 and Phase 1 are done; Phase 2 next.** This plan is milestone M6 of the [roadmap](roadmap.md). It covers the fire and collapse rows of GDD 5.9: each building's fire and collapse risk builds up over time, a patrol walker from the fire watch or the builders' guild resets it, and a building whose risk runs out catches fire or collapses and leaves rubble. Mission I-3 teaches "the fire watch and the builders' guild (fire and collapse risk)" ([campaigns.md](../design/campaigns.md#3-the-village-of-spirits)). Disease and crime come in Phase 2 of the roadmap. It was researched against `063d306` on `claude`. File and line references point at that commit, so re-check them before relying on them.
 
 ## How to resume this work
 
@@ -223,7 +223,7 @@ The user is redesigning the UI on another branch, so this is every UI change thi
 |---|---|---|---|
 | Build menu, Services | Two new buildings, the fire watch and the builders' guild. Data only: tile defs and configs. | 2 | `assets/tiles/objects/tile_set.json`, `assets/configs/buildings/configs.json` |
 | Toasts | Fire, fire out, burnt down and collapse notices, through the existing toast call. | 1 | `game_loop.rs` (a `notify_risks` beside `notify_finances`) |
-| Minimap alerts | A fire or collapse raises an alert at the building, through the existing alerts. | 1 | `tile/minimap/mod.rs` (call sites only) |
+| Minimap alerts | A fire or collapse raises an alert at the building, through the existing alerts. | 1 | Call sites only, in `building/` and `menu/mod.rs`; `tile/minimap/` is unchanged |
 | Minimap lens bar | A fourth lens button, Risks, after Water. Its sprites exist. | 3 | `tile/minimap/lens.rs`, `assets/configs/ui/minimap/dailong.json` (`lenses`: `risk_ramp`, `risk_low`, `risk_high`, `risk_burning`) |
 | Tile inspector, building panel | Two or three more body text lines: fire risk, collapse risk, on fire. The redesign is likely to change this panel, so expect to move these lines when the branches merge. | 3 | `menu/in_game/inspector/mod.rs` |
 | Developer UI only | Tile Inspector risk section, World Debug Risks tab. Not retail. | 3 | `debug/` |
@@ -261,24 +261,47 @@ Notes (2026-11-09):
 
 ### Phase 1: Fire, collapse and rubble (medium)
 
-- [ ] `TileFlags` widened to `u32`; `TileFlags::Burning`.
-- [ ] Ignition, burning (not operational, spreading), burning down, collapse; `Building::add_risk` and `Building::ignite`.
-- [ ] Destruction through `SimCmds`, with rubble on each cell; the destroyed mark against double destruction.
-- [ ] Lost goods subtracted from the world stats at once; the burnt-down notice lists them.
-- [ ] Deferred building commands skip a building that's gone.
+- [x] `TileFlags` widened to `u32`; `TileFlags::Burning`.
+- [x] Ignition, burning (not operational, spreading), burning down, collapse; `Building::add_risk` and `Building::ignite`.
+- [x] Destruction through `SimCmds`, with rubble on each cell; the destroyed mark against double destruction.
+- [x] Lost goods subtracted from the world stats at once; the burnt-down notice lists them.
+- [x] Deferred building commands skip a building that's gone.
 - [x] The `rubble` tile def (`rocks` category) with the 16 neighbour-mask variations and their `iso_offset`. Done with the art.
-- [ ] `rubble::update_variations` (after destruction, over the footprint and its ring) and its call from `TilePlacement::clear`.
+- [x] `rubble::update_variations` (after destruction, over the footprint and its ring) and its call from `TilePlacement::clear`.
 - [x] Art, in the Blender catalog, rendered with `tilegen.sh`:
   - `rubble`: 16 pieces from one recipe. Each is a cut of the same pile surface: full height at a side that joins more rubble, sloping to the ground at an open side, so the pieces meet without seams. Debris (beams, bricks, tiles) is seeded per piece and kept inside the cell.
   - `fire_1x1`: an animated overlay, 4 frames.
-- [ ] Drawing: the darkened building and its fire overlay in `TileMapRenderer::draw_tile`.
-- [ ] Notices on the `risks` channel, toasts (`GameLoop::notify_risks`) and minimap alerts.
-- [ ] `risks.ignite`, `risks.collapse`.
-- [ ] Tests:
+- [x] Drawing: the darkened building and its fire overlay in `TileMapRenderer::draw_tile`.
+- [x] Notices on the `risks` channel, toasts (`GameLoop::notify_risks`) and minimap alerts.
+- [x] `risks.ignite`, `risks.collapse`.
+- [x] Tests:
   - ignition, spread, burning down and collapse;
   - rubble variations for 1×1 to 5×5 footprints, after clearing part of a pile, and for two piles side by side;
   - a visit to a destroyed building;
   - a storage yard full of goods burns down: `world.stats`, `CityStock` and the finance accounts agree with the yards that are left, at once and after the next step, and a runner heading there comes back empty.
+
+Notes (2026-11-09):
+- **Code:** `building/destruction.rs` (`destroy_building`, `Destruction`), `tile/rubble.rs` (`place_pile`, `update_variations`), and the fire in `Building::update`, `update_fire`, `ignite`, `collapse`, `add_risk` and `visited_by` (`building/mod.rs`).
+- **Destruction runs last in its step.** `SimCmd::DestroyBuilding` is a delayed command, like `UpgradeHouse`, so the visits and task steps the same step queued for the building run first. The next step finds rubble, as after a demolition between steps, which every walker task already handles. Deferred building commands that name a building that's gone are skipped and logged at verbose level as well (§2), for commands from earlier steps.
+- **The world stats are recounted in full** after a destruction (`World::refresh_stats`), not only the goods subtracted: the building's residents and workers stop counting at once too. A destruction is rare, so the cost doesn't matter.
+- **A burning building** skips its archetype's update and its workers' search, takes and hands out no goods (`available_resources`, `receivable_resources` and the like return 0), and isn't operational. The city stock skips a burning storage yard, so construction can't take its materials, and a house can't merge with or expand into a burning neighbour. The stats keep counting its people and goods until it burns down (Q8).
+- **A fire watcher puts out a fire it visits** already (`Building::visited_by`), ahead of Phase 2: a burning building turns every other walker away. Phase 2 still has the patrols that visit every building and the dispatch to a fire.
+- **A fire put out in time** cancels its burning down: the queued destruction checks the building still burns. The building is unharmed, with no fire risk (Q9).
+- **While risks are off** (the switch or the cheat), a fire neither spreads nor burns down; the building stays burning.
+- **What can burn or collapse:** only a finished building with that rate in its config (`can_catch_fire`, `can_collapse`). A well has no fire rate, so a fire next to it doesn't spread to it; `risks.ignite` refuses it.
+- **Notices:** "Fire! The storage yard is burning.", "The fire at the storage yard is out.", "The storage yard burnt down. Lost: 20 wood, 12 bricks." and "The storage yard collapsed." Any house is "the house". A fire's minimap alert is resolved when it's put out or the building is demolished; a destruction raises one at the base cell, resolved when that cell's rubble is cleared, or when it ages out after 60 s.
+- **The flames' frame time** is a renderer constant, 0.15 s (`FIRE_FRAME_SECS`), since the tile generator's catalog has no anim duration; a duration in the tile def would win. Each cell starts at its own frame, so a big fire doesn't flicker in step. `TileMap::overlay_anim_secs` is their clock: game time, so they stop while paused.
+- **Undo:** a building put back by undo comes back without its `Burning` flag, with new risks. Undoing the placement of a building that has since burnt down finds rubble and does nothing.
+- **A Phase 0 bug fixed:** a house that expands moves its base cell, but kept the jitter of its old one, while a load computes it from the new one, so a loaded game drifted from the one that saved it. The jitter now follows the base cell (`BuildingRisks::refresh_jitter`, also after a debug teleport). It changed `determinism.jsonl`'s checksum from `a4ec9f1fd0104fa6` to `b10f4eeae3845660`; with that line reverted, the checksum is the old one again.
+- **`risks.state`** lists the fires burning (`fires`, with their `secs_left`).
+- **Verified:**
+  - `cargo test --workspace`, including the 21 tests in `tests/risks.rs`;
+  - all 12 CI scenarios in release, `risks.jsonl` extended with a fire, the rubble and a collapse;
+  - `determinism.jsonl` twice: the same output and save;
+  - record and replay of `ui_build` and `determinism`;
+  - the save smoke test on all 13 local saves (no format change: the flags are saved by name, and the new state is runtime only);
+  - the web check;
+  - screenshots of a burning storage yard and house, then their rubble and a collapsed market's, with the fire spread to both houses next door.
 
 ### Phase 2: The fire watch and the builders' guild (medium)
 
@@ -286,7 +309,7 @@ Notes (2026-11-09):
 - [ ] `UnitConfigKey::FireWatcher` and its unit config on a new `fire_watcher` tile def. The builder is a `Peasant` (§3).
 - [ ] `crates/tools/unit-recolor/` (`recolor.py`, its recipe and manifest, a README section or file); the red `fire_watcher` frames from the guard's; the web asset manifest refreshed. List the tool in AGENTS.md's workspace layout.
 - [ ] `ServiceConfig::visits`; the patrol's buildings to visit follow it.
-- [ ] A fire watcher puts out a fire it passes; a fire watch sends its free walker to a fire in its radius.
+- [ ] A fire watcher puts out a fire it passes (its visit does since Phase 1; patrols reach every building with `visits` above); a fire watch sends its free walker to a fire in its radius.
 - [x] Art: the `fire_watch` and `builders_guild` recipes and catalog entries, rendered with `tilegen.sh`. Their tile defs have no `sector` yet, so the build menu leaves them out until their configs land; add `"sector": "Services"` to their catalog entries then.
 - [ ] Tests: patrols visit all buildings, putting out a fire, dispatch.
 - [ ] `risks.jsonl`, in CI.
@@ -297,7 +320,7 @@ Notes (2026-11-09):
 - [ ] The inspector's risk lines.
 - [ ] Developer tools: the Tile Inspector section and the World Debug Risks tab.
 - [ ] `risks.jsonl` covers the lens; `ui.layout_issues` stays 0 on the inspector with the new lines.
-- [ ] `.claude/rules/terrain-tiles.md`: a Rubble section beside Roads (the neighbour mask, when variations are picked, the anchor).
+- [x] `.claude/rules/terrain-tiles.md`: a Rubble section beside Roads (the neighbour mask, when variations are picked, the anchor). Written with Phase 1.
 - [ ] AGENTS.md (a City risks entry under Runtime architecture, `risks.jsonl` in the scenario list, `risks` in the test list), the roadmap's M6 row and save-version log, known-issues for what's left.
 
 ## Risks

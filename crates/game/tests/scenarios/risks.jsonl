@@ -1,8 +1,9 @@
 # City risks: every building's fire and collapse risk builds up month by month, more slowly near a
-# well, and stops while risks are off for the game. From the repository root:
+# well, and stops while risks are off for the game. A building on fire burns down and one that
+# collapses falls at once; both leave rubble, which the clear tool removes. From the repository root:
 #   cargo run -p HeritageBuilder -- --script crates/game/tests/scenarios/risks.jsonl
-# A month is 60 simulated seconds. Fires, collapses, the fire watch and the builders' guild join
-# with the later phases of docs/plans/city-risks.md.
+# A month is 60 simulated seconds, and a fire burns for 30. The fire watch and the builders' guild
+# join with Phase 2 of docs/plans/city-risks.md.
 {"method": "time.fixed_dt", "params": {"dt": 0.016667}}
 {"method": "session.new_map", "params": {"size": [32, 24]}}
 {"method": "cheats.set", "params": {"name": "instant_construction", "value": true}}
@@ -39,3 +40,24 @@
 {"method": "risks.set", "params": {"enabled": true}}
 {"method": "time.fast_forward", "params": {"sim_secs": 60}}
 {"method": "assert.gt", "params": {"query": "world.building_at", "args": {"cell": [25, 11]}, "path": "/risks/fire", "value": 92.0}}
+
+# A fire: the far yard burns for 30 seconds, then leaves a 3x3 pile of rubble.
+{"method": "risks.ignite", "params": {"cell": [25, 11]}}
+{"method": "assert.eq", "params": {"query": "risks.state", "path": "/burning", "value": 1}}
+{"method": "assert.eq", "params": {"query": "risks.state", "path": "/fires/0/cell", "value": [25, 11]}}
+{"method": "assert.gt", "params": {"query": "world.building_at", "args": {"cell": [25, 11]}, "path": "/risks/burning/secs_left", "value": 29.0}}
+{"method": "time.fast_forward", "params": {"sim_secs": 32}}
+{"method": "assert.eq", "params": {"query": "risks.state", "path": "/burning", "value": 0}}
+{"method": "assert.eq", "params": {"query": "tile.at", "args": {"cell": [25, 11]}, "path": "/objects/0/name", "value": "rubble"}}
+{"method": "assert.eq", "params": {"query": "tile.at", "args": {"cell": [26, 12]}, "path": "/objects/0/variation_name", "value": "1111"}}
+
+# Clearing the middle of the pile reshapes the pieces around it: the one north of it (+x) no
+# longer runs south.
+{"method": "world.clear", "params": {"cell": [26, 12]}}
+{"method": "assert.eq", "params": {"query": "tile.at", "args": {"cell": [27, 12]}, "path": "/objects/0/variation_name", "value": "0101"}}
+
+# A collapse: the yard by the well falls at once. Only the well is left.
+{"method": "risks.collapse", "params": {"cell": [4, 12]}}
+{"method": "assert.eq", "params": {"query": "tile.at", "args": {"cell": [3, 11]}, "path": "/objects/0/variation_name", "value": "1001"}}
+{"method": "assert.eq", "params": {"query": "risks.state", "path": "/buildings", "value": 1}}
+{"method": "risks.state"}
