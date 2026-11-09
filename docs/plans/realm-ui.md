@@ -425,7 +425,7 @@ The existing dialogs keep their layouts but take their panels from the Đại Lo
 - Sample: `Sample Menu 3` (panel, framed buttons, panel tooltip and popup, painter stretch, tile and shrink); `ui_dev_menus.jsonl` visits it.
 - Verified: build, `cargo test --workspace`, web check; `ui_new_game`, `ui_build`, `ui_dev_menus`, `minimap`, `ui_sounds`, `strings`, `finance` at 1440 × 800; `ui_snapshot` at 1440 × 800 and 1920 × 1080: identical listings apart from Sample Menu 3, and `ui.layout_issues` 0 on every retail screen. At 1440 × 800 the retail screenshots match; at 1080p dialog contents sit 7 points lower (the clamp's end). The sample screenshotted on OpenGL and on Wgpu (lavapipe).
 
-**Notes (2026-11-09, fonts; commit TODO):**
+**Notes (2026-11-09, fonts; commit `26881e2`):**
 - Added `spectral_sc_semi_bold.ttf` (google/fonts' static file), `alegreya_medium.ttf` and `alegreya_bold.ttf` (Google Fonts' static instances), their upstream OFL files, and the upstream licences of Source Code Pro 2.042 (`source_code_pro_OFL.txt`) and Font Awesome 5.15.4 (`fa_LICENSE.txt`).
 - `ui::check_glyph_coverage` lays out `GLYPH_TEST_TEXTS` (Đại Long's names, every Vietnamese letter) in every text style but `icon`, which gets `GLYPH_TEST_ICONS`. It fails on tofu, and on a letter or digit the style's monospace or icon font would draw (the first in the chain that has it): Source Code Pro has all of Vietnamese, so without that rule a missing realm fallback would pass.
 - `tests/ui_fonts.rs` runs it on `menu::ui_style_sources()` and on three realm font sets, the `fonts` and `text_styles` blocks for the skins step.
