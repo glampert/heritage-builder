@@ -1166,6 +1166,56 @@ impl Search {
         )
     }
 
+    // Dijkstra search for the nearest node next to a target: the path ends on the first node,
+    // within `max_distance` (Manhattan) of `start`, one of whose four neighbours `is_target`
+    // accepts. It only steps on `traversable_node_kinds`, unlike `find_buildings`, which also
+    // steps on any BuildingAccess node (water next to a building has one). The target itself
+    // needn't be traversable, e.g. a building's cell; the path is just `start` if it's next to it.
+    pub fn find_path_next_to<F>(
+        &mut self,
+        graph: &Graph,
+        heuristic: &impl Heuristic,
+        traversable_node_kinds: NodeKind,
+        start: Node,
+        max_distance: i32,
+        mut is_target: F,
+    ) -> SearchResult<'_>
+    where
+        F: FnMut(Node) -> bool,
+    {
+        debug_assert!(!traversable_node_kinds.is_empty());
+        debug_assert!(max_distance > 0);
+
+        if !Self::validate_endpoints(graph, traversable_node_kinds, start, None) {
+            return SearchResult::PathNotFound;
+        }
+
+        self.reset(start);
+
+        while let Some((current, _)) = self.frontier.pop() {
+            if current.manhattan_distance(start) > max_distance {
+                continue;
+            }
+
+            let next_to_target =
+                current.neighbors().into_iter().any(|neighbor| graph.node_kind(neighbor).is_some() && is_target(neighbor));
+
+            if next_to_target {
+                return self.reconstruct_path(start, current);
+            }
+
+            for neighbor in graph.neighbors(current, traversable_node_kinds) {
+                let movement_cost = heuristic.movement_cost(graph, current, neighbor);
+
+                if let Some(new_cost) = self.relax_neighbor(current, neighbor, movement_cost, false) {
+                    self.frontier.push(neighbor, Reverse(new_cost));
+                }
+            }
+        }
+
+        SearchResult::PathNotFound
+    }
+
     // ----------------------
     // Internal:
     // ----------------------

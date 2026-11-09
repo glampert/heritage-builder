@@ -1196,3 +1196,67 @@ fn test_for_each_surrounding_cell_skips_corners() {
         }
     }
 }
+
+#[test]
+fn test_find_path_next_to() {
+    const L: NodeKind = NodeKind::EmptyLand;
+    const R: NodeKind = NodeKind::Road;
+    const W: NodeKind = NodeKind::Water;
+    const B: NodeKind = NodeKind::Building;
+    // Water next to a building has BuildingAccess too; the search must not step on it.
+    const A: NodeKind = NodeKind::from_bits_retain(NodeKind::Water.bits() | NodeKind::BuildingAccess.bits());
+
+    // A building at (5..=6, 1..=2), reached by land from the west and only by water from the
+    // north. The road runs along y = 7.
+    let nodes = vec![
+        L,L,L,L,W,A,A,W,
+        L,L,L,L,A,B,B,A,
+        L,W,W,L,A,B,B,A,
+        L,W,L,L,L,L,L,L,
+        L,W,L,W,W,W,W,W,
+        L,L,L,L,L,L,L,L,
+        L,L,L,L,L,L,L,L,
+        R,R,R,R,R,R,R,R,
+    ];
+    let graph = Graph::with_node_grid(Size::new(8, 8), nodes);
+    let heuristic = AStarUniformCostHeuristic::new();
+    let mut search = Search::with_graph(&graph);
+    let building = CellRange::new(Cell::new(5, 1), Cell::new(6, 2));
+    let land = NodeKind::EmptyLand | NodeKind::Road;
+
+    // From the road, over land: it ends next to the building, on land, the nearest such cell.
+    {
+        let start = Node::new(Cell::new(0, 7));
+        let path = search.find_path_next_to(&graph, &heuristic, land, start, 32, |node| building.contains(node.cell));
+        let SearchResult::PathFound(path) = path else { panic!("expected a path") };
+        assert_eq!(path.first().unwrap().cell, start.cell);
+        let end = path.last().unwrap().cell;
+        assert!(end == Cell::new(5, 3) || end == Cell::new(6, 3), "ends south of the building: {end}");
+        for node in path.iter() {
+            assert!(graph.node_kind(*node).unwrap().intersects(land), "steps on {} at {}", graph.node_kind(*node).unwrap(), node.cell);
+        }
+        assert_eq!(path.len(), 1 + 5 + 4, "four cells north and five or six east: {path:?}");
+    }
+
+    // Already next to it: the path is just the start.
+    {
+        let start = Node::new(Cell::new(5, 3));
+        let path = search.find_path_next_to(&graph, &heuristic, land, start, 32, |node| building.contains(node.cell));
+        let SearchResult::PathFound(path) = path else { panic!("expected a path") };
+        assert_eq!(path.len(), 1);
+    }
+
+    // Out of reach within the max distance.
+    {
+        let start = Node::new(Cell::new(0, 7));
+        let path = search.find_path_next_to(&graph, &heuristic, land, start, 6, |node| building.contains(node.cell));
+        assert!(path.not_found());
+    }
+
+    // Road only: no road reaches it.
+    {
+        let start = Node::new(Cell::new(0, 7));
+        let path = search.find_path_next_to(&graph, &heuristic, NodeKind::Road, start, 32, |node| building.contains(node.cell));
+        assert!(path.not_found());
+    }
+}

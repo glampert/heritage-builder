@@ -6,6 +6,7 @@ use strum::Display;
 use common::{
     Color,
     callback::{self, Callback},
+    coords::{Cell, CellRange},
     hash::{self, StringHash},
     time::{Seconds, UpdateTimer},
 };
@@ -23,7 +24,6 @@ use super::{
 };
 use crate::{
     cheats,
-    pathfind::NodeKind as PathNodeKind,
     tile::Tile,
     save_context::PostLoadContext,
     world::{object::GameObject, stats::WorldStats},
@@ -49,6 +49,7 @@ use crate::{
             UnitTaskFightFireCompletionCallback,
             UnitTaskFightFireState,
             UnitTaskRandomizedPatrol,
+            find_nearest_fire,
         },
     },
 };
@@ -684,7 +685,9 @@ impl ServiceBuilding {
     // ----------------------
 
     // Sends a fire watcher straight to the nearest building burning within the fire watch's
-    // effect radius by road, unless one is out already. Its patrol walker goes on patrolling.
+    // effect radius, over any land (FIRE_WATCHER_NODE_KINDS), unless one is out
+    // already. He goes on to any other fire near it before coming home. The patrol walker goes on
+    // patrolling.
     fn send_out_to_fire(&mut self, cmds: &mut SimCmds, context: &BuildingContext) {
         if self.runner.is_spawned_or_pending_spawn() {
             return; // Out at a fire already.
@@ -697,26 +700,18 @@ impl ServiceBuilding {
         let radius = self.config.unwrap().effect_radius;
         let sim_ctx = context.sim_ctx;
 
-        // A cheap look first: a road search only when something burns near enough.
+        // A cheap look first: a path search only when something burns near enough.
         let mut fire_nearby = false;
         sim_ctx.world().for_each_building_of_any_kind(|building| {
-            let near = building.is_burning()
-                && building.road_link().is_some_and(|link| (link.x - road_link.x).abs() + (link.y - road_link.y).abs() <= radius);
-            fire_nearby |= near;
+            fire_nearby |= building.is_burning() && cells_from(road_link, building.cell_range()) <= radius;
             !fire_nearby
         });
         if !fire_nearby {
             return;
         }
 
-        // The nearest burning building by road, within the radius.
-        let Some((fire, _path)) = sim_ctx.find_nearest_buildings(
-            road_link,
-            BuildingKind::all(),
-            PathNodeKind::Road,
-            Some(radius),
-            |building, _path| !building.is_burning(), // Keep searching past anything not burning.
-        ) else {
+        // The nearest burning building within the radius that a fire watcher can walk up to.
+        let Some((fire, _path)) = find_nearest_fire(sim_ctx, road_link, radius, None) else {
             return;
         };
 
@@ -744,6 +739,13 @@ impl ServiceBuilding {
         this_service.runner.reset();
         debug_popup_msg_color!(this_service.debug, Color::magenta(), "Back from a fire");
     }
+}
+
+// How many cells from `cell` to the nearest cell of `area` (Manhattan), 0 inside it.
+fn cells_from(cell: Cell, area: CellRange) -> i32 {
+    let dx = (area.start.x - cell.x).max(cell.x - area.end.x).max(0);
+    let dy = (area.start.y - cell.y).max(cell.y - area.end.y).max(0);
+    dx + dy
 }
 
 // ----------------------------------------------

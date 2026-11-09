@@ -72,6 +72,7 @@ fn main() {
         // Rubble:
         test_utils::test_fn!(test_every_footprint_leaves_a_whole_pile),
         test_utils::test_fn!(test_rubble_piles_follow_their_neighbours),
+        test_utils::test_fn!(test_a_burnt_house_leaves_rubble_on_its_lots),
         // Destroyed buildings:
         test_utils::test_fn!(test_commands_for_a_destroyed_building_are_skipped),
         test_utils::test_fn!(test_a_burnt_yard_loses_its_goods_at_once),
@@ -82,6 +83,8 @@ fn main() {
         test_utils::test_fn!(test_their_patrols_visit_every_building),
         test_utils::test_fn!(test_a_fire_watch_sends_a_walker_to_a_fire),
         test_utils::test_fn!(test_a_fire_out_of_reach_gets_no_walker),
+        test_utils::test_fn!(test_a_fire_watcher_goes_on_to_the_next_fire),
+        test_utils::test_fn!(test_a_fire_watcher_walks_off_the_road_to_a_fire),
         // Saves:
         test_utils::test_fn!(test_risks_round_trip_through_a_save),
     ]);
@@ -682,6 +685,46 @@ fn test_rubble_piles_follow_their_neighbours() {
     undo_redo::clear();
 }
 
+// A house stands on vacant lots, where nothing else can be placed. When it burns down, every
+// lot goes back to the land it was laid on, grass or dirt, under a whole pile of rubble, and
+// clearing the rubble leaves bare land, not a lot.
+fn test_a_burnt_house_leaves_rubble_on_its_lots() {
+    with_risks(|| {
+        let mut env = TestEnvironment::with_terrain(TestEnvironment::DEFAULT_MAP_SIZE, test_utils::find_terrain_def("grass"));
+        road(&mut env);
+        let lots = CellRange::new(Cell::new(20, 11), Cell::new(21, 12));
+        let on_dirt = Cell::new(21, 12);
+        test_utils::place_terrain(&mut env, on_dirt, "dirt");
+        for cell in &lots {
+            test_utils::place_tile_as_player(&mut env, cell, test_utils::find_terrain_def("vacant_lot"));
+        }
+        let terrain = |env: &TestEnvironment, cell: Cell| {
+            let tile = env.tile_map.try_tile_from_layer(cell, TileMapLayerKind::Terrain).expect("terrain");
+            (tile.name().to_string(), tile.variation_name())
+        };
+        assert_eq!(terrain(&env, on_dirt), ("vacant_lot".to_string(), "dirt"), "a lot laid on dirt");
+
+        let house = test_utils::spawn_building(&mut env, lots.start, "house1");
+        assert!(cells_of(building(&env, house).cell_range()) == cells_of(lots), "a 2x2 house on the four lots");
+
+        top_out(&mut env, house, RiskKind::Fire);
+        secs(&mut env, burn_secs() + TICK_SECS);
+        assert!(!exists(&env, house), "burnt down");
+        assert_pile(&env, &cells_of(lots), "a burnt-down house on lots");
+
+        for cell in &lots {
+            let land = if cell == on_dirt { "dirt" } else { "grass" };
+            assert_eq!(terrain(&env, cell).0, land, "the lot at {cell} is {land} again");
+        }
+
+        let context = env.new_sim_context(0.0);
+        let tile = context.try_tile_from_layer(lots.start, TileMapLayerKind::Objects).unwrap();
+        assert!(matches!(TilePlacement::clear(&context, tile, false, false), PlaceOrClearResult::ClearedTile(_)));
+        assert_eq!(rubble_at(&env, lots.start), None);
+        assert_eq!(terrain(&env, lots.start).0, "grass", "bare land under the cleared rubble");
+    });
+}
+
 // ----------------------------------------------
 // Destroyed buildings
 // ----------------------------------------------
@@ -899,8 +942,8 @@ fn test_their_patrols_visit_every_building() {
     }
 }
 
-// A fire watch sends a fire watcher to a fire within its radius by road, who puts it out before it
-// burns down and comes home. Its patrol walker is held back, so the fire is the dispatch's.
+// A fire watch sends a fire watcher to a fire within its radius, who puts it out before it burns
+// down and comes home. Its patrol walker is held back, so the fire is the dispatch's.
 fn test_a_fire_watch_sends_a_walker_to_a_fire() {
     with_risks(|| {
         let _ = risks::take_notices();
@@ -931,7 +974,7 @@ fn test_a_fire_watch_sends_a_walker_to_a_fire() {
     });
 }
 
-// A fire further than the fire watch's effect radius by road gets no one.
+// A fire further than the fire watch's effect radius gets no one.
 fn test_a_fire_out_of_reach_gets_no_walker() {
     with_risks(|| {
         let mut env = TestEnvironment::with_map_size(common::Size::new(48, 24));
@@ -944,8 +987,69 @@ fn test_a_fire_out_of_reach_gets_no_walker() {
 
         top_out(&mut env, house, RiskKind::Fire);
         test_utils::tick_n(&mut env, 4, TICK_SECS);
-        assert!(!fire_response_is_out(&mut env, fire_watch), "too far by road");
+        assert!(!fire_response_is_out(&mut env, fire_watch), "too far");
         assert!(is_burning(&env, house));
+    });
+}
+
+// A fire watcher who puts out one fire goes on to the next within his fire watch's reach before
+// coming home, so one walker puts out both.
+fn test_a_fire_watcher_goes_on_to_the_next_fire() {
+    with_risks(|| {
+        let _ = risks::take_notices();
+        let mut env = TestEnvironment::new();
+        road(&mut env);
+        let fire_watch = test_utils::spawn_building(&mut env, Cell::new(5, 11), "fire_watch");
+        set_debug_bool(&mut env, fire_watch, "freeze_patrol", true);
+        let near = test_utils::spawn_building(&mut env, Cell::new(16, 11), "house0");
+        let far = test_utils::spawn_building(&mut env, Cell::new(22, 11), "house0");
+
+        for house in [near, far] {
+            test_utils::find_building_mut(&mut env, house).risks_mut().set(RiskKind::Fire, MAX_RISK);
+        }
+        test_utils::tick(&mut env, TICK_SECS);
+        assert!(is_burning(&env, near) && is_burning(&env, far));
+        test_utils::tick(&mut env, TICK_SECS);
+        let walker = test_utils::find_unit_by_config(&env, UnitConfigKey::FireWatcher).expect("a fire watcher sent out");
+
+        test_utils::tick_until(&mut env, (burn_secs() / TICK_SECS) as usize, TICK_SECS, |env| !is_burning(env, near));
+        assert!(exists(&env, near), "the nearer fire is out first");
+        assert!(is_burning(&env, far), "the other still burns");
+        assert!(test_utils::unit_exists(&env, walker), "the walker didn't go home");
+
+        test_utils::tick_until(&mut env, (burn_secs() / TICK_SECS) as usize, TICK_SECS, |env| !is_burning(env, far));
+        assert!(exists(&env, far), "the walker put out the second fire before it burnt down");
+        assert!(test_utils::unit_exists(&env, walker), "the same walker");
+        assert_eq!(test_utils::find_unit_by_config(&env, UnitConfigKey::FireWatcher), Some(walker), "and no other");
+
+        test_utils::tick_until(&mut env, 200, TICK_SECS, |env| !test_utils::unit_exists(env, walker));
+        assert!(!fire_response_is_out(&mut env, fire_watch), "back home once no fire is left");
+        let notices = risks::take_notices();
+        assert_eq!(notices.iter().filter(|notice| notice.as_str() == "The fire at the house is out.").count(), 2);
+    });
+}
+
+// A fire watcher walks over land to a building with no road, and home again.
+fn test_a_fire_watcher_walks_off_the_road_to_a_fire() {
+    with_risks(|| {
+        let mut env = TestEnvironment::with_terrain(TestEnvironment::DEFAULT_MAP_SIZE, test_utils::find_terrain_def("grass"));
+        road(&mut env);
+        let fire_watch = test_utils::spawn_building(&mut env, Cell::new(5, 11), "fire_watch");
+        set_debug_bool(&mut env, fire_watch, "freeze_patrol", true);
+        // Six cells off the road, with nothing but grass in between.
+        let house = test_utils::spawn_building(&mut env, Cell::new(12, 16), "house0");
+        assert!(building(&env, house).road_link().is_none(), "no road reaches it");
+
+        top_out(&mut env, house, RiskKind::Fire);
+        test_utils::tick(&mut env, TICK_SECS);
+        assert!(fire_response_is_out(&mut env, fire_watch), "the fire watch sends someone");
+        let walker = test_utils::find_unit_by_config(&env, UnitConfigKey::FireWatcher).expect("the fire watcher");
+
+        test_utils::tick_until(&mut env, (burn_secs() / TICK_SECS) as usize, TICK_SECS, |env| !is_burning(env, house));
+        assert!(exists(&env, house), "the fire is out before the house burns down");
+
+        test_utils::tick_until(&mut env, 200, TICK_SECS, |env| !test_utils::unit_exists(env, walker));
+        assert!(!fire_response_is_out(&mut env, fire_watch), "he found his way home");
     });
 }
 

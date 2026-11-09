@@ -403,6 +403,29 @@ impl SimContext {
         )
     }
 
+    // The nearest cell next to a target, walking only `traversable_node_kinds`, within
+    // `max_distance` of `start` if given (pathfind::Search::find_path_next_to).
+    #[inline]
+    pub fn find_path_next_to<F>(
+        &self,
+        traversable_node_kinds: PathNodeKind,
+        start: Cell,
+        max_distance: Option<i32>,
+        mut is_target: F,
+    ) -> SearchResult<'_>
+    where
+        F: FnMut(Cell) -> bool,
+    {
+        self.search_mut().find_path_next_to(
+            self.graph(),
+            &AStarUniformCostHeuristic::new(),
+            traversable_node_kinds,
+            Node::new(start),
+            max_distance.unwrap_or(i32::MAX),
+            |node| is_target(node.cell),
+        )
+    }
+
     pub fn find_nearest_buildings<F>(
         &self,
         start: Cell,
