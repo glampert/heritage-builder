@@ -102,3 +102,7 @@ harness = false
 [[test]]
 name    = "realm_profile"
 harness = false
+
+[[test]]
+name    = "ui_fonts"
+harness = false

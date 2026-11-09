@@ -13,7 +13,10 @@
 // fonts reach egui at its next pass, so load every style at boot, before any menu that uses them is
 // built.
 
-use std::{collections::BTreeMap, sync::Arc};
+use std::{
+    collections::{BTreeMap, BTreeSet},
+    sync::Arc,
+};
 
 use egui::{
     Color32,
@@ -30,6 +33,7 @@ use egui::{
 };
 use serde::Deserialize;
 
+use super::icons;
 use crate::{
     config,
     file_sys::{self, paths::PathRef},
@@ -208,6 +212,107 @@ impl UiStyles {
 
 fn family(style_name: &str, text_style: &str) -> FontFamily {
     FontFamily::Name(format!("{style_name}/{text_style}").into())
+}
+
+// ----------------------------------------------
+// Glyph coverage
+// ----------------------------------------------
+
+// Text every text style but `icon` must draw: Đại Long's names, as the mockups spell them, and
+// every letter of Vietnamese, both cases. Some realm fonts lack the Vietnamese letters (Jaini and
+// Amita have no ạ, ộ, ủ, ơ, ư, ...), so their text styles take a fallback font that has them
+// (docs/plans/realm-ui.md, Fonts).
+pub const GLYPH_TEST_TEXTS: &[&str] = &[
+    "Đại Long · Thái Ninh · Hội Thủy",
+    "ĐẠI LONG · THÁI NINH · HỘI THỦY",
+    "Chợ Đèo, Thăng Hà, Vân Cảng, Bến Gốm, Thần Khê, Phù Sa, Đê Son, Sông Son, Ngọc Lan",
+    "aăâbcdđeêghiklmnoôơpqrstuưvxy àảãáạ ằẳẵắặ ầẩẫấậ èẻẽéẹ ềểễếệ ìỉĩíị òỏõóọ ồổỗốộ ờởỡớợ ùủũúụ ừửữứự ỳỷỹýỵ",
+    "AĂÂBCDĐEÊGHIKLMNOÔƠPQRSTUƯVXY ÀẢÃÁẠ ẰẲẴẮẶ ẦẨẪẤẬ ÈẺẼÉẸ ỀỂỄẾỆ ÌỈĨÍỊ ÒỎÕÓỌ ỒỔỖỐỘ ỜỞỠỚỢ ÙỦŨÚỤ ỪỬỮỨỰ ỲỶỸÝỴ",
+    "fjwz FJWZ 0123456789 + - % / ( ) : ; , . ! ? ' \"",
+];
+
+// Icons the `icon` text style must draw: the ones the UI shows (ui::icon_button's).
+pub const GLYPH_TEST_ICONS: &[char] = &[
+    icons::ICON_UNDO,
+    icons::ICON_REDO,
+    icons::ICON_PAUSE,
+    icons::ICON_PLAY,
+    icons::ICON_FAST_FORWARD,
+    icons::ICON_FAST_BACKWARD,
+];
+
+// Loads `sources` as UiSystem::load_styles does (the developer UI's style first) and lays out
+// `texts` in every text style of every style but `icon`, and `icons` in `icon`: each with its font,
+// then its fallbacks, glyph by glyph. An error lists, per text style, the characters:
+// - none of its fonts has, which egui would draw as a box ("tofu");
+// - letters and digits its style's monospace or icon font would draw, being the first font in the
+//   chain that has them, unless that's the text style's own font:
+//   those fallbacks are there for punctuation, symbols and icons, and a letter or digit they draw
+//   shows in the wrong face. So a text style whose font lacks some letters needs a fallback of its
+//   own for them, e.g. a Vietnamese one.
+pub fn check_glyph_coverage(sources: &[UiStyleSource], texts: &[&str], icons: &[char]) -> Result<(), String> {
+    use egui::epaint::text::{Fonts, MissingGlyphPolicy, TextOptions};
+
+    let styles = UiStyles::load(sources)?;
+    let mut fonts =
+        Fonts::new(TextOptions::default(), styles.fonts.clone()).with_missing_glyph_policy(MissingGlyphPolicy::Panic);
+    let mut view = fonts.with_pixels_per_point(1.0);
+    let icon_style = TextStyle::Name("icon".into());
+    let icons = String::from_iter(icons);
+    let char_list = |chars: &BTreeSet<char>| {
+        chars.iter().map(|chr| format!("'{chr}' (U+{:04X})", u32::from(*chr))).collect::<Vec<_>>().join(", ")
+    };
+    let mut errors = Vec::new();
+
+    for (name, style) in &styles.styles {
+        let primary_font = |text_style: &str| styles.fonts.families[&family(name, text_style)][0].clone();
+        let symbol_fonts = [primary_font("monospace"), primary_font("icon")];
+
+        for (text_style, font_id) in &style.egui.text_styles {
+            let texts: &[&str] = if *text_style == icon_style { &[&icons] } else { texts };
+            let family_fonts = &styles.fonts.families[&font_id.family];
+            let chars: BTreeSet<char> = texts.iter().flat_map(|text| text.chars()).filter(|chr| !chr.is_control()).collect();
+
+            // Every character, without stopping at the first, for a useful error.
+            let missing: BTreeSet<char> = chars.iter().copied().filter(|&chr| !view.has_glyph(font_id, chr)).collect();
+            if !missing.is_empty() {
+                errors.push(format!("{} (fonts {family_fonts:?}) has no glyph for {}", font_id.family, char_list(&missing)));
+                continue;
+            }
+
+            // The font that draws a character is the first of the family that has it.
+            let characters = view.characters(&font_id.family);
+            let mut symbol_drawn = BTreeSet::new();
+            for chr in chars.iter().filter(|chr| chr.is_alphanumeric()) {
+                let drawn_by = characters.get(chr).and_then(|fonts| fonts.first());
+                if drawn_by.is_some_and(|font| *font != family_fonts[0] && symbol_fonts.contains(font)) {
+                    symbol_drawn.insert(*chr);
+                }
+            }
+            if !symbol_drawn.is_empty() {
+                errors.push(format!(
+                    "{} (fonts {family_fonts:?}) draws the letters or digits {} with its style's monospace or icon font",
+                    font_id.family,
+                    char_list(&symbol_drawn)
+                ));
+                continue;
+            }
+
+            // Laid out as a label is: a character that still falls back to tofu panics.
+            for text in texts {
+                let layout = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+                    view.layout_no_wrap(text.to_string(), font_id.clone(), Color32::WHITE);
+                }));
+                if let Err(panic) = layout {
+                    let message =
+                        panic.downcast_ref::<String>().map(String::as_str).or(panic.downcast_ref::<&str>().copied());
+                    errors.push(format!("{} can't lay out {text:?}: {}", font_id.family, message.unwrap_or("panicked")));
+                }
+            }
+        }
+    }
+
+    if errors.is_empty() { Ok(()) } else { Err(errors.join("\n")) }
 }
 
 // ----------------------------------------------
@@ -740,6 +845,93 @@ mod tests {
         assert!(styles.fonts.font_data.contains_key("kambara/mono"));
         assert!(styles.fonts.families.contains_key(&family("kambara", "body")));
         assert!(styles.fonts.families.contains_key(&FontFamily::Proportional));
+    }
+
+    // A style whose text styles but `monospace` and `icon` draw with `font` (a file under
+    // assets/fonts/), then `fallbacks`: files, or "mono" and "icons" for the style's monospace and
+    // icon fonts. `icon` draws with `icon_font`.
+    fn font_style_json(font: &str, fallbacks: &[&str], icon_font: &str) -> serde_json::Value {
+        let mut fonts = serde_json::json!({
+            "text": { "file": font },
+            "mono": { "file": "source_code_pro_semi_bold.ttf", "scale": 0.7955 },
+            "icons": { "file": icon_font }
+        });
+        let mut text_fallbacks = Vec::new();
+        for (index, fallback) in fallbacks.iter().enumerate() {
+            if ["mono", "icons"].contains(fallback) {
+                text_fallbacks.push(fallback.to_string());
+            } else {
+                fonts[format!("fallback{index}")] = serde_json::json!({ "file": fallback });
+                text_fallbacks.push(format!("fallback{index}"));
+            }
+        }
+        let text_style = serde_json::json!({ "font": "text", "size": 20.0, "fallbacks": text_fallbacks });
+        serde_json::json!({
+            "fonts": fonts,
+            "text_styles": {
+                "body": text_style, "heading": text_style, "button": text_style, "small": text_style,
+                "monospace": { "font": "mono", "size": 14.0, "fallbacks": ["icons"] },
+                "icon": { "font": "icons", "size": 16.0 }
+            }
+        })
+    }
+
+    fn check_font_style_texts(font: &str, fallbacks: &[&str], icon_font: &str, texts: &[&str]) -> Result<(), String> {
+        let sources = [
+            UiStyleSource::json(
+                DEV_UI_THEME,
+                font_style_json("source_code_pro_semi_bold.ttf", &["icons"], "fa-solid-900.ttf"),
+            ),
+            UiStyleSource::json("realm", font_style_json(font, fallbacks, icon_font)),
+        ];
+        check_glyph_coverage(&sources, texts, GLYPH_TEST_ICONS)
+    }
+
+    fn check_font_style(font: &str, fallbacks: &[&str], icon_font: &str) -> Result<(), String> {
+        check_font_style_texts(font, fallbacks, icon_font, GLYPH_TEST_TEXTS)
+    }
+
+    #[test]
+    fn checks_glyph_coverage() {
+        // Today's style files draw Vietnamese with their own fonts.
+        let sources = [UiStyleSource::file("dev", "ui/styles/dev.json"), UiStyleSource::file("game", "ui/styles/game.json")];
+        check_glyph_coverage(&sources, GLYPH_TEST_TEXTS, GLYPH_TEST_ICONS).unwrap();
+
+        // Jaini has Đ and á, but not ạ, ộ, ủ: each text style that draws with it alone fails,
+        // naming what it lacks.
+        let error = check_font_style("jaini_regular.ttf", &[], "fa-solid-900.ttf").err().unwrap();
+        for text_style in ["body", "heading", "button", "small"] {
+            assert!(error.contains(&format!("realm/{text_style} (fonts [\"realm/text\"]) has no glyph for ")), "{error}");
+        }
+        assert!(
+            error.contains("'ạ' (U+1EA1)") && error.contains("'ộ' (U+1ED9)") && error.contains("'ủ' (U+1EE7)"),
+            "{error}"
+        );
+        assert!(!error.contains("'Đ'") && !error.contains("'á'"), "{error}");
+        assert!(!error.contains("realm/monospace") && !error.contains("realm/icon") && !error.contains("dev/"), "{error}");
+        assert_eq!(error.lines().count(), 4, "{error}");
+
+        // The monospace font has them, but draws them in the wrong face: it doesn't count.
+        let error = check_font_style("jaini_regular.ttf", &["mono", "icons"], "fa-solid-900.ttf").err().unwrap();
+        assert!(error.contains("realm/body (fonts [\"realm/text\", \"realm/mono\", \"realm/icons\"]) draws "), "{error}");
+        assert!(error.contains("'ạ' (U+1EA1)") && !error.contains("'Đ'") && !error.contains("realm/monospace"), "{error}");
+        assert_eq!(error.lines().count(), 4, "{error}");
+
+        // Punctuation and symbols may come from the monospace font: Jaini has no '→'.
+        check_font_style_texts("jaini_regular.ttf", &["mono", "icons"], "fa-solid-900.ttf", &["Long → 12"]).unwrap();
+        assert!(check_font_style_texts("jaini_regular.ttf", &[], "fa-solid-900.ttf", &["Long → 12"]).is_err());
+
+        // A fallback of its own draws them, glyph by glyph, if it comes before the monospace font.
+        check_font_style("jaini_regular.ttf", &["spectral_sc_semi_bold.ttf"], "fa-solid-900.ttf").unwrap();
+        check_font_style("jaini_regular.ttf", &["spectral_sc_semi_bold.ttf", "mono", "icons"], "fa-solid-900.ttf").unwrap();
+        assert!(check_font_style("jaini_regular.ttf", &["mono", "spectral_sc_semi_bold.ttf"], "fa-solid-900.ttf").is_err());
+
+        // The icon text style draws the icons, not the text.
+        let error =
+            check_font_style("protest_revolution_regular.ttf", &["mono", "icons"], "jaini_regular.ttf").err().unwrap();
+        assert!(error.starts_with("realm/icon (fonts [\"realm/icons\"]) has no glyph for "), "{error}");
+        assert!(error.contains("'\u{f04b}' (U+F04B)"), "{error}"); // ICON_PLAY
+        assert_eq!(error.lines().count(), 1, "{error}");
     }
 
     #[test]

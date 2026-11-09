@@ -1,6 +1,6 @@
 # Realm UI: menus, screens and HUD in each realm's style
 
-**Status (2026-11-09): Phase 0 in progress; the `widgets.rs` split, the realm and player profile, localized strings, the sound hooks and the engine's themes, 9-slice panels and menu inner rect are done.** The user reviewed it on 2026-11-07: their notes are folded in (see [Review notes](#review-notes)), the open decisions' defaults are accepted, and every mockup the phases need now exists. This plan builds and restyles every retail screen after the [UI mockups](../design/mockups/README.md): the main menus, the world map, the intermission, the story comics, the HUD and the city management pages. Each screen gets one look per realm: Đại Long, Kambara and Tampadesa. It is milestone **UI** of the [roadmap](roadmap.md). It was researched against `ccca1df` on `claude`. File and line references point at that commit, so re-check them before relying on them.
+**Status (2026-11-09): Phase 0 in progress; the `widgets.rs` split, the realm and player profile, localized strings, the sound hooks, the engine's themes, 9-slice panels and menu inner rect, and the realm fonts are done.** The user reviewed it on 2026-11-07: their notes are folded in (see [Review notes](#review-notes)), the open decisions' defaults are accepted, and every mockup the phases need now exists. This plan builds and restyles every retail screen after the [UI mockups](../design/mockups/README.md): the main menus, the world map, the intermission, the story comics, the HUD and the city management pages. Each screen gets one look per realm: Đại Long, Kambara and Tampadesa. It is milestone **UI** of the [roadmap](roadmap.md). It was researched against `ccca1df` on `claude`. File and line references point at that commit, so re-check them before relying on them.
 
 ![Home menu, Đại Long](../design/mockups/menu-home-dailong.jpg)
 
@@ -370,7 +370,7 @@ The existing dialogs keep their layouts but take their panels from the Đại Lo
 - [x] `Realm`, `Profile` (`saves/user/profile.json`, `--fresh-profile`), `realm::ui_realm()`, a `realm` field in `campaigns.json`; `profile.*` and `ui.realm` commands; tests.
 - [x] Engine: data-driven themes (`UiThemeId`), `UiNineSlice` and `UiPainter::nine_slice`, menus laying out in their own inner rect (no `i8` insets).
 - [ ] Skins: `assets/configs/ui/skins/{dailong,kambara,tampadesa}.json`; `menu/skin.rs`; the skin version counter and `dialog::rebuild_all()`; `ui.reload_skin`. `styles/game.json` folds into Đại Long's skin. The skin's `sounds` block, applied with `ui::sound::set_mapping` on each skin switch; `assets/configs/ui/sounds.json` folds into Đại Long's skin.
-- [ ] Fonts: add Spectral SC and Alegreya (and their OFL files); realm text styles with fallbacks; the Vietnamese glyph test.
+- [x] Fonts: add Spectral SC and Alegreya (and their OFL files); realm text styles with fallbacks; the Vietnamese glyph test.
 - [x] Split `engine/src/ui/widgets.rs` into `engine/src/ui/widgets/`, one widget family per file, with no change in behaviour, in a commit of its own.
 - [x] Localized strings: `text/<language>.json`, the new categories, arguments, plural forms, `UiText`, the fallback and its test; `text.*` commands. Move today's strings for the screens Phase 0 touches.
 - [x] Sound hooks: the role keys, per-widget sound events and overrides, a placeholder role-to-file mapping in `assets/configs/ui/sounds.json` with `ui::sound::set_mapping` for the skins (the skin's `sounds` block: see Skins), dialog and popup open and close sounds.
@@ -424,6 +424,14 @@ The existing dialogs keep their layouts but take their panels from the Đại Lo
 - Deviations: `UiNineSlice` also holds the texture's size. `Tile` repeats the edges along their length too, each repeat half a texel in so seams don't bleed. Borders that don't fit shrink by one factor for both axes, keeping corners square. `UiTextButtonFrame::uniform` (one panel, tints per state) since no plain four-state frame art exists yet. Item list rows are left to `UiListRow`.
 - Sample: `Sample Menu 3` (panel, framed buttons, panel tooltip and popup, painter stretch, tile and shrink); `ui_dev_menus.jsonl` visits it.
 - Verified: build, `cargo test --workspace`, web check; `ui_new_game`, `ui_build`, `ui_dev_menus`, `minimap`, `ui_sounds`, `strings`, `finance` at 1440 × 800; `ui_snapshot` at 1440 × 800 and 1920 × 1080: identical listings apart from Sample Menu 3, and `ui.layout_issues` 0 on every retail screen. At 1440 × 800 the retail screenshots match; at 1080p dialog contents sit 7 points lower (the clamp's end). The sample screenshotted on OpenGL and on Wgpu (lavapipe).
+
+**Notes (2026-11-09, fonts; commit TODO):**
+- Added `spectral_sc_semi_bold.ttf` (google/fonts' static file), `alegreya_medium.ttf` and `alegreya_bold.ttf` (Google Fonts' static instances), their upstream OFL files, and the upstream licences of Source Code Pro 2.042 (`source_code_pro_OFL.txt`) and Font Awesome 5.15.4 (`fa_LICENSE.txt`).
+- `ui::check_glyph_coverage` lays out `GLYPH_TEST_TEXTS` (Đại Long's names, every Vietnamese letter) in every text style but `icon`, which gets `GLYPH_TEST_ICONS`. It fails on tofu, and on a letter or digit the style's monospace or icon font would draw (the first in the chain that has it): Source Code Pro has all of Vietnamese, so without that rule a missing realm fallback would pass.
+- `tests/ui_fonts.rs` runs it on `menu::ui_style_sources()` and on three realm font sets, the `fonts` and `text_styles` blocks for the skins step.
+- Deviations: the weights the mockups load, not Regular: Spectral SC SemiBold, whose strokes match Jaini's; Alegreya Medium for titles and Bold for body. A fallback takes its font's scale and a `y_offset_factor` (Kambara 0.093, Tampadesa −0.015), since egui centres fallback glyphs instead of lining up baselines. The sets' scales and sizes are placeholders for the skins.
+- Today's styles have no gap: Protest Revolution and Source Code Pro cover Vietnamese; Font Awesome draws only icons.
+- Verified: build, `cargo test --workspace`, web check; the test fails with a set's fallback removed; offline renders show the fallback glyphs on the baseline; `ui_new_game` and `ui_dev_menus` pass.
 
 ### Phase 1: Main menus
 
