@@ -39,6 +39,14 @@ jobs:
           python3 crates/tools/blender-tile-generator/sync_tileset.py --check
           python3 -m unittest discover -s crates/tools/blender-tile-generator/tests
 
+      # Plain Python, no browser: the UI skin sprites match the catalog and manifest, and the
+      # skin files' 9-slice borders match the catalog's.
+      - name: UI art (catalog, sprites and skins in sync, unit tests)
+        if: runner.os == 'Linux'
+        run: |
+          python3 crates/tools/ui-art/make_ui_art.py --check
+          python3 -m unittest discover -s crates/tools/ui-art/tests
+
       - name: Install Linux system dependencies
         if: runner.os == 'Linux'
         run: |

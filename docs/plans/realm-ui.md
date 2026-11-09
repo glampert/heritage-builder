@@ -1,6 +1,6 @@
 # Realm UI: menus, screens and HUD in each realm's style
 
-**Status (2026-11-09): Phase 0 in progress; the `widgets.rs` split, the realm and player profile, localized strings, the sound hooks, the engine's themes, 9-slice panels and menu inner rect, and the realm fonts are done.** The user reviewed it on 2026-11-07: their notes are folded in (see [Review notes](#review-notes)), the open decisions' defaults are accepted, and every mockup the phases need now exists. This plan builds and restyles every retail screen after the [UI mockups](../design/mockups/README.md): the main menus, the world map, the intermission, the story comics, the HUD and the city management pages. Each screen gets one look per realm: Đại Long, Kambara and Tampadesa. It is milestone **UI** of the [roadmap](roadmap.md). It was researched against `ccca1df` on `claude`. File and line references point at that commit, so re-check them before relying on them.
+**Status (2026-11-09): Phase 0 in progress; the `widgets.rs` split, the realm and player profile, localized strings, the sound hooks, the engine's themes, 9-slice panels and menu inner rect, the realm fonts and the ui-art pipeline are done.** The user reviewed it on 2026-11-07: their notes are folded in (see [Review notes](#review-notes)), the open decisions' defaults are accepted, and every mockup the phases need now exists. This plan builds and restyles every retail screen after the [UI mockups](../design/mockups/README.md): the main menus, the world map, the intermission, the story comics, the HUD and the city management pages. Each screen gets one look per realm: Đại Long, Kambara and Tampadesa. It is milestone **UI** of the [roadmap](roadmap.md). It was researched against `ccca1df` on `claude`. File and line references point at that commit, so re-check them before relying on them.
 
 ![Home menu, Đại Long](../design/mockups/menu-home-dailong.jpg)
 
@@ -255,7 +255,7 @@ The realm fonts are those of the mockups (`generator/common.py`, `REALM_FONTS`):
 
 **How it renders:**
 - It imports the theme classes in `docs/design/mockups/generator/` (`world_map.py`, `screens.py`, `menus.py`). Those already draw each realm's materials as SVG: Đại Long's scrolls, parchment, wood and lacquer; Kambara's sandstone, moss and vines; Tampadesa's brick, teak, lacquer and gilt.
-- It wraps each sprite in a page of its own size and shoots it with Playwright's Chromium, on a transparent background (`omitBackground`) at 2×. The browser is pre-installed in cloud sessions; locally, `npm i playwright` is enough.
+- It wraps each sprite in a page of its own size and shoots it with Playwright's Chromium, on a transparent background (`omitBackground`) at 2×. The browser is pre-installed in cloud sessions; locally, install it outside the repository (`npm i -g playwright`, with `NODE_PATH` if Node can't find it; see the ui-art README).
 - Small glyph icons stay with `crates/tools/ui-icons/` (Pillow, no browser). Its `icons.json` grows the HUD and build-bar glyphs from the mockups' `icon()` (`screens.py:302`).
 
 **What drives it:**
@@ -376,7 +376,7 @@ The existing dialogs keep their layouts but take their panels from the Đại Lo
 - [x] Sound hooks: the role keys, per-widget sound events and overrides, a placeholder role-to-file mapping in `assets/configs/ui/sounds.json` with `ui::sound::set_mapping` for the skins (the skin's `sounds` block: see Skins), dialog and popup open and close sounds.
 - [ ] Widgets: `UiTabBar`, `UiToggle`, framed `UiTextButton`, `UiMenuItem`, `UiListRow`, `UiImage`, `UiKeyValues`, `UiTable`, `UiMeter`, `UiColumns`, `UiStepSelector`, `UiRichText`, each in the developer sample menus (`engine/src/ui/tests.rs`). Each interactive one plays its roles through a `UiWidgetSounds` (`sounds.play(context, event, Some(role))`): `UiTabBar` `tab_selected`, `UiToggle` `toggled`, `UiMenuItem` and `UiListRow` `item_hovered` and `item_selected`, `UiStepSelector` `slider_changed`.
 - [ ] Dialog framework: each dialog its own window, from the skin's `dialogs` block; the "keep the dialog under it visible" flag; paths take the dialog's own label (update `ui_new_game.jsonl`, `ui_snapshot.jsonl`, AGENTS.md).
-- [ ] `crates/tools/ui-art/`: the catalog, `make_ui_art.py` (render, manifest, `--check`), the first sprites for all three realms (panels, buttons, controls, separators, emblems); `--check` in CI.
+- [x] `crates/tools/ui-art/`: the catalog, `make_ui_art.py` (render, manifest, `--check`), the first sprites for all three realms (panels, buttons, controls, separators, emblems); `--check` in CI.
 - [ ] Popups (Quit, Overwrite), tooltips and toasts on skin panels.
 - [ ] Remove the unused old files (see [What exists today](#what-exists-today)).
 - [ ] `tests/ui_skins.rs`; a `ui_skins.jsonl` scenario that opens the Skin Gallery in each realm and checks `ui.layout_issues`.
@@ -432,6 +432,12 @@ The existing dialogs keep their layouts but take their panels from the Đại Lo
 - Deviations: the weights the mockups load, not Regular: Spectral SC SemiBold, whose strokes match Jaini's; Alegreya Medium for titles and Bold for body. A fallback takes its font's scale and a `y_offset_factor` (Kambara 0.093, Tampadesa −0.015), since egui centres fallback glyphs instead of lining up baselines. The sets' scales and sizes are placeholders for the skins.
 - Today's styles have no gap: Protest Revolution and Source Code Pro cover Vietnamese; Font Awesome draws only icons.
 - Verified: build, `cargo test --workspace`, web check; the test fails with a set's fallback removed; offline renders show the fallback glyphs on the baseline; `ui_new_game` and `ui_dev_menus` pass.
+
+**Notes (2026-11-09, ui-art; commit TODO):**
+- `crates/tools/ui-art/`: `art.json` (per realm: generator call, size and bleed in points, 9-slice borders in PNG pixels, centre, states), `make_ui_art.py` (renders what changed; hashes in `manifest.json`; never overwrites or prunes unlisted or edited files; `--measure`, `--prune`, `--check`), `render.js`, a README and stdlib unit tests, in CI beside the tile generator's check.
+- 175 sprites in `assets/ui/skins/<realm>/` at 2×: twelve panels and a bubble tail; primary, secondary, tab and selected tab in four states; icon frames; marker; toggle, checkbox, slider, dropdown and scrollbar parts; rule and ornament; three emblems (idle, locked, current); Kambara's vines and crest, Tampadesa's crest. Panels at most 508 px. Đại Long 0.64 MB, Kambara 1.58 MB, Tampadesa 0.85 MB, all preloaded on web.
+- Deviations: Node's Playwright. Hovered, pressed and disabled are CSS filters of idle. Tiled panels repeat through theme overrides (stitched noise moved onto the middle, no vignette, flat teak, repeating gilt, blotches at 45% contrast, so plainer than the mockups). The engine cuts the last tile, so motif edges (petals, gilt) end cut at the right and bottom corners: the skins should snap middles to whole tiles or add a `round` 9-slice mode (README §2). The scrollbar is the slider turned, the bubble the speech call's body: the generator has neither. No generator file changed.
+- Verified: a second run renders nothing; `--force` is byte-identical; `--check` under `python3 -I -S`; unit tests; sprites against the mockups, as 9-slices at dialog size; build and `cargo test --workspace`.
 
 ### Phase 1: Main menus
 

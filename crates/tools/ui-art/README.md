@@ -1,0 +1,181 @@
+# ui-art: the realm UI skins' placeholder sprites
+
+Draws every sprite of the realm UI skins (panels, buttons, controls, separators, emblems) from
+the mockup generator's own drawing code, so the game's UI looks like the
+[mockups](../../../docs/design/mockups/README.md) until hand-made art replaces it. Plan:
+[docs/plans/realm-ui.md](../../../docs/plans/realm-ui.md), Art pipeline.
+
+- `art.json`: the catalog. One entry per sprite: the generator call that draws it, its size,
+  9-slice borders and states, per realm.
+- `make_ui_art.py`: renders what changed, checks (`--check`), measures (`--measure`).
+- `manifest.json`: what the script wrote, with hashes. Commit it with the sprites.
+- `uiart/catalog.py` (catalog, manifest, checks; standard library only), `uiart/render.py`
+  (the generator adapter and the browser), `render.js` (Playwright), `tests/`.
+
+Output: `assets/ui/skins/<realm>/<id>.png`, or `<id>_<state>.png` for an entry with states, at
+2 pixels per point, RGBA on a transparent background.
+
+## 1. Running it
+
+    python3 crates/tools/ui-art/make_ui_art.py                    # render what changed
+    python3 crates/tools/ui-art/make_ui_art.py --realm kambara panel_dialog
+    python3 crates/tools/ui-art/make_ui_art.py --measure button_primary
+    python3 crates/tools/ui-art/make_ui_art.py --list
+    python3 crates/tools/ui-art/make_ui_art.py --check            # what CI runs
+    python3 -m unittest discover -s crates/tools/ui-art/tests     # and this
+
+Rendering needs:
+- Python 3 with Pillow and numpy (the generator imports them);
+- Node.js with Playwright and its Chromium, installed outside the repository so no
+  `node_modules/` or `package.json` lands in it: `npm i -g playwright && npx playwright install
+  chromium`, with `NODE_PATH="$(npm root -g)"` if Node doesn't find global packages by itself.
+  Cloud sessions have both.
+
+`--check` and the tests need only the standard library.
+
+After adding or removing sprites, refresh the web build's preload list:
+`cargo run -p web-builder -- manifest` (then `git checkout -- web/assets` if it re-linked that
+symlink). `--check` fails while a sprite is missing from `web/asset_manifest.json`.
+
+A whole run takes about 15 s: one browser shoots every sprite.
+
+## 2. How a sprite is drawn
+
+1. A fresh realm theme: `dialogs.<Realm>Dialogs` from `docs/design/mockups/generator/`, whose
+   class hierarchy has every drawing method of the mockups (panels, buttons, form widgets,
+   emblems). The generator's text helper `T()` is replaced by one that draws nothing, so no
+   words end up in a sprite. The generator needs `build/fonts.css` at import; without it, an
+   empty one is read in its place (the sprites have no text).
+2. The entry's `attrs` are set on the theme (e.g. Tampadesa's lacquer `box_style`), helpers in
+   `omit` draw nothing, and one generator call (`render.CALLS`) draws the entry's `size` rect at
+   (`pad`, `pad`) on a page with `pad` points all round.
+3. `elements` keeps only some top-level SVG elements of what the call drew (a toggle's track
+   or knob, a slider's rail, fill or knob); `capture` keeps only what one helper drew during the
+   call (Kambara's vines, a crest). `rotate: 90` turns the drawing a quarter clockwise (the
+   scrollbar from the slider).
+4. The page is shot with Chromium at the catalog's `scale` (2) on a transparent background, with
+   each state's CSS filter on it (hovered, pressed and disabled are derived from the idle
+   drawing), then cropped to the rect plus its `bleed` and saved as an optimised PNG. A drawing
+   that reaches past the crop is a warning: raise the bleed.
+
+For a 9-slice whose middle repeats (`center: tile`), the theme's material helpers are swapped
+for ones that repeat cleanly with the middle's size and line up with its borders, since the
+engine repeats both the middle and the edges:
+- noise (paper, stone, teak grain) is made as a stitched tile at the filter's origin, where
+  Chromium stitches it correctly, moved onto the middle and repeated (`feTile`), with at least
+  5 periods of its lowest octave per tile (`MIN_TILE_PERIODS`);
+- noise layers of large features (stains, mottling, moss: base frequency under `BLOTCH_FREQ`)
+  keep only `TILE_BLOTCH_CONTRAST` (45%) of their contrast about their middle tone. At full
+  strength they repeat as a lattice on a large panel; the fine grain repeats unseen. So a tiled
+  panel's paper or stone is plainer than the mockups' broad blotches;
+- Đại Long's rough paper edge repeats the same way;
+- the paper's vignette (a radial gradient) is left out, and horizontal gradients (teak) become
+  their middle colour;
+- Tampadesa's gilt gradient repeats along the diagonal with a period that divides the middle.
+
+Kambara's lotus-petal bands repeat every 22 points, so the sprite's middle width is a multiple
+of 22, and its heights keep the petals on the 16-point pattern rows (`pad` 88).
+
+Limits of a tiled 9-slice, for the skins: the engine repeats the middle and the edges from the
+top left and cuts the last tile wherever the middle ends (`UiNineSliceCenter::Tile`,
+`nine_slice.rs`), and a panel's size is arbitrary. So:
+- an edge with a motif along it (Kambara's petals, Tampadesa's gilt rules, the teak and stone
+  grain) ends in a cut motif or a small colour step where it meets the right or bottom corner;
+- the material shows a faint step where the cut tile meets the right and bottom borders, since
+  those continue from the start of a tile (the lowered blotch contrast keeps it faint).
+
+Ways out, when it shows: size the panels so their middles hold whole tiles, add a `round` mode
+to the engine's 9-slice (scale the tiles slightly so a whole number fits, like CSS
+`border-image-repeat: round`), or stretch the motif edges and tile only the middle.
+
+The output is byte-identical from run to run on one machine. The source hash covers the SVG
+page, the state's CSS, the crop and `RENDERER_VERSION` (bump it when the post-processing
+changes), not the browser, so a Chromium update doesn't re-render anything by itself.
+
+## 3. The catalog
+
+    { "id": "button_primary", "group": "buttons", "call": "button", "args": { "primary": true },
+      "size": [120, 56], "states": ["idle", "hovered", "pressed", "disabled"],
+      "realms": {
+        "dailong":   { "slice": [20, 20, 20, 20], "center": "stretch" },
+        "kambara":   { "bleed": [1, 1, 3, 5], "slice": [12, 12, 16, 20], "center": "tile" },
+        "tampadesa": { "bleed": [0, 0, 3, 5], "slice": [20, 20, 24, 28], "center": "stretch" } } }
+
+| Key | Meaning |
+|---|---|
+| `id` | `[a-z0-9_]`, unique per realm; the file name. |
+| `call`, `args` | The drawing call (`render.CALLS`, listed in `catalog.KNOWN_CALLS`) and its parameters. |
+| `size` | The widget rect the call draws, in points at 1920 × 1080. |
+| `bleed` | How far the sprite reaches past that rect, in points: left, top, right, bottom (shadows, roller knobs, stupas). Negative crops into it: an ornament or knob cut out of a larger drawing. The PNG is `(size + bleed) × scale` pixels. |
+| `slice` | 9-slice borders in pixels of the PNG: left, top, right, bottom. They hold the whole frame, so only plain material stretches or repeats. |
+| `center` | `stretch` (default) or `tile`; tiled sprites are drawn to repeat (above). |
+| `states` | A list of state names, or an object of state → `{ "css", "args", "call" }`. Known: `idle`, `hovered`, `pressed`, `disabled`, `selected`, `locked`, `current`. `state_filters` gives each state's default CSS filter. |
+| `realms` | Realm → overrides of any key but `id`. Without it the entry is made for every realm. |
+| `elements`, `capture`, `omit`, `attrs`, `rotate` | See section 2. |
+| `out` | Another output pattern under `skins/`, with `{realm}`, `{id}` and `{state}`. |
+
+Values in the catalog are points except `slice` (pixels). `--measure` prints how far an entry's
+drawing reaches past its rect, which is the bleed it needs (rounded up to half points).
+
+## 4. What it makes
+
+Per realm (Đại Long, Kambara, Tampadesa), about 60 sprites and 0.6-1.6 MB:
+
+| Sprites | Call | Notes for the skins |
+|---|---|---|
+| `panel_dialog`, `panel_popup` | `mpanel` | The menu dialogs' frame (scroll and rollers; stone with petal bands; teak, gilt and corner stupas), tiled. The popup is the same art with a smaller tile. Kambara's vines are separate (`vine_tl`, `vine_br`). |
+| `panel_side` | `panel_bg` | The world map's side panel. |
+| `panel_card`, `panel_tooltip` | `box` | The HUD's boxes. Tampadesa's tooltip is the HUD's dark lacquer box (light text), stretched. |
+| `panel_bar` | `bar_bg` | The world map's top bar (dark wood; mossy stone; teak and gilt). |
+| `panel_caption` | `caption` | Story captions. Đại Long's cloud scroll sits in the bottom-right corner. |
+| `panel_well`, `panel_row`, `panel_row_selected`, `panel_field` | `card`, `row_bg`, `text_input` | Flat shapes in the skin's colours. A row is only its bottom rule. |
+| `panel_bubble`, `bubble_tail` | `speech` | The bubble's body (9-slice) and its tail, placed by the tail's bleed relative to a bubble of the catalog's size. |
+| `button_primary`, `button_secondary`, `tab`, `tab_selected` | `button`, `tab` | Four states each, hovered, pressed and disabled derived by CSS filters. |
+| `icon_frame` (4 states), `icon_frame_selected` | `build_button`, `icon_button` | The frame only; the glyphs stay with `crates/tools/ui-icons/`. Tampadesa's use the HUD's lacquer colours. |
+| `marker` | `item_marker` | The menu item marker: a seal, a leaf, a small stupa. |
+| `toggle_off`, `toggle_on`, `toggle_knob` | `toggle` | Track and knob apart, so the knob can slide; the knob's centre is 15 pt from the track's left (off) or right (on) end. |
+| `checkbox_off`, `checkbox_on` | `checkbox` | |
+| `slider_rail`, `slider_fill`, `slider_knob` | `slider` | Rail and fill are 9-slices along their length. |
+| `dropdown_arrow` | `dropdown` | The chevron; its right edge is 12 points inside the field's, vertically centred. The field is `panel_field`. |
+| `scrollbar_track`, `scrollbar_thumb` | `slider`, turned | The generator has no scrollbar: the slider's rail and fill, vertical. |
+| `rule`, `ornament` | `divider` | The realm divider split in two: a rule that stretches and the ornament drawn at its middle (Đại Long's diamond sits 2 points above the line). |
+| `emblem_<realm>` (`idle`, `locked`, `current`) | `realm_emblem` | Each realm's emblem drawn in this skin's colours, as the home menu shows them. |
+| `vine_tl`, `vine_br` (Kambara) | `mpanel`, captured | The dialog's vines, placed by their bleed relative to a 480-point panel's top-left and bottom-right corners. |
+| `crest` (Kambara, Tampadesa) | `mpanel`, captured | The home dialog's crest; its bleed places it on a 480-point panel. |
+
+## 5. Hand-made art
+
+The script never overwrites a file the manifest doesn't list, nor one changed since it wrote
+it (its hash differs from the manifest's): it skips them with a note, unless `--force`. To
+replace a sprite with hand-made art for good, take its entry out of `art.json`, put the new
+file in place and run `--prune`: it drops the entry from `manifest.json` and keeps the file,
+since it's no longer what the script wrote. `--prune` deletes only files that are still
+exactly what the script wrote (or any, with `--force`), so the order doesn't matter: removing
+the entry and pruning first deletes the generated file, and the new file goes in after. The
+skin keeps pointing at the same path.
+
+## 6. `--check`
+
+With the standard library only (CI has no Pillow or browser), it checks that:
+- the catalog is valid: known keys, calls and states; ids unique per realm; outputs under
+  `skins/`; whole-pixel sizes; borders that fit, with a middle when it tiles;
+- every sprite exists at the catalog's pixel size, is in `manifest.json` with the same hash,
+  and is in `web/asset_manifest.json`; the manifest lists nothing else;
+- when `assets/configs/ui/skins/` exists, every `skins/...` path a skin file names exists (a
+  path without `.png` is a folder, such as an icon set's, or a stem that takes a state
+  suffix), and a 9-slice's `slice` and
+  `center` equal the catalog's (`catalog.check_skins`, for the skins step to extend).
+
+CI runs it with the unit tests, beside the tile generator's check.
+
+## 7. Adding a sprite
+
+1. Add an entry to `art.json`; a call the adapter doesn't know needs a line in `render.CALLS`
+   and `catalog.KNOWN_CALLS`.
+2. `make_ui_art.py --measure ID` gives the bleed; set the borders to hold the frame.
+3. `make_ui_art.py ID`, then look at the PNGs (and at them as a 9-slice at a large size).
+4. `cargo run -p web-builder -- manifest`, `make_ui_art.py --check`, and commit the sprites,
+   `art.json` and `manifest.json`.
+
+Keep generator changes for the mockups' sake only: this tool draws through overrides on the
+theme instance (section 2) and doesn't change what the mockups render.
