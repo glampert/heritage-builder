@@ -137,9 +137,55 @@ pub const fn fnv1a_from_str(s: &str) -> FNV1aHash {
     hash
 }
 
+// ----------------------------------------------
+// SplitMix64
+// ----------------------------------------------
+
+// The golden-ratio increment SplitMix64 adds to its state for each output.
+pub const SPLITMIX64_GAMMA: u64 = 0x9E37_79B9_7F4A_7C15;
+
+// One SplitMix64 output for state `x`: the state plus the increment, finalized. A cheap,
+// well-mixed hash of a u64, for deterministic per-thing values (a building's risk jitter from its
+// cell and kind) that mustn't draw from the simulation's RNG. splitmix64(0) is the generator's
+// first output from seed 0, splitmix64(SPLITMIX64_GAMMA) its second.
+#[inline]
+pub const fn splitmix64(x: u64) -> u64 {
+    let mut z = x.wrapping_add(SPLITMIX64_GAMMA);
+    z = (z ^ (z >> 30)).wrapping_mul(0xBF58_476D_1CE4_E5B9);
+    z = (z ^ (z >> 27)).wrapping_mul(0x94D0_49BB_1331_11EB);
+    z ^ (z >> 31)
+}
+
+// A hash's top 24 bits as a fraction in [0, 1), exactly representable as an f32.
+#[inline]
+pub fn hash_to_unit_f32(hash: u64) -> f32 {
+    (hash >> 40) as f32 / (1u64 << 24) as f32
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn test_splitmix64_known_values() {
+        // The reference generator's first two outputs from seed 0.
+        assert_eq!(splitmix64(0), 0xe220a8397b1dcdaf);
+        assert_eq!(splitmix64(SPLITMIX64_GAMMA), 0x6e789e6aa1b965f4);
+        const HASH: u64 = splitmix64(42);
+        assert_eq!(HASH, splitmix64(42));
+        assert_ne!(splitmix64(1), splitmix64(2));
+    }
+
+    #[test]
+    fn test_hash_to_unit_f32_range() {
+        assert_eq!(hash_to_unit_f32(0), 0.0);
+        let top = hash_to_unit_f32(u64::MAX);
+        assert!(top < 1.0 && top > 0.999_999);
+        for x in 0..1000 {
+            let unit = hash_to_unit_f32(splitmix64(x));
+            assert!((0.0..1.0).contains(&unit));
+        }
+    }
 
     #[test]
     fn test_fnv1a_empty_is_null() {

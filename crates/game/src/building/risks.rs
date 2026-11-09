@@ -10,6 +10,7 @@ use strum::{Display, EnumCount, EnumIter, EnumString};
 
 use common::{
     coords::Cell,
+    hash,
     time::{Seconds, UpdateTimer},
 };
 use proc_macros::DrawDebugUi;
@@ -252,13 +253,7 @@ fn jitter(base_cell: Cell, kind: BuildingKind, spread: f32) -> f32 {
     if spread == 0.0 {
         return 1.0;
     }
-    // SplitMix64 over the cell and kind, then the top 24 bits as a fraction in [0, 1).
-    let mut z = (base_cell.x as u32 as u64) | ((base_cell.y as u32 as u64) << 32);
-    z ^= u64::from(kind.bits()).wrapping_mul(0x9E37_79B9_7F4A_7C15);
-    z = z.wrapping_add(0x9E37_79B9_7F4A_7C15);
-    z = (z ^ (z >> 30)).wrapping_mul(0xBF58_476D_1CE4_E5B9);
-    z = (z ^ (z >> 27)).wrapping_mul(0x94D0_49BB_1331_11EB);
-    z ^= z >> 31;
-    let unit = (z >> 40) as f32 / (1u64 << 24) as f32;
-    1.0 - spread + 2.0 * spread * unit
+    let cell_bits = (base_cell.x as u32 as u64) | ((base_cell.y as u32 as u64) << 32);
+    let key = cell_bits ^ u64::from(kind.bits()).wrapping_mul(hash::SPLITMIX64_GAMMA);
+    1.0 - spread + 2.0 * spread * hash::hash_to_unit_f32(hash::splitmix64(key))
 }
