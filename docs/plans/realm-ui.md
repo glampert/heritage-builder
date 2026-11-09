@@ -416,7 +416,7 @@ The existing dialogs keep their layouts but take their panels from the Đại Lo
 - Seen, not changed: Escape in a two-deep stack closes both dialogs (the dialog framework step's Escape owner); the shared per-role cooldown drops a second press within 0.2 s, as before.
 - Verified: build, `cargo test --workspace`, web check; CI scenarios and `ui_sounds` (twice, same output); `ui_build` record and replay. Not run: real audio (no device here), web in a browser.
 
-**Notes (2026-11-09, engine themes, 9-slice and inner rect; commit TODO):**
+**Notes (2026-11-09, engine themes, 9-slice and inner rect; commit `0c708d4`):**
 - Themes: `UiSystem::load_styles(&[UiStyleSource], ppp)` takes named styles (a file under `assets/configs/`, or a JSON value or string), `dev` first; `theme_id(name)` gives a `UiThemeId` (None if unknown), `set_ui_theme(id)` switches. Unknown fields stay errors from JSON values; `UiStyleSource::validate` checks one without its fonts. The game's list is `menu::ui_style_sources()` (`dev`, `game`), the retail theme `menu::retail_ui_theme` (a `TODO(realm-ui)` for the skins). `ui.reload_styles` re-reads files and keeps JSON.
 - `TextureCache::texture_size`, shared by both renderers and web.
 - `ui/nine_slice.rs`: the geometry, pure and unit-tested; `UiPainter::nine_slice` and the widgets draw it as one mesh. `UiWidgetContext::load_nine_slice`; `UiMenu::with_panel`, `UiMessageBox::with_panel`, `UiTooltipText::with_panel` (`UiTooltipBackground::Panel`), `UiTextButton::with_frame(UiTextButtonFrame)`.
