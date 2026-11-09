@@ -397,7 +397,7 @@ The existing dialogs keep their layouts but take their panels from the Đại Lo
 - Tests: `tests/realm_profile.rs`, the finished-missions queue in `tests/campaign.rs`, and `ui.realm` checks in `minimap.jsonl`.
 - Verified: build, `cargo test --workspace` and the web target check; the CI scenarios with `--fresh-profile`; determinism twice with the same checksum; record and replay of `ui_build` and `determinism`; a live game writing, reloading, rejecting broken and other-version files, and resetting the profile; no `saves/user/profile.json` after scripts, replays, the smoke test or tests. Not run: the mission-finished path end to end in a live game (it needs goals met), and the web build in a browser.
 
-**Notes (2026-11-09, localized strings; commit TODO):**
+**Notes (2026-11-09, localized strings; commit `b8fc255`):**
 - `engine::ui::text`: `text/<language>.json` keyed by category name (`text.json` became `en.json`, without its order rule and panic), with the new categories; `get`, `format`, `format_count` (CLDR plural forms, a per-language `PluralRule`), `find_str` as before. Every file loads at init and stays; `set_language` switches by name, from `GameConfigs::engine.language` (its dropdown: a Phase 1 `TODO(realm-ui)`); a replay applies its recording's.
 - Retained widgets' label and tooltip setters take `impl Into<UiString>`; call sites are unchanged. Dropdown and item-list items (`UiDropdown::new`, `reset_items`, `UiItemList::reset_items`) are still plain strings. Menu and popup labels stay strings (automation ids), but a menu without a background sprite draws its label as its title, which needs a `UiString` once localized.
 - Moved: the Quit and Overwrite popups; the construction, screenshot and debt toasts.
