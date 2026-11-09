@@ -115,5 +115,12 @@
     "dailong": "skins/tampadesa/emblem_dailong",
     "kambara": "skins/tampadesa/emblem_kambara",
     "tampadesa": "skins/tampadesa/emblem_tampadesa"
+  },
+  "dialogs": {
+    "Home": {"size": [600, 1000]},
+    "CityManagement": {"size": [1600, 1020]},
+    "PopulationManagement": {"size": [1600, 1020]},
+    "ResourcesManagement": {"size": [1600, 1020]},
+    "FinancesManagement": {"size": [1600, 1020]}
   }
 }

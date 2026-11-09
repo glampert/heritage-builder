@@ -525,6 +525,13 @@ impl UiMenu {
         ui_sys.with_ui(|ui| ui.spacing_mut().item_spacing = previous_spacing);
     }
 
+    // Draws the menu as draw does, but with `flags` in place of its own: e.g. without Modal, so it
+    // shows as a plain window under a modal one (a dialog under the one on top of it), which takes
+    // its input and dims it with its backdrop.
+    pub fn draw_with_flags(&mut self, context: &mut dyn UiWidgetContext, flags: UiMenuFlags) {
+        self.draw_custom(context, flags, Self::close, Self::message_box, Self::draw_menu_contents);
+    }
+
     pub fn draw_custom<OnClose, OnGetMsgBox, OnDrawContents>(
         &mut self,
         context: &mut dyn UiWidgetContext,
@@ -649,7 +656,25 @@ impl UiMenu {
         };
 
         immediate::close_popups_on_open(&ctx, id);
-        let area = egui::Area::new(id).fixed_pos(egui_pos2(window_pos)).pivot(pivot).constrain(false);
+        let mut area = egui::Area::new(id).fixed_pos(egui_pos2(window_pos)).pivot(pivot).constrain(false);
+
+        if let Some(size) = window_size {
+            // A window with a size shows at once, at full opacity: egui would fade it in, and hide
+            // it for a sizing pass the first time it's shown. That matters for dialogs, each its
+            // own window: one replacing another would blink.
+            area = area.fade_in(false);
+            if egui::AreaState::load(&ctx, id).is_none() {
+                let order = if modal { egui::Order::Foreground } else { egui::Order::Middle };
+                let state = egui::AreaState {
+                    pivot_pos: Some(egui_pos2(window_pos)),
+                    pivot,
+                    size: Some(egui_vec2(size)),
+                    interactable: true,
+                    last_became_visible_at: None,
+                };
+                ctx.memory_mut(|memory| memory.areas_mut().set_state(egui::LayerId::new(order, id), state));
+            }
+        }
 
         if modal {
             // Modal window has exclusive input focus (e.g.: popup message box).
@@ -661,7 +686,7 @@ impl UiMenu {
                 .backdrop_color(ui_sys.modal_backdrop_color())
                 .show(&ctx, |ui| draw_window(ui));
 
-            let escape_pressed = close_on_escape && response.is_top_modal && ctx.input(|input| input.key_pressed(egui::Key::Escape));
+            let escape_pressed = close_on_escape && response.is_top_modal && ctx.input(crate::ui::immediate::escape_pressed_in);
             if response.inner || escape_pressed {
                 is_open = false;
             }

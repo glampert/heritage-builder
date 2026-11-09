@@ -111,9 +111,10 @@ impl GameMenusSystem for InGameMenus {
 
     fn handle_custom_input(&mut self, context: &mut GameUiContext, args: GameMenusInputArgs) -> UiInputEvent {
         if let GameMenusInputArgs::Key { key, action, .. } = args {
-            // [ESCAPE]: Close all dialog menus and return to game.
+            // [ESCAPE]: Close the dialog on top, or its popup (only that: the dialogs don't close
+            // themselves on Escape).
             if key == InputKey::Escape && action == InputAction::Press {
-                if dialog::close_current(context) {
+                if dialog::close_current_on_escape(context) {
                     return UiInputEvent::Handled; // Key press is handled.
                 }
             }

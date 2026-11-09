@@ -781,7 +781,7 @@ fn cmd_dialog_open(context: &mut CommandContext, params: Value) -> CommandResult
     // this one. Its buttons open dialogs over it too.
     let opened = context.session.with_ui_context(context.engine, |ui_context| {
         for other in DialogMenuKind::iter().filter(|other| *other != kind && *other != DialogMenuKind::Home) {
-            if dialog::is_open(other) {
+            if dialog::is_in_stack(other) {
                 dialog::close(other, ui_context);
             }
         }

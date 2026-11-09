@@ -2203,6 +2203,21 @@ impl UiPainter {
 // Queries
 // ----------------------------------------------
 
+// True if Escape was pressed this frame, whether or not the UI took it (a focused text field
+// does: Engine::begin_frame then doesn't hand the key on). Key repeats from a held Escape don't
+// count, as the menus' input handlers only act on the press, so holding it closes one thing.
+pub fn escape_pressed(ui_sys: &UiSystem) -> bool {
+    ui_sys.ctx().input(escape_pressed_in)
+}
+
+// The first press of Escape among this frame's events, not its key repeats (egui's key_pressed
+// counts those too).
+pub(crate) fn escape_pressed_in(input: &egui::InputState) -> bool {
+    input.events.iter().any(|event| {
+        matches!(event, egui::Event::Key { key: Key::Escape, pressed: true, repeat: false, .. })
+    })
+}
+
 // The size of the window the game draws in, in points.
 pub fn screen_size(ui_sys: &UiSystem) -> Vec2 {
     let size = ui_sys.ctx().content_rect().size();
@@ -2229,4 +2244,36 @@ pub fn is_window_focused(ui_sys: &UiSystem) -> bool {
         let layer_id = ui.layer_id();
         ui.ctx().memory(|memory| memory.areas().top_layer_id(layer_id.order)) == Some(layer_id)
     })
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    // Holding Escape: the first frame's press counts, the key repeats on the frames after it don't.
+    #[test]
+    fn escape_pressed_ignores_key_repeats() {
+        let ctx = egui::Context::default();
+        let escape = |pressed: bool| egui::Event::Key {
+            key: Key::Escape,
+            physical_key: None,
+            pressed,
+            repeat: false, // egui marks a press of a key that's already down as a repeat itself.
+            modifiers: egui::Modifiers::NONE,
+        };
+        let frame = |events: Vec<egui::Event>| {
+            let mut seen = (false, false);
+            let mut output = ctx.run_ui(egui::RawInput { events, ..Default::default() }, |ui| {
+                seen = ui.ctx().input(|input| (escape_pressed_in(input), input.key_pressed(Key::Escape)));
+            });
+            output.textures_delta.clear();
+            seen
+        };
+
+        assert_eq!(frame(vec![escape(true)]), (true, true));
+        assert_eq!(frame(vec![escape(true)]), (false, true)); // A repeat: egui's key_pressed counts it.
+        assert_eq!(frame(vec![escape(true)]), (false, true));
+        assert_eq!(frame(vec![escape(false)]), (false, false));
+        assert_eq!(frame(vec![escape(true)]), (true, true)); // Pressed again.
+    }
 }

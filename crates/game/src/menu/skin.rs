@@ -334,15 +334,75 @@ impl Default for SkinBackdropsDef {
     }
 }
 
-// A dialog's panel, size and placement. `size` in points; a height (or width) of zero or less is
-// the window's minus that much. `align`: left (centred on the left), center or right; the menus
-// mode's if none.
+// A dialog's window: its panel, size and placement, and whether the dialog under it shows.
+// - `size`: [width, height] in points on a 1920 × 1080 window, scaled down to fit smaller ones
+//   (dialog_size); a width or height of zero or less is the reference window's minus that much.
+//   Or "fullscreen": the whole window, for full-screen screens (the world map, the intermission,
+//   the comic viewer).
+// - `align`: left (centred on the left), center or right; the menus mode's if none.
+// - `show_below`: whether the dialog under this one stays visible, drawn inert under it (false if
+//   none: the mockups hide Home's panel under Settings). A full-screen dialog hides it anyway.
 #[derive(Clone, Debug, Default, Deserialize)]
 #[serde(default, deny_unknown_fields)]
 pub struct SkinDialogDef {
     pub panel: Option<String>,
-    pub size: Option<[f32; 2]>,
+    pub size: Option<SkinDialogSize>,
     pub align: Option<SkinAlign>,
+    pub show_below: Option<bool>,
+}
+
+#[derive(Copy, Clone, Debug, PartialEq, Deserialize)]
+#[serde(untagged)]
+pub enum SkinDialogSize {
+    Points([f32; 2]),
+    Mode(SkinDialogSizeMode),
+}
+
+#[derive(Copy, Clone, Debug, PartialEq, Eq, Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum SkinDialogSizeMode {
+    Fullscreen,
+}
+
+impl SkinDialogSize {
+    // A dialog's size when neither its own entry nor `default` gives one: today's dialogs' width,
+    // and the reference window's height minus 120 points.
+    pub const DEFAULT: Self = Self::Points([550.0, -120.0]);
+
+    #[inline]
+    pub fn is_fullscreen(self) -> bool {
+        self == Self::Mode(SkinDialogSizeMode::Fullscreen)
+    }
+}
+
+// The window size, in points, that dialog sizes are given for.
+pub const DIALOG_REFERENCE_WINDOW: Vec2 = Vec2::new(1920.0, 1080.0);
+// The smallest window the dialogs are made to fit: on a smaller one they scale no further (and are
+// cut to the window).
+pub const DIALOG_MIN_WINDOW: Vec2 = Vec2::new(1280.0, 720.0);
+
+// The size in points of a dialog of `size` on a window of `window` points: its size on the
+// reference window, scaled down by as much as the window is smaller than it (the smaller of the
+// width and height ratios, so its proportions stay), but no further than on the minimum window,
+// and never larger than the window. Whole points, so its contents stay on the pixel grid.
+// TODO(realm-ui): Phase 1's UI scale setting (Settings, Game tab) scales the sizes too: with it the
+// factor is the window's ratio at 100% scale, so a dialog keeps its share of the screen while its
+// contents grow.
+pub fn dialog_size(size: SkinDialogSize, window: Vec2) -> Vec2 {
+    let window = Vec2::new(window.x.max(1.0), window.y.max(1.0));
+    let [width, height] = match size {
+        SkinDialogSize::Mode(SkinDialogSizeMode::Fullscreen) => return window,
+        SkinDialogSize::Points(points) => points,
+    };
+
+    let reference = DIALOG_REFERENCE_WINDOW;
+    let fit = |size: f32, reference: f32| if size > 0.0 { size } else { (reference + size).max(1.0) };
+    let size = Vec2::new(fit(width, reference.x), fit(height, reference.y));
+
+    let min_factor = (DIALOG_MIN_WINDOW.x / reference.x).min(DIALOG_MIN_WINDOW.y / reference.y);
+    let factor = (window.x / reference.x).min(window.y / reference.y).clamp(min_factor, 1.0);
+
+    Vec2::new((size.x * factor).min(window.x).round().max(1.0), (size.y * factor).min(window.y).round().max(1.0))
 }
 
 #[derive(Copy, Clone, Debug, PartialEq, Eq, Deserialize)]
@@ -655,17 +715,16 @@ pub fn dialog_def(kind: &str) -> SkinDialogDef {
         def.panel = own.panel.clone().or(def.panel);
         def.size = own.size.or(def.size);
         def.align = own.align.or(def.align);
+        def.show_below = own.show_below.or(def.show_below);
     }
     def
 }
 
-// A dialog's menu: labeled `kind`, with `flags`, on its panel and at its size from the skin.
+// A dialog's menu: labeled `kind`, with `flags`, on its panel and at its size from the skin for the
+// window as it is now (the dialog framework sets it again each frame it draws the dialog).
 pub fn dialog(context: &mut GameUiContext, kind: &str, flags: UiMenuFlags) -> UiMenu {
     let def = dialog_def(kind);
-    let viewport = Vec2::new(context.viewport_size.width as f32, context.viewport_size.height as f32);
-    let [width, height] = def.size.unwrap_or([550.0, -120.0]);
-    let fit = |size: f32, available: f32| if size > 0.0 { size } else { (available + size).max(1.0) };
-    let size = Vec2::new(fit(width, viewport.x), fit(height, viewport.y));
+    let size = dialog_size(def.size.unwrap_or(SkinDialogSize::DEFAULT), engine::ui::screen_size(context.ui_sys));
 
     let menu = UiMenu::new(kind).with_flags(flags).with_size(size);
     panel(context, def.panel.as_deref().unwrap_or("dialog")).apply_to_menu(menu)
@@ -1373,6 +1432,61 @@ mod tests {
                 if let Some(Some(file)) = mapping.get(&role) {
                     let path = repo_path("assets/sounds/sfx/ui").join(file);
                     assert!(path.is_file(), "{realm}: '{role}' names {}, which doesn't exist", path.display());
+                }
+            }
+        }
+    }
+
+    // Dialog sizes are given for a 1920 × 1080 window and shrink with it, keeping their proportions,
+    // down to the 1280 × 720 window's size, and never past the window.
+    #[test]
+    fn dialog_sizes_scale_to_the_window() {
+        let size = SkinDialogSize::Points([1220.0, 920.0]);
+        let at = |width: f32, height: f32| dialog_size(size, Vec2::new(width, height));
+
+        assert_eq!(at(1920.0, 1080.0), Vec2::new(1220.0, 920.0));
+        assert_eq!(at(3840.0, 2160.0), Vec2::new(1220.0, 920.0)); // Never larger.
+        assert_eq!(at(2560.0, 1080.0), Vec2::new(1220.0, 920.0)); // The smaller ratio counts.
+        assert_eq!(at(1440.0, 800.0), Vec2::new(904.0, 681.0)); // 800 / 1080 of it, in whole points.
+        assert_eq!(at(1440.0, 1080.0), Vec2::new(915.0, 690.0)); // 1440 / 1920 of it.
+        assert_eq!(at(1280.0, 720.0), Vec2::new(813.0, 613.0)); // Two thirds.
+        assert_eq!(at(1024.0, 600.0), Vec2::new(813.0, 600.0)); // No smaller than at 1280 × 720, but cut to the window.
+
+        // A width or height of zero or less is the reference window's minus that much, scaled.
+        let from_edges = SkinDialogSize::Points([550.0, -120.0]);
+        assert_eq!(dialog_size(from_edges, Vec2::new(1920.0, 1080.0)), Vec2::new(550.0, 960.0));
+        assert_eq!(dialog_size(from_edges, Vec2::new(1440.0, 800.0)), Vec2::new(407.0, 711.0));
+
+        let fullscreen = SkinDialogSize::Mode(SkinDialogSizeMode::Fullscreen);
+        assert_eq!(dialog_size(fullscreen, Vec2::new(1440.0, 800.0)), Vec2::new(1440.0, 800.0));
+        assert!(fullscreen.is_fullscreen() && !size.is_fullscreen());
+    }
+
+    // A dialog's size is [width, height] or "fullscreen"; its entry merges over `default`.
+    #[test]
+    fn dialog_defs_parse_and_merge() {
+        let def: SkinDialogDef = serde_json::from_value(serde_json::json!({ "size": "fullscreen", "show_below": true })).unwrap();
+        assert_eq!(def.size, Some(SkinDialogSize::Mode(SkinDialogSizeMode::Fullscreen)));
+        assert_eq!(def.show_below, Some(true));
+        let def: SkinDialogDef = serde_json::from_value(serde_json::json!({ "size": [600, 960], "align": "left" })).unwrap();
+        assert_eq!(def.size, Some(SkinDialogSize::Points([600.0, 960.0])));
+        assert!(serde_json::from_value::<SkinDialogDef>(serde_json::json!({ "size": "huge" })).is_err());
+        assert!(serde_json::from_value::<SkinDialogDef>(serde_json::json!({ "size": [600] })).is_err());
+    }
+
+    // Every skin's `dialogs` entries name a dialog (or `default`), and their sizes fit the
+    // reference window.
+    #[test]
+    fn every_skin_dialog_entry_names_a_dialog() {
+        let kinds: Vec<String> = crate::menu::dialog::DialogMenuKind::iter().map(|kind| kind.to_string()).collect();
+        for (realm, skin) in skins() {
+            assert!(skin.dialogs.contains_key("default"), "{realm}: no default dialog");
+            for (name, def) in &skin.dialogs {
+                assert!(name == "default" || kinds.contains(name), "{realm}: no dialog '{name}'");
+                if let Some(SkinDialogSize::Points([width, height])) = def.size {
+                    let size = dialog_size(SkinDialogSize::Points([width, height]), DIALOG_REFERENCE_WINDOW);
+                    assert!(size.x <= DIALOG_REFERENCE_WINDOW.x && size.y <= DIALOG_REFERENCE_WINDOW.y, "{realm}: '{name}' too large");
+                    assert!(width.abs() < DIALOG_REFERENCE_WINDOW.x && height.abs() < DIALOG_REFERENCE_WINDOW.y, "{realm}: '{name}': {width} × {height}");
                 }
             }
         }

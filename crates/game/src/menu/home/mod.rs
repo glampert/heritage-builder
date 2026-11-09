@@ -43,7 +43,8 @@ impl HomeMenus {
         skin::apply_theme(context.ui_sys);
 
         dialog::initialize(context);
-        dialog::set_global_menu_flags(UiMenuFlags::AlignCenter | UiMenuFlags::AlignLeft);
+        // Centred, as in game: Home's own entry in the skin puts it on the left.
+        dialog::set_global_menu_flags(UiMenuFlags::AlignCenter);
         dialog::set_backdrop_dim(context, true);
 
         Self { slideshow: Self::make_background_slideshow(context), skin_version: skin::version() }
@@ -104,13 +105,11 @@ impl GameMenusSystem for HomeMenus {
 
     fn handle_input(&mut self, context: &mut GameUiContext, args: GameMenusInputArgs) -> UiInputEvent {
         if let GameMenusInputArgs::Key { key, action, .. } = args {
-            // [ESCAPE]: Close child dialog menu.
+            // [ESCAPE]: Close the dialog on top (only that one: the dialogs don't close themselves on
+            // Escape), unless it's the home menu's own.
             if key == InputKey::Escape && action == InputAction::Press {
-                // Close if we're not already at the Main Home Menu.
-                if dialog::current().is_some_and(|dialog| dialog != DialogMenuKind::Home) {
-                    if dialog::close_current(context) {
-                        return UiInputEvent::Handled; // Key press is handled.
-                    }
+                if dialog::close_current_on_escape(context) {
+                    return UiInputEvent::Handled; // Key press is handled.
                 }
             }
         }

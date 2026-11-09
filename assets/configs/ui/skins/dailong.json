@@ -289,7 +289,23 @@
     "tampadesa": "skins/dailong/emblem_tampadesa"
   },
   "backdrops": { "home": ["misc/home_menu_static_bg.png"], "dim_home": "#00000000", "dim_game": "#00000026" },
-  "dialogs": { "default": {"panel": "dialog", "size": [550.0, -120.0]} },
+  "dialogs": {
+    "default": {"panel": "dialog", "size": [760, 960]},
+    "Home": {"size": [600, 960], "align": "left"},
+    "About": {"size": [940, 940]},
+    "MainGame": {"size": [640, 840]},
+    "LoadGame": {"size": [1500, 940]},
+    "SaveGame": {"size": [1500, 940]},
+    "LoadOrSaveGame": {"size": [1500, 940]},
+    "MainSettings": {"size": [1220, 920]},
+    "GameSettings": {"size": [1220, 920]},
+    "SoundSettings": {"size": [1220, 920]},
+    "GraphicsSettings": {"size": [1220, 920]},
+    "CityManagement": {"size": [1600, 950]},
+    "PopulationManagement": {"size": [1600, 950]},
+    "ResourcesManagement": {"size": [1600, 950]},
+    "FinancesManagement": {"size": [1600, 950]}
+  },
   "sounds": {
     "button_hovered": "buttons/default/hovered.wav",
     "button_pressed": "buttons/default/pressed.wav",

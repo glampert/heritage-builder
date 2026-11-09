@@ -143,7 +143,7 @@ impl UiWidgetRegistry {
         };
 
         // An unlabeled widget takes the path of the group or menu around it, unless that's the
-        // menu's own content record: then it goes by its kind, e.g. "Home/item_list".
+        // menu's own content record: then it goes by its kind, e.g. "LoadGame/item_list".
         let base_path = if label.is_empty() && self.recording.iter().any(|recorded| recorded.path == base_path && recorded.kind == "menu_content") {
             format!("{base_path}/{kind}")
         } else {

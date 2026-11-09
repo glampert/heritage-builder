@@ -43,11 +43,11 @@
 {"method": "wait.frames", "params": {"frames": 15}}
 {"method": "assert.eq", "params": {"query": "ui.sounds", "args": {"clear": true}, "path": "/roles", "value": ["dropdown_opened", "item_hovered", "item_selected", "dropdown_opened", "dropdown_closed"]}}
 
-# Escape closes the dialog: dialog_closed. (Escape in a stack of two closes both in one frame, as
-# it did before; the second dialog_closed falls within the first's cooldown.)
+# Escape closes the dialog on top only: dialog_closed, and Settings, under it, is on top again.
 {"method": "input.key", "params": {"key": "Escape"}}
 {"method": "wait.frames", "params": {"frames": 15}}
 {"method": "assert.eq", "params": {"query": "ui.sounds", "args": {"clear": true, "roles": ["dialog_closed"]}, "path": "/count", "value": 1}}
+{"method": "assert.eq", "params": {"query": "dialog.current", "path": "/current", "value": "MainSettings"}}
 
 # A slider plays slider_changed at most once per its cooldown (0.2 s of frame time): of three moves
 # in a few frames only the first plays, and a move after the cooldown plays again.
