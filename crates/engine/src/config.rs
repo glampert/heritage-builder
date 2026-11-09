@@ -326,6 +326,11 @@ pub struct EngineConfigs {
 
     // Debug Log:
     pub log_level: log::Level,
+
+    // The language of the player's text: assets/configs/ui/text/<language>.json (see ui::text).
+    // TODO(realm-ui): Phase 1's Game settings tab sets it, with ui::text::set_language, and saves
+    // it in the user configs.
+    pub language: String,
 }
 
 impl Default for EngineConfigs {
@@ -355,6 +360,8 @@ impl Default for EngineConfigs {
 
             // Debug Log:
             log_level: log::Level::Verbose,
+
+            language: crate::ui::text::ENGLISH.into(),
         }
     }
 }

@@ -83,11 +83,20 @@ impl MainGame {
         let menu_weak_ref = self.menu.downgrade();
 
         self.menu.open_message_box(context, |context| {
-            let lines = ["Quit Game?", "Any unsaved progress will be lost..."];
+            // TODO(realm-ui): Phase 1's popup adds "Save and quit" (a save-then-quit hook in GameLoop) and
+            // an "Autosaved N minutes ago" line (the autosave timer).
+            let lines = [
+                UiString::key(UiTextCategory::Menu, "popup.quit.title"),
+                UiString::key(UiTextCategory::Menu, "popup.quit.body"),
+            ];
             make_dialog_popup(context, "Quit Game Popup", lines).with_buttons([
-                make_text_button(context, "Quit to Main Menu", |_, _| GameLoop::get_mut().quit_to_main_menu()),
-                make_text_button(context, "Exit Game", |_, _| GameLoop::get_mut().quit_game()),
-                make_text_button(context, "Cancel", move |_, context| {
+                make_text_button(context, UiString::key(UiTextCategory::Menu, "popup.quit.quit_to_main_menu"), |_, _| {
+                    GameLoop::get_mut().quit_to_main_menu()
+                }),
+                make_text_button(context, UiString::key(UiTextCategory::Menu, "popup.quit.exit_game"), |_, _| {
+                    GameLoop::get_mut().quit_game()
+                }),
+                make_text_button(context, UiString::key(UiTextCategory::Menu, "button.cancel"), move |_, context| {
                     let mut main_menu = menu_weak_ref.upgrade().unwrap();
                     main_menu.close_message_box(context);
                 }),

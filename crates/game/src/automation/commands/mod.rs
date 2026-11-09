@@ -22,6 +22,7 @@ mod observe;
 mod profile;
 mod session;
 mod sim;
+mod strings;
 mod time;
 mod ui;
 mod world;
@@ -40,6 +41,7 @@ pub(super) const COMMAND_GROUPS: &[&[CommandDef]] = &[
     input::COMMANDS,
     ui::COMMANDS,
     profile::COMMANDS,
+    strings::COMMANDS,
     config::COMMANDS,
     observe::COMMANDS,
     assert::COMMANDS,

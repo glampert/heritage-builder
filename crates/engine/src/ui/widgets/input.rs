@@ -5,7 +5,7 @@ use egui::vec2;
 use common::Vec2;
 
 use super::{UiWidget, UiWidgetCallback, UiWidgetContext, left_label, list_index, record_settable, widget_id};
-use crate::ui::{UiFontScale, immediate, internal};
+use crate::ui::{UiFontScale, UiString, immediate, internal};
 
 // ----------------------------------------------
 // UiSliderValue
@@ -49,7 +49,7 @@ pub type UiSliderReadValue   = UiWidgetCallback<dyn Fn(&UiSlider, &mut dyn UiWid
 pub type UiSliderUpdateValue = UiWidgetCallback<dyn Fn(&UiSlider, &mut dyn UiWidgetContext, f64)>;
 
 pub struct UiSlider {
-    label: String,
+    label: UiString,
     font_scale: UiFontScale,
     min: f64,
     max: f64,
@@ -84,11 +84,11 @@ impl UiWidget for UiSlider {
     }
 
     fn measure(&self, context: &dyn UiWidgetContext) -> Vec2 {
-        internal::calc_labeled_widget_size(context.ui_sys(), self.font_scale, &self.label)
+        internal::calc_labeled_widget_size(context.ui_sys(), self.font_scale, self.label.resolve())
     }
 
     fn label(&self) -> &str {
-        &self.label
+        self.label.resolve()
     }
 
     fn font_scale(&self) -> UiFontScale {
@@ -105,7 +105,7 @@ impl UiSlider {
         debug_assert!(min <= max);
 
         Self {
-            label: String::new(),
+            label: UiString::default(),
             font_scale: UiFontScale::default(),
             min,
             max,
@@ -116,7 +116,7 @@ impl UiSlider {
     }
 
     // To the slider's left.
-    pub fn with_label(mut self, label: impl Into<String>) -> Self {
+    pub fn with_label(mut self, label: impl Into<UiString>) -> Self {
         self.label = label.into();
         self
     }
@@ -167,7 +167,7 @@ impl UiSlider {
         ui_sys.with_ui(|ui| {
             let response = ui
                 .horizontal(|ui| {
-                    left_label(ui_sys, ui, &self.label);
+                    left_label(ui_sys, ui, self.label.resolve());
 
                     // The value shows to the slider's right.
                     ui.spacing_mut().slider_width = (width - ui.spacing().interact_size.x - ui.spacing().item_spacing.x).max(40.0);
@@ -179,7 +179,7 @@ impl UiSlider {
 
             let changed = response.changed().then_some(value);
             let json_value = if self.integral { serde_json::json!(value as i64) } else { serde_json::json!(value) };
-            let set_value = record_settable(ui_sys, ui, &response, "slider", &self.label, json_value);
+            let set_value = record_settable(ui_sys, ui, &response, "slider", self.label.resolve(), json_value);
             (changed, set_value)
         })
     }
@@ -193,7 +193,7 @@ pub type UiCheckboxReadValue   = UiWidgetCallback<dyn Fn(&UiCheckbox, &mut dyn U
 pub type UiCheckboxUpdateValue = UiWidgetCallback<dyn Fn(&UiCheckbox, &mut dyn UiWidgetContext, bool)>;
 
 pub struct UiCheckbox {
-    label: String,
+    label: UiString,
     font_scale: UiFontScale,
     on_read_value: UiCheckboxReadValue,
     on_update_value: UiCheckboxUpdateValue,
@@ -218,12 +218,12 @@ impl UiWidget for UiCheckbox {
         let (value_changed, set_value) = ui_sys.with_ui(|ui| {
             let response = ui
                 .horizontal(|ui| {
-                    left_label(ui_sys, ui, &self.label);
+                    left_label(ui_sys, ui, self.label.resolve());
                     ui.checkbox(&mut value, "")
                 })
                 .inner;
 
-            let set_value = record_settable(ui_sys, ui, &response, "checkbox", &self.label, serde_json::Value::Bool(value));
+            let set_value = record_settable(ui_sys, ui, &response, "checkbox", self.label.resolve(), serde_json::Value::Bool(value));
             (response.changed(), set_value)
         });
 
@@ -243,7 +243,7 @@ impl UiWidget for UiCheckbox {
         let mut width = checkbox_square;
 
         if !self.label.is_empty() {
-            let label_size = context.calc_text_size(self.font_scale, &self.label);
+            let label_size = context.calc_text_size(self.font_scale, self.label.resolve());
             width += spacing.icon_spacing + label_size.x;
         }
 
@@ -251,7 +251,7 @@ impl UiWidget for UiCheckbox {
     }
 
     fn label(&self) -> &str {
-        &self.label
+        self.label.resolve()
     }
 
     fn font_scale(&self) -> UiFontScale {
@@ -269,7 +269,7 @@ impl UiCheckbox {
     // A checkbox showing the value on_read_value gives; on_update_value gets the user's changes.
     pub fn new() -> Self {
         Self {
-            label: String::new(),
+            label: UiString::default(),
             font_scale: UiFontScale::default(),
             on_read_value: None,
             on_update_value: None,
@@ -277,7 +277,7 @@ impl UiCheckbox {
     }
 
     // To the checkbox's left.
-    pub fn with_label(mut self, label: impl Into<String>) -> Self {
+    pub fn with_label(mut self, label: impl Into<UiString>) -> Self {
         self.label = label.into();
         self
     }
@@ -319,7 +319,7 @@ pub type UiIntInputReadValue   = UiWidgetCallback<dyn Fn(&UiIntInput, &mut dyn U
 pub type UiIntInputUpdateValue = UiWidgetCallback<dyn Fn(&UiIntInput, &mut dyn UiWidgetContext, i32)>;
 
 pub struct UiIntInput {
-    label: String,
+    label: UiString,
     font_scale: UiFontScale,
     min: i32,
     max: i32,
@@ -348,7 +348,7 @@ impl UiWidget for UiIntInput {
         let (value_changed, set_value) = ui_sys.with_ui(|ui| {
             let (response, stepped) = ui
                 .horizontal(|ui| {
-                    left_label(ui_sys, ui, &self.label);
+                    left_label(ui_sys, ui, self.label.resolve());
 
                     // A field to drag or type into, and buttons that step it.
                     let buttons_width = (ui.spacing().interact_size.y + ui.spacing().item_spacing.x) * 2.0;
@@ -368,7 +368,7 @@ impl UiWidget for UiIntInput {
                 })
                 .inner;
 
-            let set_value = record_settable(ui_sys, ui, &response, "int_input", &self.label, serde_json::json!(value));
+            let set_value = record_settable(ui_sys, ui, &response, "int_input", self.label.resolve(), serde_json::json!(value));
             (response.changed() || stepped, set_value)
         });
 
@@ -382,11 +382,11 @@ impl UiWidget for UiIntInput {
     }
 
     fn measure(&self, context: &dyn UiWidgetContext) -> Vec2 {
-        internal::calc_labeled_widget_size(context.ui_sys(), self.font_scale, &self.label)
+        internal::calc_labeled_widget_size(context.ui_sys(), self.font_scale, self.label.resolve())
     }
 
     fn label(&self) -> &str {
-        &self.label
+        self.label.resolve()
     }
 
     fn font_scale(&self) -> UiFontScale {
@@ -405,7 +405,7 @@ impl UiIntInput {
     // range. It shows the value on_read_value gives; on_update_value gets the user's changes.
     pub fn new() -> Self {
         Self {
-            label: String::new(),
+            label: UiString::default(),
             font_scale: UiFontScale::default(),
             min: i32::MIN,
             max: i32::MAX,
@@ -416,7 +416,7 @@ impl UiIntInput {
     }
 
     // To the field's left.
-    pub fn with_label(mut self, label: impl Into<String>) -> Self {
+    pub fn with_label(mut self, label: impl Into<UiString>) -> Self {
         self.label = label.into();
         self
     }
@@ -475,7 +475,7 @@ pub type UiTextInputReadValue   = UiWidgetCallback<dyn for<'a> Fn(&UiTextInput, 
 pub type UiTextInputUpdateValue = UiWidgetCallback<dyn Fn(&UiTextInput, &mut dyn UiWidgetContext, &str)>;
 
 pub struct UiTextInput {
-    label: String,
+    label: UiString,
     buffer: String,
     font_scale: UiFontScale,
     on_read_value: UiTextInputReadValue,
@@ -500,11 +500,11 @@ impl UiWidget for UiTextInput {
             self.buffer.push_str(text);
         }
 
-        let id = widget_id(self, &self.label);
+        let id = widget_id(self, self.label.id_source());
         let (value_changed, set_value) = ui_sys.with_ui(|ui| {
             let response = ui
                 .horizontal(|ui| {
-                    left_label(ui_sys, ui, &self.label);
+                    left_label(ui_sys, ui, self.label.resolve());
                     let text_edit = egui::TextEdit::singleline(&mut self.buffer)
                         .id(id)
                         .font(internal::font(ui_sys, self.font_scale))
@@ -513,7 +513,7 @@ impl UiWidget for UiTextInput {
                 })
                 .inner;
 
-            let set_value = record_settable(ui_sys, ui, &response, "text_input", &self.label, serde_json::json!(self.buffer));
+            let set_value = record_settable(ui_sys, ui, &response, "text_input", self.label.resolve(), serde_json::json!(self.buffer));
             (response.changed(), set_value)
         });
 
@@ -528,11 +528,11 @@ impl UiWidget for UiTextInput {
     }
 
     fn measure(&self, context: &dyn UiWidgetContext) -> Vec2 {
-        internal::calc_labeled_widget_size(context.ui_sys(), self.font_scale, &self.label)
+        internal::calc_labeled_widget_size(context.ui_sys(), self.font_scale, self.label.resolve())
     }
 
     fn label(&self) -> &str {
-        &self.label
+        self.label.resolve()
     }
 
     fn font_scale(&self) -> UiFontScale {
@@ -551,7 +551,7 @@ impl UiTextInput {
     // user's edits.
     pub fn new() -> Self {
         Self {
-            label: String::new(),
+            label: UiString::default(),
             buffer: String::new(),
             font_scale: UiFontScale::default(),
             on_read_value: None,
@@ -560,7 +560,7 @@ impl UiTextInput {
     }
 
     // To the field's left.
-    pub fn with_label(mut self, label: impl Into<String>) -> Self {
+    pub fn with_label(mut self, label: impl Into<UiString>) -> Self {
         self.label = label.into();
         self
     }
@@ -606,7 +606,7 @@ pub type UiDropdownSelectionChanged    = UiWidgetCallback<dyn Fn(&UiDropdown, &m
 pub type UiDropdownGetCurrentSelection = UiWidgetCallback<dyn Fn(&UiDropdown, &mut dyn UiWidgetContext) -> usize>;
 
 pub struct UiDropdown {
-    label: String,
+    label: UiString,
     font_scale: UiFontScale,
     current_item: usize,
     items: Vec<String>,
@@ -630,13 +630,13 @@ impl UiWidget for UiDropdown {
             self.current_item = on_get_current_selection(self, context);
         }
 
-        let id = widget_id(self, &self.label);
+        let id = widget_id(self, self.label.id_source());
         let mut current_item = self.current_item;
 
         let (selection_changed, set_value) = ui_sys.with_ui(|ui| {
             let response = ui
                 .horizontal(|ui| {
-                    left_label(ui_sys, ui, &self.label);
+                    left_label(ui_sys, ui, self.label.resolve());
 
                     let font = internal::font(ui_sys, self.font_scale);
                     let selected_text = self.items.get(current_item).map_or("", String::as_str);
@@ -646,7 +646,7 @@ impl UiWidget for UiDropdown {
                         .selected_text(egui::RichText::new(selected_text).font(font.clone()))
                         .show_ui(ui, |ui| {
                             // Its items, recorded under its label while it's open.
-                            let _path = immediate::path_scope(ui_sys, &self.label);
+                            let _path = immediate::path_scope(ui_sys, self.label.resolve());
                             for (index, item) in self.items.iter().enumerate() {
                                 let response = ui.selectable_value(&mut current_item, index, egui::RichText::new(item).font(font.clone()));
                                 immediate::record(ui_sys, ui, &response, "list_item", item, None, true, Some(serde_json::Value::Bool(current_item == index)));
@@ -657,7 +657,7 @@ impl UiWidget for UiDropdown {
                 .inner;
 
             let current = self.items.get(current_item).cloned().unwrap_or_default();
-            let set_value = record_settable(ui_sys, ui, &response, "dropdown", &self.label, serde_json::Value::String(current));
+            let set_value = record_settable(ui_sys, ui, &response, "dropdown", self.label.resolve(), serde_json::Value::String(current));
             (current_item != self.current_item, set_value)
         });
 
@@ -670,11 +670,11 @@ impl UiWidget for UiDropdown {
     }
 
     fn measure(&self, context: &dyn UiWidgetContext) -> Vec2 {
-        internal::calc_labeled_widget_size(context.ui_sys(), self.font_scale, &self.label)
+        internal::calc_labeled_widget_size(context.ui_sys(), self.font_scale, self.label.resolve())
     }
 
     fn label(&self) -> &str {
-        &self.label
+        self.label.resolve()
     }
 
     fn font_scale(&self) -> UiFontScale {
@@ -693,7 +693,7 @@ impl UiDropdown {
         debug_assert!(!items.is_empty());
 
         Self {
-            label: String::new(),
+            label: UiString::default(),
             font_scale: UiFontScale::default(),
             current_item: 0,
             items,
@@ -703,7 +703,7 @@ impl UiDropdown {
     }
 
     // To the dropdown's left.
-    pub fn with_label(mut self, label: impl Into<String>) -> Self {
+    pub fn with_label(mut self, label: impl Into<UiString>) -> Self {
         self.label = label.into();
         self
     }

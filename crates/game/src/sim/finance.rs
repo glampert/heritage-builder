@@ -11,7 +11,10 @@
 use serde::{Deserialize, Serialize};
 use strum::{Display, EnumCount, EnumIter, EnumString, IntoEnumIterator};
 
-use engine::log;
+use engine::{
+    log,
+    ui::text::{self, UiTextCategory},
+};
 
 use super::calendar::CalendarEvent;
 use crate::{
@@ -458,15 +461,17 @@ impl Finance {
         let months = self.months_in_debt;
         let limit = configs.debt_limit_months;
 
+        // In the player's language: the log line is the toast's text.
         let notice = if months == 0 {
-            (months_before != 0).then(|| "The treasury is out of debt.".to_string())
+            (months_before != 0).then(|| text::get(UiTextCategory::Messages, "finance.out_of_debt").to_string())
         } else if limit != 0 && months == limit {
-            Some(format!("The city's debt is overdue: {months} months in debt."))
+            Some(text::format_count(UiTextCategory::Messages, "finance.debt_overdue", months.into(), &[]))
         } else if months == 1 {
-            Some(format!("The treasury is in debt: {} gold.", self.balance))
+            Some(text::format(UiTextCategory::Messages, "finance.in_debt", &[("balance", &self.balance.to_string())]))
         } else if limit != 0 && months < limit && limit - months <= WARNING_MONTHS {
             let left = limit - months;
-            Some(format!("{months} months in debt: {left} {} left before the debt is overdue.", if left == 1 { "month" } else { "months" }))
+            let months = months.to_string();
+            Some(text::format_count(UiTextCategory::Messages, "finance.debt_warning", left.into(), &[("months", &months)]))
         } else {
             None
         };

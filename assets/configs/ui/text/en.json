@@ -1,0 +1,63 @@
+{
+  "TileDescription": {
+    "dirt": "Empty land.",
+    "grass": "Empty land.",
+    "vacant_lot": "Settlers can build houses on empty lots.",
+    "dirt_road": "Most buildings require road access to function.\nYour citizens will usually only travel on road paths.",
+    "paved_road": "Most buildings require road access to function.\nYour citizens will usually only travel on road paths.",
+    "water": "Only boats can travel over water.",
+    "brown_boulder": "Some rocks can be mined for resources.",
+    "red_boulder": "Some rocks can be mined for resources.",
+    "gray_boulder": "Some rocks can be mined for resources.",
+    "round_stones": "Some rocks can be mined for resources.",
+    "tree": "Cut down trees to harvest wood.",
+    "palm_tree": "Cut down trees to harvest wood.",
+    "bamboo": "A bamboo tree.",
+    "bush": "A bush."
+  },
+  "UnitDialog": {
+    "peasant": "Give me a patch of dirt and I'll turn it into dinner.\nFarms don't plow themselves, you know!",
+    "runner": "Fast feet, faster deliveries!\nIf it needs moving urgently, I'm already halfway there!",
+    "settler": "We're new here!\nEvery great city starts with people like us!",
+    "vendor": "Fresh goods! Fair prices!\nI keep the market buzzing and the people smiling.",
+    "tax_collector": "Relax, it's for the good of the city!\nI turn coins into roads, guards, and very official-looking paperwork.",
+    "water_carrier": "No water, no life!\nI keep homes supplied and everyone pleasantly un-thirsty.",
+    "guard": "Stay calm, citizen.\nI handle trouble so you can handle prosperity.",
+    "teacher": "Knowledge today, greatness tomorrow!\nI turn young minds into productive citizens.",
+    "actor": "Drama! Comedy! Mildly exaggerated historical events!\nI keep morale high and boredom low.",
+    "monk": "Peace, wisdom, and the occasional miracle.\nI nurture the spirit of the city.",
+    "medic": "Coughing? Limping? Mildly on fire?\nI'll patch you up and get you back to work!",
+    "dog": "Woof! Woof!",
+    "bird": "Chirp! I see everything from up high.\nConsider me your unofficial aerial surveillance.",
+    "buffalo": "Got grass?"
+  },
+  "Menu": {
+    "button.cancel": "Cancel",
+    "button.yes": "Yes",
+    "button.no": "No",
+    "popup.quit.title": "Quit Game?",
+    "popup.quit.body": "Any unsaved progress will be lost...",
+    "popup.quit.quit_to_main_menu": "Quit to Main Menu",
+    "popup.quit.exit_game": "Exit Game",
+    "popup.overwrite_save.title": "Overwrite existing save game?"
+  },
+  "Hud": {},
+  "City": {},
+  "Story": {},
+  "Realm": {},
+  "Messages": {
+    "toast.construction_completed": "{building} completed.",
+    "toast.screenshot_saved": "Screenshot saved: {file}",
+    "toast.screenshot_failed": "Screenshot failed: {error}",
+    "finance.in_debt": "The treasury is in debt: {balance} gold.",
+    "finance.debt_warning": {
+      "one": "{months} months in debt: {count} month left before the debt is overdue.",
+      "other": "{months} months in debt: {count} months left before the debt is overdue."
+    },
+    "finance.debt_overdue": {
+      "one": "The city's debt is overdue: {count} month in debt.",
+      "other": "The city's debt is overdue: {count} months in debt."
+    },
+    "finance.out_of_debt": "The treasury is out of debt."
+  }
+}

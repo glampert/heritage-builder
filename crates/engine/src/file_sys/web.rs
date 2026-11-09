@@ -138,13 +138,54 @@ impl FileSystemBackend for WebFileSystemBackend {
         Err(io::Error::new(io::ErrorKind::Unsupported, "Directory creation not supported on Web/WASM"))
     }
 
+    // The preloaded assets under `path` that haven't been read yet (a read consumes them). The
+    // manifest lists files only, so a directory is there while a file under it is.
     fn collect_dir_entries(
         &self,
-        _path: impl AsRef<Path>,
-        _flags: CollectFlags,
-        _extension: Option<&str>,
+        path: impl AsRef<Path>,
+        flags: CollectFlags,
+        extension: Option<&str>,
     ) -> io::Result<Vec<PathBuf>> {
-        Err(io::Error::new(io::ErrorKind::Unsupported, "Directory iteration not supported on Web/WASM"))
+        let dir = Self::normalize_path(path.as_ref().to_str().unwrap_or_default());
+        let prefix = format!("{}/", dir.as_str().trim_end_matches('/'));
+
+        let mut files = Vec::new();
+        let mut sub_dirs = Vec::new();
+
+        for entry in self.asset_cache.values() {
+            let Some(relative) = entry.path.strip_prefix(&prefix) else {
+                continue;
+            };
+
+            match relative.split_once('/') {
+                None if flags.intersects(CollectFlags::Files) => {
+                    let matches = extension.is_none_or(|extension| Path::new(relative).extension().is_some_and(|ext| ext == extension));
+                    if matches {
+                        files.push(if flags.intersects(CollectFlags::FilenamesOnly) { PathBuf::from(relative) } else { PathBuf::from(&entry.path) });
+                    }
+                }
+                Some((sub_dir, _)) if flags.intersects(CollectFlags::SubDirs) => {
+                    let sub_dir = PathBuf::from(format!("{prefix}{sub_dir}"));
+                    if !sub_dirs.contains(&sub_dir) {
+                        sub_dirs.push(sub_dir);
+                    }
+                }
+                _ => {}
+            }
+        }
+
+        if files.is_empty() && sub_dirs.is_empty() && flags.intersects(CollectFlags::ErrorIfPathDoesNotExist) {
+            let any_entry = self.asset_cache.values().any(|entry| entry.path.starts_with(&prefix));
+            if !any_entry {
+                return Err(io::Error::new(io::ErrorKind::NotFound, format!("No preloaded assets under {}", dir.as_str())));
+            }
+        }
+
+        // The cache is a hash map: sort, for the same order on every run.
+        files.sort();
+        sub_dirs.sort();
+        files.extend(sub_dirs);
+        Ok(files)
     }
 }
 

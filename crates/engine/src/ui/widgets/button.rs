@@ -10,7 +10,7 @@ use crate::{
     file_sys::paths::{AssetPath, PathRef},
     render::texture::TextureHandle,
     ui::{
-        UiFontScale,
+        UiFontScale, UiString,
         immediate::{self, egui_vec2, rich_text, uv_full},
         renderer::egui_texture,
         sound::{self, UiButtonSoundsEnabled, UiSoundKey},
@@ -52,7 +52,7 @@ pub type UiTextButtonPressed = UiWidgetCallback<dyn Fn(&UiTextButton, &mut dyn U
 // one click equals one call to `on_pressed`, then
 // immediately back to unpressed state.
 pub struct UiTextButton {
-    label: String,
+    label: UiString,
     tooltip: Option<UiTooltipText>,
     font_scale: UiFontScale,
     hover: Option<TextureHandle>,
@@ -78,7 +78,7 @@ impl UiWidget for UiTextButton {
             // Faded text if disabled. It still takes the mouse, for its tooltip.
             let text_color = ui.visuals().text_color();
             let text_color = if enabled { text_color } else { text_color.gamma_multiply(0.5) };
-            let text = rich_text(ui_sys, ui, &self.label).color(text_color);
+            let text = rich_text(ui_sys, ui, self.label.resolve()).color(text_color);
 
             // With a hover effect texture (underline effect) the button draws fully transparent.
             let button = egui::Button::new(text).frame(self.hover.is_none());
@@ -98,8 +98,8 @@ impl UiWidget for UiTextButton {
                 ui.painter().image(egui_texture(hover), underline_rect, uv_full(), tint);
             }
 
-            let tooltip = self.tooltip.as_ref().map(|tooltip| tooltip.text.as_str());
-            immediate::record(ui_sys, ui, &response, "text_button", &self.label, tooltip, enabled, None);
+            let tooltip = self.tooltip.as_ref().map(|tooltip| tooltip.text.resolve());
+            immediate::record(ui_sys, ui, &response, "text_button", self.label.resolve(), tooltip, enabled, None);
 
             (response.clicked(), response.hovered())
         });
@@ -132,7 +132,7 @@ impl UiWidget for UiTextButton {
         let padding = context.ui_sys().egui_style().spacing.button_padding;
 
         // Compute scaled font size (window-independent).
-        let (text_size, font_size) = context.calc_text_and_font_size(self.font_scale, &self.label);
+        let (text_size, font_size) = context.calc_text_and_font_size(self.font_scale, self.label.resolve());
 
         let width = text_size.x + (padding.x * 2.0);
         let height = text_size.y.max(font_size) + (padding.y * 2.0);
@@ -141,7 +141,7 @@ impl UiWidget for UiTextButton {
     }
 
     fn label(&self) -> &str {
-        &self.label
+        self.label.resolve()
     }
 
     fn font_scale(&self) -> UiFontScale {
@@ -152,7 +152,7 @@ impl UiWidget for UiTextButton {
 impl UiTextButton {
     // A normal-size button with its sounds on. It draws as the style's framed button unless
     // given a hover sprite.
-    pub fn new(label: impl Into<String>) -> Self {
+    pub fn new(label: impl Into<UiString>) -> Self {
         let label = label.into();
         debug_assert!(!label.is_empty());
 
@@ -271,7 +271,7 @@ impl UiWidget for UiSpriteButton {
 
         // The label is a sprite path, e.g. "palette/housing"; its last part names the button.
         let name = self.label.rsplit('/').next().unwrap_or(&self.label);
-        let tooltip = self.tooltip.as_ref().map(|tooltip| tooltip.text.as_str());
+        let tooltip = self.tooltip.as_ref().map(|tooltip| tooltip.text.resolve());
         let pressed = Some(serde_json::Value::Bool(self.is_pressed()));
         let enabled = self.is_enabled();
         ui_sys.with_ui(|ui| immediate::record(ui_sys, ui, &response, "sprite_button", name, tooltip, enabled, pressed));

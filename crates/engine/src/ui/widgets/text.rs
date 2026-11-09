@@ -7,7 +7,7 @@ use super::{UiWidget, UiWidgetContext};
 use crate::{
     file_sys::paths::PathRef,
     render::texture::TextureHandle,
-    ui::{UiFontScale, immediate::{self, egui_vec2, uv_full}, internal, renderer::egui_texture},
+    ui::{UiFontScale, UiString, immediate::{self, egui_vec2, uv_full}, internal, renderer::egui_texture},
 };
 
 // ----------------------------------------------
@@ -17,20 +17,20 @@ use crate::{
 // A line of a heading.
 #[derive(Clone, Default)]
 pub struct UiText {
-    pub string: String,
+    pub string: UiString, // A key, or literal text.
     pub font_scale: UiFontScale,
     pub color: Option<Color>,    // The style's text color if None.
     pub wrap_width: Option<f32>, // Wraps at this width, in points; one line if None.
 }
 
 impl UiText {
-    pub fn new(string: impl Into<String>, font_scale: UiFontScale) -> Self {
+    pub fn new(string: impl Into<UiString>, font_scale: UiFontScale) -> Self {
         Self { string: string.into(), font_scale, color: None, wrap_width: None }
     }
 
     // A placeholder line, filled in later with UiMenuHeading::set_line_string.
     pub const fn empty(font_scale: UiFontScale) -> Self {
-        Self { string: String::new(), font_scale, color: None, wrap_width: None }
+        Self { string: UiString::Literal(String::new()), font_scale, color: None, wrap_width: None }
     }
 
     pub fn with_color(mut self, color: Color) -> Self {
@@ -75,7 +75,7 @@ impl UiWidget for UiMenuHeading {
         let group = internal::draw_centered_text_group(context, &self.lines, self.center_vertically, self.center_horizontally);
 
         if ui_sys.is_widget_registry_enabled() && group.is_positive() {
-            let text: Vec<&str> = self.lines.iter().map(|line| line.string.as_str()).filter(|line| !line.is_empty()).collect();
+            let text: Vec<&str> = self.lines.iter().map(|line| line.string.resolve()).filter(|line| !line.is_empty()).collect();
             immediate::record_rect(ui_sys, "heading", &text.join(" "), group, false, None);
         }
 
@@ -106,7 +106,7 @@ impl UiWidget for UiMenuHeading {
                 continue;
             }
 
-            let line_size = context.calc_text_size(line.font_scale, &line.string);
+            let line_size = context.calc_text_size(line.font_scale, line.string.resolve());
             size.x = size.x.max(line_size.x); // Max width.
             size.y += line_size.y; // Total height.
 
@@ -190,8 +190,7 @@ impl UiMenuHeading {
 
     #[inline]
     pub fn set_line_string(&mut self, index: usize, string: &str) {
-        self.lines[index].string.clear();
-        self.lines[index].string.push_str(string);
+        self.lines[index].string.set_literal(string);
     }
 
     #[inline]
@@ -219,7 +218,7 @@ impl UiMenuHeading {
 // Text centered in a box of a given size.
 pub struct UiSizedTextLabel {
     font_scale: UiFontScale,
-    label: String,
+    label: UiString,
     size: Vec2,
     alert: bool, // Drawn in the style's error color, e.g. a treasury in debt.
 }
@@ -240,10 +239,10 @@ impl UiWidget for UiSizedTextLabel {
             let (rect, response) = ui.allocate_exact_size(egui_vec2(size), Sense::hover());
 
             let color = if self.alert { ui.visuals().error_fg_color } else { ui.visuals().text_color() };
-            let galley = ui.painter().layout_no_wrap(self.label.clone(), internal::font(ui_sys, self.font_scale), color);
+            let galley = ui.painter().layout_no_wrap(self.label.resolve().to_string(), internal::font(ui_sys, self.font_scale), color);
             ui.painter().galley(rect.center() - galley.size() * 0.5, galley, color);
 
-            immediate::record(ui_sys, ui, &response, "text", &self.label, None, true, None);
+            immediate::record(ui_sys, ui, &response, "text", self.label.resolve(), None, true, None);
         });
     }
 
@@ -253,7 +252,7 @@ impl UiWidget for UiSizedTextLabel {
         }
 
         // Sized to the label, with a framed widget's padding.
-        let (text_size, font_size) = context.calc_text_and_font_size(self.font_scale, &self.label);
+        let (text_size, font_size) = context.calc_text_and_font_size(self.font_scale, self.label.resolve());
 
         let padding = context.ui_sys().egui_style().spacing.button_padding;
         let width = text_size.x + (padding.x * 2.0);
@@ -263,7 +262,7 @@ impl UiWidget for UiSizedTextLabel {
     }
 
     fn label(&self) -> &str {
-        &self.label
+        self.label.resolve()
     }
 
     fn font_scale(&self) -> UiFontScale {
@@ -272,7 +271,7 @@ impl UiWidget for UiSizedTextLabel {
 }
 
 impl UiSizedTextLabel {
-    pub fn new(label: impl Into<String>) -> Self {
+    pub fn new(label: impl Into<UiString>) -> Self {
         let label = label.into();
         debug_assert!(!label.is_empty());
 
@@ -292,8 +291,8 @@ impl UiSizedTextLabel {
     }
 
     #[inline]
-    pub fn set_label(&mut self, label: String) {
-        self.label = label;
+    pub fn set_label(&mut self, label: impl Into<UiString>) {
+        self.label = label.into();
     }
 
     #[inline]

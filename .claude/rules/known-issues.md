@@ -8,6 +8,7 @@ Last verified against the code on 2026-11-07. Remove an entry once it's resolved
 - Ambient sounds ignore game state; which sound plays is a placeholder (two TODOs) — `crates/game/src/system/ambient_sounds.rs`.
 - Construction art is generic, by footprint size only. A site draws the same scaffold for every building of its size, and the renovation overlay is a scaffold around the house's front corner. On the 3×3 and 4×4 houses, whose buildings stand at the back, that scaffold stands in the front courtyard (`crates/tools/blender-tile-generator/hbgen/recipes/overlays.py`). The art isn't tinted per realm yet (GDD 5.1.2). The completion sound reuses the UI's tile placed sound (`UiSoundKey::ConstructionCompleted`).
 - The construction plan's "fast build" option belongs in Custom Game settings, which don't exist yet. Until then `SimConfigs::construction.time_scale` is edited in the debug Game Configs window or with `config.set`, and the `instant_construction` cheat skips sites.
+- A language switch (`text.language`, the Ui Text debug tab) reaches text a widget draws from a `UiString` at once, but not text a menu copied or measured when it was built: the inspector's tile descriptions and unit dialog (`find_str`, copied into literal text) and the sizes the bars and palette measured. Those follow only once the menu is built again; nothing rebuilds menus on `ui::text::version()` yet (the realm UI plan's skin rebuild is meant to) — `crates/game/src/menu/in_game/inspector/mod.rs`.
 
 ## Open bugs / design questions
 

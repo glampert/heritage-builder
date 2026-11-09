@@ -16,6 +16,7 @@ use engine::{
     ui::{
         UiFontScale,
         UiInputEvent,
+        UiString,
         UiTooltipPlacement,
         widgets::{UiSpriteButton, UiSpriteButtonState, UiTextButton, UiTextButtonSize, UiTooltipText, UiWidgetContext},
     },
@@ -803,12 +804,12 @@ const TEXT_BUTTON_HOVERED_SPRITE: PathRef = PathRef::from_str("misc/brush_stroke
 // ----------------------------------------------
 
 // A tooltip in the retail style: small text on the wide page sprite.
-pub(crate) fn make_tooltip(context: &mut dyn UiWidgetContext, text: impl Into<String>) -> UiTooltipText {
+pub(crate) fn make_tooltip(context: &mut dyn UiWidgetContext, text: impl Into<UiString>) -> UiTooltipText {
     UiTooltipText::new(text).with_font_scale(TOOLTIP_FONT_SCALE).with_background(context, TOOLTIP_BACKGROUND_SPRITE)
 }
 
 // A text button in the retail style: underlined with the brush stroke while hovered.
-fn make_text_button<F>(context: &mut dyn UiWidgetContext, label: impl Into<String>, on_pressed: F) -> UiTextButton
+fn make_text_button<F>(context: &mut dyn UiWidgetContext, label: impl Into<UiString>, on_pressed: F) -> UiTextButton
 where
     F: for<'a> Fn(&'a UiTextButton, &mut dyn UiWidgetContext) + 'static,
 {

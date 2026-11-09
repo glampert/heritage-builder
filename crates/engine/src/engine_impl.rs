@@ -506,6 +506,7 @@ impl Engine {
         log::info!(log::channel!("engine"), "Framebuffer Size: {}", app.framebuffer_size());
         log::info!(log::channel!("engine"), "Content Scale: {}", app.content_scale());
 
+        crate::ui::text::initialize(&configs.language);
         let ui_system = UiSystem::new();
         log::info!(log::channel!("engine"), "UiSystem initialized.");
 

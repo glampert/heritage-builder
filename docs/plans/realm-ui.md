@@ -1,6 +1,6 @@
 # Realm UI: menus, screens and HUD in each realm's style
 
-**Status (2026-11-09): Phase 0 in progress; the `widgets.rs` split, and the realm and player profile, are done.** The user reviewed it on 2026-11-07: their notes are folded in (see [Review notes](#review-notes)), the open decisions' defaults are accepted, and every mockup the phases need now exists. This plan builds and restyles every retail screen after the [UI mockups](../design/mockups/README.md): the main menus, the world map, the intermission, the story comics, the HUD and the city management pages. Each screen gets one look per realm: Đại Long, Kambara and Tampadesa. It is milestone **UI** of the [roadmap](roadmap.md). It was researched against `ccca1df` on `claude`. File and line references point at that commit, so re-check them before relying on them.
+**Status (2026-11-09): Phase 0 in progress; the `widgets.rs` split, the realm and player profile, and localized strings are done.** The user reviewed it on 2026-11-07: their notes are folded in (see [Review notes](#review-notes)), the open decisions' defaults are accepted, and every mockup the phases need now exists. This plan builds and restyles every retail screen after the [UI mockups](../design/mockups/README.md): the main menus, the world map, the intermission, the story comics, the HUD and the city management pages. Each screen gets one look per realm: Đại Long, Kambara and Tampadesa. It is milestone **UI** of the [roadmap](roadmap.md). It was researched against `ccca1df` on `claude`. File and line references point at that commit, so re-check them before relying on them.
 
 ![Home menu, Đại Long](../design/mockups/menu-home-dailong.jpg)
 
@@ -372,7 +372,7 @@ The existing dialogs keep their layouts but take their panels from the Đại Lo
 - [ ] Skins: `assets/configs/ui/skins/{dailong,kambara,tampadesa}.json`; `menu/skin.rs`; the skin version counter and `dialog::rebuild_all()`; `ui.reload_skin`. `styles/game.json` folds into Đại Long's skin.
 - [ ] Fonts: add Spectral SC and Alegreya (and their OFL files); realm text styles with fallbacks; the Vietnamese glyph test.
 - [x] Split `engine/src/ui/widgets.rs` into `engine/src/ui/widgets/`, one widget family per file, with no change in behaviour, in a commit of its own.
-- [ ] Localized strings: `text/<language>.json`, the new categories, arguments, plural forms, `UiText`, the fallback and its test; `text.*` commands. Move today's strings for the screens Phase 0 touches.
+- [x] Localized strings: `text/<language>.json`, the new categories, arguments, plural forms, `UiText`, the fallback and its test; `text.*` commands. Move today's strings for the screens Phase 0 touches.
 - [ ] Sound hooks: the role keys, per-widget sound events and overrides, the skin's `sounds` block with placeholder mappings, dialog and popup open and close sounds.
 - [ ] Widgets: `UiTabBar`, `UiToggle`, framed `UiTextButton`, `UiMenuItem`, `UiListRow`, `UiImage`, `UiKeyValues`, `UiTable`, `UiMeter`, `UiColumns`, `UiStepSelector`, `UiRichText`, each in the developer sample menus (`engine/src/ui/tests.rs`).
 - [ ] Dialog framework: each dialog its own window, from the skin's `dialogs` block; the "keep the dialog under it visible" flag; paths take the dialog's own label (update `ui_new_game.jsonl`, `ui_snapshot.jsonl`, AGENTS.md).
@@ -396,6 +396,16 @@ The existing dialogs keep their layouts but take their panels from the Đại Lo
 - Deviations: a recording's header holds the profile and its replay uses it (an explicit `--fresh-profile` wins, with a warning). The minimap keeps each style file's JSON from its first read, so realm switches work on web, which reads an asset only once. `minimap.reload_style realm=` is now an alias that sets the override, and puts it back if the reload fails.
 - Tests: `tests/realm_profile.rs`, the finished-missions queue in `tests/campaign.rs`, and `ui.realm` checks in `minimap.jsonl`.
 - Verified: build, `cargo test --workspace` and the web target check; the CI scenarios with `--fresh-profile`; determinism twice with the same checksum; record and replay of `ui_build` and `determinism`; a live game writing, reloading, rejecting broken and other-version files, and resetting the profile; no `saves/user/profile.json` after scripts, replays, the smoke test or tests. Not run: the mission-finished path end to end in a live game (it needs goals met), and the web build in a browser.
+
+**Notes (2026-11-09, localized strings; commit TODO):**
+- `engine::ui::text`: `text/<language>.json` keyed by category name (`text.json` became `en.json`, without its order rule and panic), with the new categories; `get`, `format`, `format_count` (CLDR plural forms, a per-language `PluralRule`), `find_str` as before. Every file loads at init and stays; `set_language` switches by name, from `GameConfigs::engine.language` (its dropdown: a Phase 1 `TODO(realm-ui)`); a replay applies its recording's.
+- Retained widgets' label and tooltip setters take `impl Into<UiString>`; call sites are unchanged. Dropdown and item-list items (`UiDropdown::new`, `reset_items`, `UiItemList::reset_items`) are still plain strings. Menu and popup labels stay strings (automation ids), but a menu without a background sprite draws its label as its title, which needs a `UiString` once localized.
+- Moved: the Quit and Overwrite popups; the construction, screenshot and debt toasts.
+- Commands `text.language`, `text.missing`, `text.get`; `strings.jsonl`, in CI. The key check (`cargo test -p engine --lib text`) scans every crate for `UiTextCategory::<Name>, "<key>"`.
+- Deviations: `UiString`, not `UiText` (a widget's name). The store is a static that loads on first use. The web file system lists its preloaded assets. `config.set /engine/language` doesn't switch the live language; `text.language` does.
+- Limit: text a menu copies or measures when built (the inspector's descriptions, the bars' and palette's sizes) follows a switch only once rebuilt; nothing rebuilds on `text::version()` yet.
+- Verified: build, `cargo test --workspace`, web check; the key check fails on a missing key, a duplicate key, and a second file's extra key or placeholder. CI scenarios and `strings.jsonl` pass; `ui_snapshot`'s listings match; `ui_build` and `determinism` replay. A temporary second language switched live, fallbacks logged once. A broken or missing `en.json` logs errors and shows keys. Web in headless Chrome loads the text.
+- Still literal: the other screens (Home, About, New Game, the Game menu, Load/Save, Settings, City Management, Mission and Campaign Complete), the HUD, inspector and minimap text, and names from data (tiles, units, goods, tax levels, ledger categories, seasons, eras).
 
 ### Phase 1: Main menus
 

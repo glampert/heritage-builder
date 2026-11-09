@@ -42,6 +42,10 @@ impl GameSettings {
                 |enable| GameConfigs::get_mut().camera.disable_smooth_mouse_scroll_zoom = !enable,
             ));
 
+        // TODO(realm-ui): Phase 1: a Language dropdown here, listing ui::text::languages(); on a
+        // change call ui::text::set_language and set GameConfigs::engine.language, which the
+        // settings dialog saves in the user configs.
+
         let menu = category.build_menu(category.downgrade(), context, Self::KIND, Self::TITLE);
 
         Self { menu, category }

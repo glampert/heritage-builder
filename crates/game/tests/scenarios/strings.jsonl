@@ -1,0 +1,38 @@
+# Localized strings (engine::ui::text): the language commands, a key's text with its placeholders
+# and plural forms, the Quit popup's text from its keys, the tile inspector's descriptions, and no
+# key the UI looked up missing from en.json. From the repository root:
+#   cargo run -p HeritageBuilder -- --fresh-profile --script crates/game/tests/scenarios/strings.jsonl
+{"method": "time.fixed_dt", "params": {"dt": 0.016667}}
+{"method": "assert.eq", "params": {"query": "text.language", "path": "/language", "value": "en"}}
+{"method": "assert.eq", "params": {"query": "text.language", "args": {"language": "en"}, "path": "/language", "value": "en"}}
+# The toasts' and notices' English, as before they moved to en.json.
+{"method": "assert.eq", "params": {"query": "text.get", "args": {"category": "Messages", "key": "toast.construction_completed", "args": {"building": "Temple"}}, "path": "/text", "value": "Temple completed."}}
+{"method": "assert.eq", "params": {"query": "text.get", "args": {"category": "Messages", "key": "finance.debt_warning", "count": 1, "args": {"months": 11}}, "path": "/text", "value": "11 months in debt: 1 month left before the debt is overdue."}}
+{"method": "assert.eq", "params": {"query": "text.get", "args": {"category": "Messages", "key": "finance.debt_warning", "count": 3, "args": {"months": 9}}, "path": "/text", "value": "9 months in debt: 3 months left before the debt is overdue."}}
+{"method": "assert.eq", "params": {"query": "text.get", "args": {"category": "Messages", "key": "finance.in_debt", "args": {"balance": -4}}, "path": "/text", "value": "The treasury is in debt: -4 gold."}}
+# A key en.json lacks shows as itself; text.get doesn't count it as missing.
+{"method": "assert.eq", "params": {"query": "text.get", "args": {"category": "Menu", "key": "no.such.key"}, "path": "", "value": {"category": "Menu", "key": "no.such.key", "text": "no.such.key", "language": null}}}
+{"method": "assert.eq", "params": {"query": "text.missing", "path": "/count", "value": 0}}
+
+# The Quit popup's heading and buttons, from their keys, under the paths they had as literals.
+{"method": "session.new_map", "params": {"size": [16, 16]}}
+{"method": "sim.pause"}
+{"method": "dialog.open", "params": {"name": "MainGame"}}
+{"method": "ui.click", "params": {"path": "MainGame/Quit"}}
+{"method": "assert.eq", "params": {"query": "ui.tree", "args": {"filter": "Quit Game Popup", "fields": ["path", "kind"]}, "path": "/widgets", "value": [{"path": "Quit Game Popup", "kind": "menu_content"}, {"path": "Quit Game Popup/Quit Game? Any unsaved progress will be lost...", "kind": "heading"}, {"path": "Quit Game Popup/Quit to Main Menu", "kind": "text_button"}, {"path": "Quit Game Popup/Exit Game", "kind": "text_button"}, {"path": "Quit Game Popup/Cancel", "kind": "text_button"}]}}
+{"method": "ui.click", "params": {"path": "Quit Game Popup/Cancel"}}
+{"method": "dialog.close"}
+
+# The inspectors show a tile's description (TileDescription, by the tile def's name): grass, then a tree.
+{"method": "input.click", "params": {"cell": [8, 8]}}
+{"method": "input.move", "params": {"park": true}}
+{"method": "wait.frames", "params": {"frames": 2}}
+{"method": "assert.exists", "params": {"query": "ui.tree", "args": {"filter": "TerrainInspector/Empty land.", "kind": "heading"}, "path": "/widgets/0"}}
+{"method": "input.key", "params": {"key": "Escape"}}
+{"method": "world.place", "params": {"tile": "tree", "cell": [4, 4]}}
+{"method": "input.click", "params": {"cell": [4, 4]}}
+{"method": "input.move", "params": {"park": true}}
+{"method": "wait.frames", "params": {"frames": 2}}
+{"method": "assert.exists", "params": {"query": "ui.tree", "args": {"filter": "PropInspector/Cut down trees to harvest wood.", "kind": "heading"}, "path": "/widgets/0"}}
+
+{"method": "assert.eq", "params": {"query": "text.missing", "path": "", "value": {"language": "en", "count": 0, "missing": {}, "untranslated_count": 0, "untranslated": {}}}}

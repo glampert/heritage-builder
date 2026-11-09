@@ -201,7 +201,7 @@ GDD 5.12 and 5.14:
 - **Briefing dialog:** a scroll with text, goals and an image, from mission config.
 - **Debrief:** stele lines added, then the stele shown.
 - **Comic viewer:** a sequence of full-screen images with caption and dialogue text, from data. It's used for the I-A and I-B sequences ([story-script.md](../design/story-script.md)).
-- **Text** lives in `assets/configs/ui/text.json` or a new story file, ready for localisation later.
+- **Text** lives in the localized strings (`assets/configs/ui/text/<language>.json`) or a new story file, ready for localisation later.
 
 ### M13: Missions I-1 to I-5 (large, content)
 

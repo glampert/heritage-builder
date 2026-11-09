@@ -5,7 +5,7 @@ use egui::{Sense, pos2, vec2};
 use common::{Vec2, bitflags_with_display};
 
 use super::{UiWidget, UiWidgetCallback, UiWidgetContext, list_index, record_settable, widget_id};
-use crate::ui::{UiFontScale, immediate, internal};
+use crate::ui::{UiFontScale, UiString, immediate, internal};
 
 // ----------------------------------------------
 // UiItemListFlags
@@ -28,7 +28,7 @@ bitflags_with_display! {
 pub type UiItemListSelectionChanged = UiWidgetCallback<dyn Fn(&UiItemList, &mut dyn UiWidgetContext)>;
 
 pub struct UiItemList {
-    label: String,
+    label: UiString,
     font_scale: UiFontScale,
     size: Option<Vec2>,
     margin_left: f32,
@@ -62,7 +62,7 @@ impl UiWidget for UiItemList {
             requested_size.x -= self.margin_right - padding;
         }
 
-        let id = widget_id(self, &self.label);
+        let id = widget_id(self, self.label.id_source());
         let font = internal::font(ui_sys, self.font_scale);
         let margin_left = self.margin_left;
         let border = self.flags.intersects(UiItemListFlags::Border);
@@ -79,7 +79,7 @@ impl UiWidget for UiItemList {
             if !self.label.is_empty() {
                 ui.horizontal(|ui| {
                     ui.add_space(margin_left);
-                    ui.label(egui::RichText::new(&self.label).font(font.clone()));
+                    ui.label(egui::RichText::new(self.label.resolve()).font(font.clone()));
                 });
             }
 
@@ -125,7 +125,7 @@ impl UiWidget for UiItemList {
                     });
 
                 scroll_area.show(ui, |ui| {
-                    let _path = immediate::path_scope(ui_sys, &self.label);
+                    let _path = immediate::path_scope(ui_sys, self.label.resolve());
                     ui.style_mut().spacing.item_spacing.y = 0.0;
                     // Rows span the list, with their text on the left.
                     ui.with_layout(egui::Layout::top_down_justified(egui::Align::LEFT), |ui| {
@@ -161,7 +161,7 @@ impl UiWidget for UiItemList {
         // ui.set on the list selects an item, by text or index.
         let current = self.current_item.and_then(|index| self.items.get(index)).cloned();
         let set_value = ui_sys.with_ui(|ui| {
-            record_settable(ui_sys, ui, &list_response, "item_list", &self.label, current.map_or(serde_json::Value::Null, serde_json::Value::String))
+            record_settable(ui_sys, ui, &list_response, "item_list", self.label.resolve(), current.map_or(serde_json::Value::Null, serde_json::Value::String))
         });
         if let Some(index) = set_value.and_then(|value| list_index(&value, &self.items)) {
             self.current_item = Some(index);
@@ -187,7 +187,7 @@ impl UiWidget for UiItemList {
     }
 
     fn label(&self) -> &str {
-        &self.label
+        self.label.resolve()
     }
 
     fn font_scale(&self) -> UiFontScale {
@@ -231,7 +231,7 @@ impl UiItemList {
     // left in it.
     pub fn new() -> Self {
         Self {
-            label: String::new(),
+            label: UiString::default(),
             font_scale: UiFontScale::default(),
             size: None,
             margin_left: 0.0,
@@ -262,7 +262,7 @@ impl UiItemList {
     }
 
     // Above the list.
-    pub fn with_label(mut self, label: impl Into<String>) -> Self {
+    pub fn with_label(mut self, label: impl Into<UiString>) -> Self {
         self.label = label.into();
         self
     }

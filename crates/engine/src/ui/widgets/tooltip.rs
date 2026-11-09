@@ -1,5 +1,5 @@
 use super::UiWidgetContext;
-use crate::{file_sys::paths::PathRef, render::texture::TextureHandle, ui::{UiFontScale, UiTooltipPlacement}};
+use crate::{file_sys::paths::PathRef, render::texture::TextureHandle, ui::{UiFontScale, UiString, UiTooltipPlacement}};
 
 // ----------------------------------------------
 // UiTooltipText
@@ -7,7 +7,7 @@ use crate::{file_sys::paths::PathRef, render::texture::TextureHandle, ui::{UiFon
 
 #[derive(Clone)]
 pub struct UiTooltipText {
-    pub(super) text: String,
+    pub(super) text: UiString,
     font_scale: UiFontScale,
     background: Option<TextureHandle>,
     placement: UiTooltipPlacement,
@@ -15,7 +15,7 @@ pub struct UiTooltipText {
 }
 
 impl UiTooltipText {
-    pub fn new(text: impl Into<String>) -> Self {
+    pub fn new(text: impl Into<UiString>) -> Self {
         let text = text.into();
         debug_assert!(!text.is_empty());
 
@@ -51,7 +51,7 @@ impl UiTooltipText {
         debug_assert!(context.is_inside_widget_window());
 
         crate::ui::custom_tooltip(context.ui_sys(), self.font_scale, self.background, self.placement, self.opacity, |ui_sys| {
-            crate::ui::text(ui_sys, &self.text);
+            crate::ui::text(ui_sys, self.text.resolve());
         });
     }
 }

@@ -7,7 +7,7 @@ use smallvec::SmallVec;
 
 use common::Vec2;
 
-use super::{UiFontScale, UiSystem, immediate::color32, widgets::*};
+use super::{UiFontScale, UiString, UiSystem, immediate::color32, widgets::*};
 
 // ----------------------------------------------
 // Measuring
@@ -164,8 +164,8 @@ pub fn draw_centered_text_group(
     let text_sizes: SmallVec<[Vec2; 16]> = lines
         .iter()
         .map(|line| match line.wrap_width {
-            Some(width) => calc_wrapped_text_size(ui_sys, line.font_scale, &line.string, width),
-            None => context.calc_text_size(line.font_scale, &line.string),
+            Some(width) => calc_wrapped_text_size(ui_sys, line.font_scale, line.string.resolve(), width),
+            None => context.calc_text_size(line.font_scale, line.string.resolve()),
         })
         .collect();
 
@@ -217,7 +217,7 @@ pub fn draw_centered_text_group(
 
             let color = line.color.map_or(default_color, color32);
             let wrap_width = line.wrap_width.unwrap_or(f32::INFINITY);
-            let galley = ui.painter().layout(line.string.clone(), font(ui_sys, line.font_scale), color, wrap_width);
+            let galley = ui.painter().layout(line.string.resolve().to_string(), font(ui_sys, line.font_scale), color, wrap_width);
             ui.painter().galley(pos2(x, y), galley, color);
 
             offset_y += line_height;
@@ -320,7 +320,7 @@ pub fn draw_centered_widget_group(
 
 pub fn draw_centered_labeled_widget_group(
     context: &mut dyn UiWidgetContext,
-    labels_and_widgets: &mut [(String, UiWidgetImpl)],
+    labels_and_widgets: &mut [(UiString, UiWidgetImpl)],
     vertical: bool,
     horizontal: bool,
     margins: (f32, f32),
@@ -339,7 +339,7 @@ pub fn draw_centered_labeled_widget_group(
     // Measure the labels and widgets:
     let sizes: SmallVec<[(Vec2, Vec2); 16]> = labels_and_widgets
         .iter()
-        .map(|(label, widget)| (context.calc_text_size(widget.font_scale(), label), widget.measure(context)))
+        .map(|(label, widget)| (context.calc_text_size(widget.font_scale(), label.resolve()), widget.measure(context)))
         .collect();
 
     // The labels' column: as wide as the longest, or the width given, shared with other groups.
@@ -379,7 +379,7 @@ pub fn draw_centered_labeled_widget_group(
         // The label, centered on the row's height like a framed widget's text.
         ui_sys.with_ui(|ui| {
             let color = ui.visuals().text_color();
-            let galley = ui.painter().layout_no_wrap(label.clone(), font(ui_sys, font_scale), color);
+            let galley = ui.painter().layout_no_wrap(label.resolve().to_string(), font(ui_sys, font_scale), color);
             let label_y = y + (row_height - galley.size().y) * 0.5;
             ui.painter().galley(pos2(start_x, label_y), galley, color);
         });
@@ -391,7 +391,7 @@ pub fn draw_centered_labeled_widget_group(
         let size = vec2(item_width.unwrap_or(widget_size.x).max(widget_size.x), row_height);
 
         // The group's label names the widget for UI automation.
-        context.ui_sys().push_widget_path(label);
+        context.ui_sys().push_widget_path(label.resolve());
         let previous_item_width = ui_sys.set_item_width(item_width);
         ui_sys.draw_at(egui::Rect::from_min_size(pos2(x, y), size), |_| widget.draw(context));
         ui_sys.set_item_width(previous_item_width);

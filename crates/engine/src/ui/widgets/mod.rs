@@ -63,7 +63,8 @@ pub use tooltip::*;
 // ----------------------------------------------
 
 // An egui id for a widget that keeps state in egui (an Area, a combo box, a scroll area): its type,
-// label and address. Widgets don't move once they're in a menu.
+// label and address. Widgets don't move once they're in a menu. A UiString label passes its
+// id_source (a key, not its text), so a language switch keeps the state.
 #[inline]
 fn widget_id<W>(widget: &W, label: &str) -> egui::Id {
     egui::Id::unique((std::any::type_name::<W>(), label, widget as *const W as usize))

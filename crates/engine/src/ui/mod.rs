@@ -45,6 +45,7 @@ pub mod text;
 pub mod widgets;
 
 pub use debug_ui::DrawDebugUi;
+pub use text::UiString;
 
 pub use immediate::*;
 
@@ -160,8 +161,6 @@ pub struct UiSystem {
 
 impl UiSystem {
     pub fn new() -> Self {
-        text::initialize();
-
         Self {
             backend: UiBackend::new(),
             styles: None,

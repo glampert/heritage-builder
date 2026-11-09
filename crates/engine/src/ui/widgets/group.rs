@@ -4,7 +4,7 @@ use egui::vec2;
 use common::Vec2;
 
 use super::{UiWidget, UiWidgetContext, UiWidgetImpl};
-use crate::ui::{immediate::egui_vec2, internal};
+use crate::ui::{UiString, immediate::egui_vec2, internal};
 
 // ----------------------------------------------
 // UiWidgetGroup
@@ -228,7 +228,7 @@ pub struct UiLabeledWidgetGroupWidgetIndex(usize);
 // Groups labels + UiWidgets to draw them centered/aligned.
 // Supports vertical and horizontal alignment and custom item spacing.
 pub struct UiLabeledWidgetGroup {
-    labels_and_widgets: Vec<(String, UiWidgetImpl)>,
+    labels_and_widgets: Vec<(UiString, UiWidgetImpl)>,
     label_spacing: f32,
     widget_spacing: f32,
     center_vertically: bool,
@@ -268,7 +268,7 @@ impl UiWidget for UiLabeledWidgetGroup {
 
         for (label, widget) in &self.labels_and_widgets {
             let widget_size = widget.measure(context);
-            let label_size = context.calc_text_size(widget.font_scale(), label);
+            let label_size = context.calc_text_size(widget.font_scale(), label.resolve());
             let label_width = self.label_column_width.map_or(label_size.x, |width| width.max(label_size.x));
 
             size.x = size.x.max(label_width + spacing.x + widget_size.x); // Max width (label + widget).
@@ -349,14 +349,14 @@ impl UiLabeledWidgetGroup {
         self
     }
 
-    pub fn with_widget(mut self, label: impl Into<String>, widget: impl Into<UiWidgetImpl>) -> Self {
+    pub fn with_widget(mut self, label: impl Into<UiString>, widget: impl Into<UiWidgetImpl>) -> Self {
         self.add_widget(label, widget);
         self
     }
 
     pub fn add_widget(
         &mut self,
-        label: impl Into<String>,
+        label: impl Into<UiString>,
         widget: impl Into<UiWidgetImpl>,
     ) -> UiLabeledWidgetGroupWidgetIndex {
         let label = label.into();
@@ -370,12 +370,12 @@ impl UiLabeledWidgetGroup {
     }
 
     #[inline]
-    pub fn labels_and_widgets(&self) -> &[(String, UiWidgetImpl)] {
+    pub fn labels_and_widgets(&self) -> &[(UiString, UiWidgetImpl)] {
         &self.labels_and_widgets
     }
 
     #[inline]
-    pub fn labels_and_widgets_mut(&mut self) -> &mut [(String, UiWidgetImpl)] {
+    pub fn labels_and_widgets_mut(&mut self) -> &mut [(UiString, UiWidgetImpl)] {
         &mut self.labels_and_widgets
     }
 
@@ -417,7 +417,7 @@ impl UiLabeledWidgetGroup {
 
         for (index, (widget_label, widget)) in self.labels_and_widgets.iter().enumerate() {
             if let Some(w) = widget.as_any().downcast_ref::<Widget>() {
-                if widget_label == label {
+                if widget_label.resolve() == label {
                     return Some((UiLabeledWidgetGroupWidgetIndex(index), w));
                 }
             }
@@ -434,7 +434,7 @@ impl UiLabeledWidgetGroup {
 
         for (index, (widget_label, widget)) in self.labels_and_widgets.iter_mut().enumerate() {
             if let Some(w) = widget.as_any_mut().downcast_mut::<Widget>() {
-                if widget_label == label {
+                if widget_label.resolve() == label {
                     return Some((UiLabeledWidgetGroupWidgetIndex(index), w));
                 }
             }

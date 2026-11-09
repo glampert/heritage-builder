@@ -11,7 +11,7 @@ use engine::{
     save,
     Engine,
     cli::{self, CliOption},
-    ui::{self, UiInputEvent},
+    ui::{self, UiInputEvent, text::UiTextCategory},
     runner::RunLoop,
     file_sys::paths::PathRef,
     screenshot::{self, ScreenshotId, ScreenshotOutput, ScreenshotRequest, ScreenshotScale},
@@ -533,7 +533,8 @@ impl GameLoop {
         }
 
         for name in &completed {
-            self.engine.ui_system().show_toast(format!("{name} completed."));
+            let message = ui::text::format(UiTextCategory::Messages, "toast.construction_completed", &[("building", name)]);
+            self.engine.ui_system().show_toast(message);
         }
         ui::sound::play(self.engine.sound_system_mut(), ui::sound::UiSoundKey::ConstructionCompleted);
     }
@@ -577,11 +578,13 @@ impl GameLoop {
                     let path = screenshot.path.unwrap_or_default();
                     let file_name = path.file_name().unwrap_or_default().to_string_lossy();
                     log::info!(log::channel!("game"), "Saved screenshot: {}", path.display());
-                    engine.ui_system().show_toast(format!("Screenshot saved: {file_name}"));
+                    let message = ui::text::format(UiTextCategory::Messages, "toast.screenshot_saved", &[("file", &file_name)]);
+                    engine.ui_system().show_toast(message);
                 }
                 Err(err) => {
                     log::error!(log::channel!("game"), "Screenshot failed: {err}");
-                    engine.ui_system().show_toast(format!("Screenshot failed: {err}"));
+                    let message = ui::text::format(UiTextCategory::Messages, "toast.screenshot_failed", &[("error", &err)]);
+                    engine.ui_system().show_toast(message);
                 }
             }
 

@@ -111,14 +111,15 @@ impl SaveGameHelper {
         let no_button_menu_weak_ref = menu.downgrade();
 
         menu.open_message_box(context, |context| {
-            make_dialog_popup(context, "Overwrite Save Game Popup", ["Overwrite existing save game?"]).with_buttons([
-                make_text_button(context, "Yes", move |_, context| {
+            let lines = [UiString::key(UiTextCategory::Menu, "popup.overwrite_save.title")];
+            make_dialog_popup(context, "Overwrite Save Game Popup", lines).with_buttons([
+                make_text_button(context, UiString::key(UiTextCategory::Menu, "button.yes"), move |_, context| {
                     let mut save_game_menu = yes_button_menu_weak_ref.upgrade().unwrap();
                     let (save_file_name, _) = Self::current_save_file_selection(&save_game_menu);
                     GameLoop::get_mut().save_game(save_file_name);
                     save_game_menu.close_message_box(context);
                 }),
-                make_text_button(context, "No", move |_, context| {
+                make_text_button(context, UiString::key(UiTextCategory::Menu, "button.no"), move |_, context| {
                     let mut save_game_menu = no_button_menu_weak_ref.upgrade().unwrap();
                     save_game_menu.close_message_box(context);
                 }),

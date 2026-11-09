@@ -8,7 +8,9 @@ use engine::{
         self,
         UiFontScale,
         UiStaticVar,
+        UiString,
         sound::{self, UiSoundKey},
+        text::UiTextCategory,
         widgets::*,
     },
 };
@@ -631,10 +633,11 @@ fn make_dialog_close_button(context: &mut dyn UiWidgetContext, label: &str) -> U
 }
 
 // A popup message box of a dialog: `lines` on the square page sprite, with its buttons under them.
-fn make_dialog_popup<'a>(
+// `label` names the popup for automation (`<label>/<button>`); it isn't drawn.
+fn make_dialog_popup(
     context: &mut dyn UiWidgetContext,
     label: &str,
-    lines: impl IntoIterator<Item = &'a str>,
+    lines: impl IntoIterator<Item = UiString>,
 ) -> UiMessageBox {
     let heading = UiMenuHeading::new(lines.into_iter().map(|line| UiText::new(line, DEFAULT_DIALOG_POPUP_FONT_SCALE)))
         .with_separator(context, LARGE_HORIZONTAL_SEPARATOR_SPRITE)

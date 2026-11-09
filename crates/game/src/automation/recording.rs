@@ -1,7 +1,7 @@
 // The game's side of --record and --replay (see engine::automation::recording): its details in
 // the recording's header, and the checksum of its final state.
 
-use engine::{Engine, log};
+use engine::{Engine, log, ui};
 use serde_json::{Value, json};
 
 use super::{commands::state_checksum, config_patches, query::json_eq, require_map};
@@ -40,7 +40,14 @@ pub fn use_recorded_configs(engine: &Engine) {
     }
 
     match config_patches::set("", configs.clone()) {
-        Ok(_) => log::info!(log::channel!("game"), "Using the recording's game configs, which differ from the loaded ones."),
+        Ok(_) => {
+            log::info!(log::channel!("game"), "Using the recording's game configs, which differ from the loaded ones.");
+
+            // The engine took its language from the configs loaded at boot.
+            if let Err(err) = ui::text::set_language(&crate::config::GameConfigs::get().engine.language) {
+                log::warning!(log::channel!("game"), "The recording's language isn't available, so the replay may differ: {err}");
+            }
+        }
         Err(err) => {
             log::warning!(log::channel!("game"), "Can't use the recording's game configs, so the replay may differ: {err}")
         }
