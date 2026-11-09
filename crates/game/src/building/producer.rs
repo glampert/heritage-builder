@@ -13,6 +13,7 @@ use engine::{log, ui::UiSystem};
 use proc_macros::DrawDebugUi;
 
 use super::{
+    risks::RiskRates,
     Building,
     BuildingVisitResult,
     BuildingBehavior,
@@ -96,6 +97,11 @@ pub struct ProducerConfig {
     #[serde(default)]
     #[debug_ui(nested)]
     pub ambient_patrol: AmbientPatrolConfig,
+
+    // How fast its fire and collapse risks build up, per calendar month (building::risks).
+    #[serde(default)]
+    #[debug_ui(nested)]
+    pub risks: RiskRates,
 }
 
 impl Default for ProducerConfig {
@@ -123,6 +129,7 @@ impl Default for ProducerConfig {
                 spawn_chance: 10,
                 max_distance: 40,
             },
+            risks: RiskRates::ZERO,
         }
     }
 }

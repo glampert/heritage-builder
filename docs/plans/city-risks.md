@@ -1,6 +1,6 @@
 # City risks: fire and collapse
 
-**Status (2026-11-09): The art is done; Phase 0 next.** This plan is milestone M6 of the [roadmap](roadmap.md). It covers the fire and collapse rows of GDD 5.9: each building's fire and collapse risk builds up over time, a patrol walker from the fire watch or the builders' guild resets it, and a building whose risk runs out catches fire or collapses and leaves rubble. Mission I-3 teaches "the fire watch and the builders' guild (fire and collapse risk)" ([campaigns.md](../design/campaigns.md#3-the-village-of-spirits)). Disease and crime come in Phase 2 of the roadmap. It was researched against `063d306` on `claude`. File and line references point at that commit, so re-check them before relying on them.
+**Status (2026-11-09): The art and Phase 0 are done; Phase 1 next.** This plan is milestone M6 of the [roadmap](roadmap.md). It covers the fire and collapse rows of GDD 5.9: each building's fire and collapse risk builds up over time, a patrol walker from the fire watch or the builders' guild resets it, and a building whose risk runs out catches fire or collapses and leaves rubble. Mission I-3 teaches "the fire watch and the builders' guild (fire and collapse risk)" ([campaigns.md](../design/campaigns.md#3-the-village-of-spirits)). Disease and crime come in Phase 2 of the roadmap. It was researched against `063d306` on `claude`. File and line references point at that commit, so re-check them before relying on them.
 
 ## How to resume this work
 
@@ -63,8 +63,7 @@
 
 - **`BuildingRisks`**, a new saved field on `Building`:
   - `fire` and `collapse`, each 0 to 100;
-  - `rates`: this building's own rate for each, fixed when it's built (see the jitter below);
-  - `near_water`: whether a well reaches it, refreshed on a timer;
+  - `near_water`: whether a well reaches it, refreshed on a timer (saved with the timer);
   - `burning`: `None`, or the fire's state (Phase 1).
 - **Rates per config.** Every building config gets an optional `risks` block, rates in points per calendar month:
 
@@ -84,10 +83,10 @@
   | Wells, gardens | 0 | 1 |
 
   At these rates a thatch house that no fire watcher visits catches fire after about 12 months, which is 12 minutes at 1×.
-- **Jitter.** A building's own rates are its config's times a factor from the simulation's RNG (0.75 to 1.25), drawn when it's built. Without it, a row of identical houses built together would all catch fire in the same frame. The factor is saved, so a save keeps it.
+- **Jitter.** A building's rates are its config's times a factor from 0.75 to 1.25. Without it, a row of identical houses built together would all catch fire in the same frame. The factor is a hash of the building's base cell and kind, not a draw from the simulation's RNG, so adding risks didn't shift every random sequence after it. It isn't saved: it's recomputed on spawn and load. The rates are read from the config on every step, so a house's rates follow its level and a config change reaches old saves.
 - **Build-up.** `Building::update` adds `rate × delta / seconds_per_month` to each risk, so risks build up smoothly at a per-month rate (decision Q1). Sites, and buildings that are burning, don't build up risk.
 - **Water.** A building that a small or large well reaches (`is_near_building`, from its road link, the well's `effect_radius`) builds up fire risk at `SimConfigs::risks.near_water_fire_scale` (0.5) of its rate. It's checked every `water_check_secs` (10 s), not every frame.
-- **Visits.** `Building::visited_by` checks the walker before the archetype does: a fire watcher sets the fire risk to 0, a builder sets the collapse risk to 0, and both are accepted. Other walkers go to the archetype as now.
+- **Visits.** `Building::visited_by` checks the walker before the archetype does: a fire watcher sets the fire risk to 0, a builder sets the collapse risk to 0, and both are accepted. Other walkers go to the archetype as now. Walkers are told apart by the building their patrol came from (`risks::risk_reset_by`), as tax collectors are, not by their unit config: unit configs are keyed by their tile def's name, so a builder on the peasant's sprites would be a peasant.
 - **Settings:** `SimConfigs::risks` holds `enabled`, `near_water_fire_scale`, `rate_jitter`, `water_check_secs` and the Phase 1 fire settings. A mission's `risks` block in `campaigns.json` can turn risks off (decision Q6).
 - **Cheat:** `no_city_risks` stops all build-up and events. The test harness turns it on, as it does `instant_construction`, and `tests/risks.rs` turns it off.
 
@@ -129,15 +128,15 @@
 ### 3. The fire watch and the builders' guild (Phase 2)
 
 - **Kinds.** `BuildingKind::FireWatch` and `BuildingKind::BuildersGuild` (bits 22 and 23), added to `BuildingKind::services()`. They're `ServiceBuilding`s with patrol units, like the police station.
-- **Walkers** (decision Q7): `UnitConfigKey::FireWatcher` and `UnitConfigKey::Builder`, with unit configs.
-  - **The builder** uses the peasant's sprites as they are: its unit config names the `peasant` tile def, so it needs no new art.
+- **Walkers** (decision Q7):
+  - **The builder** is a peasant: the builders' guild's `patrol_unit` is `Peasant`, so it needs no unit config or art of its own. Its patrol's origin makes it a builder (§1, Visits).
   - **The fire watcher** is the guard recoloured: the same sprites with a red jacket and cap, so it stands out from guards. A script makes them, `crates/tools/unit-recolor/recolor.py` (Pillow, as `ui-icons` uses), from a JSON recipe:
     - the source unit;
     - the new unit's name;
     - a map from each flat source colour to its new one;
     - the colours to keep.
 
-    It writes the frames to `assets/tiles/objects/units/fire_watcher/`, with a `fire_watcher` tile def copied from the guard's, and records them in a manifest, so it never overwrites hand-made art.
+    It writes the frames to `assets/tiles/objects/units/fire_watcher/`, with a `fire_watcher` tile def copied from the guard's, and records them in a manifest, so it never overwrites hand-made art. The fire watcher gets `UnitConfigKey::FireWatcher` and a unit config on that tile def.
   - **How the recolour works.** The guard is drawn in flat colours with a dark outline (`#1a0b03`). A pixel is matched as a blend of the outline and one jacket colour, and gets the same blend of that colour's red:
     - `#765729` becomes `#9a221a`;
     - `#8e7644` becomes `#c43a26`;
@@ -196,7 +195,7 @@
   - the Risk lens, through `minimap.set lens=risk` and `minimap.state`.
 
   It runs in CI with the other scenarios.
-- **Existing scenarios:** long runs (`finance.jsonl`, `goods.jsonl`, `construction.jsonl`, `determinism.jsonl`) set `cheats.set name=no_city_risks value=true` so a fire can't change what they check. `determinism.jsonl` keeps checking that two runs agree, risks included.
+- **Existing scenarios:** the long runs, `finance.jsonl` (about 8 months) and `goods.jsonl` (5), set `cheats.set name=no_city_risks value=true` so a fire can't change what they check. The others are too short for any risk to reach 100. `determinism.jsonl` keeps risks on, so two runs agreeing covers them too; its 5 months can't take a building to 100.
 
 ### Art notes (2026-11-09)
 
@@ -234,16 +233,31 @@ The user is redesigning the UI on another branch, so this is every UI change thi
 
 ### Phase 0: Risk state and the save format (medium)
 
-- [ ] `BuildingRisks` on `Building`, with `rates`, `near_water` and `burning` (always `None` until Phase 1); `RiskKind` (`Fire`, `Collapse`).
-- [ ] An optional `risks` block in every building config type (house levels, services, producers, storage), reached through the `BuildingConfig` trait; the starting values in `configs.json`.
-- [ ] Rates with jitter from the simulation's RNG when a building is built or finishes construction.
-- [ ] Build-up in `Building::update`; the well check on its timer.
-- [ ] Reset by visits in `Building::visited_by`, keyed on the walker's config (`FireWatcher`, `Builder`), ready for Phase 2's walkers.
-- [ ] `SimConfigs::risks`; a mission's `risks` block (`MissionDef::risks`, applied in `campaign::active_mission_*` as the calendar and finance are); the `no_city_risks` cheat, on in the test harness.
-- [ ] Save version 7: `CURRENT_SAVE_VERSION`, `v6_to_v7.py` (adds a `risks` block with zero risks to every building and draws no jitter: old buildings get factor 1), migrate the local saves, run `--smoke-test-saves`, regenerate `saves/sample_saves.zip`.
-- [ ] `risks.state`, `risks.set`, `world.building_at`'s `risks`.
-- [ ] `tests/risks.rs`, build-up, water, visits and save round-trip cases; a `[[test]]` entry in `crates/game/Cargo.toml`.
-- [ ] `no_city_risks` in the long scenarios.
+- [x] `BuildingRisks` on `Building` (`building/risks.rs`), with `near_water`, its timer and `burning` (always `None` until Phase 1); `RiskKind` (`Fire`, `Collapse`); `RiskRates`.
+- [x] An optional `risks` block in every building config type (house levels, services, producers, storage), reached through `BuildingConfig::risk_rates`; the starting values in `configs.json`.
+- [x] Each building's jitter, from its cell and kind.
+- [x] Build-up in `Building::update`; the well check on its timer.
+- [x] Reset by visits in `Building::visited_by`, by the patrol's origin (`BuildingKind::FireWatch`, `BuildingKind::BuildersGuild`, added now), ready for Phase 2's walkers.
+- [x] `SimConfigs::risks`; `sim::risks::CityRisks` (saved, read through `SimContext::risks()`); a mission's `risks` block (`MissionDef::risks`, `campaign::active_mission_risks`, applied in `GameSession::start_mission`); the `no_city_risks` cheat, on in the test harness.
+- [x] Save version 7: `CURRENT_SAVE_VERSION`, `v6_to_v7.py`, the local saves migrated, `--smoke-test-saves` passed, `saves/sample_saves.zip` regenerated.
+- [x] `risks.state`, `risks.set`, `world.building_at`'s `risks`.
+- [x] `tests/risks.rs`: build-up, the top, jitter, water, house levels, sites, the switch and the cheat, the mission block, visits and the save round trip; a `[[test]]` entry in `crates/game/Cargo.toml`.
+- [x] `no_city_risks` in the long scenarios.
+- [x] `risks.jsonl`, started here and in CI: build-up, the well, `risks.set` and the switch.
+
+Notes (2026-11-09):
+- **Jitter from a hash, not the RNG.** The factor comes from the building's cell and kind and is recomputed on spawn and load; nothing about rates is saved (§1). Drawing from the simulation's RNG would have shifted every random sequence after it, and saving it would have kept stale rates after a config change.
+- **Saved state:** a building's `risks` is `fire`, `collapse`, `near_water`, `water_check_timer` and `burning`. `Simulation::risks` is `{ "enabled": bool }`. `v6_to_v7.py` writes zero risks, no water (the first check, 10 s after the load, finds it) and `enabled: true`.
+- **Walkers by origin.** Visits key on the patrol's origin building, not the unit config (§1, Visits), so the two building kinds came in now and the builder needs no unit config.
+- **`world.stats`** doesn't count risks; `risks.state` reports the counts.
+- **The new well check** is a path search per building every 10 s, only for buildings with a fire rate. It hasn't been profiled yet; see [Risks](#risks).
+- **Verified:**
+  - `cargo test --workspace`;
+  - all CI scenarios, `risks.jsonl` included;
+  - `determinism.jsonl` twice: the same checksum, `a4ec9f1fd0104fa6` (`--seed 7 --window-size 1280x720`), changed from `3801c7bcb809de76` by the new save fields;
+  - record and replay of `ui_build` and `determinism`;
+  - the save smoke test on all 13 local saves;
+  - the web check.
 
 ### Phase 1: Fire, collapse and rubble (medium)
 
@@ -268,8 +282,8 @@ The user is redesigning the UI on another branch, so this is every UI change thi
 
 ### Phase 2: The fire watch and the builders' guild (medium)
 
-- [ ] `BuildingKind::FireWatch`, `BuildingKind::BuildersGuild`; their service configs and tile defs (cost, materials, upkeep, tier, sector).
-- [ ] `UnitConfigKey::FireWatcher`, `UnitConfigKey::Builder` and their unit configs: the builder on the `peasant` tile def, the fire watcher on a new `fire_watcher` tile def.
+- [ ] Service configs for `BuildingKind::FireWatch` and `BuildingKind::BuildersGuild` (the kinds came with Phase 0), and `"sector": "Services"` in their catalog entries.
+- [ ] `UnitConfigKey::FireWatcher` and its unit config on a new `fire_watcher` tile def. The builder is a `Peasant` (§3).
 - [ ] `crates/tools/unit-recolor/` (`recolor.py`, its recipe and manifest, a README section or file); the red `fire_watcher` frames from the guard's; the web asset manifest refreshed. List the tool in AGENTS.md's workspace layout.
 - [ ] `ServiceConfig::visits`; the patrol's buildings to visit follow it.
 - [ ] A fire watcher puts out a fire it passes; a fire watch sends its free walker to a fire in its radius.

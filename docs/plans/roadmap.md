@@ -1,6 +1,6 @@
 # Technical roadmap
 
-**Status (2026-11-07): Phase 1 in progress: M1, M3, M4 and M5 done.** This is the top-level implementation plan. It turns the design in [docs/design/](../design/README.md) into milestones, puts them in order, and links to a detailed plan for each one. It was researched against `d0696fe` on `main`.
+**Status (2026-11-09): Phase 1 in progress: M1, M3, M4 and M5 done; M6 under way.** This is the top-level implementation plan. It turns the design in [docs/design/](../design/README.md) into milestones, puts them in order, and links to a detailed plan for each one. It was researched against `d0696fe` on `main`.
 
 ## How to use this file
 
@@ -51,7 +51,7 @@ These follow [overview.md](../design/overview.md#development-phases).
 | M3 | Building costs and construction | Medium to large | M1 | [construction.md](construction.md) | Done (fast build option waits for Custom Game) |
 | M4 | Finance | Medium | M1 | [finance.md](finance.md) | Done (the tax level's and wage's effects on ratings, and the overdue debt's failure, come with M9) |
 | M5 | Goods and production for missions I-1 to I-5 | Medium | M3 | [goods.md](goods.md) | Done (vegetables, house level 5 and month-based consumption rates deferred; see the plan) |
-| M6 | City risks: fire and collapse | Medium | M3, M1 | [city-risks.md](city-risks.md) | In progress: art done (rubble, fire, fire watch, builders' guild); Phase 0 next |
+| M6 | City risks: fire and collapse | Medium | M3, M1 | [city-risks.md](city-risks.md) | In progress: art and Phase 0 (risk state, save v7) done; Phase 1 (fire, collapse, rubble) next |
 | M7 | Seasons, floods and irrigation | Large | M1, M5 | — | Not started |
 | M8 | Faith and festivals | Medium | M1 | — | Not started |
 | M9 | Ratings, goals and failure | Medium | M4, M7, M8 | — | Not started |
@@ -296,8 +296,9 @@ Bumps should be grouped where milestones land close together. Each bump needs a 
 | 4 | Building construction state; house renovation timers | M3 | Done |
 | 5 | Goods saved by name, not position | M5 | Done |
 | 6 | One signed treasury (tax offices hold no gold); the yearly ledger, saved by category name; the finance rates and debt counter | M4 | Done |
-| 7 | Elevation map | T | Planned |
-| … | Risk, flood, favour and ratings state | M6–M9 | Planned; group them where possible |
+| 7 | Fire and collapse risk per building; the city's risks switch | M6 | Done |
+| 8 | Elevation map | T | Planned |
+| … | Flood, favour and ratings state | M7–M9 | Planned; group them where possible |
 
 ## Conventions for every milestone
 

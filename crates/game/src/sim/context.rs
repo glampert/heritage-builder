@@ -16,7 +16,7 @@ use common::{
 };
 use engine::log;
 
-use super::{Finance, GameCalendar, RandomGenerator, SimCmds};
+use super::{CityRisks, Finance, GameCalendar, RandomGenerator, SimCmds};
 use crate::{
     world::{World, object::GameObject},
     building::{Building, BuildingId, BuildingKind},
@@ -79,6 +79,9 @@ pub struct SimContext {
     // Date and season:
     calendar: RawPtr<GameCalendar>,
 
+    // Whether fire and collapse risks build up:
+    risks: RawPtr<CityRisks>,
+
     // Deferred sim command queue:
     cmds: RawPtr<SimCmds>,
 
@@ -106,6 +109,7 @@ impl SimContext {
         tile_map: &mut TileMap,
         finance: &mut Finance,
         calendar: &mut GameCalendar,
+        risks: &mut CityRisks,
         cmds: &mut SimCmds,
         delta_time_secs: Seconds,
         is_world_teardown: bool,
@@ -119,6 +123,7 @@ impl SimContext {
             tile_map: RawPtr::from_ref(tile_map),
             finance: RawPtr::from_ref(finance),
             calendar: RawPtr::from_ref(calendar),
+            risks: RawPtr::from_ref(risks),
             cmds: RawPtr::from_ref(cmds),
             delta_time_secs,
             is_world_teardown,
@@ -194,6 +199,11 @@ impl SimContext {
     #[inline(always)]
     pub fn calendar(&self) -> &GameCalendar {
         &self.calendar
+    }
+
+    #[inline(always)]
+    pub fn risks(&self) -> &CityRisks {
+        &self.risks
     }
 
     #[inline]
@@ -742,6 +752,7 @@ macro_rules! make_context {
             $tile_map,
             &mut $self.finance,
             &mut $self.calendar,
+            &mut $self.risks,
             &mut $self.cmds,
             $delta_time_secs,
             $is_world_teardown,

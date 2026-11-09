@@ -82,6 +82,8 @@ game_cheats! {
     instant_construction = false,
     // The developer editor places construction sites, as the player does, instead of finished buildings.
     build_sites_in_editor = false,
+    // Fire and collapse risks don't build up (docs/plans/city-risks.md); the test harness turns it on.
+    no_city_risks = false,
 }
 
 // ----------------------------------------------

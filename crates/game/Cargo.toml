@@ -98,3 +98,7 @@ harness = false
 [[test]]
 name    = "finance"
 harness = false
+
+[[test]]
+name    = "risks"
+harness = false

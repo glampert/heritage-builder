@@ -15,7 +15,7 @@
 
 pub mod config;
 
-use config::{CampaignConfigs, MissionFinanceDef, MissionMap};
+use config::{CampaignConfigs, MissionFinanceDef, MissionMap, MissionRisksDef};
 use serde::{Deserialize, Serialize};
 
 use engine::log;
@@ -174,6 +174,13 @@ pub fn active_mission_finance() -> Option<MissionFinanceDef> {
     let active = CampaignManager::get().progress.active.clone()?;
     let campaign = CampaignConfigs::get().campaign(active.campaign_id)?;
     campaign.missions.get(active.mission_index)?.finance.clone()
+}
+
+// The risks setting of the active mission, if it sets one. None outside a campaign.
+pub fn active_mission_risks() -> Option<MissionRisksDef> {
+    let active = CampaignManager::get().progress.active.clone()?;
+    let campaign = CampaignConfigs::get().campaign(active.campaign_id)?;
+    campaign.missions.get(active.mission_index)?.risks.clone()
 }
 
 // The calendar the active mission starts with: its own start and wet months over

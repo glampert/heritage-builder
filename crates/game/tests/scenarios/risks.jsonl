@@ -1,0 +1,41 @@
+# City risks: every building's fire and collapse risk builds up month by month, more slowly near a
+# well, and stops while risks are off for the game. From the repository root:
+#   cargo run -p HeritageBuilder -- --script crates/game/tests/scenarios/risks.jsonl
+# A month is 60 simulated seconds. Fires, collapses, the fire watch and the builders' guild join
+# with the later phases of docs/plans/city-risks.md.
+{"method": "time.fixed_dt", "params": {"dt": 0.016667}}
+{"method": "session.new_map", "params": {"size": [32, 24]}}
+{"method": "cheats.set", "params": {"name": "instant_construction", "value": true}}
+{"method": "cheats.set", "params": {"name": "ignore_tile_cost", "value": true}}
+{"method": "world.road", "params": {"from": [2, 10], "to": [29, 10]}}
+
+# Two storage yards on the road, one beside a small well and one across the map from it.
+{"method": "world.place", "params": {"tile": "storage_yard", "cell": [3, 11]}}
+{"method": "world.place", "params": {"tile": "small_well", "cell": [7, 11]}}
+{"method": "world.place", "params": {"tile": "storage_yard", "cell": [25, 11]}}
+{"method": "assert.eq", "params": {"query": "risks.state", "path": "/active", "value": true}}
+{"method": "assert.eq", "params": {"query": "risks.state", "path": "/buildings", "value": 3}}
+{"method": "time.fast_forward", "params": {"sim_secs": 60}}
+{"method": "risks.state"}
+
+# A month on, both yards have built up risk. The one by the well has water, and its fire risk
+# builds up at half its rate: a storage yard's rate is 4 a month, give or take a quarter.
+{"method": "assert.eq", "params": {"query": "world.building_at", "args": {"cell": [3, 11]}, "path": "/risks/near_water", "value": true}}
+{"method": "assert.eq", "params": {"query": "world.building_at", "args": {"cell": [25, 11]}, "path": "/risks/near_water", "value": false}}
+{"method": "assert.lt", "params": {"query": "world.building_at", "args": {"cell": [3, 11]}, "path": "/risks/rates/fire", "value": 2.6}}
+{"method": "assert.gt", "params": {"query": "world.building_at", "args": {"cell": [25, 11]}, "path": "/risks/rates/fire", "value": 2.9}}
+{"method": "assert.gt", "params": {"query": "world.building_at", "args": {"cell": [25, 11]}, "path": "/risks/fire", "value": 2.9}}
+{"method": "assert.gt", "params": {"query": "world.building_at", "args": {"cell": [25, 11]}, "path": "/risks/collapse", "value": 2.0}}
+
+# Set a risk by hand: the far yard is now the riskiest building, and at high risk.
+{"method": "risks.set", "params": {"cell": [25, 11], "fire": 90}}
+{"method": "assert.eq", "params": {"query": "risks.state", "path": "/riskiest/0/cell", "value": [25, 11]}}
+{"method": "assert.eq", "params": {"query": "risks.state", "path": "/high/fire", "value": 1}}
+
+# Risks off for the game: nothing builds up. On again: it does.
+{"method": "risks.set", "params": {"enabled": false}}
+{"method": "time.fast_forward", "params": {"sim_secs": 60}}
+{"method": "assert.eq", "params": {"query": "world.building_at", "args": {"cell": [25, 11]}, "path": "/risks/fire", "value": 90.0}}
+{"method": "risks.set", "params": {"enabled": true}}
+{"method": "time.fast_forward", "params": {"sim_secs": 60}}
+{"method": "assert.gt", "params": {"query": "world.building_at", "args": {"cell": [25, 11]}, "path": "/risks/fire", "value": 92.0}}

@@ -8,6 +8,7 @@ use engine::ui::UiSystem;
 use proc_macros::DrawDebugUi;
 
 use super::{
+    risks::RiskRates,
     BuildingVisitResult,
     BuildingBehavior,
     BuildingContext,
@@ -55,6 +56,11 @@ pub struct StorageConfig {
     // Number of storage slots and capacity of each slot.
     pub num_slots: u32,
     pub slot_capacity: u32,
+
+    // How fast its fire and collapse risks build up, per calendar month (building::risks).
+    #[serde(default)]
+    #[debug_ui(nested)]
+    pub risks: RiskRates,
 }
 
 impl Default for StorageConfig {
@@ -70,6 +76,7 @@ impl Default for StorageConfig {
             resources_accepted: ResourceKinds::all(),
             num_slots: 8,
             slot_capacity: 8,
+            risks: RiskRates::ZERO,
         }
     }
 }

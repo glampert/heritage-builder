@@ -61,6 +61,7 @@ fn setup(test_suite_name: &str) {
     undo_redo::initialize(); // The player's placement path (TilePlacement) records edits.
     cheats::get_mut().ignore_worker_requirements = true; // So producer/storage buildings accept deliveries without staffing.
     cheats::get_mut().instant_construction = true; // Placed buildings work at once; tests/construction.rs turns it off.
+    cheats::get_mut().no_city_risks = true; // Fire and collapse risk don't build up; tests/risks.rs turns it off.
 
     let mut tex_cache = TextureCache::default();
     let skip_loading_textures = true;

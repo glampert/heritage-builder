@@ -19,6 +19,7 @@ mod input;
 mod meta;
 mod minimap;
 mod observe;
+mod risks;
 mod session;
 mod sim;
 mod time;
@@ -34,6 +35,7 @@ pub(super) const COMMAND_GROUPS: &[&[CommandDef]] = &[
     time::COMMANDS,
     world::COMMANDS,
     finance::COMMANDS,
+    risks::COMMANDS,
     camera::COMMANDS,
     minimap::COMMANDS,
     input::COMMANDS,

@@ -537,6 +537,9 @@ impl GameSession {
             self.sim.finance_mut().start_mission(&finance, &GameConfigs::get().sim.finance);
             self.refresh_world_stats();
         }
+        if let Some(risks) = campaign::active_mission_risks() {
+            self.sim.risks_mut().start_mission(&risks, &GameConfigs::get().sim.risks);
+        }
     }
 
     fn create_with_preset_map(engine: &mut Engine, configs: &'static GameConfigs, preset_number: usize) -> Self {
@@ -796,7 +799,7 @@ impl Load for GameSession {
 // Save file format version. Bumped whenever the serialized layout changes in a
 // way that older saves cannot be deserialized directly. Old saves must be run
 // through the matching script in crates/tools/save-migration-scripts/.
-const CURRENT_SAVE_VERSION: u32 = 6;
+const CURRENT_SAVE_VERSION: u32 = 7;
 
 // Minimal struct to read just the save version ahead of a full deserialize.
 #[derive(Deserialize)]

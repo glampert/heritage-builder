@@ -37,6 +37,9 @@ pub mod resources;
 pub mod finance;
 pub use finance::Finance;
 
+pub mod risks;
+pub use risks::CityRisks;
+
 pub mod calendar;
 pub use calendar::{CalendarEvents, CalendarSettings, GameCalendar};
 
@@ -72,6 +75,7 @@ pub struct Simulation {
     task_manager: UnitTaskManager,
     finance: Finance,
     calendar: GameCalendar,
+    risks: CityRisks,
 
     // Path finding:
     #[serde(skip)]
@@ -97,6 +101,7 @@ impl Simulation {
             task_manager: UnitTaskManager::new(UNIT_TASK_POOL_CAPACITY),
             finance: Finance::new(configs.sim.starting_gold_units, &configs.sim.finance),
             calendar: GameCalendar::new(configs.sim.calendar.clone()),
+            risks: CityRisks::new(&configs.sim.risks),
             search: Search::with_grid_size(map_size_in_cells),
             speed: Self::MIN_SIM_SPEED,
             is_paused: false,
@@ -127,6 +132,16 @@ impl Simulation {
     #[inline]
     pub fn finance_mut(&mut self) -> &mut Finance {
         &mut self.finance
+    }
+
+    #[inline]
+    pub fn risks(&self) -> &CityRisks {
+        &self.risks
+    }
+
+    #[inline]
+    pub fn risks_mut(&mut self) -> &mut CityRisks {
+        &mut self.risks
     }
 
     #[inline]

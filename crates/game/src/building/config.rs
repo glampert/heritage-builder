@@ -5,6 +5,7 @@ use engine::{log, ui::UiSystem};
 use serde::{Deserialize, Serialize};
 
 use super::{
+    risks::RiskRates,
     BuildingArchetype,
     BuildingArchetypeKind,
     BuildingKind,
@@ -24,6 +25,8 @@ use crate::{
 
 pub trait BuildingConfig {
     fn building_kind(&self) -> BuildingKind;
+    // How fast its fire and collapse risks build up (building::risks); the config's `risks` block.
+    fn risk_rates(&self) -> &RiskRates;
     fn archetype_kind(&self) -> BuildingArchetypeKind;
     fn tile_def_name_hash(&self) -> StringHash;
     fn post_load(&mut self, index: usize) -> bool;
@@ -31,11 +34,24 @@ pub trait BuildingConfig {
 }
 
 macro_rules! building_config {
+    // A config without risks of its own (HouseConfig: a house's come from its level's config).
+    ($config_struct:ident, no_risks) => {
+        $crate::building::config::building_config!(@impl $config_struct, |_this| &$crate::building::risks::RiskRates::ZERO);
+    };
     ($config_struct:ident) => {
+        $crate::building::config::building_config!(@impl $config_struct, |this| &this.risks);
+    };
+    (@impl $config_struct:ident, |$this:ident| $risks:expr) => {
         impl $crate::building::config::BuildingConfig for $config_struct {
             #[inline]
             fn building_kind(&self) -> $crate::building::BuildingKind {
                 self.kind
+            }
+
+            #[inline]
+            fn risk_rates(&self) -> &$crate::building::risks::RiskRates {
+                let $this = self;
+                $risks
             }
 
             #[inline]

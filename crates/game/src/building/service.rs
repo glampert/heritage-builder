@@ -12,6 +12,7 @@ use engine::{log, ui::UiSystem};
 use proc_macros::DrawDebugUi;
 
 use super::{
+    risks::RiskRates,
     Building,
     BuildingBehavior,
     BuildingContext,
@@ -82,6 +83,11 @@ pub struct ServiceConfig {
     // Capacity for each resource kind it accepts.
     #[serde(default)]
     pub stock_capacity: u32,
+
+    // How fast its fire and collapse risks build up, per calendar month (building::risks).
+    #[serde(default)]
+    #[debug_ui(nested)]
+    pub risks: RiskRates,
 }
 
 impl Default for ServiceConfig {
@@ -102,6 +108,7 @@ impl Default for ServiceConfig {
             stock_update_frequency_secs: 0.0,
             resources_required: ResourceKinds::none(),
             stock_capacity: 0,
+            risks: RiskRates::ZERO,
         }
     }
 }

@@ -73,6 +73,8 @@ use crate::{
 
 pub mod config;
 pub mod construction;
+pub mod risks;
+use risks::BuildingRisks;
 use construction::{CONSTRUCTION_STAGES, ConstructionSite};
 pub use house::{HouseLevel, HouseUpgradeDirection};
 
@@ -118,6 +120,8 @@ bitflags_with_display! {
         const Apothecary     = 1 << 19;
         const Hospital       = 1 << 20;
         const Garden         = 1 << 21;
+        const FireWatch      = 1 << 22;
+        const BuildersGuild  = 1 << 23;
     }
 }
 
@@ -179,7 +183,9 @@ impl BuildingKind {
                 | Self::University.bits()
                 | Self::Apothecary.bits()
                 | Self::Hospital.bits()
-                | Self::Garden.bits(),
+                | Self::Garden.bits()
+                | Self::FireWatch.bits()
+                | Self::BuildersGuild.bits(),
         )
     }
 
@@ -255,6 +261,8 @@ pub struct Building {
     archetype: Option<BuildingArchetype>,
     // Some while the building is a construction site: inert until it completes.
     construction: Option<Box<ConstructionSite>>,
+    // Fire and collapse risk (docs/plans/city-risks.md).
+    risks: BuildingRisks,
 }
 
 impl GameObject for Building {
@@ -287,6 +295,8 @@ impl GameObject for Building {
             let context = self.new_context(context);
             self.archetype_mut().update(cmds, &context);
         }
+
+        self.update_risks(context);
     }
 
     fn tally(&self, stats: &mut WorldStats) {
@@ -349,6 +359,7 @@ impl GameObject for Building {
         debug_assert!(tile.is_valid());
 
         self.archetype_mut().post_load(context, kind, tile);
+        self.risks.post_load(self.base_cell(), kind, &context.configs().sim.risks);
     }
 
     fn undo_redo_record(&self) -> Option<Box<dyn GameObjectSavedState>> {
@@ -405,6 +416,7 @@ impl Building {
         self.kind = kind;
         self.workers_update_timer = UpdateTimer::new(GameConfigs::get().sim.workers_update_frequency_secs);
         self.archetype = Some(archetype);
+        self.risks = BuildingRisks::new(map_cells.start, kind, &GameConfigs::get().sim.risks);
 
         // Spawning usually happens inside a deferred command - execute this immediately.
         self.update_road_link(None, context);
@@ -440,6 +452,7 @@ impl Building {
         self.workers_update_timer = UpdateTimer::default();
         self.archetype = None;
         self.construction = None;
+        self.risks = BuildingRisks::default();
     }
 
     // ----------------------
@@ -512,6 +525,50 @@ impl Building {
     // Removes the site state, e.g. to refund it when the site is cleared.
     pub fn take_construction_site(&mut self) -> Option<ConstructionSite> {
         self.construction.take().map(|site| *site)
+    }
+
+    // ----------------------
+    // Risks:
+    // ----------------------
+
+    #[inline]
+    pub fn risks(&self) -> &BuildingRisks {
+        &self.risks
+    }
+
+    #[inline]
+    pub fn risks_mut(&mut self) -> &mut BuildingRisks {
+        &mut self.risks
+    }
+
+    // How fast this building's risks build up now, in points per month.
+    pub fn risk_rates(&self) -> risks::RiskRates {
+        self.risks.effective_rates(self.configs().risk_rates(), &GameConfigs::get().sim.risks)
+    }
+
+    // Builds up the fire and collapse risks over the world step. Sites don't get here.
+    fn update_risks(&mut self, context: &SimContext) {
+        if !context.risks().is_active() {
+            return;
+        }
+
+        let config_rates = *self.configs().risk_rates();
+        if config_rates.is_zero() {
+            return;
+        }
+
+        let configs = &GameConfigs::get().sim.risks;
+        let delta_time_secs = context.delta_time_secs();
+
+        // Look for a well within reach now and then: it's a path search.
+        if self.risks.water_check_due(delta_time_secs) && config_rates.fire > 0.0 {
+            let building_context = self.new_context(context);
+            let near_water = building_context.has_access_to_service(BuildingKind::SmallWell)
+                || building_context.has_access_to_service(BuildingKind::LargeWell);
+            self.risks.set_near_water(near_water);
+        }
+
+        self.risks.build_up(&config_rates, configs, delta_time_secs);
     }
 
     // ----------------------
@@ -628,6 +685,11 @@ impl Building {
         debug_assert!(self.is_spawned());
         if self.is_under_construction() {
             return BuildingVisitResult::Refused;
+        }
+        // A fire watcher or a builder resets a risk, whatever the building is.
+        if let Some(kind) = risks::risk_reset_by(unit, context) {
+            self.risks.reset(kind);
+            return BuildingVisitResult::Accepted;
         }
         let context = self.new_context(context);
         self.archetype_mut().visited_by(unit, &context)
