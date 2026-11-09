@@ -407,7 +407,7 @@ The existing dialogs keep their layouts but take their panels from the Đại Lo
 - Verified: build, `cargo test --workspace`, web check; the key check fails on a missing key, a duplicate key, and a second file's extra key or placeholder. CI scenarios and `strings.jsonl` pass; `ui_snapshot`'s listings match; `ui_build` and `determinism` replay. A temporary second language switched live, fallbacks logged once. A broken or missing `en.json` logs errors and shows keys. Web in headless Chrome loads the text.
 - Still literal: the other screens (Home, About, New Game, the Game menu, Load/Save, Settings, City Management, Mission and Campaign Complete), the HUD, inspector and minimap text, and names from data (tiles, units, goods, tax levels, ledger categories, seasons, eras).
 
-**Notes (2026-11-09, sound hooks; commit TODO):**
+**Notes (2026-11-09, sound hooks; commit `5a7b177`):**
 - `engine::ui::sound`: `UiSoundKey` has 20 roles (snake_case in data); per-role flags and cooldowns; `UiSoundEvent` and `UiWidgetSounds` (per event: the widget's default role, another, or silence) replace `UiButtonSoundsEnabled`. Buttons, checkboxes, sliders, number fields' steps, dropdowns and item lists play their roles; `UiMenu` plays open and close roles it's given; dialogs (all but Home) and `UiMessageBox` popups get theirs. Text inputs and the developer UI are silent.
 - Mapping: `assets/configs/ui/sounds.json`, read once at init; `set_mapping` lays overrides over it, for the skins step.
 - Game: `construction_completed` once per frame, `alert` for debt warnings and new minimap alerts, `notification` for the out-of-debt and screenshot toasts; `TODO(realm-ui)` for M11's messages.
