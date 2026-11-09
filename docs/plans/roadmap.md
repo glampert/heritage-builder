@@ -12,7 +12,8 @@
   - [terrain-height.md](terrain-height.md) (T);
   - [unit-movement.md](unit-movement.md) (U);
   - [minimap.md](minimap.md) (MM);
-  - [realm-ui.md](realm-ui.md) (UI).
+  - [realm-ui.md](realm-ui.md) (UI);
+  - [city-risks.md](city-risks.md) (M6).
 - When a milestone starts, finishes or changes scope, update its row in the [Phase 1 table](#phase-1-campaign-i-missions-15-the-vertical-slice) and its entry in the [save-version log](#save-version-log).
 - Follow [AGENTS.md](../../AGENTS.md) throughout:
   - keep desktop and web compiling;
@@ -50,7 +51,7 @@ These follow [overview.md](../design/overview.md#development-phases).
 | M3 | Building costs and construction | Medium to large | M1 | [construction.md](construction.md) | Done (fast build option waits for Custom Game) |
 | M4 | Finance | Medium | M1 | [finance.md](finance.md) | Done (the tax level's and wage's effects on ratings, and the overdue debt's failure, come with M9) |
 | M5 | Goods and production for missions I-1 to I-5 | Medium | M3 | [goods.md](goods.md) | Done (vegetables, house level 5 and month-based consumption rates deferred; see the plan) |
-| M6 | City risks: fire and collapse | Medium | M3, M1 | — | Not started |
+| M6 | City risks: fire and collapse | Medium | M3, M1 | [city-risks.md](city-risks.md) | Planned; not started |
 | M7 | Seasons, floods and irrigation | Large | M1, M5 | — | Not started |
 | M8 | Faith and festivals | Medium | M1 | — | Not started |
 | M9 | Ratings, goals and failure | Medium | M4, M7, M8 | — | Not started |
@@ -135,7 +136,7 @@ Plan: [goods.md](goods.md). It starts by saving goods by name, so that adding a 
 
 ### M6: City risks: fire and collapse (medium)
 
-GDD 5.9:
+See [city-risks.md](city-risks.md). GDD 5.9:
 - **Risk build-up:** fire and collapse risk per building, from its config and age; it goes up each month and is reset by a patrol walker's visit.
 - **New service buildings:** the fire watch and the builders' guild. Both reuse the `ServiceBuilding` patrol machinery (`unit/task/patrol.rs`).
 - **Events:**
