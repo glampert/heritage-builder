@@ -44,6 +44,31 @@ impl UiTextButtonSize {
 }
 
 // ----------------------------------------------
+// UiTextButtonWidth
+// ----------------------------------------------
+
+// A text button's width: its text's plus padding (the default), at least so wide, or exactly so
+// wide (its text centered, cut if longer), e.g. a dialog's row of equal buttons.
+#[derive(Copy, Clone, Default, PartialEq, Debug)]
+pub enum UiTextButtonWidth {
+    #[default]
+    Content,
+    Min(f32),
+    Fixed(f32),
+}
+
+impl UiTextButtonWidth {
+    // The width of a button whose content is `content_width` wide.
+    pub fn resolve(self, content_width: f32) -> f32 {
+        match self {
+            Self::Content => content_width,
+            Self::Min(width) => content_width.max(width),
+            Self::Fixed(width) => width,
+        }
+    }
+}
+
+// ----------------------------------------------
 // UiTextButton
 // ----------------------------------------------
 
@@ -61,6 +86,7 @@ pub struct UiTextButton {
     text_color: Option<Color>,
     hover_text_color: Option<Color>,
     frame: Option<UiTextButtonFrame>,
+    width: UiTextButtonWidth,
     sounds: UiWidgetSounds, // Hovered: ButtonHovered, Pressed: ButtonPressed.
     enabled: bool,
     hovered: bool,
@@ -96,6 +122,7 @@ impl UiWidget for UiTextButton {
                 Some(frame) => {
                     let (text_size, font_size) = internal::calc_text_size(ui_sys, self.font_scale, self.label.resolve());
                     let size = frame.button_size(text_size, font_size);
+                    let size = Vec2::new(self.width.resolve(size.x), size.y);
                     let (rect, response) = ui.allocate_exact_size(egui_vec2(size), Sense::click());
 
                     if ui.is_rect_visible(rect) {
@@ -113,7 +140,13 @@ impl UiWidget for UiTextButton {
                         ui.painter().add(nine_slice_shape(rect, panel, color32(tint)));
 
                         let font = internal::font(ui_sys, self.font_scale);
-                        ui.painter().text(rect.center(), Align2::CENTER_CENTER, self.label.resolve(), font, text_color);
+                        ui.painter().with_clip_rect(rect.intersect(ui.clip_rect())).text(
+                            rect.center(),
+                            Align2::CENTER_CENTER,
+                            self.label.resolve(),
+                            font,
+                            text_color,
+                        );
                     }
                     response
                 }
@@ -125,7 +158,10 @@ impl UiWidget for UiTextButton {
                     // button's rect is known.
                     let frameless = self.hover.is_some() || self.hover_panel.is_some();
                     let panel_slot = self.hover_panel.is_some().then(|| ui.painter().add(egui::Shape::Noop));
-                    let button = egui::Button::new(text).frame(!frameless);
+                    let mut button = egui::Button::new(text).frame(!frameless);
+                    if let UiTextButtonWidth::Min(width) | UiTextButtonWidth::Fixed(width) = self.width {
+                        button = button.min_size(vec2(width, 0.0));
+                    }
                     let response = ui.add(button);
 
                     if let (Some(slot), Some((panel, grow))) = (panel_slot, &self.hover_panel)
@@ -190,12 +226,18 @@ impl UiWidget for UiTextButton {
         let (text_size, font_size) = context.calc_text_and_font_size(self.font_scale, self.label.resolve());
 
         if let Some(frame) = &self.frame {
-            return frame.button_size(text_size, font_size);
+            let size = frame.button_size(text_size, font_size);
+            return Vec2::new(self.width.resolve(size.x), size.y);
         }
 
+        // A plain button grows past a fixed width to fit its text.
         let padding = context.ui_sys().egui_style().spacing.button_padding;
         let width = text_size.x + (padding.x * 2.0);
         let height = text_size.y.max(font_size) + (padding.y * 2.0);
+        let width = match self.width {
+            UiTextButtonWidth::Content => width,
+            UiTextButtonWidth::Min(min) | UiTextButtonWidth::Fixed(min) => width.max(min),
+        };
 
         Vec2::new(width, height)
     }
@@ -225,6 +267,7 @@ impl UiTextButton {
             text_color: None,
             hover_text_color: None,
             frame: None,
+            width: UiTextButtonWidth::Content,
             sounds: UiWidgetSounds::new(),
             enabled: true,
             hovered: false,
@@ -267,6 +310,13 @@ impl UiTextButton {
     // them: the button is the text plus the frame's padding. A hover sprite is ignored.
     pub fn with_frame(mut self, frame: UiTextButtonFrame) -> Self {
         self.frame = Some(frame);
+        self
+    }
+
+    // Its width: its text's (the default), at least or exactly a width, e.g. for a dialog's row
+    // of equal buttons. A frameless button grows past a fixed width to fit its text.
+    pub fn with_width(mut self, width: UiTextButtonWidth) -> Self {
+        self.width = width;
         self
     }
 
@@ -397,15 +447,234 @@ impl UiTextButtonFrame {
         })
     }
 
+    // Its text colour, if it sets one.
+    pub fn text_color(&self) -> Option<Color> {
+        self.text_color
+    }
+
     #[inline]
-    fn panel(&self, state: UiSpriteButtonState) -> (&UiNineSlice, Color) {
+    pub(super) fn panel(&self, state: UiSpriteButtonState) -> (&UiNineSlice, Color) {
         (&self.panels[state as usize], self.tints[state as usize])
     }
 
     // A button with text of `text_size` in a font of `font_size`.
-    fn button_size(&self, text_size: Vec2, font_size: f32) -> Vec2 {
+    pub(super) fn button_size(&self, text_size: Vec2, font_size: f32) -> Vec2 {
         let padding = self.padding();
         Vec2::new(text_size.x + padding.x * 2.0, text_size.y.max(font_size) + padding.y * 2.0)
+    }
+}
+
+// ----------------------------------------------
+// UiIconButton
+// ----------------------------------------------
+
+pub type UiIconButtonPressed = UiWidgetCallback<dyn Fn(&UiIconButton, &mut dyn UiWidgetContext)>;
+
+// A square button with an icon on a framed panel: a skin's icon buttons (the HUD's tools, a
+// lens). Its frame has a panel per state (UiTextButtonFrame); a selected button draws its
+// selected panel instead, e.g. the tool in use. Toggling (with_toggle) flips its selection on
+// each press. Recorded as kind "icon_button", its value whether it's selected.
+pub struct UiIconButton {
+    label: String,
+    icon: Option<TextureHandle>,
+    icon_tint: Color,
+    icon_inset: f32,
+    size: Vec2,
+    frame: Option<UiTextButtonFrame>,
+    selected_panel: Option<UiNineSlice>,
+    toggle: bool,
+    selected: bool,
+    enabled: bool,
+    tooltip: Option<UiTooltipText>,
+    sounds: UiWidgetSounds, // Hovered: nothing, Pressed: ButtonPressed.
+    hovered: bool,
+    on_pressed: UiIconButtonPressed,
+}
+
+impl UiWidget for UiIconButton {
+    fn as_any(&self) -> &dyn Any {
+        self
+    }
+
+    fn draw(&mut self, context: &mut dyn UiWidgetContext) {
+        debug_assert!(context.is_inside_widget_window());
+
+        let ui_sys = context.ui_sys();
+        let enabled = self.enabled;
+        let (pressed, hovered) = ui_sys.with_ui(|ui| {
+            let (rect, response) = ui.allocate_exact_size(egui_vec2(self.size), Sense::click());
+
+            if ui.is_rect_visible(rect) {
+                let state = if !enabled {
+                    UiSpriteButtonState::Disabled
+                } else if response.is_pointer_button_down_on() {
+                    UiSpriteButtonState::Pressed
+                } else if response.hovered() {
+                    UiSpriteButtonState::Hovered
+                } else {
+                    UiSpriteButtonState::Idle
+                };
+
+                match (&self.selected_panel, &self.frame) {
+                    (Some(panel), _) if self.selected => {
+                        ui.painter().add(nine_slice_shape(rect, panel, Color32::WHITE));
+                    }
+                    (_, Some(frame)) => {
+                        let (panel, tint) = frame.panel(state);
+                        ui.painter().add(nine_slice_shape(rect, panel, color32(tint)));
+                    }
+                    (_, None) => {
+                        // Painted: the style's button look, selected like a selectable label.
+                        let visuals = ui.style().interact_selectable(&response, self.selected);
+                        ui.painter().rect(rect, visuals.corner_radius, visuals.weak_bg_fill, visuals.bg_stroke, egui::StrokeKind::Inside);
+                    }
+                }
+
+                if let Some(icon) = self.icon {
+                    let tint = if enabled { color32(self.icon_tint) } else { color32(self.icon_tint).gamma_multiply(0.5) };
+                    ui.painter().image(egui_texture(icon), rect.shrink(self.icon_inset), uv_full(), tint);
+                }
+            }
+
+            let tooltip = self.tooltip.as_ref().map(|tooltip| tooltip.text.resolve());
+            let name = self.label.rsplit('/').next().unwrap_or(&self.label);
+            immediate::record(ui_sys, ui, &response, "icon_button", name, tooltip, enabled, Some(serde_json::Value::Bool(self.selected)));
+            (response.clicked(), response.hovered())
+        });
+
+        if hovered {
+            if !self.hovered && enabled {
+                self.sounds.play(context, UiSoundEvent::Hovered, None);
+            }
+            if let Some(tooltip) = &self.tooltip {
+                tooltip.draw(context);
+            }
+        }
+        self.hovered = hovered;
+
+        if pressed && enabled {
+            self.sounds.play(context, UiSoundEvent::Pressed, Some(UiSoundKey::ButtonPressed));
+            if self.toggle {
+                self.selected = !self.selected;
+            }
+            if let Some(on_pressed) = &self.on_pressed {
+                on_pressed(self, context);
+            }
+        }
+    }
+
+    fn measure(&self, _context: &dyn UiWidgetContext) -> Vec2 {
+        self.size
+    }
+
+    fn label(&self) -> &str {
+        &self.label
+    }
+}
+
+impl UiIconButton {
+    // A button `size` points square-ish, named `label` in widget paths (its last '/' part).
+    pub fn new(label: impl Into<String>, size: Vec2) -> Self {
+        let label = label.into();
+        debug_assert!(!label.is_empty());
+        debug_assert!(size.x > 0.0 && size.y > 0.0);
+        Self {
+            label,
+            icon: None,
+            icon_tint: Color::white(),
+            icon_inset: 4.0,
+            size,
+            frame: None,
+            selected_panel: None,
+            toggle: false,
+            selected: false,
+            enabled: true,
+            tooltip: None,
+            sounds: UiWidgetSounds::new(),
+            hovered: false,
+            on_pressed: None,
+        }
+    }
+
+    // The sprite under assets/ui/ drawn on the frame, `inset` points in from its edges.
+    pub fn with_icon<'a>(mut self, context: &mut dyn UiWidgetContext, sprite: impl Into<PathRef<'a>>, inset: f32) -> Self {
+        self.icon = Some(context.load_texture(sprite.into()));
+        self.icon_inset = inset;
+        self
+    }
+
+    pub fn with_icon_texture(mut self, icon: TextureHandle, inset: f32) -> Self {
+        self.icon = Some(icon);
+        self.icon_inset = inset;
+        self
+    }
+
+    pub fn with_icon_tint(mut self, tint: Color) -> Self {
+        self.icon_tint = tint;
+        self
+    }
+
+    // Its panels per state; the style's button look if none.
+    pub fn with_frame(mut self, frame: UiTextButtonFrame) -> Self {
+        self.frame = Some(frame);
+        self
+    }
+
+    // Drawn in place of the frame while selected.
+    pub fn with_selected_panel(mut self, panel: UiNineSlice) -> Self {
+        self.selected_panel = Some(panel);
+        self
+    }
+
+    // Each press flips its selection, before on_pressed runs.
+    pub fn with_toggle(mut self, toggle: bool) -> Self {
+        self.toggle = toggle;
+        self
+    }
+
+    pub fn with_selected(mut self, selected: bool) -> Self {
+        self.selected = selected;
+        self
+    }
+
+    pub fn with_enabled(mut self, enabled: bool) -> Self {
+        self.enabled = enabled;
+        self
+    }
+
+    pub fn with_tooltip(mut self, tooltip: UiTooltipText) -> Self {
+        self.tooltip = Some(tooltip);
+        self
+    }
+
+    // `event` (Hovered or Pressed) plays `role` instead, or nothing for None.
+    pub fn with_sound(mut self, event: UiSoundEvent, role: Option<UiSoundKey>) -> Self {
+        self.sounds.set(event, role);
+        self
+    }
+
+    pub fn on_pressed<F>(mut self, f: F) -> Self
+    where
+        F: Fn(&UiIconButton, &mut dyn UiWidgetContext) + 'static,
+    {
+        self.on_pressed = Some(smallbox!(f));
+        self
+    }
+
+    pub fn is_selected(&self) -> bool {
+        self.selected
+    }
+
+    pub fn set_selected(&mut self, selected: bool) {
+        self.selected = selected;
+    }
+
+    pub fn is_enabled(&self) -> bool {
+        self.enabled
+    }
+
+    pub fn enable(&mut self, enable: bool) {
+        self.enabled = enable;
     }
 }
 
@@ -760,6 +1029,14 @@ mod tests {
 
     fn panel(width: f32, slice_px: [f32; 4]) -> UiNineSlice {
         UiNineSlice::new(TextureHandle::White, Vec2::new(width, 32.0), slice_px)
+    }
+
+    #[test]
+    fn button_widths() {
+        assert_eq!(UiTextButtonWidth::Content.resolve(80.0), 80.0);
+        assert_eq!(UiTextButtonWidth::Min(120.0).resolve(80.0), 120.0);
+        assert_eq!(UiTextButtonWidth::Min(120.0).resolve(150.0), 150.0);
+        assert_eq!(UiTextButtonWidth::Fixed(120.0).resolve(150.0), 120.0);
     }
 
     #[test]

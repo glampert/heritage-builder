@@ -1,6 +1,7 @@
 # Drives the developer editor's menus (Ctrl+/) through the widget registry: the tile palette,
-# the menu bar, the minimap's debug panel, the tile inspector and its panels, and the sample menus'
-# 9-slice panels. From the repository root:
+# the menu bar, the minimap's debug panel, the tile inspector and its panels, the sample menus'
+# 9-slice panels, and the widget samples (tabs, toggles, step selectors, menu items, list rows and
+# the data widgets). From the repository root:
 #   cargo run -p HeritageBuilder -- --script crates/game/tests/scenarios/ui_dev_menus.jsonl
 {"method": "time.fixed_dt", "params": {"dt": 0.016667}}
 {"method": "session.new_map", "params": {"size": [16, 16]}}
@@ -60,6 +61,50 @@
 {"method": "assert.eq", "params": {"query": "ui.tree", "args": {"filter": "Panel Popup/"}, "path": "/widgets", "value": []}}
 {"method": "ui.click", "params": {"path": "Debug"}}
 {"method": "ui.set", "params": {"path": "Debug/Show Sample Menus", "value": false}}
+{"method": "ui.click", "params": {"path": "Debug"}}
+# The widget samples: Sample Menu 4 (controls) and 5 (data), the realm UI's widgets.
+{"method": "ui.click", "params": {"path": "Debug"}}
+{"method": "ui.set", "params": {"path": "Debug/Show Widget Samples", "value": true}}
+# Tabs: a click on a tab, or ui.set on the bar by label or index; the selected tab names its contents' paths.
+{"method": "ui.click", "params": {"path": "Sample Menu 4/Sound"}}
+{"method": "assert.eq", "params": {"query": "ui.tree", "args": {"filter": "Sample Menu 4/tab_bar"}, "path": "/widgets/0/value", "value": "Sound"}}
+{"method": "assert.eq", "params": {"query": "ui.tree", "args": {"filter": "Sample Menu 4/Sound/Music"}, "path": "/widgets/0/kind", "value": "toggle"}}
+{"method": "ui.set", "params": {"path": "Sample Menu 4/tab_bar", "value": 0}}
+{"method": "assert.eq", "params": {"query": "ui.tree", "args": {"filter": "Sample Menu 4/Game", "kind": "tab"}, "path": "/widgets/0/value", "value": true}}
+# Toggles: a click flips one, ui.set sets it.
+{"method": "ui.click", "params": {"path": "Sample Menu 4/Game/Edge scrolling"}}
+{"method": "assert.eq", "params": {"query": "ui.tree", "args": {"filter": "Sample Menu 4/Game/Edge scrolling"}, "path": "/widgets/0/value", "value": false}}
+{"method": "ui.set", "params": {"path": "Sample Menu 4/Game/Smooth zoom", "value": true}}
+{"method": "assert.eq", "params": {"query": "ui.tree", "args": {"filter": "Sample Menu 4/Game/Smooth zoom"}, "path": "/widgets/0/value", "value": true}}
+# Step selectors: segments (click one, or ui.set by label or index) and arrows that wrap round.
+{"method": "ui.click", "params": {"path": "Sample Menu 4/Game/Difficulty/Very Hard"}}
+{"method": "assert.eq", "params": {"query": "ui.tree", "args": {"filter": "Sample Menu 4/Game/Difficulty", "kind": "step_selector"}, "path": "/widgets/0/value", "value": "Very Hard"}}
+{"method": "ui.set", "params": {"path": "Sample Menu 4/Game/Difficulty", "value": "Easy"}}
+{"method": "assert.eq", "params": {"query": "ui.tree", "args": {"filter": "Sample Menu 4/Game/Difficulty/Easy"}, "path": "/widgets/0/value", "value": true}}
+{"method": "ui.click", "params": {"path": "Sample Menu 4/Game/Speed/Next"}}
+{"method": "ui.click", "params": {"path": "Sample Menu 4/Game/Speed/Next"}}
+{"method": "assert.eq", "params": {"query": "ui.tree", "args": {"filter": "Sample Menu 4/Game/Speed", "kind": "step_selector"}, "path": "/widgets/0/value", "value": "Slow"}}
+# Menu items (one disabled), framed buttons of a set width, icon buttons (one toggles, one disabled).
+{"method": "assert.eq", "params": {"query": "ui.tree", "args": {"filter": "Sample Menu 4/Continue"}, "path": "/widgets/0/enabled", "value": false}}
+{"method": "ui.hover", "params": {"path": "Sample Menu 4/Campaign"}}
+{"method": "assert.eq", "params": {"query": "ui.tree", "args": {"filter": "Sample Menu 4/Campaign"}, "path": "/widgets/0/value/subline", "value": "Campaign I · mission 6 of 10"}}
+{"method": "ui.click", "params": {"path": "Sample Menu 4/Campaign"}}
+{"method": "assert.eq", "params": {"query": "ui.tree", "args": {"filter": "Sample Menu 4/Cancel"}, "path": "/widgets/0/rect/2", "value": 120.0}}
+{"method": "ui.click", "params": {"path": "Sample Menu 4/temple"}}
+{"method": "assert.eq", "params": {"query": "ui.tree", "args": {"filter": "Sample Menu 4/temple"}, "path": "/widgets/0/value", "value": true}}
+{"method": "assert.eq", "params": {"query": "ui.tree", "args": {"filter": "Sample Menu 4/fort"}, "path": "/widgets/0/enabled", "value": false}}
+# Template list rows: a locked row can't be picked; the data widgets report what they show.
+{"method": "assert.eq", "params": {"query": "ui.tree", "args": {"filter": "Sample Menu 5/Realm/Kambara"}, "path": "/widgets/0/enabled", "value": false}}
+{"method": "ui.click", "params": {"path": "Sample Menu 5/Map/Karst Valley"}}
+{"method": "assert.eq", "params": {"query": "ui.tree", "args": {"filter": "Sample Menu 5/Map", "kind": "item_list"}, "path": "/widgets/0/value", "value": "Karst Valley"}}
+{"method": "assert.eq", "params": {"query": "ui.tree", "args": {"filter": "Sample Menu 5/Map Stats"}, "path": "/widgets/0/value/1", "value": ["Rivers", "1 large, 3 streams"]}}
+{"method": "assert.eq", "params": {"query": "ui.tree", "args": {"filter": "Sample Menu 5/Goals"}, "path": "/widgets/0/value/status", "value": ["done", "pending", "failed"]}}
+{"method": "assert.eq", "params": {"query": "ui.tree", "args": {"filter": "Sample Menu 5/Culture"}, "path": "/widgets/0/value/value", "value": 62.0}}
+{"method": "assert.eq", "params": {"query": "ui.tree", "args": {"filter": "Sample Menu 5/Preview"}, "path": "/widgets/0/value/fit", "value": "cover"}}
+{"method": "assert.exists", "params": {"query": "ui.tree", "args": {"filter": "Sample Menu 5/Stele", "kind": "rich_text"}, "path": "/widgets/0/value"}}
+{"method": "assert.eq", "params": {"query": "ui.layout_issues", "path": "/count", "value": 0}}
+{"method": "ui.click", "params": {"path": "Debug"}}
+{"method": "ui.set", "params": {"path": "Debug/Show Widget Samples", "value": false}}
 {"method": "ui.click", "params": {"path": "Debug"}}
 # The log viewer's console: ui.set fills it in while it has keyboard focus, Enter runs it; or type it.
 {"method": "ui.click", "params": {"path": "Debug"}}

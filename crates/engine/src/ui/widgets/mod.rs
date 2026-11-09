@@ -16,9 +16,10 @@
 // Widgets record themselves in the widget registry (registry.rs) as they draw, for UI automation.
 //
 // Interactive widgets play UI sound roles for their events (ui::sound): buttons ButtonHovered and
-// ButtonPressed, checkboxes Toggled, sliders SliderChanged, dropdowns DropdownOpened, ItemHovered,
-// ItemSelected and DropdownClosed, item lists ItemHovered and ItemSelected, and menus that ask for
-// them their open and close sounds (dialogs, popups). Each holds a UiWidgetSounds, which
+// ButtonPressed, checkboxes and toggles Toggled, sliders and step selectors SliderChanged,
+// dropdowns DropdownOpened, ItemHovered, ItemSelected and DropdownClosed, item lists and menu
+// items ItemHovered and ItemSelected, tab bars TabSelected, and menus that ask for them their open
+// and close sounds (dialogs, popups). Each holds a UiWidgetSounds, which
 // `with_sound` overrides per event; a new widget plays an event with one call to its
 // `sounds.play(context, event, Some(default role))`.
 //
@@ -26,15 +27,21 @@
 // registry helpers. Each widget family has a file of its own, re-exported here, so every widget is
 // `ui::widgets::<Name>`:
 // - menu.rs: UiMenu, its flags, position and content insets.
+// - menu_item.rs: UiMenuItem, an entry of a dialog's list of choices (label, subline, marker).
 // - message_box.rs: UiMessageBox, a menu's modal popup.
 // - text.rs: UiText, UiMenuHeading and UiSizedTextLabel.
 // - group.rs: UiWidgetGroup and UiLabeledWidgetGroup.
-// - button.rs: UiTextButton and UiSpriteButton.
+// - columns.rs: UiColumns, widget groups side by side (UiColumnWidth, split_column_widths).
+// - tab_bar.rs: UiTabBar, tabs with each tab's contents under them.
+// - button.rs: UiTextButton (plain or framed, UiTextButtonFrame), UiIconButton and UiSpriteButton.
 // - tooltip.rs: UiTooltipText.
 // - separator.rs: UiSeparator.
-// - image.rs: UiSpriteIcon and UiSlideshow.
+// - image.rs: UiSpriteIcon, UiSlideshow and UiImage (a texture fit to a rect, fit_image).
 // - input.rs: UiSlider, UiCheckbox, UiIntInput, UiTextInput and UiDropdown.
-// - list.rs: UiItemList.
+// - choice.rs: UiToggle (a pill switch) and UiStepSelector (segments or arrows).
+// - list.rs: UiItemList, with plain items or template rows (UiListRow, UiListRowLook).
+// - data.rs: UiKeyValues, UiTable and UiMeter, painted displays of data.
+// - rich_text.rs: UiRichText, wrapped text with emphasis and coloured runs (parse_rich_text).
 
 use std::{any::Any, cell::RefMut};
 use smallbox::SmallBox;
@@ -47,24 +54,36 @@ use super::{UiFontScale, UiNineSlice, UiSystem, immediate::{self, rich_text}, in
 use crate::{file_sys::paths::PathRef, render::{RenderSystem, texture::TextureHandle}, sound::SoundSystem};
 
 mod button;
+mod choice;
+mod columns;
+mod data;
 mod group;
 mod image;
 mod input;
 mod list;
 mod menu;
+mod menu_item;
 mod message_box;
+mod rich_text;
 mod separator;
+mod tab_bar;
 mod text;
 mod tooltip;
 
 pub use button::*;
+pub use choice::*;
+pub use columns::*;
+pub use data::*;
 pub use group::*;
 pub use image::*;
 pub use input::*;
 pub use list::*;
 pub use menu::*;
+pub use menu_item::*;
 pub use message_box::*;
+pub use rich_text::*;
 pub use separator::*;
+pub use tab_bar::*;
 pub use text::*;
 pub use tooltip::*;
 
@@ -271,4 +290,15 @@ pub enum UiWidgetImpl {
     UiItemList,
     UiMessageBox,
     UiSlideshow,
+    UiTabBar,
+    UiToggle,
+    UiStepSelector,
+    UiMenuItem,
+    UiIconButton,
+    UiImage,
+    UiKeyValues,
+    UiTable,
+    UiMeter,
+    UiColumns,
+    UiRichText,
 }

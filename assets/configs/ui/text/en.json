@@ -35,6 +35,8 @@
     "button.cancel": "Cancel",
     "button.yes": "Yes",
     "button.no": "No",
+    "toggle.on": "On",
+    "toggle.off": "Off",
     "popup.quit.title": "Quit Game?",
     "popup.quit.body": "Any unsaved progress will be lost...",
     "popup.quit.quit_to_main_menu": "Quit to Main Menu",

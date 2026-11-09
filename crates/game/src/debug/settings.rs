@@ -81,6 +81,8 @@ pub struct DebugSettingsDevMenu {
     #[debug_ui(edit)]
     show_sample_menus: bool,
     #[debug_ui(edit)]
+    show_widget_samples: bool,
+    #[debug_ui(edit)]
     show_world_perf_stats: bool,
     #[debug_ui(edit)]
     show_render_perf_stats: bool,
@@ -125,6 +127,11 @@ impl DebugSettingsDevMenu {
 
     pub fn show_sample_menus(&self) -> bool {
         self.show_sample_menus
+    }
+
+    // Sample Menus 4 and 5: the realm UI's widgets (ui::tests::draw_widget_sample_menus).
+    pub fn show_widget_samples(&self) -> bool {
+        self.show_widget_samples
     }
 
     pub fn show_world_perf_stats(&self) -> bool {

@@ -644,7 +644,7 @@ impl Default for UiSystem {
 // UiFontScale
 // ----------------------------------------------
 
-#[derive(Copy, Clone, PartialEq, PartialOrd)]
+#[derive(Copy, Clone, PartialEq, PartialOrd, Debug)]
 pub struct UiFontScale(pub f32);
 
 impl UiFontScale {

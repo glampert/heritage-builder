@@ -253,7 +253,9 @@
       "off": "skins/dailong/toggle_off.png",
       "on": "skins/dailong/toggle_on.png",
       "knob": "skins/dailong/toggle_knob.png",
-      "size": [62.0, 30.0]
+      "size": [62.0, 30.0],
+      "text": "ink",
+      "state_text": "sub"
     },
     "checkbox": { "off": "skins/dailong/checkbox_off.png", "on": "skins/dailong/checkbox_on.png", "size": [28.0, 28.0] },
     "slider": {
@@ -267,6 +269,8 @@
       "thumb": { "sprite": "skins/dailong/scrollbar_thumb.png", "slice": [0, 10, 0, 10] }
     }
   },
+  "meters": { "fill": "accent", "track": "light", "outline": "sub", "goal": "ink", "text": "ink" },
+  "rows": { "title": "ink", "selected": "accent", "subtitle": "sub", "label": "sub", "value": "ink", "header": "accent", "rule": "#6b4f3366", "done": "#3a7a3a", "pending": "sub", "failed": "accent" },
   "separators": {
     "rule": {
       "sprite": "skins/dailong/rule.png",

@@ -736,15 +736,9 @@ impl<'de> Deserialize<'de> for UiColor {
     }
 }
 
+// "#RRGGBB" or "#RRGGBBAA", parsed by the rich text's parser so the two can't disagree.
 fn parse_hex_color(text: &str) -> Option<Color32> {
-    let hex = text.strip_prefix('#')?;
-    if !(hex.len() == 6 || hex.len() == 8) || !hex.is_ascii() {
-        return None;
-    }
-
-    let channel = |index: usize| u8::from_str_radix(&hex[index * 2..index * 2 + 2], 16).ok();
-    let alpha = if hex.len() == 8 { channel(3)? } else { u8::MAX };
-    Some(Color32::from_rgba_unmultiplied(channel(0)?, channel(1)?, channel(2)?, alpha))
+    super::widgets::parse_hex_color(text).map(super::immediate::color32)
 }
 
 // ----------------------------------------------

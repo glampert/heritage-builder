@@ -74,15 +74,15 @@ pub(super) const COMMANDS: &[CommandDef] = &[
     },
     CommandDef {
         name: "ui.set",
-        help: "Set a checkbox, slider, number or text input, dropdown, list, or the dev editor's tile palette, through the \
-               widget's own update.",
+        help: "Set a checkbox, toggle, slider, number or text input, dropdown, list, tab bar, step selector, or the dev \
+               editor's tile palette, through the widget's own update.",
         params: &[
             ParamDef { name: "path", kind: "string", required: true, help: "Widget path from ui.tree, or the end of one." },
             ParamDef {
                 name: "value",
                 kind: "any",
                 required: true,
-                help: "Bool, number, text, a list item's text or index, or a palette tile's label or name.",
+                help: "Bool, number, text, a list item's, tab's or step's text or index, or a palette tile's label or name.",
             },
         ],
         run: cmd_set,
@@ -168,8 +168,19 @@ pub(super) const COMMANDS: &[CommandDef] = &[
 // The fields widget_json can give a widget, for ui.tree's `fields`.
 const WIDGET_FIELDS: &[&str] = &["path", "kind", "label", "tooltip", "rect", "enabled", "hovered", "visible", "value"];
 
-const SETTABLE_KINDS: &[&str] =
-    &["checkbox", "slider", "int_input", "float_input", "text_input", "dropdown", "item_list", "tile_palette"];
+const SETTABLE_KINDS: &[&str] = &[
+    "checkbox",
+    "toggle",
+    "slider",
+    "int_input",
+    "float_input",
+    "text_input",
+    "dropdown",
+    "item_list",
+    "tab_bar",
+    "step_selector",
+    "tile_palette",
+];
 
 // How long ui.click and ui.set look for a widget that isn't there (yet), e.g. in a dialog that
 // opens on the next frame.
@@ -520,10 +531,10 @@ fn check_value(widget: &UiWidgetInfo, value: &Value) -> Result<(), CommandError>
     }
 
     let fits = match widget.kind {
-        "checkbox" => value.is_boolean(),
+        "checkbox" | "toggle" => value.is_boolean(),
         "slider" | "int_input" | "float_input" => value.is_number(),
         "text_input" | "tile_palette" => value.is_string(),
-        _ => value.is_string() || value.is_u64(), // Dropdowns and lists: item text or index.
+        _ => value.is_string() || value.is_u64(), // Dropdowns, lists, tab bars and step selectors: item text or index.
     };
 
     if fits {
@@ -863,5 +874,10 @@ mod tests {
         assert!(check_value(&widget("tile_palette"), &json!("Small Well")).is_ok());
         assert!(check_value(&widget("tile_palette"), &json!(3)).is_err());
         assert!(check_value(&widget("text_button"), &json!(true)).is_err());
+        assert!(check_value(&widget("toggle"), &json!(false)).is_ok());
+        assert!(check_value(&widget("toggle"), &json!("on")).is_err());
+        assert!(check_value(&widget("tab_bar"), &json!("Sound")).is_ok());
+        assert!(check_value(&widget("step_selector"), &json!(3)).is_ok());
+        assert!(check_value(&widget("menu_entry"), &json!(true)).is_err());
     }
 }

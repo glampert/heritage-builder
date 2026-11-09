@@ -7,6 +7,8 @@
 // - `text`: named text colours (ink, accent, on_accent, ...), which the other blocks name;
 // - `headings`, `panels`, `buttons`, `separators`, `controls`, `emblems`, `icons`, `icon_sets`,
 //   `backdrops`, `dialogs`: the sprites, 9-slice borders, insets and sizes the screens use;
+// - `meters`, `rows`: the colours (`text` names or "#RRGGBB(AA)") of painted meters and step
+//   selectors, and of list rows, key-value pairs and tables;
 // - `sounds`: each UI sound role's file, applied with ui::sound::set_mapping.
 //
 // Every file is read once, at boot (the web build can read an asset only once), and kept; the
@@ -17,7 +19,9 @@
 // themselves.
 //
 // The helpers below are how screens are built: dialog, button, panel, tooltip, heading, separator,
-// popup, icon. No sprite path is written in the menu code (see the test at the end).
+// popup, icon; and for the realm UI's widgets tab_bar, toggle, step_selector, menu_item,
+// list_row_look, icon_button, framed_image, emblem, key_values, table, meter and rich_text. No
+// sprite path is written in the menu code (see the test at the end).
 
 use std::collections::BTreeMap;
 
@@ -30,6 +34,7 @@ use engine::{
     config,
     file_sys::{self, paths::PathRef},
     log,
+    render::texture::TextureHandle,
     sound::SoundSystem,
     ui::{
         DEV_UI_THEME,
@@ -81,8 +86,11 @@ pub struct UiSkinDef {
     pub icon_sets: BTreeMap<String, String>, // Sprite-button sets: name → folder of state sprites.
     pub icons: BTreeMap<String, String>,     // Single sprites by name.
     pub controls: SkinControlsDef,
+    pub meters: SkinMetersDef,
+    pub rows: SkinRowsDef,
     pub separators: BTreeMap<String, SkinSeparatorDef>,
-    // TODO(realm-ui): Phase 1 draws the emblems: the home menu's campaign row and the save rows.
+    // TODO(realm-ui): Phase 1 draws the emblems (skin::emblem): the home menu's realm row, Custom
+    // Game's realm rows and the save rows.
     pub emblems: BTreeMap<String, String>,   // Realm → stem (idle, locked, current states).
     pub backdrops: SkinBackdropsDef,
     pub dialogs: BTreeMap<String, SkinDialogDef>, // "default", then by dialog kind name.
@@ -101,6 +109,8 @@ impl Default for UiSkinDef {
             icon_sets: BTreeMap::new(),
             icons: BTreeMap::new(),
             controls: SkinControlsDef::default(),
+            meters: SkinMetersDef::default(),
+            rows: SkinRowsDef::default(),
             separators: BTreeMap::new(),
             emblems: BTreeMap::new(),
             backdrops: SkinBackdropsDef::default(),
@@ -147,8 +157,10 @@ pub struct SkinPanelDef {
 // A button role. Framed (`sprite`: a stem with _idle, _hovered, _pressed and _disabled sprites,
 // cut by `slice`), or plain text that shows the `hover` panel (grown by `hover_grow` points) or
 // the `hover_sprite` underline while hovered. `font`: large, normal, small or extra_small.
-// `text`, `text_hovered`: colours as panels name them. `marker`, `selected`, `size`: for the menu
-// item and icon button widgets to come.
+// `text`, `text_hovered`: colours as panels name them. `min_width`: the narrowest a framed button
+// gets, in points. The menu item role (UiMenuItem) also takes `marker`, a sprite at its left
+// while hovered, and `subline`, its subline's colour; the icon role (UiIconButton) `selected`, the
+// selected frame (cut by `slice`), and `size`, the button's in points.
 #[derive(Clone, Debug, Default, Deserialize)]
 #[serde(default, deny_unknown_fields)]
 pub struct SkinButtonDef {
@@ -162,9 +174,9 @@ pub struct SkinButtonDef {
     pub hover: Option<String>,
     pub hover_grow: [f32; 2],
     pub hover_sprite: Option<String>,
-    // TODO(realm-ui): Phase 0 Widgets draws these: the menu item's marker (UiMenuItem), the icon
-    // button's selected frame and size (UiIconButton).
+    pub min_width: Option<f32>,
     pub marker: Option<String>,
+    pub subline: Option<String>,
     pub selected: Option<String>,
     pub size: Option<f32>,
 }
@@ -220,10 +232,10 @@ pub struct SkinSlicedSpriteDef {
     pub slice: [f32; 4],
 }
 
-// The controls' art, for the toggle, checkbox, slider, dropdown and scrollbar widgets to come
-// (Phase 0, Widgets). Checked by the tests, not drawn yet.
-// TODO(realm-ui): Phase 0 Widgets draws these (UiToggle, the checkbox, slider, dropdown and
-// scrollbar skins) in place of egui's.
+// The controls' art. The toggle's draws UiToggle (skin::toggle); the others are checked by the
+// tests but not drawn yet.
+// TODO(realm-ui): skin the checkbox, slider, dropdown and scrollbar (egui's own widgets today)
+// with these sprites, in place of the style's visuals.
 #[derive(Clone, Debug, Default, Deserialize)]
 #[serde(default, deny_unknown_fields)]
 pub struct SkinControlsDef {
@@ -240,7 +252,39 @@ pub struct SkinToggleDef {
     pub off: String,
     pub on: String,
     pub knob: String,
-    pub size: [f32; 2],
+    pub size: [f32; 2],         // The pill's, in points; the knob's is its sprite's.
+    pub text: Option<String>,       // The label's colour.
+    pub state_text: Option<String>, // The "On" / "Off" text's colour.
+}
+
+// The colours of painted meters (UiMeter), step selectors and toggles without sprites: the filled
+// part, the empty part, outlines, a bar's goal tick and a ring's text.
+#[derive(Clone, Debug, Default, Deserialize)]
+#[serde(default, deny_unknown_fields)]
+pub struct SkinMetersDef {
+    pub fill: Option<String>,
+    pub track: Option<String>,
+    pub outline: Option<String>,
+    pub goal: Option<String>,
+    pub text: Option<String>,
+}
+
+// The colours of rows: template list rows' titles (`selected`: a selected row's), subtitles and
+// right-hand texts; key-value pairs' labels and values; table headers; the rules under rows; and
+// a table's status marks (`done`, `pending`, `failed`: a goal met, still open, missed).
+#[derive(Clone, Debug, Default, Deserialize)]
+#[serde(default, deny_unknown_fields)]
+pub struct SkinRowsDef {
+    pub title: Option<String>,
+    pub selected: Option<String>,
+    pub subtitle: Option<String>,
+    pub label: Option<String>,
+    pub value: Option<String>,
+    pub header: Option<String>,
+    pub rule: Option<String>,
+    pub done: Option<String>,
+    pub pending: Option<String>,
+    pub failed: Option<String>,
 }
 
 #[derive(Clone, Debug, Default, Deserialize)]
@@ -569,11 +613,7 @@ fn insets(content: Option<[f32; 4]>) -> Option<UiMenuInsets> {
 
 // A 9-slice of a sprite under assets/ui/, at the skin's sprite scale.
 fn nine_slice(context: &mut dyn UiWidgetContext, sprite: &str, slice_px: [f32; 4], center: SkinCenter) -> UiNineSlice {
-    let scale = current().sprite_scale;
-    context
-        .load_nine_slice(PathRef::from_str(sprite), slice_px)
-        .with_scale(if scale > 0.0 { 1.0 / scale } else { 1.0 })
-        .with_center(center.nine_slice())
+    context.load_nine_slice(PathRef::from_str(sprite), slice_px).with_scale(art_scale()).with_center(center.nine_slice())
 }
 
 // The panel `name` of the current skin. A name the skin lacks logs an error and gives its
@@ -790,16 +830,9 @@ where
         button = button.with_size(font.button_size());
     }
 
-    if let Some(stem) = &def.sprite {
-        let scale = current().sprite_scale;
-        let mut frame = UiTextButtonFrame::load(context, stem, def.slice)
-            .with_scale(if scale > 0.0 { 1.0 / scale } else { 1.0 })
-            .with_center(def.center.nine_slice());
-        if let Some([x, y]) = def.padding {
-            frame = frame.with_padding(Vec2::new(x, y));
-        }
-        if let Some(color) = opt_color(&def.text) {
-            frame = frame.with_text_color(color);
+    if let Some(frame) = button_frame(context, def) {
+        if let Some(width) = def.min_width {
+            button = button.with_width(UiTextButtonWidth::Min(width));
         }
         return button.with_frame(frame);
     }
@@ -814,6 +847,33 @@ where
         button = button.with_hover_sprite(context, PathRef::from_str(sprite));
     }
     button
+}
+
+// A framed button role's frame: its state sprites, padding and text colour. None for a plain one.
+fn button_frame(context: &mut dyn UiWidgetContext, def: &SkinButtonDef) -> Option<UiTextButtonFrame> {
+    let stem = def.sprite.as_ref()?;
+    let mut frame = UiTextButtonFrame::load(context, stem, def.slice).with_scale(art_scale()).with_center(def.center.nine_slice());
+    if let Some([x, y]) = def.padding {
+        frame = frame.with_padding(Vec2::new(x, y));
+    }
+    if let Some(color) = opt_color(&def.text) {
+        frame = frame.with_text_color(color);
+    }
+    Some(frame)
+}
+
+// The button role `role`, or an empty one (and an error logged) if the skin lacks it.
+fn button_def(role: &str) -> SkinButtonDef {
+    current().buttons.get(role).cloned().unwrap_or_else(|| {
+        log::error!(log::channel!("ui"), "UI skin '{}' has no button role '{role}'.", current_realm());
+        SkinButtonDef::default()
+    })
+}
+
+// Points per pixel of the skin's art.
+fn art_scale() -> f32 {
+    let scale = current().sprite_scale;
+    if scale > 0.0 { 1.0 / scale } else { 1.0 }
 }
 
 // The retail tooltips' font scale.
@@ -862,6 +922,255 @@ pub fn icon_stem(set: &str, name: &str) -> String {
 // A sprite button labeled `label` ("settings": its name in widget paths) from icon set `set`.
 pub fn sprite_button(context: &mut dyn UiWidgetContext, set: &str, label: &str, size: Vec2) -> UiSpriteButton {
     UiSpriteButton::with_sprite_stem(context, label, &icon_stem(set, label), size)
+}
+
+// ----------------------------------------------
+// The realm UI's widgets
+// ----------------------------------------------
+
+// A sprite under assets/ui/ and its size in points, at the skin's sprite scale.
+fn sprite_and_size(context: &mut dyn UiWidgetContext, sprite: &str) -> (TextureHandle, Vec2) {
+    let texture = context.load_texture(PathRef::from_str(sprite));
+    let size = context.render_sys().texture_cache().texture_size(texture);
+    let size = size.map_or(Vec2::new(16.0, 16.0), |size| Vec2::new(size.width as f32, size.height as f32) * art_scale());
+    (texture, size)
+}
+
+// A colour the skin names, else `fallback`'s if that's a name, else nothing.
+fn color_or(name: &Option<String>, fallback: &str) -> Option<Color> {
+    opt_color(name).or_else(|| color(fallback))
+}
+
+// A tab bar whose tabs are the skin's `tab` and `tab_selected` buttons, its tabs added with
+// with_tab or with_tab_contents.
+pub fn tab_bar(context: &mut dyn UiWidgetContext) -> UiTabBar {
+    let tab = button_def(ButtonRole::Tab.key());
+    let selected = button_def(ButtonRole::TabSelected.key());
+    let font_scale = tab.font.map_or(UiFontScale::default(), |font| font.button_size().font_scale());
+    let look = UiTabLook {
+        tab: button_frame(context, &tab),
+        selected: button_frame(context, &selected),
+        font_scale,
+        min_tab_width: tab.min_width,
+        ..UiTabLook::default()
+    };
+    UiTabBar::new().with_look(look)
+}
+
+// The look of a toggle: the skin's controls.toggle sprites, or painted in its meter colours if it
+// names none.
+pub fn toggle_look(context: &mut dyn UiWidgetContext) -> UiToggleLook {
+    let def = current().controls.toggle.clone();
+    let [width, height] = def.size;
+    let size = Vec2::new(if width > 0.0 { width } else { 62.0 }, if height > 0.0 { height } else { 30.0 });
+    if def.off.is_empty() || def.on.is_empty() || def.knob.is_empty() {
+        let meters = meter_look();
+        return UiToggleLook::Painted {
+            on: meters.fill,
+            off: meters.track,
+            knob: color("on_accent").unwrap_or(Color::white()),
+            outline: meters.outline.unwrap_or(meters.goal),
+            size,
+        };
+    }
+    let (off, _) = sprite_and_size(context, &def.off);
+    let (on, _) = sprite_and_size(context, &def.on);
+    let (knob, knob_size) = sprite_and_size(context, &def.knob);
+    UiToggleLook::Sprites { off, on, knob, size, knob_size }
+}
+
+// A toggle labeled `label`, its state texts "On" and "Off", in the skin's look and colours. Give
+// it on_read_value and on_update_value; with_fill_width(true) for a settings row.
+pub fn toggle(context: &mut dyn UiWidgetContext, label: impl Into<UiString>) -> UiToggle {
+    // TODO(realm-ui): the toggle's (and step_selector's) font scale is the engine's default; take
+    // it from the skin (a `font` on controls.toggle) once the Phase 1 settings dialog sizes them.
+    let def = &current().controls.toggle;
+    let colors = (color_or(&def.text, "ink"), color_or(&def.state_text, "sub"));
+    UiToggle::new().with_label(label).with_look(toggle_look(context)).with_text_colors(colors.0, colors.1)
+}
+
+// The colours of the skin's painted meters.
+pub fn meter_look() -> UiMeterLook {
+    let def = &current().meters;
+    let default = UiMeterLook::default();
+    UiMeterLook {
+        fill: color_or(&def.fill, "accent").unwrap_or(default.fill),
+        track: color_or(&def.track, "light").unwrap_or(default.track),
+        outline: color_or(&def.outline, "sub").or(default.outline),
+        goal: color_or(&def.goal, "ink").unwrap_or(default.goal),
+        text: color_or(&def.text, "ink"),
+    }
+}
+
+// A meter of `kind`, `size` points large, in the skin's colours. Give it its value.
+pub fn meter(kind: UiMeterKind, size: Vec2) -> UiMeter {
+    UiMeter::new(kind, size).with_look(meter_look())
+}
+
+// A step selector labeled `label` over `steps`, in the skin's meter colours and text colours.
+pub fn step_selector(label: impl Into<UiString>, steps: impl IntoIterator<Item = UiString>) -> UiStepSelector {
+    let meters = meter_look();
+    let look = UiStepLook { fill: meters.fill, track: meters.track, outline: meters.outline, ..UiStepLook::default() };
+    let rows = &current().rows;
+    UiStepSelector::new(label, steps).with_look(look).with_text_colors(color_or(&rows.title, "ink"), color_or(&rows.selected, "accent"))
+}
+
+// An entry of a dialog's list of choices (the home menu's), with an optional subline: the skin's
+// menu_item role's font, colours, hover panel and marker.
+pub fn menu_item(context: &mut dyn UiWidgetContext, label: impl Into<UiString>, subline: Option<UiString>) -> UiMenuItem {
+    let def = button_def(ButtonRole::MenuItem.key());
+    let font = def.font.map_or(UiTextButtonSize::Large, SkinFontSize::button_size).font_scale();
+    let mut item = UiMenuItem::new(label)
+        .with_font_scales(font, UiFontScale(font.0 * 0.55))
+        .with_text_colors(opt_color(&def.text), opt_color(&def.text_hovered), color_or(&def.subline, "sub"));
+    if let Some(subline) = subline {
+        item = item.with_subline(subline);
+    }
+    if let Some(hover) = &def.hover
+        && let SkinPanel::NineSlice { slice, .. } = panel(context, hover)
+    {
+        let [x, y] = def.hover_grow;
+        item = item.with_hover_panel(slice, Vec2::new(x, y));
+    }
+    if let Some(marker) = &def.marker {
+        let (texture, size) = sprite_and_size(context, marker);
+        item = item.with_marker(texture, size);
+    }
+    item
+}
+
+// The look of template list rows (UiItemList::with_rows): the skin's `row` and `row_selected`
+// panels and row colours.
+pub fn list_row_look(context: &mut dyn UiWidgetContext) -> UiListRowLook {
+    let nine_slice_of = |context: &mut dyn UiWidgetContext, name: &str| match current().panels.contains_key(name) {
+        true => match panel(context, name) {
+            SkinPanel::NineSlice { slice, .. } => Some(slice),
+            SkinPanel::Sprite { .. } => None,
+        },
+        false => None,
+    };
+    let rows = &current().rows;
+    UiListRowLook {
+        panel: nine_slice_of(context, "row"),
+        selected_panel: nine_slice_of(context, "row_selected"),
+        title_color: color_or(&rows.title, "ink"),
+        selected_title_color: color_or(&rows.selected, "accent"),
+        subtitle_color: color_or(&rows.subtitle, "sub"),
+        ..UiListRowLook::default()
+    }
+}
+
+// The look of key-value pairs' and tables' rows: the skin's row colours.
+pub fn row_look() -> UiRowLook {
+    let rows = &current().rows;
+    UiRowLook {
+        label_color: color_or(&rows.label, "sub"),
+        value_color: color_or(&rows.value, "ink"),
+        header_color: color_or(&rows.header, "accent"),
+        rule_color: opt_color(&rows.rule).or(UiRowLook::default().rule_color),
+        ..UiRowLook::default()
+    }
+}
+
+// Label and value pairs in the skin's row colours; add them with with_pair.
+pub fn key_values() -> UiKeyValues {
+    UiKeyValues::new().with_look(row_look())
+}
+
+// A table in the skin's row colours; add its columns and rows (a status column with
+// table_status_look's).
+pub fn table() -> UiTable {
+    UiTable::new().with_look(row_look())
+}
+
+// The painted status marks of a table's status column, in the skin's `rows` colours (the engine's
+// where it names none).
+pub fn table_status_look() -> UiTableStatusLook {
+    let rows = &current().rows;
+    let UiTableStatusLook::Painted { done, pending, failed } = UiTableStatusLook::default() else {
+        unreachable!("the default status look is painted");
+    };
+    UiTableStatusLook::Painted {
+        done: opt_color(&rows.done).unwrap_or(done),
+        pending: opt_color(&rows.pending).unwrap_or(pending),
+        failed: opt_color(&rows.failed).unwrap_or(failed),
+    }
+}
+
+// Rich text in the skin's ink, its emphasis in the accent colour, and every colour the skin's
+// `text` block names usable in its markup ("[accent]...[/]").
+pub fn rich_text(markup: impl Into<UiString>) -> UiRichText {
+    let mut text = UiRichText::new(markup);
+    if let Some(ink) = color("ink") {
+        text = text.with_text_color(ink);
+    }
+    if let Some(accent) = color("accent") {
+        text = text.with_emphasis_color(accent);
+    }
+    for (name, value) in &current().text {
+        text = text.with_color(name.clone(), value.color());
+    }
+    text
+}
+
+// `image` on the skin's panel `panel_name` (e.g. "well" for a map preview), inset by the panel's
+// left content inset.
+pub fn framed_image(context: &mut dyn UiWidgetContext, image: UiImage, panel_name: &str) -> UiImage {
+    match panel(context, panel_name) {
+        SkinPanel::NineSlice { slice, content, .. } => image.with_frame(slice, if content.relative { 0.0 } else { content.left }),
+        SkinPanel::Sprite { .. } => image,
+    }
+}
+
+// The emblem states the skin draws.
+#[derive(Copy, Clone, PartialEq, Eq, Debug)]
+pub enum EmblemState {
+    Idle,
+    Locked,
+    Current,
+}
+
+impl EmblemState {
+    fn suffix(self) -> &'static str {
+        match self {
+            Self::Idle => "idle",
+            Self::Locked => "locked",
+            Self::Current => "current",
+        }
+    }
+}
+
+// The path under assets/ui/ of `realm`'s emblem in `state`; None if the skin has no emblem for it.
+pub fn emblem_path(realm: Realm, state: EmblemState) -> Option<String> {
+    current().emblems.get(&realm.to_string()).map(|stem| format!("{stem}_{}.png", state.suffix()))
+}
+
+// `realm`'s emblem in `state`, for a list row's icon or an image: its texture and size in points.
+pub fn emblem(context: &mut dyn UiWidgetContext, realm: Realm, state: EmblemState) -> Option<(TextureHandle, Vec2)> {
+    let path = emblem_path(realm, state);
+    if path.is_none() {
+        log::error!(log::channel!("ui"), "UI skin '{}' has no emblem for '{realm}'.", current_realm());
+    }
+    path.map(|path| sprite_and_size(context, &path))
+}
+
+// A square icon button labeled `label` (its name in widget paths) showing the skin's icon `icon`
+// (see icon()), on the skin's icon frame and at its size, drawing its selected frame while selected.
+pub fn icon_button(context: &mut dyn UiWidgetContext, label: &str, icon_name: &str) -> UiIconButton {
+    let def = button_def("icon");
+    let size = def.size.unwrap_or(28.0);
+    let mut button = UiIconButton::new(label, Vec2::new(size, size));
+    if let Some(frame) = button_frame(context, &def) {
+        button = button.with_frame(frame);
+    }
+    if let Some(selected) = &def.selected {
+        button = button.with_selected_panel(nine_slice(context, selected, def.slice, def.center));
+    }
+    let path = icon(icon_name);
+    if !path.is_empty() {
+        button = button.with_icon(context, PathRef::from_str(path), (size * 0.18).round());
+    }
+    button
 }
 
 // ----------------------------------------------
@@ -1006,6 +1315,47 @@ mod tests {
                 if let Some(panel) = &dialog.panel {
                     assert!(skin.panels.contains_key(panel), "{realm}: dialog '{kind}': no panel '{panel}'");
                 }
+            }
+        }
+    }
+
+    // Every colour a skin's blocks name is a `text` colour or "#RRGGBB(AA)", and the widgets'
+    // helpers find what they need: framed tabs, the icon frame, the toggle's sprites.
+    #[test]
+    fn every_skin_colour_and_widget_part_resolves() {
+        for (realm, skin) in skins() {
+            let resolves = |name: &str| if name.starts_with('#') { HexColor::parse(name).is_some() } else { skin.text.contains_key(name) };
+            let meters = &skin.meters;
+            let rows = &skin.rows;
+            let toggle = &skin.controls.toggle;
+            let names = [
+                &meters.fill, &meters.track, &meters.outline, &meters.goal, &meters.text, &rows.title, &rows.selected, &rows.subtitle,
+                &rows.label, &rows.value, &rows.header, &rows.rule, &rows.done, &rows.pending, &rows.failed, &toggle.text, &toggle.state_text,
+            ];
+            for name in names.into_iter().flatten() {
+                assert!(resolves(name), "{realm}: no colour '{name}'");
+            }
+            for (role, button) in &skin.buttons {
+                for name in [&button.text, &button.text_hovered, &button.subline].into_iter().flatten() {
+                    assert!(resolves(name), "{realm}: button '{role}': no colour '{name}'");
+                }
+            }
+            for name in ["ink", "accent", "sub", "light"] {
+                assert!(skin.text.contains_key(name), "{realm}: no text colour '{name}', which the widget helpers fall back on");
+            }
+
+            for role in ["tab", "tab_selected", "icon"] {
+                assert!(skin.buttons.get(role).is_some_and(|button| button.sprite.is_some()), "{realm}: button '{role}' isn't framed");
+            }
+            assert!(skin.buttons["icon"].selected.is_some() && skin.buttons["icon"].size.is_some_and(|size| size > 0.0), "{realm}: icon button");
+            assert!(skin.buttons["menu_item"].marker.is_some(), "{realm}: no menu item marker");
+            assert!(!toggle.off.is_empty() && !toggle.on.is_empty() && !toggle.knob.is_empty(), "{realm}: toggle sprites");
+            assert!(toggle.size[0] > 0.0 && toggle.size[1] > 0.0, "{realm}: toggle size");
+            for name in ["row", "row_selected", "well"] {
+                assert!(skin.panels.get(name).is_some_and(|panel| panel.slice.is_some()), "{realm}: no 9-slice panel '{name}'");
+            }
+            for realm_name in Realm::iter() {
+                assert!(skin.emblems.contains_key(&realm_name.to_string()), "{realm}: no emblem for {realm_name}");
             }
         }
     }

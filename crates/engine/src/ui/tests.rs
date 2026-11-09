@@ -431,6 +431,308 @@ fn draw_painter_panels(ui_sys: &UiSystem, stretched: &UiNineSlice, tiled: &UiNin
 }
 
 // ----------------------------------------------
+// Sample Menus 4 and 5: the realm UI's widgets
+// ----------------------------------------------
+
+// Every widget the realm UI adds, in Đại Long's art where it exists (the skins' sprites under
+// assets/ui/skins/dailong/, at 2×) and painted otherwise. Shown on their own (Debug/Show Widget
+// Samples, draw_widget_sample_menus), as they take the room the other sample menus take.
+// Sample Menu 4: controls (tabs, toggles, step selectors, menu items, framed and icon buttons).
+// Sample Menu 5: data (template list rows, images, key-value pairs, a table, meters, columns,
+// rich text).
+
+const SKIN_ART_SCALE: f32 = 0.5; // 2× art.
+const SKIN_INK: Color = Color::new(0.169, 0.129, 0.094, 1.0); // #2b2118
+const SKIN_SUB: Color = Color::new(0.42, 0.31, 0.2, 1.0); // #6b4f33
+const SKIN_ACCENT: Color = Color::new(0.659, 0.149, 0.11, 1.0); // #a8261c
+const SKIN_ON_ACCENT: Color = Color::new(1.0, 0.957, 0.863, 1.0); // #fff4dc
+
+struct WidgetSamplesState {
+    edge_scrolling: bool,
+    smooth_zoom: bool,
+    music: bool,
+    difficulty: usize,
+    speed: usize,
+    pressed: String,
+}
+
+static WIDGET_SAMPLES_STATE: UiStaticVar<WidgetSamplesState> = UiStaticVar::new(WidgetSamplesState {
+    edge_scrolling: true,
+    smooth_zoom: false,
+    music: true,
+    difficulty: 2,
+    speed: 1,
+    pressed: String::new(),
+});
+
+static SAMPLE_MENU_4_INSTANCE: UiStaticVar<Option<UiMenuRcMut>> = UiStaticVar::new(None);
+static SAMPLE_MENU_5_INSTANCE: UiStaticVar<Option<UiMenuRcMut>> = UiStaticVar::new(None);
+
+fn skin_slice(context: &mut dyn UiWidgetContext, sprite: &str, slice_px: [f32; 4]) -> UiNineSlice {
+    context.load_nine_slice(PathRef::from_str(sprite), slice_px).with_scale(SKIN_ART_SCALE)
+}
+
+fn skin_frame(context: &mut dyn UiWidgetContext, stem: &str, slice_px: [f32; 4], padding: Vec2, text: Color) -> UiTextButtonFrame {
+    UiTextButtonFrame::load(context, stem, slice_px).with_scale(SKIN_ART_SCALE).with_padding(padding).with_text_color(text)
+}
+
+fn skin_sample_menu(context: &mut dyn UiWidgetContext, label: &str, flags: UiMenuFlags, size: Vec2) -> UiMenuRcMut {
+    let panel = skin_slice(context, "skins/dailong/panel_card.png", [28.0; 4]).with_center(UiNineSliceCenter::Round);
+    UiMenu::new(label).with_flags(UiMenuFlags::IsOpen | flags).with_size(size).with_panel(panel, UiMenuInsets::same(26.0)).into_rc()
+}
+
+fn sample_heading(text: &str) -> UiMenuHeading {
+    UiMenuHeading::new([UiText::new(text.to_string(), UiFontScale(1.3)).with_color(SKIN_ACCENT)]).with_margin_bottom(6.0)
+}
+
+fn create_sample_menu_4_once(context: &mut dyn UiWidgetContext) {
+    if SAMPLE_MENU_4_INSTANCE.is_some() {
+        return;
+    }
+
+    let mut menu = skin_sample_menu(context, "Sample Menu 4", UiMenuFlags::AlignCenter | UiMenuFlags::AlignLeft, Vec2::new(560.0, 720.0));
+
+    // Tabs: framed, at least one width, each with its contents under it.
+    let tab_look = UiTabLook {
+        tab: Some(skin_frame(context, "skins/dailong/tab", [16.0; 4], Vec2::new(14.0, 5.0), SKIN_INK)),
+        selected: Some(skin_frame(context, "skins/dailong/tab_selected", [16.0; 4], Vec2::new(14.0, 5.0), SKIN_ON_ACCENT)),
+        min_tab_width: Some(110.0),
+        ..UiTabLook::default()
+    };
+
+    let toggle_sprites = UiToggleLook::Sprites {
+        off: context.load_texture(PathRef::from_str("skins/dailong/toggle_off.png")),
+        on: context.load_texture(PathRef::from_str("skins/dailong/toggle_on.png")),
+        knob: context.load_texture(PathRef::from_str("skins/dailong/toggle_knob.png")),
+        size: Vec2::new(62.0, 30.0),
+        knob_size: Vec2::new(24.0, 24.0),
+    };
+    let edge_scrolling = UiToggle::new()
+        .with_label("Edge scrolling")
+        .with_look(toggle_sprites)
+        .with_fill_width(true)
+        .with_text_colors(Some(SKIN_INK), Some(SKIN_SUB))
+        .on_read_value(|_toggle, _context| WIDGET_SAMPLES_STATE.edge_scrolling)
+        .on_update_value(|_toggle, _context, value| WIDGET_SAMPLES_STATE.as_mut().edge_scrolling = value);
+    let smooth_zoom = UiToggle::new()
+        .with_label("Smooth zoom")
+        .with_fill_width(true)
+        .on_read_value(|_toggle, _context| WIDGET_SAMPLES_STATE.smooth_zoom)
+        .on_update_value(|_toggle, _context, value| WIDGET_SAMPLES_STATE.as_mut().smooth_zoom = value);
+    let difficulty = UiStepSelector::new("Difficulty", ["Very Easy", "Easy", "Normal", "Hard", "Very Hard"].map(UiString::from))
+        .with_current(WIDGET_SAMPLES_STATE.difficulty)
+        .with_text_colors(Some(SKIN_INK), Some(SKIN_ACCENT))
+        .on_changed(|selector, _context, _previous| WIDGET_SAMPLES_STATE.as_mut().difficulty = selector.current());
+    let speed = UiStepSelector::new("Speed", ["Slow", "Normal", "Fast"].map(UiString::from))
+        .with_style(UiStepSelectorStyle::Arrows)
+        .with_wrap(true)
+        .with_current(WIDGET_SAMPLES_STATE.speed)
+        .on_changed(|selector, _context, _previous| WIDGET_SAMPLES_STATE.as_mut().speed = selector.current());
+    let relations = UiStepSelector::numbered("Relations", 5).with_current(3);
+
+    let game_tab = UiWidgetGroup::new()
+        .with_center_horizontally(false)
+        .with_widget_spacing(Vec2::new(8.0, 10.0))
+        .with_widget(edge_scrolling)
+        .with_widget(smooth_zoom)
+        .with_widget(difficulty)
+        .with_widget(speed)
+        .with_widget(relations);
+    let music = UiToggle::new()
+        .with_label("Music")
+        .with_state_texts("", "")
+        .on_read_value(|_toggle, _context| WIDGET_SAMPLES_STATE.music)
+        .on_update_value(|_toggle, _context, value| WIDGET_SAMPLES_STATE.as_mut().music = value);
+    let sound_tab = UiWidgetGroup::new().with_center_horizontally(false).with_widget(music);
+    let graphics_tab = UiRichText::new("Nothing to set here: a tab may hold *any* widget.").with_label("Graphics note");
+
+    let tabs = UiTabBar::new()
+        .with_look(tab_look)
+        .with_tab_contents("Game", game_tab)
+        .with_tab_contents("Sound", sound_tab)
+        .with_tab_contents("Graphics", graphics_tab)
+        .on_tab_changed(|bar, _context, previous| log::info!("Tab: {previous} -> {}", bar.selected_index()));
+
+    // Menu items: a hover panel, a marker, a subline; one disabled.
+    let hover = skin_slice(context, "skins/dailong/panel_row_selected.png", [20.0; 4]);
+    let marker = context.load_texture(PathRef::from_str("skins/dailong/marker.png"));
+    let menu_item = |label: &str, subline: Option<&str>| {
+        let item = UiMenuItem::new(label.to_string())
+            .with_hover_panel(hover, Vec2::new(0.0, 1.0))
+            .with_marker(marker, Vec2::new(22.0, 22.0))
+            .with_text_colors(Some(SKIN_INK), Some(SKIN_ACCENT), Some(SKIN_SUB))
+            .on_pressed(|item, _context| WIDGET_SAMPLES_STATE.as_mut().pressed = item.label().to_string());
+        match subline {
+            Some(subline) => item.with_subline(subline.to_string()),
+            None => item,
+        }
+    };
+    let items = UiWidgetGroup::new()
+        .with_widget(menu_item("Continue", Some("The Southern Shore · mission 6 · autosave")).with_enabled(false))
+        .with_widget(menu_item("Campaign", Some("Campaign I · mission 6 of 10")))
+        .with_widget(menu_item("Settings", None));
+
+    // Framed buttons of a fixed width, and icon buttons on the skin's icon frame.
+    let primary = skin_frame(context, "skins/dailong/button_primary", [20.0; 4], Vec2::new(16.0, 5.0), SKIN_ON_ACCENT);
+    let secondary = skin_frame(context, "skins/dailong/button_secondary", [20.0; 4], Vec2::new(16.0, 5.0), SKIN_ON_ACCENT);
+    let buttons = UiWidgetGroup::new()
+        .with_stack_vertically(false)
+        .with_widget_spacing(Vec2::new(10.0, 0.0))
+        .with_widget(UiTextButton::new("Cancel").with_size(UiTextButtonSize::Small).with_frame(secondary).with_width(UiTextButtonWidth::Fixed(120.0)))
+        .with_widget(UiTextButton::new("Start").with_size(UiTextButtonSize::Small).with_frame(primary).with_width(UiTextButtonWidth::Min(140.0)));
+
+    let icon_frame = UiTextButtonFrame::load(context, "skins/dailong/icon_frame", [20.0; 4]).with_scale(SKIN_ART_SCALE);
+    let icon_selected = skin_slice(context, "skins/dailong/icon_frame_selected.png", [20.0; 4]);
+    let icon_button = |context: &mut dyn UiWidgetContext, name: &str, icon: &str| {
+        UiIconButton::new(name.to_string(), Vec2::new(36.0, 36.0))
+            .with_frame(icon_frame)
+            .with_selected_panel(icon_selected)
+            .with_icon(context, PathRef::from_str(icon), 7.0)
+            .with_icon_tint(SKIN_INK)
+    };
+    let icons = UiWidgetGroup::new()
+        .with_stack_vertically(false)
+        .with_widget_spacing(Vec2::new(8.0, 0.0))
+        .with_widget(icon_button(context, "temple", "minimap/icons/temple.png").with_toggle(true))
+        .with_widget(icon_button(context, "market", "minimap/icons/market.png").with_selected(true))
+        .with_widget(icon_button(context, "fort", "minimap/icons/fort.png").with_enabled(false))
+        .with_widget(UiIconButton::new("painted", Vec2::new(36.0, 36.0)).with_icon(context, PathRef::from_str("minimap/icons/port.png"), 7.0).with_toggle(true));
+
+    menu.add_widget(sample_heading("Controls"));
+    menu.add_widget(tabs);
+    menu.add_widget(UiSeparator::new().with_thickness(2.0));
+    menu.add_widget(items);
+    menu.add_widget(buttons);
+    menu.add_widget(icons);
+
+    SAMPLE_MENU_4_INSTANCE.set(Some(menu));
+    log::info!("Sample Menu 4 created.");
+}
+
+fn create_sample_menu_5_once(context: &mut dyn UiWidgetContext) {
+    if SAMPLE_MENU_5_INSTANCE.is_some() {
+        return;
+    }
+
+    let mut menu = skin_sample_menu(context, "Sample Menu 5", UiMenuFlags::AlignCenter | UiMenuFlags::AlignRight, Vec2::new(600.0, 720.0));
+
+    // Template rows: emblems, titles and subtitles, right-hand texts; a disabled (locked) row.
+    let row_look = UiListRowLook {
+        panel: Some(skin_slice(context, "skins/dailong/panel_row.png", [20.0, 0.0, 20.0, 4.0])),
+        selected_panel: Some(skin_slice(context, "skins/dailong/panel_row_selected.png", [20.0; 4])),
+        title_color: Some(SKIN_INK),
+        selected_title_color: Some(SKIN_ACCENT),
+        subtitle_color: Some(SKIN_SUB),
+        icon_size: 30.0,
+        ..UiListRowLook::default()
+    };
+    let emblem = |context: &mut dyn UiWidgetContext, name: &str| context.load_texture(PathRef::from_str(&format!("skins/dailong/emblem_{name}.png")));
+    let realms = UiItemList::new()
+        .with_label("Realm")
+        .with_size(Vec2::new(0.0, 160.0))
+        .with_flags(UiItemListFlags::Scrollable)
+        .with_row_look(row_look)
+        .with_rows(vec![
+            UiListRow::new("Đại Long").with_subtitle("The Dragon Legacy").with_icon(emblem(context, "dailong_current")),
+            UiListRow::new("Kambara").with_subtitle("Start Campaign II to unlock").with_icon(emblem(context, "kambara_locked")).with_enabled(false),
+            UiListRow::new("Tampadesa").with_subtitle("Start Campaign III to unlock").with_icon(emblem(context, "tampadesa_locked")).with_enabled(false),
+        ])
+        .with_current_item(0);
+    let maps = UiItemList::new()
+        .with_label("Map")
+        .with_size(Vec2::new(0.0, 110.0))
+        .with_flags(UiItemListFlags::Scrollable)
+        .with_row_look(UiListRowLook { icon_size: 0.0, ..row_look })
+        .with_rows(vec![
+            UiListRow::new("Delta Flood Plain").with_right("128 × 128", None),
+            UiListRow::new("Karst Valley").with_right("96 × 96", None),
+            UiListRow::new("Highland Pass").with_right("96 × 96", None),
+        ])
+        .with_current_item(0);
+
+    let well = skin_slice(context, "skins/dailong/panel_well.png", [16.0; 4]);
+    let preview = UiImage::new(context, PathRef::from_str("misc/home_menu_static_bg.png"), Vec2::new(0.0, 110.0))
+        .with_label("Preview")
+        .with_fit(UiImageFit::Cover)
+        .with_frame(well, 5.0);
+    let emblems = UiWidgetGroup::new()
+        .with_stack_vertically(false)
+        .with_widget_spacing(Vec2::new(6.0, 0.0))
+        .with_widget(UiImage::new(context, PathRef::from_str("skins/dailong/emblem_dailong_idle.png"), Vec2::new(40.0, 40.0)).with_label("Contain"))
+        .with_widget(
+            UiImage::new(context, PathRef::from_str("misc/home_menu_static_bg.png"), Vec2::new(80.0, 40.0))
+                .with_label("Contained")
+                .with_background(SKIN_INK),
+        )
+        .with_widget(
+            UiImage::new(context, PathRef::from_str("misc/home_menu_static_bg.png"), Vec2::new(40.0, 40.0)).with_label("Stretched").with_fit(UiImageFit::Stretch),
+        );
+    let stats = UiKeyValues::new()
+        .with_label("Map Stats")
+        .with_look(UiRowLook { label_color: Some(SKIN_SUB), value_color: Some(SKIN_INK), ..UiRowLook::default() })
+        .with_pair("Size", "128 × 128")
+        .with_pair("Rivers", "1 large, 3 streams")
+        .with_pair("Hazards", "Floods, fire");
+
+    let left = UiWidgetGroup::new().with_center_horizontally(false).with_widget_spacing(Vec2::new(0.0, 6.0)).with_widget(realms).with_widget(maps);
+    let right = UiWidgetGroup::new()
+        .with_center_horizontally(false)
+        .with_widget_spacing(Vec2::new(0.0, 6.0))
+        .with_widget(preview)
+        .with_widget(emblems)
+        .with_widget(stats);
+    let columns = UiColumns::new().with_spacing(18.0).with_column(UiColumnWidth::Fraction(1.0), left).with_column(UiColumnWidth::Fraction(1.0), right);
+
+    let goals = UiTable::new()
+        .with_label("Goals")
+        .with_status_column(UiTableStatusLook::default())
+        .with_look(UiRowLook { header_color: Some(SKIN_ACCENT), label_color: Some(SKIN_INK), ..UiRowLook::default() })
+        .with_column(UiTableColumn::new("Goal", UiColumnWidth::Fraction(2.0), UiColumnAlign::Left))
+        .with_column(UiTableColumn::new("Target", UiColumnWidth::Fixed(80.0), UiColumnAlign::Right))
+        .with_column(UiTableColumn::new("Achieved", UiColumnWidth::Fixed(90.0), UiColumnAlign::Right))
+        .with_row(UiTableRow::new(["Population", "1,200", "1,240"]).with_status(UiTableStatus::Done))
+        .with_row(UiTableRow::new(["Culture rating", "40", "31"]).with_status(UiTableStatus::Pending))
+        .with_row(UiTableRow::new(["Debt-free months", "12", "0"]).with_status(UiTableStatus::Failed));
+
+    let meters = UiWidgetGroup::new()
+        .with_stack_vertically(false)
+        .with_widget_spacing(Vec2::new(14.0, 0.0))
+        .with_widget(UiMeter::new(UiMeterKind::Bar, Vec2::new(180.0, 14.0)).with_label("Progress").with_value(0.62, 1.0).with_goal(0.8))
+        .with_widget(UiMeter::new(UiMeterKind::Ring, Vec2::new(54.0, 54.0)).with_label("Culture").with_value(62.0, 100.0))
+        .with_widget(UiMeter::new(UiMeterKind::Steps(5), Vec2::new(120.0, 12.0)).with_label("Relations").with_value(3.0, 5.0));
+
+    let stele = UiRichText::new("The river rose *early* this year; [accent]the dykes held[/], and the rice was saved.\nA second line, [#2e6b3a]in a colour of its own[/].")
+        .with_label("Stele")
+        .with_text_color(SKIN_INK)
+        .with_emphasis_color(SKIN_SUB)
+        .with_color("accent", SKIN_ACCENT);
+
+    menu.add_widget(sample_heading("Data"));
+    menu.add_widget(columns);
+    menu.add_widget(goals);
+    menu.add_widget(meters);
+    menu.add_widget(stele);
+
+    SAMPLE_MENU_5_INSTANCE.set(Some(menu));
+    log::info!("Sample Menu 5 created.");
+}
+
+// Draws Sample Menus 4 and 5, the realm UI's widgets, in `theme`, e.g. the retail UI's.
+pub fn draw_widget_sample_menus(context: &mut dyn UiWidgetContext, theme: UiThemeId) {
+    let prev_theme = context.ui_sys().current_ui_theme();
+    context.ui_sys().set_ui_theme(theme);
+
+    create_sample_menu_4_once(context);
+    create_sample_menu_5_once(context);
+
+    for menu in [SAMPLE_MENU_4_INSTANCE.as_mut(), SAMPLE_MENU_5_INSTANCE.as_mut()].into_iter().flatten() {
+        menu.draw(context);
+    }
+
+    context.ui_sys().set_ui_theme(prev_theme);
+}
+
+// ----------------------------------------------
 // draw_sample_menus():
 // ----------------------------------------------
 

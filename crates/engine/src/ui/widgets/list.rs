@@ -1,14 +1,176 @@
 use std::{any::Any, fmt::Display};
 use smallbox::smallbox;
-use egui::{Sense, pos2, vec2};
+use egui::{Align2, Color32, Sense, pos2, vec2};
 
-use common::{Vec2, bitflags_with_display};
+use common::{Color, Vec2, bitflags_with_display};
 
 use super::{UiWidget, UiWidgetCallback, UiWidgetContext, list_index, record_settable, widget_id};
-use crate::ui::{
-    UiFontScale, UiString, immediate, internal,
-    sound::{UiSoundEvent, UiSoundKey, UiWidgetSounds},
+use crate::{
+    render::texture::TextureHandle,
+    ui::{
+        UiFontScale, UiNineSlice, UiString, UiSystem,
+        immediate::{self, color32, nine_slice_shape, uv_full},
+        internal,
+        renderer::egui_texture,
+        sound::{UiSoundEvent, UiSoundKey, UiWidgetSounds},
+    },
 };
+
+// ----------------------------------------------
+// UiListRow
+// ----------------------------------------------
+
+// A row of an item list drawn from a template (UiItemList::with_rows) rather than as plain text:
+// an icon or emblem on the left, a title with a subtitle under it, and a title and subtitle on the
+// right, e.g. a save ("Thăng Long", "mission 6 · autosave" | "12 March", "14:02") or a realm
+// ("Kambara", "Start Campaign II to unlock", with a locked emblem). A disabled row can't be picked.
+#[derive(Clone, Debug)]
+pub struct UiListRow {
+    pub title: String,
+    pub subtitle: Option<String>,
+    pub right_title: Option<String>,
+    pub right_subtitle: Option<String>,
+    pub icon: Option<TextureHandle>,
+    pub enabled: bool,
+}
+
+impl UiListRow {
+    pub fn new(title: impl Into<String>) -> Self {
+        Self { title: title.into(), subtitle: None, right_title: None, right_subtitle: None, icon: None, enabled: true }
+    }
+
+    pub fn with_subtitle(mut self, subtitle: impl Into<String>) -> Self {
+        self.subtitle = Some(subtitle.into());
+        self
+    }
+
+    // On the right, right-aligned: a title and, under it, an optional subtitle.
+    pub fn with_right(mut self, title: impl Into<String>, subtitle: Option<String>) -> Self {
+        self.right_title = Some(title.into());
+        self.right_subtitle = subtitle;
+        self
+    }
+
+    pub fn with_icon(mut self, icon: TextureHandle) -> Self {
+        self.icon = Some(icon);
+        self
+    }
+
+    pub fn with_enabled(mut self, enabled: bool) -> Self {
+        self.enabled = enabled;
+        self
+    }
+}
+
+// How template rows look: a panel behind every row (e.g. a rule under it) and one behind the
+// selected row (also, faded, behind a hovered one), text colours (the style's if None), font
+// scales relative to the list's, the icon's size, and the room round the text.
+#[derive(Copy, Clone, Debug)]
+pub struct UiListRowLook {
+    pub panel: Option<UiNineSlice>,
+    pub selected_panel: Option<UiNineSlice>,
+    pub title_color: Option<Color>,
+    pub selected_title_color: Option<Color>,
+    pub subtitle_color: Option<Color>,
+    pub title_scale: f32,
+    pub subtitle_scale: f32,
+    pub icon_size: f32,
+    pub padding: Vec2,
+    pub spacing: f32, // Between rows.
+}
+
+impl Default for UiListRowLook {
+    fn default() -> Self {
+        Self {
+            panel: None,
+            selected_panel: None,
+            title_color: None,
+            selected_title_color: None,
+            subtitle_color: None,
+            title_scale: 1.0,
+            subtitle_scale: 0.8,
+            icon_size: 36.0,
+            padding: Vec2::new(10.0, 6.0),
+            spacing: 2.0,
+        }
+    }
+}
+
+impl UiListRowLook {
+    // A row's height, with or without subtitles and icons in the list.
+    fn row_height(&self, ui_sys: &UiSystem, font_scale: UiFontScale, subtitles: bool, icons: bool) -> f32 {
+        let mut text = internal::calc_text_line_height(ui_sys, UiFontScale(font_scale.0 * self.title_scale));
+        if subtitles {
+            text += internal::calc_text_line_height(ui_sys, UiFontScale(font_scale.0 * self.subtitle_scale));
+        }
+        let content = if icons { text.max(self.icon_size) } else { text };
+        content + self.padding.y * 2.0
+    }
+
+    #[allow(clippy::too_many_arguments)]
+    fn paint(&self, ui: &egui::Ui, ui_sys: &UiSystem, rect: egui::Rect, response: &egui::Response, row: &UiListRow, font_scale: UiFontScale, selected: bool) {
+        let painter = ui.painter();
+        let hovered = response.hovered() && row.enabled && !selected;
+        let panel = if selected { self.selected_panel.or(self.panel) } else { self.panel };
+        match panel {
+            Some(panel) => {
+                painter.add(nine_slice_shape(rect, &panel, Color32::WHITE));
+            }
+            None if selected => {
+                painter.rect_filled(rect, 2.0, ui.visuals().selection.bg_fill);
+            }
+            None => {}
+        }
+        if hovered {
+            match self.selected_panel {
+                Some(panel) => {
+                    painter.add(nine_slice_shape(rect, &panel, Color32::from_white_alpha(110)));
+                }
+                None => {
+                    painter.rect_filled(rect, 2.0, ui.visuals().widgets.hovered.weak_bg_fill);
+                }
+            }
+        }
+
+        let fade = |color: Color32| if row.enabled { color } else { color.gamma_multiply(0.55) };
+        let title_color = if selected { self.selected_title_color.or(self.title_color) } else { self.title_color };
+        let title_color = fade(title_color.map_or_else(|| ui.visuals().text_color(), color32));
+        let subtitle_color = fade(self.subtitle_color.map_or_else(|| ui.visuals().weak_text_color(), color32));
+        let title_font = internal::font(ui_sys, UiFontScale(font_scale.0 * self.title_scale));
+        let subtitle_font = internal::font(ui_sys, UiFontScale(font_scale.0 * self.subtitle_scale));
+        let title_height = internal::calc_text_line_height(ui_sys, UiFontScale(font_scale.0 * self.title_scale));
+        let subtitle_height = internal::calc_text_line_height(ui_sys, UiFontScale(font_scale.0 * self.subtitle_scale));
+
+        let inner = rect.shrink2(vec2(self.padding.x, self.padding.y));
+        let mut left = inner.left();
+        if let Some(icon) = row.icon {
+            let icon_rect = egui::Rect::from_min_size(pos2(left, inner.center().y - self.icon_size * 0.5), vec2(self.icon_size, self.icon_size));
+            painter.image(egui_texture(icon), icon_rect, uv_full(), if row.enabled { Color32::WHITE } else { Color32::from_white_alpha(170) });
+            left += self.icon_size + self.padding.x;
+        }
+
+        // A title alone is centered on the row; with a subtitle, the two are.
+        let text_top = |subtitle: bool| {
+            let height = if subtitle { title_height + subtitle_height } else { title_height };
+            inner.center().y - height * 0.5
+        };
+
+        let clipped = painter.with_clip_rect(rect.intersect(ui.clip_rect()));
+        let top = text_top(row.subtitle.is_some());
+        clipped.text(pos2(left, top), Align2::LEFT_TOP, &row.title, title_font.clone(), title_color);
+        if let Some(subtitle) = &row.subtitle {
+            clipped.text(pos2(left, top + title_height), Align2::LEFT_TOP, subtitle, subtitle_font.clone(), subtitle_color);
+        }
+
+        if let Some(right_title) = &row.right_title {
+            let top = text_top(row.right_subtitle.is_some());
+            clipped.text(pos2(inner.right(), top), Align2::RIGHT_TOP, right_title, title_font, subtitle_color);
+            if let Some(right_subtitle) = &row.right_subtitle {
+                clipped.text(pos2(inner.right(), top + title_height), Align2::RIGHT_TOP, right_subtitle, subtitle_font, subtitle_color);
+            }
+        }
+    }
+}
 
 // ----------------------------------------------
 // UiItemListFlags
@@ -39,6 +201,8 @@ pub struct UiItemList {
     flags: UiItemListFlags,
     current_item: Option<usize>,
     items: Vec<String>,
+    rows: Option<Vec<UiListRow>>, // Drawn from the row template if set; items are their titles.
+    row_look: UiListRowLook,
     text_input_field_buffer: Option<String>,
     sounds: UiWidgetSounds,      // Hovered: ItemHovered, for a row; Selected: ItemSelected. Typing plays nothing.
     hovered_item: Option<usize>, // Last frame.
@@ -117,6 +281,10 @@ impl UiWidget for UiItemList {
             };
 
             let mut list_ui = ui.new_child(egui::UiBuilder::new().max_rect(rect));
+            if self.rows.is_some() {
+                // Template rows past the end of a list that doesn't scroll are cut at its end.
+                list_ui.shrink_clip_rect(rect);
+            }
             frame.show(&mut list_ui, |ui| {
                 ui.set_min_size((rect.size() - frame.total_margin().sum()).max(egui::Vec2::ZERO));
 
@@ -133,6 +301,32 @@ impl UiWidget for UiItemList {
                 scroll_area.show(ui, |ui| {
                     let _path = immediate::path_scope(ui_sys, self.label.resolve());
                     ui.style_mut().spacing.item_spacing.y = 0.0;
+
+                    // Template rows: drawn by the row look, each as wide as the list.
+                    if let Some(rows) = &self.rows {
+                        let look = &self.row_look;
+                        ui.style_mut().spacing.item_spacing.y = look.spacing;
+                        let subtitles = rows.iter().any(|row| row.subtitle.is_some() || row.right_subtitle.is_some());
+                        let icons = rows.iter().any(|row| row.icon.is_some());
+                        let height = look.row_height(ui_sys, self.font_scale, subtitles, icons);
+                        for (index, row) in rows.iter().enumerate() {
+                            let is_selected = current_item == Some(index);
+                            let sense = if row.enabled { Sense::click() } else { Sense::hover() };
+                            let (rect, response) = ui.allocate_exact_size(vec2(ui.available_width(), height), sense);
+                            if ui.is_rect_visible(rect) {
+                                look.paint(ui, ui_sys, rect, &response, row, self.font_scale, is_selected);
+                            }
+                            if response.clicked() && row.enabled {
+                                current_item = Some(index);
+                            }
+                            if response.hovered() && row.enabled {
+                                hovered_item = Some(index);
+                            }
+                            immediate::record(ui_sys, ui, &response, "list_item", &row.title, None, row.enabled, Some(serde_json::Value::Bool(is_selected)));
+                        }
+                        return;
+                    }
+
                     // Rows span the list, with their text on the left.
                     ui.with_layout(egui::Layout::top_down_justified(egui::Align::LEFT), |ui| {
                         for (index, item) in self.items.iter().enumerate() {
@@ -178,7 +372,8 @@ impl UiWidget for UiItemList {
         let set_value = ui_sys.with_ui(|ui| {
             record_settable(ui_sys, ui, &list_response, "item_list", self.label.resolve(), current.map_or(serde_json::Value::Null, serde_json::Value::String))
         });
-        if let Some(index) = set_value.and_then(|value| list_index(&value, &self.items)) {
+        let row_enabled = |index: usize| self.rows.as_ref().is_none_or(|rows| rows.get(index).is_some_and(|row| row.enabled));
+        if let Some(index) = set_value.and_then(|value| list_index(&value, &self.items)).filter(|index| row_enabled(*index)) {
             if self.current_item != Some(index) {
                 self.sounds.play(context, UiSoundEvent::Selected, Some(UiSoundKey::ItemSelected));
             }
@@ -201,7 +396,14 @@ impl UiWidget for UiItemList {
         let input_field_height =
             if self.text_input_field_buffer.is_some() { internal::calc_frame_height(ui_sys, self.font_scale) } else { 0.0 };
 
-        Vec2::new(size.x, size.y + input_field_height)
+        // The label's line above the list.
+        let label_height = if self.label.is_empty() {
+            0.0
+        } else {
+            internal::calc_text_line_height(ui_sys, self.font_scale) + internal::item_spacing(ui_sys).y
+        };
+
+        Vec2::new(size.x, size.y + input_field_height + label_height)
     }
 
     fn label(&self) -> &str {
@@ -257,6 +459,8 @@ impl UiItemList {
             flags: UiItemListFlags::empty(),
             current_item: None,
             items: Vec::new(),
+            rows: None,
+            row_look: UiListRowLook::default(),
             text_input_field_buffer: None,
             sounds: UiWidgetSounds::new(),
             hovered_item: None,
@@ -271,7 +475,22 @@ impl UiItemList {
         I::Item: Display,
     {
         self.items = items.into_iter().map(|item| item.to_string()).collect();
+        self.rows = None; // Plain items replace any template rows, as reset_items does.
         self.sync_text_input_field();
+        self
+    }
+
+    // Rows drawn from the row template (see UiListRow), in place of plain items: their titles are
+    // the items, so selections, ui.set and paths go by title.
+    pub fn with_rows(mut self, rows: Vec<UiListRow>) -> Self {
+        self.reset_rows(self.current_item, rows);
+        self.sync_text_input_field();
+        self
+    }
+
+    // How template rows look.
+    pub fn with_row_look(mut self, look: UiListRowLook) -> Self {
+        self.row_look = look;
         self
     }
 
@@ -362,13 +581,29 @@ impl UiItemList {
     }
 
     pub fn add_item(&mut self, item: String) -> &mut Self {
+        if let Some(rows) = &mut self.rows {
+            rows.push(UiListRow::new(item.clone()));
+        }
         self.items.push(item);
         self
     }
 
+    // Plain items, in place of template rows if it had them.
     pub fn reset_items(&mut self, current_item: Option<usize>, items: Vec<String>) {
         self.current_item = current_item;
         self.items = items;
+        self.rows = None;
+    }
+
+    // Template rows (see with_rows).
+    pub fn reset_rows(&mut self, current_item: Option<usize>, rows: Vec<UiListRow>) {
+        self.current_item = current_item;
+        self.items = rows.iter().map(|row| row.title.clone()).collect();
+        self.rows = Some(rows);
+    }
+
+    pub fn rows(&self) -> Option<&[UiListRow]> {
+        self.rows.as_deref()
     }
 
     pub fn reset_text_input_field(&mut self, value: String) {

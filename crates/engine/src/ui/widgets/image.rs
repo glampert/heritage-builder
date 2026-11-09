@@ -1,13 +1,18 @@
 use std::any::Any;
 use egui::{Color32, Sense, Stroke, StrokeKind, vec2};
 
-use common::{RectTexCoords, Vec2, bitflags_with_display, time::Seconds};
+use common::{Color, Rect, RectTexCoords, Vec2, bitflags_with_display, time::Seconds};
 
 use super::{UiTooltipText, UiWidget, UiWidgetContext, tex_coords_uv};
 use crate::{
     file_sys::paths::PathRef,
     render::texture::TextureHandle,
-    ui::{UiSystem, immediate::{egui_vec2, uv_full}, internal, renderer::egui_texture},
+    ui::{
+        UiNineSlice, UiString, UiSystem,
+        immediate::{self, color32, egui_rect, egui_vec2, nine_slice_shape, to_rect, uv_full},
+        internal,
+        renderer::egui_texture,
+    },
 };
 
 // ----------------------------------------------
@@ -358,5 +363,257 @@ impl UiSlideshow {
             let painter = ui_sys.ctx().layer_painter(egui::LayerId::background());
             painter.image(egui_texture(current_frame), screen_rect, uv_full(), Color32::WHITE);
         }
+    }
+}
+
+// ----------------------------------------------
+// UiImageFit
+// ----------------------------------------------
+
+// How an image fills its rect.
+#[derive(Copy, Clone, Default, PartialEq, Eq, Debug)]
+pub enum UiImageFit {
+    #[default]
+    Contain, // Whole, as large as fits, centered: bands on two sides if the shapes differ.
+    Cover,   // Fills the rect, centered, its overflow cut.
+    Stretch, // Fills the rect, stretched.
+}
+
+impl UiImageFit {
+    pub fn name(self) -> &'static str {
+        match self {
+            Self::Contain => "contain",
+            Self::Cover => "cover",
+            Self::Stretch => "stretch",
+        }
+    }
+}
+
+// Where an image of `image_size` draws in `rect` with `fit`, and the part of the image (UVs, 0 to
+// 1 from the top left) it shows there.
+pub fn fit_image(rect: Rect, image_size: Vec2, fit: UiImageFit) -> (Rect, Rect) {
+    let full_uv = Rect::from_pos_and_size(Vec2::zero(), Vec2::new(1.0, 1.0));
+    let (width, height) = (rect.width(), rect.height());
+    if image_size.x <= 0.0 || image_size.y <= 0.0 || width <= 0.0 || height <= 0.0 {
+        return (rect, full_uv);
+    }
+
+    let scale_x = width / image_size.x;
+    let scale_y = height / image_size.y;
+    match fit {
+        UiImageFit::Stretch => (rect, full_uv),
+        UiImageFit::Contain => {
+            let scale = scale_x.min(scale_y);
+            let size = Vec2::new(image_size.x * scale, image_size.y * scale);
+            let pos = rect.min + Vec2::new((width - size.x) * 0.5, (height - size.y) * 0.5);
+            (Rect::from_pos_and_size(pos, size), full_uv)
+        }
+        UiImageFit::Cover => {
+            let scale = scale_x.max(scale_y);
+            // The part of the image the rect shows, in UVs, centered.
+            let uv_size = Vec2::new(width / (image_size.x * scale), height / (image_size.y * scale));
+            let uv_pos = Vec2::new((1.0 - uv_size.x) * 0.5, (1.0 - uv_size.y) * 0.5);
+            (rect, Rect::from_pos_and_size(uv_pos, uv_size))
+        }
+    }
+}
+
+// ----------------------------------------------
+// UiImage
+// ----------------------------------------------
+
+// A texture in a rect: a save's thumbnail, a map preview, an emblem, briefing art, a comic panel.
+// Fit to its rect (contain, cover or stretch), optionally on a frame panel (a 9-slice drawn
+// behind it, the image inset in it) and on a background colour. Recorded as kind "image", its
+// value {"fit": ...}.
+pub struct UiImage {
+    label: UiString,
+    texture: Option<TextureHandle>,
+    texture_size: Vec2,
+    size: Vec2, // A width of 0 is the menu's; a height of 0 follows the image's shape.
+    fit: UiImageFit,
+    tint: Color,
+    background: Option<Color>,
+    frame: Option<(UiNineSlice, f32)>, // Drawn over the whole rect, the image `f32` points in.
+    tooltip: Option<UiTooltipText>,
+}
+
+impl UiWidget for UiImage {
+    fn as_any(&self) -> &dyn Any {
+        self
+    }
+
+    fn draw(&mut self, context: &mut dyn UiWidgetContext) {
+        debug_assert!(context.is_inside_widget_window());
+
+        let ui_sys = context.ui_sys();
+        let hovered = ui_sys.with_ui(|ui| {
+            let available = immediate::fill_size(ui).x;
+            let size = self.resolve_size(available);
+            let (rect, response) = ui.allocate_exact_size(egui_vec2(size), Sense::hover());
+
+            if ui.is_rect_visible(rect) {
+                if let Some((frame, _)) = &self.frame {
+                    ui.painter().add(nine_slice_shape(rect, frame, Color32::WHITE));
+                }
+                let inner = rect.shrink(self.frame.map_or(0.0, |(_, inset)| inset));
+                if let Some(background) = self.background {
+                    ui.painter().rect_filled(inner, 0.0, color32(background));
+                }
+                if let Some(texture) = self.texture {
+                    let (draw_rect, uv) = fit_image(to_rect(inner), self.texture_size, self.fit);
+                    ui.painter().image(egui_texture(texture), egui_rect(draw_rect), egui_rect(uv), color32(self.tint));
+                }
+            }
+
+            let tooltip = self.tooltip.as_ref().map(|tooltip| tooltip.text.resolve());
+            let value = serde_json::json!({ "fit": self.fit.name() });
+            immediate::record(ui_sys, ui, &response, "image", self.label.resolve(), tooltip, true, Some(value));
+            response.hovered()
+        });
+
+        if hovered && let Some(tooltip) = &self.tooltip {
+            tooltip.draw(context);
+        }
+    }
+
+    fn measure(&self, context: &dyn UiWidgetContext) -> Vec2 {
+        self.resolve_size(internal::available_size(context.ui_sys()).x)
+    }
+
+    fn label(&self) -> &str {
+        self.label.resolve()
+    }
+}
+
+impl UiImage {
+    // The sprite under assets/ui/ at `path`, `size` points large (see with_size).
+    pub fn new<'a>(context: &mut dyn UiWidgetContext, path: impl Into<PathRef<'a>>, size: Vec2) -> Self {
+        let texture = context.load_texture(path.into());
+        let texture_size = context.render_sys().texture_cache().texture_size(texture);
+        let texture_size = texture_size.map_or(Vec2::new(1.0, 1.0), |size| Vec2::new(size.width as f32, size.height as f32));
+        Self::from_texture(texture, texture_size, size)
+    }
+
+    // A texture already loaded, e.g. a save's thumbnail, `texture_size` pixels large.
+    pub fn from_texture(texture: TextureHandle, texture_size: Vec2, size: Vec2) -> Self {
+        let mut image = Self::empty(size);
+        image.set_texture(texture, texture_size);
+        image
+    }
+
+    // No texture yet (set_texture), e.g. a preview filled in later: its frame and background only.
+    pub fn empty(size: Vec2) -> Self {
+        debug_assert!(size.x >= 0.0 && size.y >= 0.0);
+        Self {
+            label: UiString::default(),
+            texture: None,
+            texture_size: Vec2::new(1.0, 1.0),
+            size,
+            fit: UiImageFit::Contain,
+            tint: Color::white(),
+            background: None,
+            frame: None,
+            tooltip: None,
+        }
+    }
+
+    // Names it in widget paths ("<menu>/image" without one).
+    pub fn with_label(mut self, label: impl Into<UiString>) -> Self {
+        self.label = label.into();
+        self
+    }
+
+    // Its rect: a width of 0 takes the menu's width, a height of 0 follows the image's shape.
+    pub fn with_size(mut self, size: Vec2) -> Self {
+        self.size = size;
+        self
+    }
+
+    pub fn with_fit(mut self, fit: UiImageFit) -> Self {
+        self.fit = fit;
+        self
+    }
+
+    pub fn with_tint(mut self, tint: Color) -> Self {
+        self.tint = tint;
+        self
+    }
+
+    // Behind the image, inside the frame: the bands a contained image leaves.
+    pub fn with_background(mut self, color: Color) -> Self {
+        self.background = Some(color);
+        self
+    }
+
+    // A 9-slice panel over the whole rect, behind the image, which sits `inset` points in.
+    pub fn with_frame(mut self, frame: UiNineSlice, inset: f32) -> Self {
+        debug_assert!(inset >= 0.0);
+        self.frame = Some((frame, inset));
+        self
+    }
+
+    pub fn with_tooltip(mut self, tooltip: UiTooltipText) -> Self {
+        self.tooltip = Some(tooltip);
+        self
+    }
+
+    pub fn set_texture(&mut self, texture: TextureHandle, texture_size: Vec2) {
+        self.texture = Some(texture);
+        self.texture_size = Vec2::new(texture_size.x.max(1.0), texture_size.y.max(1.0));
+    }
+
+    pub fn clear_texture(&mut self) {
+        self.texture = None;
+    }
+
+    fn resolve_size(&self, available_width: f32) -> Vec2 {
+        let width = if self.size.x > 0.0 { self.size.x } else { available_width.max(1.0) };
+        let height = if self.size.y > 0.0 {
+            self.size.y
+        } else {
+            let inset = self.frame.map_or(0.0, |(_, inset)| inset) * 2.0;
+            (width - inset).max(1.0) * self.texture_size.y / self.texture_size.x + inset
+        };
+        Vec2::new(width, height)
+    }
+}
+
+// ----------------------------------------------
+// Unit tests
+// ----------------------------------------------
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn rect(x: f32, y: f32, width: f32, height: f32) -> Rect {
+        Rect::from_pos_and_size(Vec2::new(x, y), Vec2::new(width, height))
+    }
+
+    #[test]
+    fn contain_centers_the_whole_image() {
+        // A 2:1 image in a square: full width, half height, centered.
+        let (draw, uv) = fit_image(rect(10.0, 20.0, 100.0, 100.0), Vec2::new(200.0, 100.0), UiImageFit::Contain);
+        assert_eq!(draw, rect(10.0, 45.0, 100.0, 50.0));
+        assert_eq!(uv, rect(0.0, 0.0, 1.0, 1.0));
+    }
+
+    #[test]
+    fn cover_fills_and_cuts_the_overflow() {
+        // A 2:1 image in a square: the middle half of its width.
+        let (draw, uv) = fit_image(rect(10.0, 20.0, 100.0, 100.0), Vec2::new(200.0, 100.0), UiImageFit::Cover);
+        assert_eq!(draw, rect(10.0, 20.0, 100.0, 100.0));
+        assert_eq!(uv, rect(0.25, 0.0, 0.5, 1.0));
+        // A tall image in a wide rect: the middle of its height.
+        let (_, uv) = fit_image(rect(0.0, 0.0, 200.0, 100.0), Vec2::new(100.0, 400.0), UiImageFit::Cover);
+        assert_eq!(uv, rect(0.0, 0.4375, 1.0, 0.125)); // Scaled to 200 × 800: 100 of its 800 points.
+    }
+
+    #[test]
+    fn stretch_and_degenerate_sizes_fill_the_rect() {
+        let target = rect(0.0, 0.0, 30.0, 40.0);
+        assert_eq!(fit_image(target, Vec2::new(7.0, 3.0), UiImageFit::Stretch), (target, rect(0.0, 0.0, 1.0, 1.0)));
+        assert_eq!(fit_image(target, Vec2::new(0.0, 3.0), UiImageFit::Contain), (target, rect(0.0, 0.0, 1.0, 1.0)));
     }
 }

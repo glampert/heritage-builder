@@ -182,6 +182,7 @@ impl DevEditorMenusSingleton {
         let show_cursor_pos = self.debug_settings_menu.show_cursor_pos();
         let show_screen_origin = self.debug_settings_menu.show_screen_origin();
         let show_sample_menus = self.debug_settings_menu.show_sample_menus();
+        let show_widget_samples = self.debug_settings_menu.show_widget_samples();
         let show_render_perf_stats = self.debug_settings_menu.show_render_perf_stats();
         let show_world_perf_stats = self.debug_settings_menu.show_world_perf_stats();
         let show_selection_bounds = self.debug_settings_menu.show_selection_bounds();
@@ -214,6 +215,11 @@ impl DevEditorMenusSingleton {
         if show_sample_menus {
             let theme = crate::menu::retail_ui_theme(context.ui_sys);
             ui::tests::draw_sample_menus(context, theme);
+        }
+
+        if show_widget_samples {
+            let theme = crate::menu::retail_ui_theme(context.ui_sys);
+            ui::tests::draw_widget_sample_menus(context, theme);
         }
 
         if show_cursor_pos {
