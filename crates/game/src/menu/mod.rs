@@ -14,9 +14,13 @@ use engine::{
     file_sys::paths::PathRef,
     app::input::{InputAction, InputKey, InputModifiers, MouseButton},
     ui::{
+        DEV_UI_THEME,
         UiFontScale,
         UiInputEvent,
+        UiStyleSource,
         UiString,
+        UiSystem,
+        UiThemeId,
         UiTooltipPlacement,
         widgets::{UiSpriteButton, UiSpriteButtonState, UiTextButton, UiTextButtonSize, UiTooltipText, UiWidgetContext},
     },
@@ -782,6 +786,29 @@ pub trait TilePalette {
 pub trait TileInspector {
     fn open(&mut self, context: &mut GameUiContext);
     fn close(&mut self, context: &mut GameUiContext);
+}
+
+// ----------------------------------------------
+// UI themes
+// ----------------------------------------------
+
+// The retail UI's theme: home menus, dialogs and the HUD.
+// TODO(realm-ui): the skins step gives each realm a theme of its own, from its skin's style block
+// (UiStyleSource::json), and picks the one realm::ui_realm() names here.
+pub const RETAIL_UI_THEME: &str = "game";
+
+// The UI styles the game loads at boot (UiSystem::load_styles), each naming its theme: the
+// developer UI's first, as the engine requires, then the retail UI's.
+pub fn ui_style_sources() -> Vec<UiStyleSource> {
+    vec![
+        UiStyleSource::file(DEV_UI_THEME, "ui/styles/dev.json"),
+        UiStyleSource::file(RETAIL_UI_THEME, "ui/styles/game.json"),
+    ]
+}
+
+// The retail UI's theme; the developer UI's if it isn't loaded.
+pub fn retail_ui_theme(ui_sys: &UiSystem) -> UiThemeId {
+    ui_sys.theme_id(RETAIL_UI_THEME).unwrap_or(UiThemeId::DEV)
 }
 
 // ----------------------------------------------

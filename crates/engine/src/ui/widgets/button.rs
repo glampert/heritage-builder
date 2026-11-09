@@ -1,17 +1,18 @@
 use std::any::Any;
 use smallbox::smallbox;
-use egui::{Color32, Sense, vec2};
+use egui::{Align2, Color32, Sense, vec2};
 use strum::{EnumCount, EnumIter, EnumProperty, IntoEnumIterator};
 
-use common::{Vec2, format_fixed_string, mem, time::{CountdownTimer, Seconds}};
+use common::{Color, Vec2, format_fixed_string, mem, time::{CountdownTimer, Seconds}};
 
 use super::{UiTooltipText, UiWidget, UiWidgetCallback, UiWidgetContext};
 use crate::{
     file_sys::paths::{AssetPath, PathRef},
     render::texture::TextureHandle,
     ui::{
-        UiFontScale, UiString,
-        immediate::{self, egui_vec2, rich_text, uv_full},
+        UiFontScale, UiNineSlice, UiNineSliceCenter, UiString,
+        immediate::{self, color32, egui_vec2, nine_slice_shape, rich_text, uv_full},
+        internal,
         renderer::egui_texture,
         sound::{UiSoundEvent, UiSoundKey, UiWidgetSounds},
     },
@@ -56,6 +57,7 @@ pub struct UiTextButton {
     tooltip: Option<UiTooltipText>,
     font_scale: UiFontScale,
     hover: Option<TextureHandle>,
+    frame: Option<UiTextButtonFrame>,
     sounds: UiWidgetSounds, // Hovered: ButtonHovered, Pressed: ButtonPressed.
     enabled: bool,
     hovered: bool,
@@ -76,27 +78,61 @@ impl UiWidget for UiTextButton {
 
         let (pressed, hovered) = ui_sys.with_ui(|ui| {
             // Faded text if disabled. It still takes the mouse, for its tooltip.
-            let text_color = ui.visuals().text_color();
+            let text_color = match &self.frame {
+                Some(frame) => frame.text_color.map_or_else(|| ui.visuals().text_color(), color32),
+                None => ui.visuals().text_color(),
+            };
             let text_color = if enabled { text_color } else { text_color.gamma_multiply(0.5) };
-            let text = rich_text(ui_sys, ui, self.label.resolve()).color(text_color);
 
-            // With a hover effect texture (underline effect) the button draws fully transparent.
-            let button = egui::Button::new(text).frame(self.hover.is_none());
-            let response = ui.add(button);
+            let response = match &self.frame {
+                // A framed button: its state's panel, with the text centered on it.
+                Some(frame) => {
+                    let (text_size, font_size) = internal::calc_text_size(ui_sys, self.font_scale, self.label.resolve());
+                    let size = frame.button_size(text_size, font_size);
+                    let (rect, response) = ui.allocate_exact_size(egui_vec2(size), Sense::click());
 
-            // Draw underline effect when hovered / active:
-            if let Some(hover) = self.hover
-                && response.hovered()
-            {
-                let rect = response.rect;
-                let underline_rect = egui::Rect::from_min_size(rect.min + vec2(0.0, rect.height() * 0.5 + 1.0), rect.size());
-                let tint = if response.is_pointer_button_down_on() || !enabled {
-                    Color32::from_white_alpha(128)
-                } else {
-                    Color32::WHITE
-                };
-                ui.painter().image(egui_texture(hover), underline_rect, uv_full(), tint);
-            }
+                    if ui.is_rect_visible(rect) {
+                        let state = if !enabled {
+                            UiSpriteButtonState::Disabled
+                        } else if response.is_pointer_button_down_on() {
+                            UiSpriteButtonState::Pressed
+                        } else if response.hovered() {
+                            UiSpriteButtonState::Hovered
+                        } else {
+                            UiSpriteButtonState::Idle
+                        };
+
+                        let (panel, tint) = frame.panel(state);
+                        ui.painter().add(nine_slice_shape(rect, panel, color32(tint)));
+
+                        let font = internal::font(ui_sys, self.font_scale);
+                        ui.painter().text(rect.center(), Align2::CENTER_CENTER, self.label.resolve(), font, text_color);
+                    }
+                    response
+                }
+                None => {
+                    let text = rich_text(ui_sys, ui, self.label.resolve()).color(text_color);
+
+                    // With a hover effect texture (underline effect) the button draws fully transparent.
+                    let button = egui::Button::new(text).frame(self.hover.is_none());
+                    let response = ui.add(button);
+
+                    // Draw underline effect when hovered / active:
+                    if let Some(hover) = self.hover
+                        && response.hovered()
+                    {
+                        let rect = response.rect;
+                        let underline_rect = egui::Rect::from_min_size(rect.min + vec2(0.0, rect.height() * 0.5 + 1.0), rect.size());
+                        let tint = if response.is_pointer_button_down_on() || !enabled {
+                            Color32::from_white_alpha(128)
+                        } else {
+                            Color32::WHITE
+                        };
+                        ui.painter().image(egui_texture(hover), underline_rect, uv_full(), tint);
+                    }
+                    response
+                }
+            };
 
             let tooltip = self.tooltip.as_ref().map(|tooltip| tooltip.text.resolve());
             immediate::record(ui_sys, ui, &response, "text_button", self.label.resolve(), tooltip, enabled, None);
@@ -127,11 +163,14 @@ impl UiWidget for UiTextButton {
     }
 
     fn measure(&self, context: &dyn UiWidgetContext) -> Vec2 {
-        let padding = context.ui_sys().egui_style().spacing.button_padding;
-
         // Compute scaled font size (window-independent).
         let (text_size, font_size) = context.calc_text_and_font_size(self.font_scale, self.label.resolve());
 
+        if let Some(frame) = &self.frame {
+            return frame.button_size(text_size, font_size);
+        }
+
+        let padding = context.ui_sys().egui_style().spacing.button_padding;
         let width = text_size.x + (padding.x * 2.0);
         let height = text_size.y.max(font_size) + (padding.y * 2.0);
 
@@ -149,7 +188,7 @@ impl UiWidget for UiTextButton {
 
 impl UiTextButton {
     // A normal-size button with its sounds on. It draws as the style's framed button unless
-    // given a hover sprite.
+    // given a hover sprite or a frame.
     pub fn new(label: impl Into<UiString>) -> Self {
         let label = label.into();
         debug_assert!(!label.is_empty());
@@ -159,6 +198,7 @@ impl UiTextButton {
             tooltip: None,
             font_scale: UiTextButtonSize::default().font_scale(),
             hover: None,
+            frame: None,
             sounds: UiWidgetSounds::new(),
             enabled: true,
             hovered: false,
@@ -179,6 +219,13 @@ impl UiTextButton {
     // Drawn under the text while hovered, in place of the style's button frame.
     pub fn with_hover_sprite<'a>(mut self, context: &mut dyn UiWidgetContext, sprite: impl Into<PathRef<'a>>) -> Self {
         self.hover = Some(context.load_texture(sprite.into()));
+        self
+    }
+
+    // 9-slice panels per state in place of the style's button frame, with the text centered on
+    // them: the button is the text plus the frame's padding. A hover sprite is ignored.
+    pub fn with_frame(mut self, frame: UiTextButtonFrame) -> Self {
+        self.frame = Some(frame);
         self
     }
 
@@ -214,6 +261,110 @@ impl UiTextButton {
 
     pub fn enable(&mut self, enable: bool) {
         self.enabled = enable;
+    }
+}
+
+// ----------------------------------------------
+// UiTextButtonFrame
+// ----------------------------------------------
+
+// A framed text button's look (UiTextButton::with_frame): a 9-slice panel per state, idle,
+// hovered, pressed and disabled, as sprite buttons have, each multiplied by a tint; the space
+// between the frame and the text; and the text's color.
+#[derive(Copy, Clone, PartialEq, Debug)]
+pub struct UiTextButtonFrame {
+    panels: [UiNineSlice; UI_SPRITE_BUTTON_STATE_COUNT], // By UiSpriteButtonState.
+    tints: [Color; UI_SPRITE_BUTTON_STATE_COUNT],
+    padding: Option<Vec2>,      // The panels' borders if None.
+    text_color: Option<Color>,  // The style's if None.
+}
+
+impl UiTextButtonFrame {
+    // The four state sprites `<sprite>_idle.png`, `_hovered`, `_pressed` and `_disabled` under
+    // assets/ui/ (e.g. "skins/dailong/button_primary"), each cut by `slice_px`, its borders in
+    // pixels (left, top, right, bottom).
+    pub fn load(context: &mut dyn UiWidgetContext, sprite: &str, slice_px: [f32; 4]) -> Self {
+        debug_assert!(!sprite.is_empty());
+        let mut load = |state: UiSpriteButtonState| {
+            let path = state.frame_sprite_path(sprite);
+            context.load_nine_slice(PathRef::from_str(&path), slice_px)
+        };
+        Self::new(
+            load(UiSpriteButtonState::Idle),
+            load(UiSpriteButtonState::Hovered),
+            load(UiSpriteButtonState::Pressed),
+            load(UiSpriteButtonState::Disabled),
+        )
+    }
+
+    pub fn new(idle: UiNineSlice, hovered: UiNineSlice, pressed: UiNineSlice, disabled: UiNineSlice) -> Self {
+        let mut panels = [idle; UI_SPRITE_BUTTON_STATE_COUNT];
+        panels[UiSpriteButtonState::Hovered as usize] = hovered;
+        panels[UiSpriteButtonState::Pressed as usize] = pressed;
+        panels[UiSpriteButtonState::Disabled as usize] = disabled;
+        Self { panels, tints: [Color::white(); UI_SPRITE_BUTTON_STATE_COUNT], padding: None, text_color: None }
+    }
+
+    // One panel for every state, told apart by tints: idle a little darker than hovered, pressed
+    // darker still, disabled faded. For art without state sprites.
+    pub fn uniform(panel: UiNineSlice) -> Self {
+        Self::new(panel, panel, panel, panel).with_tints(
+            Color::new(0.9, 0.9, 0.9, 1.0),
+            Color::white(),
+            Color::new(0.7, 0.7, 0.7, 1.0),
+            Color::new(0.8, 0.8, 0.8, 0.6),
+        )
+    }
+
+    // Points per pixel for every state's panel, e.g. 0.5 for art drawn at 2×.
+    pub fn with_scale(mut self, scale: f32) -> Self {
+        self.panels = self.panels.map(|panel| panel.with_scale(scale));
+        self
+    }
+
+    pub fn with_center(mut self, center: UiNineSliceCenter) -> Self {
+        self.panels = self.panels.map(|panel| panel.with_center(center));
+        self
+    }
+
+    // What each state's panel is multiplied by.
+    pub fn with_tints(mut self, idle: Color, hovered: Color, pressed: Color, disabled: Color) -> Self {
+        self.tints[UiSpriteButtonState::Idle as usize] = idle;
+        self.tints[UiSpriteButtonState::Hovered as usize] = hovered;
+        self.tints[UiSpriteButtonState::Pressed as usize] = pressed;
+        self.tints[UiSpriteButtonState::Disabled as usize] = disabled;
+        self
+    }
+
+    // Between the frame's edges and the text, in points: the idle panel's wider border on each
+    // axis by default.
+    pub fn with_padding(mut self, padding: Vec2) -> Self {
+        self.padding = Some(padding);
+        self
+    }
+
+    // The text's color, faded on a disabled button; the style's by default.
+    pub fn with_text_color(mut self, color: Color) -> Self {
+        self.text_color = Some(color);
+        self
+    }
+
+    pub fn padding(&self) -> Vec2 {
+        self.padding.unwrap_or_else(|| {
+            let [left, top, right, bottom] = self.panels[UiSpriteButtonState::Idle as usize].border_points();
+            Vec2::new(left.max(right), top.max(bottom))
+        })
+    }
+
+    #[inline]
+    fn panel(&self, state: UiSpriteButtonState) -> (&UiNineSlice, Color) {
+        (&self.panels[state as usize], self.tints[state as usize])
+    }
+
+    // A button with text of `text_size` in a font of `font_size`.
+    fn button_size(&self, text_size: Vec2, font_size: f32) -> Vec2 {
+        let padding = self.padding();
+        Vec2::new(text_size.x + padding.x * 2.0, text_size.y.max(font_size) + padding.y * 2.0)
     }
 }
 
@@ -555,5 +706,55 @@ impl UiSpriteButtonState {
     fn load_texture(self, sprite_path: PathRef, context: &mut dyn UiWidgetContext) -> TextureHandle {
         let asset_path = self.asset_path(sprite_path);
         context.load_texture((&asset_path).into())
+    }
+
+    // A framed text button's sprite for this state (UiTextButtonFrame::load), under assets/ui/.
+    fn frame_sprite_path(self, sprite: &str) -> String {
+        format!("{sprite}_{}.png", self.get_str("Suffix").unwrap())
+    }
+}
+
+// ----------------------------------------------
+// Unit tests
+// ----------------------------------------------
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn panel(width: f32, slice_px: [f32; 4]) -> UiNineSlice {
+        UiNineSlice::new(TextureHandle::White, Vec2::new(width, 32.0), slice_px)
+    }
+
+    #[test]
+    fn frame_loads_a_sprite_per_state() {
+        let paths: Vec<_> = UiSpriteButtonState::iter().map(|state| state.frame_sprite_path("skins/dailong/button_primary")).collect();
+        assert_eq!(
+            paths,
+            [
+                "skins/dailong/button_primary_idle.png",
+                "skins/dailong/button_primary_disabled.png",
+                "skins/dailong/button_primary_hovered.png",
+                "skins/dailong/button_primary_pressed.png",
+            ]
+        );
+    }
+
+    #[test]
+    fn frame_keeps_each_state_panel_and_pads_by_the_idle_borders() {
+        let (idle, hovered, pressed, disabled) =
+            (panel(10.0, [4.0, 2.0, 6.0, 3.0]), panel(11.0, [1.0; 4]), panel(12.0, [1.0; 4]), panel(13.0, [1.0; 4]));
+        let frame = UiTextButtonFrame::new(idle, hovered, pressed, disabled);
+
+        assert_eq!(*frame.panel(UiSpriteButtonState::Idle).0, idle);
+        assert_eq!(*frame.panel(UiSpriteButtonState::Hovered).0, hovered);
+        assert_eq!(*frame.panel(UiSpriteButtonState::Pressed).0, pressed);
+        assert_eq!(*frame.panel(UiSpriteButtonState::Disabled).0, disabled);
+        assert_eq!(frame.panel(UiSpriteButtonState::Pressed).1, Color::white());
+
+        // The idle panel's wider border on each axis, scaled to points.
+        assert_eq!(frame.padding(), Vec2::new(6.0, 3.0));
+        assert_eq!(frame.with_scale(0.5).padding(), Vec2::new(3.0, 1.5));
+        assert_eq!(frame.with_padding(Vec2::new(8.0, 4.0)).padding(), Vec2::new(8.0, 4.0));
     }
 }

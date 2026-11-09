@@ -1,12 +1,17 @@
-// UI styles: the colors, spacing, frames and fonts of each UiTheme, loaded from JSON files under
-// assets/configs/ui/styles/ (UiSystem::load_styles). A style names its own fonts, files under
-// assets/fonts/, and gives each text style (body, heading, ...) a font and a size. Every field has
-// a default, so a file only needs the ones it changes; unknown fields are errors.
+// UI styles: the colors, spacing, frames and fonts of each theme, loaded from JSON
+// (UiSystem::load_styles): a file under assets/configs/, such as assets/configs/ui/styles/dev.json,
+// or JSON handed over, such as a skin's style block merged over another's. Each style has a name,
+// which names its theme (UiThemeId); the first must be "dev", the developer UI's. A style names its
+// own fonts, files under assets/fonts/, and gives each text style (body, heading, ...) a font and a
+// size. Every field has a default, so a style only needs the ones it changes; unknown fields are
+// errors.
 //
 // egui has one set of fonts per context, so every style's fonts go into one FontDefinitions, under
 // names prefixed with the style's ("dev/mono"), and each text style becomes a font family
 // ("dev/body") holding its font and fallbacks. egui's own Proportional and Monospace families get
-// the developer style's body and monospace fonts, for the few places egui uses them itself.
+// the developer style's body and monospace fonts, for the few places egui uses them itself. New
+// fonts reach egui at its next pass, so load every style at boot, before any menu that uses them is
+// built.
 
 use std::{collections::BTreeMap, sync::Arc};
 
@@ -25,11 +30,98 @@ use egui::{
 };
 use serde::Deserialize;
 
-use super::UiTheme;
 use crate::{
     config,
     file_sys::{self, paths::PathRef},
 };
+
+// The developer UI's theme: the first style UiSystem::load_styles takes must have this name.
+pub const DEV_UI_THEME: &str = "dev";
+
+// ----------------------------------------------
+// UiThemeId
+// ----------------------------------------------
+
+// A loaded style, for UiSystem::set_ui_theme: look one up by name with UiSystem::theme_id. Ids
+// stay the same while the same list of styles is loaded.
+#[derive(Copy, Clone, PartialEq, Eq, Hash, Debug, Default)]
+pub struct UiThemeId(u16);
+
+impl UiThemeId {
+    // The developer UI's theme, the first style loaded ("dev").
+    pub const DEV: Self = Self(0);
+
+    #[inline]
+    pub fn index(self) -> usize {
+        self.0 as usize
+    }
+}
+
+// ----------------------------------------------
+// UiStyleSource
+// ----------------------------------------------
+
+// A style to load, and the name of its theme.
+#[derive(Clone, Debug)]
+pub struct UiStyleSource {
+    name: String,
+    data: UiStyleData,
+}
+
+#[derive(Clone, Debug)]
+enum UiStyleData {
+    File(String),            // Relative to assets/configs/, read again by UiSystem::reload_styles.
+    Json(serde_json::Value), // Kept as given.
+}
+
+impl UiStyleSource {
+    // A style file under assets/configs/, e.g. "ui/styles/dev.json".
+    pub fn file(name: impl Into<String>, path: impl Into<String>) -> Self {
+        Self { name: name.into(), data: UiStyleData::File(path.into()) }
+    }
+
+    // A style as JSON, e.g. a skin's style block merged over another's.
+    pub fn json(name: impl Into<String>, json: serde_json::Value) -> Self {
+        Self { name: name.into(), data: UiStyleData::Json(json) }
+    }
+
+    // A style as JSON text.
+    pub fn json_str(name: impl Into<String>, text: &str) -> Result<Self, String> {
+        let name = name.into();
+        let json = serde_json::from_str(text).map_err(|err| format!("Invalid UI style '{name}': {err}"))?;
+        Ok(Self::json(name, json))
+    }
+
+    #[inline]
+    pub fn name(&self) -> &str {
+        &self.name
+    }
+
+    // Reads and checks the style, without loading its fonts: an unknown field, a text style
+    // without a size or with a font the style doesn't name, and so on.
+    pub fn validate(&self) -> Result<(), String> {
+        self.read_def()?.check().map_err(|err| self.error(&err))
+    }
+
+    fn read_def(&self) -> Result<UiStyleDef, String> {
+        match &self.data {
+            UiStyleData::File(path) => {
+                let file_path = config::configs_path().join(PathRef::from_str(path));
+                let json =
+                    file_sys::load_string(&file_path).map_err(|err| format!("Can't read UI style '{}' ({file_path}): {err}", self.name))?;
+                UiStyleDef::from_json_str(&json).map_err(|err| self.error(&err))
+            }
+            UiStyleData::Json(json) => UiStyleDef::from_json_value(json).map_err(|err| self.error(&err)),
+        }
+    }
+
+    fn error(&self, err: &str) -> String {
+        match &self.data {
+            UiStyleData::File(path) => format!("UI style '{}' ({path}): {err}", self.name),
+            UiStyleData::Json(_) => format!("UI style '{}': {err}", self.name),
+        }
+    }
+}
 
 // ----------------------------------------------
 // UiStyle / UiStyles
@@ -49,48 +141,68 @@ impl UiStyle {
     }
 }
 
-// Every theme's style, and the fonts they use.
+// Every theme's style, by name, and the fonts they use.
 pub(super) struct UiStyles {
-    styles: [UiStyle; UiTheme::COUNT],
+    styles: Vec<(String, UiStyle)>, // A UiThemeId is an index.
     pub fonts: FontDefinitions,
 }
 
 impl UiStyles {
-    // `paths`: a style file per theme, relative to assets/configs/.
-    pub fn load(paths: &[(UiTheme, PathRef); UiTheme::COUNT]) -> Result<Self, String> {
+    // `sources`: the developer UI's style first ("dev"), then any others, each named once.
+    pub fn load(sources: &[UiStyleSource]) -> Result<Self, String> {
+        match sources.first() {
+            Some(source) if source.name() == DEV_UI_THEME => {}
+            _ => return Err(format!("The first UI style must be '{DEV_UI_THEME}', the developer UI's.")),
+        }
+        if sources.len() > usize::from(u16::MAX) {
+            return Err("Too many UI styles.".into());
+        }
+
         let mut fonts = FontDefinitions::empty();
         let mut font_files = BTreeMap::<String, Arc<Vec<u8>>>::new(); // Shared by the styles that use a file.
-        let mut loaded = Vec::with_capacity(UiTheme::COUNT);
+        let mut styles = Vec::with_capacity(sources.len());
 
-        for (index, (theme, path)) in paths.iter().enumerate() {
-            debug_assert_eq!(*theme as usize, index, "Style paths must be in UiTheme order!");
+        for source in sources {
+            let name = source.name();
+            if name.is_empty() || name.contains('/') {
+                return Err(format!("Invalid UI style name '{name}': it names fonts as '{name}/<font>'."));
+            }
+            if styles.iter().any(|(other, _)| other == name) {
+                return Err(format!("Two UI styles are named '{name}'."));
+            }
 
-            let file_path = config::configs_path().join(*path);
-            let json = file_sys::load_string(&file_path).map_err(|err| format!("Can't read UI style {file_path}: {err}"))?;
-            let def: UiStyleDef =
-                serde_json::from_str(&json).map_err(|err| format!("Invalid UI style {file_path}: {err}"))?;
-
-            let style = def.build(theme.style_name(), &mut fonts, &mut font_files).map_err(|err| format!("UI style {file_path}: {err}"))?;
-            loaded.push(style);
+            let def = source.read_def()?;
+            let style = def.build(name, &mut fonts, &mut font_files).map_err(|err| source.error(&err))?;
+            styles.push((name.to_string(), style));
         }
 
         // egui's own families, for the places egui uses them itself.
-        let dev = UiTheme::Dev.style_name();
-        let dev_family = |text_style: &str| fonts.families[&family(dev, text_style)].clone();
+        let dev_family = |text_style: &str| fonts.families[&family(DEV_UI_THEME, text_style)].clone();
         let proportional = dev_family("body");
         let monospace = dev_family("monospace");
         fonts.families.insert(FontFamily::Proportional, proportional);
         fonts.families.insert(FontFamily::Monospace, monospace);
 
-        let styles: [UiStyle; UiTheme::COUNT] =
-            loaded.try_into().unwrap_or_else(|_| unreachable!("One style per theme"));
-
         Ok(Self { styles, fonts })
     }
 
+    // The theme's style; the developer UI's for an id that isn't loaded.
     #[inline]
-    pub fn style(&self, theme: UiTheme) -> &UiStyle {
-        &self.styles[theme as usize]
+    pub fn style(&self, theme: UiThemeId) -> &UiStyle {
+        let (_, style) = self.styles.get(theme.index()).unwrap_or(&self.styles[UiThemeId::DEV.index()]);
+        style
+    }
+
+    pub fn find(&self, name: &str) -> Option<UiThemeId> {
+        self.styles.iter().position(|(style_name, _)| style_name == name).map(|index| UiThemeId(index as u16))
+    }
+
+    pub fn name(&self, theme: UiThemeId) -> Option<&str> {
+        self.styles.get(theme.index()).map(|(name, _)| name.as_str())
+    }
+
+    pub fn names(&self) -> impl Iterator<Item = &str> {
+        self.styles.iter().map(|(name, _)| name.as_str())
     }
 }
 
@@ -99,7 +211,7 @@ fn family(style_name: &str, text_style: &str) -> FontFamily {
 }
 
 // ----------------------------------------------
-// UiStyleDef (the JSON file)
+// UiStyleDef (the JSON)
 // ----------------------------------------------
 
 #[derive(Deserialize)]
@@ -346,6 +458,47 @@ struct UiPopupDef {
 }
 
 impl UiStyleDef {
+    fn from_json_str(text: &str) -> Result<Self, String> {
+        serde_json::from_str(text).map_err(|err| format!("Invalid UI style: {err}"))
+    }
+
+    fn from_json_value(json: &serde_json::Value) -> Result<Self, String> {
+        Self::deserialize(json).map_err(|err| format!("Invalid UI style: {err}"))
+    }
+
+    // The six text styles by their names in the JSON, with their egui text styles.
+    fn text_styles(&self) -> [(&'static str, TextStyle, &UiTextStyleDef); 6] {
+        let text_styles = &self.text_styles;
+        [
+            ("body", TextStyle::Body, &text_styles.body),
+            ("heading", TextStyle::Heading, &text_styles.heading),
+            ("button", TextStyle::Button, &text_styles.button),
+            ("small", TextStyle::Small, &text_styles.small),
+            ("monospace", TextStyle::Monospace, &text_styles.monospace),
+            ("icon", TextStyle::Name("icon".into()), &text_styles.icon),
+        ]
+    }
+
+    // What deserializing can't check: fonts, and text styles with sizes and fonts the style names.
+    fn check(&self) -> Result<(), String> {
+        if self.fonts.is_empty() {
+            return Err("It has no fonts.".into());
+        }
+
+        for (key, _, def) in self.text_styles() {
+            if def.size <= 0.0 {
+                return Err(format!("Text style '{key}' needs a size."));
+            }
+            for font_name in std::iter::once(&def.font).chain(&def.fallbacks) {
+                if !self.fonts.contains_key(font_name) {
+                    return Err(format!("Text style '{key}' uses font '{font_name}', which isn't in its fonts."));
+                }
+            }
+        }
+
+        Ok(())
+    }
+
     // Adds this style's fonts to `fonts` under `name/` and returns the egui style.
     fn build(
         &self,
@@ -353,9 +506,7 @@ impl UiStyleDef {
         fonts: &mut FontDefinitions,
         font_files: &mut BTreeMap<String, Arc<Vec<u8>>>,
     ) -> Result<UiStyle, String> {
-        if self.fonts.is_empty() {
-            return Err("It has no fonts.".into());
-        }
+        self.check()?;
 
         for (font_name, font) in &self.fonts {
             let bytes = match font_files.get(&font.file) {
@@ -373,38 +524,10 @@ impl UiStyleDef {
             fonts.font_data.insert(format!("{name}/{font_name}"), Arc::new(data));
         }
 
-        let text_styles = &self.text_styles;
         let mut font_ids = BTreeMap::new();
 
-        for (key, text_style) in [
-            ("body", TextStyle::Body),
-            ("heading", TextStyle::Heading),
-            ("button", TextStyle::Button),
-            ("small", TextStyle::Small),
-            ("monospace", TextStyle::Monospace),
-            ("icon", TextStyle::Name("icon".into())),
-        ] {
-            let def = match key {
-                "body" => &text_styles.body,
-                "heading" => &text_styles.heading,
-                "button" => &text_styles.button,
-                "small" => &text_styles.small,
-                "monospace" => &text_styles.monospace,
-                _ => &text_styles.icon,
-            };
-
-            if def.size <= 0.0 {
-                return Err(format!("Text style '{key}' needs a size."));
-            }
-
-            let mut family_fonts = Vec::with_capacity(1 + def.fallbacks.len());
-            for font_name in std::iter::once(&def.font).chain(&def.fallbacks) {
-                if !self.fonts.contains_key(font_name) {
-                    return Err(format!("Text style '{key}' uses font '{font_name}', which isn't in its fonts."));
-                }
-                family_fonts.push(format!("{name}/{font_name}"));
-            }
-
+        for (key, text_style, def) in self.text_styles() {
+            let family_fonts = std::iter::once(&def.font).chain(&def.fallbacks).map(|font_name| format!("{name}/{font_name}")).collect();
             fonts.families.insert(family(name, key), family_fonts);
             font_ids.insert(text_style, FontId::new(def.size, family(name, key)));
         }
@@ -543,5 +666,96 @@ mod tests {
         let def: UiStyleDef = serde_json::from_str(r#"{ "animation_time": 0.1 }"#).unwrap();
         let error = def.build("test", &mut FontDefinitions::empty(), &mut BTreeMap::new()).err();
         assert_eq!(error.as_deref(), Some("It has no fonts."));
+    }
+
+    // A whole style in one font, the developer UI's.
+    fn style_json(body_size: f32) -> serde_json::Value {
+        let text_style = |size: f32| serde_json::json!({ "font": "mono", "size": size });
+        serde_json::json!({
+            "fonts": { "mono": { "file": "source_code_pro_semi_bold.ttf" } },
+            "text_styles": {
+                "body": text_style(body_size), "heading": text_style(18.0), "button": text_style(14.0),
+                "small": text_style(11.0), "monospace": text_style(14.0), "icon": text_style(14.0)
+            },
+            "colors": { "text": "#102030" }
+        })
+    }
+
+    #[test]
+    fn loads_styles_from_json_values_and_strings() {
+        let def = UiStyleDef::from_json_value(&style_json(15.0)).unwrap();
+        assert_eq!(def.text_styles.body.size, 15.0);
+        assert_eq!(def.colors.text.0, Color32::from_rgb(0x10, 0x20, 0x30));
+        assert!(def.check().is_ok());
+
+        let def = UiStyleDef::from_json_str(&style_json(16.0).to_string()).unwrap();
+        assert_eq!(def.text_styles.body.size, 16.0);
+        assert_eq!(def.spacing.window_margin, UiSpacingDef::default().window_margin); // Defaults fill the rest.
+
+        // Unknown fields are errors, at any depth, from a value as from a file.
+        let mut json = style_json(15.0);
+        json["colors"]["colour"] = serde_json::json!("#FFFFFF");
+        let error = UiStyleDef::from_json_value(&json).err().unwrap();
+        assert!(error.contains("unknown field `colour`"), "{error}");
+
+        let source = UiStyleSource::json("realm", serde_json::json!({ "fontz": {} }));
+        let error = source.validate().err().unwrap();
+        assert!(error.starts_with("UI style 'realm': ") && error.contains("unknown field `fontz`"), "{error}");
+
+        // Checked without loading fonts: a text style with a font the style doesn't name.
+        let mut json = style_json(15.0);
+        json["text_styles"]["small"]["font"] = serde_json::json!("serif");
+        let error = UiStyleSource::json("realm", json).validate().err().unwrap();
+        assert_eq!(error, "UI style 'realm': Text style 'small' uses font 'serif', which isn't in its fonts.");
+
+        assert!(UiStyleSource::json_str("realm", "{ not json").is_err());
+        assert!(UiStyleSource::json_str("realm", &style_json(15.0).to_string()).unwrap().validate().is_ok());
+        assert!(UiStyleSource::file("dev", "ui/styles/dev.json").validate().is_ok());
+        assert!(UiStyleSource::file("game", "ui/styles/game.json").validate().is_ok());
+    }
+
+    #[test]
+    fn looks_up_themes_by_name() {
+        let styles = UiStyles::load(&[
+            UiStyleSource::json(DEV_UI_THEME, style_json(14.0)),
+            UiStyleSource::json("game", style_json(20.0)),
+            UiStyleSource::json("kambara", style_json(22.0)),
+        ])
+        .unwrap();
+
+        assert_eq!(styles.find("dev"), Some(UiThemeId::DEV));
+        let kambara = styles.find("kambara").unwrap();
+        assert_eq!(styles.name(kambara), Some("kambara"));
+        assert_eq!(styles.style(kambara).font(&TextStyle::Body).size, 22.0);
+        assert_eq!(styles.style(styles.find("game").unwrap()).font(&TextStyle::Body).size, 20.0);
+        assert_eq!(styles.names().collect::<Vec<_>>(), ["dev", "game", "kambara"]);
+
+        // An unknown name has no theme; an id past the list falls back to the developer UI's.
+        assert_eq!(styles.find("tampadesa"), None);
+        assert_eq!(styles.find(""), None);
+        assert_eq!(styles.name(UiThemeId(9)), None);
+        assert_eq!(styles.style(UiThemeId(9)).font(&TextStyle::Body).size, 14.0);
+
+        // Every style's fonts and families, under its name.
+        assert!(styles.fonts.font_data.contains_key("kambara/mono"));
+        assert!(styles.fonts.families.contains_key(&family("kambara", "body")));
+        assert!(styles.fonts.families.contains_key(&FontFamily::Proportional));
+    }
+
+    #[test]
+    fn rejects_bad_style_lists() {
+        let error = |sources: &[UiStyleSource]| UiStyles::load(sources).err().unwrap();
+
+        assert_eq!(error(&[]), "The first UI style must be 'dev', the developer UI's.");
+        assert_eq!(error(&[UiStyleSource::json("game", style_json(20.0))]), "The first UI style must be 'dev', the developer UI's.");
+        assert_eq!(
+            error(&[UiStyleSource::json("dev", style_json(14.0)), UiStyleSource::json("dev", style_json(20.0))]),
+            "Two UI styles are named 'dev'."
+        );
+        assert!(error(&[UiStyleSource::json("dev", style_json(14.0)), UiStyleSource::json("a/b", style_json(20.0))]).starts_with("Invalid UI style name"));
+        assert_eq!(
+            error(&[UiStyleSource::json("dev", style_json(14.0)), UiStyleSource::json("game", style_json(0.0))]),
+            "UI style 'game': Text style 'body' needs a size."
+        );
     }
 }

@@ -9,6 +9,9 @@
 // A widget is built with `new` and `with_*` setters for what differs from its defaults, and `on_*`
 // setters for its callbacks, which take plain closures. The context is passed only where a sprite
 // is loaded: `UiSpriteButton::new`, `UiSlideshow::new` and the `with_*` setters that take one.
+// 9-slice panels (UiNineSlice) are loaded first, with UiWidgetContext::load_nine_slice, and handed
+// to the setters that take them: UiMenu::with_panel, UiMessageBox::with_panel,
+// UiTooltipText::with_panel and UiTextButton::with_frame.
 //
 // Widgets record themselves in the widget registry (registry.rs) as they draw, for UI automation.
 //
@@ -40,7 +43,7 @@ use egui::pos2;
 
 use common::{RectTexCoords, Size, Vec2, hash::FNV1aHash, mem, time::Seconds};
 
-use super::{UiFontScale, UiSystem, immediate::{self, rich_text}, internal};
+use super::{UiFontScale, UiNineSlice, UiSystem, immediate::{self, rich_text}, internal};
 use crate::{file_sys::paths::PathRef, render::{RenderSystem, texture::TextureHandle}, sound::SoundSystem};
 
 mod button;
@@ -125,6 +128,18 @@ pub trait UiWidgetContext<'game> {
         self.render_sys()
             .texture_cache_mut()
             .load_texture_with_settings((&file_path).into(), Some(super::texture_settings()))
+    }
+
+    // A 9-slice panel of a sprite under assets/ui/, cut by `slice_px`, its borders in pixels (left,
+    // top, right, bottom). At one point per pixel and stretched: see UiNineSlice::with_scale and
+    // with_center. A sprite that fails to load draws as the magenta dummy, its borders kept.
+    fn load_nine_slice(&mut self, path: PathRef, slice_px: [f32; 4]) -> UiNineSlice {
+        let texture = self.load_texture(path);
+        let texture_size = match self.render_sys().texture_cache().texture_size(texture) {
+            Some(size) => Vec2::new(size.width as f32, size.height as f32),
+            None => Vec2::new(slice_px[0] + slice_px[2] + 1.0, slice_px[1] + slice_px[3] + 1.0),
+        };
+        UiNineSlice::new(texture, texture_size, slice_px)
     }
 }
 

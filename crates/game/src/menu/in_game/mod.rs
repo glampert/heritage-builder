@@ -4,7 +4,7 @@ use bars::{InGameMenuBars, InGameMenuBarsRcMut};
 use common::coords::CellRange;
 use engine::{
     app::input::{InputAction, InputKey},
-    ui::{UiInputEvent, UiTheme, widgets::UiMenuFlags},
+    ui::{UiInputEvent, widgets::UiMenuFlags},
 };
 use inspector::{TileInspectorMenu, TileInspectorMenuRcMut};
 use palette::{TilePaletteMenu, TilePaletteMenuRcMut};
@@ -35,7 +35,7 @@ pub struct InGameMenus {
 
 impl InGameMenus {
     pub fn new(context: &mut GameUiContext) -> Self {
-        context.ui_sys.set_ui_theme(UiTheme::InGame);
+        context.ui_sys.set_ui_theme(super::retail_ui_theme(context.ui_sys));
 
         dialog::initialize(context);
         dialog::set_global_menu_flags(UiMenuFlags::AlignCenter);

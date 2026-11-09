@@ -212,6 +212,17 @@ impl TextureCache {
         None
     }
 
+    // A texture's size in pixels, e.g. for a 9-slice's texture coordinates. None for
+    // TextureHandle::Invalid (a texture that failed to load, drawn as the 8x8 dummy) and for a
+    // released texture.
+    pub fn texture_size(&self, handle: TextureHandle) -> Option<Size> {
+        match handle {
+            TextureHandle::Invalid => None,
+            TextureHandle::White => Some(Size::new(8, 8)),
+            TextureHandle::Index(idx) => self.textures.get(idx as usize).map(|texture| texture.size()),
+        }
+    }
+
     // Load texture with default settings, which can be overridden by change_texture_settings().
     pub fn load_texture(&mut self, file_path: PathRef) -> TextureHandle {
         self.load_texture_with_settings(file_path, None)

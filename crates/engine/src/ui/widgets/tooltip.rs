@@ -1,5 +1,8 @@
 use super::UiWidgetContext;
-use crate::{file_sys::paths::PathRef, render::texture::TextureHandle, ui::{UiFontScale, UiString, UiTooltipPlacement}};
+use crate::{
+    file_sys::paths::PathRef,
+    ui::{UiFontScale, UiNineSlice, UiString, UiTooltipBackground, UiTooltipPlacement},
+};
 
 // ----------------------------------------------
 // UiTooltipText
@@ -9,7 +12,7 @@ use crate::{file_sys::paths::PathRef, render::texture::TextureHandle, ui::{UiFon
 pub struct UiTooltipText {
     pub(super) text: UiString,
     font_scale: UiFontScale,
-    background: Option<TextureHandle>,
+    background: UiTooltipBackground,
     placement: UiTooltipPlacement,
     opacity: f32,
 }
@@ -19,7 +22,7 @@ impl UiTooltipText {
         let text = text.into();
         debug_assert!(!text.is_empty());
 
-        Self { text, font_scale: UiFontScale::default(), background: None, placement: UiTooltipPlacement::default(), opacity: 1.0 }
+        Self { text, font_scale: UiFontScale::default(), background: UiTooltipBackground::Style, placement: UiTooltipPlacement::default(), opacity: 1.0 }
     }
 
     pub fn with_font_scale(mut self, font_scale: UiFontScale) -> Self {
@@ -28,9 +31,16 @@ impl UiTooltipText {
         self
     }
 
-    // A sprite behind the text, in place of the style's tooltip frame.
+    // A sprite stretched behind the text, in place of the style's tooltip frame.
     pub fn with_background<'a>(mut self, context: &mut dyn UiWidgetContext, sprite: impl Into<PathRef<'a>>) -> Self {
-        self.background = Some(context.load_texture(sprite.into()));
+        self.background = UiTooltipBackground::Sprite(context.load_texture(sprite.into()));
+        self
+    }
+
+    // A 9-slice panel behind the text, in place of the style's tooltip frame. It covers the text
+    // and the frame's margins (the style's window margin).
+    pub fn with_panel(mut self, panel: UiNineSlice) -> Self {
+        self.background = UiTooltipBackground::Panel(panel);
         self
     }
 

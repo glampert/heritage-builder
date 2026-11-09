@@ -32,7 +32,7 @@ use serde_json::Value;
 
 use common::{Color, FieldAccessorXY, Rect, Vec2, format_fixed_string};
 
-use super::{UiFontScale, UiSystem, UiWidgetInfo, renderer::egui_texture, widgets::list_index};
+use super::{UiFontScale, UiNineSlice, UiSystem, UiWidgetInfo, renderer::egui_texture, widgets::list_index};
 use crate::render::texture::TextureHandle;
 
 // ----------------------------------------------
@@ -1010,12 +1010,12 @@ pub fn item_tooltip_text(ui_sys: &UiSystem, tooltip_text: impl UiTextArg) {
     tooltip_text.with_str(|tooltip_text| item_tooltip(ui_sys, |ui_sys| text(ui_sys, tooltip_text)));
 }
 
-// A tooltip for the widget drawn last, with its own font scale, an optional background image and
-// an opacity (1 is opaque).
+// A tooltip for the widget drawn last, with its own font scale, a background and an opacity (1 is
+// opaque).
 pub fn custom_tooltip(
     ui_sys: &UiSystem,
     font_scale: UiFontScale,
-    background: Option<TextureHandle>,
+    background: UiTooltipBackground,
     placement: UiTooltipPlacement,
     opacity: f32,
     contents: impl FnOnce(&UiSystem),
@@ -1027,11 +1027,13 @@ pub fn custom_tooltip(
     show_styled_tooltip(ui_sys, placed_tooltip(&response, placement), font_scale, background, opacity, contents);
 }
 
-// What a pointer_tooltip draws behind its contents.
-#[derive(Copy, Clone, PartialEq, Eq)]
+// What a tooltip draws behind its contents.
+#[derive(Copy, Clone, Default, PartialEq)]
 pub enum UiTooltipBackground {
+    #[default]
     Style,                  // The UI style's popup frame.
     Sprite(TextureHandle),  // A sprite stretched behind the contents.
+    Panel(UiNineSlice),     // A 9-slice panel behind the contents.
     None,                   // Nothing: the contents alone.
 }
 
@@ -1045,16 +1047,8 @@ pub fn pointer_tooltip(
     contents: impl FnOnce(&UiSystem),
 ) {
     let (layer_id, widget_id) = ui_sys.with_ui(|ui| (ui.layer_id(), ui.scope_id().with("pointer_tooltip")));
-    let mut tooltip = egui::Tooltip::always_open(ui_sys.ctx().clone(), layer_id, widget_id, egui::PopupAnchor::Pointer).gap(12.0);
-    let sprite = match background {
-        UiTooltipBackground::Style => None,
-        UiTooltipBackground::Sprite(texture) => Some(texture),
-        UiTooltipBackground::None => {
-            tooltip.popup = tooltip.popup.frame(transparent_popup_frame(ui_sys));
-            None
-        }
-    };
-    show_styled_tooltip(ui_sys, tooltip, font_scale, sprite, opacity, contents);
+    let tooltip = egui::Tooltip::always_open(ui_sys.ctx().clone(), layer_id, widget_id, egui::PopupAnchor::Pointer).gap(12.0);
+    show_styled_tooltip(ui_sys, tooltip, font_scale, background, opacity, contents);
 }
 
 // The popup frame with no fill, outline or shadow: the same margins.
@@ -1066,31 +1060,37 @@ fn show_styled_tooltip(
     ui_sys: &UiSystem,
     tooltip: egui::Tooltip<'_>,
     font_scale: UiFontScale,
-    background: Option<TextureHandle>,
+    background: UiTooltipBackground,
     opacity: f32,
     contents: impl FnOnce(&UiSystem),
 ) {
     let previous_scale = ui_sys.current_window_front_scale();
     ui_sys.set_tooltip_font_scale(font_scale);
 
-    // A background sprite replaces the popup's own fill, outline and shadow; the margins stay.
+    // Anything but the style's frame replaces the popup's own fill, outline and shadow; the
+    // margins stay.
     let mut tooltip = tooltip;
-    if background.is_some() {
+    if background != UiTooltipBackground::Style {
         tooltip.popup = tooltip.popup.frame(transparent_popup_frame(ui_sys));
     }
 
     tooltip.show(|ui| {
         ui.set_opacity(opacity.clamp(0.0, 1.0));
 
-        // The background goes in a slot under the contents, filled once their size is known.
-        let background_slot = background.map(|_| ui.painter().add(egui::Shape::Noop));
+        // A sprite or panel goes in a slot under the contents, filled once their size is known.
+        let has_image = matches!(background, UiTooltipBackground::Sprite(_) | UiTooltipBackground::Panel(_));
+        let background_slot = has_image.then(|| ui.painter().add(egui::Shape::Noop));
         ui_sys.ui_scope(ui, contents);
 
-        if let (Some(slot), Some(texture)) = (background_slot, background) {
+        if let Some(slot) = background_slot {
             let rect = ui.min_rect().expand2(ui.spacing().window_margin.left_top()); // Its frame's.
             let tint = Color32::WHITE.gamma_multiply(opacity.clamp(0.0, 1.0));
-            let image = egui::Shape::image(egui_texture(texture), rect, uv_full(), tint);
-            ui.painter().set(slot, image);
+            let shape = match background {
+                UiTooltipBackground::Sprite(texture) => egui::Shape::image(egui_texture(texture), rect, uv_full(), tint),
+                UiTooltipBackground::Panel(slice) => nine_slice_shape(rect, &slice, tint),
+                UiTooltipBackground::Style | UiTooltipBackground::None => egui::Shape::Noop,
+            };
+            ui.painter().set(slot, shape);
         }
     });
 
@@ -1100,6 +1100,23 @@ fn show_styled_tooltip(
 #[inline]
 pub(super) fn uv_full() -> egui::Rect {
     egui::Rect::from_min_max(Pos2::ZERO, pos2(1.0, 1.0))
+}
+
+// A 9-slice panel over `rect` as one mesh, multiplied by `tint`: UiPainter::nine_slice and the
+// retained widgets' panels.
+pub(super) fn nine_slice_shape(rect: egui::Rect, slice: &UiNineSlice, tint: Color32) -> egui::Shape {
+    let quads = slice.quads(to_rect(rect));
+    if quads.is_empty() {
+        return egui::Shape::Noop;
+    }
+
+    let mut mesh = egui::Mesh::with_texture(egui_texture(slice.texture));
+    mesh.reserve_vertices(quads.len() * 4);
+    mesh.reserve_triangles(quads.len() * 2);
+    for quad in &quads {
+        mesh.add_rect_with_uv(egui_rect(quad.rect), egui_rect(quad.uv), tint);
+    }
+    egui::Shape::mesh(mesh)
 }
 
 // ----------------------------------------------
@@ -2100,6 +2117,12 @@ impl UiPainter {
     // The whole of `texture` stretched over `rect`, multiplied by `tint`.
     pub fn image(&self, texture: TextureHandle, rect: Rect, tint: Color) {
         self.painter.image(egui_texture(texture), egui_rect(rect), uv_full(), color32(tint));
+    }
+
+    // A 9-slice panel over `rect`, multiplied by `tint`, as one mesh: its corners keep their size and
+    // its middle stretches or repeats (UiNineSlice).
+    pub fn nine_slice(&self, rect: Rect, slice: &UiNineSlice, tint: Color) {
+        self.painter.add(nine_slice_shape(egui_rect(rect), slice, color32(tint)));
     }
 
     // `texture` mapped onto a quad, e.g. a rotated one. `uvs` go with `corners`, (0, 0) being the

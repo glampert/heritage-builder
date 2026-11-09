@@ -1,6 +1,6 @@
 # Realm UI: menus, screens and HUD in each realm's style
 
-**Status (2026-11-09): Phase 0 in progress; the `widgets.rs` split, the realm and player profile, localized strings and the sound hooks are done.** The user reviewed it on 2026-11-07: their notes are folded in (see [Review notes](#review-notes)), the open decisions' defaults are accepted, and every mockup the phases need now exists. This plan builds and restyles every retail screen after the [UI mockups](../design/mockups/README.md): the main menus, the world map, the intermission, the story comics, the HUD and the city management pages. Each screen gets one look per realm: Đại Long, Kambara and Tampadesa. It is milestone **UI** of the [roadmap](roadmap.md). It was researched against `ccca1df` on `claude`. File and line references point at that commit, so re-check them before relying on them.
+**Status (2026-11-09): Phase 0 in progress; the `widgets.rs` split, the realm and player profile, localized strings, the sound hooks and the engine's themes, 9-slice panels and menu inner rect are done.** The user reviewed it on 2026-11-07: their notes are folded in (see [Review notes](#review-notes)), the open decisions' defaults are accepted, and every mockup the phases need now exists. This plan builds and restyles every retail screen after the [UI mockups](../design/mockups/README.md): the main menus, the world map, the intermission, the story comics, the HUD and the city management pages. Each screen gets one look per realm: Đại Long, Kambara and Tampadesa. It is milestone **UI** of the [roadmap](roadmap.md). It was researched against `ccca1df` on `claude`. File and line references point at that commit, so re-check them before relying on them.
 
 ![Home menu, Đại Long](../design/mockups/menu-home-dailong.jpg)
 
@@ -368,7 +368,7 @@ Phases 1 to 6 follow the order the user set. [Dependencies](#dependencies-on-oth
 The existing dialogs keep their layouts but take their panels from the Đại Long skin.
 
 - [x] `Realm`, `Profile` (`saves/user/profile.json`, `--fresh-profile`), `realm::ui_realm()`, a `realm` field in `campaigns.json`; `profile.*` and `ui.realm` commands; tests.
-- [ ] Engine: data-driven themes (`UiThemeId`), `UiNineSlice` and `UiPainter::nine_slice`, menus laying out in their own inner rect (no `i8` insets).
+- [x] Engine: data-driven themes (`UiThemeId`), `UiNineSlice` and `UiPainter::nine_slice`, menus laying out in their own inner rect (no `i8` insets).
 - [ ] Skins: `assets/configs/ui/skins/{dailong,kambara,tampadesa}.json`; `menu/skin.rs`; the skin version counter and `dialog::rebuild_all()`; `ui.reload_skin`. `styles/game.json` folds into Đại Long's skin. The skin's `sounds` block, applied with `ui::sound::set_mapping` on each skin switch; `assets/configs/ui/sounds.json` folds into Đại Long's skin.
 - [ ] Fonts: add Spectral SC and Alegreya (and their OFL files); realm text styles with fallbacks; the Vietnamese glyph test.
 - [x] Split `engine/src/ui/widgets.rs` into `engine/src/ui/widgets/`, one widget family per file, with no change in behaviour, in a commit of its own.
@@ -415,6 +415,15 @@ The existing dialogs keep their layouts but take their panels from the Đại Lo
 - Deviations: the default mapping is a config file until skins exist. Cooldowns run on frame time, not wall-clock time, so scripts are repeatable. Debt warnings play `alert`, not `notification`. A dropdown's pick plays `item_selected` instead of `dropdown_closed`. Two roles mapped to one file starting in the same frame play it once, so a press and the dialog it opens still click once. Escape's simulated button press became `dialog_closed`.
 - Seen, not changed: Escape in a two-deep stack closes both dialogs (the dialog framework step's Escape owner); the shared per-role cooldown drops a second press within 0.2 s, as before.
 - Verified: build, `cargo test --workspace`, web check; CI scenarios and `ui_sounds` (twice, same output); `ui_build` record and replay. Not run: real audio (no device here), web in a browser.
+
+**Notes (2026-11-09, engine themes, 9-slice and inner rect; commit TODO):**
+- Themes: `UiSystem::load_styles(&[UiStyleSource], ppp)` takes named styles (a file under `assets/configs/`, or a JSON value or string), `dev` first; `theme_id(name)` gives a `UiThemeId` (None if unknown), `set_ui_theme(id)` switches. Unknown fields stay errors from JSON values; `UiStyleSource::validate` checks one without its fonts. The game's list is `menu::ui_style_sources()` (`dev`, `game`), the retail theme `menu::retail_ui_theme` (a `TODO(realm-ui)` for the skins). `ui.reload_styles` re-reads files and keeps JSON.
+- `TextureCache::texture_size`, shared by both renderers and web.
+- `ui/nine_slice.rs`: the geometry, pure and unit-tested; `UiPainter::nine_slice` and the widgets draw it as one mesh. `UiWidgetContext::load_nine_slice`; `UiMenu::with_panel`, `UiMessageBox::with_panel`, `UiTooltipText::with_panel` (`UiTooltipBackground::Panel`), `UiTextButton::with_frame(UiTextButtonFrame)`.
+- Menus lay out in their inner rect: insets in whole points, no clamp; `menu_content` is that rect.
+- Deviations: `UiNineSlice` also holds the texture's size. `Tile` repeats the edges along their length too, each repeat half a texel in so seams don't bleed. Borders that don't fit shrink by one factor for both axes, keeping corners square. `UiTextButtonFrame::uniform` (one panel, tints per state) since no plain four-state frame art exists yet. Item list rows are left to `UiListRow`.
+- Sample: `Sample Menu 3` (panel, framed buttons, panel tooltip and popup, painter stretch, tile and shrink); `ui_dev_menus.jsonl` visits it.
+- Verified: build, `cargo test --workspace`, web check; `ui_new_game`, `ui_build`, `ui_dev_menus`, `minimap`, `ui_sounds`, `strings`, `finance` at 1440 × 800; `ui_snapshot` at 1440 × 800 and 1920 × 1080: identical listings apart from Sample Menu 3, and `ui.layout_issues` 0 on every retail screen. At 1440 × 800 the retail screenshots match; at 1080p dialog contents sit 7 points lower (the clamp's end). The sample screenshotted on OpenGL and on Wgpu (lavapipe).
 
 ### Phase 1: Main menus
 

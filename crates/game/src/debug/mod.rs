@@ -9,7 +9,7 @@ use common::{
 };
 use engine::{
     Engine,
-    ui::{self, UiTheme},
+    ui::{self, UiThemeId},
 };
 use inspector::TileInspectorDevMenu;
 use log_viewer::LogViewer;
@@ -65,7 +65,7 @@ pub struct DevEditorMenus;
 
 impl DevEditorMenus {
     pub fn new(context: &mut GameUiContext, tile_map_rc: RcMut<TileMap>) -> Self {
-        context.ui_sys.set_ui_theme(UiTheme::Dev);
+        context.ui_sys.set_ui_theme(UiThemeId::DEV);
         init_dev_editor_menus_singleton_once(context);
         register_tile_map_debug_callbacks(tile_map_rc); // Register TileMap global callbacks & debug ref.
         Self
@@ -206,7 +206,8 @@ impl DevEditorMenusSingleton {
         }
 
         if show_sample_menus {
-            ui::tests::draw_sample_menus(context);
+            let theme = crate::menu::retail_ui_theme(context.ui_sys);
+            ui::tests::draw_sample_menus(context, theme);
         }
 
         if show_cursor_pos {

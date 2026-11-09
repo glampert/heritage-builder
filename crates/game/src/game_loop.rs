@@ -28,7 +28,7 @@ use crate::{
     launch,
     profile,
     undo_redo,
-    menu::GameMenusMode,
+    menu::{self, GameMenusMode},
     config::GameConfigs,
     unit::config::UnitConfigs,
     building::{self, config::BuildingConfigs},
@@ -430,7 +430,7 @@ impl GameLoop {
 
         // Before any menu is built: widgets read the style and measure text when they're created.
         let pixels_per_point = engine.app().content_scale().x;
-        if let Err(err) = engine.ui_system_mut().load_styles(&ui::UI_STYLE_PATHS, pixels_per_point) {
+        if let Err(err) = engine.ui_system_mut().load_styles(&menu::ui_style_sources(), pixels_per_point) {
             panic!("Can't load the UI styles: {err}"); // No text can be drawn without their fonts.
         }
 

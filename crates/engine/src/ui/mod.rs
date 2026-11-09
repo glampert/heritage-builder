@@ -3,7 +3,10 @@
 //   for the developer UI and DrawDebugUi.
 // - widgets/: retained widgets for the game's menus and HUD (UiMenu, UiTextButton, ...), a file per
 //   widget family.
-// - style.rs: styles and fonts, from JSON files under assets/configs/ui/styles/.
+// - style.rs: styles and fonts, from JSON (files under assets/configs/ui/styles/, or JSON handed
+//   over, e.g. a skin's), one per theme, looked up by name (UiThemeId).
+// - nine_slice.rs: 9-slice panels (UiNineSlice), the geometry; UiPainter::nine_slice and the
+//   widgets that take a panel draw them.
 // - backend.rs and renderer.rs: egui's frame, the engine's input, and what egui draws, handed to
 //   the RenderSystem as UiDrawData.
 // - registry.rs: the widget registry for UI automation (ui.tree, ui.click, ui.set).
@@ -28,7 +31,7 @@ use crate::{
         Application,
         input::{InputAction, InputKey, InputModifiers, InputSystem, MouseButton},
     },
-    file_sys::paths::{self, AssetPath, PathRef},
+    file_sys::paths::{self, AssetPath},
     log,
     platform,
     render::{
@@ -45,6 +48,8 @@ pub mod text;
 pub mod widgets;
 
 pub use debug_ui::DrawDebugUi;
+pub use nine_slice::{UiNineSlice, UiNineSliceCenter, UiNineSliceQuad, UiNineSliceQuads};
+pub use style::{DEV_UI_THEME, UiStyleSource, UiThemeId};
 pub use text::UiString;
 
 pub use immediate::*;
@@ -53,6 +58,7 @@ pub use immediate::*;
 mod backend;
 mod immediate;
 mod internal;
+mod nine_slice;
 mod registry;
 mod renderer;
 mod style;
@@ -87,53 +93,14 @@ impl UiInputEvent {
 }
 
 // ----------------------------------------------
-// UiTheme
-// ----------------------------------------------
-
-#[repr(u32)]
-#[derive(Copy, Clone, PartialEq, Eq, Debug, Default)]
-pub enum UiTheme {
-    #[default]
-    Dev,
-    InGame,
-}
-
-impl UiTheme {
-    pub const COUNT: usize = 2;
-
-    #[inline]
-    pub fn is_dev(self) -> bool {
-        self == Self::Dev
-    }
-
-    #[inline]
-    pub fn is_in_game(self) -> bool {
-        self == Self::InGame
-    }
-
-    // Prefixes the names of the style's fonts and font families.
-    #[inline]
-    fn style_name(self) -> &'static str {
-        match self {
-            Self::Dev => "dev",
-            Self::InGame => "game",
-        }
-    }
-}
-
-// Where the game's styles are, relative to assets/configs/.
-pub const UI_STYLE_PATHS: [(UiTheme, &str); UiTheme::COUNT] =
-    [(UiTheme::Dev, "ui/styles/dev.json"), (UiTheme::InGame, "ui/styles/game.json")];
-
-// ----------------------------------------------
 // UiSystem
 // ----------------------------------------------
 
 pub struct UiSystem {
     backend: UiBackend,
     styles: Option<UiStyles>,
-    style_paths: [(UiTheme, String); UiTheme::COUNT],
-    theme: Cell<UiTheme>,
+    style_sources: Vec<UiStyleSource>, // What load_styles loaded, for reload_styles.
+    theme: Cell<UiThemeId>,
     modal_backdrop: Cell<Option<Color32>>, // Replaces the style's, from set_modal_backdrop_color.
     font_scale: Cell<Option<UiFontScale>>,   // For the text drawn next, until reset.
     item_width: Cell<Option<f32>>,           // For the slider, input or dropdown drawn next, from its group.
@@ -164,8 +131,8 @@ impl UiSystem {
         Self {
             backend: UiBackend::new(),
             styles: None,
-            style_paths: UI_STYLE_PATHS.map(|(theme, path)| (theme, path.to_string())),
-            theme: Cell::new(UiTheme::Dev),
+            style_sources: Vec::new(),
+            theme: Cell::new(UiThemeId::DEV),
             modal_backdrop: Cell::new(None),
             font_scale: Cell::new(None),
             item_width: Cell::new(None),
@@ -186,33 +153,44 @@ impl UiSystem {
     // Styles:
     // ----------------------
 
-    // Loads a style per theme, with its fonts, from files under assets/configs/. Call before
-    // drawing anything, and before creating widgets, which read the style and measure text.
-    // `pixels_per_point`: the window's content scale, which fonts are rasterized for.
-    pub fn load_styles(&mut self, paths: &[(UiTheme, &str); UiTheme::COUNT], pixels_per_point: f32) -> Result<(), String> {
-        let path_refs = paths.map(|(theme, path)| (theme, PathRef::from_str(path)));
-        let styles = UiStyles::load(&path_refs)?;
+    // Loads a style per theme, with its fonts, replacing those loaded before: the developer UI's
+    // first ("dev"), then any others, each with a name of its own (UiStyleSource). A theme is
+    // looked up by its style's name (theme_id). Call before drawing anything, and before creating
+    // widgets, which read the style and measure text. Load every style at boot: new fonts reach
+    // egui only at its next pass. `pixels_per_point`: the window's content scale, which fonts are
+    // rasterized for. On error, keeps the styles it had.
+    pub fn load_styles(&mut self, sources: &[UiStyleSource], pixels_per_point: f32) -> Result<(), String> {
+        let styles = UiStyles::load(sources)?;
+
+        // The current theme by name, if the new styles have it.
+        let current_name = self.styles.as_ref().and_then(|styles| styles.name(self.theme.get())).map(str::to_string);
+        let theme = current_name.and_then(|name| styles.find(&name)).unwrap_or(UiThemeId::DEV);
 
         self.backend.ctx().set_fonts(styles.fonts.clone());
         self.styles = Some(styles);
-        self.style_paths = paths.map(|(theme, path)| (theme, path.to_string()));
+        self.style_sources = sources.to_vec();
+        self.theme.set(theme);
         self.apply_theme_style();
 
         if !self.frame_started() {
             self.backend.warm_up(pixels_per_point); // Sets up the fonts for measuring text.
         }
 
-        log::info!(log::channel!("ui"), "Loaded UI styles: {}.", paths.map(|(_, path)| path).join(", "));
+        let names: Vec<&str> = sources.iter().map(UiStyleSource::name).collect();
+        log::info!(log::channel!("ui"), "Loaded UI styles: {}.", names.join(", "));
         Ok(())
     }
 
-    // Loads the style files again, e.g. after editing them (ui.reload_styles). Keeps the current
-    // styles if one fails to load. Takes effect from the next frame.
+    // Loads the styles again, e.g. after editing a style file (ui.reload_styles): files are read
+    // again, JSON given as such is kept. Keeps the current styles if one fails to load. Takes
+    // effect from the next frame.
     pub fn reload_styles(&mut self) -> Result<(), String> {
-        let paths = self.style_paths.clone();
-        let paths = [(paths[0].0, paths[0].1.as_str()), (paths[1].0, paths[1].1.as_str())];
+        let sources = self.style_sources.clone();
+        if sources.is_empty() {
+            return Err("No UI styles have been loaded.".into());
+        }
         let pixels_per_point = self.ctx().pixels_per_point();
-        self.load_styles(&paths, pixels_per_point)
+        self.load_styles(&sources, pixels_per_point)
     }
 
     // The current theme's style.
@@ -289,7 +267,7 @@ impl UiSystem {
 
         let previous_style = ctx.global_style();
         if let Some(styles) = &self.styles {
-            ctx.set_global_style(styles.style(UiTheme::Dev).egui.clone());
+            ctx.set_global_style(styles.style(UiThemeId::DEV).egui.clone());
         }
 
         egui::Window::new("UI Debug").open(&mut open).default_size([420.0, 520.0]).vscroll(true).show(&ctx, |ui| {
@@ -447,17 +425,41 @@ impl UiSystem {
     // Ui Theme:
     // ----------------------
 
-    pub fn set_ui_theme(&self, theme: UiTheme) {
-        if self.theme.replace(theme) != theme {
-            log::info!(log::channel!("ui"), "Setting UI theme to {theme:?}.");
-            self.font_scale.set(None);
-            self.apply_theme_style();
+    // Switches to a theme loaded by load_styles. An id that isn't loaded is ignored.
+    pub fn set_ui_theme(&self, theme: UiThemeId) {
+        if self.theme.get() == theme {
+            return;
         }
+
+        let Some(name) = self.theme_name(theme) else {
+            log::error!(log::channel!("ui"), "No UI theme {theme:?}: keeping the current one.");
+            return;
+        };
+
+        log::info!(log::channel!("ui"), "Setting UI theme to '{name}'.");
+        self.theme.set(theme);
+        self.font_scale.set(None);
+        self.apply_theme_style();
     }
 
     #[inline]
-    pub fn current_ui_theme(&self) -> UiTheme {
+    pub fn current_ui_theme(&self) -> UiThemeId {
         self.theme.get()
+    }
+
+    // The theme of the style loaded under `name`, if any.
+    pub fn theme_id(&self, name: &str) -> Option<UiThemeId> {
+        self.styles.as_ref()?.find(name)
+    }
+
+    // The name of a loaded theme's style.
+    pub fn theme_name(&self, theme: UiThemeId) -> Option<&str> {
+        self.styles.as_ref()?.name(theme)
+    }
+
+    // The names of the loaded themes, in their order.
+    pub fn theme_names(&self) -> Vec<&str> {
+        self.styles.as_ref().map(|styles| styles.names().collect()).unwrap_or_default()
     }
 
     // The color modal dialogs dim the screen behind them with.

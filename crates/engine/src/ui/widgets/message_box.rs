@@ -2,10 +2,10 @@ use std::any::Any;
 
 use common::Vec2;
 
-use super::{UiMenu, UiMenuFlags, UiMenuInsets, UiMenuRcMut, UiWidget, UiWidgetContext, UiWidgetGroup, UiWidgetImpl};
+use super::{UiMenu, UiMenuBackground, UiMenuFlags, UiMenuInsets, UiMenuRcMut, UiWidget, UiWidgetContext, UiWidgetGroup, UiWidgetImpl};
 use crate::{
     file_sys::paths::PathRef,
-    ui::{UiFontScale, sound::{UiSoundEvent, UiSoundKey}},
+    ui::{UiFontScale, UiNineSlice, sound::{UiSoundEvent, UiSoundKey}},
 };
 
 // ----------------------------------------------
@@ -69,7 +69,16 @@ impl UiMessageBox {
 
     // A sprite stretched over the popup, in place of the style's frame.
     pub fn with_background<'a>(mut self, context: &mut dyn UiWidgetContext, sprite: impl Into<PathRef<'a>>) -> Self {
-        self.menu_mut().background = Some(context.load_texture(sprite.into()));
+        self.menu_mut().background = Some(UiMenuBackground::Sprite(context.load_texture(sprite.into())));
+        self
+    }
+
+    // A 9-slice panel over the popup, in place of the style's frame, with the contents inside
+    // `content_insets`.
+    pub fn with_panel(mut self, panel: UiNineSlice, content_insets: UiMenuInsets) -> Self {
+        let menu = self.menu_mut();
+        menu.background = Some(UiMenuBackground::Panel(panel));
+        menu.content_insets = Some(content_insets);
         self
     }
 
