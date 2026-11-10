@@ -15,6 +15,7 @@ use strum::{Display, EnumCount, EnumIter, EnumString};
 use common::{
     coords::Cell,
     hash,
+    mem::SingleThreadStatic,
     time::{Seconds, UpdateTimer},
 };
 use engine::log;
@@ -308,18 +309,16 @@ pub fn risk_reset_by(unit: &Unit, context: &SimContext) -> Option<RiskKind> {
 // Fires, fires put out, buildings burnt down and collapses since the GameLoop last took them;
 // it shows each as a toast (GameLoop::notify_risks). The simulation has no Engine, hence the
 // queue, as for construction and finance notices.
-thread_local! {
-    static NOTICES: std::cell::RefCell<Vec<String>> = const { std::cell::RefCell::new(Vec::new()) };
-}
+static NOTICES: SingleThreadStatic<Vec<String>> = SingleThreadStatic::new(Vec::new());
 
 // Logs `message` on the risks channel and queues it as a toast.
 pub(crate) fn notify(message: String) {
     log::info!(log::channel!("risks"), "{message}");
-    NOTICES.with_borrow_mut(|notices| notices.push(message));
+    NOTICES.as_mut().push(message);
 }
 
 pub fn take_notices() -> Vec<String> {
-    NOTICES.with_borrow_mut(std::mem::take)
+    std::mem::take(NOTICES.as_mut())
 }
 
 // A factor in [1 - spread, 1 + spread] from the building's cell and kind: the same building in

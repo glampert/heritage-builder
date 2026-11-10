@@ -226,6 +226,11 @@ pub struct Finance {
 
     this_year: YearAccounts,
     last_year: YearAccounts,
+
+    // Debt notices since the GameLoop last took them (take_notices); it shows each as a toast
+    // (GameLoop::notify_finances). Runtime only: a load starts with none.
+    #[serde(skip)]
+    notices: Vec<String>,
 }
 
 impl Finance {
@@ -239,14 +244,21 @@ impl Finance {
             carries: [0; LEDGER_CATEGORY_COUNT],
             this_year: YearAccounts::new(balance),
             last_year: YearAccounts::new(balance),
+            notices: Vec::new(),
         }
+    }
+
+    pub fn take_notices(&mut self) -> Vec<String> {
+        std::mem::take(&mut self.notices)
     }
 
     // A campaign mission's start: a new treasury with fresh accounts and no debt, from the
     // mission's settings over the configs' defaults. Without a starting gold, the balance stays.
     pub fn start_mission(&mut self, mission: &MissionFinanceDef, configs: &FinanceConfigs) {
         let starting_gold = mission.starting_gold.map_or(self.balance, i64::from);
+        let notices = std::mem::take(&mut self.notices);
         *self = Self::new(0, configs);
+        self.notices = notices;
         self.balance = starting_gold;
         self.this_year = YearAccounts::new(starting_gold);
         self.last_year = YearAccounts::new(starting_gold);
@@ -473,7 +485,7 @@ impl Finance {
 
         if let Some(message) = notice {
             log::info!(log::channel!("finance"), "{message}");
-            notify(message);
+            self.notices.push(message);
         }
     }
 }
@@ -496,21 +508,6 @@ pub fn yearly_upkeep(world: &World, tile_map: &TileMap) -> u64 {
 // ----------------------------------------------
 // Notices
 // ----------------------------------------------
-
-// Debt notices since the GameLoop last took them; it shows each as a toast
-// (GameLoop::notify_finances). The simulation step that raises them has no Engine, hence the
-// queue, as for construction notices.
-thread_local! {
-    static NOTICES: std::cell::RefCell<Vec<String>> = const { std::cell::RefCell::new(Vec::new()) };
-}
-
-fn notify(message: String) {
-    NOTICES.with_borrow_mut(|notices| notices.push(message));
-}
-
-pub fn take_notices() -> Vec<String> {
-    NOTICES.with_borrow_mut(std::mem::take)
-}
 
 // ----------------------------------------------
 // Unit tests
@@ -610,7 +607,7 @@ mod tests {
         let mut finance = finance();
         finance.set_wage(12);
         finance.set_balance_unrecorded(5);
-        let _ = take_notices();
+        let _ = finance.take_notices();
 
         // 10 workers at 12 a year cost 10 a month.
         finance.on_month_end(10, 0, &configs);
@@ -628,7 +625,7 @@ mod tests {
         assert_eq!(finance.months_in_debt(), 0);
         assert!(!finance.is_debt_overdue(&configs));
 
-        assert_eq!(take_notices(), vec![
+        assert_eq!(finance.take_notices(), vec![
             "The treasury is in debt: -5 gold.".to_string(),
             "2 months in debt: 2 months left before the debt is overdue.".to_string(),
             "3 months in debt: 1 month left before the debt is overdue.".to_string(),

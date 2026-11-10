@@ -522,9 +522,9 @@ impl GameLoop {
         ui::sound::play(self.engine.sound_system_mut(), ui::sound::UiSoundKey::ConstructionCompleted);
     }
 
-    // A toast for each debt notice the simulation raised last frame (sim::finance).
+    // A toast for each debt notice the simulation raised last frame (sim::finance::Finance).
     fn notify_finances(&mut self) {
-        for message in sim::finance::take_notices() {
+        for message in self.session.sim_mut().finance_mut().take_notices() {
             self.engine.ui_system().show_toast(message);
         }
     }

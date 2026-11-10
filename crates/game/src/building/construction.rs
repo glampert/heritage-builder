@@ -7,7 +7,7 @@ use arrayvec::ArrayVec;
 use serde::{Deserialize, Deserializer, Serialize, de};
 use strum::{Display, EnumString};
 
-use common::time::Seconds;
+use common::{mem::SingleThreadStatic, time::Seconds};
 
 use crate::{
     cheats,
@@ -268,16 +268,14 @@ impl ConstructionSite {
 // Buildings the player had built that completed since the GameLoop last took them; it shows a
 // toast and plays a sound for each (GameLoop::notify_constructions_completed). The simulation
 // update that completes a site has no Engine, hence the queue. Settlers' houses aren't listed.
-thread_local! {
-    static COMPLETED: std::cell::RefCell<Vec<String>> = const { std::cell::RefCell::new(Vec::new()) };
-}
+static COMPLETED: SingleThreadStatic<Vec<String>> = SingleThreadStatic::new(Vec::new());
 
 pub(crate) fn notify_completed(building_name: &str) {
-    COMPLETED.with_borrow_mut(|completed| completed.push(building_name.to_string()));
+    COMPLETED.as_mut().push(building_name.to_string());
 }
 
 pub fn take_completed() -> Vec<String> {
-    COMPLETED.with_borrow_mut(std::mem::take)
+    std::mem::take(COMPLETED.as_mut())
 }
 
 // ----------------------------------------------
