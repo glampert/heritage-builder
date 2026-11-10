@@ -474,7 +474,7 @@ The existing dialogs keep their layouts but take their panels from the Đại Lo
 - Deviations: headings record `visible`; `ui.layout_issues` ignores widgets cut by the top or bottom of a menu whose contents scroll (`menu_content` value `scrolls`).
 - Verified: build, `cargo test --workspace`, web check, `make_ui_art.py --check`; the CI scenarios at 1440 × 800 and default size; determinism twice; `ui_build` record and replay; `ui_snapshot` in all realms at 1440 × 800 and 1280 × 720 (layout issues 0; listings changed only by the new checkbox and Sample Menu 1's `scrolls`); Quit popup, Settings, toasts, tooltips and the gallery screenshotted in each realm and compared with the mockups.
 
-**Notes (2026-11-10, sample menus retired) (commit TODO):**
+**Notes (2026-11-10, sample menus retired) (commit `159f368`):**
 - Deleted `engine/src/ui/tests.rs` (Sample Menus 1–5), their two Debug checkboxes, and `minimap/frame_tooltip_tampadesa.png`, the only art they alone used (dropped from `ui-icons`' catalog).
 - The Skin Gallery gained what only they showed: icon and locked list rows, set button widths, image fits, `UiColumns`, 9-slice centres. `ui_skins.jsonl` drives step selectors, tab bars, list rows, menu items, icon buttons and reads the data widgets.
 - Widget API kept on purpose for Phase 1, though nothing calls it now: `UiTextInput`, `UiImage::new`, `UiTextButtonFrame::uniform`, `UiItemList::with_items`, the `with_margins` builders, and `with_fill_width`, `with_state_texts`, `with_icon_tint`, `with_show_tooltip_when_pressed`.
