@@ -142,6 +142,8 @@ def expand(raw):
             merged = {k: v for k, v in entry.items() if k != "realms"}
             for k, v in over.items():
                 if k == "args" and isinstance(v, dict):
+                    if not isinstance(merged.get("args", {}), dict):
+                        raise CatalogError(f"{realm}/{sid}: args must be an object")
                     merged["args"] = {**merged.get("args", {}), **v}
                 else:
                     merged[k] = v
@@ -243,9 +245,13 @@ def _record(e, realm, scale, pad, filters, where):
         if not isinstance(st, dict) or set(st) - STATE_KEYS:
             raise CatalogError(f"{where}: state {name!r} takes only {sorted(STATE_KEYS)}")
         css = st.get("css", filters.get(name, "") if name else "")
+        if not isinstance(css, str):
+            raise CatalogError(f"{where}: state {name!r}: css must be a CSS filter string")
         st_call = st.get("call", call)
         if st_call not in KNOWN_CALLS:
             raise CatalogError(f"{where}: state {name!r}: unknown call {st_call!r}")
+        if not isinstance(st.get("args", {}), dict):
+            raise CatalogError(f"{where}: state {name!r}: args must be an object")
         st_args = {**args, **st.get("args", {})}
         try:
             out = pattern.format(realm=realm, id=e["id"], state=name or "")
@@ -305,19 +311,37 @@ RENDER, UNCHANGED, SKIP_UNLISTED, SKIP_CHANGED = "render", "unchanged", "skip_un
 DELETE, KEEP_CHANGED, GONE = "delete", "keep_changed", "gone"
 
 
-def render_decision(exists, known, current_hash, source_hash, force):
+def render_decision(exists, known, current_hash, source_hash, force, entry_hash=None):
     """Whether to render one output. exists: the file is on disk; known: its manifest entry
     (None when the manifest doesn't list it); current_hash: the file's hash (when it exists);
-    source_hash: the hash of what would be drawn now."""
+    source_hash: the hash of what would be drawn now; entry_hash: its catalog_hash() now. An
+    entry the manifest records no catalog hash for counts as unchanged if its source is."""
     if not exists or force:
         return RENDER
     if known is None:
         return SKIP_UNLISTED
     if current_hash != known.get("png_hash"):
         return SKIP_CHANGED
-    if known.get("source_hash") == source_hash:
+    catalog_same = entry_hash is None or known.get("catalog_hash") in (None, entry_hash)
+    if known.get("source_hash") == source_hash and catalog_same:
         return UNCHANGED
     return RENDER
+
+
+# What of a record and state its catalog_hash covers: everything the catalog says about drawing
+# and shooting it (the SVG's source hash doesn't cover the state's CSS filter, the crop or the
+# scale). Changes to the generator itself only show in the source hash, which takes a render.
+CATALOG_HASH_KEYS = ("realm", "call", "args", "size", "bleed", "rotate", "png_size", "scale", "pad",
+                     "slice", "center", "elements", "capture", "omit", "attrs")
+STATE_HASH_KEYS = ("state", "css", "call", "args", "out")
+
+
+def catalog_hash(rec, st):
+    """A hash of what the catalog says about one output, which the manifest records when it's
+    rendered, so --check can tell a sprite whose catalog entry changed since."""
+    data = {k: rec[k] for k in CATALOG_HASH_KEYS}
+    data["state"] = {k: st[k] for k in STATE_HASH_KEYS}
+    return hashlib.sha256(json.dumps(data, sort_keys=True).encode()).hexdigest()[:16]
 
 
 def prune_decision(exists, known, current_hash, force):
@@ -396,6 +420,11 @@ def check(root, records, manifest):
                           "art.json and manifest.json to keep it as hand-made art")
         if m.get("png_size") != size:
             errors.append(f"{where}: manifest.json records {m.get('png_size')}, the file is {size}")
+        if m.get("catalog_hash") != catalog_hash(rec, st):
+            errors.append(f"{where}: its art.json entry changed since make_ui_art.py rendered it; run make_ui_art.py")
+        if m.get("spill"):
+            sides = ", ".join(f"{n} {v:g}" for n, v in zip(("left", "top", "right", "bottom"), m["spill"]) if v > 0)
+            errors.append(f"{where}: the drawing reaches past the sprite ({sides} pt); raise its bleed and render it again")
     for path in sprites:
         if path not in expected:
             errors.append(f"{path}: in manifest.json but not in the catalog; run make_ui_art.py --prune")
@@ -440,8 +469,9 @@ def check_skins(root, records):
     anything else replaced), so a slice or center it doesn't repeat comes from Đại Long's.
 
     A skin object that holds "sprite" is a panel, button or separator: with "slice" a 9-slice,
-    without one a stretched sprite, which a catalog 9-slice may not be. Other strings that hold a
-    "/" are sprite paths, outside the style, text and sounds blocks."""
+    without one a stretched sprite, which a catalog 9-slice may not be. A framed button's
+    "selected" frame is a 9-slice cut by its "selected_slice", else its "slice". Other strings
+    that hold a "/" are sprite paths, outside the style, text and sounds blocks."""
     sdir = os.path.join(root, SKIN_CONFIG_DIR)
     if not os.path.isdir(sdir):
         return []
@@ -477,24 +507,36 @@ def check_skins(root, records):
                 if not _sprite_exists(root, node):
                     errors.append(f"{SKIN_CONFIG_DIR}/{where}: {node} doesn't exist under {UI_DIR}/")
             elif isinstance(node, dict) and isinstance(node.get("sprite"), str):
-                rec = by_path.get(node["sprite"]) or by_stem.get(node["sprite"])
-                if rec is None:
-                    continue
-                if "slice" not in node:
-                    if rec["slice"] is not None:
-                        errors.append(f"{SKIN_CONFIG_DIR}/{where}: {node['sprite']} is a 9-slice in the catalog "
-                                      f"({rec['realm']}/{rec['id']}, slice {rec['slice']}); give its slice")
-                    continue
-                if rec["slice"] is None:
-                    errors.append(f"{SKIN_CONFIG_DIR}/{where}: {node['sprite']} isn't a 9-slice in the catalog")
-                    continue
-                if node["slice"] != rec["slice"]:
-                    errors.append(f"{SKIN_CONFIG_DIR}/{where}: slice {node['slice']}, the catalog's "
-                                  f"{rec['realm']}/{rec['id']} has {rec['slice']}")
-                center = node.get("center", "stretch")
-                if center not in SKIN_CENTERS.get(rec["center"], (rec["center"],)):
-                    errors.append(f"{SKIN_CONFIG_DIR}/{where}: center {center!r} doesn't suit the catalog's "
-                                  f"{rec['realm']}/{rec['id']}, drawn to {rec['center']!r}")
+                errors += _check_slice(where, node["sprite"], node.get("slice"), node.get("center", "stretch"),
+                                       by_path.get(node["sprite"]) or by_stem.get(node["sprite"]), stretched_ok=True)
+                # A framed role's `selected` frame (the icon button's): a 9-slice the game cuts
+                # by its `selected_slice`, else by the role's `slice`, with the role's center.
+                if isinstance(node.get("selected"), str):
+                    slice_ = node.get("selected_slice", node.get("slice"))
+                    errors += _check_slice(f"{where}:selected", node["selected"], slice_, node.get("center", "stretch"),
+                                           by_path.get(node["selected"]), stretched_ok=False)
+    return errors
+
+
+def _check_slice(where, sprite, slice_, center, rec, stretched_ok):
+    """The errors of a skin's 9-slice `slice_` (None: a stretched sprite, which only
+    `stretched_ok` allows) and `center` of `sprite`, against its catalog record `rec`, if any."""
+    if rec is None:
+        return []
+    if slice_ is None:
+        if rec["slice"] is not None or not stretched_ok:
+            return [f"{SKIN_CONFIG_DIR}/{where}: {sprite} is a 9-slice in the catalog "
+                    f"({rec['realm']}/{rec['id']}, slice {rec['slice']}); give its slice"]
+        return []
+    if rec["slice"] is None:
+        return [f"{SKIN_CONFIG_DIR}/{where}: {sprite} isn't a 9-slice in the catalog"]
+    errors = []
+    if slice_ != rec["slice"]:
+        errors.append(f"{SKIN_CONFIG_DIR}/{where}: slice {slice_}, the catalog's "
+                      f"{rec['realm']}/{rec['id']} has {rec['slice']}")
+    if center not in SKIN_CENTERS.get(rec["center"], (rec["center"],)):
+        errors.append(f"{SKIN_CONFIG_DIR}/{where}: center {center!r} doesn't suit the catalog's "
+                      f"{rec['realm']}/{rec['id']}, drawn to {rec['center']!r}")
     return errors
 
 

@@ -87,7 +87,7 @@ impl MainGame {
                 UiString::key(UiTextCategory::Menu, "popup.quit.title"),
                 UiString::key(UiTextCategory::Menu, "popup.quit.body"),
             ];
-            make_dialog_popup(context, "Quit Game Popup", lines).with_buttons([
+            skin::popup(context, "Quit Game Popup", lines).with_buttons([
                 make_text_button(context, ButtonRole::Secondary, UiString::key(UiTextCategory::Menu, "popup.quit.quit_to_main_menu"), |_, _| {
                     GameLoop::get_mut().quit_to_main_menu()
                 }),

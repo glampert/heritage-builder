@@ -61,14 +61,22 @@ pub fn recorded_autosave(engine: &Engine) -> Option<bool> {
 }
 
 // The player's profile a replay runs with: the recorded run's, since the UI realm (and so the
-// layout) follows it. None when not replaying, or for a recording that doesn't hold one.
+// layout) follows it. A fresh one, with a warning, for a recording that holds none (an older one)
+// or one that doesn't load: never the local file's, which would make the replay depend on the
+// machine. None when not replaying.
 pub fn recorded_profile(engine: &Engine) -> Option<Profile> {
-    let recorded = engine.replay_info(GAME_INFO_KEY)?.get("profile")?;
+    if !engine.is_replaying() {
+        return None;
+    }
+    let Some(recorded) = engine.replay_info(GAME_INFO_KEY).and_then(|info| info.get("profile")) else {
+        log::warning!(log::channel!("game"), "The recording holds no profile: replaying with an empty one, so the replay may differ.");
+        return Some(Profile::new());
+    };
     match Profile::from_value(recorded.clone()) {
         Ok(profile) => Some(profile),
         Err(err) => {
-            log::warning!(log::channel!("game"), "Can't use the recording's profile, so the replay may differ: it {err}");
-            None
+            log::warning!(log::channel!("game"), "Can't use the recording's profile, so the replay may differ: it {err}. Replaying with an empty one.");
+            Some(Profile::new())
         }
     }
 }

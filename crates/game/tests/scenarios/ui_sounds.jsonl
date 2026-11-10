@@ -100,6 +100,23 @@
 {"method": "wait.frames", "params": {"frames": 5}}
 {"method": "assert.eq", "params": {"query": "ui.sounds", "args": {"clear": true}, "path": "/roles", "value": ["tile_placed", "tile_placement_canceled"]}}
 
+# Escape that closes a popup goes no further: the tool picked before the Game menu opened stays.
+{"method": "ui.click", "params": {"path": "Roads"}}
+{"method": "ui.click", "params": {"path": "Dirt Road"}}
+{"method": "dialog.open", "params": {"name": "MainGame"}}
+{"method": "ui.click", "params": {"path": "MainGame/Quit"}}
+{"method": "wait.frames", "params": {"frames": 15}}
+{"method": "ui.sounds", "params": {"clear": true}}
+{"method": "input.key", "params": {"key": "Escape"}}
+{"method": "wait.frames", "params": {"frames": 15}}
+{"method": "assert.eq", "params": {"query": "ui.sounds", "args": {"clear": true, "roles": ["popup_closed", "dialog_closed", "tile_placement_canceled"]}, "path": "/roles", "value": ["popup_closed"]}}
+{"method": "assert.eq", "params": {"query": "dialog.current", "path": "/current", "value": "MainGame"}}
+{"method": "input.key", "params": {"key": "Escape"}}
+{"method": "wait.frames", "params": {"frames": 15}}
+{"method": "input.key", "params": {"key": "Escape"}}
+{"method": "wait.frames", "params": {"frames": 5}}
+{"method": "assert.eq", "params": {"query": "ui.sounds", "args": {"clear": true, "roles": ["popup_closed", "dialog_closed", "tile_placement_canceled"]}, "path": "/roles", "value": ["dialog_closed", "tile_placement_canceled"]}}
+
 # A building the player had built finished: its toast plays construction_completed once, and not
 # notification.
 {"method": "world.place", "params": {"tile": "storage_yard", "cell": [10, 3]}}
@@ -156,4 +173,15 @@
 {"method": "assert.eq", "params": {"query": "dialog.current", "path": "/current", "value": "MainGame"}}
 {"method": "assert.eq", "params": {"query": "ui.sounds", "args": {"roles": ["dialog_opened", "dialog_closed"], "clear": true}, "path": "/roles", "value": ["dialog_closed"]}}
 {"method": "dialog.close", "params": {"name": "MainGame"}}
+{"method": "ui.realm", "params": {"realm": "auto"}}
+
+# A realm switch with only the tile inspector open closes it, and the game runs again, as when the
+# inspector is closed by hand: its own pause isn't put back.
+{"method": "sim.resume"}
+{"method": "input.click", "params": {"cell": [8, 8]}}
+{"method": "wait.frames", "params": {"frames": 3}}
+{"method": "assert.eq", "params": {"query": "sim.state", "path": "/paused", "value": true}}
+{"method": "ui.realm", "params": {"realm": "kambara"}}
+{"method": "wait.frames", "params": {"frames": 3}}
+{"method": "assert.eq", "params": {"query": "sim.state", "path": "/paused", "value": false}}
 {"method": "ui.realm", "params": {"realm": "auto"}}

@@ -1,4 +1,4 @@
-use std::any::Any;
+use std::{any::Any, cell::RefCell};
 use egui::{Sense, text::LayoutJob, vec2};
 
 use common::{Color, Vec2};
@@ -131,7 +131,7 @@ pub fn plain_text(spans: &[UiTextSpan]) -> String {
 // ----------------------------------------------
 
 enum UiRichTextSource {
-    Markup(UiString), // Parsed each time it's drawn, so a key follows a language switch.
+    Markup(UiString), // Parsed again when its text changes, so a key follows a language switch.
     Spans(Vec<UiTextSpan>),
 }
 
@@ -156,6 +156,7 @@ pub struct UiRichText {
     emphasis_color: Option<Color>, // The text colour if None.
     colors: Vec<(String, Color)>,  // The names spans give.
     line_spacing: f32,
+    parsed: RefCell<Option<(String, Vec<UiTextSpan>)>>, // A markup's text as last resolved, and its spans.
 }
 
 impl UiWidget for UiRichText {
@@ -167,12 +168,11 @@ impl UiWidget for UiRichText {
         debug_assert!(context.is_inside_widget_window());
 
         let ui_sys = context.ui_sys();
-        let spans = self.spans();
 
-        ui_sys.with_ui(|ui| {
+        self.with_spans(|spans| ui_sys.with_ui(|ui| {
             let width = self.width.unwrap_or_else(|| immediate::fill_size(ui).x);
             let default_color = self.text_color.map_or_else(|| ui.visuals().text_color(), color32);
-            let job = self.layout_job(ui_sys, &spans, width, default_color);
+            let job = self.layout_job(ui_sys, spans, width, default_color);
             let galley = ui.ctx().fonts_mut(|fonts| fonts.layout_job(job));
 
             let size = vec2(if width > 0.0 { width } else { galley.size().x }, galley.size().y);
@@ -185,16 +185,17 @@ impl UiWidget for UiRichText {
             };
             ui.painter().galley(egui::pos2(x, rect.top()), galley, default_color);
 
-            let text = plain_text(&spans);
+            // Its text only for ui.tree: the label (if it has none) and the value.
+            let text = ui_sys.is_widget_registry_enabled().then(|| plain_text(spans)).unwrap_or_default();
             let label = if self.label.is_empty() { text.as_str() } else { self.label.resolve() };
-            immediate::record(ui_sys, ui, &response, "rich_text", label, None, true, Some(serde_json::Value::String(text.clone())));
-        });
+            immediate::record_lazy(ui_sys, ui, &response, "rich_text", label, None, true, || Some(serde_json::Value::String(text.clone())));
+        }));
     }
 
     fn measure(&self, context: &dyn UiWidgetContext) -> Vec2 {
         let ui_sys = context.ui_sys();
         let width = self.width.unwrap_or_else(|| internal::available_size(ui_sys).x);
-        let job = self.layout_job(ui_sys, &self.spans(), width, egui::Color32::WHITE);
+        let job = self.with_spans(|spans| self.layout_job(ui_sys, spans, width, egui::Color32::WHITE));
         let size = ui_sys.ctx().fonts_mut(|fonts| fonts.layout_job(job).size());
         Vec2::new(if width > 0.0 { width } else { size.x }, size.y)
     }
@@ -230,6 +231,7 @@ impl UiRichText {
             emphasis_color: None,
             colors: Vec::new(),
             line_spacing: 0.0,
+            parsed: RefCell::new(None),
         }
     }
 
@@ -289,9 +291,22 @@ impl UiRichText {
     }
 
     pub fn spans(&self) -> Vec<UiTextSpan> {
+        self.with_spans(<[UiTextSpan]>::to_vec)
+    }
+
+    // Runs `f` on its spans. A markup's are parsed again only when its text changes (a key's
+    // after a language switch), not each time it's drawn or measured.
+    fn with_spans<R>(&self, f: impl FnOnce(&[UiTextSpan]) -> R) -> R {
         match &self.source {
-            UiRichTextSource::Markup(markup) => parse_rich_text(markup.resolve()),
-            UiRichTextSource::Spans(spans) => spans.clone(),
+            UiRichTextSource::Markup(markup) => {
+                let text = markup.resolve();
+                let mut parsed = self.parsed.borrow_mut();
+                if parsed.as_ref().is_none_or(|(parsed_text, _)| parsed_text != text) {
+                    *parsed = Some((text.to_string(), parse_rich_text(text)));
+                }
+                f(&parsed.as_ref().expect("Parsed just now.").1)
+            }
+            UiRichTextSource::Spans(spans) => f(spans),
         }
     }
 

@@ -71,7 +71,9 @@ engine repeats both the middle and the edges:
 - Đại Long's rough paper edge repeats the same way;
 - the paper's vignette (a radial gradient) is left out, and horizontal gradients (teak) become
   their middle colour;
-- Tampadesa's gilt gradient repeats along the diagonal with a period that divides the middle.
+- Tampadesa's gilt gradient repeats along the diagonal with a period that divides the middle's width
+  and height (their greatest common divisor); sides that share no factor of 16 points or more are
+  an error, unless the middle is square.
 
 Kambara's lotus-petal bands repeat every 22 points, so the sprite's middle width is a multiple
 of 22, and its heights keep the petals on the 16-point pattern rows (`pad` 88).
@@ -158,13 +160,22 @@ With the standard library only (CI has no Pillow or browser), it checks that:
   `skins/`; whole-pixel sizes; borders that fit, with a middle when it tiles;
 - every sprite exists at the catalog's pixel size, is in `manifest.json` with the same hash,
   and is in `web/asset_manifest.json`; the manifest lists nothing else;
+- no sprite's catalog entry changed since it was rendered: the manifest records a hash of what
+  `art.json` says about each output (`catalog.catalog_hash`: the call, its args and attributes,
+  size, bleed, slice, the state's filter...), so an edit nobody rendered fails. A change to the
+  generator itself only shows in the source hash, which takes a render to compute, so CI can't
+  see that one;
+- no sprite was rendered with its drawing reaching past its crop: a run records the spill in the
+  manifest (and warns, with exit status 1), and every later run warns again until the bleed is
+  raised and the sprite rendered again;
 - for each skin file in `assets/configs/ui/skins/`, merged over `dailong.json` as the game
   merges it (a slice or `center` a realm doesn't repeat is Đại Long's): every sprite path it
   names exists under `assets/ui/` (any string with a `/` outside its `style`, `text` and
   `sounds` blocks; a path without an image extension is a folder, such as an icon set's, or a
   stem that takes a state suffix), and every panel, button or separator (an object with a `sprite`) that is a catalog
   sprite has the catalog's `slice` (a catalog 9-slice must be given one) and a `center` that
-  suits it (`catalog.check_skins`).
+  suits it, as does a framed button's `selected` frame, cut by its `selected_slice` or else the
+  button's `slice` (`catalog.check_skins`).
 
 CI runs it with the unit tests, beside the tile generator's check.
 

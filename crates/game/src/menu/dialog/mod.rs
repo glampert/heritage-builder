@@ -7,7 +7,6 @@ use engine::{
     ui::{
         self,
         UiFontScale,
-        UiStaticVar,
         UiString,
         sound::{UiSoundEvent, UiSoundKey},
         text::UiTextCategory,
@@ -227,21 +226,17 @@ pub fn close_current(context: &mut GameUiContext) -> bool {
     DialogMenusSingleton::get_mut().close_current(context)
 }
 
-// The menus' Escape (HomeMenus::handle_input, InGameMenus::handle_custom_input): closes the dialog
-// on top, or its popup, but never the home menu's own dialog. Only the top one: the dialogs don't
-// close themselves on Escape, except on one the menus never saw (draw_current).
+// The menus' Escape (HomeMenus::handle_input, InGameMenus::handle_custom_input): closes the top
+// dialog's popup if it has one open, else the dialog on top, but never the home menu's own dialog.
+// True if it closed either, so the key goes no further. Only the top one: the dialogs don't close
+// themselves on Escape, except on one a text field in the top dialog took from the menus
+// (draw_current).
 pub fn close_current_on_escape(context: &mut GameUiContext) -> bool {
-    let dialogs = DialogMenusSingleton::get_mut();
-    dialogs.escape_seen = true;
-    dialogs.close_current_on_escape(context)
+    DialogMenusSingleton::get_mut().close_current_on_escape(context)
 }
 
 pub fn draw_current(context: &mut GameUiContext) {
     DialogMenusSingleton::get_mut().draw_current(context);
-}
-
-pub fn set_global_menu_flags(flags: UiMenuFlags) {
-    DialogMenusSingleton::get_mut().set_global_menu_flags(flags);
 }
 
 // Dims the screen behind the dialogs with the skin's colour for the home menu or the game.
@@ -370,7 +365,6 @@ struct DialogMenusSingleton {
     frames: ArrayVec<DialogFrame, DIALOG_MENU_COUNT>, // Each dialog's window, from the skin it was built with.
     menu_stack: ArrayVec<DialogMenuKind, DIALOG_MENU_STACK_MAX_DEPTH>,
     built: (u32, u32), // built_versions() when the dialogs were built.
-    escape_seen: bool, // The menus' input handler saw Escape this frame (close_current_on_escape).
 }
 
 impl DialogMenusSingleton {
@@ -383,7 +377,7 @@ impl DialogMenusSingleton {
             frames.push(DialogFrame::from_skin(dialog_menu_kind));
         }
 
-        Self { dialog_menus, frames, menu_stack: ArrayVec::new(), built: built_versions(), escape_seen: false }
+        Self { dialog_menus, frames, menu_stack: ArrayVec::new(), built: built_versions() }
     }
 
     fn rebuild_all(&mut self, context: &mut GameUiContext) {
@@ -418,23 +412,6 @@ impl DialogMenusSingleton {
         self.menu_stack.clear();
         for dialog in &mut self.dialog_menus {
             dialog.reset();
-        }
-    }
-
-    fn set_global_menu_flags(&mut self, flags: UiMenuFlags) {
-        GLOBAL_DIALOG_MENU_FLAGS.set(flags | DEFAULT_DIALOG_MENU_FLAGS);
-
-        for (dialog, frame) in self.dialog_menus.iter_mut().zip(&self.frames) {
-            let menu = dialog.menu_mut();
-
-            let mut new_flags = frame.menu_flags(*GLOBAL_DIALOG_MENU_FLAGS);
-
-            // Preserve this flag.
-            if menu.has_flags(UiMenuFlags::HideWhenMessageBoxOpen) {
-                new_flags |= UiMenuFlags::HideWhenMessageBoxOpen;
-            }
-
-            menu.reset_flags(new_flags | DEFAULT_DIALOG_MENU_FLAGS);
         }
     }
 
@@ -531,10 +508,17 @@ impl DialogMenusSingleton {
     }
 
     fn close_current_on_escape(&mut self, context: &mut GameUiContext) -> bool {
-        match self.menu_stack.last() {
-            Some(&DialogMenuKind::Home) | None => false,
-            Some(&stack_top) => self.close_dialog(stack_top, context),
+        let Some(&stack_top) = self.menu_stack.last() else {
+            return false;
+        };
+
+        let menu = self.find_dialog(stack_top).menu_mut();
+        if menu.is_message_box_open() {
+            menu.close_message_box(context);
+            return true;
         }
+
+        stack_top != DialogMenuKind::Home && self.close_dialog(stack_top, context)
     }
 
     // Draws the dialogs that show: the one on top of the stack, as a modal window, and under it
@@ -542,11 +526,13 @@ impl DialogMenusSingleton {
     // as plain windows under the top one's backdrop. The others aren't drawn, so their widgets
     // aren't recorded either. Each window takes its size for the window as it is now.
     fn draw_current(&mut self, context: &mut GameUiContext) {
-        // Escape the menus didn't see: the UI took it, as a focused text field does (the Save Game
-        // name, a number being typed), so it closes the top dialog here, on the first press, as the
-        // menus' handler would have.
-        let escape_seen = std::mem::take(&mut self.escape_seen);
-        if !escape_seen && ui::escape_pressed(context.ui_sys) {
+        // Escape the menus didn't see because a focused text field in the top dialog took it (the
+        // Save Game name, a number being typed) closes the dialog here, on the first press, as the
+        // menus' handler would have. Not one a field in another window took (the log viewer's
+        // console), nor one an open dropdown list took to close itself.
+        if let Some(&top) = self.menu_stack.last()
+            && self.find_dialog(top).menu().took_escape(context.ui_sys)
+        {
             self.close_current_on_escape(context);
         }
 
@@ -604,8 +590,8 @@ const DEFAULT_DIALOG_MENU_WIDGET_FONT_SCALE: UiFontScale = UiFontScale(1.0);
 
 // No CloseModalOnEscape: Escape is the menus' (HomeMenus::handle_input, InGameMenus::handle_custom_input),
 // which close the top dialog only (close_current_on_escape). With both, the dialog under it, on top
-// by the time the dialogs are drawn, saw the same key press and closed too. An Escape the UI took
-// from the menus (a focused text field) closes the top dialog in draw_current instead.
+// by the time the dialogs are drawn, saw the same key press and closed too. An Escape a focused text
+// field in the top dialog took from the menus closes it in draw_current instead.
 const DEFAULT_DIALOG_MENU_FLAGS: UiMenuFlags = UiMenuFlags::from_bits_retain(
     UiMenuFlags::Modal.bits() | UiMenuFlags::PauseSimIfOpen.bits(),
 );
@@ -613,8 +599,6 @@ const DEFAULT_DIALOG_MENU_FLAGS: UiMenuFlags = UiMenuFlags::from_bits_retain(
 const ALIGN_FLAGS: UiMenuFlags = UiMenuFlags::from_bits_retain(
     UiMenuFlags::AlignCenter.bits() | UiMenuFlags::AlignCenterTop.bits() | UiMenuFlags::AlignLeft.bits() | UiMenuFlags::AlignRight.bits(),
 );
-
-static GLOBAL_DIALOG_MENU_FLAGS: UiStaticVar<UiMenuFlags> = UiStaticVar::new(DEFAULT_DIALOG_MENU_FLAGS);
 
 // A dialog's window, from the skin's `dialogs` block (skin::SkinDialogDef): its size (in points at
 // 1920 × 1080, or the whole window), its alignment and whether the dialog under it stays visible.
@@ -650,24 +634,20 @@ impl DialogFrame {
         self.show_below && !self.size.is_fullscreen()
     }
 
-    // Its menu's flags, given the menus mode's (set_global_menu_flags): placed where the skin says
-    // (a full-screen dialog centred, covering the window). Every dialog pauses the simulation
-    // while open (DEFAULT_DIALOG_MENU_FLAGS).
+    // Its menu's flags: placed where the skin says, else centred (a full-screen dialog centred,
+    // covering the window). Every dialog pauses the simulation while open (DEFAULT_DIALOG_MENU_FLAGS).
     // A full-screen dialog also carries the engine's UiMenuFlags::Fullscreen, so the menu says what
     // it is, but its size comes from skin::dialog_size like every dialog's (draw_current sets it
     // each frame, and a set size wins over the flag in UiMenu::calc_window_size): both are the
     // window's size, ui::screen_size, so there's one rule for every dialog kind.
-    fn menu_flags(&self, mode_flags: UiMenuFlags) -> UiMenuFlags {
+    fn menu_flags(&self) -> UiMenuFlags {
         let fullscreen = self.size.is_fullscreen();
-        let mut flags = (mode_flags | DEFAULT_DIALOG_MENU_FLAGS) & !UiMenuFlags::Fullscreen;
+        let mut flags = DEFAULT_DIALOG_MENU_FLAGS;
         if fullscreen {
             flags |= UiMenuFlags::Fullscreen;
         }
-        let align = if fullscreen { Some(UiMenuFlags::AlignCenter) } else { self.align.map(SkinAlign::menu_flags) };
-        match align {
-            Some(align) => (flags & !ALIGN_FLAGS) | align,
-            None => flags,
-        }
+        let align = if fullscreen { None } else { self.align.map(SkinAlign::menu_flags) };
+        flags | align.unwrap_or(UiMenuFlags::AlignCenter)
     }
 }
 
@@ -692,7 +672,7 @@ fn make_default_layout_dialog_menu(
 ) -> UiMenuRcMut {
     let heading = skin::heading(context, heading_title.iter().map(|line| UiString::from(*line)), HeadingLevel::Dialog);
 
-    let flags = DialogFrame::from_skin(dialog_menu_kind).menu_flags(*GLOBAL_DIALOG_MENU_FLAGS);
+    let flags = DialogFrame::from_skin(dialog_menu_kind).menu_flags();
     let mut menu = skin::dialog(context, &dialog_menu_kind.to_string(), flags)
         .with_widget_spacing(widget_spacing) // Between its widgets and the lines of its text.
         .with_widget(heading);
@@ -729,16 +709,6 @@ fn make_dialog_close_button(context: &mut dyn UiWidgetContext, role: ButtonRole,
     make_text_button(context, role, label, |_, context| {
         close_current(context_as_mut::<GameUiContext>(context));
     })
-}
-
-// A popup message box of a dialog: `lines` on the skin's popup panel, with its buttons under them.
-// `label` names the popup for automation (`<label>/<button>`); it isn't drawn.
-fn make_dialog_popup(
-    context: &mut dyn UiWidgetContext,
-    label: &str,
-    lines: impl IntoIterator<Item = UiString>,
-) -> UiMessageBox {
-    skin::popup(context, label, lines)
 }
 
 // ----------------------------------------------
@@ -778,7 +748,7 @@ mod tests {
         }
         assert!(!fullscreen.shows_below());
 
-        let flags = fullscreen.menu_flags(UiMenuFlags::AlignCenter | UiMenuFlags::AlignLeft);
+        let flags = fullscreen.menu_flags();
         assert!(flags.contains(UiMenuFlags::PauseSimIfOpen | UiMenuFlags::Modal | UiMenuFlags::Fullscreen));
         assert!(!flags.intersects(UiMenuFlags::CloseModalOnEscape)); // Escape is the menus'.
         assert_eq!((flags & ALIGN_FLAGS).bits(), UiMenuFlags::AlignCenter.bits());
@@ -787,15 +757,13 @@ mod tests {
     #[test]
     fn dialog_frames_place_and_pause() {
         let points = SkinDialogSize::Points([1220.0, 920.0]);
-        let mode = UiMenuFlags::AlignCenter;
-
-        let left = frame(points, Some(SkinAlign::Left), false).menu_flags(mode);
+        let left = frame(points, Some(SkinAlign::Left), false).menu_flags();
         assert_eq!((left & ALIGN_FLAGS).bits(), (UiMenuFlags::AlignCenter | UiMenuFlags::AlignLeft).bits());
         assert!(left.contains(UiMenuFlags::PauseSimIfOpen | UiMenuFlags::Modal));
         assert!(!left.intersects(UiMenuFlags::Fullscreen));
 
-        let unaligned = frame(points, None, true).menu_flags(UiMenuFlags::AlignCenterTop);
-        assert_eq!((unaligned & ALIGN_FLAGS).bits(), UiMenuFlags::AlignCenterTop.bits()); // The menus mode's.
+        let unaligned = frame(points, None, true).menu_flags();
+        assert_eq!((unaligned & ALIGN_FLAGS).bits(), UiMenuFlags::AlignCenter.bits()); // Centred unless the skin says.
 
         assert!(frame(points, None, true).shows_below());
         assert!(!frame(points, None, false).shows_below());

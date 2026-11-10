@@ -545,14 +545,21 @@ impl UiWidget for UiIntInput {
                     let drag = egui::DragValue::new(&mut value).range(self.min..=self.max).speed(f64::from(self.step) * 0.1);
                     let response = ui.add_sized(vec2((width - buttons_width).max(40.0), ui.spacing().interact_size.y), drag);
 
+                    // Each button is disabled at its end of the range, so a step always changes
+                    // the value. They're recorded as buttons "-" and "+" under the field's label.
                     let mut stepped = false;
-                    if ui.small_button("-").clicked() {
-                        value = value.saturating_sub(self.step);
-                        stepped = true;
-                    }
-                    if ui.small_button("+").clicked() {
-                        value = value.saturating_add(self.step);
-                        stepped = true;
+                    let _path = immediate::path_scope(ui_sys, self.label.resolve());
+                    for (name, enabled) in [("-", value > self.min), ("+", value < self.max)] {
+                        let button = ui.add_enabled(enabled, egui::Button::new(name).small());
+                        immediate::record(ui_sys, ui, &button, "button", name, None, enabled, None);
+                        if button.clicked() {
+                            value = if name == "-" {
+                                value.saturating_sub(self.step).max(self.min)
+                            } else {
+                                value.saturating_add(self.step).min(self.max)
+                            };
+                            stepped = true;
+                        }
                     }
                     (response, stepped)
                 })

@@ -79,6 +79,9 @@ fn draw_rule(ui: &egui::Ui, rect: egui::Rect, look: &UiRowLook) {
     }
 }
 
+// The least room between a key-value row's label and its value, in points.
+const KEY_VALUE_GAP: f32 = 8.0;
+
 // The text in `rect`, cut at its width.
 fn draw_cell_text(ui: &egui::Ui, rect: egui::Rect, text: &str, font: &egui::FontId, color: egui::Color32, align: UiColumnAlign) {
     let galley = ui.painter().layout(text.to_string(), font.clone(), color, f32::INFINITY);
@@ -123,13 +126,18 @@ impl UiWidget for UiKeyValues {
             for (index, (label, value)) in self.pairs.iter().enumerate() {
                 let row_rect = egui::Rect::from_min_size(pos2(rect.left(), rect.top() + row * index as f32), vec2(width, row));
                 let text_rect = row_rect.shrink2(vec2(0.0, self.look.padding));
-                draw_cell_text(ui, text_rect, label.resolve(), &font, label_color, UiColumnAlign::Left);
+                // The value whole, the label cut short of it.
+                let value_width = ui.fonts_mut(|fonts| fonts.layout_no_wrap(value.resolve().to_string(), font.clone(), value_color).size().x);
+                let label_right = (text_rect.right() - value_width - KEY_VALUE_GAP).max(text_rect.left());
+                draw_cell_text(ui, text_rect.with_max_x(label_right), label.resolve(), &font, label_color, UiColumnAlign::Left);
                 draw_cell_text(ui, text_rect, value.resolve(), &font, value_color, UiColumnAlign::Right);
                 draw_rule(ui, row_rect, &self.look);
             }
 
-            let pairs = self.pairs.iter().map(|(label, value)| serde_json::json!([label.resolve(), value.resolve()])).collect();
-            immediate::record(ui_sys, ui, &response, "key_values", self.label.resolve(), None, true, Some(serde_json::Value::Array(pairs)));
+            immediate::record_lazy(ui_sys, ui, &response, "key_values", self.label.resolve(), None, true, || {
+                let pairs = self.pairs.iter().map(|(label, value)| serde_json::json!([label.resolve(), value.resolve()])).collect();
+                Some(serde_json::Value::Array(pairs))
+            });
         });
     }
 
@@ -331,7 +339,7 @@ impl UiWidget for UiTable {
                 draw_rule(ui, row_rect, &self.look);
             }
 
-            immediate::record(ui_sys, ui, &response, "table", self.label.resolve(), None, true, Some(self.value()));
+            immediate::record_lazy(ui_sys, ui, &response, "table", self.label.resolve(), None, true, || Some(self.value()));
         });
     }
 
@@ -571,8 +579,8 @@ impl UiWidget for UiMeter {
                 self.paint(ui, rect, &font);
             }
             let tooltip = self.tooltip.as_ref().map(|tooltip| tooltip.text.resolve());
-            let value = serde_json::json!({ "value": self.value, "max": self.max });
-            immediate::record(ui_sys, ui, &response, "meter", self.label.resolve(), tooltip, true, Some(value));
+            let value = || Some(serde_json::json!({ "value": self.value, "max": self.max }));
+            immediate::record_lazy(ui_sys, ui, &response, "meter", self.label.resolve(), tooltip, true, value);
             response.hovered()
         });
 

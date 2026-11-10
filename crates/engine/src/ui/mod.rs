@@ -125,6 +125,10 @@ pub struct UiSystem {
 
     // The value ui.set queued for the window being drawn (ui::take_window_set_value).
     window_set_value: RefCell<Option<serde_json::Value>>,
+
+    // The window (egui area) whose focused widget took this frame's Escape press, until the frame
+    // ends (escape_taken_in).
+    escape_focus_window: Option<egui::Id>,
 }
 
 impl UiSystem {
@@ -147,6 +151,7 @@ impl UiSystem {
             registry: RefCell::new(UiWidgetRegistry::default()),
             widgets: Vec::new(),
             window_set_value: RefCell::new(None),
+            escape_focus_window: None,
         }
     }
 
@@ -184,8 +189,12 @@ impl UiSystem {
 
     // Loads the styles again, e.g. after editing a style file (ui.reload_styles): files are read
     // again, JSON given as such is kept. Keeps the current styles if one fails to load. Takes
-    // effect from the next frame.
+    // effect from the next frame. Not on web, which reads each asset (style and font files
+    // included) only once: there it's an error, and the styles stay as loaded.
     pub fn reload_styles(&mut self) -> Result<(), String> {
+        if cfg!(feature = "web") {
+            return Err("UI styles can't be reloaded on web, which reads each asset only once.".into());
+        }
         let sources = self.style_sources.clone();
         if sources.is_empty() {
             return Err("No UI styles have been loaded.".into());
@@ -246,6 +255,7 @@ impl UiSystem {
 
         self.last_response.get_mut().take();
         self.font_scale.set(None);
+        self.escape_focus_window = None;
 
         self.backend.end_frame(tex_cache)
     }
@@ -383,10 +393,35 @@ impl UiSystem {
     // Input:
     // ----------------------
 
-    #[inline]
+    // Called between frames, so egui's memory still holds the last frame's focus and popups.
     pub fn on_key_input(&mut self, key: InputKey, action: InputAction, modifiers: InputModifiers) -> UiInputEvent {
         self.backend.on_key_input(key, action, modifiers);
-        if self.is_handling_key_input() { UiInputEvent::Handled } else { UiInputEvent::NotHandled }
+        let mut handled = self.is_handling_key_input();
+
+        if key == InputKey::Escape {
+            let ctx = self.backend.ctx();
+            if egui::Popup::is_any_open(ctx) {
+                // An open dropdown list (or another egui popup) closes itself on Escape, and
+                // nothing else should: the dialog it's in stays open.
+                handled = true;
+            } else if handled && action == InputAction::Press {
+                // A focused text field keeps Escape from the menus; remember its window, so the
+                // window's owner can still act on it (escape_taken_in).
+                self.escape_focus_window = ctx
+                    .memory(|memory| memory.focused())
+                    .and_then(|id| ctx.read_response(id))
+                    .map(|response| response.layer_id.id);
+            }
+        }
+
+        if handled { UiInputEvent::Handled } else { UiInputEvent::NotHandled }
+    }
+
+    // True if this frame's Escape press was taken from the menus by a focused widget in `window`,
+    // the egui area a window or menu draws in (UiMenu::took_escape).
+    #[inline]
+    pub(crate) fn escape_taken_in(&self, window: egui::Id) -> bool {
+        self.escape_focus_window == Some(window)
     }
 
     #[inline]
@@ -479,11 +514,6 @@ impl UiSystem {
     // The name of a loaded theme's style.
     pub fn theme_name(&self, theme: UiThemeId) -> Option<&str> {
         self.styles.as_ref()?.name(theme)
-    }
-
-    // The names of the loaded themes, in their order.
-    pub fn theme_names(&self) -> Vec<&str> {
-        self.styles.as_ref().map(|styles| styles.names().collect()).unwrap_or_default()
     }
 
     // The color modal dialogs dim the screen behind them with.

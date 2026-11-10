@@ -113,7 +113,7 @@ jobs:
           LIBGL_ALWAYS_SOFTWARE: "1"
         run: |
           mkdir -p logs
-          for scenario in smoke water_edges calendar construction renovation goods finance risks ui_new_game ui_build ui_dev_menus ui_sounds ui_skins minimap strings; do
+          for scenario in smoke water_edges calendar construction renovation goods finance risks ui_new_game ui_build ui_dev_menus ui_sounds ui_skins minimap strings profile; do
             echo "::group::$scenario"
             target/release/HeritageBuilder --fresh-profile --script "crates/game/tests/scenarios/$scenario.jsonl" \
               2> "logs/$scenario.log"

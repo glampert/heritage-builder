@@ -250,9 +250,15 @@ def tile_contrast(freq, ak, ab, k=TILE_BLOTCH_CONTRAST):
 
 
 def _gcd_points(a, b):
-    # In half points, so 0.5 pt sizes work.
+    """The gilt's period for a tiled middle of a x b points: their greatest common divisor (in
+    half points, so 0.5 pt sizes work), so it divides both and repeats cleanly. A period under
+    16 pt would show as stripes, so sides that share no such factor are a catalog error, unless
+    the middle is square (its side is the period)."""
     g = math.gcd(int(round(a * 2)), int(round(b * 2))) / 2
-    return g if g >= 16 else max(a, b)
+    if g < 16 and a != b:
+        raise cat.CatalogError(f"a tiled middle of {a:g} x {b:g} pt: its sides share no factor of 16 pt or more, "
+                               "so the gilt can't repeat across it; change the size or the slice")
+    return g
 
 
 # ----------------------------------------------------------------------------

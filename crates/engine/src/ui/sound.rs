@@ -173,12 +173,12 @@ pub fn mapped_file<'a>(defaults: &'a UiSoundMapping, overrides: &'a UiSoundMappi
 
 // Sets up the UI sounds, with no mapping yet: every role plays nothing until the game gives the
 // default mapping (set_default_mapping), Đại Long's skin's. Once.
-pub fn initialize(sound_sys: &mut SoundSystem) {
+pub fn initialize() {
     if UiSoundManagerSingleton::is_initialized() {
         return; // Initialize only once.
     }
 
-    UiSoundManagerSingleton::initialize(UiSoundManagerSingleton::new(sound_sys, UiSoundMapping::new()));
+    UiSoundManagerSingleton::initialize(UiSoundManagerSingleton::new());
 }
 
 // The mapping roles fall back to when set_mapping's overrides don't name them: the game's base
@@ -196,14 +196,9 @@ pub fn set_mapping(sound_sys: &mut SoundSystem, overrides: &UiSoundMapping) {
     UiSoundManagerSingleton::get_mut().set_mapping(sound_sys, overrides);
 }
 
-// The default mapping (set_default_mapping).
-pub fn default_mapping() -> &'static UiSoundMapping {
-    &UiSoundManagerSingleton::get().defaults
-}
-
 // The file `role` plays now, if any.
-pub fn file(role: UiSoundKey) -> Option<&'static str> {
-    UiSoundManagerSingleton::get().sounds[role as usize].file.as_deref()
+pub fn file(role: UiSoundKey) -> Option<String> {
+    UiSoundManagerSingleton::get().sounds[role as usize].file.clone()
 }
 
 // Advances the UI sounds' clock; the engine calls it at the start of every frame.
@@ -376,17 +371,16 @@ struct UiSoundManagerSingleton {
 }
 
 impl UiSoundManagerSingleton {
-    fn new(sound_sys: &mut SoundSystem, defaults: UiSoundMapping) -> Self {
-        let mut manager = Self {
-            defaults,
+    // No mapping: every role plays nothing.
+    fn new() -> Self {
+        Self {
+            defaults: UiSoundMapping::new(),
             sounds: UiSoundKey::iter().map(|_| UiSound::new()).collect(),
             frame: 0,
             time_secs: 0.0,
             started_this_frame: ArrayVec::new(),
             recent: VecDeque::with_capacity(UI_SOUND_RECENT_CAPACITY),
-        };
-        manager.set_mapping(sound_sys, &UiSoundMapping::new());
-        manager
+        }
     }
 
     fn set_mapping(&mut self, sound_sys: &mut SoundSystem, overrides: &UiSoundMapping) {

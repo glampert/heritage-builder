@@ -90,6 +90,7 @@ impl UiStyleSource {
     }
 
     // A style as JSON text.
+    #[cfg(test)]
     pub fn json_str(name: impl Into<String>, text: &str) -> Result<Self, String> {
         let name = name.into();
         let json = serde_json::from_str(text).map_err(|err| format!("Invalid UI style '{name}': {err}"))?;

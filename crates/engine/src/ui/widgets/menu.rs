@@ -371,6 +371,13 @@ impl UiMenu {
         self.has_flags(UiMenuFlags::IsOpen)
     }
 
+    // True if this frame's Escape press was taken from the menus by a focused widget in this
+    // menu's window, e.g. a text field being typed in: not by one in another window, nor by an
+    // open dropdown list, which closes itself on Escape.
+    pub fn took_escape(&self, ui_sys: &UiSystem) -> bool {
+        ui_sys.escape_taken_in(widget_id(self, &self.label))
+    }
+
     pub fn open(&mut self, context: &mut dyn UiWidgetContext) {
         if self.is_open() {
             return;
@@ -558,29 +565,20 @@ impl UiMenu {
             return;
         }
 
-        // With its popup open, a menu is hidden (HideWhenMessageBoxOpen) or shows under it, as a
-        // plain window even if it's modal: the popup is, so it takes the input and dims the menu
-        // with its backdrop, as the mockups draw the Game menu under the Quit popup. A modal menu
-        // keeps dimming the screen behind it, under its window.
-        let mut flags = flags;
-        let mut keep_backdrop = false;
+        // With its popup open, a menu is hidden (HideWhenMessageBoxOpen) or shows under it, as the
+        // mockups draw the Game menu under the Quit popup. The popup is a modal of its own, shown
+        // after the menu, so it's the top one: it takes the input and dims the menu with its
+        // backdrop, while a modal menu keeps dimming everything behind it (the HUD included) with its own.
         let mut message_box = on_get_msg_box(self);
-        if message_box.is_open() {
-            if flags.intersects(UiMenuFlags::HideWhenMessageBoxOpen) {
-                message_box.as_mut().draw(context);
-                return;
-            }
-            keep_backdrop = flags.intersects(UiMenuFlags::Modal);
-            flags.remove(UiMenuFlags::Modal);
+        if message_box.is_open() && flags.intersects(UiMenuFlags::HideWhenMessageBoxOpen) {
+            message_box.as_mut().draw(context);
+            return;
         }
 
         let ui_sys = context.ui_sys();
         let ctx = ui_sys.ctx().clone();
 
         let backdrop_color = self.backdrop_color.map_or_else(|| ui_sys.modal_backdrop_color(), immediate::color32);
-        if keep_backdrop {
-            ctx.layer_painter(egui::LayerId::background()).rect_filled(ctx.content_rect(), 0.0, backdrop_color);
-        }
         let style = ui_sys.egui_style().clone();
 
         let window_size = self.calc_window_size(ui_sys);

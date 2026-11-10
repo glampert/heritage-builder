@@ -5,8 +5,8 @@
 // It's the user file "profile" (engine::save::storage): saves/user/profile.json on desktop,
 // localStorage on the web. The whole profile is written each time it changes; it's not an
 // overlay on defaults like the user configs. A missing file gives a fresh profile, and so do a
-// broken one and one of another version, with a warning; the broken file stays as it is until
-// the next write.
+// broken one and one of another version, with a warning; a run that writes the profile first
+// copies such a file to saves/user/profile_unloaded.json, as the next write replaces it.
 //
 // Loaded once at startup (GameLoop::start). --fresh-profile starts from an empty profile and
 // never reads or writes the file. Script mode, replays and the save smoke test read it but never
@@ -30,6 +30,10 @@ pub const PROFILE_VERSION: u32 = 1;
 
 // The user file's name: saves/user/profile.json. No dots: the storage adds the extension.
 const PROFILE_FILE: PathRef<'static> = PathRef::from_str("profile");
+
+// Where a profile file that fails to load is copied before the fresh profile replaces it:
+// saves/user/profile_unloaded.json (another version's, a broken one, one with unknown fields).
+const PROFILE_UNLOADED_FILE: PathRef<'static> = PathRef::from_str("profile_unloaded");
 
 // ----------------------------------------------
 // Profile
@@ -190,6 +194,79 @@ impl Profile {
     pub fn game_saved(&mut self, save_name: &str) {
         self.last_save = Some(save_name.to_string());
     }
+
+    // ----------------------
+    // Edits (profile.set), checked against the configs:
+    // ----------------------
+
+    // Replaces every campaign record with `records`, each a record's JSON over the defaults (its
+    // fields left out take theirs), naming a campaign of `configs` once, its missions in range.
+    pub fn set_campaign_records(&mut self, configs: &CampaignConfigs, records: Vec<Value>) -> Result<(), String> {
+        let records: Vec<CampaignRecord> = records.into_iter().map(|record| campaign_record_from_json(configs, record)).collect::<Result<_, _>>()?;
+        for (index, record) in records.iter().enumerate() {
+            if records[..index].iter().any(|other| other.id == record.id) {
+                return Err(format!("Campaign '{}' has two records.", record.id));
+            }
+        }
+        self.campaigns = records;
+        Ok(())
+    }
+
+    // The campaigns reached are exactly those with these ids; the others are no longer reached.
+    pub fn set_reached(&mut self, configs: &CampaignConfigs, reached: &[String]) -> Result<(), String> {
+        for id in reached {
+            campaign_index(configs, id)?;
+        }
+        for record in &mut self.campaigns {
+            record.reached = reached.contains(&record.id);
+        }
+        for id in reached {
+            self.mark_reached(id);
+        }
+        Ok(())
+    }
+
+    // The realms Custom Game offers, by name, each once.
+    pub fn set_custom_realms(&mut self, names: &[String]) -> Result<(), String> {
+        let mut realms = Vec::new();
+        for name in names {
+            let realm = Realm::parse(name)?;
+            if !realms.contains(&realm) {
+                realms.push(realm);
+            }
+        }
+        self.custom_realms = realms;
+        Ok(())
+    }
+}
+
+fn campaign_index(configs: &CampaignConfigs, id: &str) -> Result<usize, String> {
+    configs.find_by_id(id).ok_or_else(|| {
+        let ids: Vec<&str> = configs.campaigns.iter().map(|campaign| campaign.id.as_str()).collect();
+        format!("No campaign has the id '{id}'. Campaigns: {}.", ids.join(", "))
+    })
+}
+
+// A record from its JSON, over the defaults, checked against the campaign it names; its finished
+// missions sorted, each once.
+fn campaign_record_from_json(configs: &CampaignConfigs, record: Value) -> Result<CampaignRecord, String> {
+    let mut merged = serde_json::to_value(CampaignRecord::default()).expect("A record should serialize to JSON");
+    match (record, &mut merged) {
+        (Value::Object(fields), Value::Object(defaults)) => defaults.extend(fields),
+        (other, _) => return Err(format!("A campaign record is an object, not {other}.")),
+    }
+
+    let mut record: CampaignRecord = serde_json::from_value(merged).map_err(|err| format!("Invalid campaign record: {err}"))?;
+
+    let missions = configs.campaigns[campaign_index(configs, &record.id)?].missions.len();
+    let out_of_range = record.current_mission.iter().chain(&record.missions_finished).find(|&&index| index >= missions);
+    if let Some(index) = out_of_range {
+        return Err(format!("Campaign '{}' has {missions} missions: there's no mission {index}.", record.id));
+    }
+
+    record.missions_finished.sort_unstable();
+    record.missions_finished.dedup();
+    Ok(record)
 }
 
 // ----------------------------------------------
@@ -226,6 +303,7 @@ pub fn initialize(options: ProfileOptions) {
     }
 
     let file_path = storage::user_file_path(PROFILE_FILE);
+    let mut write_file = options.write_file;
 
     // --fresh-profile wins over a replay's profile, as options given with --replay win over the
     // recorded ones. A recording made with it holds a fresh profile, so its replay is the same.
@@ -250,18 +328,34 @@ pub fn initialize(options: ProfileOptions) {
             }
         };
         let (profile, error) = Profile::from_file_text(text.as_deref());
-        match error {
-            Some(err) => log::warning!(
-                log::channel!("profile"),
-                "Starting a fresh profile: {file_path} {err}. The file stays as it is until the profile is next saved."
-            ),
-            None if text.is_some() => log::info!(log::channel!("profile"), "Loaded the profile from {file_path}."),
-            None => {}
+        match (error, &text) {
+            // The fresh profile would overwrite the file at its first change (the first autosave
+            // sets last_save), so the file is copied aside first; if it can't be, this run leaves
+            // the file alone.
+            (Some(err), Some(text)) if options.write_file => {
+                let copy = storage::user_file_path(PROFILE_UNLOADED_FILE);
+                match storage::write_user_file(PROFILE_UNLOADED_FILE, text) {
+                    Ok(()) => log::warning!(
+                        log::channel!("profile"),
+                        "Starting a fresh profile: {file_path} {err}. It's kept as {copy}; the fresh profile replaces it at its first change."
+                    ),
+                    Err(copy_err) => {
+                        write_file = false;
+                        log::warning!(
+                            log::channel!("profile"),
+                            "Starting a fresh profile: {file_path} {err}. It can't be kept as {copy} ({copy_err}), so it's left alone for this run."
+                        );
+                    }
+                }
+            }
+            (Some(err), _) => log::warning!(log::channel!("profile"), "Starting a fresh profile: {file_path} {err}. The file is left as it is."),
+            (None, Some(_)) => log::info!(log::channel!("profile"), "Loaded the profile from {file_path}."),
+            (None, None) => {}
         }
         profile
     };
 
-    store.writes_file = options.write_file;
+    store.writes_file = write_file;
     store.initialized = true;
 
     if !store.writes_file {

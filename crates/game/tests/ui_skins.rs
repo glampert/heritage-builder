@@ -121,9 +121,8 @@ fn test_every_skin_loads() {
     for (realm, skin) in skins {
         UiStyleSource::json(skin::theme_name(realm), skin.style.clone()).validate().unwrap_or_else(|err| panic!("{realm}: {err}"));
         assert!(skin.sprite_scale > 0.0, "{realm}");
-        for name in ["dialog", "popup", "tooltip", "caption"] {
-            assert!(skin.panels.contains_key(name), "{realm}: no panel '{name}'");
-        }
+        skin::check_required(&skin).unwrap_or_else(|err| panic!("{realm}: {err}"));
+        assert!(skin.panels.contains_key("caption"), "{realm}: no panel 'caption'");
         for role in ["primary", "secondary", "menu_item", "hud_item"] {
             assert!(skin.buttons.contains_key(role), "{realm}: no button role '{role}'");
         }
@@ -253,6 +252,11 @@ fn test_every_colour_and_widget_part_resolves() {
         for (role, button) in &skin.buttons {
             for name in [&button.text, &button.text_hovered, &button.subline].into_iter().flatten() {
                 assert!(resolves(name), "{realm}: button '{role}': no colour '{name}'");
+            }
+        }
+        for (level, heading) in &skin.headings {
+            if let Some(name) = &heading.color {
+                assert!(resolves(name), "{realm}: heading '{level}': no colour '{name}'");
             }
         }
         for name in ["ink", "accent", "sub", "light"] {

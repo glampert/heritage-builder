@@ -16,8 +16,6 @@ use engine::{
         UiInputEvent,
         UiStyleSource,
         UiString,
-        UiSystem,
-        UiThemeId,
         widgets::{UiSpriteButton, UiSpriteButtonState, UiTextButton, UiTooltipText, UiWidgetContext},
     },
 };
@@ -812,11 +810,6 @@ pub trait TileInspector {
 // developer UI's first, as the engine requires, then each realm skin's (skin::style_sources).
 pub fn ui_style_sources() -> Vec<UiStyleSource> {
     skin::style_sources().unwrap_or_else(|err| panic!("Can't read the UI skins: {err}"))
-}
-
-// The retail UI's theme: the current skin's; the developer UI's if it isn't loaded.
-pub fn retail_ui_theme(ui_sys: &UiSystem) -> UiThemeId {
-    skin::theme(ui_sys)
 }
 
 // ----------------------------------------------

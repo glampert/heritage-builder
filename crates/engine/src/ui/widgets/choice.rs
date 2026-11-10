@@ -272,14 +272,16 @@ impl UiToggle {
                 ui.painter().image(egui_texture(knob), egui_rect(knob_rect), uv_full(), tint);
             }
             UiToggleLook::Painted { on: on_color, off, knob, outline, .. } => {
+                // Faded as a whole when disabled, as the sprites are.
+                let fade = |color| color32(color).linear_multiply(tint.a() as f32 / 255.0);
                 let radius = pill.height() * 0.5;
-                let fill = color32(if on { on_color } else { off }).linear_multiply(tint.a() as f32 / 255.0);
+                let fill = fade(if on { on_color } else { off });
                 ui.painter().rect_filled(pill, radius, fill);
-                ui.painter().rect_stroke(pill, radius, Stroke::new(1.5, color32(outline)), StrokeKind::Inside);
+                ui.painter().rect_stroke(pill, radius, Stroke::new(1.5, fade(outline)), StrokeKind::Inside);
                 let knob_size = Vec2::new(pill.height() - 6.0, pill.height() - 6.0);
                 let knob_rect = egui_rect(toggle_knob_rect(to_rect(pill), knob_size, on));
-                ui.painter().circle_filled(knob_rect.center(), knob_rect.width() * 0.5, color32(knob));
-                ui.painter().circle_stroke(knob_rect.center(), knob_rect.width() * 0.5, Stroke::new(1.0, color32(outline)));
+                ui.painter().circle_filled(knob_rect.center(), knob_rect.width() * 0.5, fade(knob));
+                ui.painter().circle_stroke(knob_rect.center(), knob_rect.width() * 0.5, Stroke::new(1.0, fade(outline)));
             }
         }
     }

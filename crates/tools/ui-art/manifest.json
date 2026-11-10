@@ -1,6 +1,7 @@
 {
   "sprites": {
     "assets/ui/skins/dailong/bubble_tail.png": {
+      "catalog_hash": "c80deedb2d0074f0",
       "id": "bubble_tail",
       "png_hash": "d92413f169b34320",
       "png_size": [
@@ -12,6 +13,7 @@
       "state": null
     },
     "assets/ui/skins/dailong/button_primary_disabled.png": {
+      "catalog_hash": "a8482b718d323b6e",
       "id": "button_primary",
       "png_hash": "20d7149211f75fe8",
       "png_size": [
@@ -23,6 +25,7 @@
       "state": "disabled"
     },
     "assets/ui/skins/dailong/button_primary_hovered.png": {
+      "catalog_hash": "9d3d87eeb2f69ba7",
       "id": "button_primary",
       "png_hash": "536e8e4651423fe6",
       "png_size": [
@@ -34,6 +37,7 @@
       "state": "hovered"
     },
     "assets/ui/skins/dailong/button_primary_idle.png": {
+      "catalog_hash": "a9e77db6fdc45093",
       "id": "button_primary",
       "png_hash": "df6886560a28545e",
       "png_size": [
@@ -45,6 +49,7 @@
       "state": "idle"
     },
     "assets/ui/skins/dailong/button_primary_pressed.png": {
+      "catalog_hash": "287201a7ac5b46ec",
       "id": "button_primary",
       "png_hash": "4b160a29f629da4f",
       "png_size": [
@@ -56,6 +61,7 @@
       "state": "pressed"
     },
     "assets/ui/skins/dailong/button_secondary_disabled.png": {
+      "catalog_hash": "c32141dda37bbc6c",
       "id": "button_secondary",
       "png_hash": "b7a5cfa953b20154",
       "png_size": [
@@ -67,6 +73,7 @@
       "state": "disabled"
     },
     "assets/ui/skins/dailong/button_secondary_hovered.png": {
+      "catalog_hash": "70badc884accab2a",
       "id": "button_secondary",
       "png_hash": "1336e0a4050fe8aa",
       "png_size": [
@@ -78,6 +85,7 @@
       "state": "hovered"
     },
     "assets/ui/skins/dailong/button_secondary_idle.png": {
+      "catalog_hash": "0e4114310bc97217",
       "id": "button_secondary",
       "png_hash": "d3d160fc0ddaaa18",
       "png_size": [
@@ -89,6 +97,7 @@
       "state": "idle"
     },
     "assets/ui/skins/dailong/button_secondary_pressed.png": {
+      "catalog_hash": "aae24692fe0b74e4",
       "id": "button_secondary",
       "png_hash": "96d9457207690906",
       "png_size": [
@@ -100,6 +109,7 @@
       "state": "pressed"
     },
     "assets/ui/skins/dailong/checkbox_off.png": {
+      "catalog_hash": "ab6380fc9e2598b4",
       "id": "checkbox_off",
       "png_hash": "af5e3fda923ff0a9",
       "png_size": [
@@ -111,6 +121,7 @@
       "state": null
     },
     "assets/ui/skins/dailong/checkbox_on.png": {
+      "catalog_hash": "8319cb25b812c79c",
       "id": "checkbox_on",
       "png_hash": "5e670f0b12458720",
       "png_size": [
@@ -122,6 +133,7 @@
       "state": null
     },
     "assets/ui/skins/dailong/dropdown_arrow.png": {
+      "catalog_hash": "f4e6505ad2533a92",
       "id": "dropdown_arrow",
       "png_hash": "e2712733f2a7ebd7",
       "png_size": [
@@ -133,6 +145,7 @@
       "state": null
     },
     "assets/ui/skins/dailong/emblem_dailong_current.png": {
+      "catalog_hash": "a15f80c6332d3da5",
       "id": "emblem_dailong",
       "png_hash": "5f3ecaf80e9778ba",
       "png_size": [
@@ -144,6 +157,7 @@
       "state": "current"
     },
     "assets/ui/skins/dailong/emblem_dailong_idle.png": {
+      "catalog_hash": "c91c8b47465cfd75",
       "id": "emblem_dailong",
       "png_hash": "82ca82693c1ae78d",
       "png_size": [
@@ -155,6 +169,7 @@
       "state": "idle"
     },
     "assets/ui/skins/dailong/emblem_dailong_locked.png": {
+      "catalog_hash": "652037614677fdbd",
       "id": "emblem_dailong",
       "png_hash": "5733be470eb98c52",
       "png_size": [
@@ -166,6 +181,7 @@
       "state": "locked"
     },
     "assets/ui/skins/dailong/emblem_kambara_current.png": {
+      "catalog_hash": "4b143d79c9900d14",
       "id": "emblem_kambara",
       "png_hash": "3a4a6c77b7c69204",
       "png_size": [
@@ -177,6 +193,7 @@
       "state": "current"
     },
     "assets/ui/skins/dailong/emblem_kambara_idle.png": {
+      "catalog_hash": "3c0248cd20045c2f",
       "id": "emblem_kambara",
       "png_hash": "623a31c838609410",
       "png_size": [
@@ -188,6 +205,7 @@
       "state": "idle"
     },
     "assets/ui/skins/dailong/emblem_kambara_locked.png": {
+      "catalog_hash": "35ad128d06aefe38",
       "id": "emblem_kambara",
       "png_hash": "f9d9a874d5bfb0b7",
       "png_size": [
@@ -199,6 +217,7 @@
       "state": "locked"
     },
     "assets/ui/skins/dailong/emblem_tampadesa_current.png": {
+      "catalog_hash": "306c43498510f1f1",
       "id": "emblem_tampadesa",
       "png_hash": "f2912adc6a6a236b",
       "png_size": [
@@ -210,6 +229,7 @@
       "state": "current"
     },
     "assets/ui/skins/dailong/emblem_tampadesa_idle.png": {
+      "catalog_hash": "4f1deca113f2ca2f",
       "id": "emblem_tampadesa",
       "png_hash": "09c5e76fe1bb9024",
       "png_size": [
@@ -221,6 +241,7 @@
       "state": "idle"
     },
     "assets/ui/skins/dailong/emblem_tampadesa_locked.png": {
+      "catalog_hash": "e0fdcd91f13f981a",
       "id": "emblem_tampadesa",
       "png_hash": "c71b8dbb745953c2",
       "png_size": [
@@ -232,6 +253,7 @@
       "state": "locked"
     },
     "assets/ui/skins/dailong/icon_frame_disabled.png": {
+      "catalog_hash": "c89ea6a8e92f26ed",
       "id": "icon_frame",
       "png_hash": "fe0842f8a930b956",
       "png_size": [
@@ -243,6 +265,7 @@
       "state": "disabled"
     },
     "assets/ui/skins/dailong/icon_frame_hovered.png": {
+      "catalog_hash": "3458ddc2a8c99929",
       "id": "icon_frame",
       "png_hash": "58b3e98ab7a488ad",
       "png_size": [
@@ -254,6 +277,7 @@
       "state": "hovered"
     },
     "assets/ui/skins/dailong/icon_frame_idle.png": {
+      "catalog_hash": "e0dbd2136856cc9b",
       "id": "icon_frame",
       "png_hash": "4b7ab63cd5645bc6",
       "png_size": [
@@ -265,6 +289,7 @@
       "state": "idle"
     },
     "assets/ui/skins/dailong/icon_frame_pressed.png": {
+      "catalog_hash": "ebe5a88fd378c130",
       "id": "icon_frame",
       "png_hash": "c69a8dc89d1caf85",
       "png_size": [
@@ -276,6 +301,7 @@
       "state": "pressed"
     },
     "assets/ui/skins/dailong/icon_frame_selected.png": {
+      "catalog_hash": "81da0645e7be702b",
       "id": "icon_frame_selected",
       "png_hash": "1f514bff6980c0f7",
       "png_size": [
@@ -287,6 +313,7 @@
       "state": null
     },
     "assets/ui/skins/dailong/marker.png": {
+      "catalog_hash": "466f4fcdef615ada",
       "id": "marker",
       "png_hash": "311684489bfbfc82",
       "png_size": [
@@ -298,6 +325,7 @@
       "state": null
     },
     "assets/ui/skins/dailong/ornament.png": {
+      "catalog_hash": "75950b5804c6d766",
       "id": "ornament",
       "png_hash": "617bd67a1cc8f75b",
       "png_size": [
@@ -309,6 +337,7 @@
       "state": null
     },
     "assets/ui/skins/dailong/panel_bar.png": {
+      "catalog_hash": "8b3ac3358a7ae542",
       "id": "panel_bar",
       "png_hash": "209921370ca210b6",
       "png_size": [
@@ -320,6 +349,7 @@
       "state": null
     },
     "assets/ui/skins/dailong/panel_bubble.png": {
+      "catalog_hash": "7e309f391aef486f",
       "id": "panel_bubble",
       "png_hash": "ed55ffcd55121159",
       "png_size": [
@@ -331,6 +361,7 @@
       "state": null
     },
     "assets/ui/skins/dailong/panel_caption.png": {
+      "catalog_hash": "6eb8bfd9dabf420f",
       "id": "panel_caption",
       "png_hash": "8efd14ecf72b9e93",
       "png_size": [
@@ -342,6 +373,7 @@
       "state": null
     },
     "assets/ui/skins/dailong/panel_card.png": {
+      "catalog_hash": "f180e542af6a650a",
       "id": "panel_card",
       "png_hash": "229c4d4cc7540dd2",
       "png_size": [
@@ -353,6 +385,7 @@
       "state": null
     },
     "assets/ui/skins/dailong/panel_dialog.png": {
+      "catalog_hash": "bdff6cb238fcaf6b",
       "id": "panel_dialog",
       "png_hash": "497db18fecebfa3b",
       "png_size": [
@@ -364,6 +397,7 @@
       "state": null
     },
     "assets/ui/skins/dailong/panel_field.png": {
+      "catalog_hash": "1da37e9f2b13e444",
       "id": "panel_field",
       "png_hash": "496388d6a98a9ea5",
       "png_size": [
@@ -375,6 +409,7 @@
       "state": null
     },
     "assets/ui/skins/dailong/panel_popup.png": {
+      "catalog_hash": "faec17deddacf44a",
       "id": "panel_popup",
       "png_hash": "b052ffc9aee356f7",
       "png_size": [
@@ -386,6 +421,7 @@
       "state": null
     },
     "assets/ui/skins/dailong/panel_row.png": {
+      "catalog_hash": "6187f52977e03732",
       "id": "panel_row",
       "png_hash": "3f18fbb55e13b9c0",
       "png_size": [
@@ -397,6 +433,7 @@
       "state": null
     },
     "assets/ui/skins/dailong/panel_row_selected.png": {
+      "catalog_hash": "e1b43e56bf1e734e",
       "id": "panel_row_selected",
       "png_hash": "93b8cf8699dac26c",
       "png_size": [
@@ -408,6 +445,7 @@
       "state": null
     },
     "assets/ui/skins/dailong/panel_side.png": {
+      "catalog_hash": "1e0fe20112aca873",
       "id": "panel_side",
       "png_hash": "1a7735b5ac88cf2a",
       "png_size": [
@@ -419,6 +457,7 @@
       "state": null
     },
     "assets/ui/skins/dailong/panel_tooltip.png": {
+      "catalog_hash": "8146b6cc9f7966c4",
       "id": "panel_tooltip",
       "png_hash": "57d02b325e307698",
       "png_size": [
@@ -430,6 +469,7 @@
       "state": null
     },
     "assets/ui/skins/dailong/panel_well.png": {
+      "catalog_hash": "174870d87a94c5a0",
       "id": "panel_well",
       "png_hash": "e1135e40efb7c1a7",
       "png_size": [
@@ -441,6 +481,7 @@
       "state": null
     },
     "assets/ui/skins/dailong/rule.png": {
+      "catalog_hash": "9c44f809b645403b",
       "id": "rule",
       "png_hash": "cbc39ddda8cc8534",
       "png_size": [
@@ -452,6 +493,7 @@
       "state": null
     },
     "assets/ui/skins/dailong/scrollbar_thumb.png": {
+      "catalog_hash": "98fcd605ee55cf9f",
       "id": "scrollbar_thumb",
       "png_hash": "dec18a93157217c8",
       "png_size": [
@@ -463,6 +505,7 @@
       "state": null
     },
     "assets/ui/skins/dailong/scrollbar_track.png": {
+      "catalog_hash": "0e9dd77b4c304141",
       "id": "scrollbar_track",
       "png_hash": "debaa9387322c94c",
       "png_size": [
@@ -474,6 +517,7 @@
       "state": null
     },
     "assets/ui/skins/dailong/slider_fill.png": {
+      "catalog_hash": "675d7c39a7011d27",
       "id": "slider_fill",
       "png_hash": "d3ba8b772f545193",
       "png_size": [
@@ -485,6 +529,7 @@
       "state": null
     },
     "assets/ui/skins/dailong/slider_knob.png": {
+      "catalog_hash": "728065628d121532",
       "id": "slider_knob",
       "png_hash": "1253de4e2ef00ec4",
       "png_size": [
@@ -496,6 +541,7 @@
       "state": null
     },
     "assets/ui/skins/dailong/slider_rail.png": {
+      "catalog_hash": "30766af2087d222e",
       "id": "slider_rail",
       "png_hash": "4766472dfb85312a",
       "png_size": [
@@ -507,6 +553,7 @@
       "state": null
     },
     "assets/ui/skins/dailong/tab_disabled.png": {
+      "catalog_hash": "f2691ef7e8e06272",
       "id": "tab",
       "png_hash": "ca60aa1530f9ea96",
       "png_size": [
@@ -518,6 +565,7 @@
       "state": "disabled"
     },
     "assets/ui/skins/dailong/tab_hovered.png": {
+      "catalog_hash": "de7a903e8b200c57",
       "id": "tab",
       "png_hash": "c9ce3d0debf7dd45",
       "png_size": [
@@ -529,6 +577,7 @@
       "state": "hovered"
     },
     "assets/ui/skins/dailong/tab_idle.png": {
+      "catalog_hash": "e358c3be80040592",
       "id": "tab",
       "png_hash": "f9f023b218ad90c4",
       "png_size": [
@@ -540,6 +589,7 @@
       "state": "idle"
     },
     "assets/ui/skins/dailong/tab_pressed.png": {
+      "catalog_hash": "7f8332b6b8707de8",
       "id": "tab",
       "png_hash": "a6760bfccf803a7e",
       "png_size": [
@@ -551,6 +601,7 @@
       "state": "pressed"
     },
     "assets/ui/skins/dailong/tab_selected_disabled.png": {
+      "catalog_hash": "8b3180da6ff7a951",
       "id": "tab_selected",
       "png_hash": "1c4ea375c9d65985",
       "png_size": [
@@ -562,6 +613,7 @@
       "state": "disabled"
     },
     "assets/ui/skins/dailong/tab_selected_hovered.png": {
+      "catalog_hash": "77848f8ffa2ff8f9",
       "id": "tab_selected",
       "png_hash": "bfe1987bc5e37781",
       "png_size": [
@@ -573,6 +625,7 @@
       "state": "hovered"
     },
     "assets/ui/skins/dailong/tab_selected_idle.png": {
+      "catalog_hash": "0c3522348b8cb7af",
       "id": "tab_selected",
       "png_hash": "b64df57558f0ee41",
       "png_size": [
@@ -584,6 +637,7 @@
       "state": "idle"
     },
     "assets/ui/skins/dailong/tab_selected_pressed.png": {
+      "catalog_hash": "cf7a5c238cd39109",
       "id": "tab_selected",
       "png_hash": "a5a78a0e2dada616",
       "png_size": [
@@ -595,6 +649,7 @@
       "state": "pressed"
     },
     "assets/ui/skins/dailong/toggle_knob.png": {
+      "catalog_hash": "26bb4f8f4035ba20",
       "id": "toggle_knob",
       "png_hash": "76d72ecf7fbf19ed",
       "png_size": [
@@ -606,6 +661,7 @@
       "state": null
     },
     "assets/ui/skins/dailong/toggle_off.png": {
+      "catalog_hash": "43f43cc452043936",
       "id": "toggle_off",
       "png_hash": "d22c1aebc7e0e44e",
       "png_size": [
@@ -617,6 +673,7 @@
       "state": null
     },
     "assets/ui/skins/dailong/toggle_on.png": {
+      "catalog_hash": "faed5f64ed493cc4",
       "id": "toggle_on",
       "png_hash": "9cf069d58458a6e7",
       "png_size": [
@@ -628,6 +685,7 @@
       "state": null
     },
     "assets/ui/skins/kambara/bubble_tail.png": {
+      "catalog_hash": "0553102e2e5edd85",
       "id": "bubble_tail",
       "png_hash": "e1f83038950313dd",
       "png_size": [
@@ -639,6 +697,7 @@
       "state": null
     },
     "assets/ui/skins/kambara/button_primary_disabled.png": {
+      "catalog_hash": "bc26f1e10512e605",
       "id": "button_primary",
       "png_hash": "8150d1c4afae3dcc",
       "png_size": [
@@ -650,6 +709,7 @@
       "state": "disabled"
     },
     "assets/ui/skins/kambara/button_primary_hovered.png": {
+      "catalog_hash": "28175c3646dc016d",
       "id": "button_primary",
       "png_hash": "ab5a802ef77faa83",
       "png_size": [
@@ -661,6 +721,7 @@
       "state": "hovered"
     },
     "assets/ui/skins/kambara/button_primary_idle.png": {
+      "catalog_hash": "87fa82f438bdd950",
       "id": "button_primary",
       "png_hash": "81fe8325697a5221",
       "png_size": [
@@ -672,6 +733,7 @@
       "state": "idle"
     },
     "assets/ui/skins/kambara/button_primary_pressed.png": {
+      "catalog_hash": "f977697f84a60bb6",
       "id": "button_primary",
       "png_hash": "2b61de92814e4952",
       "png_size": [
@@ -683,6 +745,7 @@
       "state": "pressed"
     },
     "assets/ui/skins/kambara/button_secondary_disabled.png": {
+      "catalog_hash": "837b2e1607b24dde",
       "id": "button_secondary",
       "png_hash": "fc6e162048f0e054",
       "png_size": [
@@ -694,6 +757,7 @@
       "state": "disabled"
     },
     "assets/ui/skins/kambara/button_secondary_hovered.png": {
+      "catalog_hash": "9c14ea5a7a770be8",
       "id": "button_secondary",
       "png_hash": "986ad3166ae1acfd",
       "png_size": [
@@ -705,6 +769,7 @@
       "state": "hovered"
     },
     "assets/ui/skins/kambara/button_secondary_idle.png": {
+      "catalog_hash": "9d892f861cae9b40",
       "id": "button_secondary",
       "png_hash": "e4465f2ac0b42c6b",
       "png_size": [
@@ -716,6 +781,7 @@
       "state": "idle"
     },
     "assets/ui/skins/kambara/button_secondary_pressed.png": {
+      "catalog_hash": "ba583936047e5619",
       "id": "button_secondary",
       "png_hash": "ce1c8764a35a1c67",
       "png_size": [
@@ -727,6 +793,7 @@
       "state": "pressed"
     },
     "assets/ui/skins/kambara/checkbox_off.png": {
+      "catalog_hash": "7912786d266cb741",
       "id": "checkbox_off",
       "png_hash": "7367b3ebea082fcb",
       "png_size": [
@@ -738,6 +805,7 @@
       "state": null
     },
     "assets/ui/skins/kambara/checkbox_on.png": {
+      "catalog_hash": "1825ae53f21215d0",
       "id": "checkbox_on",
       "png_hash": "6c807cf39412b096",
       "png_size": [
@@ -749,6 +817,7 @@
       "state": null
     },
     "assets/ui/skins/kambara/crest.png": {
+      "catalog_hash": "1f05c4216bd7bbaf",
       "id": "crest",
       "png_hash": "6cc7a104e4d9e468",
       "png_size": [
@@ -760,6 +829,7 @@
       "state": null
     },
     "assets/ui/skins/kambara/dropdown_arrow.png": {
+      "catalog_hash": "47088942e23abebf",
       "id": "dropdown_arrow",
       "png_hash": "efa32483dc13b51c",
       "png_size": [
@@ -771,6 +841,7 @@
       "state": null
     },
     "assets/ui/skins/kambara/emblem_dailong_current.png": {
+      "catalog_hash": "3d931f6003fb1086",
       "id": "emblem_dailong",
       "png_hash": "eed7fcd8ac4ebae4",
       "png_size": [
@@ -782,6 +853,7 @@
       "state": "current"
     },
     "assets/ui/skins/kambara/emblem_dailong_idle.png": {
+      "catalog_hash": "ac8030eb575be375",
       "id": "emblem_dailong",
       "png_hash": "754ea436f6f5d2de",
       "png_size": [
@@ -793,6 +865,7 @@
       "state": "idle"
     },
     "assets/ui/skins/kambara/emblem_dailong_locked.png": {
+      "catalog_hash": "d0e7d46bc45a9fc2",
       "id": "emblem_dailong",
       "png_hash": "61f7c3bd0f58b08a",
       "png_size": [
@@ -804,6 +877,7 @@
       "state": "locked"
     },
     "assets/ui/skins/kambara/emblem_kambara_current.png": {
+      "catalog_hash": "97711dd061f0fa2c",
       "id": "emblem_kambara",
       "png_hash": "0b85aebb0cabaf05",
       "png_size": [
@@ -815,6 +889,7 @@
       "state": "current"
     },
     "assets/ui/skins/kambara/emblem_kambara_idle.png": {
+      "catalog_hash": "f347f74a0f804599",
       "id": "emblem_kambara",
       "png_hash": "9f386e7e58d4ee96",
       "png_size": [
@@ -826,6 +901,7 @@
       "state": "idle"
     },
     "assets/ui/skins/kambara/emblem_kambara_locked.png": {
+      "catalog_hash": "87a940c14be320d9",
       "id": "emblem_kambara",
       "png_hash": "2eb37d59ebfbbfa9",
       "png_size": [
@@ -837,6 +913,7 @@
       "state": "locked"
     },
     "assets/ui/skins/kambara/emblem_tampadesa_current.png": {
+      "catalog_hash": "2138b02f4b54f75b",
       "id": "emblem_tampadesa",
       "png_hash": "6f6f75849e710e02",
       "png_size": [
@@ -848,6 +925,7 @@
       "state": "current"
     },
     "assets/ui/skins/kambara/emblem_tampadesa_idle.png": {
+      "catalog_hash": "1fbf689e7b325dd5",
       "id": "emblem_tampadesa",
       "png_hash": "172a7330801f6eb4",
       "png_size": [
@@ -859,6 +937,7 @@
       "state": "idle"
     },
     "assets/ui/skins/kambara/emblem_tampadesa_locked.png": {
+      "catalog_hash": "597bb68cd3631465",
       "id": "emblem_tampadesa",
       "png_hash": "71277a36e71ef375",
       "png_size": [
@@ -870,6 +949,7 @@
       "state": "locked"
     },
     "assets/ui/skins/kambara/icon_frame_disabled.png": {
+      "catalog_hash": "4d18f9e6c29467d8",
       "id": "icon_frame",
       "png_hash": "003ecfedd1bd8eaf",
       "png_size": [
@@ -881,6 +961,7 @@
       "state": "disabled"
     },
     "assets/ui/skins/kambara/icon_frame_hovered.png": {
+      "catalog_hash": "5b6c4d26c1a3a20f",
       "id": "icon_frame",
       "png_hash": "18af0c30472eff90",
       "png_size": [
@@ -892,6 +973,7 @@
       "state": "hovered"
     },
     "assets/ui/skins/kambara/icon_frame_idle.png": {
+      "catalog_hash": "7f54c59e3a2f4eeb",
       "id": "icon_frame",
       "png_hash": "3dae7f6eefb93a3c",
       "png_size": [
@@ -903,6 +985,7 @@
       "state": "idle"
     },
     "assets/ui/skins/kambara/icon_frame_pressed.png": {
+      "catalog_hash": "3f075c7fa33e190b",
       "id": "icon_frame",
       "png_hash": "0df51a9707b7335a",
       "png_size": [
@@ -914,6 +997,7 @@
       "state": "pressed"
     },
     "assets/ui/skins/kambara/icon_frame_selected.png": {
+      "catalog_hash": "20879eda62ad8c94",
       "id": "icon_frame_selected",
       "png_hash": "2ce3e58c8009901f",
       "png_size": [
@@ -925,6 +1009,7 @@
       "state": null
     },
     "assets/ui/skins/kambara/marker.png": {
+      "catalog_hash": "b28b156ecff3d136",
       "id": "marker",
       "png_hash": "96bc1950601e9387",
       "png_size": [
@@ -936,6 +1021,7 @@
       "state": null
     },
     "assets/ui/skins/kambara/ornament.png": {
+      "catalog_hash": "f83a89758914f6ca",
       "id": "ornament",
       "png_hash": "26575be76e542031",
       "png_size": [
@@ -947,6 +1033,7 @@
       "state": null
     },
     "assets/ui/skins/kambara/panel_bar.png": {
+      "catalog_hash": "8c2080e66548ae8e",
       "id": "panel_bar",
       "png_hash": "ebb04a6c31aeb2cc",
       "png_size": [
@@ -958,6 +1045,7 @@
       "state": null
     },
     "assets/ui/skins/kambara/panel_bubble.png": {
+      "catalog_hash": "262a09dd148340cc",
       "id": "panel_bubble",
       "png_hash": "34fb21aacdfaf9ca",
       "png_size": [
@@ -969,6 +1057,7 @@
       "state": null
     },
     "assets/ui/skins/kambara/panel_caption.png": {
+      "catalog_hash": "7b5502cc36a1b5db",
       "id": "panel_caption",
       "png_hash": "f534e8878a52bc0b",
       "png_size": [
@@ -980,6 +1069,7 @@
       "state": null
     },
     "assets/ui/skins/kambara/panel_card.png": {
+      "catalog_hash": "bf7e16d728b4a967",
       "id": "panel_card",
       "png_hash": "f8bd655451430654",
       "png_size": [
@@ -991,6 +1081,7 @@
       "state": null
     },
     "assets/ui/skins/kambara/panel_dialog.png": {
+      "catalog_hash": "fd60cbee0a892a27",
       "id": "panel_dialog",
       "png_hash": "7457b46cfadd1987",
       "png_size": [
@@ -1002,6 +1093,7 @@
       "state": null
     },
     "assets/ui/skins/kambara/panel_field.png": {
+      "catalog_hash": "509194e866af6e57",
       "id": "panel_field",
       "png_hash": "00b027030d8f13a8",
       "png_size": [
@@ -1013,6 +1105,7 @@
       "state": null
     },
     "assets/ui/skins/kambara/panel_popup.png": {
+      "catalog_hash": "8ba0b3a5f0daaad4",
       "id": "panel_popup",
       "png_hash": "e51ab4d124c1d5a4",
       "png_size": [
@@ -1024,6 +1117,7 @@
       "state": null
     },
     "assets/ui/skins/kambara/panel_row.png": {
+      "catalog_hash": "fdaeb8552fce60a3",
       "id": "panel_row",
       "png_hash": "66dd564fe5fd7353",
       "png_size": [
@@ -1035,6 +1129,7 @@
       "state": null
     },
     "assets/ui/skins/kambara/panel_row_selected.png": {
+      "catalog_hash": "dcea310c0f4c36f7",
       "id": "panel_row_selected",
       "png_hash": "f40669fef210abe0",
       "png_size": [
@@ -1046,6 +1141,7 @@
       "state": null
     },
     "assets/ui/skins/kambara/panel_side.png": {
+      "catalog_hash": "b57eed2b162d3d06",
       "id": "panel_side",
       "png_hash": "86501d78bdc59419",
       "png_size": [
@@ -1057,6 +1153,7 @@
       "state": null
     },
     "assets/ui/skins/kambara/panel_tooltip.png": {
+      "catalog_hash": "b0d26bc00bf06733",
       "id": "panel_tooltip",
       "png_hash": "5e04863da0921165",
       "png_size": [
@@ -1068,6 +1165,7 @@
       "state": null
     },
     "assets/ui/skins/kambara/panel_well.png": {
+      "catalog_hash": "d85188eb1748d153",
       "id": "panel_well",
       "png_hash": "1399b4a6219c0111",
       "png_size": [
@@ -1079,6 +1177,7 @@
       "state": null
     },
     "assets/ui/skins/kambara/rule.png": {
+      "catalog_hash": "bf51f59a8745de07",
       "id": "rule",
       "png_hash": "f9d1f560841831b7",
       "png_size": [
@@ -1090,6 +1189,7 @@
       "state": null
     },
     "assets/ui/skins/kambara/scrollbar_thumb.png": {
+      "catalog_hash": "9579e0faf69491db",
       "id": "scrollbar_thumb",
       "png_hash": "f1e03d70600e9897",
       "png_size": [
@@ -1101,6 +1201,7 @@
       "state": null
     },
     "assets/ui/skins/kambara/scrollbar_track.png": {
+      "catalog_hash": "4e47f9502d9ce507",
       "id": "scrollbar_track",
       "png_hash": "db2c90288fdb38fb",
       "png_size": [
@@ -1112,6 +1213,7 @@
       "state": null
     },
     "assets/ui/skins/kambara/slider_fill.png": {
+      "catalog_hash": "9ddd57b4fb15e38c",
       "id": "slider_fill",
       "png_hash": "c4b05a20ea1b6c4f",
       "png_size": [
@@ -1123,6 +1225,7 @@
       "state": null
     },
     "assets/ui/skins/kambara/slider_knob.png": {
+      "catalog_hash": "44a2bcde706a7560",
       "id": "slider_knob",
       "png_hash": "c34a18cfb9645919",
       "png_size": [
@@ -1134,6 +1237,7 @@
       "state": null
     },
     "assets/ui/skins/kambara/slider_rail.png": {
+      "catalog_hash": "f1d837318f028e54",
       "id": "slider_rail",
       "png_hash": "4836444b0decf433",
       "png_size": [
@@ -1145,6 +1249,7 @@
       "state": null
     },
     "assets/ui/skins/kambara/tab_disabled.png": {
+      "catalog_hash": "a14fdada79303537",
       "id": "tab",
       "png_hash": "1f712ed65b8842fc",
       "png_size": [
@@ -1156,6 +1261,7 @@
       "state": "disabled"
     },
     "assets/ui/skins/kambara/tab_hovered.png": {
+      "catalog_hash": "2956b4d7411f264e",
       "id": "tab",
       "png_hash": "efbb40fc3e730811",
       "png_size": [
@@ -1167,6 +1273,7 @@
       "state": "hovered"
     },
     "assets/ui/skins/kambara/tab_idle.png": {
+      "catalog_hash": "8d8f8b0eaa993fc0",
       "id": "tab",
       "png_hash": "683c44b9db23ad0a",
       "png_size": [
@@ -1178,6 +1285,7 @@
       "state": "idle"
     },
     "assets/ui/skins/kambara/tab_pressed.png": {
+      "catalog_hash": "c5495d712359b73c",
       "id": "tab",
       "png_hash": "b6ee62afa8846314",
       "png_size": [
@@ -1189,6 +1297,7 @@
       "state": "pressed"
     },
     "assets/ui/skins/kambara/tab_selected_disabled.png": {
+      "catalog_hash": "f8880ad82490cd49",
       "id": "tab_selected",
       "png_hash": "09119aac029bfb0d",
       "png_size": [
@@ -1200,6 +1309,7 @@
       "state": "disabled"
     },
     "assets/ui/skins/kambara/tab_selected_hovered.png": {
+      "catalog_hash": "3b929bdd34b9c4ee",
       "id": "tab_selected",
       "png_hash": "fd71ed33e094b4b1",
       "png_size": [
@@ -1211,6 +1321,7 @@
       "state": "hovered"
     },
     "assets/ui/skins/kambara/tab_selected_idle.png": {
+      "catalog_hash": "090252d889f2eb23",
       "id": "tab_selected",
       "png_hash": "8168a123f4999785",
       "png_size": [
@@ -1222,6 +1333,7 @@
       "state": "idle"
     },
     "assets/ui/skins/kambara/tab_selected_pressed.png": {
+      "catalog_hash": "e276d4bfbb4d5f3f",
       "id": "tab_selected",
       "png_hash": "a6d5e170240aefa6",
       "png_size": [
@@ -1233,6 +1345,7 @@
       "state": "pressed"
     },
     "assets/ui/skins/kambara/toggle_knob.png": {
+      "catalog_hash": "a6687fb70ccaab82",
       "id": "toggle_knob",
       "png_hash": "a97f42d548ff44cc",
       "png_size": [
@@ -1244,6 +1357,7 @@
       "state": null
     },
     "assets/ui/skins/kambara/toggle_off.png": {
+      "catalog_hash": "83e769289c5a1290",
       "id": "toggle_off",
       "png_hash": "7fc840aa246a7cf8",
       "png_size": [
@@ -1255,6 +1369,7 @@
       "state": null
     },
     "assets/ui/skins/kambara/toggle_on.png": {
+      "catalog_hash": "8dee3fc3718294a0",
       "id": "toggle_on",
       "png_hash": "ed3c1a55bc4c1e09",
       "png_size": [
@@ -1266,6 +1381,7 @@
       "state": null
     },
     "assets/ui/skins/kambara/vine_br.png": {
+      "catalog_hash": "1f22b318ecc97353",
       "id": "vine_br",
       "png_hash": "7a0fa880a6d5730e",
       "png_size": [
@@ -1277,6 +1393,7 @@
       "state": null
     },
     "assets/ui/skins/kambara/vine_tl.png": {
+      "catalog_hash": "7aa6563e32775c10",
       "id": "vine_tl",
       "png_hash": "57c79643716635bb",
       "png_size": [
@@ -1288,6 +1405,7 @@
       "state": null
     },
     "assets/ui/skins/tampadesa/bubble_tail.png": {
+      "catalog_hash": "19e19ecfd13bdbd9",
       "id": "bubble_tail",
       "png_hash": "9f9172a76a3aaff2",
       "png_size": [
@@ -1299,6 +1417,7 @@
       "state": null
     },
     "assets/ui/skins/tampadesa/button_primary_disabled.png": {
+      "catalog_hash": "6d2397e30da49f50",
       "id": "button_primary",
       "png_hash": "ea43dd2d974228f6",
       "png_size": [
@@ -1310,6 +1429,7 @@
       "state": "disabled"
     },
     "assets/ui/skins/tampadesa/button_primary_hovered.png": {
+      "catalog_hash": "5aba7ac68132067b",
       "id": "button_primary",
       "png_hash": "4de534453cff7a72",
       "png_size": [
@@ -1321,6 +1441,7 @@
       "state": "hovered"
     },
     "assets/ui/skins/tampadesa/button_primary_idle.png": {
+      "catalog_hash": "cddb429c9538f3be",
       "id": "button_primary",
       "png_hash": "6957a99cf9939a87",
       "png_size": [
@@ -1332,6 +1453,7 @@
       "state": "idle"
     },
     "assets/ui/skins/tampadesa/button_primary_pressed.png": {
+      "catalog_hash": "d9c3ac39f5ca4327",
       "id": "button_primary",
       "png_hash": "8f13766210b67966",
       "png_size": [
@@ -1343,6 +1465,7 @@
       "state": "pressed"
     },
     "assets/ui/skins/tampadesa/button_secondary_disabled.png": {
+      "catalog_hash": "18149f9aefe39086",
       "id": "button_secondary",
       "png_hash": "f70b59845f79b7d1",
       "png_size": [
@@ -1354,6 +1477,7 @@
       "state": "disabled"
     },
     "assets/ui/skins/tampadesa/button_secondary_hovered.png": {
+      "catalog_hash": "a865d8dfea38da13",
       "id": "button_secondary",
       "png_hash": "06a1afc911f17fa0",
       "png_size": [
@@ -1365,6 +1489,7 @@
       "state": "hovered"
     },
     "assets/ui/skins/tampadesa/button_secondary_idle.png": {
+      "catalog_hash": "480261f913a8179f",
       "id": "button_secondary",
       "png_hash": "65f276a97ce56a83",
       "png_size": [
@@ -1376,6 +1501,7 @@
       "state": "idle"
     },
     "assets/ui/skins/tampadesa/button_secondary_pressed.png": {
+      "catalog_hash": "f46713b5881f5fab",
       "id": "button_secondary",
       "png_hash": "ef7cc9b43e8e142a",
       "png_size": [
@@ -1387,6 +1513,7 @@
       "state": "pressed"
     },
     "assets/ui/skins/tampadesa/checkbox_off.png": {
+      "catalog_hash": "c5c482035db3e7da",
       "id": "checkbox_off",
       "png_hash": "6e273a647da3ff49",
       "png_size": [
@@ -1398,6 +1525,7 @@
       "state": null
     },
     "assets/ui/skins/tampadesa/checkbox_on.png": {
+      "catalog_hash": "dfe405bbbbb873db",
       "id": "checkbox_on",
       "png_hash": "ed9b7813d5853697",
       "png_size": [
@@ -1409,6 +1537,7 @@
       "state": null
     },
     "assets/ui/skins/tampadesa/crest.png": {
+      "catalog_hash": "7f2f25d14ec9dd24",
       "id": "crest",
       "png_hash": "5988c5cc4efab2fa",
       "png_size": [
@@ -1420,6 +1549,7 @@
       "state": null
     },
     "assets/ui/skins/tampadesa/dropdown_arrow.png": {
+      "catalog_hash": "54702c2a50019fe3",
       "id": "dropdown_arrow",
       "png_hash": "6a3f1b21341def8f",
       "png_size": [
@@ -1431,6 +1561,7 @@
       "state": null
     },
     "assets/ui/skins/tampadesa/emblem_dailong_current.png": {
+      "catalog_hash": "5896a5364c497f0b",
       "id": "emblem_dailong",
       "png_hash": "108cc7d31b86eee0",
       "png_size": [
@@ -1442,6 +1573,7 @@
       "state": "current"
     },
     "assets/ui/skins/tampadesa/emblem_dailong_idle.png": {
+      "catalog_hash": "1fc498a9356316fe",
       "id": "emblem_dailong",
       "png_hash": "317a6451cf77baa0",
       "png_size": [
@@ -1453,6 +1585,7 @@
       "state": "idle"
     },
     "assets/ui/skins/tampadesa/emblem_dailong_locked.png": {
+      "catalog_hash": "7e14d9733e8c87b4",
       "id": "emblem_dailong",
       "png_hash": "f1ffd1ccef5d110d",
       "png_size": [
@@ -1464,6 +1597,7 @@
       "state": "locked"
     },
     "assets/ui/skins/tampadesa/emblem_kambara_current.png": {
+      "catalog_hash": "55e873c1222dd3e0",
       "id": "emblem_kambara",
       "png_hash": "43b0470dd3e087e7",
       "png_size": [
@@ -1475,6 +1609,7 @@
       "state": "current"
     },
     "assets/ui/skins/tampadesa/emblem_kambara_idle.png": {
+      "catalog_hash": "e745cb4d21f1627e",
       "id": "emblem_kambara",
       "png_hash": "b88caa6ecdd0d3c2",
       "png_size": [
@@ -1486,6 +1621,7 @@
       "state": "idle"
     },
     "assets/ui/skins/tampadesa/emblem_kambara_locked.png": {
+      "catalog_hash": "ecd3168173f74e99",
       "id": "emblem_kambara",
       "png_hash": "d4ff4e2c06ccfa6b",
       "png_size": [
@@ -1497,6 +1633,7 @@
       "state": "locked"
     },
     "assets/ui/skins/tampadesa/emblem_tampadesa_current.png": {
+      "catalog_hash": "953de4051f7f6c64",
       "id": "emblem_tampadesa",
       "png_hash": "c686f9b230b8c560",
       "png_size": [
@@ -1508,6 +1645,7 @@
       "state": "current"
     },
     "assets/ui/skins/tampadesa/emblem_tampadesa_idle.png": {
+      "catalog_hash": "fc4ce6856fa1f7e8",
       "id": "emblem_tampadesa",
       "png_hash": "1cee283f9d12a5a0",
       "png_size": [
@@ -1519,6 +1657,7 @@
       "state": "idle"
     },
     "assets/ui/skins/tampadesa/emblem_tampadesa_locked.png": {
+      "catalog_hash": "725e2b9195d1bf62",
       "id": "emblem_tampadesa",
       "png_hash": "9cd431e9d63ba9ee",
       "png_size": [
@@ -1530,6 +1669,7 @@
       "state": "locked"
     },
     "assets/ui/skins/tampadesa/icon_frame_disabled.png": {
+      "catalog_hash": "8284c5a041197ead",
       "id": "icon_frame",
       "png_hash": "72dd6e58f1dfce41",
       "png_size": [
@@ -1541,6 +1681,7 @@
       "state": "disabled"
     },
     "assets/ui/skins/tampadesa/icon_frame_hovered.png": {
+      "catalog_hash": "3338fcb3a6fa4903",
       "id": "icon_frame",
       "png_hash": "ef3f2de7f93f55e7",
       "png_size": [
@@ -1552,6 +1693,7 @@
       "state": "hovered"
     },
     "assets/ui/skins/tampadesa/icon_frame_idle.png": {
+      "catalog_hash": "ec780622a1499b9d",
       "id": "icon_frame",
       "png_hash": "9c3bbc71a88a7f72",
       "png_size": [
@@ -1563,6 +1705,7 @@
       "state": "idle"
     },
     "assets/ui/skins/tampadesa/icon_frame_pressed.png": {
+      "catalog_hash": "bee0e13257d38bd2",
       "id": "icon_frame",
       "png_hash": "c7cca2805f2ccaf1",
       "png_size": [
@@ -1574,6 +1717,7 @@
       "state": "pressed"
     },
     "assets/ui/skins/tampadesa/icon_frame_selected.png": {
+      "catalog_hash": "d51c6fbfb36450cd",
       "id": "icon_frame_selected",
       "png_hash": "2de89b2e2c65158a",
       "png_size": [
@@ -1585,6 +1729,7 @@
       "state": null
     },
     "assets/ui/skins/tampadesa/marker.png": {
+      "catalog_hash": "bbf700c55918db61",
       "id": "marker",
       "png_hash": "b8294245d106d0f2",
       "png_size": [
@@ -1596,6 +1741,7 @@
       "state": null
     },
     "assets/ui/skins/tampadesa/ornament.png": {
+      "catalog_hash": "69c5dd9dde66e23c",
       "id": "ornament",
       "png_hash": "1f10daaaedd87aac",
       "png_size": [
@@ -1607,6 +1753,7 @@
       "state": null
     },
     "assets/ui/skins/tampadesa/panel_bar.png": {
+      "catalog_hash": "2e74eb625cf30a92",
       "id": "panel_bar",
       "png_hash": "ec00171cf26e012e",
       "png_size": [
@@ -1618,6 +1765,7 @@
       "state": null
     },
     "assets/ui/skins/tampadesa/panel_bubble.png": {
+      "catalog_hash": "93efcc94be13dbca",
       "id": "panel_bubble",
       "png_hash": "2cfb8a7e49bede86",
       "png_size": [
@@ -1629,6 +1777,7 @@
       "state": null
     },
     "assets/ui/skins/tampadesa/panel_caption.png": {
+      "catalog_hash": "0d388743d9a45c6c",
       "id": "panel_caption",
       "png_hash": "dba7297cda22dd6f",
       "png_size": [
@@ -1640,6 +1789,7 @@
       "state": null
     },
     "assets/ui/skins/tampadesa/panel_card.png": {
+      "catalog_hash": "05e29b58b799b272",
       "id": "panel_card",
       "png_hash": "3017b84aa5151c20",
       "png_size": [
@@ -1651,6 +1801,7 @@
       "state": null
     },
     "assets/ui/skins/tampadesa/panel_dialog.png": {
+      "catalog_hash": "6ac1675cf1cfa77b",
       "id": "panel_dialog",
       "png_hash": "575e66df558f013e",
       "png_size": [
@@ -1662,6 +1813,7 @@
       "state": null
     },
     "assets/ui/skins/tampadesa/panel_field.png": {
+      "catalog_hash": "f2cb99dcdaa2f952",
       "id": "panel_field",
       "png_hash": "7ef722ecde5f35c3",
       "png_size": [
@@ -1673,6 +1825,7 @@
       "state": null
     },
     "assets/ui/skins/tampadesa/panel_popup.png": {
+      "catalog_hash": "570e77f5af25510e",
       "id": "panel_popup",
       "png_hash": "169b2afc02052806",
       "png_size": [
@@ -1684,6 +1837,7 @@
       "state": null
     },
     "assets/ui/skins/tampadesa/panel_row.png": {
+      "catalog_hash": "bc0721f107b63a18",
       "id": "panel_row",
       "png_hash": "aee5daaddfa06f55",
       "png_size": [
@@ -1695,6 +1849,7 @@
       "state": null
     },
     "assets/ui/skins/tampadesa/panel_row_selected.png": {
+      "catalog_hash": "010f466913f4a180",
       "id": "panel_row_selected",
       "png_hash": "02db179664e8a246",
       "png_size": [
@@ -1706,6 +1861,7 @@
       "state": null
     },
     "assets/ui/skins/tampadesa/panel_side.png": {
+      "catalog_hash": "2efe0bd91fca193f",
       "id": "panel_side",
       "png_hash": "a629c558e2a51e94",
       "png_size": [
@@ -1717,6 +1873,7 @@
       "state": null
     },
     "assets/ui/skins/tampadesa/panel_tooltip.png": {
+      "catalog_hash": "740a1a885ff4318d",
       "id": "panel_tooltip",
       "png_hash": "33e2f79357749259",
       "png_size": [
@@ -1728,6 +1885,7 @@
       "state": null
     },
     "assets/ui/skins/tampadesa/panel_well.png": {
+      "catalog_hash": "90e730654607a32b",
       "id": "panel_well",
       "png_hash": "ea5bef859a5538e9",
       "png_size": [
@@ -1739,6 +1897,7 @@
       "state": null
     },
     "assets/ui/skins/tampadesa/rule.png": {
+      "catalog_hash": "b3bc2ce7420fbc52",
       "id": "rule",
       "png_hash": "5f14134aa9b33f4c",
       "png_size": [
@@ -1750,6 +1909,7 @@
       "state": null
     },
     "assets/ui/skins/tampadesa/scrollbar_thumb.png": {
+      "catalog_hash": "42c4815fec13eb38",
       "id": "scrollbar_thumb",
       "png_hash": "f459cae2c7242ddd",
       "png_size": [
@@ -1761,6 +1921,7 @@
       "state": null
     },
     "assets/ui/skins/tampadesa/scrollbar_track.png": {
+      "catalog_hash": "de116428a69d8953",
       "id": "scrollbar_track",
       "png_hash": "fe864c0f7c18348c",
       "png_size": [
@@ -1772,6 +1933,7 @@
       "state": null
     },
     "assets/ui/skins/tampadesa/slider_fill.png": {
+      "catalog_hash": "7450b617cfdfba88",
       "id": "slider_fill",
       "png_hash": "59371b777faeb819",
       "png_size": [
@@ -1783,6 +1945,7 @@
       "state": null
     },
     "assets/ui/skins/tampadesa/slider_knob.png": {
+      "catalog_hash": "9dc927c5bce5507f",
       "id": "slider_knob",
       "png_hash": "8535a4dc674fbc7e",
       "png_size": [
@@ -1794,6 +1957,7 @@
       "state": null
     },
     "assets/ui/skins/tampadesa/slider_rail.png": {
+      "catalog_hash": "fcc9dace377b473a",
       "id": "slider_rail",
       "png_hash": "74e548fc3bc3e352",
       "png_size": [
@@ -1805,6 +1969,7 @@
       "state": null
     },
     "assets/ui/skins/tampadesa/tab_disabled.png": {
+      "catalog_hash": "d7ffe1977df3cc49",
       "id": "tab",
       "png_hash": "a2cdbff7b27b43e0",
       "png_size": [
@@ -1816,6 +1981,7 @@
       "state": "disabled"
     },
     "assets/ui/skins/tampadesa/tab_hovered.png": {
+      "catalog_hash": "8efb328edea426ab",
       "id": "tab",
       "png_hash": "1439b7ff16c9d3be",
       "png_size": [
@@ -1827,6 +1993,7 @@
       "state": "hovered"
     },
     "assets/ui/skins/tampadesa/tab_idle.png": {
+      "catalog_hash": "fa4106256be43639",
       "id": "tab",
       "png_hash": "693ecea25e9592d3",
       "png_size": [
@@ -1838,6 +2005,7 @@
       "state": "idle"
     },
     "assets/ui/skins/tampadesa/tab_pressed.png": {
+      "catalog_hash": "5c28b89bb1866c82",
       "id": "tab",
       "png_hash": "f59b3a8f4e872d80",
       "png_size": [
@@ -1849,6 +2017,7 @@
       "state": "pressed"
     },
     "assets/ui/skins/tampadesa/tab_selected_disabled.png": {
+      "catalog_hash": "41ff8c390bb31bf8",
       "id": "tab_selected",
       "png_hash": "625b7b1d688829b3",
       "png_size": [
@@ -1860,6 +2029,7 @@
       "state": "disabled"
     },
     "assets/ui/skins/tampadesa/tab_selected_hovered.png": {
+      "catalog_hash": "301e231247ce04c4",
       "id": "tab_selected",
       "png_hash": "8ee0d9b58442ccdd",
       "png_size": [
@@ -1871,6 +2041,7 @@
       "state": "hovered"
     },
     "assets/ui/skins/tampadesa/tab_selected_idle.png": {
+      "catalog_hash": "35682be88dbe690d",
       "id": "tab_selected",
       "png_hash": "206c17c4129f11fe",
       "png_size": [
@@ -1882,6 +2053,7 @@
       "state": "idle"
     },
     "assets/ui/skins/tampadesa/tab_selected_pressed.png": {
+      "catalog_hash": "7a3732d24d9e4935",
       "id": "tab_selected",
       "png_hash": "4ae1db294f1975e2",
       "png_size": [
@@ -1893,6 +2065,7 @@
       "state": "pressed"
     },
     "assets/ui/skins/tampadesa/toggle_knob.png": {
+      "catalog_hash": "4e2fa5b250e202ba",
       "id": "toggle_knob",
       "png_hash": "50dd10fa10e9a252",
       "png_size": [
@@ -1904,6 +2077,7 @@
       "state": null
     },
     "assets/ui/skins/tampadesa/toggle_off.png": {
+      "catalog_hash": "fc9e519cb647893a",
       "id": "toggle_off",
       "png_hash": "085e14f643fd957e",
       "png_size": [
@@ -1915,6 +2089,7 @@
       "state": null
     },
     "assets/ui/skins/tampadesa/toggle_on.png": {
+      "catalog_hash": "2d3d30f981deda9a",
       "id": "toggle_on",
       "png_hash": "f803ce15042808ee",
       "png_size": [

@@ -1,7 +1,7 @@
 use game::{
     campaign::{
         self,
-        config::{CampaignConfigs, CampaignDef, MissionDef, MissionMap, MissionRequirements},
+        config::{CampaignConfigs, CampaignDef, MissionDef, MissionMap, MissionRequirements, assign_campaign_ids},
     },
     debug::preset_maps,
     profile::{self, CampaignRecord, PROFILE_VERSION, Profile},
@@ -24,11 +24,13 @@ fn main() {
     test_utils::run_tests("Realm and profile", &[
         // Realm:
         test_utils::test_fn!(test_realm_names),
+        test_utils::test_fn!(test_campaign_ids),
         // Profile:
         test_utils::test_fn!(test_profile_round_trips),
         test_utils::test_fn!(test_broken_profile_gives_fresh_one),
         test_utils::test_fn!(test_other_version_gives_fresh_one),
         test_utils::test_fn!(test_mission_progress),
+        test_utils::test_fn!(test_profile_edits),
         // UI realm:
         test_utils::test_fn!(test_ui_realm_choice),
         test_utils::test_fn!(test_reaching_campaign_two_switches_home_realm),
@@ -114,7 +116,25 @@ fn test_realm_names() {
     assert_eq!(def.realm, Realm::Tampadesa);
     let def: CampaignDef = serde_json::from_str(r#"{ "name": "X", "missions": [] }"#).unwrap();
     assert_eq!(def.realm, Realm::DaiLong);
-    assert!(def.id.is_empty(), "the configs' post_load gives it an id");
+    assert!(def.id.is_empty(), "the configs' post_load gives it an id (assign_campaign_ids)");
+}
+
+// The configs give a campaign without an id one from its place in the list, and report ids that
+// campaigns share, since the profile keys progress by id.
+fn test_campaign_ids() {
+    let mut campaigns = vec![campaign_def("", Realm::DaiLong, 1), campaign_def("two", Realm::Kambara, 1), campaign_def("", Realm::Tampadesa, 1)];
+    assert!(assign_campaign_ids(&mut campaigns).is_empty());
+    let ids: Vec<&str> = campaigns.iter().map(|campaign| campaign.id.as_str()).collect();
+    assert_eq!(ids, ["campaign_0", "two", "campaign_2"]);
+
+    let mut campaigns = vec![
+        campaign_def("same", Realm::DaiLong, 1),
+        campaign_def("same", Realm::Kambara, 1),
+        campaign_def("same", Realm::Tampadesa, 1),
+        campaign_def("campaign_4", Realm::DaiLong, 1),
+        campaign_def("", Realm::DaiLong, 1), // Takes "campaign_4" too.
+    ];
+    assert_eq!(assign_campaign_ids(&mut campaigns), ["same", "campaign_4"]);
 }
 
 // ----------------------------------------------
@@ -223,6 +243,45 @@ fn test_mission_progress() {
 
     profile.game_saved("my_city");
     assert_eq!(profile.last_save.as_deref(), Some("my_city"));
+}
+
+// profile.set's edits: records merge over the defaults and are checked against the configs.
+fn test_profile_edits() {
+    let configs = ensure_setup();
+    let mut profile = Profile::new();
+
+    // A record names a campaign once, its missions in range; the fields left out take their
+    // defaults, and its finished missions are sorted, each once.
+    profile
+        .set_campaign_records(configs, vec![serde_json::json!({ "id": "one", "missions_finished": [1, 0, 1] }), serde_json::json!({ "id": "two", "reached": true, "current_mission": 1 })])
+        .unwrap();
+    assert_eq!(profile.campaigns.len(), 2);
+    assert_eq!(profile.campaigns[0], CampaignRecord { id: "one".into(), missions_finished: vec![0, 1], ..CampaignRecord::default() });
+    assert!(!profile.is_reached("one") && profile.is_reached("two"));
+    assert_eq!(profile.campaigns[1].current_mission, Some(1));
+
+    let before = profile.clone();
+    let err = profile.set_campaign_records(configs, vec![serde_json::json!({ "id": "three", "current_mission": 1 })]).unwrap_err();
+    assert!(err.contains("has 1 missions: there's no mission 1"), "{err}");
+    let err = profile.set_campaign_records(configs, vec![serde_json::json!({ "id": "one" }), serde_json::json!({ "id": "one" })]).unwrap_err();
+    assert!(err.contains("two records"), "{err}");
+    assert!(profile.set_campaign_records(configs, vec![serde_json::json!({ "id": "four" })]).unwrap_err().contains("No campaign has the id 'four'"));
+    assert!(profile.set_campaign_records(configs, vec![serde_json::json!(["one"])]).unwrap_err().contains("is an object"));
+    assert!(profile.set_campaign_records(configs, vec![serde_json::json!({ "id": "one", "stars": 3 })]).unwrap_err().contains("Invalid campaign record"));
+    assert_eq!(profile, before, "a failed edit changes nothing");
+
+    // Reached: exactly the campaigns named, a new record for one without.
+    profile.set_reached(configs, &["one".into(), "three".into()]).unwrap();
+    assert!(profile.is_reached("one") && !profile.is_reached("two") && profile.is_reached("three"));
+    assert_eq!(profile.campaigns[1].current_mission, Some(1), "the rest of a record stays");
+    assert!(profile.set_reached(configs, &["four".into()]).unwrap_err().contains("Campaigns: one, two, three."));
+    assert_eq!(profile.latest_reached_realm(configs), Some(Realm::Tampadesa));
+
+    // Custom Game's realms, each once.
+    profile.set_custom_realms(&["kambara".into(), "dailong".into(), "kambara".into()]).unwrap();
+    assert_eq!(profile.custom_realms, [Realm::Kambara, Realm::DaiLong]);
+    assert!(profile.set_custom_realms(&["atlantis".into()]).is_err());
+    assert_eq!(profile.custom_realms, [Realm::Kambara, Realm::DaiLong]);
 }
 
 // ----------------------------------------------

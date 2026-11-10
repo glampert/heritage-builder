@@ -99,7 +99,7 @@ impl GameMenusSystem for DevEditorMenus {
     }
 
     // The editor stays on the developer UI's theme, but follows the UI realm's skin, so the sample
-    // menus' retail theme (retail_ui_theme) is the realm's that ui.realm shows.
+    // menus' retail theme (skin::theme) is the realm's that ui.realm shows.
     fn sync_skin(&mut self, context: &mut GameUiContext) {
         skin::follow(context, crate::realm::ui_realm_for(false).realm);
     }
@@ -216,12 +216,12 @@ impl DevEditorMenusSingleton {
         }
 
         if show_sample_menus {
-            let theme = crate::menu::retail_ui_theme(context.ui_sys);
+            let theme = crate::menu::skin::theme(context.ui_sys);
             ui::tests::draw_sample_menus(context, theme);
         }
 
         if show_widget_samples {
-            let theme = crate::menu::retail_ui_theme(context.ui_sys);
+            let theme = crate::menu::skin::theme(context.ui_sys);
             ui::tests::draw_widget_sample_menus(context, theme);
         }
 

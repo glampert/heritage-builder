@@ -93,8 +93,7 @@ impl UiWidget for UiMenuHeading {
         } else if let Some(separator) = self.separator
             && group.is_positive()
         {
-            // As tall as the last line's font.
-            let separator_height = internal::font(ui_sys, ui_sys.current_window_front_scale()).size;
+            let separator_height = self.separator_height(context);
 
             ui_sys.with_ui(|ui| {
                 let separator_rect = egui::Rect::from_min_size(pos2(group.left(), ui.cursor().top()), vec2(group.width(), separator_height));
@@ -109,37 +108,20 @@ impl UiWidget for UiMenuHeading {
     }
 
     fn measure(&self, context: &dyn UiWidgetContext) -> Vec2 {
-        let mut size = Vec2::zero();
-        let mut non_empty_lines_count = 0;
-
-        for line in &self.lines {
-            if line.string.is_empty() {
-                continue;
-            }
-
-            let line_size = context.calc_text_size(line.font_scale, line.string.resolve());
-            size.x = size.x.max(line_size.x); // Max width.
-            size.y += line_size.y; // Total height.
-
-            non_empty_lines_count += 1;
+        // As draw() lays it out: the lines, the separator under them and the margins.
+        let (text_sizes, line_heights) = internal::measure_text_group(context, &self.lines);
+        let height: f32 = line_heights.iter().sum();
+        if height == 0.0 {
+            return Vec2::zero();
         }
 
-        if non_empty_lines_count > 0 {
-            // Add inter-line spacing.
-            size.y += internal::item_spacing(context.ui_sys()).y * (non_empty_lines_count - 1) as f32;
-
-            // The separator under the lines and the margins, as draw() lays them out.
-            if let Some(art) = &self.separator_art {
-                size.y += art.total_height();
-            } else if self.separator.is_some()
-                && let Some(last_line) = self.lines.iter().rev().find(|line| !line.string.is_empty())
-            {
-                size.y += internal::font(context.ui_sys(), last_line.font_scale).size;
-            }
-            size.y += self.margin_top + self.margin_bottom;
-        }
-
-        size
+        let width = text_sizes.iter().map(|size| size.x).fold(0.0, f32::max);
+        let separator = match &self.separator_art {
+            Some(art) => art.total_height(),
+            None if self.separator.is_some() => self.separator_height(context),
+            None => 0.0,
+        };
+        Vec2::new(width, height + separator + self.margin_top + self.margin_bottom)
     }
 
     fn font_scale(&self) -> UiFontScale {
@@ -148,6 +130,12 @@ impl UiWidget for UiMenuHeading {
 }
 
 impl UiMenuHeading {
+    // The separator sprite's height: as tall as the last line's font.
+    fn separator_height(&self, context: &dyn UiWidgetContext) -> f32 {
+        let font_scale = self.lines.iter().rev().find(|line| !line.string.is_empty()).map_or(self.font_scale(), |line| line.font_scale);
+        internal::font(context.ui_sys(), font_scale).size
+    }
+
     // Lines of text, each centered on the widest. A line can be empty, as a placeholder for
     // set_line_string. The first line's font scale is the heading's.
     pub fn new(lines: impl IntoIterator<Item = UiText>) -> Self {

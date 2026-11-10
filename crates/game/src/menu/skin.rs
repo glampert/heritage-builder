@@ -165,7 +165,7 @@ pub struct SkinPanelDef {
 // `text`, `text_hovered`: colours as panels name them. `min_width`: the narrowest a framed button
 // gets, in points. The menu item role (UiMenuItem) also takes `marker`, a sprite at its left
 // while hovered, and `subline`, its subline's colour; the icon role (UiIconButton) `selected`, the
-// selected frame (cut by `slice`), and `size`, the button's in points.
+// selected frame (cut by `selected_slice`, else by `slice`), and `size`, the button's in points.
 #[derive(Clone, Debug, Default, Deserialize)]
 #[serde(default, deny_unknown_fields)]
 pub struct SkinButtonDef {
@@ -183,6 +183,7 @@ pub struct SkinButtonDef {
     pub marker: Option<String>,
     pub subline: Option<String>,
     pub selected: Option<String>,
+    pub selected_slice: Option<[f32; 4]>,
     pub size: Option<f32>,
 }
 
@@ -488,7 +489,26 @@ pub fn read_skin_files() -> Result<Vec<(Realm, Value)>, String> {
 // Every realm's skin from the files' JSON, in Realm order.
 fn merge_all(files: &[(Realm, Value)]) -> Result<Vec<UiSkinDef>, String> {
     let file = |realm: Realm| files.iter().find(|(file_realm, _)| *file_realm == realm).map(|(_, value)| value.clone()).unwrap_or_default();
-    Realm::iter().map(|realm| merge_skin(realm, &file)).collect()
+    Realm::iter()
+        .map(|realm| {
+            let skin = merge_skin(realm, &file)?;
+            check_required(&skin).map_err(|err| format!("UI skin '{realm}': {err}"))?;
+            Ok(skin)
+        })
+        .collect()
+}
+
+// The panels the helpers fall back on or always draw, which every merged skin must have: `dialog`
+// (panel() falls back to it), `popup`, `tooltip`, the toasts' and every dialog entry's. A skin
+// without one fails to load, so a reload keeps the skins it had.
+pub fn check_required(skin: &UiSkinDef) -> Result<(), String> {
+    let dialog_panels = skin.dialogs.values().filter_map(|dialog| dialog.panel.as_deref());
+    for name in ["dialog", "popup", "tooltip", skin.toast.panel.as_str()].into_iter().chain(dialog_panels) {
+        if !skin.panels.contains_key(name) {
+            return Err(format!("no panel '{name}'"));
+        }
+    }
+    Ok(())
 }
 
 // The UI styles of `skins`: the developer UI's first (its file), then each realm skin's style.
@@ -1396,7 +1416,7 @@ pub fn icon_button(context: &mut dyn UiWidgetContext, label: &str, icon_name: &s
         button = button.with_frame(frame);
     }
     if let Some(selected) = &def.selected {
-        button = button.with_selected_panel(nine_slice(context, selected, def.slice, def.center));
+        button = button.with_selected_panel(nine_slice(context, selected, def.selected_slice.unwrap_or(def.slice), def.center));
     }
     let path = icon(icon_name);
     if !path.is_empty() {
@@ -1502,10 +1522,27 @@ mod tests {
         assert_eq!(skin.sounds["toggled"], None);
     }
 
-    // No sprite path is written in the menu code: every one comes from the skin.
+    // A merged skin without a panel the helpers rely on fails to load, so a reload keeps the old skins.
+    #[test]
+    fn skins_without_the_required_panels_fail_to_load() {
+        assert!(merge_all(&files()).is_ok());
+        for name in ["dialog", "popup", "tooltip", "caption"] {
+            let mut files = files();
+            for (_, file) in &mut files {
+                if let Some(panels) = file.get_mut("panels").and_then(Value::as_object_mut) {
+                    panels.remove(name);
+                }
+            }
+            let err = merge_all(&files).unwrap_err();
+            assert!(err.contains(&format!("no panel '{name}'")), "{err}");
+        }
+    }
+
+    // No sprite path is written in the menu code: every one comes from the skin. A string literal
+    // that starts with a sprite folder or names a .png file is one; a format string isn't.
     #[test]
     fn menu_code_has_no_sprite_path_literals() {
-        const PREFIXES: [&str; 5] = ["misc/", "buttons/", "icons/", "menu_bar/", "palette/"];
+        const PREFIXES: [&str; 6] = ["misc/", "buttons/", "icons/", "menu_bar/", "palette/", "skins/"];
         let mut found = Vec::new();
         let mut stack = vec![repo_path("crates/game/src/menu")];
         while let Some(dir) = stack.pop() {
@@ -1521,10 +1558,12 @@ mod tests {
                 let text = std::fs::read_to_string(&path).unwrap();
                 for (number, line) in text.lines().enumerate() {
                     let code = line.split("//").next().unwrap_or_default();
-                    for prefix in PREFIXES {
-                        if code.contains(&format!("\"{prefix}")) {
-                            found.push(format!("{}:{}: {}", path.display(), number + 1, line.trim()));
-                        }
+                    // The text between quotes: every other piece, from the second.
+                    let is_sprite_path = |literal: &str| {
+                        PREFIXES.iter().any(|prefix| literal.starts_with(prefix)) || (literal.ends_with(".png") && !literal.contains('{'))
+                    };
+                    if code.split('"').skip(1).step_by(2).any(is_sprite_path) {
+                        found.push(format!("{}:{}: {}", path.display(), number + 1, line.trim()));
                     }
                 }
             }

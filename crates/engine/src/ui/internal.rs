@@ -147,20 +147,13 @@ fn advance_past(ui_sys: &UiSystem, rect: egui::Rect) {
     });
 }
 
-// Lines of text, each centered on the widest. Returns the group's rect, in window points.
-pub fn draw_centered_text_group(
-    context: &mut dyn UiWidgetContext,
-    lines: &[UiText],
-    vertical: bool,
-    horizontal: bool,
-) -> egui::Rect {
+// The size of each line of a text group (wrapped at its wrap width, if it has one) and the
+// height it takes in the group: its font's line height, or a wrapped line's rows, with spacing; 0
+// for an empty line. draw_centered_text_group lays the lines out by these, and UiMenuHeading
+// measures by them.
+pub fn measure_text_group(context: &dyn UiWidgetContext, lines: &[UiText]) -> (SmallVec<[Vec2; 16]>, SmallVec<[f32; 16]>) {
     let ui_sys = context.ui_sys();
 
-    if lines.is_empty() {
-        return egui::Rect::NOTHING;
-    }
-
-    // Measure text sizes:
     let text_sizes: SmallVec<[Vec2; 16]> = lines
         .iter()
         .map(|line| match line.wrap_width {
@@ -183,6 +176,24 @@ pub fn draw_centered_text_group(
             }
         })
         .collect();
+
+    (text_sizes, line_heights)
+}
+
+// Lines of text, each centered on the widest. Returns the group's rect, in window points.
+pub fn draw_centered_text_group(
+    context: &mut dyn UiWidgetContext,
+    lines: &[UiText],
+    vertical: bool,
+    horizontal: bool,
+) -> egui::Rect {
+    let ui_sys = context.ui_sys();
+
+    if lines.is_empty() {
+        return egui::Rect::NOTHING;
+    }
+
+    let (text_sizes, line_heights) = measure_text_group(context, lines);
 
     let total_height: f32 = line_heights.iter().sum();
     if total_height == 0.0 {

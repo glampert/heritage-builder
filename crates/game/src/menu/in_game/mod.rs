@@ -4,7 +4,7 @@ use bars::{InGameMenuBars, InGameMenuBarsRcMut};
 use common::coords::CellRange;
 use engine::{
     app::input::{InputAction, InputKey},
-    ui::{UiInputEvent, widgets::UiMenuFlags},
+    ui::UiInputEvent,
 };
 use inspector::{TileInspectorMenu, TileInspectorMenuRcMut};
 use palette::{TilePaletteMenu, TilePaletteMenuRcMut};
@@ -42,7 +42,6 @@ impl InGameMenus {
         skin::apply_theme(context.ui_sys);
 
         dialog::initialize(context);
-        dialog::set_global_menu_flags(UiMenuFlags::AlignCenter);
         dialog::set_backdrop_dim(context, false);
 
         Self {
@@ -61,13 +60,14 @@ impl InGameMenus {
 
     // Builds the HUD again from the current skin and strings: the palette (its selection
     // dropped), the bars and the inspector (closed). The minimap follows the skin's realm itself.
-    // Closing the inspector resumes the simulation (`PauseSimIfOpen`), so the pause state from
-    // before the rebuild is put back: a dialog open over the inspector keeps the game paused.
+    // Closing the inspector resumes the simulation (`PauseSimIfOpen`), as closing it by hand does,
+    // so the game is paused again only if a dialog still needs it, as DialogMenusSingleton::keep_paused
+    // does: not for the inspector's own pause, which nothing open would lift.
     fn rebuild_hud(&mut self, context: &mut GameUiContext) {
         let was_paused = context.sim.is_paused();
         self.tile_palette.clear_current_selection(context);
         self.tile_inspector.close(context);
-        if was_paused {
+        if was_paused && dialog::current().is_some() {
             context.sim.pause();
         }
         self.tile_palette = TilePaletteMenu::new(context);

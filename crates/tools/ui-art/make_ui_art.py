@@ -8,7 +8,8 @@
 art.json lists the sprites: per realm, a generator call, its size and bleed, 9-slice borders and
 states. Each renders to assets/ui/skins/<realm>/<id>[_<state>].png at 2x, on a transparent
 background, with Playwright's Chromium. manifest.json records what this script wrote, with the
-hash of each sprite's source (its SVG) and of the PNG: unchanged sprites are skipped, and a file
+hash of each sprite's source (its SVG), of its catalog entry and of the PNG, and how far a drawing
+spilled past its crop: unchanged sprites are skipped, and a file
 the manifest doesn't list (hand-made art), or one changed since it was written, is never
 overwritten without --force.
 
@@ -39,15 +40,19 @@ def main(argv=None):
     ap.add_argument("--prune", action="store_true",
                     help="forget sprites the manifest lists but the catalog no longer has, and delete those "
                          "still as this script wrote them (--force: delete changed ones too)")
-    ap.add_argument("--root", default=cat.REPO_ROOT, help="repository root (default: this checkout)")
     a = ap.parse_args(argv)
+    a.root = cat.REPO_ROOT  # The catalog, manifest and generator are this checkout's too.
 
     try:
         records = cat.load_catalog()
-        manifest = cat.load_manifest()
         chosen = cat.select(records, a.realm, a.ids)
     except (cat.CatalogError, ValueError) as e:
         print(f"art.json: {e}", file=sys.stderr)
+        return 2
+    try:
+        manifest = cat.load_manifest()
+    except (cat.CatalogError, ValueError) as e:
+        print(f"manifest.json: {e}", file=sys.stderr)
         return 2
 
     if a.check:
@@ -77,13 +82,14 @@ def main(argv=None):
 
 def run(render, root, chosen, records, manifest, force):
     sprites = manifest["sprites"]
-    jobs, unchanged, skipped = [], 0, []
+    jobs, unchanged, skipped, spills = [], 0, [], []
     for rec, st, path in cat.outputs(chosen):
         svg, source = render.sprite_svg(rec, st)
+        entry_hash = cat.catalog_hash(rec, st)
         full = os.path.join(root, path)
         exists = os.path.exists(full)
         decision = cat.render_decision(exists, sprites.get(path), cat.file_hash(full) if exists else None,
-                                       source, force)
+                                       source, force, entry_hash)
         if decision == cat.SKIP_UNLISTED:
             skipped.append(f"{path}: not made by this script (see manifest.json); --force to overwrite")
             continue
@@ -92,29 +98,30 @@ def run(render, root, chosen, records, manifest, force):
             continue
         if decision == cat.UNCHANGED:
             unchanged += 1
+            sprites[path]["catalog_hash"] = entry_hash  # Recorded for an entry from before catalog hashes.
+            if sprites[path].get("spill"):
+                spills.append(spill_warning(path, sprites[path]["spill"]))
             continue
         jobs.append({"rec": rec, "state": st, "path": path, "svg": svg, "source": source, "css": st["css"],
-                     "page": render.layout(rec)[0]})
+                     "page": render.layout(rec)[0], "catalog_hash": entry_hash})
 
-    scale = {j["rec"]["scale"] for j in jobs}
-    if len(scale) > 1:
-        raise SystemExit("one scale per catalog")
-    shots = render.shoot(jobs, scale.pop() if scale else 2)
-    spills = []
+    # The catalog has one scale (expand() gives every record the catalog's).
+    shots = render.shoot(jobs, records[0]["scale"] if records else 2)
     try:
         for job, page_png in zip(jobs, shots):
             rec, path = job["rec"], job["path"]
             png, spill = render.finish(rec, page_png)
-            if any(v > 0 for v in spill):
-                sides = ", ".join(f"{n} {v:g}" for n, v in zip(("left", "top", "right", "bottom"), spill) if v > 0)
-                spills.append(f"{path}: the drawing reaches past the sprite ({sides} pt); raise its bleed")
             full = os.path.join(root, path)
             os.makedirs(os.path.dirname(full), exist_ok=True)
             with open(full, "wb") as f:
                 f.write(png)
             sprites[path] = {"realm": rec["realm"], "id": rec["id"], "state": job["state"]["state"],
-                             "source_hash": job["source"], "png_hash": cat.file_hash(full),
-                             "png_size": cat.png_size(full)}
+                             "source_hash": job["source"], "catalog_hash": job["catalog_hash"],
+                             "png_hash": cat.file_hash(full), "png_size": cat.png_size(full)}
+            # Kept in the manifest, so later runs and --check report it until it's fixed.
+            if any(v > 0 for v in spill):
+                sprites[path]["spill"] = [round(v, 2) for v in spill]
+                spills.append(spill_warning(path, spill))
     finally:
         # Also when a run stops partway: the files written so far stay this script's.
         cat.save_manifest(manifest)
@@ -131,6 +138,11 @@ def run(render, root, chosen, records, manifest, force):
     if missing_web:
         print("note: new sprites; run `cargo run -p web-builder -- manifest` to list them in web/asset_manifest.json")
     return 1 if spills else 0
+
+
+def spill_warning(path, spill):
+    sides = ", ".join(f"{n} {v:g}" for n, v in zip(("left", "top", "right", "bottom"), spill) if v > 0)
+    return f"{path}: the drawing reaches past the sprite ({sides} pt); raise its bleed"
 
 
 def measure(render, chosen):

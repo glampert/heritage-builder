@@ -176,11 +176,29 @@ pub(super) fn record(
     enabled: bool,
     value: Option<Value>,
 ) -> Option<Value> {
+    record_lazy(ui_sys, ui, response, kind, label, tooltip, enabled, || value)
+}
+
+// As record, for a value that takes work to build (a table's rows): `value` runs only while the
+// widget registry is on.
+#[allow(clippy::too_many_arguments)]
+pub(super) fn record_lazy(
+    ui_sys: &UiSystem,
+    ui: &egui::Ui,
+    response: &egui::Response,
+    kind: &'static str,
+    label: &str,
+    tooltip: Option<&str>,
+    enabled: bool,
+    value: impl FnOnce() -> Option<Value>,
+) -> Option<Value> {
     ui_sys.set_last_response(response);
 
     if !ui_sys.is_widget_registry_enabled() {
         return None;
     }
+
+    let value = value();
 
     let visible = ui.clip_rect().contains(response.rect.center()); // Where ui.click would click.
 

@@ -11,6 +11,13 @@
 {"method": "assert.eq", "params": {"query": "ui.tree", "args": {"filter": "Home/"}, "path": "/widgets", "value": []}}
 {"method": "ui.set", "params": {"path": "NewGame/New Map Width", "value": 64}}
 {"method": "ui.set", "params": {"path": "NewGame/New Map Height", "value": 96}}
+# Escape with a dropdown's list open closes the list only, and the dialog stays.
+{"method": "ui.click", "params": {"path": "NewGame/Terrain Kind"}}
+{"method": "assert.exists", "params": {"query": "ui.tree", "args": {"filter": "NewGame/Terrain Kind/Dirt"}, "path": "/widgets/0"}}
+{"method": "input.key", "params": {"key": "Escape"}}
+{"method": "wait.frames", "params": {"frames": 3}}
+{"method": "assert.eq", "params": {"query": "ui.tree", "args": {"filter": "NewGame/Terrain Kind/"}, "path": "/widgets", "value": []}}
+{"method": "assert.eq", "params": {"query": "dialog.current", "path": "/current", "value": "NewGame"}}
 {"method": "ui.set", "params": {"path": "NewGame/Terrain Kind", "value": "Dirt"}}
 {"method": "ui.click", "params": {"path": "NewGame/Start New Game"}}
 {"method": "wait.until", "params": {"query": "session.state", "path": "/menus_mode", "op": "eq", "value": "InGame", "timeout_frames": 60}}

@@ -237,6 +237,7 @@
       "sprite": "skins/dailong/icon_frame",
       "slice": [20, 20, 20, 20],
       "selected": "skins/dailong/icon_frame_selected.png",
+      "selected_slice": [16, 16, 16, 16],
       "size": 28.0
     },
     "hud_item": { "hover_sprite": "misc/brush_stroke_divider.png", "font": "normal" }

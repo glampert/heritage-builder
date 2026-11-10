@@ -511,8 +511,8 @@ impl Engine {
         let ui_system = UiSystem::new();
         log::info!(log::channel!("engine"), "UiSystem initialized.");
 
-        let mut sound_system = SoundSystem::new(configs.sound_settings);
-        crate::ui::sound::initialize(&mut sound_system);
+        let sound_system = SoundSystem::new(configs.sound_settings);
+        crate::ui::sound::initialize();
         log::info!(log::channel!("engine"), "SoundSystem initialized.");
 
         let debug_draw = DebugDraw::new(render_system.clone());

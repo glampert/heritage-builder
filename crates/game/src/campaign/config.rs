@@ -151,18 +151,28 @@ impl CampaignConfigs {
     // Called once the configs load (shadows engine::config::Configs::post_load): every campaign
     // gets an id, since the profile records progress by id.
     fn post_load(&'static mut self) {
-        for (index, campaign) in self.campaigns.iter_mut().enumerate() {
-            if campaign.id.is_empty() {
-                campaign.id = format!("campaign_{index}");
-                log::warning!(log::channel!("campaign"), "Campaign '{}' has no id: using '{}'.", campaign.name, campaign.id);
-            }
-        }
-        for (index, campaign) in self.campaigns.iter().enumerate() {
-            if self.campaigns[..index].iter().any(|other| other.id == campaign.id) {
-                log::error!(log::channel!("campaign"), "Two campaigns have the id '{}': the profile can't tell them apart.", campaign.id);
-            }
+        for id in assign_campaign_ids(&mut self.campaigns) {
+            log::error!(log::channel!("campaign"), "Two campaigns have the id '{id}': the profile can't tell them apart.");
         }
     }
+}
+
+// Gives a campaign without an id the id "campaign_<index>" (its place in the list), with a warning.
+// Returns the ids two or more campaigns share, once each.
+pub fn assign_campaign_ids(campaigns: &mut [CampaignDef]) -> Vec<String> {
+    for (index, campaign) in campaigns.iter_mut().enumerate() {
+        if campaign.id.is_empty() {
+            campaign.id = format!("campaign_{index}");
+            log::warning!(log::channel!("campaign"), "Campaign '{}' has no id: using '{}'.", campaign.name, campaign.id);
+        }
+    }
+    let mut shared: Vec<String> = Vec::new();
+    for (index, campaign) in campaigns.iter().enumerate() {
+        if campaigns[..index].iter().any(|other| other.id == campaign.id) && !shared.contains(&campaign.id) {
+            shared.push(campaign.id.clone());
+        }
+    }
+    shared
 }
 
 // ----------------------------------------------

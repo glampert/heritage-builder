@@ -117,6 +117,9 @@ class CatalogTest(unittest.TestCase):
         self.assertRejects(entry(states=["idle", "hovered"], out="skins/{realm}/{id}.png"), "share an output")
         self.assertRejects(entry(realms={"atlantis": {}}), "unknown realm")
         self.assertRejects(entry(realms={"dailong": {"id": "x"}}), "unknown keys")
+        self.assertRejects(entry(states={"idle": {"args": [1]}}), "args must be an object")
+        self.assertRejects(entry(states={"idle": {"css": 5}}), "css must be")
+        self.assertRejects(entry(args=[1], realms={"dailong": {"args": {"a": 1}}}), "args must be an object")
 
         def dup(raw):
             raw["sprites"].append(copy.deepcopy(raw["sprites"][0]))
@@ -149,7 +152,8 @@ class CheckTest(unittest.TestCase):
         for rec, st, path in cat.outputs(self.recs):
             full = os.path.join(self.root, path)
             write_png(full, *rec["png_size"])
-            self.manifest["sprites"][path] = {"png_hash": cat.file_hash(full), "png_size": rec["png_size"]}
+            self.manifest["sprites"][path] = {"png_hash": cat.file_hash(full), "png_size": rec["png_size"],
+                                              "catalog_hash": cat.catalog_hash(rec, st)}
 
     def tearDown(self):
         self.tmp.cleanup()
@@ -174,6 +178,17 @@ class CheckTest(unittest.TestCase):
         errs = self.errors()
         self.assertTrue(any("button_idle.png" in e and "not in manifest.json" in e for e in errs), errs)
         self.assertTrue(any("old.png" in e and "--prune" in e for e in errs), errs)
+
+    def test_stale_and_spilled(self):
+        # A catalog edit that keeps the size (a state's filter, the call's args) shows without a
+        # render, and so does a sprite whose drawing spilled past its crop when it was rendered.
+        path = "assets/ui/skins/dailong/button_hovered.png"
+        self.recs = expand(lambda raw: raw.setdefault("state_filters", {}).update(hovered="brightness(2)"))
+        self.manifest["sprites"]["assets/ui/skins/dailong/panel.png"]["spill"] = [0, 1.5, 0, 0]
+        errs = self.errors()
+        self.assertTrue(any(path in e and "art.json entry changed" in e for e in errs), errs)
+        self.assertTrue(any("dailong/panel.png" in e and "top 1.5 pt" in e for e in errs), errs)
+        self.assertFalse(any("dailong/button_idle.png" in e for e in errs), errs)
 
     def test_web_manifest(self):
         listed = [p for _, _, p in cat.outputs(self.recs)]
@@ -223,6 +238,21 @@ class CheckTest(unittest.TestCase):
         self.assertTrue(any("skins/kambara/emblem.png doesn't exist" in e for e in errs), errs)
         self.assertTrue(any("isn't a 9-slice" in e for e in errs), errs)
 
+    def test_skin_selected_frames(self):
+        # A framed role's selected frame is cut by its selected_slice, else by the role's slice.
+        role = {"sprite": "skins/dailong/panel.png", "slice": [20, 20, 24, 28], "center": "round",
+                "selected": "skins/kambara/panel.png"}
+        self.write_skin("dailong", {"buttons": {"icon": role}})
+        self.assertEqual(self.errors(), [])
+        self.write_skin("dailong", {"buttons": {"icon": dict(role, selected_slice=[16, 16, 16, 16])}})
+        errs = self.errors()
+        self.assertEqual(len(errs), 1, errs)
+        self.assertIn("dailong.json:buttons:icon:selected: slice [16, 16, 16, 16]", errs[0])
+        self.write_skin("dailong", {"buttons": {"icon": dict(role, selected_slice=[20, 20, 24, 28], slice=[1, 1, 1, 1])}})
+        errs = self.errors()
+        self.assertEqual(len(errs), 1, errs)
+        self.assertIn("dailong.json:buttons:icon: slice [1, 1, 1, 1]", errs[0])
+
 
     def test_skin_folders(self):
         # The plan's icon sets name a folder, not a sprite.
@@ -248,6 +278,12 @@ class DecisionTest(unittest.TestCase):
         self.assertEqual(d(True, self.ENTRY, "aaa", "new", False), cat.RENDER)         # the drawing changed
         for known, h in ((None, "zzz"), (self.ENTRY, "zzz"), (self.ENTRY, "aaa")):
             self.assertEqual(d(True, known, h, "src", True), cat.RENDER)
+        # The catalog entry changed though the SVG didn't (a CSS filter); an entry from before
+        # catalog hashes adopts the current one.
+        hashed = dict(self.ENTRY, catalog_hash="cat")
+        self.assertEqual(d(True, hashed, "aaa", "src", False, "cat"), cat.UNCHANGED)
+        self.assertEqual(d(True, hashed, "aaa", "src", False, "new"), cat.RENDER)
+        self.assertEqual(d(True, self.ENTRY, "aaa", "src", False, "new"), cat.UNCHANGED)
 
     def test_prune(self):
         d = cat.prune_decision
@@ -314,6 +350,13 @@ class SvgTest(unittest.TestCase):
         page, origin, crop = render.layout(turned)
         self.assertEqual(page, (144, 144))
         self.assertEqual(crop, (72 - 14 + 8, 72 - 32 - 1, 12, 66))
+
+    def test_gilt_period(self):
+        self.assertEqual(render._gcd_points(120, 80), 40)
+        self.assertEqual(render._gcd_points(12, 12), 12)  # A square middle: its side.
+        self.assertEqual(render._gcd_points(16.5, 33), 16.5)
+        with self.assertRaises(cat.CatalogError):
+            render._gcd_points(100, 70)  # Only 10 pt in common: no period divides both cleanly.
 
     def test_make_tileable(self):
         class Theme:

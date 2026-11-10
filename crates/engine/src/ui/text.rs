@@ -132,10 +132,20 @@ pub fn format(category: UiTextCategory, key: &str, args: &[(&str, &str)]) -> Str
 // `{count}` filled with it unless `args` gives it. A key without plural forms is used as it is.
 pub fn format_count(category: UiTextCategory, key: &str, count: i64, args: &[(&str, &str)]) -> String {
     let text = match lookup(category, key, hash::fnv1a_from_str(key)) {
-        Some((entry, language)) => entry.form(language.plural_rule.form(count)),
+        Some((entry, language)) => plural_text(entry, language, count),
         None => key,
     };
+    fill_count(text, count, args)
+}
 
+// The entry's form for `count` by the plural rule of `language`, the one it comes from (English
+// for a key the current language lacks).
+fn plural_text<'a>(entry: &'a UiTextEntry, language: &UiLanguage, count: i64) -> &'a str {
+    entry.form(language.plural_rule.form(count))
+}
+
+// `text` with `{count}` filled with `count` unless `args` gives it, and the other placeholders from `args`.
+fn fill_count(text: &str, count: i64, args: &[(&str, &str)]) -> String {
     let count_text = count.to_string();
     if args.iter().any(|(name, _)| *name == "count") {
         fill_placeholders(text, args)
@@ -180,7 +190,7 @@ pub fn peek(category: UiTextCategory, key: &str, count: Option<i64>) -> (String,
     let store = store();
     match store.find(store.current(), category, hash::fnv1a_from_str(key)) {
         Some((entry, language)) => {
-            let text = count.map_or(entry.text(), |count| entry.form(language.plural_rule.form(count)));
+            let text = count.map_or(entry.text(), |count| plural_text(entry, language, count));
             (text.to_string(), Some(language.name.as_str()))
         }
         None => (key.to_string(), None),
@@ -242,12 +252,6 @@ impl UiString {
         Self::Key { category, key: Cow::Borrowed(key), hash: hash::fnv1a_from_str(key) }
     }
 
-    // A key made at runtime, e.g. from a tile def's name.
-    pub fn key_owned(category: UiTextCategory, key: String) -> Self {
-        let hash = hash::fnv1a_from_str(&key);
-        Self::Key { category, key: Cow::Owned(key), hash }
-    }
-
     pub fn literal(text: impl Into<String>) -> Self {
         Self::Literal(text.into())
     }
@@ -269,7 +273,7 @@ impl UiString {
         }
     }
 
-    #[inline]
+    #[cfg(test)]
     pub fn is_key(&self) -> bool {
         matches!(self, Self::Key { .. })
     }
@@ -884,6 +888,25 @@ mod tests {
         assert_eq!(find("ok"), Some(("Okay", "xx")));
         assert_eq!(find("cancel"), Some(("Cancel", "en")));
         assert_eq!(find("missing"), None);
+    }
+
+    // A count picks its plural form by the rule of the language the text comes from: English's
+    // for a key the current language lacks.
+    #[test]
+    fn plural_forms_follow_the_text_language() {
+        let store = UiTextStore::new(vec![
+            language("vi", r#"{ "Hud": { "days": { "other": "{count} ngày" } } }"#),
+            language("en", r#"{ "Hud": { "days": { "one": "{count} day", "other": "{count} days" }, "months": { "one": "{count} month", "other": "{count} months" } } }"#),
+        ]);
+        let vi = store.language_index("vi");
+        let format = |key: &str, count: i64, args: &[(&str, &str)]| {
+            let (entry, language) = store.find(vi, UiTextCategory::Hud, hash::fnv1a_from_str(key)).unwrap();
+            fill_count(plural_text(entry, language, count), count, args)
+        };
+        assert_eq!(format("days", 1, &[]), "1 ngày"); // Vietnamese has one form.
+        assert_eq!(format("months", 1, &[]), "1 month"); // From English, by English's rule.
+        assert_eq!(format("months", 3, &[]), "3 months");
+        assert_eq!(format("months", 1, &[("count", "a")]), "a month"); // args win.
     }
 
     #[test]

@@ -6,7 +6,7 @@ use engine::{
     file_sys::paths::AssetPath,
     ui::{
         UiInputEvent,
-        widgets::{UiMenuFlags, UiSlideshow, UiSlideshowFlags, UiSlideshowLoopMode, UiWidget},
+        widgets::{UiSlideshow, UiSlideshowFlags, UiSlideshowLoopMode, UiWidget},
     },
 };
 
@@ -34,6 +34,7 @@ use crate::{
 pub struct HomeMenus {
     slideshow: UiSlideshow,
     skin_version: u32, // The skin the backdrop was built with.
+    played_intro: bool, // The first backdrop played its intro: a rebuilt one replays it under the dialogs.
 }
 
 impl HomeMenus {
@@ -43,11 +44,9 @@ impl HomeMenus {
         skin::apply_theme(context.ui_sys);
 
         dialog::initialize(context);
-        // Centred, as in game: Home's own entry in the skin puts it on the left.
-        dialog::set_global_menu_flags(UiMenuFlags::AlignCenter);
         dialog::set_backdrop_dim(context, true);
 
-        Self { slideshow: Self::make_background_slideshow(context), skin_version: skin::version() }
+        Self { slideshow: Self::make_background_slideshow(context), skin_version: skin::version(), played_intro: false }
     }
 
     // The menu's full-screen background, from the skin: a still, or an animation's frames whose
@@ -120,7 +119,10 @@ impl GameMenusSystem for HomeMenus {
     fn end_frame(&mut self, context: &mut GameUiContext, _visible_range: CellRange) {
         self.slideshow.draw(context);
 
-        if self.slideshow.has_flags(UiSlideshowFlags::PlayedOnce) {
+        // The dialogs wait for the intro once only: a skin change rebuilds the backdrop, which
+        // starts over, but mustn't hide the dialogs that are open while it does.
+        self.played_intro |= self.slideshow.has_flags(UiSlideshowFlags::PlayedOnce);
+        if self.played_intro {
             // Main Home Menu always open.
             if !dialog::is_open(DialogMenuKind::Home) {
                 dialog::open(DialogMenuKind::Home, false, context);

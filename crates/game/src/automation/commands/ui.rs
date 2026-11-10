@@ -91,7 +91,7 @@ pub(super) const COMMANDS: &[CommandDef] = &[
         name: "ui.reload_styles",
         help: "Load the developer UI's style file again (assets/configs/ui/styles/dev.json), e.g. after editing it; \
                the skins' styles stay as loaded (ui.reload_skin reads those). Keeps the current styles if one fails \
-               to load.",
+               to load. An error on web, which reads each file only once.",
         params: &[],
         run: cmd_reload_styles,
     },

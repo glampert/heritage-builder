@@ -467,8 +467,8 @@ impl UiWidget for UiImage {
             }
 
             let tooltip = self.tooltip.as_ref().map(|tooltip| tooltip.text.resolve());
-            let value = serde_json::json!({ "fit": self.fit.name() });
-            immediate::record(ui_sys, ui, &response, "image", self.label.resolve(), tooltip, true, Some(value));
+            let value = || Some(serde_json::json!({ "fit": self.fit.name() }));
+            immediate::record_lazy(ui_sys, ui, &response, "image", self.label.resolve(), tooltip, true, value);
             response.hovered()
         });
 

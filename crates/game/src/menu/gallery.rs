@@ -325,8 +325,9 @@ fn buttons(context: &mut GameUiContext) -> UiWidgetGroup {
     icons.add_widget(skin::icon_button(context, "icon disabled", icon_names.first().map_or("", String::as_str)).with_enabled(false));
 
     let mut sprites = row();
-    let sets: Vec<String> = skin::current().icon_sets.keys().cloned().collect();
-    for (set, name) in sets.iter().zip(["main_menu", "housing"]) {
+    // A sample button of each set the gallery knows a sprite of.
+    const SAMPLE_SPRITES: [(&str, &str); 2] = [("menu_bar", "main_menu"), ("palette", "housing")];
+    for (set, name) in SAMPLE_SPRITES.into_iter().filter(|(set, _)| skin::current().icon_sets.contains_key(*set)) {
         sprites.add_widget(skin::sprite_button(context, set, name, Vec2::new(40.0, 40.0)).with_tooltip(skin::tooltip(context, format!("{set}/{name}"))));
     }
 
@@ -340,20 +341,22 @@ fn buttons(context: &mut GameUiContext) -> UiWidgetGroup {
         .with_widget(sprites)
 }
 
-// Each framed role's four state sprites, as 9-slices.
+// Each framed role's four state sprites, as 9-slices, and its selected frame if it has one (the
+// icon button's): every role of the skin's with a `sprite`.
 fn button_states(context: &mut GameUiContext) -> UiWidgetGroup {
     let mut group = UiWidgetGroup::new().with_center_horizontally(false).with_widget_spacing(Vec2::new(0.0, 6.0));
-    for role in [ButtonRole::Primary, ButtonRole::Secondary, ButtonRole::Tab, ButtonRole::TabSelected] {
-        let def = skin::button_def(role.key());
+    for (role, def) in skin::current().buttons.clone() {
         let Some(stem) = &def.sprite else {
             continue;
         };
+        let states = ["idle", "hovered", "pressed", "disabled"].map(|state| (state, format!("{stem}_{state}.png"), def.slice));
+        let selected = def.selected.clone().map(|path| ("selected", path, def.selected_slice.unwrap_or(def.slice)));
         let mut line = row();
-        for state in ["idle", "hovered", "pressed", "disabled"] {
-            let slice = skin::nine_slice(context, &format!("{stem}_{state}.png"), def.slice, def.center);
-            line.add_widget(captioned(UiImage::empty(STATE_SWATCH_SIZE).with_frame(slice, 0.0).with_label(format!("{} {state}", role.key())), state));
+        for (state, path, slice_px) in states.into_iter().chain(selected) {
+            let slice = skin::nine_slice(context, &path, slice_px, def.center);
+            line.add_widget(captioned(UiImage::empty(STATE_SWATCH_SIZE).with_frame(slice, 0.0).with_label(format!("{role} {state}")), state));
         }
-        group.add_widget(caption(role.key()));
+        group.add_widget(caption(&role));
         group.add_widget(line);
     }
     group

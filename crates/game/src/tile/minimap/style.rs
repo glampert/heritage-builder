@@ -476,7 +476,8 @@ impl MinimapStyles {
     // A realm's file as JSON: read again if `reread` (to see edits) or not read yet, else the
     // copy from the last read. One that can't be read or doesn't parse is an error, except that
     // the web build, which can read an asset only once, rereads the copy.
-    fn file_json(&mut self, realm: Realm, reread: bool) -> Result<serde_json::Value, String> {
+    // `read` gives a realm's file's text (read_style_file).
+    fn file_json(&mut self, realm: Realm, reread: bool, read: &mut impl FnMut(Realm) -> Result<String, String>) -> Result<serde_json::Value, String> {
         let cached = self.files.iter().position(|(file_realm, _)| *file_realm == realm);
         if let Some(index) = cached
             && !reread
@@ -484,7 +485,7 @@ impl MinimapStyles {
             return Ok(self.files[index].1.clone());
         }
 
-        let text = match (read_style_file(realm), cached) {
+        let text = match (read(realm), cached) {
             (Ok(text), _) => text,
             (Err(_), Some(index)) if cfg!(feature = "web") => return Ok(self.files[index].1.clone()),
             (Err(err), _) => return Err(err),
@@ -500,8 +501,8 @@ impl MinimapStyles {
 
     // Loads `realm`'s style. If it fails, the current style and realm stay (the defaults, if
     // there's no style yet).
-    fn load(&mut self, realm: Realm, reread: bool) -> Result<(), String> {
-        match MinimapStyle::load_with(realm, |realm| self.file_json(realm, reread)) {
+    fn load(&mut self, realm: Realm, reread: bool, read: &mut impl FnMut(Realm) -> Result<String, String>) -> Result<(), String> {
+        match MinimapStyle::load_with(realm, |realm| self.file_json(realm, reread, read)) {
             Ok(style) => {
                 self.current = Some(style);
                 self.realm = realm;
@@ -517,6 +518,26 @@ impl MinimapStyles {
             }
         }
     }
+
+    // follow() on these styles, the files read with `read`.
+    fn follow_with(&mut self, realm: Realm, read: &mut impl FnMut(Realm) -> Result<String, String>) -> &MinimapStyle {
+        if self.current.is_none() || self.followed != Some(realm) {
+            self.followed = Some(realm);
+            match self.load(realm, false, read) {
+                Ok(()) => log::info!(log::channel!("minimap"), "Loaded minimap style '{realm}'."),
+                Err(err) => log::error!(log::channel!("minimap"), "{err}"),
+            }
+        }
+        self.current.as_ref().unwrap()
+    }
+
+    // reload() on these styles.
+    fn reload_with(&mut self, realm: Realm, read: &mut impl FnMut(Realm) -> Result<String, String>) -> Result<Realm, String> {
+        self.load(realm, true, read)?;
+        self.followed = Some(realm);
+        log::info!(log::channel!("minimap"), "Loaded minimap style '{realm}'.");
+        Ok(realm)
+    }
 }
 
 common::singleton! { MINIMAP_STYLES, MinimapStyles }
@@ -530,15 +551,7 @@ pub fn current() -> &'static MinimapStyle {
 // The style of `realm`, loaded if follow() didn't ask for it last. For callers that know the UI
 // realm, such as automation commands.
 pub fn follow(realm: Realm) -> &'static MinimapStyle {
-    let styles = MinimapStyles::get_mut();
-    if styles.current.is_none() || styles.followed != Some(realm) {
-        styles.followed = Some(realm);
-        match styles.load(realm, false) {
-            Ok(()) => log::info!(log::channel!("minimap"), "Loaded minimap style '{realm}'."),
-            Err(err) => log::error!(log::channel!("minimap"), "{err}"),
-        }
-    }
-    styles.current.as_ref().unwrap()
+    MinimapStyles::get_mut().follow_with(realm, &mut read_style_file)
 }
 
 // The realm of the style in use: Đại Long while it's the defaults, and the one before when a
@@ -556,9 +569,119 @@ pub fn version() -> u32 {
 // changes. Another realm than the UI's is taken back at the next current(): pick the realm with
 // realm::set_override (ui.realm) instead.
 pub fn reload(realm: Realm) -> Result<Realm, String> {
-    let styles = MinimapStyles::get_mut();
-    styles.load(realm, true)?;
-    styles.followed = Some(realm);
-    log::info!(log::channel!("minimap"), "Loaded minimap style '{realm}'.");
-    Ok(realm)
+    MinimapStyles::get_mut().reload_with(realm, &mut read_style_file)
+}
+
+// ----------------------------------------------
+// Tests
+// ----------------------------------------------
+
+#[cfg(test)]
+mod tests {
+    use std::{cell::RefCell, collections::HashMap};
+
+    use super::*;
+
+    // Style files in memory, counting the reads.
+    struct Files {
+        texts: RefCell<HashMap<Realm, Result<String, String>>>,
+        reads: RefCell<Vec<Realm>>,
+    }
+
+    impl Files {
+        fn new(texts: &[(Realm, &str)]) -> Self {
+            let texts = texts.iter().map(|(realm, text)| (*realm, Ok(text.to_string()))).collect();
+            Self { texts: RefCell::new(texts), reads: RefCell::new(Vec::new()) }
+        }
+
+        fn set(&self, realm: Realm, text: Result<&str, &str>) {
+            self.texts.borrow_mut().insert(realm, text.map(str::to_string).map_err(str::to_string));
+        }
+
+        fn reader(&self) -> impl FnMut(Realm) -> Result<String, String> + '_ {
+            |realm| {
+                self.reads.borrow_mut().push(realm);
+                self.texts.borrow().get(&realm).cloned().unwrap_or_else(|| Err(format!("no file for {realm}")))
+            }
+        }
+
+        fn take_reads(&self) -> Vec<Realm> {
+            std::mem::take(&mut *self.reads.borrow_mut())
+        }
+    }
+
+    fn width(styles: &MinimapStyles) -> f32 {
+        styles.current.as_ref().unwrap().map_size().x
+    }
+
+    // A realm's file merges over Đại Long's, and each file is read once, then taken from the copy.
+    #[test]
+    fn follow_merges_and_caches_the_files() {
+        let files = Files::new(&[(Realm::DaiLong, r#"{ "map_size": [300, 150] }"#), (Realm::Kambara, r#"{ "map_size": [320, 150] }"#)]);
+        let mut styles = MinimapStyles::new();
+
+        assert_eq!(styles.follow_with(Realm::DaiLong, &mut files.reader()).map_size().x, 300.0);
+        assert_eq!((styles.realm, styles.version), (Realm::DaiLong, 1));
+        assert_eq!(files.take_reads(), [Realm::DaiLong]);
+
+        // The same realm again: nothing is loaded.
+        styles.follow_with(Realm::DaiLong, &mut files.reader());
+        assert_eq!(styles.version, 1);
+        assert!(files.take_reads().is_empty());
+
+        assert_eq!(styles.follow_with(Realm::Kambara, &mut files.reader()).map_size().x, 320.0);
+        assert_eq!((styles.realm, styles.version), (Realm::Kambara, 2));
+        assert_eq!(files.take_reads(), [Realm::Kambara], "Đại Long's file from the copy");
+
+        // An edit shows only once the files are read again (reload).
+        files.set(Realm::Kambara, Ok(r#"{ "map_size": [340, 150] }"#));
+        styles.follow_with(Realm::DaiLong, &mut files.reader());
+        assert_eq!(styles.follow_with(Realm::Kambara, &mut files.reader()).map_size().x, 320.0);
+        assert_eq!(styles.reload_with(Realm::Kambara, &mut files.reader()), Ok(Realm::Kambara));
+        assert_eq!(width(&styles), 340.0);
+        assert_eq!(styles.followed, Some(Realm::Kambara));
+    }
+
+    // A realm whose file fails keeps the style and realm before it, without a new version, and
+    // isn't tried again every frame; a failed reload changes nothing.
+    #[test]
+    fn a_broken_realm_keeps_the_style_before() {
+        let files = Files::new(&[(Realm::DaiLong, r#"{ "map_size": [300, 150] }"#), (Realm::Tampadesa, "{ not json")]);
+        let mut styles = MinimapStyles::new();
+        styles.follow_with(Realm::DaiLong, &mut files.reader());
+        files.take_reads();
+
+        assert_eq!(styles.follow_with(Realm::Tampadesa, &mut files.reader()).map_size().x, 300.0);
+        assert_eq!((styles.realm, styles.version, styles.followed), (Realm::DaiLong, 1, Some(Realm::Tampadesa)));
+        assert_eq!(files.take_reads(), [Realm::Tampadesa]);
+        styles.follow_with(Realm::Tampadesa, &mut files.reader());
+        assert!(files.take_reads().is_empty(), "not retried");
+
+        files.set(Realm::DaiLong, Ok(r#"{ "map_size": "wide" }"#));
+        assert!(styles.reload_with(Realm::DaiLong, &mut files.reader()).is_err());
+        assert_eq!((styles.realm, styles.version, width(&styles)), (Realm::DaiLong, 1, 300.0));
+
+        // With no style yet, a failure gives the defaults.
+        let mut fresh = MinimapStyles::new();
+        files.set(Realm::DaiLong, Err("unreadable"));
+        assert_eq!(fresh.follow_with(Realm::DaiLong, &mut files.reader()).map_size(), MinimapStyle::default().map_size());
+        assert_eq!((fresh.realm, fresh.version), (Realm::DaiLong, 1));
+    }
+
+    // A file that can't be read again: an error on desktop, the copy from the last read on web,
+    // which can read an asset only once.
+    #[test]
+    fn an_unreadable_reread_falls_back_to_the_copy_on_web() {
+        let files = Files::new(&[(Realm::DaiLong, r#"{ "map_size": [300, 150] }"#)]);
+        let mut styles = MinimapStyles::new();
+        assert!(styles.file_json(Realm::DaiLong, false, &mut files.reader()).is_ok());
+        files.set(Realm::DaiLong, Err("asset consumed"));
+        let reread = styles.file_json(Realm::DaiLong, true, &mut files.reader());
+        if cfg!(feature = "web") {
+            assert_eq!(reread.unwrap()["map_size"][0], 300);
+        } else {
+            assert_eq!(reread.unwrap_err(), "asset consumed");
+        }
+        assert_eq!(styles.file_json(Realm::DaiLong, false, &mut files.reader()).unwrap()["map_size"][0], 300, "the copy stays");
+    }
 }

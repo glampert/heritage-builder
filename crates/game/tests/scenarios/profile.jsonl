@@ -1,0 +1,31 @@
+# The player's profile through automation (profile.state, profile.set, profile.reset): the edits
+# and what follows from them, the home menu's realm. Run it with --fresh-profile, as CI does, so
+# it starts from an empty profile and never reads or writes saves/user/profile.json:
+#   cargo run -p HeritageBuilder -- --fresh-profile --script crates/game/tests/scenarios/profile.jsonl
+{"method": "time.fixed_dt", "params": {"dt": 0.016667}}
+{"method": "assert.eq", "params": {"query": "profile.state", "path": "/writes_file", "value": false}}
+{"method": "assert.eq", "params": {"query": "profile.state", "path": "/profile/campaigns", "value": []}}
+{"method": "assert.eq", "params": {"query": "profile.state", "path": "/ui_realm/source", "value": "default"}}
+# Reaching a campaign makes the home menu take its realm from the profile. Custom Game's realms
+# are kept once each.
+{"method": "profile.set", "params": {"reached": ["dragon_legacy"], "last_save": "autosave", "custom_realms": ["kambara", "dailong", "kambara"]}}
+{"method": "assert.eq", "params": {"query": "profile.state", "path": "/profile/campaigns/0/id", "value": "dragon_legacy"}}
+{"method": "assert.eq", "params": {"query": "profile.state", "path": "/profile/campaigns/0/reached", "value": true}}
+{"method": "assert.eq", "params": {"query": "profile.state", "path": "/profile/custom_realms", "value": ["kambara", "dailong"]}}
+{"method": "assert.eq", "params": {"query": "profile.state", "path": "/ui_realm/source", "value": "profile"}}
+{"method": "assert.eq", "params": {"query": "profile.state", "path": "/ui_realm/realm", "value": "dailong"}}
+# A record replaces the campaign's: the fields it leaves out take their defaults (not reached),
+# its finished missions are sorted, each once. A last_save left out stays.
+{"method": "profile.set", "params": {"campaigns": [{"id": "dragon_legacy", "current_mission": 2, "missions_finished": [2, 0, 2]}]}}
+{"method": "assert.eq", "params": {"query": "profile.state", "path": "/profile/campaigns/0/missions_finished", "value": [0, 2]}}
+{"method": "assert.eq", "params": {"query": "profile.state", "path": "/profile/campaigns/0/current_mission", "value": 2}}
+{"method": "assert.eq", "params": {"query": "profile.state", "path": "/profile/campaigns/0/reached", "value": false}}
+{"method": "assert.eq", "params": {"query": "profile.state", "path": "/ui_realm/source", "value": "default"}}
+{"method": "assert.eq", "params": {"query": "profile.state", "path": "/profile/last_save", "value": "autosave"}}
+# null clears the last save.
+{"method": "profile.set", "params": {"last_save": null}}
+{"method": "assert.ne", "params": {"query": "profile.state", "path": "/profile/last_save", "value": "autosave"}}
+{"method": "assert.eq", "params": {"query": "profile.state", "path": "/profile/campaigns/0/current_mission", "value": 2}}
+{"method": "profile.reset"}
+{"method": "assert.eq", "params": {"query": "profile.state", "path": "/profile/campaigns", "value": []}}
+{"method": "assert.eq", "params": {"query": "profile.state", "path": "/profile/custom_realms", "value": []}}
