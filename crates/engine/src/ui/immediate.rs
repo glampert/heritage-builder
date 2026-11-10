@@ -206,6 +206,20 @@ pub(super) fn record(
 
 // Records a widget that isn't an egui widget, such as a window, by its rect.
 pub(super) fn record_rect(ui_sys: &UiSystem, kind: &'static str, label: &str, rect: egui::Rect, hovered: bool, value: Option<Value>) -> Option<String> {
+    record_rect_visible(ui_sys, kind, label, rect, hovered, true, value)
+}
+
+// As record_rect, for a widget that may be scrolled out of view (`visible` false), as a menu's
+// heading in a menu that scrolls.
+pub(super) fn record_rect_visible(
+    ui_sys: &UiSystem,
+    kind: &'static str,
+    label: &str,
+    rect: egui::Rect,
+    hovered: bool,
+    visible: bool,
+    value: Option<Value>,
+) -> Option<String> {
     ui_sys.record_widget_info(UiWidgetInfo {
         path: String::new(),
         kind,
@@ -214,7 +228,7 @@ pub(super) fn record_rect(ui_sys: &UiSystem, kind: &'static str, label: &str, re
         rect: to_rect(rect),
         enabled: true,
         hovered,
-        visible: true,
+        visible,
         value,
     })
 }
@@ -1033,7 +1047,9 @@ pub enum UiTooltipBackground {
     #[default]
     Style,                  // The UI style's popup frame.
     Sprite(TextureHandle),  // A sprite stretched behind the contents.
-    Panel(UiNineSlice),     // A 9-slice panel behind the contents.
+    // A 9-slice panel behind the contents, and the contents' insets on it in points (left, top,
+    // right, bottom): the style's popup margins if None.
+    Panel(UiNineSlice, Option<[f32; 4]>),
     None,                   // Nothing: the contents alone.
 }
 
@@ -1068,26 +1084,36 @@ fn show_styled_tooltip(
     ui_sys.set_tooltip_font_scale(font_scale);
 
     // Anything but the style's frame replaces the popup's own fill, outline and shadow; the
-    // margins stay.
+    // margins stay, unless a panel gives its own.
     let mut tooltip = tooltip;
+    let mut margin = None;
     if background != UiTooltipBackground::Style {
-        tooltip.popup = tooltip.popup.frame(transparent_popup_frame(ui_sys));
+        let mut frame = transparent_popup_frame(ui_sys);
+        if let UiTooltipBackground::Panel(_, Some(insets)) = background {
+            let points = |value: f32| value.round().clamp(0.0, 127.0) as i8;
+            frame = frame.inner_margin(egui::Margin { left: points(insets[0]), top: points(insets[1]), right: points(insets[2]), bottom: points(insets[3]) });
+        }
+        margin = Some(frame.inner_margin);
+        tooltip.popup = tooltip.popup.frame(frame);
     }
 
     tooltip.show(|ui| {
         ui.set_opacity(opacity.clamp(0.0, 1.0));
 
         // A sprite or panel goes in a slot under the contents, filled once their size is known.
-        let has_image = matches!(background, UiTooltipBackground::Sprite(_) | UiTooltipBackground::Panel(_));
+        let has_image = matches!(background, UiTooltipBackground::Sprite(_) | UiTooltipBackground::Panel(..));
         let background_slot = has_image.then(|| ui.painter().add(egui::Shape::Noop));
         ui_sys.ui_scope(ui, contents);
 
         if let Some(slot) = background_slot {
-            let rect = ui.min_rect().expand2(ui.spacing().window_margin.left_top()); // Its frame's.
+            // The contents plus the frame's margins.
+            let margin = margin.unwrap_or(egui::Margin::ZERO);
+            let inner = ui.min_rect();
+            let rect = egui::Rect::from_min_max(inner.min - margin.left_top(), inner.max + margin.right_bottom());
             let tint = Color32::WHITE.gamma_multiply(opacity.clamp(0.0, 1.0));
             let shape = match background {
                 UiTooltipBackground::Sprite(texture) => egui::Shape::image(egui_texture(texture), rect, uv_full(), tint),
-                UiTooltipBackground::Panel(slice) => nine_slice_shape(rect, &slice, tint),
+                UiTooltipBackground::Panel(slice, _) => nine_slice_shape(rect, &slice, tint),
                 UiTooltipBackground::Style | UiTooltipBackground::None => egui::Shape::Noop,
             };
             ui.painter().set(slot, shape);

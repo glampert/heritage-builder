@@ -64,7 +64,7 @@ impl FinancesManagement {
             menu.add_widget(skin::with_heading_separator(context, UiMenuHeading::new(TREASURY_TEXT), HeadingLevel::Section));
 
         // The player's settings, read from and written to the treasury as they change.
-        let tax_level = UiDropdown::new(TaxLevel::iter())
+        let tax_level = skin::dropdown(context, "", TaxLevel::iter())
             .with_font_scale(DEFAULT_DIALOG_MENU_WIDGET_FONT_SCALE)
             .on_get_current_selection(|_, context| context_as_mut::<GameUiContext>(context).sim.finance().tax_level().index())
             .on_selection_changed(|dropdown, context| {
@@ -73,7 +73,7 @@ impl FinancesManagement {
                 }
             });
 
-        let wage = UiSlider::new(0..=MAX_WAGE)
+        let wage = skin::slider(context, "", 0..=MAX_WAGE)
             .with_font_scale(DEFAULT_DIALOG_MENU_WIDGET_FONT_SCALE)
             .on_read_value(|_, context| -> u32 { context_as_mut::<GameUiContext>(context).sim.finance().wage() })
             .on_update_value(|_, context, wage: u32| {

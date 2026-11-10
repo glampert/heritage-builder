@@ -65,10 +65,8 @@ implement_dialog_menu! { MainGame, ["Game"] }
 impl MainGame {
     pub fn new(context: &mut GameUiContext) -> Self {
         let buttons = make_dialog_button_widgets::<MainGameButtonKind, MAIN_GAME_BUTTON_COUNT>(context);
-        let mut menu =
-            make_default_layout_dialog_menu(context, Self::KIND, Self::TITLE, DEFAULT_DIALOG_MENU_BUTTON_SPACING, buttons);
-
-        menu.set_flags(UiMenuFlags::HideWhenMessageBoxOpen, true);
+        // The Quit popup shows over it, as the mockups draw it (UiMenu draws a menu under its popup).
+        let menu = make_default_layout_dialog_menu(context, Self::KIND, Self::TITLE, DEFAULT_DIALOG_MENU_BUTTON_SPACING, buttons);
 
         Self { menu }
     }

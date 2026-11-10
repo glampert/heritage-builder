@@ -2,7 +2,7 @@ use std::any::Any;
 use smallbox::smallbox;
 use egui::Color32;
 
-use common::{Vec2, bitflags_with_display, mem::{self, RawPtr, RcMut, WeakMut, WeakRef}};
+use common::{Color, Vec2, bitflags_with_display, mem::{self, RawPtr, RcMut, WeakMut, WeakRef}};
 
 use super::{UiMessageBox, UiWidget, UiWidgetCallback, UiWidgetClosure, UiWidgetContext, UiWidgetImpl, widget_id};
 use crate::{
@@ -181,6 +181,7 @@ pub struct UiMenu {
     pub(super) content_insets: Option<UiMenuInsets>, // The style's window margin if None.
     widgets: Vec<UiWidgetImpl>,
     widget_spacing: Option<Vec2>, // The style's item spacing if None.
+    pub(super) backdrop_color: Option<Color>, // A modal menu's; UiSystem::modal_backdrop_color if None.
     message_box: UiMessageBox,
     sounds: UiWidgetSounds, // Opened and Closed: nothing by default; a dialog's or popup's role.
     on_open_close: UiMenuOpenClose,
@@ -235,6 +236,7 @@ impl UiMenu {
             content_insets: None,
             widgets: Vec::new(),
             widget_spacing: None,
+            backdrop_color: None,
             message_box: UiMessageBox::default(),
             sounds: UiWidgetSounds::new(),
             on_open_close: None,
@@ -266,6 +268,13 @@ impl UiMenu {
     // Between its widgets, and the lines of its text.
     pub fn with_widget_spacing(mut self, spacing: Vec2) -> Self {
         self.widget_spacing = Some(spacing);
+        self
+    }
+
+    // The colour a modal menu dims the screen behind it with, in place of the UI system's
+    // (UiSystem::set_modal_backdrop_color), e.g. a popup's darker one.
+    pub fn with_backdrop_color(mut self, color: Color) -> Self {
+        self.backdrop_color = Some(color);
         self
     }
 
@@ -549,16 +558,29 @@ impl UiMenu {
             return;
         }
 
+        // With its popup open, a menu is hidden (HideWhenMessageBoxOpen) or shows under it, as a
+        // plain window even if it's modal: the popup is, so it takes the input and dims the menu
+        // with its backdrop, as the mockups draw the Game menu under the Quit popup. A modal menu
+        // keeps dimming the screen behind it, under its window.
+        let mut flags = flags;
+        let mut keep_backdrop = false;
         let mut message_box = on_get_msg_box(self);
-        if message_box.is_open()
-            && (flags.intersects(UiMenuFlags::HideWhenMessageBoxOpen) || flags.intersects(UiMenuFlags::Modal))
-        {
-            message_box.as_mut().draw(context);
-            return;
+        if message_box.is_open() {
+            if flags.intersects(UiMenuFlags::HideWhenMessageBoxOpen) {
+                message_box.as_mut().draw(context);
+                return;
+            }
+            keep_backdrop = flags.intersects(UiMenuFlags::Modal);
+            flags.remove(UiMenuFlags::Modal);
         }
 
         let ui_sys = context.ui_sys();
         let ctx = ui_sys.ctx().clone();
+
+        let backdrop_color = self.backdrop_color.map_or_else(|| ui_sys.modal_backdrop_color(), immediate::color32);
+        if keep_backdrop {
+            ctx.layer_painter(egui::LayerId::background()).rect_filled(ctx.content_rect(), 0.0, backdrop_color);
+        }
         let style = ui_sys.egui_style().clone();
 
         let window_size = self.calc_window_size(ui_sys);
@@ -623,12 +645,14 @@ impl UiMenu {
                 };
 
                 // A menu with a size scrolls its contents when they don't fit it.
+                let mut scrolls = false;
                 if content_size.is_some() {
-                    egui::ScrollArea::vertical()
+                    let output = egui::ScrollArea::vertical()
                         .id_salt(id.with("contents"))
                         .auto_shrink([false, false])
                         .scroll_bar_visibility(egui::scroll_area::ScrollBarVisibility::VisibleWhenNeeded)
                         .show(&mut content_ui, draw_contents);
+                    scrolls = output.content_size.y > output.inner_rect.height() + 0.5;
                 } else {
                     draw_contents(&mut content_ui);
                 }
@@ -639,17 +663,20 @@ impl UiMenu {
                 let inner = content_ui.min_rect();
                 ui.allocate_rect(egui::Rect::from_min_max(inner.min - insets.left_top(), inner.max + insets.right_bottom()), egui::Sense::hover());
 
-                (close_clicked, inner)
+                (close_clicked, inner, scrolls)
             });
 
-            let (close_clicked, inner) = frame_response.inner;
+            let (close_clicked, inner, scrolls) = frame_response.inner;
 
             if let (Some(slot), Some(background)) = (background_slot, &self.background) {
                 ui.painter().set(slot, background.shape(frame_response.response.rect));
             }
 
+            // Its value says when its contents scroll, so the layout check knows its top and
+            // bottom edges clip them.
             if let Some(index) = content_index {
-                immediate::update_rect(ui_sys, index, inner, false, None);
+                let value = scrolls.then(|| serde_json::json!({ "scrolls": true }));
+                immediate::update_rect(ui_sys, index, inner, false, value);
             }
 
             close_clicked
@@ -683,7 +710,7 @@ impl UiMenu {
             let response = egui::Modal::new(id)
                 .area(area.order(egui::Order::Foreground))
                 .frame(egui::Frame::NONE)
-                .backdrop_color(ui_sys.modal_backdrop_color())
+                .backdrop_color(backdrop_color)
                 .show(&ctx, |ui| draw_window(ui));
 
             let escape_pressed = close_on_escape && response.is_top_modal && ctx.input(crate::ui::immediate::escape_pressed_in);

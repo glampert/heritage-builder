@@ -214,7 +214,9 @@ fn test_styles_load_with_their_sprites() {
     for realm in Realm::iter() {
         let style = MinimapStyle::load(realm).unwrap_or_else(|err| panic!("{err}"));
         exists(&style.frame);
-        exists(style.tooltip_frame());
+        if let Some(tooltip_frame) = style.tooltip_frame() {
+            exists(tooltip_frame);
+        }
         exists(&style.field_texture);
         exists(&style.alert_icon);
         for landmark in LandmarkKind::iter() {

@@ -1,0 +1,92 @@
+# Opens the developer Skin Gallery (Debug/Show Skin Gallery) in each realm: every panel, button
+# role and state, control, separator, emblem and data widget of the realm's skin, in its theme.
+# Checks the layout (ui.layout_issues) in each realm, drives its controls, opens its popup, shows a
+# toast and a tooltip, switches realm with its own tabs, and saves a screenshot per realm under
+# out/ui_skins/ (the CI artifact; toasts are left out of captured screenshots). From the
+# repository root:
+#   cargo run -p HeritageBuilder -- --fresh-profile --script crates/game/tests/scenarios/ui_skins.jsonl
+{"method": "time.fixed_dt", "params": {"dt": 0.016667}}
+{"method": "session.new_map", "params": {"size": [16, 16]}}
+{"method": "menus.mode", "params": {"mode": "DevEditor"}}
+{"method": "ui.click", "params": {"path": "Debug"}}
+{"method": "ui.set", "params": {"path": "Debug/Show Skin Gallery", "value": true}}
+{"method": "input.key", "params": {"key": "Escape"}}
+{"method": "assert.eq", "params": {"query": "ui.tree", "args": {"filter": "Debug/"}, "path": "/widgets", "value": []}}
+
+# ---- Đại Long ----
+{"method": "ui.realm", "params": {"realm": "dailong"}}
+{"method": "input.move", "params": {"park": true}}
+{"method": "wait.frames", "params": {"frames": 3}}
+{"method": "assert.eq", "params": {"query": "ui.tree", "args": {"kind": "tab_bar", "filter": "Skin Gallery/Realm"}, "path": "/widgets/0/value", "value": "Đại Long"}}
+{"method": "assert.eq", "params": {"query": "ui.layout_issues", "path": "/count", "value": 0}}
+{"method": "screenshot", "params": {"path": "out/ui_skins/dailong.png"}}
+# Its controls, set through their own callbacks.
+{"method": "ui.set", "params": {"path": "Skin Gallery/Toggle", "value": false}}
+{"method": "ui.set", "params": {"path": "Skin Gallery/Checkbox", "value": false}}
+{"method": "ui.set", "params": {"path": "Skin Gallery/Slider", "value": 25}}
+{"method": "ui.set", "params": {"path": "Skin Gallery/Dropdown", "value": "Tampadesa"}}
+{"method": "ui.set", "params": {"path": "Skin Gallery/Steps", "value": "Hard"}}
+{"method": "wait.frames", "params": {"frames": 2}}
+{"method": "assert.eq", "params": {"query": "ui.tree", "args": {"kind": "toggle", "filter": "Skin Gallery/Toggle"}, "path": "/widgets/0/value", "value": false}}
+{"method": "assert.eq", "params": {"query": "ui.tree", "args": {"kind": "checkbox", "filter": "Skin Gallery/Checkbox"}, "path": "/widgets/0/value", "value": false}}
+{"method": "assert.eq", "params": {"query": "ui.tree", "args": {"kind": "slider", "filter": "Skin Gallery/Slider"}, "path": "/widgets/0/value", "value": 25}}
+{"method": "assert.eq", "params": {"query": "ui.tree", "args": {"kind": "dropdown", "filter": "Skin Gallery/Dropdown"}, "path": "/widgets/0/value", "value": "Tampadesa"}}
+{"method": "assert.eq", "params": {"query": "ui.tree", "args": {"kind": "step_selector", "filter": "Skin Gallery/Steps"}, "path": "/widgets/0/value", "value": "Hard"}}
+# A click on the toggle and the checkbox flips them back.
+{"method": "ui.click", "params": {"path": "Skin Gallery/Toggle"}}
+{"method": "ui.click", "params": {"path": "Skin Gallery/Checkbox"}}
+{"method": "assert.eq", "params": {"query": "ui.tree", "args": {"kind": "toggle", "filter": "Skin Gallery/Toggle"}, "path": "/widgets/0/value", "value": true}}
+{"method": "assert.eq", "params": {"query": "ui.tree", "args": {"kind": "checkbox", "filter": "Skin Gallery/Checkbox"}, "path": "/widgets/0/value", "value": true}}
+# The popup on the skin's popup panel, over the gallery, which stays visible under it.
+{"method": "ui.click", "params": {"path": "Skin Gallery/Open Popup"}}
+{"method": "input.move", "params": {"park": true}}
+{"method": "wait.frames", "params": {"frames": 2}}
+{"method": "assert.exists", "params": {"query": "ui.tree", "args": {"filter": "Gallery Popup/Ok"}, "path": "/widgets/0"}}
+{"method": "assert.exists", "params": {"query": "ui.tree", "args": {"filter": "Skin Gallery/Open Popup"}, "path": "/widgets/0"}}
+{"method": "assert.eq", "params": {"query": "ui.layout_issues", "path": "/count", "value": 0}}
+{"method": "screenshot", "params": {"path": "out/ui_skins/dailong_popup.png"}}
+{"method": "ui.click", "params": {"path": "Gallery Popup/Cancel"}}
+{"method": "assert.eq", "params": {"query": "ui.tree", "args": {"filter": "Gallery Popup"}, "path": "/widgets", "value": []}}
+# A toast and a tooltip.
+{"method": "ui.click", "params": {"path": "Skin Gallery/Show Toast"}}
+{"method": "ui.hover", "params": {"path": "Skin Gallery/Tooltip"}}
+{"method": "wait.frames", "params": {"frames": 3}}
+{"method": "screenshot", "params": {"path": "out/ui_skins/dailong_tooltip.png"}}
+
+# ---- Kambara, picked with the gallery's own tabs ----
+{"method": "ui.click", "params": {"path": "Skin Gallery/Kambara"}}
+{"method": "input.move", "params": {"park": true}}
+{"method": "wait.frames", "params": {"frames": 3}}
+{"method": "assert.eq", "params": {"query": "ui.realm", "path": "/realm", "value": "kambara"}}
+{"method": "assert.eq", "params": {"query": "ui.tree", "args": {"kind": "tab_bar", "filter": "Skin Gallery/Realm"}, "path": "/widgets/0/value", "value": "Kambara"}}
+{"method": "assert.eq", "params": {"query": "ui.layout_issues", "path": "/count", "value": 0}}
+{"method": "screenshot", "params": {"path": "out/ui_skins/kambara.png"}}
+{"method": "ui.click", "params": {"path": "Skin Gallery/Open Popup"}}
+{"method": "input.move", "params": {"park": true}}
+{"method": "wait.frames", "params": {"frames": 2}}
+{"method": "assert.eq", "params": {"query": "ui.layout_issues", "path": "/count", "value": 0}}
+{"method": "screenshot", "params": {"path": "out/ui_skins/kambara_popup.png"}}
+{"method": "ui.click", "params": {"path": "Gallery Popup/Ok"}}
+
+# ---- Tampadesa ----
+{"method": "ui.realm", "params": {"realm": "tampadesa"}}
+{"method": "input.move", "params": {"park": true}}
+{"method": "wait.frames", "params": {"frames": 3}}
+{"method": "assert.eq", "params": {"query": "ui.tree", "args": {"kind": "tab_bar", "filter": "Skin Gallery/Realm"}, "path": "/widgets/0/value", "value": "Tampadesa"}}
+{"method": "assert.eq", "params": {"query": "ui.layout_issues", "path": "/count", "value": 0}}
+{"method": "screenshot", "params": {"path": "out/ui_skins/tampadesa.png"}}
+{"method": "ui.click", "params": {"path": "Skin Gallery/Open Popup"}}
+{"method": "input.move", "params": {"park": true}}
+{"method": "wait.frames", "params": {"frames": 2}}
+{"method": "assert.eq", "params": {"query": "ui.layout_issues", "path": "/count", "value": 0}}
+{"method": "screenshot", "params": {"path": "out/ui_skins/tampadesa_popup.png"}}
+{"method": "input.key", "params": {"key": "Escape"}}
+{"method": "assert.eq", "params": {"query": "ui.tree", "args": {"filter": "Gallery Popup"}, "path": "/widgets", "value": []}}
+
+# Back to the realm the game picks; hiding the gallery drops it.
+{"method": "ui.realm", "params": {"realm": "auto"}}
+{"method": "ui.click", "params": {"path": "Debug"}}
+{"method": "ui.set", "params": {"path": "Debug/Show Skin Gallery", "value": false}}
+{"method": "input.key", "params": {"key": "Escape"}}
+{"method": "wait.frames", "params": {"frames": 2}}
+{"method": "assert.eq", "params": {"query": "ui.tree", "args": {"filter": "Skin Gallery"}, "path": "/widgets", "value": []}}

@@ -770,10 +770,8 @@ impl GameLoop {
     }
 }
 
-// Shows a toast and plays its sound.
-// TODO(realm-ui): toasts (these and the construction toasts above) move onto the skin's `caption`
-// panel and text colours (Phase 0, popups, tooltips and toasts on skin panels); the engine's
-// toast drawing (engine/src/ui/toast.rs) needs to take a UiNineSlice and colours for it.
+// Shows a toast and plays its sound. Toasts take the skin's look (its `toast` block: the caption
+// panel and text colour), which skin::follow gives the engine whenever the skin changes.
 fn show_toast(engine: &mut Engine, message: String, sound: UiSoundKey) {
     engine.ui_system().show_toast(message);
     ui::sound::play(engine.sound_system_mut(), sound);

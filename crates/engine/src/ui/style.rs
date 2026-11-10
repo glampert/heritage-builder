@@ -887,7 +887,7 @@ mod tests {
     #[test]
     fn checks_glyph_coverage() {
         // The developer UI's style file draws Vietnamese with its own fonts (the game's realm skins
-        // are checked by the game's tests/ui_fonts.rs).
+        // are checked by the game's tests/ui_skins.rs).
         let sources = [UiStyleSource::file("dev", "ui/styles/dev.json")];
         check_glyph_coverage(&sources, GLYPH_TEST_TEXTS, GLYPH_TEST_ICONS).unwrap();
 

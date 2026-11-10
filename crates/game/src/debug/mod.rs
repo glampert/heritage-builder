@@ -19,7 +19,7 @@ use settings::DebugSettingsDevMenu;
 use crate::{
     GameLoop,
     config::GameConfigs,
-    menu::*,
+    menu::{*, gallery::SkinGallery},
     save_context::{Load, PostLoadContext, PreLoadContext, Save},
     tile::{
         TileMap,
@@ -159,6 +159,7 @@ struct DevEditorMenusSingleton {
     enable_dev_tile_inspector: bool,
     minimap_renderer: DevUiMinimapRenderer,
     log_viewer: LogViewer,
+    skin_gallery: SkinGallery,
 }
 
 impl DevEditorMenusSingleton {
@@ -171,6 +172,7 @@ impl DevEditorMenusSingleton {
             enable_dev_tile_inspector: GameConfigs::get().debug.enable_dev_tile_inspector,
             minimap_renderer: DevUiMinimapRenderer::new(context),
             log_viewer: LogViewer::new(),
+            skin_gallery: SkinGallery::default(),
         }
     }
 
@@ -183,6 +185,7 @@ impl DevEditorMenusSingleton {
         let show_screen_origin = self.debug_settings_menu.show_screen_origin();
         let show_sample_menus = self.debug_settings_menu.show_sample_menus();
         let show_widget_samples = self.debug_settings_menu.show_widget_samples();
+        let show_skin_gallery = self.debug_settings_menu.show_skin_gallery();
         let show_render_perf_stats = self.debug_settings_menu.show_render_perf_stats();
         let show_world_perf_stats = self.debug_settings_menu.show_world_perf_stats();
         let show_selection_bounds = self.debug_settings_menu.show_selection_bounds();
@@ -220,6 +223,12 @@ impl DevEditorMenusSingleton {
         if show_widget_samples {
             let theme = crate::menu::retail_ui_theme(context.ui_sys);
             ui::tests::draw_widget_sample_menus(context, theme);
+        }
+
+        if show_skin_gallery {
+            self.skin_gallery.draw(context);
+        } else {
+            self.skin_gallery.reset();
         }
 
         if show_cursor_pos {

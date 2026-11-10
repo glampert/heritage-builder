@@ -49,7 +49,7 @@ impl NewGame {
             .on_read_value(|_input, _context| super::find::<NewGame>().new_map_size.height)
             .on_update_value(|_input, _context, new_height| super::find::<NewGame>().new_map_size.height = new_height);
 
-        let terrain_kind_dropdown = UiDropdown::new(TERRAIN_TILE_PRESETS)
+        let terrain_kind_dropdown = skin::dropdown(context, "", TERRAIN_TILE_PRESETS)
             .with_font_scale(DEFAULT_DIALOG_MENU_WIDGET_FONT_SCALE)
             .on_selection_changed(|dropdown, _context| {
                 super::find::<NewGame>().terrain_tile_preset_index = dropdown.current_selection_index();

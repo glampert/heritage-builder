@@ -1,6 +1,6 @@
 # Realm UI: menus, screens and HUD in each realm's style
 
-**Status (2026-11-09): Phase 0 in progress; the `widgets.rs` split, the realm and player profile, localized strings, the sound hooks, the engine's themes, 9-slice panels and menu inner rect, the realm fonts, the ui-art pipeline, the skins, the widgets and the dialog framework are done.** The user reviewed it on 2026-11-07: their notes are folded in (see [Review notes](#review-notes)), the open decisions' defaults are accepted, and every mockup the phases need now exists. This plan builds and restyles every retail screen after the [UI mockups](../design/mockups/README.md): the main menus, the world map, the intermission, the story comics, the HUD and the city management pages. Each screen gets one look per realm: Đại Long, Kambara and Tampadesa. It is milestone **UI** of the [roadmap](roadmap.md). It was researched against `ccca1df` on `claude`. File and line references point at that commit, so re-check them before relying on them.
+**Status (2026-11-10): Phase 0 done; Phase 1, the main menus, is next.** The user reviewed it on 2026-11-07: their notes are folded in (see [Review notes](#review-notes)), the open decisions' defaults are accepted, and every mockup the phases need now exists. This plan builds and restyles every retail screen after the [UI mockups](../design/mockups/README.md): the main menus, the world map, the intermission, the story comics, the HUD and the city management pages. Each screen gets one look per realm: Đại Long, Kambara and Tampadesa. It is milestone **UI** of the [roadmap](roadmap.md). It was researched against `ccca1df` on `claude`. File and line references point at that commit, so re-check them before relying on them.
 
 ![Home menu, Đại Long](../design/mockups/menu-home-dailong.jpg)
 
@@ -377,9 +377,9 @@ The existing dialogs keep their layouts but take their panels from the Đại Lo
 - [x] Widgets: `UiTabBar`, `UiToggle`, framed `UiTextButton`, `UiMenuItem`, `UiListRow`, `UiImage`, `UiKeyValues`, `UiTable`, `UiMeter`, `UiColumns`, `UiStepSelector`, `UiRichText`, each in the developer sample menus (`engine/src/ui/tests.rs`). Each interactive one plays its roles through a `UiWidgetSounds` (`sounds.play(context, event, Some(role))`): `UiTabBar` `tab_selected`, `UiToggle` `toggled`, `UiMenuItem` and `UiListRow` `item_hovered` and `item_selected`, `UiStepSelector` `slider_changed`.
 - [x] Dialog framework: each dialog its own window, from the skin's `dialogs` block; the "keep the dialog under it visible" flag; paths take the dialog's own label (update `ui_new_game.jsonl`, `ui_snapshot.jsonl`, AGENTS.md).
 - [x] `crates/tools/ui-art/`: the catalog, `make_ui_art.py` (render, manifest, `--check`), the first sprites for all three realms (panels, buttons, controls, separators, emblems); `--check` in CI.
-- [ ] Popups (Quit, Overwrite), tooltips and toasts on skin panels.
-- [ ] Remove the unused old files (see [What exists today](#what-exists-today)).
-- [ ] `tests/ui_skins.rs`; a `ui_skins.jsonl` scenario that opens the Skin Gallery in each realm and checks `ui.layout_issues`.
+- [x] Popups (Quit, Overwrite), tooltips and toasts on skin panels.
+- [x] Remove the unused old files (see [What exists today](#what-exists-today)).
+- [x] `tests/ui_skins.rs`; a `ui_skins.jsonl` scenario that opens the Skin Gallery in each realm and checks `ui.layout_issues`.
 
 **Notes (2026-11-09):**
 - The widgets split (commit `260dd32`): `engine/src/ui/widgets/mod.rs` keeps the context trait, `UiWidget`, `UiWidgetImpl`, the casts, callback types and shared helpers, and re-exports every family file (`pub use button::*;` and so on), so every `ui::widgets::<Name>` path is unchanged and nothing outside `engine/src/ui/` changed. The family files are `menu.rs`, `message_box.rs`, `text.rs`, `group.rs`, `button.rs`, `tooltip.rs`, `separator.rs`, `image.rs` (`UiSpriteIcon` and `UiSlideshow`), `input.rs` (sliders, checkboxes, number and text inputs, dropdowns) and `list.rs`. Each file keeps the old section banners.
@@ -463,6 +463,16 @@ The existing dialogs keep their layouts but take their panels from the Đại Lo
 - Deviations: paths take the kind name (`GameSettings/Autosave`); `Settings/Game/...` waits for Phase 1's tabs. No dialog sets `show_below` yet; full-screen is unit-tested and was tried with a temporary skin. UI scale is a `TODO(realm-ui)`. The Quit popup still hides the Game menu.
 - Verified: build, `cargo test --workspace`, web check, `make_ui_art.py --check`; CI scenarios at 1440 × 800 and default size (`ui_new_game` checks paths and hidden Home, `ui_sounds` Escape closing one of two); determinism twice; `ui_build`/`determinism` record and replay; `ui_snapshot` in all three realms at 1280 × 720, 1440 × 800 and 1920 × 1080 with `ui.layout_issues` 0 (widgets scrolled out of view aren't checked) and listings changed only by the root label; `show_below`, full-screen, pause and dim checked live; screenshots compared with the mockups.
 
+**Notes (2026-11-10, popups, toasts, controls, old files, Skin Gallery) (commit TODO):**
+- Popups: a modal menu with its popup open draws as a plain window, still dimming behind it, under the popup's darker backdrop (the skin's `dim_popup`), so the Game menu shows dimmed under the Quit popup as in the mockup; `HideWhenMessageBoxOpen` still hides.
+- Tooltips sit inside their panel's `content` insets (`UiTooltipText::with_panel(panel, insets)`); the minimap's hover tooltip takes the skin's tooltip panel unless its style names a `tooltip_frame` (Tampadesa's no longer does).
+- Toasts: `UiToastLook` (`UiSystem::set_toast_look`), set by `skin::follow` from the skin's new `toast` block: caption panel at 0.6 scale, the realm's font in every menus mode (`UiSystem::swap_ui_theme`, unlogged); Tampadesa's caption text is `light`. The M6 risk toasts go through the same path; the risk buttons are the developer inspector's.
+- Controls: `UiCheckboxLook`, `UiSliderLook`, `UiDropdownLook`; `skin::checkbox`, `slider`, `dropdown` in Settings, New Game and Finances. The scrollbar stays egui's (TODO kept).
+- Removed `misc/home_menu_anim/` (Sample Menu 2 cycles emblems now), `misc/scroll_bg.png`, two icons, `buttons/minimap/close_*`.
+- Skin Gallery (`menu/gallery.rs`, `Debug/Show Skin Gallery`). `tests/ui_skins.rs` takes in `ui_fonts.rs` and the skin asset unit tests, and checks every 9-slice against its PNG. `ui_skins.jsonl` in CI.
+- Deviations: headings record `visible`; `ui.layout_issues` ignores widgets cut by the top or bottom of a menu whose contents scroll (`menu_content` value `scrolls`).
+- Verified: build, `cargo test --workspace`, web check, `make_ui_art.py --check`; the CI scenarios at 1440 × 800 and default size; determinism twice; `ui_build` record and replay; `ui_snapshot` in all realms at 1440 × 800 and 1280 × 720 (layout issues 0; listings changed only by the new checkbox and Sample Menu 1's `scrolls`); Quit popup, Settings, toasts, tooltips and the gallery screenshotted in each realm and compared with the mockups.
+
 ### Phase 1: Main menus
 
 **Delivers:** the home menu and every dialog under it, as in the mockups (`menu-*-<realm>.jpg`), in all three realms. The in-game Game menu and its popups get the same look.
@@ -526,7 +536,7 @@ The existing dialogs keep their layouts but take their panels from the Đại Lo
 
 **Wrap-up:**
 - [ ] Art: home backdrops for Kambara and Tampadesa; the save-row emblems; the remaining menu sprites.
-- [ ] Delete `misc/scroll_bg.png` once nothing uses it.
+- [x] Delete `misc/scroll_bg.png` once nothing uses it (done in Phase 0).
 - [ ] Scenarios:
   - `ui_menus.jsonl` (every dialog, every realm, Continue, Custom Game start, settings commit);
   - update `ui_new_game.jsonl` to the Blank map path.
@@ -721,7 +731,7 @@ The user accepted every default on 2026-11-07, with the changes marked below.
 
 ## Later
 
-- Animated home backdrops per realm. Play a short looping video in a simple format (for example VP9 or AV1 in WebM, decoded to a texture) rather than a sequence of still frames, to keep the size down; the unused `misc/home_menu_anim/` frames show the idea. The web build can use the browser's own video decoder.
+- Animated home backdrops per realm. Play a short looping video in a simple format (for example VP9 or AV1 in WebM, decoded to a texture) rather than a sequence of still frames, to keep the size down; the `misc/home_menu_anim/` frames, removed in Phase 0, showed the idea. The web build can use the browser's own video decoder.
 - Real UI sounds per realm, mapped to the role keys the skins already name.
 - Hand-made art replacing the placeholders, file by file.
 - Translations, into the language files the strings already live in.

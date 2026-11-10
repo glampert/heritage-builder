@@ -1,14 +1,65 @@
 use std::{any::Any, fmt::Display, ops::RangeInclusive};
 use smallbox::smallbox;
-use egui::vec2;
+use egui::{Align2, Color32, Sense, pos2, vec2};
 
-use common::Vec2;
+use common::{Color, Vec2};
 
 use super::{UiWidget, UiWidgetCallback, UiWidgetContext, left_label, list_index, record_settable, widget_id};
-use crate::ui::{
-    UiFontScale, UiString, immediate, internal,
-    sound::{self, UiSoundEvent, UiSoundKey, UiWidgetSounds},
+use crate::{
+    render::texture::TextureHandle,
+    ui::{
+        UiFontScale, UiNineSlice, UiString, immediate::{self, color32, nine_slice_shape, uv_full}, internal,
+        renderer::egui_texture,
+        sound::{self, UiSoundEvent, UiSoundKey, UiWidgetSounds},
+    },
 };
+
+// ----------------------------------------------
+// Control looks
+// ----------------------------------------------
+
+// The art of the controls below, from the caller (a skin's controls block): without one, egui's
+// own widget draws in the style's visuals. Either way the widget records and takes ui.set alike.
+
+// A checkbox's sprites, off and on, at `size` points.
+#[derive(Copy, Clone, Debug)]
+pub struct UiCheckboxLook {
+    pub off: TextureHandle,
+    pub on: TextureHandle,
+    pub size: Vec2,
+}
+
+// A slider's rail and the filled part of it (9-slices, `rail_height` and `fill_height` points
+// tall, centred on the knob), its knob sprite at `knob_size` points, and the colour of the value
+// shown to its right.
+#[derive(Copy, Clone, Debug)]
+pub struct UiSliderLook {
+    pub rail: UiNineSlice,
+    pub fill: UiNineSlice,
+    pub rail_height: f32,
+    pub fill_height: f32,
+    pub knob: TextureHandle,
+    pub knob_size: Vec2,
+    pub text_color: Option<Color>,
+}
+
+// A dropdown's field (a 9-slice behind its current item), its arrow sprite at `arrow_size` points
+// and its text colour. Its list is the style's popup.
+#[derive(Copy, Clone, Debug)]
+pub struct UiDropdownLook {
+    pub field: UiNineSlice,
+    pub arrow: TextureHandle,
+    pub arrow_size: Vec2,
+    pub text_color: Option<Color>,
+}
+
+// A light wash over a hovered control's art.
+const HOVER_WASH: Color32 = Color32::from_rgba_premultiplied(28, 28, 28, 28);
+
+// `texture` stretched over `rect`.
+fn paint_sprite(ui: &egui::Ui, texture: TextureHandle, rect: egui::Rect) {
+    ui.painter().image(egui_texture(texture), rect, uv_full(), Color32::WHITE);
+}
 
 // ----------------------------------------------
 // UiSliderValue
@@ -57,6 +108,7 @@ pub struct UiSlider {
     min: f64,
     max: f64,
     integral: bool, // Shown and set in whole numbers.
+    look: Option<UiSliderLook>,
     sounds: UiWidgetSounds, // Changed: SliderChanged, at most once per its cooldown.
     on_read_value: UiSliderReadValue,
     on_update_value: UiSliderUpdateValue,
@@ -92,7 +144,11 @@ impl UiWidget for UiSlider {
     }
 
     fn measure(&self, context: &dyn UiWidgetContext) -> Vec2 {
-        internal::calc_labeled_widget_size(context.ui_sys(), self.font_scale, self.label.resolve())
+        let size = internal::calc_labeled_widget_size(context.ui_sys(), self.font_scale, self.label.resolve());
+        match &self.look {
+            Some(look) => Vec2::new(size.x, size.y.max(look.knob_size.y)),
+            None => size,
+        }
     }
 
     fn label(&self) -> &str {
@@ -118,10 +174,17 @@ impl UiSlider {
             min,
             max,
             integral: T::INTEGRAL,
+            look: None,
             sounds: UiWidgetSounds::new(),
             on_read_value: None,
             on_update_value: None,
         }
+    }
+
+    // Its rail, fill and knob sprites, in place of egui's slider.
+    pub fn with_look(mut self, look: UiSliderLook) -> Self {
+        self.look = Some(look);
+        self
     }
 
     // To the slider's left.
@@ -191,7 +254,11 @@ impl UiSlider {
                     left_label(ui_sys, ui, self.label.resolve());
 
                     // The value shows to the slider's right.
-                    ui.spacing_mut().slider_width = (width - ui.spacing().interact_size.x - ui.spacing().item_spacing.x).max(40.0);
+                    let slider_width = (width - ui.spacing().interact_size.x - ui.spacing().item_spacing.x).max(40.0);
+                    if let Some(look) = &self.look {
+                        return self.draw_skinned_slider(ui_sys, ui, look, slider_width, &mut value);
+                    }
+                    ui.spacing_mut().slider_width = slider_width;
                     let slider = egui::Slider::new(&mut value, self.min..=self.max).clamping(egui::SliderClamping::Always);
                     let slider = if self.integral { slider.integer() } else { slider.fixed_decimals(2) };
                     ui.add(slider)
@@ -206,6 +273,62 @@ impl UiSlider {
     }
 }
 
+impl UiSlider {
+    // The slider in its look's sprites: a rail `width` points wide with the filled part up to the
+    // knob, then the value as text. Click or drag anywhere on the rail to move the knob there.
+    fn draw_skinned_slider(&self, ui_sys: &crate::ui::UiSystem, ui: &mut egui::Ui, look: &UiSliderLook, width: f32, value: &mut f64) -> egui::Response {
+        let height = look.knob_size.y.max(ui.spacing().interact_size.y);
+        let (rect, mut response) = ui.allocate_exact_size(vec2(width, height), Sense::click_and_drag());
+
+        let knob_width = look.knob_size.x.min(rect.width());
+        let travel = (rect.width() - knob_width).max(1.0);
+        if let Some(pointer) = response.interact_pointer_pos().filter(|_| response.dragged() || response.clicked()) {
+            let fraction = ((pointer.x - rect.left() - knob_width * 0.5) / travel).clamp(0.0, 1.0) as f64;
+            let mut new_value = self.min + fraction * (self.max - self.min);
+            if self.integral {
+                new_value = new_value.round();
+            }
+            if new_value != *value {
+                *value = new_value;
+                response.mark_changed();
+            }
+        }
+
+        if ui.is_rect_visible(rect) {
+            let span = self.max - self.min;
+            let fraction = if span > 0.0 { ((*value - self.min) / span).clamp(0.0, 1.0) as f32 } else { 0.0 };
+            let knob_center = rect.left() + knob_width * 0.5 + travel * fraction;
+
+            let rail_height = look.rail_height.min(rect.height());
+            let rail = egui::Rect::from_min_max(pos2(rect.left(), rect.center().y - rail_height * 0.5), pos2(rect.right(), rect.center().y + rail_height * 0.5));
+            ui.painter().add(nine_slice_shape(rail, &look.rail, Color32::WHITE));
+            let fill_height = look.fill_height.min(rail_height);
+            let fill_inset = (rail_height - fill_height) * 0.5;
+            let fill = egui::Rect::from_min_max(
+                pos2(rail.left() + fill_inset, rail.top() + fill_inset),
+                pos2(knob_center.max(rail.left() + fill_inset), rail.bottom() - fill_inset),
+            );
+            if fill.width() > 0.5 {
+                ui.painter().add(nine_slice_shape(fill, &look.fill, Color32::WHITE));
+            }
+            let knob = egui::Rect::from_center_size(pos2(knob_center, rect.center().y), vec2(look.knob_size.x, look.knob_size.y));
+            paint_sprite(ui, look.knob, knob);
+            if response.hovered() || response.dragged() {
+                ui.painter().circle_filled(knob.center(), knob.width().min(knob.height()) * 0.5, HOVER_WASH);
+            }
+        }
+
+        // The value, in the space egui's slider gives its value field.
+        let text = if self.integral { format!("{:.0}", *value) } else { format!("{:.2}", *value) };
+        let (text_rect, _) = ui.allocate_exact_size(vec2(ui.spacing().interact_size.x, height), Sense::hover());
+        let font = internal::font(ui_sys, self.font_scale);
+        let color = look.text_color.map_or_else(|| ui.visuals().text_color(), color32);
+        ui.painter().text(text_rect.left_center(), Align2::LEFT_CENTER, text, font, color);
+
+        response
+    }
+}
+
 // ----------------------------------------------
 // UiCheckbox
 // ----------------------------------------------
@@ -216,6 +339,7 @@ pub type UiCheckboxUpdateValue = UiWidgetCallback<dyn Fn(&UiCheckbox, &mut dyn U
 pub struct UiCheckbox {
     label: UiString,
     font_scale: UiFontScale,
+    look: Option<UiCheckboxLook>,
     sounds: UiWidgetSounds, // Toggled: Toggled.
     on_read_value: UiCheckboxReadValue,
     on_update_value: UiCheckboxUpdateValue,
@@ -241,7 +365,23 @@ impl UiWidget for UiCheckbox {
             let response = ui
                 .horizontal(|ui| {
                     left_label(ui_sys, ui, self.label.resolve());
-                    ui.checkbox(&mut value, "")
+                    match &self.look {
+                        Some(look) => {
+                            let (rect, mut response) = ui.allocate_exact_size(vec2(look.size.x, look.size.y), Sense::click());
+                            if response.clicked() {
+                                value = !value;
+                                response.mark_changed();
+                            }
+                            if ui.is_rect_visible(rect) {
+                                paint_sprite(ui, if value { look.on } else { look.off }, rect);
+                                if response.hovered() {
+                                    ui.painter().rect_filled(rect.shrink(rect.width() * 0.08), 3.0, HOVER_WASH);
+                                }
+                            }
+                            response
+                        }
+                        None => ui.checkbox(&mut value, ""),
+                    }
                 })
                 .inner;
 
@@ -265,8 +405,11 @@ impl UiWidget for UiCheckbox {
         let ui_sys = context.ui_sys();
         let spacing = &ui_sys.egui_style().spacing;
 
-        let checkbox_square = internal::calc_frame_height(ui_sys, self.font_scale);
-        let mut width = checkbox_square;
+        let frame_height = internal::calc_frame_height(ui_sys, self.font_scale);
+        let (mut width, checkbox_square) = match &self.look {
+            Some(look) => (look.size.x, look.size.y.max(frame_height)),
+            None => (frame_height, frame_height),
+        };
 
         if !self.label.is_empty() {
             let label_size = context.calc_text_size(self.font_scale, self.label.resolve());
@@ -297,10 +440,17 @@ impl UiCheckbox {
         Self {
             label: UiString::default(),
             font_scale: UiFontScale::default(),
+            look: None,
             sounds: UiWidgetSounds::new(),
             on_read_value: None,
             on_update_value: None,
         }
+    }
+
+    // Its off and on sprites, in place of egui's checkbox.
+    pub fn with_look(mut self, look: UiCheckboxLook) -> Self {
+        self.look = Some(look);
+        self
     }
 
     // Its sounds: Toggled when toggled (event Toggled), unless overridden.
@@ -668,6 +818,7 @@ pub struct UiDropdown {
     font_scale: UiFontScale,
     current_item: usize,
     items: Vec<String>,
+    look: Option<UiDropdownLook>,
 
     // Opened: DropdownOpened; Hovered: ItemHovered, for an item of its list; Selected: ItemSelected;
     // Closed: DropdownClosed, when closed without a pick.
@@ -706,10 +857,31 @@ impl UiWidget for UiDropdown {
 
                     let font = internal::font(ui_sys, self.font_scale);
                     let selected_text = self.items.get(current_item).map_or("", String::as_str);
+                    let mut selected_text = egui::RichText::new(selected_text).font(font.clone());
 
-                    egui::ComboBox::from_id_salt(id)
-                        .width(width)
-                        .selected_text(egui::RichText::new(selected_text).font(font.clone()))
+                    // With a look, its field goes under the combo box's button, whose own frame
+                    // is hidden, and its arrow in place of egui's.
+                    let mut combo_box = egui::ComboBox::from_id_salt(id).width(width);
+                    let mut field = None;
+                    if let Some(look) = self.look {
+                        if let Some(color) = look.text_color {
+                            selected_text = selected_text.color(color32(color));
+                        }
+                        combo_box = combo_box.icon(move |ui, rect, _visuals, _open| {
+                            let arrow = egui::Rect::from_center_size(rect.center(), vec2(look.arrow_size.x, look.arrow_size.y));
+                            paint_sprite(ui, look.arrow, arrow);
+                        });
+                        let widgets = &mut ui.visuals_mut().widgets;
+                        for visuals in [&mut widgets.inactive, &mut widgets.hovered, &mut widgets.active, &mut widgets.open] {
+                            visuals.bg_fill = Color32::TRANSPARENT;
+                            visuals.weak_bg_fill = Color32::TRANSPARENT;
+                            visuals.bg_stroke = egui::Stroke::NONE;
+                        }
+                        field = Some((look, ui.painter().add(egui::Shape::Noop)));
+                    }
+
+                    let combo = combo_box
+                        .selected_text(selected_text)
                         .show_ui(ui, |ui| {
                             // Its items, recorded under its label while it's open.
                             let _path = immediate::path_scope(ui_sys, self.label.resolve());
@@ -722,7 +894,16 @@ impl UiWidget for UiDropdown {
                                 immediate::record(ui_sys, ui, &response, "list_item", item, None, true, Some(serde_json::Value::Bool(current_item == index)));
                             }
                             hovered_item
-                        })
+                        });
+
+                    if let Some((look, slot)) = field {
+                        let rect = combo.response.rect;
+                        ui.painter().set(slot, nine_slice_shape(rect, &look.field, Color32::WHITE));
+                        if combo.response.hovered() {
+                            ui.painter().rect_filled(rect.shrink(2.0), 3.0, HOVER_WASH);
+                        }
+                    }
+                    combo
                 })
                 .inner;
 
@@ -776,6 +957,7 @@ impl UiDropdown {
             font_scale: UiFontScale::default(),
             current_item: 0,
             items,
+            look: None,
             sounds: UiWidgetSounds::new(),
             list_open_frame: None,
             hovered_item: None,
@@ -794,6 +976,12 @@ impl UiDropdown {
     pub fn with_font_scale(mut self, font_scale: UiFontScale) -> Self {
         debug_assert!(font_scale.is_valid());
         self.font_scale = font_scale;
+        self
+    }
+
+    // Its field and arrow sprites, in place of egui's combo box frame.
+    pub fn with_look(mut self, look: UiDropdownLook) -> Self {
+        self.look = Some(look);
         self
     }
 

@@ -77,7 +77,8 @@ impl UiWidget for UiMenuHeading {
 
         if ui_sys.is_widget_registry_enabled() && group.is_positive() {
             let text: Vec<&str> = self.lines.iter().map(|line| line.string.resolve()).filter(|line| !line.is_empty()).collect();
-            immediate::record_rect(ui_sys, "heading", &text.join(" "), group, false, None);
+            let visible = ui_sys.with_ui(|ui| ui.clip_rect().contains(group.center())); // As ui.click sees it.
+            immediate::record_rect_visible(ui_sys, "heading", &text.join(" "), group, false, visible, None);
         }
 
         if let Some(art) = &self.separator_art

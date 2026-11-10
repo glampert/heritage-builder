@@ -107,7 +107,7 @@ pub struct MinimapStyle {
     // Sprites, under assets/ui.
     pub field_texture: String,
     pub frame: String,
-    pub tooltip_frame: String, // Behind the map's hover tooltip; empty for `frame`.
+    pub tooltip_frame: String, // Behind the map's hover tooltip; empty for the UI skin's tooltip panel.
     pub buttons: String, // Folder of the tool and lens buttons under buttons/, e.g. "minimap".
     pub landmark_icons: BTreeMap<LandmarkKind, String>,
     pub alert_icon: String,
@@ -402,9 +402,10 @@ impl MinimapStyle {
         serde_json::from_value(value).map_err(|err| format!("Invalid minimap style for {realm}: {err}"))
     }
 
-    // The sprite behind tooltips.
-    pub fn tooltip_frame(&self) -> &str {
-        if self.tooltip_frame.is_empty() { &self.frame } else { &self.tooltip_frame }
+    // The sprite behind the map's hover tooltip, None for the UI skin's tooltip panel (the HUD's
+    // tooltips').
+    pub fn tooltip_frame(&self) -> Option<&str> {
+        (!self.tooltip_frame.is_empty()).then_some(self.tooltip_frame.as_str())
     }
 
     // The map area's size, kept large enough for the top row's buttons.

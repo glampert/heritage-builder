@@ -7,6 +7,7 @@
 // - `text`: named text colours (ink, accent, on_accent, ...), which the other blocks name;
 // - `headings`, `panels`, `buttons`, `separators`, `controls`, `emblems`, `icons`, `icon_sets`,
 //   `backdrops`, `dialogs`: the sprites, 9-slice borders, insets and sizes the screens use;
+// - `toast`: the panel toasts draw on (the caption panel), at a scale, and their text colour;
 // - `meters`, `rows`: the colours (`text` names or "#RRGGBB(AA)") of painted meters and step
 //   selectors, and of list rows, key-value pairs and tables;
 // - `sounds`: each UI sound role's file, applied with ui::sound::set_mapping.
@@ -45,6 +46,8 @@ use engine::{
         UiString,
         UiSystem,
         UiThemeId,
+        UiToastLook,
+        UiTooltipBackground,
         UiTooltipPlacement,
         sound::{self, UiSoundMapping},
         widgets::*,
@@ -92,6 +95,7 @@ pub struct UiSkinDef {
     // TODO(realm-ui): Phase 1 draws the emblems (skin::emblem): the home menu's realm row, Custom
     // Game's realm rows and the save rows.
     pub emblems: BTreeMap<String, String>,   // Realm → stem (idle, locked, current states).
+    pub toast: SkinToastDef,
     pub backdrops: SkinBackdropsDef,
     pub dialogs: BTreeMap<String, SkinDialogDef>, // "default", then by dialog kind name.
     pub sounds: BTreeMap<String, Option<String>>,
@@ -113,6 +117,7 @@ impl Default for UiSkinDef {
             rows: SkinRowsDef::default(),
             separators: BTreeMap::new(),
             emblems: BTreeMap::new(),
+            toast: SkinToastDef::default(),
             backdrops: SkinBackdropsDef::default(),
             dialogs: BTreeMap::new(),
             sounds: BTreeMap::new(),
@@ -232,10 +237,12 @@ pub struct SkinSlicedSpriteDef {
     pub slice: [f32; 4],
 }
 
-// The controls' art. The toggle's draws UiToggle (skin::toggle); the others are checked by the
-// tests but not drawn yet.
-// TODO(realm-ui): skin the checkbox, slider, dropdown and scrollbar (egui's own widgets today)
-// with these sprites, in place of the style's visuals.
+// The controls' art: the toggle's draws UiToggle (skin::toggle), the checkbox's, slider's and
+// dropdown's draw theirs (skin::checkbox, slider, dropdown). Sizes are the sprites' at the skin's
+// sprite scale unless given.
+// TODO(realm-ui): the scrollbar's sprites aren't drawn: egui paints dialogs' and lists' scroll
+// bars in the style's colours (`style.widgets`). Drawing them needs a scroll area of the engine's
+// own, or egui's scroll bar painted over.
 #[derive(Clone, Debug, Default, Deserialize)]
 #[serde(default, deny_unknown_fields)]
 pub struct SkinControlsDef {
@@ -292,7 +299,7 @@ pub struct SkinRowsDef {
 pub struct SkinCheckboxDef {
     pub off: String,
     pub on: String,
-    pub size: [f32; 2],
+    pub size: [f32; 2], // In points; the sprite's if zero.
 }
 
 #[derive(Clone, Debug, Default, Deserialize)]
@@ -317,8 +324,27 @@ pub struct SkinScrollbarDef {
     pub thumb: SkinSlicedSpriteDef,
 }
 
+// How toasts look (UiSystem::set_toast_look): the panel behind their text (the caption panel if
+// none) drawn at `scale` times its size (its borders and content insets alike), the text's colour
+// (the panel's, else ink) and font scale.
+#[derive(Clone, Debug, Deserialize)]
+#[serde(default, deny_unknown_fields)]
+pub struct SkinToastDef {
+    pub panel: String,
+    pub scale: f32,
+    pub text: Option<String>,
+    pub font_scale: f32,
+}
+
+impl Default for SkinToastDef {
+    fn default() -> Self {
+        Self { panel: "caption".into(), scale: 1.0, text: None, font_scale: 1.0 }
+    }
+}
+
 // The home menu's backdrop (one frame, or frames of an animation `home_frame_secs` apart, the last
-// two looping) and the colour dialogs dim the screen with, in the menus and in game.
+// two looping), the colour dialogs dim the screen with, in the menus and in game, and the one
+// popups dim it with.
 #[derive(Clone, Debug, Deserialize)]
 #[serde(default, deny_unknown_fields)]
 pub struct SkinBackdropsDef {
@@ -326,11 +352,18 @@ pub struct SkinBackdropsDef {
     pub home_frame_secs: f32,
     pub dim_home: HexColor,
     pub dim_game: HexColor,
+    pub dim_popup: HexColor, // Popups', over the dialog under them and the dim behind it.
 }
 
 impl Default for SkinBackdropsDef {
     fn default() -> Self {
-        Self { home: Vec::new(), home_frame_secs: 0.3, dim_home: HexColor::rgba(0), dim_game: HexColor::rgba(0x00000026) }
+        Self {
+            home: Vec::new(),
+            home_frame_secs: 0.3,
+            dim_home: HexColor::rgba(0),
+            dim_game: HexColor::rgba(0x00000026),
+            dim_popup: HexColor::rgba(0x120B0559),
+        }
     }
 }
 
@@ -495,11 +528,12 @@ struct SkinState {
     skins: Vec<UiSkinDef>, // By Realm, merged over Đại Long's, as read at boot (or reloaded).
     current: Realm,
     version: u32, // Goes up whenever the current skin changes (realm switch or reload).
+    toast_version: Option<u32>, // The version the toasts' look was set for (follow).
 }
 
 impl SkinState {
     const fn new() -> Self {
-        Self { loaded: false, skins: Vec::new(), current: Realm::DaiLong, version: 0 }
+        Self { loaded: false, skins: Vec::new(), current: Realm::DaiLong, version: 0, toast_version: None }
     }
 }
 
@@ -583,14 +617,23 @@ pub fn is_loaded() -> bool {
 // realm::ui_realm_for() of their menus mode; apply_theme() switches the UI theme.
 pub fn follow(context: &mut GameUiContext, realm: Realm) {
     let state = SkinState::get_mut();
-    if !state.loaded || state.current == realm {
+    if !state.loaded {
         return;
     }
-    state.current = realm;
-    state.version += 1;
-    let mapping = sound_mapping(&state.skins[realm as usize], realm);
-    sound::set_mapping(&mut context.sound_sys(), &mapping);
-    log::info!(log::channel!("ui"), "UI skin: {realm}.");
+    if state.current != realm {
+        state.current = realm;
+        state.version += 1;
+        let mapping = sound_mapping(&state.skins[realm as usize], realm);
+        sound::set_mapping(&mut context.sound_sys(), &mapping);
+        log::info!(log::channel!("ui"), "UI skin: {realm}.");
+    }
+
+    // The toasts are the engine's, drawn whatever the menus: they take the skin shown.
+    if state.toast_version != Some(state.version) {
+        state.toast_version = Some(state.version);
+        let look = toast_look(context);
+        context.ui_sys.set_toast_look(look);
+    }
 }
 
 // The current skin's theme: its realm's style.
@@ -671,8 +714,13 @@ fn insets(content: Option<[f32; 4]>) -> Option<UiMenuInsets> {
     content.map(|[left, top, right, bottom]| UiMenuInsets::points(left, top, right, bottom))
 }
 
+// A panel's content insets in points (left, top, right, bottom), None if they're relative.
+fn insets_points(insets: UiMenuInsets) -> Option<[f32; 4]> {
+    (!insets.relative).then_some([insets.left, insets.top, insets.right, insets.bottom])
+}
+
 // A 9-slice of a sprite under assets/ui/, at the skin's sprite scale.
-fn nine_slice(context: &mut dyn UiWidgetContext, sprite: &str, slice_px: [f32; 4], center: SkinCenter) -> UiNineSlice {
+pub(crate) fn nine_slice(context: &mut dyn UiWidgetContext, sprite: &str, slice_px: [f32; 4], center: SkinCenter) -> UiNineSlice {
     context.load_nine_slice(PathRef::from_str(sprite), slice_px).with_scale(art_scale()).with_center(center.nine_slice())
 }
 
@@ -734,7 +782,8 @@ pub fn dialog(context: &mut GameUiContext, kind: &str, flags: UiMenuFlags) -> Ui
 // to add with with_buttons. `label` names it for automation (`<label>/<button>`); it isn't drawn.
 pub fn popup(context: &mut dyn UiWidgetContext, label: &str, lines: impl IntoIterator<Item = UiString>) -> UiMessageBox {
     let heading = heading(context, lines, HeadingLevel::Popup);
-    panel(context, "popup").apply_to_message_box(UiMessageBox::new(label)).with_content(heading)
+    let dim = current().backdrops.dim_popup.color();
+    panel(context, "popup").apply_to_message_box(UiMessageBox::new(label)).with_content(heading).with_backdrop_color(dim)
 }
 
 // The colour the dialogs dim the screen with behind them, in the home menu or in game.
@@ -922,7 +971,7 @@ fn button_frame(context: &mut dyn UiWidgetContext, def: &SkinButtonDef) -> Optio
 }
 
 // The button role `role`, or an empty one (and an error logged) if the skin lacks it.
-fn button_def(role: &str) -> SkinButtonDef {
+pub(crate) fn button_def(role: &str) -> SkinButtonDef {
     current().buttons.get(role).cloned().unwrap_or_else(|| {
         log::error!(log::channel!("ui"), "UI skin '{}' has no button role '{role}'.", current_realm());
         SkinButtonDef::default()
@@ -938,11 +987,22 @@ fn art_scale() -> f32 {
 // The retail tooltips' font scale.
 pub const TOOLTIP_FONT_SCALE: UiFontScale = UiFontScale(0.8);
 
+// What tooltips draw behind their text, the skin's tooltip panel with its content insets, and the
+// text's colour on it (the style's if None): for tooltips not tied to a widget (ui::pointer_tooltip).
+pub fn tooltip_background(context: &mut dyn UiWidgetContext) -> (UiTooltipBackground, Option<Color>) {
+    let panel = panel(context, "tooltip");
+    let background = match panel {
+        SkinPanel::NineSlice { slice, content, .. } => UiTooltipBackground::Panel(slice, insets_points(content)),
+        SkinPanel::Sprite { texture, .. } => UiTooltipBackground::Sprite(texture),
+    };
+    (background, panel.text_color())
+}
+
 // A tooltip on the skin's tooltip panel, in its text colour.
 pub fn tooltip(context: &mut dyn UiWidgetContext, text: impl Into<UiString>) -> UiTooltipText {
     let tooltip = UiTooltipText::new(text).with_font_scale(TOOLTIP_FONT_SCALE);
     match panel(context, "tooltip") {
-        SkinPanel::NineSlice { slice, text_color, .. } => tooltip.with_panel(slice).with_text_color(text_color),
+        SkinPanel::NineSlice { slice, content, text_color } => tooltip.with_panel(slice, insets_points(content)).with_text_color(text_color),
         SkinPanel::Sprite { texture, text_color, .. } => tooltip.with_background_texture(texture).with_text_color(text_color),
     }
 }
@@ -950,6 +1010,119 @@ pub fn tooltip(context: &mut dyn UiWidgetContext, text: impl Into<UiString>) -> 
 // A tooltip beside its widget, for buttons along the screen's edges.
 pub fn tooltip_beside(context: &mut dyn UiWidgetContext, text: impl Into<UiString>) -> UiTooltipText {
     tooltip(context, text).with_placement(UiTooltipPlacement::BesideWidget)
+}
+
+// ----------------------------------------------
+// Toasts
+// ----------------------------------------------
+
+// The toasts' look in the current skin (its `toast` block): its panel at its scale, the text's
+// insets and colour. Set by follow() whenever the skin changes.
+pub fn toast_look(context: &mut dyn UiWidgetContext) -> UiToastLook {
+    let def = current().toast.clone();
+    let scale = if def.scale > 0.0 { def.scale } else { 1.0 };
+    let mut look = UiToastLook {
+        theme: context.ui_sys().theme_id(&theme_name(current_realm())), // The realm's font, in every menus mode.
+        font_scale: if def.font_scale > 0.0 { def.font_scale } else { 1.0 },
+        ..UiToastLook::default()
+    };
+
+    let panel = panel(context, &def.panel);
+    look.text_color = opt_color(&def.text).or(panel.text_color()).or_else(|| color("ink")).unwrap_or(look.text_color);
+    if let SkinPanel::NineSlice { slice, content, .. } = panel {
+        look.panel = Some(slice.with_scale(slice.scale * scale));
+        if let Some([left, top, right, bottom]) = insets_points(content) {
+            look.insets = [left * scale, top * scale, right * scale, bottom * scale];
+        }
+    }
+    look
+}
+
+// ----------------------------------------------
+// Controls
+// ----------------------------------------------
+
+// A sprite's size in points at the skin's sprite scale, or `size` if it's given (non-zero).
+fn sized_sprite(context: &mut dyn UiWidgetContext, sprite: &str, size: [f32; 2]) -> (TextureHandle, Vec2) {
+    let (texture, sprite_size) = sprite_and_size(context, sprite);
+    if size[0] > 0.0 && size[1] > 0.0 { (texture, Vec2::new(size[0], size[1])) } else { (texture, sprite_size) }
+}
+
+// The skin's checkbox sprites, if it names them.
+pub fn checkbox_look(context: &mut dyn UiWidgetContext) -> Option<UiCheckboxLook> {
+    let def = current().controls.checkbox.clone();
+    if def.off.is_empty() || def.on.is_empty() {
+        return None;
+    }
+    let (off, size) = sized_sprite(context, &def.off, def.size);
+    let (on, _) = sprite_and_size(context, &def.on);
+    Some(UiCheckboxLook { off, on, size })
+}
+
+// A checkbox labeled `label` in the skin's sprites. Give it on_read_value and on_update_value.
+pub fn checkbox(context: &mut dyn UiWidgetContext, label: impl Into<UiString>) -> UiCheckbox {
+    let checkbox = UiCheckbox::new().with_label(label);
+    match checkbox_look(context) {
+        Some(look) => checkbox.with_look(look),
+        None => checkbox,
+    }
+}
+
+// The skin's slider sprites, if it names them: the rail and fill 9-slices at their sprites'
+// heights, the knob at its sprite's size, the value in ink.
+pub fn slider_look(context: &mut dyn UiWidgetContext) -> Option<UiSliderLook> {
+    let def = current().controls.slider.clone();
+    if def.rail.sprite.is_empty() || def.fill.sprite.is_empty() || def.knob.is_empty() {
+        return None;
+    }
+    let rail = nine_slice(context, &def.rail.sprite, def.rail.slice, SkinCenter::Stretch);
+    let fill = nine_slice(context, &def.fill.sprite, def.fill.slice, SkinCenter::Stretch);
+    let (knob, knob_size) = sprite_and_size(context, &def.knob);
+    Some(UiSliderLook {
+        rail,
+        fill,
+        rail_height: rail.texture_size.y * rail.scale,
+        fill_height: fill.texture_size.y * fill.scale,
+        knob,
+        knob_size,
+        text_color: color("ink"),
+    })
+}
+
+// A slider over `range` labeled `label` in the skin's sprites. Give it on_read_value and
+// on_update_value.
+pub fn slider<T: UiSliderValue>(context: &mut dyn UiWidgetContext, label: impl Into<UiString>, range: std::ops::RangeInclusive<T>) -> UiSlider {
+    let slider = UiSlider::new(range).with_label(label);
+    match slider_look(context) {
+        Some(look) => slider.with_look(look),
+        None => slider,
+    }
+}
+
+// The skin's dropdown art, if it names it: its field panel (a 9-slice) and arrow sprite.
+pub fn dropdown_look(context: &mut dyn UiWidgetContext) -> Option<UiDropdownLook> {
+    let def = current().controls.dropdown.clone();
+    if def.arrow.is_empty() || !current().panels.contains_key(&def.field) {
+        return None;
+    }
+    let SkinPanel::NineSlice { slice, text_color, .. } = panel(context, &def.field) else {
+        return None;
+    };
+    let (arrow, arrow_size) = sprite_and_size(context, &def.arrow);
+    Some(UiDropdownLook { field: slice, arrow, arrow_size, text_color: text_color.or_else(|| color("ink")) })
+}
+
+// A dropdown over `items` labeled `label` in the skin's art. Give it its callbacks.
+pub fn dropdown<I>(context: &mut dyn UiWidgetContext, label: impl Into<UiString>, items: I) -> UiDropdown
+where
+    I: IntoIterator,
+    I::Item: std::fmt::Display,
+{
+    let dropdown = UiDropdown::new(items).with_label(label);
+    match dropdown_look(context) {
+        Some(look) => dropdown.with_look(look),
+        None => dropdown,
+    }
 }
 
 // ----------------------------------------------
@@ -988,7 +1161,7 @@ pub fn sprite_button(context: &mut dyn UiWidgetContext, set: &str, label: &str, 
 // ----------------------------------------------
 
 // A sprite under assets/ui/ and its size in points, at the skin's sprite scale.
-fn sprite_and_size(context: &mut dyn UiWidgetContext, sprite: &str) -> (TextureHandle, Vec2) {
+pub(crate) fn sprite_and_size(context: &mut dyn UiWidgetContext, sprite: &str) -> (TextureHandle, Vec2) {
     let texture = context.load_texture(PathRef::from_str(sprite));
     let size = context.render_sys().texture_cache().texture_size(texture);
     let size = size.map_or(Vec2::new(16.0, 16.0), |size| Vec2::new(size.width as f32, size.height as f32) * art_scale());
@@ -1236,6 +1409,8 @@ pub fn icon_button(context: &mut dyn UiWidgetContext, label: &str, icon_name: &s
 // Unit tests
 // ----------------------------------------------
 
+// The skin files' assets (sprites, 9-slices, colours, sounds, fonts) are checked by
+// tests/ui_skins.rs; these check the rules.
 #[cfg(test)]
 mod tests {
     use std::path::{Path, PathBuf};
@@ -1258,183 +1433,6 @@ mod tests {
 
     fn skins() -> Vec<(Realm, UiSkinDef)> {
         Realm::iter().zip(merge_all(&files()).unwrap_or_else(|err| panic!("{err}"))).collect()
-    }
-
-    fn ui_asset_exists(path: &str) -> bool {
-        repo_path("assets/ui").join(path).is_file()
-    }
-
-    fn stem_exists(stem: &str) -> bool {
-        ["idle", "hovered", "pressed", "disabled"].iter().all(|state| ui_asset_exists(&format!("{stem}_{state}.png")))
-    }
-
-    // Every skin loads, and every style validates.
-    #[test]
-    fn every_skin_loads() {
-        for (realm, skin) in skins() {
-            UiStyleSource::json(theme_name(realm), skin.style.clone()).validate().unwrap_or_else(|err| panic!("{realm}: {err}"));
-            assert!(skin.sprite_scale > 0.0, "{realm}");
-            for name in ["dialog", "popup", "tooltip"] {
-                assert!(skin.panels.contains_key(name), "{realm}: no panel '{name}'");
-            }
-            for role in ["primary", "secondary", "menu_item", "hud_item"] {
-                assert!(skin.buttons.contains_key(role), "{realm}: no button role '{role}'");
-            }
-            for level in ["dialog", "popup", "section"] {
-                assert!(skin.headings.contains_key(level), "{realm}: no heading '{level}'");
-            }
-            assert!(!skin.backdrops.home.is_empty(), "{realm}: no home backdrop");
-        }
-    }
-
-    // A realm's file holds only what it changes: what it doesn't name is Đại Long's.
-    #[test]
-    fn realm_skins_inherit_dai_long() {
-        let skins = skins();
-        let dailong = &skins[0].1;
-        for (realm, skin) in &skins[1..] {
-            assert_eq!(skin.icons, dailong.icons, "{realm}");
-            assert_eq!(skin.sounds, dailong.sounds, "{realm}");
-            assert_eq!(skin.style["spacing"], dailong.style["spacing"], "{realm}");
-            assert_ne!(skin.panels["dialog"].sprite, dailong.panels["dialog"].sprite, "{realm}");
-        }
-    }
-
-    // Every sprite a skin names exists, and its 9-slice borders fit it.
-    #[test]
-    fn every_skin_sprite_exists() {
-        for (realm, skin) in skins() {
-            let png_size = |path: &str| -> (f32, f32) {
-                let bytes = std::fs::read(repo_path("assets/ui").join(path)).unwrap();
-                assert_eq!(&bytes[1..4], b"PNG", "{realm}: {path}");
-                let be = |at: usize| u32::from_be_bytes(bytes[at..at + 4].try_into().unwrap()) as f32;
-                (be(16), be(20))
-            };
-            let check_slice = |path: &str, slice: [f32; 4]| {
-                let (width, height) = png_size(path);
-                assert!(slice[0] + slice[2] < width && slice[1] + slice[3] <= height, "{realm}: {path}: borders {slice:?} don't fit {width} × {height}");
-            };
-
-            for (name, panel) in &skin.panels {
-                assert!(ui_asset_exists(&panel.sprite), "{realm}: panel '{name}': {} doesn't exist", panel.sprite);
-                if let Some(slice) = panel.slice {
-                    check_slice(&panel.sprite, slice);
-                }
-                if let Some(text) = &panel.text {
-                    assert!(text.starts_with('#') || skin.text.contains_key(text), "{realm}: panel '{name}': no colour '{text}'");
-                }
-            }
-            for (role, button) in &skin.buttons {
-                if let Some(stem) = &button.sprite {
-                    assert!(stem_exists(stem), "{realm}: button '{role}': {stem}_<state>.png don't all exist");
-                    check_slice(&format!("{stem}_idle.png"), button.slice);
-                }
-                for path in [&button.hover_sprite, &button.marker, &button.selected].into_iter().flatten() {
-                    assert!(ui_asset_exists(path), "{realm}: button '{role}': {path} doesn't exist");
-                }
-                if let Some(hover) = &button.hover {
-                    assert!(skin.panels.get(hover).is_some_and(|panel| panel.slice.is_some()), "{realm}: button '{role}': no 9-slice panel '{hover}'");
-                }
-            }
-            for (name, separator) in &skin.separators {
-                assert!(ui_asset_exists(&separator.sprite), "{realm}: separator '{name}': {} doesn't exist", separator.sprite);
-                if let Some(ornament) = &separator.ornament {
-                    assert!(ui_asset_exists(ornament), "{realm}: separator '{name}': {ornament} doesn't exist");
-                }
-            }
-            for (level, heading) in &skin.headings {
-                if let Some(separator) = &heading.separator {
-                    assert!(skin.separators.contains_key(separator), "{realm}: heading '{level}': no separator '{separator}'");
-                }
-            }
-            for (set, folder) in &skin.icon_sets {
-                assert!(repo_path("assets/ui").join(folder).is_dir(), "{realm}: icon set '{set}': {folder} isn't a folder");
-            }
-            for (name, path) in &skin.icons {
-                assert!(ui_asset_exists(path), "{realm}: icon '{name}': {path} doesn't exist");
-            }
-            for (name, stem) in &skin.emblems {
-                for state in ["idle", "locked", "current"] {
-                    assert!(ui_asset_exists(&format!("{stem}_{state}.png")), "{realm}: emblem '{name}' has no {state} sprite");
-                }
-            }
-            for path in &skin.backdrops.home {
-                assert!(ui_asset_exists(path), "{realm}: home backdrop {path} doesn't exist");
-            }
-            let controls = &skin.controls;
-            for path in [
-                &controls.toggle.off, &controls.toggle.on, &controls.toggle.knob, &controls.checkbox.off, &controls.checkbox.on,
-                &controls.slider.rail.sprite, &controls.slider.fill.sprite, &controls.slider.knob, &controls.dropdown.arrow,
-                &controls.scrollbar.track.sprite, &controls.scrollbar.thumb.sprite,
-            ] {
-                assert!(ui_asset_exists(path), "{realm}: control sprite {path} doesn't exist");
-            }
-            assert!(skin.panels.contains_key(&controls.dropdown.field), "{realm}: no panel '{}' for the dropdown", controls.dropdown.field);
-            for (kind, dialog) in &skin.dialogs {
-                if let Some(panel) = &dialog.panel {
-                    assert!(skin.panels.contains_key(panel), "{realm}: dialog '{kind}': no panel '{panel}'");
-                }
-            }
-        }
-    }
-
-    // Every colour a skin's blocks name is a `text` colour or "#RRGGBB(AA)", and the widgets'
-    // helpers find what they need: framed tabs, the icon frame, the toggle's sprites.
-    #[test]
-    fn every_skin_colour_and_widget_part_resolves() {
-        for (realm, skin) in skins() {
-            let resolves = |name: &str| if name.starts_with('#') { HexColor::parse(name).is_some() } else { skin.text.contains_key(name) };
-            let meters = &skin.meters;
-            let rows = &skin.rows;
-            let toggle = &skin.controls.toggle;
-            let names = [
-                &meters.fill, &meters.track, &meters.outline, &meters.goal, &meters.text, &rows.title, &rows.selected, &rows.subtitle,
-                &rows.label, &rows.value, &rows.header, &rows.rule, &rows.done, &rows.pending, &rows.failed, &toggle.text, &toggle.state_text,
-            ];
-            for name in names.into_iter().flatten() {
-                assert!(resolves(name), "{realm}: no colour '{name}'");
-            }
-            for (role, button) in &skin.buttons {
-                for name in [&button.text, &button.text_hovered, &button.subline].into_iter().flatten() {
-                    assert!(resolves(name), "{realm}: button '{role}': no colour '{name}'");
-                }
-            }
-            for name in ["ink", "accent", "sub", "light"] {
-                assert!(skin.text.contains_key(name), "{realm}: no text colour '{name}', which the widget helpers fall back on");
-            }
-
-            for role in ["tab", "tab_selected", "icon"] {
-                assert!(skin.buttons.get(role).is_some_and(|button| button.sprite.is_some()), "{realm}: button '{role}' isn't framed");
-            }
-            assert!(skin.buttons["icon"].selected.is_some() && skin.buttons["icon"].size.is_some_and(|size| size > 0.0), "{realm}: icon button");
-            assert!(skin.buttons["menu_item"].marker.is_some(), "{realm}: no menu item marker");
-            assert!(!toggle.off.is_empty() && !toggle.on.is_empty() && !toggle.knob.is_empty(), "{realm}: toggle sprites");
-            assert!(toggle.size[0] > 0.0 && toggle.size[1] > 0.0, "{realm}: toggle size");
-            for name in ["row", "row_selected", "well"] {
-                assert!(skin.panels.get(name).is_some_and(|panel| panel.slice.is_some()), "{realm}: no 9-slice panel '{name}'");
-            }
-            for realm_name in Realm::iter() {
-                assert!(skin.emblems.contains_key(&realm_name.to_string()), "{realm}: no emblem for {realm_name}");
-            }
-        }
-    }
-
-    // Every sound role a skin names exists, and Đại Long's names them all (the defaults).
-    #[test]
-    fn every_skin_sound_exists() {
-        for (realm, skin) in skins() {
-            let (mapping, problems) = sound::mapping_from_names(skin.sounds.clone().into_iter().collect());
-            assert!(problems.is_empty(), "{realm}: {problems:?}");
-            for role in sound::UiSoundKey::iter() {
-                if realm == Realm::DaiLong {
-                    assert!(mapping.get(&role).is_some_and(Option::is_some), "{realm}: no file for '{role}'");
-                }
-                if let Some(Some(file)) = mapping.get(&role) {
-                    let path = repo_path("assets/sounds/sfx/ui").join(file);
-                    assert!(path.is_file(), "{realm}: '{role}' names {}, which doesn't exist", path.display());
-                }
-            }
-        }
     }
 
     // Dialog sizes are given for a 1920 × 1080 window and shrink with it, keeping their proportions,

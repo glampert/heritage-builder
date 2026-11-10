@@ -59,7 +59,8 @@
     "caption": {
       "sprite": "skins/tampadesa/panel_caption.png",
       "slice": [16, 16, 20, 24],
-      "content": [12.0, 12.0, 14.0, 16.0]
+      "content": [12.0, 12.0, 14.0, 16.0],
+      "text": "light"
     },
     "well": { "sprite": "skins/tampadesa/panel_well.png", "slice": [16, 16, 16, 16] },
     "row": { "sprite": "skins/tampadesa/panel_row.png", "slice": [20, 0, 20, 4] },

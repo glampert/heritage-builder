@@ -48,9 +48,10 @@ impl UiTooltipText {
     }
 
     // A 9-slice panel behind the text, in place of the style's tooltip frame. It covers the text
-    // and the frame's margins (the style's window margin).
-    pub fn with_panel(mut self, panel: UiNineSlice) -> Self {
-        self.background = UiTooltipBackground::Panel(panel);
+    // and the frame's margins: `insets` in points (left, top, right, bottom), so the text stays
+    // inside the panel's border, or the style's popup margins if None.
+    pub fn with_panel(mut self, panel: UiNineSlice, insets: Option<[f32; 4]>) -> Self {
+        self.background = UiTooltipBackground::Panel(panel, insets);
         self
     }
 

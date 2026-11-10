@@ -44,6 +44,7 @@ use crate::{
 };
 
 pub(crate) mod dialog;
+pub mod gallery;
 pub mod home;
 pub mod in_game;
 pub mod skin;

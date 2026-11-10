@@ -68,6 +68,7 @@ use registry::UiWidgetRegistry;
 pub use registry::UiWidgetInfo;
 use style::{UiStyle, UiStyles};
 use toast::UiToasts;
+pub use toast::UiToastLook;
 
 // ----------------------------------------------
 // UiInputEvent
@@ -260,6 +261,11 @@ impl UiSystem {
         self.toasts.borrow_mut().push(text.into());
     }
 
+    // How toasts look from now on, the ones showing included: e.g. a skin's caption panel.
+    pub fn set_toast_look(&self, look: UiToastLook) {
+        self.toasts.borrow_mut().set_look(look);
+    }
+
     // egui's own inspection windows, for debugging the UI.
     fn draw_debug_window(&self) {
         let ctx = self.backend.ctx().clone();
@@ -445,6 +451,19 @@ impl UiSystem {
         self.theme.set(theme);
         self.font_scale.set(None);
         self.apply_theme_style();
+    }
+
+    // Switches to a theme for a while, e.g. to draw one window or the toasts in another theme,
+    // without logging, since it's done every frame. Returns the theme to switch back to with
+    // another call once done. An id that isn't loaded is ignored.
+    pub fn swap_ui_theme(&self, theme: UiThemeId) -> UiThemeId {
+        let previous = self.theme.get();
+        if previous != theme && self.theme_name(theme).is_some() {
+            self.theme.set(theme);
+            self.font_scale.set(None);
+            self.apply_theme_style();
+        }
+        previous
     }
 
     #[inline]

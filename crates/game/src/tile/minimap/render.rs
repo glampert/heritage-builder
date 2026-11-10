@@ -6,7 +6,6 @@ use strum::{EnumCount, EnumIter, IntoEnumIterator};
 use common::{Color, Rect, Vec2, coords::Cell, format_fixed_string};
 use engine::{
     file_sys::paths::PathRef,
-    render::texture::TextureHandle,
     ui::{self, UiCondition, UiFontScale, UiLayer, UiNumberFormat, UiPainter, UiStaticVar, UiSystem, UiTooltipBackground, UiWindow, sound::UiWidgetSounds, widgets::*},
 };
 
@@ -86,7 +85,9 @@ struct BaseMinimapRenderer {
     minimap_menu: Option<UiMenuRcMut>,
     open_button_menu: Option<UiMenuRcMut>,
     buttons: Option<MinimapButtons>,
-    tooltip_background: Option<TextureHandle>, // The style's frame, behind the map's hover tooltip.
+    // Behind the map's hover tooltip: the style's tooltip frame, else the UI skin's tooltip panel,
+    // and the text's colour on it (the retail minimap's; the developer UI's is plain).
+    tooltip_background: Option<(UiTooltipBackground, Option<Color>)>,
     style_version: (u32, u32), // The minimap style's and the UI skin's versions the menus were built with.
     button_sounds: UiWidgetSounds,
     font_scale: UiFontScale,
@@ -116,7 +117,6 @@ impl BaseMinimapRenderer {
         let font_scale = self.font_scale;
         let sounds = self.button_sounds;
         let frame = self.with_frame.then(|| style.frame.clone());
-        let tooltip_frame = self.with_frame.then(|| style.tooltip_frame().to_string());
 
         let make_menu = |context: &mut GameUiContext, label: &str| match &frame {
             Some(sprite) => UiMenu::new(label).with_background(context, PathRef::from_str(sprite)),
@@ -181,7 +181,10 @@ impl BaseMinimapRenderer {
         let debug = self.with_debug_button.then(|| make_button(context, &format!("{}/debug", style.buttons), "Debug"));
         let landmarks_on = make_button(context, &format!("{}/landmarks_on", style.buttons), "Hide building icons");
         let landmarks_off = make_button(context, &format!("{}/landmarks_off", style.buttons), "Show building icons");
-        self.tooltip_background = tooltip_frame.as_ref().map(|sprite| context.load_texture(PathRef::from_str(sprite)));
+        self.tooltip_background = self.with_frame.then(|| match style.tooltip_frame() {
+            Some(sprite) => (UiTooltipBackground::Sprite(context.load_texture(PathRef::from_str(sprite))), None),
+            None => crate::menu::skin::tooltip_background(context),
+        });
 
         self.minimap_menu = Some(minimap_menu);
         self.open_button_menu = Some(open_button_menu);
@@ -538,15 +541,18 @@ impl BaseMinimapRenderer {
         };
         let cell = Cell::new(cell.0.x.round() as i32, cell.0.y.round() as i32);
         if let Some(name) = minimap.describe_cell(cell) {
-            // The style's tooltip settings: the realm's frame (or none), at its opacity. The
-            // developer UI's is plain.
+            // The style's tooltip settings: the HUD's tooltip panel or the style's frame (or none),
+            // at its opacity. The developer UI's is plain.
             let style = style::current();
-            let background = match self.tooltip_background {
-                _ if !style.tooltip_background => UiTooltipBackground::None,
-                Some(sprite) => UiTooltipBackground::Sprite(sprite),
-                None => UiTooltipBackground::Style,
+            let (background, text_color) = match self.tooltip_background {
+                _ if !style.tooltip_background => (UiTooltipBackground::None, None),
+                Some(background) => background,
+                None => (UiTooltipBackground::Style, None),
             };
-            ui::pointer_tooltip(context.ui_sys, self.font_scale, background, style.tooltip_opacity, |ui_sys| ui::text(ui_sys, &name));
+            ui::pointer_tooltip(context.ui_sys, self.font_scale, background, style.tooltip_opacity, |ui_sys| match text_color {
+                Some(color) => ui::text_colored(ui_sys, color, &name),
+                None => ui::text(ui_sys, &name),
+            });
         }
     }
 }

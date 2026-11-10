@@ -98,7 +98,7 @@ trait Setting {
     fn set_from_widget_value(&mut self, new_value: SettingsWidgetValue);
 
     fn widget_label(&self) -> String;
-    fn create_widget(&self, this: WeakMut<dyn Setting>) -> UiWidgetImpl;
+    fn create_widget(&self, context: &mut GameUiContext, this: WeakMut<dyn Setting>) -> UiWidgetImpl;
 }
 
 struct SettingImpl<T, OnReadFn, OnCommitFn>
@@ -165,13 +165,14 @@ where
         self.widget_label.into()
     }
 
-    fn create_widget(&self, this: WeakMut<dyn Setting>) -> UiWidgetImpl {
+    // In the skin's look: skin::slider, dropdown and checkbox.
+    fn create_widget(&self, context: &mut GameUiContext, this: WeakMut<dyn Setting>) -> UiWidgetImpl {
         let read_weak_ref = this.clone().into_not_mut();
         let write_weak_ref = this;
 
         match self.widget_kind {
             SettingsWidgetKind::SliderU32(min, max) => UiWidgetImpl::from(
-                UiSlider::new(min..=max)
+                skin::slider(context, "", min..=max)
                     .with_font_scale(DEFAULT_DIALOG_MENU_WIDGET_FONT_SCALE)
                     .on_read_value(move |_, _| -> u32 {
                         let setting = read_weak_ref.upgrade().unwrap();
@@ -184,7 +185,7 @@ where
                     }),
             ),
             SettingsWidgetKind::Dropdown(ref items) => UiWidgetImpl::from(
-                UiDropdown::new(items)
+                skin::dropdown(context, "", items)
                     .with_font_scale(DEFAULT_DIALOG_MENU_WIDGET_FONT_SCALE)
                     .on_get_current_selection(move |_, _| {
                         let setting = read_weak_ref.upgrade().unwrap();
@@ -198,7 +199,7 @@ where
                     }),
             ),
             SettingsWidgetKind::Checkbox => UiWidgetImpl::from(
-                UiCheckbox::new()
+                skin::checkbox(context, "")
                     .with_font_scale(DEFAULT_DIALOG_MENU_WIDGET_FONT_SCALE)
                     .on_read_value(move |_, _| {
                         let setting = read_weak_ref.upgrade().unwrap();
@@ -272,7 +273,7 @@ impl SettingsCategory {
             .with_widget_spacing(DEFAULT_DIALOG_MENU_WIDGET_SPACING.y);
 
         for setting in &self.settings {
-            labeled_widget_group.add_widget(setting.widget_label(), setting.create_widget(setting.downgrade()));
+            labeled_widget_group.add_widget(setting.widget_label(), setting.create_widget(context, setting.downgrade()));
         }
 
         // -------------

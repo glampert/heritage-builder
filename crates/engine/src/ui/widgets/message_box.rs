@@ -1,6 +1,6 @@
 use std::any::Any;
 
-use common::Vec2;
+use common::{Color, Vec2};
 
 use super::{UiMenu, UiMenuBackground, UiMenuFlags, UiMenuInsets, UiMenuRcMut, UiWidget, UiWidgetContext, UiWidgetGroup, UiWidgetImpl};
 use crate::{
@@ -65,6 +65,13 @@ impl UiMessageBox {
     // `event` (Opened or Closed) plays `role` instead, or nothing for None.
     pub fn with_sound(mut self, event: UiSoundEvent, role: Option<UiSoundKey>) -> Self {
         self.menu_mut().set_sound(event, role);
+        self
+    }
+
+    // The colour it dims the screen behind it with, in place of the UI system's
+    // (UiSystem::set_modal_backdrop_color): the menu under it shows through it.
+    pub fn with_backdrop_color(mut self, color: Color) -> Self {
+        self.menu_mut().backdrop_color = Some(color);
         self
     }
 

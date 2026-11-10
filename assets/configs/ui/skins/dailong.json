@@ -288,7 +288,8 @@
     "kambara": "skins/dailong/emblem_kambara",
     "tampadesa": "skins/dailong/emblem_tampadesa"
   },
-  "backdrops": { "home": ["misc/home_menu_static_bg.png"], "dim_home": "#00000000", "dim_game": "#00000026" },
+  "toast": { "panel": "caption", "scale": 0.6, "font_scale": 1.0 },
+  "backdrops": { "home": ["misc/home_menu_static_bg.png"], "dim_home": "#00000000", "dim_game": "#00000026", "dim_popup": "#120B0559" },
   "dialogs": {
     "default": {"panel": "dialog", "size": [760, 960]},
     "Home": {"size": [600, 960], "align": "left"},

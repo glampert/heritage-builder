@@ -104,7 +104,7 @@ name    = "realm_profile"
 harness = false
 
 [[test]]
-name    = "ui_fonts"
+name    = "ui_skins"
 harness = false
 
 [[test]]

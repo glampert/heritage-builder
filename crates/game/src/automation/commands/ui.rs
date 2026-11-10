@@ -681,7 +681,9 @@ fn cmd_layout_issues(context: &mut CommandContext, _params: Value) -> CommandRes
 // The widgets outside their menu's content area (the innermost `menu_content` whose path is a
 // prefix of theirs), and the pairs of siblings (same parent path, same menu) that overlap without
 // one holding the other. A dropdown's popup may leave the menu, so list items aren't held to it,
-// and a widget scrolled out of view (`visible: false`) is clipped, so it isn't checked.
+// and a widget scrolled out of view (`visible: false`) is clipped, so it isn't checked; in a menu
+// whose contents scroll (its value's `scrolls`), neither is one its top or bottom edge cuts, as
+// long as it fits the menu's width.
 fn layout_issues(widgets: &[UiWidgetInfo]) -> Vec<Value> {
     let menus: Vec<&UiWidgetInfo> = widgets.iter().filter(|widget| widget.kind == "menu_content").collect();
 
@@ -706,7 +708,10 @@ fn layout_issues(widgets: &[UiWidgetInfo]) -> Vec<Value> {
         if widget.kind == "list_item" {
             continue;
         }
-        if !menu.rect.expanded(Vec2::new(LAYOUT_TOLERANCE, LAYOUT_TOLERANCE)).contains_rect(&widget.rect) {
+        let area = menu.rect.expanded(Vec2::new(LAYOUT_TOLERANCE, LAYOUT_TOLERANCE));
+        let scrolls = menu.value.as_ref().is_some_and(|value| value["scrolls"] == Value::Bool(true));
+        let fits_across = widget.rect.min.x >= area.min.x && widget.rect.max.x <= area.max.x;
+        if !area.contains_rect(&widget.rect) && !(scrolls && fits_across) {
             issues.push(json!({
                 "problem": "outside",
                 "path": widget.path,
@@ -853,13 +858,16 @@ mod tests {
             widget_at("list_item", "Home/Kind/Grass", 50.0, 50.0, 40.0, 60.0), // A popup: may leave the menu.
             UiWidgetInfo { visible: false, ..widget_at("list_item", "Home/scrolled", 10.0, 85.0, 80.0, 30.0) }, // Clipped.
             widget_at("window", "Debug", 200.0, 200.0, 50.0, 50.0),           // No menu: not checked.
+            UiWidgetInfo { value: Some(json!({ "scrolls": true })), ..widget_at("menu_content", "Gallery", 0.0, 0.0, 100.0, 100.0) },
+            widget_at("image", "Gallery/cut", 10.0, 90.0, 80.0, 20.0),       // Cut by its edge as it scrolls.
+            widget_at("image", "Gallery/wide", 10.0, 50.0, 120.0, 20.0),     // Too wide all the same.
             widget_at("button", "Debug/Close", 300.0, 300.0, 10.0, 10.0),
         ];
 
         let issues = layout_issues(&widgets);
         let problems: Vec<(&str, &str)> = issues.iter().map(|issue| (issue["problem"].as_str().unwrap(), issue["path"].as_str().unwrap())).collect();
-        assert_eq!(problems, [("outside", "Home/Ok"), ("overlap", "Home/A")]);
-        assert_eq!(issues[1]["other"], "Home/B");
+        assert_eq!(problems, [("outside", "Home/Ok"), ("outside", "Gallery/wide"), ("overlap", "Home/A")]);
+        assert_eq!(issues[2]["other"], "Home/B");
     }
 
     #[test]

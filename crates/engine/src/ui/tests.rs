@@ -1,4 +1,4 @@
-use common::{Color, Rect, format_fixed_string};
+use common::{Color, Rect};
 
 use super::*;
 use crate::{
@@ -270,17 +270,16 @@ fn create_sample_menu_2_once(context: &mut dyn UiWidgetContext) {
         .with_widget(sample_sprite_button(context, "palette/roads", UiSpriteButtonState::Idle))
         .with_widget(sample_sprite_button(context, "palette/food_and_farming", UiSpriteButtonState::Disabled));
 
-    let slideshow_frame_count = 3;
-    let mut slideshow_frames = Vec::with_capacity(slideshow_frame_count);
-    for i in 0..slideshow_frame_count {
-        let path = format_fixed_string!(64, "misc/home_menu_anim/frame{i}.jpg");
-        slideshow_frames.push(AssetPath::from_str(&path));
-    }
+    // The realm emblems in turn.
+    let slideshow_frames: Vec<AssetPath> = ["dailong", "kambara", "tampadesa"]
+        .iter()
+        .map(|realm| AssetPath::from_str(&format!("skins/dailong/emblem_{realm}_idle.png")))
+        .collect();
 
     let slideshow = UiSlideshow::new(context, slideshow_frames.iter())
         .with_loop_mode(UiSlideshowLoopMode::WholeAnim)
         .with_frame_duration_secs(0.5)
-        .with_size(Vec2::new(0.0, 250.0))
+        .with_size(Vec2::new(0.0, 120.0))
         .with_margins(30.0, 30.0);
 
     let separator = UiSeparator::new().with_sprite(context, SAMPLE_SEPARATOR_SPRITE).with_thickness(15.0);
@@ -337,7 +336,7 @@ fn create_sample_menu_3_once(context: &mut dyn UiWidgetContext) {
 
     // The same frame for every state, told apart by tints, at half size.
     let frame = UiTextButtonFrame::uniform(frame_panel.with_scale(0.5)).with_padding(Vec2::new(12.0, 6.0));
-    let tooltip = UiTooltipText::new("A tooltip on a 9-slice panel").with_font_scale(UiFontScale(0.8)).with_panel(frame_panel);
+    let tooltip = UiTooltipText::new("A tooltip on a 9-slice panel").with_font_scale(UiFontScale(0.8)).with_panel(frame_panel, None);
 
     let framed_button = UiTextButton::new("Framed Button")
         .with_frame(frame)
@@ -719,8 +718,7 @@ fn create_sample_menu_5_once(context: &mut dyn UiWidgetContext) {
 
 // Draws Sample Menus 4 and 5, the realm UI's widgets, in `theme`, e.g. the retail UI's.
 pub fn draw_widget_sample_menus(context: &mut dyn UiWidgetContext, theme: UiThemeId) {
-    let prev_theme = context.ui_sys().current_ui_theme();
-    context.ui_sys().set_ui_theme(theme);
+    let prev_theme = context.ui_sys().swap_ui_theme(theme);
 
     create_sample_menu_4_once(context);
     create_sample_menu_5_once(context);
@@ -729,7 +727,7 @@ pub fn draw_widget_sample_menus(context: &mut dyn UiWidgetContext, theme: UiThem
         menu.draw(context);
     }
 
-    context.ui_sys().set_ui_theme(prev_theme);
+    context.ui_sys().swap_ui_theme(prev_theme);
 }
 
 // ----------------------------------------------
@@ -738,8 +736,7 @@ pub fn draw_widget_sample_menus(context: &mut dyn UiWidgetContext, theme: UiThem
 
 // Draws the sample menus in `theme`, e.g. the retail UI's.
 pub fn draw_sample_menus(context: &mut dyn UiWidgetContext, theme: UiThemeId) {
-    let prev_theme = context.ui_sys().current_ui_theme();
-    context.ui_sys().set_ui_theme(theme);
+    let prev_theme = context.ui_sys().swap_ui_theme(theme);
 
     create_sample_menu_1_once(context);
     create_sample_menu_2_once(context);
@@ -749,5 +746,5 @@ pub fn draw_sample_menus(context: &mut dyn UiWidgetContext, theme: UiThemeId) {
     draw_sample_menu_2(context);
     draw_sample_menu_3(context);
 
-    context.ui_sys().set_ui_theme(prev_theme);
+    context.ui_sys().swap_ui_theme(prev_theme);
 }
