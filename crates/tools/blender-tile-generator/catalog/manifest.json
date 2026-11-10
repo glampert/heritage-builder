@@ -1,5 +1,49 @@
 {
   "sprites": {
+    "assets/tiles/objects/buildings/builders_guild/builders_guild.png": {
+      "category": "buildings",
+      "density": 8,
+      "draw_size": {
+        "height": 98,
+        "width": 128
+      },
+      "fast": false,
+      "frame": "builders_guild",
+      "hash": "f1dea80ef985902c",
+      "layer": "objects",
+      "logical_size": {
+        "height": 64,
+        "width": 128
+      },
+      "png_size": [
+        1024,
+        784
+      ],
+      "tile": "builders_guild",
+      "variation": ""
+    },
+    "assets/tiles/objects/buildings/fire_watch/fire_watch.png": {
+      "category": "buildings",
+      "density": 8,
+      "draw_size": {
+        "height": 70,
+        "width": 64
+      },
+      "fast": false,
+      "frame": "fire_watch",
+      "hash": "f8921606baaa29fb",
+      "layer": "objects",
+      "logical_size": {
+        "height": 32,
+        "width": 64
+      },
+      "png_size": [
+        512,
+        560
+      ],
+      "tile": "fire_watch",
+      "variation": ""
+    },
     "assets/tiles/objects/buildings/roof_tile_kiln/roof_tile_kiln.png": {
       "category": "buildings",
       "density": 8,
@@ -9,7 +53,7 @@
       },
       "fast": false,
       "frame": "roof_tile_kiln",
-      "hash": "aaa442c0bf37c771",
+      "hash": "e05396e4dd6c0e7f",
       "layer": "objects",
       "logical_size": {
         "height": 64,
@@ -22,6 +66,94 @@
       "tile": "roof_tile_kiln",
       "variation": ""
     },
+    "assets/tiles/objects/overlays/fire_1x1/frame0.png": {
+      "category": "overlays",
+      "density": 8,
+      "draw_size": {
+        "height": 59,
+        "width": 64
+      },
+      "fast": false,
+      "frame": "frame0",
+      "hash": "b6e3182981444e49",
+      "layer": "objects",
+      "logical_size": {
+        "height": 32,
+        "width": 64
+      },
+      "png_size": [
+        512,
+        472
+      ],
+      "tile": "fire_1x1",
+      "variation": ""
+    },
+    "assets/tiles/objects/overlays/fire_1x1/frame1.png": {
+      "category": "overlays",
+      "density": 8,
+      "draw_size": {
+        "height": 59,
+        "width": 64
+      },
+      "fast": false,
+      "frame": "frame1",
+      "hash": "e3ef1c418c691d6d",
+      "layer": "objects",
+      "logical_size": {
+        "height": 32,
+        "width": 64
+      },
+      "png_size": [
+        512,
+        472
+      ],
+      "tile": "fire_1x1",
+      "variation": ""
+    },
+    "assets/tiles/objects/overlays/fire_1x1/frame2.png": {
+      "category": "overlays",
+      "density": 8,
+      "draw_size": {
+        "height": 59,
+        "width": 64
+      },
+      "fast": false,
+      "frame": "frame2",
+      "hash": "aefa8820c18d0b8b",
+      "layer": "objects",
+      "logical_size": {
+        "height": 32,
+        "width": 64
+      },
+      "png_size": [
+        512,
+        472
+      ],
+      "tile": "fire_1x1",
+      "variation": ""
+    },
+    "assets/tiles/objects/overlays/fire_1x1/frame3.png": {
+      "category": "overlays",
+      "density": 8,
+      "draw_size": {
+        "height": 59,
+        "width": 64
+      },
+      "fast": false,
+      "frame": "frame3",
+      "hash": "2e4cb83f744ab302",
+      "layer": "objects",
+      "logical_size": {
+        "height": 32,
+        "width": 64
+      },
+      "png_size": [
+        512,
+        472
+      ],
+      "tile": "fire_1x1",
+      "variation": ""
+    },
     "assets/tiles/objects/overlays/renovation_1x1/renovation_1x1.png": {
       "category": "overlays",
       "density": 8,
@@ -31,7 +163,7 @@
       },
       "fast": false,
       "frame": "renovation_1x1",
-      "hash": "46a148d305c981f6",
+      "hash": "70a56a1a8379962b",
       "layer": "objects",
       "logical_size": {
         "height": 32,
@@ -53,7 +185,7 @@
       },
       "fast": false,
       "frame": "renovation_2x2",
-      "hash": "7be5d376be75eee4",
+      "hash": "2bd73e6e09af04c0",
       "layer": "objects",
       "logical_size": {
         "height": 64,
@@ -75,7 +207,7 @@
       },
       "fast": false,
       "frame": "renovation_3x3",
-      "hash": "c42a1daa0a786a97",
+      "hash": "77d2cdec89fd4b51",
       "layer": "objects",
       "logical_size": {
         "height": 96,
@@ -97,7 +229,7 @@
       },
       "fast": false,
       "frame": "renovation_4x4",
-      "hash": "1660e4f08977f307",
+      "hash": "1667d852001c3bdb",
       "layer": "objects",
       "logical_size": {
         "height": 128,
@@ -119,7 +251,7 @@
       },
       "fast": false,
       "frame": "stage0",
-      "hash": "6440a1249c3bccb0",
+      "hash": "c4381efb70f73bec",
       "layer": "objects",
       "logical_size": {
         "height": 32,
@@ -141,7 +273,7 @@
       },
       "fast": false,
       "frame": "stage1",
-      "hash": "d3223da17009da7f",
+      "hash": "e19658e5c32fc1cb",
       "layer": "objects",
       "logical_size": {
         "height": 32,
@@ -163,7 +295,7 @@
       },
       "fast": false,
       "frame": "stage2",
-      "hash": "5007a007039a3be7",
+      "hash": "7b12d19c86849100",
       "layer": "objects",
       "logical_size": {
         "height": 32,
@@ -185,7 +317,7 @@
       },
       "fast": false,
       "frame": "stage3",
-      "hash": "bb793d94143c6ab5",
+      "hash": "c6a7cc78cc0c6a62",
       "layer": "objects",
       "logical_size": {
         "height": 32,
@@ -207,7 +339,7 @@
       },
       "fast": false,
       "frame": "stage0",
-      "hash": "2b5786808c71e3b0",
+      "hash": "dfcb322043919dec",
       "layer": "objects",
       "logical_size": {
         "height": 64,
@@ -229,7 +361,7 @@
       },
       "fast": false,
       "frame": "stage1",
-      "hash": "57da5129edcce456",
+      "hash": "0f63d9a1edb15462",
       "layer": "objects",
       "logical_size": {
         "height": 64,
@@ -251,7 +383,7 @@
       },
       "fast": false,
       "frame": "stage2",
-      "hash": "5f4a2a353e435a9d",
+      "hash": "4386dd67828db857",
       "layer": "objects",
       "logical_size": {
         "height": 64,
@@ -273,7 +405,7 @@
       },
       "fast": false,
       "frame": "stage3",
-      "hash": "79d7098bab729832",
+      "hash": "e26a67d7538b8f9b",
       "layer": "objects",
       "logical_size": {
         "height": 64,
@@ -295,7 +427,7 @@
       },
       "fast": false,
       "frame": "stage0",
-      "hash": "35bda9ff6bb0968a",
+      "hash": "e78901961fb7b00b",
       "layer": "objects",
       "logical_size": {
         "height": 96,
@@ -317,7 +449,7 @@
       },
       "fast": false,
       "frame": "stage1",
-      "hash": "5fc76ec1b1d87792",
+      "hash": "f07ec8bac5725dcd",
       "layer": "objects",
       "logical_size": {
         "height": 96,
@@ -339,7 +471,7 @@
       },
       "fast": false,
       "frame": "stage2",
-      "hash": "3825d05e7c487c2b",
+      "hash": "a837b64dae518c0c",
       "layer": "objects",
       "logical_size": {
         "height": 96,
@@ -361,7 +493,7 @@
       },
       "fast": false,
       "frame": "stage3",
-      "hash": "0faf6a7ecf84856b",
+      "hash": "bcde6cb4f901d25e",
       "layer": "objects",
       "logical_size": {
         "height": 96,
@@ -383,7 +515,7 @@
       },
       "fast": false,
       "frame": "stage0",
-      "hash": "d597741f6a470c1e",
+      "hash": "cfd642b2ee495d13",
       "layer": "objects",
       "logical_size": {
         "height": 128,
@@ -405,7 +537,7 @@
       },
       "fast": false,
       "frame": "stage1",
-      "hash": "cb4daa1257ab35ee",
+      "hash": "eea3c21be3cf22d3",
       "layer": "objects",
       "logical_size": {
         "height": 128,
@@ -427,7 +559,7 @@
       },
       "fast": false,
       "frame": "stage2",
-      "hash": "48bf24ea12de07d4",
+      "hash": "c391a155e2881384",
       "layer": "objects",
       "logical_size": {
         "height": 128,
@@ -449,7 +581,7 @@
       },
       "fast": false,
       "frame": "stage3",
-      "hash": "13c7ea92548cae5f",
+      "hash": "cc8ee3ac246efdc9",
       "layer": "objects",
       "logical_size": {
         "height": 128,
@@ -471,7 +603,7 @@
       },
       "fast": false,
       "frame": "stage0",
-      "hash": "2f5174e6ad232eac",
+      "hash": "cb88212f31bee5ad",
       "layer": "objects",
       "logical_size": {
         "height": 160,
@@ -493,7 +625,7 @@
       },
       "fast": false,
       "frame": "stage1",
-      "hash": "b9aba08259b6d4b0",
+      "hash": "915bfa1636fbeba4",
       "layer": "objects",
       "logical_size": {
         "height": 160,
@@ -515,7 +647,7 @@
       },
       "fast": false,
       "frame": "stage2",
-      "hash": "59f8d64d7642e4de",
+      "hash": "3f74a8fb4655215d",
       "layer": "objects",
       "logical_size": {
         "height": 160,
@@ -537,7 +669,7 @@
       },
       "fast": false,
       "frame": "stage3",
-      "hash": "6f39d420fc18176b",
+      "hash": "758ed198656d0cbe",
       "layer": "objects",
       "logical_size": {
         "height": 160,
@@ -549,6 +681,358 @@
       ],
       "tile": "scaffold_5x5",
       "variation": ""
+    },
+    "assets/tiles/objects/rocks/rubble/0000/rubble.png": {
+      "category": "rocks",
+      "density": 8,
+      "draw_size": {
+        "height": 42,
+        "width": 64
+      },
+      "fast": false,
+      "frame": "rubble",
+      "hash": "03b91ea3b9be01bb",
+      "layer": "objects",
+      "logical_size": {
+        "height": 32,
+        "width": 64
+      },
+      "png_size": [
+        512,
+        336
+      ],
+      "tile": "rubble",
+      "variation": "0000"
+    },
+    "assets/tiles/objects/rocks/rubble/0001/rubble.png": {
+      "category": "rocks",
+      "density": 8,
+      "draw_size": {
+        "height": 42,
+        "width": 64
+      },
+      "fast": false,
+      "frame": "rubble",
+      "hash": "5d7032b9c2e8f603",
+      "layer": "objects",
+      "logical_size": {
+        "height": 32,
+        "width": 64
+      },
+      "png_size": [
+        512,
+        336
+      ],
+      "tile": "rubble",
+      "variation": "0001"
+    },
+    "assets/tiles/objects/rocks/rubble/0010/rubble.png": {
+      "category": "rocks",
+      "density": 8,
+      "draw_size": {
+        "height": 42,
+        "width": 64
+      },
+      "fast": false,
+      "frame": "rubble",
+      "hash": "17b6b5b1e830c7b1",
+      "layer": "objects",
+      "logical_size": {
+        "height": 32,
+        "width": 64
+      },
+      "png_size": [
+        512,
+        336
+      ],
+      "tile": "rubble",
+      "variation": "0010"
+    },
+    "assets/tiles/objects/rocks/rubble/0011/rubble.png": {
+      "category": "rocks",
+      "density": 8,
+      "draw_size": {
+        "height": 42,
+        "width": 64
+      },
+      "fast": false,
+      "frame": "rubble",
+      "hash": "16f31576c34b316f",
+      "layer": "objects",
+      "logical_size": {
+        "height": 32,
+        "width": 64
+      },
+      "png_size": [
+        512,
+        336
+      ],
+      "tile": "rubble",
+      "variation": "0011"
+    },
+    "assets/tiles/objects/rocks/rubble/0100/rubble.png": {
+      "category": "rocks",
+      "density": 8,
+      "draw_size": {
+        "height": 42,
+        "width": 64
+      },
+      "fast": false,
+      "frame": "rubble",
+      "hash": "251f9e0f10912ce3",
+      "layer": "objects",
+      "logical_size": {
+        "height": 32,
+        "width": 64
+      },
+      "png_size": [
+        512,
+        336
+      ],
+      "tile": "rubble",
+      "variation": "0100"
+    },
+    "assets/tiles/objects/rocks/rubble/0101/rubble.png": {
+      "category": "rocks",
+      "density": 8,
+      "draw_size": {
+        "height": 42,
+        "width": 64
+      },
+      "fast": false,
+      "frame": "rubble",
+      "hash": "ab3076985e112e95",
+      "layer": "objects",
+      "logical_size": {
+        "height": 32,
+        "width": 64
+      },
+      "png_size": [
+        512,
+        336
+      ],
+      "tile": "rubble",
+      "variation": "0101"
+    },
+    "assets/tiles/objects/rocks/rubble/0110/rubble.png": {
+      "category": "rocks",
+      "density": 8,
+      "draw_size": {
+        "height": 42,
+        "width": 64
+      },
+      "fast": false,
+      "frame": "rubble",
+      "hash": "005e9912b45ea898",
+      "layer": "objects",
+      "logical_size": {
+        "height": 32,
+        "width": 64
+      },
+      "png_size": [
+        512,
+        336
+      ],
+      "tile": "rubble",
+      "variation": "0110"
+    },
+    "assets/tiles/objects/rocks/rubble/0111/rubble.png": {
+      "category": "rocks",
+      "density": 8,
+      "draw_size": {
+        "height": 42,
+        "width": 64
+      },
+      "fast": false,
+      "frame": "rubble",
+      "hash": "403f6118af3906c0",
+      "layer": "objects",
+      "logical_size": {
+        "height": 32,
+        "width": 64
+      },
+      "png_size": [
+        512,
+        336
+      ],
+      "tile": "rubble",
+      "variation": "0111"
+    },
+    "assets/tiles/objects/rocks/rubble/1000/rubble.png": {
+      "category": "rocks",
+      "density": 8,
+      "draw_size": {
+        "height": 42,
+        "width": 64
+      },
+      "fast": false,
+      "frame": "rubble",
+      "hash": "8fc5f444f44eef8e",
+      "layer": "objects",
+      "logical_size": {
+        "height": 32,
+        "width": 64
+      },
+      "png_size": [
+        512,
+        336
+      ],
+      "tile": "rubble",
+      "variation": "1000"
+    },
+    "assets/tiles/objects/rocks/rubble/1001/rubble.png": {
+      "category": "rocks",
+      "density": 8,
+      "draw_size": {
+        "height": 42,
+        "width": 64
+      },
+      "fast": false,
+      "frame": "rubble",
+      "hash": "afc472f4dfe1a5d5",
+      "layer": "objects",
+      "logical_size": {
+        "height": 32,
+        "width": 64
+      },
+      "png_size": [
+        512,
+        336
+      ],
+      "tile": "rubble",
+      "variation": "1001"
+    },
+    "assets/tiles/objects/rocks/rubble/1010/rubble.png": {
+      "category": "rocks",
+      "density": 8,
+      "draw_size": {
+        "height": 42,
+        "width": 64
+      },
+      "fast": false,
+      "frame": "rubble",
+      "hash": "e0c8cbad40361807",
+      "layer": "objects",
+      "logical_size": {
+        "height": 32,
+        "width": 64
+      },
+      "png_size": [
+        512,
+        336
+      ],
+      "tile": "rubble",
+      "variation": "1010"
+    },
+    "assets/tiles/objects/rocks/rubble/1011/rubble.png": {
+      "category": "rocks",
+      "density": 8,
+      "draw_size": {
+        "height": 42,
+        "width": 64
+      },
+      "fast": false,
+      "frame": "rubble",
+      "hash": "5b6199800ea5b274",
+      "layer": "objects",
+      "logical_size": {
+        "height": 32,
+        "width": 64
+      },
+      "png_size": [
+        512,
+        336
+      ],
+      "tile": "rubble",
+      "variation": "1011"
+    },
+    "assets/tiles/objects/rocks/rubble/1100/rubble.png": {
+      "category": "rocks",
+      "density": 8,
+      "draw_size": {
+        "height": 42,
+        "width": 64
+      },
+      "fast": false,
+      "frame": "rubble",
+      "hash": "7ce40d6e3f1e54a4",
+      "layer": "objects",
+      "logical_size": {
+        "height": 32,
+        "width": 64
+      },
+      "png_size": [
+        512,
+        336
+      ],
+      "tile": "rubble",
+      "variation": "1100"
+    },
+    "assets/tiles/objects/rocks/rubble/1101/rubble.png": {
+      "category": "rocks",
+      "density": 8,
+      "draw_size": {
+        "height": 42,
+        "width": 64
+      },
+      "fast": false,
+      "frame": "rubble",
+      "hash": "c276beac5923b352",
+      "layer": "objects",
+      "logical_size": {
+        "height": 32,
+        "width": 64
+      },
+      "png_size": [
+        512,
+        336
+      ],
+      "tile": "rubble",
+      "variation": "1101"
+    },
+    "assets/tiles/objects/rocks/rubble/1110/rubble.png": {
+      "category": "rocks",
+      "density": 8,
+      "draw_size": {
+        "height": 42,
+        "width": 64
+      },
+      "fast": false,
+      "frame": "rubble",
+      "hash": "3037a72acadad255",
+      "layer": "objects",
+      "logical_size": {
+        "height": 32,
+        "width": 64
+      },
+      "png_size": [
+        512,
+        336
+      ],
+      "tile": "rubble",
+      "variation": "1110"
+    },
+    "assets/tiles/objects/rocks/rubble/1111/rubble.png": {
+      "category": "rocks",
+      "density": 8,
+      "draw_size": {
+        "height": 42,
+        "width": 64
+      },
+      "fast": false,
+      "frame": "rubble",
+      "hash": "1df55d9e3e07ceb0",
+      "layer": "objects",
+      "logical_size": {
+        "height": 32,
+        "width": 64
+      },
+      "png_size": [
+        512,
+        336
+      ],
+      "tile": "rubble",
+      "variation": "1111"
     }
   },
   "version": 1

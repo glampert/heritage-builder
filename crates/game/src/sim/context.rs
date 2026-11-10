@@ -16,7 +16,7 @@ use common::{
 };
 use engine::log;
 
-use super::{Finance, GameCalendar, RandomGenerator, SimCmds};
+use super::{CityRisks, Finance, GameCalendar, RandomGenerator, SimCmds};
 use crate::{
     world::{World, object::GameObject},
     building::{Building, BuildingId, BuildingKind},
@@ -79,6 +79,9 @@ pub struct SimContext {
     // Date and season:
     calendar: RawPtr<GameCalendar>,
 
+    // Whether fire and collapse risks build up:
+    risks: RawPtr<CityRisks>,
+
     // Deferred sim command queue:
     cmds: RawPtr<SimCmds>,
 
@@ -106,6 +109,7 @@ impl SimContext {
         tile_map: &mut TileMap,
         finance: &mut Finance,
         calendar: &mut GameCalendar,
+        risks: &mut CityRisks,
         cmds: &mut SimCmds,
         delta_time_secs: Seconds,
         is_world_teardown: bool,
@@ -119,6 +123,7 @@ impl SimContext {
             tile_map: RawPtr::from_ref(tile_map),
             finance: RawPtr::from_ref(finance),
             calendar: RawPtr::from_ref(calendar),
+            risks: RawPtr::from_ref(risks),
             cmds: RawPtr::from_ref(cmds),
             delta_time_secs,
             is_world_teardown,
@@ -194,6 +199,11 @@ impl SimContext {
     #[inline(always)]
     pub fn calendar(&self) -> &GameCalendar {
         &self.calendar
+    }
+
+    #[inline(always)]
+    pub fn risks(&self) -> &CityRisks {
+        &self.risks
     }
 
     #[inline]
@@ -390,6 +400,29 @@ impl SimContext {
             traversable_node_kinds,
             Node::new(start),
             goal_node_kinds,
+        )
+    }
+
+    // The nearest cell next to a target, walking only `traversable_node_kinds`, within
+    // `max_distance` of `start` if given (pathfind::Search::find_path_next_to).
+    #[inline]
+    pub fn find_path_next_to<F>(
+        &self,
+        traversable_node_kinds: PathNodeKind,
+        start: Cell,
+        max_distance: Option<i32>,
+        mut is_target: F,
+    ) -> SearchResult<'_>
+    where
+        F: FnMut(Cell) -> bool,
+    {
+        self.search_mut().find_path_next_to(
+            self.graph(),
+            &AStarUniformCostHeuristic::new(),
+            traversable_node_kinds,
+            Node::new(start),
+            max_distance.unwrap_or(i32::MAX),
+            |node| is_target(node.cell),
         )
     }
 
@@ -742,6 +775,7 @@ macro_rules! make_context {
             $tile_map,
             &mut $self.finance,
             &mut $self.calendar,
+            &mut $self.risks,
             &mut $self.cmds,
             $delta_time_secs,
             $is_world_teardown,

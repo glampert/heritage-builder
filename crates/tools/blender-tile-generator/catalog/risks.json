@@ -1,0 +1,266 @@
+{
+  "realm": "shared",
+  "palette": "viet",
+  "density": 8,
+  "notes": "City risks art (docs/plans/city-risks.md): rubble pieces, named by which sides (north, east, south, west) border more rubble, and the flames over a burning building's cells.",
+  "entries": [
+    {
+      "tile": "rubble",
+      "category": "rocks",
+      "recipe": "rubble",
+      "variations": [
+        {
+          "name": "0000",
+          "seed": 1,
+          "params": {
+            "mask": "0000"
+          },
+          "tile_set": {
+            "iso_offset": {
+              "x": 0,
+              "y": 8
+            }
+          }
+        },
+        {
+          "name": "1100",
+          "seed": 2,
+          "params": {
+            "mask": "1100"
+          },
+          "tile_set": {
+            "iso_offset": {
+              "x": 0,
+              "y": 8
+            }
+          }
+        },
+        {
+          "name": "0110",
+          "seed": 3,
+          "params": {
+            "mask": "0110"
+          },
+          "tile_set": {
+            "iso_offset": {
+              "x": 0,
+              "y": 8
+            }
+          }
+        },
+        {
+          "name": "0011",
+          "seed": 4,
+          "params": {
+            "mask": "0011"
+          },
+          "tile_set": {
+            "iso_offset": {
+              "x": 0,
+              "y": 8
+            }
+          }
+        },
+        {
+          "name": "1001",
+          "seed": 5,
+          "params": {
+            "mask": "1001"
+          },
+          "tile_set": {
+            "iso_offset": {
+              "x": 0,
+              "y": 8
+            }
+          }
+        },
+        {
+          "name": "1110",
+          "seed": 6,
+          "params": {
+            "mask": "1110"
+          },
+          "tile_set": {
+            "iso_offset": {
+              "x": 0,
+              "y": 8
+            }
+          }
+        },
+        {
+          "name": "0111",
+          "seed": 7,
+          "params": {
+            "mask": "0111"
+          },
+          "tile_set": {
+            "iso_offset": {
+              "x": 0,
+              "y": 8
+            }
+          }
+        },
+        {
+          "name": "1011",
+          "seed": 8,
+          "params": {
+            "mask": "1011"
+          },
+          "tile_set": {
+            "iso_offset": {
+              "x": 0,
+              "y": 8
+            }
+          }
+        },
+        {
+          "name": "1101",
+          "seed": 9,
+          "params": {
+            "mask": "1101"
+          },
+          "tile_set": {
+            "iso_offset": {
+              "x": 0,
+              "y": 8
+            }
+          }
+        },
+        {
+          "name": "1111",
+          "seed": 10,
+          "params": {
+            "mask": "1111"
+          },
+          "tile_set": {
+            "iso_offset": {
+              "x": 0,
+              "y": 8
+            }
+          }
+        },
+        {
+          "name": "0001",
+          "seed": 11,
+          "params": {
+            "mask": "0001"
+          },
+          "tile_set": {
+            "iso_offset": {
+              "x": 0,
+              "y": 8
+            }
+          }
+        },
+        {
+          "name": "0010",
+          "seed": 12,
+          "params": {
+            "mask": "0010"
+          },
+          "tile_set": {
+            "iso_offset": {
+              "x": 0,
+              "y": 8
+            }
+          }
+        },
+        {
+          "name": "0100",
+          "seed": 13,
+          "params": {
+            "mask": "0100"
+          },
+          "tile_set": {
+            "iso_offset": {
+              "x": 0,
+              "y": 8
+            }
+          }
+        },
+        {
+          "name": "0101",
+          "seed": 14,
+          "params": {
+            "mask": "0101"
+          },
+          "tile_set": {
+            "iso_offset": {
+              "x": 0,
+              "y": 8
+            }
+          }
+        },
+        {
+          "name": "1000",
+          "seed": 15,
+          "params": {
+            "mask": "1000"
+          },
+          "tile_set": {
+            "iso_offset": {
+              "x": 0,
+              "y": 8
+            }
+          }
+        },
+        {
+          "name": "1010",
+          "seed": 16,
+          "params": {
+            "mask": "1010"
+          },
+          "tile_set": {
+            "iso_offset": {
+              "x": 0,
+              "y": 8
+            }
+          }
+        }
+      ],
+      "tile_set": {
+        "occludes_terrain": false,
+        "path_kind": "Rocks"
+      },
+      "validate": {
+        "ground": false
+      },
+      "notes": "Left by a building that burns down or collapses, one piece per cell. The variation is the neighbour mask: append-only, since saves store the index. iso_offset moves the rocks anchor down to a 1x1 building's so the pieces meet."
+    },
+    {
+      "tile": "fire_1x1",
+      "category": "overlays",
+      "recipe": "fire",
+      "frames": [
+        {
+          "name": "frame0",
+          "params": {
+            "phase": 0.0
+          }
+        },
+        {
+          "name": "frame1",
+          "params": {
+            "phase": 0.25
+          }
+        },
+        {
+          "name": "frame2",
+          "params": {
+            "phase": 0.5
+          }
+        },
+        {
+          "name": "frame3",
+          "params": {
+            "phase": 0.75
+          }
+        }
+      ],
+      "validate": {
+        "ground": false
+      },
+      "notes": "Drawn over each cell of a burning building, looping."
+    }
+  ]
+}

@@ -155,6 +155,10 @@ pub struct SimConfigs {
     #[debug_ui(nested)]
     pub finance: FinanceConfigs,
 
+    // Fire and collapse risk (docs/plans/city-risks.md).
+    #[debug_ui(nested)]
+    pub risks: RiskConfigs,
+
     // Workers/Population:
     pub workers_search_radius: i32,
     pub workers_update_frequency_secs: Seconds,
@@ -181,6 +185,7 @@ impl Default for SimConfigs {
             calendar: CalendarSettings::default(),
             construction: ConstructionConfigs::default(),
             finance: FinanceConfigs::default(),
+            risks: RiskConfigs::default(),
             // Workers/Population:
             workers_search_radius: 20,
             workers_update_frequency_secs: 20.0,
@@ -247,6 +252,44 @@ impl Default for FinanceConfigs {
             default_tax_level: TaxLevel::Normal,
             tax_level_percent: [0, 50, 100, 150, 200],
             debt_limit_months: 12,
+        }
+    }
+}
+
+// Fire and collapse risk (building::risks). Each building's rates come from its building config.
+#[derive(DrawDebugUi, Serialize, Deserialize)]
+#[serde(default)]
+pub struct RiskConfigs {
+    // Whether a new game outside a campaign has risks. A mission's `risks` block decides for it.
+    pub enabled: bool,
+
+    // A building that a small or large well reaches builds up fire risk at this fraction of its rate.
+    pub near_water_fire_scale: f32,
+
+    // Each building's rates vary by up to this fraction either way, so neighbours built together
+    // don't all burn at once.
+    pub rate_jitter: f32,
+
+    // Simulated seconds between a building's checks for a well within reach.
+    pub water_check_secs: Seconds,
+
+    // How long a building burns before it burns down, in simulated seconds, unless a fire
+    // watcher puts the fire out first.
+    pub burn_secs: Seconds,
+
+    // Fire risk a burning building adds to each building next to it, per simulated second.
+    pub spread_per_sec: f32,
+}
+
+impl Default for RiskConfigs {
+    fn default() -> Self {
+        Self {
+            enabled: true,
+            near_water_fire_scale: 0.5,
+            rate_jitter: 0.25,
+            water_check_secs: 10.0,
+            burn_secs: 30.0,
+            spread_per_sec: 5.0,
         }
     }
 }

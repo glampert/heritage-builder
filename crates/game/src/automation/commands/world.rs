@@ -641,6 +641,7 @@ fn cmd_building_at(context: &mut CommandContext, params: Value) -> CommandResult
         building.population().map_or(Value::Null, |population| json!({ "count": population.count(), "max": population.max() }));
     reply["workers"] = building.workers().map_or(Value::Null, workers_json);
     reply["stock"] = stock_items_json(building.stock().iter().filter(|item| item.count != 0));
+    reply["risks"] = super::risks::building_risks_json(building);
 
     if building.is(BuildingKind::House) && !building.is_under_construction() {
         let house = building.as_house();

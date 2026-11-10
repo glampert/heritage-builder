@@ -9,6 +9,8 @@
 {"method": "session.new_map", "params": {"size": [24, 24]}}
 {"method": "cheats.set", "params": {"name": "instant_construction", "value": true}}
 {"method": "cheats.set", "params": {"name": "ignore_worker_requirements", "value": true}}
+# Fire and collapse risk could take a building over this many months; risks.jsonl tests them.
+{"method": "cheats.set", "params": {"name": "no_city_risks", "value": true}}
 {"method": "finance.set", "params": {"balance": 1000}}
 {"method": "world.road", "params": {"from": [3, 10], "to": [20, 10]}}
 

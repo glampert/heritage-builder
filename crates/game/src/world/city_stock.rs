@@ -254,10 +254,10 @@ impl CityStock {
     // Internal:
     // ----------------------
 
-    // Every finished storage yard counts, staffed or not.
+    // Every finished storage yard counts, staffed or not, unless it's on fire.
     #[inline]
     fn is_stock_building(building: &Building) -> bool {
-        building.is(CITY_STOCK_BUILDINGS) && !building.is_under_construction()
+        building.is(CITY_STOCK_BUILDINGS) && !building.is_under_construction() && !building.is_burning()
     }
 
     // Puts `count` units of `kind` into any yards with room, in pool order. Returns the count

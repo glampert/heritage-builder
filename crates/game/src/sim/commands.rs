@@ -14,7 +14,7 @@ use crate::{
     constants::INITIAL_GENERATION,
     prop::{Prop, PropId},
     unit::{config::UnitConfigKey, Unit, UnitId},
-    building::{Building, BuildingKindAndId, BuildingVisitResult, HouseUpgradeDirection},
+    building::{Building, BuildingKindAndId, BuildingVisitResult, HouseUpgradeDirection, destruction::{self, Destruction}},
     world::object::{GenerationalIndex, GameObject, Spawner, SpawnerResult},
     tile::{placement::TilePlacementErr, sets::TileDef, Tile, TileKind, TileMapLayerKind},
 };
@@ -279,6 +279,10 @@ enum SimCmd {
         kind_and_id: BuildingKindAndId,
         dir: HouseUpgradeDirection,
     },
+    DestroyBuilding {
+        kind_and_id: BuildingKindAndId,
+        cause: Destruction,
+    },
 
     // -- Prop operations -----------------------
     SpawnPropWithTileDef {
@@ -302,7 +306,9 @@ impl SimCmd {
     fn is_delayed_execution(&self) -> bool {
         // UpgradeHouse:
         // - Executes after all other commands because it may trigger multiple building despawns and house mergers.
-        matches!(self, Self::UpgradeHouse { .. })
+        // DestroyBuilding:
+        // - A fire or collapse removes the building after the step's visits and task steps for it ran.
+        matches!(self, Self::UpgradeHouse { .. } | Self::DestroyBuilding { .. })
     }
 }
 
@@ -611,6 +617,13 @@ pub trait SimCmdQueue: Sized {
     #[inline]
     fn upgrade_house(&mut self, kind_and_id: BuildingKindAndId, dir: HouseUpgradeDirection) {
         self.push_cmd(SimCmd::UpgradeHouse { kind_and_id, dir });
+    }
+
+    // A building that burns down or collapses: despawned, with rubble left on its cells
+    // (building::destruction). Runs after the queue's other commands.
+    #[inline]
+    fn destroy_building(&mut self, kind_and_id: BuildingKindAndId, cause: Destruction) {
+        self.push_cmd(SimCmd::DestroyBuilding { kind_and_id, cause });
     }
 
     // -- Prop operations -----------------------
@@ -979,9 +992,9 @@ fn execute_cmd(promises: &mut SpawnPromiseStatePool, queued_cmd: &QueuedSimCmd, 
             spawner.despawn_building_with_id(*kind_and_id);
         }
         SimCmd::VisitBuilding { kind_and_id, unit_id, on_post_visit } => {
-            let building = context
-                .find_building_mut(kind_and_id.kind, kind_and_id.id)
-                .unwrap_or_else(|| queued_cmd.error_panic(format!("Invalid building kind/id: {} {}", kind_and_id.kind, kind_and_id.id)));
+            let Some(building) = find_building_or_skip(context, queued_cmd, kind_and_id) else {
+                return;
+            };
 
             let unit = context
                 .find_unit_mut(*unit_id)
@@ -995,9 +1008,10 @@ fn execute_cmd(promises: &mut SpawnPromiseStatePool, queued_cmd: &QueuedSimCmd, 
             }
         }
         SimCmd::DeferBuildingTaskStep { kind_and_id, unit_id, callback, on_complete } => {
-            let building = context
-                .find_building_mut(kind_and_id.kind, kind_and_id.id)
-                .unwrap_or_else(|| queued_cmd.error_panic(format!("Invalid building kind/id: {} {}", kind_and_id.kind, kind_and_id.id)));
+            // The task recovers when its callbacks don't run (see invoke_completion_callback_deferred).
+            let Some(building) = find_building_or_skip(context, queued_cmd, kind_and_id) else {
+                return;
+            };
 
             let unit = context
                 .find_unit_mut(*unit_id)
@@ -1012,9 +1026,9 @@ fn execute_cmd(promises: &mut SpawnPromiseStatePool, queued_cmd: &QueuedSimCmd, 
             }
         }
         SimCmd::DeferBuildingUpdate { kind_and_id, callback } => {
-            let building = context
-                .find_building_mut(kind_and_id.kind, kind_and_id.id)
-                .unwrap_or_else(|| queued_cmd.error_panic(format!("Invalid building kind/id: {} {}", kind_and_id.kind, kind_and_id.id)));
+            let Some(building) = find_building_or_skip(context, queued_cmd, kind_and_id) else {
+                return;
+            };
 
             callback(context, building);
         }
@@ -1028,6 +1042,10 @@ fn execute_cmd(promises: &mut SpawnPromiseStatePool, queued_cmd: &QueuedSimCmd, 
                 let building_ctx = building.new_context(context);
                 building.as_house_mut().perform_upgrade(&mut cmds, &building_ctx, *dir);
             }
+        }
+        SimCmd::DestroyBuilding { kind_and_id, cause } => {
+            // Ignores a building that's gone: a house merged into another, or demolished.
+            destruction::destroy_building(context, *kind_and_id, *cause);
         }
 
         // --------------
@@ -1048,6 +1066,20 @@ fn execute_cmd(promises: &mut SpawnPromiseStatePool, queued_cmd: &QueuedSimCmd, 
             callback(context, prop);
         }
     }
+}
+
+// The building a deferred command is for, or None, logged, if it's gone: a fire or collapse
+// can destroy a building that commands queued in an earlier step still name.
+fn find_building_or_skip<'game>(
+    context: &'game SimContext,
+    queued_cmd: &QueuedSimCmd,
+    kind_and_id: &BuildingKindAndId,
+) -> Option<&'game mut Building> {
+    let building = context.find_building_mut(kind_and_id.kind, kind_and_id.id);
+    if building.is_none() {
+        log::verbose!(log::channel!("sim"), "Skipped {}: building {} {} is gone.", queued_cmd.cmd, kind_and_id.kind, kind_and_id.id);
+    }
+    building
 }
 
 // Shared resolution path for Unit/Building/Prop spawn commands.

@@ -249,6 +249,7 @@ impl RunLoop for GameLoop {
         self.notify_finances();
         self.notify_minimap_alerts();
         self.record_finished_missions();
+        self.notify_risks();
         self.session_cmd_queue.execute(&mut self.session, self.engine, self.configs);
 
         // Automation commands run here: the world is unlocked and no SimContext is live.
@@ -568,6 +569,14 @@ impl GameLoop {
     fn record_finished_missions(&mut self) {
         for (campaign_id, mission_index) in campaign::take_finished_missions() {
             profile::on_mission_finished(campaign_id, mission_index);
+        }
+    }
+
+    // A toast for each fire, fire put out, building burnt down and collapse last frame
+    // (building::risks).
+    fn notify_risks(&mut self) {
+        for message in building::risks::take_notices() {
+            self.engine.ui_system().show_toast(message);
         }
     }
 

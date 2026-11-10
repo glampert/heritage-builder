@@ -67,14 +67,20 @@ use crate::{
         TileKind,
         TileMap,
         TileMapLayerKind,
+        minimap::{MINIMAP_ICON_DEFAULT_LIFETIME, MinimapIcon},
         sets::{OBJECTS_BUILDINGS_CATEGORY, TileDef},
     },
 };
 
 pub mod config;
 pub mod construction;
+pub mod destruction;
+pub mod risks;
+use destruction::{Destruction, FIRE_ALERT_TINT};
+use risks::{BuildingRisks, MAX_RISK, RiskKind};
 use construction::{CONSTRUCTION_STAGES, ConstructionSite};
 pub use house::{HouseLevel, HouseUpgradeDirection};
+pub use service::PatrolVisits;
 
 pub(crate) mod house;
 pub(crate) mod house_upgrade;
@@ -118,6 +124,8 @@ bitflags_with_display! {
         const Apothecary     = 1 << 19;
         const Hospital       = 1 << 20;
         const Garden         = 1 << 21;
+        const FireWatch      = 1 << 22;
+        const BuildersGuild  = 1 << 23;
     }
 }
 
@@ -179,7 +187,9 @@ impl BuildingKind {
                 | Self::University.bits()
                 | Self::Apothecary.bits()
                 | Self::Hospital.bits()
-                | Self::Garden.bits(),
+                | Self::Garden.bits()
+                | Self::FireWatch.bits()
+                | Self::BuildersGuild.bits(),
         )
     }
 
@@ -255,6 +265,8 @@ pub struct Building {
     archetype: Option<BuildingArchetype>,
     // Some while the building is a construction site: inert until it completes.
     construction: Option<Box<ConstructionSite>>,
+    // Fire and collapse risk (docs/plans/city-risks.md).
+    risks: BuildingRisks,
 }
 
 impl GameObject for Building {
@@ -279,6 +291,12 @@ impl GameObject for Building {
             return;
         }
 
+        // A burning building does nothing but burn, and one about to be destroyed nothing at all.
+        if self.risks.is_burning() || self.risks.is_doomed() {
+            self.update_fire(cmds, context);
+            return;
+        }
+
         if self.workers_update_timer.tick(context.delta_time_secs()).should_update() {
             self.update_workers(cmds);
         }
@@ -287,6 +305,8 @@ impl GameObject for Building {
             let context = self.new_context(context);
             self.archetype_mut().update(cmds, &context);
         }
+
+        self.update_risks(cmds, context);
     }
 
     fn tally(&self, stats: &mut WorldStats) {
@@ -349,6 +369,7 @@ impl GameObject for Building {
         debug_assert!(tile.is_valid());
 
         self.archetype_mut().post_load(context, kind, tile);
+        self.risks.post_load(self.base_cell(), kind, &context.configs().sim.risks);
     }
 
     fn undo_redo_record(&self) -> Option<Box<dyn GameObjectSavedState>> {
@@ -405,6 +426,7 @@ impl Building {
         self.kind = kind;
         self.workers_update_timer = UpdateTimer::new(GameConfigs::get().sim.workers_update_frequency_secs);
         self.archetype = Some(archetype);
+        self.risks = BuildingRisks::new(map_cells.start, kind, &GameConfigs::get().sim.risks);
 
         // Spawning usually happens inside a deferred command - execute this immediately.
         self.update_road_link(None, context);
@@ -417,6 +439,11 @@ impl Building {
 
     pub fn despawned(&mut self, context: &SimContext) {
         debug_assert!(self.is_spawned());
+
+        // Its fire's alert goes with it (a destruction raises its own for the rubble).
+        if self.risks.is_burning() {
+            context.minimap_mut().resolve_alerts(self.base_cell());
+        }
 
         // Don't spawn evicted settlers or perform other cleanups when we are resetting the world/map.
         if !context.is_world_teardown() {
@@ -440,6 +467,7 @@ impl Building {
         self.workers_update_timer = UpdateTimer::default();
         self.archetype = None;
         self.construction = None;
+        self.risks = BuildingRisks::default();
     }
 
     // ----------------------
@@ -512,6 +540,187 @@ impl Building {
     // Removes the site state, e.g. to refund it when the site is cleared.
     pub fn take_construction_site(&mut self) -> Option<ConstructionSite> {
         self.construction.take().map(|site| *site)
+    }
+
+    // ----------------------
+    // Risks:
+    // ----------------------
+
+    #[inline]
+    pub fn risks(&self) -> &BuildingRisks {
+        &self.risks
+    }
+
+    #[inline]
+    pub fn risks_mut(&mut self) -> &mut BuildingRisks {
+        &mut self.risks
+    }
+
+    // How fast this building's risks build up now, in points per month.
+    pub fn risk_rates(&self) -> risks::RiskRates {
+        self.risks.effective_rates(self.configs().risk_rates(), &GameConfigs::get().sim.risks)
+    }
+
+    // Builds up the fire and collapse risks over the world step, and sets off what a risk at the
+    // top brings: a collapse, or a fire. Sites and burning buildings don't get here.
+    fn update_risks(&mut self, cmds: &mut SimCmds, context: &SimContext) {
+        if !context.risks().is_active() {
+            return;
+        }
+
+        let config_rates = *self.configs().risk_rates();
+        if config_rates.is_zero() {
+            return;
+        }
+
+        let configs = &GameConfigs::get().sim.risks;
+        let delta_time_secs = context.delta_time_secs();
+
+        // Look for a well within reach now and then: it's a path search.
+        if self.risks.water_check_due(delta_time_secs) && config_rates.fire > 0.0 {
+            let building_context = self.new_context(context);
+            let near_water = building_context.has_access_to_service(BuildingKind::SmallWell)
+                || building_context.has_access_to_service(BuildingKind::LargeWell);
+            self.risks.set_near_water(near_water);
+        }
+
+        self.risks.build_up(&config_rates, configs, delta_time_secs);
+
+        // A collapse comes first: there's nothing left to burn.
+        let collapsed = self.risks.get(RiskKind::Collapse) >= MAX_RISK && self.collapse(cmds);
+        if !collapsed && self.risks.get(RiskKind::Fire) >= MAX_RISK {
+            self.ignite(cmds, context);
+        }
+    }
+
+    // A burning building's step: its fire spreads to the buildings next to it, and once it has
+    // burnt for `burn_secs` it burns down. Nothing advances while risks are off.
+    fn update_fire(&mut self, cmds: &mut SimCmds, context: &SimContext) {
+        if self.risks.is_doomed() || !context.risks().is_active() {
+            return;
+        }
+
+        let configs = &GameConfigs::get().sim.risks;
+        let delta_time_secs = context.delta_time_secs();
+
+        self.spread_fire(cmds, context, configs.spread_per_sec * delta_time_secs);
+
+        if self.risks.advance_burning(delta_time_secs) {
+            self.risks.set_doomed();
+            cmds.destroy_building(self.kind_and_id(), Destruction::BurntDown);
+        }
+    }
+
+    // Adds `amount` fire risk to every building next to this one's footprint (not diagonally).
+    fn spread_fire(&self, cmds: &mut SimCmds, context: &SimContext, amount: f32) {
+        if amount <= 0.0 {
+            return;
+        }
+
+        let this = self.kind_and_id();
+        let mut neighbors = ArrayVec::<BuildingKindAndId, 32>::new();
+        pathfind::for_each_surrounding_cell(self.cell_range(), |cell| {
+            if let Some(neighbor) = context.find_building_for_cell(cell) {
+                let id = neighbor.kind_and_id();
+                if id != this && !neighbors.contains(&id) && neighbors.try_push(id).is_err() {
+                    return false; // A footprint has at most 24 cells around it.
+                }
+            }
+            true
+        });
+
+        for neighbor in neighbors {
+            cmds.defer_building_update(neighbor, move |_context, building| {
+                building.add_risk(RiskKind::Fire, amount);
+            });
+        }
+    }
+
+    // Raises a risk, as a neighbour's fire does, and later milestones' floods and misfortunes
+    // will. A site, a building about to be destroyed, and one whose config gives it no such
+    // risk take none. What a risk at the top sets off happens on the building's next step.
+    pub fn add_risk(&mut self, kind: RiskKind, amount: f32) {
+        if self.is_under_construction() || self.risks.is_doomed() || self.configs().risk_rates().get(kind) <= 0.0 {
+            return;
+        }
+        self.risks.add(kind, amount);
+    }
+
+    #[inline]
+    pub fn is_burning(&self) -> bool {
+        self.risks.is_burning()
+    }
+
+    // Whether the building can catch fire now: finished, not burning or about to be destroyed,
+    // with a fire rate in its config.
+    pub fn can_catch_fire(&self) -> bool {
+        !self.is_under_construction()
+            && !self.risks.is_burning()
+            && !self.risks.is_doomed()
+            && self.configs().risk_rates().fire > 0.0
+    }
+
+    // Whether the building can collapse now: finished, not burning or about to be destroyed,
+    // with a collapse rate in its config.
+    pub fn can_collapse(&self) -> bool {
+        !self.is_under_construction()
+            && !self.risks.is_burning()
+            && !self.risks.is_doomed()
+            && self.configs().risk_rates().collapse > 0.0
+    }
+
+    // Sets the building on fire. With deferred `cmds` (a world step) its tile shows the fire
+    // once the step's commands run; otherwise at once. Returns false if it can't catch fire.
+    pub fn ignite(&mut self, cmds: &mut SimCmds, context: &SimContext) -> bool {
+        if !self.can_catch_fire() {
+            return false;
+        }
+
+        self.risks.start_burning(GameConfigs::get().sim.risks.burn_secs);
+
+        let on_fire = |context: &SimContext, building: &mut Building| {
+            let base_cell = building.base_cell();
+            context.tile_map_mut().set_tile_flags(base_cell, TileKind::Building, TileFlags::Burning, true);
+            context.minimap_mut().push_icon(MinimapIcon::Alert, base_cell, FIRE_ALERT_TINT, MINIMAP_ICON_DEFAULT_LIFETIME);
+            risks::notify(format!("Fire! The {} is burning.", building.notice_name().to_lowercase()));
+        };
+
+        if cmds.is_deferred() {
+            cmds.defer_building_update(self.kind_and_id(), on_fire);
+        } else {
+            on_fire(context, self);
+        }
+        true
+    }
+
+    // A fire watcher's visit puts the fire out: the building works again, unharmed, with no
+    // fire risk. Runs with the step's commands, so the tile map takes the change at once.
+    fn put_out_fire(&mut self, context: &SimContext) {
+        debug_assert!(self.risks.is_burning());
+        self.risks.put_out();
+
+        let base_cell = self.base_cell();
+        context.tile_map_mut().set_tile_flags(base_cell, TileKind::Building, TileFlags::Burning, false);
+        context.minimap_mut().resolve_alerts(base_cell);
+        risks::notify(format!("The fire at the {} is out.", self.notice_name().to_lowercase()));
+    }
+
+    // Queues the building's collapse, which leaves rubble at the end of the step (see
+    // destruction). Needs deferred `cmds`: it despawns the building. Returns false if it can't
+    // collapse.
+    pub fn collapse(&mut self, cmds: &mut SimCmds) -> bool {
+        debug_assert!(cmds.is_deferred(), "A collapse despawns the building; queue it.");
+        if !self.can_collapse() {
+            return false;
+        }
+        self.risks.set_doomed();
+        cmds.destroy_building(self.kind_and_id(), Destruction::Collapsed);
+        true
+    }
+
+    // The building's name in notices: "House" for any house, its own otherwise.
+    pub fn notice_name(&self) -> &'static str {
+        if self.is(BuildingKind::House) { "House" } else { self.name() }
     }
 
     // ----------------------
@@ -606,7 +815,7 @@ impl Building {
 
     #[inline]
     pub fn is_operational(&self) -> bool {
-        !self.is_under_construction() && self.archetype().is_operational()
+        !self.is_under_construction() && !self.risks.is_burning() && self.archetype().is_operational()
     }
 
     #[inline]
@@ -626,8 +835,25 @@ impl Building {
 
     pub fn visited_by(&mut self, unit: &mut Unit, context: &SimContext) -> BuildingVisitResult {
         debug_assert!(self.is_spawned());
-        if self.is_under_construction() {
+        if self.is_under_construction() || self.risks.is_doomed() {
             return BuildingVisitResult::Refused;
+        }
+
+        let reset = risks::risk_reset_by(unit, context);
+
+        // A burning building takes no one but a fire watcher, who puts the fire out.
+        if self.risks.is_burning() {
+            if reset == Some(RiskKind::Fire) {
+                self.put_out_fire(context);
+                return BuildingVisitResult::Accepted;
+            }
+            return BuildingVisitResult::Refused;
+        }
+
+        // A fire watcher or a builder resets a risk, whatever the building is.
+        if let Some(kind) = reset {
+            self.risks.reset(kind);
+            return BuildingVisitResult::Accepted;
         }
         let context = self.new_context(context);
         self.archetype_mut().visited_by(unit, &context)
@@ -644,6 +870,7 @@ impl Building {
 
             debug_assert!(tile.base_cell() == destination_cell);
             self.map_cells = tile.cell_range();
+            self.risks.refresh_jitter(destination_cell, self.kind, &GameConfigs::get().sim.risks);
             return true;
         }
 
@@ -677,7 +904,7 @@ impl Building {
     pub fn available_resources(&self, kind: ResourceKind) -> u32 {
         debug_assert!(kind.is_single_resource());
         debug_assert!(self.is_spawned());
-        if self.is_under_construction() {
+        if self.is_under_construction() || self.risks.is_burning() {
             return 0;
         }
         self.archetype().available_resources(kind)
@@ -687,7 +914,7 @@ impl Building {
     pub fn receivable_resources(&self, kind: ResourceKind) -> u32 {
         debug_assert!(kind.is_single_resource());
         debug_assert!(self.is_spawned());
-        if self.is_under_construction() {
+        if self.is_under_construction() || self.risks.is_burning() {
             return 0;
         }
         self.archetype().receivable_resources(kind)
@@ -697,7 +924,7 @@ impl Building {
     pub fn receive_resources(&mut self, kind: ResourceKind, count: u32) -> u32 {
         debug_assert!(kind.is_single_resource());
         debug_assert!(self.is_spawned());
-        if self.is_under_construction() {
+        if self.is_under_construction() || self.risks.is_burning() {
             return 0;
         }
         self.archetype_mut().receive_resources(kind, count)
@@ -707,7 +934,7 @@ impl Building {
     pub fn remove_resources(&mut self, kind: ResourceKind, count: u32) -> u32 {
         debug_assert!(kind.is_single_resource());
         debug_assert!(self.is_spawned());
-        if self.is_under_construction() {
+        if self.is_under_construction() || self.risks.is_burning() {
             return 0;
         }
         self.archetype_mut().remove_resources(kind, count)

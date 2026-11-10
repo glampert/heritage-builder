@@ -25,9 +25,11 @@ use crate::{
         BuildingKindAndId,
         BuildingStock,
         config::BuildingConfigs,
+        destruction::{self, Destruction},
         house::{HouseBuilding, HouseLevel, HouseLevelRequirements, HouseUpgradeDirection},
         house_upgrade::{CANDIDATE_RECTS_COUNT, candidate_target_rects},
         producer::{ProducerBuilding, ProducerInputsLocalStock, ProducerOutputLocalStock},
+        risks::RiskKind,
         service::{ServiceBuilding, ServiceStock},
         storage::{MAX_STORAGE_SLOTS, StorageBuilding, StorageSlots},
     },
@@ -295,8 +297,64 @@ impl Building {
             }
         }
 
+        if let Some(_path) = ui::collapsing_header_scope(ui_sys, "Risks", false) {
+            self.draw_debug_ui_risks(cmds, context, ui_sys);
+        }
+
         self.archetype_mut().debug_options().draw_debug_ui(ui_sys);
         self.archetype_mut().draw_debug_ui(cmds, context, ui_sys);
+    }
+}
+
+impl Building {
+    // Fire and collapse risk (building::risks): the raw values, and buttons to set the building on
+    // fire or collapse it, shown when it can.
+    fn draw_debug_ui_risks(&mut self, cmds: &mut SimCmds, context: &BuildingContext, ui_sys: &UiSystem) {
+        let rates = self.risk_rates();
+        let risks = self.risks();
+        ui::text(ui_sys, format_small!("Fire risk: {:.2} (+{:.2} a month)", risks.get(RiskKind::Fire), rates.fire));
+        ui::text(ui_sys, format_small!("Collapse risk: {:.2} (+{:.2} a month)", risks.get(RiskKind::Collapse), rates.collapse));
+        ui::text(ui_sys, format_small!("Near water: {}, jitter: {:.3}", risks.is_near_water(), risks.jitter()));
+        if let Some(burning) = risks.burning() {
+            ui::text_colored(ui_sys, Color::red(), format_small!("Burning: {:.1}s left", burning.secs_left));
+        }
+        if !context.sim_ctx.risks().is_active() {
+            ui::text_colored(ui_sys, Color::yellow(), "Risks are off: a fire neither spreads nor burns down.");
+        }
+
+        ui::separator(ui_sys);
+
+        if self.can_catch_fire() {
+            if ui::button(ui_sys, "Set On Fire") {
+                self.ignite(cmds, context.sim_ctx);
+            }
+        } else {
+            ui::text(ui_sys, format_small!("Can't catch fire: {}.", self.risk_blocker(self.configs().risk_rates().fire)));
+        }
+
+        if self.can_collapse() {
+            // The building is still being drawn: it collapses at the start of the next frame.
+            if ui::button(ui_sys, "Collapse") {
+                destruction::request(self.kind_and_id(), Destruction::Collapsed);
+            }
+        } else {
+            ui::text(ui_sys, format_small!("Can't collapse: {}.", self.risk_blocker(self.configs().risk_rates().collapse)));
+        }
+    }
+
+    // Why the building can't catch fire or collapse, given that risk's rate in its config.
+    fn risk_blocker(&self, config_rate: f32) -> &'static str {
+        if self.is_under_construction() {
+            "it's a construction site"
+        } else if self.is_burning() {
+            "it's burning"
+        } else if self.risks().is_doomed() {
+            "it's being destroyed"
+        } else if config_rate <= 0.0 {
+            "its config gives it no such risk"
+        } else {
+            "unknown"
+        }
     }
 }
 

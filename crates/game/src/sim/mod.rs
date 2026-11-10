@@ -37,6 +37,9 @@ pub mod resources;
 pub mod finance;
 pub use finance::Finance;
 
+pub mod risks;
+pub use risks::CityRisks;
+
 pub mod calendar;
 pub use calendar::{CalendarEvents, CalendarSettings, GameCalendar};
 
@@ -72,6 +75,7 @@ pub struct Simulation {
     task_manager: UnitTaskManager,
     finance: Finance,
     calendar: GameCalendar,
+    risks: CityRisks,
 
     // Path finding:
     #[serde(skip)]
@@ -97,6 +101,7 @@ impl Simulation {
             task_manager: UnitTaskManager::new(UNIT_TASK_POOL_CAPACITY),
             finance: Finance::new(configs.sim.starting_gold_units, &configs.sim.finance),
             calendar: GameCalendar::new(configs.sim.calendar.clone()),
+            risks: CityRisks::new(&configs.sim.risks),
             search: Search::with_grid_size(map_size_in_cells),
             speed: Self::MIN_SIM_SPEED,
             is_paused: false,
@@ -127,6 +132,16 @@ impl Simulation {
     #[inline]
     pub fn finance_mut(&mut self) -> &mut Finance {
         &mut self.finance
+    }
+
+    #[inline]
+    pub fn risks(&self) -> &CityRisks {
+        &self.risks
+    }
+
+    #[inline]
+    pub fn risks_mut(&mut self) -> &mut CityRisks {
+        &mut self.risks
     }
 
     #[inline]
@@ -167,6 +182,12 @@ impl Simulation {
         tile_map: &mut TileMap,
         delta_time_secs: Seconds,
     ) {
+        // Collapses the developer inspector asked for last frame (building::destruction::request).
+        if crate::building::destruction::has_requests() {
+            let context = context::make_update_context_mut!(self, 0.0, tile_map, world);
+            crate::building::destruction::run_requests(&context);
+        }
+
         // Paused simulation update.
         if self.is_paused {
             if self.paused_update_timer.tick(delta_time_secs).should_update() {

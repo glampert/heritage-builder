@@ -31,6 +31,7 @@ pub mod minimap;
 pub mod placement;
 pub mod rendering;
 pub mod road;
+pub mod rubble;
 pub mod selection;
 pub mod sets;
 pub mod water;
@@ -122,7 +123,7 @@ impl TileKind {
 
 bitflags_with_display! {
     #[derive(Copy, Clone, PartialEq, Eq, Serialize, Deserialize)]
-    pub struct TileFlags: u16 {
+    pub struct TileFlags: u32 {
         const Hidden             = 1 << 0;
         const Highlighted        = 1 << 1;
         const Invalidated        = 1 << 2;
@@ -146,6 +147,9 @@ bitflags_with_display! {
 
         // A house being renovated before an upgrade (HouseUpgradeState).
         const Renovating         = 1 << 15;
+
+        // A building on fire (building::risks): drawn darkened, with flames over its cells.
+        const Burning            = 1 << 16;
     }
 }
 
@@ -2186,6 +2190,11 @@ pub struct TileMap {
     // manually reset on the user's post_load() after deserialization.
     #[serde(skip)]
     callbacks: TileMapEditorCallbacks,
+
+    // Not serialized. Simulated seconds of animation played, for the overlays the renderer draws
+    // over tiles (a burning building's flames), which have no tile of their own to animate.
+    #[serde(skip)]
+    overlay_anim_secs: Seconds,
 }
 
 macro_rules! update_search_graph {
@@ -2243,6 +2252,7 @@ impl TileMap {
             minimap: Minimap::new(size_in_cells),
             graph: Graph::default(),
             callbacks: TileMapEditorCallbacks::default(),
+            overlay_anim_secs: 0.0,
         };
 
         tile_map.reset(fill_with_def, None);
@@ -2586,6 +2596,15 @@ impl TileMap {
             let objects_layer = self.layer_mut(TileMapLayerKind::Objects);
             objects_layer.update_anims(visible_range, delta_time_secs);
         }
+
+        // Wrapped well before f32 loses the precision a frame index needs.
+        self.overlay_anim_secs = (self.overlay_anim_secs + delta_time_secs) % 3600.0;
+    }
+
+    // Simulated seconds of animation played, for the renderer's overlays (see overlay_anim_secs).
+    #[inline]
+    pub fn overlay_anim_secs(&self) -> Seconds {
+        self.overlay_anim_secs
     }
 
     // ----------------------

@@ -1033,6 +1033,64 @@
               ]
             }
           ]
+        },
+        {
+          "name": "fire_watch",
+          "cost": 10,
+          "materials": { "Wood": 3 },
+          "upkeep": 6,
+          "construction": "Basic",
+          "sector": "Services",
+          "logical_size": {
+            "width": 64,
+            "height": 32
+          },
+          "draw_size": {
+            "width": 64,
+            "height": 70
+          },
+          "variations": [
+            {
+              "anim_sets": [
+                {
+                  "frames": [
+                    {
+                      "name": "fire_watch"
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "name": "builders_guild",
+          "cost": 15,
+          "materials": { "Wood": 4, "Bricks": 2 },
+          "upkeep": 6,
+          "construction": "Civic",
+          "sector": "Services",
+          "logical_size": {
+            "width": 128,
+            "height": 64
+          },
+          "draw_size": {
+            "width": 128,
+            "height": 98
+          },
+          "variations": [
+            {
+              "anim_sets": [
+                {
+                  "frames": [
+                    {
+                      "name": "builders_guild"
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
         }
       ]
     },
@@ -1203,6 +1261,277 @@
                   "frames": [
                     {
                       "name": "round_stones"
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "name": "rubble",
+          "occludes_terrain": false,
+          "path_kind": "Rocks",
+          "logical_size": {
+            "width": 64,
+            "height": 32
+          },
+          "draw_size": {
+            "width": 64,
+            "height": 42
+          },
+          "variations": [
+            {
+              "name": "0000",
+              "iso_offset": {
+                "x": 0,
+                "y": 8
+              },
+              "anim_sets": [
+                {
+                  "frames": [
+                    {
+                      "name": "rubble"
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "name": "1100",
+              "iso_offset": {
+                "x": 0,
+                "y": 8
+              },
+              "anim_sets": [
+                {
+                  "frames": [
+                    {
+                      "name": "rubble"
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "name": "0110",
+              "iso_offset": {
+                "x": 0,
+                "y": 8
+              },
+              "anim_sets": [
+                {
+                  "frames": [
+                    {
+                      "name": "rubble"
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "name": "0011",
+              "iso_offset": {
+                "x": 0,
+                "y": 8
+              },
+              "anim_sets": [
+                {
+                  "frames": [
+                    {
+                      "name": "rubble"
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "name": "1001",
+              "iso_offset": {
+                "x": 0,
+                "y": 8
+              },
+              "anim_sets": [
+                {
+                  "frames": [
+                    {
+                      "name": "rubble"
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "name": "1110",
+              "iso_offset": {
+                "x": 0,
+                "y": 8
+              },
+              "anim_sets": [
+                {
+                  "frames": [
+                    {
+                      "name": "rubble"
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "name": "0111",
+              "iso_offset": {
+                "x": 0,
+                "y": 8
+              },
+              "anim_sets": [
+                {
+                  "frames": [
+                    {
+                      "name": "rubble"
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "name": "1011",
+              "iso_offset": {
+                "x": 0,
+                "y": 8
+              },
+              "anim_sets": [
+                {
+                  "frames": [
+                    {
+                      "name": "rubble"
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "name": "1101",
+              "iso_offset": {
+                "x": 0,
+                "y": 8
+              },
+              "anim_sets": [
+                {
+                  "frames": [
+                    {
+                      "name": "rubble"
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "name": "1111",
+              "iso_offset": {
+                "x": 0,
+                "y": 8
+              },
+              "anim_sets": [
+                {
+                  "frames": [
+                    {
+                      "name": "rubble"
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "name": "0001",
+              "iso_offset": {
+                "x": 0,
+                "y": 8
+              },
+              "anim_sets": [
+                {
+                  "frames": [
+                    {
+                      "name": "rubble"
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "name": "0010",
+              "iso_offset": {
+                "x": 0,
+                "y": 8
+              },
+              "anim_sets": [
+                {
+                  "frames": [
+                    {
+                      "name": "rubble"
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "name": "0100",
+              "iso_offset": {
+                "x": 0,
+                "y": 8
+              },
+              "anim_sets": [
+                {
+                  "frames": [
+                    {
+                      "name": "rubble"
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "name": "0101",
+              "iso_offset": {
+                "x": 0,
+                "y": 8
+              },
+              "anim_sets": [
+                {
+                  "frames": [
+                    {
+                      "name": "rubble"
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "name": "1000",
+              "iso_offset": {
+                "x": 0,
+                "y": 8
+              },
+              "anim_sets": [
+                {
+                  "frames": [
+                    {
+                      "name": "rubble"
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "name": "1010",
+              "iso_offset": {
+                "x": 0,
+                "y": 8
+              },
+              "anim_sets": [
+                {
+                  "frames": [
+                    {
+                      "name": "rubble"
                     }
                   ]
                 }
@@ -2063,6 +2392,73 @@
           ]
         },
         {
+          "name": "fire_watcher",
+          "occludes_terrain": false,
+          "draw_size": {
+            "width": 23,
+            "height": 41
+          },
+          "variations": [
+            {
+              "iso_offset": {
+                "x" : 0,
+                "y" : 5
+              },
+              "anim_sets": [
+                {
+                  "name": "idle",
+                  "duration": 1,
+                  "frames_source": { "CopyAllFrom": "idle_se" }
+                },
+                {
+                  "name": "idle_ne",
+                  "duration": 1,
+                  "frames_source": { "Files": 2 }
+                },
+                {
+                  "name": "idle_nw",
+                  "duration": 1,
+                  "mirror": true,
+                  "frames_source": { "CopyAllFrom": "idle_ne" }
+                },
+                {
+                  "name": "idle_se",
+                  "duration": 1,
+                  "frames_source": { "Files": 2 }
+                },
+                {
+                  "name": "idle_sw",
+                  "duration": 1,
+                  "mirror": true,
+                  "frames_source": { "CopyAllFrom": "idle_se" }
+                },
+                {
+                  "name": "walk_ne",
+                  "duration": 0.7,
+                  "frames_source": { "Files": 8 }
+                },
+                {
+                  "name": "walk_nw",
+                  "duration": 0.7,
+                  "mirror": true,
+                  "frames_source": { "CopyAllFrom": "walk_ne" }
+                },
+                {
+                  "name": "walk_se",
+                  "duration": 0.7,
+                  "frames_source": { "Files": 8 }
+                },
+                {
+                  "name": "walk_sw",
+                  "duration": 0.7,
+                  "mirror": true,
+                  "frames_source": { "CopyAllFrom": "walk_se" }
+                }
+              ]
+            }
+          ]
+        },
+        {
           "name": "teacher",
           "occludes_terrain": false,
           "draw_size": {
@@ -2522,6 +2918,39 @@
                   "frames": [
                     {
                       "name": "renovation_4x4"
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "name": "fire_1x1",
+          "logical_size": {
+            "width": 64,
+            "height": 32
+          },
+          "draw_size": {
+            "width": 64,
+            "height": 59
+          },
+          "variations": [
+            {
+              "anim_sets": [
+                {
+                  "frames": [
+                    {
+                      "name": "frame0"
+                    },
+                    {
+                      "name": "frame1"
+                    },
+                    {
+                      "name": "frame2"
+                    },
+                    {
+                      "name": "frame3"
                     }
                   ]
                 }

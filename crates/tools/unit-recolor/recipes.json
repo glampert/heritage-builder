@@ -1,0 +1,17 @@
+{
+  "notes": "Units made by recolouring another unit's sprites (recolor.py). Colours are the source art's flat fills; every pixel that's a blend of the outline and one of them gets the same blend of its new colour. A pixel closer to a kept colour (or its blend with the outline) is left alone.",
+  "units": [
+    {
+      "name": "fire_watcher",
+      "source": "guard",
+      "outline": "#1a0b03",
+      "colors": {
+        "#765729": "#9a221a",
+        "#8e7644": "#c43a26",
+        "#887951": "#d06048"
+      },
+      "keep": ["#503b1a", "#40381f", "#393016", "#2a2313", "#776f47", "#776c47"],
+      "notes": "M6 (docs/plans/city-risks.md, decision Q7): the guard with a red jacket and cap, so a fire watcher stands out from guards. The spear (shaft and head) and the leg wraps are kept. Art of its own waits for the Blender walker experiment."
+    }
+  ]
+}

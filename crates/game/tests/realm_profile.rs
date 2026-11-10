@@ -50,6 +50,7 @@ fn mission(name: &str) -> MissionDef {
         requirements: MissionRequirements::default(),
         calendar: None,
         finance: None,
+        risks: None,
     }
 }
 

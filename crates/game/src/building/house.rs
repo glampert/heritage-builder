@@ -13,6 +13,7 @@ use engine::{log, ui::UiSystem};
 use proc_macros::DrawDebugUi;
 
 use super::{
+    risks::RiskRates,
     Building,
     BuildingVisitResult,
     BuildingBehavior,
@@ -149,7 +150,7 @@ impl Default for HouseConfig {
 }
 
 building_config! {
-    HouseConfig
+    HouseConfig, no_risks
 }
 
 // ----------------------------------------------
@@ -195,6 +196,11 @@ pub struct HouseLevelConfig {
 
     #[serde(default)]
     pub stock_capacity: u32,
+
+    // How fast its fire and collapse risks build up, per calendar month (building::risks).
+    #[serde(default)]
+    #[debug_ui(nested)]
+    pub risks: RiskRates,
 }
 
 impl Default for HouseLevelConfig {
@@ -214,6 +220,7 @@ impl Default for HouseLevelConfig {
             services_required: ServiceKinds::none(),
             resources_required: ResourceKinds::none(),
             stock_capacity: 5,
+            risks: RiskRates::ZERO,
         }
     }
 }

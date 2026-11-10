@@ -56,6 +56,7 @@ fn build_test_configs() -> CampaignConfigs {
                     requirements: MissionRequirements { goals: vec![MissionGoal::Population { min: 10 }] },
                     calendar: Some(MissionCalendarDef { start_year: Some(5), start_month: Some(3), wet_months: None }),
                     finance: None,
+                    risks: None,
                 },
                 MissionDef {
                     name: "Mission 2".into(),
@@ -64,6 +65,7 @@ fn build_test_configs() -> CampaignConfigs {
                     requirements: MissionRequirements { goals: vec![MissionGoal::Treasury { min_gold: 100 }] },
                     calendar: None,
                     finance: None,
+                    risks: None,
                 },
             ],
             eras: vec![EraDef { name: "Test Era".into(), start_year: 4 }],

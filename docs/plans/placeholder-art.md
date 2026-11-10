@@ -272,12 +272,12 @@ Notes (2026-11-05):
 - [ ] New `Builder` primitives: gable_roof, thatch, stilts, fence, crates, jars, timber_stack, field_rows, scaffold_poles.
 - [ ] Generic recipes (§3): house, hall, workshop, yard, field, well, shrine, garden, statue, pond.
 - [ ] `buildings_daiLong.json` for the buildings that Campaign I, missions 1–5 need and that have no hand-made art yet. The roadmap's M5–M10 list them:
-  - roof-tile kiln, communal hall, fire watch, builders' guild, festival square;
+  - roof-tile kiln, communal hall, fire watch, builders' guild, festival square (the kiln, the fire watch and the builders' guild done);
   - dyke, with junction variations, and sluice gate;
   - trade post, mulberry field, rice paddy (if it becomes a terrain-like building), common house level 5;
   - statue and pond decorations.
 - [x] Overlays: `scaffold` for 1×1 to 5×5 in 3 stages, `renovation` for each house size. Done 2026-11-06, with 4 stages to match the engine; see the notes in [construction.md](construction.md) §6.
-- [ ] `rubble` for 1×1 to 5×5 (with M6).
+- [x] `rubble` (with M6): done 2026-11-09 as 16 1×1 pieces picked by neighbour mask, which build piles of any size, instead of one sprite per footprint size ([city-risks.md](city-risks.md) §2). Also `fire_1x1`, the burning building overlay, and the fire watch and builders' guild buildings (`catalog/risks.json`, `buildings_daiLong.json`).
 - [ ] `crates/game/tests/scenarios/art_gallery.jsonl` (§5): places every generated building that has a building config, with screenshots. Moved here from Phase 2.
 - [ ] Review the contact sheets and the in-game gallery with the user.
 

@@ -37,6 +37,7 @@ use crate::{
         placement::{TilePlacementErrReason, TilePlacementOp},
         rendering::TileMapRenderFlags,
         road::{self, RoadKind, RoadSegment},
+        rubble,
         sets::{PresetTiles, TileDef, TileDefHandle, TileSets},
         water,
     },
@@ -599,6 +600,10 @@ impl TilePlacement {
                 // tile orientation in relation to the water.
                 water::update_port_wharf_orientation(context.tile_map_mut(), target_cell);
             }
+            SpawnerResult::Tile(tile) if rubble::is_rubble_def(tile.tile_def()) => {
+                // Rubble joins the pile around it (an undone clear, the editor).
+                rubble::update_variations(context.tile_map_mut(), CellRange::new(target_cell, target_cell));
+            }
             SpawnerResult::Err(err) => {
                 let obstructing_tile_def = {
                     if let TilePlacementErrReason::Obstruction(tile_def) = err.reason {
@@ -635,6 +640,7 @@ impl TilePlacement {
         let is_terrain = tile.is(TileKind::Terrain);
         let is_road = tile_def.is_road();
         let is_vacant_lot = tile_def.is_vacant_lot();
+        let is_rubble = rubble::is_rubble_def(tile_def);
 
         // Cannot explicit remove terrain tiles except for roads and vacant lots.
         if !is_terrain || is_road || is_vacant_lot {
@@ -676,6 +682,12 @@ impl TilePlacement {
                 if is_road {
                     road::update_junctions(context.tile_map_mut(), target_cell);
                 }
+            }
+
+            if is_rubble {
+                // The rest of the pile closes over the gap, and the fire or collapse is dealt with.
+                rubble::update_variations(context.tile_map_mut(), CellRange::new(target_cell, target_cell));
+                context.minimap_mut().resolve_alerts(target_cell);
             }
 
             return PlaceOrClearResult::ClearedTile(tile_def);

@@ -106,3 +106,7 @@ harness = false
 [[test]]
 name    = "ui_fonts"
 harness = false
+
+[[test]]
+name    = "risks"
+harness = false

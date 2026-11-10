@@ -52,6 +52,9 @@ pub struct MissionDef {
     // The treasury, tax level and wage the mission starts with. None: the map's own.
     #[serde(default)]
     pub finance: Option<MissionFinanceDef>,
+    // Whether fire and collapse risks build up. None: RiskConfigs::enabled.
+    #[serde(default)]
+    pub risks: Option<MissionRisksDef>,
 }
 
 // The calendar a mission starts with. Fields left out keep SimConfigs::calendar's.
@@ -74,6 +77,14 @@ pub struct MissionFinanceDef {
     pub tax_level: Option<TaxLevel>,
     // Gold per employed worker per year.
     pub wage: Option<u32>,
+}
+
+// Fire and collapse risks in a mission (docs/plans/city-risks.md). Missions that come before the
+// fire watch and the builders' guild turn them off.
+#[derive(Clone, Default, Serialize, Deserialize)]
+#[serde(default, deny_unknown_fields)]
+pub struct MissionRisksDef {
+    pub enabled: Option<bool>,
 }
 
 // How a mission's starting map is loaded.

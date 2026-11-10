@@ -77,7 +77,9 @@ Blender modules (they import `bpy`; use them only inside Blender):
   outlines, the compositor grade, and `trim_top`.
 - `hbgen/recipes/`: the recipes, registered in `RECIPES`. `fortress.py`
   holds the studies, `workshop.py` the game's workshops, `overlays.py` the
-  construction scaffolds and renovation overlays, `test.py` the template.
+  construction scaffolds and renovation overlays, `services.py` the fire watch
+  and the builders' guild, `risks.py` the rubble pieces and the fire overlay,
+  `test.py` the template.
 - `hbgen/generate.py`: `generate()` (legacy camera) and `generate_engine()`.
 - `hb_tile_gen.py`: the one-tile command line, and the `exec` entry point.
 - `build.py`: the batch driver (§11), run by `tilegen.sh`.
@@ -282,6 +284,17 @@ recipe `params`, written as `<frame>.png`. The scaffolds use them for their
 stages:
 
     "frames": [{"name": "stage0", "params": {"stage": 0}}, {"name": "stage1", "params": {"stage": 1}}]
+
+**Pieces that join** (`catalog/risks.json`): rubble is drawn one 1×1 piece
+per cell, and a piece's variation is named by which of its sides border more
+rubble (four digits, north, east, south, west, as the water tile's shores).
+All 16 are cuts of one pile: a height field that keeps full height at a joined
+side and slopes to the ground at an open one, with bumps that repeat every
+cell, so two pieces agree along their shared edge. A recipe that cuts its
+model to meet a neighbour sets `B.outline_border = False`, so the cut edges get
+no ink. Rubble lives in the `rocks` category; each variation's `iso_offset`
+(`y: 8`) moves the rocks anchor down to a 1×1 building's, so the pieces sit on
+their cell's diamond.
 
 `"validate": {"ground": false}` marks an overlay, a sprite without a ground
 diamond (the renovation scaffolds), so the checks skip the corner and
