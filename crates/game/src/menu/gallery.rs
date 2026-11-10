@@ -1,15 +1,16 @@
 // The Skin Gallery: a developer window (DevEditor, Debug/Show Skin Gallery) that shows everything
 // the realm skins draw, built with the skin helpers in the realm's own theme: the heading levels,
 // the text colours, every panel, every button role and its four states, the controls (toggle,
-// checkbox, slider, dropdown, step selectors and a scrolling list), the separators, the emblems,
-// the data widgets, a popup, tooltips and a toast. Its tabs pick the realm (they set the ui.realm
-// override); it follows ui.realm too, and rebuilds whenever the skin changes (skin::version()).
+// checkbox, slider, dropdown, step selectors, a scrolling list and template rows with icons), the
+// 9-slice centres, the separators, the emblems, the data widgets (images in each fit, columns), a
+// popup, tooltips and a toast. Its tabs pick the realm (they set the ui.realm override); it follows
+// ui.realm too, and rebuilds whenever the skin changes (skin::version()).
 //
-// Its widgets' paths start with "Skin Gallery/". ui_skins.jsonl opens it in each realm and checks
-// ui.layout_issues.
+// Its widgets' paths start with "Skin Gallery/". ui_skins.jsonl opens it in each realm, checks
+// ui.layout_issues and drives its widgets. It took over from the engine's sample menus.
 
 use common::Vec2;
-use engine::ui::{self, UiFontScale, UiStaticVar, UiString, UiThemeId, widgets::*};
+use engine::ui::{self, UiFontScale, UiNineSlice, UiNineSliceCenter, UiStaticVar, UiString, UiThemeId, widgets::*};
 use strum::IntoEnumIterator;
 
 use super::skin::{self, ButtonRole, EmblemState, HeadingLevel, SkinDialogSize, SkinPanel};
@@ -27,6 +28,11 @@ const GALLERY_SIZE: SkinDialogSize = SkinDialogSize::Points([1500.0, -120.0]);
 const SWATCH_SIZE: Vec2 = Vec2::new(118.0, 84.0);
 const SWATCHES_PER_ROW: usize = 6;
 const STATE_SWATCH_SIZE: Vec2 = Vec2::new(84.0, 34.0);
+const CENTRE_SWATCH_SIZE: Vec2 = Vec2::new(200.0, 110.0);
+
+// The buttons of a set width (UiTextButtonWidth), which ui_skins.jsonl measures.
+const FIXED_BUTTON_WIDTH: f32 = 150.0;
+const MIN_BUTTON_WIDTH: f32 = 120.0;
 
 const SECTION_SPACING: Vec2 = Vec2::new(10.0, 10.0);
 const CAPTION_FONT_SCALE: UiFontScale = UiFontScale(0.7);
@@ -228,7 +234,23 @@ fn panels(context: &mut GameUiContext) -> UiWidgetGroup {
             captioned(image.with_label(format!("panel {name}")), name)
         })
         .collect();
-    rows(swatches, SWATCHES_PER_ROW)
+    rows(swatches, SWATCHES_PER_ROW).with_widget(centres(context))
+}
+
+// The card panel's 9-slice with each centre: stretched, tiled (the last tile cut) and rounded
+// (whole tiles), and on a rect smaller than its borders, where the corners shrink to meet.
+fn centres(context: &mut GameUiContext) -> UiWidgetGroup {
+    let SkinPanel::NineSlice { slice, .. } = skin::panel(context, "card") else {
+        return row();
+    };
+    let [left, top, right, bottom] = slice.border_points();
+    let small = Vec2::new(left + right, top + bottom) * 0.75;
+    let swatch = |slice: UiNineSlice, size: Vec2, name: &str| captioned(UiImage::empty(size).with_frame(slice, 0.0).with_label(format!("centre {name}")), name);
+    row()
+        .with_widget(swatch(slice.with_center(UiNineSliceCenter::Stretch), CENTRE_SWATCH_SIZE, "stretch"))
+        .with_widget(swatch(slice.with_center(UiNineSliceCenter::Tile), CENTRE_SWATCH_SIZE, "tile"))
+        .with_widget(swatch(slice.with_center(UiNineSliceCenter::Round), CENTRE_SWATCH_SIZE, "round"))
+        .with_widget(swatch(slice, small, "shrunk"))
 }
 
 fn separators(context: &mut GameUiContext) -> UiWidgetGroup {
@@ -283,6 +305,26 @@ fn controls(context: &mut GameUiContext) -> UiWidgetGroup {
         .with_rows(list_rows)
         .with_current_item(1);
 
+    // Template rows with an icon each, the realms' emblems; the locked ones disabled.
+    let realm_rows = Realm::iter()
+        .map(|realm| {
+            let current = realm == Realm::DaiLong;
+            let state = if current { EmblemState::Current } else { EmblemState::Locked };
+            let row = UiListRow::new(realm.display_name()).with_subtitle(if current { "Unlocked" } else { "Locked" }).with_enabled(current);
+            match skin::emblem(context, realm, state) {
+                Some((texture, _)) => row.with_icon(texture),
+                None => row,
+            }
+        })
+        .collect();
+    let realm_list = UiItemList::new()
+        .with_label("Realm List")
+        .with_size(Vec2::new(0.0, 150.0))
+        .with_flags(UiItemListFlags::Scrollable)
+        .with_row_look(UiListRowLook { icon_size: 30.0, ..skin::list_row_look(context) })
+        .with_rows(realm_rows)
+        .with_current_item(0);
+
     // Labeled as the settings dialogs label them.
     let labeled = UiLabeledWidgetGroup::new()
         .with_label_spacing(12.0)
@@ -299,6 +341,7 @@ fn controls(context: &mut GameUiContext) -> UiWidgetGroup {
         .with_widget(steps)
         .with_widget(arrows)
         .with_widget(list)
+        .with_widget(realm_list)
 }
 
 // A button of every role, and disabled ones; the icon buttons; the HUD's sprite buttons.
@@ -306,7 +349,9 @@ fn buttons(context: &mut GameUiContext) -> UiWidgetGroup {
     let framed = row()
         .with_widget(skin::button(context, ButtonRole::Primary, "Primary", |_, _| {}).with_tooltip(skin::tooltip(context, "The primary role")))
         .with_widget(skin::button(context, ButtonRole::Secondary, "Secondary", |_, _| {}))
-        .with_widget(skin::button(context, ButtonRole::Primary, "Disabled", |_, _| {}).with_enabled(false));
+        .with_widget(skin::button(context, ButtonRole::Primary, "Disabled", |_, _| {}).with_enabled(false))
+        .with_widget(skin::button(context, ButtonRole::Secondary, "Fixed Width", |_, _| {}).with_width(UiTextButtonWidth::Fixed(FIXED_BUTTON_WIDTH)))
+        .with_widget(skin::button(context, ButtonRole::Primary, "Min", |_, _| {}).with_width(UiTextButtonWidth::Min(MIN_BUTTON_WIDTH)));
     let tabs = row()
         .with_widget(skin::button(context, ButtonRole::Tab, "Tab", |_, _| {}))
         .with_widget(skin::button(context, ButtonRole::TabSelected, "Selected Tab", |_, _| {}))
@@ -379,7 +424,7 @@ fn data(context: &mut GameUiContext) -> UiWidgetGroup {
     let meters = row()
         .with_widget(skin::meter(UiMeterKind::Bar, Vec2::new(150.0, 14.0)).with_label("Bar").with_value(0.62, 1.0).with_goal(0.8))
         .with_widget(skin::meter(UiMeterKind::Ring, Vec2::new(48.0, 48.0)).with_label("Ring").with_value(62.0, 100.0))
-        .with_widget(skin::meter(UiMeterKind::Steps(5), Vec2::new(110.0, 12.0)).with_label("Steps").with_value(3.0, 5.0));
+        .with_widget(skin::meter(UiMeterKind::Steps(5), Vec2::new(110.0, 12.0)).with_label("Step Meter").with_value(3.0, 5.0));
 
     let tabs = skin::tab_bar(context)
         .with_label("Tabs")
@@ -388,17 +433,35 @@ fn data(context: &mut GameUiContext) -> UiWidgetGroup {
 
     // The home backdrop, framed in the well panel as a map preview would be.
     let backdrop = skin::home_backdrop().0.first().cloned();
-    let preview = backdrop.map(|path| {
-        let (texture, texture_size) = skin::sprite_and_size(context, &path);
+    let preview = backdrop.as_deref().map(|path| {
+        let (texture, texture_size) = skin::sprite_and_size(context, path);
         let image = UiImage::from_texture(texture, texture_size, Vec2::new(0.0, 90.0)).with_label("Framed Image").with_fit(UiImageFit::Cover);
         skin::framed_image(context, image, "well")
     });
+
+    // The key values beside images in each fit, in two columns: a wide image contained (bands
+    // above and below), stretched and covering a square, and an emblem contained.
+    let mut images = row();
+    if let Some(path) = backdrop.as_deref() {
+        let (texture, texture_size) = skin::sprite_and_size(context, path);
+        for (fit, name) in [(UiImageFit::Contain, "Contain"), (UiImageFit::Stretch, "Stretch"), (UiImageFit::Cover, "Cover")] {
+            let image = UiImage::from_texture(texture, texture_size, Vec2::new(60.0, 60.0)).with_fit(fit).with_label(format!("Image {name}"));
+            images.add_widget(captioned(image, name));
+        }
+    }
+    if let Some((texture, size)) = skin::emblem(context, Realm::DaiLong, EmblemState::Idle) {
+        images.add_widget(captioned(UiImage::from_texture(texture, size, Vec2::new(60.0, 60.0)).with_label("Image Emblem"), "Emblem"));
+    }
+    let columns = UiColumns::new()
+        .with_spacing(18.0)
+        .with_column(UiColumnWidth::Fraction(1.0), UiWidgetGroup::new().with_center_horizontally(false).with_widget(pairs))
+        .with_column(UiColumnWidth::Fraction(1.0), UiWidgetGroup::new().with_center_horizontally(false).with_widget(images));
 
     let mut group = UiWidgetGroup::new()
         .with_center_horizontally(false)
         .with_widget_spacing(Vec2::new(0.0, 8.0))
         .with_widget(tabs)
-        .with_widget(pairs)
+        .with_widget(columns)
         .with_widget(table)
         .with_widget(meters)
         .with_widget(skin::rich_text(format!("Rich text: *emphasis*, [accent]accent[/], [sub]sub[/]. {SAMPLE_TEXT}")).with_label("Rich Text"));

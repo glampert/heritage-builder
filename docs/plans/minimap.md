@@ -382,7 +382,7 @@ Budgets, release build, desktop; web within 2× of them:
 **Follow-up (2026-11-07, after review):**
 - Style options for tuning live (edit the realm's file, then the debug window's Reload Style or `minimap.reload_style`): `map_size` ([width, height] in points; the widget grows around it, and a shape other than 2:1 shows a crop of the playable area at zoom 1), `landmark.opacity`, `ping_opacity` (alert rings and icon), `tooltip_opacity` (the buttons' and the map's tooltips) and `tooltip_frame` (the sprite behind tooltips; empty for `frame`).
 - A lens's legend no longer covers the map: the widget grows by its rows while the lens is open and shrinks back for City. `minimap.state` reports `window_size` and `map_rect_size`.
-- The hover tooltip uses the realm's frame like the buttons' tooltips (`ui::pointer_tooltip`, and `UiTooltipText::with_opacity`). Tampadesa's dark lacquer frame made tooltip text unreadable, so it gets a light paper tooltip frame, `frame_tooltip_tampadesa.png`.
+- The hover tooltip uses the realm's frame like the buttons' tooltips (`ui::pointer_tooltip`, and `UiTooltipText::with_opacity`). Tampadesa's dark lacquer frame made tooltip text unreadable, so it gets a light paper tooltip frame, `frame_tooltip_tampadesa.png`. (Since 2026-11-10 the map's hover tooltip is on the realm skin's tooltip panel, and that sprite is gone.)
 - The open button (a map scroll) and the developer editor's debug toggle (a ladybug) are icon-script sprites in each realm's button folder, replacing the hand-made placeholders in `buttons/minimap/`. Their widget paths stay `open` and `Minimap/debug`.
 - The alerts tool is disabled while there are no alerts.
 

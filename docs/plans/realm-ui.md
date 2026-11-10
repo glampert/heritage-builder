@@ -374,12 +374,13 @@ The existing dialogs keep their layouts but take their panels from the Đại Lo
 - [x] Split `engine/src/ui/widgets.rs` into `engine/src/ui/widgets/`, one widget family per file, with no change in behaviour, in a commit of its own.
 - [x] Localized strings: `text/<language>.json`, the new categories, arguments, plural forms, `UiText`, the fallback and its test; `text.*` commands. Move today's strings for the screens Phase 0 touches.
 - [x] Sound hooks: the role keys, per-widget sound events and overrides, a placeholder role-to-file mapping in `assets/configs/ui/sounds.json` with `ui::sound::set_mapping` for the skins (the skin's `sounds` block: see Skins), dialog and popup open and close sounds.
-- [x] Widgets: `UiTabBar`, `UiToggle`, framed `UiTextButton`, `UiMenuItem`, `UiListRow`, `UiImage`, `UiKeyValues`, `UiTable`, `UiMeter`, `UiColumns`, `UiStepSelector`, `UiRichText`, each in the developer sample menus (`engine/src/ui/tests.rs`). Each interactive one plays its roles through a `UiWidgetSounds` (`sounds.play(context, event, Some(role))`): `UiTabBar` `tab_selected`, `UiToggle` `toggled`, `UiMenuItem` and `UiListRow` `item_hovered` and `item_selected`, `UiStepSelector` `slider_changed`.
+- [x] Widgets: `UiTabBar`, `UiToggle`, framed `UiTextButton`, `UiMenuItem`, `UiListRow`, `UiImage`, `UiKeyValues`, `UiTable`, `UiMeter`, `UiColumns`, `UiStepSelector`, `UiRichText`, each in the Skin Gallery (first in the developer sample menus, since retired). Each interactive one plays its roles through a `UiWidgetSounds` (`sounds.play(context, event, Some(role))`): `UiTabBar` `tab_selected`, `UiToggle` `toggled`, `UiMenuItem` and `UiListRow` `item_hovered` and `item_selected`, `UiStepSelector` `slider_changed`.
 - [x] Dialog framework: each dialog its own window, from the skin's `dialogs` block; the "keep the dialog under it visible" flag; paths take the dialog's own label (update `ui_new_game.jsonl`, `ui_snapshot.jsonl`, AGENTS.md).
 - [x] `crates/tools/ui-art/`: the catalog, `make_ui_art.py` (render, manifest, `--check`), the first sprites for all three realms (panels, buttons, controls, separators, emblems); `--check` in CI.
 - [x] Popups (Quit, Overwrite), tooltips and toasts on skin panels.
 - [x] Remove the unused old files (see [What exists today](#what-exists-today)).
 - [x] `tests/ui_skins.rs`; a `ui_skins.jsonl` scenario that opens the Skin Gallery in each realm and checks `ui.layout_issues`.
+- [x] Cleanup: retire the engine's sample menus (`engine/src/ui/tests.rs`) and the art only they used; the Skin Gallery and `ui_skins.jsonl` take over what they showed and tested.
 
 **Notes (2026-11-09):**
 - The widgets split (commit `260dd32`): `engine/src/ui/widgets/mod.rs` keeps the context trait, `UiWidget`, `UiWidgetImpl`, the casts, callback types and shared helpers, and re-exports every family file (`pub use button::*;` and so on), so every `ui::widgets::<Name>` path is unchanged and nothing outside `engine/src/ui/` changed. The family files are `menu.rs`, `message_box.rs`, `text.rs`, `group.rs`, `button.rs`, `tooltip.rs`, `separator.rs`, `image.rs` (`UiSpriteIcon` and `UiSlideshow`), `input.rs` (sliders, checkboxes, number and text inputs, dropdowns) and `list.rs`. Each file keeps the old section banners.
@@ -472,6 +473,12 @@ The existing dialogs keep their layouts but take their panels from the Đại Lo
 - Skin Gallery (`menu/gallery.rs`, `Debug/Show Skin Gallery`). `tests/ui_skins.rs` takes in `ui_fonts.rs` and the skin asset unit tests, and checks every 9-slice against its PNG. `ui_skins.jsonl` in CI.
 - Deviations: headings record `visible`; `ui.layout_issues` ignores widgets cut by the top or bottom of a menu whose contents scroll (`menu_content` value `scrolls`).
 - Verified: build, `cargo test --workspace`, web check, `make_ui_art.py --check`; the CI scenarios at 1440 × 800 and default size; determinism twice; `ui_build` record and replay; `ui_snapshot` in all realms at 1440 × 800 and 1280 × 720 (layout issues 0; listings changed only by the new checkbox and Sample Menu 1's `scrolls`); Quit popup, Settings, toasts, tooltips and the gallery screenshotted in each realm and compared with the mockups.
+
+**Notes (2026-11-10, sample menus retired) (commit TODO):**
+- Deleted `engine/src/ui/tests.rs` (Sample Menus 1–5), their two Debug checkboxes, and `minimap/frame_tooltip_tampadesa.png`, the only art they alone used (dropped from `ui-icons`' catalog).
+- The Skin Gallery gained what only they showed: icon and locked list rows, set button widths, image fits, `UiColumns`, 9-slice centres. `ui_skins.jsonl` drives step selectors, tab bars, list rows, menu items, icon buttons and reads the data widgets.
+- Widget API kept on purpose for Phase 1, though nothing calls it now: `UiTextInput`, `UiImage::new`, `UiTextButtonFrame::uniform`, `UiItemList::with_items`, the `with_margins` builders, and `with_fill_width`, `with_state_texts`, `with_icon_tint`, `with_show_tooltip_when_pressed`.
+- Verified: build, tests, web check, `make_ui_art.py --check`; CI scenarios at 1440 × 800; `ui_skins` at 1280 × 720 and 1080p; `ui_snapshot`: listings changed only by the checkboxes, other screenshots identical, layout issues 0.
 
 ### Phase 1: Main menus
 

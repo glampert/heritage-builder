@@ -1,6 +1,8 @@
 # Opens the developer Skin Gallery (Debug/Show Skin Gallery) in each realm: every panel, button
-# role and state, control, separator, emblem and data widget of the realm's skin, in its theme.
-# Checks the layout (ui.layout_issues) in each realm, drives its controls, opens its popup, shows a
+# role and state, control, 9-slice centre, separator, emblem and data widget of the realm's skin,
+# in its theme. Checks the layout (ui.layout_issues) in each realm, drives its controls (toggle,
+# checkbox, slider, dropdown, step selectors, tab bars, list rows, icon buttons), reads what its
+# data widgets report (key values, table, meter, images' fits, rich text), opens its popup, shows a
 # toast and a tooltip, switches realm with its own tabs, and saves a screenshot per realm under
 # out/ui_skins/ (the CI artifact; toasts are left out of captured screenshots). From the
 # repository root:
@@ -32,6 +34,7 @@
 {"method": "assert.eq", "params": {"query": "ui.tree", "args": {"kind": "slider", "filter": "Skin Gallery/Slider"}, "path": "/widgets/0/value", "value": 25}}
 {"method": "assert.eq", "params": {"query": "ui.tree", "args": {"kind": "dropdown", "filter": "Skin Gallery/Dropdown"}, "path": "/widgets/0/value", "value": "Tampadesa"}}
 {"method": "assert.eq", "params": {"query": "ui.tree", "args": {"kind": "step_selector", "filter": "Skin Gallery/Steps"}, "path": "/widgets/0/value", "value": "Hard"}}
+{"method": "assert.eq", "params": {"query": "ui.tree", "args": {"kind": "step", "filter": "Skin Gallery/Steps/Hard"}, "path": "/widgets/0/value", "value": true}}
 # A click on the toggle and the checkbox flips them back.
 {"method": "ui.click", "params": {"path": "Skin Gallery/Toggle"}}
 {"method": "ui.click", "params": {"path": "Skin Gallery/Checkbox"}}
@@ -52,6 +55,55 @@
 {"method": "ui.hover", "params": {"path": "Skin Gallery/Tooltip"}}
 {"method": "wait.frames", "params": {"frames": 3}}
 {"method": "screenshot", "params": {"path": "out/ui_skins/dailong_tooltip.png"}}
+# Step selectors: a click on a segment; the arrows wrap round.
+{"method": "ui.click", "params": {"path": "Skin Gallery/Steps/Very Hard"}}
+{"method": "assert.eq", "params": {"query": "ui.tree", "args": {"kind": "step", "filter": "Skin Gallery/Steps/Very Hard"}, "path": "/widgets/0/value", "value": true}}
+{"method": "assert.eq", "params": {"query": "ui.tree", "args": {"filter": "Skin Gallery/Steps", "kind": "step_selector"}, "path": "/widgets/0/value", "value": "Very Hard"}}
+{"method": "ui.click", "params": {"path": "Skin Gallery/Arrows/Previous"}}
+{"method": "assert.eq", "params": {"query": "ui.tree", "args": {"filter": "Skin Gallery/Arrows", "kind": "step_selector"}, "path": "/widgets/0/value", "value": "Fast"}}
+# Tab bars: ui.set by label or index; the selected tab's label is in its contents' paths.
+{"method": "ui.set", "params": {"path": "Skin Gallery/Tabs", "value": "Second"}}
+{"method": "assert.eq", "params": {"query": "ui.tree", "args": {"filter": "Skin Gallery/Tabs", "kind": "tab_bar"}, "path": "/widgets/0/value", "value": "Second"}}
+{"method": "assert.eq", "params": {"query": "ui.tree", "args": {"filter": "Skin Gallery/Second/Second text"}, "path": "/widgets/0/kind", "value": "rich_text"}}
+{"method": "ui.set", "params": {"path": "Skin Gallery/Tabs", "value": 0}}
+{"method": "assert.eq", "params": {"query": "ui.tree", "args": {"filter": "Skin Gallery/First", "kind": "tab"}, "path": "/widgets/0/value", "value": true}}
+# Template rows: a click or ui.set picks one; a locked realm's row is disabled.
+{"method": "ui.click", "params": {"path": "Skin Gallery/List/Row 1"}}
+{"method": "assert.eq", "params": {"query": "ui.tree", "args": {"filter": "Skin Gallery/List", "kind": "item_list"}, "path": "/widgets/0/value", "value": "Row 1"}}
+{"method": "ui.set", "params": {"path": "Skin Gallery/List", "value": "Row 5"}}
+{"method": "assert.eq", "params": {"query": "ui.tree", "args": {"filter": "Skin Gallery/List", "kind": "item_list"}, "path": "/widgets/0/value", "value": "Row 5"}}
+{"method": "assert.eq", "params": {"query": "ui.tree", "args": {"filter": "Skin Gallery/Realm List", "kind": "item_list"}, "path": "/widgets/0/value", "value": "Đại Long"}}
+{"method": "assert.eq", "params": {"query": "ui.tree", "args": {"filter": "Skin Gallery/Realm List/Kambara"}, "path": "/widgets/0/enabled", "value": false}}
+# A disabled button, buttons of a set width, menu items (a hover and a click play their sounds), and icon buttons: a click (scrolled into view first) toggles one.
+{"method": "assert.eq", "params": {"query": "ui.tree", "args": {"filter": "Skin Gallery/Disabled", "kind": "text_button"}, "path": "/widgets/0/enabled", "value": false}}
+{"method": "assert.eq", "params": {"query": "ui.tree", "args": {"filter": "Skin Gallery/Fixed Width"}, "path": "/widgets/0/rect/2", "value": 150.0}}
+{"method": "assert.ge", "params": {"query": "ui.tree", "args": {"filter": "Skin Gallery/Min"}, "path": "/widgets/0/rect/2", "value": 120.0}}
+{"method": "assert.eq", "params": {"query": "ui.tree", "args": {"filter": "Skin Gallery/Menu Item", "kind": "menu_entry"}, "path": "/widgets/0/value/subline", "value": "With a subline"}}
+{"method": "assert.eq", "params": {"query": "ui.tree", "args": {"filter": "Skin Gallery/Disabled Item", "kind": "menu_entry"}, "path": "/widgets/0/enabled", "value": false}}
+{"method": "ui.sounds", "params": {"clear": true}}
+{"method": "ui.hover", "params": {"path": "Skin Gallery/Menu Item"}}
+{"method": "ui.click", "params": {"path": "Skin Gallery/Menu Item"}}
+{"method": "wait.frames", "params": {"frames": 2}}
+{"method": "assert.eq", "params": {"query": "ui.sounds", "args": {"clear": true}, "path": "/roles", "value": ["item_hovered", "item_selected"]}}
+{"method": "ui.click", "params": {"path": "Skin Gallery/icon gold"}}
+{"method": "assert.eq", "params": {"query": "ui.tree", "args": {"filter": "Skin Gallery/icon gold", "kind": "icon_button"}, "path": "/widgets/0/value", "value": true}}
+{"method": "assert.eq", "params": {"query": "ui.tree", "args": {"filter": "Skin Gallery/icon disabled", "kind": "icon_button"}, "path": "/widgets/0/enabled", "value": false}}
+# The data widgets report what they show; images in each fit; the 9-slice centres.
+{"method": "assert.eq", "params": {"query": "ui.tree", "args": {"filter": "Skin Gallery/Key Values", "kind": "key_values"}, "path": "/widgets/0/value/1", "value": ["Treasury", "2,315 gold"]}}
+{"method": "assert.eq", "params": {"query": "ui.tree", "args": {"filter": "Skin Gallery/Table", "kind": "table"}, "path": "/widgets/0/value/status", "value": ["done", "pending", "failed"]}}
+{"method": "assert.eq", "params": {"query": "ui.tree", "args": {"filter": "Skin Gallery/Ring", "kind": "meter"}, "path": "/widgets/0/value/value", "value": 62.0}}
+{"method": "assert.eq", "params": {"query": "ui.tree", "args": {"filter": "Skin Gallery/Image Contain", "kind": "image"}, "path": "/widgets/0/value/fit", "value": "contain"}}
+{"method": "assert.eq", "params": {"query": "ui.tree", "args": {"filter": "Skin Gallery/Image Stretch", "kind": "image"}, "path": "/widgets/0/value/fit", "value": "stretch"}}
+{"method": "assert.eq", "params": {"query": "ui.tree", "args": {"filter": "Skin Gallery/Image Cover", "kind": "image"}, "path": "/widgets/0/value/fit", "value": "cover"}}
+{"method": "assert.eq", "params": {"query": "ui.tree", "args": {"filter": "Skin Gallery/Framed Image", "kind": "image"}, "path": "/widgets/0/value/fit", "value": "cover"}}
+{"method": "assert.exists", "params": {"query": "ui.tree", "args": {"filter": "Skin Gallery/Rich Text", "kind": "rich_text"}, "path": "/widgets/0/value"}}
+{"method": "assert.exists", "params": {"query": "ui.tree", "args": {"filter": "Skin Gallery/centre stretch", "kind": "image"}, "path": "/widgets/0"}}
+{"method": "assert.exists", "params": {"query": "ui.tree", "args": {"filter": "Skin Gallery/centre tile", "kind": "image"}, "path": "/widgets/0"}}
+{"method": "assert.exists", "params": {"query": "ui.tree", "args": {"filter": "Skin Gallery/centre round", "kind": "image"}, "path": "/widgets/0"}}
+{"method": "assert.exists", "params": {"query": "ui.tree", "args": {"filter": "Skin Gallery/centre shrunk", "kind": "image"}, "path": "/widgets/0"}}
+{"method": "input.move", "params": {"park": true}}
+{"method": "wait.frames", "params": {"frames": 2}}
+{"method": "assert.eq", "params": {"query": "ui.layout_issues", "path": "/count", "value": 0}}
 
 # ---- Kambara, picked with the gallery's own tabs ----
 {"method": "ui.click", "params": {"path": "Skin Gallery/Kambara"}}

@@ -235,15 +235,3 @@
 {"method": "wait.frames", "params": {"frames": 3}}
 {"method": "ui.tree", "params": {"fields": ["path", "kind", "enabled", "value"]}}
 {"method": "ui.click", "params": {"path": "Log Viewer/Close"}}
-# The sample menus show every retained widget kind, and a message box.
-{"method": "ui.click", "params": {"path": "Debug"}}
-{"method": "ui.set", "params": {"path": "Debug/Show Sample Menus", "value": true}}
-{"method": "input.move", "params": {"park": true}}
-{"method": "wait.frames", "params": {"frames": 3}}
-{"method": "ui.tree", "params": {"fields": ["path", "kind", "enabled", "value"]}}
-{"method": "assert.image", "params": {"golden": "dev_sample_menus.png", "path": "out/ui_snapshot/dev_sample_menus.png"}}
-{"method": "ui.click", "params": {"path": "Sample Menu 1/Open Message Box"}}
-{"method": "input.move", "params": {"park": true}}
-{"method": "wait.frames", "params": {"frames": 3}}
-{"method": "ui.tree", "params": {"fields": ["path", "kind", "enabled", "value"]}}
-{"method": "assert.image", "params": {"golden": "dev_message_box.png", "path": "out/ui_snapshot/dev_message_box.png"}}

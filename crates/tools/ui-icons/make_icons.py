@@ -8,8 +8,7 @@ Writes, under assets/ui/:
   set per realm, icon-only, as in the HUD mockups.
 - minimap/icons/<landmark>.png: white glyphs on transparent, tinted by the game.
 - minimap/field_stripes.png: the tileable stripes fields are drawn with, tinted by the game.
-- minimap/frame_<realm>.png: the widget's frame for realms that don't use the parchment page, and
-  frame_tooltip_<realm>.png for a realm whose frame is too dark behind tooltip text.
+- minimap/frame_<realm>.png: the widget's frame for realms that don't use the parchment page.
 
 The glyphs are SVG path data (M, L, H, V, Q, C, Z) drawn as round-capped strokes, at 8x and
 downsampled, so it needs only Pillow. The mockup generator reads the same paths.
@@ -207,14 +206,6 @@ def frame(spec):
         draw = ImageDraw.Draw(image)
         draw.rectangle([2, 2, w - 3, h - 3], outline=hex_color(spec["border"]), width=5)
         draw.rectangle([12, 12, w - 13, h - 13], outline=hex_color(spec["inner"]), width=2)
-    elif spec["style"] == "paper":
-        base = Image.new("RGBA", (w, h), hex_color(spec["base"]))
-        grain = noise((w, h), 5, 51).point(lambda v: max(0, v - 120) // 4)
-        base = Image.composite(Image.new("RGBA", (w, h), hex_color(spec["grain"])), base, grain)
-        image.paste(base)
-        draw = ImageDraw.Draw(image)
-        draw.rounded_rectangle([1, 1, w - 2, h - 2], 6, outline=hex_color(spec["rim"]), width=3)
-        draw.rounded_rectangle([5, 5, w - 6, h - 6], 4, outline=hex_color(spec["gold"]), width=3)
     else:
         top, bottom = hex_color(spec["top"]), hex_color(spec["bottom"])
         for y in range(h):

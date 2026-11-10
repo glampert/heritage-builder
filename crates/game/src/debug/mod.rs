@@ -9,7 +9,7 @@ use common::{
 };
 use engine::{
     Engine,
-    ui::{self, UiThemeId},
+    ui::UiThemeId,
 };
 use inspector::TileInspectorDevMenu;
 use log_viewer::LogViewer;
@@ -98,8 +98,8 @@ impl GameMenusSystem for DevEditorMenus {
         DevEditorMenusSingleton::get().debug_settings_menu.selected_render_flags()
     }
 
-    // The editor stays on the developer UI's theme, but follows the UI realm's skin, so the sample
-    // menus' retail theme (skin::theme) is the realm's that ui.realm shows.
+    // The editor stays on the developer UI's theme, but follows the UI realm's skin, so the Skin
+    // Gallery's retail theme (skin::theme) is the realm's that ui.realm shows.
     fn sync_skin(&mut self, context: &mut GameUiContext) {
         skin::follow(context, crate::realm::ui_realm_for(false).realm);
     }
@@ -183,8 +183,6 @@ impl DevEditorMenusSingleton {
     fn draw_debug_menus(&mut self, context: &mut GameUiContext, visible_range: CellRange) {
         let show_cursor_pos = self.debug_settings_menu.show_cursor_pos();
         let show_screen_origin = self.debug_settings_menu.show_screen_origin();
-        let show_sample_menus = self.debug_settings_menu.show_sample_menus();
-        let show_widget_samples = self.debug_settings_menu.show_widget_samples();
         let show_skin_gallery = self.debug_settings_menu.show_skin_gallery();
         let show_render_perf_stats = self.debug_settings_menu.show_render_perf_stats();
         let show_world_perf_stats = self.debug_settings_menu.show_world_perf_stats();
@@ -213,16 +211,6 @@ impl DevEditorMenusSingleton {
 
         if show_popup_messages() {
             GameLoop::get_mut().sim_mut().draw_game_object_debug_popups(context, visible_range);
-        }
-
-        if show_sample_menus {
-            let theme = crate::menu::skin::theme(context.ui_sys);
-            ui::tests::draw_sample_menus(context, theme);
-        }
-
-        if show_widget_samples {
-            let theme = crate::menu::skin::theme(context.ui_sys);
-            ui::tests::draw_widget_sample_menus(context, theme);
         }
 
         if show_skin_gallery {
