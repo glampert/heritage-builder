@@ -682,7 +682,10 @@ impl Building {
         let building_context = self.new_context(context);
         let died = self.as_house_mut().lose_residents_to_disease(cmds, &building_context, dying);
         self.risks.outbreak_mut().unwrap().deaths += died;
-        context.risks_mut().add_disease_deaths(died);
+        // The city's count is the simulation's, which the world step can't change: queue it.
+        cmds.defer_building_update(self.kind_and_id(), move |context, _building| {
+            context.risks_mut().add_disease_deaths(died);
+        });
 
         log::info!(log::channel!("risks"), "{died} died of sickness in the house at {}.", self.base_cell());
 

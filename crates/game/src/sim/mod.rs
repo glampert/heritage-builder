@@ -119,6 +119,18 @@ impl Simulation {
         context::make_update_context_mut!(self, delta_time_secs, tile_map, world)
     }
 
+    // The context the world step's update gets (see update): read-only, so anything that changes
+    // the world, the tile map or the simulation's state goes through SimCmds. For tests that
+    // step the world as the game does.
+    pub fn new_readonly_sim_context<'game>(
+        &'game mut self,
+        delta_time_secs: Seconds,
+        tile_map: &'game mut TileMap,
+        world: &'game mut World,
+    ) -> SimContext {
+        context::make_update_context_readonly!(self, delta_time_secs, tile_map, world)
+    }
+
     #[inline]
     pub fn cmds(&self) -> &RcMut<SimCmds> {
         &self.cmds

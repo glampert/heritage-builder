@@ -519,6 +519,11 @@ Notes (2026-11-11):
   - The save smoke test on the 13 migrated local saves; `mcp_extended_test.json` is a v2 save, outside the chain, and was left out.
   - The web check, `sync_tileset.py --check`, and the generator's unit tests.
   - Screenshots of two sick houses, a level 1 and a level 2, with their cloths and smoke and a medic on his way, then the same houses cured.
+- **Fixed after the commit, at the user's report (2026-11-11):**
+  - **The bug:** a sick house's deaths panicked in the debug game ("Called mutable method on a read-only SimContext!"). `update_outbreak` added them to the city's count through `SimContext::risks_mut` during the world step, whose context is read-only. The count now goes through a deferred building update, as everything else the step changes does.
+  - **Why the tests missed it:** `test_utils::tick` ran the world's update on a mutable context, unlike `Simulation::update`, and the CI scenarios run in release, where the check is a `debug_assert`.
+  - **The harness now steps the world as the game does:** a read-only context (`Simulation::new_readonly_sim_context`), with the world and tile map locked. With that change the three disease tests that reach a death failed on the same line before the fix, and every other suite passed unchanged.
+  - **Seen in a long debug run:** a sick house without its level's needs downgrades while it's sick (level 2 to 1 to 0), as §6 allows. Its evicted residents leave alive, so fewer die there; two later moved back into the empty, cured house.
 - **Not done:**
   - the retail inspector's lines and the Risk lens, which Phase 3 now covers for all three risks;
   - balance (M13);
