@@ -544,13 +544,14 @@ impl GameLoop {
         ui::sound::play(self.engine.sound_system_mut(), UiSoundKey::ConstructionCompleted);
     }
 
-    // A toast for each debt notice the simulation raised last frame (sim::finance). Going into
+    // A toast for each debt notice the simulation raised last frame (sim::finance::Finance). Going into
     // debt and the warnings play Alert; getting out of debt is good news and plays Notification.
     fn notify_finances(&mut self) {
         // TODO(realm-ui): sim::finance's notices should carry their severity, rather than
         // being told apart by the out-of-debt message's text.
         let out_of_debt = ui::text::get(UiTextCategory::Messages, "finance.out_of_debt");
-        for message in sim::finance::take_notices() {
+        let notices = self.session.sim_mut().finance_mut().take_notices();
+        for message in notices {
             let sound = if message == out_of_debt { UiSoundKey::Notification } else { UiSoundKey::Alert };
             show_toast(self.engine, message, sound);
         }

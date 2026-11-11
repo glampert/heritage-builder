@@ -254,7 +254,7 @@ fn test_wages_run_the_city_into_debt() {
     assert!(limit > 1, "the test needs a debt limit of a few months");
     env.sim.finance_mut().set_wage(12);
     env.sim.finance_mut().set_balance_unrecorded(0);
-    let _ = finance::take_notices();
+    let _ = env.sim.finance_mut().take_notices();
 
     // 10 workers at 12 a year cost 10 a month.
     for month in 2..2 + limit {
@@ -264,14 +264,14 @@ fn test_wages_run_the_city_into_debt() {
     assert_eq!(finance(&env).months_in_debt(), limit);
     assert!(finance(&env).is_debt_overdue(&GameConfigs::get().sim.finance));
 
-    let notices = finance::take_notices();
+    let notices = env.sim.finance_mut().take_notices();
     assert_eq!(notices.first().map(String::as_str), Some("The treasury is in debt: -10 gold."));
     assert!(notices.last().is_some_and(|notice| notice.contains("overdue")), "{notices:?}");
 
     env.sim.finance_mut().earn(LedgerCategory::Taxes, 1_000);
     end_month(&mut env, 6, 10);
     assert_eq!(finance(&env).months_in_debt(), 0);
-    assert_eq!(finance::take_notices(), vec!["The treasury is out of debt.".to_string()]);
+    assert_eq!(env.sim.finance_mut().take_notices(), vec!["The treasury is out of debt.".to_string()]);
 }
 
 // ----------------------------------------------

@@ -8,7 +8,7 @@
 use arrayvec::ArrayVec;
 use strum::Display;
 
-use common::Color;
+use common::{Color, mem::SingleThreadStatic};
 use engine::log;
 
 use super::{BuildingKindAndId, risks};
@@ -84,21 +84,20 @@ pub fn destroy_building(context: &SimContext, kind_and_id: BuildingKindAndId, ca
 // Destructions asked for while the building can't be despawned: the developer inspector draws it
 // when its Collapse button is pressed. Simulation::update runs them at the start of the next
 // frame, paused or not, when nothing holds the building.
-thread_local! {
-    static REQUESTS: std::cell::RefCell<Vec<(BuildingKindAndId, Destruction)>> = const { std::cell::RefCell::new(Vec::new()) };
-}
+static REQUESTS: SingleThreadStatic<Vec<(BuildingKindAndId, Destruction)>> = SingleThreadStatic::new(Vec::new());
 
 pub fn request(kind_and_id: BuildingKindAndId, cause: Destruction) {
-    REQUESTS.with_borrow_mut(|requests| requests.push((kind_and_id, cause)));
+    REQUESTS.as_mut().push((kind_and_id, cause));
 }
 
 #[inline]
 pub fn has_requests() -> bool {
-    REQUESTS.with_borrow(|requests| !requests.is_empty())
+    !REQUESTS.as_ref().is_empty()
 }
 
 pub fn run_requests(context: &SimContext) {
-    for (kind_and_id, cause) in REQUESTS.with_borrow_mut(std::mem::take) {
+    // Taken first, so a destruction that requests another doesn't alias the list.
+    for (kind_and_id, cause) in std::mem::take(REQUESTS.as_mut()) {
         destroy_building(context, kind_and_id, cause);
     }
 }
