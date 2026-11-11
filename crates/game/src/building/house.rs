@@ -996,7 +996,8 @@ impl HouseBuilding {
     // ----------------------
 
     fn population_update(&mut self, cmds: &mut SimCmds, context: &BuildingContext) {
-        if self.population.is_max() {
+        // A sick house doesn't grow.
+        if self.population.is_max() || context.has_outbreak {
             return;
         }
 
@@ -1016,6 +1017,12 @@ impl HouseBuilding {
     }
 
     fn visited_by_settler(&mut self, unit: &mut Unit, context: &BuildingContext) -> BuildingVisitResult {
+        // No one moves into a sick house.
+        if context.has_outbreak {
+            debug_popup_msg_color!(self.debug, Color::red(), "Refused settler: sickness");
+            return BuildingVisitResult::Refused;
+        }
+
         // We are already within a VisitBuilding command; execute recursive commands immediately.
         let mut cmds = ImmediateModeSimCmds::new(context.sim_ctx);
 
@@ -1047,6 +1054,26 @@ impl HouseBuilding {
         }
 
         debug_popup_msg_color!(self.debug, Color::red(), "Evicted {amount_to_evict} residents");
+    }
+
+    // Whether the house holds any food (building::risks: a house without it falls sick faster).
+    pub fn has_food(&self) -> bool {
+        self.stock.has_any_of(ResourceKind::foods())
+    }
+
+    // `count` residents die of sickness (building::risks): they leave no walker, and their jobs
+    // go with them. Returns how many died.
+    pub fn lose_residents_to_disease(&mut self, cmds: &mut SimCmds, context: &BuildingContext, count: u32) -> u32 {
+        if count == 0 || self.population.count() == 0 {
+            return 0;
+        }
+        let died = self.population.remove(count);
+        cmds.defer_building_update(context.kind_and_id(), |sim_ctx, building| {
+            let context = building.new_context(sim_ctx);
+            building.as_house_mut().adjust_workers_available(&context);
+        });
+        debug_popup_msg_color!(self.debug, Color::red(), "{died} died of sickness");
+        died
     }
 
     // Like remove_population, but the evicted residents leave the city (head for the
@@ -1541,7 +1568,8 @@ impl HouseUpgradeState {
     }
 
     fn can_upgrade(&self, context: &BuildingContext, stock: &BuildingStock) -> bool {
-        if self.level.is_max() {
+        // A sick house neither renovates nor upgrades (building::risks).
+        if self.level.is_max() || context.has_outbreak {
             return false;
         }
 

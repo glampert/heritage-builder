@@ -2957,6 +2957,39 @@
               ]
             }
           ]
+        },
+        {
+          "name": "sickness_1x1",
+          "logical_size": {
+            "width": 64,
+            "height": 32
+          },
+          "draw_size": {
+            "width": 64,
+            "height": 45
+          },
+          "variations": [
+            {
+              "anim_sets": [
+                {
+                  "frames": [
+                    {
+                      "name": "frame0"
+                    },
+                    {
+                      "name": "frame1"
+                    },
+                    {
+                      "name": "frame2"
+                    },
+                    {
+                      "name": "frame3"
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
         }
       ]
     }

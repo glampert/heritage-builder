@@ -682,6 +682,94 @@
       "tile": "scaffold_5x5",
       "variation": ""
     },
+    "assets/tiles/objects/overlays/sickness_1x1/frame0.png": {
+      "category": "overlays",
+      "density": 8,
+      "draw_size": {
+        "height": 45,
+        "width": 64
+      },
+      "fast": false,
+      "frame": "frame0",
+      "hash": "b1c376f3404edd3c",
+      "layer": "objects",
+      "logical_size": {
+        "height": 32,
+        "width": 64
+      },
+      "png_size": [
+        512,
+        360
+      ],
+      "tile": "sickness_1x1",
+      "variation": ""
+    },
+    "assets/tiles/objects/overlays/sickness_1x1/frame1.png": {
+      "category": "overlays",
+      "density": 8,
+      "draw_size": {
+        "height": 45,
+        "width": 64
+      },
+      "fast": false,
+      "frame": "frame1",
+      "hash": "3b7b459e774dd676",
+      "layer": "objects",
+      "logical_size": {
+        "height": 32,
+        "width": 64
+      },
+      "png_size": [
+        512,
+        360
+      ],
+      "tile": "sickness_1x1",
+      "variation": ""
+    },
+    "assets/tiles/objects/overlays/sickness_1x1/frame2.png": {
+      "category": "overlays",
+      "density": 8,
+      "draw_size": {
+        "height": 45,
+        "width": 64
+      },
+      "fast": false,
+      "frame": "frame2",
+      "hash": "b3eb4919da73499d",
+      "layer": "objects",
+      "logical_size": {
+        "height": 32,
+        "width": 64
+      },
+      "png_size": [
+        512,
+        360
+      ],
+      "tile": "sickness_1x1",
+      "variation": ""
+    },
+    "assets/tiles/objects/overlays/sickness_1x1/frame3.png": {
+      "category": "overlays",
+      "density": 8,
+      "draw_size": {
+        "height": 45,
+        "width": 64
+      },
+      "fast": false,
+      "frame": "frame3",
+      "hash": "85a6fbadb73fca34",
+      "layer": "objects",
+      "logical_size": {
+        "height": 32,
+        "width": 64
+      },
+      "png_size": [
+        512,
+        360
+      ],
+      "tile": "sickness_1x1",
+      "variation": ""
+    },
     "assets/tiles/objects/rocks/rubble/0000/rubble.png": {
       "category": "rocks",
       "density": 8,

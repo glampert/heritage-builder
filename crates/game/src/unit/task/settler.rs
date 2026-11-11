@@ -118,6 +118,9 @@ impl UnitTaskSettler {
                         if building.is_under_construction() {
                             return true; // Its builders move in when it completes.
                         }
+                        if building.has_outbreak() {
+                            return true; // No one moves into a sick house.
+                        }
                         if let Some(population) = building.population() {
                             if !population.is_max() {
                                 return false; // Accept this building and end the search.

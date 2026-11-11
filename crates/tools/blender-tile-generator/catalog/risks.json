@@ -2,7 +2,7 @@
   "realm": "shared",
   "palette": "viet",
   "density": 8,
-  "notes": "City risks art (docs/plans/city-risks.md): rubble pieces, named by which sides (north, east, south, west) border more rubble, and the flames over a burning building's cells.",
+  "notes": "City risks art (docs/plans/city-risks.md): rubble pieces, named by which sides (north, east, south, west) border more rubble, the flames over a burning building's cells, and the cloth and incense smoke over a sick house's cells.",
   "entries": [
     {
       "tile": "rubble",
@@ -261,6 +261,41 @@
         "ground": false
       },
       "notes": "Drawn over each cell of a burning building, looping."
+    },
+    {
+      "tile": "sickness_1x1",
+      "category": "overlays",
+      "recipe": "sickness",
+      "frames": [
+        {
+          "name": "frame0",
+          "params": {
+            "phase": 0.0
+          }
+        },
+        {
+          "name": "frame1",
+          "params": {
+            "phase": 0.25
+          }
+        },
+        {
+          "name": "frame2",
+          "params": {
+            "phase": 0.5
+          }
+        },
+        {
+          "name": "frame3",
+          "params": {
+            "phase": 0.75
+          }
+        }
+      ],
+      "validate": {
+        "ground": false
+      },
+      "notes": "Drawn over each cell of a sick house, looping."
     }
   ]
 }

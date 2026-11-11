@@ -621,6 +621,12 @@ impl SimContext {
     }
 
     #[inline]
+    pub fn risks_mut(&self) -> &mut CityRisks {
+        debug_assert!(!self.is_read_only, "Called mutable method on a read-only SimContext!");
+        self.risks.mut_ref_cast()
+    }
+
+    #[inline]
     pub fn find_tile_mut(&self, cell: Cell, tile_kinds: TileKind) -> Option<&mut Tile> {
         debug_assert!(!self.is_read_only, "Called mutable method on a read-only SimContext!");
         self.tile_map_mut().find_tile_mut(cell, tile_kinds)

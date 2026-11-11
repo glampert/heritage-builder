@@ -10,6 +10,7 @@ use game::{
         BuildingKindAndId,
         BuildingTileInfo,
         BuildingVisitResult,
+        HouseUpgradeDirection,
         config::BuildingConfigs,
         construction::ConstructionMode,
         destruction::{self, Destruction},
@@ -21,8 +22,9 @@ use game::{
     config::GameConfigs,
     debug::{game_object_debug::GameObjectDebugVarRef, preset_maps},
     menu::{PlaceOrClearResult, TilePlacement},
-    sim::{SimCmdQueue, SimContext, resources::ResourceKind, risks::CityRisks},
+    sim::{SimCmdQueue, SimContext, commands::ImmediateModeSimCmds, resources::ResourceKind, risks::CityRisks},
     tile::{TileFlags, TileKind, TileMapLayerKind, rubble},
+    config::RiskConfigs,
     undo_redo,
     world::city_stock::CityStock,
     unit::{
@@ -32,10 +34,11 @@ use game::{
         task::{
             UnitPatrolPathRecord,
             UnitTaskDespawn,
-            UnitTaskFightFire,
+            Emergency,
             UnitTaskPatrolCompletionCallback,
             UnitTaskPatrolState,
             UnitTaskRandomizedPatrol,
+            UnitTaskRespond,
         },
     },
 };
@@ -85,6 +88,20 @@ fn main() {
         test_utils::test_fn!(test_a_fire_out_of_reach_gets_no_walker),
         test_utils::test_fn!(test_a_fire_watcher_goes_on_to_the_next_fire),
         test_utils::test_fn!(test_a_fire_watcher_walks_off_the_road_to_a_fire),
+        // Disease:
+        test_utils::test_fn!(test_disease_builds_up_with_a_houses_needs),
+        test_utils::test_fn!(test_the_outbreak_chance),
+        test_utils::test_fn!(test_a_house_at_risk_falls_sick),
+        test_utils::test_fn!(test_a_medics_patrol_resets_the_disease_risk),
+        test_utils::test_fn!(test_a_sick_house_loses_residents_after_the_grace_period),
+        test_utils::test_fn!(test_an_apothecary_halves_the_deaths),
+        test_utils::test_fn!(test_a_sick_house_spreads_disease_to_the_houses_around_it),
+        test_utils::test_fn!(test_a_medic_cures_an_outbreak),
+        test_utils::test_fn!(test_a_hospital_sends_a_medic_to_an_outbreak),
+        test_utils::test_fn!(test_an_empty_sick_house_ends_its_outbreak),
+        test_utils::test_fn!(test_a_sick_house_takes_no_one_in_and_doesnt_grow),
+        test_utils::test_fn!(test_a_sick_house_that_downgrades_stays_sick),
+        test_utils::test_fn!(test_disease_can_be_off_while_risks_are_on),
         // Saves:
         test_utils::test_fn!(test_risks_round_trip_through_a_save),
     ]);
@@ -350,10 +367,17 @@ fn test_mission_risks_block() {
     let off: MissionRisksDef = serde_json::from_str(r#"{ "enabled": false }"#).expect("a valid risks block");
     risks.start_mission(&off, configs);
     assert!(!risks.is_enabled());
+    assert!(risks.is_disease_enabled(), "disease is on unless the block says otherwise");
+
+    let no_disease: MissionRisksDef = serde_json::from_str(r#"{ "disease": false }"#).expect("a valid risks block");
+    risks.start_mission(&no_disease, configs);
+    assert_eq!(risks.is_enabled(), configs.enabled, "fires and collapses keep the default");
+    assert!(!risks.is_disease_enabled());
 
     let default: MissionRisksDef = serde_json::from_str("{}").unwrap();
     risks.start_mission(&default, configs);
     assert_eq!(risks.is_enabled(), configs.enabled);
+    assert!(risks.is_disease_enabled());
 
     assert!(serde_json::from_str::<MissionRisksDef>(r#"{ "enable": false }"#).is_err(), "unknown fields are refused");
 }
@@ -886,6 +910,13 @@ fn set_debug_bool(env: &mut TestEnvironment, handle: BuildingKindAndId, name: &s
     assert!(ok, "{} has no '{name}' debug option", handle.kind);
 }
 
+// What a walker was sent to, if he's a responder (UnitTaskRespond).
+fn responder_emergency(env: &TestEnvironment, unit_id: game::unit::UnitId) -> Option<Emergency> {
+    test_utils::find_unit(env, unit_id)
+        .current_task_as::<UnitTaskRespond>(env.sim.task_manager())
+        .map(|task| task.emergency)
+}
+
 fn fire_response_is_out(env: &mut TestEnvironment, handle: BuildingKindAndId) -> bool {
     test_utils::find_building_mut(env, handle).active_runner().unwrap().is_spawned_or_pending_spawn()
 }
@@ -962,8 +993,9 @@ fn test_a_fire_watch_sends_a_walker_to_a_fire() {
         assert!(exists(&env, house), "the fire is out before the house burns down");
         assert_eq!(risk(&env, house, RiskKind::Fire), 0.0);
         let walker = test_utils::find_unit_by_config(&env, UnitConfigKey::FireWatcher).expect("the fire watcher");
-        assert!(
-            test_utils::find_unit(&env, walker).is_running_task::<UnitTaskFightFire>(env.sim.task_manager()),
+        assert_eq!(
+            responder_emergency(&env, walker),
+            Some(Emergency::Fire),
             "the fire watcher who put it out was sent to it"
         );
 
@@ -1069,7 +1101,18 @@ fn test_risks_round_trip_through_a_save() {
     let saved = serde_json::to_value(&risks).unwrap();
     let mut keys: Vec<&str> = saved.as_object().unwrap().keys().map(String::as_str).collect();
     keys.sort_unstable();
-    assert_eq!(keys, ["burning", "collapse", "fire", "near_water", "water_check_timer"]);
+    assert_eq!(keys, [
+        "burning",
+        "collapse",
+        "disease",
+        "disease_check_timer",
+        "fire",
+        "has_food",
+        "near_apothecary",
+        "near_water",
+        "outbreak",
+        "water_check_timer",
+    ]);
 
     let mut loaded: BuildingRisks = serde_json::from_value(saved).unwrap();
     loaded.post_load(cell, BuildingKind::House, configs);
@@ -1079,8 +1122,23 @@ fn test_risks_round_trip_through_a_save() {
     assert!(!loaded.is_burning());
     assert_eq!(loaded.jitter(), risks.jitter());
 
-    let rates = RiskRates { fire: 8.0, collapse: 4.0 };
+    let rates = RiskRates { fire: 8.0, collapse: 4.0, disease: 3.0 };
     assert_eq!(loaded.effective_rates(&rates, configs).fire, risks.effective_rates(&rates, configs).fire);
+
+    // An outbreak is saved with how long it has run, when the next deaths come, the share that
+    // die then, and the deaths so far.
+    let mut sick = BuildingRisks::new(cell, BuildingKind::House, configs);
+    sick.set_disease_needs(true, false);
+    sick.start_outbreak(configs);
+    sick.outbreak_mut().unwrap().secs = 41.5;
+    sick.outbreak_mut().unwrap().deaths = 3;
+    let mut loaded: BuildingRisks = serde_json::from_value(serde_json::to_value(&sick).unwrap()).unwrap();
+    loaded.post_load(cell, BuildingKind::House, configs);
+    let outbreak = loaded.outbreak().expect("still sick");
+    assert_eq!((outbreak.secs, outbreak.deaths), (41.5, 3));
+    assert_eq!(outbreak.next_death_secs, configs.death_grace_secs);
+    assert_eq!(loaded.get(RiskKind::Disease), MAX_RISK);
+    assert!(loaded.is_near_apothecary() && !loaded.has_food());
 
     // A fire is saved with the time it has left.
     risks.start_burning(12.5);
@@ -1089,6 +1147,401 @@ fn test_risks_round_trip_through_a_save() {
     assert_eq!(loaded.burning().map(|burning| burning.secs_left), Some(12.5));
     assert_eq!(loaded.get(RiskKind::Fire), MAX_RISK);
 
-    let city: CityRisks = serde_json::from_str(r#"{ "enabled": false }"#).unwrap();
+    let city: CityRisks = serde_json::from_str(r#"{ "enabled": false, "disease": false, "disease_deaths": 3 }"#).unwrap();
     assert!(!city.is_enabled());
+    assert!(!city.is_disease_enabled());
+    assert_eq!(city.disease_deaths(), 3);
+    assert!(serde_json::from_str::<CityRisks>(r#"{ "enabled": false }"#).is_err(), "a v7 city's risks need migrating");
+}
+
+// ----------------------------------------------
+// Disease
+// ----------------------------------------------
+
+// Runs `test` with risk configs changed by `change`, then puts them back.
+fn with_risk_configs<C: FnOnce(&mut RiskConfigs), F: FnOnce()>(change: C, test: F) {
+    let saved = serde_json::to_value(&GameConfigs::get().sim.risks).unwrap();
+    change(&mut GameConfigs::get_mut().sim.risks);
+    test();
+    GameConfigs::get_mut().sim.risks = serde_json::from_value(saved).unwrap();
+}
+
+fn risk_configs() -> &'static RiskConfigs {
+    &GameConfigs::get().sim.risks
+}
+
+// Sets one of a house's debug freezes, so only the risks change it.
+fn freeze_house(env: &mut TestEnvironment, house: BuildingKindAndId) {
+    for name in ["freeze_upgrade_update", "freeze_population_update", "freeze_stock_update", "freeze_deprivation"] {
+        set_debug_bool(env, house, name, true);
+    }
+}
+
+// A house of `tile` at `cell` with `population` residents, frozen but for its risks.
+fn house_with(env: &mut TestEnvironment, cell: Cell, tile: &str, population: u32) -> BuildingKindAndId {
+    let house = test_utils::spawn_building(env, cell, tile);
+    freeze_house(env, house);
+    let context = env.new_sim_context(0.0);
+    let cmds = context.cmds_mut();
+    let added = context.find_building_mut(house.kind, house.id).unwrap().add_population(cmds, &context, population);
+    cmds.execute(&context);
+    assert_eq!(added, population, "the house should take {population}");
+    house
+}
+
+fn population(env: &TestEnvironment, house: BuildingKindAndId) -> u32 {
+    building(env, house).population_count()
+}
+
+fn is_sick(env: &TestEnvironment, house: BuildingKindAndId) -> bool {
+    building(env, house).has_outbreak()
+}
+
+// Makes a house sick at once, as risks.infect does.
+fn infect(env: &mut TestEnvironment, house: BuildingKindAndId) {
+    let context = env.new_sim_context(0.0);
+    let building = context.find_building_mut(house.kind, house.id).unwrap();
+    let mut cmds = ImmediateModeSimCmds::new(&context);
+    assert!(building.start_outbreak(&mut cmds, &context), "the house should fall sick");
+}
+
+// A house's disease risk builds up at its level's rate times its jitter and how full it is,
+// three times as fast without water or food, and half as fast again with an apothecary.
+fn test_disease_builds_up_with_a_houses_needs() {
+    with_risk_configs(|configs| configs.outbreak_chance_at_max = 0.0, || with_risks(|| {
+        let mut env = TestEnvironment::new();
+        road(&mut env);
+        let house = house_with(&mut env, Cell::new(20, 11), "house2", 12);
+        let empty = house_with(&mut env, Cell::new(24, 11), "house2", 0);
+
+        let base = building(&env, house).configs().risk_rates().disease;
+        assert!(base > 0.0, "a level 2 house falls sick");
+        assert!(*building(&env, house).configs().risk_rates() == *building(&env, empty).configs().risk_rates());
+        let jitter = building(&env, house).risks().jitter();
+
+        months(&mut env, 1.0);
+        let b = building(&env, house);
+        assert!(!b.risks().is_near_water() && !b.risks().has_food() && !b.risks().is_near_apothecary());
+        assert_close(b.risk_rates().disease, base * jitter * 3.0, "rate without water or food");
+        assert_close(risk(&env, house, RiskKind::Disease), base * jitter * 3.0, "disease after a month without either");
+        assert_eq!(risk(&env, empty, RiskKind::Disease), 0.0, "an empty house builds up none");
+
+        // Food, a well and an apothecary beside it: found on the next check.
+        test_utils::find_building_mut(&mut env, house).receive_resources(ResourceKind::Rice, 5);
+        test_utils::spawn_building(&mut env, Cell::new(18, 11), "small_well");
+        test_utils::spawn_building(&mut env, Cell::new(23, 11), "apothecary");
+        secs(&mut env, risk_configs().water_check_secs + 1.0);
+        let b = building(&env, house);
+        assert!(b.risks().is_near_water() && b.risks().has_food() && b.risks().is_near_apothecary(), "needs met");
+        let cared_for = base * jitter * risk_configs().apothecary_scale;
+        assert_close(b.risk_rates().disease, cared_for, "rate with water, food and an apothecary");
+
+        test_utils::find_building_mut(&mut env, house).risks_mut().set(RiskKind::Disease, 0.0);
+        months(&mut env, 1.0);
+        assert_close(risk(&env, house, RiskKind::Disease), cared_for, "disease after a month with all three");
+
+        // Half full, half the rate.
+        let context = env.new_sim_context(0.0);
+        let cmds = context.cmds_mut();
+        context.find_building_mut(house.kind, house.id).unwrap().remove_population(cmds, &context, 6);
+        cmds.execute(&context);
+        assert_close(building(&env, house).risk_rates().disease, cared_for * 0.5, "half full");
+        while let Some(settler) = test_utils::find_unit_by_config(&env, UnitConfigKey::Settler) {
+            despawn_walker(&mut env, settler);
+        }
+
+        // Other buildings never fall sick.
+        let yard = test_utils::spawn_building(&mut env, Cell::new(4, 11), "storage_yard");
+        months(&mut env, 1.0);
+        assert_eq!(risk(&env, yard, RiskKind::Disease), 0.0);
+        assert!(!building(&env, yard).can_fall_sick());
+    }));
+}
+
+// The chance per roll: the monthly chance, outbreak_chance_at_max times (risk / 100) squared,
+// spread over a month of rolls.
+fn test_the_outbreak_chance() {
+    let configs = risk_configs();
+    let month = seconds_per_month();
+    let check = configs.disease_check_secs;
+    assert_close(risks::outbreak_chance(MAX_RISK, month, configs), configs.outbreak_chance_at_max, "a month at the top");
+    assert_close(risks::outbreak_chance(50.0, month, configs), configs.outbreak_chance_at_max * 0.25, "a month at 50");
+    assert_eq!(risks::outbreak_chance(0.0, check, configs), 0.0, "no risk, no chance");
+
+    // A month of rolls adds up to the monthly chance.
+    let per_roll = risks::outbreak_chance(MAX_RISK, check, configs);
+    let rolls = month / check;
+    assert_close(1.0 - (1.0 - per_roll).powf(rolls), configs.outbreak_chance_at_max, "a month of rolls");
+    assert!(per_roll < configs.outbreak_chance_at_max);
+}
+
+// With a sure chance, a house at the top falls sick on its next roll: drawn sick, announced,
+// with an alert. An empty one doesn't.
+fn test_a_house_at_risk_falls_sick() {
+    with_risk_configs(|configs| configs.outbreak_chance_at_max = 1.0, || with_risks(|| {
+        let _ = risks::take_notices();
+        let mut env = TestEnvironment::new();
+        road(&mut env);
+        let house = house_with(&mut env, Cell::new(20, 11), "house2", 12);
+        let empty = house_with(&mut env, Cell::new(24, 11), "house2", 0);
+        for handle in [house, empty] {
+            test_utils::find_building_mut(&mut env, handle).risks_mut().set(RiskKind::Disease, MAX_RISK);
+        }
+
+        test_utils::tick_until(&mut env, (risk_configs().disease_check_secs / TICK_SECS) as usize + 2, TICK_SECS, |env| {
+            is_sick(env, house)
+        });
+        assert!(is_sick(&env, house), "the house fell sick on its roll");
+        test_utils::tick(&mut env, TICK_SECS); // The step's commands set its tile.
+        assert!(building_tile_flags(&env, Cell::new(20, 11)).intersects(TileFlags::Diseased));
+        assert!(!is_sick(&env, empty), "no one to fall sick");
+        assert!(!building(&env, empty).can_fall_sick());
+        assert_eq!(risks::take_notices(), ["Sickness has broken out in a house."]);
+        assert_eq!(population(&env, house), 12, "no one dies in the grace period");
+    }));
+}
+
+// A medic on patrol from a hospital resets a house's disease risk, and only that.
+fn test_a_medics_patrol_resets_the_disease_risk() {
+    let mut env = TestEnvironment::new();
+    road(&mut env);
+    let house = test_utils::spawn_building(&mut env, Cell::new(10, 11), "house0");
+    {
+        let risks = test_utils::find_building_mut(&mut env, house).risks_mut();
+        risks.set(RiskKind::Disease, 70.0);
+        risks.set(RiskKind::Fire, 60.0);
+    }
+    let medic = patrol_walker(&mut env, house, BuildingKind::Hospital);
+    assert_eq!(visit(&mut env, house, medic), BuildingVisitResult::Accepted);
+    assert_eq!(risk(&env, house, RiskKind::Disease), 0.0, "a medic resets the disease risk");
+    assert_eq!(risk(&env, house, RiskKind::Fire), 60.0, "but not the fire risk");
+    despawn_walker(&mut env, medic);
+}
+
+// No one dies for death_grace_secs. Then a share dies every death_interval_secs, a bigger one
+// each time, until no one is left; the outbreak ends then, with its deaths told.
+fn test_a_sick_house_loses_residents_after_the_grace_period() {
+    with_risks(|| {
+        let _ = risks::take_notices();
+        let mut env = TestEnvironment::new();
+        road(&mut env);
+        let house = house_with(&mut env, Cell::new(20, 11), "house2", 12);
+        infect(&mut env, house);
+        assert!(building_tile_flags(&env, Cell::new(20, 11)).intersects(TileFlags::Diseased), "drawn sick at once");
+        let configs = risk_configs();
+
+        secs(&mut env, configs.death_grace_secs - 1.0);
+        assert_eq!(population(&env, house), 12, "no one dies in the grace period");
+
+        // 10% of 12, then 15% of 11, 20% of 9, ..., up to 30%; at least one each time.
+        let expected = [11, 9, 7, 5, 3, 2, 1];
+        secs(&mut env, 1.5);
+        assert_eq!(population(&env, house), expected[0], "the first deaths");
+        for left in &expected[1..] {
+            secs(&mut env, configs.death_interval_secs);
+            assert_eq!(population(&env, house), *left, "deaths every {}s", configs.death_interval_secs);
+            assert!(is_sick(&env, house));
+        }
+
+        secs(&mut env, configs.death_interval_secs);
+        assert_eq!(population(&env, house), 0, "the last one dies");
+        test_utils::tick(&mut env, TICK_SECS);
+        assert!(!is_sick(&env, house), "with no one left, it's over");
+        assert_eq!(risk(&env, house, RiskKind::Disease), MAX_RISK / 2.0, "the next residents start at some risk");
+        assert!(!building_tile_flags(&env, Cell::new(20, 11)).intersects(TileFlags::Diseased));
+        assert_eq!(env.sim.risks().disease_deaths(), 12);
+        assert_eq!(risks::take_notices(), ["Sickness has broken out in a house.", "The sickness at the house is over. 12 people died."]);
+        assert!(exists(&env, house), "the house stands, empty");
+    });
+}
+
+// An apothecary in reach halves the share that die.
+fn test_an_apothecary_halves_the_deaths() {
+    with_risks(|| {
+        let mut env = TestEnvironment::new();
+        road(&mut env);
+        let house = house_with(&mut env, Cell::new(20, 11), "house4", 25);
+        test_utils::spawn_building(&mut env, Cell::new(25, 11), "apothecary");
+        secs(&mut env, risk_configs().water_check_secs + 1.0);
+        assert!(building(&env, house).risks().is_near_apothecary());
+
+        infect(&mut env, house);
+        secs(&mut env, risk_configs().death_grace_secs + 0.5);
+        // 25 x 10% x 0.5 = 1.25: one dies, where 3 would without it (2.5, rounded up).
+        assert_eq!(population(&env, house), 24);
+        secs(&mut env, risk_configs().death_interval_secs);
+        // 24 x 15% x 0.5 = 1.8: two.
+        assert_eq!(population(&env, house), 22);
+    });
+}
+
+// A sick house adds disease risk to every house within disease_spread_cells of it, and to
+// nothing else.
+fn test_a_sick_house_spreads_disease_to_the_houses_around_it() {
+    with_risk_configs(|configs| configs.outbreak_chance_at_max = 0.0, || with_risks(|| {
+        let mut env = TestEnvironment::new();
+        road(&mut env);
+        let sick = house_with(&mut env, Cell::new(20, 11), "house2", 12); // x 20..=21, y 11..=12
+        let near = house_with(&mut env, Cell::new(23, 12), "house0", 0); // one cell between
+        let far = house_with(&mut env, Cell::new(25, 11), "house0", 0); // three cells between
+        let yard = test_utils::spawn_building(&mut env, Cell::new(16, 11), "storage_yard"); // touching
+        infect(&mut env, sick);
+
+        secs(&mut env, 10.0);
+        let spread = risk_configs().disease_spread_per_sec * 10.0;
+        assert_close(risk(&env, near, RiskKind::Disease), spread, "the house nearby");
+        assert_eq!(risk(&env, far, RiskKind::Disease), 0.0, "out of reach");
+        assert_eq!(risk(&env, yard, RiskKind::Disease), 0.0, "not a house");
+    }));
+}
+
+// A medic's visit cures a sick house: no more deaths, no disease risk, drawn well again.
+fn test_a_medic_cures_an_outbreak() {
+    with_risks(|| {
+        let _ = risks::take_notices();
+        let mut env = TestEnvironment::new();
+        road(&mut env);
+        let house = house_with(&mut env, Cell::new(10, 11), "house2", 12);
+        infect(&mut env, house);
+        secs(&mut env, risk_configs().death_grace_secs + 0.5);
+        assert_eq!(population(&env, house), 11);
+
+        let monk = patrol_walker(&mut env, house, BuildingKind::Temple);
+        assert_eq!(visit(&mut env, house, monk), BuildingVisitResult::Refused, "a monk can't cure it");
+        assert!(is_sick(&env, house));
+
+        let medic = patrol_walker(&mut env, house, BuildingKind::Hospital);
+        assert_eq!(visit(&mut env, house, medic), BuildingVisitResult::Accepted);
+        assert!(!is_sick(&env, house), "cured");
+        assert_eq!(risk(&env, house, RiskKind::Disease), 0.0);
+        assert!(!building_tile_flags(&env, Cell::new(10, 11)).intersects(TileFlags::Diseased));
+        for walker in [monk, medic] {
+            despawn_walker(&mut env, walker);
+        }
+
+        secs(&mut env, risk_configs().death_interval_secs * 3.0);
+        assert_eq!(population(&env, house), 11, "no one dies after the cure");
+        assert_eq!(risks::take_notices(), ["Sickness has broken out in a house.", "The sickness at the house is over. 1 person died."]);
+    });
+}
+
+// A hospital sends a medic to an outbreak within its radius, who cures it in the grace period
+// and comes home. Its patrol is held back, so the cure is the dispatch's.
+fn test_a_hospital_sends_a_medic_to_an_outbreak() {
+    with_risks(|| {
+        let mut env = TestEnvironment::new();
+        road(&mut env);
+        let hospital = test_utils::spawn_building(&mut env, Cell::new(5, 11), "hospital");
+        set_debug_bool(&mut env, hospital, "freeze_patrol", true);
+        let house = house_with(&mut env, Cell::new(20, 11), "house2", 12);
+
+        infect(&mut env, house);
+        test_utils::tick(&mut env, TICK_SECS);
+        assert!(fire_response_is_out(&mut env, hospital), "the hospital sends someone");
+        let medic = test_utils::find_unit_by_config(&env, UnitConfigKey::Medic).expect("a medic sent out");
+        assert_eq!(responder_emergency(&env, medic), Some(Emergency::Outbreak));
+
+        test_utils::tick_until(&mut env, (risk_configs().death_grace_secs / TICK_SECS) as usize, TICK_SECS, |env| {
+            !is_sick(env, house)
+        });
+        assert!(!is_sick(&env, house), "cured before anyone died");
+        assert_eq!(population(&env, house), 12);
+
+        test_utils::tick_until(&mut env, 200, TICK_SECS, |env| !test_utils::unit_exists(env, medic));
+        assert!(!fire_response_is_out(&mut env, hospital), "back home, ready for the next outbreak");
+    });
+}
+
+// A sick house that empties for another reason (its residents leave) ends its outbreak too.
+fn test_an_empty_sick_house_ends_its_outbreak() {
+    with_risks(|| {
+        let _ = risks::take_notices();
+        let mut env = TestEnvironment::new();
+        road(&mut env);
+        let house = house_with(&mut env, Cell::new(20, 11), "house0", 2);
+        infect(&mut env, house);
+
+        let context = env.new_sim_context(0.0);
+        let cmds = context.cmds_mut();
+        context.find_building_mut(house.kind, house.id).unwrap().remove_population(cmds, &context, 2);
+        cmds.execute(&context);
+        test_utils::tick_n(&mut env, 2, TICK_SECS);
+
+        assert!(!is_sick(&env, house), "no one left to be sick");
+        assert_eq!(risk(&env, house, RiskKind::Disease), MAX_RISK / 2.0);
+        // The residents who left, off to look for a home elsewhere.
+        while let Some(settler) = test_utils::find_unit_by_config(&env, UnitConfigKey::Settler) {
+            despawn_walker(&mut env, settler);
+        }
+        let notices = risks::take_notices();
+        assert_eq!(notices.last().map(String::as_str), Some("The sickness at the house is over."), "no one died of it");
+    });
+}
+
+// A sick house takes in no settlers, doesn't grow, and isn't merged into a neighbour; a healthy
+// one beside it grows.
+fn test_a_sick_house_takes_no_one_in_and_doesnt_grow() {
+    with_risk_configs(|configs| configs.death_grace_secs = 100_000.0, || with_risks(|| {
+        let mut env = TestEnvironment::new();
+        road(&mut env);
+        let sick = house_with(&mut env, Cell::new(20, 11), "house2", 4);
+        let well = house_with(&mut env, Cell::new(24, 11), "house2", 4);
+        for house in [sick, well] {
+            set_debug_bool(&mut env, house, "freeze_population_update", false);
+        }
+        infect(&mut env, sick);
+
+        // A healthy house would read this settler's task (he has none, so it would panic); the
+        // sick one turns him away before that.
+        let settler = test_utils::spawn_unit(&mut env, Cell::new(22, 10), UnitConfigKey::Settler);
+        assert_eq!(visit(&mut env, sick, settler), BuildingVisitResult::Refused, "no one moves into a sick house");
+        despawn_walker(&mut env, settler);
+        let well_population = population(&env, well);
+
+        months(&mut env, 5.0);
+        assert_eq!(population(&env, sick), 4, "the sick house didn't grow");
+        assert!(population(&env, well) > well_population, "the healthy one did");
+    }));
+}
+
+// A sick house that downgrades keeps its outbreak, and its new tile is drawn sick too.
+fn test_a_sick_house_that_downgrades_stays_sick() {
+    with_risks(|| {
+        let mut env = TestEnvironment::new();
+        road(&mut env);
+        let house = house_with(&mut env, Cell::new(20, 11), "house2", 8);
+        infect(&mut env, house);
+
+        let context = env.new_sim_context(0.0);
+        let cmds = context.cmds_mut();
+        cmds.upgrade_house(house, HouseUpgradeDirection::Downgrade);
+        cmds.execute(&context);
+
+        assert!(building(&env, house).as_house().level() == game::building::HouseLevel::Level1, "downgraded");
+        assert!(is_sick(&env, house), "still sick");
+        let base_cell = building(&env, house).base_cell();
+        assert!(building_tile_flags(&env, base_cell).intersects(TileFlags::Diseased), "the new tile shows it");
+    });
+}
+
+// With disease off for the game, houses build up no disease risk and don't fall sick, while
+// fire still builds up.
+fn test_disease_can_be_off_while_risks_are_on() {
+    with_risk_configs(|configs| configs.outbreak_chance_at_max = 1.0, || with_risks(|| {
+        let mut env = TestEnvironment::new();
+        road(&mut env);
+        let house = house_with(&mut env, Cell::new(20, 11), "house2", 12);
+        env.sim.risks_mut().set_disease_enabled(false);
+        test_utils::find_building_mut(&mut env, house).risks_mut().set(RiskKind::Disease, 60.0);
+
+        months(&mut env, 1.0);
+        assert_eq!(risk(&env, house, RiskKind::Disease), 60.0, "no build-up");
+        assert!(!is_sick(&env, house), "no outbreak");
+        assert!(risk(&env, house, RiskKind::Fire) > 0.0, "fire still builds up");
+
+        env.sim.risks_mut().set_disease_enabled(true);
+        test_utils::find_building_mut(&mut env, house).risks_mut().set(RiskKind::Disease, MAX_RISK);
+        secs(&mut env, risk_configs().disease_check_secs + 1.0);
+        assert!(is_sick(&env, house), "on again");
+    }));
 }

@@ -484,7 +484,11 @@ impl TileMapRenderer {
                 } else if tile.has_flags(TileFlags::Burning) {
                     // On fire: darkened, with flames over each of its cells.
                     render_sys.draw_textured_colored_rect(tile_screen_rect, tex_coords, texture, color * BURNING_COLOR);
-                    draw_fire_overlay(render_sys, tile, transform, tile_map.overlay_anim_secs(), highlight_color);
+                    draw_cell_overlay(render_sys, tile, transform, tile_map.overlay_anim_secs(), highlight_color, &FIRE_TILE, FIRE_FRAME_SECS);
+                } else if tile.has_flags(TileFlags::Diseased) {
+                    // A sick house: a sickly tint, with a yellow cloth and incense smoke over each of its cells.
+                    render_sys.draw_textured_colored_rect(tile_screen_rect, tex_coords, texture, color * DISEASED_COLOR);
+                    draw_cell_overlay(render_sys, tile, transform, tile_map.overlay_anim_secs(), highlight_color, &SICKNESS_TILE, SICKNESS_FRAME_SECS);
                 } else if tile.has_flags(TileFlags::Renovating) {
                     // A house being renovated before an upgrade: lightly tinted, with scaffolding over it.
                     render_sys.draw_textured_colored_rect(tile_screen_rect, tex_coords, texture, color * RENOVATION_COLOR);
@@ -690,7 +694,7 @@ fn construction_overlay(
 }
 
 // ----------------------------------------------
-// Fires
+// Fires and sickness
 // ----------------------------------------------
 
 // The flames drawn over each cell of a burning building (building::risks), from the tile
@@ -703,14 +707,25 @@ const FIRE_FRAME_SECS: f32 = 0.15;
 // A burning building, darkened under its flames.
 const BURNING_COLOR: Color = Color::new(0.5, 0.42, 0.38, 1.0);
 
-fn draw_fire_overlay(
+// The cloth and smoke drawn over each cell of a sick house, looping more slowly than flames.
+const SICKNESS_TILE: StrHashPair = StrHashPair::from_str("sickness_1x1");
+const SICKNESS_FRAME_SECS: f32 = 0.3;
+
+// A sick house, faintly yellow-green.
+const DISEASED_COLOR: Color = Color::new(0.86, 0.93, 0.7, 1.0);
+
+// An animated 1x1 overlay (`overlay`, from the objects tile set's overlays category) over each
+// cell of `tile`, each cell at its own frame.
+fn draw_cell_overlay(
     render_sys: &mut RenderSystem,
     tile: &Tile,
     transform: WorldToScreenTransform,
     anim_secs: f32,
     color: Color,
+    overlay: &StrHashPair,
+    default_frame_secs: f32,
 ) {
-    let Some(def) = TileSets::get().try_find_tile_def_by_hash(TileMapLayerKind::Objects, OBJECTS_OVERLAYS_CATEGORY.hash, FIRE_TILE.hash)
+    let Some(def) = TileSets::get().try_find_tile_def_by_hash(TileMapLayerKind::Objects, OBJECTS_OVERLAYS_CATEGORY.hash, overlay.hash)
     else {
         return;
     };
@@ -722,7 +737,7 @@ fn draw_fire_overlay(
         return;
     }
 
-    let frame_secs = if anim_set.frame_duration_secs() > 0.0 { anim_set.frame_duration_secs() } else { FIRE_FRAME_SECS };
+    let frame_secs = if anim_set.frame_duration_secs() > 0.0 { anim_set.frame_duration_secs() } else { default_frame_secs };
     let tick = (anim_secs / frame_secs) as usize;
 
     let mut flames = SmallVec::<[(Rect, &'static TileTexInfo); 25]>::new();
@@ -734,7 +749,7 @@ fn draw_fire_overlay(
         flames.push((coords::iso_to_screen_rect_f32(iso, def.draw_size, transform), &sprite.tex_info));
     }
 
-    // Back to front: the flames lower on screen stand in front.
+    // Back to front: the pieces lower on screen stand in front.
     flames.sort_by(|a, b| a.0.max.y.total_cmp(&b.0.max.y));
     for (rect, tex_info) in flames {
         render_sys.draw_textured_colored_rect(rect, &tex_info.coords, tex_info.texture, color);

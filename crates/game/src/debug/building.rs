@@ -307,19 +307,42 @@ impl Building {
 }
 
 impl Building {
-    // Fire and collapse risk (building::risks): the raw values, and buttons to set the building on
-    // fire or collapse it, shown when it can.
+    // Fire, collapse and disease risk (building::risks): the raw values, and buttons to set the
+    // building on fire, collapse it or make it sick, shown when it can.
     fn draw_debug_ui_risks(&mut self, cmds: &mut SimCmds, context: &BuildingContext, ui_sys: &UiSystem) {
         let rates = self.risk_rates();
+        let has_disease = self.configs().risk_rates().disease > 0.0;
+        let fullness = self.fullness();
         let risks = self.risks();
         ui::text(ui_sys, format_small!("Fire risk: {:.2} (+{:.2} a month)", risks.get(RiskKind::Fire), rates.fire));
         ui::text(ui_sys, format_small!("Collapse risk: {:.2} (+{:.2} a month)", risks.get(RiskKind::Collapse), rates.collapse));
+        if has_disease {
+            ui::text(ui_sys, format_small!("Disease risk: {:.2} (+{:.2} a month)", risks.get(RiskKind::Disease), rates.disease));
+            ui::text(ui_sys, format_small!(
+                "Needs: water {}, food {}, apothecary {}; fullness {:.2}",
+                risks.is_near_water(),
+                risks.has_food(),
+                risks.is_near_apothecary(),
+                fullness
+            ));
+        }
         ui::text(ui_sys, format_small!("Near water: {}, jitter: {:.3}", risks.is_near_water(), risks.jitter()));
         if let Some(burning) = risks.burning() {
             ui::text_colored(ui_sys, Color::red(), format_small!("Burning: {:.1}s left", burning.secs_left));
         }
+        if let Some(outbreak) = risks.outbreak() {
+            ui::text_colored(ui_sys, Color::yellow(), format_small!(
+                "Sick for {:.1}s: next deaths at {:.1}s ({:.0}%), {} died so far",
+                outbreak.secs,
+                outbreak.next_death_secs,
+                outbreak.fraction * 100.0,
+                outbreak.deaths
+            ));
+        }
         if !context.sim_ctx.risks().is_active() {
             ui::text_colored(ui_sys, Color::yellow(), "Risks are off: a fire neither spreads nor burns down.");
+        } else if has_disease && !context.sim_ctx.risks().is_disease_active() {
+            ui::text_colored(ui_sys, Color::yellow(), "Disease is off in this game.");
         }
 
         ui::separator(ui_sys);
@@ -339,6 +362,23 @@ impl Building {
             }
         } else {
             ui::text(ui_sys, format_small!("Can't collapse: {}.", self.risk_blocker(self.configs().risk_rates().collapse)));
+        }
+
+        if has_disease {
+            if self.can_fall_sick() {
+                if ui::button(ui_sys, "Start Outbreak") {
+                    self.start_outbreak(cmds, context.sim_ctx);
+                }
+            } else {
+                let reason = if self.has_outbreak() {
+                    "it's sick already"
+                } else if self.population_count() == 0 && !self.is_under_construction() && !self.is_burning() {
+                    "no one lives in it"
+                } else {
+                    self.risk_blocker(self.configs().risk_rates().disease)
+                };
+                ui::text(ui_sys, format_small!("Can't fall sick: {reason}."));
+            }
         }
     }
 

@@ -68,12 +68,14 @@ pub struct MissionFinanceDef {
     pub wage: Option<u32>,
 }
 
-// Fire and collapse risks in a mission (docs/plans/city-risks.md). Missions that come before the
-// fire watch and the builders' guild turn them off.
+// City risks in a mission (docs/plans/city-risks.md). Missions that come before the fire watch
+// and the builders' guild turn them off; `disease` (on unless set) leaves houses falling sick out
+// while keeping fires and collapses.
 #[derive(Clone, Default, Serialize, Deserialize)]
 #[serde(default, deny_unknown_fields)]
 pub struct MissionRisksDef {
     pub enabled: Option<bool>,
+    pub disease: Option<bool>,
 }
 
 // How a mission's starting map is loaded.

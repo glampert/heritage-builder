@@ -21,7 +21,7 @@ use crate::{
     sim::SimCmds,
     world::object::{GameObject, Spawner},
     pathfind::{Node, NodeKind as PathNodeKind},
-    tile::{TileKind, TileMapLayerKind, sets::TileDef},
+    tile::{TileFlags, TileKind, TileMapLayerKind, sets::TileDef},
 };
 
 // ----------------------------------------------
@@ -198,6 +198,11 @@ pub fn try_replace_tile(
     // Update game object handle:
     new_tile.set_game_object_handle(prev_game_object_handle);
     debug_assert!(new_tile.cell_range() == new_cell_range);
+
+    // A sick house that downgrades is still sick: the new tile shows it too.
+    if dest_house.has_outbreak() {
+        tile_map.set_tile_flags(new_cell_range.start, TileKind::Building, TileFlags::Diseased, true);
+    }
 
     // Update cell range cached in the building & context:
     if new_cell_range != prev_cell_range {
@@ -573,11 +578,15 @@ fn house_for_id_mut<'game>(context: &'game BuildingContext, id: BuildingId) -> &
         .expect("Invalid Building id! Expected to have a valid House Building.")
 }
 
-// A house to merge with or expand into. A burning one is neither: the fire must burn it down
-// or be put out first.
+// A house to merge with or expand into. A burning or sick one is neither: the fire must burn it
+// down or be put out first, and a medic must cure the sickness.
 fn find_house_for_cell<'game>(context: &'game BuildingContext, cell: Cell) -> Option<&'game Building> {
     if let Some(building) = context.sim_ctx.find_building_for_cell(cell) {
-        if building.is(BuildingKind::House) && !building.is_burning() && !building.risks().is_doomed() {
+        if building.is(BuildingKind::House)
+            && !building.is_burning()
+            && !building.has_outbreak()
+            && !building.risks().is_doomed()
+        {
             return Some(building);
         }
     }

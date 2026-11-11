@@ -18,7 +18,7 @@ use crate::{
     menu::{PlaceOrClearResult, TilePlacement},
     prop::Prop,
     save_context::{PostSaveContext, PreSaveContext},
-    sim::resources::{ResourceKind, ResourceStock, StockItem, Workers},
+    sim::{commands::ImmediateModeSimCmds, resources::{ResourceKind, ResourceStock, StockItem, Workers}},
     tile::{
         Tile,
         TileKind,
@@ -130,6 +130,17 @@ pub(super) const COMMANDS: &[CommandDef] = &[
             ParamDef { name: "cell", kind: "cell", required: false, help: "A cell of the building to stock instead." },
         ],
         run: cmd_add_stock,
+    },
+    CommandDef {
+        name: "world.add_population",
+        help: "Move residents into a house at once, as settlers would, up to its room; their workers join the city's. \
+               Reports how many moved in and the house's population. Fails on a building that houses no one, a sick \
+               house and a construction site.",
+        params: &[
+            ParamDef { name: "cell", kind: "cell", required: true, help: "A cell of the house." },
+            ParamDef { name: "count", kind: "number", required: true, help: "Residents to add, above 0." },
+        ],
+        run: cmd_add_population,
     },
     CommandDef {
         name: "world.stats",
@@ -796,6 +807,55 @@ fn add_stock_to_building(context: &mut CommandContext, cell: Cell, items: &[(Res
     let stock = stock_items_json(building.stock().iter().filter(|item| item.count != 0));
     refresh_world_stats(context);
     done(json!({ "stock": stock }))
+}
+
+fn cmd_add_population(context: &mut CommandContext, params: Value) -> CommandResult {
+    #[derive(Deserialize)]
+    #[serde(deny_unknown_fields)]
+    struct Params {
+        cell: CellParam,
+        count: u32,
+    }
+
+    let params: Params = parse_params(params)?;
+    context.require_map()?;
+    if params.count == 0 {
+        return Err(CommandError::invalid_params("count must be above 0."));
+    }
+    let cell = params.cell.0;
+    context.require_cell_in_map(cell)?;
+
+    let handle = {
+        let session = &*context.session;
+        let building = session
+            .world()
+            .find_building_for_cell(cell, session.tile_map())
+            .ok_or_else(|| CommandError::not_found(format!("No building at [{}, {}].", cell.x, cell.y)))?;
+        let reason = if building.population().is_none() {
+            Some("it houses no one")
+        } else if building.is_under_construction() {
+            Some("it's a construction site")
+        } else if building.has_outbreak() {
+            Some("it's sick")
+        } else {
+            None
+        };
+        if let Some(reason) = reason {
+            return Err(CommandError::failed(format!("The {} takes no residents: {reason}.", building.name())));
+        }
+        building.kind_and_id()
+    };
+
+    let delta_time_secs = context.engine.frame_clock().delta_time();
+    let added = context.session.with_sim_context(delta_time_secs, |sim_context| {
+        let building = sim_context.find_building_mut(handle.kind, handle.id).unwrap();
+        let mut cmds = ImmediateModeSimCmds::new(sim_context);
+        building.add_population(&mut cmds, sim_context, params.count)
+    });
+
+    refresh_world_stats(context);
+    let building = context.session.world().find_building(handle.kind, handle.id).unwrap();
+    done(json!({ "added": added, "population": building.population_count() }))
 }
 
 fn cmd_stats(context: &mut CommandContext, _params: Value) -> CommandResult {

@@ -1,13 +1,19 @@
-// Fire and collapse risk per building (docs/plans/city-risks.md).
+// Fire, collapse and disease risk per building (docs/plans/city-risks.md).
 //
 // Each risk builds up from 0 to MAX_RISK at its building config's rate, in points per calendar
 // month, and a patrol walker's visit resets it: a fire watcher's the fire risk, a builder's the
-// collapse risk. A well within reach halves the fire risk's rate.
+// collapse risk, a medic's the disease risk. A well within reach halves the fire risk's rate.
 //
 // A building whose collapse risk reaches the top collapses; one whose fire risk does catches
 // fire. A burning building stops working and raises its neighbours' fire risk, and burns down
 // after `burn_secs` unless a fire watcher puts the fire out. Building::update drives this, and
 // building::destruction removes what burns down or collapses and leaves rubble.
+//
+// Disease is a house's (§6): its rate grows with the house's level and how full it is, faster
+// without water or food and slower with an apothecary in reach. A disease risk at the top sets
+// nothing off; instead the house rolls for an outbreak now and then, at a chance that grows with
+// the risk. A sick house spreads disease risk to the houses around it and loses residents to
+// death after a grace period, until a medic's visit cures it or no one is left.
 
 use serde::{Deserialize, Serialize};
 use strum::{Display, EnumCount, EnumIter, EnumString};
@@ -25,7 +31,7 @@ use super::BuildingKind;
 use crate::{
     config::{GameConfigs, RiskConfigs},
     sim::SimContext,
-    unit::{Unit, task::UnitTaskFightFire},
+    unit::{Unit, task::UnitTaskRespond},
 };
 
 // A risk's ceiling: a building at MAX_RISK is due to catch fire or collapse.
@@ -44,6 +50,7 @@ pub const RISK_HIGH: f32 = 75.0;
 pub enum RiskKind {
     Fire,
     Collapse,
+    Disease,
 }
 
 // ----------------------------------------------
@@ -51,33 +58,36 @@ pub enum RiskKind {
 // ----------------------------------------------
 
 // How fast a building's risks build up, in points per calendar month: the `risks` block of its
-// building config. Left out, both are 0 and the building never burns or collapses.
+// building config. Left out, they are 0 and the building never burns, collapses or falls sick.
+// Only house levels give a disease rate.
 #[derive(Copy, Clone, Default, PartialEq, DrawDebugUi, Serialize, Deserialize)]
 #[serde(default, deny_unknown_fields)]
 pub struct RiskRates {
     pub fire: f32,
     pub collapse: f32,
+    pub disease: f32,
 }
 
 impl RiskRates {
-    pub const ZERO: Self = Self { fire: 0.0, collapse: 0.0 };
+    pub const ZERO: Self = Self { fire: 0.0, collapse: 0.0, disease: 0.0 };
 
     #[inline]
     pub fn get(&self, kind: RiskKind) -> f32 {
         match kind {
             RiskKind::Fire => self.fire,
             RiskKind::Collapse => self.collapse,
+            RiskKind::Disease => self.disease,
         }
     }
 
     #[inline]
     pub fn is_zero(&self) -> bool {
-        self.fire <= 0.0 && self.collapse <= 0.0
+        self.fire <= 0.0 && self.collapse <= 0.0 && self.disease <= 0.0
     }
 
     #[inline]
     pub fn scaled(&self, factor: f32) -> Self {
-        Self { fire: self.fire * factor, collapse: self.collapse * factor }
+        Self { fire: self.fire * factor, collapse: self.collapse * factor, disease: self.disease * factor }
     }
 }
 
@@ -92,6 +102,20 @@ pub struct BurningState {
 }
 
 // ----------------------------------------------
+// OutbreakState
+// ----------------------------------------------
+
+// A sick house: how long it has been sick, when its residents next die, the share of them that
+// die then, and how many have died so far (for the notice when it ends).
+#[derive(Clone, Serialize, Deserialize)]
+pub struct OutbreakState {
+    pub secs: Seconds,
+    pub next_death_secs: Seconds,
+    pub fraction: f32,
+    pub deaths: u32,
+}
+
+// ----------------------------------------------
 // BuildingRisks
 // ----------------------------------------------
 
@@ -99,13 +123,23 @@ pub struct BurningState {
 pub struct BuildingRisks {
     fire: f32,
     collapse: f32,
+    disease: f32,
 
-    // Whether a small or large well reaches the building, checked on `water_check_timer`.
+    // Whether a small or large well reaches the building, checked on `water_check_timer`. A house
+    // also checks then for an apothecary in reach and for food in its stock.
     near_water: bool,
+    near_apothecary: bool,
+    has_food: bool,
     water_check_timer: UpdateTimer,
+
+    // When a house next rolls for an outbreak.
+    disease_check_timer: UpdateTimer,
 
     // Some while the building burns.
     burning: Option<BurningState>,
+
+    // Some while the house is sick.
+    outbreak: Option<OutbreakState>,
 
     // Set when the building's destruction is queued (building::destruction), which runs at the
     // end of the same step: nothing else happens to it, and it can't be queued twice. A save
@@ -130,9 +164,14 @@ impl Default for BuildingRisks {
         Self {
             fire: 0.0,
             collapse: 0.0,
+            disease: 0.0,
             near_water: false,
+            near_apothecary: false,
+            has_food: false,
             water_check_timer: UpdateTimer::default(),
+            disease_check_timer: UpdateTimer::default(),
             burning: None,
+            outbreak: None,
             doomed: false,
             jitter: default_jitter(),
         }
@@ -143,6 +182,7 @@ impl BuildingRisks {
     pub fn new(base_cell: Cell, kind: BuildingKind, configs: &RiskConfigs) -> Self {
         let mut risks = Self {
             water_check_timer: UpdateTimer::new(configs.water_check_secs),
+            disease_check_timer: UpdateTimer::new(configs.disease_check_secs),
             jitter: jitter(base_cell, kind, configs.rate_jitter),
             ..Self::default()
         };
@@ -153,6 +193,7 @@ impl BuildingRisks {
 
     pub fn post_load(&mut self, base_cell: Cell, kind: BuildingKind, configs: &RiskConfigs) {
         self.water_check_timer.post_load(configs.water_check_secs);
+        self.disease_check_timer.post_load(configs.disease_check_secs);
         self.refresh_jitter(base_cell, kind, configs);
     }
 
@@ -167,6 +208,7 @@ impl BuildingRisks {
         match kind {
             RiskKind::Fire => self.fire,
             RiskKind::Collapse => self.collapse,
+            RiskKind::Disease => self.disease,
         }
     }
 
@@ -176,6 +218,7 @@ impl BuildingRisks {
         match kind {
             RiskKind::Fire => self.fire = value,
             RiskKind::Collapse => self.collapse = value,
+            RiskKind::Disease => self.disease = value,
         }
     }
 
@@ -184,21 +227,38 @@ impl BuildingRisks {
         self.set(kind, self.get(kind) + amount);
     }
 
-    // A patrol walker's visit: a fire watcher's resets the fire risk, a builder's the collapse risk.
+    // A patrol walker's visit: a fire watcher's resets the fire risk, a builder's the collapse
+    // risk, a medic's the disease risk.
     #[inline]
     pub fn reset(&mut self, kind: RiskKind) {
         self.set(kind, 0.0);
     }
 
-    // The higher of the two risks.
+    // The highest of the risks.
     #[inline]
     pub fn highest(&self) -> f32 {
-        self.fire.max(self.collapse)
+        self.fire.max(self.collapse).max(self.disease)
     }
 
     #[inline]
     pub fn is_near_water(&self) -> bool {
         self.near_water
+    }
+
+    #[inline]
+    pub fn is_near_apothecary(&self) -> bool {
+        self.near_apothecary
+    }
+
+    #[inline]
+    pub fn has_food(&self) -> bool {
+        self.has_food
+    }
+
+    #[inline]
+    pub fn set_disease_needs(&mut self, near_apothecary: bool, has_food: bool) {
+        self.near_apothecary = near_apothecary;
+        self.has_food = has_food;
     }
 
     #[inline]
@@ -236,6 +296,45 @@ impl BuildingRisks {
     }
 
     #[inline]
+    pub fn has_outbreak(&self) -> bool {
+        self.outbreak.is_some()
+    }
+
+    #[inline]
+    pub fn outbreak(&self) -> Option<&OutbreakState> {
+        self.outbreak.as_ref()
+    }
+
+    #[inline]
+    pub fn outbreak_mut(&mut self) -> Option<&mut OutbreakState> {
+        self.outbreak.as_mut()
+    }
+
+    // Makes the house sick, its disease risk at the top. No one dies for `death_grace_secs`.
+    pub fn start_outbreak(&mut self, configs: &RiskConfigs) {
+        self.outbreak = Some(OutbreakState {
+            secs: 0.0,
+            next_death_secs: configs.death_grace_secs.max(0.0),
+            fraction: configs.death_fraction.max(0.0),
+            deaths: 0,
+        });
+        self.disease = MAX_RISK;
+    }
+
+    // Ends the outbreak with the disease risk at `disease`, returning how many died of it.
+    pub fn end_outbreak(&mut self, disease: f32) -> u32 {
+        let deaths = self.outbreak.take().map_or(0, |outbreak| outbreak.deaths);
+        self.set(RiskKind::Disease, disease);
+        deaths
+    }
+
+    // Ticks the outbreak roll's timer: true when the house should roll again.
+    #[inline]
+    pub fn disease_check_due(&mut self, delta_time_secs: Seconds) -> bool {
+        self.disease_check_timer.tick(delta_time_secs).should_update()
+    }
+
+    #[inline]
     pub fn is_doomed(&self) -> bool {
         self.doomed
     }
@@ -251,13 +350,31 @@ impl BuildingRisks {
     }
 
     // The rates this building's risks build up at now, in points per month: its config's, times
-    // its jitter, with the fire rate scaled down near water.
+    // its jitter, with the fire rate scaled down near water and the disease rate by its needs.
+    // How full a house is scales its disease rate too; Building::risk_rates applies that.
     pub fn effective_rates(&self, config_rates: &RiskRates, configs: &RiskConfigs) -> RiskRates {
         let mut rates = config_rates.scaled(self.jitter);
         if self.near_water {
             rates.fire *= configs.near_water_fire_scale;
         }
+        rates.disease *= self.disease_needs_factor(configs);
         rates
+    }
+
+    // What a house's needs make of its disease rate: 1, plus `missing_water_scale` without a well
+    // in reach and `missing_food_scale` without food, times `apothecary_scale` with an apothecary.
+    pub fn disease_needs_factor(&self, configs: &RiskConfigs) -> f32 {
+        let mut factor = 1.0;
+        if !self.near_water {
+            factor += configs.missing_water_scale;
+        }
+        if !self.has_food {
+            factor += configs.missing_food_scale;
+        }
+        if self.near_apothecary {
+            factor *= configs.apothecary_scale;
+        }
+        factor.max(0.0)
     }
 
     // Ticks the well check's timer: true when it's time to look for wells again.
@@ -271,32 +388,53 @@ impl BuildingRisks {
         self.near_water = near_water;
     }
 
-    // Builds up both risks over `delta_time_secs` of simulated time.
-    pub fn build_up(&mut self, config_rates: &RiskRates, configs: &RiskConfigs, delta_time_secs: Seconds) {
+    // Builds up the risks over `delta_time_secs` of simulated time at `rates` (effective_rates,
+    // and for a house how full it is). A sick house's disease risk stays at the top.
+    pub fn build_up(&mut self, rates: &RiskRates, delta_time_secs: Seconds) {
         let seconds_per_month = GameConfigs::get().sim.seconds_per_month;
         if seconds_per_month <= 0.0 {
             return;
         }
-        let rates = self.effective_rates(config_rates, configs);
         let months = delta_time_secs / seconds_per_month;
         self.add(RiskKind::Fire, rates.fire * months);
         self.add(RiskKind::Collapse, rates.collapse * months);
+        if !self.has_outbreak() {
+            self.add(RiskKind::Disease, rates.disease * months);
+        }
     }
 }
 
+// The chance a house with `disease` risk falls sick over one roll, `check_secs` apart: the
+// monthly chance, `outbreak_chance_at_max` x (risk / 100) squared, spread over the month's rolls.
+pub fn outbreak_chance(disease: f32, check_secs: Seconds, configs: &RiskConfigs) -> f32 {
+    let seconds_per_month = GameConfigs::get().sim.seconds_per_month;
+    if disease <= 0.0 || check_secs <= 0.0 || seconds_per_month <= 0.0 {
+        return 0.0;
+    }
+    let share = (disease / MAX_RISK).clamp(0.0, 1.0);
+    let monthly = (configs.outbreak_chance_at_max * share * share).clamp(0.0, 1.0);
+    if monthly >= 1.0 {
+        return 1.0;
+    }
+    1.0 - (1.0 - monthly).powf(check_secs / seconds_per_month)
+}
+
 // The risk a walker's visit resets, if any: a fire watcher's (a patrol from a fire watch, or one
-// sent to a fire) the fire risk, a builder's (from a builders' guild) the collapse risk. Walkers
-// are told apart by their task and the building their patrol came from, as tax collectors are,
-// so a builder can wear a peasant's sprites.
+// sent to a fire) the fire risk, a builder's (from a builders' guild) the collapse risk, a
+// medic's (a patrol from a hospital, or one sent to an outbreak) the disease risk. Walkers are
+// told apart by their task and the building their patrol came from, as tax collectors are, so a
+// builder can wear a peasant's sprites.
 pub fn risk_reset_by(unit: &Unit, context: &SimContext) -> Option<RiskKind> {
-    if unit.is_running_task::<UnitTaskFightFire>(context.task_manager()) {
-        return Some(RiskKind::Fire);
+    if let Some(task) = unit.current_task_as::<UnitTaskRespond>(context.task_manager()) {
+        return Some(task.emergency.risk_kind());
     }
     let origin = unit.patrol_task_building_kind(context)?;
     if origin == BuildingKind::FireWatch {
         Some(RiskKind::Fire)
     } else if origin == BuildingKind::BuildersGuild {
         Some(RiskKind::Collapse)
+    } else if origin == BuildingKind::Hospital {
+        Some(RiskKind::Disease)
     } else {
         None
     }
@@ -306,9 +444,9 @@ pub fn risk_reset_by(unit: &Unit, context: &SimContext) -> Option<RiskKind> {
 // Notices
 // ----------------------------------------------
 
-// Fires, fires put out, buildings burnt down and collapses since the GameLoop last took them;
-// it shows each as a toast (GameLoop::notify_risks). The simulation has no Engine, hence the
-// queue, as for construction and finance notices.
+// Fires, fires put out, buildings burnt down, collapses and outbreaks since the GameLoop last
+// took them; it shows each as a toast (GameLoop::notify_risks). The simulation has no Engine,
+// hence the queue, as for construction notices.
 static NOTICES: SingleThreadStatic<Vec<String>> = SingleThreadStatic::new(Vec::new());
 
 // Logs `message` on the risks channel and queues it as a toast.
