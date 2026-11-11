@@ -548,7 +548,7 @@ The existing dialogs keep their layouts but take their panels from the Đại Lo
   - `ui_menus.jsonl` (every dialog, every realm, Continue, Custom Game start, settings commit);
   - update `ui_new_game.jsonl` to the Blank map path.
 
-**Notes (2026-11-11, load / save) (commit TODO):**
+**Notes (2026-11-11, load / save) (commit `f80d9bf`):**
 - `dialog/load_save.rs`: one `LoadOrSaveGame`; `LoadGame`/`SaveGame` open it in load or save mode. Rows (realm emblem, "Campaign I · mission 2 · <place>", save time, era date), preview (thumbnail, details), Save as field (accent outline when focused), Delete with a popup, Overwrite popup. Rebuilt when saves change (`save_header::revision`) or the window rescales, keeping the pick; the autosave timer pauses while it's open. Home rebuilds on that revision too, so deleting Continue's save disables it.
 - `save_header.rs`: a `save_header` object first in the file, all fields optional (no version bump); one this game can't read is blank. Read from the file's first and last 16 KB. Time played: a `#[serde(skip)]` session counter. Thumbnails: `saves/<name>.jpg`, the scene at `SaveGameConfigs::thumbnail_size` (`ScreenshotScale::Cover`, JPEG), deleted with the save or when a save writes none; none on web (TODO).
 - Engine: `UiTextInput` look/width/hidden label, list rows' second column and `set_current_item`, rows recording their texts, save file head/tail reads. Commands `session.save_info`, `session.delete_save`.
