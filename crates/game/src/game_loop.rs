@@ -14,7 +14,7 @@ use engine::{
     ui::{self, UiInputEvent, sound::UiSoundKey, text::UiTextCategory},
     runner::RunLoop,
     file_sys::paths::PathRef,
-    screenshot::{self, ScreenshotId, ScreenshotOutput, ScreenshotRequest, ScreenshotScale},
+    screenshot::{self, ScreenshotFormat, ScreenshotId, ScreenshotOutput, ScreenshotRequest, ScreenshotScale},
     app::{
         ApplicationEvent,
         input::{InputAction, InputKey, InputModifiers, MouseButton},
@@ -27,8 +27,9 @@ use crate::{
     debug::{self, log_viewer::LogViewer},
     launch,
     profile,
+    save_header,
     undo_redo,
-    menu::{self, GameMenusMode},
+    menu::{self, GameMenusMode, dialog::{self, DialogMenuKind}},
     config::GameConfigs,
     unit::config::UnitConfigs,
     building::{self, config::BuildingConfigs},
@@ -189,6 +190,10 @@ impl RunLoop for GameLoop {
         let enable_autosave = automation::recording::recorded_autosave(engine).unwrap_or(enable_autosave);
         automation::recording::record_game_info(engine, enable_autosave);
 
+        // Saves record the time they're made, but not in runs that must write the same saves each
+        // time: CI compares a script's save between runs and with its replay.
+        save_header::set_wall_clock(script.is_none() && !engine.is_recording() && !engine.is_replaying());
+
         // Scripts drive the input: the real mouse mustn't scroll the map in the middle of one.
         if script.is_some() {
             engine.set_input_capture(true);
@@ -245,6 +250,7 @@ impl RunLoop for GameLoop {
 
         self.update_autosave();
         self.update_screenshots();
+        save_header::poll_thumbnails(self.engine);
         self.notify_constructions_completed();
         self.notify_finances();
         self.notify_minimap_alerts();
@@ -271,6 +277,11 @@ impl RunLoop for GameLoop {
         // Input Events:
         for event in self.engine.app_events().clone() {
             self.handle_app_event(event);
+        }
+
+        // Time played: real time in game, paused or not (the frame's step, fixed under --fixed-dt).
+        if self.is_in_game() {
+            self.session.advance_time_played(delta_time_secs);
         }
 
         // Game Logic:
@@ -505,6 +516,13 @@ impl GameLoop {
             return; // Don't autosave while in the home/main menu.
         }
 
+        // Held while the Load / Save dialog is open: a save there would read its list again and
+        // build it anew, under the player picking a save or typing a name. The timer pauses meanwhile
+        // and goes on from where it stopped once the dialog closes.
+        if dialog::is_initialized() && dialog::is_in_stack(DialogMenuKind::LoadOrSaveGame) {
+            return;
+        }
+
         let delta_time_secs = self.engine.frame_clock().delta_time();
 
         if self.autosave_timer.tick(delta_time_secs).should_update() {
@@ -587,6 +605,7 @@ impl GameLoop {
         let id = self.engine.request_screenshot(ScreenshotRequest {
             include_ui,
             scale: ScreenshotScale::Pixels,
+            format: ScreenshotFormat::Png,
             output: ScreenshotOutput::File(path),
             encode_in_frame: false,
         });

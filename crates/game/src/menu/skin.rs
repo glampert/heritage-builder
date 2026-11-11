@@ -491,12 +491,19 @@ pub fn dialog_scale(window: Vec2) -> f32 {
 // shrinks. (Its width shrinks more, for the same reason: such a dialog's contents leave room
 // across, which ui.layout_issues checks.)
 pub fn dialog_content_scale(kind: &str, window: Vec2) -> f32 {
+    let content_height = |window: Vec2| dialog_content_size(kind, window).y;
+    (content_height(window) / content_height(DIALOG_REFERENCE_WINDOW)).min(1.0)
+}
+
+// The size in points of the dialog `kind`'s content area on a window of `window` points: its size
+// less its panel's content insets.
+pub fn dialog_content_size(kind: &str, window: Vec2) -> Vec2 {
     let def = dialog_def(kind);
     let size = def.size.unwrap_or(SkinDialogSize::DEFAULT);
     let panel = def.panel.as_deref().unwrap_or("dialog");
-    let [_, top, _, bottom] = current().panels.get(panel).and_then(|panel| panel.content).unwrap_or_default();
-    let content_height = |window: Vec2| (dialog_size(size, window).y - top - bottom).max(1.0);
-    (content_height(window) / content_height(DIALOG_REFERENCE_WINDOW)).min(1.0)
+    let [left, top, right, bottom] = current().panels.get(panel).and_then(|panel| panel.content).unwrap_or_default();
+    let size = dialog_size(size, window);
+    Vec2::new((size.x - left - right).max(1.0), (size.y - top - bottom).max(1.0))
 }
 
 // A dialog's offset (its `offset`, in points on the reference window) on a window of `window`
@@ -884,6 +891,28 @@ pub fn popup(context: &mut dyn UiWidgetContext, label: &str, lines: impl IntoIte
     panel(context, "popup").apply_to_message_box(UiMessageBox::new(label)).with_content(heading).with_backdrop_color(dim)
 }
 
+// A popup as popup() makes it, with `body` under its heading's lines in body text: the skin's ink
+// at the regular size ("A deleted save can't be brought back.").
+pub fn popup_with_body(
+    context: &mut dyn UiWidgetContext,
+    label: &str,
+    lines: impl IntoIterator<Item = UiString>,
+    body: impl IntoIterator<Item = UiString>,
+) -> UiMessageBox {
+    let color = color("ink");
+    let body = body.into_iter().map(|line| {
+        let text = UiText::new(line, UiFontScale::default());
+        match color {
+            Some(color) => text.with_color(color),
+            None => text,
+        }
+    });
+    popup(context, label, lines).with_content(UiMenuHeading::new(body).with_margin_bottom(BODY_MARGIN_BOTTOM))
+}
+
+// The room under a popup's body text, above its buttons, in points.
+const BODY_MARGIN_BOTTOM: f32 = 6.0;
+
 // The colour the dialogs dim the screen with behind them, in the home menu or in game.
 pub fn backdrop_dim(home_menu: bool) -> Color {
     let backdrops = &current().backdrops;
@@ -1239,6 +1268,34 @@ where
     match dropdown_look(context) {
         Some(look) => dropdown.with_look(look),
         None => dropdown,
+    }
+}
+
+// The look of text fields: the skin's `field` panel (the dropdown's), the text inside its content
+// insets (or 12 × 8 points), in the panel's text colour or ink, outlined in the accent colour while
+// it has focus (as the mockups draw the field being typed in). None if the skin has no such panel.
+pub fn text_input_look(context: &mut dyn UiWidgetContext) -> Option<UiTextInputLook> {
+    let def = current().controls.dropdown.clone();
+    if !current().panels.contains_key(&def.field) {
+        return None;
+    }
+    let SkinPanel::NineSlice { slice, content, text_color } = panel(context, &def.field) else {
+        return None;
+    };
+    let padding = match insets_points(content) {
+        Some([left, top, right, bottom]) if left + top + right + bottom > 0.0 => Vec2::new(left.max(right), top.max(bottom) * 0.5),
+        _ => Vec2::new(12.0, 8.0),
+    };
+    Some(UiTextInputLook { field: slice, padding, text_color: text_color.or_else(|| color("ink")), focus_color: color("accent") })
+}
+
+// A text field named `label` in widget paths (not drawn: a heading above it says what it is), as
+// wide as the room it's in, on the skin's field panel. Give it its callbacks.
+pub fn text_input(context: &mut dyn UiWidgetContext, label: impl Into<UiString>) -> UiTextInput {
+    let input = UiTextInput::new().with_hidden_label(label).with_width(0.0);
+    match text_input_look(context) {
+        Some(look) => input.with_look(look),
+        None => input,
     }
 }
 

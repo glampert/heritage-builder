@@ -119,15 +119,6 @@ fn on_continue() {
     }
 }
 
-// A size given on the reference window and on the smallest (`sizes`, see CARD_MIN_HEIGHTS) at a
-// dialog scale of `scale` (skin::dialog_scale): in proportion between them.
-fn by_window(sizes: (f32, f32), scale: f32) -> f32 {
-    let smallest = skin::dialog_scale(skin::DIALOG_MIN_WINDOW);
-    let (reference, minimum) = sizes;
-    let t = ((scale - smallest) / (1.0 - smallest)).clamp(0.0, 1.0);
-    minimum + (reference - minimum) * t
-}
-
 // A line of text centered in a card, `font_scale` times the body font (and the window's
 // CARD_TEXT_SCALES at a dialog scale of `scale`), in the skin's colour `color`.
 fn card_text(text: impl Into<UiString>, font_scale: f32, scale: f32, color: &str) -> UiRichText {

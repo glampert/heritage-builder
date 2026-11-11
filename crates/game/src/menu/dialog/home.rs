@@ -24,6 +24,7 @@ use crate::{
     campaign::{self, config::CampaignConfigs},
     menu::skin::EmblemState,
     profile,
+    save_header,
     session,
 };
 
@@ -114,15 +115,15 @@ struct ContinueInfo {
     tooltip: Option<String>,
 }
 
-// The last save, kept between builds of the home menu, since reading it parses the whole save. Read
-// again when the profile changes or the home menu opens (forget_last_save). Its text is made at each
-// build, in the language of the moment.
+// The last save, kept between builds of the home menu, so a build doesn't read the save's head
+// again. Read again when the profile or the saves change (a save deleted in Load / Save), or the
+// home menu opens (forget_last_save). Its text is made at each build, in the language of the moment.
 struct LastSaveCache {
-    revision: u32, // The profile's revision it was read at.
+    revision: (u32, u32), // The profile's and the saves' (save_header::revision) it was read at.
     last_save: Option<LastSave>,
 }
 
-static LAST_SAVE_CACHE: UiStaticVar<LastSaveCache> = UiStaticVar::new(LastSaveCache { revision: 0, last_save: None });
+static LAST_SAVE_CACHE: UiStaticVar<LastSaveCache> = UiStaticVar::new(LastSaveCache { revision: (0, 0), last_save: None });
 
 // Reads the last save again when the home menu is next built: it may have changed under the same
 // name (the autosave), which the profile doesn't see.
@@ -132,7 +133,7 @@ pub(super) fn forget_last_save() {
 
 fn last_save() -> LastSave {
     let cache = LAST_SAVE_CACHE.as_mut();
-    let revision = profile::revision();
+    let revision = (profile::revision(), save_header::revision());
     if cache.revision != revision || cache.last_save.is_none() {
         cache.revision = revision;
         cache.last_save = Some(read_last_save());
@@ -153,7 +154,7 @@ fn read_last_save() -> LastSave {
             LastSave::Unreadable(save)
         }
         Ok(summary) if !summary.loadable => LastSave::Incompatible(save),
-        Ok(summary) => LastSave::Loadable { save, mission: summary.mission.map(|active| (active.campaign_id, active.mission_index)) },
+        Ok(summary) => LastSave::Loadable { save, mission: summary.mission() },
     }
 }
 

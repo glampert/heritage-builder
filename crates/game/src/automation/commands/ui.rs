@@ -761,8 +761,11 @@ fn parent_path(path: &str) -> &str {
 
 fn cmd_dialog_list(_context: &mut CommandContext, _params: Value) -> CommandResult {
     require_dialogs()?;
+    // Only the kind on top of the stack is open: LoadGame and SaveGame open LoadOrSaveGame, so
+    // they're never listed as open themselves (dialog::is_open would count them).
+    let current = dialog::current();
     let dialogs: Map<String, Value> =
-        DialogMenuKind::iter().map(|kind| (kind.to_string(), Value::Bool(dialog::is_open(kind)))).collect();
+        DialogMenuKind::iter().map(|kind| (kind.to_string(), Value::Bool(current == Some(kind)))).collect();
     done(json!({ "dialogs": dialogs }))
 }
 

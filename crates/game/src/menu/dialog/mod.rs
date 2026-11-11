@@ -177,14 +177,26 @@ pub fn sync(context: &mut GameUiContext) {
     if !DialogMenusSingleton::is_initialized() {
         return;
     }
-    let dialogs = DialogMenusSingleton::get();
+    let dialogs = DialogMenusSingleton::get_mut();
     if dialogs.built != built_versions() {
         rebuild_all(context);
     } else if dialogs.menu_stack.contains(&DialogMenuKind::Home) && dialogs.profile_built != profile_versions(context) {
         // Only while the home menu shows: in game they'd read the last save for nothing, and the
         // home menu builds them again when it opens.
         rebuild_profile_dialogs(context);
+    } else if dialogs.menu_stack.contains(&DialogMenuKind::LoadOrSaveGame)
+        && !dialogs.find_dialog(DialogMenuKind::LoadOrSaveGame).menu().is_message_box_open()
+        && load_save::needs_rebuild(context)
+    {
+        // The saves changed (a save, its thumbnail, a deletion), or the window's size changed the
+        // dialog's. Not under its popup, which a rebuild would close: once it's gone.
+        dialogs.rebuild(context, |kind| kind == DialogMenuKind::LoadOrSaveGame);
     }
+}
+
+// The dialog a kind opens: LoadGame and SaveGame open LoadOrSaveGame (load_save::redirect).
+fn opened_kind(dialog_menu_kind: DialogMenuKind) -> DialogMenuKind {
+    if load_save::redirect(dialog_menu_kind).is_some() { DialogMenuKind::LoadOrSaveGame } else { dialog_menu_kind }
 }
 
 // Builds every dialog again, from the current skin and strings. The stack stays: each open
@@ -216,11 +228,12 @@ fn built_versions() -> (u32, u32) {
     (skin::version(), ui::text::version())
 }
 
-// What the dialogs that show the profile are built from too: its revision, and how large the
-// window draws the dialogs (in hundredths).
-fn profile_versions(context: &GameUiContext) -> (u32, u32) {
+// What the dialogs that show the profile are built from too: its revision, the saves' (Continue's
+// save may be deleted or written over: save_header::revision), and how large the window draws the
+// dialogs (in hundredths).
+fn profile_versions(context: &GameUiContext) -> (u32, u32, u32) {
     let scale = skin::dialog_scale(ui::screen_size(context.ui_sys));
-    (profile::revision(), (scale * 100.0).round() as u32)
+    (profile::revision(), crate::save_header::revision(), (scale * 100.0).round() as u32)
 }
 
 // Dialogs exist once the home or in-game menus have set them up (not in the dev editor alone).
@@ -230,12 +243,12 @@ pub fn is_initialized() -> bool {
 
 pub fn is_open(dialog_menu_kind: DialogMenuKind) -> bool {
     // Only the current stack top is considered "open" here.
-    current().is_some_and(|dialog| dialog == dialog_menu_kind)
+    current().is_some_and(|dialog| dialog == opened_kind(dialog_menu_kind))
 }
 
 // Whether the dialog is anywhere in the stack, on top or under others.
 pub fn is_in_stack(dialog_menu_kind: DialogMenuKind) -> bool {
-    DialogMenusSingleton::get().menu_stack.contains(&dialog_menu_kind)
+    DialogMenusSingleton::get().menu_stack.contains(&opened_kind(dialog_menu_kind))
 }
 
 pub fn open(dialog_menu_kind: DialogMenuKind, close_all_others: bool, context: &mut GameUiContext) -> bool {
@@ -422,8 +435,8 @@ struct DialogMenusSingleton {
     dialog_menus: ArrayVec<DialogMenuImpl, DIALOG_MENU_COUNT>,
     frames: ArrayVec<DialogFrame, DIALOG_MENU_COUNT>, // Each dialog's window, from the skin it was built with.
     menu_stack: ArrayVec<DialogMenuKind, DIALOG_MENU_STACK_MAX_DEPTH>,
-    built: (u32, u32),         // built_versions() when the dialogs were built.
-    profile_built: (u32, u32), // profile_versions() when the dialogs that show the profile were.
+    built: (u32, u32),              // built_versions() when the dialogs were built.
+    profile_built: (u32, u32, u32), // profile_versions() when the dialogs that show the profile were.
 }
 
 impl DialogMenusSingleton {
@@ -526,6 +539,21 @@ impl DialogMenusSingleton {
     }
 
     fn open_dialog(&mut self, dialog_menu_kind: DialogMenuKind, context: &mut GameUiContext) -> bool {
+        // LoadGame and SaveGame open LoadOrSaveGame in their mode, built afresh from the saves.
+        let dialog_menu_kind = match load_save::redirect(dialog_menu_kind) {
+            Some(mode) => {
+                let kind = DialogMenuKind::LoadOrSaveGame;
+                if self.find_dialog(kind).is_open() {
+                    return false;
+                }
+                load_save::prepare(mode);
+                self.dialog_menus[kind as usize] = kind.build_menu(context);
+                self.frames[kind as usize] = DialogFrame::from_skin(kind);
+                kind
+            }
+            None => dialog_menu_kind,
+        };
+
         let dialog = self.find_dialog(dialog_menu_kind);
         if !dialog.is_open() && dialog.open(context) {
             self.push_dialog(dialog_menu_kind);
@@ -535,6 +563,7 @@ impl DialogMenusSingleton {
     }
 
     fn close_dialog(&mut self, dialog_menu_kind: DialogMenuKind, context: &mut GameUiContext) -> bool {
+        let dialog_menu_kind = opened_kind(dialog_menu_kind);
         let dialog = self.find_dialog(dialog_menu_kind);
         if dialog.is_open() && dialog.close(context) {
             self.pop_dialog(dialog_menu_kind);
@@ -739,6 +768,16 @@ fn first_visible_dialog<Kind: Copy>(stack: &[Kind], shows_below: impl Fn(Kind) -
         first -= 1;
     }
     first
+}
+
+// A size given on the reference window and on the smallest (`sizes`: the first at 1920 × 1080, the
+// second at 1280 × 720) at a dialog scale of `scale` (skin::dialog_scale): in proportion between
+// them. For sizes that shrink faster or slower than the dialogs do (text, buttons).
+fn by_window(sizes: (f32, f32), scale: f32) -> f32 {
+    let smallest = skin::dialog_scale(skin::DIALOG_MIN_WINDOW);
+    let (reference, minimum) = sizes;
+    let t = ((scale - smallest) / (1.0 - smallest)).clamp(0.0, 1.0);
+    minimum + (reference - minimum) * t
 }
 
 // The dialogs' shared layout: the skin's dialog (its panel and size) with the title heading, then

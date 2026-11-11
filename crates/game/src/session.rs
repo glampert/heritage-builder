@@ -20,6 +20,8 @@ use crate::{
     camera::*,
     launch::{self, LaunchOptions},
     profile,
+    realm::{self, Realm},
+    save_header::{self, SaveFileContents, SaveHeader},
     undo_redo,
     world::World,
     campaign::{self, CampaignProgress},
@@ -122,7 +124,7 @@ impl GameSessionCmdQueue {
                     self.cmd_load_save_game(session, engine, configs, PathRef::from_path(&save_file));
                 }
                 GameSessionCmd::SaveGame { save_file } => {
-                    self.cmd_save_game(session, PathRef::from_path(&save_file));
+                    self.cmd_save_game(session, engine, configs, PathRef::from_path(&save_file));
                 }
             }
         }
@@ -192,9 +194,9 @@ impl GameSessionCmdQueue {
         let _ = session.load_save_game(engine, configs, save_file); // Failures are logged.
     }
 
-    fn cmd_save_game(&mut self, session: &mut GameSession, save_file: PathRef) {
+    fn cmd_save_game(&mut self, session: &mut GameSession, engine: &mut Engine, configs: &'static GameConfigs, save_file: PathRef) {
         debug_assert!(!save_file.is_empty());
-        let _ = session.save_game(save_file); // Failures are logged.
+        let _ = session.save_game_with_thumbnail(engine, configs, save_file); // Failures are logged.
     }
 }
 
@@ -331,6 +333,11 @@ pub struct GameSession {
 
     #[serde(skip)]
     menus: Option<Box<dyn GameMenusSystem>>,
+
+    // Real time spent in game in this city (save_header): advanced by GameLoop each frame in game,
+    // seeded from the save's header on load, written to the header on save.
+    #[serde(skip)]
+    time_played_secs: f64,
 }
 
 impl GameSession {
@@ -386,6 +393,18 @@ impl GameSession {
     #[inline]
     pub fn tile_map_mut(&mut self) -> &mut TileMap {
         &mut self.tile_map
+    }
+
+    // Real time spent in game in this city, across saves and loads (save_header).
+    #[inline]
+    pub fn time_played_secs(&self) -> f64 {
+        self.time_played_secs
+    }
+
+    // GameLoop calls it each frame the game is shown, with the frame's time step.
+    #[inline]
+    pub fn advance_time_played(&mut self, delta_time_secs: Seconds) {
+        self.time_played_secs += f64::from(delta_time_secs);
     }
 
     #[inline]
@@ -505,6 +524,7 @@ impl GameSession {
             tile_selection: TileSelection::default(),
             tile_map_renderer: TileMapRenderer::new(configs.engine.grid_color, configs.engine.grid_line_thickness),
             menus: None,
+            time_played_secs: 0.0,
         };
 
         session.menus = Some(session.create_game_menus_from_config(engine, configs, home_menu));
@@ -532,6 +552,7 @@ impl GameSession {
     // The active campaign mission's start: its calendar from the first day, and its finances.
     // The player's profile records the mission and the campaign as reached.
     fn start_mission(&mut self) {
+        self.time_played_secs = 0.0; // A new city.
         if let Some(mission) = campaign::active_mission() {
             profile::on_mission_started(mission.campaign_id, mission.mission_index);
         }
@@ -588,6 +609,7 @@ impl GameSession {
             );
 
             self.camera.set_map_size_in_cells(self.tile_map.size_in_cells());
+            self.time_played_secs = 0.0; // A new city.
             new_generation();
         }
 
@@ -806,35 +828,53 @@ impl Load for GameSession {
 // through the matching script in crates/tools/save-migration-scripts/.
 const CURRENT_SAVE_VERSION: u32 = 7;
 
-// Minimal struct to read just the save version ahead of a full deserialize.
-#[derive(Deserialize)]
-struct SaveVersionProbe {
-    #[serde(default)]
-    save_version: u32,
-}
-
-// What a save says about itself without loading it: its version and its campaign mission.
-#[derive(Deserialize)]
-struct SaveSummaryProbe {
-    #[serde(default)]
-    save_version: u32,
-    #[serde(default)]
-    campaign_progress: CampaignProgress,
-}
-
-// What the home menu's Continue shows of a save: whether this game can load it (its save version
-// is this game's), and the campaign mission it was saved in, if any.
+// What the menus show of a save without loading it (the home menu's Continue, the Load / Save
+// dialog): whether this game can load it (its save version is this game's) and its header (blank
+// for a save made before headers).
+#[derive(Clone, Debug, Default)]
 pub struct SaveSummary {
     pub loadable: bool,
-    pub mission: Option<campaign::ActiveMission>,
+    pub header: SaveHeader,
 }
 
-// Reads a save's summary without loading it. It still reads and parses the whole file.
-// TODO(realm-ui): P1b's save header (Phase 1, Load / Save) holds the mission, campaign and date
-// beside the version, read without parsing the session; Continue reads that instead.
+impl SaveSummary {
+    // The campaign mission it was saved in, if any: the campaign's index in campaigns.json and
+    // the mission's in it. None for a campaign or mission the configs no longer have.
+    pub fn mission(&self) -> Option<(usize, usize)> {
+        let configs = campaign::config::CampaignConfigs::get();
+        let campaign_id = self.header.campaign_id.as_deref()?;
+        let campaign_index = configs.campaigns.iter().position(|campaign| campaign.id == campaign_id)?;
+        let mission_index = self.header.mission_index?;
+        (mission_index < configs.campaigns[campaign_index].missions.len()).then_some((campaign_index, mission_index))
+    }
+}
+
+// Reads a save's version and header from the start of the file, without parsing the session.
 pub fn probe_save(save_file: PathRef) -> Result<SaveSummary, String> {
-    let probe = save::storage::load_save_file::<SaveSummaryProbe>(save_file)?;
-    Ok(SaveSummary { loadable: probe.save_version == CURRENT_SAVE_VERSION, mission: probe.campaign_progress.active })
+    let head = save_header::read_head(save_file)?;
+    Ok(SaveSummary { loadable: head.save_version == CURRENT_SAVE_VERSION, header: head.header.unwrap_or_default() })
+}
+
+// Whether `name` can name a save: a plain file name, without folders.
+pub fn is_valid_save_name(name: &str) -> bool {
+    !name.is_empty()
+        && !name.starts_with('.')
+        && !name.contains(['/', '\\', ':'])
+        && !name.contains("..")
+        && !name.chars().any(char::is_control)
+}
+
+// Deletes a save and its thumbnail.
+pub fn delete_save(save_file: PathRef) -> Result<(), String> {
+    let result = save::storage::delete_save_file(save_file);
+    save_header::bump_revision();
+    match result {
+        Ok(()) => {
+            log::info!(log::channel!("session"), "Deleted save game '{save_file}'.");
+            Ok(())
+        }
+        Err(err) => Err(log_session_error(err)),
+    }
 }
 
 impl GameSession {
@@ -849,15 +889,60 @@ impl GameSession {
         self.save_version = CURRENT_SAVE_VERSION;
 
         self.pre_save(&mut PreSaveContext::new(self.sim.cmds().clone()));
-        let save_result = save::storage::write_save_file(save_file, self);
+        // After pre_save: it captures the campaign's progress the header reads.
+        let header = self.save_header();
+        let save_result = save::storage::write_save_file(save_file, &SaveFileContents { save_header: &header, session: &*self });
         self.post_save(&mut PostSaveContext::new());
 
         // What Continue loads: every save goes through here, the autosave and session.save included.
         if save_result.is_ok() {
             profile::on_game_saved(save_file.as_str());
         }
+        save_header::bump_revision();
 
         save_result.map_err(log_session_error)
+    }
+
+    // Saves the game (save_game), then captures this frame's city as the save's thumbnail, in game.
+    pub(crate) fn save_game_with_thumbnail(
+        &mut self,
+        engine: &mut Engine,
+        configs: &'static GameConfigs,
+        save_file: PathRef,
+    ) -> Result<(), String> {
+        self.save_game(save_file)?;
+        if self.current_menus_mode().is_some_and(|mode| mode != GameMenusMode::Home) {
+            save_header::request_thumbnail(engine, configs, save_file);
+        } else {
+            // No city on screen to capture: the old thumbnail would show the game this replaced.
+            save_header::remove_stale_thumbnail(save_file);
+        }
+        Ok(())
+    }
+
+    // What the save's header says of this game now.
+    fn save_header(&self) -> SaveHeader {
+        let configs = GameConfigs::get();
+        let calendar = self.sim.calendar();
+        let date = calendar.date(configs.sim.days_per_month, configs.sim.seconds_per_month);
+
+        let mission = self.campaign_progress.active.as_ref();
+        let campaign = mission.and_then(|mission| campaign::config::CampaignConfigs::get().campaign(mission.campaign_id));
+        // TODO(realm-ui): a custom game's realm (P1d), which outside a campaign is Đại Long for now.
+        let realm = campaign.map_or(Realm::DaiLong, |campaign| campaign.realm);
+
+        SaveHeader {
+            campaign_id: campaign.map(|campaign| campaign.id.clone()),
+            mission_index: mission.filter(|_| campaign.is_some()).map(|mission| mission.mission_index),
+            city_name: None,
+            realm: Some(realm),
+            date_ordinal: Some(date.ordinal_month()),
+            date_text: Some(realm::date_text(realm, calendar)),
+            population: Some(self.world.stats().population.total),
+            treasury: Some(self.sim.finance().balance()),
+            time_played_secs: Some(self.time_played_secs),
+            saved_at: save_header::saved_at_now(),
+        }
     }
 
     // Logs and returns the reason on failure. A failed load leaves the session as it was.
@@ -871,18 +956,18 @@ impl GameSession {
 
         // Check the save version before the full load. A version mismatch means
         // the full deserialize would fail with an opaque error, so probe the
-        // version first and report it clearly.
-        match save::storage::load_save_file::<SaveVersionProbe>(save_file) {
-            Ok(probe) if probe.save_version == CURRENT_SAVE_VERSION => {}
-            Ok(probe) => {
+        // version first and report it clearly. The header comes with it.
+        let header = match save_header::read_head(save_file) {
+            Ok(head) if head.save_version == CURRENT_SAVE_VERSION => head.header.unwrap_or_default(),
+            Ok(head) => {
                 return Err(log_session_error(format!(
                     "Cannot load '{save_file}': save version {} is incompatible (expected {}). \
                      Run it through crates/tools/save-migration-scripts/.",
-                    probe.save_version, CURRENT_SAVE_VERSION
+                    head.save_version, CURRENT_SAVE_VERSION
                 )));
             }
             Err(err) => return Err(log_session_error(err)),
-        }
+        };
 
         let session = save::storage::load_save_file(save_file).map_err(log_session_error)?;
 
@@ -896,6 +981,10 @@ impl GameSession {
 
         self.pre_load(&mut PreLoadContext::new(engine));
         *self = session;
+
+        // The city's time played goes on from the save's (a mission starting on a save map
+        // starts it again: start_mission, from post_load).
+        self.time_played_secs = header.time_played_secs.filter(|secs| secs.is_finite() && *secs >= 0.0).unwrap_or(0.0);
         self.post_load(&mut PostLoadContext::new(engine, configs, self.sim.rng().clone(), self.tile_map.clone()));
 
         // World stats aren't saved; count them now instead of at the first simulation step.

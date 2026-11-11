@@ -65,6 +65,23 @@ impl Realm {
     }
 }
 
+// The calendar's year as `realm` writes it, in the current language: "Long Thái era, year 3"
+// (Đại Long), "Reign of Suryadeva, year 41" (Kambara), "Year 451 of the Pugara Era" (Tampadesa),
+// or the World Year, "Year 3", without an era.
+pub fn date_text(realm: Realm, calendar: &crate::sim::calendar::GameCalendar) -> String {
+    let Some((era, year)) = calendar.era() else {
+        let year = calendar.date(1, 1.0).year.to_string();
+        return text::format(UiTextCategory::Realm, "date.world_year", &[("year", &year)]);
+    };
+    let year = year.to_string();
+    let args = [("era", era), ("year", year.as_str())];
+    match realm {
+        Realm::DaiLong => text::format(UiTextCategory::Realm, "date.era.dailong", &args),
+        Realm::Kambara => text::format(UiTextCategory::Realm, "date.era.kambara", &args),
+        Realm::Tampadesa => text::format(UiTextCategory::Realm, "date.era.tampadesa", &args),
+    }
+}
+
 // ----------------------------------------------
 // UI realm: the decision
 // ----------------------------------------------

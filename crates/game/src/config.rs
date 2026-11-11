@@ -66,11 +66,21 @@ pub struct SaveGameConfigs {
     pub load_map_setting: LoadMapSetting,
     pub enable_autosave: bool,
     pub autosave_frequency_secs: Seconds,
+
+    // The size in pixels of the thumbnail written beside each save (save_header), the city cut
+    // from the middle of the screen. The Load / Save preview shows it larger, fitted to its frame,
+    // so raise it if it looks blurry there.
+    pub thumbnail_size: Size,
 }
 
 impl Default for SaveGameConfigs {
     fn default() -> Self {
-        Self { load_map_setting: LoadMapSetting::default(), enable_autosave: true, autosave_frequency_secs: 60.0 }
+        Self {
+            load_map_setting: LoadMapSetting::default(),
+            enable_autosave: true,
+            autosave_frequency_secs: 60.0,
+            thumbnail_size: Size::new(320, 180),
+        }
     }
 }
 

@@ -15,7 +15,10 @@ use std::{
 };
 
 use common::{Size, Vec2};
-use image::{ExtendedColorType, ImageEncoder, codecs::png::PngEncoder};
+use image::{
+    ExtendedColorType, ImageEncoder,
+    codecs::{jpeg::JpegEncoder, png::PngEncoder},
+};
 
 use crate::{
     app::input::{InputAction, InputKey, InputModifiers},
@@ -35,8 +38,8 @@ use crate::{
 pub type ScreenshotId = CaptureId;
 
 pub enum ScreenshotOutput {
-    File(PathBuf), // Write a PNG file (desktop; relative to paths::base_path()), or download it (web).
-    Memory,        // Return the PNG bytes in Screenshot::png.
+    File(PathBuf), // Write the image file (desktop; relative to paths::base_path()), or download it (web).
+    Memory,        // Return the encoded bytes in Screenshot::png.
 }
 
 // Size of the saved image.
@@ -46,11 +49,22 @@ pub enum ScreenshotScale {
     Pixels,      // Framebuffer resolution.
     Points,      // Window points: half the pixels each way on a 2x HiDPI screen. Matches input coordinates.
     Factor(f32), // Framebuffer resolution times this, from 0 (exclusive) to 1.
+    Cover(Size), // Exactly this size: scaled to cover it, keeping the frame's shape, and its middle cut out
+                 // (a save's thumbnail). Never scaled up: a smaller frame is only cut to the size's shape.
+}
+
+// How the image is encoded.
+#[derive(Copy, Clone, Debug, PartialEq, Default)]
+pub enum ScreenshotFormat {
+    #[default]
+    Png,
+    Jpeg(u8), // At this quality, from 1 to 100. Opaque, as captures are.
 }
 
 pub struct ScreenshotRequest {
     pub include_ui: bool, // False saves the scene only, without menus or other UI.
     pub scale: ScreenshotScale,
+    pub format: ScreenshotFormat,
     pub output: ScreenshotOutput,
 
     // Encode and write it on the main thread, in the frame it's captured, rather than on a
@@ -64,7 +78,7 @@ pub struct Screenshot {
     pub size: Size,            // In image pixels.
     pub scale: Vec2,           // Image pixels per window point. Above 1 on HiDPI screens, unless scaled down.
     pub path: Option<PathBuf>, // Set for ScreenshotOutput::File.
-    pub png: Option<Vec<u8>>,  // Set for ScreenshotOutput::Memory.
+    pub png: Option<Vec<u8>>,  // Set for ScreenshotOutput::Memory: the image, PNG unless the request's format says otherwise.
 }
 
 pub type ScreenshotResult = Result<Screenshot, String>;
@@ -144,6 +158,32 @@ pub fn encode_png(image: &CapturedImage) -> Result<Vec<u8>, String> {
     Ok(png)
 }
 
+pub fn encode_jpeg(image: &CapturedImage, quality: u8) -> Result<Vec<u8>, String> {
+    let width = image.size.width as u32;
+    let height = image.size.height as u32;
+
+    if image.pixels.len() != width as usize * height as usize * 4 {
+        return Err(format!("Captured {} bytes for a {}x{} image.", image.pixels.len(), width, height));
+    }
+
+    // JPEG has no alpha; captures are opaque.
+    let rgb: Vec<u8> = image.pixels.chunks_exact(4).flat_map(|pixel| [pixel[0], pixel[1], pixel[2]]).collect();
+
+    let mut jpeg = Vec::new();
+    JpegEncoder::new_with_quality(&mut jpeg, quality.clamp(1, 100))
+        .write_image(&rgb, width, height, ExtendedColorType::Rgb8)
+        .map_err(|err| format!("JPEG encoding failed: {err}"))?;
+
+    Ok(jpeg)
+}
+
+pub fn encode_image(image: &CapturedImage, format: ScreenshotFormat) -> Result<Vec<u8>, String> {
+    match format {
+        ScreenshotFormat::Png => encode_png(image),
+        ScreenshotFormat::Jpeg(quality) => encode_jpeg(image, quality),
+    }
+}
+
 // ----------------------------------------------
 // Image comparison
 // ----------------------------------------------
@@ -203,12 +243,13 @@ pub fn compare_png(actual: &[u8], expected: &[u8], tolerance: u8) -> Result<Imag
     Ok(ImageComparison::Compared { diff_pixels, max_channel_diff, diff_png })
 }
 
-// Scales a capture down for ScreenshotScale::Points or Factor. Never scales up.
+// Scales a capture down for ScreenshotScale::Points, Factor or Cover. Never scales up.
 pub fn scale_image(image: CapturedImage, scale: ScreenshotScale) -> Result<CapturedImage, String> {
     let factor = match scale {
         ScreenshotScale::Pixels => return Ok(image),
         ScreenshotScale::Points => 1.0 / image.scale.x.max(image.scale.y).max(1.0),
         ScreenshotScale::Factor(factor) => factor,
+        ScreenshotScale::Cover(size) => return cover_image(image, size),
     };
 
     if factor.is_nan() || factor <= 0.0 || factor >= 1.0 {
@@ -235,31 +276,64 @@ pub fn scale_image(image: CapturedImage, scale: ScreenshotScale) -> Result<Captu
     })
 }
 
-fn save_screenshot(image: CapturedImage, scale: ScreenshotScale, output: ScreenshotOutput) -> ScreenshotResult {
+// ScreenshotScale::Cover: `size` exactly, from the middle of the frame scaled to cover it. A frame
+// smaller than `size` keeps its scale and is only cut to the shape of `size`.
+fn cover_image(image: CapturedImage, size: Size) -> Result<CapturedImage, String> {
+    let (width, height) = (image.size.width as u32, image.size.height as u32);
+    if !size.is_valid() || width == 0 || height == 0 {
+        return Err(format!("Can't fit a {width}x{height} capture to {size}."));
+    }
+
+    // The largest rect of the target's shape that fits the frame, scaled down to the target if larger.
+    let (target_width, target_height) = (size.width as u32, size.height as u32);
+    let factor = (width as f32 / target_width as f32).min(height as f32 / target_height as f32);
+    let (new_width, new_height) = if factor >= 1.0 {
+        (target_width, target_height)
+    } else {
+        (((target_width as f32 * factor).floor() as u32).max(1), ((target_height as f32 * factor).floor() as u32).max(1))
+    };
+
+    let buffer = image::RgbaImage::from_raw(width, height, image.pixels)
+        .ok_or_else(|| format!("Captured image data doesn't match its {width}x{height} size."))?;
+
+    // DynamicImage's resize is compiled optimized in the image crate (see scale_image).
+    let scaled = image::DynamicImage::ImageRgba8(buffer)
+        .resize_to_fill(new_width, new_height, image::imageops::FilterType::Triangle)
+        .into_rgba8();
+
+    let scale = new_width as f32 / width as f32 * image.scale.x.max(image.scale.y);
+    Ok(CapturedImage { size: Size::new(new_width as i32, new_height as i32), scale: Vec2::new(scale, scale), pixels: scaled.into_raw() })
+}
+
+fn save_screenshot(image: CapturedImage, scale: ScreenshotScale, format: ScreenshotFormat, output: ScreenshotOutput) -> ScreenshotResult {
     let image = scale_image(image, scale)?;
-    let png = encode_png(&image)?;
+    let bytes = encode_image(&image, format)?;
     let CapturedImage { size, scale, .. } = image;
 
     match output {
         ScreenshotOutput::File(path) => {
-            write_png(&path, &png)?;
+            write_image(&path, &bytes, format)?;
             Ok(Screenshot { size, scale, path: Some(path), png: None })
         }
-        ScreenshotOutput::Memory => Ok(Screenshot { size, scale, path: None, png: Some(png) }),
+        ScreenshotOutput::Memory => Ok(Screenshot { size, scale, path: None, png: Some(bytes) }),
     }
 }
 
 #[cfg(feature = "desktop")]
-fn write_png(path: &Path, png: &[u8]) -> Result<(), String> {
+fn write_image(path: &Path, bytes: &[u8], _format: ScreenshotFormat) -> Result<(), String> {
     file_sys::create_path(path).map_err(|err| format!("Failed to create the folder for '{}': {err}", path.display()))?;
-    file_sys::write_file(path, png).map_err(|err| format!("Failed to write '{}': {err}", path.display()))
+    file_sys::write_file(path, bytes).map_err(|err| format!("Failed to write '{}': {err}", path.display()))
 }
 
 // The browser saves it to its downloads, under the file name.
 #[cfg(not(feature = "desktop"))]
-fn write_png(path: &Path, png: &[u8]) -> Result<(), String> {
-    let file_name = path.file_name().map(|name| name.to_string_lossy().into_owned()).unwrap_or_else(|| "screenshot.png".into());
-    platform::download_file(&file_name, png, "image/png")
+fn write_image(path: &Path, bytes: &[u8], format: ScreenshotFormat) -> Result<(), String> {
+    let (fallback, mime) = match format {
+        ScreenshotFormat::Png => ("screenshot.png", "image/png"),
+        ScreenshotFormat::Jpeg(_) => ("screenshot.jpg", "image/jpeg"),
+    };
+    let file_name = path.file_name().map(|name| name.to_string_lossy().into_owned()).unwrap_or_else(|| fallback.into());
+    platform::download_file(&file_name, bytes, mime)
 }
 
 // ----------------------------------------------
@@ -269,6 +343,7 @@ fn write_png(path: &Path, png: &[u8]) -> Result<(), String> {
 struct WaitingScreenshot {
     id: ScreenshotId,
     scale: ScreenshotScale,
+    format: ScreenshotFormat,
     output: ScreenshotOutput,
     encode_in_frame: bool,
 }
@@ -297,11 +372,11 @@ impl ScreenshotSystem {
     }
 
     pub fn add_request(&mut self, id: ScreenshotId, request: ScreenshotRequest) {
-        let ScreenshotRequest { scale, output, encode_in_frame, .. } = request;
+        let ScreenshotRequest { scale, format, output, encode_in_frame, .. } = request;
         if let ScreenshotOutput::File(path) = &output {
             self.paths_in_use.push((id, path.clone()));
         }
-        self.waiting_for_capture.push(WaitingScreenshot { id, scale, output, encode_in_frame });
+        self.waiting_for_capture.push(WaitingScreenshot { id, scale, format, output, encode_in_frame });
     }
 
     pub fn on_capture_finished(&mut self, id: ScreenshotId, result: CaptureResult) {
@@ -310,21 +385,21 @@ impl ScreenshotSystem {
             return;
         };
 
-        let WaitingScreenshot { scale, output, encode_in_frame, .. } = self.waiting_for_capture.swap_remove(index);
+        let WaitingScreenshot { scale, format, output, encode_in_frame, .. } = self.waiting_for_capture.swap_remove(index);
 
         match result {
-            Ok(image) if encode_in_frame => self.finish(id, save_screenshot(image, scale, output)),
-            Ok(image) => self.save(id, image, scale, output),
+            Ok(image) if encode_in_frame => self.finish(id, save_screenshot(image, scale, format, output)),
+            Ok(image) => self.save(id, image, scale, format, output),
             Err(err) => self.finish(id, Err(err)),
         }
     }
 
     #[cfg(feature = "desktop")]
-    fn save(&mut self, id: ScreenshotId, image: CapturedImage, scale: ScreenshotScale, output: ScreenshotOutput) {
+    fn save(&mut self, id: ScreenshotId, image: CapturedImage, scale: ScreenshotScale, format: ScreenshotFormat, output: ScreenshotOutput) {
         let results_sender = self.results_sender.clone();
         let spawn_result = std::thread::Builder::new().name("screenshot".into()).spawn(move || {
             // The receiver only goes away when the engine shuts down, after joining this thread.
-            let _ = results_sender.send((id, save_screenshot(image, scale, output)));
+            let _ = results_sender.send((id, save_screenshot(image, scale, format, output)));
         });
 
         match spawn_result {
@@ -334,8 +409,8 @@ impl ScreenshotSystem {
     }
 
     #[cfg(not(feature = "desktop"))]
-    fn save(&mut self, id: ScreenshotId, image: CapturedImage, scale: ScreenshotScale, output: ScreenshotOutput) {
-        let result = save_screenshot(image, scale, output);
+    fn save(&mut self, id: ScreenshotId, image: CapturedImage, scale: ScreenshotScale, format: ScreenshotFormat, output: ScreenshotOutput) {
+        let result = save_screenshot(image, scale, format, output);
         self.finish(id, result);
     }
 
@@ -418,7 +493,7 @@ mod tests {
     }
 
     fn request(output: ScreenshotOutput, encode_in_frame: bool) -> ScreenshotRequest {
-        ScreenshotRequest { include_ui: true, scale: ScreenshotScale::Pixels, output, encode_in_frame }
+        ScreenshotRequest { include_ui: true, scale: ScreenshotScale::Pixels, format: ScreenshotFormat::Png, output, encode_in_frame }
     }
 
     #[test]
@@ -507,6 +582,33 @@ mod tests {
     }
 
     #[test]
+    fn test_cover_image() {
+        // A 16:9 target from a wider frame: the middle cut out, at the target's size.
+        let cover = scale_image(test_image(40, 18), ScreenshotScale::Cover(Size::new(16, 9))).unwrap();
+        assert_eq!(cover.size, Size::new(16, 9));
+        assert_eq!(cover.pixels.len(), 16 * 9 * 4);
+
+        // From a taller frame too.
+        assert_eq!(scale_image(test_image(32, 40), ScreenshotScale::Cover(Size::new(16, 9))).unwrap().size, Size::new(16, 9));
+
+        // A frame smaller than the target isn't scaled up, only cut to its shape.
+        assert_eq!(scale_image(test_image(8, 8), ScreenshotScale::Cover(Size::new(16, 9))).unwrap().size, Size::new(8, 4));
+        assert!(scale_image(test_image(8, 8), ScreenshotScale::Cover(Size::new(0, 9))).is_err());
+    }
+
+    #[test]
+    fn test_encode_jpeg() {
+        let jpeg = encode_image(&test_image(8, 4), ScreenshotFormat::Jpeg(85)).unwrap();
+        assert_eq!(&jpeg[..2], &[0xFF, 0xD8]); // The JPEG start-of-image marker.
+        let decoded = image::load_from_memory(&jpeg).unwrap();
+        assert_eq!((decoded.width(), decoded.height()), (8, 4));
+
+        let mut wrong = test_image(2, 2);
+        wrong.pixels.pop();
+        assert!(encode_jpeg(&wrong, 85).is_err());
+    }
+
+    #[test]
     fn test_encode_png_rejects_wrong_size() {
         let mut image = test_image(2, 2);
         image.pixels.pop();
@@ -515,7 +617,7 @@ mod tests {
 
     #[test]
     fn test_save_to_memory_and_file() {
-        let screenshot = save_screenshot(test_image(2, 2), ScreenshotScale::Pixels, ScreenshotOutput::Memory).unwrap();
+        let screenshot = save_screenshot(test_image(2, 2), ScreenshotScale::Pixels, ScreenshotFormat::Png, ScreenshotOutput::Memory).unwrap();
         assert_eq!(screenshot.size, Size::new(2, 2));
         assert!(screenshot.path.is_none() && screenshot.png.is_some());
 
@@ -523,7 +625,7 @@ mod tests {
         let path = dir.join("nested").join("shot.png");
 
         let screenshot =
-            save_screenshot(test_image(4, 1), ScreenshotScale::Pixels, ScreenshotOutput::File(path.clone())).unwrap();
+            save_screenshot(test_image(4, 1), ScreenshotScale::Pixels, ScreenshotFormat::Png, ScreenshotOutput::File(path.clone())).unwrap();
         assert_eq!(screenshot.path.as_deref(), Some(path.as_path()));
         assert_eq!(image::open(&path).unwrap().to_rgba8().dimensions(), (4, 1));
 

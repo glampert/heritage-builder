@@ -1,13 +1,15 @@
-# The main menus (docs/plans/realm-ui.md, Phase 1): the home menu and the campaign picker in the
-# three realms. The profile (profile.set) picks the realm and fills the campaign row: none reached,
-# campaign II reached, all three; Campaign resumes the campaign at its next mission, or opens the
-# picker when more than one can be played, whose Continue starts the campaign picked; Continue
-# loads the last save. Each screen is checked for layout issues and saved as a screenshot under
-# out/ui_menus/ (the CI artifact).
+# The main menus (docs/plans/realm-ui.md, Phase 1): the home menu, the campaign picker and the
+# Load / Save dialog in the three realms. The profile (profile.set) picks the realm and fills the
+# campaign row: none reached, campaign II reached, all three; Campaign resumes the campaign at its
+# next mission, or opens the picker when more than one can be played, whose Continue starts the
+# campaign picked; Continue loads the last save. Load / Save saves two games, reads their rows and
+# preview, asks before overwriting, deletes one through its popup and loads the other. Each screen
+# is checked for layout issues and saved as a screenshot under out/ui_menus/ (the CI artifact).
 #
 # The campaign's missions load the sample saves, so extract them first (unzip saves/sample_saves.zip,
-# as CI does). It writes saves/ui_menus.json, the save Continue loads. Run it with --fresh-profile,
-# as CI does, so it starts from an empty profile and leaves the local one alone:
+# as CI does). The saves it writes (ui_menus, ui_menus_a and ui_menus_b, with their thumbnails) are
+# deleted at the end. Run it with --fresh-profile, as CI does, so it starts from an empty profile
+# and leaves the local one alone:
 #   cargo run -p HeritageBuilder -- --fresh-profile --script crates/game/tests/scenarios/ui_menus.jsonl
 {"method": "time.fixed_dt", "params": {"dt": 0.016667}}
 {"method": "assert.eq", "params": {"query": "session.state", "path": "/menus_mode", "value": "Home"}}
@@ -36,9 +38,14 @@
 # The realm's marker shows on the item hovered.
 {"method": "ui.hover", "params": {"path": "Home/Campaign"}}
 {"method": "screenshot", "params": {"path": "out/ui_menus/home_dailong_hover.png"}}
-# Load Game, Settings and About open their dialogs over the home menu; Escape closes them.
+# Load Game, Settings and About open their dialogs over the home menu; Escape closes them. Load
+# Game is the Load / Save dialog, which can't save from the home menu.
 {"method": "ui.click", "params": {"path": "Home/Load Game"}}
-{"method": "assert.eq", "params": {"query": "dialog.current", "path": "/current", "value": "LoadGame"}}
+{"method": "assert.eq", "params": {"query": "dialog.current", "path": "/current", "value": "LoadOrSaveGame"}}
+{"method": "wait.frames", "params": {"frames": 2}}
+{"method": "assert.eq", "params": {"query": "ui.tree", "args": {"filter": "LoadOrSaveGame/Save", "kind": "text_button"}, "path": "/widgets/0/enabled", "value": false}}
+{"method": "assert.eq", "params": {"query": "ui.tree", "args": {"filter": "LoadOrSaveGame/Save", "kind": "text_button"}, "path": "/widgets/0/tooltip", "value": "Start or load a game to save it."}}
+{"method": "assert.eq", "params": {"query": "ui.layout_issues", "path": "/count", "value": 0}}
 {"method": "input.key", "params": {"key": "Escape"}}
 {"method": "wait.frames", "params": {"frames": 2}}
 {"method": "ui.click", "params": {"path": "Home/Settings"}}
@@ -158,3 +165,157 @@
 {"method": "assert.eq", "params": {"query": "ui.tree", "args": {"filter": "Home/Continue", "kind": "menu_entry"}, "path": "/widgets/0/enabled", "value": false}}
 {"method": "assert.eq", "params": {"query": "ui.tree", "args": {"filter": "Home/Continue", "kind": "menu_entry"}, "path": "/widgets/0/tooltip", "value": "The last save, ui_menus_gone, is gone."}}
 {"method": "assert.eq", "params": {"query": "ui.layout_issues", "path": "/count", "value": 0}}
+
+# ---- Load / Save: save two games, read their rows and preview, delete one, load the other ----
+{"method": "ui.click", "params": {"path": "Home/Campaign"}}
+{"method": "wait.until", "params": {"query": "session.state", "path": "/menus_mode", "op": "eq", "value": "InGame", "timeout_frames": 120}}
+{"method": "input.move", "params": {"park": true}}
+# SaveGame opens the dialog in save mode, on a new name.
+{"method": "dialog.open", "params": {"name": "SaveGame"}}
+{"method": "assert.eq", "params": {"query": "dialog.current", "path": "/current", "value": "LoadOrSaveGame"}}
+{"method": "wait.frames", "params": {"frames": 2}}
+{"method": "assert.eq", "params": {"query": "ui.tree", "args": {"filter": "LoadOrSaveGame/Save as", "kind": "text_input"}, "path": "/widgets/0/value", "value": "save_game"}}
+{"method": "ui.set", "params": {"path": "LoadOrSaveGame/Save as", "value": "ui_menus_a"}}
+{"method": "ui.click", "params": {"path": "LoadOrSaveGame/Save"}}
+{"method": "wait.until", "params": {"query": "ui.tree", "args": {"filter": "LoadOrSaveGame/ui_menus_a", "kind": "list_item"}, "path": "/widgets/0/value/selected", "op": "eq", "value": true, "timeout_frames": 30}}
+{"method": "ui.set", "params": {"path": "LoadOrSaveGame/Save as", "value": "ui_menus_b"}}
+{"method": "ui.click", "params": {"path": "LoadOrSaveGame/Save"}}
+{"method": "wait.until", "params": {"query": "ui.tree", "args": {"filter": "LoadOrSaveGame/ui_menus_b", "kind": "list_item"}, "path": "/widgets/0/value/selected", "op": "eq", "value": true, "timeout_frames": 30}}
+{"method": "assert.exists", "params": {"query": "session.save_info", "args": {"name": "ui_menus_a"}, "path": "/thumbnail"}}
+{"method": "assert.eq", "params": {"query": "session.save_info", "args": {"name": "ui_menus_a"}, "path": "/header/campaign_id", "value": "dragon_legacy"}}
+# A save's row: its place and date; the time it was saved is left out of scripts (repeatable saves).
+{"method": "ui.click", "params": {"path": "LoadOrSaveGame/ui_menus_a"}}
+{"method": "input.move", "params": {"park": true}}
+{"method": "wait.frames", "params": {"frames": 2}}
+{"method": "assert.eq", "params": {"query": "ui.tree", "args": {"filter": "LoadOrSaveGame/ui_menus_a", "kind": "list_item"}, "path": "/widgets/0/value/subtitle", "value": "Campaign I · mission 2 · A Thriving Town"}}
+{"method": "assert.eq", "params": {"query": "ui.tree", "args": {"filter": "LoadOrSaveGame/ui_menus_a", "kind": "list_item"}, "path": "/widgets/0/value/right", "value": "—"}}
+{"method": "assert.eq", "params": {"query": "ui.tree", "args": {"filter": "LoadOrSaveGame/ui_menus_a", "kind": "list_item"}, "path": "/widgets/0/value/right_subtitle", "value": "Long Thái era, year 3"}}
+{"method": "assert.eq", "params": {"query": "ui.tree", "args": {"filter": "LoadOrSaveGame/Save as", "kind": "text_input"}, "path": "/widgets/0/value", "value": "ui_menus_a"}}
+# The preview: the thumbnail and the save's details.
+{"method": "assert.eq", "params": {"query": "ui.tree", "args": {"filter": "LoadOrSaveGame/details"}, "path": "/widgets/0/value/0", "value": ["Mission", "A Thriving Town"]}}
+{"method": "assert.eq", "params": {"query": "ui.tree", "args": {"filter": "LoadOrSaveGame/details"}, "path": "/widgets/0/value/1", "value": ["Campaign", "Campaign I · mission 2"]}}
+{"method": "assert.eq", "params": {"query": "ui.tree", "args": {"filter": "LoadOrSaveGame/details"}, "path": "/widgets/0/value/2", "value": ["Date", "Long Thái era, year 3"]}}
+{"method": "assert.ne", "params": {"query": "ui.tree", "args": {"filter": "LoadOrSaveGame/details"}, "path": "/widgets/0/value/3/1", "value": "—"}}
+{"method": "assert.ne", "params": {"query": "ui.tree", "args": {"filter": "LoadOrSaveGame/details"}, "path": "/widgets/0/value/4/1", "value": "—"}}
+{"method": "assert.eq", "params": {"query": "ui.tree", "args": {"filter": "LoadOrSaveGame/details"}, "path": "/widgets/0/value/5", "value": ["Time played", "0 h 00 min"]}}
+{"method": "assert.eq", "params": {"query": "ui.tree", "args": {"filter": "LoadOrSaveGame/Load", "kind": "text_button"}, "path": "/widgets/0/enabled", "value": true}}
+{"method": "assert.eq", "params": {"query": "ui.tree", "args": {"filter": "LoadOrSaveGame/Delete", "kind": "text_button"}, "path": "/widgets/0/enabled", "value": true}}
+{"method": "assert.eq", "params": {"query": "ui.layout_issues", "path": "/count", "value": 0}}
+{"method": "screenshot", "params": {"path": "out/ui_menus/load_save_dailong.png"}}
+# In each realm's look (ui.realm): the dialog is built again, keeping the save picked; its rows,
+# preview, popups and buttons in each.
+{"method": "ui.realm", "params": {"realm": "kambara"}}
+{"method": "wait.frames", "params": {"frames": 3}}
+{"method": "assert.eq", "params": {"query": "ui.tree", "args": {"filter": "LoadOrSaveGame/Save as", "kind": "text_input"}, "path": "/widgets/0/value", "value": "ui_menus_a"}}
+{"method": "assert.eq", "params": {"query": "ui.tree", "args": {"filter": "LoadOrSaveGame/ui_menus_a", "kind": "list_item"}, "path": "/widgets/0/value/subtitle", "value": "Campaign I · mission 2 · A Thriving Town"}}
+{"method": "assert.eq", "params": {"query": "ui.tree", "args": {"filter": "LoadOrSaveGame/details"}, "path": "/widgets/0/value/0", "value": ["Mission", "A Thriving Town"]}}
+{"method": "assert.eq", "params": {"query": "ui.tree", "args": {"filter": "LoadOrSaveGame/details"}, "path": "/widgets/0/value/1", "value": ["Campaign", "Campaign I · mission 2"]}}
+{"method": "assert.eq", "params": {"query": "ui.tree", "args": {"filter": "LoadOrSaveGame/details"}, "path": "/widgets/0/value/2", "value": ["Date", "Long Thái era, year 3"]}}
+{"method": "assert.eq", "params": {"query": "ui.tree", "args": {"filter": "LoadOrSaveGame/details"}, "path": "/widgets/0/value/5", "value": ["Time played", "0 h 00 min"]}}
+{"method": "input.move", "params": {"park": true}}
+{"method": "wait.frames", "params": {"frames": 2}}
+{"method": "assert.eq", "params": {"query": "ui.layout_issues", "path": "/count", "value": 0}}
+{"method": "screenshot", "params": {"path": "out/ui_menus/load_save_kambara.png"}}
+# Its buttons: Save over the save picked asks first (No keeps it); Delete asks too (Cancel keeps it).
+{"method": "ui.click", "params": {"path": "LoadOrSaveGame/Save"}}
+{"method": "assert.exists", "params": {"query": "ui.tree", "args": {"filter": "Overwrite Save Game Popup/No"}, "path": "/widgets/0"}}
+{"method": "input.move", "params": {"park": true}}
+{"method": "wait.frames", "params": {"frames": 2}}
+{"method": "assert.eq", "params": {"query": "ui.layout_issues", "path": "/count", "value": 0}}
+{"method": "screenshot", "params": {"path": "out/ui_menus/load_save_overwrite_kambara.png"}}
+{"method": "ui.click", "params": {"path": "Overwrite Save Game Popup/No"}}
+{"method": "wait.frames", "params": {"frames": 2}}
+{"method": "ui.click", "params": {"path": "LoadOrSaveGame/Delete"}}
+{"method": "assert.exists", "params": {"query": "ui.tree", "args": {"filter": "Delete Save Game Popup/Delete ui_menus_a?", "kind": "heading"}, "path": "/widgets/0"}}
+{"method": "input.move", "params": {"park": true}}
+{"method": "wait.frames", "params": {"frames": 2}}
+{"method": "assert.eq", "params": {"query": "ui.layout_issues", "path": "/count", "value": 0}}
+{"method": "screenshot", "params": {"path": "out/ui_menus/load_save_delete_kambara.png"}}
+{"method": "ui.click", "params": {"path": "Delete Save Game Popup/Cancel"}}
+{"method": "wait.frames", "params": {"frames": 2}}
+{"method": "assert.eq", "params": {"query": "dialog.current", "path": "/current", "value": "LoadOrSaveGame"}}
+{"method": "assert.exists", "params": {"query": "ui.tree", "args": {"filter": "LoadOrSaveGame/ui_menus_a", "kind": "list_item"}, "path": "/widgets/0"}}
+{"method": "assert.eq", "params": {"query": "session.save_info", "args": {"name": "ui_menus_a"}, "path": "/exists", "value": true}}
+{"method": "ui.realm", "params": {"realm": "tampadesa"}}
+{"method": "wait.frames", "params": {"frames": 3}}
+{"method": "assert.eq", "params": {"query": "ui.tree", "args": {"filter": "LoadOrSaveGame/Save as", "kind": "text_input"}, "path": "/widgets/0/value", "value": "ui_menus_a"}}
+{"method": "assert.eq", "params": {"query": "ui.tree", "args": {"filter": "LoadOrSaveGame/ui_menus_a", "kind": "list_item"}, "path": "/widgets/0/value/subtitle", "value": "Campaign I · mission 2 · A Thriving Town"}}
+{"method": "assert.eq", "params": {"query": "ui.tree", "args": {"filter": "LoadOrSaveGame/details"}, "path": "/widgets/0/value/0", "value": ["Mission", "A Thriving Town"]}}
+{"method": "assert.eq", "params": {"query": "ui.tree", "args": {"filter": "LoadOrSaveGame/details"}, "path": "/widgets/0/value/1", "value": ["Campaign", "Campaign I · mission 2"]}}
+{"method": "assert.eq", "params": {"query": "ui.tree", "args": {"filter": "LoadOrSaveGame/details"}, "path": "/widgets/0/value/2", "value": ["Date", "Long Thái era, year 3"]}}
+{"method": "assert.eq", "params": {"query": "ui.tree", "args": {"filter": "LoadOrSaveGame/details"}, "path": "/widgets/0/value/5", "value": ["Time played", "0 h 00 min"]}}
+{"method": "input.move", "params": {"park": true}}
+{"method": "wait.frames", "params": {"frames": 2}}
+{"method": "assert.eq", "params": {"query": "ui.layout_issues", "path": "/count", "value": 0}}
+{"method": "screenshot", "params": {"path": "out/ui_menus/load_save_tampadesa.png"}}
+# Its buttons: Save over the save picked asks first (No keeps it); Delete asks too (Cancel keeps it).
+{"method": "ui.click", "params": {"path": "LoadOrSaveGame/Save"}}
+{"method": "assert.exists", "params": {"query": "ui.tree", "args": {"filter": "Overwrite Save Game Popup/No"}, "path": "/widgets/0"}}
+{"method": "input.move", "params": {"park": true}}
+{"method": "wait.frames", "params": {"frames": 2}}
+{"method": "assert.eq", "params": {"query": "ui.layout_issues", "path": "/count", "value": 0}}
+{"method": "screenshot", "params": {"path": "out/ui_menus/load_save_overwrite_tampadesa.png"}}
+{"method": "ui.click", "params": {"path": "Overwrite Save Game Popup/No"}}
+{"method": "wait.frames", "params": {"frames": 2}}
+{"method": "ui.click", "params": {"path": "LoadOrSaveGame/Delete"}}
+{"method": "assert.exists", "params": {"query": "ui.tree", "args": {"filter": "Delete Save Game Popup/Delete ui_menus_a?", "kind": "heading"}, "path": "/widgets/0"}}
+{"method": "input.move", "params": {"park": true}}
+{"method": "wait.frames", "params": {"frames": 2}}
+{"method": "assert.eq", "params": {"query": "ui.layout_issues", "path": "/count", "value": 0}}
+{"method": "screenshot", "params": {"path": "out/ui_menus/load_save_delete_tampadesa.png"}}
+{"method": "ui.click", "params": {"path": "Delete Save Game Popup/Cancel"}}
+{"method": "wait.frames", "params": {"frames": 2}}
+{"method": "assert.eq", "params": {"query": "dialog.current", "path": "/current", "value": "LoadOrSaveGame"}}
+{"method": "assert.exists", "params": {"query": "ui.tree", "args": {"filter": "LoadOrSaveGame/ui_menus_a", "kind": "list_item"}, "path": "/widgets/0"}}
+{"method": "assert.eq", "params": {"query": "session.save_info", "args": {"name": "ui_menus_a"}, "path": "/exists", "value": true}}
+{"method": "ui.realm", "params": {"realm": "auto"}}
+{"method": "wait.frames", "params": {"frames": 3}}
+# Saving over a save asks first; No keeps it.
+{"method": "ui.click", "params": {"path": "LoadOrSaveGame/Save"}}
+{"method": "assert.exists", "params": {"query": "ui.tree", "args": {"filter": "Overwrite Save Game Popup/No"}, "path": "/widgets/0"}}
+{"method": "ui.click", "params": {"path": "Overwrite Save Game Popup/No"}}
+{"method": "wait.frames", "params": {"frames": 2}}
+{"method": "assert.eq", "params": {"query": "dialog.current", "path": "/current", "value": "LoadOrSaveGame"}}
+# Delete asks in a popup, then the row goes, with its thumbnail.
+{"method": "ui.click", "params": {"path": "LoadOrSaveGame/ui_menus_b"}}
+{"method": "ui.click", "params": {"path": "LoadOrSaveGame/Delete"}}
+{"method": "assert.exists", "params": {"query": "ui.tree", "args": {"filter": "Delete Save Game Popup/Delete ui_menus_b?", "kind": "heading"}, "path": "/widgets/0"}}
+{"method": "input.move", "params": {"park": true}}
+{"method": "wait.frames", "params": {"frames": 2}}
+{"method": "assert.eq", "params": {"query": "ui.layout_issues", "path": "/count", "value": 0}}
+{"method": "screenshot", "params": {"path": "out/ui_menus/load_save_delete.png"}}
+{"method": "ui.click", "params": {"path": "Delete Save Game Popup/Delete"}}
+{"method": "wait.frames", "params": {"frames": 3}}
+{"method": "assert.eq", "params": {"query": "ui.tree", "args": {"filter": "LoadOrSaveGame/ui_menus_b", "kind": "list_item"}, "path": "/widgets", "value": []}}
+{"method": "assert.eq", "params": {"query": "session.save_info", "args": {"name": "ui_menus_b"}, "path": "/exists", "value": false}}
+{"method": "assert.eq", "params": {"query": "session.save_info", "args": {"name": "ui_menus_b"}, "path": "/has_thumbnail", "value": false}}
+{"method": "assert.eq", "params": {"query": "ui.tree", "args": {"filter": "LoadOrSaveGame/Delete", "kind": "text_button"}, "path": "/widgets/0/enabled", "value": false}}
+{"method": "assert.exists", "params": {"query": "ui.tree", "args": {"filter": "LoadOrSaveGame/ui_menus_a", "kind": "list_item"}, "path": "/widgets/0"}}
+# Load loads the save picked.
+{"method": "ui.click", "params": {"path": "LoadOrSaveGame/ui_menus_a"}}
+{"method": "ui.click", "params": {"path": "LoadOrSaveGame/Load"}}
+{"method": "wait.frames", "params": {"frames": 3}}
+{"method": "assert.eq", "params": {"query": "session.state", "path": "/menus_mode", "value": "InGame"}}
+{"method": "assert.eq", "params": {"query": "session.state", "path": "/campaign/mission", "value": "A Thriving Town"}}
+{"method": "assert.ne", "params": {"query": "dialog.current", "path": "/current", "value": "LoadOrSaveGame"}}
+# Deleting Continue's save from Load / Save over the home menu disables Continue under it.
+{"method": "session.save", "params": {"name": "ui_menus_c"}}
+{"method": "session.quit_to_menu"}
+{"method": "input.move", "params": {"park": true}}
+{"method": "wait.frames", "params": {"frames": 3}}
+{"method": "assert.eq", "params": {"query": "ui.tree", "args": {"filter": "Home/Continue", "kind": "menu_entry"}, "path": "/widgets/0/enabled", "value": true}}
+{"method": "ui.click", "params": {"path": "Home/Load Game"}}
+{"method": "ui.click", "params": {"path": "LoadOrSaveGame/ui_menus_c"}}
+{"method": "ui.click", "params": {"path": "LoadOrSaveGame/Delete"}}
+{"method": "ui.click", "params": {"path": "Delete Save Game Popup/Delete"}}
+{"method": "wait.frames", "params": {"frames": 3}}
+{"method": "assert.eq", "params": {"query": "ui.tree", "args": {"filter": "LoadOrSaveGame/ui_menus_c", "kind": "list_item"}, "path": "/widgets", "value": []}}
+{"method": "input.key", "params": {"key": "Escape"}}
+{"method": "wait.frames", "params": {"frames": 3}}
+{"method": "assert.eq", "params": {"query": "dialog.current", "path": "/current", "value": "Home"}}
+{"method": "assert.eq", "params": {"query": "ui.tree", "args": {"filter": "Home/Continue", "kind": "menu_entry"}, "path": "/widgets/0/enabled", "value": false}}
+{"method": "assert.eq", "params": {"query": "ui.tree", "args": {"filter": "Home/Continue", "kind": "menu_entry"}, "path": "/widgets/0/tooltip", "value": "The last save, ui_menus_c, is gone."}}
+
+# ---- Leave saves/ as it was ----
+{"method": "session.delete_save", "params": {"name": "ui_menus_a"}}
+{"method": "session.delete_save", "params": {"name": "ui_menus"}}

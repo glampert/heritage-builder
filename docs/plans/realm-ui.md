@@ -1,6 +1,6 @@
 # Realm UI: menus, screens and HUD in each realm's style
 
-**Status (2026-11-11): Phase 0 done; Phase 1, the main menus, in progress: Home done.** The user reviewed it on 2026-11-07: their notes are folded in (see [Review notes](#review-notes)), the open decisions' defaults are accepted, and every mockup the phases need now exists. This plan builds and restyles every retail screen after the [UI mockups](../design/mockups/README.md): the main menus, the world map, the intermission, the story comics, the HUD and the city management pages. Each screen gets one look per realm: Đại Long, Kambara and Tampadesa. It is milestone **UI** of the [roadmap](roadmap.md). It was researched against `ccca1df` on `claude`. File and line references point at that commit, so re-check them before relying on them.
+**Status (2026-11-11): Phase 0 done; Phase 1, the main menus, in progress: Home and Load / Save done.** The user reviewed it on 2026-11-07: their notes are folded in (see [Review notes](#review-notes)), the open decisions' defaults are accepted, and every mockup the phases need now exists. This plan builds and restyles every retail screen after the [UI mockups](../design/mockups/README.md): the main menus, the world map, the intermission, the story comics, the HUD and the city management pages. Each screen gets one look per realm: Đại Long, Kambara and Tampadesa. It is milestone **UI** of the [roadmap](roadmap.md). It was researched against `ccca1df` on `claude`. File and line references point at that commit, so re-check them before relying on them.
 
 ![Home menu, Đại Long](../design/mockups/menu-home-dailong.jpg)
 
@@ -458,7 +458,7 @@ The existing dialogs keep their layouts but take their panels from the Đại Lo
 
 **Notes (2026-11-09, dialog framework) (commit `514e90b`):**
 - `dialog/mod.rs`: each dialog is its own `UiMenu` window; the root window is gone. A `DialogFrame` per dialog (size, align, `show_below`). `draw_current` draws the top dialog modal and, bottom up, those every dialog above keeps visible: plain windows under its backdrop (one dim). Hidden ones aren't drawn or recorded.
-- Skin `dialogs`: `size` in points at 1920 × 1080 (`skin::dialog_size`: the smaller window ratio, floored at 1280 × 720's, cut to the window) or `"fullscreen"`; `show_below` (default false). Đại Long's sizes follow the mockups (Home 600 × 960 left, Settings 1220 × 920, Load/Save 1500 × 940, City 1600 × 950); Tampadesa's taller fonts take Home 600 × 1000 and City 1600 × 1020; home dialogs are now centred.
+- Skin `dialogs`: `size` in points at 1920 × 1080 (`skin::dialog_size`: the smaller window ratio, floored at 1280 × 720's, cut to the window) or `"fullscreen"`; `show_below` (default false). Đại Long's sizes follow the mockups (Home 600 × 960 left, Settings 1220 × 920, Load/Save 1540 × 940, City 1600 × 950); Tampadesa's taller fonts take Home 600 × 1000 and City 1600 × 1020; home dialogs are now centred.
 - Escape: no `CloseModalOnEscape` on dialogs; the menus close the top dialog (or its popup) only; `draw_current` does when a focused text field kept the key. A held Escape closes one (repeats ignored). Closing keeps the pause while dialogs remain. `dialog.open` closes every other stacked dialog but Home.
 - Engine: sized menus skip egui's fade-in and first sizing pass, so dialogs don't blink.
 - Deviations: paths take the kind name (`GameSettings/Autosave`); `Settings/Game/...` waits for Phase 1's tabs. No dialog sets `show_below` yet; full-screen is unit-tested and was tried with a temporary skin. UI scale is a `TODO(realm-ui)`. The Quit popup still hides the Game menu.
@@ -496,10 +496,10 @@ The existing dialogs keep their layouts but take their panels from the Đại Lo
 - [ ] `HomeItem` (was `HomeButtonKind`) loses New Game, whose options move into Custom Game (see [open decisions](#open-decisions)).
 
 **Load / Save** (one dialog, `LoadOrSaveGame`):
-- [ ] **Save rows:** realm emblem, name, "Campaign I · mission 6 · <city>", the save time, and the in-game date in the realm's era.
-- [ ] **Preview:** thumbnail; Mission, Campaign, Date, Population, Treasury, Time played.
-- [ ] **Save as** field, and Delete (new, with a confirm popup), Cancel, Save and Load.
-- [ ] **Save metadata:**
+- [x] **Save rows:** realm emblem, name, "Campaign I · mission 6 · <city>", the save time, and the in-game date in the realm's era.
+- [x] **Preview:** thumbnail; Mission, Campaign, Date, Population, Treasury, Time played.
+- [x] **Save as** field, and Delete (new, with a confirm popup), Cancel, Save and Load.
+- [x] **Save metadata:**
   - The save writes a small header, beside the version the loader already probes for, plus a thumbnail (`saves/<name>.jpg`).
   - The thumbnail is a screenshot of the city at the camera position the save was taken from, with the UI left out (`Engine::request_screenshot`), scaled down.
   - Its size is a config, `SaveConfigs::thumbnail_size` (default 320 × 180), so it can be raised if it looks blurry in the preview, which shows it larger than that. The preview fits whatever size the file has.
@@ -547,6 +547,13 @@ The existing dialogs keep their layouts but take their panels from the Đại Lo
 - [ ] Scenarios:
   - `ui_menus.jsonl` (every dialog, every realm, Continue, Custom Game start, settings commit);
   - update `ui_new_game.jsonl` to the Blank map path.
+
+**Notes (2026-11-11, load / save) (commit TODO):**
+- `dialog/load_save.rs`: one `LoadOrSaveGame`; `LoadGame`/`SaveGame` open it in load or save mode. Rows (realm emblem, "Campaign I · mission 2 · <place>", save time, era date), preview (thumbnail, details), Save as field (accent outline when focused), Delete with a popup, Overwrite popup. Rebuilt when saves change (`save_header::revision`) or the window rescales, keeping the pick; the autosave timer pauses while it's open. Home rebuilds on that revision too, so deleting Continue's save disables it.
+- `save_header.rs`: a `save_header` object first in the file, all fields optional (no version bump); one this game can't read is blank. Read from the file's first and last 16 KB. Time played: a `#[serde(skip)]` session counter. Thumbnails: `saves/<name>.jpg`, the scene at `SaveGameConfigs::thumbnail_size` (`ScreenshotScale::Cover`, JPEG), deleted with the save or when a save writes none; none on web (TODO).
+- Engine: `UiTextInput` look/width/hidden label, list rows' second column and `set_current_item`, rows recording their texts, save file head/tail reads. Commands `session.save_info`, `session.delete_save`.
+- Deviations: scripts, recordings and replays leave the save time out, so `determinism.json` matches across runs and its replay (rows show "—"). No city or custom map names yet (the mission's name stands in; TODO for P1d's map); outside a campaign the realm is Đại Long. The title keeps the skin's dialog separator.
+- Verified: build, tests, web check, `--check`; CI scenarios at 1440 × 800, `ui_menus` also at 720p and 1080p; determinism twice and replayed; `--smoke-test-saves`; `ui_snapshot` in each realm; screenshots against the mockups.
 
 **Notes (2026-11-11, home) (commit `938eba8`):**
 - `dialog/home.rs`: the crest (skin `ornaments`), title, campaign subtitle, the campaign row (an emblem per campaign, `Home/Campaign II`), menu items with sublines, the version. Continue loads `profile.last_save` (subline from `session::probe_save`); disabled with a tooltip when the save is missing, gone or of another version. Campaign resumes the playable campaign at its next mission, or opens the new `CampaignPicker` (`UiCard`, skin `cards`) when two can be played. Custom Game disabled.

@@ -8,7 +8,7 @@ use serde_json::{Value, json};
 use engine::{
     cli,
     log,
-    screenshot::{self, ScreenshotOutput, ScreenshotRequest, ScreenshotScale},
+    screenshot::{self, ScreenshotFormat, ScreenshotOutput, ScreenshotRequest, ScreenshotScale},
 };
 
 use crate::{
@@ -103,6 +103,7 @@ fn cmd_screenshot(context: &mut CommandContext, params: Value) -> CommandResult 
     let id = context.engine.request_screenshot(ScreenshotRequest {
         include_ui: params.include_ui,
         scale,
+        format: ScreenshotFormat::Png,
         output,
         encode_in_frame: true, // So the script takes the same frames on every run.
     });

@@ -340,7 +340,7 @@ impl ButtonDef for LeftBarButtonKind {
         const CLOSE_ALL_OTHERS: bool = true;
         match self {
             Self::MainMenu => dialog::open(DialogMenuKind::MainGame, CLOSE_ALL_OTHERS, context),
-            Self::SaveGame => dialog::open(DialogMenuKind::LoadOrSaveGame, CLOSE_ALL_OTHERS, context),
+            Self::SaveGame => dialog::open(DialogMenuKind::SaveGame, CLOSE_ALL_OTHERS, context),
             Self::Settings => dialog::open(DialogMenuKind::MainSettings, CLOSE_ALL_OTHERS, context),
             Self::CityManagement => dialog::open(DialogMenuKind::CityManagement, CLOSE_ALL_OTHERS, context),
         }

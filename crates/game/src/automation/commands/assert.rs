@@ -9,7 +9,7 @@ use serde_json::{Value, json};
 
 use engine::{
     cli,
-    screenshot::{self, ImageComparison, ScreenshotOutput, ScreenshotRequest},
+    screenshot::{self, ImageComparison, ScreenshotFormat, ScreenshotOutput, ScreenshotRequest},
 };
 
 use super::observe::screenshot_scale;
@@ -184,6 +184,7 @@ fn cmd_assert_image(context: &mut CommandContext, params: Value) -> CommandResul
     let id = context.engine.request_screenshot(ScreenshotRequest {
         include_ui: params.include_ui,
         scale,
+        format: ScreenshotFormat::Png,
         output,
         encode_in_frame: true, // So the script takes the same frames on every run.
     });

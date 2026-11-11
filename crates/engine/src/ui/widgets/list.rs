@@ -64,7 +64,9 @@ impl UiListRow {
 
 // How template rows look: a panel behind every row (e.g. a rule under it) and one behind the
 // selected row (also, faded, behind a hovered one), text colours (the style's if None), font
-// scales relative to the list's, the icon's size, and the room round the text.
+// scales relative to the list's, the icon's size, and the room round the text. The right-hand
+// texts are right-aligned at the row's end, or, with a `right_column`, left-aligned from that
+// share of the row's text width (a second column, as the save list's time and date).
 #[derive(Copy, Clone, Debug)]
 pub struct UiListRowLook {
     pub panel: Option<UiNineSlice>,
@@ -72,6 +74,8 @@ pub struct UiListRowLook {
     pub title_color: Option<Color>,
     pub selected_title_color: Option<Color>,
     pub subtitle_color: Option<Color>,
+    pub right_title_color: Option<Color>, // The subtitle colour if None.
+    pub right_column: Option<f32>,        // From 0 to 1.
     pub title_scale: f32,
     pub subtitle_scale: f32,
     pub icon_size: f32,
@@ -87,6 +91,8 @@ impl Default for UiListRowLook {
             title_color: None,
             selected_title_color: None,
             subtitle_color: None,
+            right_title_color: None,
+            right_column: None,
             title_scale: 1.0,
             subtitle_scale: 0.8,
             icon_size: 36.0,
@@ -155,7 +161,13 @@ impl UiListRowLook {
             inner.center().y - height * 0.5
         };
 
-        let clipped = painter.with_clip_rect(rect.intersect(ui.clip_rect()));
+        // With a second column, the first's texts are cut short of it.
+        let column_x = self.right_column.map(|column| left + (inner.right() - left) * column.clamp(0.0, 1.0));
+        let left_clip = match column_x {
+            Some(x) => rect.with_max_x((x - self.padding.x).max(rect.left())),
+            None => rect,
+        };
+        let clipped = painter.with_clip_rect(left_clip.intersect(ui.clip_rect()));
         let top = text_top(row.subtitle.is_some());
         clipped.text(pos2(left, top), Align2::LEFT_TOP, &row.title, title_font.clone(), title_color);
         if let Some(subtitle) = &row.subtitle {
@@ -164,9 +176,15 @@ impl UiListRowLook {
 
         if let Some(right_title) = &row.right_title {
             let top = text_top(row.right_subtitle.is_some());
-            clipped.text(pos2(inner.right(), top), Align2::RIGHT_TOP, right_title, title_font, subtitle_color);
+            let right_title_color = fade(self.right_title_color.map_or(subtitle_color, color32));
+            let (x, align) = match column_x {
+                Some(x) => (x, Align2::LEFT_TOP),
+                None => (inner.right(), Align2::RIGHT_TOP),
+            };
+            let clipped = painter.with_clip_rect(rect.intersect(ui.clip_rect()));
+            clipped.text(pos2(x, top), align, right_title, title_font, right_title_color);
             if let Some(right_subtitle) = &row.right_subtitle {
-                clipped.text(pos2(inner.right(), top + title_height), Align2::RIGHT_TOP, right_subtitle, subtitle_font, subtitle_color);
+                clipped.text(pos2(x, top + title_height), align, right_subtitle, subtitle_font, subtitle_color);
             }
         }
     }
@@ -206,6 +224,7 @@ pub struct UiItemList {
     text_input_field_buffer: Option<String>,
     sounds: UiWidgetSounds,      // Hovered: ItemHovered, for a row; Selected: ItemSelected. Typing plays nothing.
     hovered_item: Option<usize>, // Last frame.
+    reveal_current: bool,        // Scroll the current item into view when it's next drawn.
     on_selection_changed: UiItemListSelectionChanged,
 }
 
@@ -316,13 +335,30 @@ impl UiWidget for UiItemList {
                             if ui.is_rect_visible(rect) {
                                 look.paint(ui, ui_sys, rect, &response, row, self.font_scale, is_selected);
                             }
+                            if is_selected && self.reveal_current {
+                                response.scroll_to_me_animation(None, egui::style::ScrollAnimation::none());
+                            }
                             if response.clicked() && row.enabled {
                                 current_item = Some(index);
                             }
                             if response.hovered() && row.enabled {
                                 hovered_item = Some(index);
                             }
-                            immediate::record(ui_sys, ui, &response, "list_item", &row.title, None, row.enabled, Some(serde_json::Value::Bool(is_selected)));
+                            // Its texts with its state, so automation can read a row. Recorded as far as
+                            // it shows: a row the list's end cuts is the part above it.
+                            let mut shown = response.clone();
+                            let shown_rect = response.rect.intersect(ui.clip_rect());
+                            if shown_rect.is_positive() {
+                                shown.rect = shown_rect;
+                            }
+                            immediate::record_lazy(ui_sys, ui, &shown, "list_item", &row.title, None, row.enabled, || {
+                                Some(serde_json::json!({
+                                    "selected": is_selected,
+                                    "subtitle": row.subtitle,
+                                    "right": row.right_title,
+                                    "right_subtitle": row.right_subtitle,
+                                }))
+                            });
                         }
                         return;
                     }
@@ -333,6 +369,9 @@ impl UiWidget for UiItemList {
                             let is_selected = current_item == Some(index);
                             let text = egui::RichText::new(item).font(font.clone());
                             let response = ui.add(egui::Button::selectable(is_selected, text));
+                            if is_selected && self.reveal_current {
+                                response.scroll_to_me_animation(None, egui::style::ScrollAnimation::none());
+                            }
                             if response.clicked() {
                                 current_item = Some(index);
                             }
@@ -347,6 +386,10 @@ impl UiWidget for UiItemList {
 
             list_response
         });
+
+        // Shown once: the player scrolls it away as they like. A new list (a rebuilt dialog) or
+        // set_current_item shows it again.
+        self.reveal_current = false;
 
         if hovered_item.is_some() && hovered_item != self.hovered_item {
             self.sounds.play(context, UiSoundEvent::Hovered, Some(UiSoundKey::ItemHovered));
@@ -464,6 +507,7 @@ impl UiItemList {
             text_input_field_buffer: None,
             sounds: UiWidgetSounds::new(),
             hovered_item: None,
+            reveal_current: true,
             on_selection_changed: None,
         }
     }
@@ -566,6 +610,14 @@ impl UiItemList {
 
     pub fn current_selection(&self) -> Option<&str> {
         self.current_item.map(|index| self.items[index].as_str())
+    }
+
+    // Selects the item at `index` (None: none) without telling on_selection_changed, e.g. to
+    // follow a selection made elsewhere. The text input field, if any, shows it.
+    pub fn set_current_item(&mut self, index: Option<usize>) {
+        self.current_item = index.filter(|index| *index < self.items.len());
+        self.reveal_current = true;
+        self.sync_text_input_field();
     }
 
     pub fn clear_selection(&mut self) {

@@ -109,13 +109,7 @@ impl TryFrom<Value> for SizeParam {
 
 // Save names are file names inside saves/, without the extension.
 pub(super) fn validate_save_name(name: &str) -> Result<(), CommandError> {
-    let is_valid = !name.is_empty()
-        && !name.starts_with('.')
-        && !name.contains(['/', '\\', ':'])
-        && !name.contains("..")
-        && !name.chars().any(char::is_control);
-
-    if is_valid {
+    if crate::session::is_valid_save_name(name) {
         Ok(())
     } else {
         Err(CommandError::invalid_params(format!("'{name}' isn't a valid save name. Use a plain file name, without folders.")))

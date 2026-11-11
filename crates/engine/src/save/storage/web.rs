@@ -122,6 +122,37 @@ impl SaveGameStorageBackend for WebSaveGameStorageBackend {
             .map_err(|_| format!("Failed to delete save '{save_file}' from Browser Local Storage."))
     }
 
+    fn read_save_file_head(&self, save_file: PathRef, max_bytes: usize) -> Result<String, String> {
+        let storage = Self::browser_local_storage().ok_or_else(|| "Browser Local Storage not available.".to_string())?;
+
+        let key = self.make_save_key(save_file);
+
+        let save_data = storage
+            .get_item(key.as_str())
+            .map_err(|_| format!("Failed to read save '{save_file}' from Browser Local Storage."))?
+            .ok_or_else(|| format!("Save file '{save_file}' not found in Browser Local Storage."))?;
+
+        Ok(super::truncate_at_char_boundary(save_data, max_bytes))
+    }
+
+    fn read_save_file_tail(&self, save_file: PathRef, max_bytes: usize) -> Result<String, String> {
+        let storage = Self::browser_local_storage().ok_or_else(|| "Browser Local Storage not available.".to_string())?;
+
+        let key = self.make_save_key(save_file);
+
+        let save_data = storage
+            .get_item(key.as_str())
+            .map_err(|_| format!("Failed to read save '{save_file}' from Browser Local Storage."))?
+            .ok_or_else(|| format!("Save file '{save_file}' not found in Browser Local Storage."))?;
+
+        Ok(super::tail_at_char_boundary(&save_data, max_bytes))
+    }
+
+    // No thumbnails on the web (see save_thumbnail_path).
+    fn save_thumbnail_path(&self, _save_file: PathRef) -> Option<FixedPath> {
+        None
+    }
+
     // heritage_builder/saves/user/: list_save_files skips the keys below a subdirectory.
     fn user_files_path(&self) -> FixedPath {
         self.save_files_path().join("user")

@@ -23,7 +23,7 @@ use crate::{
     log,
     platform,
     render::{RenderStats, RenderSystem, capture::CaptureRequest, debug::DebugDraw, texture::TextureCache},
-    screenshot::{self, ScreenshotId, ScreenshotOutput, ScreenshotRequest, ScreenshotResult, ScreenshotScale, ScreenshotSystem},
+    screenshot::{self, ScreenshotFormat, ScreenshotId, ScreenshotOutput, ScreenshotRequest, ScreenshotResult, ScreenshotScale, ScreenshotSystem},
     sound::SoundSystem,
     ui::UiSystem,
 };
@@ -803,6 +803,7 @@ impl Engine {
             Some(shot) if shot.id.is_none() && frame_number >= shot.options.after_frames => ScreenshotRequest {
                 include_ui: shot.options.include_ui,
                 scale: ScreenshotScale::Pixels,
+                format: ScreenshotFormat::Png,
                 output: ScreenshotOutput::File(shot.options.path.clone()),
                 encode_in_frame: false,
             },

@@ -1,6 +1,7 @@
 # Determinism check: the same seed must give the same game. Builds a settlement, runs five
 # simulated minutes in fixed steps, saves it as saves/determinism.json and prints a checksum of
 # the game state. Run it twice; both runs must print the same checksum and write the same save.
+# The save's thumbnail, saves/determinism.jpg, is left beside it (CI compares only the .json).
 # The window size is part of the state, so fix it too:
 #   cargo run -p HeritageBuilder -- --fresh-profile --seed 7 --window-size 1280x720 --script crates/game/tests/scenarios/determinism.jsonl
 {"method": "time.fixed_dt", "params": {"dt": 0.016667}}

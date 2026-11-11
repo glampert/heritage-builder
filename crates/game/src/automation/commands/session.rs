@@ -50,6 +50,18 @@ pub(super) const COMMANDS: &[CommandDef] = &[
         run: cmd_load_save,
     },
     CommandDef {
+        name: "session.save_info",
+        help: "What a save says about itself without loading it: whether it exists, whether this game can load it, its header (campaign, mission, realm, date, population, treasury, time played, time saved; empty for an old save) and its thumbnail, if any (also for a missing save, so a thumbnail left behind shows).",
+        params: &[ParamDef { name: "name", kind: "string", required: true, help: "Save name, without folder or extension." }],
+        run: cmd_save_info,
+    },
+    CommandDef {
+        name: "session.delete_save",
+        help: "Delete a save game and its thumbnail.",
+        params: &[ParamDef { name: "name", kind: "string", required: true, help: "Save name, without folder or extension." }],
+        run: cmd_delete_save,
+    },
+    CommandDef {
         name: "session.save",
         help: "Save the game.",
         params: &[ParamDef { name: "name", kind: "string", required: true, help: "Save name, without folder or extension." }],
@@ -237,10 +249,54 @@ fn cmd_save(context: &mut CommandContext, params: Value) -> CommandResult {
     validate_save_name(&params.name)?;
     context.require_map()?;
 
-    context.session.save_game(PathRef::from_str(&params.name)).map_err(CommandError::failed)?;
+    context.session.save_game_with_thumbnail(context.engine, context.configs, PathRef::from_str(&params.name)).map_err(CommandError::failed)?;
 
     let path = save::storage::save_files_path().join(&params.name).with_extension("json");
     done(json!({ "name": params.name, "path": path.to_string() }))
+}
+
+fn require_save(name: &str) -> Result<(), CommandError> {
+    validate_save_name(name)?;
+    if !save::storage::list_save_files().iter().any(|save| save.as_os_str() == name) {
+        return Err(CommandError::not_found(format!("No save named '{name}'.")));
+    }
+    Ok(())
+}
+
+fn cmd_save_info(_context: &mut CommandContext, params: Value) -> CommandResult {
+    let params: SaveNameParams = parse_params(params)?;
+    validate_save_name(&params.name)?;
+
+    let thumbnail = save::storage::save_thumbnail_path(PathRef::from_str(&params.name)).filter(|path| engine::file_sys::exists(path));
+    if require_save(&params.name).is_err() {
+        // No save by that name: report a thumbnail it left behind, which a deletion should take too.
+        return done(json!({
+            "name": params.name,
+            "exists": false,
+            "loadable": false,
+            "header": Value::Null,
+            "has_thumbnail": thumbnail.is_some(),
+            "thumbnail": thumbnail.map(|path| path.to_string()),
+        }));
+    }
+
+    let summary = session::probe_save(PathRef::from_str(&params.name)).map_err(CommandError::failed)?;
+    done(json!({
+        "name": params.name,
+        "exists": true,
+        "loadable": summary.loadable,
+        "header": summary.header,
+        "has_thumbnail": thumbnail.is_some(),
+        "thumbnail": thumbnail.map(|path| path.to_string()),
+    }))
+}
+
+fn cmd_delete_save(_context: &mut CommandContext, params: Value) -> CommandResult {
+    let params: SaveNameParams = parse_params(params)?;
+    require_save(&params.name)?;
+
+    session::delete_save(PathRef::from_str(&params.name)).map_err(CommandError::failed)?;
+    done(json!({ "name": params.name }))
 }
 
 fn cmd_checksum(context: &mut CommandContext, _params: Value) -> CommandResult {

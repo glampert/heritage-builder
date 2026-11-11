@@ -53,6 +53,19 @@ pub struct UiDropdownLook {
     pub text_color: Option<Color>,
 }
 
+// A text field's panel (a 9-slice behind the text), the room between its edges and the text, the
+// text's colour, and the colour of the line drawn round the field while it has keyboard focus.
+#[derive(Copy, Clone, Debug)]
+pub struct UiTextInputLook {
+    pub field: UiNineSlice,
+    pub padding: Vec2,
+    pub text_color: Option<Color>,
+    pub focus_color: Option<Color>,
+}
+
+// The width and corner radius of a focused field's line, in points.
+const FOCUS_LINE: (f32, f32) = (2.5, 5.0);
+
 // A light wash over a hovered control's art.
 const HOVER_WASH: Color32 = Color32::from_rgba_premultiplied(28, 28, 28, 28);
 
@@ -691,8 +704,11 @@ pub type UiTextInputUpdateValue = UiWidgetCallback<dyn Fn(&UiTextInput, &mut dyn
 
 pub struct UiTextInput {
     label: UiString,
+    show_label: bool,
     buffer: String,
     font_scale: UiFontScale,
+    width: Option<f32>, // The field's; 0 takes the room left in the row.
+    look: Option<UiTextInputLook>,
     on_read_value: UiTextInputReadValue,
     on_update_value: UiTextInputUpdateValue,
 }
@@ -707,7 +723,6 @@ impl UiWidget for UiTextInput {
 
         context.set_window_font_scale(self.font_scale);
         let ui_sys = context.ui_sys();
-        let width = internal::item_width(ui_sys);
 
         self.buffer.clear();
         if let Some(on_read_value) = &self.on_read_value {
@@ -719,12 +734,41 @@ impl UiWidget for UiTextInput {
         let (value_changed, set_value) = ui_sys.with_ui(|ui| {
             let response = ui
                 .horizontal(|ui| {
-                    left_label(ui_sys, ui, self.label.resolve());
-                    let text_edit = egui::TextEdit::singleline(&mut self.buffer)
+                    if self.show_label {
+                        left_label(ui_sys, ui, self.label.resolve());
+                    }
+                    let width = match self.width {
+                        Some(width) if width > 0.0 => width,
+                        Some(_) => ui.available_width(),
+                        None => internal::item_width(ui_sys),
+                    };
+                    let mut text_edit = egui::TextEdit::singleline(&mut self.buffer)
                         .id(id)
                         .font(internal::font(ui_sys, self.font_scale))
                         .desired_width(width);
-                    ui.add(text_edit)
+
+                    // With a look, its field goes under the text, whose own frame is hidden.
+                    let Some(look) = self.look else {
+                        return ui.add(text_edit);
+                    };
+                    let padding = vec2(look.padding.x, look.padding.y);
+                    // The padding is the frame's inner margin; egui counts it in the desired width.
+                    let margin = egui::Margin::symmetric(padding.x.round().clamp(0.0, 127.0) as i8, padding.y.round().clamp(0.0, 127.0) as i8);
+                    text_edit = text_edit.frame(egui::Frame::NONE.inner_margin(margin)).desired_width(width);
+                    if let Some(color) = look.text_color {
+                        text_edit = text_edit.text_color(color32(color));
+                    }
+                    let slot = ui.painter().add(egui::Shape::Noop);
+                    let response = ui.add(text_edit);
+                    ui.painter().set(slot, nine_slice_shape(response.rect, &look.field, Color32::WHITE));
+                    if response.hovered() && !response.has_focus() {
+                        ui.painter().rect_filled(response.rect.shrink(2.0), 3.0, HOVER_WASH);
+                    }
+                    if let Some(color) = look.focus_color.filter(|_| response.has_focus()) {
+                        let (width, radius) = FOCUS_LINE;
+                        ui.painter().rect_stroke(response.rect, radius, egui::Stroke::new(width, color32(color)), egui::StrokeKind::Inside);
+                    }
+                    response
                 })
                 .inner;
 
@@ -743,7 +787,17 @@ impl UiWidget for UiTextInput {
     }
 
     fn measure(&self, context: &dyn UiWidgetContext) -> Vec2 {
-        internal::calc_labeled_widget_size(context.ui_sys(), self.font_scale, self.label.resolve())
+        let ui_sys = context.ui_sys();
+        let label = if self.show_label { self.label.resolve() } else { "" };
+        let mut size = internal::calc_labeled_widget_size(ui_sys, self.font_scale, label);
+        if let Some(width) = self.width {
+            let field = if width > 0.0 { width } else { internal::available_size(ui_sys).x };
+            size.x += field - internal::item_width(ui_sys);
+        }
+        if let Some(look) = self.look {
+            size.y = internal::calc_text_line_height(ui_sys, self.font_scale) + look.padding.y * 2.0;
+        }
+        size
     }
 
     fn label(&self) -> &str {
@@ -767,8 +821,11 @@ impl UiTextInput {
     pub fn new() -> Self {
         Self {
             label: UiString::default(),
+            show_label: true,
             buffer: String::new(),
             font_scale: UiFontScale::default(),
+            width: None,
+            look: None,
             on_read_value: None,
             on_update_value: None,
         }
@@ -777,6 +834,28 @@ impl UiTextInput {
     // To the field's left.
     pub fn with_label(mut self, label: impl Into<UiString>) -> Self {
         self.label = label.into();
+        self
+    }
+
+    // Names it in widget paths without drawing it, for a field whose label is drawn elsewhere
+    // (a heading above it).
+    pub fn with_hidden_label(mut self, label: impl Into<UiString>) -> Self {
+        self.label = label.into();
+        self.show_label = false;
+        self
+    }
+
+    // The field's width in points; 0 takes the room left in its row. The group's item width, or
+    // the style's, without one.
+    pub fn with_width(mut self, width: f32) -> Self {
+        debug_assert!(width >= 0.0);
+        self.width = Some(width);
+        self
+    }
+
+    // Draws the field on a panel instead of egui's frame.
+    pub fn with_look(mut self, look: UiTextInputLook) -> Self {
+        self.look = Some(look);
         self
     }
 

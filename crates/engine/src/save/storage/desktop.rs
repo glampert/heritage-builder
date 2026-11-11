@@ -81,7 +81,50 @@ impl SaveGameStorageBackend for FileSysSaveGameStorageBackend {
     fn delete_save_file(&self, save_file: PathRef) -> SaveResult {
         let absolute_path = self.make_absolute_save_path(save_file);
 
-        file_sys::remove_file(&absolute_path).map_err(|err| format!("Failed to delete save file '{absolute_path}': {err}"))
+        file_sys::remove_file(&absolute_path).map_err(|err| format!("Failed to delete save file '{absolute_path}': {err}"))?;
+
+        if let Some(thumbnail) = self.save_thumbnail_path(save_file)
+            && file_sys::exists(&thumbnail)
+        {
+            file_sys::remove_file(&thumbnail).map_err(|err| format!("Failed to delete save thumbnail '{thumbnail}': {err}"))?;
+        }
+        Ok(())
+    }
+
+    fn read_save_file_head(&self, save_file: PathRef, max_bytes: usize) -> Result<String, String> {
+        use std::io::Read;
+
+        let absolute_path = self.make_absolute_save_path(save_file);
+        let file = std::fs::File::open(absolute_path.as_str())
+            .map_err(|err| format!("Failed to read save game file '{absolute_path}': {err}"))?;
+
+        let mut bytes = Vec::with_capacity(max_bytes.min(64 * 1024));
+        file.take(max_bytes as u64)
+            .read_to_end(&mut bytes)
+            .map_err(|err| format!("Failed to read save game file '{absolute_path}': {err}"))?;
+
+        // The cut may have split a character: keep the whole ones.
+        Ok(super::text_from_cut_bytes(&bytes))
+    }
+
+    fn read_save_file_tail(&self, save_file: PathRef, max_bytes: usize) -> Result<String, String> {
+        use std::io::{Read, Seek, SeekFrom};
+
+        let absolute_path = self.make_absolute_save_path(save_file);
+        let read_error = |err: std::io::Error| format!("Failed to read save game file '{absolute_path}': {err}");
+
+        let mut file = std::fs::File::open(absolute_path.as_str()).map_err(read_error)?;
+        let len = file.metadata().map_err(read_error)?.len();
+        file.seek(SeekFrom::Start(len.saturating_sub(max_bytes as u64))).map_err(read_error)?;
+
+        let mut bytes = Vec::with_capacity(max_bytes.min(64 * 1024));
+        file.read_to_end(&mut bytes).map_err(read_error)?;
+        Ok(super::text_from_cut_bytes(&bytes))
+    }
+
+    fn save_thumbnail_path(&self, save_file: PathRef) -> Option<FixedPath> {
+        debug_assert!(!save_file.is_empty());
+        Some(self.save_files_path().join(save_file).with_extension(super::SAVE_THUMBNAIL_EXTENSION))
     }
 
     // saves/user/: list_save_files only looks at the files directly in saves/.
