@@ -548,7 +548,7 @@ The existing dialogs keep their layouts but take their panels from the Đại Lo
   - `ui_menus.jsonl` (every dialog, every realm, Continue, Custom Game start, settings commit);
   - update `ui_new_game.jsonl` to the Blank map path.
 
-**Notes (2026-11-11, home) (commit TODO):**
+**Notes (2026-11-11, home) (commit `938eba8`):**
 - `dialog/home.rs`: the crest (skin `ornaments`), title, campaign subtitle, the campaign row (an emblem per campaign, `Home/Campaign II`), menu items with sublines, the version. Continue loads `profile.last_save` (subline from `session::probe_save`); disabled with a tooltip when the save is missing, gone or of another version. Campaign resumes the playable campaign at its next mission, or opens the new `CampaignPicker` (`UiCard`, skin `cards`) when two can be played. Custom Game disabled.
 - Home and the picker rebuild on a profile change, when the home menu opens and on a rescale (the picker keeps its pick). Home's contents scale with its content area (`skin::dialog_content_scale`); the picker's cards, buttons and text grow between 1280 × 720 and 1080p. A dialog over Home dims the backdrop (`dim_home_dialog`). Dialogs take an `offset`.
 - Art (ui-art): Đại Long's crest, a seal with Đ; Kambara's and Tampadesa's backdrops, 1920 × 1080 JPEGs.
