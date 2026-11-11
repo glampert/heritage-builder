@@ -133,7 +133,11 @@
     { "id": "vine_br", "group": "ornaments", "call": "mpanel", "size": [480, 480], "capture": { "helper": "vine", "index": 1 },
       "bleed": [-318, -218, 40, 36], "realms": { "kambara": {} } },
     { "id": "crest", "group": "ornaments", "call": "mpanel", "args": { "crest": true }, "size": [480, 480],
-      "realms": { "kambara": { "capture": { "helper": "prang", "index": 0 }, "bleed": [-222, -53, -222, -350] },
-                  "tampadesa": { "capture": { "helper": "stupa", "index": 4 }, "bleed": [-212, -51, -212, -338] } } }
+      "realms": { "dailong": { "call": "seal", "args": { "s": 56, "letter": "Đ" }, "size": [64, 64], "bleed": [0, 0, 0, 0] },
+                  "kambara": { "capture": { "helper": "prang", "index": 0 }, "bleed": [-222, -53, -222, -350] },
+                  "tampadesa": { "capture": { "helper": "stupa", "index": 4 }, "bleed": [-212, -51, -212, -338] } } },
+
+    { "id": "home_backdrop", "group": "backdrops", "call": "home_scene", "size": [1920, 1080], "scale": 1, "format": "jpeg",
+      "realms": { "kambara": {}, "tampadesa": {} } }
   ]
 }

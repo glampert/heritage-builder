@@ -132,6 +132,18 @@
       "source_hash": "c46dbf364b115da4",
       "state": null
     },
+    "assets/ui/skins/dailong/crest.png": {
+      "catalog_hash": "f6eac751c1c01ba3",
+      "id": "crest",
+      "png_hash": "8aec6f8e20d04ef7",
+      "png_size": [
+        128,
+        128
+      ],
+      "realm": "dailong",
+      "source_hash": "015ee28c29f619f4",
+      "state": null
+    },
     "assets/ui/skins/dailong/dropdown_arrow.png": {
       "catalog_hash": "f4e6505ad2533a92",
       "id": "dropdown_arrow",
@@ -948,6 +960,18 @@
       "source_hash": "d174fd5c8f48b22b",
       "state": "locked"
     },
+    "assets/ui/skins/kambara/home_backdrop.jpg": {
+      "catalog_hash": "ffea7af154b86ee6",
+      "id": "home_backdrop",
+      "png_hash": "a5934150b1e77d6e",
+      "png_size": [
+        1920,
+        1080
+      ],
+      "realm": "kambara",
+      "source_hash": "7bee1c5ba5e1d0aa",
+      "state": null
+    },
     "assets/ui/skins/kambara/icon_frame_disabled.png": {
       "catalog_hash": "4d18f9e6c29467d8",
       "id": "icon_frame",
@@ -1667,6 +1691,18 @@
       "realm": "tampadesa",
       "source_hash": "283d2b98166265c8",
       "state": "locked"
+    },
+    "assets/ui/skins/tampadesa/home_backdrop.jpg": {
+      "catalog_hash": "ac7f090992d64a8b",
+      "id": "home_backdrop",
+      "png_hash": "b3ea459ad7426b53",
+      "png_size": [
+        1920,
+        1080
+      ],
+      "realm": "tampadesa",
+      "source_hash": "1a584a02311a97c7",
+      "state": null
     },
     "assets/ui/skins/tampadesa/icon_frame_disabled.png": {
       "catalog_hash": "8284c5a041197ead",

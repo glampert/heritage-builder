@@ -106,10 +106,16 @@ pub fn active_mission() -> Option<ActiveMission> {
 // Begin a campaign at its first mission. Returns the map to load, or None if the
 // campaign id is invalid / has no missions.
 pub fn start_campaign(campaign_id: usize) -> Option<MissionMap> {
-    let map = CampaignConfigs::get().mission(campaign_id, 0)?.map.clone();
+    start_mission(campaign_id, 0)
+}
+
+// Begin a campaign at one of its missions, e.g. the next one the player hasn't finished. Returns
+// the map to load, or None if there's no such mission.
+pub fn start_mission(campaign_id: usize, mission_index: usize) -> Option<MissionMap> {
+    let map = CampaignConfigs::get().mission(campaign_id, mission_index)?.map.clone();
 
     let mgr = CampaignManager::get_mut();
-    mgr.progress.active = Some(ActiveMission { campaign_id, mission_index: 0, completed: false });
+    mgr.progress.active = Some(ActiveMission { campaign_id, mission_index, completed: false });
     mgr.pending_prompt = None;
     mgr.suppress_snapshot_restore = true;
 

@@ -15,6 +15,7 @@ Importing this module needs only the standard library; drawing needs the generat
 (Pillow, numpy) and rendering needs Pillow, Node and Playwright.
 """
 
+import base64
 import hashlib
 import io
 import json
@@ -56,7 +57,8 @@ _GEN = None
 
 def load_generator():
     """Imports the generator once, with its text helper stripped. The generator reads
-    build/fonts.css at import; sprites have no text, so a missing file reads as empty."""
+    build/fonts.css at import; sprites have no text (but a seal's letter, which embeds its own
+    font: _with_text), so a missing file reads as empty."""
     global _GEN
     if _GEN is not None:
         return _GEN
@@ -77,10 +79,36 @@ def load_generator():
 
     def no_text(*a, **k):
         return ""
+    global _TEXT
+    _TEXT = world_map.T
     for m in (world_map, screens, menus, pages, dialogs):
         m.T = no_text
     _GEN = (dialogs, dialogs_content)
     return _GEN
+
+
+# The generator's text helper, kept for the few sprites that draw a letter (_with_text).
+_TEXT = None
+
+# The game's font files for the families a sprite's text may use: the page embeds the one it
+# needs, so a sprite's text doesn't depend on the generator's downloaded fonts.
+TEXT_FONTS = {"Protest Revolution": "protest_revolution_regular.ttf"}
+
+
+def _with_text(th, family, draw):
+    """Calls draw() with the generator's text helper back in world_map (where seal() lives), and
+    embeds `family` from assets/fonts in the sprite's defs."""
+    if family not in TEXT_FONTS:
+        raise cat.CatalogError(f"no font file for the family {family!r} (render.TEXT_FONTS)")
+    data = (pathlib.Path(cat.REPO_ROOT) / "assets" / "fonts" / TEXT_FONTS[family]).read_bytes()
+    th.defs.append(f"<style>@font-face{{font-family:'{family}';"
+                   f"src:url(data:font/ttf;base64,{base64.b64encode(data).decode()})}}</style>")
+    import world_map
+    stripped, world_map.T = world_map.T, _TEXT
+    try:
+        return draw()
+    finally:
+        world_map.T = stripped
 
 
 def theme(realm):
@@ -135,7 +163,21 @@ CALLS = {
     "divider": lambda th, x, y, w, h, a: th.divider(x, y + h / 2, w),
     "realm_emblem": lambda th, x, y, w, h, a: th.realm_emblem(
         a["key"], *_at(x, y, w, h, a), a.get("r", 40), a.get("locked", False), a.get("current", False)),
+    # A seal (Đại Long's red square with a letter in the title font), s points large, at the
+    # rect's centre.
+    "seal": lambda th, x, y, w, h, a: _with_text(
+        th, th.title_font, lambda: th.seal(*_at(x, y, w, h, a), a.get("s", min(w, h)), a.get("letter", ""), a.get("color"))),
+    # The home menu's backdrop scene (menus.py), drawn for 1920 x 1080 at the rect and cut to it.
+    "home_scene": lambda th, x, y, w, h, a: _scene(th, x, y, w, h, th.home_scene()),
 }
+
+
+def _scene(th, x, y, w, h, body):
+    # A full-screen scene drawn at the origin: moved onto the rect and clipped to it, since its
+    # palms and clouds run past the screen's edges.
+    cid = th.nid("scene")
+    th.defs.append(f'<clipPath id="{cid}"><rect x="0" y="0" width="{w:g}" height="{h:g}"/></clipPath>')
+    return f'<g transform="translate({x:g},{y:g})"><g clip-path="url(#{cid})">{body}</g></g>'
 
 
 # ----------------------------------------------------------------------------
@@ -366,15 +408,22 @@ def _pil():
     return Image
 
 
+# A JPEG's quality (Pillow's scale): the backdrops, which the web build preloads.
+JPEG_QUALITY = 85
+
+
 def finish(rec, page_png):
-    """Crops a shot page to the sprite. Returns (PNG bytes, spill): spill is how far, in
-    points, the drawing reaches past the sprite on each side (left, top, right, bottom)."""
+    """Crops a shot page to the sprite, resized to its own scale if that isn't the shot's, and
+    encodes it in its format. Returns (image bytes, spill): spill is how far, in points, the
+    drawing reaches past the sprite on each side (left, top, right, bottom)."""
     Image = _pil()
     im = Image.open(io.BytesIO(page_png)).convert("RGBA")
-    s = rec["scale"]
+    s = rec["shot_scale"]
     _, _, crop = layout(rec)
     box = tuple(int(round(v * s)) for v in (crop[0], crop[1], crop[0] + crop[2], crop[1] + crop[3]))
     sprite = im.crop(box)
+    if rec["scale"] != s:
+        sprite = sprite.resize(tuple(rec["png_size"]), Image.LANCZOS)
     if list(sprite.size) != rec["png_size"]:
         raise SystemExit(f"{rec['realm']}/{rec['id']}: cropped to {sprite.size}, expected {rec['png_size']}")
     alpha = im.getchannel("A").point(lambda v: 255 if v > SPILL_ALPHA else 0)
@@ -385,7 +434,13 @@ def finish(rec, page_png):
         spill = [max(0, box[0] - bb[0]) / s, max(0, box[1] - bb[1]) / s,
                  max(0, bb[2] - box[2]) / s, max(0, bb[3] - box[3]) / s]
     buf = io.BytesIO()
-    sprite.save(buf, "PNG", optimize=True)
+    if rec["format"] == "jpeg":
+        # Opaque: whatever the scene leaves transparent shows black.
+        flat = Image.new("RGB", sprite.size, (0, 0, 0))
+        flat.paste(sprite, mask=sprite.getchannel("A"))
+        flat.save(buf, "JPEG", quality=JPEG_QUALITY, optimize=True, progressive=True)
+    else:
+        sprite.save(buf, "PNG", optimize=True)
     return buf.getvalue(), spill
 
 
@@ -394,7 +449,7 @@ def extent(rec, page_png):
     negative when it stops inside it. For --measure."""
     Image = _pil()
     im = Image.open(io.BytesIO(page_png)).convert("RGBA")
-    s = rec["scale"]
+    s = rec["shot_scale"]
     bb = im.getchannel("A").point(lambda v: 255 if v > SPILL_ALPHA else 0).getbbox()
     if not bb:
         return None

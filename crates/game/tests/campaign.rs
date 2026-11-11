@@ -27,6 +27,7 @@ fn main() {
         test_utils::test_fn!(test_requirements_all_met),
         // Manager state machine:
         test_utils::test_fn!(test_start_campaign_sets_active_mission),
+        test_utils::test_fn!(test_start_mission_resumes_a_campaign),
         test_utils::test_fn!(test_tick_detects_mission_completion),
         test_utils::test_fn!(test_advance_to_next_mission),
         test_utils::test_fn!(test_continue_playing_no_requeue),
@@ -154,6 +155,23 @@ fn test_start_campaign_sets_active_mission() {
     campaign::reset();
     assert!(campaign::start_campaign(999).is_none());
     assert!(campaign::active_mission().is_none());
+}
+
+// The home menu's Campaign resumes a campaign at its next mission: the map of that mission, made
+// the active one, and the next session is its start.
+fn test_start_mission_resumes_a_campaign() {
+    ensure_campaign_setup();
+
+    let map = campaign::start_mission(0, 1).expect("campaign 0 has a mission 1");
+    assert!(matches!(map, MissionMap::Preset { .. }));
+    let active = campaign::active_mission().expect("active mission should be set");
+    assert_eq!((active.campaign_id, active.mission_index, active.completed), (0, 1, false));
+    assert!(campaign::take_mission_start());
+
+    // A mission past the campaign's last starts nothing and leaves the active one.
+    assert!(campaign::start_mission(0, 2).is_none());
+    assert_eq!(campaign::active_mission().map(|active| active.mission_index), Some(1));
+    campaign::reset();
 }
 
 fn test_tick_detects_mission_completion() {

@@ -1,0 +1,160 @@
+# The main menus (docs/plans/realm-ui.md, Phase 1): the home menu and the campaign picker in the
+# three realms. The profile (profile.set) picks the realm and fills the campaign row: none reached,
+# campaign II reached, all three; Campaign resumes the campaign at its next mission, or opens the
+# picker when more than one can be played, whose Continue starts the campaign picked; Continue
+# loads the last save. Each screen is checked for layout issues and saved as a screenshot under
+# out/ui_menus/ (the CI artifact).
+#
+# The campaign's missions load the sample saves, so extract them first (unzip saves/sample_saves.zip,
+# as CI does). It writes saves/ui_menus.json, the save Continue loads. Run it with --fresh-profile,
+# as CI does, so it starts from an empty profile and leaves the local one alone:
+#   cargo run -p HeritageBuilder -- --fresh-profile --script crates/game/tests/scenarios/ui_menus.jsonl
+{"method": "time.fixed_dt", "params": {"dt": 0.016667}}
+{"method": "assert.eq", "params": {"query": "session.state", "path": "/menus_mode", "value": "Home"}}
+{"method": "input.move", "params": {"park": true}}
+{"method": "wait.frames", "params": {"frames": 3}}
+
+# ---- A new player: Đại Long; campaign I current, II and III locked; nothing to continue ----
+# Listing the widgets turns the widget registry on, for the ui.tree queries below.
+{"method": "ui.tree", "params": {"filter": "Home/", "fields": ["path", "kind", "enabled", "value", "tooltip"]}}
+{"method": "assert.eq", "params": {"query": "profile.state", "path": "/ui_realm/realm", "value": "dailong"}}
+{"method": "assert.exists", "params": {"query": "ui.tree", "args": {"filter": "Home/crest", "kind": "image"}, "path": "/widgets/0"}}
+{"method": "assert.exists", "params": {"query": "ui.tree", "args": {"filter": "Home/The Dragon Legacy", "kind": "heading"}, "path": "/widgets/0"}}
+{"method": "assert.eq", "params": {"query": "ui.tree", "args": {"filter": "Home/Campaign I", "kind": "image"}, "path": "/widgets/0/tooltip", "value": "The Dragon Legacy"}}
+{"method": "assert.eq", "params": {"query": "ui.tree", "args": {"filter": "Home/Campaign II", "kind": "image"}, "path": "/widgets/0/tooltip", "value": "Finish Campaign I to unlock"}}
+{"method": "assert.eq", "params": {"query": "ui.tree", "args": {"filter": "Home/Campaign III", "kind": "image"}, "path": "/widgets/0/tooltip", "value": "Finish Campaign II to unlock"}}
+{"method": "assert.eq", "params": {"query": "ui.tree", "args": {"filter": "Home/", "kind": "heading", "fields": ["path"]}, "path": "/widgets/2/path", "value": "Home/Đại Long"}}
+{"method": "assert.eq", "params": {"query": "ui.tree", "args": {"filter": "Home/", "kind": "heading", "fields": ["path"]}, "path": "/widgets/3/path", "value": "Home/Locked"}}
+{"method": "assert.eq", "params": {"query": "ui.tree", "args": {"filter": "Home/Continue", "kind": "menu_entry"}, "path": "/widgets/0/enabled", "value": false}}
+{"method": "assert.eq", "params": {"query": "ui.tree", "args": {"filter": "Home/Continue", "kind": "menu_entry"}, "path": "/widgets/0/tooltip", "value": "No saved game yet."}}
+{"method": "assert.eq", "params": {"query": "ui.tree", "args": {"filter": "Home/Campaign", "kind": "menu_entry"}, "path": "/widgets/0/value/subline", "value": "Campaign I · mission 1 of 3"}}
+{"method": "assert.eq", "params": {"query": "ui.tree", "args": {"filter": "Home/Custom Game", "kind": "menu_entry"}, "path": "/widgets/0/enabled", "value": false}}
+{"method": "assert.eq", "params": {"query": "ui.tree", "args": {"filter": "Home/Custom Game", "kind": "menu_entry"}, "path": "/widgets/0/tooltip", "value": "Coming soon"}}
+{"method": "assert.exists", "params": {"query": "ui.tree", "args": {"filter": "Home/Version", "kind": "heading"}, "path": "/widgets/0"}}
+{"method": "assert.eq", "params": {"query": "ui.layout_issues", "path": "/count", "value": 0}}
+{"method": "screenshot", "params": {"path": "out/ui_menus/home_dailong.png"}}
+# The realm's marker shows on the item hovered.
+{"method": "ui.hover", "params": {"path": "Home/Campaign"}}
+{"method": "screenshot", "params": {"path": "out/ui_menus/home_dailong_hover.png"}}
+# Load Game, Settings and About open their dialogs over the home menu; Escape closes them.
+{"method": "ui.click", "params": {"path": "Home/Load Game"}}
+{"method": "assert.eq", "params": {"query": "dialog.current", "path": "/current", "value": "LoadGame"}}
+{"method": "input.key", "params": {"key": "Escape"}}
+{"method": "wait.frames", "params": {"frames": 2}}
+{"method": "ui.click", "params": {"path": "Home/Settings"}}
+{"method": "assert.eq", "params": {"query": "dialog.current", "path": "/current", "value": "MainSettings"}}
+{"method": "input.key", "params": {"key": "Escape"}}
+{"method": "wait.frames", "params": {"frames": 2}}
+{"method": "ui.click", "params": {"path": "Home/About"}}
+{"method": "assert.eq", "params": {"query": "dialog.current", "path": "/current", "value": "About"}}
+{"method": "input.key", "params": {"key": "Escape"}}
+{"method": "wait.frames", "params": {"frames": 2}}
+{"method": "assert.eq", "params": {"query": "dialog.current", "path": "/current", "value": "Home"}}
+{"method": "input.move", "params": {"park": true}}
+
+# ---- Campaign II reached: Kambara's look and campaign; two campaigns to play, so Campaign opens the picker ----
+{"method": "profile.set", "params": {"reached": ["temple_mountain"]}}
+{"method": "wait.frames", "params": {"frames": 3}}
+{"method": "assert.eq", "params": {"query": "profile.state", "path": "/ui_realm/realm", "value": "kambara"}}
+{"method": "assert.exists", "params": {"query": "ui.tree", "args": {"filter": "Home/The Temple Mountain", "kind": "heading"}, "path": "/widgets/0"}}
+{"method": "assert.eq", "params": {"query": "ui.tree", "args": {"filter": "Home/Campaign II", "kind": "image"}, "path": "/widgets/0/tooltip", "value": "The Temple Mountain"}}
+{"method": "assert.eq", "params": {"query": "ui.tree", "args": {"filter": "Home/", "kind": "heading", "fields": ["path"]}, "path": "/widgets/3/path", "value": "Home/Kambara"}}
+{"method": "assert.eq", "params": {"query": "ui.tree", "args": {"filter": "Home/Campaign", "kind": "menu_entry"}, "path": "/widgets/0/value/subline", "value": "Campaign II · coming soon"}}
+{"method": "assert.eq", "params": {"query": "ui.layout_issues", "path": "/count", "value": 0}}
+{"method": "screenshot", "params": {"path": "out/ui_menus/home_kambara.png"}}
+{"method": "ui.click", "params": {"path": "Home/Campaign"}}
+{"method": "assert.eq", "params": {"query": "dialog.current", "path": "/current", "value": "CampaignPicker"}}
+{"method": "input.move", "params": {"park": true}}
+{"method": "wait.frames", "params": {"frames": 3}}
+# Campaign I is picked: the one to start. Campaign II has no missions yet; III is locked.
+{"method": "assert.eq", "params": {"query": "ui.tree", "args": {"filter": "CampaignPicker/Campaign I", "kind": "card"}, "path": "/widgets/0/value/selected", "value": true}}
+{"method": "assert.eq", "params": {"query": "ui.tree", "args": {"filter": "CampaignPicker/Campaign I/status"}, "path": "/widgets/0/value", "value": "Mission 1 of 3: A Humble Beginning"}}
+{"method": "assert.eq", "params": {"query": "ui.tree", "args": {"filter": "CampaignPicker/Campaign II", "kind": "card"}, "path": "/widgets/0/enabled", "value": false}}
+{"method": "assert.eq", "params": {"query": "ui.tree", "args": {"filter": "CampaignPicker/Campaign II", "kind": "card"}, "path": "/widgets/0/tooltip", "value": "Coming soon"}}
+{"method": "assert.eq", "params": {"query": "ui.tree", "args": {"filter": "CampaignPicker/Campaign III", "kind": "card"}, "path": "/widgets/0/tooltip", "value": "Finish Campaign II to unlock"}}
+{"method": "assert.eq", "params": {"query": "ui.tree", "args": {"filter": "CampaignPicker/Replay a mission"}, "path": "/widgets/0/enabled", "value": false}}
+{"method": "assert.eq", "params": {"query": "ui.layout_issues", "path": "/count", "value": 0}}
+{"method": "screenshot", "params": {"path": "out/ui_menus/picker_kambara.png"}}
+# A card that can't be started is disabled (above), so it can't be picked: Campaign I stays picked.
+{"method": "assert.eq", "params": {"query": "ui.tree", "args": {"filter": "CampaignPicker/Campaign II", "kind": "card"}, "path": "/widgets/0/value/selected", "value": false}}
+{"method": "ui.click", "params": {"path": "CampaignPicker/Back"}}
+{"method": "assert.eq", "params": {"query": "dialog.current", "path": "/current", "value": "Home"}}
+{"method": "input.move", "params": {"park": true}}
+
+# ---- All three reached: Tampadesa ----
+{"method": "profile.set", "params": {"reached": ["dragon_legacy", "temple_mountain", "ten_thousand_temples"]}}
+{"method": "wait.frames", "params": {"frames": 3}}
+{"method": "assert.eq", "params": {"query": "profile.state", "path": "/ui_realm/realm", "value": "tampadesa"}}
+{"method": "assert.exists", "params": {"query": "ui.tree", "args": {"filter": "Home/The Plain of Ten Thousand Temples", "kind": "heading"}, "path": "/widgets/0"}}
+{"method": "assert.eq", "params": {"query": "ui.tree", "args": {"filter": "Home/Campaign III", "kind": "image"}, "path": "/widgets/0/tooltip", "value": "The Plain of Ten Thousand Temples"}}
+{"method": "assert.eq", "params": {"query": "ui.layout_issues", "path": "/count", "value": 0}}
+{"method": "screenshot", "params": {"path": "out/ui_menus/home_tampadesa.png"}}
+{"method": "ui.click", "params": {"path": "Home/Campaign"}}
+{"method": "input.move", "params": {"park": true}}
+{"method": "wait.frames", "params": {"frames": 3}}
+{"method": "assert.eq", "params": {"query": "dialog.current", "path": "/current", "value": "CampaignPicker"}}
+{"method": "assert.eq", "params": {"query": "ui.tree", "args": {"filter": "CampaignPicker/Campaign III", "kind": "card"}, "path": "/widgets/0/tooltip", "value": "Coming soon"}}
+{"method": "assert.eq", "params": {"query": "ui.layout_issues", "path": "/count", "value": 0}}
+{"method": "screenshot", "params": {"path": "out/ui_menus/picker_tampadesa.png"}}
+# The picker in each realm's look (ui.realm), for the screenshots.
+{"method": "ui.realm", "params": {"realm": "dailong"}}
+{"method": "wait.frames", "params": {"frames": 3}}
+{"method": "assert.eq", "params": {"query": "dialog.current", "path": "/current", "value": "CampaignPicker"}}
+{"method": "assert.eq", "params": {"query": "ui.layout_issues", "path": "/count", "value": 0}}
+{"method": "screenshot", "params": {"path": "out/ui_menus/picker_dailong.png"}}
+{"method": "ui.realm", "params": {"realm": "auto"}}
+{"method": "input.key", "params": {"key": "Escape"}}
+{"method": "wait.frames", "params": {"frames": 2}}
+{"method": "assert.eq", "params": {"query": "dialog.current", "path": "/current", "value": "Home"}}
+
+# ---- The picker's Continue starts the campaign picked (a click on its card picks it) at its next mission ----
+{"method": "ui.click", "params": {"path": "Home/Campaign"}}
+{"method": "input.move", "params": {"park": true}}
+{"method": "wait.frames", "params": {"frames": 3}}
+{"method": "assert.eq", "params": {"query": "dialog.current", "path": "/current", "value": "CampaignPicker"}}
+{"method": "ui.click", "params": {"path": "CampaignPicker/Campaign I"}}
+{"method": "assert.eq", "params": {"query": "ui.tree", "args": {"filter": "CampaignPicker/Campaign I", "kind": "card"}, "path": "/widgets/0/value/selected", "value": true}}
+{"method": "ui.click", "params": {"path": "CampaignPicker/Continue"}}
+{"method": "wait.until", "params": {"query": "session.state", "path": "/menus_mode", "op": "eq", "value": "InGame", "timeout_frames": 120}}
+{"method": "assert.eq", "params": {"query": "session.state", "path": "/campaign/campaign", "value": "The Dragon Legacy"}}
+{"method": "assert.eq", "params": {"query": "session.state", "path": "/campaign/mission_index", "value": 0}}
+{"method": "session.quit_to_menu"}
+{"method": "input.move", "params": {"park": true}}
+{"method": "wait.frames", "params": {"frames": 3}}
+{"method": "assert.eq", "params": {"query": "session.state", "path": "/menus_mode", "value": "Home"}}
+
+# ---- Campaign resumes the campaign at its next mission: I, with mission 1 finished, at mission 2 ----
+{"method": "profile.set", "params": {"campaigns": [{"id": "dragon_legacy", "reached": true, "current_mission": 0, "missions_finished": [0]}]}}
+{"method": "wait.frames", "params": {"frames": 3}}
+{"method": "assert.eq", "params": {"query": "profile.state", "path": "/ui_realm/realm", "value": "dailong"}}
+{"method": "assert.eq", "params": {"query": "ui.tree", "args": {"filter": "Home/Campaign", "kind": "menu_entry"}, "path": "/widgets/0/value/subline", "value": "Campaign I · mission 2 of 3"}}
+{"method": "ui.click", "params": {"path": "Home/Campaign"}}
+{"method": "wait.until", "params": {"query": "session.state", "path": "/menus_mode", "op": "eq", "value": "InGame", "timeout_frames": 120}}
+{"method": "assert.eq", "params": {"query": "session.state", "path": "/campaign/mission", "value": "A Thriving Town"}}
+{"method": "assert.eq", "params": {"query": "session.state", "path": "/campaign/mission_index", "value": 1}}
+{"method": "assert.eq", "params": {"query": "profile.state", "path": "/profile/campaigns/0/current_mission", "value": 1}}
+
+# ---- Continue loads the last save, and says what it is ----
+{"method": "session.save", "params": {"name": "ui_menus"}}
+{"method": "assert.eq", "params": {"query": "profile.state", "path": "/profile/last_save", "value": "ui_menus"}}
+{"method": "session.quit_to_menu"}
+{"method": "input.move", "params": {"park": true}}
+{"method": "wait.frames", "params": {"frames": 3}}
+{"method": "assert.eq", "params": {"query": "session.state", "path": "/menus_mode", "value": "Home"}}
+{"method": "assert.eq", "params": {"query": "ui.tree", "args": {"filter": "Home/Continue", "kind": "menu_entry"}, "path": "/widgets/0/enabled", "value": true}}
+{"method": "assert.eq", "params": {"query": "ui.tree", "args": {"filter": "Home/Continue", "kind": "menu_entry"}, "path": "/widgets/0/value/subline", "value": "A Thriving Town · Campaign I · ui_menus"}}
+{"method": "assert.eq", "params": {"query": "ui.layout_issues", "path": "/count", "value": 0}}
+{"method": "screenshot", "params": {"path": "out/ui_menus/home_continue.png"}}
+{"method": "ui.click", "params": {"path": "Home/Continue"}}
+{"method": "wait.until", "params": {"query": "session.state", "path": "/menus_mode", "op": "eq", "value": "InGame", "timeout_frames": 120}}
+{"method": "assert.eq", "params": {"query": "session.state", "path": "/campaign/mission", "value": "A Thriving Town"}}
+{"method": "session.quit_to_menu"}
+{"method": "input.move", "params": {"park": true}}
+{"method": "wait.frames", "params": {"frames": 3}}
+
+# ---- A last save that's gone: Continue is disabled, and its tooltip says why ----
+{"method": "profile.set", "params": {"last_save": "ui_menus_gone"}}
+{"method": "wait.frames", "params": {"frames": 3}}
+{"method": "assert.eq", "params": {"query": "ui.tree", "args": {"filter": "Home/Continue", "kind": "menu_entry"}, "path": "/widgets/0/enabled", "value": false}}
+{"method": "assert.eq", "params": {"query": "ui.tree", "args": {"filter": "Home/Continue", "kind": "menu_entry"}, "path": "/widgets/0/tooltip", "value": "The last save, ui_menus_gone, is gone."}}
+{"method": "assert.eq", "params": {"query": "ui.layout_issues", "path": "/count", "value": 0}}

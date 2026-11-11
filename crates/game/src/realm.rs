@@ -11,6 +11,8 @@
 use serde::{Deserialize, Serialize};
 use strum::{Display, EnumIter, EnumString, IntoEnumIterator, IntoStaticStr};
 
+use engine::ui::text::{self, UiTextCategory};
+
 use crate::{
     GameLoop,
     campaign::{self, CampaignManager, config::CampaignConfigs},
@@ -48,12 +50,12 @@ impl Realm {
         name.parse::<Self>().map_err(|_| format!("Unknown realm '{name}'. Realms: {}.", Self::names().join(", ")))
     }
 
-    // The name the player reads.
+    // The name the player reads, in the current language.
     pub fn display_name(self) -> &'static str {
         match self {
-            Self::DaiLong => "Đại Long",
-            Self::Kambara => "Kambara",
-            Self::Tampadesa => "Tampadesa",
+            Self::DaiLong => text::get(UiTextCategory::Realm, "realm.dailong"),
+            Self::Kambara => text::get(UiTextCategory::Realm, "realm.kambara"),
+            Self::Tampadesa => text::get(UiTextCategory::Realm, "realm.tampadesa"),
         }
     }
 

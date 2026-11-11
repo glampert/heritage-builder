@@ -2,8 +2,8 @@
 // the realm skins draw, built with the skin helpers in the realm's own theme: the heading levels,
 // the text colours, every panel, every button role and its four states, the controls (toggle,
 // checkbox, slider, dropdown, step selectors, a scrolling list and template rows with icons), the
-// 9-slice centres, the separators, the emblems, the data widgets (images in each fit, columns), a
-// popup, tooltips and a toast. Its tabs pick the realm (they set the ui.realm override); it follows
+// 9-slice centres, the separators, the emblems and ornaments (the crest), a card, the data widgets
+// (images in each fit, columns), a popup, tooltips and a toast. Its tabs pick the realm (they set the ui.realm override); it follows
 // ui.realm too, and rebuilds whenever the skin changes (skin::version()).
 //
 // Its widgets' paths start with "Skin Gallery/". ui_skins.jsonl opens it in each realm, checks
@@ -47,10 +47,11 @@ struct GalleryState {
     slider: u32,
     dropdown: usize,
     steps: usize,
+    card: bool, // The sample card is picked.
 }
 
 static GALLERY_STATE: UiStaticVar<GalleryState> =
-    UiStaticVar::new(GalleryState { toggle: true, checkbox: true, slider: 60, dropdown: 1, steps: 2 });
+    UiStaticVar::new(GalleryState { toggle: true, checkbox: true, slider: 60, dropdown: 1, steps: 2, card: true });
 
 // ----------------------------------------------
 // SkinGallery
@@ -209,7 +210,14 @@ fn actions(context: &mut GameUiContext, menu_ref: UiMenuWeakMut) -> UiWidgetGrou
 
 fn headings(context: &mut GameUiContext) -> UiWidgetGroup {
     let mut group = UiWidgetGroup::new().with_widget_spacing(Vec2::new(0.0, 4.0));
-    for (level, name) in [(HeadingLevel::Dialog, "Dialog"), (HeadingLevel::Popup, "Popup"), (HeadingLevel::Section, "Section")] {
+    let levels = [
+        (HeadingLevel::Title, "Title"),
+        (HeadingLevel::Subtitle, "Subtitle"),
+        (HeadingLevel::Dialog, "Dialog"),
+        (HeadingLevel::Popup, "Popup"),
+        (HeadingLevel::Section, "Section"),
+    ];
+    for (level, name) in levels {
         group.add_widget(skin::heading(context, [UiString::from(format!("{name} heading · Đại Long"))], level));
     }
     group
@@ -263,9 +271,16 @@ fn separators(context: &mut GameUiContext) -> UiWidgetGroup {
     group
 }
 
-// Each realm's emblem in each of its states.
+// Each realm's emblem in each of its states, then the skin's ornaments (the home menu's crest).
 fn emblems(context: &mut GameUiContext) -> UiWidgetGroup {
     let mut widgets = Vec::new();
+    let ornaments: Vec<String> = skin::current().ornaments.keys().cloned().collect();
+    for name in ornaments {
+        if let Some((texture, size)) = skin::ornament(context, &name) {
+            let size = Vec2::new(40.0 * size.x / size.y.max(1.0), 40.0);
+            widgets.push(UiWidgetImpl::from(UiImage::from_texture(texture, size, size).with_label(format!("ornament {name}"))));
+        }
+    }
     for realm in Realm::iter() {
         for (state, name) in [(EmblemState::Idle, "idle"), (EmblemState::Locked, "locked"), (EmblemState::Current, "current")] {
             if let Some((texture, size)) = skin::emblem(context, realm, state) {
@@ -361,6 +376,12 @@ fn buttons(context: &mut GameUiContext) -> UiWidgetGroup {
         .with_widget(skin::menu_item(context, "Menu Item", Some(UiString::from("With a subline"))))
         .with_widget(skin::menu_item(context, "Disabled Item", None).with_enabled(false));
 
+    // A card, on the skin's card panels: clicking it picks it or lets it go.
+    let card_contents = UiWidgetGroup::new().with_widget(caption("A card: click it to pick it"));
+    let card = skin::card(context, "Card", card_contents)
+        .on_read_selected(|_, _| GALLERY_STATE.card)
+        .on_pressed(|_, _| GALLERY_STATE.as_mut().card = !GALLERY_STATE.card);
+
     let icon_names: Vec<String> = skin::current().icons.keys().cloned().collect();
     let mut icons = row();
     for (index, name) in icon_names.iter().enumerate() {
@@ -382,6 +403,7 @@ fn buttons(context: &mut GameUiContext) -> UiWidgetGroup {
         .with_widget(framed)
         .with_widget(tabs)
         .with_widget(items)
+        .with_widget(card)
         .with_widget(icons)
         .with_widget(sprites)
 }

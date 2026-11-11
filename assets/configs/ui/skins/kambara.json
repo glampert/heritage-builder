@@ -3,8 +3,8 @@
     "fonts": {
       "title": { "file": "jaini_regular.ttf", "scale": 0.761, "y_offset_factor": 0.0 },
       "body": { "file": "jaini_regular.ttf", "scale": 0.761, "y_offset_factor": 0.0 },
-      "title_vi": { "file": "spectral_sc_semi_bold.ttf", "scale": 0.761, "y_offset_factor": 0.093 },
-      "body_vi": { "file": "spectral_sc_semi_bold.ttf", "scale": 0.761, "y_offset_factor": 0.093 }
+      "title_vi": { "file": "spectral_semi_bold.ttf", "scale": 0.761, "y_offset_factor": 0.093 },
+      "body_vi": { "file": "spectral_semi_bold.ttf", "scale": 0.761, "y_offset_factor": 0.093 }
     },
     "text_styles": {
       "body": { "size": 22.0, "fallbacks": ["body_vi", "mono", "icons"] },
@@ -71,7 +71,7 @@
     "secondary": { "sprite": "skins/kambara/button_secondary", "slice": [12, 12, 16, 20], "center": "round", "text": "ink" },
     "tab": { "sprite": "skins/kambara/tab", "slice": [16, 16, 16, 16] },
     "tab_selected": { "sprite": "skins/kambara/tab_selected", "slice": [16, 16, 16, 16] },
-    "menu_item": { "marker": "skins/kambara/marker.png" },
+    "menu_item": { "marker": "skins/kambara/marker.png", "padding": [0.0, 8.0] },
     "icon": {
       "sprite": "skins/kambara/icon_frame",
       "slice": [20, 20, 20, 20],
@@ -110,5 +110,13 @@
     "dailong": "skins/kambara/emblem_dailong",
     "kambara": "skins/kambara/emblem_kambara",
     "tampadesa": "skins/kambara/emblem_tampadesa"
+  },
+  "ornaments": { "crest": "skins/kambara/crest.png" },
+  "headings": {
+    "title": { "font_scale": 2.65 }
+  },
+  "backdrops": { "home": ["skins/kambara/home_backdrop.jpg"] },
+  "dialogs": {
+    "Home": {"size": [560, 1000], "offset": [90, 0]}
   }
 }

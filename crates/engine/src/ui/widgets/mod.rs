@@ -28,6 +28,7 @@
 // `ui::widgets::<Name>`:
 // - menu.rs: UiMenu, its flags, position and content insets.
 // - menu_item.rs: UiMenuItem, an entry of a dialog's list of choices (label, subline, marker).
+// - card.rs: UiCard, a panel around widgets that's picked by clicking it (the campaign picker's).
 // - message_box.rs: UiMessageBox, a menu's modal popup.
 // - text.rs: UiText, UiMenuHeading and UiSizedTextLabel.
 // - group.rs: UiWidgetGroup and UiLabeledWidgetGroup.
@@ -54,6 +55,7 @@ use super::{UiFontScale, UiNineSlice, UiSystem, immediate::{self, rich_text}, in
 use crate::{file_sys::paths::PathRef, render::{RenderSystem, texture::TextureHandle}, sound::SoundSystem};
 
 mod button;
+mod card;
 mod choice;
 mod columns;
 mod data;
@@ -71,6 +73,7 @@ mod text;
 mod tooltip;
 
 pub use button::*;
+pub use card::*;
 pub use choice::*;
 pub use columns::*;
 pub use data::*;
@@ -301,4 +304,5 @@ pub enum UiWidgetImpl {
     UiMeter,
     UiColumns,
     UiRichText,
+    UiCard,
 }

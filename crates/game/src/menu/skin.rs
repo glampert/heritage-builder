@@ -5,8 +5,9 @@
 // - `style`: the realm's UI style (a UiStyleDef: fonts, text styles, colours, widget visuals,
 //   spacing), loaded at boot as the theme named after the realm ("dailong", ...);
 // - `text`: named text colours (ink, accent, on_accent, ...), which the other blocks name;
-// - `headings`, `panels`, `buttons`, `separators`, `controls`, `emblems`, `icons`, `icon_sets`,
-//   `backdrops`, `dialogs`: the sprites, 9-slice borders, insets and sizes the screens use;
+// - `headings`, `panels`, `buttons`, `separators`, `controls`, `emblems`, `ornaments`, `icons`,
+//   `icon_sets`, `cards`, `backdrops`, `dialogs`: the sprites, 9-slice borders, insets and sizes
+//   the screens use;
 // - `toast`: the panel toasts draw on (the caption panel), at a scale, and their text colour;
 // - `meters`, `rows`: the colours (`text` names or "#RRGGBB(AA)") of painted meters and step
 //   selectors, and of list rows, key-value pairs and tables;
@@ -21,8 +22,8 @@
 //
 // The helpers below are how screens are built: dialog, button, panel, tooltip, heading, separator,
 // popup, icon; and for the realm UI's widgets tab_bar, toggle, step_selector, menu_item,
-// list_row_look, icon_button, framed_image, emblem, key_values, table, meter and rich_text. No
-// sprite path is written in the menu code (see the test at the end).
+// list_row_look, icon_button, framed_image, emblem, ornament, card, key_values, table, meter and
+// rich_text. No sprite path is written in the menu code (see the test at the end).
 
 use std::collections::BTreeMap;
 
@@ -92,9 +93,11 @@ pub struct UiSkinDef {
     pub meters: SkinMetersDef,
     pub rows: SkinRowsDef,
     pub separators: BTreeMap<String, SkinSeparatorDef>,
-    // TODO(realm-ui): Phase 1 draws the emblems (skin::emblem): the home menu's realm row, Custom
-    // Game's realm rows and the save rows.
+    // The home menu's campaign row and the campaign picker draw them (skin::emblem).
+    // TODO(realm-ui): Custom Game's realm rows (P1d) and the save rows (P1b) draw them too.
     pub emblems: BTreeMap<String, String>,   // Realm → stem (idle, locked, current states).
+    pub ornaments: BTreeMap<String, String>, // Decorations by name: `crest`, the home menu's.
+    pub cards: SkinCardsDef,
     pub toast: SkinToastDef,
     pub backdrops: SkinBackdropsDef,
     pub dialogs: BTreeMap<String, SkinDialogDef>, // "default", then by dialog kind name.
@@ -117,6 +120,8 @@ impl Default for UiSkinDef {
             rows: SkinRowsDef::default(),
             separators: BTreeMap::new(),
             emblems: BTreeMap::new(),
+            ornaments: BTreeMap::new(),
+            cards: SkinCardsDef::default(),
             toast: SkinToastDef::default(),
             backdrops: SkinBackdropsDef::default(),
             dialogs: BTreeMap::new(),
@@ -164,8 +169,9 @@ pub struct SkinPanelDef {
 // the `hover_sprite` underline while hovered. `font`: large, normal, small or extra_small.
 // `text`, `text_hovered`: colours as panels name them. `min_width`: the narrowest a framed button
 // gets, in points. The menu item role (UiMenuItem) also takes `marker`, a sprite at its left
-// while hovered, and `subline`, its subline's colour; the icon role (UiIconButton) `selected`, the
-// selected frame (cut by `selected_slice`, else by `slice`), and `size`, the button's in points.
+// while hovered, `subline`, its subline's colour, and `padding`'s second value, the room above and
+// below its text; the icon role (UiIconButton) `selected`, the selected frame (cut by
+// `selected_slice`, else by `slice`), and `size`, the button's in points.
 #[derive(Clone, Debug, Default, Deserialize)]
 #[serde(default, deny_unknown_fields)]
 pub struct SkinButtonDef {
@@ -325,6 +331,34 @@ pub struct SkinScrollbarDef {
     pub thumb: SkinSlicedSpriteDef,
 }
 
+// Cards (UiCard, skin::card), the panels the player picks by clicking, as the campaign picker's:
+// the panel one's drawn on and the one while it's selected (panel names), the room between the
+// panel's edges and the contents, in points, the fill over a hovered card, and the tints of a
+// pressed card's panel and of a disabled one's (`text` names or "#RRGGBB(AA)").
+#[derive(Clone, Debug, Deserialize)]
+#[serde(default, deny_unknown_fields)]
+pub struct SkinCardsDef {
+    pub panel: String,
+    pub selected: String,
+    pub padding: [f32; 2],
+    pub hover: String,
+    pub pressed: String,
+    pub disabled: String,
+}
+
+impl Default for SkinCardsDef {
+    fn default() -> Self {
+        Self {
+            panel: "well".into(),
+            selected: "row_selected".into(),
+            padding: [20.0, 20.0],
+            hover: "#FFFFFF1C".into(),
+            pressed: "#E1E1E1".into(),
+            disabled: "#FFFFFF96".into(),
+        }
+    }
+}
+
 // How toasts look (UiSystem::set_toast_look): the panel behind their text (the caption panel if
 // none) drawn at `scale` times its size (its borders and content insets alike), the text's colour
 // (the panel's, else ink) and font scale.
@@ -351,7 +385,8 @@ impl Default for SkinToastDef {
 pub struct SkinBackdropsDef {
     pub home: Vec<String>,
     pub home_frame_secs: f32,
-    pub dim_home: HexColor,
+    pub dim_home: HexColor,        // Behind the home menu's own dialog, Home.
+    pub dim_home_dialog: HexColor, // Behind a dialog opened over it (the mockups also blur it).
     pub dim_game: HexColor,
     pub dim_popup: HexColor, // Popups', over the dialog under them and the dim behind it.
 }
@@ -362,6 +397,7 @@ impl Default for SkinBackdropsDef {
             home: Vec::new(),
             home_frame_secs: 0.3,
             dim_home: HexColor::rgba(0),
+            dim_home_dialog: HexColor::rgba(0x120B056B),
             dim_game: HexColor::rgba(0x00000026),
             dim_popup: HexColor::rgba(0x120B0559),
         }
@@ -374,6 +410,8 @@ impl Default for SkinBackdropsDef {
 //   Or "fullscreen": the whole window, for full-screen screens (the world map, the intermission,
 //   the comic viewer).
 // - `align`: left (centred on the left), center or right; the menus mode's if none.
+// - `offset`: [x, y] in points on a 1920 × 1080 window, scaled as the size is: how far the dialog
+//   sits in from the edge it's aligned to (or right of the centre), and down from the middle.
 // - `show_below`: whether the dialog under this one stays visible, drawn inert under it (false if
 //   none: the mockups hide Home's panel under Settings). A full-screen dialog hides it anyway.
 #[derive(Clone, Debug, Default, Deserialize)]
@@ -382,6 +420,7 @@ pub struct SkinDialogDef {
     pub panel: Option<String>,
     pub size: Option<SkinDialogSize>,
     pub align: Option<SkinAlign>,
+    pub offset: Option<[f32; 2]>,
     pub show_below: Option<bool>,
 }
 
@@ -433,10 +472,38 @@ pub fn dialog_size(size: SkinDialogSize, window: Vec2) -> Vec2 {
     let fit = |size: f32, reference: f32| if size > 0.0 { size } else { (reference + size).max(1.0) };
     let size = Vec2::new(fit(width, reference.x), fit(height, reference.y));
 
-    let min_factor = (DIALOG_MIN_WINDOW.x / reference.x).min(DIALOG_MIN_WINDOW.y / reference.y);
-    let factor = (window.x / reference.x).min(window.y / reference.y).clamp(min_factor, 1.0);
-
+    let factor = dialog_scale(window);
     Vec2::new((size.x * factor).min(window.x).round().max(1.0), (size.y * factor).min(window.y).round().max(1.0))
+}
+
+// How much dialogs shrink on a window of `window` points (see dialog_size): 1 on the reference
+// window or a larger one, two thirds at the minimum window and below.
+pub fn dialog_scale(window: Vec2) -> f32 {
+    let reference = DIALOG_REFERENCE_WINDOW;
+    let min_factor = (DIALOG_MIN_WINDOW.x / reference.x).min(DIALOG_MIN_WINDOW.y / reference.y);
+    (window.x.max(1.0) / reference.x).min(window.y.max(1.0) / reference.y).clamp(min_factor, 1.0)
+}
+
+// How much the contents of the dialog `kind` scale on a window of `window` points, for a tall
+// dialog whose contents scale with the window (the home menu): its content area's height there
+// over its height on the reference window, so they fill the same share of it at any size. A
+// little less than dialog_scale, since the panel's content insets keep their size as the dialog
+// shrinks. (Its width shrinks more, for the same reason: such a dialog's contents leave room
+// across, which ui.layout_issues checks.)
+pub fn dialog_content_scale(kind: &str, window: Vec2) -> f32 {
+    let def = dialog_def(kind);
+    let size = def.size.unwrap_or(SkinDialogSize::DEFAULT);
+    let panel = def.panel.as_deref().unwrap_or("dialog");
+    let [_, top, _, bottom] = current().panels.get(panel).and_then(|panel| panel.content).unwrap_or_default();
+    let content_height = |window: Vec2| (dialog_size(size, window).y - top - bottom).max(1.0);
+    (content_height(window) / content_height(DIALOG_REFERENCE_WINDOW)).min(1.0)
+}
+
+// A dialog's offset (its `offset`, in points on the reference window) on a window of `window`
+// points, scaled as its size is, in whole points.
+pub fn dialog_offset(offset: [f32; 2], window: Vec2) -> Vec2 {
+    let factor = dialog_scale(window);
+    Vec2::new((offset[0] * factor).round(), (offset[1] * factor).round())
 }
 
 #[derive(Copy, Clone, Debug, PartialEq, Eq, Deserialize)]
@@ -499,11 +566,12 @@ fn merge_all(files: &[(Realm, Value)]) -> Result<Vec<UiSkinDef>, String> {
 }
 
 // The panels the helpers fall back on or always draw, which every merged skin must have: `dialog`
-// (panel() falls back to it), `popup`, `tooltip`, the toasts' and every dialog entry's. A skin
-// without one fails to load, so a reload keeps the skins it had.
+// (panel() falls back to it), `popup`, `tooltip`, the toasts', the cards' and every dialog
+// entry's. A skin without one fails to load, so a reload keeps the skins it had.
 pub fn check_required(skin: &UiSkinDef) -> Result<(), String> {
     let dialog_panels = skin.dialogs.values().filter_map(|dialog| dialog.panel.as_deref());
-    for name in ["dialog", "popup", "tooltip", skin.toast.panel.as_str()].into_iter().chain(dialog_panels) {
+    let card_panels = [skin.cards.panel.as_str(), skin.cards.selected.as_str()];
+    for name in ["dialog", "popup", "tooltip", skin.toast.panel.as_str()].into_iter().chain(card_panels).chain(dialog_panels) {
         if !skin.panels.contains_key(name) {
             return Err(format!("no panel '{name}'"));
         }
@@ -783,18 +851,28 @@ pub fn dialog_def(kind: &str) -> SkinDialogDef {
         def.panel = own.panel.clone().or(def.panel);
         def.size = own.size.or(def.size);
         def.align = own.align.or(def.align);
+        def.offset = own.offset.or(def.offset);
         def.show_below = own.show_below.or(def.show_below);
     }
     def
 }
 
-// A dialog's menu: labeled `kind`, with `flags`, on its panel and at its size from the skin for the
-// window as it is now (the dialog framework sets it again each frame it draws the dialog).
+// A dialog's menu: labeled `kind`, with `flags`, on its panel and at its size and offset from the
+// skin for the window as it is now (the dialog framework sets them again each frame it draws the
+// dialog).
 pub fn dialog(context: &mut GameUiContext, kind: &str, flags: UiMenuFlags) -> UiMenu {
     let def = dialog_def(kind);
-    let size = dialog_size(def.size.unwrap_or(SkinDialogSize::DEFAULT), engine::ui::screen_size(context.ui_sys));
+    let window = engine::ui::screen_size(context.ui_sys);
+    let dialog_size_def = def.size.unwrap_or(SkinDialogSize::DEFAULT);
+    let size = dialog_size(dialog_size_def, window);
 
-    let menu = UiMenu::new(kind).with_flags(flags).with_size(size);
+    let mut menu = UiMenu::new(kind).with_flags(flags).with_size(size);
+    // A full-screen dialog takes no offset (as the dialog framework's DialogFrame::offset).
+    if let Some(offset) = def.offset
+        && !dialog_size_def.is_fullscreen()
+    {
+        menu = menu.with_position(dialog_offset(offset, window));
+    }
     panel(context, def.panel.as_deref().unwrap_or("dialog")).apply_to_menu(menu)
 }
 
@@ -812,6 +890,11 @@ pub fn backdrop_dim(home_menu: bool) -> Color {
     if home_menu { backdrops.dim_home.color() } else { backdrops.dim_game.color() }
 }
 
+// The colour a dialog opened over the home menu's own dims the screen with behind it.
+pub fn backdrop_dim_over_home() -> Color {
+    current().backdrops.dim_home_dialog.color()
+}
+
 // The home menu's backdrop frames (one for a still), and the time between frames.
 pub fn home_backdrop() -> (&'static [String], f32) {
     let backdrops = &current().backdrops;
@@ -824,14 +907,18 @@ pub fn home_backdrop() -> (&'static [String], f32) {
 
 #[derive(Copy, Clone, PartialEq, Eq, Debug)]
 pub enum HeadingLevel {
-    Dialog,  // A dialog's title.
-    Popup,   // A popup's lines.
-    Section, // A section of a dialog, e.g. the city pages' lists.
+    Title,    // The game's title, on the home menu: "Heritage Builder".
+    Subtitle, // The line under it: the realm's campaign.
+    Dialog,   // A dialog's title.
+    Popup,    // A popup's lines.
+    Section,  // A section of a dialog, e.g. the city pages' lists.
 }
 
 impl HeadingLevel {
     fn key(self) -> &'static str {
         match self {
+            Self::Title => "title",
+            Self::Subtitle => "subtitle",
             Self::Dialog => "dialog",
             Self::Popup => "popup",
             Self::Section => "section",
@@ -840,6 +927,8 @@ impl HeadingLevel {
 
     fn default_font_scale(self) -> f32 {
         match self {
+            Self::Title => 1.9,
+            Self::Subtitle => 1.0,
             Self::Dialog => 1.8,
             Self::Popup => 1.5,
             Self::Section => 1.2,
@@ -849,8 +938,16 @@ impl HeadingLevel {
 
 // A heading of `lines` at `level`: its font scale, colour, margins and separator from the skin.
 pub fn heading(context: &mut dyn UiWidgetContext, lines: impl IntoIterator<Item = UiString>, level: HeadingLevel) -> UiMenuHeading {
-    let def = current().headings.get(level.key()).cloned().unwrap_or_default();
-    let font_scale = UiFontScale(if def.font_scale > 0.0 { def.font_scale } else { level.default_font_scale() });
+    heading_at(context, lines, level, 1.0)
+}
+
+// A heading as heading() makes it, its font and margins `scale` times the skin's: for a dialog
+// whose contents scale with the window (the home menu).
+pub fn heading_at(context: &mut dyn UiWidgetContext, lines: impl IntoIterator<Item = UiString>, level: HeadingLevel, scale: f32) -> UiMenuHeading {
+    let mut def = current().headings.get(level.key()).cloned().unwrap_or_default();
+    def.margin_top *= scale;
+    def.margin_bottom *= scale;
+    let font_scale = UiFontScale(if def.font_scale > 0.0 { def.font_scale } else { level.default_font_scale() } * scale);
     let color = opt_color(&def.color);
 
     let lines = lines.into_iter().map(|line| {
@@ -1270,10 +1367,23 @@ pub fn step_selector(label: impl Into<UiString>, steps: impl IntoIterator<Item =
 // An entry of a dialog's list of choices (the home menu's), with an optional subline: the skin's
 // menu_item role's font, colours, hover panel and marker.
 pub fn menu_item(context: &mut dyn UiWidgetContext, label: impl Into<UiString>, subline: Option<UiString>) -> UiMenuItem {
+    menu_item_at(context, label, subline, 1.0)
+}
+
+// The subline's font, as a share of the label's.
+const MENU_ITEM_SUBLINE_SCALE: f32 = 0.55;
+// The room above and below a menu item's text, when its role doesn't give it.
+const MENU_ITEM_PADDING: f32 = 4.0;
+
+// A menu item as menu_item() makes it, its fonts, padding, marker and hover panel's growth `scale`
+// times the skin's: for a dialog whose contents scale with the window (the home menu).
+pub fn menu_item_at(context: &mut dyn UiWidgetContext, label: impl Into<UiString>, subline: Option<UiString>, scale: f32) -> UiMenuItem {
     let def = button_def(ButtonRole::MenuItem.key());
-    let font = def.font.map_or(UiTextButtonSize::Large, SkinFontSize::button_size).font_scale();
+    let font = def.font.map_or(UiTextButtonSize::Large, SkinFontSize::button_size).font_scale().0 * scale;
+    let padding = def.padding.map_or(MENU_ITEM_PADDING, |[_, y]| y);
     let mut item = UiMenuItem::new(label)
-        .with_font_scales(font, UiFontScale(font.0 * 0.55))
+        .with_font_scales(UiFontScale(font), UiFontScale(font * MENU_ITEM_SUBLINE_SCALE))
+        .with_padding((padding * scale).round())
         .with_text_colors(opt_color(&def.text), opt_color(&def.text_hovered), color_or(&def.subline, "sub"));
     if let Some(subline) = subline {
         item = item.with_subline(subline);
@@ -1282,11 +1392,11 @@ pub fn menu_item(context: &mut dyn UiWidgetContext, label: impl Into<UiString>, 
         && let SkinPanel::NineSlice { slice, .. } = panel(context, hover)
     {
         let [x, y] = def.hover_grow;
-        item = item.with_hover_panel(slice, Vec2::new(x, y));
+        item = item.with_hover_panel(slice, Vec2::new(x, y) * scale);
     }
     if let Some(marker) = &def.marker {
         let (texture, size) = sprite_and_size(context, marker);
-        item = item.with_marker(texture, size);
+        item = item.with_marker(texture, size * scale);
     }
     item
 }
@@ -1404,6 +1514,31 @@ pub fn emblem(context: &mut dyn UiWidgetContext, realm: Realm, state: EmblemStat
         log::error!(log::channel!("ui"), "UI skin '{}' has no emblem for '{realm}'.", current_realm());
     }
     path.map(|path| sprite_and_size(context, &path))
+}
+
+// The skin's decoration `name` (its `ornaments`, e.g. "crest"): its texture and size in points.
+// None if the skin has none of that name: a realm may go without.
+pub fn ornament(context: &mut dyn UiWidgetContext, name: &str) -> Option<(TextureHandle, Vec2)> {
+    let path = current().ornaments.get(name)?.clone();
+    Some(sprite_and_size(context, &path))
+}
+
+// A card labeled `label` (its name in widget paths) holding `contents`, on the skin's card panels
+// (its `cards` block) with their padding. Give it on_read_selected and on_pressed.
+pub fn card(context: &mut dyn UiWidgetContext, label: impl Into<UiString>, contents: UiWidgetGroup) -> UiCard {
+    let def = current().cards.clone();
+    let nine_slice_of = |context: &mut dyn UiWidgetContext, name: &str| match panel(context, name) {
+        SkinPanel::NineSlice { slice, .. } => Some(slice),
+        SkinPanel::Sprite { .. } => None,
+    };
+    let mut card = UiCard::new(label, contents).with_padding(Vec2::new(def.padding[0], def.padding[1]));
+    if let (Some(hover), Some(pressed), Some(disabled)) = (color(&def.hover), color(&def.pressed), color(&def.disabled)) {
+        card = card.with_tints(hover, pressed, disabled);
+    }
+    if let Some(panel) = nine_slice_of(context, &def.panel) {
+        card = card.with_panels(panel, nine_slice_of(context, &def.selected));
+    }
+    card
 }
 
 // A square icon button labeled `label` (its name in widget paths) showing the skin's icon `icon`

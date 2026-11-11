@@ -105,8 +105,8 @@ def run(render, root, chosen, records, manifest, force):
         jobs.append({"rec": rec, "state": st, "path": path, "svg": svg, "source": source, "css": st["css"],
                      "page": render.layout(rec)[0], "catalog_hash": entry_hash})
 
-    # The catalog has one scale (expand() gives every record the catalog's).
-    shots = render.shoot(jobs, records[0]["scale"] if records else 2)
+    # Every page is shot at the catalog's scale (an entry with a scale of its own is resized).
+    shots = render.shoot(jobs, records[0]["shot_scale"] if records else 2)
     try:
         for job, page_png in zip(jobs, shots):
             rec, path = job["rec"], job["path"]
@@ -117,7 +117,7 @@ def run(render, root, chosen, records, manifest, force):
                 f.write(png)
             sprites[path] = {"realm": rec["realm"], "id": rec["id"], "state": job["state"]["state"],
                              "source_hash": job["source"], "catalog_hash": job["catalog_hash"],
-                             "png_hash": cat.file_hash(full), "png_size": cat.png_size(full)}
+                             "png_hash": cat.file_hash(full), "png_size": cat.image_size(full)}
             # Kept in the manifest, so later runs and --check report it until it's fixed.
             if any(v > 0 for v in spill):
                 sprites[path]["spill"] = [round(v, 2) for v in spill]
@@ -151,7 +151,7 @@ def measure(render, chosen):
         st = rec["states"][0]
         svg, _ = render.sprite_svg(rec, st)
         jobs.append({"rec": rec, "svg": svg, "css": "", "page": render.layout(rec)[0]})
-    shots = render.shoot(jobs, chosen[0]["scale"] if chosen else 2)
+    shots = render.shoot(jobs, chosen[0]["shot_scale"] if chosen else 2)
     for job, page_png in zip(jobs, shots):
         rec = job["rec"]
         ext = render.extent(rec, page_png)

@@ -87,6 +87,7 @@ pub struct UiTextButton {
     hover_text_color: Option<Color>,
     frame: Option<UiTextButtonFrame>,
     width: UiTextButtonWidth,
+    min_height: f32,
     sounds: UiWidgetSounds, // Hovered: ButtonHovered, Pressed: ButtonPressed.
     enabled: bool,
     hovered: bool,
@@ -122,7 +123,7 @@ impl UiWidget for UiTextButton {
                 Some(frame) => {
                     let (text_size, font_size) = internal::calc_text_size(ui_sys, self.font_scale, self.label.resolve());
                     let size = frame.button_size(text_size, font_size);
-                    let size = Vec2::new(self.width.resolve(size.x), size.y);
+                    let size = Vec2::new(self.width.resolve(size.x), size.y.max(self.min_height));
                     let (rect, response) = ui.allocate_exact_size(egui_vec2(size), Sense::click());
 
                     if ui.is_rect_visible(rect) {
@@ -159,9 +160,11 @@ impl UiWidget for UiTextButton {
                     let frameless = self.hover.is_some() || self.hover_panel.is_some();
                     let panel_slot = self.hover_panel.is_some().then(|| ui.painter().add(egui::Shape::Noop));
                     let mut button = egui::Button::new(text).frame(!frameless);
-                    if let UiTextButtonWidth::Min(width) | UiTextButtonWidth::Fixed(width) = self.width {
-                        button = button.min_size(vec2(width, 0.0));
-                    }
+                    let min_width = match self.width {
+                        UiTextButtonWidth::Min(width) | UiTextButtonWidth::Fixed(width) => width,
+                        UiTextButtonWidth::Content => 0.0,
+                    };
+                    button = button.min_size(vec2(min_width, self.min_height));
                     let response = ui.add(button);
 
                     if let (Some(slot), Some((panel, grow))) = (panel_slot, &self.hover_panel)
@@ -227,13 +230,13 @@ impl UiWidget for UiTextButton {
 
         if let Some(frame) = &self.frame {
             let size = frame.button_size(text_size, font_size);
-            return Vec2::new(self.width.resolve(size.x), size.y);
+            return Vec2::new(self.width.resolve(size.x), size.y.max(self.min_height));
         }
 
         // A plain button grows past a fixed width to fit its text.
         let padding = context.ui_sys().egui_style().spacing.button_padding;
         let width = text_size.x + (padding.x * 2.0);
-        let height = text_size.y.max(font_size) + (padding.y * 2.0);
+        let height = (text_size.y.max(font_size) + (padding.y * 2.0)).max(self.min_height);
         let width = match self.width {
             UiTextButtonWidth::Content => width,
             UiTextButtonWidth::Min(min) | UiTextButtonWidth::Fixed(min) => width.max(min),
@@ -268,6 +271,7 @@ impl UiTextButton {
             hover_text_color: None,
             frame: None,
             width: UiTextButtonWidth::Content,
+            min_height: 0.0,
             sounds: UiWidgetSounds::new(),
             enabled: true,
             hovered: false,
@@ -317,6 +321,13 @@ impl UiTextButton {
     // of equal buttons. A frameless button grows past a fixed width to fit its text.
     pub fn with_width(mut self, width: UiTextButtonWidth) -> Self {
         self.width = width;
+        self
+    }
+
+    // The least it's drawn tall, its text centered: a dialog's row of tall buttons.
+    pub fn with_min_height(mut self, height: f32) -> Self {
+        debug_assert!(height >= 0.0);
+        self.min_height = height;
         self
     }
 

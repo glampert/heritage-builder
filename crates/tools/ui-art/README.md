@@ -13,7 +13,9 @@ the mockup generator's own drawing code, so the game's UI looks like the
   (the generator adapter and the browser), `render.js` (Playwright), `tests/`.
 
 Output: `assets/ui/skins/<realm>/<id>.png`, or `<id>_<state>.png` for an entry with states, at
-2 pixels per point, RGBA on a transparent background.
+2 pixels per point, RGBA on a transparent background. An entry with `"format": "jpeg"` writes an
+opaque `<id>.jpg` instead, and one with a `scale` of its own is resized to it: the home menu's
+backdrops are 1920 × 1080 JPEGs at 1 pixel per point.
 
 ## 1. Running it
 
@@ -55,8 +57,10 @@ A whole run takes about 15 s: one browser shoots every sprite.
    scrollbar from the slider).
 4. The page is shot with Chromium at the catalog's `scale` (2) on a transparent background, with
    each state's CSS filter on it (hovered, pressed and disabled are derived from the idle
-   drawing), then cropped to the rect plus its `bleed` and saved as an optimised PNG. A drawing
-   that reaches past the crop is a warning: raise the bleed.
+   drawing), then cropped to the rect plus its `bleed`, resized if the entry has a `scale` of its
+   own, and saved as an optimised PNG (or, for `"format": "jpeg"`, flattened on black and saved as
+   a progressive JPEG at quality 85). A drawing that reaches past the crop is a warning: raise the
+   bleed.
 
 For a 9-slice whose middle repeats (`center: tile`), the theme's material helpers are swapped
 for ones that repeat cleanly with the middle's size and line up with its borders, since the
@@ -109,6 +113,8 @@ changes), not the browser, so a Chromium update doesn't re-render anything by it
 | `slice` | 9-slice borders in pixels of the PNG: left, top, right, bottom. They hold the whole frame, so only plain material stretches or repeats. |
 | `center` | `stretch` (default) or `tile`; tiled sprites are drawn to repeat (above). |
 | `states` | A list of state names, or an object of state → `{ "css", "args", "call" }`. Known: `idle`, `hovered`, `pressed`, `disabled`, `selected`, `locked`, `current`. `state_filters` gives each state's default CSS filter. |
+| `scale` | The output's pixels per point (the catalog's if left out). The page is still shot at the catalog's scale, then resized. The PNG (or JPEG) is `(size + bleed) × scale` pixels. |
+| `format` | `png` (default: RGBA, `.png`) or `jpeg` (opaque, `.jpg`), for full-screen pictures such as the home backdrops. |
 | `realms` | Realm → overrides of any key but `id`. Without it the entry is made for every realm. |
 | `elements`, `capture`, `omit`, `attrs`, `rotate` | See section 2. |
 | `out` | Another output pattern under `skins/`, with `{realm}`, `{id}` and `{state}`. |
@@ -118,7 +124,7 @@ drawing reaches past its rect, which is the bleed it needs (rounded up to half p
 
 ## 4. What it makes
 
-Per realm (Đại Long, Kambara, Tampadesa), about 60 sprites and 0.6-1.6 MB:
+Per realm (Đại Long, Kambara, Tampadesa), about 60 sprites and 0.6-1.6 MB, plus a backdrop:
 
 | Sprites | Call | Notes for the skins |
 |---|---|---|
@@ -140,7 +146,8 @@ Per realm (Đại Long, Kambara, Tampadesa), about 60 sprites and 0.6-1.6 MB:
 | `rule`, `ornament` | `divider` | The realm divider split in two: a rule that stretches and the ornament drawn at its middle (Đại Long's diamond sits 2 points above the line). |
 | `emblem_<realm>` (`idle`, `locked`, `current`) | `realm_emblem` | Each realm's emblem drawn in this skin's colours, as the home menu shows them. |
 | `vine_tl`, `vine_br` (Kambara) | `mpanel`, captured | The dialog's vines, placed by their bleed relative to a 480-point panel's top-left and bottom-right corners. |
-| `crest` (Kambara, Tampadesa) | `mpanel`, captured | The home dialog's crest; its bleed places it on a 480-point panel. |
+| `crest` | `mpanel`, captured; `seal` | The home dialog's crest above the title: Kambara's prang and Tampadesa's stupa, captured from the panel (their bleed places them on a 480-point panel), and Đại Long's seal with the realm's initial, Đ (`seal`'s `letter`, in the title font). |
+| `home_backdrop` (Kambara, Tampadesa) | `home_scene` | The home menu's backdrop, `menus.py`'s scene, 1920 × 1080 at 1 pixel per point, as a JPEG (about 130 KB). Đại Long keeps its painting (`misc/home_menu_static_bg.png`). |
 
 ## 5. Hand-made art
 

@@ -40,7 +40,7 @@ mod test_utils;
 // - egui centres a fallback glyph's line height on the primary font's instead of lining up their
 //   baselines, so a fallback's `y_offset_factor` moves it back onto the baseline: with equal
 //   scales, ((ascent + descent) of the primary - (ascent + descent) of the fallback) / 2, in ems.
-//   Kambara: Jaini 1048 / -266, Spectral SC SemiBold 1059 / -463, so 0.093. Tampadesa: Amita
+//   Kambara: Jaini 1048 / -266, Spectral SemiBold 1059 / -463, so 0.093. Tampadesa: Amita
 //   1292 / -650, Alegreya 1016 / -345, so -0.015.
 // ----------------------------------------------
 
@@ -126,10 +126,14 @@ fn test_every_skin_loads() {
         for role in ["primary", "secondary", "menu_item", "hud_item"] {
             assert!(skin.buttons.contains_key(role), "{realm}: no button role '{role}'");
         }
-        for level in ["dialog", "popup", "section"] {
+        for level in ["title", "subtitle", "dialog", "popup", "section"] {
             assert!(skin.headings.contains_key(level), "{realm}: no heading '{level}'");
         }
         assert!(!skin.backdrops.home.is_empty(), "{realm}: no home backdrop");
+        assert!(skin.ornaments.contains_key("crest"), "{realm}: no crest for the home menu");
+        for name in [&skin.cards.panel, &skin.cards.selected] {
+            assert!(skin.panels.get(name).is_some_and(|panel| panel.slice.is_some()), "{realm}: no 9-slice panel '{name}' for the cards");
+        }
         assert!(skin.panels.contains_key(&skin.toast.panel), "{realm}: no panel '{}' for the toasts", skin.toast.panel);
         assert!(skin.toast.scale > 0.0 && skin.toast.font_scale > 0.0, "{realm}: toast scales");
     }
@@ -202,6 +206,9 @@ fn test_every_sprite_exists_and_slices_fit() {
         for path in &skin.backdrops.home {
             assert!(ui_asset_exists(path), "{realm}: home backdrop {path} doesn't exist");
         }
+        for (name, path) in &skin.ornaments {
+            assert!(ui_asset_exists(path), "{realm}: ornament '{name}': {path} doesn't exist");
+        }
 
         let controls = &skin.controls;
         for path in [&controls.toggle.off, &controls.toggle.on, &controls.toggle.knob, &controls.checkbox.off, &controls.checkbox.on, &controls.slider.knob, &controls.dropdown.arrow] {
@@ -243,6 +250,9 @@ fn test_every_colour_and_widget_part_resolves() {
         ];
         for name in names.into_iter().flatten() {
             assert!(resolves(name), "{realm}: no colour '{name}'");
+        }
+        for name in [&skin.cards.hover, &skin.cards.pressed, &skin.cards.disabled] {
+            assert!(resolves(name), "{realm}: cards: no colour '{name}'");
         }
         for (name, panel) in &skin.panels {
             if let Some(text) = &panel.text {

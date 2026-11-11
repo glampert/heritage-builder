@@ -1,6 +1,6 @@
 # Realm UI: menus, screens and HUD in each realm's style
 
-**Status (2026-11-10): Phase 0 done; Phase 1, the main menus, is next.** The user reviewed it on 2026-11-07: their notes are folded in (see [Review notes](#review-notes)), the open decisions' defaults are accepted, and every mockup the phases need now exists. This plan builds and restyles every retail screen after the [UI mockups](../design/mockups/README.md): the main menus, the world map, the intermission, the story comics, the HUD and the city management pages. Each screen gets one look per realm: Đại Long, Kambara and Tampadesa. It is milestone **UI** of the [roadmap](roadmap.md). It was researched against `ccca1df` on `claude`. File and line references point at that commit, so re-check them before relying on them.
+**Status (2026-11-11): Phase 0 done; Phase 1, the main menus, in progress: Home done.** The user reviewed it on 2026-11-07: their notes are folded in (see [Review notes](#review-notes)), the open decisions' defaults are accepted, and every mockup the phases need now exists. This plan builds and restyles every retail screen after the [UI mockups](../design/mockups/README.md): the main menus, the world map, the intermission, the story comics, the HUD and the city management pages. Each screen gets one look per realm: Đại Long, Kambara and Tampadesa. It is milestone **UI** of the [roadmap](roadmap.md). It was researched against `ccca1df` on `claude`. File and line references point at that commit, so re-check them before relying on them.
 
 ![Home menu, Đại Long](../design/mockups/menu-home-dailong.jpg)
 
@@ -241,7 +241,7 @@ The realm fonts are those of the mockups (`generator/common.py`, `REALM_FONTS`):
 | Realm | Font | Vietnamese fallback |
 |---|---|---|
 | Đại Long | Protest Revolution | Covers Vietnamese itself |
-| Kambara | Jaini | Spectral SC |
+| Kambara | Jaini | Spectral (not the mockups' Spectral SC, whose lowercase letters the game draws as small capitals; Phase 1, Home) |
 | Tampadesa | Amita (regular and bold) | Alegreya |
 
 - **Fallback fonts:** add Spectral SC and Alegreya to `assets/fonts/` with their OFL files, as Jaini and Amita were added.
@@ -485,15 +485,15 @@ The existing dialogs keep their layouts but take their panels from the Đại Lo
 **Delivers:** the home menu and every dialog under it, as in the mockups (`menu-*-<realm>.jpg`), in all three realms. The in-game Game menu and its popups get the same look.
 
 **Home:**
-- [ ] Tall panel on the left with the crest, title and campaign subtitle.
-- [ ] The **campaign row** of three emblems: reached, current, or "Locked", from the profile.
-- [ ] **Menu items:**
+- [x] Tall panel on the left with the crest, title and campaign subtitle.
+- [x] The **campaign row** of three emblems: reached, current, or "Locked", from the profile.
+- [x] **Menu items:**
   - **Continue** loads `profile.last_save`, with the subline "<mission> · <campaign> · autosave";
   - **Campaign** starts or resumes the reached campaign at its next mission (a campaign picker when more than one is reached: `campaign-picker-<realm>.jpg`);
   - **Custom Game**, Load Game, Settings, About, Quit Game.
-- [ ] The realm marker on the hovered item, and the version string.
-- [ ] **Backdrop:** Đại Long's painting; Kambara's and Tampadesa's generated scenes. The skin decides.
-- [ ] `HomeButtonKind` loses New Game, whose options move into Custom Game (see [open decisions](#open-decisions)).
+- [x] The realm marker on the hovered item, and the version string.
+- [x] **Backdrop:** Đại Long's painting; Kambara's and Tampadesa's generated scenes. The skin decides.
+- [ ] `HomeItem` (was `HomeButtonKind`) loses New Game, whose options move into Custom Game (see [open decisions](#open-decisions)).
 
 **Load / Save** (one dialog, `LoadOrSaveGame`):
 - [ ] **Save rows:** realm emblem, name, "Campaign I · mission 6 · <city>", the save time, and the in-game date in the realm's era.
@@ -547,6 +547,13 @@ The existing dialogs keep their layouts but take their panels from the Đại Lo
 - [ ] Scenarios:
   - `ui_menus.jsonl` (every dialog, every realm, Continue, Custom Game start, settings commit);
   - update `ui_new_game.jsonl` to the Blank map path.
+
+**Notes (2026-11-11, home) (commit TODO):**
+- `dialog/home.rs`: the crest (skin `ornaments`), title, campaign subtitle, the campaign row (an emblem per campaign, `Home/Campaign II`), menu items with sublines, the version. Continue loads `profile.last_save` (subline from `session::probe_save`); disabled with a tooltip when the save is missing, gone or of another version. Campaign resumes the playable campaign at its next mission, or opens the new `CampaignPicker` (`UiCard`, skin `cards`) when two can be played. Custom Game disabled.
+- Home and the picker rebuild on a profile change, when the home menu opens and on a rescale (the picker keeps its pick). Home's contents scale with its content area (`skin::dialog_content_scale`); the picker's cards, buttons and text grow between 1280 × 720 and 1080p. A dialog over Home dims the backdrop (`dim_home_dialog`). Dialogs take an `offset`.
+- Art (ui-art): Đại Long's crest, a seal with Đ; Kambara's and Tampadesa's backdrops, 1920 × 1080 JPEGs.
+- Deviations: `campaigns.json` gains Campaigns II and III without missions ("coming soon"; finishing Campaign I reaches II): the user should confirm. New Game stays (P1d). Continue's subline names the campaign, not the mission number. No vines, blur, last-played line, quote or distinctions; upright where the mockups are italic (no italic faces). Kambara's Vietnamese fallback is Spectral, not Spectral SC (small capitals). Home is 1000 points tall. `ui_menus` leaves `saves/ui_menus.json`.
+- Verified: build, tests, web check, `--check`; CI scenarios at 1440 × 800, `ui_menus` also at 720p and 1080p; `ui_snapshot` in each realm (layout issues 0); `ui_build` record and replay; screenshots against the mockups.
 
 ### Phase 2: World map
 

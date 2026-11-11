@@ -38,6 +38,16 @@ def expand(change=None):
     return cat.expand(raw)
 
 
+def write_jpeg(path, w, h):
+    """The header of a JPEG (start, a JFIF segment and a baseline frame header), enough for
+    jpeg_size; nothing decodes it."""
+    app0 = b"\xff\xe0" + struct.pack(">H", 16) + b"JFIF\x00\x01\x01\x00\x00\x01\x00\x01\x00\x00"
+    sof0 = b"\xff\xc0" + struct.pack(">HBHHB", 11, 8, h, w, 1) + b"\x01\x11\x00"
+    os.makedirs(os.path.dirname(path), exist_ok=True)
+    with open(path, "wb") as f:
+        f.write(b"\xff\xd8" + app0 + sof0 + b"\xff\xd9")
+
+
 def write_png(path, w, h):
     """A blank RGBA PNG, with the standard library."""
     def chunk(kind, body):
@@ -76,6 +86,30 @@ class CatalogTest(unittest.TestCase):
         pressed = knob["states"][1]
         self.assertEqual((pressed["args"], pressed["css"]), ({"v": 1}, "brightness(0.9)"))
         self.assertEqual(knob["states"][2]["call"], "toggle")
+
+    def test_scale_and_format(self):
+        # A backdrop: shot at the catalog's scale, written at its own as an opaque JPEG.
+        def change(raw):
+            raw["sprites"].append({"id": "backdrop", "call": "home_scene", "size": [60, 40], "scale": 1, "format": "jpeg",
+                                   "realms": {"kambara": {}}})
+        rec = next(r for r in expand(change) if r["id"] == "backdrop")
+        self.assertEqual((rec["png_size"], rec["scale"], rec["shot_scale"], rec["format"]), ([60, 40], 1, 2, "jpeg"))
+        self.assertEqual(rec["states"][0]["out"], "skins/kambara/backdrop.jpg")
+        # The defaults (PNG, the catalog's scale) leave the catalog hash as it was before them.
+        panel = expand()[0]
+        bare = {k: v for k, v in panel.items() if k not in ("format", "shot_scale")}
+        self.assertEqual(cat.catalog_hash(panel, panel["states"][0]), cat.catalog_hash(bare, panel["states"][0]))
+        self.assertNotEqual(cat.catalog_hash(rec, rec["states"][0]),
+                            cat.catalog_hash(dict(rec, format="png", shot_scale=1), rec["states"][0]))
+
+        def entry(**kw):
+            def change(raw):
+                raw["sprites"][0].update(kw)
+            return change
+        self.assertRejects(entry(format="gif"), "format must be")
+        self.assertRejects(entry(format="jpeg", out="skins/{realm}/{id}.png"), "must be a .jpg")
+        self.assertRejects(entry(scale=0), "scale must be")
+        self.assertRejects(entry(scale=1.5, size=[61, 40]), "whole pixels")
 
     def test_select(self):
         recs = expand()
@@ -189,6 +223,22 @@ class CheckTest(unittest.TestCase):
         self.assertTrue(any(path in e and "art.json entry changed" in e for e in errs), errs)
         self.assertTrue(any("dailong/panel.png" in e and "top 1.5 pt" in e for e in errs), errs)
         self.assertFalse(any("dailong/button_idle.png" in e for e in errs), errs)
+
+    def test_jpeg_outputs(self):
+        # A JPEG output is checked like a PNG: its size from its frame header.
+        def change(raw):
+            raw["sprites"].append({"id": "backdrop", "call": "home_scene", "size": [30, 20], "scale": 1, "format": "jpeg",
+                                   "realms": {"tampadesa": {}}})
+        self.recs = expand(change)
+        path = "assets/ui/skins/tampadesa/backdrop.jpg"
+        rec = next(r for r in self.recs if r["id"] == "backdrop")
+        write_jpeg(os.path.join(self.root, path), 30, 20)
+        self.manifest["sprites"][path] = {"png_hash": cat.file_hash(os.path.join(self.root, path)), "png_size": [30, 20],
+                                          "catalog_hash": cat.catalog_hash(rec, rec["states"][0])}
+        self.assertEqual(self.errors(), [])
+        write_jpeg(os.path.join(self.root, path), 32, 20)
+        errs = self.errors()
+        self.assertTrue(any("backdrop.jpg" in e and "is 32x20 px" in e for e in errs), errs)
 
     def test_web_manifest(self):
         listed = [p for _, _, p in cat.outputs(self.recs)]
@@ -318,6 +368,22 @@ class ManifestTest(unittest.TestCase):
                 f.write(b"GIF89a" + bytes(20))
             with self.assertRaises(ValueError):
                 cat.png_size(path)
+
+    def test_jpeg_size(self):
+        with tempfile.TemporaryDirectory() as d:
+            path = os.path.join(d, "x.jpg")
+            write_jpeg(path, 1920, 1080)
+            self.assertEqual(cat.jpeg_size(path), [1920, 1080])
+            self.assertEqual(cat.image_size(path), [1920, 1080])
+            png = os.path.join(d, "x.png")
+            write_png(png, 5, 6)
+            self.assertEqual(cat.image_size(png), [5, 6])
+            with open(path, "wb") as f:
+                f.write(b"\xff\xd8\xff\xd9")
+            with self.assertRaises(ValueError):
+                cat.jpeg_size(path)
+            with self.assertRaises(ValueError):
+                cat.jpeg_size(png)
 
 
 class SvgTest(unittest.TestCase):

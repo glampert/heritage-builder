@@ -145,6 +145,25 @@ impl Profile {
         configs.campaigns.iter().rev().find(|campaign| self.is_reached(&campaign.id)).map(|campaign| campaign.realm)
     }
 
+    // Whether the campaign at `campaign_index` in `configs` can be played: the first one always
+    // (a new player starts it), the others once reached (the one before them finished).
+    pub fn is_playable(&self, configs: &CampaignConfigs, campaign_index: usize) -> bool {
+        configs.campaign(campaign_index).is_some_and(|campaign| campaign_index == 0 || self.is_reached(&campaign.id))
+    }
+
+    // The campaigns that can be played, by index in `configs`, in order.
+    pub fn playable_campaigns(&self, configs: &CampaignConfigs) -> Vec<usize> {
+        (0..configs.campaigns.len()).filter(|&index| self.is_playable(configs, index)).collect()
+    }
+
+    // The mission the campaign at `campaign_index` resumes at: the first it hasn't finished, or its
+    // first again once every one is finished. None for a campaign without missions (yet).
+    pub fn next_mission(&self, configs: &CampaignConfigs, campaign_index: usize) -> Option<usize> {
+        let campaign = configs.campaign(campaign_index)?;
+        let finished = self.record(&campaign.id).map_or(&[][..], |record| record.missions_finished.as_slice());
+        (0..campaign.missions.len()).find(|index| !finished.contains(index)).or_else(|| (!campaign.missions.is_empty()).then_some(0))
+    }
+
     // ----------------------
     // Progress:
     // ----------------------
@@ -277,11 +296,12 @@ struct ProfileStore {
     profile: Profile,
     writes_file: bool, // False: kept in memory (--fresh-profile, scripts, replays, the smoke test, tests).
     initialized: bool,
+    revision: u32, // Goes up with every change (see revision()).
 }
 
 impl ProfileStore {
     const fn new() -> Self {
-        Self { profile: Profile::new(), writes_file: false, initialized: false }
+        Self { profile: Profile::new(), writes_file: false, initialized: false, revision: 0 }
     }
 }
 
@@ -357,6 +377,7 @@ pub fn initialize(options: ProfileOptions) {
 
     store.writes_file = write_file;
     store.initialized = true;
+    store.revision += 1;
 
     if !store.writes_file {
         log::info!(log::channel!("profile"), "The profile is kept in memory for this run: {file_path} won't be written.");
@@ -373,6 +394,12 @@ pub fn writes_file() -> bool {
     ProfileStore::get().writes_file
 }
 
+// Goes up whenever the profile changes (a change through update, profile.set, profile.reset), for
+// the menus that show it: the home menu and the campaign picker rebuild when it does.
+pub fn revision() -> u32 {
+    ProfileStore::get().revision
+}
+
 // Where the profile is kept, e.g. saves/user/profile.json.
 pub fn file_path() -> String {
     storage::user_file_path(PROFILE_FILE).to_string()
@@ -384,13 +411,16 @@ pub fn update(change: impl FnOnce(&mut Profile)) {
     let before = store.profile.clone();
     change(&mut store.profile);
     if store.profile != before {
+        store.revision += 1;
         write();
     }
 }
 
 // Replaces the whole profile (profile.set), and writes it.
 pub fn replace(profile: Profile) {
-    ProfileStore::get_mut().profile = profile;
+    let store = ProfileStore::get_mut();
+    store.profile = profile;
+    store.revision += 1;
     write();
 }
 

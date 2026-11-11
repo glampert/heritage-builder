@@ -111,6 +111,8 @@
     "light": "#f3e3bd"
   },
   "headings": {
+    "title": { "font_scale": 3.0, "margin_top": 4.0, "margin_bottom": 0.0 },
+    "subtitle": { "font_scale": 1.6, "color": "accent", "margin_top": 0.0, "margin_bottom": 0.0 },
     "dialog": { "font_scale": 1.8, "separator": "rule", "margin_top": 0.0, "margin_bottom": 10.0 },
     "popup": { "font_scale": 1.5, "separator": "rule", "margin_top": 2.0, "margin_bottom": 6.0 },
     "section": { "font_scale": 1.2, "separator": "plain", "margin_top": 0.0, "margin_bottom": 4.0 }
@@ -227,7 +229,7 @@
     },
     "menu_item": {
       "hover": "row_selected",
-      "hover_grow": [28.0, 1.0],
+      "hover_grow": [4.0, 1.0], "padding": [0.0, 9.5],
       "text": "ink",
       "text_hovered": "accent",
       "marker": "skins/dailong/marker.png",
@@ -289,11 +291,14 @@
     "kambara": "skins/dailong/emblem_kambara",
     "tampadesa": "skins/dailong/emblem_tampadesa"
   },
+  "ornaments": { "crest": "skins/dailong/crest.png" },
+  "cards": { "panel": "well", "selected": "row_selected", "padding": [24.0, 22.0], "hover": "#FFFFFF1C", "pressed": "#E1E1E1", "disabled": "#FFFFFF96" },
   "toast": { "panel": "caption", "scale": 0.6, "font_scale": 1.0 },
-  "backdrops": { "home": ["misc/home_menu_static_bg.png"], "dim_home": "#00000000", "dim_game": "#00000026", "dim_popup": "#120B0559" },
+  "backdrops": { "home": ["misc/home_menu_static_bg.png"], "dim_home": "#00000000", "dim_home_dialog": "#120B056B", "dim_game": "#00000026", "dim_popup": "#120B0559" },
   "dialogs": {
     "default": {"panel": "dialog", "size": [760, 960]},
-    "Home": {"size": [600, 960], "align": "left"},
+    "Home": {"size": [600, 1000], "align": "left", "offset": [64, 0]},
+    "CampaignPicker": {"size": [1600, 980]},
     "About": {"size": [940, 940]},
     "MainGame": {"size": [640, 840]},
     "LoadGame": {"size": [1500, 940]},

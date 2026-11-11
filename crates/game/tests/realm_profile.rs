@@ -31,6 +31,7 @@ fn main() {
         test_utils::test_fn!(test_other_version_gives_fresh_one),
         test_utils::test_fn!(test_mission_progress),
         test_utils::test_fn!(test_profile_edits),
+        test_utils::test_fn!(test_playable_campaigns_and_next_missions),
         // UI realm:
         test_utils::test_fn!(test_ui_realm_choice),
         test_utils::test_fn!(test_reaching_campaign_two_switches_home_realm),
@@ -282,6 +283,42 @@ fn test_profile_edits() {
     assert_eq!(profile.custom_realms, [Realm::Kambara, Realm::DaiLong]);
     assert!(profile.set_custom_realms(&["atlantis".into()]).is_err());
     assert_eq!(profile.custom_realms, [Realm::Kambara, Realm::DaiLong]);
+}
+
+// What the home menu's Campaign plays: the first campaign always, the others once reached, each
+// at the first mission it hasn't finished (its first again once all are). The profile's revision
+// goes up with each change, for the menus that show it.
+fn test_playable_campaigns_and_next_missions() {
+    let configs = ensure_setup();
+    let mut profile = Profile::new();
+    assert_eq!(profile.playable_campaigns(configs), vec![0]);
+    assert_eq!(profile.next_mission(configs, 0), Some(0));
+
+    profile.mission_finished(configs, 0, 0);
+    assert_eq!(profile.next_mission(configs, 0), Some(1));
+    profile.mission_finished(configs, 0, 1); // The last: campaign two is reached.
+    assert_eq!(profile.playable_campaigns(configs), vec![0, 1]);
+    assert_eq!(profile.next_mission(configs, 0), Some(0)); // All finished: from the start again.
+    assert_eq!(profile.next_mission(configs, 1), Some(0));
+
+    // Reached out of order (profile.set): the first stays playable.
+    profile.set_reached(configs, &["three".to_string()]).unwrap();
+    assert_eq!(profile.playable_campaigns(configs), vec![0, 2]);
+    assert!(!profile.is_playable(configs, 1) && !profile.is_playable(configs, 3));
+    assert_eq!(profile.next_mission(configs, 3), None);
+
+    // A campaign without missions (one still to come) has no next mission.
+    let empty = CampaignConfigs { campaigns: vec![campaign_def("one", Realm::DaiLong, 1), campaign_def("two", Realm::Kambara, 0)] };
+    assert_eq!(Profile::new().next_mission(&empty, 1), None);
+
+    let before = profile::revision();
+    profile::update(|profile| profile.game_saved("autosave"));
+    let after = profile::revision();
+    assert!(after > before);
+    profile::update(|profile| profile.game_saved("autosave")); // No change: no new revision.
+    assert_eq!(profile::revision(), after);
+    profile::reset();
+    assert!(profile::revision() > after);
 }
 
 // ----------------------------------------------

@@ -41,6 +41,7 @@ impl InGameMenus {
         skin::follow(context, realm::ui_realm_for(false).realm);
         skin::apply_theme(context.ui_sys);
 
+        dialog::set_home_menu(false);
         dialog::initialize(context);
         dialog::set_backdrop_dim(context, false);
 

@@ -19,7 +19,9 @@ A catalog entry draws one sprite per realm it lists, and one PNG per state:
     }
 
 The PNG is (size + bleed) x scale pixels, at assets/ui/skins/<realm>/<id>.png, or
-<id>_<state>.png when the entry has states. More keys: "elements" (keep only these top-level
+<id>_<state>.png when the entry has states. An entry's own "scale" sets its pixels per point (it's
+shot at the catalog's and resized), and "format": "jpeg" writes an opaque .jpg instead (the home
+backdrops: a full-screen picture at 1 pixel per point). More keys: "elements" (keep only these top-level
 SVG elements of the call's output), "capture" (keep only what one helper drew during the call),
 "omit" (helpers that draw nothing), "attrs" (theme attributes to set first), "rotate" (90: the
 drawing turned a quarter clockwise about the rect's centre, so the sprite is height x width),
@@ -46,20 +48,22 @@ MANIFEST_VERSION = 1
 REALMS = ("dailong", "kambara", "tampadesa")
 KNOWN_STATES = ("idle", "hovered", "pressed", "disabled", "selected", "locked", "current")
 CENTERS = ("stretch", "tile")
+# Output formats and their file extensions: PNG with alpha for sprites, JPEG for opaque pictures.
+FORMATS = {"png": ".png", "jpeg": ".jpg"}
 
 # The drawing calls the renderer knows (render.CALLS has one function per name).
 KNOWN_CALLS = (
     "mpanel", "box", "bar_bg", "panel_bg", "card", "row_bg", "text_input", "caption", "speech",
     "button", "tab", "item_marker", "icon_button", "build_button", "checkbox", "toggle", "slider",
-    "dropdown", "divider", "realm_emblem",
+    "dropdown", "divider", "realm_emblem", "seal", "home_scene",
 )
 
 TOP_KEYS = {"version", "scale", "pad", "realms", "state_filters", "sprites", "notes"}
 ENTRY_KEYS = {"id", "group", "call", "args", "size", "bleed", "slice", "center", "states", "realms",
-              "elements", "capture", "omit", "attrs", "rotate", "out", "notes"}
+              "elements", "capture", "omit", "attrs", "rotate", "out", "scale", "format", "notes"}
 STATE_KEYS = {"css", "args", "call"}
-DEFAULT_OUT = "skins/{realm}/{id}.png"
-DEFAULT_STATE_OUT = "skins/{realm}/{id}_{state}.png"
+DEFAULT_OUT = "skins/{realm}/{id}%s"
+DEFAULT_STATE_OUT = "skins/{realm}/{id}_{state}%s"
 ID_RE = re.compile(r"^[a-z0-9_]+$")
 
 
@@ -160,7 +164,7 @@ def expand(raw):
     return records
 
 
-def _record(e, realm, scale, pad, filters, where):
+def _record(e, realm, shot_scale, pad, filters, where):
     call = e.get("call")
     if call not in KNOWN_CALLS:
         raise CatalogError(f"{where}: unknown call {call!r}")
@@ -173,6 +177,14 @@ def _record(e, realm, scale, pad, filters, where):
     bleed = e.get("bleed", [0, 0, 0, 0])
     if not (isinstance(bleed, list) and len(bleed) == 4 and all(_num(v) for v in bleed)):
         raise CatalogError(f"{where}: bleed must be [left, top, right, bottom] in points")
+    # The output's pixels per point: the catalog's, or the entry's own (shot at the catalog's
+    # scale and resized), e.g. 1 for a full-screen backdrop.
+    scale = e.get("scale", shot_scale)
+    if not _num(scale) or scale <= 0:
+        raise CatalogError(f"{where}: scale must be a positive number")
+    fmt = e.get("format", "png")
+    if fmt not in FORMATS:
+        raise CatalogError(f"{where}: format must be one of {sorted(FORMATS)}")
     for v in list(size) + list(bleed):
         if abs(v * scale - round(v * scale)) > 1e-6:
             raise CatalogError(f"{where}: size and bleed must be whole pixels at scale {scale:g}, got {v:g} pt")
@@ -235,7 +247,7 @@ def _record(e, realm, scale, pad, filters, where):
         raise CatalogError(f"{where}: states must be a list or an object")
     if states_raw is not None and not names:
         raise CatalogError(f"{where}: states is empty")
-    pattern = e.get("out", DEFAULT_OUT if states_raw is None else DEFAULT_STATE_OUT)
+    pattern = e.get("out", (DEFAULT_OUT if states_raw is None else DEFAULT_STATE_OUT) % FORMATS[fmt])
     if not isinstance(pattern, str):
         raise CatalogError(f"{where}: out must be a path pattern")
     for name in names:
@@ -257,8 +269,8 @@ def _record(e, realm, scale, pad, filters, where):
             out = pattern.format(realm=realm, id=e["id"], state=name or "")
         except (KeyError, IndexError) as err:
             raise CatalogError(f"{where}: out pattern {pattern!r}: unknown field {err}")
-        if not out_ok(out):
-            raise CatalogError(f"{where}: output {out!r} must be a .png under {SKIN_ART_DIR}/")
+        if not out_ok(out, fmt):
+            raise CatalogError(f"{where}: output {out!r} must be a {FORMATS[fmt]} under {SKIN_ART_DIR}/")
         states.append({"state": name, "css": css, "call": st_call, "args": st_args, "out": out})
     if len({s["out"] for s in states}) != len(states):
         raise CatalogError(f"{where}: two states share an output path; put {{state}} in out")
@@ -266,15 +278,17 @@ def _record(e, realm, scale, pad, filters, where):
     return {
         "realm": realm, "id": e["id"], "group": e.get("group", ""), "call": call, "args": args,
         "size": list(size), "bleed": list(bleed), "rotate": rotate, "png_size": png_size, "scale": scale, "pad": pad,
+        "shot_scale": shot_scale, "format": fmt,
         "slice": list(slc) if slc is not None else None, "center": center,
         "elements": e.get("elements"), "capture": cap, "omit": omit, "attrs": attrs,
         "states": states,
     }
 
 
-def out_ok(out):
-    """An output path, relative to assets/ui, must be a .png inside skins/."""
-    if not out.endswith(".png") or "\\" in out or out.startswith("/"):
+def out_ok(out, fmt="png"):
+    """An output path, relative to assets/ui, must be inside skins/, with its format's extension
+    (.png, or .jpg for JPEG)."""
+    if not out.endswith(FORMATS[fmt]) or "\\" in out or out.startswith("/"):
         return False
     parts = out.split("/")
     return parts[0] == SKIN_ART_DIR and len(parts) >= 2 and all(p not in ("", ".", "..") for p in parts)
@@ -338,8 +352,14 @@ STATE_HASH_KEYS = ("state", "css", "call", "args", "out")
 
 def catalog_hash(rec, st):
     """A hash of what the catalog says about one output, which the manifest records when it's
-    rendered, so --check can tell a sprite whose catalog entry changed since."""
+    rendered, so --check can tell a sprite whose catalog entry changed since. The format and the
+    shot's scale count only when they aren't the defaults (PNG, shot at the output's scale), so
+    the sprites from before they existed keep their hashes."""
     data = {k: rec[k] for k in CATALOG_HASH_KEYS}
+    if rec.get("format", "png") != "png":
+        data["format"] = rec["format"]
+    if rec.get("shot_scale", rec["scale"]) != rec["scale"]:
+        data["shot_scale"] = rec["shot_scale"]
     data["state"] = {k: st[k] for k in STATE_HASH_KEYS}
     return hashlib.sha256(json.dumps(data, sort_keys=True).encode()).hexdigest()[:16]
 
@@ -389,6 +409,43 @@ def png_size(path):
     return list(struct.unpack(">II", head[16:24]))
 
 
+# The JPEG markers that start a frame (SOF0 to SOF15, but DHT, JPG and DAC), whose header holds
+# the image's size.
+_JPEG_SOF = {0xC0, 0xC1, 0xC2, 0xC3, 0xC5, 0xC6, 0xC7, 0xC9, 0xCA, 0xCB, 0xCD, 0xCE, 0xCF}
+
+
+def jpeg_size(path):
+    """(width, height) from a JPEG's frame header, without decoding it."""
+    with open(path, "rb") as f:
+        data = f.read()
+    if data[:2] != b"\xff\xd8":
+        raise ValueError(f"{path}: not a JPEG")
+    i = 2
+    while i + 4 <= len(data):
+        if data[i] != 0xFF:
+            raise ValueError(f"{path}: broken JPEG marker at byte {i}")
+        marker = data[i + 1]
+        if marker == 0xFF:  # Fill byte.
+            i += 1
+            continue
+        if marker in (0xD8, 0x01) or 0xD0 <= marker <= 0xD7:  # No length.
+            i += 2
+            continue
+        (length,) = struct.unpack(">H", data[i + 2:i + 4])
+        if marker in _JPEG_SOF:
+            if i + 9 > len(data):
+                break
+            height, width = struct.unpack(">HH", data[i + 5:i + 9])
+            return [width, height]
+        i += 2 + length
+    raise ValueError(f"{path}: no JPEG frame header")
+
+
+def image_size(path):
+    """(width, height) of a PNG or JPEG, by its extension, from its header."""
+    return jpeg_size(path) if path.lower().endswith((".jpg", ".jpeg")) else png_size(path)
+
+
 # ----------------------------------------------------------------------------
 # Checks
 # ----------------------------------------------------------------------------
@@ -405,7 +462,7 @@ def check(root, records, manifest):
             errors.append(f"{where}: missing; run make_ui_art.py")
             continue
         try:
-            size = png_size(full)
+            size = image_size(full)
         except ValueError as e:
             errors.append(str(e))
             continue

@@ -12,10 +12,11 @@
 {"method": "wait.frames", "params": {"frames": 5}}
 {"method": "ui.sounds", "params": {"clear": true}}
 
-# A text button that opens a stacked dialog: its hover and press, then the dialog's open sound.
+# A home menu item that opens a dialog: its hover and pick, then the dialog's open sound. Then a
+# text button that opens a stacked dialog: its hover and press, and the dialog's open sound.
 {"method": "ui.click", "params": {"path": "Settings"}}
 {"method": "wait.frames", "params": {"frames": 15}}
-{"method": "assert.eq", "params": {"query": "ui.sounds", "args": {"clear": true}, "path": "/roles", "value": ["button_hovered", "button_pressed", "dialog_opened"]}}
+{"method": "assert.eq", "params": {"query": "ui.sounds", "args": {"clear": true}, "path": "/roles", "value": ["item_hovered", "item_selected", "dialog_opened"]}}
 {"method": "ui.click", "params": {"path": "Game"}}
 {"method": "wait.frames", "params": {"frames": 15}}
 {"method": "assert.eq", "params": {"query": "ui.sounds", "args": {"clear": true}, "path": "/roles", "value": ["button_hovered", "button_pressed", "dialog_opened"]}}

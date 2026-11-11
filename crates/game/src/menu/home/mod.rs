@@ -43,7 +43,15 @@ impl HomeMenus {
         skin::follow(context, realm::ui_realm_for(true).realm);
         skin::apply_theme(context.ui_sys);
 
+        // Back from a game, the dialogs exist: the home menu and the campaign picker are built
+        // again, since the game may have changed the profile and the last save.
+        dialog::set_home_menu(true);
+        let returning = dialog::is_initialized();
         dialog::initialize(context);
+        if returning {
+            dialog::forget_last_save();
+            dialog::rebuild_profile_dialogs(context);
+        }
         dialog::set_backdrop_dim(context, true);
 
         Self { slideshow: Self::make_background_slideshow(context), skin_version: skin::version(), played_intro: false }

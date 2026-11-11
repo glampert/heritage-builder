@@ -1,15 +1,17 @@
 # Known issues and unfinished work
 
-Last verified against the code on 2026-11-09. Remove an entry once it's resolved.
+Last verified against the code on 2026-11-11. Remove an entry once it's resolved.
 
 ## Unfinished features
 
-- Home menu **Continue** (resume last save) and **Custom Game** buttons are disabled placeholders (`Enabled = false`; `on_pressed` returns `false` with a TODO) — `crates/game/src/menu/dialog/home.rs`.
+- Home menu **Custom Game** is a disabled placeholder with a "Coming soon" tooltip until Phase 1's Custom Game dialog exists (`TODO(realm-ui)`) — `crates/game/src/menu/dialog/home.rs`.
+- Campaigns II and III are in `assets/configs/game/campaigns.json` without missions, until game Phases 3 and 4 write them: finishing Campaign I reaches Campaign II, which the home menu and the campaign picker show as "coming soon" and can't start.
+- The home menu's Continue reads its subline (the mission and campaign) by parsing the whole last save (`session::probe_save`), in the home menu only (in game, Home is built without it: `dialog::set_home_menu`), once each time the home menu opens or the profile changes; Phase 1's save header replaces it (`TODO(realm-ui)`) — `crates/game/src/session.rs`.
 - Ambient sounds ignore game state; which sound plays is a placeholder (two TODOs) — `crates/game/src/system/ambient_sounds.rs`.
 - Construction art is generic, by footprint size only. A site draws the same scaffold for every building of its size, and the renovation overlay is a scaffold around the house's front corner. On the 3×3 and 4×4 houses, whose buildings stand at the back, that scaffold stands in the front courtyard (`crates/tools/blender-tile-generator/hbgen/recipes/overlays.py`). The art isn't tinted per realm yet (GDD 5.1.2). The completion sound reuses the UI's tile placed sound (`UiSoundKey::ConstructionCompleted`).
 - The fire watcher is the guard recoloured (`crates/tools/unit-recolor`) and the builder is a plain peasant; walker art of their own waits for the Blender walker experiment (placeholder-art Phase 6) — `docs/plans/city-risks.md`.
 - The construction plan's "fast build" option belongs in Custom Game settings, which don't exist yet. Until then `SimConfigs::construction.time_scale` is edited in the debug Game Configs window or with `config.set`, and the `instant_construction` cheat skips sites.
-- A skin or language rebuild (`ui.realm`, `ui.reload_skin`, `text.language`) builds the dialogs and the HUD again: an open popup closes, the inspector closes, the palette selection and a dialog's unsaved edits are dropped, and a button under the cursor plays its hover sound again (`TODO(realm-ui)` at `rebuild_all`) — `crates/game/src/menu/dialog/mod.rs`, `crates/game/src/menu/in_game/mod.rs`.
+- A skin or language rebuild (`ui.realm`, `ui.reload_skin`, `text.language`) builds the dialogs and the HUD again: an open popup closes, the inspector closes, the palette selection and a dialog's unsaved edits are dropped, and a button under the cursor plays its hover sound again (`TODO(realm-ui)` at `rebuild_all`). The home menu and the campaign picker are also rebuilt when the profile changes or a window resize changes the dialogs' scale, which replays that hover sound too (the picker keeps its pick) — `crates/game/src/menu/dialog/mod.rs`, `crates/game/src/menu/in_game/mod.rs`.
 
 ## Open bugs / design questions
 

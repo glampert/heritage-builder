@@ -1,6 +1,7 @@
 use serde::{Deserialize, Serialize};
 
-use engine::log;
+use common::hash;
+use engine::{log, ui::text::{self, UiTextCategory}};
 
 use crate::{
     realm::Realm,
@@ -35,6 +36,23 @@ pub struct CampaignDef {
     // The realm's eras, in the order they start: the calendar counts years from the latest.
     #[serde(default)]
     pub eras: Vec<EraDef>,
+}
+
+impl CampaignDef {
+    // Its name as the player reads it: the Realm string `campaign.<id>` (en.json), else its `name`.
+    pub fn display_name(&self) -> &str {
+        let key = format!("campaign.{}", self.id);
+        text::find_str(UiTextCategory::Realm, hash::fnv1a_from_str(&key)).unwrap_or(&self.name)
+    }
+
+    // The name of its mission at `mission_index` as the player reads it: the Realm string
+    // `mission.<id>.<number>` (numbered from 1), else the mission's `name`. None if it has no such
+    // mission.
+    pub fn mission_display_name(&self, mission_index: usize) -> Option<&str> {
+        let mission = self.missions.get(mission_index)?;
+        let key = format!("mission.{}.{}", self.id, mission_index + 1);
+        Some(text::find_str(UiTextCategory::Realm, hash::fnv1a_from_str(&key)).unwrap_or(&mission.name))
+    }
 }
 
 // A single mission: a starting map plus the requirements to complete it.

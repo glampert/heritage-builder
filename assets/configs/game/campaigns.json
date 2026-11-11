@@ -45,6 +45,18 @@
           }
         }
       ]
+    },
+    {
+      "id": "temple_mountain",
+      "name": "The Temple Mountain",
+      "realm": "kambara",
+      "missions": []
+    },
+    {
+      "id": "ten_thousand_temples",
+      "name": "The Plain of Ten Thousand Temples",
+      "realm": "tampadesa",
+      "missions": []
     }
   ]
 }

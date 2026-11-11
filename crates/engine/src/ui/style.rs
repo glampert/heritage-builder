@@ -917,9 +917,9 @@ mod tests {
         assert!(check_font_style_texts("jaini_regular.ttf", &[], "fa-solid-900.ttf", &["Long → 12"]).is_err());
 
         // A fallback of its own draws them, glyph by glyph, if it comes before the monospace font.
-        check_font_style("jaini_regular.ttf", &["spectral_sc_semi_bold.ttf"], "fa-solid-900.ttf").unwrap();
-        check_font_style("jaini_regular.ttf", &["spectral_sc_semi_bold.ttf", "mono", "icons"], "fa-solid-900.ttf").unwrap();
-        assert!(check_font_style("jaini_regular.ttf", &["mono", "spectral_sc_semi_bold.ttf"], "fa-solid-900.ttf").is_err());
+        check_font_style("jaini_regular.ttf", &["spectral_semi_bold.ttf"], "fa-solid-900.ttf").unwrap();
+        check_font_style("jaini_regular.ttf", &["spectral_semi_bold.ttf", "mono", "icons"], "fa-solid-900.ttf").unwrap();
+        assert!(check_font_style("jaini_regular.ttf", &["mono", "spectral_semi_bold.ttf"], "fa-solid-900.ttf").is_err());
 
         // The icon text style draws the icons, not the text.
         let error =

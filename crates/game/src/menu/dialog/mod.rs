@@ -7,6 +7,7 @@ use engine::{
     ui::{
         self,
         UiFontScale,
+        UiStaticVar,
         UiString,
         sound::{UiSoundEvent, UiSoundKey},
         text::UiTextCategory,
@@ -20,10 +21,13 @@ use super::{
     make_text_button,
     skin::{self, ButtonRole, HeadingLevel, SkinAlign, SkinDialogSize},
 };
-use crate::{menu::ButtonDef, ui_context::GameUiContext, campaign::config::MissionMap};
+use crate::{menu::ButtonDef, profile, ui_context::GameUiContext, campaign::config::MissionMap};
 
 mod home;
 use home::*;
+
+mod campaign_picker;
+use campaign_picker::*;
 
 mod main_game;
 use main_game::*;
@@ -72,6 +76,7 @@ const DIALOG_MENU_COUNT: usize = DialogMenuKind::COUNT;
 #[strum_discriminants(name(DialogMenuKind), derive(Display, EnumCount, EnumIter))]
 pub enum DialogMenuImpl {
     Home,
+    CampaignPicker,
     MainGame,
     NewGame,
     About,
@@ -100,6 +105,7 @@ pub enum DialogMenuImpl {
 
 const DIALOG_MENU_FACTORIES: [DialogMenuFactoryFn; DIALOG_MENU_COUNT] = dialog_menu_factories![
     Home,
+    CampaignPicker,
     MainGame,
     NewGame,
     About,
@@ -138,6 +144,12 @@ impl DialogMenuKind {
 
         dialog
     }
+
+    // The dialogs that show the player's progress and the last save: built again when the profile
+    // changes and whenever the home menu opens (rebuild_profile_dialogs).
+    fn shows_profile(self) -> bool {
+        matches!(self, DialogMenuKind::Home | DialogMenuKind::CampaignPicker)
+    }
 }
 
 // ----------------------------------------------
@@ -157,11 +169,21 @@ pub fn reset() {
 }
 
 // Rebuilds every dialog if the skin or the language changed since they were built (a realm
-// switch, entering a session, ui.reload_skin, text.language), keeping the open ones open. The
-// retail menus call it at the start of every frame.
+// switch, entering a session, ui.reload_skin, text.language), keeping the open ones open; and the
+// ones that show the player's progress if the profile changed, or the window's size changed how
+// large the dialogs are drawn (their contents scale with it). The retail menus call it at the
+// start of every frame.
 pub fn sync(context: &mut GameUiContext) {
-    if DialogMenusSingleton::is_initialized() && DialogMenusSingleton::get().built != built_versions() {
+    if !DialogMenusSingleton::is_initialized() {
+        return;
+    }
+    let dialogs = DialogMenusSingleton::get();
+    if dialogs.built != built_versions() {
         rebuild_all(context);
+    } else if dialogs.menu_stack.contains(&DialogMenuKind::Home) && dialogs.profile_built != profile_versions(context) {
+        // Only while the home menu shows: in game they'd read the last save for nothing, and the
+        // home menu builds them again when it opens.
+        rebuild_profile_dialogs(context);
     }
 }
 
@@ -170,13 +192,35 @@ pub fn sync(context: &mut GameUiContext) {
 // its contents). A popup that was open closes.
 pub fn rebuild_all(context: &mut GameUiContext) {
     if DialogMenusSingleton::is_initialized() {
-        DialogMenusSingleton::get_mut().rebuild_all(context);
+        DialogMenusSingleton::get_mut().rebuild(context, |_| true);
     }
+}
+
+// Builds the dialogs that show the player's progress and the last save (the home menu, the
+// campaign picker) again, as rebuild_all does.
+pub fn rebuild_profile_dialogs(context: &mut GameUiContext) {
+    if DialogMenusSingleton::is_initialized() {
+        DialogMenusSingleton::get_mut().rebuild(context, DialogMenuKind::shows_profile);
+    }
+}
+
+// Makes the home menu read the last save again when it's next built: the home menu calls it each
+// time it opens, since the save may have changed under the same name (the autosave's). Otherwise
+// it's read again only when the profile changes.
+pub fn forget_last_save() {
+    home::forget_last_save();
 }
 
 // What the dialogs are built from: the skin's and the strings' versions.
 fn built_versions() -> (u32, u32) {
     (skin::version(), ui::text::version())
+}
+
+// What the dialogs that show the profile are built from too: its revision, and how large the
+// window draws the dialogs (in hundredths).
+fn profile_versions(context: &GameUiContext) -> (u32, u32) {
+    let scale = skin::dialog_scale(ui::screen_size(context.ui_sys));
+    (profile::revision(), (scale * 100.0).round() as u32)
 }
 
 // Dialogs exist once the home or in-game menus have set them up (not in the dev editor alone).
@@ -237,6 +281,20 @@ pub fn close_current_on_escape(context: &mut GameUiContext) -> bool {
 
 pub fn draw_current(context: &mut GameUiContext) {
     DialogMenusSingleton::get_mut().draw_current(context);
+}
+
+// Whether the dialogs are built and drawn for the home menu or for a game: the retail menus say so
+// before they build any (HomeMenus::new, InGameMenus::new). In game, the home menu is built without
+// reading the last save, which takes a parse of the whole save; the home menu builds it again when
+// it opens. In the home menu, a dialog over Home dims the backdrop (draw_current).
+static HOME_MENU: UiStaticVar<bool> = UiStaticVar::new(false);
+
+pub fn set_home_menu(home_menu: bool) {
+    *HOME_MENU.as_mut() = home_menu;
+}
+
+fn in_home_menu() -> bool {
+    *HOME_MENU.as_ref()
 }
 
 // Dims the screen behind the dialogs with the skin's colour for the home menu or the game.
@@ -364,7 +422,8 @@ struct DialogMenusSingleton {
     dialog_menus: ArrayVec<DialogMenuImpl, DIALOG_MENU_COUNT>,
     frames: ArrayVec<DialogFrame, DIALOG_MENU_COUNT>, // Each dialog's window, from the skin it was built with.
     menu_stack: ArrayVec<DialogMenuKind, DIALOG_MENU_STACK_MAX_DEPTH>,
-    built: (u32, u32), // built_versions() when the dialogs were built.
+    built: (u32, u32),         // built_versions() when the dialogs were built.
+    profile_built: (u32, u32), // profile_versions() when the dialogs that show the profile were.
 }
 
 impl DialogMenusSingleton {
@@ -377,12 +436,17 @@ impl DialogMenusSingleton {
             frames.push(DialogFrame::from_skin(dialog_menu_kind));
         }
 
-        Self { dialog_menus, frames, menu_stack: ArrayVec::new(), built: built_versions() }
+        Self { dialog_menus, frames, menu_stack: ArrayVec::new(), built: built_versions(), profile_built: profile_versions(context) }
     }
 
-    fn rebuild_all(&mut self, context: &mut GameUiContext) {
+    // Builds the dialogs `which` picks again. The stack stays: each of them that's open is opened
+    // again, without its open sound.
+    fn rebuild(&mut self, context: &mut GameUiContext, which: impl Fn(DialogMenuKind) -> bool) {
         let stack = self.menu_stack.clone();
-        self.built = built_versions();
+        if DialogMenuKind::iter().all(&which) {
+            self.built = built_versions();
+        }
+        self.profile_built = profile_versions(context);
 
         // The old dialogs go without closing (their callbacks would resume the simulation and
         // play sounds); the new ones open below.
@@ -390,20 +454,19 @@ impl DialogMenusSingleton {
         // a typed save name, the selected save): opening refreshes from the configs and saves.
         // Phase 1's language and realm controls in Settings rebuild the very dialog they're in, so
         // a dialog will need to hand its pending edits to the one that replaces it.
-        for dialog_menu_kind in DialogMenuKind::iter() {
+        for dialog_menu_kind in DialogMenuKind::iter().filter(|kind| which(*kind)) {
             self.dialog_menus[dialog_menu_kind as usize] = dialog_menu_kind.build_menu(context);
             self.frames[dialog_menu_kind as usize] = DialogFrame::from_skin(dialog_menu_kind);
         }
 
-        self.menu_stack.clear();
-        for dialog_menu_kind in stack {
+        for dialog_menu_kind in stack.into_iter().filter(|kind| which(*kind)) {
             let dialog = self.find_dialog(dialog_menu_kind);
             let open_sound = (dialog_menu_kind != DialogMenuKind::Home).then_some(UiSoundKey::DialogOpened);
             dialog.menu_mut().set_sound(UiSoundEvent::Opened, None);
             let opened = dialog.open(context);
             dialog.menu_mut().set_sound(UiSoundEvent::Opened, open_sound);
-            if opened {
-                self.push_dialog(dialog_menu_kind);
+            if !opened {
+                self.pop_dialog(dialog_menu_kind);
             }
         }
     }
@@ -538,13 +601,23 @@ impl DialogMenusSingleton {
 
         let stack = self.menu_stack.clone();
         if let Some(&top) = stack.last() {
+            // In the home menu, the backdrop shows clear around Home's own panel and dims behind a
+            // dialog opened over it, as the mockups draw them.
+            if in_home_menu() {
+                let dim = if top == DialogMenuKind::Home { skin::backdrop_dim(true) } else { skin::backdrop_dim_over_home() };
+                context.ui_sys.set_modal_backdrop_color(dim);
+            }
+
             let window = ui::screen_size(context.ui_sys);
             let first_visible = first_visible_dialog(&stack, |kind| self.frames[kind as usize].shows_below());
 
             for &kind in &stack[first_visible..] {
-                let size = self.frames[kind as usize].size(window);
+                let frame = self.frames[kind as usize];
                 let dialog = self.find_dialog(kind);
-                dialog.menu_mut().set_size(size);
+                dialog.menu_mut().set_size(frame.size(window));
+                if let Some(offset) = frame.offset(window) {
+                    dialog.menu_mut().set_position(offset);
+                }
                 if kind == top {
                     dialog.draw_on_top(context);
                 } else {
@@ -601,12 +674,13 @@ const ALIGN_FLAGS: UiMenuFlags = UiMenuFlags::from_bits_retain(
 );
 
 // A dialog's window, from the skin's `dialogs` block (skin::SkinDialogDef): its size (in points at
-// 1920 × 1080, or the whole window), its alignment and whether the dialog under it stays visible.
-// The panel is the menu's own, set when it's built.
+// 1920 × 1080, or the whole window), its alignment, its offset from where that puts it, and
+// whether the dialog under it stays visible. The panel is the menu's own, set when it's built.
 #[derive(Copy, Clone, PartialEq, Debug)]
 struct DialogFrame {
     size: SkinDialogSize,
     align: Option<SkinAlign>,
+    offset: Option<[f32; 2]>,
     show_below: bool,
 }
 
@@ -620,6 +694,7 @@ impl DialogFrame {
         Self {
             size: def.size.unwrap_or(SkinDialogSize::DEFAULT),
             align: def.align,
+            offset: def.offset,
             show_below: def.show_below.unwrap_or(Self::DEFAULT_SHOW_BELOW),
         }
     }
@@ -627,6 +702,11 @@ impl DialogFrame {
     // Its size on a window of `window` points.
     fn size(&self, window: Vec2) -> Vec2 {
         skin::dialog_size(self.size, window)
+    }
+
+    // Its offset on a window of `window` points (a full-screen dialog has none).
+    fn offset(&self, window: Vec2) -> Option<Vec2> {
+        self.offset.filter(|_| !self.size.is_fullscreen()).map(|offset| skin::dialog_offset(offset, window))
     }
 
     // Whether the dialog under it is drawn: a full-screen dialog covers it.
@@ -735,7 +815,19 @@ mod tests {
     }
 
     fn frame(size: SkinDialogSize, align: Option<SkinAlign>, show_below: bool) -> DialogFrame {
-        DialogFrame { size, align, show_below }
+        DialogFrame { size, align, offset: None, show_below }
+    }
+
+    // An offset scales with the window as the size does; a full-screen dialog takes none.
+    #[test]
+    fn dialog_offsets_scale() {
+        let points = SkinDialogSize::Points([600.0, 960.0]);
+        let left = DialogFrame { offset: Some([90.0, 0.0]), ..frame(points, Some(SkinAlign::Left), false) };
+        assert_eq!(left.offset(Vec2::new(1920.0, 1080.0)), Some(Vec2::new(90.0, 0.0)));
+        assert_eq!(left.offset(Vec2::new(1280.0, 720.0)), Some(Vec2::new(60.0, 0.0)));
+        assert_eq!(frame(points, None, false).offset(Vec2::new(1920.0, 1080.0)), None);
+        let fullscreen = DialogFrame { offset: Some([90.0, 0.0]), ..frame(SkinDialogSize::Mode(SkinDialogSizeMode::Fullscreen), None, false) };
+        assert_eq!(fullscreen.offset(Vec2::new(1920.0, 1080.0)), None);
     }
 
     // A full-screen dialog covers the window, centred, hides what's under it, and pauses the

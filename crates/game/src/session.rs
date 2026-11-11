@@ -813,6 +813,30 @@ struct SaveVersionProbe {
     save_version: u32,
 }
 
+// What a save says about itself without loading it: its version and its campaign mission.
+#[derive(Deserialize)]
+struct SaveSummaryProbe {
+    #[serde(default)]
+    save_version: u32,
+    #[serde(default)]
+    campaign_progress: CampaignProgress,
+}
+
+// What the home menu's Continue shows of a save: whether this game can load it (its save version
+// is this game's), and the campaign mission it was saved in, if any.
+pub struct SaveSummary {
+    pub loadable: bool,
+    pub mission: Option<campaign::ActiveMission>,
+}
+
+// Reads a save's summary without loading it. It still reads and parses the whole file.
+// TODO(realm-ui): P1b's save header (Phase 1, Load / Save) holds the mission, campaign and date
+// beside the version, read without parsing the session; Continue reads that instead.
+pub fn probe_save(save_file: PathRef) -> Result<SaveSummary, String> {
+    let probe = save::storage::load_save_file::<SaveSummaryProbe>(save_file)?;
+    Ok(SaveSummary { loadable: probe.save_version == CURRENT_SAVE_VERSION, mission: probe.campaign_progress.active })
+}
+
 impl GameSession {
     // Logs and returns the reason on failure.
     pub(crate) fn save_game(&mut self, save_file: PathRef) -> Result<(), String> {

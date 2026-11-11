@@ -42,7 +42,9 @@ bitflags_with_display! {
 // UiMenuPosition
 // ----------------------------------------------
 
-// Where a menu's window goes, before its alignment flags apply.
+// Where a menu's window goes, before its alignment flags apply. With AlignCenter it's an offset
+// from the aligned place instead: inward from the window's left or right edge (with AlignLeft or
+// AlignRight), and down from the middle.
 #[derive(Default)]
 pub enum UiMenuPosition {
     #[default]
@@ -782,17 +784,20 @@ impl UiMenu {
             UiMenuPosition::None => {}
         }
 
+        // With AlignCenter, the position is an offset from where the alignment puts the window:
+        // inward from the left or right edge, and down from the middle.
+        let offset = position;
         if self.has_flags(UiMenuFlags::AlignCenter) && self.has_flags(UiMenuFlags::AlignLeft) {
             // Center-left
-            position = Vec2::new(0.0, display_size.y * 0.5);
+            position = Vec2::new(offset.x, display_size.y * 0.5 + offset.y);
             pivot = Vec2::new(0.0, 0.5);
         } else if self.has_flags(UiMenuFlags::AlignCenter) && self.has_flags(UiMenuFlags::AlignRight) {
             // Center-right
-            position = Vec2::new(display_size.x, display_size.y * 0.5);
+            position = Vec2::new(display_size.x - offset.x, display_size.y * 0.5 + offset.y);
             pivot = Vec2::new(1.0, 0.5);
         } else if self.has_flags(UiMenuFlags::AlignCenter) {
             // Screen center
-            position = Vec2::new(display_size.x * 0.5, display_size.y * 0.5);
+            position = Vec2::new(display_size.x * 0.5 + offset.x, display_size.y * 0.5 + offset.y);
             pivot = Vec2::new(0.5, 0.5);
         } else if self.has_flags(UiMenuFlags::AlignCenterTop) {
             // Screen center top
