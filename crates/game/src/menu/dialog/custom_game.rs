@@ -402,12 +402,14 @@ impl CustomGame {
 
         let kind = Self::KIND.to_string();
         let window = ui::screen_size(context.ui_sys);
-        // Sizes by the window; text by the window too, times as much as the dialog grew with the
-        // player's UI scale, over the UI scale the themes give it (dialog_text_fit), so the columns
-        // and buttons still fit at 200% on a small window.
-        let scale = skin::dialog_scale(window);
+        // Sizes by the window, and smaller with the dialog where a UI scale under 100% shrinks it
+        // (dialog_ui_growth below 1; the themes shrink the text as much). Text by the window too,
+        // times as much as the dialog grew with the player's UI scale, over the UI scale the themes
+        // give it (dialog_text_fit), so the columns and buttons still fit at 200% on a small window.
+        let window_scale = skin::dialog_scale(window);
+        let scale = window_scale * skin::dialog_ui_growth(&kind, window).min(1.0);
         let fit = skin::dialog_text_fit(&kind, window);
-        let text_scale = by_window(TEXT_SCALES, scale) * fit;
+        let text_scale = by_window(TEXT_SCALES, window_scale) * fit;
         let spacing = (PART_SPACING * scale).round();
 
         let title = skin::heading_at(context, [UiString::key(UiTextCategory::Menu, "custom_game.title")], HeadingLevel::Dialog, fit);
