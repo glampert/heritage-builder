@@ -112,7 +112,7 @@ pub(super) fn validate_save_name(name: &str) -> Result<(), CommandError> {
     if crate::session::is_valid_save_name(name) {
         Ok(())
     } else {
-        Err(CommandError::invalid_params(format!("'{name}' isn't a valid save name. Use a plain file name, without folders.")))
+        Err(CommandError::invalid_params(format!("'{name}' isn't a valid save name. Use a plain file name of at most {} characters, without folders or dots.", crate::session::MAX_SAVE_NAME_CHARS)))
     }
 }
 
@@ -238,7 +238,11 @@ mod tests {
         assert!(validate_save_name("my save 2").is_ok());
         assert!(validate_save_name("autosave").is_ok());
 
-        for bad in ["", ".hidden", "../escape", "dir/save", "dir\\save", "c:save", "a..b"] {
+        assert!(validate_save_name(&"x".repeat(crate::session::MAX_SAVE_NAME_CHARS)).is_ok());
+
+        // A dot would have the storage replace what follows it with the extension: "city.v2" is city.json.
+        let too_long = "x".repeat(crate::session::MAX_SAVE_NAME_CHARS + 1);
+        for bad in ["", ".hidden", "../escape", "dir/save", "dir\\save", "c:save", "a..b", "city.v2", "autosave.bak", "foo.", &too_long] {
             assert!(validate_save_name(bad).is_err(), "'{bad}' should be rejected.");
         }
     }

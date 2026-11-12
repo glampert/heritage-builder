@@ -60,6 +60,9 @@ pub struct CampaignManager {
     // Set while a campaign-driven mission load is in flight, so the loaded base
     // map's (empty) progress snapshot does not clobber the intended active mission.
     suppress_snapshot_restore: bool,
+    // The progress before that mission start, which cancel_mission_start puts back if its map
+    // doesn't load.
+    progress_before_start: CampaignProgress,
     // Missions whose goals were met since GameLoop last took them, as (campaign id,
     // mission index): the player's profile records them (take_finished_missions).
     finished_missions: Vec<(usize, usize)>,
@@ -71,6 +74,7 @@ impl CampaignManager {
             progress: CampaignProgress::default(),
             pending_prompt: None,
             suppress_snapshot_restore: false,
+            progress_before_start: CampaignProgress::default(),
             finished_missions: Vec::new(),
         }
     }
@@ -115,6 +119,7 @@ pub fn start_mission(campaign_id: usize, mission_index: usize) -> Option<Mission
     let map = CampaignConfigs::get().mission(campaign_id, mission_index)?.map.clone();
 
     let mgr = CampaignManager::get_mut();
+    mgr.progress_before_start = mgr.progress.clone();
     mgr.progress.active = Some(ActiveMission { campaign_id, mission_index, completed: false });
     mgr.pending_prompt = None;
     mgr.suppress_snapshot_restore = true;
@@ -134,6 +139,7 @@ pub fn advance_to_next_mission() -> Option<MissionMap> {
 
     if let Some(mission) = CampaignConfigs::get().mission(campaign_id, next_index) {
         let map = mission.map.clone();
+        mgr.progress_before_start = mgr.progress.clone();
         mgr.progress.active = Some(ActiveMission { campaign_id, mission_index: next_index, completed: false });
         mgr.pending_prompt = None;
         mgr.suppress_snapshot_restore = true;
@@ -188,6 +194,17 @@ pub fn restore_snapshot(progress: CampaignProgress) -> bool {
 // mission map, which isn't a save, takes it when its session is created.
 pub fn take_mission_start() -> bool {
     std::mem::take(&mut CampaignManager::get_mut().suppress_snapshot_restore)
+}
+
+// A mission start whose map failed to load: the campaign goes back to the progress it had before
+// start_mission or advance_to_next_mission, and the next load (the player's own save) restores its
+// own progress instead of starting that mission on it. No-op without a mission start pending.
+pub fn cancel_mission_start() {
+    if take_mission_start() {
+        let mgr = CampaignManager::get_mut();
+        mgr.progress = std::mem::take(&mut mgr.progress_before_start);
+        log::warning!(log::channel!("campaign"), "The mission's map didn't load: the mission doesn't start.");
+    }
 }
 
 // The finances the active mission starts with, if it sets any. None outside a campaign.

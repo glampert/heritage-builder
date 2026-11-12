@@ -546,11 +546,14 @@ impl DialogMenusSingleton {
         }
     }
 
+    // Drops the stack without closing the dialogs (a session switch): their close callbacks don't
+    // run, so state they'd clear on closing is cleared here.
     fn reset(&mut self) {
         self.menu_stack.clear();
         for dialog in &mut self.dialog_menus {
             dialog.reset();
         }
+        campaign_picker::forget_pick();
     }
 
     fn current_dialog(&mut self) -> Option<&mut DialogMenuImpl> {
@@ -923,6 +926,21 @@ fn make_dialog_close_button(context: &mut dyn UiWidgetContext, role: ButtonRole,
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    // A size given on the reference and the smallest window: the first on the reference window or
+    // a larger one, the second on the smallest or a smaller one, in proportion between them.
+    #[test]
+    fn sizes_by_window() {
+        let sizes = (56.0, 36.0);
+        let close = |a: f32, b: f32| (a - b).abs() < 0.01;
+        let smallest = skin::dialog_scale(skin::DIALOG_MIN_WINDOW);
+        assert!(close(by_window(sizes, 1.0), 56.0));
+        assert!(close(by_window(sizes, smallest), 36.0));
+        assert!(close(by_window(sizes, (1.0 + smallest) / 2.0), 46.0));
+        assert!(close(by_window(sizes, 0.1), 36.0));
+        assert!(close(by_window(sizes, 2.0), 56.0));
+        assert!(close(by_window(sizes, skin::dialog_scale(Vec2::new(1440.0, 800.0))), 36.0 + 20.0 * (800.0 / 1080.0 - smallest) / (1.0 - smallest)));
+    }
     use crate::menu::skin::SkinDialogSizeMode;
 
     // The top dialog always shows; under it, each one shows while every dialog above it shows the

@@ -410,8 +410,10 @@ impl Default for SkinBackdropsDef {
 //   Or "fullscreen": the whole window, for full-screen screens (the world map, the intermission,
 //   the comic viewer).
 // - `align`: left (centred on the left), center or right; the menus mode's if none.
-// - `offset`: [x, y] in points on a 1920 × 1080 window, scaled as the size is: how far the dialog
-//   sits in from the edge it's aligned to (or right of the centre), and down from the middle.
+// - `offset`: [x, y] in points on a 1920 × 1080 window, scaled down with the window as the size
+//   is but not grown by the UI scale (a larger offset would push a grown dialog off the window):
+//   how far the dialog sits in from the edge it's aligned to (or right of the centre), and down
+//   from the middle.
 // - `show_below`: whether the dialog under this one stays visible, drawn inert under it (false if
 //   none: the mockups hide Home's panel under Settings). A full-screen dialog hides it anyway.
 #[derive(Clone, Debug, Default, Deserialize)]
@@ -514,41 +516,84 @@ pub fn dialog_scale(window: Vec2) -> f32 {
 }
 
 // How much the contents of the dialog `kind` scale on a window of `window` points, for a tall
-// dialog whose contents scale with the window (the home menu): its content area's height there
-// over its height on the reference window, so they fill the same share of it at any size. A
-// little less than dialog_scale, since the panel's content insets keep their size as the dialog
-// shrinks. (Its width shrinks more, for the same reason: such a dialog's contents leave room
-// across, which ui.layout_issues checks.)
+// dialog whose contents scale with its content area (the home menu): that area's height there, at
+// the player's UI scale, over its height on the reference window at 100%, so they fill the same
+// share of it at any size and UI scale. A little less than dialog_scale on a small window, since
+// the panel's content insets keep their size as the dialog shrinks. (Its width shrinks more, for
+// the same reason: such a dialog's contents leave room across, which ui.layout_issues checks.)
+// Its sizes in points take this scale, and its text dialog_content_text_scale.
 pub fn dialog_content_scale(kind: &str, window: Vec2) -> f32 {
-    let content_height = |window: Vec2| dialog_content_size(kind, window).y;
-    (content_height(window) / content_height(DIALOG_REFERENCE_WINDOW)).min(1.0)
+    let (size, insets) = dialog_size_and_insets(kind);
+    content_scale_at(size, insets, window, ui_scale())
+}
+
+fn content_scale_at(size: SkinDialogSize, insets: [f32; 4], window: Vec2, ui_scale: f32) -> f32 {
+    content_size_at(size, insets, window, ui_scale).y / content_size_at(size, insets, DIALOG_REFERENCE_WINDOW, 1.0).y
+}
+
+// The scale such a dialog's text takes: dialog_content_scale over the UI scale, which the realm
+// themes already give the text, so the text grows as much as the content area does, no more.
+pub fn dialog_content_text_scale(kind: &str, window: Vec2) -> f32 {
+    dialog_content_scale(kind, window) / ui_scale()
 }
 
 // How much the player's UI scale grew the dialog `kind` on a window of `window` points: ui_scale,
 // or less where the window caps the dialog's size (the smaller of its width's and height's
-// growth). A dialog that sizes its own contents scales them by this, and its text by this over
-// ui_scale, so they still fit it at 200% on a small window. Below 100% it's ui_scale, though the
-// minimum dialog size (dialog_size) may keep the dialog itself larger: its contents then leave room.
+// growth). A dialog that sizes its own contents scales them by this, and its text by
+// dialog_text_fit, so they still fit it at 200% on a small window. Below 100% it's ui_scale, though
+// the minimum dialog size (dialog_size) may keep the dialog itself larger: its contents then leave
+// room.
 pub fn dialog_ui_growth(kind: &str, window: Vec2) -> f32 {
-    let size = dialog_def(kind).size.unwrap_or(SkinDialogSize::DEFAULT);
+    ui_growth_at(dialog_size_and_insets(kind).0, window, ui_scale())
+}
+
+fn ui_growth_at(size: SkinDialogSize, window: Vec2, ui_scale: f32) -> f32 {
     let at_100 = dialog_size_at(size, window, 1.0);
-    let grown = dialog_size(size, window);
-    (grown.x / at_100.x).min(grown.y / at_100.y).min(ui_scale())
+    let grown = dialog_size_at(size, window, ui_scale);
+    (grown.x / at_100.x).min(grown.y / at_100.y).min(ui_scale)
+}
+
+// How much less than the UI scale the text of the dialog `kind` grows on a window of `window`
+// points: dialog_ui_growth over ui_scale (1 where the dialog grew as much as the UI scale). A
+// dialog that sizes its own contents (dialog_ui_growth) builds its text at this, so the text,
+// which the themes grow by the UI scale, grows only as much as the dialog did.
+pub fn dialog_text_fit(kind: &str, window: Vec2) -> f32 {
+    text_fit_at(dialog_size_and_insets(kind).0, window, ui_scale())
+}
+
+fn text_fit_at(size: SkinDialogSize, window: Vec2, ui_scale: f32) -> f32 {
+    (ui_growth_at(size, window, ui_scale) / ui_scale).min(1.0)
 }
 
 // The size in points of the dialog `kind`'s content area on a window of `window` points: its size
 // less its panel's content insets.
 pub fn dialog_content_size(kind: &str, window: Vec2) -> Vec2 {
+    dialog_content_size_at(kind, window, ui_scale())
+}
+
+// dialog_content_size at a UI scale of `ui_scale`.
+pub fn dialog_content_size_at(kind: &str, window: Vec2, ui_scale: f32) -> Vec2 {
+    let (size, insets) = dialog_size_and_insets(kind);
+    content_size_at(size, insets, window, ui_scale)
+}
+
+// The dialog `kind`'s size in the skin, and its panel's content insets in points (left, top,
+// right, bottom).
+fn dialog_size_and_insets(kind: &str) -> (SkinDialogSize, [f32; 4]) {
     let def = dialog_def(kind);
     let size = def.size.unwrap_or(SkinDialogSize::DEFAULT);
     let panel = def.panel.as_deref().unwrap_or("dialog");
-    let [left, top, right, bottom] = current().panels.get(panel).and_then(|panel| panel.content).unwrap_or_default();
-    let size = dialog_size(size, window);
+    (size, current().panels.get(panel).and_then(|panel| panel.content).unwrap_or_default())
+}
+
+fn content_size_at(size: SkinDialogSize, insets: [f32; 4], window: Vec2, ui_scale: f32) -> Vec2 {
+    let [left, top, right, bottom] = insets;
+    let size = dialog_size_at(size, window, ui_scale);
     Vec2::new((size.x - left - right).max(1.0), (size.y - top - bottom).max(1.0))
 }
 
 // A dialog's offset (its `offset`, in points on the reference window) on a window of `window`
-// points, scaled as its size is, in whole points.
+// points, scaled with the window (dialog_scale) but not by the UI scale, in whole points.
 pub fn dialog_offset(offset: [f32; 2], window: Vec2) -> Vec2 {
     let factor = dialog_scale(window);
     Vec2::new((offset[0] * factor).round(), (offset[1] * factor).round())
@@ -1024,10 +1069,22 @@ pub fn heading(context: &mut dyn UiWidgetContext, lines: impl IntoIterator<Item 
 // A heading as heading() makes it, its font and margins `scale` times the skin's: for a dialog
 // whose contents scale with the window (the home menu).
 pub fn heading_at(context: &mut dyn UiWidgetContext, lines: impl IntoIterator<Item = UiString>, level: HeadingLevel, scale: f32) -> UiMenuHeading {
+    heading_scaled(context, lines, level, scale, scale)
+}
+
+// heading_at with its margins at `scale` and its font at `text_scale`, for a dialog whose text
+// takes another scale than its sizes (dialog_content_text_scale).
+pub fn heading_scaled(
+    context: &mut dyn UiWidgetContext,
+    lines: impl IntoIterator<Item = UiString>,
+    level: HeadingLevel,
+    scale: f32,
+    text_scale: f32,
+) -> UiMenuHeading {
     let mut def = current().headings.get(level.key()).cloned().unwrap_or_default();
     def.margin_top *= scale;
     def.margin_bottom *= scale;
-    let font_scale = UiFontScale(if def.font_scale > 0.0 { def.font_scale } else { level.default_font_scale() } * scale);
+    let font_scale = UiFontScale(if def.font_scale > 0.0 { def.font_scale } else { level.default_font_scale() } * text_scale);
     let color = opt_color(&def.color);
 
     let lines = lines.into_iter().map(|line| {
@@ -1516,7 +1573,7 @@ pub fn step_selector(label: impl Into<UiString>, steps: impl IntoIterator<Item =
 // An entry of a dialog's list of choices (the home menu's), with an optional subline: the skin's
 // menu_item role's font, colours, hover panel and marker.
 pub fn menu_item(context: &mut dyn UiWidgetContext, label: impl Into<UiString>, subline: Option<UiString>) -> UiMenuItem {
-    menu_item_at(context, label, subline, 1.0)
+    menu_item_scaled(context, label, subline, 1.0, 1.0)
 }
 
 // The subline's font, as a share of the label's.
@@ -1524,11 +1581,18 @@ const MENU_ITEM_SUBLINE_SCALE: f32 = 0.55;
 // The room above and below a menu item's text, when its role doesn't give it.
 const MENU_ITEM_PADDING: f32 = 4.0;
 
-// A menu item as menu_item() makes it, its fonts, padding, marker and hover panel's growth `scale`
-// times the skin's: for a dialog whose contents scale with the window (the home menu).
-pub fn menu_item_at(context: &mut dyn UiWidgetContext, label: impl Into<UiString>, subline: Option<UiString>, scale: f32) -> UiMenuItem {
+// A menu item as menu_item() makes it, its padding, marker and hover panel's growth `scale` times
+// the skin's and its fonts `text_scale` times: for a dialog whose contents scale with the window
+// (the home menu), its text at dialog_content_text_scale.
+pub fn menu_item_scaled(
+    context: &mut dyn UiWidgetContext,
+    label: impl Into<UiString>,
+    subline: Option<UiString>,
+    scale: f32,
+    text_scale: f32,
+) -> UiMenuItem {
     let def = button_def(ButtonRole::MenuItem.key());
-    let font = def.font.map_or(UiTextButtonSize::Large, SkinFontSize::button_size).font_scale().0 * scale;
+    let font = def.font.map_or(UiTextButtonSize::Large, SkinFontSize::button_size).font_scale().0 * text_scale;
     let padding = def.padding.map_or(MENU_ITEM_PADDING, |[_, y]| y);
     let mut item = UiMenuItem::new(label)
         .with_font_scales(UiFontScale(font), UiFontScale(font * MENU_ITEM_SUBLINE_SCALE))
@@ -1779,6 +1843,51 @@ mod tests {
         let fullscreen = SkinDialogSize::Mode(SkinDialogSizeMode::Fullscreen);
         assert_eq!(dialog_size(fullscreen, Vec2::new(1440.0, 800.0)), Vec2::new(1440.0, 800.0));
         assert!(fullscreen.is_fullscreen() && !size.is_fullscreen());
+    }
+
+    // How much a dialog and its contents grow with the UI scale: as much as the UI scale where the
+    // window lets the dialog grow that far, less where it caps it; the text, which the themes grow
+    // by the UI scale, by that over the UI scale.
+    #[test]
+    fn dialog_growth_follows_the_ui_scale_as_far_as_the_window_lets_it() {
+        let size = SkinDialogSize::Points([600.0, 1000.0]); // Home's.
+        let close = |a: f32, b: f32| (a - b).abs() < 0.01;
+        let reference = DIALOG_REFERENCE_WINDOW;
+        let small = DIALOG_MIN_WINDOW;
+
+        assert!(close(ui_growth_at(size, reference, 1.0), 1.0));
+        assert!(close(text_fit_at(size, reference, 1.0), 1.0));
+        // At 200%, capped by the window's height: 1080 / 1000.
+        assert!(close(ui_growth_at(size, reference, 2.0), 1.08));
+        assert!(close(text_fit_at(size, reference, 2.0), 0.54));
+        // On 1280 × 720 too: 720 / 667 (two thirds of 1000, in whole points).
+        assert!(close(ui_growth_at(size, small, 2.0), 720.0 / 667.0));
+        // A small dialog grows the whole way.
+        let popup = SkinDialogSize::Points([400.0, 300.0]);
+        assert!(close(ui_growth_at(popup, reference, 2.0), 2.0));
+        assert!(close(text_fit_at(popup, reference, 2.0), 1.0));
+        // Below 100% it's the UI scale, the text's fit 1.
+        assert!(close(ui_growth_at(size, reference, 0.75), 0.75));
+        assert!(close(text_fit_at(size, small, 0.75), 1.0));
+    }
+
+    // The contents of a dialog that scale with its content area: 1 on the reference window at
+    // 100%, its content area's height over that elsewhere, at any UI scale.
+    #[test]
+    fn dialog_contents_scale_with_the_content_area() {
+        let size = SkinDialogSize::Points([600.0, 1000.0]);
+        let insets = [40.0, 50.0, 40.0, 50.0];
+        let close = |a: f32, b: f32| (a - b).abs() < 0.01;
+
+        assert!(close(content_scale_at(size, insets, DIALOG_REFERENCE_WINDOW, 1.0), 1.0));
+        assert!(close(content_scale_at(size, insets, Vec2::new(3840.0, 2160.0), 1.0), 1.0));
+        // On 1280 × 720 the dialog is 667 tall, its insets the same: (667 - 100) / 900.
+        assert!(close(content_scale_at(size, insets, DIALOG_MIN_WINDOW, 1.0), 567.0 / 900.0));
+        // At 200% the dialog grows to the window's height: (1080 - 100) / 900.
+        assert!(close(content_scale_at(size, insets, DIALOG_REFERENCE_WINDOW, 2.0), 980.0 / 900.0));
+        // At 75%, 750 tall; on 1280 × 720 no smaller than at 100%.
+        assert!(close(content_scale_at(size, insets, DIALOG_REFERENCE_WINDOW, 0.75), 650.0 / 900.0));
+        assert!(close(content_scale_at(size, insets, DIALOG_MIN_WINDOW, 0.75), 567.0 / 900.0));
     }
 
     // A dialog's size is [width, height] or "fullscreen"; its entry merges over `default`.

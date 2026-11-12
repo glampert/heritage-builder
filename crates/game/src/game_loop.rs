@@ -224,8 +224,10 @@ impl RunLoop for GameLoop {
 
         // Whether the Settings dialog's Ok writes the user configs: not in the smoke test, a script
         // or a replay, which keep the changes in memory (as they keep the profile), so their runs
-        // leave no file and don't change the player's settings.
-        let saves_user_configs = smoke_test.is_none() && script.is_none() && !engine.is_replaying();
+        // leave no file and don't change the player's settings; nor with --default-configs, whose
+        // run never read the file, which a save would replace with this run's changes alone.
+        let saves_user_configs =
+            smoke_test.is_none() && script.is_none() && !engine.is_replaying() && !cli::get().has("default-configs");
         automation::recording::record_game_info(engine, enable_autosave, autosave_allowed);
 
         // Saves record the time they're made, but not in runs that must write the same saves each
@@ -421,11 +423,6 @@ impl GameLoop {
     #[inline]
     pub fn cancel_save_and_then(&mut self) {
         self.after_save = None;
-    }
-
-    #[inline]
-    pub fn is_save_and_then_pending(&self) -> bool {
-        self.after_save.is_some()
     }
 
     // When this city was last saved or loaded, and its time played now (the Game menu's "Saved N
@@ -659,6 +656,12 @@ impl GameLoop {
         // build it anew, under the player picking a save or typing a name. The timer pauses meanwhile
         // and goes on from where it stopped once the dialog closes.
         if dialog::is_initialized() && dialog::is_in_stack(DialogMenuKind::LoadOrSaveGame) {
+            return;
+        }
+
+        // Nor with a session switch queued (a Quit to menu this frame): the save would run after
+        // it and save the next session (the home menu's) in the autosave's slot.
+        if self.session_cmd_queue.has_session_switch() {
             return;
         }
 

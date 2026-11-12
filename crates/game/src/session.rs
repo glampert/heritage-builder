@@ -112,6 +112,12 @@ impl GameSessionCmdQueue {
         self.queue.push_back(GameSessionCmd::SaveGame { save_file: save_file_name.to_path_buf() });
     }
 
+    // Whether a command queued replaces the session (a quit, a reset, a load or a new game): a
+    // save queued behind it would save the next session instead of this one.
+    pub fn has_session_switch(&self) -> bool {
+        self.queue.iter().any(|cmd| !matches!(cmd, GameSessionCmd::SaveGame { .. }))
+    }
+
     pub fn execute(&mut self, session: &mut GameSession, engine: &mut Engine, configs: &'static GameConfigs) {
         while let Some(cmd) = self.queue.pop_front() {
             match cmd {
@@ -939,12 +945,17 @@ pub fn probe_save(save_file: PathRef) -> Result<SaveSummary, String> {
     Ok(SaveSummary { loadable: head.save_version == CURRENT_SAVE_VERSION, header: head.header.unwrap_or_default() })
 }
 
-// Whether `name` can name a save: a plain file name, without folders.
+// The longest save name, in characters: its file name, extension included, stays within the file
+// systems' 255 bytes even in 4-byte characters, and its path within FixedPath's.
+pub const MAX_SAVE_NAME_CHARS: usize = 60;
+
+// Whether `name` can name a save: a plain file name, without folders or dots (the storage gives
+// the file its extension in place of whatever follows a dot, so "city.v2" would write city.json),
+// of at most MAX_SAVE_NAME_CHARS characters.
 pub fn is_valid_save_name(name: &str) -> bool {
     !name.is_empty()
-        && !name.starts_with('.')
-        && !name.contains(['/', '\\', ':'])
-        && !name.contains("..")
+        && name.chars().count() <= MAX_SAVE_NAME_CHARS
+        && !name.contains(['/', '\\', ':', '.'])
         && !name.chars().any(char::is_control)
 }
 
@@ -1034,8 +1045,23 @@ impl GameSession {
         }
     }
 
-    // Logs and returns the reason on failure. A failed load leaves the session as it was.
+    // Logs and returns the reason on failure. A failed load leaves the session as it was, and
+    // cancels a campaign mission start waiting for this load (campaign::cancel_mission_start), so
+    // the next load doesn't start the mission on another save.
     pub(crate) fn load_save_game(
+        &mut self,
+        engine: &mut Engine,
+        configs: &'static GameConfigs,
+        save_file: PathRef,
+    ) -> Result<(), String> {
+        let result = self.load_save_game_file(engine, configs, save_file);
+        if result.is_err() {
+            campaign::cancel_mission_start();
+        }
+        result
+    }
+
+    fn load_save_game_file(
         &mut self,
         engine: &mut Engine,
         configs: &'static GameConfigs,

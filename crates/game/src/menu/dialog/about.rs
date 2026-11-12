@@ -3,7 +3,8 @@
 // sections (a role in the accent colour over its names), "Built with", the quote, the version and
 // copyright, and Back. The credits that have no names yet say so, as the mockup does; the fonts
 // are credited from assets/fonts/ and their licences there. Its contents scale with the panel's
-// content area (skin::dialog_content_scale), as Home's do, so they fit down to 1280 × 720.
+// content area (skin::dialog_content_scale), at any UI scale (its text at
+// skin::dialog_content_text_scale), as Home's do, so they fit down to 1280 × 720 from 75% to 200%.
 
 use super::{
     home::{crest, subtitle},
@@ -25,7 +26,7 @@ const ABOUT_QUOTE_FONT_SCALE: f32 = 1.2;
 const ABOUT_FOOTER_FONT_SCALE: f32 = 0.85; // The version and copyright.
 const ABOUT_BACK_BUTTON_WIDTH: f32 = 240.0;
 const ABOUT_BACK_BUTTON_HEIGHT: f32 = 56.0;
-const ABOUT_SLACK: f32 = 4.0;              // Room the content area keeps free below Back, so rounding never makes it scroll.
+const ABOUT_SLACK: f32 = 12.0;             // Room the content area keeps free below Back, so rounding (more of it at a UI scale) never makes it scroll.
 
 // ----------------------------------------------
 // About
@@ -42,6 +43,7 @@ impl About {
         let kind = Self::KIND.to_string();
         let window = ui::screen_size(context.ui_sys);
         let scale = skin::dialog_content_scale(&kind, window);
+        let text = skin::dialog_content_text_scale(&kind, window);
         let spacing = (ABOUT_WIDGET_SPACING * scale).round();
         let flags = DialogFrame::from_skin(Self::KIND).menu_flags();
         let mut menu = skin::dialog(context, &kind, flags).with_widget_spacing(Vec2::new(0.0, spacing));
@@ -54,26 +56,26 @@ impl About {
             parts_height += crest.measure(context).y + spacing;
             menu.add_widget(crest);
         }
-        let title = skin::heading_at(context, [UiString::key(UiTextCategory::Menu, "home.title")], HeadingLevel::Title, scale);
+        let title = skin::heading_scaled(context, [UiString::key(UiTextCategory::Menu, "home.title")], HeadingLevel::Title, scale, text);
         parts_height += title.measure(context).y + spacing;
         menu.add_widget(title);
-        let subtitle = skin::heading_at(context, [UiString::from(subtitle())], HeadingLevel::Subtitle, scale);
+        let subtitle = skin::heading_scaled(context, [UiString::from(subtitle())], HeadingLevel::Subtitle, scale, text);
         parts_height += subtitle.measure(context).y + spacing;
         menu.add_widget(subtitle);
-        let studio = text_block([line(UiString::key(UiTextCategory::Menu, "about.studio"), ABOUT_STUDIO_FONT_SCALE * scale, "ink")], 0.0);
+        let studio = text_block([line(UiString::key(UiTextCategory::Menu, "about.studio"), ABOUT_STUDIO_FONT_SCALE * text, "ink")], 0.0);
         parts_height += studio.measure(context).y + spacing;
         menu.add_widget(studio);
         let rule = skin::separator(context, "rule");
         parts_height += rule.measure(context).y + spacing;
         menu.add_widget(rule);
-        let credits = credits(scale);
+        let credits = credits(scale, text);
         parts_height += credits.measure(context).y + spacing;
         menu.add_widget(credits);
 
-        let quote = text_block([line(UiString::key(UiTextCategory::Menu, "about.quote"), ABOUT_QUOTE_FONT_SCALE * scale, "sub")], 0.0);
+        let quote = text_block([line(UiString::key(UiTextCategory::Menu, "about.quote"), ABOUT_QUOTE_FONT_SCALE * text, "sub")], 0.0);
         let footer = ui::text::format(UiTextCategory::Menu, "about.footer", &[("version", crate::version())]);
-        let footer = text_block([line(footer, ABOUT_FOOTER_FONT_SCALE * scale, "sub")], 0.0);
-        let back = back_button(context, scale);
+        let footer = text_block([line(footer, ABOUT_FOOTER_FONT_SCALE * text, "sub")], 0.0);
+        let back = back_button(context, scale, text / scale);
         parts_height += quote.measure(context).y + spacing + footer.measure(context).y + spacing + back.measure(context).y;
 
         let content = skin::dialog_content_size(&kind, window);
@@ -135,8 +137,9 @@ fn credit_sections() -> [[(UiString, Vec<UiString>); 3]; 2] {
 
 // The credit sections in two columns, each section a heading: its role in capitals and the accent
 // colour, then its names (paths: "About/ART To be announced"). The mockup stacks five in one
-// column; the fonts' credits make six, which fit the panel side by side.
-fn credits(scale: f32) -> UiColumns {
+// column; the fonts' credits make six, which fit the panel side by side. Spaced at `scale`, their
+// text at `text_scale`.
+fn credits(scale: f32, text_scale: f32) -> UiColumns {
     let mut columns = UiColumns::new().with_spacing((ABOUT_COLUMN_SPACING * scale).round());
     for sections in credit_sections() {
         // The menu's spacing between lines (a group spaces its headings' lines as its widgets, but
@@ -145,8 +148,8 @@ fn credits(scale: f32) -> UiColumns {
         let count = sections.len();
         for (index, (role, names)) in sections.into_iter().enumerate() {
             let role = role.resolve().to_uppercase();
-            let lines = std::iter::once(line(role, ABOUT_ROLE_FONT_SCALE * scale, "accent"))
-                .chain(names.into_iter().map(|name| line(name, ABOUT_NAMES_FONT_SCALE * scale, "ink")));
+            let lines = std::iter::once(line(role, ABOUT_ROLE_FONT_SCALE * text_scale, "accent"))
+                .chain(names.into_iter().map(|name| line(name, ABOUT_NAMES_FONT_SCALE * text_scale, "ink")));
             let margin = if index + 1 < count { (ABOUT_SECTION_SPACING * scale).round() } else { 0.0 };
             group.add_widget(text_block(lines, margin));
         }
@@ -155,9 +158,13 @@ fn credits(scale: f32) -> UiColumns {
     columns
 }
 
-// Back, the skin's primary button, centered: closes About.
-fn back_button(context: &mut GameUiContext, scale: f32) -> UiWidgetGroup {
-    let back = make_dialog_close_button(context, ButtonRole::Primary, UiString::key(UiTextCategory::Menu, "button.back"))
+// Back, the skin's primary button, centered: closes About. Sized at `scale`, its text at its role's
+// size times `fit` (the text's scale over the sizes').
+fn back_button(context: &mut GameUiContext, scale: f32, fit: f32) -> UiWidgetGroup {
+    let back = make_dialog_close_button(context, ButtonRole::Primary, UiString::key(UiTextCategory::Menu, "button.back"));
+    let font_scale = UiFontScale(back.font_scale().0 * fit);
+    let back = back
+        .with_font_scale(font_scale)
         .with_width(UiTextButtonWidth::Fixed((ABOUT_BACK_BUTTON_WIDTH * scale).round()))
         .with_min_height((ABOUT_BACK_BUTTON_HEIGHT * scale).round());
     UiWidgetGroup::new().with_widget(back)

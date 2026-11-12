@@ -78,13 +78,20 @@ impl MapDef {
 }
 
 impl MapConfigs {
-    // Leaves out maps with an id another has, and keeps blank maps' defaults within the sizes the
+    // Leaves out maps with an id another has and preset maps with no such preset (the presets
+    // would start the last one in its place), and keeps blank maps' defaults within the sizes the
     // dialog offers. Called once the file has loaded.
     pub fn post_load(&mut self) {
         let mut seen: Vec<String> = Vec::new();
         self.maps.retain(|map| {
             if map.id.is_empty() || seen.contains(&map.id) {
                 log::error!(log::channel!("game"), "maps.json: a map with an empty or repeated id ('{}') is left out.", map.id);
+                return false;
+            }
+            if let MapSource::Preset { preset_number } = &map.source
+                && crate::debug::preset_maps::preset_size(*preset_number).is_none()
+            {
+                log::error!(log::channel!("game"), "maps.json: the map '{}' names no preset {preset_number}; it's left out.", map.id);
                 return false;
             }
             seen.push(map.id.clone());
@@ -141,5 +148,14 @@ mod tests {
         assert!(!map.is_available(&["other".to_string()]));
         let blank = MapDef { id: "blank".into(), name: "Blank".into(), source: MapSource::Blank { width: 64, height: 64, terrain: "grass".into() } };
         assert!(blank.is_available(&[]));
+    }
+
+    #[test]
+    fn preset_maps_need_their_preset() {
+        let preset = |id: &str, preset_number| MapDef { id: id.into(), name: id.into(), source: MapSource::Preset { preset_number } };
+        let mut configs = MapConfigs { maps: vec![preset("farm", 2), preset("nowhere", 9999)], ..Default::default() };
+        configs.post_load();
+        let ids: Vec<&str> = configs.maps.iter().map(|map| map.id.as_str()).collect();
+        assert_eq!(ids, ["farm"]);
     }
 }

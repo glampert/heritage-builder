@@ -314,7 +314,9 @@ fn mission_of(entry: &SaveEntry) -> Option<(String, usize, String)> {
 }
 
 // Where a save was played, under its name: "Campaign I · mission 2 · <city>" (the mission's name
-// until missions name their cities), "Custom game", or why it can't be loaded.
+// until missions name their cities), "Custom game · <map>", or why it can't be loaded. A game
+// that's neither (a preset or new map from automation or the developer editor, or a mission the
+// configs no longer have) shows its city's name, or "—".
 fn place_text(entry: &SaveEntry) -> String {
     let Ok(summary) = &entry.summary else {
         return ui::text::get(UiTextCategory::Menu, "load_save.unreadable").to_string();
@@ -334,10 +336,11 @@ fn place_text(entry: &SaveEntry) -> String {
         ),
         // A custom game: "Custom game · <city>", or its map's name until custom games name their
         // cities.
-        None => match city.or_else(|| custom_map_name(&summary.header)) {
+        None if summary.header.custom_game.is_some() => match city.or_else(|| custom_map_name(&summary.header)) {
             Some(place) => ui::text::format(UiTextCategory::Menu, "load_save.custom_game_place", &[("place", &place)]),
             None => ui::text::get(UiTextCategory::Menu, "load_save.custom_game").to_string(),
         },
+        None => city.unwrap_or_else(none_text),
     }
 }
 
@@ -361,7 +364,7 @@ fn details(entry: Option<&SaveEntry>) -> Vec<(UiString, UiString)> {
     let header = entry.and_then(SaveEntry::header);
     let mission = entry.and_then(mission_of);
     let none = none_text();
-    let custom_game = header.is_some_and(|header| header.realm.is_some()) && mission.is_none();
+    let custom_game = header.is_some_and(|header| header.custom_game.is_some()) && mission.is_none();
 
     let mission_name = match &mission {
         Some((_, _, name)) => name.clone(),
@@ -718,6 +721,7 @@ fn save_list(context: &mut GameUiContext, scale: f32, text_scale: f32, height: f
 fn save_as_field(context: &mut GameUiContext, text_scale: f32) -> UiTextInput {
     skin::text_input(context, UiString::key(UiTextCategory::Menu, "load_save.save_as"))
         .with_font_scale(UiFontScale(text_scale))
+        .with_max_chars(session::MAX_SAVE_NAME_CHARS)
         .on_read_value(|_, _| STATE.as_ref().field.as_str())
         .on_update_value(|_, _, text| {
             let state = STATE.as_mut();
@@ -804,8 +808,10 @@ fn on_save(context: &mut GameUiContext) {
         return;
     }
     // A save of that name, its case aside, as file systems that ignore case see it.
-    if state.saves.iter().any(|entry| entry.name.eq_ignore_ascii_case(&name)) {
-        // Asks first: Yes saves over it.
+    if let Some(existing) = state.saves.iter().find(|entry| entry.name.eq_ignore_ascii_case(&name)) {
+        // Asks first: Yes saves over it, under its own name, which a file system that ignores case
+        // keeps for the file: the list, the file and the profile's last save then agree.
+        let name = existing.name.clone();
         // Built afresh: the menu keeps one popup, the last built (Delete's or this one).
         let dialog = super::find::<LoadOrSaveGame>();
         dialog.menu.reset_message_box();

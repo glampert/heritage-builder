@@ -8,7 +8,7 @@
 // (STATE), so a rebuild of the open dialog (a realm or language switch, ui.reload_skin) keeps them
 // and the tab shown. Ok writes the changed ones into GameConfigs, applies them to the systems that
 // can take them at once and saves the user configs (SettingsCategory::commit; not in a script, a
-// replay or the smoke test, which keep them for the run); Cancel and Escape drop them; Restore
+// replay, the smoke test or a run with --default-configs, which keep them for the run); Cancel and Escape drop them; Restore
 // defaults sets every setting's pending value to the configs' default (assets/configs), for Ok to
 // commit. Settings the engine reads only when it starts say "(after a restart)".
 //
@@ -265,7 +265,7 @@ impl SettingsCategory {
                 crate::automation::save_game_configs();
                 log::info!(log::channel!("settings"), "Settings saved.");
             } else {
-                log::info!(log::channel!("settings"), "Settings changed for this run only (script, replay or smoke test).");
+                log::info!(log::channel!("settings"), "Settings changed for this run only (script, replay, smoke test or --default-configs).");
             }
         }
         any_changed
@@ -376,7 +376,7 @@ impl MainSettings {
         let kind = Self::KIND.to_string();
         let scale = skin::dialog_scale(window);
         let growth = skin::dialog_ui_growth(&kind, window);
-        let fit = (growth / skin::ui_scale()).min(1.0);
+        let fit = skin::dialog_text_fit(&kind, window);
         let points = |size: f32| (size * scale * growth).round();
         let text_scale = by_window(TEXT_SCALES, scale) * fit;
         let spacing = points(PART_SPACING);

@@ -1,6 +1,7 @@
 use game::{
     campaign::{
         self,
+        ActiveMission,
         CampaignProgress,
         CampaignPrompt,
         config::{CampaignConfigs, CampaignDef, MissionCalendarDef, MissionDef, MissionGoal, MissionMap, MissionRequirements},
@@ -32,6 +33,7 @@ fn main() {
         test_utils::test_fn!(test_advance_to_next_mission),
         test_utils::test_fn!(test_continue_playing_no_requeue),
         test_utils::test_fn!(test_snapshot_restore_and_suppress),
+        test_utils::test_fn!(test_cancelled_mission_start),
         test_utils::test_fn!(test_mission_calendar),
     ]);
 }
@@ -287,6 +289,34 @@ fn test_snapshot_restore_and_suppress() {
     // The suppress flag is one-shot: a subsequent restore now applies.
     assert!(!campaign::restore_snapshot(CampaignProgress::default()));
     assert!(campaign::active_mission().is_none());
+}
+
+// A mission whose map fails to load doesn't start: the campaign goes back to what it was, and the
+// next load (the player's own save) restores that save's progress instead of starting the mission.
+fn test_cancelled_mission_start() {
+    ensure_campaign_setup();
+
+    // From the home menu: nothing active before the start.
+    campaign::reset();
+    campaign::start_mission(0, 1);
+    campaign::cancel_mission_start(); // GameSession::load_save_game failed.
+    assert!(campaign::active_mission().is_none(), "the failed start leaves no active mission");
+
+    let saved = CampaignProgress { active: Some(ActiveMission { campaign_id: 0, mission_index: 0, completed: true }) };
+    assert!(!campaign::restore_snapshot(saved), "the next load isn't the mission's start");
+    let active = campaign::active_mission().expect("the save's progress is restored");
+    assert_eq!((active.campaign_id, active.mission_index, active.completed), (0, 0, true));
+
+    // In game: the next mission's map fails, and the mission being played stays active.
+    assert!(campaign::advance_to_next_mission().is_some());
+    campaign::cancel_mission_start();
+    let active = campaign::active_mission().expect("the current mission stays active");
+    assert_eq!((active.mission_index, active.completed), (0, true));
+
+    // Without a start pending, it changes nothing.
+    campaign::cancel_mission_start();
+    assert_eq!(campaign::active_mission().map(|active| active.mission_index), Some(0));
+    campaign::reset();
 }
 
 // A mission starts with its own calendar over the configs' defaults, and its campaign's eras.

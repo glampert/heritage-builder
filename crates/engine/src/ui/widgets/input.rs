@@ -810,6 +810,7 @@ pub struct UiTextInput {
     buffer: String,
     font_scale: UiFontScale,
     width: Option<f32>, // The field's; 0 takes the room left in the row.
+    max_chars: Option<usize>,
     look: Option<UiTextInputLook>,
     on_read_value: UiTextInputReadValue,
     on_update_value: UiTextInputUpdateValue,
@@ -848,6 +849,9 @@ impl UiWidget for UiTextInput {
                         .id(id)
                         .font(internal::font(ui_sys, self.font_scale))
                         .desired_width(width);
+                    if let Some(max_chars) = self.max_chars {
+                        text_edit = text_edit.char_limit(max_chars);
+                    }
 
                     // With a look, its field goes under the text, whose own frame is hidden.
                     let Some(look) = self.look else {
@@ -883,7 +887,10 @@ impl UiWidget for UiTextInput {
         }
         if let Some(new_value) = set_value.as_ref().and_then(|value| value.as_str()) {
             self.buffer.clear();
-            self.buffer.push_str(new_value);
+            match self.max_chars {
+                Some(max_chars) => self.buffer.extend(new_value.chars().take(max_chars)),
+                None => self.buffer.push_str(new_value),
+            }
             self.update_value(context);
         }
     }
@@ -927,6 +934,7 @@ impl UiTextInput {
             buffer: String::new(),
             font_scale: UiFontScale::default(),
             width: None,
+            max_chars: None,
             look: None,
             on_read_value: None,
             on_update_value: None,
@@ -952,6 +960,12 @@ impl UiTextInput {
     pub fn with_width(mut self, width: f32) -> Self {
         debug_assert!(width >= 0.0);
         self.width = Some(width);
+        self
+    }
+
+    // The most characters it takes, typed or set (ui.set); longer text is cut.
+    pub fn with_max_chars(mut self, max_chars: usize) -> Self {
+        self.max_chars = Some(max_chars);
         self
     }
 

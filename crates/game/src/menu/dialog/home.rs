@@ -12,16 +12,20 @@
 // changes the dialogs' (rebuild_profile_dialogs). Built in game (every dialog is, with each skin),
 // it leaves the last save unread and Continue disabled: it isn't shown there. Its contents scale
 // with the window as its panel's content area does (skin::dialog_content_scale), so they fill the
-// panel as the mockup's do, down to 1280 × 720.
+// panel as the mockup's do, down to 1280 × 720, at any UI scale (its text at
+// skin::dialog_content_text_scale, since the themes grow it by the UI scale already).
 
-use std::path::Path;
+use std::path::PathBuf;
 
 use engine::{file_sys::paths::PathRef, log, save::storage};
 
 use super::*;
 use crate::{
     GameLoop,
-    campaign::{self, config::CampaignConfigs},
+    campaign::{
+        self,
+        config::{CampaignConfigs, MissionMap},
+    },
     menu::skin::EmblemState,
     profile,
     save_header,
@@ -140,7 +144,10 @@ fn read_last_save() -> LastSave {
     let Some(save) = profile::get().last_save.clone() else {
         return LastSave::None;
     };
-    if !storage::list_save_files().iter().any(|file| file.as_path() == Path::new(&save)) {
+    // Its case aside: a file system that ignores case keeps a file's old name when it's saved over
+    // under another case (session.save), and loads it under either.
+    let listed = |file: &PathBuf| file.to_str().is_some_and(|file| file.eq_ignore_ascii_case(&save));
+    if !storage::list_save_files().iter().any(listed) {
         return LastSave::Missing(save);
     }
     match session::probe_save(PathRef::from_str(&save)) {
@@ -230,9 +237,28 @@ pub(super) fn roman_numeral(mut number: usize) -> String {
     text
 }
 
-// The campaign Campaign shows: the latest the player can play. None without campaigns.
-fn shown_campaign() -> Option<usize> {
+// The current campaign, which Campaign shows and the campaign row and the picker ring: the latest
+// the player can play. None without campaigns.
+pub(super) fn current_campaign() -> Option<usize> {
     profile::get().playable_campaigns(CampaignConfigs::get()).last().copied()
+}
+
+// The emblem of the campaign at `campaign_index`, in the campaign row and on its picker card:
+// ringed for the current campaign, plain for another the player can play, else locked.
+pub(super) fn emblem_state(campaign_index: usize) -> EmblemState {
+    if !profile::get().is_playable(CampaignConfigs::get(), campaign_index) {
+        EmblemState::Locked
+    } else if current_campaign() == Some(campaign_index) {
+        EmblemState::Current
+    } else {
+        EmblemState::Idle
+    }
+}
+
+// What unlocks the campaign at `campaign_index`: "Finish Campaign I to unlock".
+pub(super) fn unlock_text(campaign_index: usize) -> String {
+    let previous = campaign_number(campaign_index.saturating_sub(1));
+    ui::text::format(UiTextCategory::Menu, "campaign.unlock", &[("campaign", &previous)])
 }
 
 // What Campaign's subline says of the campaign at `campaign_index`: "Campaign I · mission 6 of 10",
@@ -252,8 +278,25 @@ fn campaign_progress_text(campaign_index: usize) -> String {
 }
 
 // Starts the campaign at `campaign_index` at `mission_index`: loads its map, which leaves the home
-// menu (GameSession::start_mission takes it from there).
+// menu (GameSession::start_mission takes it from there). A mission whose save map this game can't
+// load (missing, unreadable or of another version) starts nothing and leaves the campaign as it was;
+// a load that fails all the same cancels the start (campaign::cancel_mission_start).
 pub(super) fn start_campaign_mission(campaign_index: usize, mission_index: usize) -> bool {
+    if let Some(MissionMap::SaveGame { save_file }) =
+        CampaignConfigs::get().mission(campaign_index, mission_index).map(|mission| &mission.map)
+    {
+        match session::probe_save(PathRef::from_str(save_file)) {
+            Ok(summary) if summary.loadable => {}
+            Ok(_) => {
+                log::error!(log::channel!("campaign"), "Can't start the mission: its map '{save_file}' is of another save version.");
+                return false;
+            }
+            Err(err) => {
+                log::error!(log::channel!("campaign"), "Can't start the mission: its map '{save_file}' doesn't load: {err}");
+                return false;
+            }
+        }
+    }
     match campaign::start_mission(campaign_index, mission_index) {
         Some(map) => {
             super::load_mission_map(&map);
@@ -296,20 +339,25 @@ implement_dialog_menu! { Home, ["Heritage Builder"] }
 
 impl Home {
     pub fn new(context: &mut GameUiContext) -> Self {
-        let scale = skin::dialog_content_scale(&Self::KIND.to_string(), ui::screen_size(context.ui_sys));
+        // Sizes at the content area's scale; text at that over the UI scale the themes give it
+        // (dialog_content_text_scale), so both grow as much as the panel does.
+        let kind = Self::KIND.to_string();
+        let window = ui::screen_size(context.ui_sys);
+        let scale = skin::dialog_content_scale(&kind, window);
+        let text = skin::dialog_content_text_scale(&kind, window);
         let flags = DialogFrame::from_skin(Self::KIND).menu_flags();
-        let mut menu = skin::dialog(context, &Self::KIND.to_string(), flags).with_widget_spacing(Vec2::new(0.0, HOME_WIDGET_SPACING * scale));
+        let mut menu = skin::dialog(context, &kind, flags).with_widget_spacing(Vec2::new(0.0, HOME_WIDGET_SPACING * scale));
 
         if let Some(crest) = crest(context, HOME_CREST_HEIGHT, scale) {
             menu.add_widget(crest);
         }
         let title = UiString::key(UiTextCategory::Menu, "home.title");
-        menu.add_widget(skin::heading_at(context, [title], HeadingLevel::Title, scale));
-        menu.add_widget(skin::heading_at(context, [UiString::from(subtitle())], HeadingLevel::Subtitle, scale));
+        menu.add_widget(skin::heading_scaled(context, [title], HeadingLevel::Title, scale, text));
+        menu.add_widget(skin::heading_scaled(context, [UiString::from(subtitle())], HeadingLevel::Subtitle, scale, text));
         menu.add_widget(skin::separator(context, "rule"));
-        menu.add_widget(campaign_row(context, scale));
-        menu.add_widget(menu_items(context, scale));
-        menu.add_widget(version(scale));
+        menu.add_widget(campaign_row(context, scale, text));
+        menu.add_widget(menu_items(context, scale, text));
+        menu.add_widget(version(text));
 
         Self { menu: menu.into_rc() }
     }
@@ -337,27 +385,18 @@ pub(super) fn subtitle() -> String {
 // One emblem per campaign, side by side: the current campaign's (the latest the player can play)
 // ringed, the others playable or locked, each with its realm's name under it ("Locked" if locked).
 // Each emblem is labeled by its campaign's number (Home/Campaign II), its tooltip the campaign's
-// name, or what unlocks it.
-fn campaign_row(context: &mut GameUiContext, scale: f32) -> UiColumns {
+// name, or what unlocks it. Sizes at `scale`, the names at `text_scale`.
+fn campaign_row(context: &mut GameUiContext, scale: f32, text_scale: f32) -> UiColumns {
     let configs = CampaignConfigs::get();
-    let profile = profile::get();
-    let current = profile.playable_campaigns(configs).last().copied();
     let emblem_size = Vec2::new(HOME_EMBLEM_SIZE, HOME_EMBLEM_SIZE) * scale;
     let mut columns = UiColumns::new().with_spacing(8.0 * scale);
 
     for (index, campaign) in configs.campaigns.iter().enumerate() {
-        let playable = profile.is_playable(configs, index);
-        let state = match (playable, current == Some(index)) {
-            (false, _) => EmblemState::Locked,
-            (true, true) => EmblemState::Current,
-            (true, false) => EmblemState::Idle,
-        };
-        let (name, color, tooltip) = if playable {
+        let state = emblem_state(index);
+        let (name, color, tooltip) = if state != EmblemState::Locked {
             (campaign.realm.display_name().to_string(), skin::color("ink"), campaign.display_name().to_string())
         } else {
-            let previous = campaign_number(index.saturating_sub(1));
-            let unlock = ui::text::format(UiTextCategory::Menu, "campaign.unlock", &[("campaign", &previous)]);
-            (ui::text::get(UiTextCategory::Menu, "home.locked").to_string(), skin::color("sub"), unlock)
+            (ui::text::get(UiTextCategory::Menu, "home.locked").to_string(), skin::color("sub"), unlock_text(index))
         };
 
         let mut group = UiWidgetGroup::new().with_widget_spacing(Vec2::new(0.0, 4.0 * scale));
@@ -365,7 +404,7 @@ fn campaign_row(context: &mut GameUiContext, scale: f32) -> UiColumns {
             let image = UiImage::from_texture(texture, size, emblem_size).with_label(campaign_number(index)).with_tooltip(skin::tooltip(context, tooltip));
             group.add_widget(image);
         }
-        let label = UiText::new(name, UiFontScale(HOME_EMBLEM_LABEL_FONT_SCALE * scale));
+        let label = UiText::new(name, UiFontScale(HOME_EMBLEM_LABEL_FONT_SCALE * text_scale));
         let label = match color {
             Some(color) => label.with_color(color),
             None => label,
@@ -377,8 +416,8 @@ fn campaign_row(context: &mut GameUiContext, scale: f32) -> UiColumns {
 }
 
 // The menu's items, Continue's and Campaign's with their sublines, the disabled ones with a tooltip
-// that says why.
-fn menu_items(context: &mut GameUiContext, scale: f32) -> UiWidgetGroup {
+// that says why. Sized at `scale`, their text at `text_scale`.
+fn menu_items(context: &mut GameUiContext, scale: f32, text_scale: f32) -> UiWidgetGroup {
     let mut group = UiWidgetGroup::new().with_widget_spacing(Vec2::new(0.0, HOME_ITEM_SPACING * scale));
 
     for item_kind in HomeItem::ALL {
@@ -392,7 +431,7 @@ fn menu_items(context: &mut GameUiContext, scale: f32) -> UiWidgetGroup {
             _ => (None, true, None),
         };
 
-        let mut item = skin::menu_item_at(context, item_kind.label(), subline.map(UiString::from), scale * HOME_ITEM_SCALE)
+        let mut item = skin::menu_item_scaled(context, item_kind.label(), subline.map(UiString::from), scale * HOME_ITEM_SCALE, text_scale * HOME_ITEM_SCALE)
             .with_enabled(enabled)
             .on_pressed(move |_, context| {
                 item_kind.on_pressed(context_as_mut::<GameUiContext>(context));
@@ -408,7 +447,7 @@ fn menu_items(context: &mut GameUiContext, scale: f32) -> UiWidgetGroup {
 // Campaign's subline (the shown campaign's progress), whether it can be pressed, and why not.
 fn campaign_item_state() -> (Option<String>, bool, Option<String>) {
     let configs = CampaignConfigs::get();
-    let Some(shown) = shown_campaign() else {
+    let Some(shown) = current_campaign() else {
         return (None, false, Some(ui::text::get(UiTextCategory::Menu, "home.coming_soon").to_string()));
     };
     let playable = profile::get().playable_campaigns(configs).len();

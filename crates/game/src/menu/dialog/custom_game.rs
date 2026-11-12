@@ -402,12 +402,16 @@ impl CustomGame {
 
         let kind = Self::KIND.to_string();
         let window = ui::screen_size(context.ui_sys);
+        // Sizes by the window; text by the window too, times as much as the dialog grew with the
+        // player's UI scale, over the UI scale the themes give it (dialog_text_fit), so the columns
+        // and buttons still fit at 200% on a small window.
         let scale = skin::dialog_scale(window);
-        let text_scale = by_window(TEXT_SCALES, scale);
+        let fit = skin::dialog_text_fit(&kind, window);
+        let text_scale = by_window(TEXT_SCALES, scale) * fit;
         let spacing = (PART_SPACING * scale).round();
 
-        let title = skin::heading(context, [UiString::key(UiTextCategory::Menu, "custom_game.title")], HeadingLevel::Dialog);
-        let (buttons_row, actions) = buttons(context, scale);
+        let title = skin::heading_at(context, [UiString::key(UiTextCategory::Menu, "custom_game.title")], HeadingLevel::Dialog, fit);
+        let (buttons_row, actions) = buttons(context, scale, fit);
 
         // The columns: their widths share the content's, and their height is what the title and
         // the buttons leave.
@@ -840,17 +844,21 @@ fn options(context: &mut GameUiContext, scale: f32, text_scale: f32, width: f32,
 }
 
 // The buttons' row: Cancel and Start at the right; and the column they're in.
-fn buttons(context: &mut GameUiContext, scale: f32) -> (UiColumns, UiColumnsColumnIndex) {
+fn buttons(context: &mut GameUiContext, scale: f32, fit: f32) -> (UiColumns, UiColumnsColumnIndex) {
     let height = by_window(BUTTON_HEIGHTS, scale).round();
     let width = |width: f32| UiTextButtonWidth::Fixed((width * scale).round());
-    let cancel = make_dialog_close_button(context, ButtonRole::Secondary, UiString::key(UiTextCategory::Menu, "button.cancel"))
+    let fitted = |button: UiTextButton| {
+        let font_scale = button.font_scale().0 * fit;
+        button.with_font_scale(UiFontScale(font_scale))
+    };
+    let cancel = fitted(make_dialog_close_button(context, ButtonRole::Secondary, UiString::key(UiTextCategory::Menu, "button.cancel")))
         .with_width(width(CANCEL_WIDTH))
         .with_min_height(height);
-    let start = make_text_button(context, ButtonRole::Primary, UiString::key(UiTextCategory::Menu, "custom_game.start"), |_, _| {
+    let start = fitted(make_text_button(context, ButtonRole::Primary, UiString::key(UiTextCategory::Menu, "custom_game.start"), |_, _| {
         if let Some(settings) = chosen_settings().filter(|settings| is_unlocked(settings.realm)) {
             custom_game::start(settings);
         }
-    })
+    }))
     .with_width(width(START_WIDTH))
     .with_min_height(height);
 

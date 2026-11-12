@@ -10,7 +10,8 @@
 # and of a blank one with options (Tampadesa), checking the session, a save and a load. Load /
 # Save saves two games, reads their rows and preview, asks before overwriting, deletes one through
 # its popup and loads the other. Each screen is checked for layout issues and saved as a screenshot
-# under out/ui_menus/ (the CI artifact).
+# under out/ui_menus/ (the CI artifact); Home, the picker, About, Custom Game, Settings and the Game
+# menu at 200% and 75% UI scale too.
 #
 # The campaign's missions load the sample saves, so extract them first (unzip saves/sample_saves.zip,
 # as CI does). The saves it writes (ui_menus, ui_menus_a, ui_menus_b, ui_menus_custom and the
@@ -479,6 +480,76 @@
 {"method": "input.key", "params": {"key": "Escape"}}
 {"method": "wait.frames", "params": {"frames": 2}}
 {"method": "assert.eq", "params": {"query": "dialog.current", "path": "/current", "value": "Home"}}
+# At 200% and 75% UI scale the home menu, the picker, About and Custom Game still fit, their
+# buttons in view, as Settings does above (their text grows only as much as the dialog does).
+{"method": "config.set", "params": {"path": "/display/ui_scale_percent", "value": 200}}
+{"method": "wait.frames", "params": {"frames": 3}}
+{"method": "input.move", "params": {"park": true}}
+{"method": "wait.frames", "params": {"frames": 2}}
+{"method": "assert.eq", "params": {"query": "ui.layout_issues", "path": "/count", "value": 0}}
+{"method": "assert.eq", "params": {"query": "ui.tree", "args": {"filter": "Home", "kind": "menu_content"}, "path": "/widgets/0/value/scrolls", "value": false}}
+{"method": "screenshot", "params": {"path": "out/ui_menus/home_200.png"}}
+{"method": "ui.click", "params": {"path": "Home/Campaign"}}
+{"method": "input.move", "params": {"park": true}}
+{"method": "wait.frames", "params": {"frames": 3}}
+{"method": "assert.eq", "params": {"query": "dialog.current", "path": "/current", "value": "CampaignPicker"}}
+{"method": "assert.eq", "params": {"query": "ui.layout_issues", "path": "/count", "value": 0}}
+{"method": "assert.eq", "params": {"query": "ui.tree", "args": {"filter": "CampaignPicker", "kind": "menu_content"}, "path": "/widgets/0/value/scrolls", "value": false}}
+{"method": "screenshot", "params": {"path": "out/ui_menus/picker_200.png"}}
+{"method": "input.key", "params": {"key": "Escape"}}
+{"method": "wait.frames", "params": {"frames": 2}}
+{"method": "dialog.open", "params": {"name": "About"}}
+{"method": "input.move", "params": {"park": true}}
+{"method": "wait.frames", "params": {"frames": 3}}
+{"method": "assert.eq", "params": {"query": "ui.layout_issues", "path": "/count", "value": 0}}
+{"method": "assert.eq", "params": {"query": "ui.tree", "args": {"filter": "About", "kind": "menu_content"}, "path": "/widgets/0/value/scrolls", "value": false}}
+{"method": "screenshot", "params": {"path": "out/ui_menus/about_200.png"}}
+{"method": "input.key", "params": {"key": "Escape"}}
+{"method": "wait.frames", "params": {"frames": 2}}
+{"method": "dialog.open", "params": {"name": "CustomGame"}}
+{"method": "input.move", "params": {"park": true}}
+{"method": "wait.frames", "params": {"frames": 3}}
+{"method": "assert.eq", "params": {"query": "ui.layout_issues", "path": "/count", "value": 0}}
+{"method": "assert.eq", "params": {"query": "ui.tree", "args": {"filter": "CustomGame", "kind": "menu_content"}, "path": "/widgets/0/value/scrolls", "value": false}}
+{"method": "screenshot", "params": {"path": "out/ui_menus/custom_game_200.png"}}
+{"method": "input.key", "params": {"key": "Escape"}}
+{"method": "wait.frames", "params": {"frames": 2}}
+{"method": "assert.eq", "params": {"query": "dialog.current", "path": "/current", "value": "Home"}}
+{"method": "config.set", "params": {"path": "/display/ui_scale_percent", "value": 75}}
+{"method": "wait.frames", "params": {"frames": 3}}
+{"method": "input.move", "params": {"park": true}}
+{"method": "wait.frames", "params": {"frames": 2}}
+{"method": "assert.eq", "params": {"query": "ui.layout_issues", "path": "/count", "value": 0}}
+{"method": "assert.eq", "params": {"query": "ui.tree", "args": {"filter": "Home", "kind": "menu_content"}, "path": "/widgets/0/value/scrolls", "value": false}}
+{"method": "screenshot", "params": {"path": "out/ui_menus/home_75.png"}}
+{"method": "ui.click", "params": {"path": "Home/Campaign"}}
+{"method": "input.move", "params": {"park": true}}
+{"method": "wait.frames", "params": {"frames": 3}}
+{"method": "assert.eq", "params": {"query": "dialog.current", "path": "/current", "value": "CampaignPicker"}}
+{"method": "assert.eq", "params": {"query": "ui.layout_issues", "path": "/count", "value": 0}}
+{"method": "assert.eq", "params": {"query": "ui.tree", "args": {"filter": "CampaignPicker", "kind": "menu_content"}, "path": "/widgets/0/value/scrolls", "value": false}}
+{"method": "screenshot", "params": {"path": "out/ui_menus/picker_75.png"}}
+{"method": "input.key", "params": {"key": "Escape"}}
+{"method": "wait.frames", "params": {"frames": 2}}
+{"method": "dialog.open", "params": {"name": "About"}}
+{"method": "input.move", "params": {"park": true}}
+{"method": "wait.frames", "params": {"frames": 3}}
+{"method": "assert.eq", "params": {"query": "ui.layout_issues", "path": "/count", "value": 0}}
+{"method": "assert.eq", "params": {"query": "ui.tree", "args": {"filter": "About", "kind": "menu_content"}, "path": "/widgets/0/value/scrolls", "value": false}}
+{"method": "screenshot", "params": {"path": "out/ui_menus/about_75.png"}}
+{"method": "input.key", "params": {"key": "Escape"}}
+{"method": "wait.frames", "params": {"frames": 2}}
+{"method": "dialog.open", "params": {"name": "CustomGame"}}
+{"method": "input.move", "params": {"park": true}}
+{"method": "wait.frames", "params": {"frames": 3}}
+{"method": "assert.eq", "params": {"query": "ui.layout_issues", "path": "/count", "value": 0}}
+{"method": "assert.eq", "params": {"query": "ui.tree", "args": {"filter": "CustomGame", "kind": "menu_content"}, "path": "/widgets/0/value/scrolls", "value": false}}
+{"method": "screenshot", "params": {"path": "out/ui_menus/custom_game_75.png"}}
+{"method": "input.key", "params": {"key": "Escape"}}
+{"method": "wait.frames", "params": {"frames": 2}}
+{"method": "assert.eq", "params": {"query": "dialog.current", "path": "/current", "value": "Home"}}
+{"method": "config.set", "params": {"path": "/display/ui_scale_percent", "value": 100}}
+{"method": "wait.frames", "params": {"frames": 3}}
 
 # ---- Custom Game in Tampadesa, every realm unlocked: each realm's look, then a blank map started with options ----
 {"method": "ui.click", "params": {"path": "Home/Custom Game"}}
@@ -626,6 +697,25 @@
 {"method": "ui.realm", "params": {"realm": "auto"}}
 {"method": "wait.frames", "params": {"frames": 3}}
 {"method": "input.move", "params": {"park": true}}
+# At 200% and 75% UI scale it still fits, the last-saved line in view.
+{"method": "config.set", "params": {"path": "/display/ui_scale_percent", "value": 200}}
+{"method": "wait.frames", "params": {"frames": 3}}
+{"method": "input.move", "params": {"park": true}}
+{"method": "wait.frames", "params": {"frames": 2}}
+{"method": "assert.eq", "params": {"query": "dialog.current", "path": "/current", "value": "MainGame"}}
+{"method": "assert.eq", "params": {"query": "ui.layout_issues", "path": "/count", "value": 0}}
+{"method": "assert.eq", "params": {"query": "ui.tree", "args": {"filter": "MainGame", "kind": "menu_content"}, "path": "/widgets/0/value/scrolls", "value": false}}
+{"method": "screenshot", "params": {"path": "out/ui_menus/game_menu_200.png"}}
+{"method": "config.set", "params": {"path": "/display/ui_scale_percent", "value": 75}}
+{"method": "wait.frames", "params": {"frames": 3}}
+{"method": "input.move", "params": {"park": true}}
+{"method": "wait.frames", "params": {"frames": 2}}
+{"method": "assert.eq", "params": {"query": "dialog.current", "path": "/current", "value": "MainGame"}}
+{"method": "assert.eq", "params": {"query": "ui.layout_issues", "path": "/count", "value": 0}}
+{"method": "assert.eq", "params": {"query": "ui.tree", "args": {"filter": "MainGame", "kind": "menu_content"}, "path": "/widgets/0/value/scrolls", "value": false}}
+{"method": "screenshot", "params": {"path": "out/ui_menus/game_menu_75.png"}}
+{"method": "config.set", "params": {"path": "/display/ui_scale_percent", "value": 100}}
+{"method": "wait.frames", "params": {"frames": 3}}
 # Save, Load and Settings open their dialogs over it; Escape comes back to it.
 {"method": "ui.click", "params": {"path": "MainGame/Save"}}
 {"method": "wait.frames", "params": {"frames": 2}}

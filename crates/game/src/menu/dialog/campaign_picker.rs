@@ -11,10 +11,10 @@
 use engine::log;
 
 use super::{
-    home::{campaign_number, roman_numeral, start_campaign_mission},
+    home::{campaign_number, emblem_state, roman_numeral, start_campaign_mission, unlock_text},
     *,
 };
-use crate::{campaign::config::CampaignConfigs, menu::skin::EmblemState, profile};
+use crate::{campaign::config::CampaignConfigs, profile};
 
 // ----------------------------------------------
 // Layout (points on a 1920 × 1080 window)
@@ -30,6 +30,9 @@ const CARD_PART_SPACING: f32 = 14.0;   // Between a card's parts.
 const CARD_MIN_HEIGHTS: (f32, f32) = (665.0, 360.0);
 const BUTTON_HEIGHTS: (f32, f32) = (56.0, 36.0);
 const CARD_TEXT_SCALES: (f32, f32) = (1.3, 1.0);
+// Room the cards leave free, so the dialog never scrolls: the title's measure leaves out the item
+// spacing drawn around its separator, and rounding.
+const CARDS_SLACK: f32 = 24.0;
 const CARD_MARK_SIZE: f32 = 20.0;      // A mission's mark, and the gap after it: half that.
 const CARD_NUMBER_FONT_SCALE: f32 = 0.85;
 const CARD_NAME_FONT_SCALE: f32 = 1.4;
@@ -50,8 +53,45 @@ pub struct CampaignPicker {
 
 // The campaign picked, by index in campaigns.json, while the picker is open. Kept outside the
 // dialog so a rebuild (the profile changed, or a resize changed the dialogs' scale), which builds
-// the picker again and reopens it, keeps the player's pick; None once it closes.
+// the picker again and reopens it, keeps the player's pick; None once it closes, or once a session
+// switch drops the dialogs (forget_pick).
 static PICKED: UiStaticVar<Option<usize>> = UiStaticVar::new(None);
+
+// The dialogs were dropped without closing (dialog::reset): the next open starts afresh.
+pub(super) fn forget_pick() {
+    PICKED.set(None);
+}
+
+// The picker's sizes on a window: points on the reference window scaled by the window
+// (`window`: dialog_scale) and by as much as the player's UI scale grew the dialog (`growth`:
+// dialog_ui_growth); text by the window and `fit` (dialog_text_fit), since the themes grow it by
+// the UI scale already. So its cards and buttons fit it from 75% to 200%, down to 1280 × 720.
+#[derive(Copy, Clone)]
+struct PickerScale {
+    window: f32,
+    growth: f32,
+    fit: f32,
+}
+
+impl PickerScale {
+    fn new(kind: &str, window: Vec2) -> Self {
+        Self { window: skin::dialog_scale(window), growth: skin::dialog_ui_growth(kind, window), fit: skin::dialog_text_fit(kind, window) }
+    }
+
+    fn points(self, points: f32) -> f32 {
+        points * self.window * self.growth
+    }
+
+    // A size given on the reference and the smallest window (by_window).
+    fn by_window(self, sizes: (f32, f32)) -> f32 {
+        by_window(sizes, self.window) * self.growth
+    }
+
+    // A text scale given on the reference and the smallest window.
+    fn text(self, scales: (f32, f32)) -> f32 {
+        by_window(scales, self.window) * self.fit
+    }
+}
 
 fn selected() -> usize {
     (*PICKED.as_ref()).unwrap_or_else(default_selection)
@@ -61,22 +101,29 @@ implement_dialog_menu! { CampaignPicker, ["Campaign"] }
 
 impl CampaignPicker {
     pub fn new(context: &mut GameUiContext) -> Self {
-        let scale = skin::dialog_scale(ui::screen_size(context.ui_sys));
+        let kind = Self::KIND.to_string();
+        let window = ui::screen_size(context.ui_sys);
+        let scale = PickerScale::new(&kind, window);
         let configs = CampaignConfigs::get();
 
-        let title = skin::heading(context, [UiString::key(UiTextCategory::Menu, "campaign_picker.title")], HeadingLevel::Dialog);
+        let title = skin::heading_at(context, [UiString::key(UiTextCategory::Menu, "campaign_picker.title")], HeadingLevel::Dialog, scale.fit);
+        let buttons_row = buttons(context, scale);
+
+        // The cards as tall as CARD_MIN_HEIGHTS says, or as the title and the buttons leave them.
+        let spacing = DEFAULT_DIALOG_MENU_WIDGET_SPACING * 2.0;
+        let room = skin::dialog_content_size(&kind, window).y - title.measure(context).y - buttons_row.measure(context).y - spacing.y * 2.0 - CARDS_SLACK;
+        let card_height = scale.by_window(CARD_MIN_HEIGHTS).min(room).floor();
+
         let flags = DialogFrame::from_skin(Self::KIND).menu_flags();
-        let mut menu = skin::dialog(context, &Self::KIND.to_string(), flags)
-            .with_widget_spacing(DEFAULT_DIALOG_MENU_WIDGET_SPACING * 2.0)
-            .with_widget(title);
+        let mut menu = skin::dialog(context, &kind, flags).with_widget_spacing(spacing).with_widget(title);
 
         let row = UiCardRow::new();
-        let mut cards = UiColumns::new().with_spacing(CARD_SPACING * scale);
+        let mut cards = UiColumns::new().with_spacing(scale.points(CARD_SPACING));
         for index in 0..configs.campaigns.len() {
-            cards.add_column(UiColumnWidth::Fraction(1.0), UiWidgetGroup::new().with_widget(card(context, index, scale, row.clone())));
+            cards.add_column(UiColumnWidth::Fraction(1.0), UiWidgetGroup::new().with_widget(card(context, index, scale, card_height, row.clone())));
         }
         menu.add_widget(cards);
-        menu.add_widget(buttons(context, scale));
+        menu.add_widget(buttons_row);
 
         // Opening from the home menu, the pick starts on the latest campaign the player can play;
         // reopened by a rebuild, it stays, if that campaign can still be started.
@@ -111,18 +158,17 @@ fn on_continue() {
     let selected = selected();
     match profile::get().next_mission(CampaignConfigs::get(), selected) {
         Some(mission_index) if can_start(selected) => {
-            // The session switch drops the dialogs without closing them.
-            PICKED.set(None);
+            // The session switch drops the dialogs, which forgets the pick (forget_pick).
             start_campaign_mission(selected, mission_index);
         }
         _ => log::error!(log::channel!("campaign"), "Campaign {selected} can't be started."),
     }
 }
 
-// A line of text centered in a card, `font_scale` times the body font (and the window's
-// CARD_TEXT_SCALES at a dialog scale of `scale`), in the skin's colour `color`.
-fn card_text(text: impl Into<UiString>, font_scale: f32, scale: f32, color: &str) -> UiRichText {
-    let font_scale = font_scale * by_window(CARD_TEXT_SCALES, scale);
+// A line of text centered in a card, `font_scale` times the body font (and CARD_TEXT_SCALES at
+// `scale`), in the skin's colour `color`.
+fn card_text(text: impl Into<UiString>, font_scale: f32, scale: PickerScale, color: &str) -> UiRichText {
+    let font_scale = font_scale * scale.text(CARD_TEXT_SCALES);
     let text = skin::rich_text(text).with_align(UiTextAlign::Center).with_font_scale(UiFontScale(font_scale));
     match skin::color(color) {
         Some(color) => text.with_text_color(color),
@@ -131,26 +177,20 @@ fn card_text(text: impl Into<UiString>, font_scale: f32, scale: f32, color: &str
 }
 
 // The card of the campaign at `campaign_index`: its emblem (the current one ringed: the latest
-// the player can play), "CAMPAIGN II", its name and realm, its mission marks and where it stands.
-fn card(context: &mut GameUiContext, campaign_index: usize, scale: f32, row: UiCardRow) -> UiCard {
+// the player can play), "CAMPAIGN II", its name and realm, its mission marks and where it stands; at least `min_height` tall.
+fn card(context: &mut GameUiContext, campaign_index: usize, scale: PickerScale, min_height: f32, row: UiCardRow) -> UiCard {
     let configs = CampaignConfigs::get();
     let profile = profile::get();
     let campaign = &configs.campaigns[campaign_index];
     let playable = profile.is_playable(configs, campaign_index);
-    let current = profile.playable_campaigns(configs).last() == Some(&campaign_index);
     let missions = campaign.missions.len();
     let record = profile.record(&campaign.id);
     let finished = record.map_or(0, |record| record.missions_finished.len());
 
-    let mut contents = UiWidgetGroup::new().with_widget_spacing(Vec2::new(0.0, CARD_PART_SPACING * scale));
+    let mut contents = UiWidgetGroup::new().with_widget_spacing(Vec2::new(0.0, scale.points(CARD_PART_SPACING)));
 
-    let state = match (playable, current) {
-        (false, _) => EmblemState::Locked,
-        (true, true) => EmblemState::Current,
-        (true, false) => EmblemState::Idle,
-    };
-    if let Some((texture, size)) = skin::emblem(context, campaign.realm, state) {
-        let emblem_size = Vec2::new(CARD_EMBLEM_SIZE, CARD_EMBLEM_SIZE) * scale;
+    if let Some((texture, size)) = skin::emblem(context, campaign.realm, emblem_state(campaign_index)) {
+        let emblem_size = Vec2::new(scale.points(CARD_EMBLEM_SIZE), scale.points(CARD_EMBLEM_SIZE));
         contents.add_widget(UiWidgetGroup::new().with_widget(UiImage::from_texture(texture, size, emblem_size).with_label("emblem")));
     }
 
@@ -163,7 +203,7 @@ fn card(context: &mut GameUiContext, campaign_index: usize, scale: f32, row: UiC
     // A mark per mission, filled for each finished.
     if missions > 0 {
         let width = CARD_MARK_SIZE * 1.5 * missions as f32 - CARD_MARK_SIZE * 0.5;
-        let marks = skin::meter(UiMeterKind::Steps(missions as u32), Vec2::new(width, CARD_MARK_SIZE) * scale)
+        let marks = skin::meter(UiMeterKind::Steps(missions as u32), Vec2::new(scale.points(width), scale.points(CARD_MARK_SIZE)))
             .with_label("missions")
             .with_value(finished as f32, missions as f32);
         contents.add_widget(UiWidgetGroup::new().with_widget(marks));
@@ -174,8 +214,7 @@ fn card(context: &mut GameUiContext, campaign_index: usize, scale: f32, row: UiC
     // the newest line of the campaign's stele (Phase 3); the distinctions earned stay hidden until
     // M9 awards them (open decision 11).
     let (status, tooltip) = if !playable {
-        let previous = campaign_number(campaign_index.saturating_sub(1));
-        let text = ui::text::format(UiTextCategory::Menu, "campaign.unlock", &[("campaign", &previous)]);
+        let text = unlock_text(campaign_index);
         (text.clone(), Some(text))
     } else if missions == 0 {
         let text = ui::text::get(UiTextCategory::Menu, "home.coming_soon").to_string();
@@ -196,7 +235,7 @@ fn card(context: &mut GameUiContext, campaign_index: usize, scale: f32, row: UiC
 
     let mut card = skin::card(context, campaign_number(campaign_index), contents)
         .with_row(row)
-        .with_min_height(by_window(CARD_MIN_HEIGHTS, scale).round())
+        .with_min_height(min_height)
         .with_enabled(can_start(campaign_index))
         .on_read_selected(move |_, _| selected() == campaign_index)
         .on_pressed(move |_, _| PICKED.set(Some(campaign_index)));
@@ -206,23 +245,28 @@ fn card(context: &mut GameUiContext, campaign_index: usize, scale: f32, row: UiC
     card
 }
 
-// Back at the left; Replay a mission and Continue at the right, as tall as BUTTON_HEIGHTS says.
-fn buttons(context: &mut GameUiContext, scale: f32) -> UiColumns {
-    let height = by_window(BUTTON_HEIGHTS, scale).round();
-    let back = make_text_button(context, ButtonRole::Secondary, UiString::key(UiTextCategory::Menu, "button.back"), |_, context| {
+// Back at the left; Replay a mission and Continue at the right, as tall as BUTTON_HEIGHTS says,
+// their text at their role's size times `scale.fit`.
+fn buttons(context: &mut GameUiContext, scale: PickerScale) -> UiColumns {
+    let height = scale.by_window(BUTTON_HEIGHTS).round();
+    let fitted = |button: UiTextButton| {
+        let font_scale = button.font_scale().0 * scale.fit;
+        button.with_font_scale(UiFontScale(font_scale))
+    };
+    let back = fitted(make_text_button(context, ButtonRole::Secondary, UiString::key(UiTextCategory::Menu, "button.back"), |_, context| {
         super::close_current(context_as_mut::<GameUiContext>(context));
-    })
+    }))
     .with_width(UiTextButtonWidth::Fixed(BACK_BUTTON_WIDTH))
     .with_min_height(height);
 
     // TODO(realm-ui): Phase 3's mission list: replaying any mission of a campaign already played.
-    let replay = make_text_button(context, ButtonRole::Secondary, UiString::key(UiTextCategory::Menu, "campaign_picker.replay"), |_, _| {})
+    let replay = fitted(make_text_button(context, ButtonRole::Secondary, UiString::key(UiTextCategory::Menu, "campaign_picker.replay"), |_, _| {}))
         .with_width(UiTextButtonWidth::Fixed(REPLAY_BUTTON_WIDTH))
         .with_min_height(height)
         .with_enabled(false)
         .with_tooltip(skin::tooltip(context, UiString::key(UiTextCategory::Menu, "home.coming_soon")));
 
-    let start = make_text_button(context, ButtonRole::Primary, UiString::key(UiTextCategory::Menu, "campaign_picker.continue"), |_, _| on_continue())
+    let start = fitted(make_text_button(context, ButtonRole::Primary, UiString::key(UiTextCategory::Menu, "campaign_picker.continue"), |_, _| on_continue()))
         .with_width(UiTextButtonWidth::Fixed(CONTINUE_BUTTON_WIDTH))
         .with_min_height(height);
 

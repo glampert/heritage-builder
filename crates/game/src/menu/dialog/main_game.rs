@@ -8,7 +8,8 @@
 // The place and the last-saved line follow the game each frame the menu is on top (a save made
 // through its own Save item, an autosave, minutes going by), since the menu is built once per skin
 // and window and the game goes on under it. Its contents scale with the panel's content area
-// (skin::dialog_content_scale), as Home's do, and the last-saved line sits at its bottom.
+// (skin::dialog_content_scale), at any UI scale (its text at skin::dialog_content_text_scale), as
+// Home's do, and the last-saved line sits at its bottom.
 
 use super::*;
 use crate::{
@@ -38,8 +39,9 @@ const LAST_SAVED_LABEL: &str = "last_saved";
 const POPUP_BUTTON_WIDTH: f32 = 220.0;
 const POPUP_BUTTON_HEIGHT: f32 = 56.0;
 
-// Room the content area keeps free below the last-saved line, so rounding never makes it scroll.
-const GAME_MENU_SLACK: f32 = 4.0;
+// Room the content area keeps free below the last-saved line, so rounding (more of it at a UI
+// scale) never makes it scroll.
+const GAME_MENU_SLACK: f32 = 12.0;
 
 // The popups' labels (automation ids: "Quit Game Popup/Save and quit").
 const QUIT_POPUP_LABEL: &str = "Quit Game Popup";
@@ -136,6 +138,7 @@ impl MainGame {
         let kind = Self::KIND.to_string();
         let window = ui::screen_size(context.ui_sys);
         let scale = skin::dialog_content_scale(&kind, window);
+        let text = skin::dialog_content_text_scale(&kind, window);
         let spacing = (GAME_MENU_WIDGET_SPACING * scale).round();
         let flags = DialogFrame::from_skin(Self::KIND).menu_flags();
         let mut menu = skin::dialog(context, &kind, flags).with_widget_spacing(Vec2::new(0.0, spacing));
@@ -148,19 +151,19 @@ impl MainGame {
             parts_height += crest.measure(context).y + spacing;
             menu.add_widget(crest);
         }
-        let title = skin::heading_at(context, [UiString::key(UiTextCategory::Menu, "game_menu.title")], HeadingLevel::Title, scale);
+        let title = skin::heading_scaled(context, [UiString::key(UiTextCategory::Menu, "game_menu.title")], HeadingLevel::Title, scale, text);
         parts_height += title.measure(context).y + spacing;
         menu.add_widget(title);
-        let place = line_text(&shown.0, PLACE_LABEL, "accent", subtitle_font_scale() * GAME_MENU_PLACE_FONT_SCALE * scale);
+        let place = line_text(&shown.0, PLACE_LABEL, "accent", subtitle_font_scale() * GAME_MENU_PLACE_FONT_SCALE * text);
         parts_height += place.measure(context).y + spacing;
         menu.add_widget(place);
         let rule = skin::separator(context, "rule");
         parts_height += rule.measure(context).y + spacing;
         menu.add_widget(rule);
-        let items = menu_items(context, scale);
+        let items = menu_items(context, scale, text);
         parts_height += items.measure(context).y + spacing;
         menu.add_widget(items);
-        let saved = line_text(&shown.1, LAST_SAVED_LABEL, "sub", GAME_MENU_SAVED_FONT_SCALE * scale);
+        let saved = line_text(&shown.1, LAST_SAVED_LABEL, "sub", GAME_MENU_SAVED_FONT_SCALE * text);
         parts_height += saved.measure(context).y;
 
         let content = skin::dialog_content_size(&kind, window);
@@ -179,23 +182,23 @@ impl MainGame {
         if place != self.shown.0
             && let Some((_, line)) = self.menu.find_widget_with_label_mut::<UiRichText>(PLACE_LABEL)
         {
-            line.set_markup(escape_markup(&place));
+            line.set_spans([UiTextSpan::plain(place.as_str())]);
         }
         let saved = last_saved_text();
         if saved != self.shown.1
             && let Some((_, line)) = self.menu.find_widget_with_label_mut::<UiRichText>(LAST_SAVED_LABEL)
         {
-            line.set_markup(escape_markup(&saved));
+            line.set_spans([UiTextSpan::plain(saved.as_str())]);
         }
         self.shown = (place, saved);
     }
 }
 
-// The menu's items, each pressing its action.
-fn menu_items(context: &mut GameUiContext, scale: f32) -> UiWidgetGroup {
+// The menu's items, each pressing its action: sized at `scale`, their text at `text_scale`.
+fn menu_items(context: &mut GameUiContext, scale: f32, text_scale: f32) -> UiWidgetGroup {
     let mut group = UiWidgetGroup::new().with_widget_spacing(Vec2::new(0.0, (GAME_MENU_ITEM_SPACING * scale).round()));
     for item_kind in GameMenuItem::ALL {
-        let item = skin::menu_item_at(context, item_kind.label(), None, scale * GAME_MENU_ITEM_SCALE).on_pressed(move |_, context| {
+        let item = skin::menu_item_scaled(context, item_kind.label(), None, scale * GAME_MENU_ITEM_SCALE, text_scale * GAME_MENU_ITEM_SCALE).on_pressed(move |_, context| {
             item_kind.on_pressed(context_as_mut::<GameUiContext>(context));
         });
         group.add_widget(item);
@@ -203,25 +206,15 @@ fn menu_items(context: &mut GameUiContext, scale: f32) -> UiWidgetGroup {
     group
 }
 
-// A centered line in the skin's colour `color`, labeled `label` for automation.
+// A centered line of plain text (a city's or map's name isn't markup) in the skin's colour
+// `color`, labeled `label` for automation.
 fn line_text(text: &str, label: &str, color: &str, font_scale: f32) -> UiRichText {
-    let line = skin::rich_text(escape_markup(text)).with_label(label).with_align(UiTextAlign::Center).with_font_scale(UiFontScale(font_scale));
+    let mut line = skin::rich_text("").with_label(label).with_align(UiTextAlign::Center).with_font_scale(UiFontScale(font_scale));
+    line.set_spans([UiTextSpan::plain(text)]);
     match skin::color(color) {
         Some(color) => line.with_text_color(color),
         None => line,
     }
-}
-
-// Text shown as rich text as it is: its markup characters escaped.
-fn escape_markup(text: &str) -> String {
-    let mut escaped = String::with_capacity(text.len());
-    for ch in text.chars() {
-        if matches!(ch, '*' | '[' | '\\') {
-            escaped.push('\\');
-        }
-        escaped.push(ch);
-    }
-    escaped
 }
 
 // The skin's subtitle font scale (the place line is a smaller subtitle).

@@ -6,13 +6,16 @@
 // Architecture:
 //   AudioContext
 //     └─ destination
-//          ├─ sfxGain        (SFX master volume)
-//          ├─ ambienceGain   (Ambience + Spatial master volume)
-//          ├─ musicGain      (Music master volume)
-//          └─ narrationGain  (Narration master volume)
+//          ├─ sfxGain        (SFX volume)
+//          ├─ ambienceGain   (Ambience volume)
+//          ├─ spatialGain    (Spatial ambience volume)
+//          ├─ musicGain      (Music volume)
+//          └─ narrationGain  (Narration volume)
+//
+// Each track gain carries its kind's volume times the master volume (set_volumes).
 //
 // Each playing sound gets its own chain:
-//   AudioBufferSourceNode → GainNode (per-sound volume/fade)
+//   AudioBufferSourceNode → GainNode (per-sound fades, and distance for spatial sounds)
 //                         → [StereoPannerNode] (spatial only)
 //                         → track GainNode
 //
