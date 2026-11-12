@@ -4,8 +4,8 @@
 # epithet, the date in the era, the season, the treasury), the markers (the mission's city, the
 # player's capital), the side panel of the city selected at open and of cities clicked on the map
 # (emblem, name, role, relations, route, goods, the court's request, the trade buttons disabled
-# until M10), the legend, zooming in with the wheel and back out to the fit, panning with the
-# cursor at the map's edges, ui.layout_issues at 100%, 200% and 75% UI scale, and Return to the
+# until M10), the legend, zooming in with the wheel and back out to the fit, panning by dragging
+# the map (ui.drag), ui.layout_issues at 100%, 200% and 75% UI scale, and Return to the
 # city. Then the next mission's choice in the hidden test campaigns (one per realm): the choice box
 # and the A/B sites, the popup that says to finish the mission being played first, MissionComplete's
 # Next Mission opening the map, the popup a site asks in, Cancel, and Begin, which starts the B
@@ -118,18 +118,19 @@
 {"method": "wait.frames", "params": {"frames": 2}}
 {"method": "assert.eq", "params": {"query": "ui.layout_issues", "path": "/count", "value": 0}}
 {"method": "screenshot", "params": {"path": "out/ui_world_map/dailong_zoomed.png"}}
-# Pan: from the map's middle at zoom 2, the cursor at the right edge moves the view east, then
-# at the bottom edge south, at the camera's edge scrolling speed.
+# Pan: from the map's middle at zoom 2, dragging the map left shows more of the east, dragging it
+# up more of the south; a drag is no click, so the selected city stays.
 {"method": "world_map.set", "params": {"zoom": 2, "centre": [500, 336]}}
 {"method": "wait.frames", "params": {"frames": 2}}
 {"method": "assert.eq", "params": {"query": "world_map.state", "path": "/screen/view/centre", "value": [500, 336]}}
-{"method": "ui.hover", "params": {"path": "WorldMap/map/right"}}
-{"method": "wait.frames", "params": {"frames": 20}}
-{"method": "assert.gt", "params": {"query": "world_map.state", "path": "/screen/view/centre/0", "value": 505}}
+{"method": "ui.drag", "params": {"path": "WorldMap/map", "by": [-200, 0]}}
+{"method": "wait.frames", "params": {"frames": 2}}
+{"method": "assert.gt", "params": {"query": "world_map.state", "path": "/screen/view/centre/0", "value": 540}}
 {"method": "assert.eq", "params": {"query": "world_map.state", "path": "/screen/view/centre/1", "value": 336}}
-{"method": "ui.hover", "params": {"path": "WorldMap/map/bottom"}}
-{"method": "wait.frames", "params": {"frames": 20}}
-{"method": "assert.gt", "params": {"query": "world_map.state", "path": "/screen/view/centre/1", "value": 341}}
+{"method": "ui.drag", "params": {"path": "WorldMap/map", "by": [0, -100]}}
+{"method": "wait.frames", "params": {"frames": 2}}
+{"method": "assert.gt", "params": {"query": "world_map.state", "path": "/screen/view/centre/1", "value": 356}}
+{"method": "assert.eq", "params": {"query": "world_map.state", "path": "/screen/selected", "value": "vijara"}}
 # Out past the fit: the whole map again, centred (from zoom 2, four steps of 1.25).
 {"method": "input.scroll", "params": {"amount": -10}}
 {"method": "wait.frames", "params": {"frames": 2}}
@@ -141,9 +142,9 @@
 {"method": "assert.eq", "params": {"query": "world_map.state", "path": "/screen/view/zoom", "value": 1}}
 {"method": "assert.eq", "params": {"query": "world_map.state", "path": "/screen/view/fit", "value": true}}
 {"method": "assert.eq", "params": {"query": "world_map.state", "path": "/screen/view/centre", "value": [500, 336]}}
-# At the fit the edges don't pan.
-{"method": "ui.hover", "params": {"path": "WorldMap/map/left"}}
-{"method": "wait.frames", "params": {"frames": 10}}
+# At the fit a drag doesn't pan.
+{"method": "ui.drag", "params": {"path": "WorldMap/map", "by": [150, -80]}}
+{"method": "wait.frames", "params": {"frames": 2}}
 {"method": "assert.eq", "params": {"query": "world_map.state", "path": "/screen/view/centre", "value": [500, 336]}}
 {"method": "input.move", "params": {"park": true}}
 {"method": "wait.frames", "params": {"frames": 2}}

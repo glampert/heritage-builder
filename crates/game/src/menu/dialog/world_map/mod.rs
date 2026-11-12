@@ -4,9 +4,8 @@
 //   treasury, and "Return to the city", which closes it;
 // - the map (overlay.rs): the campaign's base art in a UiMapView, its markers, labels and routes
 //   drawn live over it at their screen size, the frame around it. It fits its panel at first; the
-//   wheel zooms in about the cursor, and back out to the fit; zoomed in, the cursor near the
-//   map's edges pans it as the camera's edge scrolling does (GameConfigs' camera speed, margin and
-//   switch). Hovering a city lights it; clicking selects it;
+//   wheel zooms in about the cursor, and back out to the fit; zoomed in, dragging it with the left
+//   button pans it. Hovering a city lights it; clicking selects it;
 // - the side panel of the selected city: its emblem, name, subtitle and role, relations, the route
 //   line, what it sells and buys, its court's request, and Set trade limits and Send a gift
 //   (disabled until M10's trade);
@@ -22,8 +21,7 @@
 // selected, the window resized, the skin or language changed) keeps them.
 //
 // Paths: WorldMap/bar/title, subtitle, date, season, coin, treasury, Return to the city;
-// WorldMap/map (the map view: zoom, centre, fit) and its edge strips WorldMap/map/left, right, top,
-// bottom (kind map_edge, for ui.hover to pan); a marker per city and next-mission site,
+// WorldMap/map (the map view: zoom, centre, fit; dragged to pan while zoomed in, ui.drag); a marker per city and next-mission site,
 // WorldMap/<name> (kind map_marker); WorldMap/panel/emblem, name, subtitle, relations,
 // relations_meter, route, route_detail, They sell, They buy, request/title, request/goods, note,
 // Set trade limits, Send a gift; WorldMap/legend (kind canvas); WorldMap/choice (kind choice_box:
@@ -41,7 +39,6 @@ use super::*;
 use crate::{
     GameLoop,
     campaign::{self, config::CampaignConfigs},
-    config::GameConfigs,
     menu::skin::SkinPanel,
     profile,
     realm::{self, Realm},
@@ -597,13 +594,9 @@ fn map_view(context: &mut GameUiContext, scales: Scales, art: &skin::SkinWorldMa
     };
     let extent = Vec2::new(art.extent[0], art.extent[1]);
 
-    let camera = &GameConfigs::get().camera;
-    let edge_pan = camera.edge_scrolling.then_some(UiEdgePan { margin: camera.scroll_margin, speed: camera.scroll_speed });
-
     let mut view = UiMapView::new(texture, texture_size, extent, art.pixels_per_unit, size)
         .with_label("map")
         .with_zoom_limits(MAX_ZOOM, WHEEL_STEP)
-        .with_edge_pan(edge_pan)
         .on_view_changed(|view| STATE.as_mut().view = Some(view));
     if let Some(state) = STATE.as_ref().view {
         view = view.with_state(state);

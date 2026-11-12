@@ -1,7 +1,7 @@
 use std::any::Any;
 use egui::Sense;
 
-use common::{Rect, Vec2, time::Seconds};
+use common::{Rect, Vec2};
 use serde_json::{Value, json};
 
 use super::{UiWidget, UiWidgetContext};
@@ -59,36 +59,6 @@ pub struct UiMapViewPointer {
     pub clicked: bool,
 }
 
-// Panning by holding the cursor near the view's edges, as the game's camera does at the window's:
-// within `margin` points of an edge the view moves that way, up to `speed` points a second at the
-// edge itself, in proportion to how far into the margin the cursor is.
-#[derive(Copy, Clone, PartialEq, Debug)]
-pub struct UiEdgePan {
-    pub margin: f32,
-    pub speed: f32,
-}
-
-// The direction (-1, 0 or 1 per axis, towards the edge the cursor is near) and strength (0 to 1)
-// of an edge pan for a cursor at `cursor` in `rect`: none outside the rect.
-pub fn edge_pan_velocity(cursor: Vec2, rect: Rect, pan: UiEdgePan) -> Vec2 {
-    if !rect.contains_point(cursor) || pan.margin <= 0.0 {
-        return Vec2::zero();
-    }
-    let depth = |near_low: f32, near_high: f32| -> (f32, f32) {
-        if near_low < pan.margin {
-            (-1.0, pan.margin - near_low)
-        } else if near_high < pan.margin {
-            (1.0, pan.margin - near_high)
-        } else {
-            (0.0, 0.0)
-        }
-    };
-    let (dir_x, depth_x) = depth(cursor.x - rect.min.x, rect.max.x - cursor.x);
-    let (dir_y, depth_y) = depth(cursor.y - rect.min.y, rect.max.y - cursor.y);
-    let strength = (depth_x.max(depth_y) / pan.margin).clamp(0.0, 1.0);
-    Vec2::new(dir_x * strength, dir_y * strength)
-}
-
 // The map points per window point at zoom 1 for a map of `extent` units in `rect`: as large as
 // covers the rect (a map of the rect's shape fits it whole).
 pub fn map_fit_points_per_unit(rect: Rect, extent: Vec2) -> f32 {
@@ -131,6 +101,14 @@ pub fn zoom_map_view_about(state: UiMapViewState, zoom: f32, anchor: Vec2, rect:
     clamp_map_view(UiMapViewState { zoom: zoomed.zoom, centre }, rect, extent, max_zoom)
 }
 
+// The view after a drag of `drag` points: the map moves with the cursor, kept on the map (at the
+// fit, where the whole map shows, it doesn't move).
+pub fn drag_map_view(state: UiMapViewState, drag: Vec2, rect: Rect, extent: Vec2, max_zoom: f32) -> UiMapViewState {
+    let points_per_unit = map_fit_points_per_unit(rect, extent) * state.zoom;
+    let centre = Vec2::new(state.centre.x - drag.x / points_per_unit, state.centre.y - drag.y / points_per_unit);
+    clamp_map_view(UiMapViewState { centre, ..state }, rect, extent, max_zoom)
+}
+
 // Records a marker drawn over a map view (UiMapView's overlay): a city, a site, anything the
 // player can point at, by its rect in window points, for ui.tree and ui.click. Its path is the
 // menu's (and labeled groups') plus `label`. Not visible (so ui.click won't aim at it) unless the
@@ -168,13 +146,13 @@ struct UiMapViewFrame {
 // `extent` map units take `pixels_per_unit` pixels each from the top left (the rest of the texture
 // is past the map). At zoom 1 the map fits the view (covering it: a map of the view's shape shows
 // whole); the mouse wheel zooms in about the cursor, up to a maximum, and back out to 1, never
-// past it; while zoomed in, the cursor near the view's edges pans it (UiEdgePan), and the view
-// always stays on the map. An overlay callback draws what goes over the map each frame (markers,
+// past it; while zoomed in, dragging it with the primary button pans it (the drag goes on while
+// the cursor leaves the view), and the view always stays on the map. A press and release without
+// a drag is a click. An overlay callback draws what goes over the map each frame (markers,
 // labels, routes) through the view's transform, in a painter clipped to the view, and learns where
 // the pointer is and whether it clicked; a frame texture may go around it, over its edges.
 // Recorded as kind "map_view", its value {"zoom", "centre": [x, y] (map units), "fit", "max_zoom"};
-// ui.set takes {"zoom", "centre"} (either) and keeps it in the limits. With edge panning, its edges'
-// strips are recorded too (kind map_edge: `<label>/left`, ...), for ui.hover to pan.
+// ui.set takes {"zoom", "centre"} (either) and keeps it in the limits; ui.drag pans it.
 pub struct UiMapView {
     label: UiString,
     texture: Option<TextureHandle>,
@@ -186,7 +164,7 @@ pub struct UiMapView {
     state: UiMapViewState,
     max_zoom: f32,
     wheel_step: f32, // The zoom's factor per wheel step.
-    edge_pan: Option<UiEdgePan>,
+    drag_pan: bool,
     overlay: Option<UiMapViewOverlay>,
     on_view_changed: Option<UiMapViewChanged>,
     last_rect: Option<Rect>,
@@ -201,9 +179,8 @@ impl UiWidget for UiMapView {
         debug_assert!(context.is_inside_widget_window());
 
         let ui_sys = context.ui_sys();
-        let delta_time_secs = context.delta_time_secs();
         let (rect, response, wheel_lines, painter, window_rect) = ui_sys.with_ui(|ui| {
-            let (rect, response) = ui.allocate_exact_size(egui_vec2(self.size), Sense::click());
+            let (rect, response) = ui.allocate_exact_size(egui_vec2(self.size), Sense::click_and_drag());
             let wheel_lines = if response.hovered() { wheel_lines(ui) } else { 0.0 };
             let window_rect = to_rect(ui.ctx().content_rect());
             (to_rect(rect), response, wheel_lines, ui.painter().with_clip_rect(ui.clip_rect().intersect(rect)), window_rect)
@@ -212,7 +189,13 @@ impl UiWidget for UiMapView {
 
         let before = self.state;
         let pointer = response.hover_pos().map(|pos| Vec2::new(pos.x, pos.y)).filter(|_| response.hovered());
-        self.update_view(rect, pointer, wheel_lines, delta_time_secs);
+        let drag = if response.dragged_by(egui::PointerButton::Primary) {
+            let delta = response.drag_delta();
+            Vec2::new(delta.x, delta.y)
+        } else {
+            Vec2::zero()
+        };
+        self.update_view(rect, pointer, wheel_lines, drag);
 
         let transform = map_view_transform(self.state, rect, self.extent);
         let painter = UiPainter::from_egui(painter, ui_sys);
@@ -243,7 +226,6 @@ impl UiWidget for UiMapView {
         if let Some(pending) = pending {
             self.apply_value(&pending, rect);
         }
-        self.record_edges(ui_sys, rect, pointer);
 
         self.last_rect = Some(rect);
         if self.state != before
@@ -278,7 +260,7 @@ impl UiMapView {
             state: UiMapViewState { zoom: 1.0, centre: Vec2::new(extent.x * 0.5, extent.y * 0.5) },
             max_zoom: 3.0,
             wheel_step: 1.2,
-            edge_pan: None,
+            drag_pan: true,
             overlay: None,
             on_view_changed: None,
             last_rect: None,
@@ -312,9 +294,10 @@ impl UiMapView {
         self
     }
 
-    // Pans while zoomed in with the cursor near its edges; None: no edge panning.
-    pub fn with_edge_pan(mut self, edge_pan: Option<UiEdgePan>) -> Self {
-        self.edge_pan = edge_pan;
+    // Pans while zoomed in when dragged with the primary button (the default); false: only the
+    // wheel and ui.set move it.
+    pub fn with_drag_pan(mut self, drag_pan: bool) -> Self {
+        self.drag_pan = drag_pan;
         self
     }
 
@@ -352,7 +335,9 @@ impl UiMapView {
         };
     }
 
-    fn update_view(&mut self, rect: Rect, pointer: Option<Vec2>, wheel_lines: f32, delta_time_secs: Seconds) {
+    // A wheel zoom about the cursor, then a drag's pan: the map follows the cursor, the point
+    // under it staying under it.
+    fn update_view(&mut self, rect: Rect, pointer: Option<Vec2>, wheel_lines: f32, drag: Vec2) {
         let mut state = clamp_map_view(self.state, rect, self.extent, self.max_zoom);
         if let Some(cursor) = pointer
             && wheel_lines != 0.0
@@ -360,40 +345,10 @@ impl UiMapView {
             let zoom = state.zoom * self.wheel_step.powf(wheel_lines);
             state = zoom_map_view_about(state, zoom, cursor, rect, self.extent, self.max_zoom);
         }
-        if let (Some(cursor), Some(pan)) = (pointer, self.edge_pan)
-            && state.zoom > 1.0
-        {
-            let velocity = edge_pan_velocity(cursor, rect, pan);
-            if velocity != Vec2::zero() {
-                let ppu = map_fit_points_per_unit(rect, self.extent) * state.zoom;
-                let step = pan.speed * delta_time_secs / ppu;
-                state.centre = Vec2::new(state.centre.x + velocity.x * step, state.centre.y + velocity.y * step);
-                state = clamp_map_view(state, rect, self.extent, self.max_zoom);
-            }
+        if self.drag_pan && drag != Vec2::zero() {
+            state = drag_map_view(state, drag, rect, self.extent, self.max_zoom);
         }
         self.state = state;
-    }
-
-    // Its edge panning strips, for automation: `<label>/left`, `right`, `top` and `bottom` (kind
-    // map_edge), each `margin` deep along its edge, short of the corners, so ui.hover on one pans
-    // the zoomed map that way.
-    fn record_edges(&self, ui_sys: &UiSystem, rect: Rect, pointer: Option<Vec2>) {
-        let Some(pan) = self.edge_pan.filter(|_| ui_sys.is_widget_registry_enabled()) else {
-            return;
-        };
-        let margin = pan.margin.min(rect.width() * 0.5).min(rect.height() * 0.5);
-        let (min, max) = (rect.min, rect.max);
-        let strips = [
-            ("left", Rect::from_extents(Vec2::new(min.x, min.y + margin), Vec2::new(min.x + margin, max.y - margin))),
-            ("right", Rect::from_extents(Vec2::new(max.x - margin, min.y + margin), Vec2::new(max.x, max.y - margin))),
-            ("top", Rect::from_extents(Vec2::new(min.x + margin, min.y), Vec2::new(max.x - margin, min.y + margin))),
-            ("bottom", Rect::from_extents(Vec2::new(min.x + margin, max.y - margin), Vec2::new(max.x - margin, max.y))),
-        ];
-        let _path = immediate::path_scope(ui_sys, self.label.resolve());
-        for (name, strip) in strips {
-            let hovered = pointer.is_some_and(|cursor| strip.contains_point(cursor));
-            immediate::record_rect(ui_sys, "map_edge", name, immediate::egui_rect(strip), hovered, None);
-        }
     }
 
     fn value(&self) -> Value {
@@ -572,15 +527,19 @@ mod tests {
         assert_eq!(out, fit);
     }
 
-    // The cursor near an edge pans towards it, harder the nearer it is; nowhere else.
+    // A drag moves the map with the cursor, in map units at the zoom; the view stays on the map,
+    // and at the fit a drag moves nothing.
     #[test]
-    fn edge_pans() {
-        let view = rect(100.0, 100.0, 400.0, 300.0);
-        let pan = UiEdgePan { margin: 20.0, speed: 500.0 };
-        assert_eq!(edge_pan_velocity(Vec2::new(300.0, 250.0), view, pan), Vec2::zero());
-        assert_eq!(edge_pan_velocity(Vec2::new(50.0, 250.0), view, pan), Vec2::zero()); // Outside.
-        assert_eq!(edge_pan_velocity(Vec2::new(100.0, 250.0), view, pan), Vec2::new(-1.0, 0.0));
-        assert_eq!(edge_pan_velocity(Vec2::new(490.0, 250.0), view, pan), Vec2::new(0.5, 0.0));
-        assert_eq!(edge_pan_velocity(Vec2::new(300.0, 399.0), view, pan), Vec2::new(0.0, 0.95));
+    fn drag_pans() {
+        let view = rect(0.0, 0.0, 1000.0, 672.0);
+        let extent = Vec2::new(1000.0, 672.0);
+        let state = UiMapViewState { zoom: 2.0, centre: Vec2::new(500.0, 336.0) };
+        // Dragging left by 100 points at zoom 2 (2 points a unit) shows 50 units further east.
+        assert!(close(drag_map_view(state, Vec2::new(-100.0, 0.0), view, extent, 3.0).centre, Vec2::new(550.0, 336.0)));
+        assert!(close(drag_map_view(state, Vec2::new(0.0, 40.0), view, extent, 3.0).centre, Vec2::new(500.0, 316.0)));
+        // Never past the map's edge: at zoom 2 the centre stays a quarter of the map in.
+        assert!(close(drag_map_view(state, Vec2::new(-5000.0, 0.0), view, extent, 3.0).centre, Vec2::new(750.0, 336.0)));
+        let fit = UiMapViewState { zoom: 1.0, centre: Vec2::new(500.0, 336.0) };
+        assert!(close(drag_map_view(fit, Vec2::new(-100.0, 60.0), view, extent, 3.0).centre, fit.centre));
     }
 }

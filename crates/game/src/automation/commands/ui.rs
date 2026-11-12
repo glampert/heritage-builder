@@ -73,6 +73,24 @@ pub(super) const COMMANDS: &[CommandDef] = &[
         run: cmd_hover,
     },
     CommandDef {
+        name: "ui.drag",
+        help: "Drag with the simulated mouse from a widget's middle by an offset: hover it, press, move over some \
+               frames, release, as a player would (e.g. to pan the world map). Fails if another widget, menu or window \
+               covers it.",
+        params: &[
+            ParamDef {
+                name: "path",
+                kind: "string",
+                required: true,
+                help: "Widget path from ui.tree, the end of one (e.g. \"WorldMap/map\"), or its tooltip.",
+            },
+            ParamDef { name: "by", kind: "point", required: true, help: "[dx, dy]: how far to drag, in window points." },
+            ParamDef { name: "button", kind: "string", required: false, help: "left (default) or right." },
+            ParamDef { name: "frames", kind: "int", required: false, help: "Frames to move over. Default 10." },
+        ],
+        run: cmd_drag,
+    },
+    CommandDef {
         name: "ui.set",
         help: "Set a checkbox, toggle, slider, number or text input, dropdown, list, tab bar, step selector, or the dev \
                editor's tile palette, through the widget's own update.",
@@ -334,12 +352,8 @@ fn cmd_click(context: &mut CommandContext, params: Value) -> CommandResult {
     }
 
     let params: Params = parse_params(params)?;
-    let button = match params.button.as_deref().unwrap_or("left").parse::<MouseButton>() {
-        Ok(button @ (MouseButton::Left | MouseButton::Right)) => button,
-        _ => return Err(CommandError::invalid_params("button must be left or right.")),
-    };
-
-    point_at_widget(context, params.path, Some(button))
+    let button = parse_button(params.button.as_deref())?;
+    point_at_widget(context, params.path, PointerAction::Click(button))
 }
 
 fn cmd_hover(context: &mut CommandContext, params: Value) -> CommandResult {
@@ -350,11 +364,48 @@ fn cmd_hover(context: &mut CommandContext, params: Value) -> CommandResult {
     }
 
     let params: Params = parse_params(params)?;
-    point_at_widget(context, params.path, None)
+    point_at_widget(context, params.path, PointerAction::Hover)
 }
 
-// ui.click with a button, ui.hover without one.
-fn point_at_widget(context: &mut CommandContext, path: String, button: Option<MouseButton>) -> CommandResult {
+fn cmd_drag(context: &mut CommandContext, params: Value) -> CommandResult {
+    #[derive(Deserialize)]
+    #[serde(deny_unknown_fields)]
+    struct Params {
+        path: String,
+        by: [f32; 2],
+        button: Option<String>,
+        frames: Option<u32>,
+    }
+
+    let params: Params = parse_params(params)?;
+    let button = parse_button(params.button.as_deref())?;
+    let frames = params.frames.unwrap_or(10);
+    if !(1..=600).contains(&frames) {
+        return Err(CommandError::invalid_params(format!("frames must be from 1 to 600, got {frames}.")));
+    }
+    if !params.by.iter().all(|value| value.is_finite()) {
+        return Err(CommandError::invalid_params("by must be two finite numbers."));
+    }
+    point_at_widget(context, params.path, PointerAction::Drag { button, by: Vec2::new(params.by[0], params.by[1]), frames })
+}
+
+fn parse_button(button: Option<&str>) -> Result<MouseButton, CommandError> {
+    match button.unwrap_or("left").parse::<MouseButton>() {
+        Ok(button @ (MouseButton::Left | MouseButton::Right)) => Ok(button),
+        _ => Err(CommandError::invalid_params("button must be left or right.")),
+    }
+}
+
+// What point_at_widget does once the cursor is on the widget: ui.hover stays there, ui.click
+// clicks, ui.drag presses there and drags by an offset.
+#[derive(Copy, Clone)]
+enum PointerAction {
+    Hover,
+    Click(MouseButton),
+    Drag { button: MouseButton, by: Vec2, frames: u32 },
+}
+
+fn point_at_widget(context: &mut CommandContext, path: String, action: PointerAction) -> CommandResult {
     let ready_frame = registry_ready_frame(context);
     let deadline_frame = ready_frame + FIND_WIDGET_TIMEOUT_FRAMES;
     let mut step = ClickStep::Find { reveal_deadline_frame: None };
@@ -370,7 +421,7 @@ fn point_at_widget(context: &mut CommandContext, path: String, button: Option<Mo
                 Err(err) => return Some(Err(err)),
             };
 
-            if !widget.enabled && button.is_some() {
+            if !widget.enabled && !matches!(action, PointerAction::Hover) {
                 return Some(Err(CommandError::failed(format!("'{}' is disabled.", widget.path))));
             }
             if !widget.visible {
@@ -445,14 +496,17 @@ fn point_at_widget(context: &mut CommandContext, path: String, button: Option<Mo
                 ))));
             }
 
-            let Some(button) = button else {
-                // ui.hover: stay there. Finish a frame later, once what hovering shows (a tooltip) has drawn.
-                let gesture = *gesture;
-                step = ClickStep::Click { gesture, reply, done_frame: Some(context.frame() + 1) };
-                return None;
+            let steps = match action {
+                PointerAction::Hover => {
+                    // ui.hover: stay there. Finish a frame later, once what hovering shows (a tooltip) has drawn.
+                    let gesture = *gesture;
+                    step = ClickStep::Click { gesture, reply, done_frame: Some(context.frame() + 1) };
+                    return None;
+                }
+                PointerAction::Click(button) => gestures::click_gesture(center, button),
+                PointerAction::Drag { button, by, frames } => gestures::drag_gesture(center, center + by, button, frames),
             };
-
-            let gesture = context.engine.queue_input_gesture(gestures::click_gesture(center, button));
+            let gesture = context.engine.queue_input_gesture(steps);
             step = ClickStep::Click { gesture, reply, done_frame: None };
             None
         }
