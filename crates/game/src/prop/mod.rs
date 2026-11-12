@@ -14,7 +14,7 @@ use super::{
     sim::{
         SimCmds,
         SimCmdQueue,
-        SimContext,
+        SimContext, SimContextMut,
         resources::{ResourceKind, StockItem},
     },
     world::{
@@ -150,7 +150,7 @@ impl GameObject for Prop {
         self.harvestable.initial_variation = saved_state.initial_variation;
     }
 
-    fn draw_debug_ui(&mut self, cmds: &mut SimCmds, context: &SimContext, ui_sys: &UiSystem, mode: DebugUiMode) {
+    fn draw_debug_ui(&mut self, cmds: &mut SimCmds, context: &SimContextMut, ui_sys: &UiSystem, mode: DebugUiMode) {
         // Debug-UI drawing lives in `crate::debug::prop`.
         self.draw_debug_ui_dispatch(cmds, context, ui_sys, mode);
     }
@@ -190,7 +190,7 @@ impl Prop {
         self.harvestable.initial_variation = tile.variation_index().try_into().unwrap();
     }
 
-    pub fn despawned(&mut self, _context: &SimContext) {
+    pub fn despawned(&mut self, _context: &SimContextMut) {
         debug_assert!(self.is_spawned());
 
         self.id = PropId::default();
@@ -275,7 +275,7 @@ impl Prop {
 
     // Tries to harvest `amount` units of the available resource.
     // Result may be <= `amount`.
-    pub fn harvest(&mut self, context: &SimContext, amount: u32) -> StockItem {
+    pub fn harvest(&mut self, context: &SimContextMut, amount: u32) -> StockItem {
         debug_assert!(self.is_spawned());
 
         let resource = self.harvestable.resource;
@@ -295,7 +295,7 @@ impl Prop {
         StockItem { kind: resource, count: amount_harvested }
     }
 
-    pub(crate) fn respawn_harvestable(&mut self, context: &SimContext) {
+    pub(crate) fn respawn_harvestable(&mut self, context: &SimContextMut) {
         let config = self.config.unwrap();
         self.harvestable.amount = config.harvestable_amount;
         self.harvestable.respawn_timer.reset(config.respawn_time_secs);
@@ -312,7 +312,7 @@ impl Prop {
     // Internal helpers:
     // ----------------------
 
-    fn update_variation(&mut self, context: &SimContext) {
+    fn update_variation(&mut self, context: &SimContextMut) {
         if self.is_harvestable() {
             let tile = self.find_tile_mut(context);
             if self.harvestable.amount == 0 {
@@ -345,7 +345,7 @@ impl Prop {
     }
 
     #[inline]
-    fn find_tile_mut<'game>(&self, context: &'game SimContext) -> &'game mut Tile {
+    fn find_tile_mut<'game>(&self, context: &'game SimContextMut) -> &'game mut Tile {
         context
             .find_tile_mut(self.cell(), TileKind::Prop)
             .expect("Prop should have an associated Tile in the TileMap!")

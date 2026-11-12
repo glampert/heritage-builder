@@ -5,7 +5,7 @@ use proc_macros::DrawDebugUi;
 use crate::{
     debug::DebugUiMode,
     prop::{Prop, PropId},
-    sim::{SimCmds, SimContext, resources::ResourceKind},
+    sim::{SimCmds, SimContext, SimContextMut, resources::ResourceKind},
     world::object::GameObject,
 };
 
@@ -15,7 +15,7 @@ impl Prop {
     pub(crate) fn draw_debug_ui_dispatch(
         &mut self,
         _cmds: &mut SimCmds,
-        context: &SimContext,
+        context: &SimContextMut,
         ui_sys: &UiSystem,
         mode: DebugUiMode,
     ) {
@@ -52,7 +52,7 @@ impl Prop {
         color_bullet_text(&format_small!("Harvestable {}", self.harvestable_resource()), self.harvestable_amount());
     }
 
-    fn draw_debug_ui_detailed(&mut self, context: &SimContext, ui_sys: &UiSystem) {
+    fn draw_debug_ui_detailed(&mut self, context: &SimContextMut, ui_sys: &UiSystem) {
         // Configs are static & read-only; clone to a local for the &mut display path.
         let mut config = self.config().clone();
         config.draw_debug_ui_with_header("Config", ui_sys);

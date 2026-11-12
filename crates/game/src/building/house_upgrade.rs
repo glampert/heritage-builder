@@ -13,6 +13,7 @@ use super::{
     BuildingId,
     BuildingKind,
     BuildingContext,
+    BuildingContextMut,
     config::BuildingConfigs,
     house::{HouseLevel, HouseLevelConfig},
 };
@@ -68,7 +69,7 @@ pub fn can_expand_house(
 // Attempts to expand the house by *one cell* in each dimension, e.g.: 1x1 -> 2x2.
 pub fn try_expand_house(
     cmds: &mut SimCmds,
-    context: &BuildingContext,
+    context: &BuildingContextMut,
     house_id: BuildingId,
     current_level: HouseLevel,
     target_level: HouseLevel,
@@ -126,7 +127,7 @@ pub fn try_expand_house(
 // Assumes there is enough room to place the new tile
 // (neighboring houses already merged and cleared).
 pub fn try_replace_tile(
-    context: &BuildingContext,
+    context: &BuildingContextMut,
     house_id: BuildingId,
     target_tile_def: &'static TileDef,
     new_cell_range: CellRange,
@@ -486,7 +487,7 @@ pub(crate) fn candidate_target_rects(current_cell_range: CellRange) -> [CellRect
 
 fn try_merge_and_replace_tile(
     cmds: &mut SimCmds,
-    context: &BuildingContext,
+    context: &BuildingContextMut,
     target_level_config: &HouseLevelConfig,
     target_tile_def: &'static TileDef,
     start_cell: Cell,
@@ -510,7 +511,7 @@ fn try_merge_and_replace_tile(
 // `ids_to_merge` houses. Ids are assumed to be all valid house buildings.
 fn merge_houses(
     cmds: &mut SimCmds,
-    context: &BuildingContext,
+    context: &BuildingContextMut,
     target_level_config: &HouseLevelConfig,
     dest_id: BuildingId,
     ids_to_merge: &[BuildingId],
@@ -533,7 +534,7 @@ fn merge_houses(
 // Merge resources, population and workers.
 fn merge_house(
     cmds: &mut SimCmds,
-    context: &BuildingContext,
+    context: &BuildingContextMut,
     dest_building: &mut Building,
     building_to_merge: &mut Building,
     target_level_config: &HouseLevelConfig,
@@ -553,7 +554,7 @@ fn merge_house(
     );
 }
 
-fn destroy_house(context: &BuildingContext, merged_building: &mut Building) {
+fn destroy_house(context: &BuildingContextMut, merged_building: &mut Building) {
     // NOTE: We can safely immediately despawn the merged house here since
     // the whole house upgrade logic is already deferred as a SimCmd.
     Spawner::new(context.sim_ctx).despawn_building(merged_building);
@@ -573,7 +574,7 @@ fn house_for_id<'game>(context: &'game BuildingContext, id: BuildingId) -> &'gam
         .expect("Invalid Building id! Expected to have a valid House Building.")
 }
 
-fn house_for_id_mut<'game>(context: &'game BuildingContext, id: BuildingId) -> &'game mut Building {
+fn house_for_id_mut<'game>(context: &'game BuildingContextMut, id: BuildingId) -> &'game mut Building {
     context.sim_ctx.find_building_mut(BuildingKind::House, id)
         .expect("Invalid Building id! Expected to have a valid House Building.")
 }

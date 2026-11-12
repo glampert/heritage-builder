@@ -8,7 +8,7 @@ use engine::{
 };
 
 use crate::{
-    sim::{SimCmds, SimContext},
+    sim::{SimCmds, SimContext, SimContextMut},
     tile::{TileFlags, TileKind},
     system::{
         GameSystem,
@@ -26,7 +26,7 @@ use crate::{
 // ----------------------------------------------
 
 impl GameSystems {
-    pub(crate) fn draw_debug_ui(&mut self, engine: &mut Engine, cmds: &mut SimCmds, context: &SimContext, ui_sys: &UiSystem) {
+    pub(crate) fn draw_debug_ui(&mut self, engine: &mut Engine, cmds: &mut SimCmds, context: &SimContextMut, ui_sys: &UiSystem) {
         // A tab per system, then "Create Systems".
         let mut tabs: SmallVec<[ArrayString<128>; 8]> =
             self.systems.iter().map(|entry| format_small!("{}", entry.system)).collect();
@@ -59,7 +59,7 @@ impl GameSystems {
 // ----------------------------------------------
 
 impl SettlersSpawnSystem {
-    pub(crate) fn draw_debug_ui_dispatch(&mut self, engine: &mut Engine, cmds: &mut SimCmds, context: &SimContext) {
+    pub(crate) fn draw_debug_ui_dispatch(&mut self, engine: &mut Engine, cmds: &mut SimCmds, context: &SimContextMut) {
         self.spawn_timer.draw_debug_ui_with_header("Settler Spawn", engine.ui_system());
 
         let ui_sys = engine.ui_system();
@@ -104,7 +104,7 @@ impl SettlersSpawnSystem {
 // ----------------------------------------------
 
 impl AmbientEffectsSystem {
-    pub(crate) fn draw_debug_ui_dispatch(&mut self, engine: &mut Engine, cmds: &mut SimCmds, context: &SimContext) {
+    pub(crate) fn draw_debug_ui_dispatch(&mut self, engine: &mut Engine, cmds: &mut SimCmds, context: &SimContextMut) {
         self.bird_spawn_timer.draw_debug_ui_with_header("Bird Spawn", engine.ui_system());
 
         let ui_sys = engine.ui_system();

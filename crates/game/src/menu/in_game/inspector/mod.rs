@@ -261,7 +261,7 @@ impl BuildingInspector {
 
     fn show(&mut self, context: &mut GameUiContext, handle: BuildingKindAndId) {
         let sim_context = context.new_sim_context();
-        let Some(building) = context.world.find_building(handle.kind, handle.id) else {
+        let Some(building) = sim_context.find_building(handle.kind, handle.id) else {
             self.site = None;
             return;
         };
@@ -275,7 +275,7 @@ impl BuildingInspector {
             return;
         }
 
-        self.set_population_and_workers(building, context.sim.finance().tax_percent());
+        self.set_population_and_workers(building, sim_context.finance().tax_percent());
 
         let building_ctx = building.new_context(&sim_context);
         self.set_stats_info(&building_ctx, building);

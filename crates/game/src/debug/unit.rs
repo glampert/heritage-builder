@@ -27,7 +27,7 @@ use crate::{
     sim::{
         SimCmds,
         SimCmdQueue,
-        SimContext,
+        SimContext, SimContextMut,
         commands::ImmediateModeSimCmds,
         resources::{ResourceKind, ShoppingList, StockItem},
     },
@@ -60,7 +60,7 @@ impl Unit {
     pub(crate) fn draw_debug_ui_dispatch(
         &mut self,
         cmds: &mut SimCmds,
-        context: &SimContext,
+        context: &SimContextMut,
         ui_sys: &UiSystem,
         mode: DebugUiMode,
     ) {
@@ -107,7 +107,7 @@ impl Unit {
         }
     }
 
-    fn draw_debug_ui_detailed(&mut self, cmds: &mut SimCmds, context: &SimContext, ui_sys: &UiSystem) {
+    fn draw_debug_ui_detailed(&mut self, cmds: &mut SimCmds, context: &SimContextMut, ui_sys: &UiSystem) {
         self.draw_debug_ui_properties(ui_sys);
         self.draw_debug_ui_config(ui_sys);
         self.debug_mut().draw_debug_ui(ui_sys);
@@ -147,7 +147,7 @@ impl Unit {
         config.draw_debug_ui_with_header("Config", ui_sys);
     }
 
-    fn draw_debug_ui_tasks(&mut self, context: &SimContext, ui_sys: &UiSystem) {
+    fn draw_debug_ui_tasks(&mut self, context: &SimContextMut, ui_sys: &UiSystem) {
         let Some(_path) = ui::collapsing_header_scope(ui_sys, "Tasks", false) else {
             return; // collapsed.
         };
@@ -175,7 +175,7 @@ impl Unit {
         }
     }
 
-    fn draw_debug_ui_navigation(&mut self, context: &SimContext, ui_sys: &UiSystem) {
+    fn draw_debug_ui_navigation(&mut self, context: &SimContextMut, ui_sys: &UiSystem) {
         let Some(_path) = ui::collapsing_header_scope(ui_sys, "Navigation", false) else {
             return; // collapsed.
         };
@@ -231,7 +231,7 @@ impl Unit {
         self.navigation_mut().draw_debug_ui(ui_sys);
     }
 
-    fn draw_debug_ui_misc(&mut self, cmds: &mut SimCmds, context: &SimContext, ui_sys: &UiSystem) {
+    fn draw_debug_ui_misc(&mut self, cmds: &mut SimCmds, context: &SimContextMut, ui_sys: &UiSystem) {
         let Some(_path) = ui::collapsing_header_scope(ui_sys, "Debug Misc", false) else {
             return; // collapsed.
         };
@@ -272,7 +272,7 @@ impl Unit {
         }
     }
 
-    fn debug_dropdown_runner_tasks(&mut self, context: &SimContext, ui_sys: &UiSystem) {
+    fn debug_dropdown_runner_tasks(&mut self, context: &SimContextMut, ui_sys: &UiSystem) {
         let Some(_path) = ui::collapsing_header_scope(ui_sys, "Runner Tasks", false) else {
             return; // collapsed.
         };
@@ -333,7 +333,7 @@ impl Unit {
         }
     }
 
-    fn debug_dropdown_patrol_tasks(&mut self, context: &SimContext, ui_sys: &UiSystem) {
+    fn debug_dropdown_patrol_tasks(&mut self, context: &SimContextMut, ui_sys: &UiSystem) {
         let Some(_path) = ui::collapsing_header_scope(ui_sys, "Patrol Tasks", false) else {
             return; // collapsed.
         };
@@ -378,7 +378,7 @@ impl Unit {
         }
     }
 
-    fn debug_dropdown_pathfinding_tasks(&mut self, context: &SimContext, ui_sys: &UiSystem) {
+    fn debug_dropdown_pathfinding_tasks(&mut self, context: &SimContextMut, ui_sys: &UiSystem) {
         let Some(_path) = ui::collapsing_header_scope(ui_sys, "Pathfind Tasks", false) else {
             return; // collapsed.
         };
@@ -508,7 +508,7 @@ impl Unit {
         }
     }
 
-    fn debug_dropdown_harvest_tasks(&mut self, context: &SimContext, ui_sys: &UiSystem) {
+    fn debug_dropdown_harvest_tasks(&mut self, context: &SimContextMut, ui_sys: &UiSystem) {
         let Some(_path) = ui::collapsing_header_scope(ui_sys, "Harvest Tasks", false) else {
             return; // collapsed.
         };
@@ -593,15 +593,15 @@ impl Unit {
     }
 }
 
-fn unit_debug_patrol_task_completed(_: &SimContext, building: &mut Building, unit: &mut Unit) {
+fn unit_debug_patrol_task_completed(_: &SimContextMut, building: &mut Building, unit: &mut Unit) {
     log::info!("Unit {}: Patrol Task From {} Completed.", unit.name(), building.name());
 }
 
-fn unit_debug_delivery_task_completed(_: &SimContext, building: &mut Building, unit: &mut Unit) {
+fn unit_debug_delivery_task_completed(_: &SimContextMut, building: &mut Building, unit: &mut Unit) {
     log::info!("Unit {}: Deliver Resources to: {}. Task Completed.", unit.name(), building.name());
 }
 
-fn unit_debug_fetch_task_completed(_: &SimContext, building: &mut Building, unit: &mut Unit) {
+fn unit_debug_fetch_task_completed(_: &SimContextMut, building: &mut Building, unit: &mut Unit) {
     let item = unit.peek_inventory().unwrap();
     log::info!(
         "Unit {}: Fetch Resources from: {}. Task Completed. Got: {}, {}",
@@ -672,7 +672,7 @@ fn unit_debug_settle_task_post_despawn(
     }
 }
 
-fn unit_debug_harvest_wood_task_completed(_: &SimContext, building: &mut Building, unit: &mut Unit) {
+fn unit_debug_harvest_wood_task_completed(_: &SimContextMut, building: &mut Building, unit: &mut Unit) {
     let item = unit.peek_inventory().unwrap();
     log::info!(
         "Unit {}: Harvested for: {}. Task Completed. Got: {}, {}",

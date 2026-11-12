@@ -16,7 +16,6 @@ use crate::{
     },
     cheats,
     config::GameConfigs,
-    sim::commands::ImmediateModeSimCmds,
 };
 
 // How many of the riskiest buildings risks.state lists.
@@ -152,8 +151,7 @@ fn cmd_ignite(context: &mut CommandContext, params: Value) -> CommandResult {
     let delta_time_secs = context.engine.frame_clock().delta_time();
     context.session.with_sim_context(delta_time_secs, |sim_context| {
         let building = sim_context.find_building_mut(target.kind, target.id).unwrap();
-        let mut cmds = ImmediateModeSimCmds::new(sim_context);
-        building.ignite(&mut cmds, sim_context);
+        building.ignite_now(sim_context);
     });
 
     let building = context.session.world().find_building(target.kind, target.id).unwrap();
@@ -177,8 +175,7 @@ fn cmd_infect(context: &mut CommandContext, params: Value) -> CommandResult {
     let delta_time_secs = context.engine.frame_clock().delta_time();
     context.session.with_sim_context(delta_time_secs, |sim_context| {
         let building = sim_context.find_building_mut(target.kind, target.id).unwrap();
-        let mut cmds = ImmediateModeSimCmds::new(sim_context);
-        building.start_outbreak(&mut cmds, sim_context);
+        building.start_outbreak_now(sim_context);
     });
 
     let building = context.session.world().find_building(target.kind, target.id).unwrap();

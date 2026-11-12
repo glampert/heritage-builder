@@ -15,7 +15,7 @@ use super::{
 };
 use crate::{
     pathfind::Path,
-    sim::SimContext,
+    sim::{SimContext, SimContextMut},
     unit::{Unit, navigation::UnitNavGoal},
 };
 
@@ -113,7 +113,7 @@ impl UnitTask for UnitTaskFollowPath {
         self.completion_callback.post_load();
     }
 
-    fn draw_debug_ui(&mut self, _unit: &mut Unit, _sim_context: &SimContext, ui_sys: &UiSystem) {
+    fn draw_debug_ui(&mut self, _unit: &mut Unit, _sim_context: &SimContextMut, ui_sys: &UiSystem) {
         let start = self.path.first().unwrap().cell;
         let end   = self.path.last().unwrap().cell;
 

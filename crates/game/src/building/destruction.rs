@@ -14,7 +14,7 @@ use engine::log;
 use super::{BuildingKindAndId, risks};
 use crate::{
     sim::{
-        SimContext,
+        SimContextMut,
         resources::{RESOURCE_KIND_COUNT, StockItem},
     },
     tile::{
@@ -38,7 +38,7 @@ pub enum Destruction {
 // stats so its people and goods stop counting at once, and raises the notice and a minimap
 // alert. Whatever it held is lost. Returns false, doing nothing, if the building is gone, or if
 // it was to burn down and a fire watcher put the fire out first.
-pub fn destroy_building(context: &SimContext, kind_and_id: BuildingKindAndId, cause: Destruction) -> bool {
+pub fn destroy_building(context: &SimContextMut, kind_and_id: BuildingKindAndId, cause: Destruction) -> bool {
     let Some(building) = context.find_building_mut(kind_and_id.kind, kind_and_id.id) else {
         log::verbose!(log::channel!("risks"), "{cause}: {} {} is gone already.", kind_and_id.kind, kind_and_id.id);
         return false;
@@ -95,7 +95,7 @@ pub fn has_requests() -> bool {
     !REQUESTS.as_ref().is_empty()
 }
 
-pub fn run_requests(context: &SimContext) {
+pub fn run_requests(context: &SimContextMut) {
     // Taken first, so a destruction that requests another doesn't alias the list.
     for (kind_and_id, cause) in std::mem::take(REQUESTS.as_mut()) {
         destroy_building(context, kind_and_id, cause);

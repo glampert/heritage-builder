@@ -20,7 +20,7 @@ use engine::{
 use crate::{
     camera::Camera,
     world::World,
-    sim::{Simulation, SimContext},
+    sim::{Simulation, SimContextMut},
     tile::{Tile, TileMap, selection::TileSelection},
 };
 
@@ -88,7 +88,7 @@ impl<'game> GameUiContext<'game> {
     }
 
     #[inline]
-    pub fn new_sim_context(&mut self) -> SimContext {
+    pub fn new_sim_context(&mut self) -> SimContextMut<'_> {
         self.sim.new_sim_context(self.delta_time_secs, self.tile_map, self.world)
     }
 }

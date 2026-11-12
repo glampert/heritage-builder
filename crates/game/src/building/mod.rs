@@ -27,7 +27,7 @@ use config::{BuildingConfig, BuildingConfigs};
 use super::{
     undo_redo::GameObjectSavedState,
     sim::{
-        SimContext,
+        SimContext, SimContextMut,
         SimCmds,
         SimCmdQueue,
         commands::ImmediateModeSimCmds,
@@ -288,7 +288,7 @@ impl GameObject for Building {
         debug_assert!(self.is_spawned());
 
         // Refresh cached road link cell.
-        self.update_road_link(Some(cmds), context);
+        self.update_road_link(cmds, context);
 
         // A site does nothing but build until it completes.
         if self.construction.is_some() {
@@ -388,7 +388,7 @@ impl GameObject for Building {
         self.workers_update_timer.force_update();
     }
 
-    fn draw_debug_ui(&mut self, cmds: &mut SimCmds, context: &SimContext, ui_sys: &UiSystem, mode: DebugUiMode) {
+    fn draw_debug_ui(&mut self, cmds: &mut SimCmds, context: &SimContextMut, ui_sys: &UiSystem, mode: DebugUiMode) {
         // Debug-UI drawing lives in `crate::debug::building`.
         self.draw_debug_ui_dispatch(cmds, context, ui_sys, mode);
     }
@@ -415,7 +415,7 @@ impl Building {
 
     pub fn spawned(
         &mut self,
-        context: &SimContext,
+        context: &SimContextMut,
         id: BuildingId,
         kind: BuildingKind,
         map_cells: CellRange,
@@ -434,15 +434,15 @@ impl Building {
         self.risks = BuildingRisks::new(map_cells.start, kind, &GameConfigs::get().sim.risks);
 
         // Spawning usually happens inside a deferred command - execute this immediately.
-        self.update_road_link(None, context);
+        self.update_road_link_now(context);
 
         {
-            let context = self.new_context(context);
+            let context = self.new_context_mut(context);
             self.archetype_mut().spawned(&context);
         }
     }
 
-    pub fn despawned(&mut self, context: &SimContext) {
+    pub fn despawned(&mut self, context: &SimContextMut) {
         debug_assert!(self.is_spawned());
 
         // Its fire's or outbreak's alert goes with it (a destruction raises its own for the rubble).
@@ -460,7 +460,7 @@ impl Building {
         }
 
         {
-            let context = self.new_context(context);
+            let context = self.new_context_mut(context);
             self.archetype_mut().despawned(&context);
         }
 
@@ -491,7 +491,7 @@ impl Building {
 
     // Turns a just-spawned building into a construction site, drawn as one from now on. Needs a
     // mutable context: it sets the tile's flags at once.
-    pub fn start_construction(&mut self, site: ConstructionSite, context: &SimContext) {
+    pub fn start_construction(&mut self, site: ConstructionSite, context: &SimContextMut) {
         debug_assert!(self.is_spawned());
         debug_assert!(self.construction.is_none());
 
@@ -619,7 +619,7 @@ impl Building {
         // A collapse comes first: there's nothing left to burn.
         let collapsed = self.risks.get(RiskKind::Collapse) >= MAX_RISK && self.collapse(cmds);
         if !collapsed && self.risks.get(RiskKind::Fire) >= MAX_RISK {
-            self.ignite(cmds, context);
+            self.ignite(cmds);
         }
 
         if disease_on && !self.risks.is_burning() && !self.risks.is_doomed() {
@@ -643,7 +643,7 @@ impl Building {
             if disease > 0.0 && self.population_count() != 0 {
                 let chance = risks::outbreak_chance(disease, configs.disease_check_secs, configs);
                 if chance > 0.0 && context.rng_mut().random_bool(f64::from(chance)) {
-                    self.start_outbreak(cmds, context);
+                    self.start_outbreak(cmds);
                 }
             }
         }
@@ -659,7 +659,7 @@ impl Building {
 
         let population = self.population_count();
         if population == 0 {
-            self.end_outbreak(cmds, context, MAX_RISK / 2.0);
+            self.end_outbreak(cmds, MAX_RISK / 2.0);
             return;
         }
 
@@ -691,7 +691,7 @@ impl Building {
 
         if died >= population {
             // No one left to fall sick: the outbreak is over.
-            self.end_outbreak(cmds, context, MAX_RISK / 2.0);
+            self.end_outbreak(cmds, MAX_RISK / 2.0);
         }
     }
 
@@ -803,65 +803,81 @@ impl Building {
             && self.population_count() != 0
     }
 
-    // Makes the house sick, as a roll against its disease risk does. With deferred `cmds` (a
-    // world step) its tile shows it once the step's commands run; otherwise at once. Returns
-    // false if it can't fall sick.
-    pub fn start_outbreak(&mut self, cmds: &mut SimCmds, context: &SimContext) -> bool {
-        if !self.can_fall_sick() {
+    // Makes the house sick, as a roll against its disease risk does: on the world step, so its
+    // tile shows it once the step's commands run. Returns false if it can't fall sick.
+    pub fn start_outbreak(&mut self, cmds: &mut SimCmds) -> bool {
+        debug_assert!(cmds.is_deferred(), "Queue the outbreak's tile change; start_outbreak_now applies it at once.");
+        if !self.begin_outbreak() {
             return false;
         }
-
-        self.risks.start_outbreak(&GameConfigs::get().sim.risks);
-
-        let on_sick = |context: &SimContext, building: &mut Building| {
-            let base_cell = building.base_cell();
-            context.tile_map_mut().set_tile_flags(base_cell, TileKind::Building, TileFlags::Diseased, true);
-            context.minimap_mut().push_icon(MinimapIcon::Alert, base_cell, OUTBREAK_ALERT_TINT, MINIMAP_ICON_DEFAULT_LIFETIME);
-            risks::notify(format!("Sickness has broken out in a {}.", building.notice_name().to_lowercase()));
-        };
-
-        if cmds.is_deferred() {
-            cmds.defer_building_update(self.kind_and_id(), on_sick);
-        } else {
-            on_sick(context, self);
-        }
+        cmds.defer_building_update(self.kind_and_id(), Self::show_outbreak);
         true
     }
 
-    // Ends the house's outbreak, cured or with no one left, its disease risk set to `disease`,
-    // and tells how many died of it. With deferred `cmds`, the tile and the notice follow once
-    // the step's commands run.
-    fn end_outbreak(&mut self, cmds: &mut SimCmds, context: &SimContext, disease: f32) {
+    // As start_outbreak, with the tile changed at once (the developer inspector, automation).
+    pub fn start_outbreak_now(&mut self, context: &SimContextMut) -> bool {
+        if !self.begin_outbreak() {
+            return false;
+        }
+        Self::show_outbreak(context, self);
+        true
+    }
+
+    fn begin_outbreak(&mut self) -> bool {
+        if !self.can_fall_sick() {
+            return false;
+        }
+        self.risks.start_outbreak(&GameConfigs::get().sim.risks);
+        true
+    }
+
+    fn show_outbreak(context: &SimContextMut, building: &mut Building) {
+        let base_cell = building.base_cell();
+        context.tile_map_mut().set_tile_flags(base_cell, TileKind::Building, TileFlags::Diseased, true);
+        context.minimap_mut().push_icon(MinimapIcon::Alert, base_cell, OUTBREAK_ALERT_TINT, MINIMAP_ICON_DEFAULT_LIFETIME);
+        risks::notify(format!("Sickness has broken out in a {}.", building.notice_name().to_lowercase()));
+    }
+
+    // Ends the house's outbreak, with no one left, its disease risk set to `disease`, on the
+    // world step: the tile and the notice that tells how many died follow once the step's
+    // commands run.
+    fn end_outbreak(&mut self, cmds: &mut SimCmds, disease: f32) {
+        debug_assert!(cmds.is_deferred(), "Queue the outbreak's end; end_outbreak_now applies it at once.");
         if !self.risks.has_outbreak() {
             return;
         }
         let deaths = self.risks.end_outbreak(disease);
+        cmds.defer_building_update(self.kind_and_id(), move |context, building| {
+            Self::show_outbreak_over(context, building, deaths);
+        });
+    }
 
-        let on_over = move |context: &SimContext, building: &mut Building| {
-            let base_cell = building.base_cell();
-            context.tile_map_mut().set_tile_flags(base_cell, TileKind::Building, TileFlags::Diseased, false);
-            context.minimap_mut().resolve_alerts(base_cell);
-            let name = building.notice_name().to_lowercase();
-            risks::notify(match deaths {
-                0 => format!("The sickness at the {name} is over."),
-                1 => format!("The sickness at the {name} is over. 1 person died."),
-                _ => format!("The sickness at the {name} is over. {deaths} people died."),
-            });
-        };
-
-        if cmds.is_deferred() {
-            cmds.defer_building_update(self.kind_and_id(), on_over);
-        } else {
-            on_over(context, self);
+    // As end_outbreak, with the tile changed at once.
+    fn end_outbreak_now(&mut self, context: &SimContextMut, disease: f32) {
+        if !self.risks.has_outbreak() {
+            return;
         }
+        let deaths = self.risks.end_outbreak(disease);
+        Self::show_outbreak_over(context, self, deaths);
+    }
+
+    fn show_outbreak_over(context: &SimContextMut, building: &mut Building, deaths: u32) {
+        let base_cell = building.base_cell();
+        context.tile_map_mut().set_tile_flags(base_cell, TileKind::Building, TileFlags::Diseased, false);
+        context.minimap_mut().resolve_alerts(base_cell);
+        let name = building.notice_name().to_lowercase();
+        risks::notify(match deaths {
+            0 => format!("The sickness at the {name} is over."),
+            1 => format!("The sickness at the {name} is over. 1 person died."),
+            _ => format!("The sickness at the {name} is over. {deaths} people died."),
+        });
     }
 
     // A medic's visit cures the house: no more deaths, and no disease risk. Runs with the
     // step's commands, so the tile map takes the change at once.
-    fn cure_outbreak(&mut self, context: &SimContext) {
+    fn cure_outbreak(&mut self, context: &SimContextMut) {
         debug_assert!(self.risks.has_outbreak());
-        let mut cmds = ImmediateModeSimCmds::new(context);
-        self.end_outbreak(&mut cmds, context, 0.0);
+        self.end_outbreak_now(context, 0.0);
     }
 
     // Whether the building can catch fire now: finished, not burning or about to be destroyed,
@@ -882,33 +898,44 @@ impl Building {
             && self.configs().risk_rates().collapse > 0.0
     }
 
-    // Sets the building on fire. With deferred `cmds` (a world step) its tile shows the fire
-    // once the step's commands run; otherwise at once. Returns false if it can't catch fire.
-    pub fn ignite(&mut self, cmds: &mut SimCmds, context: &SimContext) -> bool {
+    // Sets the building on fire, on the world step: its tile shows the fire once the step's
+    // commands run. Returns false if it can't catch fire.
+    pub fn ignite(&mut self, cmds: &mut SimCmds) -> bool {
+        debug_assert!(cmds.is_deferred(), "Queue the fire's tile change; ignite_now applies it at once.");
+        if !self.begin_fire() {
+            return false;
+        }
+        cmds.defer_building_update(self.kind_and_id(), Self::show_fire);
+        true
+    }
+
+    // As ignite, with the tile changed at once (the developer inspector, automation).
+    pub fn ignite_now(&mut self, context: &SimContextMut) -> bool {
+        if !self.begin_fire() {
+            return false;
+        }
+        Self::show_fire(context, self);
+        true
+    }
+
+    fn begin_fire(&mut self) -> bool {
         if !self.can_catch_fire() {
             return false;
         }
-
         self.risks.start_burning(GameConfigs::get().sim.risks.burn_secs);
-
-        let on_fire = |context: &SimContext, building: &mut Building| {
-            let base_cell = building.base_cell();
-            context.tile_map_mut().set_tile_flags(base_cell, TileKind::Building, TileFlags::Burning, true);
-            context.minimap_mut().push_icon(MinimapIcon::Alert, base_cell, FIRE_ALERT_TINT, MINIMAP_ICON_DEFAULT_LIFETIME);
-            risks::notify(format!("Fire! The {} is burning.", building.notice_name().to_lowercase()));
-        };
-
-        if cmds.is_deferred() {
-            cmds.defer_building_update(self.kind_and_id(), on_fire);
-        } else {
-            on_fire(context, self);
-        }
         true
+    }
+
+    fn show_fire(context: &SimContextMut, building: &mut Building) {
+        let base_cell = building.base_cell();
+        context.tile_map_mut().set_tile_flags(base_cell, TileKind::Building, TileFlags::Burning, true);
+        context.minimap_mut().push_icon(MinimapIcon::Alert, base_cell, FIRE_ALERT_TINT, MINIMAP_ICON_DEFAULT_LIFETIME);
+        risks::notify(format!("Fire! The {} is burning.", building.notice_name().to_lowercase()));
     }
 
     // A fire watcher's visit puts the fire out: the building works again, unharmed, with no
     // fire risk. Runs with the step's commands, so the tile map takes the change at once.
-    fn put_out_fire(&mut self, context: &SimContext) {
+    fn put_out_fire(&mut self, context: &SimContextMut) {
         debug_assert!(self.risks.is_burning());
         self.risks.put_out();
 
@@ -951,6 +978,11 @@ impl Building {
             self.risks.has_outbreak(),
             sim_ctx,
         )
+    }
+
+    #[inline]
+    pub fn new_context_mut<'game>(&self, sim_ctx: &'game SimContextMut) -> BuildingContextMut<'game> {
+        BuildingContextMut { base: self.new_context(sim_ctx), sim_ctx }
     }
 
     #[inline]
@@ -1047,7 +1079,7 @@ impl Building {
         self.archetype().has_min_required_workers()
     }
 
-    pub fn visited_by(&mut self, unit: &mut Unit, context: &SimContext) -> BuildingVisitResult {
+    pub fn visited_by(&mut self, unit: &mut Unit, context: &SimContextMut) -> BuildingVisitResult {
         debug_assert!(self.is_spawned());
         if self.is_under_construction() || self.risks.is_doomed() {
             return BuildingVisitResult::Refused;
@@ -1075,7 +1107,7 @@ impl Building {
             self.risks.reset(kind);
             return BuildingVisitResult::Accepted;
         }
-        let context = self.new_context(context);
+        let context = self.new_context_mut(context);
         self.archetype_mut().visited_by(unit, &context)
     }
 
@@ -1097,8 +1129,8 @@ impl Building {
         false
     }
 
-    pub fn set_random_variation(&self, context: &SimContext) {
-        let context = self.new_context(context);
+    pub fn set_random_variation(&self, context: &SimContextMut) {
+        let context = self.new_context_mut(context);
         context.set_random_building_variation();
     }
 
@@ -1110,7 +1142,7 @@ impl Building {
     }
 
     #[inline]
-    fn find_tile_mut<'game>(&self, context: &'game SimContext) -> &'game mut Tile {
+    fn find_tile_mut<'game>(&self, context: &'game SimContextMut) -> &'game mut Tile {
         context
             .find_tile_mut(self.base_cell(), TileKind::Building)
             .expect("Building should have an associated Tile in the TileMap!")
@@ -1283,7 +1315,7 @@ impl Building {
         workers_removed
     }
 
-    pub(crate) fn remove_all_workers(&mut self, context: &SimContext) {
+    pub(crate) fn remove_all_workers(&mut self, context: &SimContextMut) {
         if let Some(workers) = self.archetype().workers() {
             if let Some(employer) = workers.as_employer() {
                 employer.for_each_employee_household(context.world_mut(), |household, employee_count| {
@@ -1329,7 +1361,7 @@ impl Building {
         }
     }
 
-    fn find_house_with_available_workers_mut<'game>(&self, context: &'game SimContext) -> Option<&'game mut Building> {
+    fn find_house_with_available_workers_mut<'game>(&self, context: &'game SimContextMut) -> Option<&'game mut Building> {
         let workers_search_radius = GameConfigs::get().sim.workers_search_radius;
         debug_assert!(workers_search_radius > 0);
 
@@ -1381,7 +1413,7 @@ impl Building {
         false
     }
 
-    pub fn set_show_road_link_debug(&self, context: &SimContext, show: bool) {
+    pub fn set_show_road_link_debug(&self, context: &SimContextMut, show: bool) {
         if let Some(road_link) = self.road_link() {
             context.tile_map_mut().set_tile_flags(road_link, TileKind::Terrain, TileFlags::DrawDebugBounds, show);
         }
@@ -1394,34 +1426,45 @@ impl Building {
         None
     }
 
-    fn update_road_link(&mut self, opt_cmds: Option<&mut SimCmds>, context: &SimContext) {
+    // Refreshes the cached road link cell on the world step: the road link tiles' flags change
+    // once the step's commands run.
+    fn update_road_link(&mut self, cmds: &mut SimCmds, context: &SimContext) {
+        if let Some((new_road_link, prev_road_link)) = self.refresh_road_link(context) {
+            cmds.defer_building_update(self.kind_and_id(), move |context, _| {
+                Self::set_road_link_tile_flags(context.tile_map_mut(), new_road_link, prev_road_link);
+            });
+        }
+    }
+
+    // As update_road_link, with the flags changed at once (spawning runs inside a command).
+    fn update_road_link_now(&mut self, context: &SimContextMut) {
+        if let Some((new_road_link, prev_road_link)) = self.refresh_road_link(context) {
+            Self::set_road_link_tile_flags(context.tile_map_mut(), new_road_link, prev_road_link);
+        }
+    }
+
+    // Looks the road link up again. Returns the new and the previous one if connected to a road.
+    fn refresh_road_link(&mut self, context: &SimContext) -> Option<(Cell, Cell)> {
         if let Some(new_road_link) = context.find_nearest_road_link(self.cell_range()) {
             debug_assert!(new_road_link.is_valid());
             let prev_road_link = self.road_link;
-
-            let set_tile_road_link_flag = move |context: &SimContext, _: &mut Building| {
-                let tile_map = context.tile_map_mut();
-
-                if new_road_link != prev_road_link && prev_road_link.is_valid() {
-                    // Clear previous underlying tile flag:
-                    tile_map.set_tile_flags(prev_road_link, TileKind::Terrain, TileFlags::BuildingRoadLink, false);
-                }
-
-                // Set new underlying tile flag:
-                tile_map.set_tile_flags(new_road_link, TileKind::Terrain, TileFlags::BuildingRoadLink, true);
-            };
-
-            if let Some(cmds) = opt_cmds {
-                cmds.defer_building_update(self.kind_and_id(), set_tile_road_link_flag);
-            } else {
-                set_tile_road_link_flag(context, self);
-            }
-
             self.road_link = new_road_link;
+            Some((new_road_link, prev_road_link))
         } else {
             // Building not connected to a road.
             self.road_link = Cell::invalid();
+            None
         }
+    }
+
+    fn set_road_link_tile_flags(tile_map: &mut TileMap, new_road_link: Cell, prev_road_link: Cell) {
+        if new_road_link != prev_road_link && prev_road_link.is_valid() {
+            // Clear previous underlying tile flag:
+            tile_map.set_tile_flags(prev_road_link, TileKind::Terrain, TileFlags::BuildingRoadLink, false);
+        }
+
+        // Set new underlying tile flag:
+        tile_map.set_tile_flags(new_road_link, TileKind::Terrain, TileFlags::BuildingRoadLink, true);
     }
 
     fn clear_road_link(&mut self, tile_map: &mut TileMap) {
@@ -1499,11 +1542,11 @@ pub(crate) trait BuildingBehavior {
     fn name(&self) -> &'static str;
     fn configs(&self) -> &dyn BuildingConfig;
 
-    fn spawned(&mut self, _context: &BuildingContext) {}
-    fn despawned(&mut self, _context: &BuildingContext);
+    fn spawned(&mut self, _context: &BuildingContextMut) {}
+    fn despawned(&mut self, _context: &BuildingContextMut);
 
     fn update(&mut self, cmds: &mut SimCmds, context: &BuildingContext);
-    fn visited_by(&mut self, _unit: &mut Unit, _context: &BuildingContext) -> BuildingVisitResult {
+    fn visited_by(&mut self, _unit: &mut Unit, _context: &BuildingContextMut) -> BuildingVisitResult {
         BuildingVisitResult::Refused
     }
 
@@ -1612,7 +1655,7 @@ pub(crate) trait BuildingBehavior {
     // ----------------------
 
     fn debug_options(&mut self) -> &mut dyn GameObjectDebugOptions;
-    fn draw_debug_ui(&mut self, cmds: &mut SimCmds, context: &BuildingContext, ui_sys: &UiSystem);
+    fn draw_debug_ui(&mut self, cmds: &mut SimCmds, context: &BuildingContextMut, ui_sys: &UiSystem);
 }
 
 // ----------------------------------------------
@@ -1647,8 +1690,13 @@ impl BuildingTileInfo {
 }
 
 // ----------------------------------------------
-// BuildingContext
+// BuildingContext / BuildingContextMut
 // ----------------------------------------------
+
+// What a building archetype sees of itself and the game. BuildingContext is read-only (the
+// archetype's update, on the world step); BuildingContextMut adds the mutable SimContext, for
+// spawning, despawning, visits and the debug UI. It derefs to BuildingContext, whose read-only
+// `sim_ctx` its own `sim_ctx` shadows.
 
 pub struct BuildingContext<'game> {
     map_cells: Mutable<CellRange>, // Can be updated during a house upgrade if the building tile changes.
@@ -1659,7 +1707,36 @@ pub struct BuildingContext<'game> {
     // The house is sick (building::risks): it takes in no one, grows no population and doesn't
     // renovate or upgrade.
     pub has_outbreak: bool,
-    pub sim_ctx: &'game SimContext,
+    pub sim_ctx: &'game SimContext<'game>,
+}
+
+pub struct BuildingContextMut<'game> {
+    base: BuildingContext<'game>,
+    pub sim_ctx: &'game SimContextMut<'game>,
+}
+
+impl<'game> std::ops::Deref for BuildingContextMut<'game> {
+    type Target = BuildingContext<'game>;
+
+    #[inline(always)]
+    fn deref(&self) -> &Self::Target {
+        &self.base
+    }
+}
+
+impl BuildingContextMut<'_> {
+    #[inline]
+    pub fn find_tile_mut(&self) -> &mut Tile {
+        self.sim_ctx
+            .find_tile_mut(self.base_cell(), TileKind::Building)
+            .expect("Building should have an associated Tile in the TileMap!")
+    }
+
+    #[inline]
+    pub fn set_random_building_variation(&self) {
+        let tile = self.find_tile_mut();
+        tile.set_random_variation_index(self.sim_ctx.rng_mut());
+    }
 }
 
 impl<'game> BuildingContext<'game> {
@@ -1671,7 +1748,7 @@ impl<'game> BuildingContext<'game> {
         archetype_kind: BuildingArchetypeKind,
         road_link: Option<Cell>,
         has_outbreak: bool,
-        sim_ctx: &'game SimContext,
+        sim_ctx: &'game SimContext<'game>,
     ) -> Self {
         Self {
             map_cells: Mutable::new(map_cells),
@@ -1740,13 +1817,6 @@ impl<'game> BuildingContext<'game> {
     }
 
     #[inline]
-    pub fn find_tile_mut(&self) -> &mut Tile {
-        self.sim_ctx
-            .find_tile_mut(self.base_cell(), TileKind::Building)
-            .expect("Building should have an associated Tile in the TileMap!")
-    }
-
-    #[inline]
     pub fn has_access_to_service(&self, service_kind: ServiceKind) -> bool {
         debug_assert!(service_kind.is_single_building());
         debug_assert!(service_kind.archetype_kind() == BuildingArchetypeKind::ServiceBuilding);
@@ -1762,12 +1832,6 @@ impl<'game> BuildingContext<'game> {
         }
 
         false
-    }
-
-    #[inline]
-    pub fn set_random_building_variation(&self) {
-        let tile = self.find_tile_mut();
-        tile.set_random_variation_index(self.sim_ctx.rng_mut());
     }
 
     // Road link if valid, any unobstructed surrounding cell otherwise.

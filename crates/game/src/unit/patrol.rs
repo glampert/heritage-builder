@@ -29,14 +29,14 @@ use crate::{
     save_context::PostLoadContext,
     world::object::GameObject,
     building::{Building, BuildingContext, BuildingKind},
-    sim::{RandomGenerator, SimContext, commands::{SimCmds, SpawnPromise}},
+    sim::{RandomGenerator, SimContextMut, commands::{SimCmds, SpawnPromise}},
 };
 
 // ----------------------------------------------
 // PatrolInternalState
 // ----------------------------------------------
 
-pub type PatrolCompletionCallback = fn(&SimContext, &mut Building, &mut Unit);
+pub type PatrolCompletionCallback = fn(&SimContextMut, &mut Building, &mut Unit);
 
 #[derive(Clone, DrawDebugUi, Serialize, Deserialize)]
 pub(crate) struct PatrolInternalState {
@@ -158,7 +158,7 @@ impl Patrol {
         }
     }
 
-    fn on_randomized_patrol_completed(context: &SimContext, origin_building: &mut Building, patrol_unit: &mut Unit) {
+    fn on_randomized_patrol_completed(context: &SimContextMut, origin_building: &mut Building, patrol_unit: &mut Unit) {
         let patrol_task = patrol_unit
             .current_task_as::<UnitTaskRandomizedPatrol>(context.task_manager())
             .expect("Expected Patrol Unit to be running a UnitTaskRandomizedPatrol!");
@@ -322,7 +322,7 @@ impl TimedAmbientPatrol {
         );
     }
 
-    fn on_timed_patrol_completed(context: &SimContext, this_building: &mut Building, patrol_unit: &mut Unit) {
+    fn on_timed_patrol_completed(context: &SimContextMut, this_building: &mut Building, patrol_unit: &mut Unit) {
         let patrol = this_building.active_patrol().expect("Expected building to have an active TimedAmbientPatrol!");
 
         debug_assert!(patrol.unit_id() == patrol_unit.id());

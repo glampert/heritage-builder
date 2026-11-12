@@ -12,6 +12,7 @@ use super::{
     BuildingVisitResult,
     BuildingBehavior,
     BuildingContext,
+    BuildingContextMut,
     BuildingKind,
     config::{BuildingConfig, BuildingConfigs, building_config},
 };
@@ -138,7 +139,7 @@ impl BuildingBehavior for StorageBuilding {
         self.config.unwrap()
     }
 
-    fn despawned(&mut self, _context: &BuildingContext) {
+    fn despawned(&mut self, _context: &BuildingContextMut) {
         // Nothing for now.
     }
 
@@ -147,7 +148,7 @@ impl BuildingBehavior for StorageBuilding {
         // Nothing for now.
     }
 
-    fn visited_by(&mut self, unit: &mut Unit, context: &BuildingContext) -> BuildingVisitResult {
+    fn visited_by(&mut self, unit: &mut Unit, context: &BuildingContextMut) -> BuildingVisitResult {
         if !self.has_min_required_workers() {
             return BuildingVisitResult::Refused;
         }
@@ -339,7 +340,7 @@ impl BuildingBehavior for StorageBuilding {
         &mut self.debug
     }
 
-    fn draw_debug_ui(&mut self, cmds: &mut SimCmds, context: &BuildingContext, ui_sys: &UiSystem) {
+    fn draw_debug_ui(&mut self, cmds: &mut SimCmds, context: &BuildingContextMut, ui_sys: &UiSystem) {
         // Debug-UI drawing lives in `crate::debug::building`.
         self.draw_debug_ui_dispatch(cmds, context, ui_sys);
     }

@@ -18,7 +18,7 @@ use super::{
     sim::{
         SimCmds,
         SimCmdQueue,
-        SimContext,
+        SimContext, SimContextMut,
         commands::{SpawnPromise, SpawnQueryResult, SpawnReadyResult},
         resources::{ResourceKind, StockItem},
     },
@@ -137,7 +137,7 @@ impl GameObject for Unit {
         self.config = Some(UnitConfigs::get().find_config_by_key(self.config_key));
     }
 
-    fn draw_debug_ui(&mut self, cmds: &mut SimCmds, context: &SimContext, ui_sys: &UiSystem, mode: DebugUiMode) {
+    fn draw_debug_ui(&mut self, cmds: &mut SimCmds, context: &SimContextMut, ui_sys: &UiSystem, mode: DebugUiMode) {
         // Debug-UI drawing lives in `crate::debug::unit`.
         self.draw_debug_ui_dispatch(cmds, context, ui_sys, mode);
     }
@@ -179,7 +179,7 @@ impl Unit {
         self.debug.set_show_popups(crate::debug::show_popup_messages());
     }
 
-    pub fn despawned(&mut self, context: &SimContext) {
+    pub fn despawned(&mut self, context: &SimContextMut) {
         debug_assert!(self.is_spawned());
 
         self.id = UnitId::default();
@@ -279,18 +279,18 @@ impl Unit {
         false
     }
 
-    pub fn set_animation(&mut self, context: &SimContext, new_anim_set_key: UnitAnimSetKey) {
+    pub fn set_animation(&mut self, context: &SimContextMut, new_anim_set_key: UnitAnimSetKey) {
         let tile = self.find_tile_mut(context);
         self.anim_sets.set_anim(tile, new_anim_set_key);
     }
 
-    pub fn set_depth_sort_override(&mut self, context: &SimContext, depth_sort_override: TileDepthSortOverride) {
+    pub fn set_depth_sort_override(&mut self, context: &SimContextMut, depth_sort_override: TileDepthSortOverride) {
         let tile = self.find_tile_mut(context);
         tile.set_depth_sort_override(depth_sort_override);
     }
 
     #[inline]
-    pub fn patrol_task_origin_building<'game>(&self, context: &'game SimContext) -> Option<&'game mut Building> {
+    pub fn patrol_task_origin_building<'game>(&self, context: &'game SimContextMut) -> Option<&'game mut Building> {
         debug_assert!(self.is_spawned());
         if let Some(task) = self.current_task_as::<UnitTaskRandomizedPatrol>(context.task_manager()) {
             return context.find_building_mut(task.origin_building.kind, task.origin_building.id);
@@ -398,7 +398,7 @@ impl Unit {
         self.navigation.goal().is_some_and(|goal| self.cell() == goal.destination_cell())
     }
 
-    pub fn update_navigation(&mut self, context: &SimContext) {
+    pub fn update_navigation(&mut self, context: &SimContextMut) {
         debug_assert!(self.is_spawned());
 
         // Path following and movement:
@@ -522,7 +522,7 @@ impl Unit {
     where
         Task: UnitTask,
         UnitTaskArchetype: From<Task>,
-        F: Fn(&SimContext, Result<&mut Unit, TilePlacementErr>) + 'static,
+        F: Fn(&SimContextMut, Result<&mut Unit, TilePlacementErr>) + 'static,
     {
         debug_assert!(unit_origin.is_valid());
         let task_id = context.task_manager_mut().new_task(task);
@@ -558,7 +558,7 @@ impl Unit {
     where
         Task: UnitTask,
         UnitTaskArchetype: From<Task>,
-        F: Fn(&SimContext, Result<&mut Unit, TilePlacementErr>) + 'static,
+        F: Fn(&SimContextMut, Result<&mut Unit, TilePlacementErr>) + 'static,
     {
         debug_assert!(unit_origin.is_valid());
         let task_id = context.task_manager_mut().new_task(task);
@@ -643,13 +643,13 @@ impl Unit {
     }
 
     #[inline]
-    fn find_tile_mut<'game>(&self, context: &'game SimContext) -> &'game mut Tile {
+    fn find_tile_mut<'game>(&self, context: &'game SimContextMut) -> &'game mut Tile {
         let tile = context.tile_at_index_mut(self.tile_index, TileMapLayerKind::Objects);
         debug_assert!(tile.is(TileKind::Unit));
         tile
     }
 
-    pub(crate) fn idle(&mut self, context: &SimContext) {
+    pub(crate) fn idle(&mut self, context: &SimContextMut) {
         if self.direction != UnitDirection::Idle {
             let idle_anim_set_key = navigation::idle_anim_set_for_direction(self.direction);
 
@@ -728,7 +728,7 @@ pub trait UnitTaskHelper: Sized {
     }
 
     #[inline]
-    fn try_unit_mut<'game>(&mut self, context: &'game SimContext) -> Option<&'game mut Unit> {
+    fn try_unit_mut<'game>(&mut self, context: &'game SimContextMut) -> Option<&'game mut Unit> {
         context.find_unit_mut(self.unit_id())
     }
 
@@ -738,7 +738,7 @@ pub trait UnitTaskHelper: Sized {
     }
 
     #[inline]
-    fn unit_mut<'game>(&mut self, context: &'game SimContext) -> &'game mut Unit {
+    fn unit_mut<'game>(&mut self, context: &'game SimContextMut) -> &'game mut Unit {
         self.try_unit_mut(context).unwrap()
     }
 

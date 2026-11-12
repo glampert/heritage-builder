@@ -23,7 +23,7 @@ use crate::{
     tile::{Tile, TileFlags, TileKind, TileMapLayerKind},
     unit::{Unit, navigation::UnitNavGoal},
     building::{BuildingKind, BuildingTileInfo, BuildingVisitResult},
-    sim::{SimCmdQueue, SimContext},
+    sim::{SimCmdQueue, SimContext, SimContextMut},
     world::object::GameObject,
 };
 
@@ -327,7 +327,7 @@ impl UnitTask for UnitTaskSettler {
         self.completion_callback.post_load();
     }
 
-    fn draw_debug_ui(&mut self, unit: &mut Unit, _sim_context: &SimContext, ui_sys: &UiSystem) {
+    fn draw_debug_ui(&mut self, unit: &mut Unit, _sim_context: &SimContextMut, ui_sys: &UiSystem) {
         #[derive(DrawDebugUi)]
         struct View {
             population_to_add: u32,

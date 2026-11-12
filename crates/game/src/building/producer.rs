@@ -18,6 +18,7 @@ use super::{
     BuildingVisitResult,
     BuildingBehavior,
     BuildingContext,
+    BuildingContextMut,
     BuildingKind,
     config::{BuildingConfig, BuildingConfigs, building_config},
 };
@@ -30,7 +31,7 @@ use crate::{
     debug::game_object_debug::{GameObjectDebugOptions, debug_popup_msg, debug_popup_msg_color, game_object_debug_options},
     sim::{
         SimCmds,
-        SimContext,
+        SimContext, SimContextMut,
         RandomGenerator,
         resources::{RESOURCE_KIND_COUNT, ResourceKind, ResourceKinds, ShoppingList, StockItem, Workers},
     },
@@ -213,7 +214,7 @@ impl BuildingBehavior for ProducerBuilding {
         self.config.unwrap()
     }
 
-    fn despawned(&mut self, context: &BuildingContext) {
+    fn despawned(&mut self, context: &BuildingContextMut) {
         self.runner.discard_spawn_promise(context.sim_ctx.cmds_mut());
         self.harvester.discard_spawn_promise(context.sim_ctx.cmds_mut());
         self.ambient_patrol.discard_spawn_promise(context.sim_ctx.cmds_mut());
@@ -263,7 +264,7 @@ impl BuildingBehavior for ProducerBuilding {
         }
     }
 
-    fn visited_by(&mut self, unit: &mut Unit, context: &BuildingContext) -> BuildingVisitResult {
+    fn visited_by(&mut self, unit: &mut Unit, context: &BuildingContextMut) -> BuildingVisitResult {
         // We can only accept resource deliveries here.
         debug_assert!(unit.is_running_task::<UnitTaskDeliverToStorage>(context.sim_ctx.task_manager()));
 
@@ -471,7 +472,7 @@ impl BuildingBehavior for ProducerBuilding {
         &mut self.debug
     }
 
-    fn draw_debug_ui(&mut self, cmds: &mut SimCmds, context: &BuildingContext, ui_sys: &UiSystem) {
+    fn draw_debug_ui(&mut self, cmds: &mut SimCmds, context: &BuildingContextMut, ui_sys: &UiSystem) {
         // Debug-UI drawing lives in `crate::debug::building`.
         self.draw_debug_ui_dispatch(cmds, context, ui_sys);
     }
@@ -654,7 +655,7 @@ impl ProducerBuilding {
         );
     }
 
-    fn on_resources_delivered(context: &SimContext, this_building: &mut Building, runner_unit: &mut Unit) {
+    fn on_resources_delivered(context: &SimContextMut, this_building: &mut Building, runner_unit: &mut Unit) {
         let this_producer = this_building.as_producer_mut();
 
         debug_assert!(runner_unit.inventory_is_empty(), "Runner Unit should have delivered all resourced by now!");
@@ -665,7 +666,7 @@ impl ProducerBuilding {
         debug_popup_msg_color!(this_producer.debug, Color::cyan(), "Delivery Task complete");
     }
 
-    fn on_resources_fetched(context: &SimContext, this_building: &mut Building, runner_unit: &mut Unit) {
+    fn on_resources_fetched(context: &SimContextMut, this_building: &mut Building, runner_unit: &mut Unit) {
         let this_producer = this_building.as_producer_mut();
 
         debug_assert!(this_producer.is_runner_fetching_resources(context), "No Runner was sent out by this building!");
@@ -688,7 +689,7 @@ impl ProducerBuilding {
         debug_popup_msg_color!(this_producer.debug, Color::cyan(), "Fetch Task complete");
     }
 
-    fn on_resources_harvested(context: &SimContext, this_building: &mut Building, harvester_unit: &mut Unit) {
+    fn on_resources_harvested(context: &SimContextMut, this_building: &mut Building, harvester_unit: &mut Unit) {
         let this_producer = this_building.as_producer_mut();
 
         debug_assert!(this_producer.is_harvester_fetching_resources(context), "No Harvester was sent out by this building!");

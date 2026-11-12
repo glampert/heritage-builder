@@ -24,14 +24,14 @@ use crate::{
     pathfind::SearchResult,
     unit::{Unit, navigation::UnitNavGoal},
     building::{Building, BuildingKind, BuildingKindAndId, BuildingTileInfo},
-    sim::{SimContext, resources::ShoppingList},
+    sim::{SimContextMut, resources::ShoppingList},
 };
 
 // ----------------------------------------------
 // UnitTaskFetchFromStorage
 // ----------------------------------------------
 
-pub type UnitTaskFetchCompletionCallback = fn(&SimContext, &mut Building, &mut Unit);
+pub type UnitTaskFetchCompletionCallback = fn(&SimContextMut, &mut Building, &mut Unit);
 
 #[derive(Copy, Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
 pub enum UnitTaskFetchState {
@@ -404,7 +404,7 @@ impl UnitTask for UnitTaskFetchFromStorage {
         self.completion_callback.post_load();
     }
 
-    fn draw_debug_ui(&mut self, _unit: &mut Unit, _sim_context: &SimContext, ui_sys: &UiSystem) {
+    fn draw_debug_ui(&mut self, _unit: &mut Unit, _sim_context: &SimContextMut, ui_sys: &UiSystem) {
         #[derive(DrawDebugUi)]
         struct View<'a> {
             origin_building: UnitTaskOriginBuildingDebug,

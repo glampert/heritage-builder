@@ -22,7 +22,7 @@ use game::{
     config::GameConfigs,
     debug::{game_object_debug::GameObjectDebugVarRef, preset_maps},
     menu::{PlaceOrClearResult, TilePlacement},
-    sim::{SimCmdQueue, SimContext, commands::ImmediateModeSimCmds, resources::ResourceKind, risks::CityRisks},
+    sim::{SimCmdQueue, SimContextMut, resources::ResourceKind, risks::CityRisks},
     tile::{TileFlags, TileKind, TileMapLayerKind, rubble},
     config::RiskConfigs,
     undo_redo,
@@ -386,7 +386,7 @@ fn test_mission_risks_block() {
 // Visits
 // ----------------------------------------------
 
-fn patrol_test_callback(_context: &SimContext, _building: &mut Building, _unit: &mut Unit) {}
+fn patrol_test_callback(_context: &SimContextMut, _building: &mut Building, _unit: &mut Unit) {}
 
 fn register_patrol_test_callback() -> Callback<UnitTaskPatrolCompletionCallback> {
     common::callback::register!(patrol_test_callback)
@@ -1201,8 +1201,7 @@ fn is_sick(env: &TestEnvironment, house: BuildingKindAndId) -> bool {
 fn infect(env: &mut TestEnvironment, house: BuildingKindAndId) {
     let context = env.new_sim_context(0.0);
     let building = context.find_building_mut(house.kind, house.id).unwrap();
-    let mut cmds = ImmediateModeSimCmds::new(&context);
-    assert!(building.start_outbreak(&mut cmds, &context), "the house should fall sick");
+    assert!(building.start_outbreak_now(&context), "the house should fall sick");
 }
 
 // A house's disease risk builds up at its level's rate times its jitter and how full it is,

@@ -20,6 +20,7 @@ use crate::{
         BuildingArchetypeKind,
         BuildingBehavior,
         BuildingContext,
+        BuildingContextMut,
         BuildingId,
         BuildingKind,
         BuildingKindAndId,
@@ -35,7 +36,7 @@ use crate::{
     },
     pathfind,
     debug::DebugUiMode,
-    sim::{SimCmds, SimContext, resources::ResourceKind},
+    sim::{SimCmds, SimContextMut, resources::ResourceKind},
     tile::{TileFlags, TileKind},
     unit::UnitTaskHelper,
     world::object::GameObject,
@@ -51,7 +52,7 @@ impl Building {
     pub(crate) fn draw_debug_ui_dispatch(
         &mut self,
         cmds: &mut SimCmds,
-        context: &SimContext,
+        context: &SimContextMut,
         ui_sys: &UiSystem,
         mode: DebugUiMode,
     ) {
@@ -64,7 +65,7 @@ impl Building {
             DebugUiMode::Detailed => {
                 if let Some(_path) = ui::collapsing_header_scope(ui_sys, "Building", false) {
                     ui::indent(ui_sys, 10.0, |ui_sys| {
-                        self.draw_debug_ui_detailed(cmds, &self.new_context(context), ui_sys);
+                        self.draw_debug_ui_detailed(cmds, &self.new_context_mut(context), ui_sys);
                     });
                 }
             }
@@ -159,7 +160,7 @@ impl Building {
         }
     }
 
-    fn draw_debug_ui_detailed(&mut self, cmds: &mut SimCmds, context: &BuildingContext, ui_sys: &UiSystem) {
+    fn draw_debug_ui_detailed(&mut self, cmds: &mut SimCmds, context: &BuildingContextMut, ui_sys: &UiSystem) {
         // NOTE: Use the special ##id here so we don't collide with Tile/Properties.
         if let Some(_path) =
             ui::collapsing_header_scope(ui_sys, "Properties##_building_properties", false)
@@ -298,7 +299,7 @@ impl Building {
         }
 
         if let Some(_path) = ui::collapsing_header_scope(ui_sys, "Risks", false) {
-            self.draw_debug_ui_risks(cmds, context, ui_sys);
+            self.draw_debug_ui_risks(context, ui_sys);
         }
 
         self.archetype_mut().debug_options().draw_debug_ui(ui_sys);
@@ -309,7 +310,7 @@ impl Building {
 impl Building {
     // Fire, collapse and disease risk (building::risks): the raw values, and buttons to set the
     // building on fire, collapse it or make it sick, shown when it can.
-    fn draw_debug_ui_risks(&mut self, cmds: &mut SimCmds, context: &BuildingContext, ui_sys: &UiSystem) {
+    fn draw_debug_ui_risks(&mut self, context: &BuildingContextMut, ui_sys: &UiSystem) {
         let rates = self.risk_rates();
         let has_disease = self.configs().risk_rates().disease > 0.0;
         let fullness = self.fullness();
@@ -349,7 +350,7 @@ impl Building {
 
         if self.can_catch_fire() {
             if ui::button(ui_sys, "Set On Fire") {
-                self.ignite(cmds, context.sim_ctx);
+                self.ignite_now(context.sim_ctx);
             }
         } else {
             ui::text(ui_sys, format_small!("Can't catch fire: {}.", self.risk_blocker(self.configs().risk_rates().fire)));
@@ -367,7 +368,7 @@ impl Building {
         if has_disease {
             if self.can_fall_sick() {
                 if ui::button(ui_sys, "Start Outbreak") {
-                    self.start_outbreak(cmds, context.sim_ctx);
+                    self.start_outbreak_now(context.sim_ctx);
                 }
             } else {
                 let reason = if self.has_outbreak() {
@@ -789,14 +790,14 @@ impl ServiceBuilding {
 // ----------------------------------------------
 
 impl HouseBuilding {
-    pub(crate) fn draw_debug_ui_dispatch(&mut self, cmds: &mut SimCmds, context: &BuildingContext, ui_sys: &UiSystem) {
+    pub(crate) fn draw_debug_ui_dispatch(&mut self, cmds: &mut SimCmds, context: &BuildingContextMut, ui_sys: &UiSystem) {
         draw_house_merge_debug_ui(context, ui_sys);
         self.draw_debug_ui_timers(cmds, context, ui_sys);
         self.draw_debug_ui_stock(context, ui_sys);
         self.draw_debug_ui_upgrade_state(cmds, context, ui_sys);
     }
 
-    fn draw_debug_ui_upgrade_state(&mut self, cmds: &mut SimCmds, context: &BuildingContext, ui_sys: &UiSystem) {
+    fn draw_debug_ui_upgrade_state(&mut self, cmds: &mut SimCmds, context: &BuildingContextMut, ui_sys: &UiSystem) {
         let Some(_path) = ui::collapsing_header_scope(ui_sys, "Upgrade", false) else {
             return; // collapsed.
         };
@@ -968,7 +969,7 @@ impl HouseBuilding {
 // House merge Debug UI
 // ----------------------------------------------
 
-fn draw_house_merge_debug_ui(context: &BuildingContext, ui_sys: &UiSystem) {
+fn draw_house_merge_debug_ui(context: &BuildingContextMut, ui_sys: &UiSystem) {
     let Some(_path) = ui::collapsing_header_scope(ui_sys, "Merge Debug", false) else {
         return; // collapsed.
     };

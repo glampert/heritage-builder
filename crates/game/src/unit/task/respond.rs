@@ -19,7 +19,7 @@ use super::{
 use crate::{
     building::{Building, BuildingKindAndId, BuildingTileInfo, config::BuildingConfigs, risks::RiskKind},
     pathfind::{Node, NodeKind as PathNodeKind, Path, SearchResult},
-    sim::{SimCmdQueue, SimContext},
+    sim::{SimCmdQueue, SimContext, SimContextMut},
     unit::{Unit, navigation::UnitNavGoal},
     world::object::GameObject,
 };
@@ -85,7 +85,7 @@ impl Emergency {
 // stands, until none is left; then he goes home. Building::visited_by knows him by this task
 // (building::risks::risk_reset_by).
 
-pub type UnitTaskRespondCompletionCallback = fn(&SimContext, &mut Building, &mut Unit);
+pub type UnitTaskRespondCompletionCallback = fn(&SimContextMut, &mut Building, &mut Unit);
 
 // The ground a responder crosses on a call: any land, on the road or off it, but not water, and
 // not through buildings, rubble, rocks or trees.
@@ -415,7 +415,7 @@ impl UnitTask for UnitTaskRespond {
         self.completion_callback.post_load();
     }
 
-    fn draw_debug_ui(&mut self, _unit: &mut Unit, sim_context: &SimContext, ui_sys: &UiSystem) {
+    fn draw_debug_ui(&mut self, _unit: &mut Unit, sim_context: &SimContextMut, ui_sys: &UiSystem) {
         #[derive(DrawDebugUi)]
         struct View {
             #[debug_ui(debug)]

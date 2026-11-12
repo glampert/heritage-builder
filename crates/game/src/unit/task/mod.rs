@@ -9,7 +9,7 @@ use engine::ui::UiSystem;
 use crate::{
     debug,
     building::{BuildingKind, BuildingKindAndId, BuildingTileInfo},
-    sim::SimContext,
+    sim::SimContextMut,
     tile::TileMapLayerKind,
     unit::Unit,
 };
@@ -124,7 +124,7 @@ impl UnitTaskArchetype {
     }
 
     #[inline]
-    pub fn draw_debug_ui(&mut self, unit: &mut Unit, context: &SimContext, ui: &UiSystem) {
+    pub fn draw_debug_ui(&mut self, unit: &mut Unit, context: &SimContextMut, ui: &UiSystem) {
         archetype_dispatch!(self, task => UnitTaskFsm::draw_debug_ui(task, unit, context, ui))
     }
 

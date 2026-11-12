@@ -1,5 +1,7 @@
 #![allow(clippy::too_many_arguments)]
 
+use std::{marker::PhantomData, ops::Deref};
+
 use smallvec::SmallVec;
 use rand::{
     Rng,
@@ -49,17 +51,29 @@ use crate::{
 };
 
 // ----------------------------------------------
-// SimContext
+// SimContext / SimContextMut
 // ----------------------------------------------
 
-pub struct SimContext {
-    // SAFETY: SimContext is a local variable in the Simulation::update() stack,
-    // so none of the pointers stored here will persist or leak outside the
-    // update call stack. Storing raw pointers here makes things easier
-    // since SimContext is only a container of references to external objects,
-    // so we don't want any of these lifetimes to be associated with the
-    // SimContext's lifetime. This also allows us to pass immutable SimContext refs.
-
+// What the simulation's code sees of the game while it runs: the world, the tile map, the
+// finances, the calendar, the risks, the path search, the unit tasks and the RNG.
+//
+// SimContext is read-only: the world step's update (World::update, the game systems' update and
+// calendar events) gets one, so whatever would change the world, the tile map or the
+// simulation's state has to go through SimCmds. SimContextMut adds the mutable API and the
+// command queue; everything else (SimCmds execution, unit navigation, spawning, the player's
+// edits, debug UI) gets one. A SimContextMut derefs to a SimContext, so read-only helpers take
+// `&SimContext` and serve both.
+//
+// Shared resources: the RNG, the path search and the unit task manager are mutated through a
+// read-only context too. Updates roll the RNG and allocate unit tasks, and path queries reuse
+// the search's buffers; none of that is a world or tile map edit.
+//
+// SAFETY: the contexts hold raw pointers, since the world's update iterates its game objects
+// mutably while they read the world through the context (and spawning goes through the world
+// the context points to). The `'game` lifetime ties a context to the borrows it was made from,
+// so it can't outlive them: Simulation::new_sim_context borrows its parts for `'game`, and only
+// the Simulation builds contexts over parts it is using itself (`from_raw`).
+pub struct SimContext<'game> {
     // Random generator:
     rng: RawPtr<RandomGenerator>,
 
@@ -82,52 +96,66 @@ pub struct SimContext {
     // Whether fire and collapse risks build up:
     risks: RawPtr<CityRisks>,
 
-    // Deferred sim command queue:
-    cmds: RawPtr<SimCmds>,
-
     // Update delta time.
     delta_time_secs: Seconds,
 
     // True if the world is being reset/destroyed.
     is_world_teardown: bool,
 
-    // True if the context is in "read-only" mode (mutable methods are not allowed to be called).
-    is_read_only: bool,
+    _borrow: PhantomData<&'game mut ()>,
 }
 
-impl SimContext {
+pub struct SimContextMut<'game> {
+    base: SimContext<'game>,
+
+    // Deferred sim command queue:
+    cmds: RawPtr<SimCmds>,
+}
+
+impl<'game> Deref for SimContextMut<'game> {
+    type Target = SimContext<'game>;
+
+    #[inline(always)]
+    fn deref(&self) -> &Self::Target {
+        &self.base
+    }
+}
+
+// The parts of the simulation a context points to.
+pub(super) struct SimContextParts<'a> {
+    pub rng: &'a mut RandomGenerator,
+    pub search: &'a mut Search,
+    pub task_manager: &'a mut UnitTaskManager,
+    pub world: &'a mut World,
+    pub tile_map: &'a mut TileMap,
+    pub finance: &'a mut Finance,
+    pub calendar: &'a mut GameCalendar,
+    pub risks: &'a mut CityRisks,
+    pub cmds: &'a mut SimCmds,
+}
+
+impl<'game> SimContext<'game> {
     // ----------------------
     // Internal:
     // ----------------------
 
+    // SAFETY: the caller picks `'game` and must keep every part alive and in place for it. The
+    // parts' borrows end on return, so the caller may go on using them (the world's update
+    // does); it must not move or drop them while the context lives.
     #[inline]
-    pub(super) fn new(
-        rng: &mut RandomGenerator,
-        search: &mut Search,
-        task_manager: &mut UnitTaskManager,
-        world: &mut World,
-        tile_map: &mut TileMap,
-        finance: &mut Finance,
-        calendar: &mut GameCalendar,
-        risks: &mut CityRisks,
-        cmds: &mut SimCmds,
-        delta_time_secs: Seconds,
-        is_world_teardown: bool,
-        is_read_only: bool,
-    ) -> Self {
+    pub(super) unsafe fn from_raw(parts: SimContextParts, delta_time_secs: Seconds, is_world_teardown: bool) -> Self {
         Self {
-            rng: RawPtr::from_ref(rng),
-            search: RawPtr::from_ref(search),
-            task_manager: RawPtr::from_ref(task_manager),
-            world: RawPtr::from_ref(world),
-            tile_map: RawPtr::from_ref(tile_map),
-            finance: RawPtr::from_ref(finance),
-            calendar: RawPtr::from_ref(calendar),
-            risks: RawPtr::from_ref(risks),
-            cmds: RawPtr::from_ref(cmds),
+            rng: RawPtr::from_ref(parts.rng),
+            search: RawPtr::from_ref(parts.search),
+            task_manager: RawPtr::from_ref(parts.task_manager),
+            world: RawPtr::from_ref(parts.world),
+            tile_map: RawPtr::from_ref(parts.tile_map),
+            finance: RawPtr::from_ref(parts.finance),
+            calendar: RawPtr::from_ref(parts.calendar),
+            risks: RawPtr::from_ref(parts.risks),
             delta_time_secs,
             is_world_teardown,
-            is_read_only,
+            _borrow: PhantomData,
         }
     }
 
@@ -447,7 +475,7 @@ impl SimContext {
         }
 
         struct BuildingPathFilter<'game, F> {
-            context: &'game SimContext,
+            context: &'game SimContext<'game>,
             building_kinds: BuildingKind,
             traversable_node_kinds: PathNodeKind,
             visitor_fn: F,
@@ -585,7 +613,7 @@ impl SimContext {
     }
 
     // ----------------------
-    // Mutable API:
+    // Unit tasks (shared):
     // ----------------------
 
     #[inline(always)]
@@ -596,57 +624,66 @@ impl SimContext {
         self.task_manager.mut_ref_cast()
     }
 
+}
+
+impl<'game> SimContextMut<'game> {
+    // ----------------------
+    // Internal:
+    // ----------------------
+
+    // SAFETY: as SimContext::from_raw.
+    #[inline]
+    pub(super) unsafe fn from_raw(parts: SimContextParts, delta_time_secs: Seconds, is_world_teardown: bool) -> Self {
+        let cmds = RawPtr::from_ref(&*parts.cmds);
+        Self { base: unsafe { SimContext::from_raw(parts, delta_time_secs, is_world_teardown) }, cmds }
+    }
+
+    // ----------------------
+    // Mutable API:
+    // ----------------------
+
     #[inline(always)]
     pub fn cmds_mut(&self) -> &mut SimCmds {
-        debug_assert!(!self.is_read_only, "Called mutable method on a read-only SimContext!");
         self.cmds.mut_ref_cast()
     }
 
     #[inline(always)]
     pub fn world_mut(&self) -> &mut World {
-        debug_assert!(!self.is_read_only, "Called mutable method on a read-only SimContext!");
         self.world.mut_ref_cast()
     }
 
     #[inline(always)]
     pub fn tile_map_mut(&self) -> &mut TileMap {
-        debug_assert!(!self.is_read_only, "Called mutable method on a read-only SimContext!");
         self.tile_map.mut_ref_cast()
     }
 
     #[inline(always)]
     pub fn finance_mut(&self) -> &mut Finance {
-        debug_assert!(!self.is_read_only, "Called mutable method on a read-only SimContext!");
         self.finance.mut_ref_cast()
     }
 
     #[inline]
     pub fn risks_mut(&self) -> &mut CityRisks {
-        debug_assert!(!self.is_read_only, "Called mutable method on a read-only SimContext!");
         self.risks.mut_ref_cast()
     }
 
     #[inline]
     pub fn find_tile_mut(&self, cell: Cell, tile_kinds: TileKind) -> Option<&mut Tile> {
-        debug_assert!(!self.is_read_only, "Called mutable method on a read-only SimContext!");
         self.tile_map_mut().find_tile_mut(cell, tile_kinds)
     }
 
     #[inline]
     pub fn try_tile_from_layer_mut(&self, cell: Cell, layer_kind: TileMapLayerKind) -> Option<&mut Tile> {
-        debug_assert!(!self.is_read_only, "Called mutable method on a read-only SimContext!");
         self.tile_map_mut().try_tile_from_layer_mut(cell, layer_kind)
     }
 
     #[inline]
     pub fn tile_at_index_mut(&self, index: TilePoolIndex, layer_kind: TileMapLayerKind) -> &mut Tile {
-        debug_assert!(!self.is_read_only, "Called mutable method on a read-only SimContext!");
         self.tile_map_mut().tile_at_index_mut(index, layer_kind)
     }
 
     #[inline]
     pub fn minimap_mut(&self) -> &mut Minimap {
-        debug_assert!(!self.is_read_only, "Called mutable method on a read-only SimContext!");
         self.tile_map_mut().minimap_mut()
     }
 
@@ -656,7 +693,6 @@ impl SimContext {
         target_cell: Cell,
         tile_def_to_place: &'static TileDef,
     ) -> Result<&mut Tile, TilePlacementErr> {
-        debug_assert!(!self.is_read_only, "Called mutable method on a read-only SimContext!");
         self.tile_map_mut().try_place_tile(target_cell, tile_def_to_place)
     }
 
@@ -666,7 +702,6 @@ impl SimContext {
         target_cell: Cell,
         layer_kind: TileMapLayerKind,
     ) -> Result<(), TileClearingErr> {
-        debug_assert!(!self.is_read_only, "Called mutable method on a read-only SimContext!");
         self.tile_map_mut().try_clear_tile_from_layer(target_cell, layer_kind)
     }
 
@@ -675,7 +710,6 @@ impl SimContext {
     where
         F: FnMut(&mut Tile),
     {
-        debug_assert!(!self.is_read_only, "Called mutable method on a read-only SimContext!");
         self.tile_map_mut().visit_next_tiles_mut(tile, visitor_fn);
     }
 
@@ -685,61 +719,51 @@ impl SimContext {
 
     #[inline]
     pub fn find_building_mut(&self, kind: BuildingKind, id: BuildingId) -> Option<&mut Building> {
-        debug_assert!(!self.is_read_only, "Called mutable method on a read-only SimContext!");
         self.world_mut().find_building_mut(kind, id)
     }
 
     #[inline]
     pub fn find_building_for_cell_mut(&self, cell: Cell) -> Option<&mut Building> {
-        debug_assert!(!self.is_read_only, "Called mutable method on a read-only SimContext!");
         self.world_mut().find_building_for_cell_mut(cell, self.tile_map())
     }
 
     #[inline]
     pub fn find_building_for_tile_mut(&self, tile: &Tile) -> Option<&mut Building> {
-        debug_assert!(!self.is_read_only, "Called mutable method on a read-only SimContext!");
         self.world_mut().find_building_for_tile_mut(tile)
     }
 
     #[inline]
     pub fn find_unit_mut(&self, id: UnitId) -> Option<&mut Unit> {
-        debug_assert!(!self.is_read_only, "Called mutable method on a read-only SimContext!");
         self.world_mut().find_unit_mut(id)
     }
 
     #[inline]
     pub fn find_unit_for_cell_mut(&self, cell: Cell) -> Option<&mut Unit> {
-        debug_assert!(!self.is_read_only, "Called mutable method on a read-only SimContext!");
         self.world_mut().find_unit_for_cell_mut(cell, self.tile_map())
     }
 
     #[inline]
     pub fn find_unit_for_tile_mut(&self, tile: &Tile) -> Option<&mut Unit> {
-        debug_assert!(!self.is_read_only, "Called mutable method on a read-only SimContext!");
         self.world_mut().find_unit_for_tile_mut(tile)
     }
 
     #[inline]
     pub fn find_prop_mut(&self, id: PropId) -> Option<&mut Prop> {
-        debug_assert!(!self.is_read_only, "Called mutable method on a read-only SimContext!");
         self.world_mut().find_prop_mut(id)
     }
 
     #[inline]
     pub fn find_prop_for_cell_mut(&self, cell: Cell) -> Option<&mut Prop> {
-        debug_assert!(!self.is_read_only, "Called mutable method on a read-only SimContext!");
         self.world_mut().find_prop_for_cell_mut(cell, self.tile_map())
     }
 
     #[inline]
     pub fn find_prop_for_tile_mut(&self, tile: &Tile) -> Option<&mut Prop> {
-        debug_assert!(!self.is_read_only, "Called mutable method on a read-only SimContext!");
         self.world_mut().find_prop_for_tile_mut(tile)
     }
 
     #[inline]
     pub fn find_game_object_for_tile_mut(&self, tile: &Tile) -> Option<&mut dyn GameObject> {
-        debug_assert!(!self.is_read_only, "Called mutable method on a read-only SimContext!");
         self.world_mut().find_game_object_for_tile_mut(tile)
     }
 
@@ -759,59 +783,8 @@ impl SimContext {
     where
         F: FnMut(&Building, &Path) -> bool,
     {
-        debug_assert!(!self.is_read_only, "Called mutable method on a read-only SimContext!");
-
         // Reuse non mutable find_nearest_buildings().
         self.find_nearest_buildings(start, building_kinds, traversable_node_kinds, max_distance, visitor_fn)
             .map(|(building, path)| (mem::mut_ref_cast(building), path))
     }
 }
-
-// ----------------------------------------------
-// Internal helper macros
-// ----------------------------------------------
-
-macro_rules! make_context {
-    ($self:ident, $delta_time_secs:expr, $tile_map:expr, $world:expr, $is_world_teardown:expr, $is_read_only:expr) => {
-        $crate::sim::context::SimContext::new(
-            &mut $self.rng,
-            &mut $self.search,
-            &mut $self.task_manager,
-            $world,
-            $tile_map,
-            &mut $self.finance,
-            &mut $self.calendar,
-            &mut $self.risks,
-            &mut $self.cmds,
-            $delta_time_secs,
-            $is_world_teardown,
-            $is_read_only,
-        )
-    };
-}
-
-macro_rules! make_update_context_readonly {
-    ($self:ident, $delta_time_secs:expr, $tile_map:expr, $world:expr) => {{
-        const IS_WORLD_TEARDOWN: bool = false;
-        const IS_READ_ONLY: bool = true;
-        $crate::sim::context::make_context!($self, $delta_time_secs, $tile_map, $world, IS_WORLD_TEARDOWN, IS_READ_ONLY)
-    }};
-}
-
-macro_rules! make_update_context_mut {
-    ($self:ident, $delta_time_secs:expr, $tile_map:expr, $world:expr) => {{
-        const IS_WORLD_TEARDOWN: bool = false;
-        const IS_READ_ONLY: bool = false;
-        $crate::sim::context::make_context!($self, $delta_time_secs, $tile_map, $world, IS_WORLD_TEARDOWN, IS_READ_ONLY)
-    }};
-}
-
-macro_rules! make_world_reset_context {
-    ($self:ident, $tile_map:expr, $world:expr) => {{
-        const IS_WORLD_TEARDOWN: bool = true;
-        const IS_READ_ONLY: bool = false;
-        $crate::sim::context::make_context!($self, 0.0, $tile_map, $world, IS_WORLD_TEARDOWN, IS_READ_ONLY)
-    }};
-}
-
-pub(super) use { make_context, make_update_context_readonly, make_update_context_mut, make_world_reset_context };

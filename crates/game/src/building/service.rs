@@ -18,6 +18,7 @@ use super::{
     Building,
     BuildingBehavior,
     BuildingContext,
+    BuildingContextMut,
     BuildingKind,
     BuildingStock,
     config::{BuildingConfig, BuildingConfigs, building_config},
@@ -31,7 +32,7 @@ use crate::{
     debug::game_object_debug::{GameObjectDebugOptions, debug_popup_msg_color, game_object_debug_options},
     sim::{
         SimCmds,
-        SimContext,
+        SimContext, SimContextMut,
         finance::LedgerCategory,
         resources::{RESOURCE_KIND_COUNT, ResourceKind, ResourceKinds, ShoppingList, StockItem, Workers},
     },
@@ -226,7 +227,7 @@ impl BuildingBehavior for ServiceBuilding {
         self.config.unwrap()
     }
 
-    fn despawned(&mut self, context: &BuildingContext) {
+    fn despawned(&mut self, context: &BuildingContextMut) {
         self.runner.discard_spawn_promise(context.sim_ctx.cmds_mut());
         self.patrol.discard_spawn_promise(context.sim_ctx.cmds_mut());
     }
@@ -474,7 +475,7 @@ impl BuildingBehavior for ServiceBuilding {
         &mut self.debug
     }
 
-    fn draw_debug_ui(&mut self, cmds: &mut SimCmds, context: &BuildingContext, ui_sys: &UiSystem) {
+    fn draw_debug_ui(&mut self, cmds: &mut SimCmds, context: &BuildingContextMut, ui_sys: &UiSystem) {
         // Debug-UI drawing lives in `crate::debug::building`.
         self.draw_debug_ui_dispatch(cmds, context, ui_sys);
     }
@@ -563,7 +564,7 @@ impl ServiceBuilding {
         self.runner.is_running_task::<UnitTaskFetchFromStorage>(context)
     }
 
-    fn on_resources_fetched(context: &SimContext, this_building: &mut Building, runner_unit: &mut Unit) {
+    fn on_resources_fetched(context: &SimContextMut, this_building: &mut Building, runner_unit: &mut Unit) {
         let this_service = this_building.as_service_mut();
 
         debug_assert!(this_service.is_runner_fetching_resources(context), "No Runner was sent out by this building!");
@@ -649,7 +650,7 @@ impl ServiceBuilding {
         self.patrol.is_spawned_or_pending_spawn()
     }
 
-    fn on_patrol_completed(context: &SimContext, this_building: &mut Building, patrol_unit: &mut Unit) {
+    fn on_patrol_completed(context: &SimContextMut, this_building: &mut Building, patrol_unit: &mut Unit) {
         let this_building_kind = this_building.kind();
         let this_service = this_building.as_service_mut();
 
@@ -745,7 +746,7 @@ impl ServiceBuilding {
         self.runner.try_spawn_with_task(context.debug_name(), cmds, sim_ctx, road_link, self.config.unwrap().patrol_unit, task);
     }
 
-    fn on_response_done(context: &SimContext, this_building: &mut Building, responder: &mut Unit) {
+    fn on_response_done(context: &SimContextMut, this_building: &mut Building, responder: &mut Unit) {
         let this_service = this_building.as_service_mut();
 
         debug_assert!(this_service.runner.unit_id() == responder.id());

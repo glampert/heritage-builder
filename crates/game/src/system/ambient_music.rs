@@ -10,7 +10,7 @@ use serde::{Deserialize, Serialize};
 use strum::{Display, EnumCount, EnumIter, EnumProperty, IntoEnumIterator};
 
 use super::GameSystem;
-use crate::{GameLoop, config::GameConfigs, save_context::PostLoadContext, sim::{SimCmds, SimContext}};
+use crate::{GameLoop, config::GameConfigs, save_context::PostLoadContext, sim::{SimCmds, SimContext, SimContextMut}};
 
 // ----------------------------------------------
 // MusicTrackKey
@@ -121,7 +121,7 @@ impl GameSystem for AmbientMusicSystem {
         self.update_internal(engine);
     }
 
-    fn paused_update(&mut self, engine: &mut Engine, _context: &SimContext) {
+    fn paused_update(&mut self, engine: &mut Engine, _context: &SimContextMut) {
         // We want to update as normal when paused since the home menu will pause the game simulation.
         self.update_internal(engine);
     }
@@ -137,7 +137,7 @@ impl GameSystem for AmbientMusicSystem {
         self.reset(context.engine_mut());
     }
 
-    fn draw_debug_ui(&mut self, engine: &mut Engine, cmds: &mut SimCmds, context: &SimContext) {
+    fn draw_debug_ui(&mut self, engine: &mut Engine, cmds: &mut SimCmds, context: &SimContextMut) {
         // Debug-UI drawing lives in `crate::debug::systems`.
         self.draw_debug_ui_dispatch(engine, cmds, context);
     }

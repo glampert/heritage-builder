@@ -20,7 +20,7 @@ use super::{
     with_task,
 };
 use crate::{
-    sim::{SimContext, resources::ResourceKind},
+    sim::{SimContextMut, resources::ResourceKind},
     building::{Building, BuildingKind, BuildingKindAndId, BuildingTileInfo},
     unit::Unit,
 };
@@ -29,7 +29,7 @@ use crate::{
 // UnitTaskDeliverToStorage
 // ----------------------------------------------
 
-pub type UnitTaskDeliveryCompletionCallback = fn(&SimContext, &mut Building, &mut Unit);
+pub type UnitTaskDeliveryCompletionCallback = fn(&SimContextMut, &mut Building, &mut Unit);
 
 #[derive(Copy, Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
 pub enum UnitTaskDeliveryState {
@@ -235,7 +235,7 @@ impl UnitTask for UnitTaskDeliverToStorage {
         self.completion_callback.post_load();
     }
 
-    fn draw_debug_ui(&mut self, _unit: &mut Unit, _sim_context: &SimContext, ui_sys: &UiSystem) {
+    fn draw_debug_ui(&mut self, _unit: &mut Unit, _sim_context: &SimContextMut, ui_sys: &UiSystem) {
         #[derive(DrawDebugUi)]
         struct View {
             origin_building: UnitTaskOriginBuildingDebug,

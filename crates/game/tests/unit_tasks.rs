@@ -5,7 +5,7 @@ use game::{
     pathfind::{NodeKind as PathNodeKind, SearchResult},
     sim::{
         resources::{ResourceKind, ShoppingList, StockItem},
-        SimCmds, SimCmdQueue, SimContext,
+        SimCmds, SimCmdQueue, SimContext, SimContextMut,
     },
     system::settlers::Settler,
     tile::TileKind,
@@ -1267,7 +1267,7 @@ const PATROL_TICK_DELTA_SECS: Seconds = 0.5;
 // building owns a `Patrol` helper with state -- which we bypass when assigning
 // the task manually. So we register a no-op here just to satisfy the callback
 // invocation path; the test doesn't observe anything via this callback.
-fn patrol_test_callback(_context: &SimContext, _building: &mut Building, _unit: &mut Unit) {
+fn patrol_test_callback(_context: &SimContextMut, _building: &mut Building, _unit: &mut Unit) {
 }
 
 fn register_patrol_test_callback() -> Callback<UnitTaskPatrolCompletionCallback> {

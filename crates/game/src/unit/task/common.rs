@@ -7,7 +7,7 @@ use super::UnitTask;
 use crate::{
     pathfind::{NodeKind as PathNodeKind, Path},
     world::object::{GameObject, GenerationalIndex},
-    sim::{SimCmds, SimCmdQueue, SimContext, resources::ResourceKind},
+    sim::{SimCmds, SimCmdQueue, SimContext, SimContextMut, resources::ResourceKind},
     unit::{Unit, navigation::UnitNavGoal},
     building::{Building, BuildingId, BuildingKind, BuildingVisitResult},
 };
@@ -107,7 +107,7 @@ pub(super) fn visit_destination_deferred<F>(
     on_post_visit: F,
 ) -> bool
 where
-    F: Fn(&SimContext, &mut Building, &mut Unit, BuildingVisitResult) + 'static
+    F: Fn(&SimContextMut, &mut Building, &mut Unit, BuildingVisitResult) + 'static
 {
     let unit_goal = unit.goal().expect("Expected unit to have an active goal!");
     let (destination_kind, destination_cell) = unit_goal.building_destination();
@@ -145,7 +145,7 @@ pub(super) fn invoke_completion_callback_deferred<F>(
     post_callback: F,
 ) -> bool
 where
-    F: Fn(&SimContext, &mut Building, &mut Unit) + 'static
+    F: Fn(&SimContextMut, &mut Building, &mut Unit) + 'static
 {
     // Deferred execution (non-mutable building access).
     if let Some(origin_building) = context.find_building(origin_building_kind, origin_building_id) {
@@ -165,13 +165,13 @@ where
 
 pub(super) fn invoke_completion_callback_immediate<F>(
     unit: &mut Unit,
-    context: &SimContext,
+    context: &SimContextMut,
     origin_building_kind: BuildingKind,
     origin_building_id: BuildingId,
     callback: F,
 ) -> bool
 where
-    F: Fn(&SimContext, &mut Building, &mut Unit) + 'static
+    F: Fn(&SimContextMut, &mut Building, &mut Unit) + 'static
 {
     // Immediate execution (requires mutable building access).
     if let Some(origin_building) = context.find_building_mut(origin_building_kind, origin_building_id) {
@@ -238,14 +238,14 @@ impl PathFindResult<'_> {
     }
 }
 
-pub(super) fn find_delivery_candidate(
-    context: &SimContext,
+pub(super) fn find_delivery_candidate<'a>(
+    context: &'a SimContext,
     origin_kind: BuildingKind,
     origin_base_cell: Cell,
     traversable_node_kinds: PathNodeKind,
     building_kinds_accepted: BuildingKind,
     resource_kind_to_deliver: ResourceKind,
-) -> PathFindResult<'_> {
+) -> PathFindResult<'a> {
     debug_assert!(origin_base_cell.is_valid());
     debug_assert!(!building_kinds_accepted.is_empty());
     debug_assert!(resource_kind_to_deliver.is_single_resource()); // Only one resource kind at a time.
@@ -270,14 +270,14 @@ pub(super) fn find_delivery_candidate(
     PathFindResult::from_query_result(origin_kind, origin_base_cell, result)
 }
 
-pub(super) fn find_storage_fetch_candidate(
-    context: &SimContext,
+pub(super) fn find_storage_fetch_candidate<'a>(
+    context: &'a SimContext,
     origin_kind: BuildingKind,
     origin_base_cell: Cell,
     traversable_node_kinds: PathNodeKind,
     storage_buildings_accepted: BuildingKind,
     resource_kind_to_fetch: ResourceKind,
-) -> PathFindResult<'_> {
+) -> PathFindResult<'a> {
     debug_assert!(origin_base_cell.is_valid());
     debug_assert!(!storage_buildings_accepted.is_empty());
     debug_assert!(resource_kind_to_fetch.is_single_resource()); // Only one resource kind at a time.

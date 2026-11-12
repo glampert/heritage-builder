@@ -8,7 +8,7 @@ use crate::{
     building::construction::ConstructionMode,
     menu::TilePlacement,
     pathfind::NodeKind as PathNodeKind,
-    sim::SimContext,
+    sim::SimContextMut,
     tile::{Tile, TileFlags, TileKind, TileMap, TileMapLayerKind, sets::TileDef},
     world::World,
 };
@@ -138,7 +138,7 @@ impl Record {
     // Redo:
     // - Place Tiles: Place back deleted tiles.
     // - Clear Tiles: Delete tiles added.
-    fn apply_action(&self, command: Command, context: &SimContext) {
+    fn apply_action(&self, command: Command, context: &SimContextMut) {
         match command {
             Command::Undo => match self.action {
                 EditAction::PlacedTiles => self.clear_tiles(context, true),
@@ -151,7 +151,7 @@ impl Record {
         }
     }
 
-    fn place_tiles(&self, context: &SimContext, subtract_tile_cost: bool) {
+    fn place_tiles(&self, context: &SimContextMut, subtract_tile_cost: bool) {
         for state in &self.saved_states {
             if let Some(terrain_tile_state) = &state.terrain_tile_state {
                 Self::place_tile(context, TileMapLayerKind::Terrain, terrain_tile_state, subtract_tile_cost);
@@ -176,7 +176,7 @@ impl Record {
     }
 
     fn place_tile<'game>(
-        context: &'game SimContext,
+        context: &'game SimContextMut,
         layer: TileMapLayerKind,
         tile_state: &TileSavedState,
         subtract_tile_cost: bool,
@@ -211,7 +211,7 @@ impl Record {
         None
     }
 
-    fn clear_tiles(&self, context: &SimContext, restore_tile_cost: bool) {
+    fn clear_tiles(&self, context: &SimContextMut, restore_tile_cost: bool) {
         for state in &self.saved_states {
             if let Some(terrain_tile_state) = &state.terrain_tile_state {
                 Self::clear_tile(context, TileMapLayerKind::Terrain, terrain_tile_state, restore_tile_cost);
@@ -223,7 +223,7 @@ impl Record {
         }
     }
 
-    fn clear_tile(context: &SimContext, layer: TileMapLayerKind, tile_state: &TileSavedState, restore_tile_cost: bool) {
+    fn clear_tile(context: &SimContextMut, layer: TileMapLayerKind, tile_state: &TileSavedState, restore_tile_cost: bool) {
         let tile_def = tile_state.tile_def;
         debug_assert!(tile_def.layer_kind() == layer);
 
@@ -308,7 +308,7 @@ impl UndoRedoSingleton {
         self.redo_stack.push_back(record);
     }
 
-    fn undo(&mut self, context: &SimContext) {
+    fn undo(&mut self, context: &SimContextMut) {
         if let Some(record) = self.undo_stack.pop_back() {
             log::info!(log::channel!("undo_redo"), "Undo: {:?} ({} items)", record.action, record.saved_states.len());
             record.apply_action(Command::Undo, context);
@@ -316,7 +316,7 @@ impl UndoRedoSingleton {
         }
     }
 
-    fn redo(&mut self, context: &SimContext) {
+    fn redo(&mut self, context: &SimContextMut) {
         if let Some(record) = self.redo_stack.pop_back() {
             log::info!(log::channel!("undo_redo"), "Redo: {:?} ({} items)", record.action, record.saved_states.len());
             record.apply_action(Command::Redo, context);
@@ -362,11 +362,11 @@ where
     UndoRedoSingleton::get_mut().record(action, affected_cells, layers, tile_map, world);
 }
 
-pub fn undo(context: &SimContext) {
+pub fn undo(context: &SimContextMut) {
     UndoRedoSingleton::get_mut().undo(context);
 }
 
-pub fn redo(context: &SimContext) {
+pub fn redo(context: &SimContextMut) {
     UndoRedoSingleton::get_mut().redo(context);
 }
 
