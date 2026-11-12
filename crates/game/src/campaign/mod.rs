@@ -158,11 +158,8 @@ pub fn advance_to_next_mission() -> Option<MissionMap> {
             let configs = CampaignConfigs::get();
             let next = configs.campaign(active.campaign_id).and_then(|campaign| {
                 let step = campaign.next_step_after(active.mission_index)?;
-                let site = crate::profile::get().record(&campaign.id).and_then(|record| record.choice(step));
-                let picked = site
-                    .and_then(|site| campaign.missions[step].choices.iter().find(|choice| choice.site == site))
-                    .and_then(|choice| campaign.resolve_mission(&choice.mission));
-                Some(picked.unwrap_or(step))
+                let picked = crate::profile::get().record(&campaign.id).and_then(|record| record.choice(step));
+                Some(campaign.step_mission(step, picked))
             });
             (active.campaign_id, next.unwrap_or(usize::MAX))
         }

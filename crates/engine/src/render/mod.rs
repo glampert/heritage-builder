@@ -232,6 +232,12 @@ impl RenderSystem {
         self.captures.request(request)
     }
 
+    // True if this frame's scene will be captured without its UI (a save's thumbnail).
+    #[inline]
+    pub fn has_pending_scene_capture(&self) -> bool {
+        self.captures.has_pending_scene()
+    }
+
     // True if this frame will be captured with its UI.
     #[inline]
     pub fn has_pending_ui_capture(&self) -> bool {

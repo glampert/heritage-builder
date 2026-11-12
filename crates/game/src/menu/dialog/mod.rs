@@ -337,6 +337,16 @@ pub fn current() -> Option<DialogMenuKind> {
     DialogMenusSingleton::get_mut().current_dialog().map(|dialog| dialog.kind())
 }
 
+// Whether the top dialog is full screen (the world map): it covers the window, so nothing under
+// it shows (the city, the HUD, the dialogs below it).
+pub fn covers_window() -> bool {
+    if !is_initialized() {
+        return false;
+    }
+    let dialogs = DialogMenusSingleton::get();
+    dialogs.menu_stack.last().is_some_and(|&kind| dialogs.frames[kind as usize].size.is_fullscreen())
+}
+
 pub fn current_as<Dialog: DialogMenu>() -> Option<&'static mut Dialog> {
     DialogMenusSingleton::get_mut().current_dialog_as::<Dialog>()
 }

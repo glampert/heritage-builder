@@ -170,6 +170,8 @@ impl MapScene {
         // Foreign cities under the player's, as the generator draws them; markers recorded as drawn.
         let mut hit = None;
         let pointer_at = pointer.position;
+        // Recorded for automation only while the widget registry is on.
+        let recording = ui_sys.is_widget_registry_enabled();
         let mut markers: Vec<(String, Rect, String, serde_json::Value)> = Vec::new();
         for city in self.cities.iter().filter(|city| !city.player_owned).chain(self.cities.iter().filter(|city| city.player_owned)) {
             let point = at(city.position);
@@ -179,11 +181,13 @@ impl MapScene {
             if pointer_at.is_some_and(|cursor| rect.contains_point(cursor)) && transform.rect.contains_point(point) {
                 hit = Some(city.id.clone());
             }
-            let value = serde_json::json!({
-                "id": city.id, "kind": city.kind.to_string(), "owner": city.owner, "player": city.player_owned,
-                "selected": is_selected, "current": city.current,
-            });
-            markers.push((city.id.clone(), rect, city.name().to_string(), value));
+            if recording {
+                let value = serde_json::json!({
+                    "id": city.id, "kind": city.kind.to_string(), "owner": city.owner, "player": city.player_owned,
+                    "selected": is_selected, "current": city.current,
+                });
+                markers.push((city.id.clone(), rect, city.name().to_string(), value));
+            }
         }
 
         if let Some(choice) = &self.choice {
@@ -195,8 +199,10 @@ impl MapScene {
                 if pointer_at.is_some_and(|cursor| rect.contains_point(cursor)) && transform.rect.contains_point(point) {
                     hit = Some(id.clone());
                 }
-                let value = serde_json::json!({ "site": site.site.to_string(), "mission": site.mission_index, "kind": "choice_site" });
-                markers.push((id, rect, site.name.clone(), value));
+                if recording {
+                    let value = serde_json::json!({ "site": site.site.to_string(), "mission": site.mission_index, "kind": "choice_site" });
+                    markers.push((id, rect, site.name.clone(), value));
+                }
             }
         }
 
@@ -223,7 +229,7 @@ impl MapScene {
         for (id, rect, name, value) in markers {
             record_map_marker(ui_sys, &name, rect, transform.rect, hit.as_deref() == Some(id.as_str()), Some(value));
         }
-        if let Some((choice, box_rect, names, pointed)) = choice_box {
+        if let Some((choice, box_rect, names, pointed)) = choice_box.filter(|_| recording) {
             let value = serde_json::json!({ "title": choice.title, "subtitle": choice.subtitle, "mission": choice.mission_index, "open": choice.open });
             record_map_item(ui_sys, "choice_box", "choice", box_rect, transform.rect, pointed, Some(value));
             let _scope = path_scope(ui_sys, "choice");
@@ -305,11 +311,25 @@ pub struct MapLook {
     marks: BTreeMap<String, (TextureHandle, Vec2)>, // Sprite and size in points (at scale 1).
     threat: Option<(TextureHandle, Vec2)>,          // Sprite and size in pixels.
     seal_letter: Option<SkinMapTextDef>,
-    text: BTreeMap<String, SkinMapTextDef>,
+    text: BTreeMap<String, MapTextLook>, // By role, resolved once.
     places: BTreeMap<String, SkinMapPlaceDef>,
     routes: BTreeMap<String, SkinMapRouteDef>,
     colors: BTreeMap<String, String>,
     choice_box: SkinChoiceBoxDef,
+}
+
+// A text role's look (SkinMapTextDef) resolved at the screen's scale: drawn at its own size, or
+// another (`em`, its size in points per point of font size asked).
+struct MapTextLook {
+    look: UiLabelLook,
+    em: f32,
+    capitals: bool,
+}
+
+impl MapTextLook {
+    fn new(def: &SkinMapTextDef, scale: f32) -> Self {
+        Self { look: map_label_look(def, def.size, scale), em: scale / skin::font_em(def.heading), capitals: def.capitals }
+    }
 }
 
 // A piece of the choice box's subtitle: its text, or a site's name.
@@ -331,32 +351,39 @@ impl SubtitlePiece<'_> {
 // names, so each can be pointed at. A text without both names in it is one piece, the subtitle as
 // the provider gives it.
 fn subtitle_pieces(choice: &NextMissionChoice) -> Vec<SubtitlePiece<'_>> {
-    let template = text::get(UiTextCategory::Menu, &choice.subtitle_key);
-    let site = |which: ChoiceSite| choice.sites.iter().find(|site| site.site == which);
+    split_subtitle(text::get(UiTextCategory::Menu, &choice.subtitle_key), choice)
+}
+
+// `template` cut at its `{a}` and `{b}`, its `{{` and `}}` read as braces, as text::format reads
+// them; any other placeholder is kept as it is. The provider's subtitle whole if the template
+// names a site the choice lacks or leaves one of its sites out.
+fn split_subtitle<'c>(template: &str, choice: &'c NextMissionChoice) -> Vec<SubtitlePiece<'c>> {
+    let whole = || vec![SubtitlePiece::Text(choice.subtitle.clone())];
     let mut pieces = Vec::new();
+    let mut text = String::new();
     let mut rest = template;
-    loop {
-        let next = [("{a}", ChoiceSite::A), ("{b}", ChoiceSite::B)]
-            .into_iter()
-            .filter_map(|(mark, which)| rest.find(mark).map(|at| (at, mark, which)))
-            .min_by_key(|(at, _, _)| *at);
-        let Some((at, mark, which)) = next else {
-            break;
-        };
-        let Some(info) = site(which) else {
-            return vec![SubtitlePiece::Text(choice.subtitle.clone())];
-        };
-        if at > 0 {
-            pieces.push(SubtitlePiece::Text(rest[..at].to_string()));
+    while let Some(c) = rest.chars().next() {
+        let mark = [("{a}", ChoiceSite::A), ("{b}", ChoiceSite::B)].into_iter().find(|(mark, _)| rest.starts_with(mark));
+        if let Some((mark, which)) = mark {
+            let Some(info) = choice.sites.iter().find(|site| site.site == which) else {
+                return whole();
+            };
+            if !text.is_empty() {
+                pieces.push(SubtitlePiece::Text(std::mem::take(&mut text)));
+            }
+            pieces.push(SubtitlePiece::Site(info));
+            rest = &rest[mark.len()..];
+        } else {
+            text.push(c);
+            let escaped = rest.starts_with("{{") || rest.starts_with("}}");
+            rest = &rest[if escaped { 2 } else { c.len_utf8() }..];
         }
-        pieces.push(SubtitlePiece::Site(info));
-        rest = &rest[at + mark.len()..];
     }
-    if !rest.is_empty() {
-        pieces.push(SubtitlePiece::Text(rest.to_string()));
+    if !text.is_empty() {
+        pieces.push(SubtitlePiece::Text(text));
     }
     if pieces.iter().filter(|piece| matches!(piece, SubtitlePiece::Site(_))).count() < choice.sites.len() {
-        return vec![SubtitlePiece::Text(choice.subtitle.clone())];
+        return whole();
     }
     pieces
 }
@@ -375,7 +402,7 @@ impl MapLook {
             marks,
             threat,
             seal_letter: art.seal_letter.clone(),
-            text: art.text.clone(),
+            text: art.text.iter().map(|(role, def)| (role.clone(), MapTextLook::new(def, scale))).collect(),
             places: art.places.clone(),
             routes: art.routes.clone(),
             colors: art.colors.clone(),
@@ -393,13 +420,20 @@ impl MapLook {
 
     // The look of text of `role`, at `size` points (0: the role's own size).
     fn text(&self, role: &str, size: f32) -> UiLabelLook {
-        let def = self.text.get(role).cloned().unwrap_or_default();
-        map_label_look(&def, if size > 0.0 { size } else { def.size }, self.scale)
+        let Some(text) = self.text.get(role) else {
+            let def = SkinMapTextDef::default();
+            return map_label_look(&def, if size > 0.0 { size } else { def.size }, self.scale);
+        };
+        let mut look = text.look;
+        if size > 0.0 {
+            look.size = size * text.em;
+        }
+        look
     }
 
     // `text` in capitals if `role`'s look says so.
     fn case(&self, role: &str, text: &str) -> String {
-        if self.text.get(role).is_some_and(|def| def.capitals) { text.to_uppercase() } else { text.to_string() }
+        if self.text.get(role).is_some_and(|text| text.capitals) { text.to_uppercase() } else { text.to_string() }
     }
 
     fn place(&self, role: &str) -> SkinMapPlaceDef {
@@ -734,5 +768,53 @@ mod tests {
         }
         assert!(curve[..5].iter().all(|point| point.y.abs() < 1e-4));
         assert_eq!(catmull_rom(&points[..2], 4), points[..2].to_vec());
+    }
+
+    fn choice(sites: &[ChoiceSite]) -> NextMissionChoice {
+        let site = |site: ChoiceSite| ChoiceSiteInfo {
+            site,
+            name_key: String::new(),
+            name: site.to_string(),
+            phrase: site.to_string(),
+            phrased: false,
+            position: [0.0, 0.0],
+            label: LabelSide::Below,
+            mission_index: 0,
+        };
+        NextMissionChoice {
+            mission_index: 0,
+            title: String::new(),
+            subtitle: "the subtitle".into(),
+            subtitle_key: String::new(),
+            sites: sites.iter().map(|&which| site(which)).collect(),
+            open: true,
+        }
+    }
+
+    // The pieces as text, a site as <A> or <B>.
+    fn split(template: &str, sites: &[ChoiceSite]) -> Vec<String> {
+        let choice = choice(sites);
+        split_subtitle(template, &choice)
+            .iter()
+            .map(|piece| match piece {
+                SubtitlePiece::Text(text) => text.clone(),
+                SubtitlePiece::Site(site) => format!("<{}>", site.site),
+            })
+            .collect()
+    }
+
+    // The subtitle is cut at both sites' marks, in either order; a mark for a site the choice
+    // lacks, a site left out or no marks at all give the provider's subtitle whole; braces escape.
+    #[test]
+    fn subtitle_pieces_cut_at_the_sites() {
+        let both = [ChoiceSite::A, ChoiceSite::B];
+        assert_eq!(split("Choose {a} or {b}", &both), ["Choose ", "<A>", " or ", "<B>"]);
+        assert_eq!(split("{b}, then {a}.", &both), ["<B>", ", then ", "<A>", "."]);
+        assert_eq!(split("{a}{b}", &both), ["<A>", "<B>"]);
+        assert_eq!(split("Choose {a} only", &both), ["the subtitle"]);
+        assert_eq!(split("No sites named", &both), ["the subtitle"]);
+        assert_eq!(split("Choose {a} or {b}", &[ChoiceSite::A]), ["the subtitle"]);
+        assert_eq!(split("{{Choose}} {a} or {b} {count}", &both), ["{Choose} ", "<A>", " or ", "<B>", " {count}"]);
+        assert_eq!(split("{{a}} {a} {b}", &both), ["{a} ", "<A>", " ", "<B>"]);
     }
 }

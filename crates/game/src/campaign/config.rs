@@ -94,6 +94,29 @@ impl CampaignDef {
         })
     }
 
+    // The mission the site `site` of the choice point at `step` starts. None for a site the step
+    // doesn't offer, or one that names no mission.
+    pub fn site_mission(&self, step: usize, site: ChoiceSite) -> Option<usize> {
+        let choice = self.missions.get(step)?.choices.iter().find(|choice| choice.site == site)?;
+        self.resolve_mission(&choice.mission)
+    }
+
+    // The site of the choice point at `step` that starts the mission at `mission_index`, if one does.
+    pub fn site_starting(&self, step: usize, mission_index: usize) -> Option<ChoiceSite> {
+        self.missions
+            .get(step)?
+            .choices
+            .iter()
+            .find(|choice| self.resolve_mission(&choice.mission) == Some(mission_index))
+            .map(|choice| choice.site)
+    }
+
+    // The mission to play at the step `step`: the mission of the site picked there (`picked`), else
+    // the step itself, which one of a choice point's sites starts (validate checks it).
+    pub fn step_mission(&self, step: usize, picked: Option<ChoiceSite>) -> usize {
+        picked.and_then(|site| self.site_mission(step, site)).unwrap_or(step)
+    }
+
     // The step a mission belongs to: the choice point whose site starts it, for a variant; else
     // the mission itself.
     pub fn step_of(&self, mission_index: usize) -> usize {
@@ -366,8 +389,8 @@ impl CampaignConfigs {
     }
 
     // What's wrong with the campaigns' missions, cities and choices: a mission id given twice, a
-    // choice point without two sites (A and B), a site naming no mission or a choice point's
-    // variant, a mission two choice points start, a variant that's a choice point itself, two
+    // choice point without two sites (A and B) or without one that starts it itself, a site naming
+    // no mission or a choice point's variant, a mission two choice points start, a variant that's a choice point itself, two
     // mission cities with one id, a hidden campaign before a visible one. Empty when all is well.
     pub fn validate(&self) -> Vec<String> {
         let mut errors = Vec::new();
@@ -394,6 +417,9 @@ impl CampaignConfigs {
                 let sites: Vec<ChoiceSite> = mission.choices.iter().map(|choice| choice.site).collect();
                 if sites != [ChoiceSite::A, ChoiceSite::B] {
                     errors.push(format!("Campaign '{name}', mission {index}: a choice offers two sites, A then B, not {sites:?}."));
+                }
+                if !campaign.choice_targets(index).contains(&index) {
+                    errors.push(format!("Campaign '{name}', mission {index}: no site starts the choice point itself, which the campaign resumes at while no site is picked."));
                 }
                 for choice in &mission.choices {
                     match campaign.resolve_mission(&choice.mission) {

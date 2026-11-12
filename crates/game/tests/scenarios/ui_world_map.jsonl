@@ -104,7 +104,12 @@
 {"method": "assert.eq", "params": {"query": "ui.tree", "args": {"filter": "WorldMap/panel/name"}, "path": "/widgets/0/value", "value": "Vijara"}}
 
 # ---- Zoom: the wheel zooms in about the cursor, and back out to the fit, never past it ----
+# A wheel event zooms one step (1.25) at most, however large its delta (a browser's notch).
 {"method": "input.scroll", "params": {"amount": 3}}
+{"method": "wait.frames", "params": {"frames": 2}}
+{"method": "assert.gt", "params": {"query": "world_map.state", "path": "/screen/view/zoom", "value": 1.24}}
+{"method": "assert.lt", "params": {"query": "world_map.state", "path": "/screen/view/zoom", "value": 1.26}}
+{"method": "input.scroll", "params": {"amount": 1}}
 {"method": "wait.frames", "params": {"frames": 2}}
 {"method": "assert.gt", "params": {"query": "world_map.state", "path": "/screen/view/zoom", "value": 1.5}}
 {"method": "assert.eq", "params": {"query": "world_map.state", "path": "/screen/view/fit", "value": false}}
@@ -125,8 +130,13 @@
 {"method": "ui.hover", "params": {"path": "WorldMap/map/bottom"}}
 {"method": "wait.frames", "params": {"frames": 20}}
 {"method": "assert.gt", "params": {"query": "world_map.state", "path": "/screen/view/centre/1", "value": 341}}
-# Out past the fit: the whole map again, centred.
+# Out past the fit: the whole map again, centred (from zoom 2, four steps of 1.25).
 {"method": "input.scroll", "params": {"amount": -10}}
+{"method": "wait.frames", "params": {"frames": 2}}
+{"method": "assert.gt", "params": {"query": "world_map.state", "path": "/screen/view/zoom", "value": 1.59}}
+{"method": "input.scroll", "params": {"amount": -1}}
+{"method": "input.scroll", "params": {"amount": -1}}
+{"method": "input.scroll", "params": {"amount": -1}}
 {"method": "wait.frames", "params": {"frames": 2}}
 {"method": "assert.eq", "params": {"query": "world_map.state", "path": "/screen/view/zoom", "value": 1}}
 {"method": "assert.eq", "params": {"query": "world_map.state", "path": "/screen/view/fit", "value": true}}
@@ -274,6 +284,8 @@
 {"method": "wait.frames", "params": {"frames": 3}}
 {"method": "assert.eq", "params": {"query": "world_map.state", "path": "/screen/campaign", "value": "test_choices"}}
 {"method": "assert.eq", "params": {"query": "ui.tree", "args": {"filter": "WorldMap/choice", "kind": "choice_box"}, "path": "/widgets/0/value", "value": {"title": "Next: Test: The Southern Shore", "subtitle": "Choose Hội Thủy or Vân Cảng", "mission": 1, "open": false}}}
+{"method": "assert.eq", "params": {"query": "world_map.state", "path": "/next_mission/open", "value": false}}
+{"method": "assert.eq", "params": {"query": "world_map.state", "path": "/next_mission/sites/1/phrase", "value": "Vân Cảng"}}
 {"method": "assert.eq", "params": {"query": "ui.tree", "args": {"filter": "WorldMap/Hội Thủy", "kind": "map_marker"}, "path": "/widgets/0/value", "value": {"kind": "choice_site", "site": "A", "mission": 1}}}
 {"method": "assert.eq", "params": {"query": "ui.tree", "args": {"filter": "WorldMap/Vân Cảng", "kind": "map_marker"}, "path": "/widgets/0/value", "value": {"kind": "choice_site", "site": "B", "mission": 2}}}
 {"method": "assert.eq", "params": {"query": "ui.tree", "args": {"filter": "WorldMap/choice/Vân Cảng", "kind": "choice_option"}, "path": "/widgets/0/value", "value": {"site": "B", "mission": 2}}}
@@ -358,6 +370,7 @@
 {"method": "wait.frames", "params": {"frames": 3}}
 {"method": "assert.eq", "params": {"query": "world_map.state", "path": "/screen/campaign", "value": "test_choices_kambara"}}
 {"method": "assert.eq", "params": {"query": "ui.tree", "args": {"filter": "WorldMap/choice", "kind": "choice_box"}, "path": "/widgets/0/value", "value": {"title": "Next: Test: Tribute of the Sea", "subtitle": "The bay port or the pepper hills", "mission": 1, "open": true}}}
+{"method": "assert.eq", "params": {"query": "world_map.state", "path": "/next_mission/open", "value": true}}
 {"method": "assert.eq", "params": {"query": "ui.layout_issues", "path": "/count", "value": 0}}
 {"method": "screenshot", "params": {"path": "out/ui_world_map/choice_kambara.png"}}
 {"method": "ui.click", "params": {"path": "WorldMap/choice/pepper hills"}}

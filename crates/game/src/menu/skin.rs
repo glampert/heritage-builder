@@ -447,12 +447,14 @@ impl Default for SkinBackdropsDef {
 //   `capital`, `city`, `monument`, `foreign` and `choice`.
 // - `routes`: by kind (`land`, `sea`, `river`) and `closed`, `closed_legend` (SkinMapRouteDef).
 // - `colors`: named colours (a `text` name or "#RRGGBB(AA)"): the foreign cities' ring
-//   (`foreign_fill`, `foreign_stroke`, `foreign_dot`), the selection ring (`selected`,
-//   `selected_shadow`), the next mission's sites (`choice`, `choice_dot`), a threat's arrow
-//   (`threat_arrow`), the relations meter (`relations_fill`, `relations_track`), the legend bar
-//   (`legend_fill`, `legend_text`), the goods' bullets (`bullet`), the court's request box
-//   (`request_fill`, `request_border`, `request_inner`, `request_title`, `request_text`) and the
-//   top bar's text (`bar_text`, `bar_sub`); `bullet_shape`: square, diamond or circle;
+//   (`foreign_fill`, `foreign_stroke`, `foreign_dot`), the selection ring (`selected`, its outer
+//   stroke `selected_outer`, `selected_shadow`), the next mission's sites (`choice`,
+//   `choice_dot`), a threat's arrow (`threat_arrow`), the relations meter (`relations_fill`,
+//   `relations_track`, `relations_outline`), the legend bar (`legend_fill`, `legend_text`), the
+//   side panel's text (`panel_text`, `panel_sub`), its section headings (`section`) and rules
+//   (`panel_rule`), the goods' bullets (`bullet`), the court's request box (`request_fill`,
+//   `request_border`, `request_inner`, `request_title`, `request_text`) and the top bar's text
+//   (`bar_text`, `bar_sub`); `bullet_shape`: square, diamond or circle;
 //   `request_dashed`: the request box's border in dashes; `request_seal`: the request box ends in
 //   the `city` mark (a seal, drawn 32 points large) with "!" in its `seal_letter` look.
 // - `choice_box`: the next mission's choice box (SkinChoiceBoxDef), its text in the `text` looks
@@ -1230,6 +1232,19 @@ pub fn popup_with_colored_body<'a>(
 
 // The room under a popup's body text, above its buttons, in points.
 const BODY_MARGIN_BOTTOM: f32 = 6.0;
+
+// A popup's buttons, as the game-quit mockups draw them: at least this wide and this tall, in
+// points on a 1920 × 1080 window.
+const POPUP_BUTTON_SIZE: Vec2 = Vec2::new(220.0, 56.0);
+
+// `button` sized as a popup's button on a window of `window` points: POPUP_BUTTON_SIZE, scaled as
+// the dialogs are (dialog_scale).
+pub fn size_popup_button(button: UiTextButton, window: Vec2) -> UiTextButton {
+    let scale = dialog_scale(window);
+    button
+        .with_width(UiTextButtonWidth::Min((POPUP_BUTTON_SIZE.x * scale).round()))
+        .with_min_height((POPUP_BUTTON_SIZE.y * scale).round())
+}
 
 // The colour the dialogs dim the screen with behind them, in the home menu or in game.
 pub fn backdrop_dim(home_menu: bool) -> Color {

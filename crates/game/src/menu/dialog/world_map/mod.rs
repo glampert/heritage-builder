@@ -112,10 +112,6 @@ const GOODS_COLUMN_GAP: f32 = 24.0;
 const PANEL_SLACK: f32 = 6.0; // Left under the panel's parts for what measuring misses.
 const TIGHT_LINE: f32 = 1.3; // The tallest row of text the screen keeps, in ems (tight).
 
-// The popup's buttons, as the Game menu's (main_game.rs), scaled by skin::dialog_scale.
-const POPUP_BUTTON_WIDTH: f32 = 220.0;
-const POPUP_BUTTON_HEIGHT: f32 = 56.0;
-
 // Zoom: how far in, and by what factor a wheel step zooms.
 const MAX_ZOOM: f32 = 3.0;
 const WHEEL_STEP: f32 = 1.25;
@@ -685,12 +681,8 @@ fn open_choice_popup(context: &mut GameUiContext, campaign: usize, step: usize, 
             )
         };
         let body = [(UiString::from(body), "ink"), (UiString::key(UiTextCategory::Menu, "popup.choose_site.unsaved"), "sub")];
-        let button_scale = skin::dialog_scale(ui::screen_size(context.ui_sys()));
-        let sized = |button: UiTextButton| {
-            button
-                .with_width(UiTextButtonWidth::Min((POPUP_BUTTON_WIDTH * button_scale).round()))
-                .with_min_height((POPUP_BUTTON_HEIGHT * button_scale).round())
-        };
+        let window = ui::screen_size(context.ui_sys());
+        let sized = |button: UiTextButton| skin::size_popup_button(button, window);
         let (mission_index, picked) = (site.mission_index, site.site);
         skin::popup_with_colored_body(context, CHOOSE_SITE_POPUP_LABEL, [UiString::from(title)], body).with_buttons([
             sized(make_text_button(context, ButtonRole::Secondary, UiString::key(UiTextCategory::Menu, "button.cancel"), |_, context| {
@@ -730,12 +722,11 @@ fn open_finish_first_popup(context: &mut GameUiContext, campaign: usize) {
             None => (ui::text::get(UiTextCategory::Menu, "popup.finish_first.other_game.title").to_string(), "popup.finish_first.other_game.body"),
         };
         let body = [(UiString::key(UiTextCategory::Menu, body_key), "ink")];
-        let button_scale = skin::dialog_scale(ui::screen_size(context.ui_sys()));
+        let window = ui::screen_size(context.ui_sys());
         let ok = make_text_button(context, ButtonRole::Primary, UiString::key(UiTextCategory::Menu, "button.ok"), |_, context| {
             super::find::<WorldMap>().menu.close_message_box(context);
-        })
-        .with_width(UiTextButtonWidth::Min((POPUP_BUTTON_WIDTH * button_scale).round()))
-        .with_min_height((POPUP_BUTTON_HEIGHT * button_scale).round());
+        });
+        let ok = skin::size_popup_button(ok, window);
         skin::popup_with_colored_body(context, FINISH_FIRST_POPUP_LABEL, [UiString::from(title)], body).with_buttons([ok])
     });
 }

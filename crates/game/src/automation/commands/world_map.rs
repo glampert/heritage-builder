@@ -24,7 +24,8 @@ CommandDef {
            owner, position, label side, player_owned, the mission that founds it, current, and the side panel's \
            trade data for a trade partner), the routes shown (a route shows once every city it joins is on the \
            map), the region labels, uncharted areas and threats (their text, with its keys), and the next \
-           mission's choice (its sites and the missions they start). Player cities: those the world map file \
+           mission's choice (its sites, their phrase in its subtitle and the missions they start, and open: \
+           whether a site can be picked now, or the mission being played must be finished first). Player cities: those the world map file \
            gives the player (its capital, monuments), those of the missions the profile has finished and the \
            mission being played's. screen: the world map screen while it's open (screen_open; null otherwise): the \
            campaign it shows (the UI realm's), the city selected and the one under the cursor, and the map's \
@@ -235,9 +236,11 @@ fn choice_json(choice: &NextMissionChoice) -> Value {
         "mission": choice.mission_index,
         "title": choice.title,
         "subtitle": choice.subtitle,
+        "open": choice.open,
         "sites": choice.sites.iter().map(|site| json!({
             "site": site.site.to_string(),
             "name": site.name,
+            "phrase": site.phrase,
             "position": site.position,
             "label": site.label.to_string(),
             "mission": site.mission_index,

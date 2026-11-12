@@ -192,11 +192,6 @@ pub struct UiMapView {
     last_rect: Option<Rect>,
 }
 
-// A wheel event's lines: egui's points per line on desktop (InputOptions::line_scroll_speed), and
-// the lines in a page.
-const POINTS_PER_WHEEL_LINE: f32 = 40.0;
-const LINES_PER_WHEEL_PAGE: f32 = 5.0;
-
 impl UiWidget for UiMapView {
     fn as_any(&self) -> &dyn Any {
         self
@@ -423,22 +418,27 @@ impl UiMapView {
     }
 }
 
-// This frame's mouse wheel steps, up positive (egui gives them in lines, points or pages).
+// This frame's mouse wheel steps, up positive. The engine hands egui every wheel event in lines
+// (UiBackend::on_scroll), but what a notch is worth differs: one line on GLFW, and on the web
+// and Winit a pixel delta over 20, so a browser's notch of 100 pixels or more is 5 lines or more.
+// Each event counts one step at most, so a notch zooms one step everywhere, while a touchpad's
+// small deltas still zoom by a fraction of one.
 fn wheel_lines(ui: &egui::Ui) -> f32 {
     ui.input(|input| {
         input
             .events
             .iter()
             .map(|event| match event {
-                egui::Event::MouseWheel { unit, delta, .. } => match unit {
-                    egui::MouseWheelUnit::Line => delta.y,
-                    egui::MouseWheelUnit::Point => delta.y / POINTS_PER_WHEEL_LINE,
-                    egui::MouseWheelUnit::Page => delta.y * LINES_PER_WHEEL_PAGE,
-                },
+                egui::Event::MouseWheel { delta, .. } => wheel_event_steps(delta.y),
                 _ => 0.0,
             })
             .sum()
     })
+}
+
+// One wheel event's steps: its delta, at most one step either way.
+fn wheel_event_steps(delta: f32) -> f32 {
+    delta.clamp(-1.0, 1.0)
 }
 
 // ----------------------------------------------
@@ -474,8 +474,8 @@ impl UiWidget for UiCanvas {
             paint(context, &painter, rect);
         }
         if !self.label.is_empty() {
-            let value = self.value.clone();
-            ui_sys.with_ui(|ui| immediate::record(ui_sys, ui, &response, "canvas", self.label.resolve(), None, true, value));
+            let value = &self.value;
+            ui_sys.with_ui(|ui| immediate::record_lazy(ui_sys, ui, &response, "canvas", self.label.resolve(), None, true, || value.clone()));
         } else {
             ui_sys.set_last_response(&response);
         }
@@ -545,6 +545,16 @@ mod tests {
         assert!(close(state.centre, Vec2::new(250.0, 504.0)));
         let state = clamp_map_view(UiMapViewState { zoom: 9.0, centre: Vec2::new(500.0, 300.0) }, view, EXTENT, 3.0);
         assert_eq!(state.zoom, 3.0);
+    }
+
+    // A wheel event zooms one step at most: a browser's notch (a pixel delta of 5 lines or more)
+    // as a desktop's line, a touchpad's fraction of a line by that fraction.
+    #[test]
+    fn wheel_events_count_one_step_at_most() {
+        assert_eq!(wheel_event_steps(5.0), 1.0);
+        assert_eq!(wheel_event_steps(-10.0), -1.0);
+        assert_eq!(wheel_event_steps(1.0), 1.0);
+        assert_eq!(wheel_event_steps(0.25), 0.25);
     }
 
     // Zooming about a point keeps the map point under it there.

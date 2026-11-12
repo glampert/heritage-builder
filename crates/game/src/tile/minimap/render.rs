@@ -89,7 +89,7 @@ struct BaseMinimapRenderer {
     // Behind the map's hover tooltip: the style's tooltip frame, else the UI skin's tooltip panel,
     // and the text's colour on it (the retail minimap's; the developer UI's is plain).
     tooltip_background: Option<(UiTooltipBackground, Option<Color>)>,
-    style_version: (u32, u32), // The minimap style's and the UI skin's versions the menus were built with.
+    style_version: (u32, u32, u32), // The minimap style's, the UI skin's and the strings' versions the menus were built with.
     button_sounds: UiWidgetSounds,
     font_scale: UiFontScale,
     with_frame: bool, // The style's frame sprite; the developer UI uses a plain window.
@@ -105,7 +105,7 @@ impl BaseMinimapRenderer {
             open_button_menu: None,
             buttons: None,
             tooltip_background: None,
-            style_version: (0, 0),
+            style_version: (0, 0, 0),
             button_sounds,
             font_scale,
             with_frame,
@@ -195,9 +195,10 @@ impl BaseMinimapRenderer {
     where
         F: FnOnce(&mut GameUiContext),
     {
-        // The retail minimap's button tooltips are the skin's, so a skin reload rebuilds them too.
+        // The retail minimap's button tooltips are the skin's, so a skin reload rebuilds them too,
+        // and they're text keys, so a language switch does.
         let skin_version = if self.with_frame { crate::menu::skin::version() } else { 0 };
-        let style_version = (style::version(), skin_version);
+        let style_version = (style::version(), skin_version, ui::text::version());
         if self.minimap_menu.is_none() || self.style_version != style_version {
             self.create_menus(context);
             self.style_version = style_version;

@@ -225,16 +225,18 @@ impl<'a> ConfigWorldMapProvider<'a> {
         route.cities.iter().all(|id| cities.iter().any(|city| city.id == *id))
     }
 
-    // The step after the one being played, else the profile's next mission.
+    // The next step: the one straight after the mission being played, finished or not, as
+    // campaign::advance_to_next_mission goes to; with none being played, the first step the
+    // profile hasn't finished (Profile::next_mission's).
     fn next_step(&self) -> Option<usize> {
         let campaign = self.campaign();
-        let finished = self.missions_finished();
-        let playing = self.active.as_ref().map(|mission| campaign.step_of(mission.mission_index));
-        campaign.steps().into_iter().find(|&step| {
-            Some(step) != playing
-                && !campaign.is_step_finished(step, finished)
-                && playing.is_none_or(|playing| step > playing)
-        })
+        match &self.active {
+            Some(mission) => campaign.next_step_after(mission.mission_index),
+            None => {
+                let finished = self.missions_finished();
+                campaign.steps().into_iter().find(|&step| !campaign.is_step_finished(step, finished))
+            }
+        }
     }
 }
 

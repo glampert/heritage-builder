@@ -104,6 +104,11 @@ impl GameMenusSystem for InGameMenus {
         dialog::current().is_some()
     }
 
+    // The world map, full screen and opaque.
+    fn covers_window(&self) -> bool {
+        dialog::covers_window()
+    }
+
     fn sync_skin(&mut self, context: &mut GameUiContext) {
         skin::follow(context, realm::ui_realm_for(false).realm);
         skin::apply_theme(context.ui_sys);

@@ -539,7 +539,11 @@ impl GameSession {
 
         self.tile_map.minimap_mut().update(&mut self.camera, tex_cache, systems.input_sys, systems.ui_sys, covers_hud, delta_time_secs);
 
-        if self.tile_map.size_in_cells().is_valid() {
+        // Under a full-screen dialog (the world map) the city can't be seen: it's drawn only for a
+        // capture of the scene without the UI this frame (a save's thumbnail).
+        let covered = self.menus.as_ref().is_some_and(|menus| menus.covers_window()) && !systems.render_sys.has_pending_scene_capture();
+
+        if self.tile_map.size_in_cells().is_valid() && !covered {
             self.tile_map_renderer.draw_map(
                 systems.render_sys,
                 systems.debug_draw,

@@ -300,6 +300,12 @@ fn test_next_mission_choice() {
     profile.mission_finished(configs, index, 2);
     assert!(provider(&profile, TEST_CAMPAIGN, None).next_mission_choice().is_none());
 
+    // Replaying mission 1 once all is finished: the step straight after it is the choice point
+    // again, as campaign::advance_to_next_mission would go to.
+    let replaying_first = ActiveMission { campaign_id: index, mission_index: 0, completed: true };
+    let choice = provider(&profile, TEST_CAMPAIGN, Some(replaying_first)).next_mission_choice().expect("the step after the one played");
+    assert_eq!(choice.mission_index, 1);
+
     // Campaign I's missions have no choices yet.
     assert!(provider(&Profile::new(), "dragon_legacy", None).next_mission_choice().is_none());
 }
@@ -341,6 +347,7 @@ fn test_validation_finds_errors() {
     assert!(errors.iter().any(|error| error.contains("two sites")), "{errors:?}");
     assert!(errors.iter().any(|error| error.contains("comes before it")), "{errors:?}");
     assert!(errors.iter().any(|error| error.contains("names no mission")), "{errors:?}");
+    assert!(errors.iter().any(|error| error.contains("no site starts the choice point itself")), "{errors:?}");
     configs.campaigns[0].hidden = true;
     assert!(configs.validate().iter().all(|error| !error.contains("hidden")), "a hidden campaign last is fine");
 

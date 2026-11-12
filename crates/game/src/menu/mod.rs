@@ -145,6 +145,12 @@ pub trait GameMenusSystem: Any + Save + Load {
         false
     }
 
+    // Whether something covers the whole window (a full-screen dialog), so the city under it isn't
+    // drawn.
+    fn covers_window(&self) -> bool {
+        false
+    }
+
     // Called before begin_frame every frame: the retail menus follow the UI realm's skin here,
     // rebuilding what it changed (skin::follow, dialog::sync).
     fn sync_skin(&mut self, _context: &mut GameUiContext) {}

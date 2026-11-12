@@ -76,6 +76,11 @@ impl CaptureQueue {
     }
 
     #[inline]
+    pub fn has_pending_scene(&self) -> bool {
+        !self.pending.scene.is_empty()
+    }
+
+    #[inline]
     pub fn has_pending_with_ui(&self) -> bool {
         !self.pending.with_ui.is_empty()
     }

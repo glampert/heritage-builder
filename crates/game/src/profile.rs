@@ -197,8 +197,8 @@ impl Profile {
     // (a choice point stands for its sites' missions: CampaignDef, Missions and choices), the
     // mission of the site picked there if one was, or its first again once every one is finished.
     // None for a campaign without missions (yet).
-    // TODO(realm-ui): a choice point with no site picked resumes at the choice point itself (site
-    // A's mission); the briefing or intermission (Phase 3) should open the world map's choice box
+    // TODO(realm-ui): a choice point with no site picked resumes at the choice point itself (one of
+    // its sites' missions: CampaignConfigs::validate); the briefing or intermission (Phase 3) should open the world map's choice box
     // there instead, as MissionComplete's Next Mission does.
     pub fn next_mission(&self, configs: &CampaignConfigs, campaign_index: usize) -> Option<usize> {
         let campaign = configs.campaign(campaign_index)?;
@@ -209,11 +209,7 @@ impl Profile {
         let Some(step) = step else {
             return steps.first().copied();
         };
-        let picked = record.and_then(|record| record.choice(step)).and_then(|site| {
-            let choice = campaign.missions.get(step)?.choices.iter().find(|choice| choice.site == site)?;
-            campaign.resolve_mission(&choice.mission)
-        });
-        Some(picked.unwrap_or(step))
+        Some(campaign.step_mission(step, record.and_then(|record| record.choice(step))))
     }
 
     // ----------------------
@@ -240,10 +236,7 @@ impl Profile {
         // with nothing picked) picks nothing: choice_made records a choice of its own site.
         let step = campaign.step_of(mission_index);
         if step != mission_index {
-            let site = campaign.missions.get(step).and_then(|point| {
-                point.choices.iter().find(|choice| campaign.resolve_mission(&choice.mission) == Some(mission_index)).map(|choice| choice.site)
-            });
-            if let Some(site) = site {
+            if let Some(site) = campaign.site_starting(step, mission_index) {
                 record.set_choice(step, site);
             }
         }
@@ -260,7 +253,7 @@ impl Profile {
         let Some(campaign) = configs.campaign(campaign_index) else {
             return;
         };
-        if campaign.missions.get(step).is_some_and(|point| point.choices.iter().any(|choice| choice.site == site)) {
+        if campaign.site_mission(step, site).is_some() {
             self.record_mut(&campaign.id).set_choice(step, site);
         }
     }

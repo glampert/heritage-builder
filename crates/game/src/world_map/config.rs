@@ -485,18 +485,25 @@ impl WorldMapConfigs {
     // and a file that doesn't load leaves its campaigns without a world map.
     pub fn load_for(campaigns: &CampaignConfigs) -> Self {
         let mut maps = BTreeMap::new();
+        let mut tried = Vec::new();
         for campaign in &campaigns.campaigns {
             let name = campaign.world_map_name().to_string();
-            if maps.contains_key(&name) {
+            if tried.contains(&name) {
                 continue;
             }
+            tried.push(name.clone());
             let path = Self::file_path(&name);
             let def: WorldMapDef = engine::config::load_asset_file(PathRef::from_str(&path));
             if def.cities.is_empty() {
+                let users: Vec<&str> = campaigns
+                    .campaigns
+                    .iter()
+                    .filter(|other| other.world_map_name() == name)
+                    .map(|other| other.id.as_str())
+                    .collect();
                 log::error!(
                     log::channel!("campaign"),
-                    "The world map '{name}' ({path}.json) has no cities: campaign '{}' shows none.",
-                    campaign.id
+                    "The world map '{name}' ({path}.json) has no cities: campaigns {users:?} show none."
                 );
                 continue;
             }

@@ -35,11 +35,6 @@ const GAME_MENU_SAVED_FONT_SCALE: f32 = 0.9; // "Saved 12 minutes ago".
 const PLACE_LABEL: &str = "place";
 const LAST_SAVED_LABEL: &str = "last_saved";
 
-// The popups' buttons, as the game-quit mockups draw them (points on a 1920 × 1080 window, scaled
-// as the dialogs are: skin::dialog_scale).
-const POPUP_BUTTON_WIDTH: f32 = 220.0;
-const POPUP_BUTTON_HEIGHT: f32 = 56.0;
-
 // Room the content area keeps free below the last-saved line, so rounding (more of it at a UI
 // scale) never makes it scroll.
 const GAME_MENU_SLACK: f32 = 12.0;
@@ -314,12 +309,8 @@ fn open_leave_popup(context: &mut GameUiContext, leave: Leave) -> bool {
             Leave::ExitGame => AfterSaveAction::ExitGame,
         };
 
-        let button_scale = skin::dialog_scale(ui::screen_size(context.ui_sys()));
-        let sized = |button: UiTextButton| {
-            button
-                .with_width(UiTextButtonWidth::Min((POPUP_BUTTON_WIDTH * button_scale).round()))
-                .with_min_height((POPUP_BUTTON_HEIGHT * button_scale).round())
-        };
+        let window = ui::screen_size(context.ui_sys());
+        let sized = |button: UiTextButton| skin::size_popup_button(button, window);
         let cancel_menu = menu_weak_ref.clone();
         skin::popup_with_colored_body(context, label, [title], body).with_buttons([
             // Cancel also drops a save and quit still waiting for its save.

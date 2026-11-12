@@ -4,10 +4,23 @@ use game::{
         ActiveMission,
         CampaignProgress,
         CampaignPrompt,
-        config::{CampaignConfigs, CampaignDef, MissionCalendarDef, MissionDef, MissionGoal, MissionMap, MissionRequirements},
+        config::{
+            CampaignConfigs,
+            CampaignDef,
+            ChoiceSite,
+            LabelSide,
+            MissionCalendarDef,
+            MissionChoiceDef,
+            MissionDef,
+            MissionGoal,
+            MissionMap,
+            MissionRef,
+            MissionRequirements,
+        },
     },
     config::GameConfigs,
     debug::preset_maps,
+    profile,
     realm::Realm,
     sim::{calendar::EraDef, resources::ResourceKind},
     world::stats::WorldStats,
@@ -31,6 +44,7 @@ fn main() {
         test_utils::test_fn!(test_start_mission_resumes_a_campaign),
         test_utils::test_fn!(test_tick_detects_mission_completion),
         test_utils::test_fn!(test_advance_to_next_mission),
+        test_utils::test_fn!(test_advance_through_a_choice),
         test_utils::test_fn!(test_continue_playing_no_requeue),
         test_utils::test_fn!(test_snapshot_restore_and_suppress),
         test_utils::test_fn!(test_cancelled_mission_start),
@@ -82,7 +96,39 @@ fn build_test_configs() -> CampaignConfigs {
             eras: vec![EraDef { name: "Test Era".into(), start_year: 4 }],
             hidden: false,
             world_map: None,
-        }],
+        }, build_choice_campaign()],
+    }
+}
+
+// The second test campaign (CHOICE_CAMPAIGN): four missions, the second a choice point whose site
+// A starts it and site B the third, its variant. Its steps are 0, 1 and 3.
+const CHOICE_CAMPAIGN: usize = 1;
+
+fn build_choice_campaign() -> CampaignDef {
+    let mission = |name: &str| MissionDef {
+        id: String::new(),
+        name: name.into(),
+        description: String::new(),
+        map: MissionMap::Preset { preset_number: TEST_PRESET },
+        requirements: MissionRequirements::default(),
+        calendar: None,
+        finance: None,
+        risks: None,
+        city: None,
+        choices: Vec::new(),
+        choice_text: None,
+    };
+    let site = |site, mission| MissionChoiceDef { site, name: "city.hoi_thuy".into(), phrase: None, position: [0.0, 0.0], label: LabelSide::Below, mission };
+    let mut missions = vec![mission("First"), mission("Choice"), mission("Variant"), mission("Last")];
+    missions[1].choices = vec![site(ChoiceSite::A, MissionRef::Index(1)), site(ChoiceSite::B, MissionRef::Index(2))];
+    CampaignDef {
+        id: "choice_campaign".into(),
+        name: "Choice Campaign".into(),
+        realm: Realm::DaiLong,
+        missions,
+        eras: Vec::new(),
+        hidden: false,
+        world_map: None,
     }
 }
 
@@ -248,6 +294,31 @@ fn test_advance_to_next_mission() {
     // Past the last mission: no map, campaign-complete prompt raised.
     assert!(campaign::advance_to_next_mission().is_none());
     assert_eq!(campaign::take_pending_prompt(), Some(CampaignPrompt::CampaignComplete));
+}
+
+// Advancing to a choice point starts the site picked there (the profile's choice), else the choice
+// point itself; advancing from either of its sites' missions skips the other, to the step after.
+fn test_advance_through_a_choice() {
+    ensure_campaign_setup();
+    profile::reset();
+    let advance = || campaign::advance_to_next_mission().map(|_| campaign::active_mission().unwrap().mission_index);
+    assert!(CampaignConfigs::get().validate().is_empty(), "{:?}", CampaignConfigs::get().validate());
+
+    campaign::start_mission(CHOICE_CAMPAIGN, 0);
+    assert_eq!(advance(), Some(1), "no site picked: the choice point");
+
+    profile::on_choice_made(CHOICE_CAMPAIGN, 1, ChoiceSite::B);
+    campaign::start_mission(CHOICE_CAMPAIGN, 0);
+    assert_eq!(advance(), Some(2), "site B picked: its variant");
+    assert_eq!(advance(), Some(3), "the variant: on to the step after its choice point");
+
+    campaign::start_mission(CHOICE_CAMPAIGN, 1);
+    assert_eq!(advance(), Some(3), "the choice point: past its variant");
+    assert_eq!(advance(), None, "past the last step");
+    assert_eq!(campaign::take_pending_prompt(), Some(CampaignPrompt::CampaignComplete));
+
+    profile::reset();
+    campaign::reset();
 }
 
 fn test_continue_playing_no_requeue() {
