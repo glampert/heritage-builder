@@ -561,6 +561,13 @@ impl Building {
         &mut self.risks
     }
 
+    // Whether this building has risks to show: a finished building whose config gives it a
+    // risk rate. Sites and buildings without the config's `risks` block build up nothing.
+    #[inline]
+    pub fn has_risks(&self) -> bool {
+        !self.is_under_construction() && !self.configs().risk_rates().is_zero()
+    }
+
     // How fast this building's risks build up now, in points per month. A house's disease rate
     // also scales with how full it is: an empty house builds up none.
     pub fn risk_rates(&self) -> risks::RiskRates {

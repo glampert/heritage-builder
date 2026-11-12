@@ -32,6 +32,12 @@
 {"method": "assert.eq", "params": {"query": "minimap.state", "path": "/map_rect_size", "value": [250.0, 150.0]}}
 {"method": "ui.click", "params": {"path": "Minimap/lens_sectors"}}
 {"method": "assert.eq", "params": {"query": "minimap.state", "path": "/lens", "value": "sectors"}}
+{"method": "ui.click", "params": {"path": "Minimap/lens_risk"}}
+{"method": "assert.eq", "params": {"query": "minimap.state", "path": "/lens", "value": "risk"}}
+{"method": "wait.frames", "params": {"frames": 2}}
+{"method": "assert.eq", "params": {"query": "minimap.state", "path": "/lens_data/legend", "value": ["Low risk", "Fire risk", "Collapse risk", "Disease risk", "On fire", "Sickness"]}}
+# The street's buildings are still construction sites, which have no risks: the lens leaves them neutral.
+{"method": "assert.eq", "params": {"query": "minimap.state", "path": "/lens_data/buildings", "value": 0}}
 {"method": "ui.click", "params": {"path": "Minimap/lens_city"}}
 {"method": "assert.eq", "params": {"query": "minimap.state", "path": "/lens", "value": "city"}}
 {"method": "wait.frames", "params": {"frames": 1}}

@@ -426,7 +426,7 @@ impl Simulation {
 
     // World:
     pub fn draw_world_debug_ui(&mut self, context: &mut GameUiContext) {
-        context.world.draw_debug_ui(&mut self.finance, context.ui_sys);
+        context.world.draw_debug_ui(&mut self.finance, &mut self.risks, context.camera, context.ui_sys);
     }
 
     // Game Systems:

@@ -2,7 +2,7 @@
 // drawn as a small smoothly filtered texture) and colours for the buildings it cares about.
 //
 // Each lens comes from a provider, a game system that owns its data. City (the plain map),
-// Sectors and Water exist now; Risks (M6), Faith (M8), Floods and Fertility (M7) land with their
+// Sectors, Water and Risks (M6) exist now; Faith (M8), Floods and Fertility (M7) land with their
 // milestones, each with its provider, and only then show in the lens bar.
 
 use std::collections::BTreeMap;
@@ -16,7 +16,11 @@ use super::{
     style::MinimapStyle,
 };
 use crate::{
-    building::{BuildingKind, config::BuildingConfigs},
+    building::{
+        BuildingKind,
+        config::BuildingConfigs,
+        risks::{MAX_RISK, RiskKind},
+    },
     sim::SimContext,
     tile::sets::TileSector,
 };
@@ -63,7 +67,7 @@ impl MinimapLens {
 
     // Lenses with a provider, in the lens bar's order. City has none: it's the plain map.
     pub fn available() -> &'static [MinimapLens] {
-        &[Self::City, Self::Sectors, Self::Water]
+        &[Self::City, Self::Sectors, Self::Water, Self::Risk]
     }
 }
 
@@ -138,6 +142,7 @@ pub fn provider(lens: MinimapLens) -> Option<&'static dyn LensProvider> {
     match lens {
         MinimapLens::Sectors => Some(&SectorsLens),
         MinimapLens::Water => Some(&WaterLens),
+        MinimapLens::Risk => Some(&RiskLens),
         _ => None,
     }
 }
@@ -234,6 +239,96 @@ impl LensProvider for WaterLens {
 
         out.legend = vec![(access, "Has water"), (no_access, "No water"), (out.ramp[1], "Well reach")];
     }
+}
+
+// ----------------------------------------------
+// Risk
+// ----------------------------------------------
+
+// How far past its footprint a building's risk fades out in the heat field, in cells.
+const RISK_FADE_CELLS: f32 = 1.5;
+
+// City risks (docs/plans/city-risks.md, decision Q10: one lens for every risk): each building
+// with risks takes the colour of its highest risk, fire (risk_fire), collapse (risk_collapse) or
+// disease (risk_disease), mixed from risk_low by how high it is; ties go to fire, then collapse.
+// A burning one is risk_burning and a sick house risk_diseased. The heat field is the highest
+// risk over the building's cells, whichever it is, fading out a cell or two past them. Sites and
+// buildings whose configs give them no risks stay neutral.
+pub struct RiskLens;
+
+impl LensProvider for RiskLens {
+    fn lens(&self) -> MinimapLens {
+        MinimapLens::Risk
+    }
+
+    fn compute(&self, context: &LensContext, out: &mut LensData) {
+        let style = &context.style.lenses;
+        let (width, height) = (context.map_size.width, context.map_size.height);
+        out.values = vec![0; (width.max(0) * height.max(0)) as usize];
+        out.ramp = [style.risk_ramp[0].color(), style.risk_ramp[1].color()];
+
+        let low = style.risk_low.color();
+        let (fire, collapse, disease) = (style.risk_fire.color(), style.risk_collapse.color(), style.risk_disease.color());
+        let (burning, diseased) = (style.risk_burning.color(), style.risk_diseased.color());
+
+        context.sim.world().for_each_building_of_any_kind(|building| {
+            if !building.has_risks() {
+                return true;
+            }
+            let risks = building.risks();
+            let (color, heat) = if risks.is_burning() {
+                (burning, 1.0)
+            } else if risks.has_outbreak() {
+                (diseased, 1.0)
+            } else {
+                // The highest risk; ties go to the first.
+                let (highest, top) = [(RiskKind::Fire, fire), (RiskKind::Collapse, collapse), (RiskKind::Disease, disease)]
+                    .into_iter()
+                    .map(|(kind, color)| (risks.get(kind), color))
+                    .fold((0.0_f32, fire), |best, next| if next.0 > best.0 { next } else { best });
+                let share = (highest / MAX_RISK).clamp(0.0, 1.0);
+                (mix(low, top, share), share)
+            };
+            let base = building.base_cell();
+            out.building_colors.insert((base.y, base.x), color);
+
+            if heat <= 0.0 {
+                return true;
+            }
+            // Full over the footprint, fading with the distance from it.
+            let range = building.cell_range();
+            let reach = RISK_FADE_CELLS.ceil() as i32;
+            for y in (range.start.y - reach).max(0)..=(range.end.y + reach).min(height - 1) {
+                for x in (range.start.x - reach).max(0)..=(range.end.x + reach).min(width - 1) {
+                    let dx = (range.start.x - x).max(x - range.end.x).max(0) as f32;
+                    let dy = (range.start.y - y).max(y - range.end.y).max(0) as f32;
+                    let distance = (dx * dx + dy * dy).sqrt();
+                    if distance > RISK_FADE_CELLS {
+                        continue;
+                    }
+                    let value = heat * (1.0 - distance / (RISK_FADE_CELLS + 0.5)) * 255.0;
+                    let cell = &mut out.values[(x + y * width) as usize];
+                    *cell = (*cell).max(value.round() as u8);
+                }
+            }
+            true
+        });
+
+        out.legend = vec![
+            (low, "Low risk"),
+            (fire, "Fire risk"),
+            (collapse, "Collapse risk"),
+            (disease, "Disease risk"),
+            (burning, "On fire"),
+            (diseased, "Sickness"),
+        ];
+    }
+}
+
+// `a` to `b` by `t` (0 to 1), channel by channel.
+fn mix(a: Color, b: Color, t: f32) -> Color {
+    let channel = |a: f32, b: f32| a + (b - a) * t;
+    Color::new(channel(a.r, b.r), channel(a.g, b.g), channel(a.b, b.b), channel(a.a, b.a))
 }
 
 // The lens's colour for a feature: what the provider said, or None (neutral).

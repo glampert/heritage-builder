@@ -99,6 +99,14 @@
 {"method": "world.add_population", "params": {"cell": [16, 9], "count": 2}}
 {"method": "risks.infect", "params": {"cell": [16, 9]}}
 {"method": "assert.eq", "params": {"query": "risks.state", "path": "/sick", "value": 1}}
+# The minimap's Risk lens colours every building with risks, the sick house among them, and its
+# heat field covers the sick house's cells at least.
+{"method": "ui.click", "params": {"path": "Minimap/lens_risk"}}
+{"method": "wait.frames", "params": {"frames": 2}}
+{"method": "assert.eq", "params": {"query": "minimap.state", "path": "/lens_data/lens", "value": "risk"}}
+{"method": "assert.eq", "params": {"query": "minimap.state", "path": "/lens_data/legend/5", "value": "Sickness"}}
+{"method": "assert.ge", "params": {"query": "minimap.state", "path": "/lens_data/buildings", "value": 3}}
+{"method": "assert.ge", "params": {"query": "minimap.state", "path": "/lens_data/heat_cells", "value": 1}}
 {"method": "time.fast_forward", "params": {"sim_secs": 25}}
 {"method": "assert.eq", "params": {"query": "world.building_at", "args": {"cell": [16, 9]}, "path": "/population/count", "value": 2}}
 {"method": "assert.gt", "params": {"query": "world.building_at", "args": {"cell": [18, 9]}, "path": "/risks/disease", "value": 20.0}}

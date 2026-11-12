@@ -17,6 +17,7 @@ use crate::{
         MINIMAP_ICON_DEFAULT_LIFETIME,
         MinimapIcon,
         MinimapLens,
+        lens::LensData,
         model::LandmarkKind,
         style::{self, MinimapRealm},
     },
@@ -25,8 +26,9 @@ use crate::{
 pub(super) const COMMANDS: &[CommandDef] = &[
     CommandDef {
         name: "minimap.state",
-        help: "The minimap: open, lens and the lenses on offer, zoom, visible cells, the cell at the centre of its view, \
-               alerts, features and landmarks, the baked texture's size and pixels per cell, the last bake's time, the widget's and the map area's sizes in points, and the style's realm.",
+        help: "The minimap: open, lens and the lenses on offer, what the open lens shows (its legend, how many \
+               buildings it colours, how many cells its heat field covers), zoom, visible cells, the cell at the \
+               centre of its view, alerts, features and landmarks, the baked texture's size and pixels per cell, the last bake's time, the widget's and the map area's sizes in points, and the style's realm.",
         params: &[],
         run: cmd_state,
     },
@@ -35,7 +37,7 @@ pub(super) const COMMANDS: &[CommandDef] = &[
         help: "Open or close the minimap, pick a lens, show or hide the building icons, set its zoom (stops the auto zoom) or centre its view on a cell.",
         params: &[
             ParamDef { name: "open", kind: "bool", required: false, help: "Show the minimap, or only its open button." },
-            ParamDef { name: "lens", kind: "string", required: false, help: "city, sectors or water." },
+            ParamDef { name: "lens", kind: "string", required: false, help: "city, sectors, water or risk." },
             ParamDef { name: "show_landmarks", kind: "bool", required: false, help: "Show the building icons in the City view, as the toggle does." },
             ParamDef { name: "zoom", kind: "number", required: false, help: "1 shows the whole playable area; more zooms in." },
             ParamDef { name: "auto_zoom", kind: "bool", required: false, help: "Zoom to about 95 visible cells, as on opening." },
@@ -93,6 +95,7 @@ fn minimap_state(context: &CommandContext) -> Value {
         "lens": minimap.lens().to_string(),
         "show_landmarks": minimap.shows_landmarks(),
         "lenses": MinimapLens::available().iter().map(|lens| lens.to_string()).collect::<Vec<_>>(),
+        "lens_data": lens_data_json(minimap.lens_data()),
         "zoom": view.zoom,
         "auto_zoom": view.auto_zoom,
         "visible_cells": view.visible_cells(),
@@ -107,6 +110,17 @@ fn minimap_state(context: &CommandContext) -> Value {
         "map_rect_size": [minimap.layout().map.width(), minimap.layout().map.height()],
         "last_bake_ms": minimap.last_bake_secs() * 1000.0,
         "realm": style::current_realm().to_string(),
+    })
+}
+
+// What the open lens last computed (it refreshes while the minimap draws): its legend, how many
+// buildings it colours and how many cells its heat field covers. Empty for City.
+fn lens_data_json(data: &LensData) -> Value {
+    json!({
+        "lens": data.lens.to_string(),
+        "legend": data.legend.iter().map(|(_, label)| *label).collect::<Vec<_>>(),
+        "buildings": data.building_colors.len(),
+        "heat_cells": data.values.iter().filter(|value| **value > 0).count(),
     })
 }
 
