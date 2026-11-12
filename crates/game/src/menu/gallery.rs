@@ -3,8 +3,10 @@
 // the text colours, every panel, every button role and its four states, the controls (toggle,
 // checkbox, slider, dropdown, step selectors, a scrolling list and template rows with icons), the
 // 9-slice centres, the separators, the emblems and ornaments (the crest), a card, the data widgets
-// (images in each fit, columns), a popup, tooltips and a toast. Its tabs pick the realm (they set the ui.realm override); it follows
-// ui.realm too, and rebuilds whenever the skin changes (skin::version()).
+// (images in each fit, columns), the intermission's art (the stele with its carved text, its niche
+// and the screen's background) and the briefing's panel, a popup, tooltips and a toast. Its tabs
+// pick the realm (they set the ui.realm override); it follows ui.realm too, and rebuilds whenever
+// the skin changes (skin::version()).
 //
 // Its widgets' paths start with "Skin Gallery/". ui_skins.jsonl opens it in each realm, checks
 // ui.layout_issues and drives its widgets. It took over from the engine's sample menus.
@@ -13,8 +15,12 @@ use common::Vec2;
 use engine::ui::{self, UiFontScale, UiNineSlice, UiNineSliceCenter, UiStaticVar, UiString, UiThemeId, widgets::*};
 use strum::IntoEnumIterator;
 
-use super::skin::{self, ButtonRole, EmblemState, HeadingLevel, SkinDialogSize, SkinPanel};
+use super::{
+    skin::{self, ButtonRole, EmblemState, HeadingLevel, SkinDialogSize, SkinPanel},
+    stele::SteleArt,
+};
 use crate::{
+    campaign::{config::CampaignConfigs, stele},
     realm::{self, Realm},
     ui_context::GameUiContext,
 };
@@ -110,7 +116,7 @@ fn build(context: &mut GameUiContext) -> UiMenuRcMut {
 
     // One column, the interactive parts first; it scrolls. Each part is the menu's own widget, laid
     // out one after the other as drawn.
-    let parts: [(&str, fn(&mut GameUiContext) -> UiWidgetImpl); 9] = [
+    let parts: [(&str, fn(&mut GameUiContext) -> UiWidgetImpl); 10] = [
         ("Controls", |context| controls(context).into()),
         ("Buttons", |context| buttons(context).into()),
         ("Button states", |context| button_states(context).into()),
@@ -120,6 +126,7 @@ fn build(context: &mut GameUiContext) -> UiMenuRcMut {
         ("Separators", |context| separators(context).into()),
         ("Emblems", |context| emblems(context).into()),
         ("Data", |context| data(context).into()),
+        ("Intermission", |context| intermission(context).into()),
     ];
     for (title, part) in parts {
         menu.add_widget(section(context, title));
@@ -490,5 +497,64 @@ fn data(context: &mut GameUiContext) -> UiWidgetGroup {
     if let Some(preview) = preview {
         group.add_widget(preview);
     }
+    group
+}
+
+// The intermission's art (skin::intermission): the stele carved but for its last step with the
+// realm's campaign (its first with missions, a hidden test campaign's while the realm's own has
+// none), and one more row to come than it draws, so the empty rows' cap shows, on its niche
+// and the screen's background, as the debrief places them; and the briefing's panel at the
+// mockup's proportions (1520 × 980), both scaled down.
+fn intermission(context: &mut GameUiContext) -> UiWidgetGroup {
+    const HEIGHT: f32 = 420.0;
+    const BRIEFING_SIZE: Vec2 = Vec2::new(1520.0, 980.0);
+
+    let art = SteleArt::load(context);
+    let configs = CampaignConfigs::get();
+    let realm = skin::current_realm();
+    let campaign = configs
+        .campaigns
+        .iter()
+        .position(|campaign| campaign.realm == realm && !campaign.missions.is_empty())
+        .and_then(|index| stele::partly_carved(configs, index, skin::intermission().stele.rows + 1));
+    let backdrop = {
+        let path = &skin::intermission().backdrop;
+        (!path.is_empty()).then(|| context.load_texture(engine::file_sys::paths::PathRef::from_str(path)))
+    };
+    let bounds = art.bounds();
+    let scale = HEIGHT / bounds.height().max(1.0);
+    let value = campaign.as_ref().map(|stele| serde_json::json!({ "title": stele.title, "lines": stele.lines.len() }));
+    let stele_canvas = UiCanvas::new(Vec2::new(bounds.width() * scale, HEIGHT), move |_, painter, rect| {
+        let origin = rect.min - bounds.min * scale;
+        if let Some(texture) = backdrop {
+            let screen = Vec2::new(1920.0, 1080.0);
+            let uv = common::Rect {
+                min: Vec2::new(bounds.min.x / screen.x, bounds.min.y / screen.y),
+                max: Vec2::new(bounds.max.x / screen.x, bounds.max.y / screen.y),
+            };
+            painter.image_uv(texture, rect, uv, common::Color::white());
+        }
+        art.draw_niche(painter, origin, scale);
+        if let Some(stele) = &campaign {
+            art.draw_stele(painter, stele, origin, scale);
+        }
+    })
+    .with_label("Stele", value);
+
+    let briefing_scale = HEIGHT * 0.5 / BRIEFING_SIZE.y;
+    let panel = skin::panel(context, &skin::briefing().panel);
+    let briefing_canvas = UiCanvas::new(BRIEFING_SIZE * briefing_scale, move |_, painter, rect| match &panel {
+        SkinPanel::NineSlice { slice, .. } => {
+            // The panel at its full size, scaled down whole: its borders shrink with it.
+            let slice = UiNineSlice { scale: slice.scale * briefing_scale, ..slice.clone() };
+            painter.nine_slice(rect, &slice, common::Color::white());
+        }
+        SkinPanel::Sprite { texture, .. } => painter.image(*texture, rect, common::Color::white()),
+    })
+    .with_label("Briefing panel", None);
+
+    let mut group = row();
+    group.add_widget(captioned(stele_canvas, "Stele, niche and backdrop (debrief)"));
+    group.add_widget(captioned(briefing_canvas, "Briefing panel"));
     group
 }

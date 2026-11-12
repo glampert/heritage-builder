@@ -47,9 +47,23 @@ pub struct CampaignDef {
     // one named by its id.
     #[serde(default)]
     pub world_map: Option<String>,
+    // The title carved at the head of its stele (the debrief's and the campaign-complete screen's:
+    // crate::campaign::stele), a Story key, e.g. "stele.dragon_legacy.title". Required once it has
+    // missions (validate).
+    #[serde(default)]
+    pub stele_title: Option<String>,
+    // The closing line the campaign-complete screen shows under its name, a Story key. Required
+    // once it has missions.
+    #[serde(default)]
+    pub stele_closing: Option<String>,
 }
 
 impl CampaignDef {
+    // Its stele's title as the player reads it (a Story key's text), else its name.
+    pub fn stele_title_text(&self) -> &str {
+        self.stele_title.as_deref().map_or_else(|| self.display_name(), |key| text::get(UiTextCategory::Story, key))
+    }
+
     // Its name as the player reads it: the Realm string `campaign.<id>` (en.json), else its `name`.
     pub fn display_name(&self) -> &str {
         let key = format!("campaign.{}", self.id);
@@ -200,6 +214,25 @@ pub struct MissionDef {
     // sites' names (their `phrase`). None: world_map.choice.subtitle ("Choose {a} or {b}").
     #[serde(default)]
     pub choice_text: Option<String>,
+    // The line carved on the campaign's stele once it's finished (crate::campaign::stele), a Story
+    // key, e.g. "mission.dragon_legacy.1.stele". Required in a campaign (validate); a variant may
+    // leave it out and take its choice point's.
+    #[serde(default)]
+    pub stele_line: Option<String>,
+    // The briefing's lead-in, the line the stele will hold quoted above its text, a Story key.
+    // Required of every mission, variants included.
+    #[serde(default)]
+    pub lead_in: Option<String>,
+    // The briefing's text, a Story key (paragraphs apart by an empty line). Required of every
+    // mission, variants included; `description` is the developers' note.
+    #[serde(default)]
+    pub briefing: Option<String>,
+    // The distinctions the mission can earn and the line each adds to the stele once earned
+    // (docs/plans/realm-ui.md, Phase 3: Stele). Empty until M9 defines distinctions and awards
+    // them into the profile (CampaignRecord::distinctions, by id).
+    // TODO(realm-ui): M9 fills these in, with the debrief's distinctions table.
+    #[serde(default)]
+    pub distinctions: Vec<MissionDistinctionDef>,
 }
 
 impl MissionDef {
@@ -207,6 +240,35 @@ impl MissionDef {
     pub fn city_display_name(&self) -> Option<&str> {
         self.city.as_ref().map(|city| text::get(UiTextCategory::Realm, &city.name))
     }
+
+    // The briefing's text as the player reads it: `briefing`'s, else the developers' `description`.
+    pub fn briefing_text(&self) -> &str {
+        self.briefing.as_deref().map_or(&self.description, |key| text::get(UiTextCategory::Story, key))
+    }
+
+    // The briefing's lead-in as the player reads it, if it has one.
+    pub fn lead_in_text(&self) -> Option<&str> {
+        self.lead_in.as_deref().map(|key| text::get(UiTextCategory::Story, key))
+    }
+
+    // The Story keys it names: its stele line, lead-in, briefing and distinctions' lines.
+    pub fn story_keys(&self) -> impl Iterator<Item = &str> {
+        [&self.stele_line, &self.lead_in, &self.briefing]
+            .into_iter()
+            .flatten()
+            .map(String::as_str)
+            .chain(self.distinctions.iter().map(|distinction| distinction.stele_line.as_str()))
+    }
+}
+
+// A distinction a mission can earn (M9), and the stele line it adds.
+#[derive(Clone, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct MissionDistinctionDef {
+    // Names it in the profile (CampaignRecord::distinctions): unique in its campaign.
+    pub id: String,
+    // The line it adds to the stele, after its mission's: a Story key.
+    pub stele_line: String,
 }
 
 // The city a mission founds, on its campaign's world map (crate::world_map).
@@ -391,7 +453,10 @@ impl CampaignConfigs {
     // What's wrong with the campaigns' missions, cities and choices: a mission id given twice, a
     // choice point without two sites (A and B) or without one that starts it itself, a site naming
     // no mission or a choice point's variant, a mission two choice points start, a variant that's a choice point itself, two
-    // mission cities with one id, a hidden campaign before a visible one. Empty when all is well.
+    // mission cities with one id, a hidden campaign before a visible one; a campaign with missions
+    // and no stele title or closing line, a mission without its lead-in or briefing, a step (a
+    // mission that isn't a variant) without its stele line, a distinction id given twice in a
+    // campaign. Empty when all is well. (That the keys are in en.json, the tests check: tests/campaign.rs.)
     pub fn validate(&self) -> Vec<String> {
         let mut errors = Vec::new();
         let mut hidden_seen = false;
@@ -432,6 +497,30 @@ impl CampaignConfigs {
                         }
                         Some(_) => {}
                     }
+                }
+            }
+            if !campaign.missions.is_empty() {
+                for (field, value) in [("stele_title", &campaign.stele_title), ("stele_closing", &campaign.stele_closing)] {
+                    if value.as_deref().is_none_or(str::is_empty) {
+                        errors.push(format!("Campaign '{name}' has missions but no {field}."));
+                    }
+                }
+            }
+            let mut distinctions: Vec<&str> = Vec::new();
+            for (index, mission) in campaign.missions.iter().enumerate() {
+                let variant = campaign.is_variant(index);
+                for (field, value) in
+                    [("stele_line", &mission.stele_line), ("lead_in", &mission.lead_in), ("briefing", &mission.briefing)]
+                {
+                    if value.as_deref().is_none_or(str::is_empty) && !(variant && field == "stele_line") {
+                        errors.push(format!("Campaign '{name}', mission {index}: no {field}."));
+                    }
+                }
+                for distinction in &mission.distinctions {
+                    if distinctions.contains(&distinction.id.as_str()) {
+                        errors.push(format!("Campaign '{name}': two distinctions have the id '{}'.", distinction.id));
+                    }
+                    distinctions.push(&distinction.id);
                 }
             }
             for target in 0..campaign.missions.len() {

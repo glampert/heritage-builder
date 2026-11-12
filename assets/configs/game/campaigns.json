@@ -4,6 +4,8 @@
       "id": "dragon_legacy",
       "name": "The Dragon Legacy",
       "realm": "dailong",
+      "stele_title": "stele.dragon_legacy.title",
+      "stele_closing": "stele.dragon_legacy.closing",
       "eras": [
         { "name": "Long Thái", "start_year": 1 }
       ],
@@ -11,6 +13,9 @@
         {
           "name": "A Humble Beginning",
           "description": "Establish your first settlement and grow its population.",
+          "stele_line": "mission.dragon_legacy.1.stele",
+          "lead_in": "mission.dragon_legacy.1.lead_in",
+          "briefing": "mission.dragon_legacy.1.briefing",
           "map": { "SaveGame": { "save_file": "tiny_island" } },
           "city": { "id": "phu_sa", "name": "city.phu_sa", "position": [690, 120], "label": "above" },
           "calendar": { "start_year": 1, "start_month": 1 },
@@ -23,6 +28,9 @@
         {
           "name": "A Thriving Town",
           "description": "Put your citizens to work and build up your reserves.",
+          "stele_line": "mission.dragon_legacy.2.stele",
+          "lead_in": "mission.dragon_legacy.2.lead_in",
+          "briefing": "mission.dragon_legacy.2.briefing",
           "map": { "SaveGame": { "save_file": "test_map_64x64" } },
           "city": { "id": "ben_gom", "name": "city.ben_gom", "position": [836, 170], "label": "right" },
           "calendar": { "start_year": 3, "start_month": 1 },
@@ -37,6 +45,9 @@
         {
           "name": "Master of the Realm",
           "description": "Amass wealth and population to complete your legacy.",
+          "stele_line": "mission.dragon_legacy.3.stele",
+          "lead_in": "mission.dragon_legacy.3.lead_in",
+          "briefing": "mission.dragon_legacy.3.briefing",
           "map": { "SaveGame": { "save_file": "test_map_96x96" } },
           "city": { "id": "than_khe", "name": "city.than_khe", "position": [728, 266] },
           "calendar": { "start_year": 6, "start_month": 1 },
@@ -53,6 +64,8 @@
       "id": "temple_mountain",
       "name": "The Temple Mountain",
       "realm": "kambara",
+      "stele_title": "stele.temple_mountain.title",
+      "stele_closing": "stele.temple_mountain.closing",
       "eras": [
         { "name": "Suryadeva", "start_year": 1 }
       ],
@@ -62,6 +75,8 @@
       "id": "ten_thousand_temples",
       "name": "The Plain of Ten Thousand Temples",
       "realm": "tampadesa",
+      "stele_title": "stele.ten_thousand_temples.title",
+      "stele_closing": "stele.ten_thousand_temples.closing",
       "eras": [
         { "name": "Pugara", "start_year": 1 }
       ],
@@ -71,6 +86,8 @@
       "id": "test_choices",
       "name": "Test: Choices",
       "realm": "dailong",
+      "stele_title": "stele.dragon_legacy.title",
+      "stele_closing": "stele.dragon_legacy.closing",
       "hidden": true,
       "world_map": "dragon_legacy",
       "eras": [
@@ -80,6 +97,9 @@
         {
           "name": "Test: The First Seal",
           "description": "A hidden test mission: only automation reaches this campaign.",
+          "stele_line": "mission.test_choices.1.stele",
+          "lead_in": "mission.test_choices.1.lead_in",
+          "briefing": "mission.test_choices.1.briefing",
           "map": { "Preset": { "preset_number": 2 } },
           "city": { "id": "phu_sa", "name": "city.phu_sa", "position": [690, 120], "label": "above" },
           "requirements": { "goals": [ { "Population": { "min": 1 } } ] }
@@ -88,6 +108,9 @@
           "id": "southern_shore",
           "name": "Test: The Southern Shore",
           "description": "A hidden test mission whose choice offers two sites.",
+          "stele_line": "mission.test_choices.2.stele",
+          "lead_in": "mission.test_choices.2.lead_in",
+          "briefing": "mission.test_choices.2.briefing",
           "map": { "Preset": { "preset_number": 2 } },
           "city": { "id": "hoi_thuy", "name": "city.hoi_thuy", "position": [756, 316], "label": "left" },
           "choices": [
@@ -100,6 +123,9 @@
           "id": "southern_shore_b",
           "name": "Test: The Southern Shore (Vân Cảng)",
           "description": "The choice's other site.",
+          "stele_line": "mission.test_choices.3.stele",
+          "lead_in": "mission.test_choices.3.lead_in",
+          "briefing": "mission.test_choices.3.briefing",
           "map": { "Preset": { "preset_number": 2 } },
           "city": { "id": "van_cang", "name": "city.van_cang", "position": [854, 294] },
           "requirements": { "goals": [ { "Population": { "min": 1 } } ] }
@@ -110,6 +136,8 @@
       "id": "test_choices_kambara",
       "name": "Test: Choices (Kambara)",
       "realm": "kambara",
+      "stele_title": "stele.temple_mountain.title",
+      "stele_closing": "stele.temple_mountain.closing",
       "hidden": true,
       "world_map": "temple_mountain",
       "eras": [
@@ -119,6 +147,9 @@
         {
           "name": "Test: The Lotus Gate",
           "description": "A hidden test mission: only automation reaches this campaign, to show Kambara's choice box. No goals: it's finished at once, and MissionComplete's Next Mission opens the world map's choice.",
+          "stele_line": "mission.test_choices_kambara.1.stele",
+          "lead_in": "mission.test_choices_kambara.1.lead_in",
+          "briefing": "mission.test_choices_kambara.1.briefing",
           "map": { "Preset": { "preset_number": 2 } },
           "city": { "id": "lotus_gate", "name": "site.lotus_gate", "position": [640, 560], "label": "below" },
           "requirements": { "goals": [] }
@@ -126,6 +157,9 @@
         {
           "name": "Test: Tribute of the Sea",
           "description": "A hidden test mission whose choice offers two sites (the mockup's).",
+          "stele_line": "mission.test_choices_kambara.2.stele",
+          "lead_in": "mission.test_choices_kambara.2.lead_in",
+          "briefing": "mission.test_choices_kambara.2.briefing",
           "map": { "Preset": { "preset_number": 2 } },
           "city": { "id": "bay_port", "name": "site.bay_port", "position": [730, 530], "label": "right" },
           "choices": [
@@ -138,6 +172,9 @@
         {
           "name": "Test: Tribute of the Sea (B)",
           "description": "The choice's other site.",
+          "stele_line": "mission.test_choices_kambara.3.stele",
+          "lead_in": "mission.test_choices_kambara.3.lead_in",
+          "briefing": "mission.test_choices_kambara.3.briefing",
           "map": { "Preset": { "preset_number": 2 } },
           "city": { "id": "pepper_hills", "name": "site.pepper_hills", "position": [688, 470], "label": "right" },
           "requirements": { "goals": [ { "Population": { "min": 1 } } ] }
@@ -148,6 +185,8 @@
       "id": "test_choices_tampadesa",
       "name": "Test: Choices (Tampadesa)",
       "realm": "tampadesa",
+      "stele_title": "stele.ten_thousand_temples.title",
+      "stele_closing": "stele.ten_thousand_temples.closing",
       "hidden": true,
       "world_map": "ten_thousand_temples",
       "eras": [
@@ -157,6 +196,9 @@
         {
           "name": "Test: The Copper Road",
           "description": "A hidden test mission: only automation reaches this campaign, to show Tampadesa's choice box. No goals: it's finished at once, and MissionComplete's Next Mission opens the world map's choice.",
+          "stele_line": "mission.test_choices_tampadesa.1.stele",
+          "lead_in": "mission.test_choices_tampadesa.1.lead_in",
+          "briefing": "mission.test_choices_tampadesa.1.briefing",
           "map": { "Preset": { "preset_number": 2 } },
           "city": { "id": "copper_road", "name": "site.copper_road", "position": [200, 470], "label": "below" },
           "requirements": { "goals": [] }
@@ -164,6 +206,9 @@
         {
           "name": "Test: The Port of the Sacred Goose",
           "description": "A hidden test mission whose choice offers two sites (the mockup's).",
+          "stele_line": "mission.test_choices_tampadesa.2.stele",
+          "lead_in": "mission.test_choices_tampadesa.2.lead_in",
+          "briefing": "mission.test_choices_tampadesa.2.briefing",
           "map": { "Preset": { "preset_number": 2 } },
           "city": { "id": "royal_port", "name": "site.royal_port", "position": [360, 578], "label": "right" },
           "choices": [
@@ -176,6 +221,9 @@
         {
           "name": "Test: The Port of the Sacred Goose (B)",
           "description": "The choice's other site.",
+          "stele_line": "mission.test_choices_tampadesa.3.stele",
+          "lead_in": "mission.test_choices_tampadesa.3.lead_in",
+          "briefing": "mission.test_choices_tampadesa.3.briefing",
           "map": { "Preset": { "preset_number": 2 } },
           "city": { "id": "upriver_town", "name": "site.upriver_town", "position": [300, 512], "label": "left" },
           "requirements": { "goals": [ { "Population": { "min": 1 } } ] }

@@ -168,6 +168,22 @@
     "bullet_shape": "circle", "request_dashed": false, "request_seal": false,
     "choice_box": { "size": [392, 78], "border_width": 0, "inner_inset": 4, "inner_width": 2, "title_baseline": 33,
       "subtitle_baseline": 60, "line_width": 1.5, "seal": false } },
+  "intermission": {
+    "backdrop": "skins/tampadesa/world_map_backdrop.jpg",
+    "niche": { "sprite": "skins/tampadesa/stele_niche.png", "rect": [96, 26, 728, 1038], "bleed": [-1, -70.5, -1, -1] },
+    "stele": {
+      "sprite": "skins/tampadesa/stele.png", "bleed": [2, -12, 2, 2],
+      "text": [110, 240, 424], "bottom": 800, "line_height": 32,
+      "mark": "skins/tampadesa/stele_mark.png", "mark_size": [15, 15], "mark_offset": [-30, -8.05],
+      "looks": {
+        "title": { "size": 30, "heading": false, "color": "#EFE4CC", "shadow": "#1E1A14B3", "shadow_offset": [1, 1.5], "highlight": null },
+        "line": { "size": 23, "heading": false, "color": "#EFE4CC", "shadow": "#1E1A14B3", "shadow_offset": [1, 1.5], "highlight": null },
+        "newest": { "size": 23, "heading": false, "color": "#F3D77C", "shadow": "#1E1A14B3", "shadow_offset": [1, 1.5], "highlight": null }
+      },
+      "colors": { "rule": "#EFE4CCB3", "row": "#EFE4CC66" }
+    }
+  },
+  "briefing": { "image_outline": "#6B4A2A" },
   "dialogs": {
     "Home": {"offset": [80, 0]},
     "CityManagement": {"size": [1600, 1020]},

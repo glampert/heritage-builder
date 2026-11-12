@@ -156,6 +156,24 @@
     { "id": "world_map_compass", "group": "world_map", "call": "world_map_compass", "size": [88, 88] },
     { "id": "world_map_coin", "group": "world_map", "call": "world_map_coin", "size": [36, 36] },
     { "id": "world_map_emblem", "group": "world_map", "call": "world_map_emblem", "size": [132, 132] },
-    { "id": "world_map_power_emblem", "group": "world_map", "call": "world_map_power_emblem", "args": { "scale": 1.75 }, "size": [132, 132] }
+    { "id": "world_map_power_emblem", "group": "world_map", "call": "world_map_power_emblem", "args": { "scale": 1.75 }, "size": [132, 132] },
+    { "id": "stele", "group": "intermission", "call": "stele", "size": [640, 950], "omit": ["stele_lines"], "scale": 1.5,
+      "notes": "The debrief's stele at its mockup rect, without its carved text (the game carves it). Bleeds crop the empty top and sides. At 1.5 pixels a point: at 2 its noisy stone is 2-2.5 MB a realm.",
+      "realms": {
+        "dailong": { "bleed": [-20, -38, -20, 10] },
+        "kambara": { "bleed": [0, -28, 0, 12] },
+        "tampadesa": { "bleed": [2, -12, 2, 2] } } },
+    { "id": "stele_niche", "group": "intermission", "call": "stele_backdrop",
+      "notes": "What stands behind the stele, at its place on the screen: origin is the rect's top left in screen points.",
+      "realms": {
+        "dailong": { "args": { "origin": [106, 36] }, "size": [708, 1018], "bleed": [-2, -42, -2, -2] },
+        "kambara": { "args": { "origin": [30, 40] }, "size": [850, 1030], "bleed": [-2, -38.5, -8.5, 4] },
+        "tampadesa": { "args": { "origin": [96, 26] }, "size": [728, 1038], "bleed": [-1, -70.5, -1, -1] } } },
+    { "id": "stele_mark", "group": "intermission", "call": "stele_mark", "size": [36, 36],
+      "notes": "The newest line's mark, centred: Đại Long's seal, Kambara's and Tampadesa's dots.",
+      "realms": {
+        "dailong": { "args": { "at": [22, 18] }, "bleed": [-5.5, -5.5, -5.5, -5.5] },
+        "kambara": { "bleed": [-12, -12, -12, -12] },
+        "tampadesa": { "bleed": [-10.5, -10.5, -10.5, -10.5] } } }
   ]
 }

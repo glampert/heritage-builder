@@ -50,6 +50,7 @@ fn main() {
         test_utils::test_fn!(test_realm_skins_inherit_dai_long),
         test_utils::test_fn!(test_every_sprite_exists_and_slices_fit),
         test_utils::test_fn!(test_world_map_art_fits),
+        test_utils::test_fn!(test_intermission_art_fits),
         test_utils::test_fn!(test_every_colour_and_widget_part_resolves),
         test_utils::test_fn!(test_every_sound_exists),
         test_utils::test_fn!(test_game_styles_cover_vietnamese),
@@ -293,7 +294,11 @@ fn test_world_map_art_fits() {
         let resolves = |name: &str| if name.starts_with('#') { HexColor::parse(name).is_some() } else { skin.text.contains_key(name) };
         let looks = art.text.values().chain(art.seal_letter.iter());
         for look in looks {
-            for name in std::iter::once(&look.color).chain(look.halo.iter()).chain(look.shadow.iter()) {
+            for name in std::iter::once(&look.color)
+                .chain(look.halo.iter())
+                .chain(look.shadow.iter())
+                .chain(look.highlight.iter())
+            {
                 assert!(resolves(name), "{realm}: world_map text: no colour '{name}'");
             }
         }
@@ -308,6 +313,58 @@ fn test_world_map_art_fits() {
         for style in ["land", "sea", "river", "closed", "closed_legend"] {
             assert!(art.routes.contains_key(style), "{realm}: world_map: no route style '{style}'");
         }
+    }
+}
+
+// The intermission's art (`intermission`, `briefing`): the stele and its niche are their rect grown
+// by their bleed, at whatever pixels per point ui-art drew them (the same on both axes); the newest
+// line's mark exists; the backdrop is the 1920 × 1080 screen; the stele's text fits on it; every
+// look and colour resolves; the panels exist.
+fn test_intermission_art_fits() {
+    for (realm, skin) in skins() {
+        let art = &skin.intermission;
+        for (what, path, [_, _, width, height]) in [
+            ("stele", &art.stele.sprite, art.stele.sprite_rect()),
+            ("niche", &art.niche.sprite, art.niche.sprite_rect()),
+        ] {
+            assert!(ui_asset_exists(path), "{realm}: intermission {what}: {path} doesn't exist");
+            let (pixels_x, pixels_y) = png_size(path);
+            let (scale_x, scale_y) = (pixels_x / width, pixels_y / height);
+            assert!(
+                (scale_x - scale_y).abs() < 0.01 && scale_x >= 1.0,
+                "{realm}: {path} ({pixels_x} × {pixels_y}) isn't its rect and bleed ({width} × {height})"
+            );
+        }
+        assert!(ui_asset_exists(&art.stele.mark), "{realm}: intermission mark: {} doesn't exist", art.stele.mark);
+        assert_eq!(jpeg_size(&art.backdrop), (1920.0, 1080.0), "{realm}: {}", art.backdrop);
+        let [x, y, width] = art.stele.text;
+        let [_, _, rect_width, rect_height] = art.stele.rect;
+        assert!(
+            x > 0.0 && x + width < rect_width && y < art.stele.bottom && art.stele.bottom < rect_height,
+            "{realm}: the stele's text {:?} fits it",
+            art.stele.text
+        );
+
+        let resolves =
+            |name: &str| if name.starts_with('#') { HexColor::parse(name).is_some() } else { skin.text.contains_key(name) };
+        for role in ["title", "line", "newest"] {
+            let look = art.stele.looks.get(role).unwrap_or_else(|| panic!("{realm}: the stele has no '{role}' look"));
+            for name in std::iter::once(&look.color)
+                .chain(look.halo.iter())
+                .chain(look.shadow.iter())
+                .chain(look.highlight.iter())
+            {
+                assert!(resolves(name), "{realm}: stele look '{role}': no colour '{name}'");
+            }
+        }
+        for name in ["rule", "row"] {
+            let value = art.stele.colors.get(name).unwrap_or_else(|| panic!("{realm}: the stele has no '{name}' colour"));
+            assert!(resolves(value), "{realm}: stele colour '{name}': no colour '{value}'");
+        }
+        for panel in [&art.panel, &skin.briefing.panel] {
+            assert!(skin.panels.contains_key(panel), "{realm}: no panel '{panel}' for the intermission or briefing");
+        }
+        assert!(resolves(&skin.briefing.image_outline), "{realm}: briefing: no colour '{}'", skin.briefing.image_outline);
     }
 }
 

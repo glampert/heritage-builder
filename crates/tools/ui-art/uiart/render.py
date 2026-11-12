@@ -207,7 +207,21 @@ CALLS = {
     "world_map_emblem": lambda th, x, y, w, h, a: th.panel_emblem(*_at(x, y, w, h, a)),
     "world_map_power_emblem": lambda th, x, y, w, h, a: _scaled(
         *_at(x, y, w, h, a), a.get("scale", 1), th.foreign_city(*_at(x, y, w, h, a), "", "", True)),
+    # The intermission (screens.py): the stele as the debrief draws it at its rect (640 x 950 there),
+    # its carved text left out (the entry omits stele_lines: the game carves the title, the lines,
+    # the rule under the title, the newest line's mark and the empty rows live); the stele's
+    # backdrop (stele_backdrop: Đại Long's lacquer niche, Kambara's vines, Tampadesa's whitewashed
+    # niche), drawn where the screen puts it, moved so the screen point `origin` ([x, y]) is the
+    # rect's top left; and the newest line's mark (fresh_mark) at `at` in the rect.
+    "stele": lambda th, x, y, w, h, a: th.stele(x, y, w, h, "", []),
+    "stele_backdrop": lambda th, x, y, w, h, a: _at_origin(x, y, a["origin"], th.stele_backdrop()),
+    "stele_mark": lambda th, x, y, w, h, a: th.fresh_mark(*_at(x, y, w, h, a)),
 }
+
+
+def _at_origin(x, y, origin, body):
+    # A drawing in screen points, moved so the screen point `origin` lands on (x, y).
+    return f'<g transform="translate({x - origin[0]:g},{y - origin[1]:g})">{body}</g>'
 
 
 def _scaled(cx, cy, scale, body):

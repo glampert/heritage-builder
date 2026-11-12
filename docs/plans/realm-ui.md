@@ -658,7 +658,7 @@ The existing dialogs keep their layouts but take their panels from the Đại Lo
 - **the finished stele** at the end of a campaign, replacing CampaignComplete;
 - **the briefing** before a mission.
 
-- [ ] **Stele, left:**
+- [x] **Stele, left:**
   - the stele art per realm (from `ui-art`), with text set live;
   - the campaign's stele title;
   - one carved line per finished mission (from mission config: `stele_line`, plus a line per distinction earned);
@@ -677,6 +677,14 @@ The existing dialogs keep their layouts but take their panels from the Đại Lo
 - [ ] **Briefing** (`briefing-<realm>.jpg`): a scroll or tablet with the mission's name, its stele lead-in, its text (`MissionDef.description`, which nothing shows today), its goals, and an image slot. "Begin". It opens when a mission's map loads and from a HUD button during the mission.
 - [ ] **Flow:** `campaign::take_pending_prompt` opens the debrief. The `MissionComplete` and `CampaignComplete` kind names stay, so the snapshot scenario still finds them.
 - [ ] Scenario `ui_intermission.jsonl`: finish a test mission (by meeting its goals with `world.*` and `time.fast_forward`), check the debrief's goals, continue, finish the campaign, and check that the profile reached the next one.
+
+**Notes (2026-11-12, stele art and mission data) (commit TODO):**
+- ui-art draws per realm `stele` (the slab without its text, 640 × 950 points at 1.5×), `stele_niche` (`stele_backdrop`, at its screen place) and `stele_mark` (`fresh_mark`); the screen's background is the world map's backdrop and the briefing's tablet `panel_dialog` (the same drawings). Skin blocks `intermission` (sprites, rects and bleeds, the carved text's geometry, `title`, `line` and `newest` looks, `rule` and `row` colours) and `briefing` (panel, image outline).
+- Carved text: `UiLabelLook` gains a `highlight` beside its `shadow` (each realm's offset copy: Đại Long's and Kambara's light lip, Tampadesa's dark cut), `skin::label_look`, and `UiPainter::wrap_label`. `menu::stele::SteleArt` lays out the title, rule, lines, the newest line's mark and the empty rows, setting lines smaller (to half) to fit above the slab's bottom.
+- Data: `stele_title`, `stele_closing` per campaign; `stele_line`, `lead_in`, `briefing` per mission (Story keys, validated), `distinctions` for M9. Campaign I's three missions written after the generator's lines; test campaigns get placeholders and their realm's title.
+- `campaign::stele` (lines per finished step, a variant taking its choice point's, newest, rows to come), `intermission.state`, the Skin Gallery's Intermission section (partly carved, so the empty rows show).
+- Deviations: one stele size; the campaign-complete screen (wider in the mockup) will scale it. Wrapping is measured, so title breaks differ from the generator's.
+- Verified: build, tests (`campaign`, `world_map`, `ui_skins`), web check, `--check`, CI scenarios, determinism twice; the gallery in each realm beside the mockups.
 
 ### Phase 4: Story comics
 

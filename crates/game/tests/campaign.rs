@@ -12,6 +12,7 @@ use game::{
             MissionCalendarDef,
             MissionChoiceDef,
             MissionDef,
+            MissionDistinctionDef,
             MissionGoal,
             MissionMap,
             MissionRef,
@@ -20,7 +21,7 @@ use game::{
     },
     config::GameConfigs,
     debug::preset_maps,
-    profile,
+    profile::{self, Profile},
     realm::Realm,
     sim::{calendar::EraDef, resources::ResourceKind},
     world::stats::WorldStats,
@@ -49,6 +50,9 @@ fn main() {
         test_utils::test_fn!(test_snapshot_restore_and_suppress),
         test_utils::test_fn!(test_cancelled_mission_start),
         test_utils::test_fn!(test_mission_calendar),
+        // The stele:
+        test_utils::test_fn!(test_stele_lines),
+        test_utils::test_fn!(test_stele_validation),
     ]);
 }
 
@@ -78,6 +82,10 @@ fn build_test_configs() -> CampaignConfigs {
                     city: None,
                     choices: Vec::new(),
                     choice_text: None,
+                    stele_line: None,
+                    lead_in: None,
+                    briefing: None,
+                    distinctions: Vec::new(),
                 },
                 MissionDef {
                     id: String::new(),
@@ -91,11 +99,17 @@ fn build_test_configs() -> CampaignConfigs {
                     city: None,
                     choices: Vec::new(),
                     choice_text: None,
+                    stele_line: None,
+                    lead_in: None,
+                    briefing: None,
+                    distinctions: Vec::new(),
                 },
             ],
             eras: vec![EraDef { name: "Test Era".into(), start_year: 4 }],
             hidden: false,
             world_map: None,
+            stele_title: None,
+            stele_closing: None,
         }, build_choice_campaign()],
     }
 }
@@ -117,6 +131,10 @@ fn build_choice_campaign() -> CampaignDef {
         city: None,
         choices: Vec::new(),
         choice_text: None,
+        stele_line: None,
+        lead_in: None,
+        briefing: None,
+        distinctions: Vec::new(),
     };
     let site = |site, mission| MissionChoiceDef { site, name: "city.hoi_thuy".into(), phrase: None, position: [0.0, 0.0], label: LabelSide::Below, mission };
     let mut missions = vec![mission("First"), mission("Choice"), mission("Variant"), mission("Last")];
@@ -129,6 +147,8 @@ fn build_choice_campaign() -> CampaignDef {
         eras: Vec::new(),
         hidden: false,
         world_map: None,
+        stele_title: None,
+        stele_closing: None,
     }
 }
 
@@ -302,7 +322,15 @@ fn test_advance_through_a_choice() {
     ensure_campaign_setup();
     profile::reset();
     let advance = || campaign::advance_to_next_mission().map(|_| campaign::active_mission().unwrap().mission_index);
-    assert!(CampaignConfigs::get().validate().is_empty(), "{:?}", CampaignConfigs::get().validate());
+    // The choices check out (the test campaigns have no stele text: test_stele_validation).
+    let errors: Vec<String> = CampaignConfigs::get()
+        .validate()
+        .into_iter()
+        .filter(|error| {
+            !["stele_title", "stele_closing", "stele_line", "lead_in", "briefing"].iter().any(|field| error.contains(field))
+        })
+        .collect();
+    assert!(errors.is_empty(), "{errors:?}");
 
     campaign::start_mission(CHOICE_CAMPAIGN, 0);
     assert_eq!(advance(), Some(1), "no site picked: the choice point");
@@ -421,4 +449,114 @@ fn test_mission_calendar() {
     let second = campaign::active_mission_calendar().unwrap();
     assert_eq!((second.start_year, second.start_month), (defaults.start_year, defaults.start_month));
     assert_eq!(second.eras.len(), 1);
+}
+
+// ----------------------------------------------
+// The stele
+// ----------------------------------------------
+
+// The stele carves a line per finished step, in step order: the mission's line, a variant's own
+// or else its choice point's, then a line per distinction earned; the newest is the mission asked
+// for, else the last; an empty row stands for each step to come.
+fn test_stele_lines() {
+    let mut campaign = build_choice_campaign();
+    campaign.stele_title = Some("stele.dragon_legacy.title".into());
+    campaign.missions[0].stele_line = Some("mission.dragon_legacy.1.stele".into());
+    campaign.missions[1].stele_line = Some("mission.dragon_legacy.2.stele".into());
+    campaign.missions[3].stele_line = Some("mission.dragon_legacy.3.stele".into());
+    campaign.missions[0].distinctions =
+        vec![MissionDistinctionDef { id: "full_granary".into(), stele_line: "mission.test_choices.1.stele".into() }];
+    let configs = CampaignConfigs { campaigns: vec![campaign] };
+    let line = |key: &str| engine::ui::text::get(engine::ui::text::UiTextCategory::Story, key).to_string();
+
+    // Nothing finished: the title and an empty row per step.
+    let mut profile = Profile::new();
+    let stele = campaign::stele::stele(&configs, &profile, 0, None).unwrap();
+    assert_eq!(stele.title, "The Deeds of the Governor of the South");
+    assert!(stele.lines.is_empty());
+    assert_eq!(stele.rows_to_come, 3);
+
+    // The first mission: its line, freshly carved.
+    profile.mission_finished(&configs, 0, 0);
+    let stele = campaign::stele::stele(&configs, &profile, 0, None).unwrap();
+    assert_eq!(stele.lines.len(), 1);
+    assert_eq!(stele.lines[0].text, line("mission.dragon_legacy.1.stele"));
+    assert!(stele.lines[0].text.starts_with("In the first year"), "{}", stele.lines[0].text);
+    assert!(stele.lines[0].newest);
+    assert_eq!(stele.rows_to_come, 2);
+
+    // The choice point's variant (site B), with no line of its own: its choice point's.
+    profile.choice_made(&configs, 0, 1, ChoiceSite::B);
+    profile.mission_finished(&configs, 0, 2);
+    let stele = campaign::stele::stele(&configs, &profile, 0, Some(0)).unwrap();
+    let missions: Vec<usize> = stele.lines.iter().map(|line| line.mission_index).collect();
+    assert_eq!(missions, [0, 2]);
+    assert_eq!(stele.lines[1].text, line("mission.dragon_legacy.2.stele"));
+    assert_eq!(stele.lines[1].mission_number, 2);
+    assert_eq!(
+        stele.lines.iter().map(|line| line.newest).collect::<Vec<_>>(),
+        [true, false],
+        "newest: the mission asked for"
+    );
+    let stele = campaign::stele::stele(&configs, &profile, 0, Some(3)).unwrap();
+    assert!(stele.lines[1].newest, "a mission with no line yet marks the last");
+
+    // A distinction earned adds its line after its mission's, newest with it.
+    profile.record_mut("choice_campaign").distinctions.push("full_granary".into());
+    let stele = campaign::stele::stele(&configs, &profile, 0, Some(0)).unwrap();
+    assert_eq!(stele.lines.len(), 3);
+    assert_eq!(stele.lines[1].distinction.as_deref(), Some("full_granary"));
+    assert!(stele.lines[0].newest && stele.lines[1].newest && !stele.lines[2].newest);
+
+    // The last step: the campaign's stele is whole, no row to come.
+    profile.mission_finished(&configs, 0, 3);
+    let stele = campaign::stele::stele(&configs, &profile, 0, None).unwrap();
+    assert_eq!(stele.rows_to_come, 0);
+    assert!(stele.lines.last().unwrap().newest);
+
+    // Carved in full: every step at its first mission, no distinctions, the last newest.
+    let full = campaign::stele::carved_in_full(&configs, 0).unwrap();
+    assert_eq!(full.lines.iter().map(|line| line.mission_index).collect::<Vec<_>>(), [0, 1, 3]);
+    assert_eq!(full.rows_to_come, 0);
+    assert!(full.lines[2].newest);
+    assert!(campaign::stele::stele(&configs, &profile, 5, None).is_none());
+}
+
+// A campaign with missions needs its stele title and closing line, each step its stele line,
+// lead-in and briefing (a variant may leave its line out), and distinction ids are unique.
+fn test_stele_validation() {
+    let mut campaign = build_choice_campaign();
+    let errors = CampaignConfigs { campaigns: vec![campaign.clone_for_test()] }.validate();
+    assert!(errors.iter().any(|error| error.contains("no stele_title")), "{errors:?}");
+    assert!(errors.iter().any(|error| error.contains("no stele_closing")), "{errors:?}");
+    assert!(errors.iter().any(|error| error.contains("mission 0: no lead_in")), "{errors:?}");
+    assert!(
+        !errors.iter().any(|error| error.contains("mission 2: no stele_line")),
+        "a variant may take its choice point's line: {errors:?}"
+    );
+
+    campaign.stele_title = Some("stele.dragon_legacy.title".into());
+    campaign.stele_closing = Some("stele.dragon_legacy.closing".into());
+    for mission in &mut campaign.missions {
+        mission.stele_line = Some("mission.dragon_legacy.1.stele".into());
+        mission.lead_in = Some("mission.dragon_legacy.1.lead_in".into());
+        mission.briefing = Some("mission.dragon_legacy.1.briefing".into());
+    }
+    assert_eq!(CampaignConfigs { campaigns: vec![campaign.clone_for_test()] }.validate(), Vec::<String>::new());
+    let twice = MissionDistinctionDef { id: "twice".into(), stele_line: "x".into() };
+    campaign.missions[0].distinctions = vec![twice.clone()];
+    campaign.missions[3].distinctions = vec![twice];
+    let errors = CampaignConfigs { campaigns: vec![campaign] }.validate();
+    assert!(errors.iter().any(|error| error.contains("two distinctions have the id 'twice'")), "{errors:?}");
+}
+
+trait CloneForTest {
+    fn clone_for_test(&self) -> Self;
+}
+
+// CampaignDef isn't Clone: a copy through JSON.
+impl CloneForTest for CampaignDef {
+    fn clone_for_test(&self) -> Self {
+        serde_json::from_value(serde_json::to_value(self).unwrap()).unwrap()
+    }
 }

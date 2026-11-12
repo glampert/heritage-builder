@@ -564,6 +564,42 @@
       "source_hash": "3ef27518768c55c9",
       "state": null
     },
+    "assets/ui/skins/dailong/stele.png": {
+      "catalog_hash": "45ad82774a220f37",
+      "id": "stele",
+      "png_hash": "8fde77cce41989e0",
+      "png_size": [
+        900,
+        1383
+      ],
+      "realm": "dailong",
+      "source_hash": "2bbe071cd82885f0",
+      "state": null
+    },
+    "assets/ui/skins/dailong/stele_mark.png": {
+      "catalog_hash": "f1590ffafb4b958b",
+      "id": "stele_mark",
+      "png_hash": "aab07cc57d67e439",
+      "png_size": [
+        50,
+        50
+      ],
+      "realm": "dailong",
+      "source_hash": "8be05dfb829924a3",
+      "state": null
+    },
+    "assets/ui/skins/dailong/stele_niche.png": {
+      "catalog_hash": "a2cc3ca2eaaf44a2",
+      "id": "stele_niche",
+      "png_hash": "2a716f8d97fd40a3",
+      "png_size": [
+        1408,
+        1948
+      ],
+      "realm": "dailong",
+      "source_hash": "636de7f59358e0d0",
+      "state": null
+    },
     "assets/ui/skins/dailong/tab_disabled.png": {
       "catalog_hash": "f2691ef7e8e06272",
       "id": "tab",
@@ -1402,6 +1438,42 @@
       ],
       "realm": "kambara",
       "source_hash": "0c041c16677b9cb1",
+      "state": null
+    },
+    "assets/ui/skins/kambara/stele.png": {
+      "catalog_hash": "c4e0031af5fa3969",
+      "id": "stele",
+      "png_hash": "c11a09a6e726efee",
+      "png_size": [
+        960,
+        1401
+      ],
+      "realm": "kambara",
+      "source_hash": "de700fc07138f62a",
+      "state": null
+    },
+    "assets/ui/skins/kambara/stele_mark.png": {
+      "catalog_hash": "918c5eb41f6d4852",
+      "id": "stele_mark",
+      "png_hash": "ab20bae9eef8d50f",
+      "png_size": [
+        24,
+        24
+      ],
+      "realm": "kambara",
+      "source_hash": "afc3b5fe1651c993",
+      "state": null
+    },
+    "assets/ui/skins/kambara/stele_niche.png": {
+      "catalog_hash": "6f0cff6a0cd8402f",
+      "id": "stele_niche",
+      "png_hash": "420f999c73dadb32",
+      "png_size": [
+        1679,
+        1991
+      ],
+      "realm": "kambara",
+      "source_hash": "22c10db95abe3e89",
       "state": null
     },
     "assets/ui/skins/kambara/tab_disabled.png": {
@@ -2266,6 +2338,42 @@
       ],
       "realm": "tampadesa",
       "source_hash": "1bd29d484b42b340",
+      "state": null
+    },
+    "assets/ui/skins/tampadesa/stele.png": {
+      "catalog_hash": "bbf745cc775e40f4",
+      "id": "stele",
+      "png_hash": "c323eaea266d9d6b",
+      "png_size": [
+        966,
+        1410
+      ],
+      "realm": "tampadesa",
+      "source_hash": "38d44bbcb3cfd2b5",
+      "state": null
+    },
+    "assets/ui/skins/tampadesa/stele_mark.png": {
+      "catalog_hash": "91a38ae700f40c9a",
+      "id": "stele_mark",
+      "png_hash": "3326bebf10e5147d",
+      "png_size": [
+        30,
+        30
+      ],
+      "realm": "tampadesa",
+      "source_hash": "3d6d10b8586ad45d",
+      "state": null
+    },
+    "assets/ui/skins/tampadesa/stele_niche.png": {
+      "catalog_hash": "9bce3f74dd2d268b",
+      "id": "stele_niche",
+      "png_hash": "c7c3c26742807726",
+      "png_size": [
+        1452,
+        1933
+      ],
+      "realm": "tampadesa",
+      "source_hash": "9c021da7ddbc05c4",
       "state": null
     },
     "assets/ui/skins/tampadesa/tab_disabled.png": {

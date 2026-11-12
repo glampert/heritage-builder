@@ -10,6 +10,9 @@
 //   the screens use;
 // - `world_map`: the world map screen's art (its base without markers, the map's frame, the
 //   screen's background) and where the map's units fall on it;
+// - `intermission`, `briefing`: the debrief's and the campaign-complete screen's art (the stele,
+//   its niche, the newest line's mark, the screen's background, the carved text's looks) and the
+//   briefing's (its panel);
 // - `toast`: the panel toasts draw on (the caption panel), at a scale, and their text colour;
 // - `meters`, `rows`: the colours (`text` names or "#RRGGBB(AA)") of painted meters and step
 //   selectors, and of list rows, key-value pairs and tables;
@@ -43,6 +46,7 @@ use engine::{
     ui::{
         DEV_UI_THEME,
         UiFontScale,
+        UiLabelLook,
         UiNineSlice,
         UiNineSliceCenter,
         UiStyleSource,
@@ -103,6 +107,8 @@ pub struct UiSkinDef {
     pub toast: SkinToastDef,
     pub backdrops: SkinBackdropsDef,
     pub world_map: SkinWorldMapDef,
+    pub intermission: SkinIntermissionDef,
+    pub briefing: SkinBriefingDef,
     pub dialogs: BTreeMap<String, SkinDialogDef>, // "default", then by dialog kind name.
     pub sounds: BTreeMap<String, Option<String>>,
 }
@@ -128,6 +134,8 @@ impl Default for UiSkinDef {
             toast: SkinToastDef::default(),
             backdrops: SkinBackdropsDef::default(),
             world_map: SkinWorldMapDef::default(),
+            intermission: SkinIntermissionDef::default(),
+            briefing: SkinBriefingDef::default(),
             dialogs: BTreeMap::new(),
             sounds: BTreeMap::new(),
         }
@@ -549,10 +557,12 @@ impl Default for SkinWorldMapDef {
     }
 }
 
-// Text on the world map: its size and letter spacing in points (1920 × 1080), its colour, in the
-// heading (title) font or the body font, in capitals or as written, and an optional halo (the text
-// drawn round itself, `halo_width` points out) and shadow (a copy behind it, `shadow_offset`
-// points off: carved text). Colours are `text` names or "#RRGGBB(AA)".
+// A text look: text on the world map, and the stele's carved text (`intermission.stele.text`). Its
+// size and letter spacing in points (1920 × 1080; the size an em, as the mockups' CSS sizes it:
+// label_look), its colour, in the heading (title) font or the body font, in capitals or as written,
+// and an optional halo (the text drawn round itself, `halo_width` points out), shadow and highlight
+// (copies behind it, `shadow_offset` and `highlight_offset` points off, the shadow first: carved
+// text, a dark cut and a light lip). Colours are `text` names or "#RRGGBB(AA)".
 #[derive(Clone, Debug, Deserialize)]
 #[serde(default, deny_unknown_fields)]
 pub struct SkinMapTextDef {
@@ -565,6 +575,8 @@ pub struct SkinMapTextDef {
     pub halo_width: f32,
     pub shadow: Option<String>,
     pub shadow_offset: [f32; 2],
+    pub highlight: Option<String>,
+    pub highlight_offset: [f32; 2],
 }
 
 impl Default for SkinMapTextDef {
@@ -579,7 +591,27 @@ impl Default for SkinMapTextDef {
             halo_width: 2.0,
             shadow: None,
             shadow_offset: [1.2, 1.4],
+            highlight: None,
+            highlight_offset: [1.0, 1.0],
         }
+    }
+}
+
+// A UiLabelLook of a skin's text look, `size` points large on a 1920 × 1080 screen (an em, as the
+// generator's font sizes: font_em), at the screen's scale `scale` (its size over 1920 × 1080).
+pub fn label_look(def: &SkinMapTextDef, size: f32, scale: f32) -> UiLabelLook {
+    let offset_color = |name: &Option<String>, offset: [f32; 2]| {
+        name.as_deref().and_then(color).map(|color| (color, Vec2::new(offset[0] * scale, offset[1] * scale)))
+    };
+    UiLabelLook {
+        size: size * scale / font_em(def.heading),
+        heading_font: def.heading,
+        letter_spacing: def.letter_spacing * scale,
+        color: color(&def.color).unwrap_or(Color::black()),
+        halo: def.halo.as_deref().and_then(color),
+        halo_width: def.halo_width * scale,
+        shadow: offset_color(&def.shadow, def.shadow_offset),
+        highlight: offset_color(&def.highlight, def.highlight_offset),
     }
 }
 
@@ -625,6 +657,145 @@ impl SkinWorldMapDef {
     // row or column is past the map.
     pub fn base_map_size(&self) -> Vec2 {
         self.base_pixel(self.extent)
+    }
+}
+
+// The intermission's art (docs/plans/realm-ui.md, Phase 3), drawn by crates/tools/ui-art from the
+// mockup generator's screens.py (stele, stele_backdrop, fresh_mark): the debrief after a mission
+// and the campaign-complete screen show the campaign's stele, with its text carved live
+// (menu::stele). In points on the debrief's 1920 × 1080 screen (the mockup's):
+// - `backdrop`: the screen's background, a 1920 × 1080 JPEG (the world map's: the same drawing);
+// - `panel`: the panel the debrief's and the campaign-complete screen's right side is on;
+// - `niche`: what stands behind the stele (Đại Long's lacquer niche, Kambara's vines, Tampadesa's
+//   whitewashed niche): its sprite goes on `rect` grown by `bleed` (left, top, right, bottom), as
+//   ui-art draws it;
+// - `stele`: the stele (SkinSteleDef).
+#[derive(Clone, Debug, Deserialize)]
+#[serde(default, deny_unknown_fields)]
+pub struct SkinIntermissionDef {
+    pub backdrop: String,
+    pub panel: String,
+    pub niche: SkinPlacedSpriteDef,
+    pub stele: SkinSteleDef,
+}
+
+impl Default for SkinIntermissionDef {
+    fn default() -> Self {
+        Self {
+            backdrop: String::new(),
+            panel: "card".into(),
+            niche: SkinPlacedSpriteDef::default(),
+            stele: SkinSteleDef::default(),
+        }
+    }
+}
+
+// A sprite drawn over `rect` (x, y, width, height in points on a 1920 × 1080 screen) grown by
+// `bleed` (left, top, right, bottom points; negative crops into it): ui-art's rect and bleed.
+#[derive(Clone, Debug, Default, Deserialize)]
+#[serde(default, deny_unknown_fields)]
+pub struct SkinPlacedSpriteDef {
+    pub sprite: String,
+    pub rect: [f32; 4],
+    pub bleed: [f32; 4],
+}
+
+impl SkinPlacedSpriteDef {
+    // Where the sprite goes, [x, y, width, height] in points on the 1920 × 1080 screen.
+    pub fn sprite_rect(&self) -> [f32; 4] {
+        let [x, y, width, height] = self.rect;
+        let [left, top, right, bottom] = self.bleed;
+        [x - left, y - top, width + left + right, height + top + bottom]
+    }
+}
+
+// The stele and how its text is carved, after the generator's stele_lines, in points from its
+// rect's top left (`rect` and `bleed` as SkinPlacedSpriteDef's, the generator's stele rect):
+// - `text`: [x, y, width]: the text's left edge, the title's first baseline and the width lines
+//   wrap at. The title is centred on that width, its lines `title_gap` points apart beyond its
+//   size; the first line's baseline is `title_space` points below the title's last; the rule
+//   under the title (`rule`: inset, height above that first baseline, width) runs `rule[0]` in
+//   from each side; each line's own lines are `line_height` apart, and `entry_gap` more between
+//   lines;
+// - `bottom`: the lowest baseline the text may reach (the slab's lower rule), so the lines are
+//   laid out smaller to fit when there are many (menu::stele);
+// - `rows`, `row_gap`, `row_dash` and the `row` colour: the empty rows for the missions to come,
+//   dashed lines `row_gap` apart after the last line, as many as fit above `bottom`, at most
+//   `rows`;
+// - `mark`: the newest line's mark, `mark_size` points large, its centre `mark_offset` points from
+//   that line's start on its first baseline;
+// - `looks`: the carved text's looks (SkinMapTextDef: realm font, colour, shadow and highlight) by
+//   role: `title`, `line` and `newest` (the line freshly carved);
+// - `colors`: `rule` and `row`.
+#[derive(Clone, Debug, Deserialize)]
+#[serde(default, deny_unknown_fields)]
+pub struct SkinSteleDef {
+    pub sprite: String,
+    pub rect: [f32; 4],
+    pub bleed: [f32; 4],
+    pub text: [f32; 3],
+    pub bottom: f32,
+    pub title_gap: f32,
+    pub title_space: f32,
+    pub rule: [f32; 3],
+    pub line_height: f32,
+    pub entry_gap: f32,
+    pub rows: usize,
+    pub row_gap: f32,
+    pub row_dash: [f32; 2],
+    pub mark: String,
+    pub mark_size: [f32; 2],
+    pub mark_offset: [f32; 2],
+    pub looks: BTreeMap<String, SkinMapTextDef>,
+    pub colors: BTreeMap<String, String>,
+}
+
+impl Default for SkinSteleDef {
+    fn default() -> Self {
+        Self {
+            sprite: String::new(),
+            rect: [140.0, 70.0, 640.0, 950.0],
+            bleed: [0.0; 4],
+            text: [124.0, 218.0, 400.0],
+            bottom: 735.0,
+            title_gap: 8.0,
+            title_space: 34.0,
+            rule: [40.0, 20.0, 1.5],
+            line_height: 32.0,
+            entry_gap: 16.0,
+            rows: 3,
+            row_gap: 34.0,
+            row_dash: [2.0, 8.0],
+            mark: String::new(),
+            mark_size: [24.0, 24.0],
+            mark_offset: [-30.0, -8.0],
+            looks: BTreeMap::new(),
+            colors: BTreeMap::new(),
+        }
+    }
+}
+
+impl SkinSteleDef {
+    // Where the sprite goes, [x, y, width, height] in points on the 1920 × 1080 screen.
+    pub fn sprite_rect(&self) -> [f32; 4] {
+        SkinPlacedSpriteDef { sprite: String::new(), rect: self.rect, bleed: self.bleed }.sprite_rect()
+    }
+}
+
+// The briefing's art (docs/plans/realm-ui.md, Phase 3: Briefing): the scroll or tablet it's on
+// (`panel`, the generator's mpanel: the dialogs' panel) and the outline round its image
+// (`image_outline` colour, `image_outline_width` points).
+#[derive(Clone, Debug, Deserialize)]
+#[serde(default, deny_unknown_fields)]
+pub struct SkinBriefingDef {
+    pub panel: String,
+    pub image_outline: String,
+    pub image_outline_width: f32,
+}
+
+impl Default for SkinBriefingDef {
+    fn default() -> Self {
+        Self { panel: "dialog".into(), image_outline: "ink".into(), image_outline_width: 3.0 }
     }
 }
 
@@ -1268,6 +1439,16 @@ pub fn font_em(heading: bool) -> f32 {
 // The current skin's world map art.
 pub fn world_map() -> &'static SkinWorldMapDef {
     &current().world_map
+}
+
+// The current skin's intermission art: the stele, its niche, the screen's background.
+pub fn intermission() -> &'static SkinIntermissionDef {
+    &current().intermission
+}
+
+// The current skin's briefing art.
+pub fn briefing() -> &'static SkinBriefingDef {
+    &current().briefing
 }
 
 // The home menu's backdrop frames (one for a still), and the time between frames.

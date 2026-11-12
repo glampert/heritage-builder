@@ -2128,8 +2128,9 @@ pub enum UiTextAnchor {
 
 // How UiPainter::label draws text: its size in points, in the theme's body or heading font, with
 // extra room between letters, its colour, and an optional halo (the text drawn around itself in
-// another colour, `halo_width` points out: a label on a busy map) and shadow (a copy behind it,
-// offset: carved text).
+// another colour, `halo_width` points out: a label on a busy map), shadow and highlight (copies
+// behind it, each in its colour and offset: carved text, a dark cut and a light lip; the shadow is
+// drawn first).
 #[derive(Copy, Clone, Debug)]
 pub struct UiLabelLook {
     pub size: f32,
@@ -2139,11 +2140,21 @@ pub struct UiLabelLook {
     pub halo: Option<Color>,
     pub halo_width: f32,
     pub shadow: Option<(Color, Vec2)>,
+    pub highlight: Option<(Color, Vec2)>,
 }
 
 impl Default for UiLabelLook {
     fn default() -> Self {
-        Self { size: 16.0, heading_font: false, letter_spacing: 0.0, color: Color::black(), halo: None, halo_width: 0.0, shadow: None }
+        Self {
+            size: 16.0,
+            heading_font: false,
+            letter_spacing: 0.0,
+            color: Color::black(),
+            halo: None,
+            halo_width: 0.0,
+            shadow: None,
+            highlight: None,
+        }
     }
 }
 
@@ -2312,8 +2323,8 @@ impl UiPainter {
                 self.painter.galley_with_override_text_color(at, galley.clone(), color32(halo));
             }
         }
-        if let Some((shadow, offset)) = look.shadow {
-            self.painter.galley_with_override_text_color(top_left + egui_vec2(offset), galley.clone(), color32(shadow));
+        for (color, offset) in [look.shadow, look.highlight].into_iter().flatten() {
+            self.painter.galley_with_override_text_color(top_left + egui_vec2(offset), galley.clone(), color32(color));
         }
         self.painter.galley(top_left, galley, color32(look.color));
         Rect::from_pos_and_size(Vec2::new(top_left.x, top_left.y), size)
@@ -2324,6 +2335,29 @@ impl UiPainter {
         let galley = self.label_galley(text, look);
         let (top_left, size) = Self::label_placement(&galley, position, anchor);
         Rect::from_pos_and_size(Vec2::new(top_left.x, top_left.y), size)
+    }
+
+    // `text` broken into lines no wider than `width` points in `look` (at spaces, else wherever a
+    // word is wider than the line), as label() would draw them, for text set line by line. A line
+    // break in it starts a new line (two make an empty one). Empty for blank text.
+    pub fn wrap_label(&self, text: &str, look: &UiLabelLook, width: f32) -> Vec<String> {
+        if text.trim().is_empty() {
+            return Vec::new();
+        }
+        let family = if look.heading_font { self.heading_family.clone() } else { self.font.family.clone() };
+        let mut job = egui::text::LayoutJob::default();
+        job.wrap.max_width = width.max(1.0);
+        job.append(text, 0.0, egui::TextFormat {
+            font_id: egui::FontId::new(look.size.max(1.0), family),
+            extra_letter_spacing: look.letter_spacing,
+            ..Default::default()
+        });
+        let galley = self.painter.layout_job(job);
+        galley
+            .rows
+            .iter()
+            .map(|row| row.row.glyphs.iter().map(|glyph| glyph.chr).collect::<String>().trim().to_string())
+            .collect()
     }
 
     fn label_galley(&self, text: &str, look: &UiLabelLook) -> std::sync::Arc<egui::Galley> {

@@ -60,6 +60,10 @@ fn mission(name: &str) -> MissionDef {
         city: None,
         choices: Vec::new(),
         choice_text: None,
+        stele_line: None,
+        lead_in: None,
+        briefing: None,
+        distinctions: Vec::new(),
     }
 }
 
@@ -72,6 +76,8 @@ fn campaign_def(id: &str, realm: Realm, mission_count: usize) -> CampaignDef {
         eras: Vec::new(),
         hidden: false,
         world_map: None,
+        stele_title: None,
+        stele_closing: None,
     }
 }
 

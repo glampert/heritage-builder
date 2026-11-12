@@ -345,6 +345,24 @@
     "bullet_shape": "square", "request_dashed": true, "request_seal": true,
     "choice_box": { "size": [292, 74], "border_width": 1.5, "inner_inset": 4, "inner_width": 1, "title_baseline": 32,
       "subtitle_baseline": 58, "text_x": 18, "line_width": 1.2, "seal": true } },
+  "intermission": {
+    "backdrop": "skins/dailong/world_map_backdrop.jpg",
+    "panel": "card",
+    "niche": { "sprite": "skins/dailong/stele_niche.png", "rect": [106, 36, 708, 1018], "bleed": [-2, -42, -2, -2] },
+    "stele": {
+      "sprite": "skins/dailong/stele.png", "rect": [140, 70, 640, 950], "bleed": [-20, -38, -20, 10],
+      "text": [124, 218, 400], "bottom": 735, "title_gap": 8, "title_space": 34, "rule": [40, 20, 1.5],
+      "line_height": 32, "entry_gap": 16, "rows": 3, "row_gap": 34, "row_dash": [2, 8],
+      "mark": "skins/dailong/stele_mark.png", "mark_size": [25, 25], "mark_offset": [-34, -8.05],
+      "looks": {
+        "title": { "size": 30, "heading": true, "color": "#2B2620", "highlight": "#D8DCD480", "highlight_offset": [1, 1] },
+        "line": { "size": 23, "heading": false, "color": "#2B2620", "highlight": "#D8DCD480", "highlight_offset": [1, 1] },
+        "newest": { "size": 23, "heading": false, "color": "accent", "highlight": "#D8DCD480", "highlight_offset": [1, 1] }
+      },
+      "colors": { "rule": "#2B2620B3", "row": "#2B262066" }
+    }
+  },
+  "briefing": { "panel": "dialog", "image_outline": "#6B4F33", "image_outline_width": 3 },
   "dialogs": {
     "default": {"panel": "dialog", "size": [760, 960]},
     "Home": {"size": [600, 1000], "align": "left", "offset": [64, 0]},

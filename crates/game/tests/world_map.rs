@@ -84,12 +84,20 @@ fn test_world_maps_load_and_resolve() {
 }
 
 // Every key the world maps and the mission cities and choices (their sites, the box's line) name is
-// in en.json.
+// in en.json, and so is every Story key the campaigns name: their stele titles and closing lines,
+// their missions' stele lines, lead-ins, briefings and distinctions' lines.
 fn test_text_keys_exist() {
     let (campaigns, maps) = configs();
     let mut keys: Vec<(UiTextCategory, String)> = maps.maps.values().flat_map(|map| map.text_keys()).collect();
     for campaign in &campaigns.campaigns {
+        keys.extend(
+            [&campaign.stele_title, &campaign.stele_closing]
+                .into_iter()
+                .flatten()
+                .map(|key| (UiTextCategory::Story, key.clone())),
+        );
         for mission in &campaign.missions {
+            keys.extend(mission.story_keys().map(|key| (UiTextCategory::Story, key.to_string())));
             keys.extend(mission.city.iter().map(|city| (UiTextCategory::Realm, city.name.clone())));
             keys.extend(mission.choices.iter().map(|choice| (UiTextCategory::Realm, choice.name.clone())));
             keys.extend(mission.choices.iter().filter_map(|choice| choice.phrase.clone().map(|key| (UiTextCategory::Realm, key))));

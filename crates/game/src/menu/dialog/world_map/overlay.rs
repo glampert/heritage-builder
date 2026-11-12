@@ -741,15 +741,7 @@ impl MapLook {
 // A UiLabelLook of a skin's map text look, `size` points large on a 1920 × 1080 screen (an em, as
 // the generator's font sizes: skin::font_em), at the screen's scale `scale`.
 pub fn map_label_look(def: &SkinMapTextDef, size: f32, scale: f32) -> UiLabelLook {
-    UiLabelLook {
-        size: size * scale / skin::font_em(def.heading),
-        heading_font: def.heading,
-        letter_spacing: def.letter_spacing * scale,
-        color: skin::color(&def.color).unwrap_or(Color::black()),
-        halo: def.halo.as_deref().and_then(skin::color),
-        halo_width: def.halo_width * scale,
-        shadow: def.shadow.as_deref().and_then(skin::color).map(|color| (color, Vec2::new(def.shadow_offset[0] * scale, def.shadow_offset[1] * scale))),
-    }
+    skin::label_look(def, size, scale)
 }
 
 #[cfg(test)]

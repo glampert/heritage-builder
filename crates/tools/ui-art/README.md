@@ -125,8 +125,10 @@ drawing reaches past its rect, which is the bleed it needs (rounded up to half p
 
 ## 4. What it makes
 
-Per realm (Đại Long, Kambara, Tampadesa), about 60 sprites and 0.6-1.6 MB, plus a backdrop and
-the world map's art (about 0.8-1.7 MB):
+Per realm (Đại Long, Kambara, Tampadesa), about 60 sprites and 0.6-1.6 MB, plus a backdrop, the
+world map's art (about 0.8-1.7 MB) and the intermission's stele (0.6-1.6 MB). The intermission's
+screen background is the world map's (`world_map_backdrop`, the same `background` drawing) and the
+briefing's scroll or tablet is `panel_dialog` (the same `mpanel`), so neither has a sprite of its own:
 
 | Sprites | Call | Notes for the skins |
 |---|---|---|
@@ -159,6 +161,9 @@ the world map's art (about 0.8-1.7 MB):
 | `world_map_coin` | `world_map_coin` | The top bar's coin. |
 | `world_map_emblem` | `world_map_emblem` | The side panel's emblem as the realm's mockup draws it (`panel_emblem`: the Sea Kingdom's junk, Hamsara's goose, Kambara's prang in Tampadesa's gilt), for its owner (the skin's `world_map.emblems`). |
 | `world_map_power_emblem` | `world_map_power_emblem` (`scale`) | The emblem of a power without one of its own: the selected foreign city's rings (`foreign_city`) at `scale`. |
+| `stele` | `stele` (`omit`: `stele_lines`) | The debrief's stele (`screens.py`'s `stele`: Đại Long's slab on its tortoise, Kambara's on its lotus pedestal, Tampadesa's gilded slab on its brick plinth) at the mockup's rect, 640 × 950 points, without its text: the game carves the title, the lines, the rule under the title, the newest line's mark and the empty rows live (`menu::stele`). At 1.5 pixels a point (an entry `scale`): its noisy stone is 2-2.5 MB a realm at 2. Its bleed crops the empty top and sides. |
+| `stele_niche` | `stele_backdrop` (`origin`) | What stands behind the stele (`stele_backdrop`: Đại Long's lacquer niche, Kambara's vines, Tampadesa's whitewashed niche), drawn at its place on the debrief's screen: `origin` is the rect's top left in screen points, and the skin's `intermission.niche` gives the same rect and bleed. |
+| `stele_mark` | `stele_mark` (`at`) | The newest line's mark (`fresh_mark`: Đại Long's seal, Kambara's and Tampadesa's dots), centred on the sprite. |
 
 ## 5. Hand-made art
 
