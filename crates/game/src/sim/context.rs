@@ -1,5 +1,3 @@
-#![allow(clippy::too_many_arguments)]
-
 use std::{marker::PhantomData, ops::Deref};
 
 use smallvec::SmallVec;
@@ -623,7 +621,6 @@ impl<'game> SimContext<'game> {
         // unit tasks, so we do not track it as a world or tile map modification.
         self.task_manager.mut_ref_cast()
     }
-
 }
 
 impl<'game> SimContextMut<'game> {
