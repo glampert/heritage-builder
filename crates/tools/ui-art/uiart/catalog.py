@@ -53,7 +53,7 @@ FORMATS = {"png": ".png", "jpeg": ".jpg"}
 
 # The drawing calls the renderer knows (render.CALLS has one function per name).
 KNOWN_CALLS = (
-    "mpanel", "box", "bar_bg", "panel_bg", "card", "row_bg", "text_input", "caption", "speech",
+    "mpanel", "box", "paper_box", "bar_bg", "panel_bg", "card", "row_bg", "text_input", "caption", "speech",
     "button", "tab", "item_marker", "icon_button", "build_button", "checkbox", "toggle", "slider",
     "dropdown", "divider", "realm_emblem", "seal", "home_scene", "world_map_base", "world_map_threat",
     "world_map_frame", "world_map_backdrop", "world_map_mark", "world_map_compass", "world_map_coin",

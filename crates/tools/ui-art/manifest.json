@@ -469,15 +469,15 @@
       "state": null
     },
     "assets/ui/skins/dailong/panel_tooltip.png": {
-      "catalog_hash": "8146b6cc9f7966c4",
+      "catalog_hash": "209c1caea5720cab",
       "id": "panel_tooltip",
-      "png_hash": "57d02b325e307698",
+      "png_hash": "13a579966a94ea28",
       "png_size": [
-        248,
-        248
+        228,
+        228
       ],
       "realm": "dailong",
-      "source_hash": "b3a3ec3ab92ad795",
+      "source_hash": "8ed1ab3698d07c84",
       "state": null
     },
     "assets/ui/skins/dailong/panel_well.png": {

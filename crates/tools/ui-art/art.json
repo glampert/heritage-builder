@@ -31,7 +31,8 @@
         "tampadesa": { "size": [140, 140], "bleed": [6, 6, 6, 6], "slice": [20, 20, 20, 20] } } },
     { "id": "panel_tooltip", "group": "panels", "call": "box",
       "realms": {
-        "dailong": { "size": [112, 112], "bleed": [6, 6, 6, 6], "slice": [28, 28, 28, 28], "center": "tile" },
+        "dailong": { "call": "paper_box", "size": [112, 112], "bleed": [1, 1, 1, 1], "slice": [28, 28, 28, 28], "center": "tile",
+                     "notes": "A thin outline in place of the box's 6-point frame, too heavy round a one-line tooltip." },
         "kambara": { "size": [116, 116], "bleed": [2, 2, 4, 6], "slice": [20, 20, 24, 28], "center": "tile" },
         "tampadesa": { "size": [140, 100], "bleed": [4, 4, 4, 6], "slice": [24, 24, 24, 28], "center": "stretch",
                        "attrs": { "box_style": "lacquer" } } } },

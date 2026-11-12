@@ -134,7 +134,7 @@
       "sprite": "skins/dailong/panel_tooltip.png",
       "slice": [28, 28, 28, 28],
       "center": "round",
-      "content": [14, 12, 14, 12]
+      "content": [11, 9, 11, 9]
     },
     "card": {
       "sprite": "skins/dailong/panel_card.png",

@@ -127,6 +127,18 @@ def _at(x, y, w, h, a):
     return x + ax, y + ay
 
 
+def _paper_box(th, x, y, w, h, stroke):
+    # Đại Long's box() starts with its frame, a dark rect 6 points larger all round: drop it and
+    # outline the paper instead.
+    svg = th.box(x, y, w, h)
+    frame_end = svg.index("/>") + 2
+    frame = svg[:frame_end]
+    if 'fill="#2a170c"' not in frame:
+        raise ValueError("paper_box: box() no longer starts with Đại Long's frame")
+    return (svg[frame_end:]
+            + f'<rect x="{x}" y="{y}" width="{w}" height="{h}" rx="3" fill="none" stroke="#2a170c" stroke-width="{stroke}"/>')
+
+
 def _with_lines(th, n, draw):
     # caption() and speech() size themselves from their wrapped text; text is stripped, so
     # wrap to n empty lines for the height wanted.
@@ -138,6 +150,9 @@ CALLS = {
     # Panels.
     "mpanel": lambda th, x, y, w, h, a: th.mpanel(x, y, w, h, crest=a.get("crest", False)),
     "box": lambda th, x, y, w, h, a: th.box(x, y, w, h, big=a.get("big", False)),
+    # box() with a thin outline (`stroke` points, 2 by default, in its frame's colour) in place of
+    # the 6-point frame Đại Long's draws round it, for small panels such as tooltips.
+    "paper_box": lambda th, x, y, w, h, a: _paper_box(th, x, y, w, h, a.get("stroke", 2)),
     "bar_bg": lambda th, x, y, w, h, a: th.bar_bg(x, y, w, h),
     "panel_bg": lambda th, x, y, w, h, a: th.panel_bg(x, y, w, h),
     "card": lambda th, x, y, w, h, a: th.card(x, y, w, h),
