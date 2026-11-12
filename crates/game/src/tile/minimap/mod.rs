@@ -383,6 +383,7 @@ pub struct Minimap {
     layout: MinimapLayout,
     is_open: bool,
     show_landmarks: bool, // The building icons in the City view; alerts show either way.
+    pointer_blocked: bool, // A dialog covers the HUD: no hover tooltip, no click to move the camera.
 }
 
 impl Default for Minimap {
@@ -405,6 +406,7 @@ impl Default for Minimap {
             layout: MinimapLayout::default(),
             is_open: true,
             show_landmarks: true,
+            pointer_blocked: false,
         }
     }
 }
@@ -422,8 +424,10 @@ impl Minimap {
         tex_cache: &mut TextureCache,
         input_sys: &InputSystem,
         ui_sys: &UiSystem,
+        pointer_blocked: bool,
         delta_time_secs: Seconds,
     ) {
+        self.pointer_blocked = pointer_blocked;
         let style = style::current();
         let style_version = style::version();
 
@@ -443,8 +447,9 @@ impl Minimap {
 
         self.view.update(camera, self.layout.map, self.grid.size(), input_sys.cursor_pos(), delta_time_secs);
 
-        // Click or drag on the map to move the camera there.
-        if input_sys.mouse_button_state(MouseButton::Left) == InputAction::Press
+        // Click or drag on the map to move the camera there, unless a dialog covers the minimap.
+        if !self.pointer_blocked
+            && input_sys.mouse_button_state(MouseButton::Left) == InputAction::Press
             && let Some(cell) = self.view.pick_cell(self.view.cursor_pos)
         {
             camera.teleport_iso(widget::world_to_iso(widget::cell_to_world(cell.0)));
@@ -678,6 +683,12 @@ impl Minimap {
     // ----------------------
     // Queries:
     // ----------------------
+
+    // Whether a dialog covers the HUD this frame (GameMenusSystem::covers_hud).
+    #[inline]
+    pub fn is_pointer_blocked(&self) -> bool {
+        self.pointer_blocked
+    }
 
     #[inline]
     pub fn is_open(&self) -> bool {

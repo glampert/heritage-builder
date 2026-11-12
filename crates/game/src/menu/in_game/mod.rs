@@ -99,6 +99,11 @@ impl GameMenusSystem for InGameMenus {
         Some(self.tile_inspector.as_mut())
     }
 
+    // Every in-game dialog is modal (the Game menu, Settings, the world map, ...).
+    fn covers_hud(&self) -> bool {
+        dialog::current().is_some()
+    }
+
     fn sync_skin(&mut self, context: &mut GameUiContext) {
         skin::follow(context, realm::ui_realm_for(false).realm);
         skin::apply_theme(context.ui_sys);

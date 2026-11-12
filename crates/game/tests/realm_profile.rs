@@ -1,12 +1,13 @@
 use game::{
     campaign::{
         self,
-        config::{CampaignConfigs, CampaignDef, MissionDef, MissionMap, MissionRequirements, assign_campaign_ids},
+        config::{CampaignConfigs, CampaignDef, ChoiceSite, MissionChoiceDef, MissionDef, MissionMap, MissionRef, MissionRequirements, assign_campaign_ids},
     },
     debug::preset_maps,
-    profile::{self, CampaignRecord, PROFILE_VERSION, Profile},
+    profile::{self, CampaignRecord, ChoiceRecord, PROFILE_VERSION, Profile},
     realm::{self, Realm, UiRealm, UiRealmInputs, UiRealmSource, choose_ui_realm},
     tile::minimap::style,
+    world_map::config::LabelSide,
 };
 use strum::IntoEnumIterator;
 
@@ -32,6 +33,7 @@ fn main() {
         test_utils::test_fn!(test_mission_progress),
         test_utils::test_fn!(test_profile_edits),
         test_utils::test_fn!(test_playable_campaigns_and_next_missions),
+        test_utils::test_fn!(test_choices_recorded),
         // UI realm:
         test_utils::test_fn!(test_ui_realm_choice),
         test_utils::test_fn!(test_reaching_campaign_two_switches_home_realm),
@@ -57,6 +59,7 @@ fn mission(name: &str) -> MissionDef {
         risks: None,
         city: None,
         choices: Vec::new(),
+        choice_text: None,
     }
 }
 
@@ -158,6 +161,7 @@ fn sample_profile() -> Profile {
                 missions_finished: vec![0, 1],
                 distinctions: vec!["builder".into()],
                 finished: true,
+                choices: vec![ChoiceRecord { step: 1, site: ChoiceSite::B }],
             },
             CampaignRecord { id: "two".into(), reached: true, current_mission: None, ..Default::default() },
         ],
@@ -324,6 +328,58 @@ fn test_playable_campaigns_and_next_missions() {
     assert_eq!(profile::revision(), after);
     profile::reset();
     assert!(profile::revision() > after);
+}
+
+// A campaign whose second mission is a choice point: site A starts it, site B its variant, the
+// third mission.
+fn choice_configs() -> CampaignConfigs {
+    let mut campaign = campaign_def("one", Realm::DaiLong, 3);
+    let site = |site, mission| MissionChoiceDef { site, name: "city.hoi_thuy".into(), phrase: None, position: [0.0, 0.0], label: LabelSide::Below, mission };
+    campaign.missions[1].choices = vec![site(ChoiceSite::A, MissionRef::Index(1)), site(ChoiceSite::B, MissionRef::Index(2))];
+    CampaignConfigs { campaigns: vec![campaign] }
+}
+
+// Starting a variant, or a pick in the choice box (choice_made), records the site picked at its
+// choice point, and the campaign resumes there; finishing it finishes the step. Files without choices read and write as before.
+fn test_choices_recorded() {
+    let configs = choice_configs();
+    let mut profile = Profile::new();
+    profile.mission_started(&configs, 0, 0);
+    assert!(profile.record("one").unwrap().choices.is_empty(), "mission 1 offers no choice");
+    assert!(!profile.to_json().contains("choices"), "no choices: none in the file");
+
+    profile.mission_finished(&configs, 0, 0);
+    assert_eq!(profile.next_mission(&configs, 0), Some(1), "no site picked yet: the choice point");
+    profile.mission_started(&configs, 0, 2);
+    assert_eq!(profile.record("one").unwrap().choices, vec![ChoiceRecord { step: 1, site: ChoiceSite::B }]);
+    assert_eq!(profile.next_mission(&configs, 0), Some(2), "resumes at the site picked");
+    assert_eq!(Profile::from_json(&profile.to_json()).unwrap(), profile);
+
+    // The choice point started by itself picks nothing; picking again replaces the choice.
+    profile.mission_started(&configs, 0, 1);
+    assert_eq!(profile.record("one").unwrap().choices, vec![ChoiceRecord { step: 1, site: ChoiceSite::B }]);
+    profile.choice_made(&configs, 0, 1, ChoiceSite::A);
+    assert_eq!(profile.record("one").unwrap().choices, vec![ChoiceRecord { step: 1, site: ChoiceSite::A }]);
+    assert_eq!(profile.next_mission(&configs, 0), Some(1));
+    profile.choice_made(&configs, 0, 0, ChoiceSite::A);
+    assert_eq!(profile.record("one").unwrap().choices.len(), 1, "mission 1 offers no choice");
+
+    profile.mission_started(&configs, 0, 2);
+    profile.mission_finished(&configs, 0, 2);
+    let record = profile.record("one").unwrap();
+    assert!(record.finished, "the variant finishes the last step");
+    assert_eq!(profile.next_mission(&configs, 0), Some(0));
+
+    // profile.set: a choice names a site its mission offers, once per mission.
+    let mut edited = Profile::new();
+    edited.set_campaign_records(&configs, vec![serde_json::json!({ "id": "one", "choices": [{ "step": 1, "site": "B" }] })]).unwrap();
+    assert_eq!(edited.next_mission(&configs, 0), Some(0));
+    edited.set_campaign_records(&configs, vec![serde_json::json!({ "id": "one", "missions_finished": [0], "choices": [{ "step": 1, "site": "B" }] })]).unwrap();
+    assert_eq!(edited.next_mission(&configs, 0), Some(2));
+    let err = edited.set_campaign_records(&configs, vec![serde_json::json!({ "id": "one", "choices": [{ "step": 0, "site": "A" }] })]).unwrap_err();
+    assert!(err.contains("offers no site A"), "{err}");
+    let twice = serde_json::json!({ "id": "one", "choices": [{ "step": 1, "site": "A" }, { "step": 1, "site": "B" }] });
+    assert!(edited.set_campaign_records(&configs, vec![twice]).unwrap_err().contains("two choices"));
 }
 
 // ----------------------------------------------

@@ -63,6 +63,7 @@ fn build_test_configs() -> CampaignConfigs {
                     risks: None,
                     city: None,
                     choices: Vec::new(),
+                    choice_text: None,
                 },
                 MissionDef {
                     id: String::new(),
@@ -75,6 +76,7 @@ fn build_test_configs() -> CampaignConfigs {
                     risks: None,
                     city: None,
                     choices: Vec::new(),
+                    choice_text: None,
                 },
             ],
             eras: vec![EraDef { name: "Test Era".into(), start_year: 4 }],

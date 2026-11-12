@@ -9,7 +9,9 @@ pub use provider::{ConfigWorldMapProvider, WorldMapProvider};
 
 use crate::{
     campaign::{self, config::CampaignConfigs},
-    custom_game, profile,
+    custom_game,
+    game_loop::GameLoop,
+    profile,
 };
 
 // The provider of the campaign at `campaign_index` for this run: the configs loaded, the player's
@@ -20,7 +22,10 @@ pub fn provider(campaign_index: usize) -> Option<ConfigWorldMapProvider<'static>
         return None;
     }
     let active = if campaign::CampaignManager::is_initialized() { campaign::active_mission() } else { None };
+    // Any game but the home menu's: a custom game, another campaign's mission or a preset.
+    let in_game = GameLoop::is_initialized() && GameLoop::get().is_in_game();
     ConfigWorldMapProvider::new(CampaignConfigs::get(), WorldMapConfigs::get(), campaign_index, profile::get(), active)
+        .map(|provider| provider.with_other_game(in_game))
 }
 
 // The campaign whose map the world map shows when none is named: the mission being played's, else

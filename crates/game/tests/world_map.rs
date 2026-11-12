@@ -83,7 +83,8 @@ fn test_world_maps_load_and_resolve() {
     assert_eq!(three_files, ["dragon_legacy", "temple_mountain", "ten_thousand_temples"]);
 }
 
-// Every key the world maps and the mission cities and choices name is in en.json.
+// Every key the world maps and the mission cities and choices (their sites, the box's line) name is
+// in en.json.
 fn test_text_keys_exist() {
     let (campaigns, maps) = configs();
     let mut keys: Vec<(UiTextCategory, String)> = maps.maps.values().flat_map(|map| map.text_keys()).collect();
@@ -91,6 +92,8 @@ fn test_text_keys_exist() {
         for mission in &campaign.missions {
             keys.extend(mission.city.iter().map(|city| (UiTextCategory::Realm, city.name.clone())));
             keys.extend(mission.choices.iter().map(|choice| (UiTextCategory::Realm, choice.name.clone())));
+            keys.extend(mission.choices.iter().filter_map(|choice| choice.phrase.clone().map(|key| (UiTextCategory::Realm, key))));
+            keys.extend(mission.choice_text.iter().map(|key| (UiTextCategory::Menu, key.clone())));
         }
     }
     let missing: Vec<String> = keys.iter().filter(|(category, key)| text::peek(*category, key, None).1.is_none()).map(|(category, key)| format!("{category} '{key}'")).collect();
@@ -103,7 +106,14 @@ fn test_hidden_campaigns_stay_out_of_the_menus() {
     let (configs, _) = configs();
     let hidden = index_of(TEST_CAMPAIGN);
     assert!(configs.campaigns[hidden].hidden);
-    assert_eq!(hidden, configs.campaigns.len() - 1, "hidden campaigns go last");
+    let first_hidden = configs.campaigns.iter().position(|campaign| campaign.hidden).unwrap();
+    assert!(configs.campaigns[first_hidden..].iter().all(|campaign| campaign.hidden), "hidden campaigns go last");
+    // One per realm, each on its realm's map, so every realm's choice box can be shown.
+    for (id, realm) in [(TEST_CAMPAIGN, Realm::DaiLong), ("test_choices_kambara", Realm::Kambara), ("test_choices_tampadesa", Realm::Tampadesa)] {
+        let campaign = &configs.campaigns[index_of(id)];
+        assert!(campaign.hidden && campaign.realm == realm, "{id}");
+        assert!(campaign.missions.iter().any(|mission| !mission.choices.is_empty()), "{id} offers a choice");
+    }
 
     // Campaigns I to III keep their numbers.
     assert_eq!(configs.campaign_number(index_of("dragon_legacy")), Some(1));
@@ -265,8 +275,21 @@ fn test_next_mission_choice() {
     let sites: Vec<(ChoiceSite, &str, [f32; 2], usize)> = choice.sites.iter().map(|site| (site.site, site.name.as_str(), site.position, site.mission_index)).collect();
     assert_eq!(sites, [(ChoiceSite::A, "Hội Thủy", [756.0, 316.0], 1), (ChoiceSite::B, "Vân Cảng", [854.0, 294.0], 2)]);
 
+    assert!(!choice.open, "closed until the mission being played is finished");
+    let finished_first = ActiveMission { campaign_id: index, mission_index: 0, completed: true };
+    assert!(provider(&profile, TEST_CAMPAIGN, Some(finished_first)).next_mission_choice().is_some_and(|choice| choice.open));
+
     profile.mission_finished(configs, index, 0);
-    assert_eq!(provider(&profile, TEST_CAMPAIGN, None).next_mission_choice().map(|choice| choice.mission_index), Some(1));
+    let choice = provider(&profile, TEST_CAMPAIGN, None).next_mission_choice().expect("the profile's next step");
+    assert_eq!(choice.mission_index, 1);
+    assert!(choice.open, "open with no game being played");
+    // Over another game (a custom game, another campaign's mission) the choice stays closed:
+    // starting its mission would end that game.
+    let over_other = provider(&profile, TEST_CAMPAIGN, None).with_other_game(true).next_mission_choice().expect("still shown");
+    assert!(!over_other.open);
+    let other_campaign = ActiveMission { campaign_id: index_of("dragon_legacy"), mission_index: 0, completed: true };
+    let over_other = provider(&profile, TEST_CAMPAIGN, Some(other_campaign)).with_other_game(true).next_mission_choice().expect("still shown");
+    assert!(!over_other.open, "another campaign's finished mission doesn't open it");
 
     // Playing site B's mission: nothing comes after it.
     let playing_b = ActiveMission { campaign_id: index, mission_index: 2, completed: false };

@@ -592,7 +592,8 @@ impl GameLoop {
 
     fn update_camera(&mut self, cursor_screen_pos: Vec2, delta_time_secs: Seconds) -> CellRange {
         let viewport_size = self.engine.app().window_size();
-        let is_any_ui_item_hovered = self.engine.ui_system().is_any_widget_hovered();
+        // A dialog over the city (the world map, the Game menu) holds it still too.
+        let is_any_ui_item_hovered = self.engine.ui_system().is_any_widget_hovered() || self.session.menus_cover_hud();
 
         let camera = self.session.camera_mut();
         camera.set_viewport_size(viewport_size);
@@ -601,6 +602,8 @@ impl GameLoop {
         // Map scrolling, if cursor not hovering a menu item.
         if !is_any_ui_item_hovered {
             camera.update_scrolling(cursor_screen_pos, delta_time_secs);
+        } else {
+            camera.stop_scrolling();
         }
 
         camera.visible_cells_range()

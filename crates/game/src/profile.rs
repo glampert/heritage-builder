@@ -20,12 +20,16 @@ use serde_json::Value;
 use engine::{file_sys::paths::PathRef, log, save::storage};
 
 use crate::{
-    campaign::config::CampaignConfigs,
+    campaign::config::{CampaignConfigs, ChoiceSite},
     realm::Realm,
 };
 
 // Bump when the layout changes. A profile of another version is replaced by a fresh one (with a
-// warning) until a migration exists.
+// warning) until a migration exists. A field added with a default and left out while it holds it
+// (CampaignRecord::choices) is read from older files and written as before while it's empty, so
+// it needs no bump; but CampaignRecord denies unknown fields, so a build without the field reads a
+// profile that has a value in it as broken and starts afresh (backing the file up to
+// profile_unloaded.json first).
 pub const PROFILE_VERSION: u32 = 1;
 
 // The user file's name: saves/user/profile.json. No dots: the storage adds the extension.
@@ -62,6 +66,36 @@ pub struct CampaignRecord {
     pub missions_finished: Vec<usize>, // Indices of the missions finished, ascending.
     pub distinctions: Vec<String>,     // TODO(realm-ui): the distinctions earned, once M9 awards them.
     pub finished: bool,                // Its last mission is finished.
+    // The site picked at each choice point started (the world map's choice box), by step: the
+    // campaign resumes there (next_mission). Left out of the file while empty.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub choices: Vec<ChoiceRecord>,
+}
+
+// A choice made: the site picked at the choice point at `step` (a mission index).
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct ChoiceRecord {
+    pub step: usize,
+    pub site: ChoiceSite,
+}
+
+impl CampaignRecord {
+    // The site picked at the choice point at `step`, if one was.
+    pub fn choice(&self, step: usize) -> Option<ChoiceSite> {
+        self.choices.iter().find(|choice| choice.step == step).map(|choice| choice.site)
+    }
+
+    // Records `site` as picked at `step`, in place of an earlier pick there.
+    fn set_choice(&mut self, step: usize, site: ChoiceSite) {
+        match self.choices.iter_mut().find(|choice| choice.step == step) {
+            Some(choice) => choice.site = site,
+            None => {
+                self.choices.push(ChoiceRecord { step, site });
+                self.choices.sort_unstable_by_key(|choice| choice.step);
+            }
+        }
+    }
 }
 
 impl Default for Profile {
@@ -160,13 +194,26 @@ impl Profile {
     }
 
     // The mission the campaign at `campaign_index` resumes at: the first step it hasn't finished
-    // (a choice point stands for its sites' missions: CampaignDef, Missions and choices), or its
-    // first again once every one is finished. None for a campaign without missions (yet).
+    // (a choice point stands for its sites' missions: CampaignDef, Missions and choices), the
+    // mission of the site picked there if one was, or its first again once every one is finished.
+    // None for a campaign without missions (yet).
+    // TODO(realm-ui): a choice point with no site picked resumes at the choice point itself (site
+    // A's mission); the briefing or intermission (Phase 3) should open the world map's choice box
+    // there instead, as MissionComplete's Next Mission does.
     pub fn next_mission(&self, configs: &CampaignConfigs, campaign_index: usize) -> Option<usize> {
         let campaign = configs.campaign(campaign_index)?;
-        let finished = self.record(&campaign.id).map_or(&[][..], |record| record.missions_finished.as_slice());
+        let record = self.record(&campaign.id);
+        let finished = record.map_or(&[][..], |record| record.missions_finished.as_slice());
         let steps = campaign.steps();
-        steps.iter().copied().find(|&step| !campaign.is_step_finished(step, finished)).or_else(|| steps.first().copied())
+        let step = steps.iter().copied().find(|&step| !campaign.is_step_finished(step, finished));
+        let Some(step) = step else {
+            return steps.first().copied();
+        };
+        let picked = record.and_then(|record| record.choice(step)).and_then(|site| {
+            let choice = campaign.missions.get(step)?.choices.iter().find(|choice| choice.site == site)?;
+            campaign.resolve_mission(&choice.mission)
+        });
+        Some(picked.unwrap_or(step))
     }
 
     // ----------------------
@@ -188,8 +235,33 @@ impl Profile {
         record.reached = true;
         record.current_mission = Some(mission_index);
 
+        // A variant (a site's mission other than the choice point itself): only a choice starts
+        // it, so it's the site picked. The choice point started by itself (the home menu's Campaign
+        // with nothing picked) picks nothing: choice_made records a choice of its own site.
+        let step = campaign.step_of(mission_index);
+        if step != mission_index {
+            let site = campaign.missions.get(step).and_then(|point| {
+                point.choices.iter().find(|choice| campaign.resolve_mission(&choice.mission) == Some(mission_index)).map(|choice| choice.site)
+            });
+            if let Some(site) = site {
+                record.set_choice(step, site);
+            }
+        }
+
         if !campaign.hidden && !self.custom_realms.contains(&campaign.realm) {
             self.custom_realms.push(campaign.realm);
+        }
+    }
+
+    // The player picked `site` at the choice point at `step` of the campaign at `campaign_index`
+    // (the world map's choice box): the campaign resumes at its mission. Nothing for a site the
+    // step doesn't offer.
+    pub fn choice_made(&mut self, configs: &CampaignConfigs, campaign_index: usize, step: usize, site: ChoiceSite) {
+        let Some(campaign) = configs.campaign(campaign_index) else {
+            return;
+        };
+        if campaign.missions.get(step).is_some_and(|point| point.choices.iter().any(|choice| choice.site == site)) {
+            self.record_mut(&campaign.id).set_choice(step, site);
         }
     }
 
@@ -282,11 +354,21 @@ fn campaign_record_from_json(configs: &CampaignConfigs, record: Value) -> Result
 
     let mut record: CampaignRecord = serde_json::from_value(merged).map_err(|err| format!("Invalid campaign record: {err}"))?;
 
-    let missions = configs.campaigns[campaign_index(configs, &record.id)?].missions.len();
+    let campaign = &configs.campaigns[campaign_index(configs, &record.id)?];
+    let missions = campaign.missions.len();
     let out_of_range = record.current_mission.iter().chain(&record.missions_finished).find(|&&index| index >= missions);
     if let Some(index) = out_of_range {
         return Err(format!("Campaign '{}' has {missions} missions: there's no mission {index}.", record.id));
     }
+    for (index, choice) in record.choices.iter().enumerate() {
+        if !campaign.missions.get(choice.step).is_some_and(|mission| mission.choices.iter().any(|offered| offered.site == choice.site)) {
+            return Err(format!("Campaign '{}': mission {} offers no site {} to choose.", record.id, choice.step, choice.site));
+        }
+        if record.choices[..index].iter().any(|other| other.step == choice.step) {
+            return Err(format!("Campaign '{}': mission {} has two choices.", record.id, choice.step));
+        }
+    }
+    record.choices.sort_unstable_by_key(|choice| choice.step);
 
     record.missions_finished.sort_unstable();
     record.missions_finished.dedup();
@@ -455,6 +537,14 @@ pub fn on_mission_started(campaign_index: usize, mission_index: usize) {
         return;
     }
     update(|profile| profile.mission_started(CampaignConfigs::get(), campaign_index, mission_index));
+}
+
+// The world map's choice box picked a site (Profile::choice_made).
+pub fn on_choice_made(campaign_index: usize, step: usize, site: ChoiceSite) {
+    if !CampaignConfigs::is_initialized() {
+        return;
+    }
+    update(|profile| profile.choice_made(CampaignConfigs::get(), campaign_index, step, site));
 }
 
 // A campaign mission's goals were met (campaign::take_finished_missions, drained by GameLoop).

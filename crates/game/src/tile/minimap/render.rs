@@ -48,13 +48,14 @@ impl MinimapTool {
     }
 
     pub fn tooltip(self) -> &'static str {
+        use ui::text::{UiTextCategory, get};
         match self {
-            Self::ZoomIn => "Zoom in",
-            Self::ZoomOut => "Zoom out",
-            Self::Alerts => "Next alert",
-            Self::Home => "Centre on the palace",
-            Self::WorldMap => ui::text::get(ui::text::UiTextCategory::Menu, "game_menu.world_map"),
-            Self::Collapse => "Hide map",
+            Self::ZoomIn => get(UiTextCategory::Menu, "minimap.zoom_in"),
+            Self::ZoomOut => get(UiTextCategory::Menu, "minimap.zoom_out"),
+            Self::Alerts => get(UiTextCategory::Menu, "minimap.alerts"),
+            Self::Home => get(UiTextCategory::Menu, "minimap.home"),
+            Self::WorldMap => get(UiTextCategory::Menu, "game_menu.world_map"),
+            Self::Collapse => get(UiTextCategory::Menu, "minimap.collapse"),
         }
     }
 }
@@ -157,7 +158,7 @@ impl BaseMinimapRenderer {
                 Vec2::new(0.0, ui::screen_size(context.ui_sys()).y - open_menu_size.y)
             }))
             .into_rc();
-        let open_button = make_button(context, &format!("{}/open", style.buttons), "Open map").on_state_changed(|button, context, _| {
+        let open_button = make_button(context, &format!("{}/open", style.buttons), ui::text::get(ui::text::UiTextCategory::Menu, "minimap.open")).on_state_changed(|button, context, _| {
             if button.is_pressed() {
                 ui::widgets::context_as_mut::<GameUiContext>(context).tile_map.minimap_mut().set_open(true);
                 button.press(false); // Single click button.
@@ -178,8 +179,8 @@ impl BaseMinimapRenderer {
             .collect();
 
         let debug = self.with_debug_button.then(|| make_button(context, &format!("{}/debug", style.buttons), "Debug"));
-        let landmarks_on = make_button(context, &format!("{}/landmarks_on", style.buttons), "Hide building icons");
-        let landmarks_off = make_button(context, &format!("{}/landmarks_off", style.buttons), "Show building icons");
+        let landmarks_on = make_button(context, &format!("{}/landmarks_on", style.buttons), ui::text::get(ui::text::UiTextCategory::Menu, "minimap.hide_landmarks"));
+        let landmarks_off = make_button(context, &format!("{}/landmarks_off", style.buttons), ui::text::get(ui::text::UiTextCategory::Menu, "minimap.show_landmarks"));
         self.tooltip_background = self.with_frame.then(|| match style.tooltip_frame() {
             Some(sprite) => (UiTooltipBackground::Sprite(context.load_texture(PathRef::from_str(sprite))), None),
             None => crate::menu::skin::tooltip_background(context),
@@ -547,7 +548,7 @@ impl BaseMinimapRenderer {
     fn hover_tooltip(&self, context: &mut GameUiContext, layout: &MinimapLayout) {
         let minimap = context.tile_map.minimap();
         let cursor = minimap.view().cursor_pos;
-        if !layout.map.contains_point(cursor) {
+        if minimap.is_pointer_blocked() || !layout.map.contains_point(cursor) {
             return;
         }
         let Some(cell) = minimap.view().pick_cell(cursor) else {

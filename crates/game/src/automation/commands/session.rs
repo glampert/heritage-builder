@@ -10,12 +10,13 @@ use engine::{file_sys::paths::PathRef, save};
 use super::{SizeParam, validate_save_name, world::find_tile_def};
 use crate::{
     automation::{CommandContext, CommandDef, CommandError, CommandResult, ParamDef, done, parse_params, pending},
-    campaign::{self, config::CampaignConfigs},
+    campaign::{self, config::{CampaignConfigs, MissionMap, MissionRef}},
     custom_game,
     config::LoadMapSetting,
     debug::preset_maps,
     launch,
     menu::GameMenusMode,
+    profile,
     session::{self, GameSession},
     tile::TileMapLayerKind,
 };
@@ -75,6 +76,15 @@ pub(super) const COMMANDS: &[CommandDef] = &[
         run: cmd_checksum,
     },
     CommandDef {
+        name: "session.start_mission",
+        help: "Start a campaign mission, as the home menu's Campaign does: any campaign, hidden ones included (test_choices). The mission is the profile's next one unless given.",
+        params: &[
+            ParamDef { name: "campaign", kind: "string", required: true, help: "The campaign's id, e.g. dragon_legacy." },
+            ParamDef { name: "mission", kind: "any", required: false, help: "Its index from 0 or its id; the profile's next mission if left out." },
+        ],
+        run: cmd_start_mission,
+    },
+    CommandDef {
         name: "session.quit_to_menu",
         help: "Leave the game for the home menu. Ends any campaign.",
         params: &[],
@@ -126,6 +136,9 @@ fn cmd_state(context: &mut CommandContext, _params: Value) -> CommandResult {
             "campaign": configs.campaign(mission.campaign_id).map(|campaign| campaign.name.clone()),
             "mission": configs.mission(mission.campaign_id, mission.mission_index).map(|mission| mission.name.clone()),
             "mission_index": mission.mission_index,
+            "campaign_id": configs.campaign(mission.campaign_id).map(|campaign| campaign.id.clone()),
+            // None for a mission without an id in campaigns.json.
+            "mission_id": configs.mission(mission.campaign_id, mission.mission_index).map(|mission| mission.id.clone()).filter(|id| !id.is_empty()),
             "completed": mission.completed,
         })
     });
@@ -240,6 +253,46 @@ fn cmd_load_preset(context: &mut CommandContext, params: Value) -> CommandResult
     after_session_settles(context, true, move |context| {
         let map_size = context.session.tile_map().size_in_cells();
         json!({ "preset": params.preset, "name": preset_name, "map_size": [map_size.width, map_size.height] })
+    })
+}
+
+fn cmd_start_mission(context: &mut CommandContext, params: Value) -> CommandResult {
+    #[derive(Deserialize)]
+    #[serde(deny_unknown_fields)]
+    struct Params {
+        campaign: String,
+        mission: Option<MissionRef>,
+    }
+
+    let params: Params = parse_params(params)?;
+    let configs = CampaignConfigs::get();
+    let Some(campaign_index) = configs.find_by_id(&params.campaign) else {
+        let ids: Vec<&str> = configs.campaigns.iter().map(|campaign| campaign.id.as_str()).collect();
+        return Err(CommandError::not_found(format!("No campaign has the id '{}'. Campaigns: {}.", params.campaign, ids.join(", "))));
+    };
+    let campaign = &configs.campaigns[campaign_index];
+    let mission_index = match &params.mission {
+        Some(mission) => campaign.resolve_mission(mission),
+        None => profile::get().next_mission(configs, campaign_index),
+    };
+    let Some(mission_index) = mission_index else {
+        return Err(CommandError::not_found(format!("Campaign '{}' has no such mission ({} missions).", campaign.id, campaign.missions.len())));
+    };
+    // A save map this game can't load would start nothing: refused before the campaign changes.
+    let map = campaign::start_mission_if_loadable(campaign_index, mission_index)
+        .map_err(|err| CommandError::failed(format!("{err} Extract saves/sample_saves.zip.")))?;
+    match map {
+        MissionMap::SaveGame { save_file } => context.session_cmds.push_load_save_game(PathRef::from_str(&save_file)),
+        MissionMap::Preset { preset_number } => context.session_cmds.push_load_preset_map(preset_number),
+    }
+
+    after_session_settles(context, true, move |_| {
+        let active = campaign::active_mission();
+        json!({
+            "started": active.as_ref().is_some_and(|active| active.campaign_id == campaign_index && active.mission_index == mission_index),
+            "campaign_index": campaign_index,
+            "mission_index": mission_index,
+        })
     })
 }
 

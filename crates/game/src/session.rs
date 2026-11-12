@@ -533,10 +533,11 @@ impl GameSession {
         visible_range: CellRange,
         flags: TileMapRenderFlags,
     ) {
+        let covers_hud = self.menus_cover_hud();
         let systems = engine.systems_mut_refs();
         let tex_cache = systems.render_sys.texture_cache_mut();
 
-        self.tile_map.minimap_mut().update(&mut self.camera, tex_cache, systems.input_sys, systems.ui_sys, delta_time_secs);
+        self.tile_map.minimap_mut().update(&mut self.camera, tex_cache, systems.input_sys, systems.ui_sys, covers_hud, delta_time_secs);
 
         if self.tile_map.size_in_cells().is_valid() {
             self.tile_map_renderer.draw_map(
@@ -1145,6 +1146,11 @@ fn log_session_error(message: String) -> String {
 // ----------------------------------------------
 
 impl GameSession {
+    // Whether a dialog covers the HUD and the city (GameMenusSystem::covers_hud).
+    pub fn menus_cover_hud(&self) -> bool {
+        self.menus.as_ref().is_some_and(|menus| menus.covers_hud())
+    }
+
     pub fn menus_begin_frame(&mut self, engine: &mut Engine) -> TileMapRenderFlags {
         if let Some(menus) = &mut self.menus {
             let mut context = make_ui_widget_context!(self, engine);

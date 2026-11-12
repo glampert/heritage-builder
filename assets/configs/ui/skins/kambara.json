@@ -134,7 +134,9 @@
       "note": { "color": "#2C2A22BF" },
       "uncharted": { "color": "#D8CEB4", "shadow": "#14140FCC" },
       "uncharted_note": { "color": "#D8CEB4" },
-      "compass": { "color": "#2C2A22D9" }
+      "compass": { "color": "#2C2A22D9" },
+      "choice_title": { "size": 18, "color": "#9A4A2E", "shadow": "#F1E8D2CC", "shadow_offset": [0.8, 1] },
+      "choice_subtitle": { "size": 17, "color": "#2C2A22" }
     },
     "places": {
       "capital": { "y": -30, "gap": 6, "seal": 0 }, "city": { "y": -8, "gap": 18, "seal": 0 }, "monument": { "y": -6, "gap": 18 }
@@ -154,9 +156,13 @@
       "legend_text": "#E6DCC3", "bullet": "#5F7F3A", "section": "#9A4A2E",
       "request_fill": "#C9BC9C", "request_border": "#2C2A22", "request_inner": "#9A4A2E", "request_title": "#9A4A2E",
       "request_text": "#2C2A22",
-      "bar_text": "#EFE6CF", "bar_sub": "#B9C99A", "panel_text": "#2C2A22", "panel_sub": "#5D5646", "panel_rule": "#A1957A"
+      "bar_text": "#EFE6CF", "bar_sub": "#B9C99A", "panel_text": "#2C2A22", "panel_sub": "#5D5646", "panel_rule": "#A1957A",
+      "choice_box_fill": "#B8AC8E", "choice_box_border": "#2C2A22", "choice_box_inner": "#9A4A2E",
+      "choice_box_shadow": "#00000059", "choice_line": "#E8C15A", "choice_hover": "#9A4A2E"
     },
-    "bullet_shape": "diamond", "request_dashed": false, "request_seal": false },
+    "bullet_shape": "diamond", "request_dashed": false, "request_seal": false,
+    "choice_box": { "size": [330, 78], "border_width": 2, "inner_inset": 5, "inner_width": 1.2, "subtitle_baseline": 60,
+      "line_width": 1.5, "seal": false } },
   "dialogs": {
     "Home": {"size": [560, 1000], "offset": [90, 0]}
   }

@@ -101,7 +101,12 @@ pub struct NextMissionChoice {
     pub mission_index: usize, // The choice point.
     pub title: String,
     pub subtitle: String,
+    pub subtitle_key: String, // Its Menu key, {a} and {b} the sites' names.
     pub sites: Vec<ChoiceSiteInfo>,
+    // Whether a site can be picked now: not while the campaign's mission being played is
+    // unfinished (its goals not met yet), which the next mission follows, nor while another game
+    // is being played (a custom game, another campaign's mission).
+    pub open: bool,
 }
 
 #[derive(Clone, Debug, PartialEq)]
@@ -109,6 +114,10 @@ pub struct ChoiceSiteInfo {
     pub site: ChoiceSite,
     pub name_key: String, // Realm key.
     pub name: String,
+    pub phrase: String, // Its name in the choice box's line.
+    // Whether the config gives that phrase: a common noun ("royal port"), which sentences put
+    // "the" before, where a name ("Vân Cảng") stands alone.
+    pub phrased: bool,
     pub position: [f32; 2],
     pub label: LabelSide,
     pub mission_index: usize, // The mission it starts.
@@ -155,6 +164,10 @@ pub struct ConfigWorldMapProvider<'a> {
     map: &'a WorldMapDef,
     profile: &'a Profile,
     active: Option<ActiveMission>,
+    // Whether a game other than this campaign's mission is being played (a custom game, another
+    // campaign's mission, a preset): the choice stays closed then, since starting its mission
+    // would end that game.
+    other_game: bool,
 }
 
 impl<'a> ConfigWorldMapProvider<'a> {
@@ -169,7 +182,14 @@ impl<'a> ConfigWorldMapProvider<'a> {
     ) -> Option<Self> {
         let map = world_maps.for_campaign(campaigns, campaign_index)?;
         let active = active.filter(|mission| mission.campaign_id == campaign_index);
-        Some(Self { campaigns, campaign_index, map, profile, active })
+        Some(Self { campaigns, campaign_index, map, profile, active, other_game: false })
+    }
+
+    // Whether a game is being played that isn't one of this campaign's missions (custom games,
+    // other campaigns' missions, presets). Only meaningful with no active mission of its own.
+    pub fn with_other_game(mut self, other_game: bool) -> Self {
+        self.other_game = other_game && self.active.is_none();
+        self
     }
 
     fn campaign(&self) -> &'a CampaignDef {
@@ -371,6 +391,8 @@ impl WorldMapProvider for ConfigWorldMapProvider<'_> {
                     site: choice.site,
                     name_key: choice.name.clone(),
                     name: text::get(UiTextCategory::Realm, &choice.name).to_string(),
+                    phrase: text::get(UiTextCategory::Realm, choice.phrase.as_ref().unwrap_or(&choice.name)).to_string(),
+                    phrased: choice.phrase.is_some(),
                     position: choice.position,
                     label: choice.label,
                     mission_index: campaign.resolve_mission(&choice.mission)?,
@@ -378,16 +400,22 @@ impl WorldMapProvider for ConfigWorldMapProvider<'_> {
             })
             .collect();
         let name = campaign.mission_display_name(step).unwrap_or_default();
-        let site_name = |site: ChoiceSite| sites.iter().find(|info| info.site == site).map_or("", |info| info.name.as_str());
+        let site_name = |site: ChoiceSite| sites.iter().find(|info| info.site == site).map_or("", |info| info.phrase.as_str());
+        // The choice point's own line (the mockups word each realm's their own way), else
+        // "Choose <A> or <B>".
+        let subtitle_key = mission.choice_text.clone().unwrap_or_else(|| "world_map.choice.subtitle".to_string());
         Some(NextMissionChoice {
             mission_index: step,
             title: text::format(UiTextCategory::Menu, "world_map.choice.title", &[("mission", name)]),
-            subtitle: text::format(
-                UiTextCategory::Menu,
-                "world_map.choice.subtitle",
-                &[("a", site_name(ChoiceSite::A)), ("b", site_name(ChoiceSite::B))],
-            ),
+            subtitle: text::format(UiTextCategory::Menu, &subtitle_key, &[("a", site_name(ChoiceSite::A)), ("b", site_name(ChoiceSite::B))]),
+            subtitle_key,
             sites,
+            // Open once this campaign's mission is finished, or with no game being played; never
+            // over another game (a custom game, another campaign's mission).
+            open: match &self.active {
+                Some(active) => active.completed,
+                None => !self.other_game,
+            },
         })
     }
 }

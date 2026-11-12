@@ -139,6 +139,12 @@ pub trait GameMenusSystem: Any + Save + Load {
         TileMapRenderFlags::DrawTerrainAndObjects
     }
 
+    // Whether something covers the HUD and the city, so they take no pointer input that skips
+    // the UI's own hit tests: the minimap's click and hover tooltip, the camera's edge scrolling.
+    fn covers_hud(&self) -> bool {
+        false
+    }
+
     // Called before begin_frame every frame: the retail menus follow the UI realm's skin here,
     // rebuilding what it changed (skin::follow, dialog::sync).
     fn sync_skin(&mut self, _context: &mut GameUiContext) {}

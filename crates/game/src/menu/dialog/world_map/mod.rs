@@ -10,7 +10,11 @@
 // - the side panel of the selected city: its emblem, name, subtitle and role, relations, the route
 //   line, what it sells and buys, its court's request, and Set trade limits and Send a gift
 //   (disabled until M10's trade);
-// - the legend bar.
+// - the legend bar;
+// - the next mission's choice, when the step after the one being played (or the profile's next)
+//   offers one: its A/B sites on the map and the choice box ("Next: <mission>", "Choose <A> or
+//   <B>") in the map's corner. Clicking a site or its name in the box asks in a popup (Choose Site
+//   Popup) before its mission starts.
 //
 // The screen reads everything from the campaign's WorldMapProvider (crate::world_map): the
 // campaign whose map it shows is the UI realm's (screen_campaign), so each realm's skin shows its
@@ -22,7 +26,9 @@
 // bottom (kind map_edge, for ui.hover to pan); a marker per city and next-mission site,
 // WorldMap/<name> (kind map_marker); WorldMap/panel/emblem, name, subtitle, relations,
 // relations_meter, route, route_detail, They sell, They buy, request/title, request/goods, note,
-// Set trade limits, Send a gift; WorldMap/legend (kind canvas).
+// Set trade limits, Send a gift; WorldMap/legend (kind canvas); WorldMap/choice (kind choice_box:
+// title, subtitle, mission) and its sites' names WorldMap/choice/<phrase> (kind choice_option: site,
+// mission); the popup's Choose Site Popup/Cancel and Choose Site Popup/Begin the mission.
 
 mod overlay;
 
@@ -34,12 +40,13 @@ use engine::ui::{UiLabelLook, UiTextAnchor, sound::{self as ui_sound, UiSoundKey
 use super::*;
 use crate::{
     GameLoop,
-    campaign::config::CampaignConfigs,
+    campaign::{self, config::CampaignConfigs},
     config::GameConfigs,
     menu::skin::SkinPanel,
+    profile,
     realm::{self, Realm},
     sim::calendar::Season,
-    world_map::{self as world_map_data, WorldMapProvider, config::CityKind},
+    world_map::{self as world_map_data, WorldMapProvider, config::CityKind, provider::ChoiceSiteInfo},
 };
 
 use overlay::MapScene;
@@ -105,6 +112,10 @@ const GOODS_COLUMN_GAP: f32 = 24.0;
 const PANEL_SLACK: f32 = 6.0; // Left under the panel's parts for what measuring misses.
 const TIGHT_LINE: f32 = 1.3; // The tallest row of text the screen keeps, in ems (tight).
 
+// The popup's buttons, as the Game menu's (main_game.rs), scaled by skin::dialog_scale.
+const POPUP_BUTTON_WIDTH: f32 = 220.0;
+const POPUP_BUTTON_HEIGHT: f32 = 56.0;
+
 // Zoom: how far in, and by what factor a wheel step zooms.
 const MAX_ZOOM: f32 = 3.0;
 const WHEEL_STEP: f32 = 1.25;
@@ -158,6 +169,12 @@ pub fn screen_campaign(realm: Realm) -> Option<usize> {
         return Some(default);
     }
     configs.visible().find(|(_, campaign)| campaign.realm == realm).map(|(index, _)| index).or(Some(default))
+}
+
+// Whether the world map would show the campaign at `campaign_index` in game now (the UI realm's
+// campaign is that one: a ui.realm override to another realm shows another's).
+pub fn shows_campaign_in_game(campaign_index: usize) -> bool {
+    screen_campaign(realm::ui_realm_for(false).realm) == Some(campaign_index)
 }
 
 // The city selected when the screen opens: the first trade partner, else the player's capital,
@@ -611,17 +628,116 @@ fn map_view(context: &mut GameUiContext, scales: Scales, art: &skin::SkinWorldMa
             let state = STATE.as_mut();
             let hit = scene.draw(context.ui_sys(), painter, transform, pointer, &look, state.selected.as_deref(), state.hovered.as_deref());
             state.hovered = hit.clone();
-            if pointer.clicked
-                && let Some(id) = hit
-                && state.selected.as_deref() != Some(id.as_str())
-                && scene.city(&id).is_some()
-            {
-                state.selected = Some(id);
+            let Some(id) = hit.filter(|_| pointer.clicked) else {
+                return;
+            };
+            if scene.city(&id).is_some() {
+                if state.selected.as_deref() != Some(id.as_str()) {
+                    state.selected = Some(id);
+                    ui_sound::play(*context.sound_sys(), SoundKey::ItemSelected);
+                }
+            } else if let (Some((choice, site)), Some(campaign)) = (scene.site(&id), state.campaign) {
                 ui_sound::play(*context.sound_sys(), SoundKey::ItemSelected);
+                let context = context_as_mut::<GameUiContext>(context);
+                if choice.open {
+                    open_choice_popup(context, campaign, choice.mission_index, site.clone());
+                } else {
+                    open_finish_first_popup(context, campaign);
+                }
             }
         });
     }
     view
+}
+
+// ----------------------------------------------
+// Next mission's choice
+// ----------------------------------------------
+
+// The label of the popup that asks before a site's mission starts (its buttons' paths start with it).
+pub const CHOOSE_SITE_POPUP_LABEL: &str = "Choose Site Popup";
+
+// The label of the popup a site picked before the mission being played is finished opens.
+pub const FINISH_FIRST_POPUP_LABEL: &str = "Finish Mission Popup";
+
+// A site of the next mission's choice picked (on the map or in the choice box) at the choice point
+// `step`: asks before its mission starts, which leaves the city being played. Begin starts it
+// (home::start_campaign_mission, through the session command queue) and records the site in the
+// profile (Profile::choice_made). A map that can't load starts nothing, and the popup closes.
+fn open_choice_popup(context: &mut GameUiContext, campaign: usize, step: usize, site: ChoiceSiteInfo) {
+    let dialog = super::find::<WorldMap>();
+    if !dialog.menu.is_open() || dialog.menu.is_message_box_open() {
+        return;
+    }
+    let mission = CampaignConfigs::get().campaign(campaign).and_then(|def| def.mission_display_name(site.mission_index)).unwrap_or_default();
+    dialog.menu.reset_message_box();
+    dialog.menu.open_message_box(context, move |context| {
+        // A site with a phrase is a common noun mid-sentence ("Settle at the royal port?").
+        let (title, body) = if site.phrased {
+            (
+                ui::text::format(UiTextCategory::Menu, "popup.choose_site.title.phrase", &[("site", &site.phrase)]),
+                ui::text::format(UiTextCategory::Menu, "popup.choose_site.body.phrase", &[("mission", &mission), ("site", &site.phrase)]),
+            )
+        } else {
+            (
+                ui::text::format(UiTextCategory::Menu, "popup.choose_site.title", &[("site", &site.name)]),
+                ui::text::format(UiTextCategory::Menu, "popup.choose_site.body", &[("mission", &mission), ("site", &site.name)]),
+            )
+        };
+        let body = [(UiString::from(body), "ink"), (UiString::key(UiTextCategory::Menu, "popup.choose_site.unsaved"), "sub")];
+        let button_scale = skin::dialog_scale(ui::screen_size(context.ui_sys()));
+        let sized = |button: UiTextButton| {
+            button
+                .with_width(UiTextButtonWidth::Min((POPUP_BUTTON_WIDTH * button_scale).round()))
+                .with_min_height((POPUP_BUTTON_HEIGHT * button_scale).round())
+        };
+        let (mission_index, picked) = (site.mission_index, site.site);
+        skin::popup_with_colored_body(context, CHOOSE_SITE_POPUP_LABEL, [UiString::from(title)], body).with_buttons([
+            sized(make_text_button(context, ButtonRole::Secondary, UiString::key(UiTextCategory::Menu, "button.cancel"), |_, context| {
+                super::find::<WorldMap>().menu.close_message_box(context);
+            })),
+            sized(make_text_button(context, ButtonRole::Primary, UiString::key(UiTextCategory::Menu, "popup.choose_site.begin"), move |_, context| {
+                // The session switch closes every dialog; a mission that can't start leaves the
+                // screen as it was.
+                if super::home::start_campaign_mission(campaign, mission_index) {
+                    profile::on_choice_made(campaign, step, picked);
+                } else {
+                    super::find::<WorldMap>().menu.close_message_box(context);
+                }
+            })),
+        ])
+    });
+}
+
+// A site picked while the campaign's mission being played is unfinished: the next mission waits
+// for its goals (MissionComplete's Next Mission brings the map back then). Or while another game is
+// being played, which starting the mission would end. Says so, with an Ok.
+fn open_finish_first_popup(context: &mut GameUiContext, campaign: usize) {
+    let dialog = super::find::<WorldMap>();
+    if !dialog.menu.is_open() || dialog.menu.is_message_box_open() {
+        return;
+    }
+    // None: another game is being played (a custom game, another campaign's mission).
+    let playing = campaign::active_mission()
+        .filter(|active| active.campaign_id == campaign)
+        .and_then(|active| CampaignConfigs::get().campaign(campaign)?.mission_display_name(active.mission_index));
+    dialog.menu.reset_message_box();
+    dialog.menu.open_message_box(context, move |context| {
+        let (title, body_key) = match &playing {
+            Some(playing) => {
+                (ui::text::format(UiTextCategory::Menu, "popup.finish_first.title", &[("mission", playing)]), "popup.finish_first.body")
+            }
+            None => (ui::text::get(UiTextCategory::Menu, "popup.finish_first.other_game.title").to_string(), "popup.finish_first.other_game.body"),
+        };
+        let body = [(UiString::key(UiTextCategory::Menu, body_key), "ink")];
+        let button_scale = skin::dialog_scale(ui::screen_size(context.ui_sys()));
+        let ok = make_text_button(context, ButtonRole::Primary, UiString::key(UiTextCategory::Menu, "button.ok"), |_, context| {
+            super::find::<WorldMap>().menu.close_message_box(context);
+        })
+        .with_width(UiTextButtonWidth::Min((POPUP_BUTTON_WIDTH * button_scale).round()))
+        .with_min_height((POPUP_BUTTON_HEIGHT * button_scale).round());
+        skin::popup_with_colored_body(context, FINISH_FIRST_POPUP_LABEL, [UiString::from(title)], body).with_buttons([ok])
+    });
 }
 
 // ----------------------------------------------

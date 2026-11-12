@@ -173,6 +173,10 @@ pub struct MissionDef {
     // choices). Empty: no choice.
     #[serde(default)]
     pub choices: Vec<MissionChoiceDef>,
+    // The world map's choice box's second line for those sites: a Menu key, its {a} and {b} the
+    // sites' names (their `phrase`). None: world_map.choice.subtitle ("Choose {a} or {b}").
+    #[serde(default)]
+    pub choice_text: Option<String>,
 }
 
 impl MissionDef {
@@ -209,6 +213,10 @@ pub struct MissionChoiceDef {
     pub site: ChoiceSite,
     // The site's name: a Realm string key, e.g. "city.hoi_thuy".
     pub name: String,
+    // Its name as the choice box's line words it ("royal port" in "The royal port or the upriver
+    // town"): a Realm key. None: `name`.
+    #[serde(default)]
+    pub phrase: Option<String>,
     // In the world map's coordinates.
     pub position: [f32; 2],
     // Where its name goes beside its mark, as MissionCityDef::label.

@@ -6,7 +6,10 @@
 # (emblem, name, role, relations, route, goods, the court's request, the trade buttons disabled
 # until M10), the legend, zooming in with the wheel and back out to the fit, panning with the
 # cursor at the map's edges, ui.layout_issues at 100%, 200% and 75% UI scale, and Return to the
-# city. Screenshots go to out/ui_world_map/.
+# city. Then the next mission's choice in the hidden test campaigns (one per realm): the choice box
+# and the A/B sites, the popup that says to finish the mission being played first, MissionComplete's
+# Next Mission opening the map, the popup a site asks in, Cancel, and Begin, which starts the B
+# mission and records the choice in the profile. Screenshots go to out/ui_world_map/.
 #
 # Campaign I's first mission loads a sample save, so extract them first (unzip saves/sample_saves.zip,
 # as CI does). Run it with --fresh-profile, as CI does, at any window size (CI's is 1440 × 800; it
@@ -32,6 +35,15 @@
 {"method": "assert.eq", "params": {"query": "ui.tree", "args": {"filter": "Minimap/world_map"}, "path": "/widgets/0/enabled", "value": true}}
 {"method": "ui.click", "params": {"path": "Minimap/world_map"}}
 {"method": "assert.eq", "params": {"query": "dialog.current", "path": "/current", "value": "WorldMap"}}
+{"method": "input.move", "params": {"park": true}}
+{"method": "wait.frames", "params": {"frames": 3}}
+# The HUD and the city under the screen take no pointer input: no minimap click or hover
+# tooltip, no camera edge scrolling with the cursor at the window's top edge (where the city's
+# own view scrolls, at 1280 × 720, 1440 × 800 and 1920 × 1080).
+{"method": "assert.eq", "params": {"query": "minimap.state", "path": "/pointer_blocked", "value": true}}
+{"method": "input.move", "params": {"point": [300, 3]}}
+{"method": "wait.frames", "params": {"frames": 5}}
+{"method": "assert.eq", "params": {"query": "camera.state", "path": "/scrolling", "value": false}}
 {"method": "input.move", "params": {"park": true}}
 {"method": "wait.frames", "params": {"frames": 3}}
 # The top bar: the realm's epithet, the date in Campaign I's era and its season, the treasury.
@@ -143,6 +155,7 @@
 {"method": "ui.click", "params": {"path": "WorldMap/bar/Return to the city"}}
 {"method": "assert.eq", "params": {"query": "dialog.list", "path": "/dialogs/WorldMap", "value": false}}
 {"method": "assert.eq", "params": {"query": "world_map.state", "path": "/screen_open", "value": false}}
+{"method": "assert.eq", "params": {"query": "minimap.state", "path": "/pointer_blocked", "value": false}}
 {"method": "dialog.open", "params": {"name": "MainGame"}}
 {"method": "ui.click", "params": {"path": "MainGame/World map"}}
 {"method": "assert.eq", "params": {"query": "dialog.current", "path": "/current", "value": "WorldMap"}}
@@ -244,3 +257,145 @@
 {"method": "ui.click", "params": {"path": "WorldMap/bar/Return to the city"}}
 {"method": "ui.realm", "params": {"realm": "auto"}}
 {"method": "assert.eq", "params": {"query": "dialog.list", "path": "/dialogs/WorldMap", "value": false}}
+
+# ---- The next mission's choice: the hidden test campaigns (only automation reaches them; Campaign
+# I's missions 6-8 bring the real ones). Playing a mission whose next step offers a choice, the map
+# shows its A/B sites and the choice box; until the mission's goals are met a site only says to
+# finish it first. Once they are, MissionComplete's Next Mission opens the map, a site (on the map
+# or in the box) asks before its mission starts, and the profile records the site picked. ----
+{"method": "profile.set", "params": {"reached": ["dragon_legacy", "test_choices", "test_choices_kambara", "test_choices_tampadesa"]}}
+{"method": "session.start_mission", "params": {"campaign": "test_choices", "mission": 0}}
+{"method": "assert.eq", "params": {"query": "session.state", "path": "/campaign/campaign_id", "value": "test_choices"}}
+{"method": "assert.eq", "params": {"query": "session.state", "path": "/campaign/mission_index", "value": 0}}
+{"method": "input.move", "params": {"park": true}}
+{"method": "wait.frames", "params": {"frames": 3}}
+{"method": "ui.click", "params": {"path": "Minimap/world_map"}}
+{"method": "input.move", "params": {"park": true}}
+{"method": "wait.frames", "params": {"frames": 3}}
+{"method": "assert.eq", "params": {"query": "world_map.state", "path": "/screen/campaign", "value": "test_choices"}}
+{"method": "assert.eq", "params": {"query": "ui.tree", "args": {"filter": "WorldMap/choice", "kind": "choice_box"}, "path": "/widgets/0/value", "value": {"title": "Next: Test: The Southern Shore", "subtitle": "Choose Hội Thủy or Vân Cảng", "mission": 1, "open": false}}}
+{"method": "assert.eq", "params": {"query": "ui.tree", "args": {"filter": "WorldMap/Hội Thủy", "kind": "map_marker"}, "path": "/widgets/0/value", "value": {"kind": "choice_site", "site": "A", "mission": 1}}}
+{"method": "assert.eq", "params": {"query": "ui.tree", "args": {"filter": "WorldMap/Vân Cảng", "kind": "map_marker"}, "path": "/widgets/0/value", "value": {"kind": "choice_site", "site": "B", "mission": 2}}}
+{"method": "assert.eq", "params": {"query": "ui.tree", "args": {"filter": "WorldMap/choice/Vân Cảng", "kind": "choice_option"}, "path": "/widgets/0/value", "value": {"site": "B", "mission": 2}}}
+{"method": "assert.eq", "params": {"query": "ui.layout_issues", "path": "/count", "value": 0}}
+# Mission 0 unfinished (its goal: a resident): a site says to finish it first.
+{"method": "ui.click", "params": {"path": "WorldMap/Vân Cảng"}}
+{"method": "assert.exists", "params": {"query": "ui.tree", "args": {"filter": "Finish Mission Popup/Finish Test: The First Seal first"}, "path": "/widgets/0"}}
+{"method": "assert.eq", "params": {"query": "ui.layout_issues", "path": "/count", "value": 0}}
+{"method": "input.move", "params": {"park": true}}
+{"method": "wait.frames", "params": {"frames": 2}}
+{"method": "screenshot", "params": {"path": "out/ui_world_map/choice_dailong_finish_first.png"}}
+{"method": "ui.click", "params": {"path": "Finish Mission Popup/Ok"}}
+{"method": "assert.eq", "params": {"query": "ui.tree", "args": {"filter": "Finish Mission Popup"}, "path": "/widgets", "value": []}}
+{"method": "ui.click", "params": {"path": "WorldMap/bar/Return to the city"}}
+# A resident meets the goal: MissionComplete's Next Mission opens the map, its choice open.
+{"method": "cheats.set", "params": {"name": "instant_construction", "value": true}}
+{"method": "cheats.set", "params": {"name": "ignore_tile_cost", "value": true}}
+{"method": "world.place", "params": {"tile": "house0", "cell": [2, 2]}}
+{"method": "time.fast_forward", "params": {"sim_secs": 1}}
+{"method": "world.add_population", "params": {"cell": [2, 2], "count": 1}}
+{"method": "wait.until", "params": {"query": "dialog.current", "path": "/current", "op": "eq", "value": "MissionComplete", "timeout_frames": 300}}
+{"method": "assert.eq", "params": {"query": "session.state", "path": "/campaign/completed", "value": true}}
+{"method": "ui.click", "params": {"path": "MissionComplete/Next Mission"}}
+{"method": "input.move", "params": {"park": true}}
+{"method": "wait.frames", "params": {"frames": 3}}
+{"method": "assert.eq", "params": {"query": "dialog.current", "path": "/current", "value": "WorldMap"}}
+{"method": "assert.eq", "params": {"query": "ui.tree", "args": {"filter": "WorldMap/choice", "kind": "choice_box"}, "path": "/widgets/0/value/open", "value": true}}
+{"method": "assert.eq", "params": {"query": "ui.layout_issues", "path": "/count", "value": 0}}
+{"method": "screenshot", "params": {"path": "out/ui_world_map/choice_dailong.png"}}
+# A site on the map asks first; Cancel keeps the city being played.
+{"method": "ui.click", "params": {"path": "WorldMap/Hội Thủy"}}
+{"method": "assert.exists", "params": {"query": "ui.tree", "args": {"filter": "Choose Site Popup/Settle at Hội Thủy?"}, "path": "/widgets/0"}}
+{"method": "assert.eq", "params": {"query": "ui.layout_issues", "path": "/count", "value": 0}}
+{"method": "ui.click", "params": {"path": "Choose Site Popup/Cancel"}}
+{"method": "assert.eq", "params": {"query": "ui.tree", "args": {"filter": "Choose Site Popup"}, "path": "/widgets", "value": []}}
+{"method": "assert.eq", "params": {"query": "dialog.current", "path": "/current", "value": "WorldMap"}}
+{"method": "assert.eq", "params": {"query": "session.state", "path": "/campaign/mission_index", "value": 0}}
+# Zoomed in, the box keeps to the view's corner, and its names still answer the pointer (ui.hover
+# finds only widgets in view).
+{"method": "world_map.set", "params": {"zoom": 2, "centre": [800, 300]}}
+{"method": "wait.frames", "params": {"frames": 2}}
+{"method": "assert.exists", "params": {"query": "ui.tree", "args": {"filter": "WorldMap/choice", "kind": "choice_box"}, "path": "/widgets/0"}}
+{"method": "ui.hover", "params": {"path": "WorldMap/choice/Vân Cảng"}}
+{"method": "wait.frames", "params": {"frames": 2}}
+{"method": "assert.eq", "params": {"query": "world_map.state", "path": "/screen/hovered", "value": "site:B"}}
+{"method": "screenshot", "params": {"path": "out/ui_world_map/choice_dailong_zoomed.png"}}
+# Site B, from the box, at 200% UI scale: the popup fits; Begin starts the B mission.
+{"method": "config.set", "params": {"path": "/display/ui_scale_percent", "value": 200}}
+{"method": "wait.frames", "params": {"frames": 3}}
+{"method": "ui.click", "params": {"path": "WorldMap/choice/Vân Cảng"}}
+{"method": "assert.exists", "params": {"query": "ui.tree", "args": {"filter": "Choose Site Popup/Settle at Vân Cảng?"}, "path": "/widgets/0"}}
+{"method": "assert.eq", "params": {"query": "ui.layout_issues", "path": "/count", "value": 0}}
+{"method": "input.move", "params": {"park": true}}
+{"method": "wait.frames", "params": {"frames": 2}}
+{"method": "screenshot", "params": {"path": "out/ui_world_map/choice_dailong_popup_200.png"}}
+{"method": "ui.click", "params": {"path": "Choose Site Popup/Begin the mission"}}
+{"method": "wait.until", "params": {"query": "session.state", "path": "/campaign/mission_index", "op": "eq", "value": 2, "timeout_frames": 600}}
+{"method": "assert.eq", "params": {"query": "session.state", "path": "/campaign/campaign_id", "value": "test_choices"}}
+{"method": "assert.eq", "params": {"query": "session.state", "path": "/campaign/mission_id", "value": "southern_shore_b"}}
+# Records keep the order they were made in: dragon_legacy's (started from Home above), then
+# test_choices's (profile.set), so test_choices's is the second.
+{"method": "assert.eq", "params": {"query": "profile.state", "path": "/profile/campaigns/1/id", "value": "test_choices"}}
+{"method": "assert.eq", "params": {"query": "profile.state", "path": "/profile/campaigns/1/choices", "value": [{"step": 1, "site": "B"}]}}
+{"method": "assert.eq", "params": {"query": "dialog.list", "path": "/dialogs/WorldMap", "value": false}}
+{"method": "config.set", "params": {"path": "/display/ui_scale_percent", "value": 100}}
+{"method": "input.move", "params": {"park": true}}
+{"method": "wait.frames", "params": {"frames": 3}}
+# Playing the B mission: Vân Cảng is the city being played, and no choice is left to make.
+{"method": "ui.click", "params": {"path": "Minimap/world_map"}}
+{"method": "input.move", "params": {"park": true}}
+{"method": "wait.frames", "params": {"frames": 3}}
+{"method": "assert.eq", "params": {"query": "ui.tree", "args": {"filter": "WorldMap/Vân Cảng", "kind": "map_marker"}, "path": "/widgets/0/value/current", "value": true}}
+{"method": "assert.eq", "params": {"query": "ui.tree", "args": {"filter": "WorldMap/choice", "kind": "choice_box"}, "path": "/widgets", "value": []}}
+{"method": "ui.click", "params": {"path": "WorldMap/bar/Return to the city"}}
+
+# Kambara's choice box, on Campaign II's map: its test mission 0 has no goals, so MissionComplete
+# comes at once, and its Next Mission opens the map.
+{"method": "session.start_mission", "params": {"campaign": "test_choices_kambara", "mission": 0}}
+{"method": "wait.until", "params": {"query": "dialog.current", "path": "/current", "op": "eq", "value": "MissionComplete", "timeout_frames": 300}}
+{"method": "ui.click", "params": {"path": "MissionComplete/Next Mission"}}
+{"method": "input.move", "params": {"park": true}}
+{"method": "wait.frames", "params": {"frames": 3}}
+{"method": "assert.eq", "params": {"query": "world_map.state", "path": "/screen/campaign", "value": "test_choices_kambara"}}
+{"method": "assert.eq", "params": {"query": "ui.tree", "args": {"filter": "WorldMap/choice", "kind": "choice_box"}, "path": "/widgets/0/value", "value": {"title": "Next: Test: Tribute of the Sea", "subtitle": "The bay port or the pepper hills", "mission": 1, "open": true}}}
+{"method": "assert.eq", "params": {"query": "ui.layout_issues", "path": "/count", "value": 0}}
+{"method": "screenshot", "params": {"path": "out/ui_world_map/choice_kambara.png"}}
+{"method": "ui.click", "params": {"path": "WorldMap/choice/pepper hills"}}
+{"method": "assert.exists", "params": {"query": "ui.tree", "args": {"filter": "Choose Site Popup/Settle at the pepper hills?"}, "path": "/widgets/0"}}
+{"method": "assert.eq", "params": {"query": "ui.layout_issues", "path": "/count", "value": 0}}
+{"method": "input.move", "params": {"park": true}}
+{"method": "wait.frames", "params": {"frames": 2}}
+{"method": "screenshot", "params": {"path": "out/ui_world_map/choice_kambara_popup.png"}}
+{"method": "ui.click", "params": {"path": "Choose Site Popup/Cancel"}}
+{"method": "ui.click", "params": {"path": "WorldMap/bar/Return to the city"}}
+
+# Tampadesa's, on Campaign III's map, at the lower left.
+{"method": "session.start_mission", "params": {"campaign": "test_choices_tampadesa", "mission": 0}}
+{"method": "wait.until", "params": {"query": "dialog.current", "path": "/current", "op": "eq", "value": "MissionComplete", "timeout_frames": 300}}
+{"method": "ui.click", "params": {"path": "MissionComplete/Next Mission"}}
+{"method": "input.move", "params": {"park": true}}
+{"method": "wait.frames", "params": {"frames": 3}}
+{"method": "assert.eq", "params": {"query": "world_map.state", "path": "/screen/campaign", "value": "test_choices_tampadesa"}}
+{"method": "assert.eq", "params": {"query": "ui.tree", "args": {"filter": "WorldMap/choice", "kind": "choice_box"}, "path": "/widgets/0/value/subtitle", "value": "The royal port or the upriver town"}}
+{"method": "assert.eq", "params": {"query": "ui.layout_issues", "path": "/count", "value": 0}}
+{"method": "screenshot", "params": {"path": "out/ui_world_map/choice_tampadesa.png"}}
+{"method": "ui.click", "params": {"path": "WorldMap/Royal port"}}
+{"method": "assert.exists", "params": {"query": "ui.tree", "args": {"filter": "Choose Site Popup/Settle at the royal port?"}, "path": "/widgets/0"}}
+{"method": "assert.eq", "params": {"query": "ui.layout_issues", "path": "/count", "value": 0}}
+{"method": "input.move", "params": {"park": true}}
+{"method": "wait.frames", "params": {"frames": 2}}
+{"method": "screenshot", "params": {"path": "out/ui_world_map/choice_tampadesa_popup.png"}}
+{"method": "ui.click", "params": {"path": "Choose Site Popup/Cancel"}}
+{"method": "ui.click", "params": {"path": "WorldMap/bar/Return to the city"}}
+{"method": "assert.eq", "params": {"query": "dialog.list", "path": "/dialogs/WorldMap", "value": false}}
+
+# In another realm's look (ui.realm) the map would show that realm's campaign, without this choice:
+# Next Mission starts the next step itself (the choice point, nothing picked).
+{"method": "session.start_mission", "params": {"campaign": "test_choices_tampadesa", "mission": 0}}
+{"method": "ui.realm", "params": {"realm": "dailong"}}
+{"method": "wait.until", "params": {"query": "dialog.current", "path": "/current", "op": "eq", "value": "MissionComplete", "timeout_frames": 300}}
+{"method": "ui.click", "params": {"path": "MissionComplete/Next Mission"}}
+{"method": "wait.until", "params": {"query": "session.state", "path": "/campaign/mission_index", "op": "eq", "value": 1, "timeout_frames": 600}}
+{"method": "assert.eq", "params": {"query": "session.state", "path": "/campaign/campaign_id", "value": "test_choices_tampadesa"}}
+{"method": "assert.eq", "params": {"query": "dialog.list", "path": "/dialogs/WorldMap", "value": false}}
+{"method": "ui.realm", "params": {"realm": "auto"}}

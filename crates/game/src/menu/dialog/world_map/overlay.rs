@@ -2,8 +2,10 @@
 // and labels), after the mockup generator's map layer: region labels, uncharted areas' words,
 // threats (their storm clouds a sprite at the map's scale, their words and arrow), routes by kind
 // and state, foreign cities' rings, the player's marks (seals with their initial, prangs, stupas),
-// the next mission's A/B sites and the compass. Positions follow the map view's transform; sizes
-// (marks, text, line widths) stay at the screen's scale whatever the zoom.
+// the next mission's A/B sites and the compass, and the next mission's choice box (in the view's
+// corner where the world file puts it at the fit, whatever the zoom), its dotted lines to the sites
+// and their names in it. Positions follow the map view's transform; sizes (marks, text, line
+// widths) stay at the screen's scale whatever the zoom.
 //
 // Looks come from the skin's world_map block (skin::SkinWorldMapDef): mark sprites, text looks,
 // label places, route styles and colours.
@@ -17,17 +19,19 @@ use engine::{
     ui::{
         UiLabelLook, UiPainter, UiSystem, UiTextAnchor,
         text::{self, UiTextCategory},
-        widgets::{UiMapViewPointer, UiMapViewTransform, UiWidgetContext, record_map_marker},
+        path_scope,
+        widgets::{UiMapViewPointer, UiMapViewState, UiMapViewTransform, UiWidgetContext, map_view_transform, record_map_item, record_map_marker},
     },
 };
 
 use super::LegendEntry;
 use crate::{
-    menu::skin::{self, SkinMapPlaceDef, SkinMapRouteDef, SkinMapTextDef},
+    campaign::config::ChoiceSite,
+    menu::skin::{self, SkinChoiceBoxDef, SkinMapPlaceDef, SkinMapRouteDef, SkinMapTextDef},
     world_map::{
         WorldMapProvider,
         config::{CityKind, LabelSide, MapLabelAlign, MapLabelDef, MapLabelStyle, RouteKind, RouteState, ThreatDef, UnchartedAreaDef},
-        provider::{MapCity, MapRoute, NextMissionChoice},
+        provider::{ChoiceSiteInfo, MapCity, MapRoute, NextMissionChoice},
     },
 };
 
@@ -44,6 +48,21 @@ const COMPASS_N_RISE: f32 = 46.0;
 const UNCHARTED_NOTE_DROP: f32 = 30.0;
 const THREAT_TEXT_OFFSET: [f32; 2] = [30.0, 10.0];
 const THREAT_NOTE_DROP: f32 = 26.0;
+// The choice box's seal (Đại Long's): its size and centre, in from the box's lower right; the room
+// it keeps right of the text.
+const CHOICE_SEAL_SIZE: f32 = 26.0;
+const CHOICE_SEAL_INSET: [f32; 2] = [30.0, 26.0];
+const CHOICE_SEAL_ROOM: f32 = 48.0;
+// Where a dotted line from the box meets a site: this far below its point.
+const CHOICE_LINE_DROP: f32 = 14.0;
+const CHOICE_LINE_STEPS: usize = 16;
+// The least room the choice box keeps from the map's edges.
+const CHOICE_BOX_MARGIN: f32 = 14.0;
+
+// The id a next-mission site answers the pointer by, on the map and in the choice box.
+pub fn site_id(site: ChoiceSite) -> String {
+    format!("site:{site}")
+}
 
 // ----------------------------------------------
 // MapScene
@@ -57,6 +76,8 @@ pub struct MapScene {
     uncharted: Vec<UnchartedAreaDef>,
     threats: Vec<ThreatDef>,
     compass: [f32; 2],
+    extent: Vec2,
+    choice_box: [f32; 2],
     choice: Option<NextMissionChoice>,
 }
 
@@ -70,6 +91,8 @@ impl MapScene {
             uncharted: map.uncharted.clone(),
             threats: map.threats.clone(),
             compass: map.compass,
+            extent: Vec2::new(map.extent[0], map.extent[1]),
+            choice_box: map.choice_box,
             choice: provider.next_mission_choice(),
         }
     }
@@ -78,8 +101,15 @@ impl MapScene {
         self.cities.iter().find(|city| city.id == id)
     }
 
+    // The next mission's site a pointer id names (site_id), and its choice.
+    pub fn site(&self, id: &str) -> Option<(&NextMissionChoice, &ChoiceSiteInfo)> {
+        let choice = self.choice.as_ref()?;
+        choice.sites.iter().find(|site| site_id(site.site) == id).map(|site| (choice, site))
+    }
+
     // Draws the scene, records its markers, and returns the id of the city or site under the
-    // pointer (the last drawn, so the topmost).
+    // pointer (the last drawn, so the topmost; a site's name in the choice box answers as the site,
+    // and the box covers what's under it).
     #[allow(clippy::too_many_arguments)]
     pub fn draw(
         &self,
@@ -159,19 +189,49 @@ impl MapScene {
         if let Some(choice) = &self.choice {
             for site in &choice.sites {
                 let point = at(site.position);
-                let rect = look.draw_choice_site(painter, &site.site.to_string(), &site.name, site.label, point);
-                if pointer_at.is_some_and(|cursor| rect.contains_point(cursor)) {
-                    hit = Some(format!("site:{}", site.site));
+                let id = site_id(site.site);
+                let lit = hovered == Some(id.as_str());
+                let rect = look.draw_choice_site(painter, &site.site.to_string(), &site.name, site.label, point, lit);
+                if pointer_at.is_some_and(|cursor| rect.contains_point(cursor)) && transform.rect.contains_point(point) {
+                    hit = Some(id.clone());
                 }
                 let value = serde_json::json!({ "site": site.site.to_string(), "mission": site.mission_index, "kind": "choice_site" });
-                markers.push((format!("site:{}", site.site), rect, site.name.clone(), value));
+                markers.push((id, rect, site.name.clone(), value));
             }
         }
 
         look.draw_compass(painter, at(self.compass));
 
+        // The choice box, over everything: what's under it doesn't answer the pointer.
+        let choice_box = self.choice.as_ref().map(|choice| {
+            // Where the world file's corner is at the fit (centred, as the view is at zoom 1).
+            let fitted = map_view_transform(
+                UiMapViewState { zoom: 1.0, centre: Vec2::new(self.extent.x * 0.5, self.extent.y * 0.5) },
+                transform.rect,
+                self.extent,
+            );
+            let corner = fitted.to_screen(Vec2::new(self.choice_box[0], self.choice_box[1]));
+            let sites: Vec<Vec2> = choice.sites.iter().map(|site| at(site.position)).collect();
+            let (box_rect, names) = look.draw_choice_box(painter, choice, corner, &sites, transform.rect, hovered);
+            let pointed = pointer_at.is_some_and(|cursor| box_rect.contains_point(cursor));
+            if pointed {
+                hit = names.iter().find(|(_, rect)| pointer_at.is_some_and(|cursor| rect.contains_point(cursor))).map(|(site, _)| site_id(site.site));
+            }
+            (choice, box_rect, names, pointed)
+        });
+
         for (id, rect, name, value) in markers {
             record_map_marker(ui_sys, &name, rect, transform.rect, hit.as_deref() == Some(id.as_str()), Some(value));
+        }
+        if let Some((choice, box_rect, names, pointed)) = choice_box {
+            let value = serde_json::json!({ "title": choice.title, "subtitle": choice.subtitle, "mission": choice.mission_index, "open": choice.open });
+            record_map_item(ui_sys, "choice_box", "choice", box_rect, transform.rect, pointed, Some(value));
+            let _scope = path_scope(ui_sys, "choice");
+            for (site, rect) in &names {
+                let id = site_id(site.site);
+                let value = serde_json::json!({ "site": site.site.to_string(), "mission": site.mission_index });
+                record_map_item(ui_sys, "choice_option", &site.phrase, *rect, transform.rect, hit.as_deref() == Some(id.as_str()), Some(value));
+            }
         }
         hit
     }
@@ -249,6 +309,56 @@ pub struct MapLook {
     places: BTreeMap<String, SkinMapPlaceDef>,
     routes: BTreeMap<String, SkinMapRouteDef>,
     colors: BTreeMap<String, String>,
+    choice_box: SkinChoiceBoxDef,
+}
+
+// A piece of the choice box's subtitle: its text, or a site's name.
+enum SubtitlePiece<'c> {
+    Text(String),
+    Site(&'c ChoiceSiteInfo),
+}
+
+impl SubtitlePiece<'_> {
+    fn text(&self) -> &str {
+        match self {
+            Self::Text(text) => text,
+            Self::Site(site) => &site.phrase,
+        }
+    }
+}
+
+// The choice box's subtitle ("Choose {a} or {b}", or the choice point's own) cut at its sites'
+// names, so each can be pointed at. A text without both names in it is one piece, the subtitle as
+// the provider gives it.
+fn subtitle_pieces(choice: &NextMissionChoice) -> Vec<SubtitlePiece<'_>> {
+    let template = text::get(UiTextCategory::Menu, &choice.subtitle_key);
+    let site = |which: ChoiceSite| choice.sites.iter().find(|site| site.site == which);
+    let mut pieces = Vec::new();
+    let mut rest = template;
+    loop {
+        let next = [("{a}", ChoiceSite::A), ("{b}", ChoiceSite::B)]
+            .into_iter()
+            .filter_map(|(mark, which)| rest.find(mark).map(|at| (at, mark, which)))
+            .min_by_key(|(at, _, _)| *at);
+        let Some((at, mark, which)) = next else {
+            break;
+        };
+        let Some(info) = site(which) else {
+            return vec![SubtitlePiece::Text(choice.subtitle.clone())];
+        };
+        if at > 0 {
+            pieces.push(SubtitlePiece::Text(rest[..at].to_string()));
+        }
+        pieces.push(SubtitlePiece::Site(info));
+        rest = &rest[at + mark.len()..];
+    }
+    if !rest.is_empty() {
+        pieces.push(SubtitlePiece::Text(rest.to_string()));
+    }
+    if pieces.iter().filter(|piece| matches!(piece, SubtitlePiece::Site(_))).count() < choice.sites.len() {
+        return vec![SubtitlePiece::Text(choice.subtitle.clone())];
+    }
+    pieces
 }
 
 impl MapLook {
@@ -269,6 +379,7 @@ impl MapLook {
             places: art.places.clone(),
             routes: art.routes.clone(),
             colors: art.colors.clone(),
+            choice_box: art.choice_box.clone(),
         }
     }
 
@@ -410,14 +521,144 @@ impl MapLook {
         painter.label(at, anchor, name, &look)
     }
 
-    // A next-mission site: a dashed ring with a dot, "A · name" beside it. Its rect.
-    fn draw_choice_site(&self, painter: &UiPainter, tag: &str, name: &str, side: LabelSide, point: Vec2) -> Rect {
+    // A next-mission site: a dashed ring with a dot, "A · name" beside it, a glow under it while
+    // `lit` (the pointer on it or on its name in the choice box). Its rect.
+    fn draw_choice_site(&self, painter: &UiPainter, tag: &str, name: &str, side: LabelSide, point: Vec2, lit: bool) -> Rect {
         let k = self.scale;
+        if lit {
+            let glow = self.color("choice", "accent");
+            painter.circle_filled(point, (CHOICE_RADIUS + 5.0) * k, Color::new(glow.r, glow.g, glow.b, glow.a * 0.25));
+        }
         self.draw_site_glyph(painter, point, CHOICE_RADIUS * k);
         let text = text::format(UiTextCategory::Menu, "world_map.site", &[("site", tag), ("name", name)]);
         self.draw_name(painter, "choice", "choice", &text, point, side);
         let half = (CHOICE_RADIUS + 2.0) * k;
         Rect::from_pos_and_size(point - Vec2::new(half, half), Vec2::new(half * 2.0, half * 2.0))
+    }
+
+    // The next mission's choice box, after the generator's choice_box: its top left at `corner`
+    // (kept in `view`), dotted lines from it to the sites at `sites` (window points), "Next:
+    // <mission>" and "Choose <A> or <B>", the sites' names in it lit while `hovered` names their
+    // site. Its rect and each site's name's rect in it.
+    fn draw_choice_box<'c>(
+        &self,
+        painter: &UiPainter,
+        choice: &'c NextMissionChoice,
+        corner: Vec2,
+        sites: &[Vec2],
+        view: Rect,
+        hovered: Option<&str>,
+    ) -> (Rect, Vec<(&'c ChoiceSiteInfo, Rect)>) {
+        let k = self.scale;
+        let def = &self.choice_box;
+        let title_look = self.text("choice_title", 0.0);
+        let sub_look = self.text("choice_subtitle", 0.0);
+        let pieces = subtitle_pieces(choice);
+
+        // As large as the mockup's, or more for longer text.
+        let measure = |text: &str, look: &UiLabelLook| painter.label_rect(Vec2::zero(), UiTextAnchor::Start, text, look).width();
+        let title_width = measure(&choice.title, &title_look);
+        let sub_width: f32 = pieces.iter().map(|piece| measure(piece.text(), &sub_look)).sum();
+        let seal_room = if def.seal { CHOICE_SEAL_ROOM * k } else { def.text_x * k };
+        let width = (def.size[0] * k).max(def.text_x * k + title_width.max(sub_width) + seal_room).ceil();
+        let height = (def.size[1] * k).ceil();
+        // A wider box grows to the left, keeping the mockup's right edge, and stays a margin
+        // inside the map.
+        let inside = view.shrunk(Vec2::new(CHOICE_BOX_MARGIN * k, CHOICE_BOX_MARGIN * k));
+        let left = corner.x - (width - def.size[0] * k).max(0.0);
+        let min = Vec2::new(
+            left.min(inside.max.x - width).max(inside.min.x),
+            corner.y.min(inside.max.y - height).max(inside.min.y),
+        );
+        let rect = Rect::from_pos_and_size(min, Vec2::new(width, height));
+
+        // The dotted lines from its top edge to each site, under it.
+        let line = self.color("choice_line", "accent");
+        for &site in sites {
+            // From the end of its top edge nearer the site, as the generator draws them.
+            let (left, right) = (rect.min.x + 30.0 * k, rect.max.x - 30.0 * k);
+            let start = Vec2::new(if (site.x - left).abs() <= (site.x - right).abs() { left } else { right }, rect.min.y);
+            let end = site + Vec2::new(0.0, CHOICE_LINE_DROP * k);
+            let control = (start + end) * 0.5 + Vec2::new(20.0 * k, 0.0);
+            let curve: Vec<Vec2> = (0..=CHOICE_LINE_STEPS)
+                .map(|step| {
+                    let t = step as f32 / CHOICE_LINE_STEPS as f32;
+                    let u = 1.0 - t;
+                    start * (u * u) + control * (2.0 * u * t) + end * (t * t)
+                })
+                .collect();
+            painter.dashed_polyline(&curve, def.line_width * k, line, 2.0 * k, 4.0 * k);
+        }
+
+        if let Some(shadow) = self.opt_color("choice_box_shadow") {
+            let offset = Vec2::new(def.shadow_offset[0] * k, def.shadow_offset[1] * k);
+            painter.rect_filled(Rect::from_pos_and_size(min + offset, rect.size()), shadow, 0.0);
+        }
+        painter.rect_filled(rect, self.color("choice_box_fill", "light"), 0.0);
+        if def.border_width > 0.0 {
+            painter.rect_stroke(rect, 0.0, def.border_width * k, self.color("choice_box_border", "ink"));
+        }
+        let inset = def.inner_inset * k;
+        let inner = Rect::from_pos_and_size(min + Vec2::new(inset, inset), rect.size() - Vec2::new(inset * 2.0, inset * 2.0));
+        if let Some(fill) = self.opt_color("choice_box_inner_fill") {
+            painter.rect_filled(inner, fill, 0.0);
+        }
+        if def.inner_width > 0.0 {
+            painter.rect_stroke(inner, 0.0, def.inner_width * k, self.color("choice_box_inner", "accent"));
+        }
+
+        let text_x = min.x + def.text_x * k;
+        painter.label(Vec2::new(text_x, min.y + def.title_baseline * k), UiTextAnchor::Start, &choice.title, &title_look);
+
+        // "Choose <A> or <B>": the sites' names lit and underlined while their site is hovered.
+        let hover = self.opt_color("choice_hover").unwrap_or(sub_look.color);
+        let baseline = min.y + def.subtitle_baseline * k;
+        let mut x = text_x;
+        let mut names = Vec::new();
+        for piece in &pieces {
+            let text = piece.text();
+            match piece {
+                SubtitlePiece::Text(_) => {
+                    x += painter.label(Vec2::new(x, baseline), UiTextAnchor::Start, text, &sub_look).width();
+                }
+                SubtitlePiece::Site(site) => {
+                    let lit = hovered == Some(site_id(site.site).as_str());
+                    let look = if lit { UiLabelLook { color: hover, ..sub_look.clone() } } else { sub_look.clone() };
+                    let drawn = painter.label(Vec2::new(x, baseline), UiTextAnchor::Start, text, &look);
+                    let underline = baseline + 3.0 * k;
+                    let color = if lit { hover } else { Color::new(sub_look.color.r, sub_look.color.g, sub_look.color.b, sub_look.color.a * 0.45) };
+                    painter.line(Vec2::new(drawn.min.x, underline), Vec2::new(drawn.max.x, underline), (if lit { 1.5 } else { 1.0 }) * k, color);
+                    names.push((*site, drawn));
+                    x += drawn.width();
+                }
+            }
+        }
+
+        if def.seal {
+            self.draw_choice_seal(painter, rect.max - Vec2::new(CHOICE_SEAL_INSET[0] * k, CHOICE_SEAL_INSET[1] * k));
+        }
+        (rect, names)
+    }
+
+    // Đại Long's seal on the choice box: the city seal with two arrows, one each way (the
+    // generator's "⇄", which the seal font lacks).
+    fn draw_choice_seal(&self, painter: &UiPainter, centre: Vec2) {
+        let k = self.scale;
+        let Some((texture, size)) = self.mark("city") else {
+            return;
+        };
+        let seal_points = self.place("city").seal.max(1.0);
+        let draw_size = size * (CHOICE_SEAL_SIZE / seal_points * k);
+        painter.image(texture, Rect::from_pos_and_size(centre - draw_size * 0.5, draw_size), Color::white());
+        let color = self.seal_letter.as_ref().and_then(|def| skin::color(&def.color)).unwrap_or(Color::white());
+        let (half, rise, head) = (6.0 * k, 3.0 * k, 3.0 * k);
+        for (y, dir) in [(-rise, 1.0), (rise, -1.0)] {
+            let from = centre + Vec2::new(-half * dir, y);
+            let to = centre + Vec2::new(half * dir, y);
+            painter.line(from, to, 1.6 * k, color);
+            painter.line(to, to + Vec2::new(-head * dir, -head * 0.8), 1.6 * k, color);
+            painter.line(to, to + Vec2::new(-head * dir, head * 0.8), 1.6 * k, color);
+        }
     }
 
     fn draw_site_glyph(&self, painter: &UiPainter, point: Vec2, radius: f32) {

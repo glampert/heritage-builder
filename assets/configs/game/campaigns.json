@@ -105,6 +105,82 @@
           "requirements": { "goals": [ { "Population": { "min": 1 } } ] }
         }
       ]
+    },
+    {
+      "id": "test_choices_kambara",
+      "name": "Test: Choices (Kambara)",
+      "realm": "kambara",
+      "hidden": true,
+      "world_map": "temple_mountain",
+      "eras": [
+        { "name": "Suryadeva", "start_year": 1 }
+      ],
+      "missions": [
+        {
+          "name": "Test: The Lotus Gate",
+          "description": "A hidden test mission: only automation reaches this campaign, to show Kambara's choice box. No goals: it's finished at once, and MissionComplete's Next Mission opens the world map's choice.",
+          "map": { "Preset": { "preset_number": 2 } },
+          "city": { "id": "lotus_gate", "name": "site.lotus_gate", "position": [640, 560], "label": "below" },
+          "requirements": { "goals": [] }
+        },
+        {
+          "name": "Test: Tribute of the Sea",
+          "description": "A hidden test mission whose choice offers two sites (the mockup's).",
+          "map": { "Preset": { "preset_number": 2 } },
+          "city": { "id": "bay_port", "name": "site.bay_port", "position": [730, 530], "label": "right" },
+          "choices": [
+            { "site": "A", "name": "site.bay_port", "phrase": "site.bay_port.phrase", "position": [730, 530], "label": "right", "mission": 1 },
+            { "site": "B", "name": "site.pepper_hills", "phrase": "site.pepper_hills.phrase", "position": [688, 470], "label": "right", "mission": 2 }
+          ],
+          "choice_text": "world_map.choice.subtitle.either",
+          "requirements": { "goals": [ { "Population": { "min": 1 } } ] }
+        },
+        {
+          "name": "Test: Tribute of the Sea (B)",
+          "description": "The choice's other site.",
+          "map": { "Preset": { "preset_number": 2 } },
+          "city": { "id": "pepper_hills", "name": "site.pepper_hills", "position": [688, 470], "label": "right" },
+          "requirements": { "goals": [ { "Population": { "min": 1 } } ] }
+        }
+      ]
+    },
+    {
+      "id": "test_choices_tampadesa",
+      "name": "Test: Choices (Tampadesa)",
+      "realm": "tampadesa",
+      "hidden": true,
+      "world_map": "ten_thousand_temples",
+      "eras": [
+        { "name": "Pugara", "start_year": 1 }
+      ],
+      "missions": [
+        {
+          "name": "Test: The Copper Road",
+          "description": "A hidden test mission: only automation reaches this campaign, to show Tampadesa's choice box. No goals: it's finished at once, and MissionComplete's Next Mission opens the world map's choice.",
+          "map": { "Preset": { "preset_number": 2 } },
+          "city": { "id": "copper_road", "name": "site.copper_road", "position": [200, 470], "label": "below" },
+          "requirements": { "goals": [] }
+        },
+        {
+          "name": "Test: The Port of the Sacred Goose",
+          "description": "A hidden test mission whose choice offers two sites (the mockup's).",
+          "map": { "Preset": { "preset_number": 2 } },
+          "city": { "id": "royal_port", "name": "site.royal_port", "position": [360, 578], "label": "right" },
+          "choices": [
+            { "site": "A", "name": "site.royal_port", "phrase": "site.royal_port.phrase", "position": [360, 578], "label": "right", "mission": 1 },
+            { "site": "B", "name": "site.upriver_town", "phrase": "site.upriver_town.phrase", "position": [300, 512], "label": "left", "mission": 2 }
+          ],
+          "choice_text": "world_map.choice.subtitle.either",
+          "requirements": { "goals": [ { "Population": { "min": 1 } } ] }
+        },
+        {
+          "name": "Test: The Port of the Sacred Goose (B)",
+          "description": "The choice's other site.",
+          "map": { "Preset": { "preset_number": 2 } },
+          "city": { "id": "upriver_town", "name": "site.upriver_town", "position": [300, 512], "label": "left" },
+          "requirements": { "goals": [ { "Population": { "min": 1 } } ] }
+        }
+      ]
     }
   ]
 }

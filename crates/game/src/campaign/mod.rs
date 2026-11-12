@@ -127,17 +127,43 @@ pub fn start_mission(campaign_id: usize, mission_index: usize) -> Option<Mission
     Some(map)
 }
 
+// Begin a campaign at one of its missions as the menus and automation do: as start_mission, but a
+// mission whose save map this game can't load (missing, unreadable or of another save version)
+// starts nothing and leaves the campaign as it was. Returns the map to load, or why it can't start.
+pub fn start_mission_if_loadable(campaign_id: usize, mission_index: usize) -> Result<MissionMap, String> {
+    let Some(mission) = CampaignConfigs::get().mission(campaign_id, mission_index) else {
+        return Err(format!("Campaign {campaign_id} has no mission {mission_index}."));
+    };
+    if let MissionMap::SaveGame { save_file } = &mission.map {
+        match crate::session::probe_save(engine::file_sys::paths::PathRef::from_str(save_file)) {
+            Ok(summary) if summary.loadable => {}
+            Ok(_) => return Err(format!("The mission's map '{save_file}' is of another save version.")),
+            Err(err) => return Err(format!("The mission's map '{save_file}' doesn't load: {err}")),
+        }
+    }
+    start_mission(campaign_id, mission_index).ok_or_else(|| format!("Campaign {campaign_id} has no mission {mission_index}."))
+}
+
 // Advance to the next mission: the campaign's next step (a variant's sibling sites are skipped).
 // Returns its map to load, or None when there is no next mission (in which case a
 // CampaignComplete prompt is raised).
-// TODO(realm-ui): a next step with choices should open the world map's choice box (Phase 2) and
-// start the site picked; until then it starts the choice point itself.
+// A next step with choices goes through the world map's choice box instead (MissionComplete opens
+// the world map, whose box starts the site picked); without a world map to show it, this starts
+// the site picked before (the profile's choice), else the choice point itself.
 pub fn advance_to_next_mission() -> Option<MissionMap> {
     let mgr = CampaignManager::get_mut();
 
     let (campaign_id, next_index) = match mgr.progress.active.as_ref() {
         Some(active) => {
-            let next = CampaignConfigs::get().campaign(active.campaign_id).and_then(|campaign| campaign.next_step_after(active.mission_index));
+            let configs = CampaignConfigs::get();
+            let next = configs.campaign(active.campaign_id).and_then(|campaign| {
+                let step = campaign.next_step_after(active.mission_index)?;
+                let site = crate::profile::get().record(&campaign.id).and_then(|record| record.choice(step));
+                let picked = site
+                    .and_then(|site| campaign.missions[step].choices.iter().find(|choice| choice.site == site))
+                    .and_then(|choice| campaign.resolve_mission(&choice.mission));
+                Some(picked.unwrap_or(step))
+            });
             (active.campaign_id, next.unwrap_or(usize::MAX))
         }
         None => return None,

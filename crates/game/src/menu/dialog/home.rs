@@ -22,10 +22,7 @@ use engine::{file_sys::paths::PathRef, log, save::storage};
 use super::*;
 use crate::{
     GameLoop,
-    campaign::{
-        self,
-        config::{CampaignConfigs, MissionMap},
-    },
+    campaign::{self, config::CampaignConfigs},
     menu::skin::EmblemState,
     profile,
     save_header,
@@ -292,28 +289,13 @@ fn campaign_progress_text(campaign_index: usize) -> String {
 // load (missing, unreadable or of another version) starts nothing and leaves the campaign as it was;
 // a load that fails all the same cancels the start (campaign::cancel_mission_start).
 pub(super) fn start_campaign_mission(campaign_index: usize, mission_index: usize) -> bool {
-    if let Some(MissionMap::SaveGame { save_file }) =
-        CampaignConfigs::get().mission(campaign_index, mission_index).map(|mission| &mission.map)
-    {
-        match session::probe_save(PathRef::from_str(save_file)) {
-            Ok(summary) if summary.loadable => {}
-            Ok(_) => {
-                log::error!(log::channel!("campaign"), "Can't start the mission: its map '{save_file}' is of another save version.");
-                return false;
-            }
-            Err(err) => {
-                log::error!(log::channel!("campaign"), "Can't start the mission: its map '{save_file}' doesn't load: {err}");
-                return false;
-            }
-        }
-    }
-    match campaign::start_mission(campaign_index, mission_index) {
-        Some(map) => {
+    match campaign::start_mission_if_loadable(campaign_index, mission_index) {
+        Ok(map) => {
             super::load_mission_map(&map);
             true
         }
-        None => {
-            log::error!(log::channel!("campaign"), "Campaign {campaign_index} has no mission {mission_index} to start.");
+        Err(err) => {
+            log::error!(log::channel!("campaign"), "Can't start the mission: {err}");
             false
         }
     }

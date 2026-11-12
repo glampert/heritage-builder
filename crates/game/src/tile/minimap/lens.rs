@@ -37,14 +37,15 @@ pub enum MinimapLens {
 impl MinimapLens {
     // The tooltip of its button.
     pub fn label(self) -> &'static str {
+        use engine::ui::text::{UiTextCategory, get};
         match self {
-            Self::City => "City",
-            Self::Sectors => "Sectors",
-            Self::Water => "Water",
-            Self::Risk => "Risks",
-            Self::Faith => "Faith",
-            Self::Flood => "Floods",
-            Self::Fertility => "Fertility",
+            Self::City => get(UiTextCategory::Menu, "minimap.lens.city"),
+            Self::Sectors => get(UiTextCategory::Menu, "minimap.lens.sectors"),
+            Self::Water => get(UiTextCategory::Menu, "minimap.lens.water"),
+            Self::Risk => get(UiTextCategory::Menu, "minimap.lens.risk"),
+            Self::Faith => get(UiTextCategory::Menu, "minimap.lens.faith"),
+            Self::Flood => get(UiTextCategory::Menu, "minimap.lens.flood"),
+            Self::Fertility => get(UiTextCategory::Menu, "minimap.lens.fertility"),
         }
     }
 

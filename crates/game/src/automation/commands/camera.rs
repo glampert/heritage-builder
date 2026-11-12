@@ -14,7 +14,7 @@ use crate::{
 pub(super) const COMMANDS: &[CommandDef] = &[
     CommandDef {
         name: "camera.state",
-        help: "Cell at the center of the screen, zoom, and the range of visible cells.",
+        help: "Cell at the center of the screen, zoom, whether edge scrolling moves it, and the range of visible cells.",
         params: &[],
         run: cmd_state,
     },
@@ -97,6 +97,7 @@ fn camera_state(context: &CommandContext) -> Value {
     json!({
         "center_cell": center_cell,
         "zoom": camera.current_zoom(),
+        "scrolling": camera.is_scrolling(),
         "visible_cells": { "start": cell_json(visible_cells.start), "end": cell_json(visible_cells.end) },
     })
 }

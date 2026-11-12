@@ -316,7 +316,9 @@
       "uncharted_note": { "size": 19, "color": "#2B211899" },
       "threat": { "size": 21, "color": "#F2DFB3", "capitals": true, "letter_spacing": 4 },
       "threat_note": { "size": 18, "color": "#F2DFB3" },
-      "compass": { "size": 18, "color": "#2B2118D9", "heading": true }
+      "compass": { "size": 18, "color": "#2B2118D9", "heading": true },
+      "choice_title": { "size": 19, "color": "#A8261C", "heading": true },
+      "choice_subtitle": { "size": 18, "color": "#2B2118" }
     },
     "places": {
       "capital": { "y": 0, "gap": 19, "seal": 34 }, "city": { "y": 0, "gap": 14, "seal": 24 },
@@ -336,9 +338,13 @@
       "relations_fill": "#A8261C", "relations_track": "#00000000", "relations_outline": "#2B2118",
       "legend_fill": "#00000073", "legend_text": "#F0DCB4", "bullet": "#A8261C", "section": "#A8261C",
       "request_fill": "#F2E4C0", "request_border": "#A8261C", "request_title": "#A8261C", "request_text": "#2B2118",
-      "bar_text": "#F3E3BD", "bar_sub": "#D9B98A", "panel_text": "#2B2118", "panel_sub": "#6B4F33", "panel_rule": "#C9B083"
+      "bar_text": "#F3E3BD", "bar_sub": "#D9B98A", "panel_text": "#2B2118", "panel_sub": "#6B4F33", "panel_rule": "#C9B083",
+      "choice_box_fill": "#F2E4C0", "choice_box_border": "#2B2118", "choice_box_inner": "#A8261C",
+      "choice_line": "#A8261C", "choice_hover": "#A8261C"
     },
-    "bullet_shape": "square", "request_dashed": true, "request_seal": true },
+    "bullet_shape": "square", "request_dashed": true, "request_seal": true,
+    "choice_box": { "size": [292, 74], "border_width": 1.5, "inner_inset": 4, "inner_width": 1, "title_baseline": 32,
+      "subtitle_baseline": 58, "text_x": 18, "line_width": 1.2, "seal": true } },
   "dialogs": {
     "default": {"panel": "dialog", "size": [760, 960]},
     "Home": {"size": [600, 1000], "align": "left", "offset": [64, 0]},

@@ -136,9 +136,15 @@ pub fn zoom_map_view_about(state: UiMapViewState, zoom: f32, anchor: Vec2, rect:
 // menu's (and labeled groups') plus `label`. Not visible (so ui.click won't aim at it) unless the
 // whole rect is in the view's.
 pub fn record_map_marker(ui_sys: &UiSystem, label: &str, rect: Rect, view_rect: Rect, hovered: bool, value: Option<Value>) {
+    record_map_item(ui_sys, "map_marker", label, rect, view_rect, hovered, value);
+}
+
+// As record_map_marker, for something else an overlay draws and the pointer acts on, of `kind`
+// (the world map's choice box and its sites' names in it).
+pub fn record_map_item(ui_sys: &UiSystem, kind: &'static str, label: &str, rect: Rect, view_rect: Rect, hovered: bool, value: Option<Value>) {
     if ui_sys.is_widget_registry_enabled() {
         let visible = view_rect.contains_rect(&rect);
-        immediate::record_rect_visible(ui_sys, "map_marker", label, immediate::egui_rect(rect), hovered, visible, value);
+        immediate::record_rect_visible(ui_sys, kind, label, immediate::egui_rect(rect), hovered, visible, value);
     }
 }
 

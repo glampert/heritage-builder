@@ -455,6 +455,10 @@ impl Default for SkinBackdropsDef {
 //   top bar's text (`bar_text`, `bar_sub`); `bullet_shape`: square, diamond or circle;
 //   `request_dashed`: the request box's border in dashes; `request_seal`: the request box ends in
 //   the `city` mark (a seal, drawn 32 points large) with "!" in its `seal_letter` look.
+// - `choice_box`: the next mission's choice box (SkinChoiceBoxDef), its text in the `text` looks
+//   `choice_title` and `choice_subtitle`, its colours `choice_box_fill`, `choice_box_border`,
+//   `choice_box_inner`, the optional `choice_box_inner_fill` and `choice_box_shadow`, the dotted
+//   lines to its sites `choice_line`, and a site's name under the pointer `choice_hover`.
 #[derive(Clone, Debug, Deserialize)]
 #[serde(default, deny_unknown_fields)]
 pub struct SkinWorldMapDef {
@@ -476,6 +480,45 @@ pub struct SkinWorldMapDef {
     pub bullet_shape: String,
     pub request_dashed: bool,
     pub request_seal: bool,
+    pub choice_box: SkinChoiceBoxDef,
+}
+
+// The next mission's choice box, after the generator's choice_box, in points on a 1920 × 1080
+// screen: at least `size` (wider for longer text), its border `border_width` wide, an inner rule
+// `inner_inset` in and `inner_width` wide, its shadow `shadow_offset` off, its title's and
+// subtitle's baselines `title_baseline` and `subtitle_baseline` down from its top and `text_x` in
+// from its left, the lines to the sites `line_width` wide, and `seal`: a seal (the `city` mark)
+// with two arrows at its lower right (Đại Long's).
+#[derive(Clone, Debug, Deserialize)]
+#[serde(default, deny_unknown_fields)]
+pub struct SkinChoiceBoxDef {
+    pub size: [f32; 2],
+    pub border_width: f32,
+    pub inner_inset: f32,
+    pub inner_width: f32,
+    pub shadow_offset: [f32; 2],
+    pub title_baseline: f32,
+    pub subtitle_baseline: f32,
+    pub text_x: f32,
+    pub line_width: f32,
+    pub seal: bool,
+}
+
+impl Default for SkinChoiceBoxDef {
+    fn default() -> Self {
+        Self {
+            size: [292.0, 74.0],
+            border_width: 1.5,
+            inner_inset: 4.0,
+            inner_width: 1.0,
+            shadow_offset: [4.0, 5.0],
+            title_baseline: 32.0,
+            subtitle_baseline: 58.0,
+            text_x: 18.0,
+            line_width: 1.2,
+            seal: false,
+        }
+    }
 }
 
 impl Default for SkinWorldMapDef {
@@ -499,6 +542,7 @@ impl Default for SkinWorldMapDef {
             bullet_shape: "square".into(),
             request_dashed: false,
             request_seal: false,
+            choice_box: SkinChoiceBoxDef::default(),
         }
     }
 }

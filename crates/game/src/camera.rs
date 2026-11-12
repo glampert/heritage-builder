@@ -379,6 +379,12 @@ impl Camera {
         self.is_scrolling
     }
 
+    // While the cursor is over the UI, which takes the edge scrolling's place.
+    #[inline]
+    pub fn stop_scrolling(&mut self) {
+        self.is_scrolling = false;
+    }
+
     #[inline]
     pub fn scroll_limits(&self) -> (Vec2, Vec2) {
         let bounds = calc_map_bounds(self.map_size_in_cells, self.current_zoom(), self.viewport_size);

@@ -139,7 +139,9 @@
       "region": { "color": "#3B24128C" },
       "region_own": { "color": "#D9A93C", "halo": "#4A2C0899", "halo_width": 2.5 },
       "note": { "size": 16, "color": "#3B2412", "halo": "#ECD3A3D9" },
-      "compass": { "color": "#3B2412D9" }
+      "compass": { "color": "#3B2412D9" },
+      "choice_title": { "size": 20, "color": "#F6DF8E" },
+      "choice_subtitle": { "size": 18, "color": "#F7E3B0" }
     },
     "places": {
       "capital": { "y": -8, "gap": 26, "seal": 0 }, "city": { "y": -8, "gap": 16, "seal": 0 }, "monument": { "y": -8, "gap": 22 }
@@ -159,9 +161,13 @@
       "legend_text": "#F3DCAE", "bullet": "#D9A93C", "section": "#7A1D12",
       "request_fill": "#7A1D12", "request_border": "#2A1608", "request_inner": "#D9A93C", "request_title": "#F6DF8E",
       "request_text": "#F7E3B0",
-      "bar_text": "#F7E3B0", "bar_sub": "#E2B866", "panel_text": "#3B2412", "panel_sub": "#7A4F2A", "panel_rule": "#C79D64"
+      "bar_text": "#F7E3B0", "bar_sub": "#E2B866", "panel_text": "#3B2412", "panel_sub": "#7A4F2A", "panel_rule": "#C79D64",
+      "choice_box_fill": "#2A1608", "choice_box_border": "#2A1608", "choice_box_inner": "#D9A93C",
+      "choice_box_inner_fill": "#7A1D12", "choice_box_shadow": "#0000004D", "choice_line": "#7A1D12", "choice_hover": "#F6DF8E"
     },
-    "bullet_shape": "circle", "request_dashed": false, "request_seal": false },
+    "bullet_shape": "circle", "request_dashed": false, "request_seal": false,
+    "choice_box": { "size": [392, 78], "border_width": 0, "inner_inset": 4, "inner_width": 2, "title_baseline": 33,
+      "subtitle_baseline": 60, "line_width": 1.5, "seal": false } },
   "dialogs": {
     "Home": {"offset": [80, 0]},
     "CityManagement": {"size": [1600, 1020]},

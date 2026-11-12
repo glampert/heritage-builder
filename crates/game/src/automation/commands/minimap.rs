@@ -99,6 +99,7 @@ fn minimap_state(context: &CommandContext) -> Value {
 
     json!({
         "open": minimap.is_open(),
+        "pointer_blocked": minimap.is_pointer_blocked(),
         "lens": minimap.lens().to_string(),
         "show_landmarks": minimap.shows_landmarks(),
         "lenses": MinimapLens::available().iter().map(|lens| lens.to_string()).collect::<Vec<_>>(),

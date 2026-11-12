@@ -57,6 +57,12 @@ impl MissionComplete {
     }
 
     fn on_next_mission(context: &mut GameUiContext) -> bool {
+        // A next mission that offers a choice: the world map, whose choice box starts the site
+        // picked (the screen shows the next step's choice: world_map::provider). The mission just
+        // finished stays the one being played until then.
+        if next_step_has_choice() {
+            return super::open(DialogMenuKind::WorldMap, true, context);
+        }
         match campaign::advance_to_next_mission() {
             Some(map) => {
                 // Loading the next mission's map tears down and rebuilds the
@@ -74,4 +80,19 @@ impl MissionComplete {
         campaign::continue_playing();
         super::close_current(context)
     }
+}
+
+// Whether the step after the mission being played offers a choice the world map can show: the map
+// shows that campaign (not another realm's, under a ui.realm override) and its choice box.
+fn next_step_has_choice() -> bool {
+    let Some(active) = campaign::active_mission() else {
+        return false;
+    };
+    if !super::world_map::shows_campaign_in_game(active.campaign_id) {
+        return false;
+    }
+    crate::world_map::provider(active.campaign_id).is_some_and(|provider| {
+        use crate::world_map::WorldMapProvider;
+        provider.next_mission_choice().is_some()
+    })
 }
