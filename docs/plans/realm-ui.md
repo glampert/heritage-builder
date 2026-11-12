@@ -548,7 +548,7 @@ The existing dialogs keep their layouts but take their panels from the Đại Lo
   - `ui_menus.jsonl` (every dialog, every realm, Continue, Custom Game start, settings commit);
   - update `ui_new_game.jsonl` to the Blank map path.
 
-**Notes (2026-11-12, custom game) (commit TODO):**
+**Notes (2026-11-12, custom game) (commit `3beeecf`):**
 - `dialog/custom_game.rs`: `CustomGame` in three columns. Realm rows (emblem, campaign name, "Start Campaign II to unlock"), map rows from the new `maps.json` (Blank map, the sample saves' maps while present, three presets), the preview (a `minimap_bake` bake drawn as the isometric diamond in the selected realm's style; a save's map shows its realm's emblem, TODO) with size, water, woodland, trade partners (TODO M10), hazards; the Blank map's width, height and terrain; starting date (the realm's eras), goals (Sandbox, TODO M9), treasury, difficulty, four switches. New Game and its kind are gone; MainGame's button opens Custom Game.
 - `crate::custom_game`: Start replaces the session, then sets date, treasury, the risks switch and the active custom game: its realm (`ui.realm` source `custom_game`), map, difficulty, fast construction (`fast_construction_scale` 0.25 on top of `time_scale`) and the stored switches. Design: runtime state saved in the save header (`realm`, a `custom_game` record) and read back on load, so no save-version bump.
 - Engine: hidden labels on dropdowns and lists, dropdown widths, toggle tooltips, `UiImageFit::Center`.
