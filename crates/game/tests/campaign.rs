@@ -53,6 +53,7 @@ fn build_test_configs() -> CampaignConfigs {
             realm: Realm::DaiLong,
             missions: vec![
                 MissionDef {
+                    id: String::new(),
                     name: "Mission 1".into(),
                     description: String::new(),
                     map: MissionMap::Preset { preset_number: TEST_PRESET },
@@ -60,8 +61,11 @@ fn build_test_configs() -> CampaignConfigs {
                     calendar: Some(MissionCalendarDef { start_year: Some(5), start_month: Some(3), wet_months: None }),
                     finance: None,
                     risks: None,
+                    city: None,
+                    choices: Vec::new(),
                 },
                 MissionDef {
+                    id: String::new(),
                     name: "Mission 2".into(),
                     description: String::new(),
                     map: MissionMap::Preset { preset_number: TEST_PRESET },
@@ -69,9 +73,13 @@ fn build_test_configs() -> CampaignConfigs {
                     calendar: None,
                     finance: None,
                     risks: None,
+                    city: None,
+                    choices: Vec::new(),
                 },
             ],
             eras: vec![EraDef { name: "Test Era".into(), start_year: 4 }],
+            hidden: false,
+            world_map: None,
         }],
     }
 }

@@ -47,6 +47,7 @@ const TEST_PRESET: usize = preset_maps::PRESET_1_FARM_1_GRANARY_1_HOUSE_2_WELLS_
 
 fn mission(name: &str) -> MissionDef {
     MissionDef {
+        id: String::new(),
         name: name.into(),
         description: String::new(),
         map: MissionMap::Preset { preset_number: TEST_PRESET },
@@ -54,6 +55,8 @@ fn mission(name: &str) -> MissionDef {
         calendar: None,
         finance: None,
         risks: None,
+        city: None,
+        choices: Vec::new(),
     }
 }
 
@@ -64,6 +67,8 @@ fn campaign_def(id: &str, realm: Realm, mission_count: usize) -> CampaignDef {
         realm,
         missions: (0..mission_count).map(|index| mission(&format!("Mission {index}"))).collect(),
         eras: Vec::new(),
+        hidden: false,
+        world_map: None,
     }
 }
 

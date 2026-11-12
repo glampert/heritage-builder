@@ -137,8 +137,8 @@ pub fn realm_eras(realm: Realm) -> Vec<EraDef> {
         return Vec::new();
     }
     CampaignConfigs::get()
-        .campaigns
-        .iter()
+        .visible()
+        .map(|(_, campaign)| campaign)
         .filter(|campaign| campaign.realm == realm)
         .find(|campaign| !campaign.eras.is_empty())
         .map(|campaign| campaign.eras.clone())

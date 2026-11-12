@@ -1,0 +1,38 @@
+{
+  "extent": [1000, 672],
+  "compass": [958, 186],
+  "choice_box": [730, 606],
+  "powers": [
+    {"id": "sea_kingdom", "name": "power.sea_kingdom"},
+    {"id": "delta_ports", "name": "power.delta_ports"},
+    {"id": "highland_clans", "name": "power.highland_clans"}
+  ],
+  "cities": [
+    {"id": "yasonagara", "name": "city.yasonagara", "position": [548, 410], "kind": "capital", "owner": "kambara", "player": true, "label": "above"},
+    {"id": "kampong_sla", "name": "city.kampong_sla", "position": [590, 478], "kind": "city", "owner": "kambara"},
+    {"id": "pashchima", "name": "city.pashchima", "position": [474, 428], "kind": "city", "owner": "kambara"},
+    {"id": "silapura", "name": "city.silapura", "position": [610, 368], "kind": "city", "owner": "kambara", "label": "above"},
+    {"id": "rajamarga", "name": "city.rajamarga", "position": [670, 368], "kind": "city", "owner": "kambara", "label": "right"},
+    {"id": "suryagiri", "name": "city.suryagiri", "position": [498, 378], "kind": "monument", "owner": "kambara", "player": true, "label": "left"},
+    {"id": "thang_ha", "name": "city.thang_ha", "position": [722, 150], "kind": "capital", "owner": "dailong", "role": "neighbour", "label": "right"},
+    {"id": "vijara", "name": "city.vijara", "position": [796, 410], "kind": "city", "owner": "sea_kingdom", "role": "neighbour"},
+    {"id": "hamsara", "name": "city.hamsara", "position": [358, 578], "kind": "city", "owner": "delta_ports", "role": "trade_partner", "trade": {"relation": 5, "route": {"route": "yasonagara_hamsara", "from": "pashchima", "line": "world_map.route_line.hill_track", "carrier": "world_map.carrier.caravans", "every_months": 4}, "sells": [{"good": "trade_good.glazed_jars", "price": 40}, {"good": "trade_good.cotton_cloth", "price": 55}, {"good": "trade_good.sea_salt", "price": 22}], "buys": [{"good": "trade_good.cardamom", "price": 70}, {"good": "trade_good.palm_sugar", "price": 28}, {"good": "trade_good.iron", "price": 64}], "request": {"good": "trade_good.palm_sugar", "amount": 40, "within_months": 6}}},
+    {"id": "clan_camps", "name": "city.clan_camps", "position": [432, 228], "kind": "camp", "owner": "highland_clans", "role": "neighbour"}
+  ],
+  "routes": [
+    {"id": "yasonagara_river", "kind": "river", "state": "open", "points": [[548, 410], [570, 446], [622, 486], [652, 500], [668, 540], [688, 584]], "cities": ["yasonagara"]},
+    {"id": "bay_vijara", "kind": "sea", "state": "open", "points": [[688, 584], [712, 604], [770, 560], [812, 512], [836, 462], [814, 418]], "cities": ["vijara"]},
+    {"id": "royal_road", "kind": "land", "state": "open", "points": [[548, 410], [610, 372], [670, 368], [694, 300], [696, 220], [722, 150]], "cities": ["yasonagara", "silapura", "rajamarga", "thang_ha"]},
+    {"id": "yasonagara_hamsara", "kind": "land", "state": "open", "points": [[548, 410], [474, 428], [420, 470], [380, 530], [358, 578]], "cities": ["yasonagara", "pashchima", "hamsara"]}
+  ],
+  "labels": [
+    {"text": "realm.dailong", "position": [566, 142], "style": "realm", "size": 32, "letter_spacing": 10},
+    {"text": "realm.kambara", "position": [590, 296], "style": "realm", "size": 40, "letter_spacing": 12, "own": true},
+    {"text": "region.northern_throne", "position": [760, 34], "style": "region", "size": 19, "letter_spacing": 4},
+    {"text": "region.highland_clans", "position": [400, 332], "style": "region", "size": 19, "letter_spacing": 4},
+    {"text": "region.western_baray", "position": [432, 414.7], "style": "note", "size": 13, "letter_spacing": 0, "align": "start"}
+  ],
+  "uncharted": [
+    {"title": "region.dry_plain", "subtitle": "region.dry_plain.note", "outline": [[-20, -20], [300, -20], [330, 120], [318, 260], [340, 420], [330, 560], [300, 700], [-20, 700]], "label": [150, 300]}
+  ]
+}

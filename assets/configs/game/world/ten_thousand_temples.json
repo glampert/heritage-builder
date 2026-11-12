@@ -1,0 +1,39 @@
+{
+  "extent": [1000, 672],
+  "compass": [958, 186],
+  "choice_box": [10, 600],
+  "powers": [
+    {"id": "sea_kingdom", "name": "power.sea_kingdom"},
+    {"id": "highland_clans", "name": "power.highland_clans"}
+  ],
+  "cities": [
+    {"id": "pugara", "name": "city.pugara", "position": [236, 258], "kind": "capital", "owner": "tampadesa", "player": true, "label": "right"},
+    {"id": "kyautthin", "name": "city.kyautthin", "position": [272, 336], "kind": "city", "owner": "tampadesa", "player": true},
+    {"id": "okthaw", "name": "city.okthaw", "position": [254, 192], "kind": "city", "owner": "tampadesa", "label": "right"},
+    {"id": "taungzin", "name": "city.taungzin", "position": [380, 196], "kind": "city", "owner": "tampadesa"},
+    {"id": "gilded_stupa", "name": "city.gilded_stupa", "position": [206, 236], "kind": "monument", "owner": "tampadesa", "player": true, "label": "left"},
+    {"id": "yasonagara", "name": "city.yasonagara", "position": [548, 410], "kind": "capital", "owner": "kambara", "role": "trade_partner", "subtitle": "city.yasonagara.subtitle", "trade": {"relation": 4, "route": {"route": "kyautthin_yasonagara", "from": "kyautthin", "line": "world_map.route_line.hill_road", "carrier": "world_map.carrier.caravans", "every_months": 5}, "sells": [{"good": "trade_good.cardamom", "price": 68}, {"good": "trade_good.palm_sugar", "price": 26}, {"good": "trade_good.iron", "price": 60}], "buys": [{"good": "trade_good.lacquerware", "price": 85}, {"good": "trade_good.gems", "price": 140}, {"good": "trade_good.cotton", "price": 30}], "request": {"good": "trade_good.lacquerware", "amount": 12, "within_months": 10}}},
+    {"id": "thang_ha", "name": "city.thang_ha", "position": [722, 150], "kind": "capital", "owner": "dailong", "role": "neighbour"},
+    {"id": "vijara", "name": "city.vijara", "position": [796, 410], "kind": "city", "owner": "sea_kingdom", "role": "neighbour"},
+    {"id": "clan_camps", "name": "city.clan_camps", "position": [452, 250], "kind": "camp", "owner": "highland_clans", "role": "neighbour"}
+  ],
+  "routes": [
+    {"id": "shwemyit_river", "kind": "river", "state": "open", "points": [[236, 262], [238, 300], [258, 344], [280, 400], [298, 456], [306, 510], [322, 560], [352, 578]], "cities": ["pugara"]},
+    {"id": "kyautthin_yasonagara", "kind": "land", "state": "open", "points": [[272, 336], [330, 350], [392, 362], [452, 380], [504, 400], [540, 410]], "cities": ["kyautthin", "yasonagara"]},
+    {"id": "taungzin_thang_ha", "kind": "land", "state": "open", "points": [[380, 196], [452, 176], [540, 166], [624, 156], [712, 150]], "cities": ["taungzin", "thang_ha"]},
+    {"id": "pugara_taungzin", "kind": "land", "state": "open", "points": [[236, 258], [300, 226], [380, 196]], "cities": ["pugara", "taungzin"]},
+    {"id": "far_traders", "kind": "sea", "state": "closed", "points": [[352, 592], [366, 630], [380, 700]], "cities": []}
+  ],
+  "labels": [
+    {"text": "realm.dailong", "position": [566, 142], "style": "realm", "size": 32, "letter_spacing": 8},
+    {"text": "realm.kambara", "position": [590, 296], "style": "realm", "size": 32, "letter_spacing": 8},
+    {"text": "realm.tampadesa", "position": [160, 410], "style": "realm", "size": 36, "letter_spacing": 10, "own": true},
+    {"text": "region.hamsara", "position": [384, 546], "style": "region", "size": 19, "letter_spacing": 4},
+    {"text": "region.northern_throne", "position": [760, 34], "style": "region", "size": 19, "letter_spacing": 4},
+    {"text": "region.highland_clans", "position": [400, 332], "style": "region", "size": 19, "letter_spacing": 4},
+    {"text": "region.far_traders", "position": [383.3, 640.9], "style": "note", "size": 16, "letter_spacing": 0, "align": "start"}
+  ],
+  "threats": [
+    {"title": "region.steppe_khaganate", "subtitle": "region.steppe_khaganate.note", "position": [150, 30], "arrow": [[243.0, 64.1], [244.6, 133.9]]}
+  ]
+}

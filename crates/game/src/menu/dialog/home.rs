@@ -217,9 +217,14 @@ fn on_continue() -> bool {
 // Campaign
 // ----------------------------------------------
 
-// "Campaign I": a campaign by its place in campaigns.json.
+// "Campaign I": a campaign by its place among the visible campaigns in campaigns.json. A hidden
+// (test) campaign goes by its name.
 pub(super) fn campaign_number(campaign_index: usize) -> String {
-    ui::text::format(UiTextCategory::Menu, "campaign.number", &[("number", &roman_numeral(campaign_index + 1))])
+    let configs = CampaignConfigs::get();
+    match configs.campaign_number(campaign_index) {
+        Some(number) => ui::text::format(UiTextCategory::Menu, "campaign.number", &[("number", &roman_numeral(number))]),
+        None => configs.campaign(campaign_index).map_or_else(String::new, |campaign| campaign.display_name().to_string()),
+    }
 }
 
 // 1 → "I", 4 → "IV", 12 → "XII".
@@ -257,7 +262,9 @@ pub(super) fn emblem_state(campaign_index: usize) -> EmblemState {
 
 // What unlocks the campaign at `campaign_index`: "Finish Campaign I to unlock".
 pub(super) fn unlock_text(campaign_index: usize) -> String {
-    let previous = campaign_number(campaign_index.saturating_sub(1));
+    let configs = CampaignConfigs::get();
+    let previous_index = configs.visible().map(|(index, _)| index).filter(|&index| index < campaign_index).last().unwrap_or(0);
+    let previous = campaign_number(previous_index);
     ui::text::format(UiTextCategory::Menu, "campaign.unlock", &[("campaign", &previous)])
 }
 
@@ -266,12 +273,15 @@ pub(super) fn unlock_text(campaign_index: usize) -> String {
 fn campaign_progress_text(campaign_index: usize) -> String {
     let configs = CampaignConfigs::get();
     let number = campaign_number(campaign_index);
-    let count = configs.campaign(campaign_index).map_or(0, |campaign| campaign.missions.len());
+    let Some(campaign) = configs.campaign(campaign_index) else {
+        return number;
+    };
+    let count = campaign.mission_count();
     match profile::get().next_mission(configs, campaign_index) {
         Some(mission) => ui::text::format(
             UiTextCategory::Menu,
             "home.campaign.subline",
-            &[("campaign", &number), ("mission", &(mission + 1).to_string()), ("count", &count.to_string())],
+            &[("campaign", &number), ("mission", &campaign.mission_number(mission).to_string()), ("count", &count.to_string())],
         ),
         None => ui::text::format(UiTextCategory::Menu, "home.campaign.subline.soon", &[("campaign", &number)]),
     }
@@ -376,8 +386,8 @@ pub(super) fn crest(context: &mut GameUiContext, max_height: f32, scale: f32) ->
 pub(super) fn subtitle() -> String {
     let realm = skin::current_realm();
     CampaignConfigs::get()
-        .campaigns
-        .iter()
+        .visible()
+        .map(|(_, campaign)| campaign)
         .find(|campaign| campaign.realm == realm)
         .map_or_else(|| realm.display_name().to_string(), |campaign| campaign.display_name().to_string())
 }
@@ -391,7 +401,7 @@ fn campaign_row(context: &mut GameUiContext, scale: f32, text_scale: f32) -> UiC
     let emblem_size = Vec2::new(HOME_EMBLEM_SIZE, HOME_EMBLEM_SIZE) * scale;
     let mut columns = UiColumns::new().with_spacing(8.0 * scale);
 
-    for (index, campaign) in configs.campaigns.iter().enumerate() {
+    for (index, campaign) in configs.visible() {
         let state = emblem_state(index);
         let (name, color, tooltip) = if state != EmblemState::Locked {
             (campaign.realm.display_name().to_string(), skin::color("ink"), campaign.display_name().to_string())

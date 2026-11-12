@@ -3,6 +3,7 @@ use serde::{Deserialize, Serialize};
 use common::hash;
 use engine::{log, ui::text::{self, UiTextCategory}};
 
+pub use crate::world_map::config::{CityKind, LabelSide};
 use crate::{
     realm::Realm,
     sim::{calendar::EraDef, finance::TaxLevel, resources::ResourceKind},
@@ -36,6 +37,16 @@ pub struct CampaignDef {
     // The realm's eras, in the order they start: the calendar counts years from the latest.
     #[serde(default)]
     pub eras: Vec<EraDef>,
+    // A test campaign that only automation reaches (profile.set): never listed by the home menu,
+    // the campaign picker or Custom Game, never the home menu's realm, never reached by finishing
+    // another campaign, and left out of the campaigns' numbering ("Campaign II"). Keep hidden
+    // campaigns after the others: session saves name a campaign by its index in this file.
+    #[serde(default)]
+    pub hidden: bool,
+    // The world map it shows (assets/configs/game/world/<name>.json, crate::world_map). None: the
+    // one named by its id.
+    #[serde(default)]
+    pub world_map: Option<String>,
 }
 
 impl CampaignDef {
@@ -53,11 +64,92 @@ impl CampaignDef {
         let key = format!("mission.{}.{}", self.id, mission_index + 1);
         Some(text::find_str(UiTextCategory::Realm, hash::fnv1a_from_str(&key)).unwrap_or(&mission.name))
     }
+
+    // The world map file it shows: `world_map`, else its id.
+    pub fn world_map_name(&self) -> &str {
+        self.world_map.as_deref().unwrap_or(&self.id)
+    }
+
+    // ----------------------
+    // Missions and choices:
+    // ----------------------
+    //
+    // A mission with `choices` is a choice point: the world map offers its sites, and each starts
+    // the mission it names, the choice point itself or a variant (a mission only another's choice
+    // starts). A step is a mission that isn't a variant; the campaign plays its steps in order, and
+    // a step is finished once it or one of the missions its sites start is.
+
+    // The index of the mission `mission` names: its index, or its id. None if there's no such mission.
+    pub fn resolve_mission(&self, mission: &MissionRef) -> Option<usize> {
+        match mission {
+            MissionRef::Index(index) => (*index < self.missions.len()).then_some(*index),
+            MissionRef::Id(id) => self.missions.iter().position(|mission| !mission.id.is_empty() && mission.id == *id),
+        }
+    }
+
+    // The missions the choice point at `mission_index` starts, by index (the ones that resolve).
+    pub fn choice_targets(&self, mission_index: usize) -> Vec<usize> {
+        self.missions.get(mission_index).map_or_else(Vec::new, |mission| {
+            mission.choices.iter().filter_map(|choice| self.resolve_mission(&choice.mission)).collect()
+        })
+    }
+
+    // The step a mission belongs to: the choice point whose site starts it, for a variant; else
+    // the mission itself.
+    pub fn step_of(&self, mission_index: usize) -> usize {
+        (0..self.missions.len())
+            .find(|&step| step != mission_index && self.choice_targets(step).contains(&mission_index))
+            .unwrap_or(mission_index)
+    }
+
+    // Whether the mission is a variant: only another mission's choice starts it.
+    pub fn is_variant(&self, mission_index: usize) -> bool {
+        self.step_of(mission_index) != mission_index
+    }
+
+    // The campaign's steps (its missions that aren't variants), by index, in order.
+    pub fn steps(&self) -> Vec<usize> {
+        (0..self.missions.len()).filter(|&index| !self.is_variant(index)).collect()
+    }
+
+    // Whether the step at `step` is finished, given the missions finished: it, or a mission one of
+    // its sites starts.
+    pub fn is_step_finished(&self, step: usize, missions_finished: &[usize]) -> bool {
+        missions_finished.contains(&step) || self.choice_targets(step).iter().any(|target| missions_finished.contains(target))
+    }
+
+    // The first step after the step of `mission_index`. None after the last.
+    pub fn next_step_after(&self, mission_index: usize) -> Option<usize> {
+        let step = self.step_of(mission_index);
+        self.steps().into_iter().find(|&index| index > step)
+    }
+
+    // The mission's number as the player reads it, from 1: its step's place among the steps (a
+    // variant takes its choice point's).
+    pub fn mission_number(&self, mission_index: usize) -> usize {
+        let step = self.step_of(mission_index);
+        self.steps().iter().position(|&index| index == step).map_or(mission_index + 1, |position| position + 1)
+    }
+
+    // How many missions the player plays through: the steps.
+    pub fn mission_count(&self) -> usize {
+        self.steps().len()
+    }
+
+    // Whether finishing the mission at `mission_index` finishes the campaign: it belongs to the
+    // last step.
+    pub fn is_last_step(&self, mission_index: usize) -> bool {
+        self.steps().last().is_some_and(|&last| last == self.step_of(mission_index))
+    }
 }
 
 // A single mission: a starting map plus the requirements to complete it.
 #[derive(Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct MissionDef {
+    // Names the mission for another's choices (MissionRef::Id). Optional.
+    #[serde(default)]
+    pub id: String,
     pub name: String,
     #[serde(default)]
     pub description: String,
@@ -73,6 +165,71 @@ pub struct MissionDef {
     // Whether fire and collapse risks build up. None: RiskConfigs::enabled.
     #[serde(default)]
     pub risks: Option<MissionRisksDef>,
+    // The city the mission founds, on its campaign's world map: the player's once the mission is
+    // finished, and while it's played. None: it founds none.
+    #[serde(default)]
+    pub city: Option<MissionCityDef>,
+    // The sites the world map offers when this mission is next (see CampaignDef: Missions and
+    // choices). Empty: no choice.
+    #[serde(default)]
+    pub choices: Vec<MissionChoiceDef>,
+}
+
+impl MissionDef {
+    // The name of the city it founds, as the player reads it. None if it founds none.
+    pub fn city_display_name(&self) -> Option<&str> {
+        self.city.as_ref().map(|city| text::get(UiTextCategory::Realm, &city.name))
+    }
+}
+
+// The city a mission founds, on its campaign's world map (crate::world_map).
+#[derive(Clone, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct MissionCityDef {
+    pub id: String,
+    // Its name: a Realm string key (en.json), e.g. "city.phu_sa".
+    pub name: String,
+    // In the world map's coordinates (WorldMapDef::extent).
+    pub position: [f32; 2],
+    // Where its name goes beside its mark.
+    #[serde(default)]
+    pub label: LabelSide,
+    #[serde(default = "default_city_kind")]
+    pub kind: CityKind,
+}
+
+fn default_city_kind() -> CityKind {
+    CityKind::City
+}
+
+// One of a choice point's sites.
+#[derive(Clone, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct MissionChoiceDef {
+    pub site: ChoiceSite,
+    // The site's name: a Realm string key, e.g. "city.hoi_thuy".
+    pub name: String,
+    // In the world map's coordinates.
+    pub position: [f32; 2],
+    // Where its name goes beside its mark, as MissionCityDef::label.
+    #[serde(default)]
+    pub label: LabelSide,
+    // The mission picking it starts: the choice point itself or a variant.
+    pub mission: MissionRef,
+}
+
+#[derive(Copy, Clone, PartialEq, Eq, Debug, Serialize, Deserialize, strum::Display)]
+pub enum ChoiceSite {
+    A,
+    B,
+}
+
+// A mission by its index in the campaign or by its id.
+#[derive(Clone, PartialEq, Eq, Debug, Serialize, Deserialize)]
+#[serde(untagged)]
+pub enum MissionRef {
+    Index(usize),
+    Id(String),
 }
 
 // The calendar a mission starts with. Fields left out keep SimConfigs::calendar's.
@@ -168,12 +325,89 @@ impl CampaignConfigs {
         self.campaigns.iter().position(|campaign| campaign.id == id)
     }
 
+    // The campaigns the player can see (not hidden), with their index in the file, in order.
+    pub fn visible(&self) -> impl Iterator<Item = (usize, &CampaignDef)> {
+        self.campaigns.iter().enumerate().filter(|(_, campaign)| !campaign.hidden)
+    }
+
+    // The campaign's number as the menus write it ("Campaign II"), from 1, counting the visible
+    // campaigns only. None for a hidden campaign or no such campaign.
+    pub fn campaign_number(&self, campaign_index: usize) -> Option<usize> {
+        let campaign = self.campaign(campaign_index)?;
+        (!campaign.hidden).then(|| self.campaigns[..campaign_index].iter().filter(|other| !other.hidden).count() + 1)
+    }
+
+    // The visible campaign after the one at `campaign_index`, which finishing it reaches. None after
+    // the last, and after a hidden campaign.
+    pub fn next_visible_after(&self, campaign_index: usize) -> Option<usize> {
+        if self.campaign(campaign_index)?.hidden {
+            return None;
+        }
+        self.visible().map(|(index, _)| index).find(|&index| index > campaign_index)
+    }
+
     // Called once the configs load (shadows engine::config::Configs::post_load): every campaign
-    // gets an id, since the profile records progress by id.
+    // gets an id, since the profile records progress by id; missions and choices are checked.
     fn post_load(&'static mut self) {
         for id in assign_campaign_ids(&mut self.campaigns) {
             log::error!(log::channel!("campaign"), "Two campaigns have the id '{id}': the profile can't tell them apart.");
         }
+        for error in self.validate() {
+            log::error!(log::channel!("campaign"), "campaigns.json: {error}");
+        }
+    }
+
+    // What's wrong with the campaigns' missions, cities and choices: a mission id given twice, a
+    // choice point without two sites (A and B), a site naming no mission or a choice point's
+    // variant, a mission two choice points start, a variant that's a choice point itself, two
+    // mission cities with one id, a hidden campaign before a visible one. Empty when all is well.
+    pub fn validate(&self) -> Vec<String> {
+        let mut errors = Vec::new();
+        let mut hidden_seen = false;
+        for campaign in &self.campaigns {
+            let name = &campaign.id;
+            if campaign.hidden {
+                hidden_seen = true;
+            } else if hidden_seen {
+                errors.push(format!("Campaign '{name}' comes after a hidden campaign: hidden campaigns go last, as saves name campaigns by index."));
+            }
+            for (index, mission) in campaign.missions.iter().enumerate() {
+                if !mission.id.is_empty() && campaign.missions[..index].iter().any(|other| other.id == mission.id) {
+                    errors.push(format!("Campaign '{name}' has two missions with the id '{}'.", mission.id));
+                }
+                if let Some(city) = &mission.city
+                    && campaign.missions[..index].iter().any(|other| other.city.as_ref().is_some_and(|other| other.id == city.id))
+                {
+                    errors.push(format!("Campaign '{name}': two missions found the city '{}'.", city.id));
+                }
+                if mission.choices.is_empty() {
+                    continue;
+                }
+                let sites: Vec<ChoiceSite> = mission.choices.iter().map(|choice| choice.site).collect();
+                if sites != [ChoiceSite::A, ChoiceSite::B] {
+                    errors.push(format!("Campaign '{name}', mission {index}: a choice offers two sites, A then B, not {sites:?}."));
+                }
+                for choice in &mission.choices {
+                    match campaign.resolve_mission(&choice.mission) {
+                        None => errors.push(format!("Campaign '{name}', mission {index}: site {} names no mission ({:?}).", choice.site, choice.mission)),
+                        Some(target) if target != index && !campaign.missions[target].choices.is_empty() => {
+                            errors.push(format!("Campaign '{name}', mission {index}: site {} starts mission {target}, a choice point itself.", choice.site));
+                        }
+                        Some(target) if target != index && target < index => {
+                            errors.push(format!("Campaign '{name}', mission {index}: site {} starts mission {target}, which comes before it.", choice.site));
+                        }
+                        Some(_) => {}
+                    }
+                }
+            }
+            for target in 0..campaign.missions.len() {
+                let points = (0..campaign.missions.len()).filter(|&step| step != target && campaign.choice_targets(step).contains(&target)).count();
+                if points > 1 {
+                    errors.push(format!("Campaign '{name}': mission {target} is a site of {points} choice points."));
+                }
+            }
+        }
+        errors
     }
 }
 

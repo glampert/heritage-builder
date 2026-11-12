@@ -140,28 +140,33 @@ impl Profile {
         self.record(campaign_id).is_some_and(|record| record.reached)
     }
 
-    // The realm of the latest campaign reached, in campaigns.json order. None if none is.
+    // The realm of the latest campaign reached, in campaigns.json order, hidden ones aside. None if
+    // none is.
     pub fn latest_reached_realm(&self, configs: &CampaignConfigs) -> Option<Realm> {
-        configs.campaigns.iter().rev().find(|campaign| self.is_reached(&campaign.id)).map(|campaign| campaign.realm)
+        configs.visible().map(|(_, campaign)| campaign).filter(|campaign| self.is_reached(&campaign.id)).last().map(|campaign| campaign.realm)
     }
 
     // Whether the campaign at `campaign_index` in `configs` can be played: the first one always
-    // (a new player starts it), the others once reached (the one before them finished).
+    // (a new player starts it), the others once reached (the one before them finished, or
+    // profile.set for a hidden one).
     pub fn is_playable(&self, configs: &CampaignConfigs, campaign_index: usize) -> bool {
-        configs.campaign(campaign_index).is_some_and(|campaign| campaign_index == 0 || self.is_reached(&campaign.id))
+        configs.campaign(campaign_index).is_some_and(|campaign| (campaign_index == 0 && !campaign.hidden) || self.is_reached(&campaign.id))
     }
 
-    // The campaigns that can be played, by index in `configs`, in order.
+    // The campaigns the menus offer, by index in `configs`, in order: the playable ones, hidden
+    // campaigns aside.
     pub fn playable_campaigns(&self, configs: &CampaignConfigs) -> Vec<usize> {
-        (0..configs.campaigns.len()).filter(|&index| self.is_playable(configs, index)).collect()
+        configs.visible().map(|(index, _)| index).filter(|&index| self.is_playable(configs, index)).collect()
     }
 
-    // The mission the campaign at `campaign_index` resumes at: the first it hasn't finished, or its
+    // The mission the campaign at `campaign_index` resumes at: the first step it hasn't finished
+    // (a choice point stands for its sites' missions: CampaignDef, Missions and choices), or its
     // first again once every one is finished. None for a campaign without missions (yet).
     pub fn next_mission(&self, configs: &CampaignConfigs, campaign_index: usize) -> Option<usize> {
         let campaign = configs.campaign(campaign_index)?;
         let finished = self.record(&campaign.id).map_or(&[][..], |record| record.missions_finished.as_slice());
-        (0..campaign.missions.len()).find(|index| !finished.contains(index)).or_else(|| (!campaign.missions.is_empty()).then_some(0))
+        let steps = campaign.steps();
+        steps.iter().copied().find(|&step| !campaign.is_step_finished(step, finished)).or_else(|| steps.first().copied())
     }
 
     // ----------------------
@@ -183,13 +188,13 @@ impl Profile {
         record.reached = true;
         record.current_mission = Some(mission_index);
 
-        if !self.custom_realms.contains(&campaign.realm) {
+        if !campaign.hidden && !self.custom_realms.contains(&campaign.realm) {
             self.custom_realms.push(campaign.realm);
         }
     }
 
-    // A mission's goals were met. Finishing a campaign's last mission finishes the campaign and
-    // reaches the next one in campaigns.json.
+    // A mission's goals were met. Finishing a mission of a campaign's last step finishes the
+    // campaign and reaches the next visible one in campaigns.json (a hidden campaign reaches none).
     pub fn mission_finished(&mut self, configs: &CampaignConfigs, campaign_index: usize, mission_index: usize) {
         let Some(campaign) = configs.campaign(campaign_index) else {
             return;
@@ -202,9 +207,9 @@ impl Profile {
         }
         // TODO(realm-ui): record the mission's distinctions here once M9 awards them.
 
-        if mission_index + 1 >= campaign.missions.len() {
+        if campaign.is_last_step(mission_index) {
             record.finished = true;
-            if let Some(next) = configs.campaign(campaign_index + 1) {
+            if let Some(next) = configs.next_visible_after(campaign_index).and_then(|index| configs.campaign(index)) {
                 self.mark_reached(&next.id);
             }
         }

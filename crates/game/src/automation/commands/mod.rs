@@ -26,6 +26,7 @@ mod sim;
 mod strings;
 mod time;
 mod ui;
+mod world_map;
 mod world;
 
 pub(super) use session::state_checksum;
@@ -43,6 +44,7 @@ pub(super) const COMMAND_GROUPS: &[&[CommandDef]] = &[
     input::COMMANDS,
     ui::COMMANDS,
     profile::COMMANDS,
+    world_map::COMMANDS,
     strings::COMMANDS,
     config::COMMANDS,
     observe::COMMANDS,

@@ -119,7 +119,7 @@ impl CampaignPicker {
 
         let row = UiCardRow::new();
         let mut cards = UiColumns::new().with_spacing(scale.points(CARD_SPACING));
-        for index in 0..configs.campaigns.len() {
+        for (index, _) in configs.visible() {
             cards.add_column(UiColumnWidth::Fraction(1.0), UiWidgetGroup::new().with_widget(card(context, index, scale, card_height, row.clone())));
         }
         menu.add_widget(cards);
@@ -150,8 +150,8 @@ fn can_start(campaign_index: usize) -> bool {
 
 // The latest campaign the player can start (the first if none).
 fn default_selection() -> usize {
-    let count = CampaignConfigs::get().campaigns.len();
-    (0..count).rev().find(|&index| can_start(index)).unwrap_or(0)
+    let visible: Vec<usize> = CampaignConfigs::get().visible().map(|(index, _)| index).collect();
+    visible.iter().rev().copied().find(|&index| can_start(index)).unwrap_or(0)
 }
 
 fn on_continue() {
@@ -183,9 +183,10 @@ fn card(context: &mut GameUiContext, campaign_index: usize, scale: PickerScale, 
     let profile = profile::get();
     let campaign = &configs.campaigns[campaign_index];
     let playable = profile.is_playable(configs, campaign_index);
-    let missions = campaign.missions.len();
+    let missions = campaign.mission_count();
     let record = profile.record(&campaign.id);
-    let finished = record.map_or(0, |record| record.missions_finished.len());
+    let finished_missions = record.map_or(&[][..], |record| record.missions_finished.as_slice());
+    let finished = campaign.steps().into_iter().filter(|&step| campaign.is_step_finished(step, finished_missions)).count();
 
     let mut contents = UiWidgetGroup::new().with_widget_spacing(Vec2::new(0.0, scale.points(CARD_PART_SPACING)));
 
@@ -194,7 +195,8 @@ fn card(context: &mut GameUiContext, campaign_index: usize, scale: PickerScale, 
         contents.add_widget(UiWidgetGroup::new().with_widget(UiImage::from_texture(texture, size, emblem_size).with_label("emblem")));
     }
 
-    let number = ui::text::format(UiTextCategory::Menu, "campaign_picker.number", &[("number", &roman_numeral(campaign_index + 1))]);
+    let number = configs.campaign_number(campaign_index).unwrap_or(campaign_index + 1);
+    let number = ui::text::format(UiTextCategory::Menu, "campaign_picker.number", &[("number", &roman_numeral(number))]);
     contents.add_widget(card_text(number, CARD_NUMBER_FONT_SCALE, scale, "accent").with_label("number"));
     contents.add_widget(card_text(campaign.display_name(), CARD_NAME_FONT_SCALE, scale, if playable { "ink" } else { "sub" }).with_label("name"));
     contents.add_widget(card_text(campaign.realm.display_name(), CARD_REALM_FONT_SCALE, scale, "sub").with_label("realm"));
@@ -227,7 +229,7 @@ fn card(context: &mut GameUiContext, campaign_index: usize, scale: PickerScale, 
         let text = ui::text::format(
             UiTextCategory::Menu,
             "campaign_picker.mission",
-            &[("mission", &(next + 1).to_string()), ("count", &missions.to_string()), ("name", name)],
+            &[("mission", &campaign.mission_number(next).to_string()), ("count", &missions.to_string()), ("name", name)],
         );
         (text, None)
     };

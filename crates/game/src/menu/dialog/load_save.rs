@@ -310,11 +310,12 @@ fn mission_of(entry: &SaveEntry) -> Option<(String, usize, String)> {
     let (campaign_index, mission_index) = entry.summary.as_ref().ok()?.mission()?;
     let campaign = CampaignConfigs::get().campaign(campaign_index)?;
     let name = campaign.mission_display_name(mission_index)?.to_string();
-    Some((super::home::campaign_number(campaign_index), mission_index + 1, name))
+    Some((super::home::campaign_number(campaign_index), campaign.mission_number(mission_index), name))
 }
 
-// Where a save was played, under its name: "Campaign I · mission 2 · <city>" (the mission's name
-// until missions name their cities), "Custom game · <map>", or why it can't be loaded. A game
+// Where a save was played, under its name: "Campaign I · mission 2 · <city>" (the city the mission
+// founds, or the mission's name for one that founds none), "Custom game · <map>", or why it can't
+// be loaded. A game
 // that's neither (a preset or new map from automation or the developer editor, or a mission the
 // configs no longer have) shows its city's name, or "—".
 fn place_text(entry: &SaveEntry) -> String {

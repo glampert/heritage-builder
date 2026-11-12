@@ -1,0 +1,35 @@
+{
+  "extent": [1000, 672],
+  "compass": [958, 186],
+  "choice_box": [762, 556],
+  "powers": [
+    {"id": "sea_kingdom", "name": "power.sea_kingdom"},
+    {"id": "northern_throne", "name": "power.northern_throne"},
+    {"id": "highland_clans", "name": "power.highland_clans"}
+  ],
+  "cities": [
+    {"id": "hoa_thanh", "name": "city.hoa_thanh", "position": [742, 222], "kind": "capital", "owner": "dailong", "player": true, "label": "left"},
+    {"id": "de_son", "name": "city.de_son", "position": [776, 192], "kind": "city", "owner": "dailong", "label": "right"},
+    {"id": "cho_deo", "name": "city.cho_deo", "position": [636, 170], "kind": "city", "owner": "dailong", "label": "left"},
+    {"id": "yasonagara", "name": "city.yasonagara", "position": [548, 412], "kind": "capital", "owner": "kambara", "role": "neighbour"},
+    {"id": "vijara", "name": "city.vijara", "position": [796, 410], "kind": "city", "owner": "sea_kingdom", "role": "trade_partner", "trade": {"relation": 4, "route": {"route": "ben_gom_vijara", "from": "ben_gom", "line": "world_map.route_line.sea_route", "carrier": "world_map.carrier.junks", "every_months": 3}, "sells": [{"good": "trade_good.salt", "price": 24}, {"good": "trade_good.aloeswood", "price": 60}, {"good": "trade_good.cotton", "price": 32}], "buys": [{"good": "trade_good.silk", "price": 90}, {"good": "trade_good.ceramics", "price": 45}, {"good": "trade_good.rice", "price": 18}], "request": {"good": "trade_good.ceramics", "amount": 30, "within_months": 8}}},
+    {"id": "gate_of_the_north", "name": "city.gate_of_the_north", "position": [716, 52], "kind": "city", "owner": "northern_throne", "role": "neighbour", "label": "left"},
+    {"id": "clan_camps", "name": "city.clan_camps", "position": [432, 228], "kind": "camp", "owner": "highland_clans", "role": "neighbour"}
+  ],
+  "routes": [
+    {"id": "ben_gom_vijara", "kind": "sea", "state": "open", "points": [[836, 170], [862, 196], [826, 250], [800, 330], [832, 392], [812, 412]], "cities": ["ben_gom", "vijara"]},
+    {"id": "cho_deo_clans", "kind": "land", "state": "open", "points": [[636, 170], [584, 186], [520, 206], [444, 226]], "cities": ["cho_deo", "clan_camps"]},
+    {"id": "hoa_thanh_north", "kind": "land", "state": "open", "points": [[742, 222], [716, 168], [704, 110], [716, 60]], "cities": ["hoa_thanh", "gate_of_the_north"]},
+    {"id": "hoa_thanh_yasonagara", "kind": "land", "state": "closed", "points": [[742, 222], [698, 300], [662, 350], [604, 396], [556, 410]], "cities": ["hoa_thanh", "yasonagara"]},
+    {"id": "phu_sa_de_son", "kind": "river", "state": "open", "points": [[690, 120], [720, 146], [760, 176], [776, 192]], "cities": ["phu_sa", "de_son"]}
+  ],
+  "labels": [
+    {"text": "realm.dailong", "position": [566, 142], "style": "realm", "size": 40, "letter_spacing": 10, "own": true},
+    {"text": "realm.kambara", "position": [590, 296], "style": "realm", "size": 32, "letter_spacing": 10},
+    {"text": "region.northern_throne", "position": [760, 34], "style": "region", "size": 20, "letter_spacing": 4},
+    {"text": "region.highland_clans", "position": [400, 332], "style": "region", "size": 20, "letter_spacing": 4}
+  ],
+  "uncharted": [
+    {"title": "region.western_plains", "subtitle": "region.western_plains.note", "outline": [[-20, -20], [300, -20], [330, 120], [318, 260], [340, 420], [330, 560], [300, 700], [-20, 700]], "label": [150, 300]}
+  ]
+}

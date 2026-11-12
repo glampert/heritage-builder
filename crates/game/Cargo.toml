@@ -110,3 +110,7 @@ harness = false
 [[test]]
 name    = "risks"
 harness = false
+
+[[test]]
+name    = "world_map"
+harness = false

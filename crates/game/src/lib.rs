@@ -29,6 +29,7 @@ pub mod ui_context;
 pub mod undo_redo;
 pub mod unit;
 pub mod world;
+pub mod world_map;
 
 // Re-export GameLoop and key types at the crate root.
 mod game_loop;

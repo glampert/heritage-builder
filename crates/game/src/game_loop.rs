@@ -532,6 +532,9 @@ impl GameLoop {
         crate::custom_game::MapConfigs::load();
         log::info!(log::channel!("game"), "MapConfigs loaded.");
 
+        crate::world_map::WorldMapConfigs::load(); // After the campaigns: one file per campaign.
+        log::info!(log::channel!("game"), "WorldMapConfigs loaded.");
+
         let tex_cache = engine.texture_cache_mut();
         TileSets::load(tex_cache, configs.engine.use_packed_texture_atlas, configs.debug.skip_loading_tile_sets, false);
         log::info!(log::channel!("game"), "TileSets loaded.");

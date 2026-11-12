@@ -222,15 +222,18 @@ fn subtitle_font_scale() -> f32 {
     skin::current().headings.get("subtitle").map_or(1.0, |def| if def.font_scale > 0.0 { def.font_scale } else { 1.0 })
 }
 
-// What is being played: "<mission> · Campaign I", "Custom game · <map>", or "Custom game" for a
-// game that's neither (a preset, a new map from automation or the developer editor).
-// TODO(realm-ui): the mockup's "<mission> · <city>" once missions and custom games name their
-// cities (save_header's city_name).
+// What is being played: "<mission> · <city>" for a mission that founds a city, else "<mission> ·
+// Campaign I", "Custom game · <map>", or "Custom game" for a game that's neither (a preset, a new
+// map from automation or the developer editor).
+// TODO(realm-ui): a custom game's city once Custom Game names one.
 fn place_text() -> String {
     if let Some(mission) = campaign::active_mission()
         && let Some(campaign) = CampaignConfigs::get().campaign(mission.campaign_id)
         && let Some(name) = campaign.mission_display_name(mission.mission_index)
     {
+        if let Some(city) = campaign.missions.get(mission.mission_index).and_then(|mission| mission.city_display_name()) {
+            return ui::text::format(UiTextCategory::Menu, "game_menu.place.mission_city", &[("mission", name), ("city", city)]);
+        }
         let number = super::home::campaign_number(mission.campaign_id);
         return ui::text::format(UiTextCategory::Menu, "game_menu.place.mission", &[("mission", name), ("campaign", &number)]);
     }

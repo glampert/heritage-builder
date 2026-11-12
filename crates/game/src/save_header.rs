@@ -61,8 +61,8 @@ pub struct SaveHeader {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub mission_index: Option<usize>,
 
-    // TODO(realm-ui): the city the mission founds, once missions name their cities (Phase 2's
-    // world map data); a custom game's city name once Custom Game asks for one.
+    // The city the mission founds (MissionDef::city), in the language it was saved in.
+    // TODO(realm-ui): a custom game's city name once Custom Game asks for one.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub city_name: Option<String>,
 

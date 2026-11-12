@@ -127,13 +127,19 @@ pub fn start_mission(campaign_id: usize, mission_index: usize) -> Option<Mission
     Some(map)
 }
 
-// Advance to the next mission. Returns its map to load, or None when there is no
-// next mission (in which case a CampaignComplete prompt is raised).
+// Advance to the next mission: the campaign's next step (a variant's sibling sites are skipped).
+// Returns its map to load, or None when there is no next mission (in which case a
+// CampaignComplete prompt is raised).
+// TODO(realm-ui): a next step with choices should open the world map's choice box (Phase 2) and
+// start the site picked; until then it starts the choice point itself.
 pub fn advance_to_next_mission() -> Option<MissionMap> {
     let mgr = CampaignManager::get_mut();
 
     let (campaign_id, next_index) = match mgr.progress.active.as_ref() {
-        Some(active) => (active.campaign_id, active.mission_index + 1),
+        Some(active) => {
+            let next = CampaignConfigs::get().campaign(active.campaign_id).and_then(|campaign| campaign.next_step_after(active.mission_index));
+            (active.campaign_id, next.unwrap_or(usize::MAX))
+        }
         None => return None,
     };
 

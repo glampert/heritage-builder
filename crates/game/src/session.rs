@@ -1032,7 +1032,13 @@ impl GameSession {
         SaveHeader {
             campaign_id: campaign.map(|campaign| campaign.id.clone()),
             mission_index: mission.filter(|_| campaign.is_some()).map(|mission| mission.mission_index),
-            city_name: None,
+            // The city the mission founds. TODO(realm-ui): a custom game's city name once Custom
+            // Game asks for one.
+            city_name: mission
+                .zip(campaign)
+                .and_then(|(mission, campaign)| campaign.missions.get(mission.mission_index))
+                .and_then(|mission| mission.city_display_name())
+                .map(str::to_string),
             realm: Some(realm),
             date_ordinal: Some(date.ordinal_month()),
             date_text: Some(realm::date_text(realm, calendar)),

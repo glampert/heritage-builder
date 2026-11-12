@@ -677,7 +677,7 @@
 {"method": "wait.frames", "params": {"frames": 3}}
 {"method": "assert.eq", "params": {"query": "ui.tree", "args": {"filter": "MainGame/", "kind": "menu_entry", "fields": ["path", "kind"]}, "path": "/widgets", "value": [{"path": "MainGame/Resume", "kind": "menu_entry"}, {"path": "MainGame/Save", "kind": "menu_entry"}, {"path": "MainGame/Load", "kind": "menu_entry"}, {"path": "MainGame/Settings", "kind": "menu_entry"}, {"path": "MainGame/Quit to menu", "kind": "menu_entry"}, {"path": "MainGame/Exit game", "kind": "menu_entry"}]}}
 # What is played, and when it was saved: a mission just started is a new city.
-{"method": "assert.eq", "params": {"query": "ui.tree", "args": {"filter": "MainGame/place", "kind": "rich_text"}, "path": "/widgets/0/value", "value": "A Thriving Town · Campaign I"}}
+{"method": "assert.eq", "params": {"query": "ui.tree", "args": {"filter": "MainGame/place", "kind": "rich_text"}, "path": "/widgets/0/value", "value": "A Thriving Town · Bến Gốm"}}
 {"method": "assert.eq", "params": {"query": "ui.tree", "args": {"filter": "MainGame/last_saved", "kind": "rich_text"}, "path": "/widgets/0/value", "value": "Not saved yet"}}
 {"method": "assert.exists", "params": {"query": "ui.tree", "args": {"filter": "MainGame/crest", "kind": "image"}, "path": "/widgets/0"}}
 {"method": "assert.eq", "params": {"query": "ui.layout_issues", "path": "/count", "value": 0}}
@@ -865,7 +865,7 @@
 {"method": "ui.click", "params": {"path": "LoadOrSaveGame/ui_menus_a"}}
 {"method": "input.move", "params": {"park": true}}
 {"method": "wait.frames", "params": {"frames": 2}}
-{"method": "assert.eq", "params": {"query": "ui.tree", "args": {"filter": "LoadOrSaveGame/ui_menus_a", "kind": "list_item"}, "path": "/widgets/0/value/subtitle", "value": "Campaign I · mission 2 · A Thriving Town"}}
+{"method": "assert.eq", "params": {"query": "ui.tree", "args": {"filter": "LoadOrSaveGame/ui_menus_a", "kind": "list_item"}, "path": "/widgets/0/value/subtitle", "value": "Campaign I · mission 2 · Bến Gốm"}}
 {"method": "assert.eq", "params": {"query": "ui.tree", "args": {"filter": "LoadOrSaveGame/ui_menus_a", "kind": "list_item"}, "path": "/widgets/0/value/right", "value": "—"}}
 {"method": "assert.eq", "params": {"query": "ui.tree", "args": {"filter": "LoadOrSaveGame/ui_menus_a", "kind": "list_item"}, "path": "/widgets/0/value/right_subtitle", "value": "Long Thái era, year 3"}}
 {"method": "assert.eq", "params": {"query": "ui.tree", "args": {"filter": "LoadOrSaveGame/Save as", "kind": "text_input"}, "path": "/widgets/0/value", "value": "ui_menus_a"}}
@@ -885,7 +885,7 @@
 {"method": "ui.realm", "params": {"realm": "kambara"}}
 {"method": "wait.frames", "params": {"frames": 3}}
 {"method": "assert.eq", "params": {"query": "ui.tree", "args": {"filter": "LoadOrSaveGame/Save as", "kind": "text_input"}, "path": "/widgets/0/value", "value": "ui_menus_a"}}
-{"method": "assert.eq", "params": {"query": "ui.tree", "args": {"filter": "LoadOrSaveGame/ui_menus_a", "kind": "list_item"}, "path": "/widgets/0/value/subtitle", "value": "Campaign I · mission 2 · A Thriving Town"}}
+{"method": "assert.eq", "params": {"query": "ui.tree", "args": {"filter": "LoadOrSaveGame/ui_menus_a", "kind": "list_item"}, "path": "/widgets/0/value/subtitle", "value": "Campaign I · mission 2 · Bến Gốm"}}
 {"method": "assert.eq", "params": {"query": "ui.tree", "args": {"filter": "LoadOrSaveGame/details"}, "path": "/widgets/0/value/0", "value": ["Mission", "A Thriving Town"]}}
 {"method": "assert.eq", "params": {"query": "ui.tree", "args": {"filter": "LoadOrSaveGame/details"}, "path": "/widgets/0/value/1", "value": ["Campaign", "Campaign I · mission 2"]}}
 {"method": "assert.eq", "params": {"query": "ui.tree", "args": {"filter": "LoadOrSaveGame/details"}, "path": "/widgets/0/value/2", "value": ["Date", "Long Thái era, year 3"]}}
@@ -917,7 +917,7 @@
 {"method": "ui.realm", "params": {"realm": "tampadesa"}}
 {"method": "wait.frames", "params": {"frames": 3}}
 {"method": "assert.eq", "params": {"query": "ui.tree", "args": {"filter": "LoadOrSaveGame/Save as", "kind": "text_input"}, "path": "/widgets/0/value", "value": "ui_menus_a"}}
-{"method": "assert.eq", "params": {"query": "ui.tree", "args": {"filter": "LoadOrSaveGame/ui_menus_a", "kind": "list_item"}, "path": "/widgets/0/value/subtitle", "value": "Campaign I · mission 2 · A Thriving Town"}}
+{"method": "assert.eq", "params": {"query": "ui.tree", "args": {"filter": "LoadOrSaveGame/ui_menus_a", "kind": "list_item"}, "path": "/widgets/0/value/subtitle", "value": "Campaign I · mission 2 · Bến Gốm"}}
 {"method": "assert.eq", "params": {"query": "ui.tree", "args": {"filter": "LoadOrSaveGame/details"}, "path": "/widgets/0/value/0", "value": ["Mission", "A Thriving Town"]}}
 {"method": "assert.eq", "params": {"query": "ui.tree", "args": {"filter": "LoadOrSaveGame/details"}, "path": "/widgets/0/value/1", "value": ["Campaign", "Campaign I · mission 2"]}}
 {"method": "assert.eq", "params": {"query": "ui.tree", "args": {"filter": "LoadOrSaveGame/details"}, "path": "/widgets/0/value/2", "value": ["Date", "Long Thái era, year 3"]}}

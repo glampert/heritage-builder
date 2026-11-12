@@ -188,12 +188,12 @@ fn is_unlocked(realm: Realm) -> bool {
     let configs = CampaignConfigs::get();
     let profile = profile::get();
     profile.custom_realms.contains(&realm)
-        || configs.campaigns.iter().enumerate().any(|(index, campaign)| campaign.realm == realm && profile.is_playable(configs, index))
+        || configs.visible().any(|(index, campaign)| campaign.realm == realm && profile.is_playable(configs, index))
 }
 
 // The index of `realm`'s first campaign in campaigns.json.
 fn realm_campaign(realm: Realm) -> Option<usize> {
-    CampaignConfigs::get().campaigns.iter().position(|campaign| campaign.realm == realm)
+    CampaignConfigs::get().visible().find(|(_, campaign)| campaign.realm == realm).map(|(index, _)| index)
 }
 
 // Reads the maps for the dialog about to open, and starts afresh: the UI's realm if it's unlocked
