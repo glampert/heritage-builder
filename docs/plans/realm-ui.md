@@ -678,7 +678,7 @@ The existing dialogs keep their layouts but take their panels from the Đại Lo
 - [ ] **Flow:** `campaign::take_pending_prompt` opens the debrief. The `MissionComplete` and `CampaignComplete` kind names stay, so the snapshot scenario still finds them.
 - [ ] Scenario `ui_intermission.jsonl`: finish a test mission (by meeting its goals with `world.*` and `time.fast_forward`), check the debrief's goals, continue, finish the campaign, and check that the profile reached the next one.
 
-**Notes (2026-11-12, stele art and mission data) (commit TODO):**
+**Notes (2026-11-12, stele art and mission data) (commit `e76e91d`):**
 - ui-art draws per realm `stele` (the slab without its text, 640 × 950 points at 1.5×), `stele_niche` (`stele_backdrop`, at its screen place) and `stele_mark` (`fresh_mark`); the screen's background is the world map's backdrop and the briefing's tablet `panel_dialog` (the same drawings). Skin blocks `intermission` (sprites, rects and bleeds, the carved text's geometry, `title`, `line` and `newest` looks, `rule` and `row` colours) and `briefing` (panel, image outline).
 - Carved text: `UiLabelLook` gains a `highlight` beside its `shadow` (each realm's offset copy: Đại Long's and Kambara's light lip, Tampadesa's dark cut), `skin::label_look`, and `UiPainter::wrap_label`. `menu::stele::SteleArt` lays out the title, rule, lines, the newest line's mark and the empty rows, setting lines smaller (to half) to fit above the slab's bottom.
 - Data: `stele_title`, `stele_closing` per campaign; `stele_line`, `lead_in`, `briefing` per mission (Story keys, validated), `distinctions` for M9. Campaign I's three missions written after the generator's lines; test campaigns get placeholders and their realm's title.
