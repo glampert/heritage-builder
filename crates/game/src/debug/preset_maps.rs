@@ -41,6 +41,53 @@ pub fn create_preset_tile_map(world: &mut World, mut preset_number: usize) -> Ti
     build_tile_map(preset, world)
 }
 
+// The ground of a preset's cell, for a preview drawn without building its map (Custom Game).
+#[derive(Copy, Clone, PartialEq, Eq, Debug)]
+pub enum PresetGround {
+    Land,
+    Road,
+    VacantLot,
+}
+
+// What a preset holds, cell by cell (row-major: x + y * width), without placing any tile: its
+// ground, the buildings (each by its base cell and tile def) and the trees.
+pub struct PresetLayout {
+    pub size: Size,
+    pub ground: Vec<PresetGround>,
+    pub buildings: Vec<(Cell, &'static TileDef)>,
+    pub trees: Vec<Cell>,
+}
+
+// The layout of preset `preset_number`, None if there's no such preset. Its buildings need the
+// tile sets loaded (they're left out otherwise).
+pub fn preset_layout(preset_number: usize) -> Option<PresetLayout> {
+    let preset = PRESET_TILES.get(preset_number)?;
+    let size = preset.map_size_in_cells;
+    let ground = preset
+        .terrain_tiles
+        .iter()
+        .map(|tile| match *tile {
+            R => PresetGround::Road,
+            V => PresetGround::VacantLot,
+            _ => PresetGround::Land,
+        })
+        .collect();
+    let cell_of = |index: usize| Cell::new(index as i32 % size.width, index as i32 / size.width);
+    let buildings = preset
+        .building_tiles
+        .iter()
+        .enumerate()
+        .filter_map(|(index, tile)| find_building_tile(*tile).map(|tile_def| (cell_of(index), tile_def)))
+        .collect();
+    let trees = preset.prop_tiles.iter().enumerate().filter(|(_, tile)| **tile == T).map(|(index, _)| cell_of(index)).collect();
+    Some(PresetLayout { size, ground, buildings, trees })
+}
+
+// The size of preset `preset_number`, None if there's no such preset.
+pub fn preset_size(preset_number: usize) -> Option<Size> {
+    PRESET_TILES.get(preset_number).map(|preset| preset.map_size_in_cells)
+}
+
 // ----------------------------------------------
 // Built-in preset test TileMaps
 // ----------------------------------------------

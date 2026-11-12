@@ -55,7 +55,7 @@ pub const OBJECTS_VEGETATION_CATEGORY: StrHashPair = StrHashPair::from_str("vege
 pub const OBJECTS_OVERLAYS_CATEGORY: StrHashPair = StrHashPair::from_str("overlays");
 
 #[repr(u64)]
-#[derive(Copy, Clone, Default, PartialEq, Eq, Display)]
+#[derive(Copy, Clone, Default, PartialEq, Eq, Debug, Display)]
 pub enum PresetTiles {
     #[default]
     Grass     = hash::fnv1a_from_str("grass"),

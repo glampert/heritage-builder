@@ -1,15 +1,18 @@
 # The main menus (docs/plans/realm-ui.md, Phase 1): the home menu, the campaign picker, the
-# Settings dialog and the Load / Save dialog in the three realms. Settings: every tab in each realm,
+# Custom Game, Settings and Load / Save dialogs in the three realms. Settings: every tab in each realm,
 # Cancel, edits kept through a rebuild, Ok (checked with config.get; a script leaves the user configs
 # alone) and Restore defaults. The profile (profile.set) picks the realm and fills the
 # campaign row: none reached, campaign II reached, all three; Campaign resumes the campaign at its
 # next mission, or opens the picker when more than one can be played, whose Continue starts the
-# campaign picked; Continue loads the last save. Load / Save saves two games, reads their rows and
-# preview, asks before overwriting, deletes one through its popup and loads the other. Each screen
-# is checked for layout issues and saved as a screenshot under out/ui_menus/ (the CI artifact).
+# campaign picked; Continue loads the last save. Custom Game: realm rows (locked until their
+# campaign is reached), map rows and the preview, the options, and Start of a preset game (Kambara)
+# and of a blank one with options (Tampadesa), checking the session, a save and a load. Load /
+# Save saves two games, reads their rows and preview, asks before overwriting, deletes one through
+# its popup and loads the other. Each screen is checked for layout issues and saved as a screenshot
+# under out/ui_menus/ (the CI artifact).
 #
 # The campaign's missions load the sample saves, so extract them first (unzip saves/sample_saves.zip,
-# as CI does). The saves it writes (ui_menus, ui_menus_a and ui_menus_b, with their thumbnails) are
+# as CI does). The saves it writes (ui_menus, ui_menus_a, ui_menus_b and ui_menus_custom, with their thumbnails) are
 # deleted at the end. Run it with --fresh-profile, as CI does, so it starts from an empty profile
 # and leaves the local one alone:
 #   cargo run -p HeritageBuilder -- --fresh-profile --script crates/game/tests/scenarios/ui_menus.jsonl
@@ -32,8 +35,8 @@
 {"method": "assert.eq", "params": {"query": "ui.tree", "args": {"filter": "Home/Continue", "kind": "menu_entry"}, "path": "/widgets/0/enabled", "value": false}}
 {"method": "assert.eq", "params": {"query": "ui.tree", "args": {"filter": "Home/Continue", "kind": "menu_entry"}, "path": "/widgets/0/tooltip", "value": "No saved game yet."}}
 {"method": "assert.eq", "params": {"query": "ui.tree", "args": {"filter": "Home/Campaign", "kind": "menu_entry"}, "path": "/widgets/0/value/subline", "value": "Campaign I · mission 1 of 3"}}
-{"method": "assert.eq", "params": {"query": "ui.tree", "args": {"filter": "Home/Custom Game", "kind": "menu_entry"}, "path": "/widgets/0/enabled", "value": false}}
-{"method": "assert.eq", "params": {"query": "ui.tree", "args": {"filter": "Home/Custom Game", "kind": "menu_entry"}, "path": "/widgets/0/tooltip", "value": "Coming soon"}}
+{"method": "assert.eq", "params": {"query": "ui.tree", "args": {"filter": "Home/Custom Game", "kind": "menu_entry"}, "path": "/widgets/0/enabled", "value": true}}
+{"method": "assert.eq", "params": {"query": "ui.tree", "args": {"filter": "Home/New Game"}, "path": "/widgets", "value": []}}
 {"method": "assert.exists", "params": {"query": "ui.tree", "args": {"filter": "Home/Version", "kind": "heading"}, "path": "/widgets/0"}}
 {"method": "assert.eq", "params": {"query": "ui.layout_issues", "path": "/count", "value": 0}}
 {"method": "screenshot", "params": {"path": "out/ui_menus/home_dailong.png"}}
@@ -56,6 +59,82 @@
 {"method": "wait.frames", "params": {"frames": 2}}
 {"method": "ui.click", "params": {"path": "Home/About"}}
 {"method": "assert.eq", "params": {"query": "dialog.current", "path": "/current", "value": "About"}}
+{"method": "input.key", "params": {"key": "Escape"}}
+{"method": "wait.frames", "params": {"frames": 2}}
+{"method": "assert.eq", "params": {"query": "dialog.current", "path": "/current", "value": "Home"}}
+{"method": "input.move", "params": {"park": true}}
+
+# ---- Custom Game for a new player: Đại Long only; the others locked until their campaign is started ----
+{"method": "ui.click", "params": {"path": "Home/Custom Game"}}
+{"method": "assert.eq", "params": {"query": "dialog.current", "path": "/current", "value": "CustomGame"}}
+{"method": "input.move", "params": {"park": true}}
+{"method": "wait.frames", "params": {"frames": 3}}
+{"method": "assert.eq", "params": {"query": "ui.tree", "args": {"filter": "CustomGame/Realm", "kind": "item_list"}, "path": "/widgets/0/value", "value": "Đại Long"}}
+{"method": "assert.eq", "params": {"query": "ui.tree", "args": {"filter": "CustomGame/Realm/Đại Long"}, "path": "/widgets/0/value/subtitle", "value": "The Dragon Legacy"}}
+{"method": "assert.eq", "params": {"query": "ui.tree", "args": {"filter": "CustomGame/Realm/Kambara"}, "path": "/widgets/0/enabled", "value": false}}
+{"method": "assert.eq", "params": {"query": "ui.tree", "args": {"filter": "CustomGame/Realm/Kambara"}, "path": "/widgets/0/value/subtitle", "value": "Start Campaign II to unlock"}}
+{"method": "assert.eq", "params": {"query": "ui.tree", "args": {"filter": "CustomGame/Realm/Tampadesa"}, "path": "/widgets/0/value/subtitle", "value": "Start Campaign III to unlock"}}
+# A locked realm refuses: picking it leaves Đại Long picked.
+{"method": "ui.set", "params": {"path": "CustomGame/Realm", "value": "Kambara"}}
+{"method": "wait.frames", "params": {"frames": 2}}
+{"method": "assert.eq", "params": {"query": "ui.tree", "args": {"filter": "CustomGame/Realm", "kind": "item_list"}, "path": "/widgets/0/value", "value": "Đại Long"}}
+{"method": "assert.eq", "params": {"query": "ui.tree", "args": {"filter": "CustomGame/Starting date", "kind": "dropdown"}, "path": "/widgets/0/value", "value": "Long Thái era, year 1"}}
+{"method": "assert.eq", "params": {"query": "ui.tree", "args": {"filter": "CustomGame/Goals", "kind": "dropdown"}, "path": "/widgets/0/value", "value": "Sandbox: no goals"}}
+{"method": "assert.eq", "params": {"query": "ui.tree", "args": {"filter": "CustomGame/Starting treasury", "kind": "dropdown"}, "path": "/widgets/0/value", "value": "5,000 gold"}}
+{"method": "assert.eq", "params": {"query": "ui.tree", "args": {"filter": "CustomGame/Difficulty", "kind": "step_selector"}, "path": "/widgets/0/value", "value": "Normal"}}
+{"method": "assert.eq", "params": {"query": "ui.tree", "args": {"filter": "CustomGame/Seasons and floods", "kind": "toggle"}, "path": "/widgets/0/enabled", "value": false}}
+{"method": "assert.eq", "params": {"query": "ui.tree", "args": {"filter": "CustomGame/Seasons and floods", "kind": "toggle"}, "path": "/widgets/0/tooltip", "value": "Coming in M7"}}
+{"method": "assert.eq", "params": {"query": "ui.tree", "args": {"filter": "CustomGame/Raids and invasions", "kind": "toggle"}, "path": "/widgets/0/tooltip", "value": "Coming later"}}
+{"method": "assert.eq", "params": {"query": "ui.tree", "args": {"filter": "CustomGame/Fires and collapses", "kind": "toggle"}, "path": "/widgets/0/value", "value": true}}
+{"method": "assert.eq", "params": {"query": "ui.tree", "args": {"filter": "CustomGame/Fast construction", "kind": "toggle"}, "path": "/widgets/0/value", "value": false}}
+# The maps: the Blank map first, picked, with its own size and terrain under the preview; then the
+# sample saves' maps (extracted, as CI does) and the presets.
+{"method": "assert.eq", "params": {"query": "ui.tree", "args": {"filter": "CustomGame/Map", "kind": "item_list"}, "path": "/widgets/0/value", "value": "Blank map"}}
+{"method": "assert.eq", "params": {"query": "ui.tree", "args": {"filter": "CustomGame/Map/Blank map"}, "path": "/widgets/0/value/right", "value": "128 × 128"}}
+{"method": "assert.eq", "params": {"query": "ui.tree", "args": {"filter": "CustomGame/Map/Tiny Island"}, "path": "/widgets/0/value/right", "value": "256 × 256"}}
+{"method": "assert.eq", "params": {"query": "ui.tree", "args": {"filter": "CustomGame/details", "kind": "key_values"}, "path": "/widgets/0/value/0", "value": ["Size", "128 × 128"]}}
+{"method": "assert.eq", "params": {"query": "ui.tree", "args": {"filter": "CustomGame/details", "kind": "key_values"}, "path": "/widgets/0/value/1", "value": ["Water", "0%"]}}
+{"method": "assert.eq", "params": {"query": "ui.tree", "args": {"filter": "CustomGame/Terrain", "kind": "step_selector"}, "path": "/widgets/0/value", "value": "Grass"}}
+{"method": "assert.eq", "params": {"query": "ui.layout_issues", "path": "/count", "value": 0}}
+{"method": "assert.eq", "params": {"query": "ui.tree", "args": {"filter": "CustomGame", "kind": "menu_content"}, "path": "/widgets/0/value/scrolls", "value": false}}
+{"method": "screenshot", "params": {"path": "out/ui_menus/custom_game_dailong.png"}}
+# Its contents fit without scrolling (checked at each screenshot). The preview follows the map
+# picked: a blank map of water; a preset; a save's map (its realm's emblem, its cells unread).
+{"method": "ui.set", "params": {"path": "CustomGame/Terrain", "value": "Water"}}
+{"method": "wait.frames", "params": {"frames": 2}}
+{"method": "assert.eq", "params": {"query": "ui.tree", "args": {"filter": "CustomGame/details", "kind": "key_values"}, "path": "/widgets/0/value/1", "value": ["Water", "100%"]}}
+{"method": "ui.click", "params": {"path": "CustomGame/Map/Woodland Camp"}}
+{"method": "wait.frames", "params": {"frames": 3}}
+{"method": "assert.eq", "params": {"query": "ui.tree", "args": {"filter": "CustomGame/Map", "kind": "item_list"}, "path": "/widgets/0/value", "value": "Woodland Camp"}}
+{"method": "assert.eq", "params": {"query": "ui.tree", "args": {"filter": "CustomGame/details", "kind": "key_values"}, "path": "/widgets/0/value/0", "value": ["Size", "12 × 12"]}}
+{"method": "assert.eq", "params": {"query": "ui.tree", "args": {"filter": "CustomGame/details", "kind": "key_values"}, "path": "/widgets/0/value/2/0", "value": "Woodland"}}
+{"method": "assert.ne", "params": {"query": "ui.tree", "args": {"filter": "CustomGame/details", "kind": "key_values"}, "path": "/widgets/0/value/2/1", "value": "0%"}}
+{"method": "assert.eq", "params": {"query": "ui.tree", "args": {"filter": "CustomGame/Width"}, "path": "/widgets", "value": []}}
+{"method": "assert.eq", "params": {"query": "ui.layout_issues", "path": "/count", "value": 0}}
+{"method": "assert.eq", "params": {"query": "ui.tree", "args": {"filter": "CustomGame", "kind": "menu_content"}, "path": "/widgets/0/value/scrolls", "value": false}}
+{"method": "screenshot", "params": {"path": "out/ui_menus/custom_game_dailong_preset.png"}}
+{"method": "ui.set", "params": {"path": "CustomGame/Map", "value": "Tiny Island"}}
+{"method": "wait.frames", "params": {"frames": 3}}
+{"method": "assert.eq", "params": {"query": "ui.tree", "args": {"filter": "CustomGame/details", "kind": "key_values"}, "path": "/widgets/0/value/0", "value": ["Size", "256 × 256"]}}
+{"method": "assert.eq", "params": {"query": "ui.tree", "args": {"filter": "CustomGame/details", "kind": "key_values"}, "path": "/widgets/0/value/1", "value": ["Water", "—"]}}
+{"method": "assert.eq", "params": {"query": "ui.layout_issues", "path": "/count", "value": 0}}
+{"method": "assert.eq", "params": {"query": "ui.tree", "args": {"filter": "CustomGame", "kind": "menu_content"}, "path": "/widgets/0/value/scrolls", "value": false}}
+{"method": "screenshot", "params": {"path": "out/ui_menus/custom_game_dailong_save_map.png"}}
+# The options: the hazards follow the fires switch; the difficulty's five steps.
+{"method": "ui.click", "params": {"path": "CustomGame/Fires and collapses"}}
+{"method": "wait.frames", "params": {"frames": 2}}
+{"method": "assert.eq", "params": {"query": "ui.tree", "args": {"filter": "CustomGame/Fires and collapses", "kind": "toggle"}, "path": "/widgets/0/value", "value": false}}
+{"method": "assert.eq", "params": {"query": "ui.tree", "args": {"filter": "CustomGame/details", "kind": "key_values"}, "path": "/widgets/0/value/4", "value": ["Hazards", "None"]}}
+{"method": "ui.click", "params": {"path": "CustomGame/Difficulty/Very Hard"}}
+{"method": "assert.eq", "params": {"query": "ui.tree", "args": {"filter": "CustomGame/Difficulty", "kind": "step_selector"}, "path": "/widgets/0/value", "value": "Very Hard"}}
+# Cancel closes it; opened again, it starts afresh.
+{"method": "ui.click", "params": {"path": "CustomGame/Cancel"}}
+{"method": "assert.eq", "params": {"query": "dialog.current", "path": "/current", "value": "Home"}}
+{"method": "ui.click", "params": {"path": "Home/Custom Game"}}
+{"method": "wait.frames", "params": {"frames": 2}}
+{"method": "assert.eq", "params": {"query": "ui.tree", "args": {"filter": "CustomGame/Map", "kind": "item_list"}, "path": "/widgets/0/value", "value": "Blank map"}}
+{"method": "assert.eq", "params": {"query": "ui.tree", "args": {"filter": "CustomGame/Difficulty", "kind": "step_selector"}, "path": "/widgets/0/value", "value": "Normal"}}
+{"method": "assert.eq", "params": {"query": "ui.tree", "args": {"filter": "CustomGame/Fires and collapses", "kind": "toggle"}, "path": "/widgets/0/value", "value": true}}
 {"method": "input.key", "params": {"key": "Escape"}}
 {"method": "wait.frames", "params": {"frames": 2}}
 {"method": "assert.eq", "params": {"query": "dialog.current", "path": "/current", "value": "Home"}}
@@ -313,6 +392,37 @@
 {"method": "assert.eq", "params": {"query": "dialog.current", "path": "/current", "value": "Home"}}
 {"method": "input.move", "params": {"park": true}}
 
+# ---- Custom Game in Kambara, unlocked by Campaign II: a preset map, started with the defaults ----
+{"method": "ui.click", "params": {"path": "Home/Custom Game"}}
+{"method": "input.move", "params": {"park": true}}
+{"method": "wait.frames", "params": {"frames": 3}}
+{"method": "assert.eq", "params": {"query": "ui.tree", "args": {"filter": "CustomGame/Realm", "kind": "item_list"}, "path": "/widgets/0/value", "value": "Kambara"}}
+{"method": "assert.eq", "params": {"query": "ui.tree", "args": {"filter": "CustomGame/Realm/Kambara"}, "path": "/widgets/0/value/subtitle", "value": "The Temple Mountain"}}
+{"method": "assert.eq", "params": {"query": "ui.tree", "args": {"filter": "CustomGame/Realm/Tampadesa"}, "path": "/widgets/0/enabled", "value": false}}
+{"method": "assert.eq", "params": {"query": "ui.tree", "args": {"filter": "CustomGame/Starting date", "kind": "dropdown"}, "path": "/widgets/0/value", "value": "Reign of Suryadeva, year 1"}}
+{"method": "assert.eq", "params": {"query": "ui.layout_issues", "path": "/count", "value": 0}}
+{"method": "assert.eq", "params": {"query": "ui.tree", "args": {"filter": "CustomGame", "kind": "menu_content"}, "path": "/widgets/0/value/scrolls", "value": false}}
+{"method": "screenshot", "params": {"path": "out/ui_menus/custom_game_kambara.png"}}
+{"method": "ui.click", "params": {"path": "CustomGame/Map/Crossroads"}}
+{"method": "wait.frames", "params": {"frames": 2}}
+{"method": "ui.click", "params": {"path": "CustomGame/Start"}}
+{"method": "wait.until", "params": {"query": "session.state", "path": "/menus_mode", "op": "eq", "value": "InGame", "timeout_frames": 120}}
+{"method": "assert.eq", "params": {"query": "session.state", "path": "/map_size", "value": [15, 15]}}
+{"method": "assert.eq", "params": {"query": "session.state", "path": "/custom_game/map", "value": "crossroads"}}
+{"method": "assert.eq", "params": {"query": "session.state", "path": "/custom_game/construction_time_scale", "value": 1.0}}
+{"method": "assert.eq", "params": {"query": "session.state", "path": "/gold", "value": 5000}}
+{"method": "assert.eq", "params": {"query": "session.state", "path": "/date/era", "value": "Suryadeva"}}
+{"method": "assert.eq", "params": {"query": "ui.realm", "path": "/realm", "value": "kambara"}}
+{"method": "assert.eq", "params": {"query": "ui.realm", "path": "/source", "value": "custom_game"}}
+{"method": "assert.eq", "params": {"query": "risks.state", "path": "/enabled", "value": true}}
+# A preset map leaves its developer cheats off in a custom game.
+{"method": "assert.eq", "params": {"query": "cheats.list", "path": "/ignore_worker_requirements", "value": false}}
+{"method": "session.quit_to_menu"}
+{"method": "assert.eq", "params": {"query": "session.state", "path": "/menus_mode", "value": "Home"}}
+{"method": "assert.eq", "params": {"query": "ui.realm", "path": "/source", "value": "profile"}}
+{"method": "input.move", "params": {"park": true}}
+{"method": "wait.frames", "params": {"frames": 3}}
+
 # ---- All three reached: Tampadesa ----
 {"method": "profile.set", "params": {"reached": ["dragon_legacy", "temple_mountain", "ten_thousand_temples"]}}
 {"method": "wait.frames", "params": {"frames": 3}}
@@ -337,6 +447,100 @@
 {"method": "ui.realm", "params": {"realm": "auto"}}
 {"method": "input.key", "params": {"key": "Escape"}}
 {"method": "wait.frames", "params": {"frames": 2}}
+{"method": "assert.eq", "params": {"query": "dialog.current", "path": "/current", "value": "Home"}}
+
+# ---- Custom Game in Tampadesa, every realm unlocked: each realm's look, then a blank map started with options ----
+{"method": "ui.click", "params": {"path": "Home/Custom Game"}}
+{"method": "input.move", "params": {"park": true}}
+{"method": "wait.frames", "params": {"frames": 3}}
+{"method": "assert.eq", "params": {"query": "ui.tree", "args": {"filter": "CustomGame/Realm", "kind": "item_list"}, "path": "/widgets/0/value", "value": "Tampadesa"}}
+{"method": "assert.eq", "params": {"query": "ui.tree", "args": {"filter": "CustomGame/Realm/Đại Long"}, "path": "/widgets/0/enabled", "value": true}}
+{"method": "assert.eq", "params": {"query": "ui.tree", "args": {"filter": "CustomGame/Realm/Kambara"}, "path": "/widgets/0/enabled", "value": true}}
+{"method": "assert.eq", "params": {"query": "ui.tree", "args": {"filter": "CustomGame/Starting date", "kind": "dropdown"}, "path": "/widgets/0/value", "value": "Year 1 of the Pugara Era"}}
+{"method": "assert.eq", "params": {"query": "ui.layout_issues", "path": "/count", "value": 0}}
+{"method": "assert.eq", "params": {"query": "ui.tree", "args": {"filter": "CustomGame", "kind": "menu_content"}, "path": "/widgets/0/value/scrolls", "value": false}}
+{"method": "screenshot", "params": {"path": "out/ui_menus/custom_game_tampadesa.png"}}
+# Picking a realm builds the dialog again, with that realm's dates, keeping the map picked.
+{"method": "ui.click", "params": {"path": "CustomGame/Map/Hamlet"}}
+{"method": "ui.click", "params": {"path": "CustomGame/Realm/Đại Long"}}
+{"method": "wait.frames", "params": {"frames": 3}}
+{"method": "assert.eq", "params": {"query": "ui.tree", "args": {"filter": "CustomGame/Realm", "kind": "item_list"}, "path": "/widgets/0/value", "value": "Đại Long"}}
+{"method": "assert.eq", "params": {"query": "ui.tree", "args": {"filter": "CustomGame/Starting date", "kind": "dropdown"}, "path": "/widgets/0/value", "value": "Long Thái era, year 1"}}
+{"method": "assert.eq", "params": {"query": "ui.tree", "args": {"filter": "CustomGame/Map", "kind": "item_list"}, "path": "/widgets/0/value", "value": "Hamlet"}}
+{"method": "ui.click", "params": {"path": "CustomGame/Realm/Tampadesa"}}
+{"method": "ui.set", "params": {"path": "CustomGame/Map", "value": "Blank map"}}
+{"method": "wait.frames", "params": {"frames": 3}}
+# Each realm's look (ui.realm), with the Blank map's options.
+{"method": "ui.realm", "params": {"realm": "dailong"}}
+{"method": "wait.frames", "params": {"frames": 3}}
+{"method": "assert.eq", "params": {"query": "ui.layout_issues", "path": "/count", "value": 0}}
+{"method": "assert.eq", "params": {"query": "ui.tree", "args": {"filter": "CustomGame", "kind": "menu_content"}, "path": "/widgets/0/value/scrolls", "value": false}}
+{"method": "screenshot", "params": {"path": "out/ui_menus/custom_game_tampadesa_in_dailong.png"}}
+{"method": "ui.realm", "params": {"realm": "kambara"}}
+{"method": "wait.frames", "params": {"frames": 3}}
+{"method": "assert.eq", "params": {"query": "ui.layout_issues", "path": "/count", "value": 0}}
+{"method": "assert.eq", "params": {"query": "ui.tree", "args": {"filter": "CustomGame", "kind": "menu_content"}, "path": "/widgets/0/value/scrolls", "value": false}}
+{"method": "screenshot", "params": {"path": "out/ui_menus/custom_game_tampadesa_in_kambara.png"}}
+{"method": "ui.realm", "params": {"realm": "auto"}}
+{"method": "wait.frames", "params": {"frames": 3}}
+{"method": "assert.eq", "params": {"query": "ui.tree", "args": {"filter": "CustomGame/Realm", "kind": "item_list"}, "path": "/widgets/0/value", "value": "Tampadesa"}}
+{"method": "assert.eq", "params": {"query": "ui.tree", "args": {"filter": "CustomGame/Map", "kind": "item_list"}, "path": "/widgets/0/value", "value": "Blank map"}}
+{"method": "ui.set", "params": {"path": "CustomGame/Width", "value": "64"}}
+{"method": "ui.set", "params": {"path": "CustomGame/Height", "value": "96"}}
+{"method": "ui.set", "params": {"path": "CustomGame/Terrain", "value": "Dirt"}}
+{"method": "ui.set", "params": {"path": "CustomGame/Starting treasury", "value": "10,000 gold"}}
+{"method": "ui.set", "params": {"path": "CustomGame/Difficulty", "value": "Hard"}}
+{"method": "ui.set", "params": {"path": "CustomGame/Fires and collapses", "value": false}}
+{"method": "ui.set", "params": {"path": "CustomGame/Fast construction", "value": true}}
+{"method": "wait.frames", "params": {"frames": 2}}
+{"method": "assert.eq", "params": {"query": "ui.layout_issues", "path": "/count", "value": 0}}
+{"method": "assert.eq", "params": {"query": "ui.tree", "args": {"filter": "CustomGame", "kind": "menu_content"}, "path": "/widgets/0/value/scrolls", "value": false}}
+{"method": "screenshot", "params": {"path": "out/ui_menus/custom_game_tampadesa_options.png"}}
+{"method": "ui.click", "params": {"path": "CustomGame/Start"}}
+{"method": "wait.until", "params": {"query": "session.state", "path": "/menus_mode", "op": "eq", "value": "InGame", "timeout_frames": 120}}
+{"method": "assert.eq", "params": {"query": "session.state", "path": "/map_size", "value": [64, 96]}}
+{"method": "assert.eq", "params": {"query": "tile.at", "args": {"cell": [32, 48]}, "path": "/terrain/name", "value": "dirt"}}
+{"method": "assert.eq", "params": {"query": "session.state", "path": "/custom_game/realm", "value": "tampadesa"}}
+{"method": "assert.eq", "params": {"query": "session.state", "path": "/custom_game/map", "value": "blank"}}
+{"method": "assert.eq", "params": {"query": "session.state", "path": "/custom_game/difficulty", "value": "Hard"}}
+{"method": "assert.eq", "params": {"query": "session.state", "path": "/custom_game/fast_construction", "value": true}}
+{"method": "assert.eq", "params": {"query": "session.state", "path": "/custom_game/construction_time_scale", "value": 0.25}}
+{"method": "assert.eq", "params": {"query": "session.state", "path": "/gold", "value": 10000}}
+{"method": "assert.eq", "params": {"query": "session.state", "path": "/date/era", "value": "Pugara"}}
+{"method": "assert.eq", "params": {"query": "ui.realm", "path": "/realm", "value": "tampadesa"}}
+{"method": "assert.eq", "params": {"query": "ui.realm", "path": "/source", "value": "custom_game"}}
+{"method": "assert.eq", "params": {"query": "risks.state", "path": "/enabled", "value": false}}
+# A save keeps the custom game in its header, and a load goes on with it: its realm and options.
+{"method": "session.save", "params": {"name": "ui_menus_custom"}}
+{"method": "assert.eq", "params": {"query": "session.save_info", "args": {"name": "ui_menus_custom"}, "path": "/header/realm", "value": "tampadesa"}}
+{"method": "assert.eq", "params": {"query": "session.save_info", "args": {"name": "ui_menus_custom"}, "path": "/header/custom_game/map", "value": "blank"}}
+{"method": "session.quit_to_menu"}
+{"method": "assert.eq", "params": {"query": "session.state", "path": "/menus_mode", "value": "Home"}}
+{"method": "session.load_save", "params": {"name": "ui_menus_custom"}}
+{"method": "assert.eq", "params": {"query": "session.state", "path": "/custom_game/realm", "value": "tampadesa"}}
+{"method": "assert.eq", "params": {"query": "session.state", "path": "/custom_game/construction_time_scale", "value": 0.25}}
+{"method": "assert.eq", "params": {"query": "ui.realm", "path": "/source", "value": "custom_game"}}
+{"method": "assert.eq", "params": {"query": "risks.state", "path": "/enabled", "value": false}}
+# Load / Save names a custom game's map.
+{"method": "dialog.open", "params": {"name": "LoadGame"}}
+{"method": "wait.frames", "params": {"frames": 3}}
+{"method": "assert.eq", "params": {"query": "ui.tree", "args": {"filter": "LoadOrSaveGame/ui_menus_custom", "kind": "list_item"}, "path": "/widgets/0/value/subtitle", "value": "Custom game · Blank map"}}
+{"method": "input.key", "params": {"key": "Escape"}}
+{"method": "wait.frames", "params": {"frames": 2}}
+{"method": "session.quit_to_menu"}
+{"method": "session.delete_save", "params": {"name": "ui_menus_custom"}}
+# A game outside a campaign and a custom game (a new map) saves its realm, and loads as neither.
+{"method": "session.new_map", "params": {"size": [16, 16]}}
+{"method": "assert.eq", "params": {"query": "ui.realm", "path": "/source", "value": "default"}}
+{"method": "session.save", "params": {"name": "ui_menus_plain"}}
+{"method": "assert.eq", "params": {"query": "session.save_info", "args": {"name": "ui_menus_plain"}, "path": "/header/realm", "value": "dailong"}}
+{"method": "session.quit_to_menu"}
+{"method": "session.load_save", "params": {"name": "ui_menus_plain"}}
+{"method": "assert.eq", "params": {"query": "ui.realm", "path": "/source", "value": "default"}}
+{"method": "session.quit_to_menu"}
+{"method": "session.delete_save", "params": {"name": "ui_menus_plain"}}
+{"method": "input.move", "params": {"park": true}}
+{"method": "wait.frames", "params": {"frames": 3}}
 {"method": "assert.eq", "params": {"query": "dialog.current", "path": "/current", "value": "Home"}}
 
 # ---- The picker's Continue starts the campaign picked (a click on its card picks it) at its next mission ----

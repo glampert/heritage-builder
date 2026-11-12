@@ -54,7 +54,7 @@ pub(super) const COMMANDS: &[CommandDef] = &[
                 name: "path",
                 kind: "string",
                 required: true,
-                help: "Widget path from ui.tree, the end of one (e.g. \"New Game\"), or its tooltip.",
+                help: "Widget path from ui.tree, the end of one (e.g. \"Custom Game\"), or its tooltip.",
             },
             ParamDef { name: "button", kind: "string", required: false, help: "left (default) or right." },
         ],
@@ -68,7 +68,7 @@ pub(super) const COMMANDS: &[CommandDef] = &[
             name: "path",
             kind: "string",
             required: true,
-            help: "Widget path from ui.tree, the end of one (e.g. \"New Game\"), or its tooltip.",
+            help: "Widget path from ui.tree, the end of one (e.g. \"Custom Game\"), or its tooltip.",
         }],
         run: cmd_hover,
     },
@@ -108,7 +108,7 @@ pub(super) const COMMANDS: &[CommandDef] = &[
     CommandDef {
         name: "ui.realm",
         help: "The realm whose look the UI shows and why (source): override, campaign (in game, the active \
-               campaign's), custom_game (in game, the Custom Game's; not yet, as there's no Custom Game), profile (in \
+               campaign's), custom_game (in game, the custom game's), profile (in \
                the menus, the latest the profile reached) or default (Đại Long). realm= sets the override, which wins \
                over the game's choice; auto clears it.",
         params: &[ParamDef {
@@ -153,7 +153,7 @@ pub(super) const COMMANDS: &[CommandDef] = &[
     CommandDef { name: "dialog.current", help: "The dialog on top, or null.", params: &[], run: cmd_dialog_current },
     CommandDef {
         name: "dialog.open",
-        help: "Open a dialog, closing the others except the home menu, e.g. NewGame, LoadGame, MainSettings.",
+        help: "Open a dialog, closing the others except the home menu, e.g. CustomGame, LoadGame, MainSettings.",
         params: &[ParamDef { name: "name", kind: "string", required: true, help: "Dialog name, see dialog.list." }],
         run: cmd_dialog_open,
     },

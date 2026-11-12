@@ -222,7 +222,7 @@ fn none_text() -> String {
 }
 
 // 1234567 → "1,234,567", with the language's separator.
-fn group_digits(value: i64) -> String {
+pub(super) fn group_digits(value: i64) -> String {
     let separator = ui::text::get(UiTextCategory::Menu, "number.thousands_separator");
     let digits = value.unsigned_abs().to_string();
     let mut text = String::new();
@@ -332,13 +332,22 @@ fn place_text(entry: &SaveEntry) -> String {
             "load_save.campaign_place",
             &[("campaign", &campaign), ("mission", &mission.to_string()), ("place", &city.unwrap_or(mission_name))],
         ),
-        // TODO(realm-ui): a custom game shows its map's name here ("Custom game · Lakeshore", as
-        // the mockup does) once Custom Game (P1d) picks a map from maps.json and the header saves it.
-        None => match city {
-            Some(city) => ui::text::format(UiTextCategory::Menu, "load_save.custom_game_place", &[("place", &city)]),
+        // A custom game: "Custom game · <city>", or its map's name until custom games name their
+        // cities.
+        None => match city.or_else(|| custom_map_name(&summary.header)) {
+            Some(place) => ui::text::format(UiTextCategory::Menu, "load_save.custom_game_place", &[("place", &place)]),
             None => ui::text::get(UiTextCategory::Menu, "load_save.custom_game").to_string(),
         },
     }
+}
+
+// The name of the map a custom game was started on, from its header: maps.json's, or its id for a
+// map the configs no longer have.
+fn custom_map_name(header: &SaveHeader) -> Option<String> {
+    let id = header.custom_game.as_ref()?.map.clone()?;
+    let configs = crate::custom_game::MapConfigs::is_initialized().then(crate::custom_game::MapConfigs::get);
+    let map = configs.and_then(|configs| configs.maps.iter().find(|map| map.id == id));
+    Some(map.map_or(id, |map| map.display_name().to_string()))
 }
 
 // The preview's label and value pairs for `entry` (all "—" for none).
@@ -357,9 +366,8 @@ fn details(entry: Option<&SaveEntry>) -> Vec<(UiString, UiString)> {
         Some((campaign, number, _)) => {
             ui::text::format(UiTextCategory::Menu, "load_save.campaign", &[("campaign", campaign), ("mission", &number.to_string())])
         }
-        // TODO(realm-ui): a custom game shows its map's name ("Delta Flood Plain", as the mockup
-        // does) once Custom Game (P1d) picks a map from maps.json and the header saves it.
-        None => none.clone(),
+        // A custom game's map ("Delta Flood Plain", as the mockup shows it).
+        None => header.and_then(custom_map_name).unwrap_or_else(|| none.clone()),
     };
     let date = header.and_then(|header| header.date_text.clone()).unwrap_or_else(|| none.clone());
     let population = header.and_then(|header| header.population).map_or_else(|| none.clone(), |value| group_digits(i64::from(value)));
@@ -632,7 +640,7 @@ fn load_thumbnail(context: &mut GameUiContext, save: &str) -> Option<(TextureHan
 // ----------------------------------------------
 
 // A small label over a part, in capitals and the accent colour: "SAVED GAME", "SAVE AS".
-fn section_label(text: UiString, text_scale: f32) -> UiRichText {
+pub(super) fn section_label(text: UiString, text_scale: f32) -> UiRichText {
     let text = text.resolve().to_uppercase();
     let label = skin::rich_text(text).with_font_scale(UiFontScale(text_scale * SECTION_FONT_SCALE));
     match skin::color("accent") {

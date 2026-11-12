@@ -35,7 +35,7 @@ use engine::{
     screenshot::{ScreenshotFormat, ScreenshotId, ScreenshotOutput, ScreenshotRequest, ScreenshotScale},
 };
 
-use crate::{config::GameConfigs, realm::Realm};
+use crate::{config::GameConfigs, custom_game::CustomGameRecord, realm::Realm};
 
 // The header's key in the save file.
 pub const SAVE_HEADER_KEY: &str = "save_header";
@@ -89,6 +89,12 @@ pub struct SaveHeader {
     // When it was saved, local time, "YYYY-MM-DD HH:MM:SS". Left out of repeatable runs.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub saved_at: Option<String>,
+
+    // A custom game's map and the options the session doesn't hold itself (its realm is `realm`):
+    // what a load needs to go on with it (custom_game::ActiveCustomGame::from_header). None in a
+    // campaign mission.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub custom_game: Option<CustomGameRecord>,
 }
 
 // What a save file holds: the header, then the session's fields.
@@ -128,6 +134,27 @@ pub fn read_head(save_file: PathRef) -> Result<SaveHead, String> {
         None => storage::load_save_file::<SaveVersionProbe>(save_file)?.save_version,
     };
     Ok(SaveHead { save_version, ..head })
+}
+
+// The size in cells of a save's map, from the start of the file: the tile map's `size_in_cells`,
+// its first field, which comes after the header and the version. None if it isn't there.
+pub fn read_map_size(save_file: PathRef) -> Option<common::Size> {
+    let text = storage::read_save_file_head(save_file, HEAD_BYTES).ok()?;
+    map_size_in_head(&text)
+}
+
+pub fn map_size_in_head(text: &str) -> Option<common::Size> {
+    #[derive(Deserialize)]
+    struct SizeJson {
+        width: i32,
+        height: i32,
+    }
+    let tile_map = text.find("\"tile_map\"")?;
+    let key = "\"size_in_cells\"";
+    let rest = &text[tile_map..];
+    let rest = rest[rest.find(key)? + key.len()..].trim_start().strip_prefix(':')?;
+    let size = serde_json::Deserializer::from_str(rest).into_iter::<SizeJson>().next()?.ok()?;
+    (size.width > 0 && size.height > 0).then(|| common::Size::new(size.width, size.height))
 }
 
 // The version at the end of a save's text, where the migration scripts write it: the number after
@@ -314,6 +341,16 @@ pub fn poll_thumbnails(engine: &mut Engine) {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn map_sizes_from_the_head() {
+        let pretty = "{\n  \"tile_map\": {\n    \"size_in_cells\": {\n      \"width\": 64,\n      \"height\": 96\n    },\n    \"layers\": [";
+        assert_eq!(map_size_in_head(pretty), Some(common::Size::new(64, 96)));
+        let compact = r#"{"save_header":{"realm":"dailong"},"save_version":7,"tile_map":{"size_in_cells":{"width":24,"height":24},"layers":["#;
+        assert_eq!(map_size_in_head(compact), Some(common::Size::new(24, 24)));
+        assert_eq!(map_size_in_head(r#"{"save_version":7,"tile_map":{"size_in_cells":{"width":2"#), None); // Cut off.
+        assert_eq!(map_size_in_head("{}"), None);
+    }
 
     #[test]
     fn head_of_a_save_with_a_header() {

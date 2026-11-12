@@ -2,7 +2,7 @@
 // drew, so automation can list them (ui.tree) and click or set them by name (ui.click, ui.set).
 //
 // A widget's path joins the labels of the menus and labeled groups around it with its own label,
-// e.g. "New Game/New Map Width". Paths that repeat in a frame get "#2", "#3", ... Rects are in
+// e.g. "CustomGame/Width". Paths that repeat in a frame get "#2", "#3", ... Rects are in
 // window points, the units input gestures use. Recording is off unless automation turns it on,
 // so normal play pays nothing.
 

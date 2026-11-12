@@ -1,0 +1,17 @@
+{
+  "maps": [
+    { "id": "blank", "name": "Blank map", "source": { "Blank": { "width": 128, "height": 128, "terrain": "grass" } } },
+    { "id": "tiny_island", "name": "Tiny Island", "source": { "SaveGame": { "save_file": "tiny_island" } } },
+    { "id": "test_map_64", "name": "Test Map 64", "source": { "SaveGame": { "save_file": "test_map_64x64" } } },
+    { "id": "test_map_96", "name": "Test Map 96", "source": { "SaveGame": { "save_file": "test_map_96x96" } } },
+    { "id": "test_map_128", "name": "Test Map 128", "source": { "SaveGame": { "save_file": "test_map_128x128" } } },
+    { "id": "test_map_256", "name": "Test Map 256", "source": { "SaveGame": { "save_file": "test_map_256x256" } } },
+    { "id": "hamlet", "name": "Hamlet", "source": { "Preset": { "preset_number": 2 } } },
+    { "id": "woodland_camp", "name": "Woodland Camp", "source": { "Preset": { "preset_number": 7 } } },
+    { "id": "crossroads", "name": "Crossroads", "source": { "Preset": { "preset_number": 13 } } }
+  ],
+  "starting_treasury": {
+    "choices": [1000, 2500, 5000, 10000, 25000],
+    "default": 5000
+  }
+}

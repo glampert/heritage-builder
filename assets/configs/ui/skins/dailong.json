@@ -303,6 +303,7 @@
     "MainGame": {"size": [640, 840]},
     "LoadOrSaveGame": {"size": [1540, 940]},
     "MainSettings": {"size": [1200, 920]},
+    "CustomGame": {"size": [1700, 960]},
     "CityManagement": {"size": [1600, 950]},
     "PopulationManagement": {"size": [1600, 950]},
     "ResourcesManagement": {"size": [1600, 950]},

@@ -554,6 +554,20 @@ pub fn follow(realm: Realm) -> &'static MinimapStyle {
     MinimapStyles::get_mut().follow_with(realm, &mut read_style_file)
 }
 
+// The style of `realm` without making it the current one: the style in use, its realm and
+// version() stay, so the minimap on screen isn't baked again. For a preview in another realm's
+// look (Custom Game). A file that fails to load logs an error and gives the defaults.
+pub fn of_realm(realm: Realm) -> MinimapStyle {
+    let styles = MinimapStyles::get_mut();
+    match MinimapStyle::load_with(realm, |realm| styles.file_json(realm, false, &mut read_style_file)) {
+        Ok(style) => style,
+        Err(err) => {
+            log::error!(log::channel!("minimap"), "{err}");
+            MinimapStyle::default()
+        }
+    }
+}
+
 // The realm of the style in use: Đại Long while it's the defaults, and the one before when a
 // realm's style failed to load.
 pub fn current_realm() -> Realm {

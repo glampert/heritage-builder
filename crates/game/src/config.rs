@@ -243,6 +243,9 @@ pub struct ConstructionConfigs {
 
     // Multiplies every duration: 0 builds everything at once, 2 takes twice as long.
     pub time_scale: f32,
+
+    // Multiplies them again in a custom game with fast construction on (custom_game).
+    pub fast_construction_scale: f32,
 }
 
 impl Default for ConstructionConfigs {
@@ -254,6 +257,7 @@ impl Default for ConstructionConfigs {
             grand_secs: 75.0,
             house_build_secs: 4.0,
             time_scale: 1.0,
+            fast_construction_scale: 0.25,
         }
     }
 }

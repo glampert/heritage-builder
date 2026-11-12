@@ -32,8 +32,8 @@ use campaign_picker::*;
 mod main_game;
 use main_game::*;
 
-mod new_game;
-use new_game::*;
+mod custom_game;
+use custom_game::*;
 
 mod about;
 use about::*;
@@ -78,7 +78,7 @@ pub enum DialogMenuImpl {
     Home,
     CampaignPicker,
     MainGame,
-    NewGame,
+    CustomGame,
     About,
 
     // Save Game menus:
@@ -107,7 +107,7 @@ const DIALOG_MENU_FACTORIES: [DialogMenuFactoryFn; DIALOG_MENU_COUNT] = dialog_m
     Home,
     CampaignPicker,
     MainGame,
-    NewGame,
+    CustomGame,
     About,
 
     LoadGame,
@@ -172,8 +172,9 @@ pub fn reset() {
 // switch, entering a session, ui.reload_skin, text.language), keeping the open ones open; the
 // ones that show the player's progress if the profile changed, or the window's size changed how
 // large the dialogs are drawn (their contents scale with it); and Load / Save and Settings, which
-// lay their contents out for the window, when it changed (and the saves, for Load / Save). The retail menus call it at the
-// start of every frame.
+// lay their contents out for the window, when it changed (and the saves, for Load / Save); and
+// Custom Game, when its realm or its Blank map's options come or go. The retail menus call it at
+// the start of every frame.
 pub fn sync(context: &mut GameUiContext) {
     if !DialogMenusSingleton::is_initialized() {
         return;
@@ -192,6 +193,13 @@ pub fn sync(context: &mut GameUiContext) {
         // The saves changed (a save, its thumbnail, a deletion), or the window's size changed the
         // dialog's. Not under its popup, which a rebuild would close: once it's gone.
         dialogs.rebuild(context, |kind| kind == DialogMenuKind::LoadOrSaveGame);
+    } else if dialogs.menu_stack.contains(&DialogMenuKind::CustomGame)
+        && !dialogs.find_dialog(DialogMenuKind::CustomGame).menu().is_message_box_open()
+        && custom_game::needs_rebuild(context)
+    {
+        // The realm changed (its rows and dates), the Blank map was picked or left (its options),
+        // or the window's size changed the dialog's. What the player picked is kept (custom_game::STATE).
+        dialogs.rebuild(context, |kind| kind == DialogMenuKind::CustomGame);
     } else if dialogs.menu_stack.contains(&DialogMenuKind::MainSettings)
         && !dialogs.find_dialog(DialogMenuKind::MainSettings).menu().is_message_box_open()
         && settings::needs_rebuild(context)
@@ -593,6 +601,13 @@ impl DialogMenusSingleton {
             }
             None => dialog_menu_kind,
         };
+
+        // Custom Game: built afresh from the maps and the profile.
+        if dialog_menu_kind == DialogMenuKind::CustomGame && !self.find_dialog(dialog_menu_kind).is_open() {
+            custom_game::prepare(in_home_menu());
+            self.dialog_menus[dialog_menu_kind as usize] = dialog_menu_kind.build_menu(context);
+            self.frames[dialog_menu_kind as usize] = DialogFrame::from_skin(dialog_menu_kind);
+        }
 
         let dialog = self.find_dialog(dialog_menu_kind);
         if !dialog.is_open() && dialog.open(context) {

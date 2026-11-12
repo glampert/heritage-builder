@@ -363,6 +363,11 @@ impl GameLoop {
     }
 
     #[inline]
+    pub fn start_custom_game(&mut self, settings: crate::custom_game::CustomGameSettings) {
+        self.session_cmd_queue.push_start_custom_game(settings);
+    }
+
+    #[inline]
     pub fn load_save_game(&mut self, save_file_name: PathRef) {
         self.session_cmd_queue.push_load_save_game(save_file_name);
     }
@@ -469,6 +474,9 @@ impl GameLoop {
         CampaignConfigs::load();
         log::info!(log::channel!("game"), "CampaignConfigs loaded.");
 
+        crate::custom_game::MapConfigs::load();
+        log::info!(log::channel!("game"), "MapConfigs loaded.");
+
         let tex_cache = engine.texture_cache_mut();
         TileSets::load(tex_cache, configs.engine.use_packed_texture_atlas, configs.debug.skip_loading_tile_sets, false);
         log::info!(log::channel!("game"), "TileSets loaded.");
@@ -489,6 +497,7 @@ impl GameLoop {
 
     fn unload_assets() {
         TileSets::terminate();
+        crate::custom_game::MapConfigs::terminate();
         CampaignConfigs::terminate();
         PropConfigs::terminate();
         UnitConfigs::terminate();

@@ -377,6 +377,7 @@ pub enum UiImageFit {
     Contain, // Whole, as large as fits, centered: bands on two sides if the shapes differ.
     Cover,   // Fills the rect, centered, its overflow cut.
     Stretch, // Fills the rect, stretched.
+    Center,  // At its own size (set_texture's, in points), centered; scaled down as Contain if larger.
 }
 
 impl UiImageFit {
@@ -385,6 +386,7 @@ impl UiImageFit {
             Self::Contain => "contain",
             Self::Cover => "cover",
             Self::Stretch => "stretch",
+            Self::Center => "center",
         }
     }
 }
@@ -402,8 +404,8 @@ pub fn fit_image(rect: Rect, image_size: Vec2, fit: UiImageFit) -> (Rect, Rect) 
     let scale_y = height / image_size.y;
     match fit {
         UiImageFit::Stretch => (rect, full_uv),
-        UiImageFit::Contain => {
-            let scale = scale_x.min(scale_y);
+        UiImageFit::Contain | UiImageFit::Center => {
+            let scale = if fit == UiImageFit::Center { scale_x.min(scale_y).min(1.0) } else { scale_x.min(scale_y) };
             let size = Vec2::new(image_size.x * scale, image_size.y * scale);
             let pos = rect.min + Vec2::new((width - size.x) * 0.5, (height - size.y) * 0.5);
             (Rect::from_pos_and_size(pos, size), full_uv)
@@ -567,6 +569,10 @@ impl UiImage {
         self.texture = None;
     }
 
+    pub fn set_fit(&mut self, fit: UiImageFit) {
+        self.fit = fit;
+    }
+
     fn resolve_size(&self, available_width: f32) -> Vec2 {
         let width = if self.size.x > 0.0 { self.size.x } else { available_width.max(1.0) };
         let height = if self.size.y > 0.0 {
@@ -614,6 +620,9 @@ mod tests {
     fn stretch_and_degenerate_sizes_fill_the_rect() {
         let target = rect(0.0, 0.0, 30.0, 40.0);
         assert_eq!(fit_image(target, Vec2::new(7.0, 3.0), UiImageFit::Stretch), (target, rect(0.0, 0.0, 1.0, 1.0)));
+        // Centered at its own size, or scaled down to fit.
+        assert_eq!(fit_image(rect(0.0, 0.0, 100.0, 60.0), Vec2::new(20.0, 10.0), UiImageFit::Center).0, rect(40.0, 25.0, 20.0, 10.0));
+        assert_eq!(fit_image(rect(0.0, 0.0, 100.0, 60.0), Vec2::new(200.0, 60.0), UiImageFit::Center).0, rect(0.0, 15.0, 100.0, 30.0));
         assert_eq!(fit_image(target, Vec2::new(0.0, 3.0), UiImageFit::Contain), (target, rect(0.0, 0.0, 1.0, 1.0)));
     }
 }

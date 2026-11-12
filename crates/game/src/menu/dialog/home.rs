@@ -44,14 +44,13 @@ const HOME_CREST_HEIGHT: f32 = 76.0;   // The crest is drawn this tall at most, 
 // HomeItem
 // ----------------------------------------------
 
-// The menu's items, in order. Their labels are their names in widget paths (Home/Continue).
-// TODO(realm-ui): P1d removes New Game: Custom Game's Blank map takes its options.
+// The menu's items, in order. Their labels are their names in widget paths (Home/Continue). New
+// Game is gone: Custom Game's Blank map takes its options.
 #[derive(Copy, Clone, Debug, PartialEq, Eq)]
 enum HomeItem {
     Continue,
     Campaign,
     CustomGame,
-    NewGame,
     LoadGame,
     Settings,
     About,
@@ -59,15 +58,13 @@ enum HomeItem {
 }
 
 impl HomeItem {
-    const ALL: [Self; 8] =
-        [Self::Continue, Self::Campaign, Self::CustomGame, Self::NewGame, Self::LoadGame, Self::Settings, Self::About, Self::Quit];
+    const ALL: [Self; 7] = [Self::Continue, Self::Campaign, Self::CustomGame, Self::LoadGame, Self::Settings, Self::About, Self::Quit];
 
     fn label(self) -> UiString {
         match self {
             Self::Continue => UiString::key(UiTextCategory::Menu, "home.continue"),
             Self::Campaign => UiString::key(UiTextCategory::Menu, "home.campaign"),
             Self::CustomGame => UiString::key(UiTextCategory::Menu, "home.custom_game"),
-            Self::NewGame => UiString::key(UiTextCategory::Menu, "home.new_game"),
             Self::LoadGame => UiString::key(UiTextCategory::Menu, "home.load_game"),
             Self::Settings => UiString::key(UiTextCategory::Menu, "home.settings"),
             Self::About => UiString::key(UiTextCategory::Menu, "home.about"),
@@ -80,9 +77,7 @@ impl HomeItem {
         match self {
             Self::Continue => on_continue(),
             Self::Campaign => on_campaign(context),
-            // TODO(realm-ui): P1d opens the Custom Game dialog here.
-            Self::CustomGame => false,
-            Self::NewGame => super::open(DialogMenuKind::NewGame, CLOSE_ALL_OTHERS, context),
+            Self::CustomGame => super::open(DialogMenuKind::CustomGame, CLOSE_ALL_OTHERS, context),
             Self::LoadGame => super::open(DialogMenuKind::LoadGame, CLOSE_ALL_OTHERS, context),
             Self::Settings => super::open(DialogMenuKind::MainSettings, CLOSE_ALL_OTHERS, context),
             Self::About => super::open(DialogMenuKind::About, CLOSE_ALL_OTHERS, context),
@@ -393,7 +388,6 @@ fn menu_items(context: &mut GameUiContext, scale: f32) -> UiWidgetGroup {
                 (info.subline, info.save.is_some(), info.tooltip)
             }
             HomeItem::Campaign => campaign_item_state(),
-            HomeItem::CustomGame => (None, false, Some(ui::text::get(UiTextCategory::Menu, "home.coming_soon").to_string())),
             _ => (None, true, None),
         };
 

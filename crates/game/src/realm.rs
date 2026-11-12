@@ -184,9 +184,8 @@ pub fn ui_realm_for(in_home_menu: bool) -> UiRealm {
         override_realm: override_realm(),
         in_home_menu,
         campaign_realm: active_campaign_realm(),
-        // TODO(realm-ui): the Custom Game's realm (Phase 1), once Custom Game exists. It has to
-        // survive a save and load, like the campaign's progress in the session save.
-        custom_game_realm: None,
+        // A save keeps it in its header, and a load reads it back (custom_game).
+        custom_game_realm: crate::custom_game::active_realm(),
         profile_realm: profile_realm(),
     })
 }

@@ -93,8 +93,8 @@ pub struct UiSkinDef {
     pub meters: SkinMetersDef,
     pub rows: SkinRowsDef,
     pub separators: BTreeMap<String, SkinSeparatorDef>,
-    // The home menu's campaign row and the campaign picker draw them (skin::emblem).
-    // TODO(realm-ui): Custom Game's realm rows (P1d) and the save rows (P1b) draw them too.
+    // The home menu's campaign row, the campaign picker, Load / Save's rows and Custom Game's realm
+    // rows and preview draw them (skin::emblem).
     pub emblems: BTreeMap<String, String>,   // Realm → stem (idle, locked, current states).
     pub ornaments: BTreeMap<String, String>, // Decorations by name: `crest`, the home menu's.
     pub cards: SkinCardsDef,
@@ -1489,15 +1489,18 @@ pub fn meter(kind: UiMeterKind, size: Vec2) -> UiMeter {
     UiMeter::new(kind, size).with_look(meter_look())
 }
 
-// A step selector labeled `label` over `steps`, in the skin's meter colours and text colours.
-// TODO(realm-ui): its font scale is the engine's default; take it from the skin (a `font` on
-// controls) or from the dialog that sizes it (Custom Game's difficulty, P1d), as Settings sizes
-// its toggles with with_font_scale.
-pub fn step_selector(label: impl Into<UiString>, steps: impl IntoIterator<Item = UiString>) -> UiStepSelector {
+// The colours of step selectors' segments and arrows: the skin's meters'.
+pub fn step_look() -> UiStepLook {
     let meters = meter_look();
-    let look = UiStepLook { fill: meters.fill, track: meters.track, outline: meters.outline, ..UiStepLook::default() };
+    UiStepLook { fill: meters.fill, track: meters.track, outline: meters.outline, ..UiStepLook::default() }
+}
+
+// A step selector labeled `label` over `steps`, in the skin's meter colours and text colours. Its
+// font is the engine's default: the dialog that sizes it gives it with_font_scale (Custom Game's
+// difficulty), as Settings does its toggles.
+pub fn step_selector(label: impl Into<UiString>, steps: impl IntoIterator<Item = UiString>) -> UiStepSelector {
     let rows = &current().rows;
-    UiStepSelector::new(label, steps).with_look(look).with_text_colors(color_or(&rows.title, "ink"), color_or(&rows.selected, "accent"))
+    UiStepSelector::new(label, steps).with_look(step_look()).with_text_colors(color_or(&rows.title, "ink"), color_or(&rows.selected, "accent"))
 }
 
 // An entry of a dialog's list of choices (the home menu's), with an optional subline: the skin's
@@ -1616,6 +1619,15 @@ pub fn rich_text(markup: impl Into<UiString>) -> UiRichText {
 pub fn framed_image(context: &mut dyn UiWidgetContext, image: UiImage, panel_name: &str) -> UiImage {
     match panel(context, panel_name) {
         SkinPanel::NineSlice { slice, content, .. } => image.with_frame(slice, if content.relative { 0.0 } else { content.left }),
+        SkinPanel::Sprite { .. } => image,
+    }
+}
+
+// `image` on the skin's panel `panel_name`, `inset` points in from its edges whatever the panel's
+// content insets: an image that should reach the panel's own border, such as a map preview.
+pub fn framed_image_inset(context: &mut dyn UiWidgetContext, image: UiImage, panel_name: &str, inset: f32) -> UiImage {
+    match panel(context, panel_name) {
+        SkinPanel::NineSlice { slice, .. } => image.with_frame(slice, inset.max(0.0)),
         SkinPanel::Sprite { .. } => image,
     }
 }

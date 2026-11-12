@@ -11,6 +11,7 @@ use super::{SizeParam, validate_save_name, world::find_tile_def};
 use crate::{
     automation::{CommandContext, CommandDef, CommandError, CommandResult, ParamDef, done, parse_params, pending},
     campaign::{self, config::CampaignConfigs},
+    custom_game,
     config::LoadMapSetting,
     debug::preset_maps,
     launch,
@@ -22,7 +23,7 @@ use crate::{
 pub(super) const COMMANDS: &[CommandDef] = &[
     CommandDef {
         name: "session.state",
-        help: "Menus mode, map size, simulation state, date, seed and campaign mission.",
+        help: "Menus mode, map size, simulation state, date, seed, campaign mission and custom game.",
         params: &[],
         run: cmd_state,
     },
@@ -141,7 +142,27 @@ fn cmd_state(context: &mut CommandContext, _params: Value) -> CommandResult {
         "seed": launch::get().random_seed(context.configs),
         "frame": context.frame(),
         "campaign": campaign,
+        "custom_game": custom_game_json(),
     }))
+}
+
+// The custom game being played, if any: its realm, map and options, and the construction time
+// scale its fast construction gives (SimConfigs::construction.time_scale times its own).
+fn custom_game_json() -> Value {
+    let Some(game) = custom_game::active() else {
+        return Value::Null;
+    };
+    let record = &game.record;
+    let construction = &crate::config::GameConfigs::get().sim.construction;
+    json!({
+        "realm": game.realm,
+        "map": record.map,
+        "difficulty": record.difficulty,
+        "fast_construction": record.fast_construction,
+        "construction_time_scale": construction.time_scale * custom_game::construction_time_scale(),
+        "seasons_and_floods": record.seasons_and_floods,
+        "raids": record.raids,
+    })
 }
 
 fn cmd_new_map(context: &mut CommandContext, params: Value) -> CommandResult {

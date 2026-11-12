@@ -1,6 +1,6 @@
 # Realm UI: menus, screens and HUD in each realm's style
 
-**Status (2026-11-12): Phase 0 done; Phase 1, the main menus, in progress: Home, Load / Save and Settings done.** The user reviewed it on 2026-11-07: their notes are folded in (see [Review notes](#review-notes)), the open decisions' defaults are accepted, and every mockup the phases need now exists. This plan builds and restyles every retail screen after the [UI mockups](../design/mockups/README.md): the main menus, the world map, the intermission, the story comics, the HUD and the city management pages. Each screen gets one look per realm: Đại Long, Kambara and Tampadesa. It is milestone **UI** of the [roadmap](roadmap.md). It was researched against `ccca1df` on `claude`. File and line references point at that commit, so re-check them before relying on them.
+**Status (2026-11-12): Phase 0 done; Phase 1, the main menus, in progress: Home, Load / Save, Settings and Custom Game done.** The user reviewed it on 2026-11-07: their notes are folded in (see [Review notes](#review-notes)), the open decisions' defaults are accepted, and every mockup the phases need now exists. This plan builds and restyles every retail screen after the [UI mockups](../design/mockups/README.md): the main menus, the world map, the intermission, the story comics, the HUD and the city management pages. Each screen gets one look per realm: Đại Long, Kambara and Tampadesa. It is milestone **UI** of the [roadmap](roadmap.md). It was researched against `ccca1df` on `claude`. File and line references point at that commit, so re-check them before relying on them.
 
 ![Home menu, Đại Long](../design/mockups/menu-home-dailong.jpg)
 
@@ -493,7 +493,7 @@ The existing dialogs keep their layouts but take their panels from the Đại Lo
   - **Custom Game**, Load Game, Settings, About, Quit Game.
 - [x] The realm marker on the hovered item, and the version string.
 - [x] **Backdrop:** Đại Long's painting; Kambara's and Tampadesa's generated scenes. The skin decides.
-- [ ] `HomeItem` (was `HomeButtonKind`) loses New Game, whose options move into Custom Game (see [open decisions](#open-decisions)).
+- [x] `HomeItem` (was `HomeButtonKind`) loses New Game, whose options move into Custom Game (see [open decisions](#open-decisions)).
 
 **Load / Save** (one dialog, `LoadOrSaveGame`):
 - [x] **Save rows:** realm emblem, name, "Campaign I · mission 6 · <city>", the save time, and the in-game date in the realm's era.
@@ -523,16 +523,16 @@ The existing dialogs keep their layouts but take their panels from the Đại Lo
 - [x] Restore defaults, Cancel, Ok, through the existing `SettingsCategory` commit path.
 
 **Custom Game:**
-- [ ] **Realm rows**, locked until their campaign is started ("Start Campaign N to unlock").
-- [ ] **Map rows** (a new `assets/configs/game/maps.json`: the preset maps, the sample saves' maps, and a **Blank map** entry with width, height and terrain, which replaces New Game).
-- [ ] **Preview:** the minimap bake of the map, and its stats.
-- [ ] **Options:**
+- [x] **Realm rows**, locked until their campaign is started ("Start Campaign N to unlock").
+- [x] **Map rows** (a new `assets/configs/game/maps.json`: the preset maps, the sample saves' maps, and a **Blank map** entry with width, height and terrain, which replaces New Game).
+- [x] **Preview:** the minimap bake of the map, and its stats.
+- [x] **Options:**
   - starting date, from the realm's eras;
   - goals (Sandbox, or a goal set);
   - starting treasury;
   - difficulty in 5 steps (stored; applied by M4 and M9);
   - toggles: seasons and floods, fires and collapses, raids, and fast construction. Fast construction is `construction.time_scale`, which closes the construction plan's open item. The others are stored and disabled with "coming in M6/M7/…" tooltips until their systems exist.
-- [ ] Cancel and Start. A custom game sets the realm the in-game skin uses.
+- [x] Cancel and Start. A custom game sets the realm the in-game skin uses.
 
 **About:**
 - [ ] Crest, title, the studio line, the credit sections, "Built with", the quote, version and copyright, Back.
@@ -547,6 +547,13 @@ The existing dialogs keep their layouts but take their panels from the Đại Lo
 - [ ] Scenarios:
   - `ui_menus.jsonl` (every dialog, every realm, Continue, Custom Game start, settings commit);
   - update `ui_new_game.jsonl` to the Blank map path.
+
+**Notes (2026-11-12, custom game) (commit TODO):**
+- `dialog/custom_game.rs`: `CustomGame` in three columns. Realm rows (emblem, campaign name, "Start Campaign II to unlock"), map rows from the new `maps.json` (Blank map, the sample saves' maps while present, three presets), the preview (a `minimap_bake` bake drawn as the isometric diamond in the selected realm's style; a save's map shows its realm's emblem, TODO) with size, water, woodland, trade partners (TODO M10), hazards; the Blank map's width, height and terrain; starting date (the realm's eras), goals (Sandbox, TODO M9), treasury, difficulty, four switches. New Game and its kind are gone; MainGame's button opens Custom Game.
+- `crate::custom_game`: Start replaces the session, then sets date, treasury, the risks switch and the active custom game: its realm (`ui.realm` source `custom_game`), map, difficulty, fast construction (`fast_construction_scale` 0.25 on top of `time_scale`) and the stored switches. Design: runtime state saved in the save header (`realm`, a `custom_game` record) and read back on load, so no save-version bump.
+- Engine: hidden labels on dropdowns and lists, dropdown widths, toggle tooltips, `UiImageFit::Center`.
+- Deviations: Kambara's and Tampadesa's campaigns gain one era each (Suryadeva, Pugara), for their dates; the user should confirm. Water and Woodland stand in for the mockup's Rivers and Fertile land. Presets are the debug maps (their cheats left off). Seasons, raids: disabled; difficulty: stored only.
+- Verified: build, tests, web check, `--check`; CI scenarios at 1440 × 800, `ui_menus` also at 720p and 1080p; determinism twice; `ui_snapshot` per realm; `ui_build` record and replay; screenshots against the mockups.
 
 **Notes (2026-11-12, settings) (commit `8a99406`):**
 - `dialog/settings/`: one `MainSettings` with tabs Game, Sound, Graphics, Controls; `GameSettings`, `SoundSettings`, `GraphicsSettings` open it on their tab. Rows: label left, toggle, slider or dropdown right, a rule under each, each tab's rows spread over the room. Pending values and the tab live in `settings::STATE`, so a rebuild (realm, language, window resize) keeps them. Ok writes changed values into `GameConfigs`, applies volumes, textures, autosave and language at once (UI scale next frame) and saves the user configs, except in scripts, replays and the smoke test. Choosing Wgpu also picks Winit.

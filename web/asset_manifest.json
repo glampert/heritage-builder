@@ -2,6 +2,7 @@
   "assets/configs/buildings/configs.json",
   "assets/configs/game/campaigns.json",
   "assets/configs/game/configs.json",
+  "assets/configs/game/maps.json",
   "assets/configs/props/configs.json",
   "assets/configs/ui/minimap/dailong.json",
   "assets/configs/ui/minimap/kambara.json",

@@ -50,12 +50,18 @@
       "id": "temple_mountain",
       "name": "The Temple Mountain",
       "realm": "kambara",
+      "eras": [
+        { "name": "Suryadeva", "start_year": 1 }
+      ],
       "missions": []
     },
     {
       "id": "ten_thousand_temples",
       "name": "The Plain of Ten Thousand Temples",
       "realm": "tampadesa",
+      "eras": [
+        { "name": "Pugara", "start_year": 1 }
+      ],
       "missions": []
     }
   ]

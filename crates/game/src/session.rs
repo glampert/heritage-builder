@@ -19,12 +19,14 @@ use serde::{Deserialize, Serialize};
 use crate::{
     camera::*,
     launch::{self, LaunchOptions},
+    cheats,
     profile,
     realm::{self, Realm},
     save_header::{self, SaveFileContents, SaveHeader},
     undo_redo,
     world::World,
-    campaign::{self, CampaignProgress},
+    campaign::{self, CampaignProgress, config::MissionFinanceDef},
+    custom_game::{self, ActiveCustomGame, CustomGameSettings},
     config::{GameConfigs, LoadMapSetting},
     debug::{DevEditorMenus, preset_maps},
     menu::{GameMenusInputArgs, GameMenusMode, GameMenusSystem, home::HomeMenus, in_game::InGameMenus},
@@ -54,6 +56,7 @@ enum GameSessionCmd {
     ToggleMenusMode,
     Reset { reset_map_with_tile_def: Option<&'static TileDef>, new_map_size: Option<Size> },
     LoadPreset { preset_number: usize },
+    StartCustomGame { settings: Box<CustomGameSettings> },
     LoadSaveGame { save_file: PathBuf },
     SaveGame { save_file: PathBuf },
 }
@@ -85,6 +88,10 @@ impl GameSessionCmdQueue {
 
     pub fn push_load_preset_map(&mut self, preset_number: usize) {
         self.queue.push_back(GameSessionCmd::LoadPreset { preset_number });
+    }
+
+    pub fn push_start_custom_game(&mut self, settings: CustomGameSettings) {
+        self.queue.push_back(GameSessionCmd::StartCustomGame { settings: Box::new(settings) });
     }
 
     pub fn push_load_save_game(&mut self, save_file_name: PathRef) {
@@ -119,6 +126,9 @@ impl GameSessionCmdQueue {
                 }
                 GameSessionCmd::LoadPreset { preset_number } => {
                     self.cmd_load_preset(session, engine, configs, preset_number);
+                }
+                GameSessionCmd::StartCustomGame { settings } => {
+                    self.cmd_start_custom_game(session, engine, configs, &settings);
                 }
                 GameSessionCmd::LoadSaveGame { save_file } => {
                     self.cmd_load_save_game(session, engine, configs, PathRef::from_path(&save_file));
@@ -165,6 +175,7 @@ impl GameSessionCmdQueue {
         // Starting a fresh sandbox game abandons any active campaign. See
         // cmd_quit_to_main_menu for why this is reset here, not in GameSession::reset.
         campaign::reset();
+        custom_game::end();
 
         let reset_map = true;
         let home_menu = false;
@@ -181,6 +192,36 @@ impl GameSessionCmdQueue {
     ) {
         destroy(session, engine, configs);
         *session = create(engine, configs, Some(preset_number));
+    }
+
+    // Replaces the session with a custom game on its map, then sets it up as the Custom Game dialog
+    // chose (GameSession::start_custom_game). A map that fails to load (a save gone or broken) goes
+    // back to the home menu.
+    fn cmd_start_custom_game(
+        &mut self,
+        session: &mut GameSession,
+        engine: &mut Engine,
+        configs: &'static GameConfigs,
+        settings: &CustomGameSettings,
+    ) {
+        campaign::reset();
+        // A preset map turns on its developer cheats as it's built (preset_maps::create_preset_tile_map,
+        // for session.load_preset); a custom game keeps the player's.
+        let cheats = cheats::get().snapshot();
+        replace_with_new_game(session, engine, configs, &settings.map.load_map_setting());
+        cheats::get_mut().restore(&cheats);
+
+        if !session.tile_map().size_in_cells().is_valid() {
+            log::error!(log::channel!("session"), "Custom game: the map '{}' didn't load. Back to the home menu.", settings.map_id);
+            destroy(session, engine, configs);
+            *session = create(engine, configs, None);
+            return;
+        }
+
+        // A save's map brings the campaign progress it was saved with: a custom game has none.
+        campaign::reset();
+        session.start_custom_game(settings);
+        log::info!(log::channel!("session"), "--- Custom Game Started ({}, {}) ---", settings.realm, settings.map_id);
     }
 
     fn cmd_load_save_game(
@@ -505,6 +546,10 @@ impl GameSession {
             panic!("Invalid game viewport size!");
         }
 
+        // A new session is no custom game, unless a save it loads says it is (load_save_game) or
+        // the Custom Game dialog starts one on it (start_custom_game).
+        custom_game::end();
+
         let mut world = World::new();
         let tile_map = Self::create_tile_map(&mut world, configs, load_map_setting);
 
@@ -553,6 +598,7 @@ impl GameSession {
     // The player's profile records the mission and the campaign as reached.
     fn start_mission(&mut self) {
         self.time_played_secs = 0.0; // A new city.
+        custom_game::end();
         if let Some(mission) = campaign::active_mission() {
             profile::on_mission_started(mission.campaign_id, mission.mission_index);
         }
@@ -566,6 +612,22 @@ impl GameSession {
         if let Some(risks) = campaign::active_mission_risks() {
             self.sim.risks_mut().start_mission(&risks, &GameConfigs::get().sim.risks);
         }
+    }
+
+    // A custom game's start, on the map it was created with: its calendar from the first day of the
+    // date chosen, its treasury, its risks switch, and the custom game itself (its realm, map and
+    // options) for the UI and the systems that read them.
+    fn start_custom_game(&mut self, settings: &CustomGameSettings) {
+        let configs = GameConfigs::get();
+        self.time_played_secs = 0.0; // A new city.
+        self.sim.calendar_mut().restart(settings.calendar.clone());
+        let finance = MissionFinanceDef { starting_gold: Some(settings.starting_gold), tax_level: None, wage: None };
+        self.sim.finance_mut().start_mission(&finance, &configs.sim.finance);
+        self.sim.risks_mut().set_enabled(settings.fires_and_collapses);
+        // TODO(realm-ui): the difficulty, once M4 and M9 read it; seasons and floods (M7) and raids
+        // (game Phase 2) once they exist. Stored with the game until then (CustomGameRecord).
+        custom_game::set_active(Some(ActiveCustomGame::from_settings(settings)));
+        self.refresh_world_stats();
     }
 
     fn create_with_preset_map(engine: &mut Engine, configs: &'static GameConfigs, preset_number: usize) -> Self {
@@ -928,8 +990,10 @@ impl GameSession {
 
         let mission = self.campaign_progress.active.as_ref();
         let campaign = mission.and_then(|mission| campaign::config::CampaignConfigs::get().campaign(mission.campaign_id));
-        // TODO(realm-ui): a custom game's realm (P1d), which outside a campaign is Đại Long for now.
-        let realm = campaign.map_or(Realm::DaiLong, |campaign| campaign.realm);
+        // Outside a campaign, the custom game's realm; Đại Long for a game that's neither (a preset
+        // or a new map started from automation or the developer editor).
+        let custom = custom_game::active().filter(|_| campaign.is_none());
+        let realm = campaign.map_or_else(|| custom.map_or(Realm::DaiLong, |game| game.realm), |campaign| campaign.realm);
 
         SaveHeader {
             campaign_id: campaign.map(|campaign| campaign.id.clone()),
@@ -942,6 +1006,7 @@ impl GameSession {
             treasury: Some(self.sim.finance().balance()),
             time_played_secs: Some(self.time_played_secs),
             saved_at: save_header::saved_at_now(),
+            custom_game: custom.map(|game| game.record.clone()),
         }
     }
 
@@ -986,6 +1051,10 @@ impl GameSession {
         // starts it again: start_mission, from post_load).
         self.time_played_secs = header.time_played_secs.filter(|secs| secs.is_finite() && *secs >= 0.0).unwrap_or(0.0);
         self.post_load(&mut PostLoadContext::new(engine, configs, self.sim.rng().clone(), self.tile_map.clone()));
+
+        // A custom game goes on from its header: its realm and options. A campaign mission is none.
+        let custom = if campaign::active_mission().is_some() { None } else { ActiveCustomGame::from_header(&header) };
+        custom_game::set_active(custom);
 
         // World stats aren't saved; count them now instead of at the first simulation step.
         self.refresh_world_stats();

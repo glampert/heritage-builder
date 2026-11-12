@@ -1,6 +1,6 @@
 # Building costs, construction sites and house renovation
 
-**Status (2026-11-06): Done.** All phases are in, and so is the scaffold and renovation art (§6 notes). The "fast build" option waits for Custom Game. This plan implements GDD sections 5.1.1 (building costs) and 5.1.2 (construction cycle) in [docs/design/gdd.md](../design/gdd.md). It is milestone M3 of the [roadmap](roadmap.md). It was researched against `d0696fe` on `main`. File and line references point at that commit, so re-check them before relying on them.
+**Status (2026-11-06): Done.** All phases are in, and so is the scaffold and renovation art (§6 notes). The "fast build" option came with Custom Game (2026-11-12). This plan implements GDD sections 5.1.1 (building costs) and 5.1.2 (construction cycle) in [docs/design/gdd.md](../design/gdd.md). It is milestone M3 of the [roadmap](roadmap.md). It was researched against `d0696fe` on `main`. File and line references point at that commit, so re-check them before relying on them.
 
 ## How to resume this work
 
@@ -384,7 +384,7 @@ Done when: a house that keeps its needs met upgrades after the delay plus the re
 ### Phase 4: Polish and documentation (small)
 
 - [x] Sound and toast on completion.
-- [ ] A "fast build" option in Custom Game settings, which is just `time_scale`. **Waits for Custom Game,** which is still a disabled placeholder on the home menu (known-issues). Until then the time scale is edited in the debug Game Configs window or with `config.set`.
+- [x] A "fast build" option in Custom Game settings, which is just `time_scale`. Done with Custom Game (2026-11-12, realm-ui.md Phase 1): its Fast construction switch multiplies every duration by `SimConfigs::construction.fast_construction_scale` (0.25) on top of `time_scale`, for that game only (a session setting, kept in the save's header), so the player's configs keep `time_scale`.
 - [x] Update AGENTS.md (construction section, test notes) and `.claude/rules/known-issues.md`.
 
 **Notes (2026-11-05):**

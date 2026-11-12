@@ -9,10 +9,12 @@ use crate::{GameLoop, menu::ButtonDef};
 
 const MAIN_GAME_BUTTON_COUNT: usize = MainGameButtonKind::COUNT;
 
+// TODO(realm-ui): the in-game Game menu's restyle step (Phase 1) gives these labels en.json keys
+// (Custom Game's is `home.custom_game`).
 #[derive(Copy, Clone, Debug, PartialEq, Eq, EnumCount, EnumProperty, EnumIter)]
 enum MainGameButtonKind {
-    #[strum(props(Label = "New Game"))]
-    NewGame,
+    #[strum(props(Label = "Custom Game"))]
+    CustomGame,
 
     #[strum(props(Label = "Load Game"))]
     LoadGame,
@@ -34,7 +36,7 @@ impl ButtonDef for MainGameButtonKind {
     fn on_pressed(self, context: &mut GameUiContext) -> bool {
         const CLOSE_ALL_OTHERS: bool = false;
         match self {
-            Self::NewGame  => super::open(DialogMenuKind::NewGame,  CLOSE_ALL_OTHERS, context),
+            Self::CustomGame => super::open(DialogMenuKind::CustomGame, CLOSE_ALL_OTHERS, context),
             Self::LoadGame => super::open(DialogMenuKind::LoadGame, CLOSE_ALL_OTHERS, context),
             Self::SaveGame => super::open(DialogMenuKind::SaveGame, CLOSE_ALL_OTHERS, context),
             Self::Settings => super::open(DialogMenuKind::MainSettings, CLOSE_ALL_OTHERS, context),

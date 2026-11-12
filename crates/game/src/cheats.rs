@@ -64,6 +64,30 @@ macro_rules! game_cheats {
             }
         }
 
+        // Every cheat's value, to put back later (Cheats::restore).
+        #[derive(Copy, Clone, PartialEq, Eq, Debug)]
+        pub struct CheatValues {
+            $(
+                pub $cheat_name: bool,
+            )*
+        }
+
+        impl Cheats {
+            pub fn snapshot(&self) -> CheatValues {
+                CheatValues {
+                    $(
+                        $cheat_name: self.$cheat_name,
+                    )*
+                }
+            }
+
+            pub fn restore(&mut self, values: &CheatValues) {
+                $(
+                    self.$cheat_name = values.$cheat_name;
+                )*
+            }
+        }
+
         impl CheatsLookup for Cheats {
             #[inline] fn lookup(&self) -> &CheatsLookupMap { &self.lookup }
             #[inline] fn lookup_mut(&mut self) -> &mut CheatsLookupMap { &mut self.lookup }

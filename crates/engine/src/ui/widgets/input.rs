@@ -1003,6 +1003,8 @@ pub type UiDropdownGetCurrentSelection = UiWidgetCallback<dyn Fn(&UiDropdown, &m
 
 pub struct UiDropdown {
     label: UiString,
+    show_label: bool,   // False: the label names it in paths only (with_hidden_label).
+    width: Option<f32>, // The field's; the group's item width if None, the row's with a row.
     font_scale: UiFontScale,
     current_item: usize,
     items: Vec<String>,
@@ -1031,7 +1033,7 @@ impl UiWidget for UiDropdown {
         context.set_window_font_scale(self.font_scale);
         let ui_sys = context.ui_sys();
         let row = self.row;
-        let width = row.map_or_else(|| internal::item_width(ui_sys), |row| row.control_width);
+        let width = row.map_or_else(|| self.width.unwrap_or_else(|| internal::item_width(ui_sys)), |row| row.control_width);
 
         if let Some(on_get_current_selection) = &self.on_get_current_selection {
             self.current_item = on_get_current_selection(self, context);
@@ -1046,7 +1048,9 @@ impl UiWidget for UiDropdown {
                     if let Some(row) = row {
                         row.begin(ui);
                     }
-                    left_label(ui_sys, ui, self.label.resolve());
+                    if self.show_label {
+                        left_label(ui_sys, ui, self.label.resolve());
+                    }
                     if let Some(row) = row {
                         row.push_to_right(ui, width);
                     }
@@ -1129,9 +1133,14 @@ impl UiWidget for UiDropdown {
     }
 
     fn measure(&self, context: &dyn UiWidgetContext) -> Vec2 {
-        let size = internal::calc_labeled_widget_size(context.ui_sys(), self.font_scale, self.label.resolve());
+        let ui_sys = context.ui_sys();
+        let label = if self.show_label { self.label.resolve() } else { "" };
+        let mut size = internal::calc_labeled_widget_size(ui_sys, self.font_scale, label);
+        if let Some(width) = self.width {
+            size.x += width - internal::item_width(ui_sys);
+        }
         match self.row {
-            Some(row) => row.measure(context.ui_sys(), self.font_scale, self.label.resolve(), size.y),
+            Some(row) => row.measure(ui_sys, self.font_scale, label, size.y),
             None => size,
         }
     }
@@ -1157,6 +1166,8 @@ impl UiDropdown {
 
         Self {
             label: UiString::default(),
+            show_label: true,
+            width: None,
             font_scale: UiFontScale::default(),
             current_item: 0,
             items,
@@ -1174,6 +1185,22 @@ impl UiDropdown {
     // To the dropdown's left.
     pub fn with_label(mut self, label: impl Into<UiString>) -> Self {
         self.label = label.into();
+        self.show_label = true;
+        self
+    }
+
+    // A label that names it in widget paths without being drawn, for a dropdown whose caption is
+    // drawn elsewhere (above it, as Custom Game's options are).
+    pub fn with_hidden_label(mut self, label: impl Into<UiString>) -> Self {
+        self.label = label.into();
+        self.show_label = false;
+        self
+    }
+
+    // The field's width in points, in place of the group's item width (a row sets its own).
+    pub fn with_width(mut self, width: f32) -> Self {
+        debug_assert!(width > 0.0);
+        self.width = Some(width);
         self
     }
 

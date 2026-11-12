@@ -7,7 +7,7 @@ use egui::{Align2, Color32, Sense, Stroke, StrokeKind, pos2, vec2};
 
 use common::{Color, Rect, Vec2};
 
-use super::{UiWidget, UiWidgetCallback, UiWidgetContext, list_index, widget_id};
+use super::{UiTooltipText, UiWidget, UiWidgetCallback, UiWidgetContext, list_index, widget_id};
 use crate::{
     render::texture::TextureHandle,
     ui::{
@@ -85,6 +85,7 @@ pub struct UiToggle {
     fill_width: bool,
     min_height: f32,
     enabled: bool,
+    tooltip: Option<UiTooltipText>,
     sounds: UiWidgetSounds, // Toggled: Toggled.
     on_read_value: UiToggleReadValue,
     on_update_value: UiToggleUpdateValue,
@@ -108,7 +109,7 @@ impl UiWidget for UiToggle {
         let font = internal::font(ui_sys, self.font_scale);
         let enabled = self.enabled;
 
-        let (clicked, set_value) = ui_sys.with_ui(|ui| {
+        let (clicked, set_value, hovered) = ui_sys.with_ui(|ui| {
             let width = if self.fill_width { size.x.max(immediate::fill_size(ui).x) } else { size.x };
             let sense = if enabled { Sense::click() } else { Sense::hover() };
             let (rect, response) = ui.allocate_exact_size(vec2(width, size.y), sense);
@@ -127,9 +128,15 @@ impl UiWidget for UiToggle {
                 ui.painter().text(rect.left_center(), Align2::LEFT_CENTER, self.label.resolve(), font.clone(), text_color);
             }
 
-            let set_value = immediate::record(ui_sys, ui, &response, "toggle", self.label.resolve(), None, enabled, Some(serde_json::Value::Bool(value)));
-            (response.clicked() && enabled, set_value)
+            let tooltip = self.tooltip.as_ref().map(|tooltip| tooltip.text.resolve());
+            let set_value = immediate::record(ui_sys, ui, &response, "toggle", self.label.resolve(), tooltip, enabled, Some(serde_json::Value::Bool(value)));
+            (response.clicked() && enabled, set_value, response.hovered())
         });
+
+        // A disabled toggle still shows its tooltip: why it can't be changed.
+        if hovered && let Some(tooltip) = &self.tooltip {
+            tooltip.draw(context);
+        }
 
         let new_value = if clicked { Some(!value) } else { set_value.and_then(|value| value.as_bool()) };
         if let Some(new_value) = new_value {
@@ -194,6 +201,7 @@ impl UiToggle {
             fill_width: false,
             min_height: 0.0,
             enabled: true,
+            tooltip: None,
             sounds: UiWidgetSounds::new(),
             on_read_value: None,
             on_update_value: None,
@@ -245,6 +253,12 @@ impl UiToggle {
 
     pub fn with_enabled(mut self, enabled: bool) -> Self {
         self.enabled = enabled;
+        self
+    }
+
+    // Shown while it's hovered, enabled or not, e.g. why it's disabled.
+    pub fn with_tooltip(mut self, tooltip: UiTooltipText) -> Self {
+        self.tooltip = Some(tooltip);
         self
     }
 

@@ -104,7 +104,7 @@ impl Default for UiListRowLook {
 
 impl UiListRowLook {
     // A row's height, with or without subtitles and icons in the list.
-    fn row_height(&self, ui_sys: &UiSystem, font_scale: UiFontScale, subtitles: bool, icons: bool) -> f32 {
+    pub fn row_height(&self, ui_sys: &UiSystem, font_scale: UiFontScale, subtitles: bool, icons: bool) -> f32 {
         let mut text = internal::calc_text_line_height(ui_sys, UiFontScale(font_scale.0 * self.title_scale));
         if subtitles {
             text += internal::calc_text_line_height(ui_sys, UiFontScale(font_scale.0 * self.subtitle_scale));
@@ -212,6 +212,7 @@ pub type UiItemListSelectionChanged = UiWidgetCallback<dyn Fn(&UiItemList, &mut 
 
 pub struct UiItemList {
     label: UiString,
+    show_label: bool, // False: the label names it in paths only (with_hidden_label).
     font_scale: UiFontScale,
     size: Option<Vec2>,
     margin_left: f32,
@@ -265,7 +266,7 @@ impl UiWidget for UiItemList {
             let left = ui.cursor().left() + margin_left;
 
             // Optional label:
-            if !self.label.is_empty() {
+            if self.show_label && !self.label.is_empty() {
                 ui.horizontal(|ui| {
                     ui.add_space(margin_left);
                     ui.label(egui::RichText::new(self.label.resolve()).font(font.clone()));
@@ -440,7 +441,7 @@ impl UiWidget for UiItemList {
             if self.text_input_field_buffer.is_some() { internal::calc_frame_height(ui_sys, self.font_scale) } else { 0.0 };
 
         // The label's line above the list.
-        let label_height = if self.label.is_empty() {
+        let label_height = if !self.show_label || self.label.is_empty() {
             0.0
         } else {
             internal::calc_text_line_height(ui_sys, self.font_scale) + internal::item_spacing(ui_sys).y
@@ -495,6 +496,7 @@ impl UiItemList {
     pub fn new() -> Self {
         Self {
             label: UiString::default(),
+            show_label: true,
             font_scale: UiFontScale::default(),
             size: None,
             margin_left: 0.0,
@@ -547,6 +549,15 @@ impl UiItemList {
     // Above the list.
     pub fn with_label(mut self, label: impl Into<UiString>) -> Self {
         self.label = label.into();
+        self.show_label = true;
+        self
+    }
+
+    // A label that names it and its rows in widget paths without being drawn above it, for a list
+    // whose heading is drawn elsewhere (Custom Game's realms and maps).
+    pub fn with_hidden_label(mut self, label: impl Into<UiString>) -> Self {
+        self.label = label.into();
+        self.show_label = false;
         self
     }
 

@@ -171,12 +171,13 @@ pub fn construction_secs(tile_def: &TileDef) -> Seconds {
     scaled_construction_secs(secs)
 }
 
-// `secs` after the time scale and the instant_construction cheat.
+// `secs` after the time scale (times a custom game's fast construction scale) and the
+// instant_construction cheat.
 pub fn scaled_construction_secs(secs: Seconds) -> Seconds {
     if cheats::get().instant_construction {
         return 0.0;
     }
-    (secs * GameConfigs::get().sim.construction.time_scale).max(0.0)
+    (secs * GameConfigs::get().sim.construction.time_scale * crate::custom_game::construction_time_scale()).max(0.0)
 }
 
 // ----------------------------------------------
