@@ -18,7 +18,7 @@ const INSPECTOR_TITLE_FONT_SCALE:      UiFontScale = UiFontScale(1.5);
 const INSPECTOR_SUBHEADING_FONT_SCALE: UiFontScale = UiFontScale(1.0);
 const INSPECTOR_BODY_TEXT_FONT_SCALE:  UiFontScale = UiFontScale(1.0);
 
-const INSPECTOR_BODY_TEXT_MAX_LINES: usize = 10;
+const INSPECTOR_BODY_TEXT_MAX_LINES: usize = 14;
 const INSPECTOR_CONTENT_INSET:       f32   = 20.0; // The page sprite's torn edges.
 const INSPECTOR_BODY_TEXT_MAX_LEN:   usize = 1024;
 const INSPECTOR_FMT_STR_MAX_LEN:     usize = 128;
@@ -178,7 +178,8 @@ impl InspectorMenuRenderer {
         let body_text = self.find_body_text();
         body_text.clear_all_lines();
 
-        for (i, line) in text.split('\n').enumerate() {
+        // Lines past the panel's room are left out, not a crash.
+        for (i, line) in text.split('\n').take(INSPECTOR_BODY_TEXT_MAX_LINES).enumerate() {
             body_text.set_line_string(i, line);
         }
     }

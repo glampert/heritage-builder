@@ -14,7 +14,15 @@ use crate::{
     tile::{Tile, TileKind},
     ui_context::GameUiContext,
     sim::resources::{ResourceKind, StockItem},
-    building::{Building, BuildingArchetypeKind, BuildingKind, BuildingContext, BuildingKindAndId, construction::ConstructionSite},
+    building::{
+        Building,
+        BuildingArchetypeKind,
+        BuildingKind,
+        BuildingContext,
+        BuildingKindAndId,
+        construction::ConstructionSite,
+        risks::{self, RiskKind},
+    },
 };
 
 mod renderer;
@@ -326,14 +334,59 @@ impl BuildingInspector {
     }
 
     fn set_stats_info(&mut self, building_ctx: &BuildingContext, building: &Building) {
-        let body = {
+        let mut body = InspectorMenuBody::new();
+        Self::gather_emergency(building, &mut body);
+        body.append(&{
             if building.is(BuildingKind::House) {
                 Self::gather_house_stats(building_ctx, building)
             } else {
                 Self::gather_building_stats(building)
             }
-        };
+        });
         self.renderer.set_body(&body);
+    }
+
+    // A fire or a sickness, first, as what matters most (docs/plans/city-risks.md).
+    fn gather_emergency(building: &Building, body: &mut InspectorMenuBody) {
+        let risks = building.risks();
+        if let Some(fire) = risks.burning() {
+            add_body_line!(&mut body, "On fire! It burns down in about {} seconds unless a fire watcher puts it out.", fire.secs_left.ceil());
+        }
+        if let Some(outbreak) = risks.outbreak() {
+            match outbreak.deaths {
+                0 => add_body_line!(&mut body, "Sickness! Its residents will start dying unless a medic visits soon."),
+                1 => add_body_line!(&mut body, "Sickness! 1 resident has died. A medic's visit cures it."),
+                deaths => add_body_line!(&mut body, "Sickness! {deaths} residents have died. A medic's visit cures it."),
+            }
+        }
+    }
+
+    // One line with the risks the building builds up, by level: "Fire risk: Low | Collapse risk:
+    // Medium", and a house's disease risk.
+    fn gather_risks(building: &Building, body: &mut InspectorMenuBody) {
+        if !building.has_risks() {
+            return;
+        }
+        let rates = building.configs().risk_rates();
+        let shown = [
+            (RiskKind::Fire, "Fire risk", rates.fire),
+            (RiskKind::Collapse, "Collapse risk", rates.collapse),
+            (RiskKind::Disease, "Disease risk", rates.disease),
+        ];
+        let mut first = true;
+        for (kind, label, rate) in shown {
+            if rate <= 0.0 {
+                continue;
+            }
+            if !first {
+                body.add_str(" | ");
+            }
+            add_body_str!(&mut body, "{label}: {}", risks::risk_level_name(building.risks().get(kind)));
+            first = false;
+        }
+        if !first {
+            body.add_line("");
+        }
     }
 
     fn gather_house_stats(building_ctx: &BuildingContext, building: &Building) -> InspectorMenuBody {
@@ -378,6 +431,8 @@ impl BuildingInspector {
         } else {
             add_body_line!(&mut body, "This house is upgraded to its highest level!");
         }
+
+        Self::gather_risks(building, &mut body);
 
         let skip_empty = true;
         let stock = building.stock();
@@ -424,6 +479,8 @@ impl BuildingInspector {
                 add_body_line!(&mut body, "Building is operational but doesn't have all required workers.");
             }
         }
+
+        Self::gather_risks(building, &mut body);
 
         let skip_empty = building.archetype_kind() == BuildingArchetypeKind::ServiceBuilding
             || building.archetype_kind() == BuildingArchetypeKind::StorageBuilding;

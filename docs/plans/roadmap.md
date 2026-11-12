@@ -1,6 +1,6 @@
 # Technical roadmap
 
-**Status (2026-11-09): Phase 1 in progress: M1, M3, M4 and M5 done; M6 under way.** This is the top-level implementation plan. It turns the design in [docs/design/](../design/README.md) into milestones, puts them in order, and links to a detailed plan for each one. It was researched against `d0696fe` on `main`.
+**Status (2026-11-12): Phase 1 in progress: M1, M3, M4, M5 and M6 done.** This is the top-level implementation plan. It turns the design in [docs/design/](../design/README.md) into milestones, puts them in order, and links to a detailed plan for each one. It was researched against `d0696fe` on `main`.
 
 ## How to use this file
 
@@ -51,7 +51,7 @@ These follow [overview.md](../design/overview.md#development-phases).
 | M3 | Building costs and construction | Medium to large | M1 | [construction.md](construction.md) | Done (fast build option waits for Custom Game) |
 | M4 | Finance | Medium | M1 | [finance.md](finance.md) | Done (the tax level's and wage's effects on ratings, and the overdue debt's failure, come with M9) |
 | M5 | Goods and production for missions I-1 to I-5 | Medium | M3 | [goods.md](goods.md) | Done (vegetables, house level 5 and month-based consumption rates deferred; see the plan) |
-| M6 | City risks: fire, collapse and disease | Medium | M3, M1 | [city-risks.md](city-risks.md) | In progress: art and Phases 0–2 (risk state, save v7; fire, collapse, rubble; fire watch, builders' guild) and Phase 4 (disease, hospital dispatch, save v8) done; Phase 3: the Risk lens and the World Debug Risks tab done, the info panel's risk lines wait for the UI redesign |
+| M6 | City risks: fire, collapse and disease | Medium | M3, M1 | [city-risks.md](city-risks.md) | Done: risk state (save v7); fire, collapse, rubble; fire watch, builders' guild; disease and hospital dispatch (save v8); the Risk lens, the info panel's risk lines and the World Debug Risks tab |
 | M7 | Seasons, floods and irrigation | Large | M1, M5 | — | Not started |
 | M8 | Faith and festivals | Medium | M1 | — | Not started |
 | M9 | Ratings, goals and failure | Medium | M4, M7, M8 | — | Not started |

@@ -38,10 +38,21 @@ use crate::{
 // A risk's ceiling: a building at MAX_RISK is due to catch fire or collapse.
 pub const MAX_RISK: f32 = 100.0;
 
-// Where the info panel's "Low", "Medium" and "High" begin (Phase 3), and what risks.state
-// counts as high.
+// Where the info panel's "Low", "Medium" and "High" begin, and what risks.state counts as high.
 pub const RISK_MEDIUM: f32 = 40.0;
 pub const RISK_HIGH: f32 = 75.0;
+
+// What the info panel calls a risk: "Low" under RISK_MEDIUM, "Medium" under RISK_HIGH, "High" from
+// there.
+pub fn risk_level_name(value: f32) -> &'static str {
+    if value >= RISK_HIGH {
+        "High"
+    } else if value >= RISK_MEDIUM {
+        "Medium"
+    } else {
+        "Low"
+    }
+}
 
 // ----------------------------------------------
 // RiskKind
