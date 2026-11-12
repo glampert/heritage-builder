@@ -12,7 +12,7 @@ use crate::{
         Building,
         BuildingKindAndId,
         destruction::{self, Destruction},
-        risks::{MAX_RISK, RISK_HIGH, RiskKind},
+        risks::{MAX_RISK, RiskKind, RiskSummary},
     },
     cheats,
     config::GameConfigs,
@@ -296,68 +296,54 @@ fn state_json(context: &CommandContext) -> Value {
     let city = session.sim().risks();
     let configs = &GameConfigs::get().sim.risks;
 
-    let mut buildings = 0;
-    let (mut high_fire, mut high_collapse, mut high_disease, mut burning, mut sick) = (0, 0, 0, 0, 0);
-    let (mut max_fire, mut max_collapse, mut max_disease) = (0.0_f32, 0.0_f32, 0.0_f32);
-    // (highest risk, cell, entry) per building, sorted below.
-    let mut riskiest: Vec<(f32, (i32, i32), Value)> = Vec::new();
-    let mut fires: Vec<((i32, i32), Value)> = Vec::new();
-    let mut outbreaks: Vec<((i32, i32), Value)> = Vec::new();
-
-    session.world().for_each_building_of_any_kind(|building| {
-        // Sites and buildings whose configs give them no risks don't count.
-        if building.is_under_construction() || building.configs().risk_rates().is_zero() {
-            return true;
-        }
-        let risks = building.risks();
-        let (fire, collapse, disease) =
-            (risks.get(RiskKind::Fire), risks.get(RiskKind::Collapse), risks.get(RiskKind::Disease));
-        buildings += 1;
-        high_fire += usize::from(fire >= RISK_HIGH);
-        high_collapse += usize::from(collapse >= RISK_HIGH);
-        high_disease += usize::from(disease >= RISK_HIGH);
-        burning += usize::from(risks.is_burning());
-        sick += usize::from(risks.has_outbreak());
-        max_fire = max_fire.max(fire);
-        max_collapse = max_collapse.max(collapse);
-        max_disease = max_disease.max(disease);
-
-        let cell = building.base_cell();
-        if let Some(fire) = risks.burning() {
-            fires.push(((cell.y, cell.x), json!({
-                "name": building.name(),
-                "cell": cell_json(cell),
-                "secs_left": round(fire.secs_left),
-            })));
-        }
-        if let Some(outbreak) = risks.outbreak() {
-            outbreaks.push(((cell.y, cell.x), json!({
-                "name": building.name(),
-                "cell": cell_json(cell),
-                "secs": round(outbreak.secs),
-                "deaths": outbreak.deaths,
-                "population": building.population_count(),
-            })));
-        }
-        riskiest.push((risks.highest(), (cell.y, cell.x), json!({
-            "name": building.name(),
-            "kind": building.kind().to_string(),
-            "cell": cell_json(cell),
-            "fire": round(fire),
-            "collapse": round(collapse),
-            "disease": round(disease),
-            "near_water": risks.is_near_water(),
-        })));
-        true
-    });
-
-    // Highest risk first; ties by cell, so the list reads the same on every run.
-    riskiest.sort_by(|a, b| b.0.total_cmp(&a.0).then_with(|| a.1.cmp(&b.1)));
-    let riskiest: Vec<Value> = riskiest.into_iter().take(RISKIEST_LISTED).map(|(_, _, entry)| entry).collect();
-    fires.sort_by(|a, b| a.0.cmp(&b.0));
-    let fires: Vec<Value> = fires.into_iter().map(|(_, entry)| entry).collect();
-    outbreaks.sort_by(|a, b| a.0.cmp(&b.0));
-    let outbreaks: Vec<Value> = outbreaks.into_iter().map(|(_, entry)| entry).collect();
+    let summary = RiskSummary::of(session.world(), RISKIEST_LISTED);
+    let riskiest: Vec<Value> = summary
+        .riskiest
+        .iter()
+        .map(|entry| {
+            json!({
+                "name": entry.name,
+                "kind": entry.kind.to_string(),
+                "cell": cell_json(entry.cell),
+                "fire": round(entry.fire),
+                "collapse": round(entry.collapse),
+                "disease": round(entry.disease),
+                "near_water": entry.near_water,
+            })
+        })
+        .collect();
+    let fires: Vec<Value> = summary
+        .fires
+        .iter()
+        .map(|entry| {
+            json!({
+                "name": entry.name,
+                "cell": cell_json(entry.cell),
+                "secs_left": round(entry.burning.as_ref().map_or(0.0, |fire| fire.secs_left)),
+            })
+        })
+        .collect();
+    let outbreaks: Vec<Value> = summary
+        .outbreaks
+        .iter()
+        .map(|entry| {
+            let outbreak = entry.outbreak.as_ref();
+            json!({
+                "name": entry.name,
+                "cell": cell_json(entry.cell),
+                "secs": round(outbreak.map_or(0.0, |outbreak| outbreak.secs)),
+                "deaths": outbreak.map_or(0, |outbreak| outbreak.deaths),
+                "population": entry.population,
+            })
+        })
+        .collect();
+    let per_kind = |value: fn(&RiskSummary, RiskKind) -> Value| {
+        json!({
+            "fire": value(&summary, RiskKind::Fire),
+            "collapse": value(&summary, RiskKind::Collapse),
+            "disease": value(&summary, RiskKind::Disease),
+        })
+    };
 
     json!({
         "enabled": city.is_enabled(),
@@ -367,12 +353,12 @@ fn state_json(context: &CommandContext) -> Value {
         "no_city_risks_cheat": cheats::get().no_city_risks,
         "near_water_fire_scale": configs.near_water_fire_scale,
         "rate_jitter": configs.rate_jitter,
-        "buildings": buildings,
-        "high": { "fire": high_fire, "collapse": high_collapse, "disease": high_disease },
-        "burning": burning,
-        "sick": sick,
+        "buildings": summary.buildings,
+        "high": per_kind(|summary, kind| json!(summary.high(kind))),
+        "burning": summary.fires.len(),
+        "sick": summary.outbreaks.len(),
         "disease_deaths": city.disease_deaths(),
-        "highest": { "fire": round(max_fire), "collapse": round(max_collapse), "disease": round(max_disease) },
+        "highest": per_kind(|summary, kind| json!(round(summary.highest(kind)))),
         "riskiest": riskiest,
         "fires": fires,
         "outbreaks": outbreaks,

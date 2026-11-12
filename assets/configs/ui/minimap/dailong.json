@@ -58,6 +58,13 @@
     "water_ramp": ["#3d8fd100", "#3d8fd1b0"],
     "water_access": "#2f78c4",
     "water_no_access": "#e0893a",
+    "risk_ramp": ["#e2492f00", "#e2492fd0"],
+    "risk_low": "#efe3b4",
+    "risk_fire": "#d03a22",
+    "risk_collapse": "#8a55c4",
+    "risk_disease": "#6fae2a",
+    "risk_burning": "#3b2620",
+    "risk_diseased": "#1f5a3a",
     "refresh_secs": 1.0
   }
 }

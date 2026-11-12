@@ -69,6 +69,12 @@
 {"method": "ui.set", "params": {"path": "World Debug/Tax∕Treasury/Gold Units", "value": 250}}
 {"method": "ui.click", "params": {"path": "World Debug/Tax∕Treasury/Give Gold"}}
 {"method": "assert.eq", "params": {"query": "world.stats", "path": "/treasury/gold", "value": 350}}
+# The Risks tab: its switches turn risks off and on for the game.
+{"method": "ui.click", "params": {"path": "World Debug/Risks"}}
+{"method": "ui.set", "params": {"path": "World Debug/Risks/Risks Enabled", "value": false}}
+{"method": "assert.eq", "params": {"query": "risks.state", "path": "/enabled", "value": false}}
+{"method": "ui.set", "params": {"path": "World Debug/Risks/Risks Enabled", "value": true}}
+{"method": "assert.eq", "params": {"query": "risks.state", "path": "/enabled", "value": true}}
 {"method": "ui.click", "params": {"path": "World Debug/Close"}}
 # The log viewer's console: ui.set fills it in while it has keyboard focus, Enter runs it; or type it.
 {"method": "ui.click", "params": {"path": "Debug"}}

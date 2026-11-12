@@ -331,6 +331,7 @@ Budgets, release build, desktop; web within 2× of them:
 - [x] `MinimapLens`, `LensProvider`, the lens texture, the veil and the legend.
 - [x] The lens bar, showing only lenses that have a provider.
 - [x] Providers: Sectors and Water now. Risk (M6), Faith (M8), Flood and Fertility (M7) land with those milestones, each of which adds a checkbox to its own plan.
+- [x] Risk (M6, 2026-11-12): `RiskLens`, one lens for fire, collapse and disease ([city-risks.md](city-risks.md), Phase 3 notes). `MinimapLens::Risk` has no `RiskKind`: the city-risks plan's decision Q10 shows them together.
 - [x] Decide veil or desaturated copy by looking at both (see [open decisions](#open-decisions)). The veil reads well: no desaturated copy.
 
 ### Phase 5: Realm styles and polish

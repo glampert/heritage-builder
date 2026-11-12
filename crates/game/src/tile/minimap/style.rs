@@ -245,6 +245,13 @@ pub struct LensStyle {
     pub water_ramp: [HexColor; 2], // The heat field, from no value to full.
     pub water_access: HexColor,
     pub water_no_access: HexColor,
+    pub risk_ramp: [HexColor; 2], // The Risk lens's heat field, from no risk to the top.
+    pub risk_low: HexColor,       // A building with no risk; mixed towards its highest risk's colour.
+    pub risk_fire: HexColor,      // A building whose highest risk is fire, at the top.
+    pub risk_collapse: HexColor,  // ... collapse.
+    pub risk_disease: HexColor,   // ... disease (houses only).
+    pub risk_burning: HexColor,
+    pub risk_diseased: HexColor, // A sick house.
     pub refresh_secs: f32,
 }
 
@@ -380,6 +387,13 @@ impl Default for LensStyle {
             water_ramp: [HexColor::rgba(0x3d8fd100), HexColor::rgba(0x3d8fd1b0)],
             water_access: HexColor::rgb(0x2f78c4),
             water_no_access: HexColor::rgb(0xe0893a),
+            risk_ramp: [HexColor::rgba(0xe2492f00), HexColor::rgba(0xe2492fd0)],
+            risk_low: HexColor::rgb(0xefe3b4),
+            risk_fire: HexColor::rgb(0xd03a22),
+            risk_collapse: HexColor::rgb(0x8a55c4),
+            risk_disease: HexColor::rgb(0x6fae2a),
+            risk_burning: HexColor::rgb(0x3b2620),
+            risk_diseased: HexColor::rgb(0x1f5a3a),
             refresh_secs: 1.0,
         }
     }

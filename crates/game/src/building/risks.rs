@@ -27,20 +27,32 @@ use common::{
 use engine::log;
 use proc_macros::DrawDebugUi;
 
-use super::BuildingKind;
+use super::{BuildingKind, BuildingKindAndId};
 use crate::{
     config::{GameConfigs, RiskConfigs},
     sim::SimContext,
     unit::{Unit, task::UnitTaskRespond},
+    world::World,
 };
 
 // A risk's ceiling: a building at MAX_RISK is due to catch fire or collapse.
 pub const MAX_RISK: f32 = 100.0;
 
-// Where the info panel's "Low", "Medium" and "High" begin (Phase 3), and what risks.state
-// counts as high.
+// Where the info panel's "Low", "Medium" and "High" begin, and what risks.state counts as high.
 pub const RISK_MEDIUM: f32 = 40.0;
 pub const RISK_HIGH: f32 = 75.0;
+
+// What the info panel calls a risk: "Low" under RISK_MEDIUM, "Medium" under RISK_HIGH, "High" from
+// there.
+pub fn risk_level_name(value: f32) -> &'static str {
+    if value >= RISK_HIGH {
+        "High"
+    } else if value >= RISK_MEDIUM {
+        "Medium"
+    } else {
+        "Low"
+    }
+}
 
 // ----------------------------------------------
 // RiskKind
@@ -437,6 +449,111 @@ pub fn risk_reset_by(unit: &Unit, context: &SimContext) -> Option<RiskKind> {
         Some(RiskKind::Disease)
     } else {
         None
+    }
+}
+
+// ----------------------------------------------
+// RiskSummary
+// ----------------------------------------------
+
+// One building's risks, as a RiskSummary lists them.
+#[derive(Clone)]
+pub struct RiskEntry {
+    pub kind_and_id: BuildingKindAndId,
+    pub name: &'static str,
+    pub kind: BuildingKind,
+    pub cell: Cell,
+    pub fire: f32,
+    pub collapse: f32,
+    pub disease: f32,
+    pub near_water: bool,
+    pub population: u32,
+    pub burning: Option<BurningState>,
+    pub outbreak: Option<OutbreakState>,
+}
+
+impl RiskEntry {
+    #[inline]
+    pub fn highest(&self) -> f32 {
+        self.fire.max(self.collapse).max(self.disease)
+    }
+
+    fn sort_cell(&self) -> (i32, i32) {
+        (self.cell.y, self.cell.x)
+    }
+}
+
+// The city's risks at a glance, for risks.state and the World Debug window's Risks tab: how many
+// buildings can build up risk and how many are at high risk, the highest of each risk, the
+// riskiest buildings, the fires and the outbreaks. Sites and buildings whose configs give them
+// no risks are left out (Building::has_risks).
+#[derive(Default)]
+pub struct RiskSummary {
+    pub buildings: usize,
+    high: [usize; RiskKind::COUNT],
+    highest: [f32; RiskKind::COUNT],
+    pub riskiest: Vec<RiskEntry>,  // Highest risk first, ties by cell; at most the count asked for.
+    pub fires: Vec<RiskEntry>,     // By cell.
+    pub outbreaks: Vec<RiskEntry>, // By cell.
+}
+
+impl RiskSummary {
+    // Lists at most `max_riskiest` of the riskiest buildings. Lists are ordered by cell where
+    // their values tie, so they read the same on every run.
+    pub fn of(world: &World, max_riskiest: usize) -> Self {
+        let mut summary = Self::default();
+        world.for_each_building_of_any_kind(|building| {
+            if !building.has_risks() {
+                return true;
+            }
+            let risks = building.risks();
+            let entry = RiskEntry {
+                kind_and_id: building.kind_and_id(),
+                name: building.name(),
+                kind: building.kind(),
+                cell: building.base_cell(),
+                fire: risks.fire,
+                collapse: risks.collapse,
+                disease: risks.disease,
+                near_water: risks.near_water,
+                population: building.population_count(),
+                burning: risks.burning.clone(),
+                outbreak: risks.outbreak.clone(),
+            };
+
+            summary.buildings += 1;
+            for kind in [RiskKind::Fire, RiskKind::Collapse, RiskKind::Disease] {
+                let value = risks.get(kind);
+                summary.high[kind as usize] += usize::from(value >= RISK_HIGH);
+                summary.highest[kind as usize] = summary.highest[kind as usize].max(value);
+            }
+            if entry.burning.is_some() {
+                summary.fires.push(entry.clone());
+            }
+            if entry.outbreak.is_some() {
+                summary.outbreaks.push(entry.clone());
+            }
+            summary.riskiest.push(entry);
+            true
+        });
+
+        summary.riskiest.sort_by(|a, b| b.highest().total_cmp(&a.highest()).then_with(|| a.sort_cell().cmp(&b.sort_cell())));
+        summary.riskiest.truncate(max_riskiest);
+        summary.fires.sort_by_key(RiskEntry::sort_cell);
+        summary.outbreaks.sort_by_key(RiskEntry::sort_cell);
+        summary
+    }
+
+    // How many buildings have `kind` risk at RISK_HIGH or more.
+    #[inline]
+    pub fn high(&self, kind: RiskKind) -> usize {
+        self.high[kind as usize]
+    }
+
+    // The highest `kind` risk of any building.
+    #[inline]
+    pub fn highest(&self, kind: RiskKind) -> f32 {
+        self.highest[kind as usize]
     }
 }
 

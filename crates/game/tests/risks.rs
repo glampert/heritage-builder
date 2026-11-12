@@ -15,7 +15,7 @@ use game::{
         construction::ConstructionMode,
         destruction::{self, Destruction},
         PatrolVisits,
-        risks::{self, BuildingRisks, MAX_RISK, RiskKind, RiskRates},
+        risks::{self, BuildingRisks, MAX_RISK, RiskKind, RiskRates, RiskSummary},
     },
     campaign::config::MissionRisksDef,
     cheats,
@@ -23,7 +23,17 @@ use game::{
     debug::{game_object_debug::GameObjectDebugVarRef, preset_maps},
     menu::{PlaceOrClearResult, TilePlacement},
     sim::{SimCmdQueue, SimContextMut, resources::ResourceKind, risks::CityRisks},
-    tile::{TileFlags, TileKind, TileMapLayerKind, rubble},
+    tile::{
+        TileFlags,
+        TileKind,
+        TileMapLayerKind,
+        minimap::{
+            MinimapLens,
+            lens::{self, LensContext, LensData},
+            style::MinimapStyle,
+        },
+        rubble,
+    },
     config::RiskConfigs,
     undo_redo,
     world::city_stock::CityStock,
@@ -102,6 +112,10 @@ fn main() {
         test_utils::test_fn!(test_a_sick_house_takes_no_one_in_and_doesnt_grow),
         test_utils::test_fn!(test_a_sick_house_that_downgrades_stays_sick),
         test_utils::test_fn!(test_disease_can_be_off_while_risks_are_on),
+        test_utils::test_fn!(test_the_cheat_stops_disease),
+        // Summary and lens:
+        test_utils::test_fn!(test_the_risk_summary),
+        test_utils::test_fn!(test_the_risk_lens),
         // Saves:
         test_utils::test_fn!(test_risks_round_trip_through_a_save),
     ]);
@@ -1543,4 +1557,124 @@ fn test_disease_can_be_off_while_risks_are_on() {
         secs(&mut env, risk_configs().disease_check_secs + 1.0);
         assert!(is_sick(&env, house), "on again");
     }));
+}
+
+// The cheat stops disease as it stops fires: no build-up and no roll, and an outbreak under way
+// waits, with no deaths, until it's off again.
+fn test_the_cheat_stops_disease() {
+    with_risk_configs(|configs| configs.outbreak_chance_at_max = 1.0, || with_risks(|| {
+        let mut env = TestEnvironment::new();
+        road(&mut env);
+        let house = house_with(&mut env, Cell::new(20, 11), "house2", 12);
+        let sick = house_with(&mut env, Cell::new(24, 11), "house2", 12);
+        test_utils::find_building_mut(&mut env, house).risks_mut().set(RiskKind::Disease, 60.0);
+        infect(&mut env, sick);
+
+        cheats::get_mut().no_city_risks = true;
+        assert!(!env.sim.risks().is_disease_active());
+        secs(&mut env, risk_configs().death_grace_secs + risk_configs().death_interval_secs * 2.0);
+        assert_eq!(risk(&env, house, RiskKind::Disease), 60.0, "no build-up");
+        assert!(!is_sick(&env, house), "no roll");
+        assert!(is_sick(&env, sick), "the outbreak waits");
+        assert_eq!(population(&env, sick), 12, "no one dies while it waits");
+
+        cheats::get_mut().no_city_risks = false;
+        secs(&mut env, risk_configs().death_grace_secs + 1.0);
+        assert!(population(&env, sick) < 12, "deaths once the cheat is off");
+    }));
+}
+
+// The summary behind risks.state and the World Debug window's Risks tab.
+fn test_the_risk_summary() {
+    let mut env = TestEnvironment::new();
+    road(&mut env);
+    let calm = test_utils::spawn_building(&mut env, Cell::new(14, 11), "storage_yard");
+    let risky = test_utils::spawn_building(&mut env, Cell::new(20, 11), "storage_yard");
+    let burning = test_utils::spawn_building(&mut env, Cell::new(26, 11), "storage_yard");
+    let house = house_with(&mut env, Cell::new(2, 11), "house2", 12);
+    test_utils::find_building_mut(&mut env, calm).risks_mut().set(RiskKind::Collapse, 30.0);
+    test_utils::find_building_mut(&mut env, risky).risks_mut().set(RiskKind::Fire, 80.0);
+    test_utils::find_building_mut(&mut env, burning).risks_mut().start_burning(12.0);
+    infect(&mut env, house);
+
+    let summary = RiskSummary::of(&env.world, 3);
+    assert_eq!(summary.buildings, 4);
+    assert_eq!(summary.high(RiskKind::Fire), 2, "the risky yard and the burning one");
+    assert_eq!(summary.high(RiskKind::Collapse), 0);
+    assert_eq!(summary.high(RiskKind::Disease), 1, "the sick house");
+    assert_eq!(summary.highest(RiskKind::Collapse), 30.0);
+    assert_eq!(summary.highest(RiskKind::Fire), MAX_RISK);
+
+    // Highest first, ties by cell (y, then x): the house's row before the burning yard's column.
+    let riskiest: Vec<BuildingKindAndId> = summary.riskiest.iter().map(|entry| entry.kind_and_id).collect();
+    assert!(riskiest == [house, burning, risky], "at most 3, the calm yard left out");
+    assert_eq!(summary.fires.len(), 1);
+    assert!(summary.fires[0].kind_and_id == burning);
+    assert_eq!(summary.fires[0].burning.as_ref().unwrap().secs_left, 12.0);
+    assert_eq!(summary.outbreaks.len(), 1);
+    assert!(summary.outbreaks[0].kind_and_id == house);
+    assert_eq!(summary.outbreaks[0].population, 12);
+}
+
+// The Risk lens colours each building by its highest risk, in that risk's colour (ties go to
+// fire, then collapse), a burning one and a sick house in their own colours, and its heat field
+// is that risk over the building's cells, fading out within a cell or two of them.
+fn test_the_risk_lens() {
+    assert!(MinimapLens::available().contains(&MinimapLens::Risk), "in the lens bar");
+
+    let mut env = TestEnvironment::new();
+    road(&mut env);
+    let calm = test_utils::spawn_building(&mut env, Cell::new(14, 11), "storage_yard");
+    let risky = test_utils::spawn_building(&mut env, Cell::new(20, 11), "storage_yard");
+    let burning = test_utils::spawn_building(&mut env, Cell::new(26, 11), "storage_yard");
+    let house = house_with(&mut env, Cell::new(2, 11), "house2", 12);
+    let tied = house_with(&mut env, Cell::new(6, 11), "house2", 12);
+    let unwell = house_with(&mut env, Cell::new(9, 11), "house2", 12);
+    test_utils::find_building_mut(&mut env, burning).risks_mut().start_burning(12.0);
+    infect(&mut env, house);
+    for (handle, fire, collapse, disease) in [(calm, 0.0, 0.0, 0.0), (risky, 20.0, 50.0, 0.0), (tied, 100.0, 100.0, 100.0), (unwell, 10.0, 0.0, 80.0)] {
+        let risks = test_utils::find_building_mut(&mut env, handle).risks_mut();
+        risks.set(RiskKind::Fire, fire);
+        risks.set(RiskKind::Collapse, collapse);
+        risks.set(RiskKind::Disease, disease);
+    }
+
+    let style = MinimapStyle::default();
+    let mut data = LensData::default();
+    let context = env.new_sim_context(0.0);
+    let map_size = context.tile_map().size_in_cells();
+    let lens_context = LensContext { sim: &context, features: context.tile_map().minimap().features(), map_size, style: &style };
+    lens::provider(MinimapLens::Risk).expect("a provider").compute(&lens_context, &mut data);
+
+    let colors = &style.lenses;
+    let color_of = |handle: BuildingKindAndId| {
+        let base = context.find_building(handle.kind, handle.id).unwrap().base_cell();
+        *data.building_colors.get(&(base.y, base.x)).expect("a colour")
+    };
+    assert_eq!(color_of(calm), colors.risk_low.color(), "no risk");
+    assert_eq!(color_of(burning), colors.risk_burning.color());
+    assert_eq!(color_of(house), colors.risk_diseased.color());
+    let low = colors.risk_low.color();
+    let assert_mixed = |handle: BuildingKindAndId, top: common::Color, share: f32, what: &str| {
+        let color = color_of(handle);
+        for (actual, from, to) in [(color.r, low.r, top.r), (color.g, low.g, top.g), (color.b, low.b, top.b)] {
+            assert!((actual - (from + (to - from) * share)).abs() < 1e-4, "{what}");
+        }
+    };
+    assert_mixed(tied, colors.risk_fire.color(), 1.0, "a tie goes to fire");
+    assert_mixed(risky, colors.risk_collapse.color(), 0.5, "half way to collapse");
+    assert_mixed(unwell, colors.risk_disease.color(), 0.8, "most of the way to disease");
+
+    let heat = |x: i32, y: i32| data.values[(x + y * map_size.width) as usize];
+    let range = |handle: BuildingKindAndId| context.find_building(handle.kind, handle.id).unwrap().cell_range();
+    let (calm_cells, risky_cells, burning_cells) = (range(calm), range(risky), range(burning));
+    assert_eq!(heat(calm_cells.start.x, calm_cells.start.y), 0, "no risk, no heat");
+    assert_eq!(heat(risky_cells.start.x, risky_cells.start.y), 128, "half the risk");
+    assert_eq!(heat(risky_cells.end.x, risky_cells.end.y), 128, "over the footprint");
+    let beside = heat(risky_cells.end.x + 1, risky_cells.start.y);
+    assert!(beside > 0 && beside < 128, "fading beside it: {beside}");
+    assert_eq!(heat(risky_cells.end.x + 2, risky_cells.start.y), 0, "gone two cells past it");
+    assert_eq!(heat(burning_cells.start.x, burning_cells.start.y), 255, "a fire at the top");
+    let legend: Vec<&str> = data.legend.iter().map(|(_, label)| *label).collect();
+    assert_eq!(legend, ["Low risk", "Fire risk", "Collapse risk", "Disease risk", "On fire", "Sickness"]);
 }
