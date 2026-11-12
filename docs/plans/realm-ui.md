@@ -621,7 +621,7 @@ The existing dialogs keep their layouts but take their panels from the Đại Lo
 - [x] **Hooks for M10:** `WorldMapProvider` gives trade data (prices, limits, requests, relations) when trade exists. Until then the panel reads the config's static values.
 - [ ] Scenario `ui_world_map.jsonl`: open it in each realm, select a city, pick a choice site in the test campaign, return.
 
-**Notes (2026-11-12, world map screen) (commit TODO):**
+**Notes (2026-11-12, world map screen) (commit `a4eea47`):**
 - `dialog/world_map/`: `WorldMap`, full screen, the 1920 × 1080 composition scaled to the window: top bar, map, side panel, legend. The map is the UI realm's campaign's (`screen_campaign`); selection and view live in `STATE`. Built in full once opened. `overlay.rs` draws labels, uncharted and threat words, routes (by kind and state), foreign rings, the player's marks with Đại Long's seal initials, A/B sites and the compass at screen size, in the skin's `world_map` looks.
 - Engine: `UiMapView` (fit, wheel zoom, edge pan, overlay, a frame past the view, records), `UiFrame`, `UiCanvas`, `UiPainter::label` and `unclipped`, dashed and dotted lines, heading font and letter spacing on `UiRichText`.
 - ui-art: marks, compass, coin, emblems per realm; Đại Long's request seal (`request_seal`). Openers: the in-game minimap's tool (the developer editor's stays disabled), `MainGame/World map` (closing the Game menu); TODOs in MissionComplete and the HUD bar. `world_map.state` gains `screen`; `world_map.set`. Scenario `ui_world_map.jsonl` (CI).
