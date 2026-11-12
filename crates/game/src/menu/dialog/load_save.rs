@@ -344,10 +344,16 @@ fn place_text(entry: &SaveEntry) -> String {
 // The name of the map a custom game was started on, from its header: maps.json's, or its id for a
 // map the configs no longer have.
 fn custom_map_name(header: &SaveHeader) -> Option<String> {
-    let id = header.custom_game.as_ref()?.map.clone()?;
+    let id = header.custom_game.as_ref()?.map.as_deref()?;
+    Some(custom_map_display_name(id))
+}
+
+// The name of the map with id `id` in maps.json, or the id for a map the configs don't have. The
+// Game menu names the custom game's map with it too.
+pub(super) fn custom_map_display_name(id: &str) -> String {
     let configs = crate::custom_game::MapConfigs::is_initialized().then(crate::custom_game::MapConfigs::get);
     let map = configs.and_then(|configs| configs.maps.iter().find(|map| map.id == id));
-    Some(map.map_or(id, |map| map.display_name().to_string()))
+    map.map_or_else(|| id.to_string(), |map| map.display_name().to_string())
 }
 
 // The preview's label and value pairs for `entry` (all "—" for none).

@@ -79,11 +79,11 @@
 
 # A popup opens and closes with its Cancel button, then opens and closes with Escape, which leaves
 # the dialog under it open. Escape again closes the dialog.
-{"method": "ui.click", "params": {"path": "MainGame/Quit"}}
+{"method": "ui.click", "params": {"path": "MainGame/Quit to menu"}}
 {"method": "wait.frames", "params": {"frames": 15}}
 {"method": "ui.click", "params": {"path": "Quit Game Popup/Cancel"}}
 {"method": "wait.frames", "params": {"frames": 15}}
-{"method": "ui.click", "params": {"path": "MainGame/Quit"}}
+{"method": "ui.click", "params": {"path": "MainGame/Quit to menu"}}
 {"method": "wait.frames", "params": {"frames": 15}}
 {"method": "input.key", "params": {"key": "Escape"}}
 {"method": "wait.frames", "params": {"frames": 15}}
@@ -109,7 +109,7 @@
 {"method": "ui.click", "params": {"path": "Roads"}}
 {"method": "ui.click", "params": {"path": "Dirt Road"}}
 {"method": "dialog.open", "params": {"name": "MainGame"}}
-{"method": "ui.click", "params": {"path": "MainGame/Quit"}}
+{"method": "ui.click", "params": {"path": "MainGame/Quit to menu"}}
 {"method": "wait.frames", "params": {"frames": 15}}
 {"method": "ui.sounds", "params": {"clear": true}}
 {"method": "input.key", "params": {"key": "Escape"}}

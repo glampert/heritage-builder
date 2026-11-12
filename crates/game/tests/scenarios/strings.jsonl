@@ -14,14 +14,16 @@
 {"method": "assert.eq", "params": {"query": "text.get", "args": {"category": "Menu", "key": "no.such.key"}, "path": "", "value": {"category": "Menu", "key": "no.such.key", "text": "no.such.key", "language": null}}}
 {"method": "assert.eq", "params": {"query": "text.missing", "path": "/count", "value": 0}}
 
-# The Quit popup's heading and buttons, from their keys, under the paths they had as literals.
+# The Quit popup's heading, text and buttons, from their keys; when the city was saved, a plural form.
 {"method": "session.new_map", "params": {"size": [16, 16]}}
 {"method": "sim.pause"}
 {"method": "dialog.open", "params": {"name": "MainGame"}}
-{"method": "ui.click", "params": {"path": "MainGame/Quit"}}
-{"method": "assert.eq", "params": {"query": "ui.tree", "args": {"filter": "Quit Game Popup", "fields": ["path", "kind"]}, "path": "/widgets", "value": [{"path": "Quit Game Popup", "kind": "menu_content"}, {"path": "Quit Game Popup/Quit Game? Any unsaved progress will be lost...", "kind": "heading"}, {"path": "Quit Game Popup/Quit to Main Menu", "kind": "text_button"}, {"path": "Quit Game Popup/Exit Game", "kind": "text_button"}, {"path": "Quit Game Popup/Cancel", "kind": "text_button"}]}}
+{"method": "ui.click", "params": {"path": "MainGame/Quit to menu"}}
+{"method": "assert.eq", "params": {"query": "ui.tree", "args": {"filter": "Quit Game Popup", "fields": ["path", "kind"]}, "path": "/widgets", "value": [{"path": "Quit Game Popup", "kind": "menu_content"}, {"path": "Quit Game Popup/Quit to the menu?", "kind": "heading"}, {"path": "Quit Game Popup/Anything since the last save will be lost. Not saved yet.", "kind": "heading"}, {"path": "Quit Game Popup/Cancel", "kind": "text_button"}, {"path": "Quit Game Popup/Save and quit", "kind": "text_button"}, {"path": "Quit Game Popup/Quit", "kind": "text_button"}]}}
 {"method": "ui.click", "params": {"path": "Quit Game Popup/Cancel"}}
 {"method": "dialog.close"}
+{"method": "assert.eq", "params": {"query": "text.get", "args": {"category": "Menu", "key": "game_menu.saved", "count": 1}, "path": "/text", "value": "Saved 1 minute ago"}}
+{"method": "assert.eq", "params": {"query": "text.get", "args": {"category": "Menu", "key": "game_menu.autosaved", "count": 12}, "path": "/text", "value": "Autosaved 12 minutes ago"}}
 
 # The inspectors show a tile's description (TileDescription, by the tile def's name): grass, then a tree.
 {"method": "input.click", "params": {"cell": [8, 8]}}

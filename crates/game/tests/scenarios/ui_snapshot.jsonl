@@ -110,6 +110,13 @@
 {"method": "ui.tree", "params": {"fields": ["path", "kind", "enabled", "value"]}}
 {"method": "assert.eq", "params": {"query": "ui.layout_issues", "path": "/count", "value": 0}}
 {"method": "assert.image", "params": {"golden": "ingame_main_game.png", "path": "out/ui_snapshot/ingame_main_game.png"}}
+{"method": "ui.click", "params": {"path": "MainGame/Quit to menu"}}
+{"method": "input.move", "params": {"park": true}}
+{"method": "wait.frames", "params": {"frames": 3}}
+{"method": "ui.tree", "params": {"fields": ["path", "kind", "enabled", "value"]}}
+{"method": "assert.eq", "params": {"query": "ui.layout_issues", "path": "/count", "value": 0}}
+{"method": "assert.image", "params": {"golden": "ingame_main_game_quit.png", "path": "out/ui_snapshot/ingame_main_game_quit.png"}}
+{"method": "ui.click", "params": {"path": "Quit Game Popup/Cancel"}}
 {"method": "dialog.open", "params": {"name": "CityManagement"}}
 {"method": "wait.frames", "params": {"frames": 3}}
 {"method": "ui.tree", "params": {"fields": ["path", "kind", "enabled", "value"]}}

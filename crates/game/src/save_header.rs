@@ -312,6 +312,11 @@ pub fn remove_stale_thumbnail(save_file: PathRef) {
     }
 }
 
+// Whether a thumbnail is still to be written (GameLoop's save and quit waits for it).
+pub fn has_pending_thumbnails() -> bool {
+    !PENDING_THUMBNAILS.as_ref().is_empty()
+}
+
 // Collects the thumbnails written since last frame. Call once per frame.
 pub fn poll_thumbnails(engine: &mut Engine) {
     let pending = PENDING_THUMBNAILS.as_mut();

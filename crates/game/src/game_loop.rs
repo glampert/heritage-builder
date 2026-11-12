@@ -92,6 +92,27 @@ impl SaveSmokeTest {
 }
 
 // ----------------------------------------------
+// AfterSave
+// ----------------------------------------------
+
+// What the Game menu's "Save and quit" and "Save and exit" do once their save is written.
+#[derive(Copy, Clone, PartialEq, Eq, Debug)]
+pub enum AfterSaveAction {
+    QuitToMainMenu,
+    ExitGame,
+}
+
+struct AfterSave {
+    then: AfterSaveAction,
+    generation: u64,     // session::generation() when it was asked: another game by then leaves nothing.
+    saved: bool,         // The save ran and succeeded (GameLoop::update_after_save).
+    frames_waited: u32,  // Since then, for its thumbnail.
+}
+
+// The frames a save and quit waits for its thumbnail at most.
+const AFTER_SAVE_MAX_WAIT_FRAMES: u32 = 30;
+
+// ----------------------------------------------
 // GameLoop
 // ----------------------------------------------
 
@@ -111,6 +132,9 @@ pub struct GameLoop {
 
     // Taken with the screenshot hotkey and not yet written.
     pending_screenshots: Vec<ScreenshotId>,
+
+    // The Game menu's "Save and quit" / "Save and exit": what to do once its save is written.
+    after_save: Option<AfterSave>,
 
     // Runs automation commands: the console's (the log viewer), a script's, outside tools'.
     automation: Automation,
@@ -226,6 +250,7 @@ impl RunLoop for GameLoop {
             saves_user_configs,
             smoke_test,
             pending_screenshots: Vec::new(),
+            after_save: None,
             automation: Automation::new(script),
             frame_control: FrameControl::default(),
             session_generation: session::generation(),
@@ -272,6 +297,7 @@ impl RunLoop for GameLoop {
         self.notify_minimap_alerts();
         self.record_finished_missions();
         self.notify_risks();
+        self.update_after_save();
         self.session_cmd_queue.execute(&mut self.session, self.engine, self.configs);
 
         // Automation commands run here: the world is unlocked and no SimContext is live.
@@ -342,13 +368,16 @@ impl GameLoop {
     // Public GameLoop API:
     // ----------------------
 
+    // Leaving at once replaces a save and quit still waiting for its save (save_and_then).
     #[inline]
     pub fn quit_game(&mut self) {
+        self.after_save = None;
         self.engine.app_mut().request_quit();
     }
 
     #[inline]
     pub fn quit_to_main_menu(&mut self) {
+        self.after_save = None;
         self.session_cmd_queue.push_quit_to_main_menu();
     }
 
@@ -375,6 +404,35 @@ impl GameLoop {
     #[inline]
     pub fn save_game(&mut self, save_file_name: PathRef) {
         self.session_cmd_queue.push_save_game(save_file_name);
+    }
+
+    // Saves the game in the autosave's slot (Continue loads it) at the start of the next frame, then
+    // quits to the home menu or exits the game once the save and its thumbnail are written: the Game
+    // menu's "Save and quit" and "Save and exit". A save that fails quits nothing (the failure is
+    // logged); cancel_save_and_then, a direct quit or another game before then drop it.
+    pub fn save_and_then(&mut self, then: AfterSaveAction) {
+        if self.after_save.is_some() {
+            return; // One at a time.
+        }
+        self.after_save = Some(AfterSave { then, generation: session::generation(), saved: false, frames_waited: 0 });
+    }
+
+    // Drops a save and quit that hasn't left yet (its save, if written, stays).
+    #[inline]
+    pub fn cancel_save_and_then(&mut self) {
+        self.after_save = None;
+    }
+
+    #[inline]
+    pub fn is_save_and_then_pending(&self) -> bool {
+        self.after_save.is_some()
+    }
+
+    // When this city was last saved or loaded, and its time played now (the Game menu's "Saved N
+    // minutes ago").
+    #[inline]
+    pub fn last_saved(&self) -> (Option<session::LastSaved>, f64) {
+        (self.session.last_saved(), self.session.time_played_secs())
     }
 
     #[inline]
@@ -553,6 +611,43 @@ impl GameLoop {
         let listener_position = self.session.camera().iso_world_position();
         self.engine.sound_system_mut().update(listener_position);
         self.stats.sound_frame_time_ms = sound_update_timer.end();
+    }
+
+    // A save and quit: writes its save (here, where the session command queue would, before it
+    // runs), then runs its action once the thumbnail is written. Its own save's result decides,
+    // whatever else saves meanwhile (an autosave).
+    fn update_after_save(&mut self) {
+        let Some(after_save) = &mut self.after_save else {
+            return;
+        };
+        if after_save.generation != session::generation() {
+            self.after_save = None; // Another game since: it leaves nothing.
+            return;
+        }
+        if !after_save.saved {
+            let result = self.session.save_game_with_thumbnail(self.engine, self.configs, save::storage::AUTOSAVE_FILE_NAME);
+            match result {
+                Ok(()) => after_save.saved = true,
+                Err(_) => {
+                    // Logged by the save.
+                    log::error!(log::channel!("session"), "The save before quitting failed: staying in the game.");
+                    self.after_save = None;
+                }
+            }
+            return;
+        }
+        // The thumbnail is captured at the end of the frame the save ran in, so the city must stay
+        // on screen until then. A capture that never reports doesn't hold the quit for long.
+        after_save.frames_waited += 1;
+        if save_header::has_pending_thumbnails() && after_save.frames_waited < AFTER_SAVE_MAX_WAIT_FRAMES {
+            return;
+        }
+        let then = after_save.then;
+        self.after_save = None;
+        match then {
+            AfterSaveAction::QuitToMainMenu => self.quit_to_main_menu(),
+            AfterSaveAction::ExitGame => self.quit_game(),
+        }
     }
 
     fn update_autosave(&mut self) {

@@ -300,7 +300,7 @@ impl Home {
         let flags = DialogFrame::from_skin(Self::KIND).menu_flags();
         let mut menu = skin::dialog(context, &Self::KIND.to_string(), flags).with_widget_spacing(Vec2::new(0.0, HOME_WIDGET_SPACING * scale));
 
-        if let Some(crest) = crest(context, scale) {
+        if let Some(crest) = crest(context, HOME_CREST_HEIGHT, scale) {
             menu.add_widget(crest);
         }
         let title = UiString::key(UiTextCategory::Menu, "home.title");
@@ -315,16 +315,17 @@ impl Home {
     }
 }
 
-// The realm's crest over the title, if its skin has one: centered, at most HOME_CREST_HEIGHT tall.
-fn crest(context: &mut GameUiContext, scale: f32) -> Option<UiWidgetGroup> {
+// The realm's crest over the title, if its skin has one: centered, at most `max_height` tall (times
+// `scale`). About shows it too.
+pub(super) fn crest(context: &mut GameUiContext, max_height: f32, scale: f32) -> Option<UiWidgetGroup> {
     let (texture, size) = skin::ornament(context, "crest")?;
-    let height = size.y.min(HOME_CREST_HEIGHT) * scale;
+    let height = size.y.min(max_height) * scale;
     let size = Vec2::new(size.x * height / size.y.max(1.0), height);
     Some(UiWidgetGroup::new().with_widget(UiImage::from_texture(texture, size, size).with_label("crest")))
 }
 
-// The line under the title: the campaign of the realm the menu shows.
-fn subtitle() -> String {
+// The line under the title: the campaign of the realm the menu shows. About shows it too.
+pub(super) fn subtitle() -> String {
     let realm = skin::current_realm();
     CampaignConfigs::get()
         .campaigns

@@ -294,7 +294,7 @@
   "ornaments": { "crest": "skins/dailong/crest.png" },
   "cards": { "panel": "well", "selected": "row_selected", "padding": [24.0, 22.0], "hover": "#FFFFFF1C", "pressed": "#E1E1E1", "disabled": "#FFFFFF96" },
   "toast": { "panel": "caption", "scale": 0.6, "font_scale": 1.0 },
-  "backdrops": { "home": ["misc/home_menu_static_bg.png"], "dim_home": "#00000000", "dim_home_dialog": "#120B056B", "dim_game": "#00000026", "dim_popup": "#120B0559" },
+  "backdrops": { "home": ["misc/home_menu_static_bg.png"], "dim_home": "#00000000", "dim_home_dialog": "#120B056B", "dim_game": "#120B0573", "dim_popup": "#120B0559" },
   "dialogs": {
     "default": {"panel": "dialog", "size": [760, 960]},
     "Home": {"size": [600, 1000], "align": "left", "offset": [64, 0]},

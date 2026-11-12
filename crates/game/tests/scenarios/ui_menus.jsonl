@@ -1,6 +1,7 @@
-# The main menus (docs/plans/realm-ui.md, Phase 1): the home menu, the campaign picker, the
-# Custom Game, Settings and Load / Save dialogs in the three realms. Settings: every tab in each realm,
-# Cancel, edits kept through a rebuild, Ok (checked with config.get; a script leaves the user configs
+# The main menus (docs/plans/realm-ui.md, Phase 1): the home menu, About, the campaign picker, the
+# Custom Game, Settings and Load / Save dialogs, and the in-game Game menu with its Quit and Exit
+# popups (Save and quit saves in the autosave's slot, which Continue loads), in the three realms.
+# Settings: every tab in each realm, Cancel, edits kept through a rebuild, Ok (checked with config.get; a script leaves the user configs
 # alone) and Restore defaults. The profile (profile.set) picks the realm and fills the
 # campaign row: none reached, campaign II reached, all three; Campaign resumes the campaign at its
 # next mission, or opens the picker when more than one can be played, whose Continue starts the
@@ -12,11 +13,15 @@
 # under out/ui_menus/ (the CI artifact).
 #
 # The campaign's missions load the sample saves, so extract them first (unzip saves/sample_saves.zip,
-# as CI does). The saves it writes (ui_menus, ui_menus_a, ui_menus_b and ui_menus_custom, with their thumbnails) are
-# deleted at the end. Run it with --fresh-profile, as CI does, so it starts from an empty profile
-# and leaves the local one alone:
+# as CI does). The saves it writes (ui_menus, ui_menus_a, ui_menus_b, ui_menus_custom and the
+# autosave, with their thumbnails) are deleted at the end. Save and quit writes saves/autosave.json,
+# so the scenario stops at once if one is there: move a local autosave away before running it. Run
+# it with --fresh-profile, as CI does, so it starts from an empty profile and leaves the local one
+# alone:
 #   cargo run -p HeritageBuilder -- --fresh-profile --script crates/game/tests/scenarios/ui_menus.jsonl
 {"method": "time.fixed_dt", "params": {"dt": 0.016667}}
+# Save and quit below overwrites the autosave and the end deletes it: refuse to run over one.
+{"method": "assert.eq", "params": {"query": "session.save_info", "args": {"name": "autosave"}, "path": "/exists", "value": false}}
 {"method": "assert.eq", "params": {"query": "session.state", "path": "/menus_mode", "value": "Home"}}
 {"method": "input.move", "params": {"park": true}}
 {"method": "wait.frames", "params": {"frames": 3}}
@@ -38,6 +43,7 @@
 {"method": "assert.eq", "params": {"query": "ui.tree", "args": {"filter": "Home/Custom Game", "kind": "menu_entry"}, "path": "/widgets/0/enabled", "value": true}}
 {"method": "assert.eq", "params": {"query": "ui.tree", "args": {"filter": "Home/New Game"}, "path": "/widgets", "value": []}}
 {"method": "assert.exists", "params": {"query": "ui.tree", "args": {"filter": "Home/Version", "kind": "heading"}, "path": "/widgets/0"}}
+{"method": "assert.eq", "params": {"query": "ui.tree", "args": {"filter": "Home", "kind": "menu_content"}, "path": "/widgets/0/value/scrolls", "value": false}}
 {"method": "assert.eq", "params": {"query": "ui.layout_issues", "path": "/count", "value": 0}}
 {"method": "screenshot", "params": {"path": "out/ui_menus/home_dailong.png"}}
 # The realm's marker shows on the item hovered.
@@ -59,7 +65,32 @@
 {"method": "wait.frames", "params": {"frames": 2}}
 {"method": "ui.click", "params": {"path": "Home/About"}}
 {"method": "assert.eq", "params": {"query": "dialog.current", "path": "/current", "value": "About"}}
-{"method": "input.key", "params": {"key": "Escape"}}
+{"method": "input.move", "params": {"park": true}}
+{"method": "wait.frames", "params": {"frames": 3}}
+# About: the crest, title, the realm's campaign, the studio line, six credit sections (the fonts' from
+# assets/fonts/), the quote, the version and Back; it fits without scrolling, in each realm's look.
+{"method": "assert.exists", "params": {"query": "ui.tree", "args": {"filter": "About/crest", "kind": "image"}, "path": "/widgets/0"}}
+{"method": "assert.eq", "params": {"query": "ui.tree", "args": {"filter": "About/", "kind": "heading", "fields": ["path"]}, "path": "/widgets", "value": [{"path": "About/Heritage Builder"}, {"path": "About/The Dragon Legacy"}, {"path": "About/A City Builder by Core System Games"}, {"path": "About/GAME DESIGN AND PROGRAMMING Core System Games"}, {"path": "About/ART To be announced"}, {"path": "About/MUSIC AND SOUND To be announced"}, {"path": "About/CULTURAL AND HISTORICAL CONSULTANTS To be announced"}, {"path": "About/FONTS Protest Revolution · Jaini · Spectral Amita · Alegreya · Source Code Pro Font Awesome · SIL Open Font License 1.1"}, {"path": "About/BUILT WITH Rust · egui · wgpu · OpenGL GLFW · winit · Kira"}, {"path": "About/“They built for those who came after them.”"}, {"path": "About/Version 0.1.0 · Copyright © 2026. All Rights Reserved"}]}}
+{"method": "assert.exists", "params": {"query": "ui.tree", "args": {"filter": "About/Back", "kind": "text_button"}, "path": "/widgets/0"}}
+{"method": "assert.eq", "params": {"query": "ui.layout_issues", "path": "/count", "value": 0}}
+{"method": "assert.eq", "params": {"query": "ui.tree", "args": {"filter": "About", "kind": "menu_content"}, "path": "/widgets/0/value/scrolls", "value": false}}
+{"method": "screenshot", "params": {"path": "out/ui_menus/about_dailong.png"}}
+{"method": "ui.realm", "params": {"realm": "kambara"}}
+{"method": "wait.frames", "params": {"frames": 3}}
+{"method": "assert.exists", "params": {"query": "ui.tree", "args": {"filter": "About/The Temple Mountain", "kind": "heading"}, "path": "/widgets/0"}}
+{"method": "assert.eq", "params": {"query": "ui.layout_issues", "path": "/count", "value": 0}}
+{"method": "assert.eq", "params": {"query": "ui.tree", "args": {"filter": "About", "kind": "menu_content"}, "path": "/widgets/0/value/scrolls", "value": false}}
+{"method": "screenshot", "params": {"path": "out/ui_menus/about_kambara.png"}}
+{"method": "ui.realm", "params": {"realm": "tampadesa"}}
+{"method": "wait.frames", "params": {"frames": 3}}
+{"method": "assert.exists", "params": {"query": "ui.tree", "args": {"filter": "About/The Plain of Ten Thousand Temples", "kind": "heading"}, "path": "/widgets/0"}}
+{"method": "assert.eq", "params": {"query": "ui.layout_issues", "path": "/count", "value": 0}}
+{"method": "assert.eq", "params": {"query": "ui.tree", "args": {"filter": "About", "kind": "menu_content"}, "path": "/widgets/0/value/scrolls", "value": false}}
+{"method": "screenshot", "params": {"path": "out/ui_menus/about_tampadesa.png"}}
+{"method": "ui.realm", "params": {"realm": "auto"}}
+{"method": "wait.frames", "params": {"frames": 3}}
+# Back closes it.
+{"method": "ui.click", "params": {"path": "About/Back"}}
 {"method": "wait.frames", "params": {"frames": 2}}
 {"method": "assert.eq", "params": {"query": "dialog.current", "path": "/current", "value": "Home"}}
 {"method": "input.move", "params": {"park": true}}
@@ -569,6 +600,134 @@
 {"method": "assert.eq", "params": {"query": "session.state", "path": "/campaign/mission", "value": "A Thriving Town"}}
 {"method": "assert.eq", "params": {"query": "session.state", "path": "/campaign/mission_index", "value": 1}}
 {"method": "assert.eq", "params": {"query": "profile.state", "path": "/profile/campaigns/0/current_mission", "value": 1}}
+# ---- The Game menu in game: Resume, Save, Load, Settings, Quit to menu, Exit game; the popups; Save and quit ----
+{"method": "dialog.open", "params": {"name": "MainGame"}}
+{"method": "input.move", "params": {"park": true}}
+{"method": "wait.frames", "params": {"frames": 3}}
+{"method": "assert.eq", "params": {"query": "ui.tree", "args": {"filter": "MainGame/", "kind": "menu_entry", "fields": ["path", "kind"]}, "path": "/widgets", "value": [{"path": "MainGame/Resume", "kind": "menu_entry"}, {"path": "MainGame/Save", "kind": "menu_entry"}, {"path": "MainGame/Load", "kind": "menu_entry"}, {"path": "MainGame/Settings", "kind": "menu_entry"}, {"path": "MainGame/Quit to menu", "kind": "menu_entry"}, {"path": "MainGame/Exit game", "kind": "menu_entry"}]}}
+# What is played, and when it was saved: a mission just started is a new city.
+{"method": "assert.eq", "params": {"query": "ui.tree", "args": {"filter": "MainGame/place", "kind": "rich_text"}, "path": "/widgets/0/value", "value": "A Thriving Town · Campaign I"}}
+{"method": "assert.eq", "params": {"query": "ui.tree", "args": {"filter": "MainGame/last_saved", "kind": "rich_text"}, "path": "/widgets/0/value", "value": "Not saved yet"}}
+{"method": "assert.exists", "params": {"query": "ui.tree", "args": {"filter": "MainGame/crest", "kind": "image"}, "path": "/widgets/0"}}
+{"method": "assert.eq", "params": {"query": "ui.layout_issues", "path": "/count", "value": 0}}
+{"method": "assert.eq", "params": {"query": "ui.tree", "args": {"filter": "MainGame", "kind": "menu_content"}, "path": "/widgets/0/value/scrolls", "value": false}}
+{"method": "ui.hover", "params": {"path": "MainGame/Resume"}}
+{"method": "screenshot", "params": {"path": "out/ui_menus/game_menu_dailong.png"}}
+{"method": "ui.realm", "params": {"realm": "kambara"}}
+{"method": "wait.frames", "params": {"frames": 3}}
+{"method": "assert.eq", "params": {"query": "ui.layout_issues", "path": "/count", "value": 0}}
+{"method": "assert.eq", "params": {"query": "ui.tree", "args": {"filter": "MainGame", "kind": "menu_content"}, "path": "/widgets/0/value/scrolls", "value": false}}
+{"method": "screenshot", "params": {"path": "out/ui_menus/game_menu_kambara.png"}}
+{"method": "ui.realm", "params": {"realm": "tampadesa"}}
+{"method": "wait.frames", "params": {"frames": 3}}
+{"method": "assert.eq", "params": {"query": "ui.layout_issues", "path": "/count", "value": 0}}
+{"method": "assert.eq", "params": {"query": "ui.tree", "args": {"filter": "MainGame", "kind": "menu_content"}, "path": "/widgets/0/value/scrolls", "value": false}}
+{"method": "screenshot", "params": {"path": "out/ui_menus/game_menu_tampadesa.png"}}
+{"method": "ui.realm", "params": {"realm": "auto"}}
+{"method": "wait.frames", "params": {"frames": 3}}
+{"method": "input.move", "params": {"park": true}}
+# Save, Load and Settings open their dialogs over it; Escape comes back to it.
+{"method": "ui.click", "params": {"path": "MainGame/Save"}}
+{"method": "wait.frames", "params": {"frames": 2}}
+{"method": "assert.eq", "params": {"query": "dialog.current", "path": "/current", "value": "LoadOrSaveGame"}}
+{"method": "assert.eq", "params": {"query": "ui.tree", "args": {"filter": "LoadOrSaveGame/Save", "kind": "text_button"}, "path": "/widgets/0/enabled", "value": true}}
+{"method": "input.key", "params": {"key": "Escape"}}
+{"method": "wait.frames", "params": {"frames": 2}}
+{"method": "ui.click", "params": {"path": "MainGame/Load"}}
+{"method": "wait.frames", "params": {"frames": 2}}
+{"method": "assert.eq", "params": {"query": "dialog.current", "path": "/current", "value": "LoadOrSaveGame"}}
+{"method": "input.key", "params": {"key": "Escape"}}
+{"method": "wait.frames", "params": {"frames": 2}}
+{"method": "ui.click", "params": {"path": "MainGame/Settings"}}
+{"method": "wait.frames", "params": {"frames": 2}}
+{"method": "assert.eq", "params": {"query": "dialog.current", "path": "/current", "value": "MainSettings"}}
+{"method": "input.key", "params": {"key": "Escape"}}
+{"method": "wait.frames", "params": {"frames": 2}}
+{"method": "assert.eq", "params": {"query": "dialog.current", "path": "/current", "value": "MainGame"}}
+# Quit to menu asks first, over the menu: Cancel keeps the game. Then in each realm's look.
+{"method": "ui.click", "params": {"path": "MainGame/Quit to menu"}}
+{"method": "wait.frames", "params": {"frames": 3}}
+{"method": "assert.eq", "params": {"query": "ui.tree", "args": {"filter": "Quit Game Popup", "fields": ["path", "kind"]}, "path": "/widgets", "value": [{"path": "Quit Game Popup", "kind": "menu_content"}, {"path": "Quit Game Popup/Quit to the menu?", "kind": "heading"}, {"path": "Quit Game Popup/Anything since the last save will be lost. Not saved yet.", "kind": "heading"}, {"path": "Quit Game Popup/Cancel", "kind": "text_button"}, {"path": "Quit Game Popup/Save and quit", "kind": "text_button"}, {"path": "Quit Game Popup/Quit", "kind": "text_button"}]}}
+{"method": "assert.eq", "params": {"query": "ui.layout_issues", "path": "/count", "value": 0}}
+{"method": "input.move", "params": {"park": true}}
+{"method": "wait.frames", "params": {"frames": 2}}
+{"method": "screenshot", "params": {"path": "out/ui_menus/game_quit_dailong.png"}}
+{"method": "ui.click", "params": {"path": "Quit Game Popup/Cancel"}}
+{"method": "wait.frames", "params": {"frames": 3}}
+{"method": "assert.eq", "params": {"query": "ui.tree", "args": {"filter": "Quit Game Popup"}, "path": "/widgets", "value": []}}
+{"method": "ui.realm", "params": {"realm": "kambara"}}
+{"method": "wait.frames", "params": {"frames": 3}}
+{"method": "ui.click", "params": {"path": "MainGame/Quit to menu"}}
+{"method": "wait.frames", "params": {"frames": 3}}
+{"method": "assert.eq", "params": {"query": "ui.layout_issues", "path": "/count", "value": 0}}
+{"method": "input.move", "params": {"park": true}}
+{"method": "wait.frames", "params": {"frames": 2}}
+{"method": "screenshot", "params": {"path": "out/ui_menus/game_quit_kambara.png"}}
+{"method": "ui.click", "params": {"path": "Quit Game Popup/Cancel"}}
+{"method": "wait.frames", "params": {"frames": 3}}
+{"method": "ui.realm", "params": {"realm": "tampadesa"}}
+{"method": "wait.frames", "params": {"frames": 3}}
+{"method": "ui.click", "params": {"path": "MainGame/Quit to menu"}}
+{"method": "wait.frames", "params": {"frames": 3}}
+{"method": "assert.eq", "params": {"query": "ui.layout_issues", "path": "/count", "value": 0}}
+{"method": "input.move", "params": {"park": true}}
+{"method": "wait.frames", "params": {"frames": 2}}
+{"method": "screenshot", "params": {"path": "out/ui_menus/game_quit_tampadesa.png"}}
+{"method": "ui.click", "params": {"path": "Quit Game Popup/Cancel"}}
+{"method": "wait.frames", "params": {"frames": 3}}
+{"method": "ui.realm", "params": {"realm": "auto"}}
+{"method": "wait.frames", "params": {"frames": 3}}
+# Exit game asks the same way; Escape closes its popup only.
+{"method": "ui.click", "params": {"path": "MainGame/Exit game"}}
+{"method": "wait.frames", "params": {"frames": 3}}
+{"method": "assert.eq", "params": {"query": "ui.tree", "args": {"filter": "Exit Game Popup/", "fields": ["path"]}, "path": "/widgets", "value": [{"path": "Exit Game Popup/Exit the game?"}, {"path": "Exit Game Popup/Anything since the last save will be lost. Not saved yet."}, {"path": "Exit Game Popup/Cancel"}, {"path": "Exit Game Popup/Save and exit"}, {"path": "Exit Game Popup/Exit"}]}}
+{"method": "assert.eq", "params": {"query": "ui.layout_issues", "path": "/count", "value": 0}}
+{"method": "screenshot", "params": {"path": "out/ui_menus/game_exit_dailong.png"}}
+{"method": "input.key", "params": {"key": "Escape"}}
+{"method": "wait.frames", "params": {"frames": 3}}
+{"method": "assert.eq", "params": {"query": "ui.tree", "args": {"filter": "Exit Game Popup"}, "path": "/widgets", "value": []}}
+{"method": "assert.eq", "params": {"query": "dialog.current", "path": "/current", "value": "MainGame"}}
+# A save made through its own Save item shows once Load / Save closes over it.
+{"method": "ui.click", "params": {"path": "MainGame/Save"}}
+{"method": "wait.frames", "params": {"frames": 2}}
+{"method": "ui.set", "params": {"path": "LoadOrSaveGame/Save as", "value": "ui_menus_game"}}
+{"method": "ui.click", "params": {"path": "LoadOrSaveGame/Save"}}
+{"method": "wait.until", "params": {"query": "ui.tree", "args": {"filter": "LoadOrSaveGame/ui_menus_game", "kind": "list_item"}, "path": "/widgets/0/value/selected", "op": "eq", "value": true, "timeout_frames": 30}}
+{"method": "input.key", "params": {"key": "Escape"}}
+{"method": "wait.frames", "params": {"frames": 3}}
+{"method": "assert.eq", "params": {"query": "dialog.current", "path": "/current", "value": "MainGame"}}
+{"method": "assert.eq", "params": {"query": "ui.tree", "args": {"filter": "MainGame/last_saved", "kind": "rich_text"}, "path": "/widgets/0/value", "value": "Saved just now"}}
+{"method": "session.delete_save", "params": {"name": "ui_menus_game"}}
+# Resume closes the menu.
+{"method": "ui.click", "params": {"path": "MainGame/Resume"}}
+{"method": "wait.frames", "params": {"frames": 2}}
+{"method": "assert.eq", "params": {"query": "dialog.current", "path": "", "value": {"current": null}}}
+# A save shows in the menu as it opens.
+{"method": "session.save", "params": {"name": "ui_menus"}}
+{"method": "dialog.open", "params": {"name": "MainGame"}}
+{"method": "wait.frames", "params": {"frames": 3}}
+{"method": "assert.eq", "params": {"query": "ui.tree", "args": {"filter": "MainGame/last_saved", "kind": "rich_text"}, "path": "/widgets/0/value", "value": "Saved just now"}}
+# Save and quit saves in the autosave's slot, with its thumbnail, then quits to the home menu, whose
+# Continue loads it.
+{"method": "ui.click", "params": {"path": "MainGame/Quit to menu"}}
+{"method": "wait.frames", "params": {"frames": 3}}
+{"method": "ui.click", "params": {"path": "Quit Game Popup/Save and quit"}}
+{"method": "wait.until", "params": {"query": "session.state", "path": "/menus_mode", "op": "eq", "value": "Home", "timeout_frames": 60}}
+{"method": "assert.eq", "params": {"query": "profile.state", "path": "/profile/last_save", "value": "autosave"}}
+{"method": "assert.eq", "params": {"query": "session.save_info", "args": {"name": "autosave"}, "path": "/has_thumbnail", "value": true}}
+{"method": "assert.eq", "params": {"query": "session.save_info", "args": {"name": "autosave"}, "path": "/header/mission_index", "value": 1}}
+{"method": "input.move", "params": {"park": true}}
+{"method": "wait.frames", "params": {"frames": 3}}
+{"method": "assert.eq", "params": {"query": "ui.tree", "args": {"filter": "Home/Continue", "kind": "menu_entry"}, "path": "/widgets/0/value/subline", "value": "A Thriving Town · Campaign I · autosave"}}
+{"method": "ui.click", "params": {"path": "Home/Continue"}}
+{"method": "wait.until", "params": {"query": "session.state", "path": "/menus_mode", "op": "eq", "value": "InGame", "timeout_frames": 120}}
+{"method": "assert.eq", "params": {"query": "session.state", "path": "/campaign/mission", "value": "A Thriving Town"}}
+{"method": "dialog.open", "params": {"name": "MainGame"}}
+{"method": "wait.frames", "params": {"frames": 3}}
+{"method": "assert.eq", "params": {"query": "ui.tree", "args": {"filter": "MainGame/last_saved", "kind": "rich_text"}, "path": "/widgets/0/value", "value": "Autosaved just now"}}
+{"method": "dialog.close", "params": {"name": "MainGame"}}
+{"method": "wait.frames", "params": {"frames": 2}}
+
 
 # ---- Continue loads the last save, and says what it is ----
 {"method": "session.save", "params": {"name": "ui_menus"}}
@@ -746,5 +905,6 @@
 {"method": "assert.eq", "params": {"query": "ui.tree", "args": {"filter": "Home/Continue", "kind": "menu_entry"}, "path": "/widgets/0/tooltip", "value": "The last save, ui_menus_c, is gone."}}
 
 # ---- Leave saves/ as it was ----
+{"method": "session.delete_save", "params": {"name": "autosave"}}
 {"method": "session.delete_save", "params": {"name": "ui_menus_a"}}
 {"method": "session.delete_save", "params": {"name": "ui_menus"}}

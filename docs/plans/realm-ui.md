@@ -1,6 +1,6 @@
 # Realm UI: menus, screens and HUD in each realm's style
 
-**Status (2026-11-12): Phase 0 done; Phase 1, the main menus, in progress: Home, Load / Save, Settings and Custom Game done.** The user reviewed it on 2026-11-07: their notes are folded in (see [Review notes](#review-notes)), the open decisions' defaults are accepted, and every mockup the phases need now exists. This plan builds and restyles every retail screen after the [UI mockups](../design/mockups/README.md): the main menus, the world map, the intermission, the story comics, the HUD and the city management pages. Each screen gets one look per realm: Đại Long, Kambara and Tampadesa. It is milestone **UI** of the [roadmap](roadmap.md). It was researched against `ccca1df` on `claude`. File and line references point at that commit, so re-check them before relying on them.
+**Status (2026-11-12): Phases 0 and 1 done (the main menus: Home, Load / Save, Settings, Custom Game, About and the in-game Game menu); Phase 2, the world map, next.** The user reviewed it on 2026-11-07: their notes are folded in (see [Review notes](#review-notes)), the open decisions' defaults are accepted, and every mockup the phases need now exists. This plan builds and restyles every retail screen after the [UI mockups](../design/mockups/README.md): the main menus, the world map, the intermission, the story comics, the HUD and the city management pages. Each screen gets one look per realm: Đại Long, Kambara and Tampadesa. It is milestone **UI** of the [roadmap](roadmap.md). It was researched against `ccca1df` on `claude`. File and line references point at that commit, so re-check them before relying on them.
 
 ![Home menu, Đại Long](../design/mockups/menu-home-dailong.jpg)
 
@@ -535,21 +535,26 @@ The existing dialogs keep their layouts but take their panels from the Đại Lo
 - [x] Cancel and Start. A custom game sets the realm the in-game skin uses.
 
 **About:**
-- [ ] Crest, title, the studio line, the credit sections, "Built with", the quote, version and copyright, Back.
+- [x] Crest, title, the studio line, the credit sections, "Built with", the quote, version and copyright, Back.
 
 **In-game Game menu (MainGame):**
-- [ ] Resume, Save, Load, Settings, Quit to menu, Exit, in the dialog style.
-- [ ] Quit's confirm popup.
+- [x] Resume, Save, Load, Settings, Quit to menu, Exit, in the dialog style.
+- [x] Quit's confirm popup.
 
 **Wrap-up:**
-- [ ] Art: home backdrops for Kambara and Tampadesa; the save-row emblems; the remaining menu sprites.
+- [x] Art: home backdrops for Kambara and Tampadesa; the save-row emblems; the remaining menu sprites.
 - [x] Delete `misc/scroll_bg.png` once nothing uses it (done in Phase 0).
-- [ ] Scenarios:
+- [x] Scenarios:
   - `ui_menus.jsonl` (every dialog, every realm, Continue, Custom Game start, settings commit);
   - update `ui_new_game.jsonl` to the Blank map path.
 
+**Notes (2026-11-12, about, Game menu, wrap-up) (commit TODO):**
+- `dialog/about.rs`: crest, title, the realm's campaign, studio line, rule, six credit sections in two columns (the fonts' from `assets/fonts/` and their licences), then a filler, quote, version and copyright, Back at the bottom. `dialog/main_game.rs`: crest, "Game", the mission or custom game, Resume, Save, Load, Settings, Quit to menu, Exit game, and "Saved N minutes ago" at the bottom (`GameSession::last_saved`, time played; an autosave or a loaded autosave says "Autosaved"), followed each frame the menu is drawn, so a save through its own Save shows. Custom Game left the in-game menu (not in the mockup or the plan). Quit and Exit ask in popups (`skin::popup_with_colored_body`, 220 × 56 buttons) with Cancel, Save and quit (or exit), Quit: the popup closes, `GameLoop::save_and_then` writes the autosave's slot next frame and leaves once its thumbnail is written; a failed save, Cancel, a direct quit or another session drops it. Fixed: a rebuild of some dialogs no longer marks the profile dialogs built.
+- Phase 1 review: no new art needed. Left, in known-issues: Kambara's vines, the blurred backdrop, Home's last-played line, quote and distinctions, italics, city names; popups' headings are the skin's (smaller than game-quit's, with a rule), and the Game menu's item under the Quit popup isn't drawn hovered.
+- Verified: build, tests, web check, `--check`; CI scenarios at 1440 × 800, `ui_menus` also at 720p and 1080p; determinism twice; `ui_snapshot` per realm; `ui_build` and `determinism` record and replay; screenshots against the mockups.
+
 **Notes (2026-11-12, custom game) (commit `3beeecf`):**
-- `dialog/custom_game.rs`: `CustomGame` in three columns. Realm rows (emblem, campaign name, "Start Campaign II to unlock"), map rows from the new `maps.json` (Blank map, the sample saves' maps while present, three presets), the preview (a `minimap_bake` bake drawn as the isometric diamond in the selected realm's style; a save's map shows its realm's emblem, TODO) with size, water, woodland, trade partners (TODO M10), hazards; the Blank map's width, height and terrain; starting date (the realm's eras), goals (Sandbox, TODO M9), treasury, difficulty, four switches. New Game and its kind are gone; MainGame's button opens Custom Game.
+- `dialog/custom_game.rs`: `CustomGame` in three columns. Realm rows (emblem, campaign name, "Start Campaign II to unlock"), map rows from the new `maps.json` (Blank map, the sample saves' maps while present, three presets), the preview (a `minimap_bake` bake drawn as the isometric diamond in the selected realm's style; a save's map shows its realm's emblem, TODO) with size, water, woodland, trade partners (TODO M10), hazards; the Blank map's width, height and terrain; starting date (the realm's eras), goals (Sandbox, TODO M9), treasury, difficulty, four switches. New Game and its kind are gone; MainGame's button opened Custom Game (P1e removed it).
 - `crate::custom_game`: Start replaces the session, then sets date, treasury, the risks switch and the active custom game: its realm (`ui.realm` source `custom_game`), map, difficulty, fast construction (`fast_construction_scale` 0.25 on top of `time_scale`) and the stored switches. Design: runtime state saved in the save header (`realm`, a `custom_game` record) and read back on load, so no save-version bump.
 - Engine: hidden labels on dropdowns and lists, dropdown widths, toggle tooltips, `UiImageFit::Center`.
 - Deviations: Kambara's and Tampadesa's campaigns gain one era each (Suryadeva, Pugara), for their dates; the user should confirm. Water and Woodland stand in for the mockup's Rivers and Fertile land. Presets are the debug maps (their cheats left off). Seasons, raids: disabled; difficulty: stored only.

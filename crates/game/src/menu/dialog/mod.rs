@@ -150,6 +150,12 @@ impl DialogMenuKind {
     fn shows_profile(self) -> bool {
         matches!(self, DialogMenuKind::Home | DialogMenuKind::CampaignPicker)
     }
+
+    // The dialogs whose contents scale with the window (skin::dialog_content_scale), besides the
+    // profile's: built again when the window's size changes how large the dialogs are drawn.
+    fn scales_with_window(self) -> bool {
+        matches!(self, DialogMenuKind::About | DialogMenuKind::MainGame)
+    }
 }
 
 // ----------------------------------------------
@@ -207,7 +213,19 @@ pub fn sync(context: &mut GameUiContext) {
         // The window's size changed the dialog's, which its rows are laid out for. Its pending
         // values and tab are kept (settings::STATE).
         dialogs.rebuild(context, |kind| kind == DialogMenuKind::MainSettings);
+    } else if dialogs.window_built != window_version(context)
+        && !DialogMenuKind::iter().any(|kind| kind.scales_with_window() && dialogs.find_dialog(kind).menu().is_message_box_open())
+    {
+        // About and the Game menu, whose contents scale with the window: not under a popup, which
+        // a rebuild would close (the Game menu's Quit): once it's gone.
+        dialogs.rebuild(context, DialogMenuKind::scales_with_window);
     }
+}
+
+// How large the window draws the dialogs, in hundredths: the dialogs whose contents scale with it
+// are built again when it changes.
+fn window_version(context: &GameUiContext) -> u32 {
+    (skin::dialog_scale(ui::screen_size(context.ui_sys)) * 100.0).round() as u32
 }
 
 // The dialog a kind opens: LoadGame and SaveGame open LoadOrSaveGame (load_save::redirect);
@@ -469,6 +487,7 @@ struct DialogMenusSingleton {
     menu_stack: ArrayVec<DialogMenuKind, DIALOG_MENU_STACK_MAX_DEPTH>,
     built: (u32, u32),              // built_versions() when the dialogs were built.
     profile_built: (u32, u32, u32), // profile_versions() when the dialogs that show the profile were.
+    window_built: u32,              // window_version() when the dialogs that scale with the window were.
 }
 
 impl DialogMenusSingleton {
@@ -481,7 +500,14 @@ impl DialogMenusSingleton {
             frames.push(DialogFrame::from_skin(dialog_menu_kind));
         }
 
-        Self { dialog_menus, frames, menu_stack: ArrayVec::new(), built: built_versions(), profile_built: profile_versions(context) }
+        Self {
+            dialog_menus,
+            frames,
+            menu_stack: ArrayVec::new(),
+            built: built_versions(),
+            profile_built: profile_versions(context),
+            window_built: window_version(context),
+        }
     }
 
     // Builds the dialogs `which` picks again. The stack stays: each of them that's open is opened
@@ -491,7 +517,12 @@ impl DialogMenusSingleton {
         if DialogMenuKind::iter().all(&which) {
             self.built = built_versions();
         }
-        self.profile_built = profile_versions(context);
+        if DialogMenuKind::iter().filter(|kind| kind.shows_profile()).all(&which) {
+            self.profile_built = profile_versions(context);
+        }
+        if DialogMenuKind::iter().filter(|kind| kind.scales_with_window()).all(&which) {
+            self.window_built = window_version(context);
+        }
 
         // The old dialogs go without closing (their callbacks would resume the simulation and
         // play sounds); the new ones open below. What their widgets held is lost, so a dialog

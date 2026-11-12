@@ -940,10 +940,20 @@ pub fn popup_with_body(
     lines: impl IntoIterator<Item = UiString>,
     body: impl IntoIterator<Item = UiString>,
 ) -> UiMessageBox {
-    let color = color("ink");
-    let body = body.into_iter().map(|line| {
+    popup_with_colored_body(context, label, lines, body.into_iter().map(|line| (line, "ink")))
+}
+
+// A popup as popup_with_body makes it, each line of `body` in the skin's text colour it names
+// ("ink", "sub"): the Quit popup's "Saved 12 minutes ago." under what will be lost.
+pub fn popup_with_colored_body<'a>(
+    context: &mut dyn UiWidgetContext,
+    label: &str,
+    lines: impl IntoIterator<Item = UiString>,
+    body: impl IntoIterator<Item = (UiString, &'a str)>,
+) -> UiMessageBox {
+    let body = body.into_iter().map(|(line, color_name)| {
         let text = UiText::new(line, UiFontScale::default());
-        match color {
+        match color(color_name) {
             Some(color) => text.with_color(color),
             None => text,
         }

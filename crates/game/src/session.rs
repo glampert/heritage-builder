@@ -379,6 +379,18 @@ pub struct GameSession {
     // seeded from the save's header on load, written to the header on save.
     #[serde(skip)]
     time_played_secs: f64,
+
+    // When this city was last saved or loaded (the Game menu's "Saved N minutes ago").
+    #[serde(skip)]
+    last_saved: Option<LastSaved>,
+}
+
+// When a city was last saved or loaded, in its time played (GameSession::time_played_secs), and
+// whether the autosave saved it.
+#[derive(Copy, Clone, PartialEq, Debug)]
+pub struct LastSaved {
+    pub time_played_secs: f64,
+    pub autosave: bool,
 }
 
 impl GameSession {
@@ -446,6 +458,12 @@ impl GameSession {
     #[inline]
     pub fn advance_time_played(&mut self, delta_time_secs: Seconds) {
         self.time_played_secs += f64::from(delta_time_secs);
+    }
+
+    // When this city was last saved or loaded. None for a city never saved.
+    #[inline]
+    pub fn last_saved(&self) -> Option<LastSaved> {
+        self.last_saved
     }
 
     #[inline]
@@ -570,6 +588,7 @@ impl GameSession {
             tile_map_renderer: TileMapRenderer::new(configs.engine.grid_color, configs.engine.grid_line_thickness),
             menus: None,
             time_played_secs: 0.0,
+            last_saved: None,
         };
 
         session.menus = Some(session.create_game_menus_from_config(engine, configs, home_menu));
@@ -598,6 +617,7 @@ impl GameSession {
     // The player's profile records the mission and the campaign as reached.
     fn start_mission(&mut self) {
         self.time_played_secs = 0.0; // A new city.
+        self.last_saved = None;
         custom_game::end();
         if let Some(mission) = campaign::active_mission() {
             profile::on_mission_started(mission.campaign_id, mission.mission_index);
@@ -620,6 +640,7 @@ impl GameSession {
     fn start_custom_game(&mut self, settings: &CustomGameSettings) {
         let configs = GameConfigs::get();
         self.time_played_secs = 0.0; // A new city.
+        self.last_saved = None;
         self.sim.calendar_mut().restart(settings.calendar.clone());
         let finance = MissionFinanceDef { starting_gold: Some(settings.starting_gold), tax_level: None, wage: None };
         self.sim.finance_mut().start_mission(&finance, &configs.sim.finance);
@@ -672,6 +693,7 @@ impl GameSession {
 
             self.camera.set_map_size_in_cells(self.tile_map.size_in_cells());
             self.time_played_secs = 0.0; // A new city.
+            self.last_saved = None;
             new_generation();
         }
 
@@ -959,6 +981,8 @@ impl GameSession {
         // What Continue loads: every save goes through here, the autosave and session.save included.
         if save_result.is_ok() {
             profile::on_game_saved(save_file.as_str());
+            let autosave = save_file.as_str() == save::storage::AUTOSAVE_FILE_NAME.as_str();
+            self.last_saved = Some(LastSaved { time_played_secs: self.time_played_secs, autosave });
         }
         save_header::bump_revision();
 
@@ -1050,6 +1074,11 @@ impl GameSession {
         // The city's time played goes on from the save's (a mission starting on a save map
         // starts it again: start_mission, from post_load).
         self.time_played_secs = header.time_played_secs.filter(|secs| secs.is_finite() && *secs >= 0.0).unwrap_or(0.0);
+        // As it was saved, by the autosave or not (a mission starting on the save's map is a new
+        // city: start_mission). Its time played is the save's, so "Saved N minutes ago" counts the
+        // time played since the save, which is the time since the load.
+        let autosave = save_file.as_str() == save::storage::AUTOSAVE_FILE_NAME.as_str();
+        self.last_saved = Some(LastSaved { time_played_secs: self.time_played_secs, autosave });
         self.post_load(&mut PostLoadContext::new(engine, configs, self.sim.rng().clone(), self.tile_map.clone()));
 
         // A custom game goes on from its header: its realm and options. A campaign mission is none.
