@@ -351,6 +351,9 @@ impl ButtonDef for LeftBarButtonKind {
 // LeftBar
 // ----------------------------------------------
 
+// TODO(realm-ui): Phase 5's HUD gets a world map button (the hud-<realm> mockups' map icon) that
+// opens the world map screen: dialog::open(DialogMenuKind::WorldMap, false, context). Until then
+// the minimap's World map tool and the Game menu's World map entry open it.
 struct LeftBar {
     menu: UiMenuRcMut,
 }

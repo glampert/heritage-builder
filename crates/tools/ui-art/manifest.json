@@ -720,6 +720,66 @@
       "source_hash": "a39178cb888fb137",
       "state": null
     },
+    "assets/ui/skins/dailong/world_map_capital.png": {
+      "catalog_hash": "1ff3517c90d3a478",
+      "id": "world_map_capital",
+      "png_hash": "0897272eaa51d6b6",
+      "png_size": [
+        144,
+        144
+      ],
+      "realm": "dailong",
+      "source_hash": "8a0cbe2619311c02",
+      "state": null
+    },
+    "assets/ui/skins/dailong/world_map_city.png": {
+      "catalog_hash": "a4684c4aebc31c2a",
+      "id": "world_map_city",
+      "png_hash": "dce5c694fae6e182",
+      "png_size": [
+        144,
+        144
+      ],
+      "realm": "dailong",
+      "source_hash": "0b0f47393bd5cdd1",
+      "state": null
+    },
+    "assets/ui/skins/dailong/world_map_coin.png": {
+      "catalog_hash": "6559a9812262545b",
+      "id": "world_map_coin",
+      "png_hash": "89ebf6df4ca27e4c",
+      "png_size": [
+        72,
+        72
+      ],
+      "realm": "dailong",
+      "source_hash": "3e262c48957fdeba",
+      "state": null
+    },
+    "assets/ui/skins/dailong/world_map_compass.png": {
+      "catalog_hash": "759225f8f5c1e5f0",
+      "id": "world_map_compass",
+      "png_hash": "21754cb6cf495c8f",
+      "png_size": [
+        176,
+        176
+      ],
+      "realm": "dailong",
+      "source_hash": "19ac6e5f500d016d",
+      "state": null
+    },
+    "assets/ui/skins/dailong/world_map_emblem.png": {
+      "catalog_hash": "826cf9aaf902f8bc",
+      "id": "world_map_emblem",
+      "png_hash": "b9c6716bc4f884dc",
+      "png_size": [
+        264,
+        264
+      ],
+      "realm": "dailong",
+      "source_hash": "bad8d7da6c639268",
+      "state": null
+    },
     "assets/ui/skins/dailong/world_map_frame.png": {
       "catalog_hash": "88ba90fbbb74b082",
       "id": "world_map_frame",
@@ -730,6 +790,42 @@
       ],
       "realm": "dailong",
       "source_hash": "801b2642a0921254",
+      "state": null
+    },
+    "assets/ui/skins/dailong/world_map_legend.png": {
+      "catalog_hash": "c9e06d375ab1bc66",
+      "id": "world_map_legend",
+      "png_hash": "264251b6bfee9e33",
+      "png_size": [
+        64,
+        64
+      ],
+      "realm": "dailong",
+      "source_hash": "9848bfc5375580ec",
+      "state": null
+    },
+    "assets/ui/skins/dailong/world_map_monument.png": {
+      "catalog_hash": "074b2209f7f2664a",
+      "id": "world_map_monument",
+      "png_hash": "8c701e9a997d6c67",
+      "png_size": [
+        144,
+        144
+      ],
+      "realm": "dailong",
+      "source_hash": "508e6645c396df7c",
+      "state": null
+    },
+    "assets/ui/skins/dailong/world_map_power_emblem.png": {
+      "catalog_hash": "662ffc6ca3ac1d38",
+      "id": "world_map_power_emblem",
+      "png_hash": "032172afa2b3012d",
+      "png_size": [
+        264,
+        264
+      ],
+      "realm": "dailong",
+      "source_hash": "c1b985de743f29d5",
       "state": null
     },
     "assets/ui/skins/kambara/bubble_tail.png": {
@@ -1488,6 +1584,66 @@
       "source_hash": "4506630b6366eccd",
       "state": null
     },
+    "assets/ui/skins/kambara/world_map_capital.png": {
+      "catalog_hash": "edecd0e17e55d3c1",
+      "id": "world_map_capital",
+      "png_hash": "d8c68ebd263e6d39",
+      "png_size": [
+        144,
+        144
+      ],
+      "realm": "kambara",
+      "source_hash": "fd441560a3df6b53",
+      "state": null
+    },
+    "assets/ui/skins/kambara/world_map_city.png": {
+      "catalog_hash": "de1a047f94008f3a",
+      "id": "world_map_city",
+      "png_hash": "706f137aade0a0bd",
+      "png_size": [
+        144,
+        144
+      ],
+      "realm": "kambara",
+      "source_hash": "341d8fad43ca1ab0",
+      "state": null
+    },
+    "assets/ui/skins/kambara/world_map_coin.png": {
+      "catalog_hash": "8774e53ae9668635",
+      "id": "world_map_coin",
+      "png_hash": "a6d2588bbf1acd1b",
+      "png_size": [
+        72,
+        72
+      ],
+      "realm": "kambara",
+      "source_hash": "002877731edf1974",
+      "state": null
+    },
+    "assets/ui/skins/kambara/world_map_compass.png": {
+      "catalog_hash": "13f650a8925caf06",
+      "id": "world_map_compass",
+      "png_hash": "0384f63bfb920580",
+      "png_size": [
+        176,
+        176
+      ],
+      "realm": "kambara",
+      "source_hash": "bb03a6d063023933",
+      "state": null
+    },
+    "assets/ui/skins/kambara/world_map_emblem.png": {
+      "catalog_hash": "de6ff4361f403f6a",
+      "id": "world_map_emblem",
+      "png_hash": "1329155c839d821d",
+      "png_size": [
+        264,
+        264
+      ],
+      "realm": "kambara",
+      "source_hash": "e9b9d7b2d3b70fad",
+      "state": null
+    },
     "assets/ui/skins/kambara/world_map_frame.png": {
       "catalog_hash": "c9c75337bb9ba3b9",
       "id": "world_map_frame",
@@ -1498,6 +1654,42 @@
       ],
       "realm": "kambara",
       "source_hash": "e50942c03173a900",
+      "state": null
+    },
+    "assets/ui/skins/kambara/world_map_legend.png": {
+      "catalog_hash": "5deabc171a4ae141",
+      "id": "world_map_legend",
+      "png_hash": "b064690d3efb6bd8",
+      "png_size": [
+        64,
+        64
+      ],
+      "realm": "kambara",
+      "source_hash": "5524fe14ed5bd110",
+      "state": null
+    },
+    "assets/ui/skins/kambara/world_map_monument.png": {
+      "catalog_hash": "8d2295e0fd1baaa9",
+      "id": "world_map_monument",
+      "png_hash": "7f0341fbab8675f7",
+      "png_size": [
+        144,
+        144
+      ],
+      "realm": "kambara",
+      "source_hash": "b25a2abf28a1b63e",
+      "state": null
+    },
+    "assets/ui/skins/kambara/world_map_power_emblem.png": {
+      "catalog_hash": "cd7a371ac0407828",
+      "id": "world_map_power_emblem",
+      "png_hash": "c5597beb7ede69ac",
+      "png_size": [
+        264,
+        264
+      ],
+      "realm": "kambara",
+      "source_hash": "7c394259bcfcc5e9",
       "state": null
     },
     "assets/ui/skins/tampadesa/bubble_tail.png": {
@@ -2232,6 +2424,66 @@
       "source_hash": "2235d111547c70c3",
       "state": null
     },
+    "assets/ui/skins/tampadesa/world_map_capital.png": {
+      "catalog_hash": "a176a2ad0dffb30a",
+      "id": "world_map_capital",
+      "png_hash": "3834951832f99c5b",
+      "png_size": [
+        144,
+        144
+      ],
+      "realm": "tampadesa",
+      "source_hash": "4928eecd7b0a9d07",
+      "state": null
+    },
+    "assets/ui/skins/tampadesa/world_map_city.png": {
+      "catalog_hash": "11dbd084a564e045",
+      "id": "world_map_city",
+      "png_hash": "a6f833a2bff7d2c9",
+      "png_size": [
+        144,
+        144
+      ],
+      "realm": "tampadesa",
+      "source_hash": "2e45e93f1d1752b0",
+      "state": null
+    },
+    "assets/ui/skins/tampadesa/world_map_coin.png": {
+      "catalog_hash": "65aee307732f0839",
+      "id": "world_map_coin",
+      "png_hash": "5ba8f2ede0d4ba5c",
+      "png_size": [
+        72,
+        72
+      ],
+      "realm": "tampadesa",
+      "source_hash": "676bc09979a76899",
+      "state": null
+    },
+    "assets/ui/skins/tampadesa/world_map_compass.png": {
+      "catalog_hash": "d622655a0b11ef05",
+      "id": "world_map_compass",
+      "png_hash": "71f940b109c542ae",
+      "png_size": [
+        176,
+        176
+      ],
+      "realm": "tampadesa",
+      "source_hash": "d6cdcf5e27164a52",
+      "state": null
+    },
+    "assets/ui/skins/tampadesa/world_map_emblem.png": {
+      "catalog_hash": "eb16bdfac9c95280",
+      "id": "world_map_emblem",
+      "png_hash": "ed8126063e0d8cfa",
+      "png_size": [
+        264,
+        264
+      ],
+      "realm": "tampadesa",
+      "source_hash": "4b203fe839a70733",
+      "state": null
+    },
     "assets/ui/skins/tampadesa/world_map_frame.png": {
       "catalog_hash": "b54f5cca02ede80e",
       "id": "world_map_frame",
@@ -2242,6 +2494,42 @@
       ],
       "realm": "tampadesa",
       "source_hash": "9f610f0d4aba5e07",
+      "state": null
+    },
+    "assets/ui/skins/tampadesa/world_map_legend.png": {
+      "catalog_hash": "d9d8d64ec5a07855",
+      "id": "world_map_legend",
+      "png_hash": "e43f950fe88d6d18",
+      "png_size": [
+        64,
+        64
+      ],
+      "realm": "tampadesa",
+      "source_hash": "0df1037bade35d3d",
+      "state": null
+    },
+    "assets/ui/skins/tampadesa/world_map_monument.png": {
+      "catalog_hash": "fab73f8a6b0bdc11",
+      "id": "world_map_monument",
+      "png_hash": "e949743ee36fffc4",
+      "png_size": [
+        144,
+        144
+      ],
+      "realm": "tampadesa",
+      "source_hash": "3f1ebec440d8ab76",
+      "state": null
+    },
+    "assets/ui/skins/tampadesa/world_map_power_emblem.png": {
+      "catalog_hash": "f76db964cdca35d0",
+      "id": "world_map_power_emblem",
+      "png_hash": "122c13706e117b15",
+      "png_size": [
+        264,
+        264
+      ],
+      "realm": "tampadesa",
+      "source_hash": "41df9c27f722c2fb",
       "state": null
     },
     "assets/ui/skins/tampadesa/world_map_threat.png": {

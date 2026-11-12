@@ -156,6 +156,8 @@ pub struct UiRichText {
     emphasis_color: Option<Color>, // The text colour if None.
     colors: Vec<(String, Color)>,  // The names spans give.
     line_spacing: f32,
+    heading_font: bool,
+    letter_spacing: f32,
     parsed: RefCell<Option<(String, Vec<UiTextSpan>)>>, // A markup's text as last resolved, and its spans.
 }
 
@@ -210,6 +212,21 @@ impl UiWidget for UiRichText {
 }
 
 impl UiRichText {
+    // How far below its top its first line's baseline is drawn, in points: to line up texts of
+    // different sizes or fonts on one baseline.
+    // Measured unwrapped, unless it has a width, so it works outside a window too.
+    pub fn baseline(&self, context: &dyn UiWidgetContext) -> f32 {
+        let ui_sys = context.ui_sys();
+        let width = self.width.unwrap_or(0.0);
+        let job = self.with_spans(|spans| self.layout_job(ui_sys, spans, width, egui::Color32::WHITE));
+        let galley = ui_sys.ctx().fonts_mut(|fonts| fonts.layout_job(job));
+        galley
+            .rows
+            .first()
+            .and_then(|row| row.row.glyphs.first().map(|glyph| row.pos.y + glyph.pos.y))
+            .unwrap_or(galley.size().y * 0.8)
+    }
+
     // Text in the markup parse_rich_text reads, e.g. "The *flood* came [accent]early[/] this year."
     pub fn new(markup: impl Into<UiString>) -> Self {
         Self::with_source(UiRichTextSource::Markup(markup.into()))
@@ -231,6 +248,8 @@ impl UiRichText {
             emphasis_color: None,
             colors: Vec::new(),
             line_spacing: 0.0,
+            heading_font: false,
+            letter_spacing: 0.0,
             parsed: RefCell::new(None),
         }
     }
@@ -276,6 +295,18 @@ impl UiRichText {
         self
     }
 
+    // In the theme's heading font (a screen's title) rather than its body font.
+    pub fn with_heading_font(mut self) -> Self {
+        self.heading_font = true;
+        self
+    }
+
+    // Extra room between letters, in points (spaced capitals).
+    pub fn with_letter_spacing(mut self, spacing: f32) -> Self {
+        self.letter_spacing = spacing;
+        self
+    }
+
     // Extra room between lines, in points.
     pub fn with_line_spacing(mut self, spacing: f32) -> Self {
         self.line_spacing = spacing;
@@ -315,7 +346,10 @@ impl UiRichText {
     }
 
     fn layout_job(&self, ui_sys: &UiSystem, spans: &[UiTextSpan], width: f32, default_color: egui::Color32) -> LayoutJob {
-        let font = internal::font(ui_sys, self.font_scale);
+        let mut font = internal::font(ui_sys, self.font_scale);
+        if self.heading_font {
+            font.family = ui_sys.style_font(&egui::TextStyle::Heading).family;
+        }
         let mut job = LayoutJob::default();
         job.wrap.max_width = if width > 0.0 { width } else { f32::INFINITY };
         job.halign = match self.align {
@@ -339,6 +373,7 @@ impl UiRichText {
                 font_id: font.clone(),
                 color: color.unwrap_or(default_color),
                 italics: span.emphasis,
+                extra_letter_spacing: self.letter_spacing,
                 line_height: (self.line_spacing != 0.0).then(|| ui_sys.ctx().fonts_mut(|fonts| fonts.row_height(&font)) + self.line_spacing),
                 ..Default::default()
             };

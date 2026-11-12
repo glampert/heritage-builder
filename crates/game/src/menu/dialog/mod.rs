@@ -53,6 +53,9 @@ use mission_complete::*;
 mod campaign_complete;
 use campaign_complete::*;
 
+pub mod world_map;
+use world_map::WorldMap;
+
 // ----------------------------------------------
 // Macro: dialog_menu_factories
 // ----------------------------------------------
@@ -101,6 +104,9 @@ pub enum DialogMenuImpl {
     // Campaign progression menus:
     MissionComplete,
     CampaignComplete,
+
+    // The world map:
+    WorldMap,
 }
 
 const DIALOG_MENU_FACTORIES: [DialogMenuFactoryFn; DIALOG_MENU_COUNT] = dialog_menu_factories![
@@ -126,6 +132,8 @@ const DIALOG_MENU_FACTORIES: [DialogMenuFactoryFn; DIALOG_MENU_COUNT] = dialog_m
 
     MissionComplete,
     CampaignComplete,
+
+    WorldMap,
 ];
 
 impl DialogMenuKind {
@@ -206,6 +214,14 @@ pub fn sync(context: &mut GameUiContext) {
         // The realm changed (its rows and dates), the Blank map was picked or left (its options),
         // or the window's size changed the dialog's. What the player picked is kept (custom_game::STATE).
         dialogs.rebuild(context, |kind| kind == DialogMenuKind::CustomGame);
+    } else if dialogs.menu_stack.contains(&DialogMenuKind::WorldMap)
+        && !dialogs.find_dialog(DialogMenuKind::WorldMap).menu().is_message_box_open()
+        && world_map::needs_rebuild(context)
+    {
+        // A city was selected, the window's size changed (its layout follows the window), the realm
+        // changed (its map), or the top bar's date or treasury. What's selected and the view are
+        // kept (world_map::STATE).
+        dialogs.rebuild(context, |kind| kind == DialogMenuKind::WorldMap);
     } else if dialogs.menu_stack.contains(&DialogMenuKind::MainSettings)
         && !dialogs.find_dialog(DialogMenuKind::MainSettings).menu().is_message_box_open()
         && settings::needs_rebuild(context)
@@ -639,6 +655,13 @@ impl DialogMenusSingleton {
         // Custom Game: built afresh from the maps and the profile.
         if dialog_menu_kind == DialogMenuKind::CustomGame && !self.find_dialog(dialog_menu_kind).is_open() {
             custom_game::prepare(in_home_menu());
+            self.dialog_menus[dialog_menu_kind as usize] = dialog_menu_kind.build_menu(context);
+            self.frames[dialog_menu_kind as usize] = DialogFrame::from_skin(dialog_menu_kind);
+        }
+
+        // The world map: built afresh for the UI realm's campaign, its default city selected.
+        if dialog_menu_kind == DialogMenuKind::WorldMap && !self.find_dialog(dialog_menu_kind).is_open() {
+            world_map::prepare();
             self.dialog_menus[dialog_menu_kind as usize] = dialog_menu_kind.build_menu(context);
             self.frames[dialog_menu_kind as usize] = DialogFrame::from_skin(dialog_menu_kind);
         }

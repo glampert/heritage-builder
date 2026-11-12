@@ -4,7 +4,10 @@
 use serde::Deserialize;
 use serde_json::{Value, json};
 
+use engine::ui::widgets::UiMapViewState;
+
 use crate::{
+    menu::dialog::world_map as world_map_screen,
     automation::{CommandContext, CommandDef, CommandError, CommandResult, ParamDef, done, parse_params},
     campaign::config::CampaignConfigs,
     profile,
@@ -14,7 +17,8 @@ use crate::{
     },
 };
 
-pub(super) const COMMANDS: &[CommandDef] = &[CommandDef {
+pub(super) const COMMANDS: &[CommandDef] = &[
+CommandDef {
     name: "world_map.state",
     help: "What the world map shows of a campaign: its map (extent, compass, choice box), its cities (kind, \
            owner, position, label side, player_owned, the mission that founds it, current, and the side panel's \
@@ -22,17 +26,77 @@ pub(super) const COMMANDS: &[CommandDef] = &[CommandDef {
            map), the region labels, uncharted areas and threats (their text, with its keys), and the next \
            mission's choice (its sites and the missions they start). Player cities: those the world map file \
            gives the player (its capital, monuments), those of the missions the profile has finished and the \
-           mission being played's. selected: the city the screen has selected (null until the \
-           screen exists).",
+           mission being played's. screen: the world map screen while it's open (screen_open; null otherwise): the \
+           campaign it shows (the UI realm's), the city selected and the one under the cursor, and the map's \
+           view (zoom: 1 is the fit, the whole map; centre: the map point in the middle, in map units; fit). \
+           selected: the screen's selected city, when the screen shows this campaign.",
     params: &[ParamDef {
         name: "campaign",
         kind: "string",
         required: false,
-        help: "A campaign id (campaigns.json), hidden ones included. Default: the mission being played's campaign, \
-               else the custom game's realm's, else the latest the player can play.",
+        help: "A campaign id (campaigns.json), hidden ones included. Default: the open screen's campaign, else the \
+               mission being played's campaign, else the custom game's realm's, else the latest the player can play.",
     }],
     run: cmd_state,
-}];
+},
+CommandDef {
+    name: "world_map.set",
+    help: "Sets the open world map screen: the city selected (its side panel), and the map's view (zoom from 1, \
+           the fit, to its maximum; centre, the map point in the middle, in map units), kept in its limits. \
+           The screen shows them from the next frame. Fails while the screen isn't open.",
+    params: &[
+        ParamDef { name: "city", kind: "string", required: false, help: "A city id on the screen's map (world_map.state's cities)." },
+        ParamDef { name: "zoom", kind: "number", required: false, help: "1 shows the whole map; more is closer." },
+        ParamDef { name: "centre", kind: "point", required: false, help: "[x, y] in map units (the world file's)." },
+    ],
+    run: cmd_set,
+},
+];
+
+fn cmd_set(_context: &mut CommandContext, params: Value) -> CommandResult {
+    #[derive(Deserialize)]
+    #[serde(deny_unknown_fields)]
+    struct Params {
+        city: Option<String>,
+        zoom: Option<f32>,
+        centre: Option<[f32; 2]>,
+    }
+    let params: Params = parse_params(params)?;
+    let Some(screen) = world_map_screen::screen_info() else {
+        return Err(CommandError::failed("The world map screen isn't open (dialog.open name=WorldMap, in game)."));
+    };
+    if let Some(zoom) = params.zoom
+        && !(zoom.is_finite() && zoom > 0.0)
+    {
+        return Err(CommandError::invalid_params(format!("zoom must be a positive number, not {zoom}.")));
+    }
+    if let Some(city) = &params.city
+        && !world_map_screen::select_city(city)
+    {
+        return Err(CommandError::not_found(format!("The world map has no city '{city}'.")));
+    }
+    if params.zoom.is_some() || params.centre.is_some() {
+        let current = screen.view;
+        let centre = params.centre.map_or(current.centre, |[x, y]| common::Vec2::new(x, y));
+        world_map_screen::set_view(UiMapViewState { zoom: params.zoom.unwrap_or(current.zoom), centre });
+    }
+    done(json!({ "city": params.city, "zoom": params.zoom, "centre": params.centre }))
+}
+
+// The open screen as world_map.state reports it.
+fn screen_json(screen: &world_map_screen::WorldMapScreenInfo) -> Value {
+    let configs = CampaignConfigs::get();
+    json!({
+        "campaign": screen.campaign.and_then(|index| configs.campaign(index)).map(|campaign| campaign.id.clone()),
+        "selected": screen.selected,
+        "hovered": screen.hovered,
+        "view": json!({
+            "zoom": screen.view.zoom,
+            "centre": [screen.view.centre.x, screen.view.centre.y],
+            "fit": screen.view.zoom <= 1.0,
+        }),
+    })
+}
 
 fn cmd_state(_context: &mut CommandContext, params: Value) -> CommandResult {
     #[derive(Deserialize)]
@@ -48,13 +112,14 @@ fn cmd_state(_context: &mut CommandContext, params: Value) -> CommandResult {
             let ids: Vec<&str> = configs.campaigns.iter().map(|campaign| campaign.id.as_str()).collect();
             CommandError::not_found(format!("No campaign has the id '{id}'. Campaigns: {}.", ids.join(", ")))
         })?,
-        None => world_map::default_campaign(),
+        None => world_map_screen::screen_info().and_then(|screen| screen.campaign).unwrap_or_else(world_map::default_campaign),
     };
     let campaign = configs.campaign(campaign_index).ok_or_else(|| CommandError::not_found("There are no campaigns."))?;
     let provider = world_map::provider(campaign_index).ok_or_else(|| {
         CommandError::not_found(format!("Campaign '{}' has no world map ({}.json).", campaign.id, campaign.world_map_name()))
     })?;
     let map = provider.map();
+    let screen = world_map_screen::screen_info();
 
     let cities: Vec<Value> = provider.cities().iter().map(|city| city_json(&provider, city)).collect();
     let routes: Vec<Value> = provider.routes().iter().map(route_json).collect();
@@ -111,8 +176,9 @@ fn cmd_state(_context: &mut CommandContext, params: Value) -> CommandResult {
             })
             .collect::<Vec<_>>(),
         "next_mission": provider.next_mission_choice().map(|choice| choice_json(&choice)),
-        // TODO(realm-ui): the city the world map screen has selected, once it exists (Phase 2).
-        "selected": Value::Null,
+        "selected": screen.as_ref().filter(|screen| screen.campaign == Some(campaign_index)).and_then(|screen| screen.selected.clone()),
+        "screen_open": screen.is_some(),
+        "screen": screen.as_ref().map(screen_json),
     }))
 }
 

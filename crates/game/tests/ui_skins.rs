@@ -279,6 +279,35 @@ fn test_world_map_art_fits() {
         assert!(x > 0.0 && y > 0.0 && x + map_width < width && y + map_height < height, "{realm}: {} holds the map at {:?}", art.frame, art.frame_map_rect);
         assert!((map_width - map.x).abs() < 0.01 && (map_height - map.y).abs() < 0.01, "{realm}: the frame's map rect is the base's map");
         assert_eq!(jpeg_size(&art.backdrop), (1920.0, 1080.0), "{realm}: {}", art.backdrop);
+
+        // What the screen draws live over it: every mark it needs, the emblems, and every colour
+        // its looks name (a `text` colour or "#RRGGBB(AA)").
+        for name in ["capital", "city", "monument", "legend", "compass", "coin"] {
+            let path = art.marks.get(name).unwrap_or_else(|| panic!("{realm}: world_map: no mark '{name}'"));
+            assert!(ui_asset_exists(path), "{realm}: world_map mark '{name}': {path} doesn't exist");
+        }
+        assert!(art.emblems.get("default").is_some_and(Option::is_some), "{realm}: world_map: no default emblem");
+        for path in art.emblems.values().flatten() {
+            assert!(ui_asset_exists(path), "{realm}: world_map emblem {path} doesn't exist");
+        }
+        let resolves = |name: &str| if name.starts_with('#') { HexColor::parse(name).is_some() } else { skin.text.contains_key(name) };
+        let looks = art.text.values().chain(art.seal_letter.iter());
+        for look in looks {
+            for name in std::iter::once(&look.color).chain(look.halo.iter()).chain(look.shadow.iter()) {
+                assert!(resolves(name), "{realm}: world_map text: no colour '{name}'");
+            }
+        }
+        for (style, route) in &art.routes {
+            for name in std::iter::once(&route.color).chain(route.shadow.iter()) {
+                assert!(resolves(name), "{realm}: world_map route '{style}': no colour '{name}'");
+            }
+        }
+        for (name, value) in &art.colors {
+            assert!(resolves(value), "{realm}: world_map colour '{name}': no colour '{value}'");
+        }
+        for style in ["land", "sea", "river", "closed", "closed_legend"] {
+            assert!(art.routes.contains_key(style), "{realm}: world_map: no route style '{style}'");
+        }
     }
 }
 

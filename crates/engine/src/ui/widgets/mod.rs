@@ -43,6 +43,9 @@
 // - list.rs: UiItemList, with plain items or template rows (UiListRow, UiListRowLook).
 // - data.rs: UiKeyValues, UiTable and UiMeter, painted displays of data.
 // - rich_text.rs: UiRichText, wrapped text with emphasis and coloured runs (parse_rich_text).
+// - frame.rs: UiFrame, a widget group on a panel in a rect of its own size (a bar, a side panel).
+// - map_view.rs: UiMapView, a map that pans and zooms with markers drawn over it by a callback
+//   (record_map_marker), and UiCanvas, a rect painted by a callback.
 
 use std::{any::Any, cell::RefMut};
 use smallbox::SmallBox;
@@ -59,10 +62,12 @@ mod card;
 mod choice;
 mod columns;
 mod data;
+mod frame;
 mod group;
 mod image;
 mod input;
 mod list;
+mod map_view;
 mod menu;
 mod menu_item;
 mod message_box;
@@ -77,10 +82,12 @@ pub use card::*;
 pub use choice::*;
 pub use columns::*;
 pub use data::*;
+pub use frame::*;
 pub use group::*;
 pub use image::*;
 pub use input::*;
 pub use list::*;
+pub use map_view::*;
 pub use menu::*;
 pub use menu_item::*;
 pub use message_box::*;
@@ -305,4 +312,7 @@ pub enum UiWidgetImpl {
     UiColumns,
     UiRichText,
     UiCard,
+    UiFrame,
+    UiMapView,
+    UiCanvas,
 }

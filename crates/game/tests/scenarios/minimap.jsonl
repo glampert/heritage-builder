@@ -63,8 +63,12 @@
 {"method": "assert.eq", "params": {"query": "camera.state", "path": "/center_cell", "value": [72, 58]}}
 {"method": "ui.click", "params": {"path": "Minimap/alerts"}}
 {"method": "assert.eq", "params": {"query": "camera.state", "path": "/center_cell", "value": [56, 72]}}
-# The world map isn't there yet: its button is disabled.
-{"method": "assert.eq", "params": {"query": "ui.tree", "args": {"filter": "Minimap/world_map", "fields": ["enabled"]}, "path": "/widgets/0/enabled", "value": false}}
+# The World map tool opens the world map screen; its Return to the city comes back to the city.
+{"method": "assert.eq", "params": {"query": "ui.tree", "args": {"filter": "Minimap/world_map", "fields": ["enabled"]}, "path": "/widgets/0/enabled", "value": true}}
+{"method": "ui.click", "params": {"path": "Minimap/world_map"}}
+{"method": "assert.eq", "params": {"query": "dialog.current", "path": "/current", "value": "WorldMap"}}
+{"method": "ui.click", "params": {"path": "WorldMap/bar/Return to the city"}}
+{"method": "assert.eq", "params": {"query": "dialog.list", "path": "/dialogs/WorldMap", "value": false}}
 # Collapse and open again.
 {"method": "ui.click", "params": {"path": "Minimap/collapse"}}
 {"method": "assert.eq", "params": {"query": "minimap.state", "path": "/open", "value": false}}

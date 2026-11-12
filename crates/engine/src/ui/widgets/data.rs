@@ -285,10 +285,39 @@ pub struct UiTable {
     columns: Vec<UiTableColumn>,
     rows: Vec<UiTableRow>,
     status_column: Option<UiTableStatusLook>,
+    bullet: Option<(UiBullet, Color, f32)>,
     font_scale: UiFontScale,
     width: Option<f32>,
     look: UiRowLook,
     column_spacing: f32,
+}
+
+// The width of a table's bullet column, over its bullets' size.
+const BULLET_COLUMN_FACTOR: f32 = 2.4;
+
+// A mark before each of a table's rows (UiTable::with_bullets): a list of goods.
+#[derive(Copy, Clone, PartialEq, Eq, Debug)]
+pub enum UiBullet {
+    Square,
+    Diamond,
+    Circle,
+}
+
+fn draw_bullet(ui: &egui::Ui, center: egui::Pos2, size: f32, bullet: UiBullet, color: Color) {
+    let half = size * 0.5;
+    let fill = color32(color);
+    match bullet {
+        UiBullet::Square => {
+            ui.painter().rect_filled(egui::Rect::from_center_size(center, vec2(size, size)), 0.0, fill);
+        }
+        UiBullet::Diamond => {
+            let points = vec![center + vec2(0.0, -half), center + vec2(half, 0.0), center + vec2(0.0, half), center + vec2(-half, 0.0)];
+            ui.painter().add(egui::Shape::convex_polygon(points, fill, Stroke::NONE));
+        }
+        UiBullet::Circle => {
+            ui.painter().circle_filled(center, half, fill);
+        }
+    }
 }
 
 impl UiWidget for UiTable {
@@ -302,7 +331,13 @@ impl UiWidget for UiTable {
         let ui_sys = context.ui_sys();
         let row = row_height(ui_sys, self.font_scale, &self.look);
         let font = internal::font(ui_sys, self.font_scale);
-        let status_width = if self.status_column.is_some() { row } else { 0.0 };
+        let status_width = if self.status_column.is_some() {
+            row
+        } else if let Some((_, _, size)) = self.bullet {
+            (size * BULLET_COLUMN_FACTOR).ceil()
+        } else {
+            0.0
+        };
 
         ui_sys.with_ui(|ui| {
             let width = self.width.unwrap_or_else(|| immediate::fill_size(ui).x);
@@ -331,6 +366,10 @@ impl UiWidget for UiTable {
                 if let (Some(look), Some(status)) = (&self.status_column, table_row.status) {
                     let icon_rect = egui::Rect::from_center_size(pos2(rect.left() + status_width * 0.5, row_rect.center().y), vec2(row, row) * 0.55);
                     draw_status(ui, icon_rect, status, look);
+                }
+                if let Some((bullet, color, size)) = self.bullet {
+                    let center = pos2(rect.left() + status_width * 0.4, row_rect.center().y);
+                    draw_bullet(ui, center, size, bullet, color);
                 }
                 for (index, column) in self.columns.iter().enumerate() {
                     let text = table_row.cells.get(index).map_or("", String::as_str);
@@ -406,6 +445,7 @@ impl UiTable {
             columns: Vec::new(),
             rows: Vec::new(),
             status_column: None,
+            bullet: None,
             font_scale: UiFontScale::default(),
             width: None,
             look: UiRowLook::default(),
@@ -438,6 +478,13 @@ impl UiTable {
     pub fn with_font_scale(mut self, font_scale: UiFontScale) -> Self {
         debug_assert!(font_scale.is_valid());
         self.font_scale = font_scale;
+        self
+    }
+
+    // A `bullet` in `color`, `size` points large, before each row (not the header), in a narrow
+    // column at the left.
+    pub fn with_bullets(mut self, bullet: UiBullet, color: Color, size: f32) -> Self {
+        self.bullet = Some((bullet, color, size.max(1.0)));
         self
     }
 

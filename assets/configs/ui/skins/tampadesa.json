@@ -124,7 +124,44 @@
   "world_map": { "base": "skins/tampadesa/world_map_base.jpg",
     "threat": "skins/tampadesa/world_map_threat.png", "threat_anchor": [408, 200],
     "frame": "skins/tampadesa/world_map_frame.png", "frame_map_rect": [54, 64, 2580, 1733.76],
-    "backdrop": "skins/tampadesa/world_map_backdrop.jpg" },
+    "backdrop": "skins/tampadesa/world_map_backdrop.jpg",
+    "marks": { "capital": "skins/tampadesa/world_map_capital.png", "city": "skins/tampadesa/world_map_city.png",
+      "monument": "skins/tampadesa/world_map_monument.png", "legend": "skins/tampadesa/world_map_legend.png",
+      "compass": "skins/tampadesa/world_map_compass.png", "coin": "skins/tampadesa/world_map_coin.png" },
+    "seal_letter": null,
+    "emblems": { "sea_kingdom": null, "kambara": "skins/tampadesa/world_map_emblem.png", "default": "skins/tampadesa/world_map_power_emblem.png" },
+    "text": {
+      "capital": { "size": 22, "color": "#3B2412", "halo": "#ECD3A3D9" },
+      "city": { "color": "#3B2412", "halo": "#ECD3A3D9" },
+      "monument": { "size": 16, "color": "#3B2412", "halo": "#ECD3A3D9" },
+      "foreign": { "size": 17, "color": "#3B2412", "halo": "#ECD3A3D9" },
+      "choice": { "color": "#7A1D12", "halo": "#ECD3A3D9" },
+      "region": { "color": "#3B24128C" },
+      "region_own": { "color": "#D9A93C", "halo": "#4A2C0899", "halo_width": 2.5 },
+      "note": { "size": 16, "color": "#3B2412", "halo": "#ECD3A3D9" },
+      "compass": { "color": "#3B2412D9" }
+    },
+    "places": {
+      "capital": { "y": -8, "gap": 26, "seal": 0 }, "city": { "y": -8, "gap": 16, "seal": 0 }, "monument": { "y": -8, "gap": 22 }
+    },
+    "routes": {
+      "land": { "color": "#7A1D12", "width": 3.2, "shadow": "#2A16084D", "shadow_width": 5.5 },
+      "sea": { "color": "#F3DCA0" },
+      "river": { "color": "#F3DCA0", "shadow": "#2A160840", "shadow_width": 5 },
+      "closed": { "color": "#7A5A3A", "width": 2.5, "dash": [2, 8] },
+      "closed_legend": { "color": "#D9B98A", "width": 2.5, "dash": [2, 8] }
+    },
+    "colors": {
+      "foreign_fill": "#F0DCAE", "foreign_stroke": "#3B2412", "foreign_dot": "#9B4527",
+      "selected": "#D9A93C", "selected_outer": "#3B2412",
+      "choice": "#7A1D12", "choice_dot": "#D9A93C",
+      "relations_fill": "#D9A93C", "relations_track": "#D9BD8A", "relations_outline": "#3B2412",
+      "legend_text": "#F3DCAE", "bullet": "#D9A93C", "section": "#7A1D12",
+      "request_fill": "#7A1D12", "request_border": "#2A1608", "request_inner": "#D9A93C", "request_title": "#F6DF8E",
+      "request_text": "#F7E3B0",
+      "bar_text": "#F7E3B0", "bar_sub": "#E2B866", "panel_text": "#3B2412", "panel_sub": "#7A4F2A", "panel_rule": "#C79D64"
+    },
+    "bullet_shape": "circle", "request_dashed": false, "request_seal": false },
   "dialogs": {
     "Home": {"offset": [80, 0]},
     "CityManagement": {"size": [1600, 1020]},

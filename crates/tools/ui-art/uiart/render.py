@@ -179,7 +179,25 @@ CALLS = {
     "world_map_threat": lambda th, x, y, w, h, a: th.threat_clouds(x + a["anchor"][0], y + a["anchor"][1]),
     "world_map_frame": lambda th, x, y, w, h, a: _at_viewport(x, y, th.map_frame()),
     "world_map_backdrop": lambda th, x, y, w, h, a: _scene(th, x, y, w, h, th.background()),
+    # The world map's marks, which the game draws over the base at their cities' positions, the
+    # mark's point at the rect's centre: a player city of `kind` (capital, city, monument; `mini`:
+    # the legend's glyph) without its name or a seal's letter, the compass without its N, the top
+    # bar's coin, the side panel's emblem (the realm's trade partner's, as the mockup draws it) and
+    # a power's emblem for the cities that have none of their own: the selected foreign city's
+    # rings at `scale`.
+    "world_map_mark": lambda th, x, y, w, h, a: th.player_city(
+        *_at(x, y, w, h, a), " ", a.get("kind", "city"), False, mini=a.get("mini", False)),
+    "world_map_compass": lambda th, x, y, w, h, a: th.compass(*_at(x, y, w, h, a)),
+    "world_map_coin": lambda th, x, y, w, h, a: th.coin(*_at(x, y, w, h, a)),
+    "world_map_emblem": lambda th, x, y, w, h, a: th.panel_emblem(*_at(x, y, w, h, a)),
+    "world_map_power_emblem": lambda th, x, y, w, h, a: _scaled(
+        *_at(x, y, w, h, a), a.get("scale", 1), th.foreign_city(*_at(x, y, w, h, a), "", "", True)),
 }
+
+
+def _scaled(cx, cy, scale, body):
+    # `body` scaled by `scale` about (cx, cy).
+    return f'<g transform="translate({cx:g},{cy:g}) scale({scale:g}) translate({-cx:g},{-cy:g})">{body}</g>'
 
 
 def _world_map(a):

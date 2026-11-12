@@ -22,6 +22,8 @@
 {"method": "ui.click", "params": {"path": "Game/Resume"}}
 {"method": "ui.click", "params": {"path": "Game"}}
 {"method": "assert.eq", "params": {"query": "ui.tree", "args": {"filter": "Game/"}, "path": "/widgets", "value": []}}
+# The minimap's World map tool opens a retail dialog, which the developer editor never draws: it stays disabled.
+{"method": "assert.eq", "params": {"query": "ui.tree", "args": {"filter": "Minimap/world_map", "fields": ["enabled"]}, "path": "/widgets/0/enabled", "value": false}}
 # Minimap debug panel: open it, set a value, close it with its title bar button.
 {"method": "ui.click", "params": {"path": "Minimap/debug"}}
 {"method": "ui.set", "params": {"path": "Minimap Debug/Zoom", "value": 1.5}}

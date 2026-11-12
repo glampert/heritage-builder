@@ -32,6 +32,9 @@ impl ButtonDef for MissionCompleteButtonKind {
 // ----------------------------------------------
 
 // Placeholder prompt shown when the active mission's requirements are met.
+// TODO(realm-ui): Phase 3's debrief replaces it; its "Continue to the world map" opens the world
+// map screen (dialog::open(DialogMenuKind::WorldMap, ..)), or goes to the next mission when the
+// campaign has no world map (world_map::provider is None).
 pub struct MissionComplete {
     menu: UiMenuRcMut,
 }

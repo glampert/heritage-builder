@@ -1,0 +1,246 @@
+# The world map screen (docs/plans/realm-ui.md, Phase 2): opened from the minimap's World map tool
+# and from the Game menu's World map entry, in a Campaign I game and in each realm's look
+# (ui.realm, which shows that realm's campaign's map). Checks the top bar (title, the realm's
+# epithet, the date in the era, the season, the treasury), the markers (the mission's city, the
+# player's capital), the side panel of the city selected at open and of cities clicked on the map
+# (emblem, name, role, relations, route, goods, the court's request, the trade buttons disabled
+# until M10), the legend, zooming in with the wheel and back out to the fit, panning with the
+# cursor at the map's edges, ui.layout_issues at 100%, 200% and 75% UI scale, and Return to the
+# city. Screenshots go to out/ui_world_map/.
+#
+# Campaign I's first mission loads a sample save, so extract them first (unzip saves/sample_saves.zip,
+# as CI does). Run it with --fresh-profile, as CI does, at any window size (CI's is 1440 × 800; it
+# was checked at 1280 × 720 and 1920 × 1080 too):
+#   cargo run -p HeritageBuilder -- --fresh-profile --script crates/game/tests/scenarios/ui_world_map.jsonl
+{"method": "time.fixed_dt", "params": {"dt": 0.016667}}
+{"method": "input.move", "params": {"park": true}}
+{"method": "wait.frames", "params": {"frames": 3}}
+# Listing the widgets turns the widget registry on, for the ui.tree queries below.
+{"method": "ui.tree", "params": {"filter": "Home/", "fields": ["path"]}}
+# Not in the home menu: the screen needs a city to return to.
+{"method": "assert.eq", "params": {"query": "world_map.state", "path": "/screen_open", "value": false}}
+
+# ---- A Campaign I game: Campaign starts mission 1 (a new player has one campaign to play) ----
+{"method": "ui.click", "params": {"path": "Home/Campaign"}}
+{"method": "wait.until", "params": {"query": "session.state", "path": "/menus_mode", "op": "eq", "value": "InGame", "timeout_frames": 600}}
+{"method": "assert.eq", "params": {"query": "session.state", "path": "/campaign/mission_index", "value": 0}}
+{"method": "finance.set", "params": {"balance": 3240}}
+{"method": "input.move", "params": {"park": true}}
+{"method": "wait.frames", "params": {"frames": 3}}
+
+# ---- Opened from the minimap's World map tool ----
+{"method": "assert.eq", "params": {"query": "ui.tree", "args": {"filter": "Minimap/world_map"}, "path": "/widgets/0/enabled", "value": true}}
+{"method": "ui.click", "params": {"path": "Minimap/world_map"}}
+{"method": "assert.eq", "params": {"query": "dialog.current", "path": "/current", "value": "WorldMap"}}
+{"method": "input.move", "params": {"park": true}}
+{"method": "wait.frames", "params": {"frames": 3}}
+# The top bar: the realm's epithet, the date in Campaign I's era and its season, the treasury.
+{"method": "assert.eq", "params": {"query": "ui.tree", "args": {"filter": "WorldMap/bar/title"}, "path": "/widgets/0/value", "value": "World Map"}}
+{"method": "assert.eq", "params": {"query": "ui.tree", "args": {"filter": "WorldMap/bar/subtitle"}, "path": "/widgets/0/value", "value": "The Realm of the Great Dragon"}}
+{"method": "assert.eq", "params": {"query": "ui.tree", "args": {"filter": "WorldMap/bar/date"}, "path": "/widgets/0/value", "value": "Long Thái era, year 1"}}
+{"method": "assert.eq", "params": {"query": "ui.tree", "args": {"filter": "WorldMap/bar/season"}, "path": "/widgets/0/value", "value": "Dry season"}}
+{"method": "assert.eq", "params": {"query": "ui.tree", "args": {"filter": "WorldMap/bar/treasury"}, "path": "/widgets/0/value", "value": "3,240"}}
+{"method": "assert.exists", "params": {"query": "ui.tree", "args": {"filter": "WorldMap/bar/Return to the city", "kind": "text_button"}, "path": "/widgets/0"}}
+# The screen shows Campaign I's map, its trade partner selected, the whole map fitted.
+{"method": "assert.eq", "params": {"query": "world_map.state", "path": "/screen/campaign", "value": "dragon_legacy"}}
+{"method": "assert.eq", "params": {"query": "world_map.state", "path": "/screen/selected", "value": "vijara"}}
+{"method": "assert.eq", "params": {"query": "world_map.state", "path": "/screen/view/fit", "value": true}}
+{"method": "assert.eq", "params": {"query": "ui.tree", "args": {"filter": "WorldMap/map", "kind": "map_view"}, "path": "/widgets/0/value/zoom", "value": 1}}
+# Markers: the mission being played founds Phù Sa; Hoa Thành is the player's capital; Vijara is selected.
+{"method": "assert.eq", "params": {"query": "ui.tree", "args": {"filter": "WorldMap/Phù Sa", "kind": "map_marker"}, "path": "/widgets/0/value/current", "value": true}}
+{"method": "assert.eq", "params": {"query": "ui.tree", "args": {"filter": "WorldMap/Phù Sa", "kind": "map_marker"}, "path": "/widgets/0/value/player", "value": true}}
+{"method": "assert.eq", "params": {"query": "ui.tree", "args": {"filter": "WorldMap/Hoa Thành", "kind": "map_marker"}, "path": "/widgets/0/value/kind", "value": "capital"}}
+{"method": "assert.eq", "params": {"query": "ui.tree", "args": {"filter": "WorldMap/Vijara", "kind": "map_marker"}, "path": "/widgets/0/value/selected", "value": true}}
+# The side panel: Vijara's trade data (static until M10).
+{"method": "assert.exists", "params": {"query": "ui.tree", "args": {"filter": "WorldMap/panel/emblem", "kind": "image"}, "path": "/widgets/0"}}
+{"method": "assert.eq", "params": {"query": "ui.tree", "args": {"filter": "WorldMap/panel/name"}, "path": "/widgets/0/value", "value": "Vijara"}}
+{"method": "assert.eq", "params": {"query": "ui.tree", "args": {"filter": "WorldMap/panel/subtitle"}, "path": "/widgets/0/value", "value": "The Sea Kingdom · Trade partner"}}
+{"method": "assert.eq", "params": {"query": "ui.tree", "args": {"filter": "WorldMap/panel/relations", "kind": "key_values"}, "path": "/widgets/0/value", "value": [["Relations", "Friendly"]]}}
+{"method": "assert.eq", "params": {"query": "ui.tree", "args": {"filter": "WorldMap/panel/relations_meter", "kind": "meter"}, "path": "/widgets/0/value", "value": {"value": 4, "max": 5}}}
+# Bến Gốm, the route's port, comes with mission 2: until then the route isn't open.
+{"method": "assert.eq", "params": {"query": "ui.tree", "args": {"filter": "WorldMap/panel/route"}, "path": "/widgets/0/value", "value": "Sea route from —"}}
+{"method": "assert.eq", "params": {"query": "ui.tree", "args": {"filter": "WorldMap/panel/route_detail"}, "path": "/widgets/0/value", "value": "Not yet open"}}
+{"method": "assert.eq", "params": {"query": "ui.tree", "args": {"filter": "WorldMap/panel/They sell", "kind": "table"}, "path": "/widgets/0/value/rows", "value": [["Salt", "24"], ["Aloeswood", "60"], ["Cotton", "32"]]}}
+{"method": "assert.eq", "params": {"query": "ui.tree", "args": {"filter": "WorldMap/panel/They buy", "kind": "table"}, "path": "/widgets/0/value/rows", "value": [["Silk", "90"], ["Ceramics", "45"], ["Rice", "18"]]}}
+{"method": "assert.eq", "params": {"query": "ui.tree", "args": {"filter": "WorldMap/panel/request/title"}, "path": "/widgets/0/value", "value": "REQUEST FROM THEIR COURT"}}
+{"method": "assert.eq", "params": {"query": "ui.tree", "args": {"filter": "WorldMap/panel/request/goods"}, "path": "/widgets/0/value", "value": "Ceramics × 30 · within 8 months"}}
+{"method": "assert.eq", "params": {"query": "ui.tree", "args": {"filter": "WorldMap/panel/Set trade limits", "kind": "text_button"}, "path": "/widgets/0/enabled", "value": false}}
+{"method": "assert.eq", "params": {"query": "ui.tree", "args": {"filter": "WorldMap/panel/Send a gift", "kind": "text_button"}, "path": "/widgets/0/tooltip", "value": "Coming with trade"}}
+{"method": "assert.eq", "params": {"query": "ui.tree", "args": {"filter": "WorldMap/legend", "kind": "canvas"}, "path": "/widgets/0/value", "value": ["Your cities", "Other realms", "Next mission", "River route", "Sea route", "Land route", "Closed"]}}
+{"method": "assert.eq", "params": {"query": "ui.layout_issues", "path": "/count", "value": 0}}
+{"method": "screenshot", "params": {"path": "out/ui_world_map/dailong.png"}}
+
+# ---- Selecting cities: the player's capital, a neighbour, and back to the trade partner ----
+{"method": "ui.click", "params": {"path": "WorldMap/Hoa Thành"}}
+{"method": "input.move", "params": {"park": true}}
+{"method": "wait.frames", "params": {"frames": 3}}
+{"method": "assert.eq", "params": {"query": "world_map.state", "path": "/screen/selected", "value": "hoa_thanh"}}
+{"method": "assert.eq", "params": {"query": "ui.tree", "args": {"filter": "WorldMap/panel/name"}, "path": "/widgets/0/value", "value": "Hoa Thành"}}
+{"method": "assert.eq", "params": {"query": "ui.tree", "args": {"filter": "WorldMap/panel/subtitle"}, "path": "/widgets/0/value", "value": "Đại Long"}}
+{"method": "assert.eq", "params": {"query": "ui.tree", "args": {"filter": "WorldMap/panel/note"}, "path": "/widgets/0/value", "value": "One of your cities"}}
+{"method": "assert.eq", "params": {"query": "ui.tree", "args": {"filter": "WorldMap/Hoa Thành", "kind": "map_marker"}, "path": "/widgets/0/value/selected", "value": true}}
+{"method": "assert.eq", "params": {"query": "ui.layout_issues", "path": "/count", "value": 0}}
+{"method": "ui.click", "params": {"path": "WorldMap/Gate of the North"}}
+{"method": "input.move", "params": {"park": true}}
+{"method": "wait.frames", "params": {"frames": 3}}
+{"method": "assert.eq", "params": {"query": "ui.tree", "args": {"filter": "WorldMap/panel/name"}, "path": "/widgets/0/value", "value": "Gate of the North"}}
+{"method": "assert.eq", "params": {"query": "ui.tree", "args": {"filter": "WorldMap/panel/subtitle"}, "path": "/widgets/0/value", "value": "The Northern Throne · Neighbour"}}
+{"method": "assert.eq", "params": {"query": "ui.tree", "args": {"filter": "WorldMap/panel/note"}, "path": "/widgets/0/value", "value": "No trade with this city yet"}}
+{"method": "screenshot", "params": {"path": "out/ui_world_map/dailong_neighbour.png"}}
+{"method": "world_map.set", "params": {"city": "vijara"}}
+{"method": "wait.frames", "params": {"frames": 2}}
+{"method": "assert.eq", "params": {"query": "ui.tree", "args": {"filter": "WorldMap/panel/name"}, "path": "/widgets/0/value", "value": "Vijara"}}
+
+# ---- Zoom: the wheel zooms in about the cursor, and back out to the fit, never past it ----
+{"method": "input.scroll", "params": {"amount": 3}}
+{"method": "wait.frames", "params": {"frames": 2}}
+{"method": "assert.gt", "params": {"query": "world_map.state", "path": "/screen/view/zoom", "value": 1.5}}
+{"method": "assert.eq", "params": {"query": "world_map.state", "path": "/screen/view/fit", "value": false}}
+{"method": "assert.gt", "params": {"query": "ui.tree", "args": {"filter": "WorldMap/map", "kind": "map_view"}, "path": "/widgets/0/value/zoom", "value": 1.5}}
+{"method": "input.move", "params": {"park": true}}
+{"method": "wait.frames", "params": {"frames": 2}}
+{"method": "assert.eq", "params": {"query": "ui.layout_issues", "path": "/count", "value": 0}}
+{"method": "screenshot", "params": {"path": "out/ui_world_map/dailong_zoomed.png"}}
+# Pan: from the map's middle at zoom 2, the cursor at the right edge moves the view east, then
+# at the bottom edge south, at the camera's edge scrolling speed.
+{"method": "world_map.set", "params": {"zoom": 2, "centre": [500, 336]}}
+{"method": "wait.frames", "params": {"frames": 2}}
+{"method": "assert.eq", "params": {"query": "world_map.state", "path": "/screen/view/centre", "value": [500, 336]}}
+{"method": "ui.hover", "params": {"path": "WorldMap/map/right"}}
+{"method": "wait.frames", "params": {"frames": 20}}
+{"method": "assert.gt", "params": {"query": "world_map.state", "path": "/screen/view/centre/0", "value": 505}}
+{"method": "assert.eq", "params": {"query": "world_map.state", "path": "/screen/view/centre/1", "value": 336}}
+{"method": "ui.hover", "params": {"path": "WorldMap/map/bottom"}}
+{"method": "wait.frames", "params": {"frames": 20}}
+{"method": "assert.gt", "params": {"query": "world_map.state", "path": "/screen/view/centre/1", "value": 341}}
+# Out past the fit: the whole map again, centred.
+{"method": "input.scroll", "params": {"amount": -10}}
+{"method": "wait.frames", "params": {"frames": 2}}
+{"method": "assert.eq", "params": {"query": "world_map.state", "path": "/screen/view/zoom", "value": 1}}
+{"method": "assert.eq", "params": {"query": "world_map.state", "path": "/screen/view/fit", "value": true}}
+{"method": "assert.eq", "params": {"query": "world_map.state", "path": "/screen/view/centre", "value": [500, 336]}}
+# At the fit the edges don't pan.
+{"method": "ui.hover", "params": {"path": "WorldMap/map/left"}}
+{"method": "wait.frames", "params": {"frames": 10}}
+{"method": "assert.eq", "params": {"query": "world_map.state", "path": "/screen/view/centre", "value": [500, 336]}}
+{"method": "input.move", "params": {"park": true}}
+{"method": "wait.frames", "params": {"frames": 2}}
+
+# ---- UI scale: the screen follows the window, so its text keeps to its layout at 200% and 75% ----
+{"method": "config.set", "params": {"path": "/display/ui_scale_percent", "value": 200}}
+{"method": "wait.frames", "params": {"frames": 3}}
+{"method": "assert.eq", "params": {"query": "dialog.current", "path": "/current", "value": "WorldMap"}}
+{"method": "assert.eq", "params": {"query": "ui.layout_issues", "path": "/count", "value": 0}}
+{"method": "screenshot", "params": {"path": "out/ui_world_map/dailong_200.png"}}
+{"method": "config.set", "params": {"path": "/display/ui_scale_percent", "value": 75}}
+{"method": "wait.frames", "params": {"frames": 3}}
+{"method": "assert.eq", "params": {"query": "ui.layout_issues", "path": "/count", "value": 0}}
+{"method": "screenshot", "params": {"path": "out/ui_world_map/dailong_75.png"}}
+{"method": "config.set", "params": {"path": "/display/ui_scale_percent", "value": 100}}
+{"method": "wait.frames", "params": {"frames": 3}}
+
+# ---- Return to the city; then the Game menu's World map entry, which closes the Game menu ----
+{"method": "ui.click", "params": {"path": "WorldMap/bar/Return to the city"}}
+{"method": "assert.eq", "params": {"query": "dialog.list", "path": "/dialogs/WorldMap", "value": false}}
+{"method": "assert.eq", "params": {"query": "world_map.state", "path": "/screen_open", "value": false}}
+{"method": "dialog.open", "params": {"name": "MainGame"}}
+{"method": "ui.click", "params": {"path": "MainGame/World map"}}
+{"method": "assert.eq", "params": {"query": "dialog.current", "path": "/current", "value": "WorldMap"}}
+{"method": "assert.eq", "params": {"query": "dialog.list", "path": "/dialogs/MainGame", "value": false}}
+{"method": "input.move", "params": {"park": true}}
+{"method": "wait.frames", "params": {"frames": 3}}
+{"method": "assert.eq", "params": {"query": "world_map.state", "path": "/screen/selected", "value": "vijara"}}
+{"method": "ui.click", "params": {"path": "WorldMap/bar/Return to the city"}}
+{"method": "assert.eq", "params": {"query": "dialog.list", "path": "/dialogs/MainGame", "value": false}}
+{"method": "assert.eq", "params": {"query": "dialog.list", "path": "/dialogs/WorldMap", "value": false}}
+
+# ---- Kambara's look: Campaign II's map (the Temple Mountain), Hamsara selected ----
+{"method": "ui.realm", "params": {"realm": "kambara"}}
+{"method": "wait.frames", "params": {"frames": 2}}
+{"method": "ui.click", "params": {"path": "Minimap/world_map"}}
+{"method": "assert.eq", "params": {"query": "dialog.current", "path": "/current", "value": "WorldMap"}}
+{"method": "input.move", "params": {"park": true}}
+{"method": "wait.frames", "params": {"frames": 3}}
+{"method": "assert.eq", "params": {"query": "world_map.state", "path": "/screen/campaign", "value": "temple_mountain"}}
+{"method": "assert.eq", "params": {"query": "ui.tree", "args": {"filter": "WorldMap/bar/subtitle"}, "path": "/widgets/0/value", "value": "The Kingdom of the Temple Mountain"}}
+{"method": "assert.eq", "params": {"query": "ui.tree", "args": {"filter": "WorldMap/bar/season"}, "path": "/widgets/0/value", "value": "Season of low water"}}
+{"method": "assert.eq", "params": {"query": "ui.tree", "args": {"filter": "WorldMap/panel/name"}, "path": "/widgets/0/value", "value": "Hamsara"}}
+{"method": "assert.eq", "params": {"query": "ui.tree", "args": {"filter": "WorldMap/panel/route"}, "path": "/widgets/0/value", "value": "Hill track from Pashchima"}}
+{"method": "assert.eq", "params": {"query": "ui.tree", "args": {"filter": "WorldMap/panel/relations", "kind": "key_values"}, "path": "/widgets/0/value", "value": [["Relations", "Allied"]]}}
+{"method": "assert.eq", "params": {"query": "ui.tree", "args": {"filter": "WorldMap/Yasonagara", "kind": "map_marker"}, "path": "/widgets/0/value/player", "value": true}}
+{"method": "assert.eq", "params": {"query": "ui.layout_issues", "path": "/count", "value": 0}}
+{"method": "screenshot", "params": {"path": "out/ui_world_map/kambara.png"}}
+{"method": "ui.click", "params": {"path": "WorldMap/Silapura"}}
+{"method": "input.move", "params": {"park": true}}
+{"method": "wait.frames", "params": {"frames": 3}}
+{"method": "assert.eq", "params": {"query": "ui.tree", "args": {"filter": "WorldMap/panel/name"}, "path": "/widgets/0/value", "value": "Silapura"}}
+{"method": "assert.eq", "params": {"query": "ui.layout_issues", "path": "/count", "value": 0}}
+{"method": "config.set", "params": {"path": "/display/ui_scale_percent", "value": 200}}
+{"method": "wait.frames", "params": {"frames": 3}}
+{"method": "assert.eq", "params": {"query": "ui.layout_issues", "path": "/count", "value": 0}}
+{"method": "screenshot", "params": {"path": "out/ui_world_map/kambara_200.png"}}
+{"method": "config.set", "params": {"path": "/display/ui_scale_percent", "value": 75}}
+{"method": "wait.frames", "params": {"frames": 3}}
+{"method": "assert.eq", "params": {"query": "ui.layout_issues", "path": "/count", "value": 0}}
+{"method": "config.set", "params": {"path": "/display/ui_scale_percent", "value": 100}}
+{"method": "wait.frames", "params": {"frames": 3}}
+{"method": "world_map.set", "params": {"zoom": 2.5, "centre": [540, 420]}}
+{"method": "wait.frames", "params": {"frames": 2}}
+{"method": "screenshot", "params": {"path": "out/ui_world_map/kambara_zoomed.png"}}
+{"method": "ui.click", "params": {"path": "WorldMap/bar/Return to the city"}}
+{"method": "dialog.open", "params": {"name": "MainGame"}}
+{"method": "ui.click", "params": {"path": "MainGame/World map"}}
+{"method": "assert.eq", "params": {"query": "dialog.current", "path": "/current", "value": "WorldMap"}}
+{"method": "assert.eq", "params": {"query": "world_map.state", "path": "/screen/view/fit", "value": true}}
+{"method": "ui.click", "params": {"path": "WorldMap/bar/Return to the city"}}
+
+# ---- Tampadesa's look: Campaign III's map, Yasonagara selected; the threat over the steppe ----
+{"method": "ui.realm", "params": {"realm": "tampadesa"}}
+{"method": "wait.frames", "params": {"frames": 2}}
+{"method": "ui.click", "params": {"path": "Minimap/world_map"}}
+{"method": "assert.eq", "params": {"query": "dialog.current", "path": "/current", "value": "WorldMap"}}
+{"method": "input.move", "params": {"park": true}}
+{"method": "wait.frames", "params": {"frames": 3}}
+{"method": "assert.eq", "params": {"query": "world_map.state", "path": "/screen/campaign", "value": "ten_thousand_temples"}}
+{"method": "assert.eq", "params": {"query": "ui.tree", "args": {"filter": "WorldMap/bar/subtitle"}, "path": "/widgets/0/value", "value": "The Copper Land"}}
+{"method": "assert.eq", "params": {"query": "ui.tree", "args": {"filter": "WorldMap/panel/name"}, "path": "/widgets/0/value", "value": "Yasonagara"}}
+{"method": "assert.eq", "params": {"query": "ui.tree", "args": {"filter": "WorldMap/panel/subtitle"}, "path": "/widgets/0/value", "value": "Kambara · the Temple Mountain · Trade partner"}}
+{"method": "assert.eq", "params": {"query": "ui.tree", "args": {"filter": "WorldMap/panel/request/goods"}, "path": "/widgets/0/value", "value": "Lacquerware × 12 · within 10 months"}}
+{"method": "assert.eq", "params": {"query": "ui.layout_issues", "path": "/count", "value": 0}}
+{"method": "screenshot", "params": {"path": "out/ui_world_map/tampadesa.png"}}
+{"method": "ui.click", "params": {"path": "WorldMap/Pugara"}}
+{"method": "input.move", "params": {"park": true}}
+{"method": "wait.frames", "params": {"frames": 3}}
+{"method": "assert.eq", "params": {"query": "ui.tree", "args": {"filter": "WorldMap/panel/name"}, "path": "/widgets/0/value", "value": "Pugara"}}
+{"method": "assert.eq", "params": {"query": "ui.layout_issues", "path": "/count", "value": 0}}
+{"method": "config.set", "params": {"path": "/display/ui_scale_percent", "value": 200}}
+{"method": "wait.frames", "params": {"frames": 3}}
+{"method": "assert.eq", "params": {"query": "ui.layout_issues", "path": "/count", "value": 0}}
+{"method": "config.set", "params": {"path": "/display/ui_scale_percent", "value": 75}}
+{"method": "wait.frames", "params": {"frames": 3}}
+{"method": "assert.eq", "params": {"query": "ui.layout_issues", "path": "/count", "value": 0}}
+{"method": "config.set", "params": {"path": "/display/ui_scale_percent", "value": 100}}
+{"method": "world_map.set", "params": {"zoom": 2.5, "centre": [250, 300]}}
+{"method": "wait.frames", "params": {"frames": 3}}
+{"method": "screenshot", "params": {"path": "out/ui_world_map/tampadesa_zoomed.png"}}
+{"method": "ui.click", "params": {"path": "WorldMap/bar/Return to the city"}}
+{"method": "dialog.open", "params": {"name": "MainGame"}}
+{"method": "ui.click", "params": {"path": "MainGame/World map"}}
+{"method": "assert.eq", "params": {"query": "dialog.current", "path": "/current", "value": "WorldMap"}}
+{"method": "ui.click", "params": {"path": "WorldMap/bar/Return to the city"}}
+
+# ---- A realm switch with the map open shows the new realm's map from its first frame ----
+{"method": "wait.frames", "params": {"frames": 2}}
+{"method": "ui.click", "params": {"path": "Minimap/world_map"}}
+{"method": "input.move", "params": {"park": true}}
+{"method": "wait.frames", "params": {"frames": 3}}
+{"method": "ui.realm", "params": {"realm": "kambara"}}
+{"method": "wait.frames", "params": {"frames": 1}}
+{"method": "assert.eq", "params": {"query": "world_map.state", "path": "/screen/campaign", "value": "temple_mountain"}}
+{"method": "assert.eq", "params": {"query": "ui.tree", "args": {"filter": "WorldMap/bar/subtitle"}, "path": "/widgets/0/value", "value": "The Kingdom of the Temple Mountain"}}
+{"method": "assert.eq", "params": {"query": "ui.tree", "args": {"filter": "WorldMap/panel/name"}, "path": "/widgets/0/value", "value": "Hamsara"}}
+{"method": "assert.exists", "params": {"query": "ui.tree", "args": {"filter": "WorldMap/Hamsara", "kind": "map_marker"}, "path": "/widgets/0"}}
+{"method": "assert.eq", "params": {"query": "ui.tree", "args": {"filter": "WorldMap/Pugara", "kind": "map_marker"}, "path": "/widgets", "value": []}}
+{"method": "ui.click", "params": {"path": "WorldMap/bar/Return to the city"}}
+{"method": "ui.realm", "params": {"realm": "auto"}}
+{"method": "assert.eq", "params": {"query": "dialog.list", "path": "/dialogs/WorldMap", "value": false}}

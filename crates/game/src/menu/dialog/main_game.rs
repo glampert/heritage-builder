@@ -1,6 +1,7 @@
 // The in-game Game menu (docs/plans/realm-ui.md, Phase 1, In-game Game menu), as the game-menu
 // mockups draw it: the realm's crest, "Game", the mission or custom game being played, a rule, the
-// menu items (Resume, Save, Load, Settings, Quit to menu, Exit game) with the realm's marker on the
+// menu items (Resume, Save, Load, World map, Settings, Quit to menu, Exit game: World map is a
+// stopgap opener of the world map screen until the HUD has its button, Phase 5) with the realm's marker on the
 // one hovered, and when the city was last saved. Quit to menu and Exit game ask first in a popup
 // (game-quit mockups): Cancel, Save and quit (or Save and exit: the game saved in the autosave's
 // slot, which Continue loads, then left once the save is written) and Quit (or Exit).
@@ -57,19 +58,21 @@ enum GameMenuItem {
     Resume,
     Save,
     Load,
+    WorldMap,
     Settings,
     QuitToMenu,
     ExitGame,
 }
 
 impl GameMenuItem {
-    const ALL: [Self; 6] = [Self::Resume, Self::Save, Self::Load, Self::Settings, Self::QuitToMenu, Self::ExitGame];
+    const ALL: [Self; 7] = [Self::Resume, Self::Save, Self::Load, Self::WorldMap, Self::Settings, Self::QuitToMenu, Self::ExitGame];
 
     fn label(self) -> UiString {
         match self {
             Self::Resume => UiString::key(UiTextCategory::Menu, "game_menu.resume"),
             Self::Save => UiString::key(UiTextCategory::Menu, "game_menu.save"),
             Self::Load => UiString::key(UiTextCategory::Menu, "game_menu.load"),
+            Self::WorldMap => UiString::key(UiTextCategory::Menu, "game_menu.world_map"),
             Self::Settings => UiString::key(UiTextCategory::Menu, "game_menu.settings"),
             Self::QuitToMenu => UiString::key(UiTextCategory::Menu, "game_menu.quit_to_menu"),
             Self::ExitGame => UiString::key(UiTextCategory::Menu, "game_menu.exit_game"),
@@ -82,6 +85,10 @@ impl GameMenuItem {
             Self::Resume => super::close_current(context),
             Self::Save => super::open(DialogMenuKind::SaveGame, CLOSE_ALL_OTHERS, context),
             Self::Load => super::open(DialogMenuKind::LoadGame, CLOSE_ALL_OTHERS, context),
+            // With the Game menu closed, so its Return to the city goes back to the city.
+            // TODO(realm-ui): the HUD's world map button (Phase 5) opens it too; this entry is a
+            // stopgap until then.
+            Self::WorldMap => super::open(DialogMenuKind::WorldMap, true, context),
             Self::Settings => super::open(DialogMenuKind::MainSettings, CLOSE_ALL_OTHERS, context),
             Self::QuitToMenu => open_leave_popup(context, Leave::QuitToMenu),
             Self::ExitGame => open_leave_popup(context, Leave::ExitGame),

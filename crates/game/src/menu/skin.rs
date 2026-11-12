@@ -430,6 +430,31 @@ impl Default for SkinBackdropsDef {
 //   the panel's scale (the panel's width over that rect's width).
 // - `backdrop`: the screen's background behind the map, the top bar and the side panel, a 1920 ×
 //   1080 JPEG at 1 pixel per point.
+// What the screen draws live over the base (docs/plans/realm-ui.md, Phase 2: Markers and labels),
+// after the mockup generator's marks, in points on a 1920 × 1080 screen (the map's own scale at its
+// fit; they keep their size as the map zooms):
+// - `marks`: sprites by name (at `sprite_scale`), each with the mark's point at its centre: the
+//   player's `capital`, `city` and `monument` marks (Đại Long's seals, Kambara's prangs,
+//   Tampadesa's stupas), the legend's `legend` glyph for them, the `compass` and the top bar's
+//   `coin`. `seal_letter`: the city's initial drawn on the player's capital and city marks (Đại
+//   Long's seals: its size is a share of the place's `seal`), its look; none without it.
+// - `emblems`: the side panel's emblem of a city by its owner (a realm or a power), else the
+//   owner's realm emblem (`emblems` above), else `default` (a realm's file sets an owner of Đại
+//   Long's to null to drop it).
+// - `text`: the looks of the map's text by role (SkinMapTextDef): `capital`, `city`, `monument`,
+//   `foreign`, `choice`, `region`, `region_own`, `note`, `uncharted`, `uncharted_note`, `threat`,
+//   `threat_note`, `compass`; `places`: where a marker's name goes beside it (SkinMapPlaceDef), by
+//   `capital`, `city`, `monument`, `foreign` and `choice`.
+// - `routes`: by kind (`land`, `sea`, `river`) and `closed`, `closed_legend` (SkinMapRouteDef).
+// - `colors`: named colours (a `text` name or "#RRGGBB(AA)"): the foreign cities' ring
+//   (`foreign_fill`, `foreign_stroke`, `foreign_dot`), the selection ring (`selected`,
+//   `selected_shadow`), the next mission's sites (`choice`, `choice_dot`), a threat's arrow
+//   (`threat_arrow`), the relations meter (`relations_fill`, `relations_track`), the legend bar
+//   (`legend_fill`, `legend_text`), the goods' bullets (`bullet`), the court's request box
+//   (`request_fill`, `request_border`, `request_inner`, `request_title`, `request_text`) and the
+//   top bar's text (`bar_text`, `bar_sub`); `bullet_shape`: square, diamond or circle;
+//   `request_dashed`: the request box's border in dashes; `request_seal`: the request box ends in
+//   the `city` mark (a seal, drawn 32 points large) with "!" in its `seal_letter` look.
 #[derive(Clone, Debug, Deserialize)]
 #[serde(default, deny_unknown_fields)]
 pub struct SkinWorldMapDef {
@@ -441,6 +466,16 @@ pub struct SkinWorldMapDef {
     pub frame: String,
     pub frame_map_rect: [f32; 4],
     pub backdrop: String,
+    pub marks: BTreeMap<String, String>,
+    pub seal_letter: Option<SkinMapTextDef>,
+    pub emblems: BTreeMap<String, Option<String>>,
+    pub text: BTreeMap<String, SkinMapTextDef>,
+    pub places: BTreeMap<String, SkinMapPlaceDef>,
+    pub routes: BTreeMap<String, SkinMapRouteDef>,
+    pub colors: BTreeMap<String, String>,
+    pub bullet_shape: String,
+    pub request_dashed: bool,
+    pub request_seal: bool,
 }
 
 impl Default for SkinWorldMapDef {
@@ -454,7 +489,83 @@ impl Default for SkinWorldMapDef {
             frame: String::new(),
             frame_map_rect: [0.0, 0.0, 2580.0, 1733.76],
             backdrop: String::new(),
+            marks: BTreeMap::new(),
+            seal_letter: None,
+            emblems: BTreeMap::new(),
+            text: BTreeMap::new(),
+            places: BTreeMap::new(),
+            routes: BTreeMap::new(),
+            colors: BTreeMap::new(),
+            bullet_shape: "square".into(),
+            request_dashed: false,
+            request_seal: false,
         }
+    }
+}
+
+// Text on the world map: its size and letter spacing in points (1920 × 1080), its colour, in the
+// heading (title) font or the body font, in capitals or as written, and an optional halo (the text
+// drawn round itself, `halo_width` points out) and shadow (a copy behind it, `shadow_offset`
+// points off: carved text). Colours are `text` names or "#RRGGBB(AA)".
+#[derive(Clone, Debug, Deserialize)]
+#[serde(default, deny_unknown_fields)]
+pub struct SkinMapTextDef {
+    pub size: f32,
+    pub color: String,
+    pub heading: bool,
+    pub capitals: bool,
+    pub letter_spacing: f32,
+    pub halo: Option<String>,
+    pub halo_width: f32,
+    pub shadow: Option<String>,
+    pub shadow_offset: [f32; 2],
+}
+
+impl Default for SkinMapTextDef {
+    fn default() -> Self {
+        Self {
+            size: 18.0,
+            color: "ink".into(),
+            heading: false,
+            capitals: false,
+            letter_spacing: 0.0,
+            halo: None,
+            halo_width: 2.0,
+            shadow: None,
+            shadow_offset: [1.2, 1.4],
+        }
+    }
+}
+
+// Where a marker's name goes, as the generator's place_label puts it: from the point `y` points
+// below the marker's (negative: above), `gap` points away on the side the city's file names. `seal`:
+// the size of a seal mark the city's initial goes on (seal_letter), 0 for none.
+#[derive(Copy, Clone, Debug, Default, Deserialize)]
+#[serde(default, deny_unknown_fields)]
+pub struct SkinMapPlaceDef {
+    pub y: f32,
+    pub gap: f32,
+    pub seal: f32,
+}
+
+// A route's line: its colour and width, in dashes (`dash`: length and gap) or dots (`dots`: their
+// spacing; their size is the width), over an optional shadow (`shadow` colour, `shadow_width`
+// wide, `shadow_offset` off).
+#[derive(Clone, Debug, Deserialize)]
+#[serde(default, deny_unknown_fields)]
+pub struct SkinMapRouteDef {
+    pub color: String,
+    pub width: f32,
+    pub dash: [f32; 2],
+    pub dots: f32,
+    pub shadow: Option<String>,
+    pub shadow_width: f32,
+    pub shadow_offset: [f32; 2],
+}
+
+impl Default for SkinMapRouteDef {
+    fn default() -> Self {
+        Self { color: "ink".into(), width: 2.5, dash: [14.0, 6.0], dots: 0.0, shadow: None, shadow_width: 5.0, shadow_offset: [0.0, 0.0] }
     }
 }
 
@@ -1085,6 +1196,14 @@ pub fn backdrop_dim(home_menu: bool) -> Color {
 // The colour a dialog opened over the home menu's own dims the screen with behind it.
 pub fn backdrop_dim_over_home() -> Color {
     current().backdrops.dim_home_dialog.color()
+}
+
+// The em of the current skin's title (`heading`) or body font over the size egui draws it at: its
+// style font's `scale` (units per em over its line height). Text sized as the mockups' CSS sizes
+// it (an em) takes that size over this.
+pub fn font_em(heading: bool) -> f32 {
+    let pointer = if heading { "/fonts/title/scale" } else { "/fonts/body/scale" };
+    current().style.pointer(pointer).and_then(Value::as_f64).map_or(1.0, |scale| scale as f32).clamp(0.1, 2.0)
 }
 
 // The current skin's world map art.

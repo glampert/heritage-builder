@@ -147,6 +147,14 @@
     { "id": "world_map_frame", "group": "world_map", "call": "world_map_frame", "size": [1290, 867],
       "realms": { "dailong": { "bleed": [22, 22, 22, 22] }, "kambara": { "bleed": [42, 53, 57, 42] },
                   "tampadesa": { "bleed": [27, 32, 30, 32] } } },
-    { "id": "world_map_backdrop", "group": "world_map", "call": "world_map_backdrop", "size": [1920, 1080], "scale": 1, "format": "jpeg" }
+    { "id": "world_map_backdrop", "group": "world_map", "call": "world_map_backdrop", "size": [1920, 1080], "scale": 1, "format": "jpeg" },
+    { "id": "world_map_capital", "group": "world_map", "call": "world_map_mark", "args": { "kind": "capital" }, "size": [72, 72] },
+    { "id": "world_map_city", "group": "world_map", "call": "world_map_mark", "args": { "kind": "city" }, "size": [72, 72] },
+    { "id": "world_map_monument", "group": "world_map", "call": "world_map_mark", "args": { "kind": "monument" }, "size": [72, 72] },
+    { "id": "world_map_legend", "group": "world_map", "call": "world_map_mark", "args": { "kind": "city", "mini": true }, "size": [32, 32] },
+    { "id": "world_map_compass", "group": "world_map", "call": "world_map_compass", "size": [88, 88] },
+    { "id": "world_map_coin", "group": "world_map", "call": "world_map_coin", "size": [36, 36] },
+    { "id": "world_map_emblem", "group": "world_map", "call": "world_map_emblem", "size": [132, 132] },
+    { "id": "world_map_power_emblem", "group": "world_map", "call": "world_map_power_emblem", "args": { "scale": 1.75 }, "size": [132, 132] }
   ]
 }

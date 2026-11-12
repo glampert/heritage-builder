@@ -56,7 +56,8 @@ KNOWN_CALLS = (
     "mpanel", "box", "bar_bg", "panel_bg", "card", "row_bg", "text_input", "caption", "speech",
     "button", "tab", "item_marker", "icon_button", "build_button", "checkbox", "toggle", "slider",
     "dropdown", "divider", "realm_emblem", "seal", "home_scene", "world_map_base", "world_map_threat",
-    "world_map_frame", "world_map_backdrop",
+    "world_map_frame", "world_map_backdrop", "world_map_mark", "world_map_compass", "world_map_coin",
+    "world_map_emblem", "world_map_power_emblem",
 )
 
 TOP_KEYS = {"version", "scale", "pad", "realms", "state_filters", "sprites", "notes"}

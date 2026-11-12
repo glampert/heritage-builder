@@ -680,7 +680,8 @@ fn cmd_layout_issues(context: &mut CommandContext, _params: Value) -> CommandRes
 
 // The widgets outside their menu's content area (the innermost `menu_content` whose path is a
 // prefix of theirs), and the pairs of siblings (same parent path, same menu) that overlap without
-// one holding the other. A dropdown's popup may leave the menu, so list items aren't held to it,
+// one holding the other (but two markers on a map, which may sit close: kind map_marker). A
+// dropdown's popup may leave the menu, so list items aren't held to it,
 // and a widget scrolled out of view (`visible: false`) is clipped, so it isn't checked; in a menu
 // whose contents scroll (its value's `scrolls`), neither is one its top or bottom edge cuts, as
 // long as it fits the menu's width.
@@ -729,6 +730,7 @@ fn layout_issues(widgets: &[UiWidgetInfo]) -> Vec<Value> {
         }
         for &(other, other_menu) in &checked[index + 1..] {
             if LAYOUT_CONTAINER_KINDS.contains(&other.kind)
+                || (widget.kind == "map_marker" && other.kind == "map_marker")
                 || menu.path != other_menu.path
                 || parent_path(&widget.path) != parent_path(&other.path)
                 || widget.rect.contains_rect(&other.rect)

@@ -17,7 +17,7 @@ use super::{
     style::{self, MinimapStyle},
     widget::{BUTTON_SIZE, GAP, LEGEND_ROW_HEIGHT, MinimapLayout},
 };
-use crate::{realm::{self, Realm}, ui_context::GameUiContext};
+use crate::{menu::dialog::DialogMenuKind, realm::{self, Realm}, ui_context::GameUiContext};
 
 // ----------------------------------------------
 // MinimapTool
@@ -53,7 +53,7 @@ impl MinimapTool {
             Self::ZoomOut => "Zoom out",
             Self::Alerts => "Next alert",
             Self::Home => "Centre on the palace",
-            Self::WorldMap => "World map: coming with trade routes",
+            Self::WorldMap => ui::text::get(ui::text::UiTextCategory::Menu, "game_menu.world_map"),
             Self::Collapse => "Hide map",
         }
     }
@@ -93,11 +93,12 @@ struct BaseMinimapRenderer {
     font_scale: UiFontScale,
     with_frame: bool, // The style's frame sprite; the developer UI uses a plain window.
     with_debug_button: bool,
+    opens_world_map: bool, // The World map tool opens the retail WorldMap dialog; the developer editor draws none.
     apply_widget_clip_rect: bool,
 }
 
 impl BaseMinimapRenderer {
-    fn new(button_sounds: UiWidgetSounds, font_scale: UiFontScale, with_frame: bool, with_debug_button: bool) -> Self {
+    fn new(button_sounds: UiWidgetSounds, font_scale: UiFontScale, with_frame: bool, with_debug_button: bool, opens_world_map: bool) -> Self {
         Self {
             minimap_menu: None,
             open_button_menu: None,
@@ -108,6 +109,7 @@ impl BaseMinimapRenderer {
             font_scale,
             with_frame,
             with_debug_button,
+            opens_world_map,
             apply_widget_clip_rect: true,
         }
     }
@@ -170,10 +172,7 @@ impl BaseMinimapRenderer {
 
         let tools = MinimapTool::iter()
             .map(|tool| {
-                let mut button = make_button(context, &format!("{}/{}", style.buttons, tool.sprite()), tool.tooltip());
-                if tool == MinimapTool::WorldMap {
-                    button.enable(false); // Until M10 brings the world map.
-                }
+                let button = make_button(context, &format!("{}/{}", style.buttons, tool.sprite()), tool.tooltip());
                 (tool, button)
             })
             .collect();
@@ -301,7 +300,18 @@ impl BaseMinimapRenderer {
             minimap.set_lens(*lens);
         }
 
+        let mut open_world_map = false;
+        let opens_world_map = self.opens_world_map;
         for (tool, button) in &mut buttons.tools {
+            // The world map is a retail dialog, drawn by the in-game menus only: the developer
+            // editor's minimap (which never draws dialogs) keeps the tool disabled.
+            if *tool == MinimapTool::WorldMap {
+                button.enable(
+                    opens_world_map
+                        && crate::menu::dialog::is_initialized()
+                        && !crate::menu::dialog::is_in_stack(DialogMenuKind::WorldMap),
+                );
+            }
             if !button.is_pressed() {
                 continue;
             }
@@ -321,7 +331,7 @@ impl BaseMinimapRenderer {
                     }
                     None => context.camera.center(),
                 },
-                MinimapTool::WorldMap => {}
+                MinimapTool::WorldMap => open_world_map = true,
                 MinimapTool::Collapse => {
                     minimap.set_open(false);
                     minimap.view_mut().auto_zoom = true; // Reopening resets the zoom.
@@ -341,6 +351,10 @@ impl BaseMinimapRenderer {
         {
             debug.press(false);
             SHOW_MINIMAP_DEBUG_CONTROLS.set(!*SHOW_MINIMAP_DEBUG_CONTROLS);
+        }
+
+        if open_world_map && opens_world_map {
+            crate::menu::dialog::open(DialogMenuKind::WorldMap, false, context);
         }
     }
 
@@ -575,7 +589,7 @@ impl InGameUiMinimapRenderer {
     const WIDGET_FONT_SCALE: UiFontScale = UiFontScale(0.8);
 
     pub fn new(_context: &mut GameUiContext) -> Self {
-        Self { base_renderer: BaseMinimapRenderer::new(UiWidgetSounds::new(), Self::WIDGET_FONT_SCALE, true, false) }
+        Self { base_renderer: BaseMinimapRenderer::new(UiWidgetSounds::new(), Self::WIDGET_FONT_SCALE, true, false, true) }
     }
 }
 
@@ -608,7 +622,7 @@ impl DevUiMinimapRenderer {
 
     pub fn new(_context: &mut GameUiContext) -> Self {
         Self {
-            base_renderer: BaseMinimapRenderer::new(UiWidgetSounds::silent(), Self::WIDGET_FONT_SCALE, false, true),
+            base_renderer: BaseMinimapRenderer::new(UiWidgetSounds::silent(), Self::WIDGET_FONT_SCALE, false, true, false),
             enable_debug_draw: false,
         }
     }

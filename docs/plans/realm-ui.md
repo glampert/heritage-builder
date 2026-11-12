@@ -1,6 +1,6 @@
 # Realm UI: menus, screens and HUD in each realm's style
 
-**Status (2026-11-12): Phases 0 and 1 done (the main menus: Home, Load / Save, Settings, Custom Game, About and the in-game Game menu); Phase 2, the world map, in progress: its data and base art are done.** The user reviewed it on 2026-11-07: their notes are folded in (see [Review notes](#review-notes)), the open decisions' defaults are accepted, and every mockup the phases need now exists. This plan builds and restyles every retail screen after the [UI mockups](../design/mockups/README.md): the main menus, the world map, the intermission, the story comics, the HUD and the city management pages. Each screen gets one look per realm: Đại Long, Kambara and Tampadesa. It is milestone **UI** of the [roadmap](roadmap.md). It was researched against `ccca1df` on `claude`. File and line references point at that commit, so re-check them before relying on them.
+**Status (2026-11-12): Phases 0 and 1 done (the main menus: Home, Load / Save, Settings, Custom Game, About and the in-game Game menu); Phase 2, the world map, in progress: its data, base art and screen are done.** The user reviewed it on 2026-11-07: their notes are folded in (see [Review notes](#review-notes)), the open decisions' defaults are accepted, and every mockup the phases need now exists. This plan builds and restyles every retail screen after the [UI mockups](../design/mockups/README.md): the main menus, the world map, the intermission, the story comics, the HUD and the city management pages. Each screen gets one look per realm: Đại Long, Kambara and Tampadesa. It is milestone **UI** of the [roadmap](roadmap.md). It was researched against `ccca1df` on `claude`. File and line references point at that commit, so re-check them before relying on them.
 
 ![Home menu, Đại Long](../design/mockups/menu-home-dailong.jpg)
 
@@ -552,7 +552,7 @@ The existing dialogs keep their layouts but take their panels from the Đại Lo
 - Campaign: a mission whose save map can't be loaded doesn't start (`start_campaign_mission` probes it), and a mission load that fails all the same cancels the start (`campaign::cancel_mission_start`, from `GameSession::load_save_game`), so the next load isn't taken for the mission's start. The picker forgets its pick when a session switch drops the dialogs (`dialog::reset`). Home and the picker share the emblem state and unlock text.
 - Saves: names take no dot (the storage would replace what follows it with `.json`) and at most 60 characters (`session::MAX_SAVE_NAME_CHARS`, the Save as field's limit too); overwriting a save whose name differs in case saves under its name; Continue finds its save whatever its case. No autosave behind a queued session switch. Load / Save calls a save "Custom game" only by its header's `custom_game`. `--default-configs` keeps Settings' changes for the run.
 - UI scale: Home, About and the Game menu size their contents by their content area at the UI scale (`skin::dialog_content_scale`) and their text by that over the UI scale (`dialog_content_text_scale`, `heading_scaled`, `menu_item_scaled`); Custom Game and the picker their text by `dialog_text_fit` and the picker its sizes by `dialog_ui_growth`, as Settings does. All fit from 75% to 200% at 1280 × 720 and 1080p; `ui_menus` checks them at 75% and 200%.
-- Verified: build, tests, web check, `--check`; CI scenarios at 1440 × 800; determinism twice; Home, the picker, About, Custom Game and the Game menu at 75% and 200% on 1280 × 720 and 1920 × 1080 (no scrolling, no layout issues).
+- Verified: build, tests, web, `--check`; CI scenarios at 1440 × 800; determinism twice; Home, the picker, About, Custom Game and the Game menu at 75% and 200% on 1280 × 720 and 1920 × 1080 (no scrolling, no layout issues).
 
 **Notes (2026-11-12, about, Game menu, wrap-up) (commit `2cc728c`):**
 - `dialog/about.rs`: crest, title, the realm's campaign, studio line, rule, six credit sections in two columns (the fonts' from `assets/fonts/` and their licences), then a filler, quote, version and copyright, Back at the bottom. `dialog/main_game.rs`: crest, "Game", the mission or custom game, Resume, Save, Load, Settings, Quit to menu, Exit game, and "Saved N minutes ago" at the bottom (`GameSession::last_saved`, time played; an autosave or a loaded autosave says "Autosaved"), followed each frame the menu is drawn, so a save through its own Save shows. Custom Game left the in-game menu (not in the mockup or the plan). Quit and Exit ask in popups (`skin::popup_with_colored_body`, 220 × 56 buttons) with Cancel, Save and quit (or exit), Quit: the popup closes, `GameLoop::save_and_then` writes the autosave's slot next frame and leaves once its thumbnail is written; a failed save, Cancel, a direct quit or another session drops it. Fixed: a rebuild of some dialogs no longer marks the profile dialogs built.
@@ -564,13 +564,13 @@ The existing dialogs keep their layouts but take their panels from the Đại Lo
 - `crate::custom_game`: Start replaces the session, then sets date, treasury, the risks switch and the active custom game: its realm (`ui.realm` source `custom_game`), map, difficulty, fast construction (`fast_construction_scale` 0.25 on top of `time_scale`) and the stored switches. Design: runtime state saved in the save header (`realm`, a `custom_game` record) and read back on load, so no save-version bump.
 - Engine: hidden labels on dropdowns and lists, dropdown widths, toggle tooltips, `UiImageFit::Center`.
 - Deviations: Kambara's and Tampadesa's campaigns gain one era each (Suryadeva, Pugara), for their dates; the user should confirm. Water and Woodland stand in for the mockup's Rivers and Fertile land. Presets are the debug maps (their cheats left off). Seasons, raids: disabled; difficulty: stored only.
-- Verified: build, tests, web check, `--check`; CI scenarios at 1440 × 800, `ui_menus` also at 720p and 1080p; determinism twice; `ui_snapshot` per realm; `ui_build` record and replay; screenshots against the mockups.
+- Verified: build, tests, web check, `--check`; CI scenarios at 1440 × 800, `ui_menus` also at 720p and 1080p; determinism twice; `ui_snapshot` per realm; `ui_build` replay; screenshots against mockups.
 
 **Notes (2026-11-12, settings) (commit `8a99406`):**
 - `dialog/settings/`: one `MainSettings` with tabs Game, Sound, Graphics, Controls; `GameSettings`, `SoundSettings`, `GraphicsSettings` open it on their tab. Rows: label left, toggle, slider or dropdown right, a rule under each, each tab's rows spread over the room. Pending values and the tab live in `settings::STATE`, so a rebuild (realm, language, window resize) keeps them. Ok writes changed values into `GameConfigs`, applies volumes, textures, autosave and language at once (UI scale next frame) and saves the user configs, except in scripts, replays and the smoke test. Choosing Wgpu also picks Winit.
 - Configs: `display` (UI scale, colour-blind overlays, animated water), `camera.edge_scrolling`, `sim.default_speed`, `engine.vsync`, `frame_rate_limit`, `mute_in_background`, a master volume (Web Audio applies volumes once, on its tracks). Recordings note whether autosave may be switched on.
 - Deviations: the UI scale scales the realm themes' text and dialog sizes, not the HUD or other point sizes (TODO); Settings' contents grow as far as the window lets the dialog; no dialog shrinks below its 100% size on 1280 × 720. VSync, frame rate limit, mute in background, colour-blind overlays and animated water are stored only (TODOs). Autosave interval is its own row; restart-only settings say so in their label; Controls lists the hard-coded keys.
-- Verified: build, tests, web check, `--check`; CI scenarios at 1440 × 800, `ui_menus` (no scrolling on any tab, 75% and 200% scale) also at 720p and 1080p; determinism twice; `ui_snapshot` per realm; `ui_build` record and replay; screenshots against the mockups.
+- Verified: build, tests, web check, `--check`; CI scenarios at 1440 × 800, `ui_menus` (no scrolling on any tab, 75% and 200% scale) also at 720p and 1080p; determinism twice; `ui_snapshot` per realm; `ui_build` replay; screenshots against mockups.
 
 **Notes (2026-11-11, load / save) (commit `f80d9bf`):**
 - `dialog/load_save.rs`: one `LoadOrSaveGame`; `LoadGame`/`SaveGame` open it in load or save mode. Rows (realm emblem, "Campaign I · mission 2 · <place>", save time, era date), preview (thumbnail, details), Save as field (accent outline when focused), Delete with a popup, Overwrite popup. Rebuilt when saves change (`save_header::revision`) or the window rescales, keeping the pick; the autosave timer pauses while it's open. Home rebuilds on that revision too, so deleting Continue's save disables it.
@@ -584,7 +584,7 @@ The existing dialogs keep their layouts but take their panels from the Đại Lo
 - Home and the picker rebuild on a profile change, when the home menu opens and on a rescale (the picker keeps its pick). Home's contents scale with its content area (`skin::dialog_content_scale`); the picker's cards, buttons and text grow between 1280 × 720 and 1080p. A dialog over Home dims the backdrop (`dim_home_dialog`). Dialogs take an `offset`.
 - Art (ui-art): Đại Long's crest, a seal with Đ; Kambara's and Tampadesa's backdrops, 1920 × 1080 JPEGs.
 - Deviations: `campaigns.json` gains Campaigns II and III without missions ("coming soon"; finishing Campaign I reaches II): the user should confirm. New Game stays (P1d). Continue's subline names the campaign, not the mission number. No vines, blur, last-played line, quote or distinctions; upright where the mockups are italic (no italic faces). Kambara's Vietnamese fallback is Spectral, not Spectral SC (small capitals). Home is 1000 points tall. `ui_menus` leaves `saves/ui_menus.json`.
-- Verified: build, tests, web check, `--check`; CI scenarios at 1440 × 800, `ui_menus` also at 720p and 1080p; `ui_snapshot` in each realm (layout issues 0); `ui_build` record and replay; screenshots against the mockups.
+- Verified: build, tests, web check, `--check`; CI scenarios at 1440 × 800, `ui_menus` also at 720p and 1080p; `ui_snapshot` in each realm (layout issues 0); `ui_build` replay; screenshots against mockups.
 
 ### Phase 2: World map
 
@@ -602,23 +602,31 @@ The existing dialogs keep their layouts but take their panels from the Đại Lo
   - **region labels**, uncharted areas and threats, the compass and the choice box.
   - Player cities come from the profile's finished missions: each mission names the city it founds (`city` in `campaigns.json`).
 - [x] **Base art:** the map without markers, rendered per campaign by `ui-art` from `world_map.py`'s layers (sea, land, rivers, relief, frame) at 2×.
-- [ ] **Markers and labels** drawn live over it, so a city joining the map needs no new art:
+- [x] **Markers and labels** drawn live over it, so a city joining the map needs no new art:
   - cities and their seals or lotus or stupa marks, in the realm font;
   - routes by kind and state;
   - the next mission's A/B choice sites;
   - the compass.
-- [ ] **Top bar:** title, realm subtitle, date and season, treasury, "Return to the city".
-- [ ] **Side panel for the selected city:**
+- [x] **Top bar:** title, realm subtitle, date and season, treasury, "Return to the city".
+- [x] **Side panel for the selected city:**
   - emblem, name, role;
   - relations meter;
   - route line;
   - "They sell" and "They buy" with prices;
   - the court's request box;
   - "Set trade limits" and "Send a gift" (disabled, "coming with trade" until M10).
-- [ ] **Legend bar.**
+- [x] **Legend bar.**
+- [x] **Openers and pan and zoom:** the minimap's World map tool (enabled) and the Game menu's World map entry open it; `TODO(realm-ui)` hooks where the intermission and the HUD will. Pan and zoom as the user decided (above): the fit at first, the wheel in about the cursor and back to the fit, edge panning zoomed in with the camera's speed, margin and switch, the map always covering its panel; marks and text at their screen size.
 - [ ] **Next mission choice:** the choice box with both sites. Picking one starts that mission's map. Only missions with `choices` in their config show it. Campaign I's missions 6–8 get them in Phase 2 of the game; until then a test mission in config exercises it.
 - [x] **Hooks for M10:** `WorldMapProvider` gives trade data (prices, limits, requests, relations) when trade exists. Until then the panel reads the config's static values.
 - [ ] Scenario `ui_world_map.jsonl`: open it in each realm, select a city, pick a choice site in the test campaign, return.
+
+**Notes (2026-11-12, world map screen) (commit TODO):**
+- `dialog/world_map/`: `WorldMap`, full screen, the 1920 × 1080 composition scaled to the window: top bar, map, side panel, legend. The map is the UI realm's campaign's (`screen_campaign`); selection and view live in `STATE`. Built in full once opened. `overlay.rs` draws labels, uncharted and threat words, routes (by kind and state), foreign rings, the player's marks with Đại Long's seal initials, A/B sites and the compass at screen size, in the skin's `world_map` looks.
+- Engine: `UiMapView` (fit, wheel zoom, edge pan, overlay, a frame past the view, records), `UiFrame`, `UiCanvas`, `UiPainter::label` and `unclipped`, dashed and dotted lines, heading font and letter spacing on `UiRichText`.
+- ui-art: marks, compass, coin, emblems per realm; Đại Long's request seal (`request_seal`). Openers: the in-game minimap's tool (the developer editor's stays disabled), `MainGame/World map` (closing the Game menu); TODOs in MissionComplete and the HUD bar. `world_map.state` gains `screen`; `world_map.set`. Scenario `ui_world_map.jsonl` (CI).
+- Deviations: mockup sizes are ems (`skin::font_em`), so Tampadesa's tall rows are cut and the panel closes up when it would overflow; text keeps the window's scale at any UI scale; no italics; the frame overlaps the top bar's edge; non-trade cities show a note; the Game menu grows to 920 points; the choice box waits for P2d.
+- Verified: build, tests, web, `--check`; CI scenarios at 1440 × 800; `ui_world_map` at 720p, 800p, 1080p (layout 0 at 75/100/200% in each realm); `ui_snapshot` per realm; `ui_build` replay; screenshots against mockups.
 
 **Notes (2026-11-12, world map data) (commit `e6af595`):**
 - `crate::world_map`: `WorldMapConfigs` loads `game/world/<name>.json` for every campaign (`world_map`, else its id) and validates it; `WorldMapProvider` and its `ConfigWorldMapProvider` give the player's cities (the file's `player` ones, finished missions', the current one's), the others, routes once their cities show, a city's panel (relations, route line, sells and buys, the court's request) and the next mission's choice. Values come from the generator, in its 1000 × 672 map space.

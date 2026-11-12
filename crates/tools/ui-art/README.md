@@ -154,6 +154,11 @@ the world map's art (about 0.8-1.7 MB):
 | `world_map_threat` (Tampadesa) | `world_map_threat` (`anchor`: the threat's point in the rect, in points) | A threat's storm clouds (`world_map.py`'s `threat_clouds`) without its words and arrow, as a PNG (about 25 KB) the game draws with the anchor (the skin's `world_map.threat_anchor`, in pixels) on the world file's threat, over the region labels and under the routes, as the mockup layers them. |
 | `world_map_frame` | `world_map_frame` | The frame round the map viewport (`world_map.py`'s `map_frame`: `frame_back` with the viewport cut out, and `frame_front`'s rules and ornaments), drawn over the map's edges, the map transparent. Its bleed is its margin round the map: the skin's `world_map.frame_map_rect` (its x and y are the left and top bleed at 2×). |
 | `world_map_backdrop` | `world_map_backdrop` | The world map screen's background (`world_map.py`'s `background`: wood, stone, bricks), 1920 × 1080 at 1 pixel per point, as a JPEG. |
+| `world_map_capital`, `_city`, `_monument`, `_legend` | `world_map_mark` (`kind`; `mini`: the legend's glyph) | A player city's mark (`player_city`: Đại Long's seals, Kambara's prangs, Tampadesa's stupas) without its name or a seal's letter, centred on the rect: the game draws it at the city's point and its name and initial (the skin's `world_map.seal_letter`) live. |
+| `world_map_compass` | `world_map_compass` | The compass rose without its N, which the game draws in the realm's font. |
+| `world_map_coin` | `world_map_coin` | The top bar's coin. |
+| `world_map_emblem` | `world_map_emblem` | The side panel's emblem as the realm's mockup draws it (`panel_emblem`: the Sea Kingdom's junk, Hamsara's goose, Kambara's prang in Tampadesa's gilt), for its owner (the skin's `world_map.emblems`). |
+| `world_map_power_emblem` | `world_map_power_emblem` (`scale`) | The emblem of a power without one of its own: the selected foreign city's rings (`foreign_city`) at `scale`. |
 
 ## 5. Hand-made art
 

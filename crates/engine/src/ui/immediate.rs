@@ -2116,11 +2116,43 @@ impl UiMesh {
     }
 }
 
+// Where text drawn at a point (UiPainter::label) lies across it: the point is on the text's
+// baseline, at its start, middle or end, as SVG's text-anchor places it.
+#[derive(Copy, Clone, Default, PartialEq, Eq, Debug)]
+pub enum UiTextAnchor {
+    Start,
+    #[default]
+    Middle,
+    End,
+}
+
+// How UiPainter::label draws text: its size in points, in the theme's body or heading font, with
+// extra room between letters, its colour, and an optional halo (the text drawn around itself in
+// another colour, `halo_width` points out: a label on a busy map) and shadow (a copy behind it,
+// offset: carved text).
+#[derive(Copy, Clone, Debug)]
+pub struct UiLabelLook {
+    pub size: f32,
+    pub heading_font: bool,
+    pub letter_spacing: f32,
+    pub color: Color,
+    pub halo: Option<Color>,
+    pub halo_width: f32,
+    pub shadow: Option<(Color, Vec2)>,
+}
+
+impl Default for UiLabelLook {
+    fn default() -> Self {
+        Self { size: 16.0, heading_font: false, letter_spacing: 0.0, color: Color::black(), halo: None, halo_width: 0.0, shadow: None }
+    }
+}
+
 // Draws shapes, text and images in window points. Get one with ui::painter, and keep it only
 // while drawing.
 pub struct UiPainter {
     painter: egui::Painter,
     font: egui::FontId,
+    heading_family: egui::FontFamily, // The theme's heading text style's font, for label().
 }
 
 pub fn painter(ui_sys: &UiSystem, layer: UiLayer) -> UiPainter {
@@ -2129,8 +2161,12 @@ pub fn painter(ui_sys: &UiSystem, layer: UiLayer) -> UiPainter {
         UiLayer::Background => ui_sys.ctx().layer_painter(egui::LayerId::background()),
         UiLayer::Foreground => ui_sys.ctx().layer_painter(egui::LayerId::new(egui::Order::Foreground, Id::unique("ui_foreground"))),
     };
-    UiPainter { painter, font: ui_sys.text_font() }
+    UiPainter { painter, font: ui_sys.text_font(), heading_family: ui_sys.style_font(&TextStyle::Heading).family }
 }
+
+// The halo's directions: around the text in eight steps.
+const HALO_DIRECTIONS: [(f32, f32); 8] =
+    [(1.0, 0.0), (0.7071, 0.7071), (0.0, 1.0), (-0.7071, 0.7071), (-1.0, 0.0), (-0.7071, -0.7071), (0.0, -1.0), (0.7071, -0.7071)];
 
 impl UiPainter {
     // A one point wide outline.
@@ -2235,11 +2271,118 @@ impl UiPainter {
         }
     }
 
+    // A line through `points` in dashes `dash` points long with `gap` between them.
+    pub fn dashed_polyline(&self, points: &[Vec2], width: f32, color: Color, dash: f32, gap: f32) {
+        let points: Vec<Pos2> = points.iter().map(|p| egui_pos2(*p)).collect();
+        if points.len() >= 2 && dash > 0.0 {
+            self.painter.extend(egui::Shape::dashed_line(&points, Stroke::new(width, color32(color)), dash, gap.max(0.0)));
+        }
+    }
+
+    // A line through `points` as round dots `radius` points large, `spacing` points apart.
+    pub fn dotted_polyline(&self, points: &[Vec2], radius: f32, color: Color, spacing: f32) {
+        let points: Vec<Pos2> = points.iter().map(|p| egui_pos2(*p)).collect();
+        if points.len() >= 2 && spacing > 0.0 {
+            self.painter.extend(egui::Shape::dotted_line(&points, color32(color), spacing, radius));
+        }
+    }
+
+    // A circle's outline in dashes `dash` points long with `gap` between them.
+    pub fn dashed_circle(&self, center: Vec2, radius: f32, width: f32, color: Color, dash: f32, gap: f32) {
+        let segments = ((radius * std::f32::consts::TAU) / 2.0).clamp(16.0, 256.0) as usize;
+        let points: Vec<Vec2> = (0..=segments)
+            .map(|index| {
+                let angle = std::f32::consts::TAU * index as f32 / segments as f32;
+                Vec2::new(center.x + radius * angle.cos(), center.y + radius * angle.sin())
+            })
+            .collect();
+        self.dashed_polyline(&points, width, color, dash, gap);
+    }
+
+    // Text with a point on its baseline at `position`, its start, middle or end there (`anchor`),
+    // drawn as `look` says. Returns the rect it covers (without its halo).
+    pub fn label(&self, position: Vec2, anchor: UiTextAnchor, text: &str, look: &UiLabelLook) -> Rect {
+        let galley = self.label_galley(text, look);
+        let (top_left, size) = Self::label_placement(&galley, position, anchor);
+        if let Some(halo) = look.halo
+            && look.halo_width > 0.0
+        {
+            for (dx, dy) in HALO_DIRECTIONS {
+                let at = top_left + egui::vec2(dx, dy) * look.halo_width;
+                self.painter.galley_with_override_text_color(at, galley.clone(), color32(halo));
+            }
+        }
+        if let Some((shadow, offset)) = look.shadow {
+            self.painter.galley_with_override_text_color(top_left + egui_vec2(offset), galley.clone(), color32(shadow));
+        }
+        self.painter.galley(top_left, galley, color32(look.color));
+        Rect::from_pos_and_size(Vec2::new(top_left.x, top_left.y), size)
+    }
+
+    // The rect label() would cover, without drawing.
+    pub fn label_rect(&self, position: Vec2, anchor: UiTextAnchor, text: &str, look: &UiLabelLook) -> Rect {
+        let galley = self.label_galley(text, look);
+        let (top_left, size) = Self::label_placement(&galley, position, anchor);
+        Rect::from_pos_and_size(Vec2::new(top_left.x, top_left.y), size)
+    }
+
+    fn label_galley(&self, text: &str, look: &UiLabelLook) -> std::sync::Arc<egui::Galley> {
+        let family = if look.heading_font { self.heading_family.clone() } else { self.font.family.clone() };
+        let mut job = egui::text::LayoutJob::default();
+        job.append(text, 0.0, egui::TextFormat {
+            font_id: egui::FontId::new(look.size.max(1.0), family),
+            extra_letter_spacing: look.letter_spacing,
+            color: color32(look.color),
+            ..Default::default()
+        });
+        self.painter.layout_job(job)
+    }
+
+    // A galley's top left for its baseline point `position`, and its size. Letter spacing adds room
+    // after the last letter too: it's left out of the width, as SVG's text-anchor does.
+    fn label_placement(galley: &egui::Galley, position: Vec2, anchor: UiTextAnchor) -> (Pos2, Vec2) {
+        let baseline = galley
+            .rows
+            .first()
+            .and_then(|row| row.row.glyphs.first().map(|glyph| row.pos.y + glyph.pos.y))
+            .unwrap_or(galley.size().y * 0.8);
+        let width = galley.size().x;
+        let x = match anchor {
+            UiTextAnchor::Start => position.x,
+            UiTextAnchor::Middle => position.x - width * 0.5,
+            UiTextAnchor::End => position.x - width,
+        };
+        (pos2(x, position.y - baseline), Vec2::new(width, galley.size().y))
+    }
+
     // What `draw` paints is clipped to `clip_rect`, within the current clip rect.
     pub fn clipped(&self, clip_rect: Rect, draw: impl FnOnce(&Self)) {
         let clip_rect = self.painter.clip_rect().intersect(egui_rect(clip_rect));
-        let clipped = Self { painter: self.painter.with_clip_rect(clip_rect), font: self.font.clone() };
+        let clipped = Self { painter: self.painter.with_clip_rect(clip_rect), font: self.font.clone(), heading_family: self.heading_family.clone() };
         draw(&clipped);
+    }
+
+    // A painter like this one that draws past the current clip rect, up to `clip_rect` (the
+    // window's, for a frame drawn around a widget).
+    // (egui's `with_clip_rect` would intersect it with the current one, so it's replaced instead.)
+    pub fn unclipped(&self, clip_rect: Rect) -> Self {
+        let mut painter = self.painter.clone();
+        painter.set_clip_rect(egui_rect(clip_rect));
+        Self { painter, font: self.font.clone(), heading_family: self.heading_family.clone() }
+    }
+
+    // The current clip rect.
+    pub fn clip_rect(&self) -> Rect {
+        to_rect(self.painter.clip_rect())
+    }
+
+    // A part of `texture` (`uv`: 0 to 1 from its top left) over `rect`, multiplied by `tint`.
+    pub fn image_uv(&self, texture: TextureHandle, rect: Rect, uv: Rect, tint: Color) {
+        self.painter.image(egui_texture(texture), egui_rect(rect), egui_rect(uv), color32(tint));
+    }
+
+    pub(crate) fn from_egui(painter: egui::Painter, ui_sys: &UiSystem) -> Self {
+        Self { painter, font: ui_sys.text_font(), heading_family: ui_sys.style_font(&TextStyle::Heading).family }
     }
 }
 
