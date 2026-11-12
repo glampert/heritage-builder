@@ -548,7 +548,7 @@ The existing dialogs keep their layouts but take their panels from the Đại Lo
   - `ui_menus.jsonl` (every dialog, every realm, Continue, Custom Game start, settings commit);
   - update `ui_new_game.jsonl` to the Blank map path.
 
-**Notes (2026-11-12, settings) (commit TODO):**
+**Notes (2026-11-12, settings) (commit `8a99406`):**
 - `dialog/settings/`: one `MainSettings` with tabs Game, Sound, Graphics, Controls; `GameSettings`, `SoundSettings`, `GraphicsSettings` open it on their tab. Rows: label left, toggle, slider or dropdown right, a rule under each, each tab's rows spread over the room. Pending values and the tab live in `settings::STATE`, so a rebuild (realm, language, window resize) keeps them. Ok writes changed values into `GameConfigs`, applies volumes, textures, autosave and language at once (UI scale next frame) and saves the user configs, except in scripts, replays and the smoke test. Choosing Wgpu also picks Winit.
 - Configs: `display` (UI scale, colour-blind overlays, animated water), `camera.edge_scrolling`, `sim.default_speed`, `engine.vsync`, `frame_rate_limit`, `mute_in_background`, a master volume (Web Audio applies volumes once, on its tracks). Recordings note whether autosave may be switched on.
 - Deviations: the UI scale scales the realm themes' text and dialog sizes, not the HUD or other point sizes (TODO); Settings' contents grow as far as the window lets the dialog; no dialog shrinks below its 100% size on 1280 × 720. VSync, frame rate limit, mute in background, colour-blind overlays and animated water are stored only (TODOs). Autosave interval is its own row; restart-only settings say so in their label; Controls lists the hard-coded keys.
