@@ -43,14 +43,16 @@ pub struct UiSliderLook {
     pub text_color: Option<Color>,
 }
 
-// A dropdown's field (a 9-slice behind its current item), its arrow sprite at `arrow_size` points
-// and its text colour. Its list is the style's popup.
+// A dropdown's field (a 9-slice behind its current item), its arrow sprite at `arrow_size` points,
+// its text colour, and the room left of its text (the style's button padding if 0). Its list is
+// the style's popup.
 #[derive(Copy, Clone, Debug)]
 pub struct UiDropdownLook {
     pub field: UiNineSlice,
     pub arrow: TextureHandle,
     pub arrow_size: Vec2,
     pub text_color: Option<Color>,
+    pub text_inset: f32,
 }
 
 // A text field's panel (a 9-slice behind the text), the room between its edges and the text, the
@@ -63,6 +65,9 @@ pub struct UiTextInputLook {
     pub focus_color: Option<Color>,
 }
 
+// Between a settings row's slider value and its rail (UiControlRow), in points.
+const VALUE_GAP: f32 = 8.0;
+
 // The width and corner radius of a focused field's line, in points.
 const FOCUS_LINE: (f32, f32) = (2.5, 5.0);
 
@@ -72,6 +77,45 @@ const HOVER_WASH: Color32 = Color32::from_rgba_premultiplied(28, 28, 28, 28);
 // `texture` stretched over `rect`.
 fn paint_sprite(ui: &egui::Ui, texture: TextureHandle, rect: egui::Rect) {
     ui.painter().image(egui_texture(texture), rect, uv_full(), Color32::WHITE);
+}
+
+// ----------------------------------------------
+// UiControlRow
+// ----------------------------------------------
+
+// A slider or dropdown laid out as a settings row, as the settings mockups draw them: its label at
+// the left edge and the control, `control_width` points wide, at the right edge of the room it's
+// in, the row at least `min_height` points tall with both centred in it. Such a control is as
+// wide as that room (a UiToggle with_fill_width lines up with it).
+#[derive(Copy, Clone, Debug)]
+pub struct UiControlRow {
+    pub control_width: f32,
+    pub min_height: f32,
+}
+
+impl UiControlRow {
+    pub fn new(control_width: f32, min_height: f32) -> Self {
+        Self { control_width: control_width.max(0.0), min_height: min_height.max(0.0) }
+    }
+
+    fn begin(&self, ui: &mut egui::Ui) {
+        ui.set_min_height(self.min_height);
+    }
+
+    // After the label: the room up to where a control `width` points wide ends at the right edge.
+    fn push_to_right(&self, ui: &mut egui::Ui, width: f32) {
+        let gap = ui.available_width() - width;
+        if gap > 0.0 {
+            ui.add_space(gap);
+        }
+    }
+
+    fn measure(&self, ui_sys: &crate::ui::UiSystem, font_scale: UiFontScale, label: &str, height: f32) -> Vec2 {
+        let label_width = internal::calc_text_size(ui_sys, font_scale, label).0.x;
+        let spacing = ui_sys.egui_style().spacing.item_spacing.x;
+        let width = (label_width + spacing * 2.0 + self.control_width).max(internal::available_size(ui_sys).x);
+        Vec2::new(width, height.max(self.min_height))
+    }
 }
 
 // ----------------------------------------------
@@ -122,6 +166,8 @@ pub struct UiSlider {
     max: f64,
     integral: bool, // Shown and set in whole numbers.
     look: Option<UiSliderLook>,
+    value_suffix: String, // After the value shown: "%".
+    row: Option<UiControlRow>,
     sounds: UiWidgetSounds, // Changed: SliderChanged, at most once per its cooldown.
     on_read_value: UiSliderReadValue,
     on_update_value: UiSliderUpdateValue,
@@ -158,8 +204,12 @@ impl UiWidget for UiSlider {
 
     fn measure(&self, context: &dyn UiWidgetContext) -> Vec2 {
         let size = internal::calc_labeled_widget_size(context.ui_sys(), self.font_scale, self.label.resolve());
-        match &self.look {
+        let size = match &self.look {
             Some(look) => Vec2::new(size.x, size.y.max(look.knob_size.y)),
+            None => size,
+        };
+        match self.row {
+            Some(row) => row.measure(context.ui_sys(), self.font_scale, self.label.resolve(), size.y),
             None => size,
         }
     }
@@ -188,6 +238,8 @@ impl UiSlider {
             max,
             integral: T::INTEGRAL,
             look: None,
+            value_suffix: String::new(),
+            row: None,
             sounds: UiWidgetSounds::new(),
             on_read_value: None,
             on_update_value: None,
@@ -209,6 +261,19 @@ impl UiSlider {
     pub fn with_font_scale(mut self, font_scale: UiFontScale) -> Self {
         debug_assert!(font_scale.is_valid());
         self.font_scale = font_scale;
+        self
+    }
+
+    // Text after the value it shows, e.g. "%".
+    pub fn with_value_suffix(mut self, suffix: impl Into<String>) -> Self {
+        self.value_suffix = suffix.into();
+        self
+    }
+
+    // Laid out as a settings row (UiControlRow): its label at the left, the value then the slider
+    // at the right edge.
+    pub fn with_row(mut self, row: UiControlRow) -> Self {
+        self.row = Some(row);
         self
     }
 
@@ -259,17 +324,31 @@ impl UiSlider {
     // queued for it.
     fn draw_slider(&self, context: &mut dyn UiWidgetContext, mut value: f64) -> (Option<f64>, Option<serde_json::Value>) {
         let ui_sys = context.ui_sys();
-        let width = internal::item_width(ui_sys);
+        let width = self.row.map_or_else(|| internal::item_width(ui_sys), |row| row.control_width);
+        // A row shows the value, its widest, to the slider's left; otherwise it shows to its right.
+        let value_width = match self.row {
+            Some(_) => {
+                let widest = [self.min, self.max].map(|value| self.value_text(value));
+                let text_width = widest.iter().map(|text| internal::calc_text_size(ui_sys, self.font_scale, text).0.x).fold(0.0, f32::max);
+                text_width + VALUE_GAP
+            }
+            None => ui_sys.egui_style().spacing.interact_size.x,
+        };
 
         ui_sys.with_ui(|ui| {
             let response = ui
                 .horizontal(|ui| {
+                    if let Some(row) = self.row {
+                        row.begin(ui);
+                    }
                     left_label(ui_sys, ui, self.label.resolve());
+                    if let Some(row) = self.row {
+                        row.push_to_right(ui, width);
+                    }
 
-                    // The value shows to the slider's right.
-                    let slider_width = (width - ui.spacing().interact_size.x - ui.spacing().item_spacing.x).max(40.0);
+                    let slider_width = (width - value_width - ui.spacing().item_spacing.x).max(40.0);
                     if let Some(look) = &self.look {
-                        return self.draw_skinned_slider(ui_sys, ui, look, slider_width, &mut value);
+                        return self.draw_skinned_slider(ui_sys, ui, look, slider_width, value_width, &mut value);
                     }
                     ui.spacing_mut().slider_width = slider_width;
                     let slider = egui::Slider::new(&mut value, self.min..=self.max).clamping(egui::SliderClamping::Always);
@@ -289,8 +368,26 @@ impl UiSlider {
 impl UiSlider {
     // The slider in its look's sprites: a rail `width` points wide with the filled part up to the
     // knob, then the value as text. Click or drag anywhere on the rail to move the knob there.
-    fn draw_skinned_slider(&self, ui_sys: &crate::ui::UiSystem, ui: &mut egui::Ui, look: &UiSliderLook, width: f32, value: &mut f64) -> egui::Response {
+    fn value_text(&self, value: f64) -> String {
+        if self.integral { format!("{:.0}{}", value, self.value_suffix) } else { format!("{:.2}{}", value, self.value_suffix) }
+    }
+
+    fn draw_skinned_slider(
+        &self,
+        ui_sys: &crate::ui::UiSystem,
+        ui: &mut egui::Ui,
+        look: &UiSliderLook,
+        width: f32,
+        value_width: f32,
+        value: &mut f64,
+    ) -> egui::Response {
         let height = look.knob_size.y.max(ui.spacing().interact_size.y);
+        let font = internal::font(ui_sys, self.font_scale);
+        let color = look.text_color.map_or_else(|| ui.visuals().text_color(), color32);
+
+        // In a row, the value first, right-aligned against the slider.
+        let value_slot = self.row.is_some().then(|| ui.allocate_exact_size(vec2(value_width, height), Sense::hover()).0);
+
         let (rect, mut response) = ui.allocate_exact_size(vec2(width, height), Sense::click_and_drag());
 
         let knob_width = look.knob_size.x.min(rect.width());
@@ -332,11 +429,16 @@ impl UiSlider {
         }
 
         // The value, in the space egui's slider gives its value field.
-        let text = if self.integral { format!("{:.0}", *value) } else { format!("{:.2}", *value) };
-        let (text_rect, _) = ui.allocate_exact_size(vec2(ui.spacing().interact_size.x, height), Sense::hover());
-        let font = internal::font(ui_sys, self.font_scale);
-        let color = look.text_color.map_or_else(|| ui.visuals().text_color(), color32);
-        ui.painter().text(text_rect.left_center(), Align2::LEFT_CENTER, text, font, color);
+        let text = self.value_text(*value);
+        match value_slot {
+            Some(slot) => {
+                ui.painter().text(slot.right_center() - vec2(VALUE_GAP, 0.0), Align2::RIGHT_CENTER, text, font, color);
+            }
+            None => {
+                let (text_rect, _) = ui.allocate_exact_size(vec2(value_width, height), Sense::hover());
+                ui.painter().text(text_rect.left_center(), Align2::LEFT_CENTER, text, font, color);
+            }
+        }
 
         response
     }
@@ -905,6 +1007,7 @@ pub struct UiDropdown {
     current_item: usize,
     items: Vec<String>,
     look: Option<UiDropdownLook>,
+    row: Option<UiControlRow>,
 
     // Opened: DropdownOpened; Hovered: ItemHovered, for an item of its list; Selected: ItemSelected;
     // Closed: DropdownClosed, when closed without a pick.
@@ -927,7 +1030,8 @@ impl UiWidget for UiDropdown {
 
         context.set_window_font_scale(self.font_scale);
         let ui_sys = context.ui_sys();
-        let width = internal::item_width(ui_sys);
+        let row = self.row;
+        let width = row.map_or_else(|| internal::item_width(ui_sys), |row| row.control_width);
 
         if let Some(on_get_current_selection) = &self.on_get_current_selection {
             self.current_item = on_get_current_selection(self, context);
@@ -939,7 +1043,13 @@ impl UiWidget for UiDropdown {
         let (selection_changed, set_value, list) = ui_sys.with_ui(|ui| {
             let combo = ui
                 .horizontal(|ui| {
+                    if let Some(row) = row {
+                        row.begin(ui);
+                    }
                     left_label(ui_sys, ui, self.label.resolve());
+                    if let Some(row) = row {
+                        row.push_to_right(ui, width);
+                    }
 
                     let font = internal::font(ui_sys, self.font_scale);
                     let selected_text = self.items.get(current_item).map_or("", String::as_str);
@@ -952,6 +1062,9 @@ impl UiWidget for UiDropdown {
                     if let Some(look) = self.look {
                         if let Some(color) = look.text_color {
                             selected_text = selected_text.color(color32(color));
+                        }
+                        if look.text_inset > 0.0 {
+                            ui.spacing_mut().button_padding.x = look.text_inset;
                         }
                         combo_box = combo_box.icon(move |ui, rect, _visuals, _open| {
                             let arrow = egui::Rect::from_center_size(rect.center(), vec2(look.arrow_size.x, look.arrow_size.y));
@@ -1016,7 +1129,11 @@ impl UiWidget for UiDropdown {
     }
 
     fn measure(&self, context: &dyn UiWidgetContext) -> Vec2 {
-        internal::calc_labeled_widget_size(context.ui_sys(), self.font_scale, self.label.resolve())
+        let size = internal::calc_labeled_widget_size(context.ui_sys(), self.font_scale, self.label.resolve());
+        match self.row {
+            Some(row) => row.measure(context.ui_sys(), self.font_scale, self.label.resolve(), size.y),
+            None => size,
+        }
     }
 
     fn label(&self) -> &str {
@@ -1044,6 +1161,7 @@ impl UiDropdown {
             current_item: 0,
             items,
             look: None,
+            row: None,
             sounds: UiWidgetSounds::new(),
             list_open_frame: None,
             hovered_item: None,
@@ -1068,6 +1186,12 @@ impl UiDropdown {
     // Its field and arrow sprites, in place of egui's combo box frame.
     pub fn with_look(mut self, look: UiDropdownLook) -> Self {
         self.look = Some(look);
+        self
+    }
+
+    // Laid out as a settings row (UiControlRow): its label at the left, the field at the right edge.
+    pub fn with_row(mut self, row: UiControlRow) -> Self {
+        self.row = Some(row);
         self
     }
 

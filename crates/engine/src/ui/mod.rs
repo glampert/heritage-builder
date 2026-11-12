@@ -100,6 +100,7 @@ pub struct UiSystem {
     backend: UiBackend,
     styles: Option<UiStyles>,
     style_sources: Vec<UiStyleSource>, // What load_styles loaded, for reload_styles.
+    text_scale: f32,                   // Of every theme's text but the developer UI's (set_text_scale).
     theme: Cell<UiThemeId>,
     modal_backdrop: Cell<Option<Color32>>, // Replaces the style's, from set_modal_backdrop_color.
     font_scale: Cell<Option<UiFontScale>>,   // For the text drawn next, until reset.
@@ -136,6 +137,7 @@ impl UiSystem {
             backend: UiBackend::new(),
             styles: None,
             style_sources: Vec::new(),
+            text_scale: 1.0,
             theme: Cell::new(UiThemeId::DEV),
             modal_backdrop: Cell::new(None),
             font_scale: Cell::new(None),
@@ -165,7 +167,8 @@ impl UiSystem {
     // egui only at its next pass. `pixels_per_point`: the window's content scale, which fonts are
     // rasterized for. On error, keeps the styles it had.
     pub fn load_styles(&mut self, sources: &[UiStyleSource], pixels_per_point: f32) -> Result<(), String> {
-        let styles = UiStyles::load(sources)?;
+        let mut styles = UiStyles::load(sources)?;
+        styles.set_text_scale(self.text_scale);
 
         // The current theme by name, if the new styles have it.
         let current_name = self.styles.as_ref().and_then(|styles| styles.name(self.theme.get())).map(str::to_string);
@@ -200,6 +203,26 @@ impl UiSystem {
         }
         let pixels_per_point = self.ctx().pixels_per_point();
         self.load_styles(&sources, pixels_per_point)
+    }
+
+    // Draws every theme's text but the developer UI's `scale` times the size its style gives it
+    // (the player's UI scale setting), from the next widget measured or drawn. Text widgets built
+    // before keep the sizes they measured, so build the menus again after a change.
+    pub fn set_text_scale(&mut self, scale: f32) {
+        let scale = if scale.is_finite() && scale > 0.0 { scale } else { 1.0 };
+        if scale == self.text_scale {
+            return;
+        }
+        self.text_scale = scale;
+        if let Some(styles) = &mut self.styles {
+            styles.set_text_scale(scale);
+        }
+        self.apply_theme_style();
+    }
+
+    #[inline]
+    pub fn text_scale(&self) -> f32 {
+        self.text_scale
     }
 
     // The current theme's style.

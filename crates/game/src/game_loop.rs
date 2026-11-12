@@ -104,6 +104,8 @@ pub struct GameLoop {
 
     autosave_timer: UpdateTimer,
     enable_autosave: bool,
+    autosave_allowed: bool, // Whether enable_autosave can be turned on (autosave_allowed above).
+    saves_user_configs: bool, // Whether the Settings dialog writes the user configs (saves_user_configs above).
 
     smoke_test: Option<SaveSmokeTest>,
 
@@ -187,8 +189,20 @@ impl RunLoop for GameLoop {
         let enable_autosave = configs.save.enable_autosave && smoke_test.is_none() && script.is_none();
 
         // A replay autosaves when the recorded run did, since saving changes the state.
-        let enable_autosave = automation::recording::recorded_autosave(engine).unwrap_or(enable_autosave);
-        automation::recording::record_game_info(engine, enable_autosave);
+        let recorded_autosave = automation::recording::recorded_autosave(engine);
+        let enable_autosave = recorded_autosave.unwrap_or(enable_autosave);
+
+        // Whether the Settings dialog can turn autosaving on in this run: not in the smoke test or
+        // a script; in a replay, when the recorded run could (for an older recording, which doesn't
+        // say, when it autosaved).
+        let autosave_allowed = automation::recording::recorded_autosave_allowed(engine)
+            .unwrap_or(smoke_test.is_none() && script.is_none() && recorded_autosave != Some(false));
+
+        // Whether the Settings dialog's Ok writes the user configs: not in the smoke test, a script
+        // or a replay, which keep the changes in memory (as they keep the profile), so their runs
+        // leave no file and don't change the player's settings.
+        let saves_user_configs = smoke_test.is_none() && script.is_none() && !engine.is_replaying();
+        automation::recording::record_game_info(engine, enable_autosave, autosave_allowed);
 
         // Saves record the time they're made, but not in runs that must write the same saves each
         // time: CI compares a script's save between runs and with its replay.
@@ -208,6 +222,8 @@ impl RunLoop for GameLoop {
             session_cmd_queue: GameSessionCmdQueue::new(),
             autosave_timer: UpdateTimer::new(configs.save.autosave_frequency_secs),
             enable_autosave,
+            autosave_allowed,
+            saves_user_configs,
             smoke_test,
             pending_screenshots: Vec::new(),
             automation: Automation::new(script),
@@ -269,6 +285,7 @@ impl RunLoop for GameLoop {
         });
 
         self.notify_session_change();
+        self.apply_display_settings();
 
         if self.smoke_test.is_some() {
             self.update_smoke_test(delta_time_secs);
@@ -365,6 +382,22 @@ impl GameLoop {
         self.enable_autosave = enable;
     }
 
+    // Whether the Settings dialog's changes are written to the user configs in this run (not in the
+    // smoke test, a script or a replay).
+    #[inline]
+    pub fn saves_user_configs(&self) -> bool {
+        self.saves_user_configs
+    }
+
+    // The player's autosave settings (the Settings dialog): whether to autosave, in the runs that
+    // may (never in the smoke test or a script), and how often, from now on.
+    pub fn apply_autosave_settings(&mut self, enable: bool, frequency_secs: Seconds) {
+        self.enable_autosave = enable && self.autosave_allowed;
+        if self.autosave_timer.update_frequency_secs != frequency_secs {
+            self.autosave_timer = UpdateTimer::new(frequency_secs);
+        }
+    }
+
     #[inline]
     pub fn is_in_home_menu(&self) -> bool {
         self.session.current_menus_mode() == Some(GameMenusMode::Home)
@@ -447,6 +480,8 @@ impl GameLoop {
             panic!("Can't load the UI skins: {err}"); // No text can be drawn without their fonts.
         }
         menu::skin::apply_sounds(engine.sound_system_mut());
+        // The player's UI scale (the Settings dialog), before any menu measures text.
+        menu::skin::set_ui_scale(engine.ui_system_mut(), configs.display.ui_scale());
 
         let load_assets_time_ms = load_assets_timer.end();
         log::info!(log::channel!("game"), "Load Assets took: {:.1}ms", load_assets_time_ms);
@@ -527,6 +562,16 @@ impl GameLoop {
 
         if self.autosave_timer.tick(delta_time_secs).should_update() {
             self.save_game(save::storage::AUTOSAVE_FILE_NAME);
+        }
+    }
+
+    // The UI scale the configs have (the Settings dialog's Ok, config.set), once it changed: the
+    // menus build again with it this frame (menu::skin::set_ui_scale). Here, before anything draws,
+    // since it changes the styles the widgets measure with.
+    fn apply_display_settings(&mut self) {
+        let scale = self.configs.display.ui_scale();
+        if scale != menu::skin::ui_scale() {
+            menu::skin::set_ui_scale(self.engine.ui_system_mut(), scale);
         }
     }
 

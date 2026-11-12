@@ -13,56 +13,60 @@
 {"method": "ui.sounds", "params": {"clear": true}}
 
 # A home menu item that opens a dialog: its hover and pick, then the dialog's open sound. Then a
-# text button that opens a stacked dialog: its hover and press, and the dialog's open sound.
+# tab of the Settings dialog: tab_selected, and no hover sound.
 {"method": "ui.click", "params": {"path": "Settings"}}
 {"method": "wait.frames", "params": {"frames": 15}}
 {"method": "assert.eq", "params": {"query": "ui.sounds", "args": {"clear": true}, "path": "/roles", "value": ["item_hovered", "item_selected", "dialog_opened"]}}
-{"method": "ui.click", "params": {"path": "Game"}}
+{"method": "ui.click", "params": {"path": "MainSettings/Sound"}}
 {"method": "wait.frames", "params": {"frames": 15}}
-{"method": "assert.eq", "params": {"query": "ui.sounds", "args": {"clear": true}, "path": "/roles", "value": ["button_hovered", "button_pressed", "dialog_opened"]}}
-
-# A checkbox plays Toggled, and no hover sound. Cancel closes the dialog without saving the change.
-{"method": "ui.click", "params": {"path": "Autosave"}}
-{"method": "wait.frames", "params": {"frames": 15}}
-{"method": "assert.eq", "params": {"query": "ui.sounds", "args": {"clear": true}, "path": "/roles", "value": ["toggled"]}}
-{"method": "ui.click", "params": {"path": "Cancel"}}
-{"method": "wait.frames", "params": {"frames": 15}}
-{"method": "assert.eq", "params": {"query": "ui.sounds", "args": {"clear": true}, "path": "/roles", "value": ["button_hovered", "button_pressed", "dialog_closed"]}}
-{"method": "assert.eq", "params": {"query": "dialog.current", "path": "/current", "value": "MainSettings"}}
-
-# A dropdown: opened, an item hovered and picked (the pick closes it, so no dropdown_closed), then
-# opened and closed again without a pick.
-{"method": "ui.click", "params": {"path": "Graphics"}}
+{"method": "assert.eq", "params": {"query": "ui.sounds", "args": {"clear": true}, "path": "/roles", "value": ["tab_selected"]}}
+{"method": "ui.click", "params": {"path": "MainSettings/Game"}}
 {"method": "wait.frames", "params": {"frames": 15}}
 {"method": "ui.sounds", "params": {"clear": true}}
-{"method": "ui.click", "params": {"path": "Texture Filtering"}}
-{"method": "ui.click", "params": {"path": "Texture Filtering/Nearest"}}
+
+# A toggle plays Toggled, and no hover sound. Cancel closes the dialog without saving the change.
+{"method": "ui.click", "params": {"path": "MainSettings/Game/Autosave"}}
 {"method": "wait.frames", "params": {"frames": 15}}
-{"method": "ui.click", "params": {"path": "Texture Filtering"}}
+{"method": "assert.eq", "params": {"query": "ui.sounds", "args": {"clear": true}, "path": "/roles", "value": ["toggled"]}}
+{"method": "ui.click", "params": {"path": "MainSettings/Cancel"}}
 {"method": "wait.frames", "params": {"frames": 15}}
-{"method": "ui.click", "params": {"path": "Texture Filtering"}}
+{"method": "assert.eq", "params": {"query": "ui.sounds", "args": {"clear": true}, "path": "/roles", "value": ["button_hovered", "button_pressed", "dialog_closed"]}}
+{"method": "assert.eq", "params": {"query": "dialog.current", "path": "/current", "value": "Home"}}
+
+# A dropdown: opened, an item hovered and picked (the pick closes it, so no dropdown_closed), then
+# opened and closed again without a pick. GraphicsSettings opens the Settings dialog on its tab.
+{"method": "dialog.open", "params": {"name": "GraphicsSettings"}}
+{"method": "wait.frames", "params": {"frames": 15}}
+{"method": "assert.eq", "params": {"query": "dialog.current", "path": "/current", "value": "MainSettings"}}
+{"method": "ui.sounds", "params": {"clear": true}}
+{"method": "ui.click", "params": {"path": "Texture filtering"}}
+{"method": "ui.click", "params": {"path": "Texture filtering/Nearest"}}
+{"method": "wait.frames", "params": {"frames": 15}}
+{"method": "ui.click", "params": {"path": "Texture filtering"}}
+{"method": "wait.frames", "params": {"frames": 15}}
+{"method": "ui.click", "params": {"path": "Texture filtering"}}
 {"method": "wait.frames", "params": {"frames": 15}}
 {"method": "assert.eq", "params": {"query": "ui.sounds", "args": {"clear": true}, "path": "/roles", "value": ["dropdown_opened", "item_hovered", "item_selected", "dropdown_opened", "dropdown_closed"]}}
 
-# Escape closes the dialog on top only: dialog_closed, and Settings, under it, is on top again.
+# Escape closes the dialog on top only: dialog_closed, and Home, under it, is on top again.
 {"method": "input.key", "params": {"key": "Escape"}}
 {"method": "wait.frames", "params": {"frames": 15}}
 {"method": "assert.eq", "params": {"query": "ui.sounds", "args": {"clear": true, "roles": ["dialog_closed"]}, "path": "/count", "value": 1}}
-{"method": "assert.eq", "params": {"query": "dialog.current", "path": "/current", "value": "MainSettings"}}
+{"method": "assert.eq", "params": {"query": "dialog.current", "path": "/current", "value": "Home"}}
 
 # A slider plays slider_changed at most once per its cooldown (0.2 s of frame time): of three moves
 # in a few frames only the first plays, and a move after the cooldown plays again.
 {"method": "dialog.open", "params": {"name": "SoundSettings"}}
 {"method": "wait.frames", "params": {"frames": 15}}
 {"method": "ui.sounds", "params": {"clear": true}}
-{"method": "ui.set", "params": {"path": "SFX Volume", "value": 50}}
-{"method": "ui.set", "params": {"path": "SFX Volume", "value": 40}}
-{"method": "ui.set", "params": {"path": "SFX Volume", "value": 30}}
+{"method": "ui.set", "params": {"path": "SFX volume", "value": 50}}
+{"method": "ui.set", "params": {"path": "SFX volume", "value": 40}}
+{"method": "ui.set", "params": {"path": "SFX volume", "value": 30}}
 {"method": "wait.frames", "params": {"frames": 15}}
-{"method": "ui.set", "params": {"path": "SFX Volume", "value": 20}}
+{"method": "ui.set", "params": {"path": "SFX volume", "value": 20}}
 {"method": "wait.frames", "params": {"frames": 2}}
 {"method": "assert.eq", "params": {"query": "ui.sounds", "args": {"clear": true}, "path": "/roles", "value": ["slider_changed", "slider_changed"]}}
-{"method": "ui.click", "params": {"path": "Cancel"}}
+{"method": "ui.click", "params": {"path": "MainSettings/Cancel"}}
 {"method": "wait.frames", "params": {"frames": 15}}
 
 # In game, a sprite button plays only its press (no hover sound by default), then its dialog opens.

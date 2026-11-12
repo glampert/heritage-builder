@@ -137,9 +137,21 @@ pub(super) struct UiStyle {
     pub egui: Arc<egui::Style>,
     pub icon_font: FontId,
     pub modal_backdrop: Color32,
+    base_egui: Arc<egui::Style>, // As loaded, before a text scale.
+    base_icon_font: FontId,
 }
 
 impl UiStyle {
+    // Its text styles' (and icon font's) sizes `scale` times those it was loaded with.
+    pub fn set_text_scale(&mut self, scale: f32) {
+        let mut egui = (*self.base_egui).clone();
+        for font in egui.text_styles.values_mut() {
+            font.size *= scale;
+        }
+        self.egui = Arc::new(egui);
+        self.icon_font = FontId::new(self.base_icon_font.size * scale, self.base_icon_font.family.clone());
+    }
+
     // The font of `text_style`, e.g. TextStyle::Body for plain text.
     pub fn font(&self, text_style: &TextStyle) -> FontId {
         self.egui.text_styles.get(text_style).cloned().unwrap_or_default()
@@ -196,6 +208,15 @@ impl UiStyles {
     pub fn style(&self, theme: UiThemeId) -> &UiStyle {
         let (_, style) = self.styles.get(theme.index()).unwrap_or(&self.styles[UiThemeId::DEV.index()]);
         style
+    }
+
+    // Scales every theme's text but the developer UI's (set_text_scale).
+    pub fn set_text_scale(&mut self, scale: f32) {
+        for (name, style) in &mut self.styles {
+            if name != DEV_UI_THEME {
+                style.set_text_scale(scale);
+            }
+        }
     }
 
     pub fn find(&self, name: &str) -> Option<UiThemeId> {
@@ -641,7 +662,8 @@ impl UiStyleDef {
         let icon_font = font_ids[&TextStyle::Name("icon".into())].clone();
         let modal_backdrop = self.colors.modal_backdrop.0;
 
-        Ok(UiStyle { egui: Arc::new(self.to_egui(font_ids)), icon_font, modal_backdrop })
+        let egui = Arc::new(self.to_egui(font_ids));
+        Ok(UiStyle { base_egui: egui.clone(), base_icon_font: icon_font.clone(), egui, icon_font, modal_backdrop })
     }
 
     fn to_egui(&self, text_styles: BTreeMap<TextStyle, FontId>) -> egui::Style {

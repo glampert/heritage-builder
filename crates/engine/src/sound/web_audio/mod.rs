@@ -58,9 +58,12 @@ use crate::{
 pub struct WebAudioSoundSystemBackend {
     ctx: web_sys::AudioContext,
 
-    // Per-kind master gain nodes, connected to ctx.destination.
+    // Per-kind master gain nodes, connected to ctx.destination. They carry each kind's volume
+    // times the master volume (set_volumes); a sound's own gain node carries only its fades and,
+    // for spatial sounds, its distance, so the volume applies once.
     sfx_gain: web_sys::GainNode,
     ambience_gain: web_sys::GainNode,
+    spatial_gain: web_sys::GainNode,
     music_gain: web_sys::GainNode,
     narration_gain: web_sys::GainNode,
 
@@ -91,6 +94,7 @@ impl SoundSystemBackend for WebAudioSoundSystemBackend {
 
         let sfx_gain = create_gain_node(&ctx, &destination)?;
         let ambience_gain = create_gain_node(&ctx, &destination)?;
+        let spatial_gain = create_gain_node(&ctx, &destination)?;
         let music_gain = create_gain_node(&ctx, &destination)?;
         let narration_gain = create_gain_node(&ctx, &destination)?;
 
@@ -105,6 +109,7 @@ impl SoundSystemBackend for WebAudioSoundSystemBackend {
             ctx,
             sfx_gain,
             ambience_gain,
+            spatial_gain,
             music_gain,
             narration_gain,
             sfx: SoundPool::new(SoundKind::Sfx),
@@ -135,11 +140,11 @@ impl SoundSystemBackend for WebAudioSoundSystemBackend {
 
     fn set_volumes(&mut self, settings: &SoundGlobalSettings) {
         let now = self.ctx.current_time();
-        set_gain(&self.sfx_gain, settings.sfx_master_volume, now);
-        set_gain(&self.ambience_gain, settings.ambience_master_volume, now);
-        // Spatial shares ambience gain node.
-        set_gain(&self.music_gain, settings.music_master_volume, now);
-        set_gain(&self.narration_gain, settings.narration_master_volume, now);
+        set_gain(&self.sfx_gain, settings.master_volume(SoundKind::Sfx), now);
+        set_gain(&self.ambience_gain, settings.master_volume(SoundKind::Ambience), now);
+        set_gain(&self.spatial_gain, settings.master_volume(SoundKind::SpatialAmbience), now);
+        set_gain(&self.music_gain, settings.master_volume(SoundKind::Music), now);
+        set_gain(&self.narration_gain, settings.master_volume(SoundKind::Narration), now);
     }
 
     fn listener_position(&self) -> IsoPointF32 {
@@ -164,7 +169,7 @@ impl SoundSystemBackend for WebAudioSoundSystemBackend {
         let (pool, track_gain) = match params.kind {
             SoundKind::Sfx             => (&mut self.sfx,        &self.sfx_gain),
             SoundKind::Ambience        => (&mut self.ambience,   &self.ambience_gain),
-            SoundKind::SpatialAmbience => (&mut self.spatial,    &self.ambience_gain),
+            SoundKind::SpatialAmbience => (&mut self.spatial,    &self.spatial_gain),
             SoundKind::Music           => (&mut self.music,      &self.music_gain),
             SoundKind::Narration       => (&mut self.narration,  &self.narration_gain),
         };
@@ -189,7 +194,8 @@ impl SoundSystemBackend for WebAudioSoundSystemBackend {
             None => return SoundHandle::invalid(params.kind),
         };
 
-        let volume = params.settings.master_volume(params.kind);
+        // The kind's and the master volume are the track's (set_volumes).
+        let volume = 1.0;
         let fade_in = params.settings.fade_in_secs(params.kind);
         let spatial = params.kind == SoundKind::SpatialAmbience;
 

@@ -103,7 +103,7 @@ impl Simulation {
             calendar: GameCalendar::new(configs.sim.calendar.clone()),
             risks: CityRisks::new(&configs.sim.risks),
             search: Search::with_grid_size(map_size_in_cells),
-            speed: Self::MIN_SIM_SPEED,
+            speed: configs.sim.default_speed.clamp(Self::MIN_SIM_SPEED, Self::MAX_SIM_SPEED),
             is_paused: false,
             elapsed_secs: 0.0,
         }

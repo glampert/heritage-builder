@@ -1,81 +1,67 @@
-use engine::Engine;
+// The Sound tab: the master volume and each kind's, in percent, and muting in the background.
 
 use super::*;
-use crate::config::GameConfigs;
 
-// ----------------------------------------------
-// Helper macros
-// ----------------------------------------------
+const VOLUME_RANGE: std::ops::RangeInclusive<u32> = 0..=100;
 
-macro_rules! read_master_volume_u32 {
-    ($volume_field:ident) => {{
-        let sound_settings = Engine::get().sound_system().current_sound_settings();
-        (sound_settings.$volume_field * 100.0) as u32 // Scale from [0,1] f32 to [0,100] u32
-    }};
+fn percent(volume: f32) -> SettingValue {
+    SettingValue::Number((volume.clamp(0.0, 1.0) * 100.0).round() as u32)
 }
 
-macro_rules! write_mater_volume_u32 {
-    ($volume_field:ident, $volume:ident) => {{
-        let sound_sys = Engine::get_mut().sound_system_mut();
-        let mut sound_settings = sound_sys.current_sound_settings();
-        sound_settings.$volume_field = $volume as f32 / 100.0; // Back to [0,1] f32 range.
-        sound_sys.change_sound_settings(sound_settings);
-        GameConfigs::get_mut().engine.sound_settings = sound_settings;
-    }};
+fn volume(value: SettingValue) -> f32 {
+    value.as_number().min(*VOLUME_RANGE.end()) as f32 / 100.0
 }
 
-const VOLUME_MIN: u32 = 0;
-const VOLUME_MAX: u32 = 100;
+pub(super) fn settings() -> Vec<SettingDef> {
+    let tab = SettingsTab::Sound;
+    let slider = |label: UiString, read: fn(&GameConfigs) -> SettingValue, write: fn(&mut GameConfigs, SettingValue)| SettingDef {
+        tab,
+        label,
+        control: SettingControl::Slider { range: VOLUME_RANGE, suffix: "%" },
+        restart: false,
+        read,
+        write,
+    };
 
-// ----------------------------------------------
-// SoundSettings
-// ----------------------------------------------
-
-pub struct SoundSettings {
-    category: SettingsCategoryRcMut,
-    menu: UiMenuRcMut,
-}
-
-implement_dialog_menu! { SoundSettings, ["Sound Settings"] }
-
-impl SoundSettings {
-    pub fn new(context: &mut GameUiContext) -> Self {
-        let mut category = SettingsCategory::new();
-
-        category
-            .add_setting(SettingImpl::new(
-                "SFX Volume",
-                SettingsWidgetKind::SliderU32(VOLUME_MIN, VOLUME_MAX),
-                || read_master_volume_u32!(sfx_master_volume),
-                |volume| write_mater_volume_u32!(sfx_master_volume, volume),
-            ))
-            .add_setting(SettingImpl::new(
-                "Music Volume",
-                SettingsWidgetKind::SliderU32(VOLUME_MIN, VOLUME_MAX),
-                || read_master_volume_u32!(music_master_volume),
-                |volume| write_mater_volume_u32!(music_master_volume, volume),
-            ))
-            .add_setting(SettingImpl::new(
-                "Ambience Volume",
-                SettingsWidgetKind::SliderU32(VOLUME_MIN, VOLUME_MAX),
-                || read_master_volume_u32!(ambience_master_volume),
-                |volume| write_mater_volume_u32!(ambience_master_volume, volume),
-            ))
-            .add_setting(SettingImpl::new(
-                "Narration Volume",
-                SettingsWidgetKind::SliderU32(VOLUME_MIN, VOLUME_MAX),
-                || read_master_volume_u32!(narration_master_volume),
-                |volume| write_mater_volume_u32!(narration_master_volume, volume),
-            ))
-            .add_setting(SettingImpl::new(
-                "Spatial Volume",
-                SettingsWidgetKind::SliderU32(VOLUME_MIN, VOLUME_MAX),
-                || read_master_volume_u32!(spatial_master_volume),
-                |volume| write_mater_volume_u32!(spatial_master_volume, volume),
-            ));
-
-        let menu = category.build_menu(category.downgrade(), context, Self::KIND, Self::TITLE);
-
-        Self { menu, category }
-    }
+    vec![
+        slider(
+            UiString::key(UiTextCategory::Menu, "settings.master_volume"),
+            |configs| percent(configs.engine.sound_settings.master_volume),
+            |configs, value| configs.engine.sound_settings.master_volume = volume(value),
+        ),
+        slider(
+            UiString::key(UiTextCategory::Menu, "settings.music_volume"),
+            |configs| percent(configs.engine.sound_settings.music_master_volume),
+            |configs, value| configs.engine.sound_settings.music_master_volume = volume(value),
+        ),
+        slider(
+            UiString::key(UiTextCategory::Menu, "settings.sfx_volume"),
+            |configs| percent(configs.engine.sound_settings.sfx_master_volume),
+            |configs, value| configs.engine.sound_settings.sfx_master_volume = volume(value),
+        ),
+        slider(
+            UiString::key(UiTextCategory::Menu, "settings.ambience_volume"),
+            |configs| percent(configs.engine.sound_settings.ambience_master_volume),
+            |configs, value| configs.engine.sound_settings.ambience_master_volume = volume(value),
+        ),
+        slider(
+            UiString::key(UiTextCategory::Menu, "settings.narration_volume"),
+            |configs| percent(configs.engine.sound_settings.narration_master_volume),
+            |configs, value| configs.engine.sound_settings.narration_master_volume = volume(value),
+        ),
+        slider(
+            UiString::key(UiTextCategory::Menu, "settings.spatial_volume"),
+            |configs| percent(configs.engine.sound_settings.spatial_master_volume),
+            |configs, value| configs.engine.sound_settings.spatial_master_volume = volume(value),
+        ),
+        // Stored only: see EngineConfigs::mute_in_background's TODO(realm-ui).
+        SettingDef {
+            tab,
+            label: UiString::key(UiTextCategory::Menu, "settings.mute_in_background"),
+            control: SettingControl::Toggle,
+            restart: false,
+            read: |configs| SettingValue::Bool(configs.engine.mute_in_background),
+            write: |configs, value| configs.engine.mute_in_background = value.as_bool(),
+        },
+    ]
 }

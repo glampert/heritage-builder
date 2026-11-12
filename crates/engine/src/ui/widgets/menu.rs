@@ -644,15 +644,15 @@ impl UiMenu {
                     });
                 };
 
-                // A menu with a size scrolls its contents when they don't fit it.
-                let mut scrolls = false;
+                // A menu with a size scrolls its contents when they don't fit it (None: no size).
+                let mut scrolls = None;
                 if content_size.is_some() {
                     let output = egui::ScrollArea::vertical()
                         .id_salt(id.with("contents"))
                         .auto_shrink([false, false])
                         .scroll_bar_visibility(egui::scroll_area::ScrollBarVisibility::VisibleWhenNeeded)
                         .show(&mut content_ui, draw_contents);
-                    scrolls = output.content_size.y > output.inner_rect.height() + 0.5;
+                    scrolls = Some(output.content_size.y > output.inner_rect.height() + 0.5);
                 } else {
                     draw_contents(&mut content_ui);
                 }
@@ -672,10 +672,10 @@ impl UiMenu {
                 ui.painter().set(slot, background.shape(frame_response.response.rect));
             }
 
-            // Its value says when its contents scroll, so the layout check knows its top and
-            // bottom edges clip them.
+            // A menu with a size says whether its contents scroll, so the layout check knows when
+            // its top and bottom edges clip them.
             if let Some(index) = content_index {
-                let value = scrolls.then(|| serde_json::json!({ "scrolls": true }));
+                let value = scrolls.map(|scrolls| serde_json::json!({ "scrolls": scrolls }));
                 immediate::update_rect(ui_sys, index, inner, false, value);
             }
 

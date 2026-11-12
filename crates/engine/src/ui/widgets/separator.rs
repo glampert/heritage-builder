@@ -1,13 +1,13 @@
 use std::any::Any;
 use egui::{Color32, Sense};
 
-use common::Vec2;
+use common::{Color, Vec2};
 
 use super::{UiSeparatorArt, UiWidget, UiWidgetContext};
 use crate::{
     file_sys::paths::PathRef,
     render::texture::TextureHandle,
-    ui::{immediate::{egui_vec2, uv_full}, internal, renderer::egui_texture},
+    ui::{immediate::{color32, egui_vec2, uv_full}, internal, renderer::egui_texture},
 };
 
 // ----------------------------------------------
@@ -19,6 +19,7 @@ use crate::{
 pub struct UiSeparator {
     separator: Option<TextureHandle>,
     art: Option<UiSeparatorArt>, // In place of `separator`.
+    color: Option<Color>,        // A plain line, `thickness` thick, in place of either.
     size: Option<Vec2>, // Across the menu if None.
     thickness: f32,
     vertical: bool,
@@ -33,13 +34,20 @@ impl UiWidget for UiSeparator {
         debug_assert!(context.is_inside_widget_window());
 
         let ui_sys = context.ui_sys();
-        let size = self.size.unwrap_or_else(|| internal::calc_separator_size(ui_sys, !self.vertical, self.thickness));
+        let size = self.size.unwrap_or_else(|| self.calc_size(ui_sys));
 
         ui_sys.with_ui(|ui| {
             // Empty space, optionally with a texture over it.
             let (rect, _) = ui.allocate_exact_size(egui_vec2(size), Sense::hover());
 
-            if let Some(art) = &self.art {
+            if let Some(color) = self.color {
+                let line = if self.vertical {
+                    egui::Rect::from_center_size(rect.center(), egui::vec2(self.thickness, rect.height()))
+                } else {
+                    egui::Rect::from_center_size(rect.center(), egui::vec2(rect.width(), self.thickness))
+                };
+                ui.painter().rect_filled(line, 0.0, color32(color));
+            } else if let Some(art) = &self.art {
                 art.paint(ui, rect);
             } else if let Some(separator) = self.separator {
                 ui.painter().image(egui_texture(separator), rect, uv_full(), Color32::WHITE);
@@ -48,7 +56,19 @@ impl UiWidget for UiSeparator {
     }
 
     fn measure(&self, context: &dyn UiWidgetContext) -> Vec2 {
-        self.size.unwrap_or_else(|| internal::calc_separator_size(context.ui_sys(), !self.vertical, self.thickness))
+        self.size.unwrap_or_else(|| self.calc_size(context.ui_sys()))
+    }
+}
+
+impl UiSeparator {
+    // Across the room it's in: a plain line just its thickness, the others with the item spacing
+    // on both sides.
+    fn calc_size(&self, ui_sys: &crate::ui::UiSystem) -> Vec2 {
+        if self.color.is_some() {
+            let room = internal::available_size(ui_sys);
+            return if self.vertical { Vec2::new(self.thickness, room.y) } else { Vec2::new(room.x, self.thickness) };
+        }
+        internal::calc_separator_size(ui_sys, !self.vertical, self.thickness)
     }
 }
 
@@ -61,7 +81,7 @@ impl Default for UiSeparator {
 impl UiSeparator {
     // A blank, one point thick line across the menu.
     pub fn new() -> Self {
-        Self { separator: None, art: None, size: None, thickness: 1.0, vertical: false }
+        Self { separator: None, art: None, color: None, size: None, thickness: 1.0, vertical: false }
     }
 
     // A sprite stretched over the line.
@@ -73,6 +93,12 @@ impl UiSeparator {
     // A skin's rule and ornament over the line, in place of a sprite.
     pub fn with_art(mut self, art: UiSeparatorArt) -> Self {
         self.art = Some(art);
+        self
+    }
+
+    // A plain line in `color`, `thickness` thick (with no spacing around it unless given a size).
+    pub fn with_color(mut self, color: Color) -> Self {
+        self.color = Some(color);
         self
     }
 

@@ -169,9 +169,10 @@ pub fn reset() {
 }
 
 // Rebuilds every dialog if the skin or the language changed since they were built (a realm
-// switch, entering a session, ui.reload_skin, text.language), keeping the open ones open; and the
+// switch, entering a session, ui.reload_skin, text.language), keeping the open ones open; the
 // ones that show the player's progress if the profile changed, or the window's size changed how
-// large the dialogs are drawn (their contents scale with it). The retail menus call it at the
+// large the dialogs are drawn (their contents scale with it); and Load / Save and Settings, which
+// lay their contents out for the window, when it changed (and the saves, for Load / Save). The retail menus call it at the
 // start of every frame.
 pub fn sync(context: &mut GameUiContext) {
     if !DialogMenusSingleton::is_initialized() {
@@ -191,17 +192,33 @@ pub fn sync(context: &mut GameUiContext) {
         // The saves changed (a save, its thumbnail, a deletion), or the window's size changed the
         // dialog's. Not under its popup, which a rebuild would close: once it's gone.
         dialogs.rebuild(context, |kind| kind == DialogMenuKind::LoadOrSaveGame);
+    } else if dialogs.menu_stack.contains(&DialogMenuKind::MainSettings)
+        && !dialogs.find_dialog(DialogMenuKind::MainSettings).menu().is_message_box_open()
+        && settings::needs_rebuild(context)
+    {
+        // The window's size changed the dialog's, which its rows are laid out for. Its pending
+        // values and tab are kept (settings::STATE).
+        dialogs.rebuild(context, |kind| kind == DialogMenuKind::MainSettings);
     }
 }
 
-// The dialog a kind opens: LoadGame and SaveGame open LoadOrSaveGame (load_save::redirect).
+// The dialog a kind opens: LoadGame and SaveGame open LoadOrSaveGame (load_save::redirect);
+// GameSettings, SoundSettings and GraphicsSettings open MainSettings (settings::redirect).
 fn opened_kind(dialog_menu_kind: DialogMenuKind) -> DialogMenuKind {
-    if load_save::redirect(dialog_menu_kind).is_some() { DialogMenuKind::LoadOrSaveGame } else { dialog_menu_kind }
+    if load_save::redirect(dialog_menu_kind).is_some() {
+        DialogMenuKind::LoadOrSaveGame
+    } else if settings::redirect(dialog_menu_kind).is_some() {
+        DialogMenuKind::MainSettings
+    } else {
+        dialog_menu_kind
+    }
 }
 
 // Builds every dialog again, from the current skin and strings. The stack stays: each open
 // dialog is opened again, bottom up, without its open sound (its open callback runs, refreshing
 // its contents). A popup that was open closes.
+// TODO(realm-ui): a button under the cursor plays its hover sound again, since the new widget
+// wasn't hovered; carry the hovered state across (or skip hover sounds for a frame).
 pub fn rebuild_all(context: &mut GameUiContext) {
     if DialogMenusSingleton::is_initialized() {
         DialogMenusSingleton::get_mut().rebuild(context, |_| true);
@@ -244,6 +261,13 @@ pub fn is_initialized() -> bool {
 pub fn is_open(dialog_menu_kind: DialogMenuKind) -> bool {
     // Only the current stack top is considered "open" here.
     current().is_some_and(|dialog| dialog == opened_kind(dialog_menu_kind))
+}
+
+// Whether opening `kind` while `other` is open switches the open dialog instead of opening another:
+// both open the Settings dialog, which shows `kind`'s tab, its pending edits kept (open_dialog).
+// Not Load / Save, whose load or save mode is picked when it's built.
+pub fn switches_in_place(kind: DialogMenuKind, other: DialogMenuKind) -> bool {
+    settings::redirect(kind).is_some() && settings::redirect(other).is_some()
 }
 
 // Whether the dialog is anywhere in the stack, on top or under others.
@@ -462,11 +486,10 @@ impl DialogMenusSingleton {
         self.profile_built = profile_versions(context);
 
         // The old dialogs go without closing (their callbacks would resume the simulation and
-        // play sounds); the new ones open below.
-        // TODO(realm-ui): what an open dialog's widgets hold is lost here (unsaved Settings edits,
-        // a typed save name, the selected save): opening refreshes from the configs and saves.
-        // Phase 1's language and realm controls in Settings rebuild the very dialog they're in, so
-        // a dialog will need to hand its pending edits to the one that replaces it.
+        // play sounds); the new ones open below. What their widgets held is lost, so a dialog
+        // whose edits must survive keeps them outside its widgets, read by the new ones: Settings'
+        // pending values and tab (settings::STATE), Load / Save's typed name (load_save::STATE).
+        // Those are read afresh only when the dialog is opened (open_dialog), not reopened here.
         for dialog_menu_kind in DialogMenuKind::iter().filter(|kind| which(*kind)) {
             self.dialog_menus[dialog_menu_kind as usize] = dialog_menu_kind.build_menu(context);
             self.frames[dialog_menu_kind as usize] = DialogFrame::from_skin(dialog_menu_kind);
@@ -547,6 +570,23 @@ impl DialogMenusSingleton {
                     return false;
                 }
                 load_save::prepare(mode);
+                self.dialog_menus[kind as usize] = kind.build_menu(context);
+                self.frames[kind as usize] = DialogFrame::from_skin(kind);
+                kind
+            }
+            None => dialog_menu_kind,
+        };
+
+        // MainSettings and the kinds that open it on their tab: built afresh from the configs, or
+        // switched to that tab if it's open, its pending edits kept.
+        let dialog_menu_kind = match settings::redirect(dialog_menu_kind) {
+            Some(tab) => {
+                let kind = DialogMenuKind::MainSettings;
+                if self.find_dialog(kind).is_open() {
+                    self.find_dialog_as::<MainSettings>().select_tab(tab);
+                    return false;
+                }
+                settings::prepare(tab);
                 self.dialog_menus[kind as usize] = kind.build_menu(context);
                 self.frames[kind as usize] = DialogFrame::from_skin(kind);
                 kind
@@ -824,7 +864,7 @@ where
 }
 
 // A button of `role` that closes the current dialog.
-fn make_dialog_close_button(context: &mut dyn UiWidgetContext, role: ButtonRole, label: &str) -> UiTextButton {
+fn make_dialog_close_button(context: &mut dyn UiWidgetContext, role: ButtonRole, label: impl Into<UiString>) -> UiTextButton {
     make_text_button(context, role, label, |_, context| {
         close_current(context_as_mut::<GameUiContext>(context));
     })

@@ -123,7 +123,12 @@ impl SoundHandle {
 // ----------------------------------------------
 
 #[derive(Copy, Clone, PartialEq, DrawDebugUi, Serialize, Deserialize)]
+#[serde(default)] // Missing fields get defaults from SoundGlobalSettings::default().
 pub struct SoundGlobalSettings {
+    // Every kind's volume is its own master volume times this one.
+    #[debug_ui(edit, widget = "slider", min = "0", max = "1")]
+    pub master_volume: f32,
+
     // Master volumes:
     #[debug_ui(edit, widget = "slider", min = "0", max = "1")]
     pub spatial_master_volume: f32,
@@ -176,6 +181,8 @@ pub struct SoundGlobalSettings {
 impl Default for SoundGlobalSettings {
     fn default() -> Self {
         Self {
+            master_volume: 1.0,
+
             // Master volumes:
             spatial_master_volume: 1.0,
             ambience_master_volume: 1.0,
@@ -203,15 +210,17 @@ impl Default for SoundGlobalSettings {
 }
 
 impl SoundGlobalSettings {
+    // A kind's volume: its own master volume times the master volume.
     #[inline]
     fn master_volume(&self, kind: SoundKind) -> f32 {
-        match kind {
+        let volume = match kind {
             SoundKind::Sfx             => self.sfx_master_volume,
             SoundKind::Ambience        => self.ambience_master_volume,
             SoundKind::SpatialAmbience => self.spatial_master_volume,
             SoundKind::Music           => self.music_master_volume,
             SoundKind::Narration       => self.narration_master_volume,
-        }
+        };
+        volume * self.master_volume
     }
 
     #[inline]
@@ -295,7 +304,12 @@ pub struct SoundSystem {
 
 impl SoundSystem {
     pub fn new(settings: SoundGlobalSettings) -> Self {
-        Self { backend: SoundSystemBackendImpl::new(), registry: SoundAssetRegistryImpl::new(), settings }
+        let mut backend = SoundSystemBackendImpl::new();
+        // The backends that keep the volumes on their tracks (Web Audio) start at them.
+        if let Some(backend) = &mut backend {
+            backend.set_volumes(&settings);
+        }
+        Self { backend, registry: SoundAssetRegistryImpl::new(), settings }
     }
 
     #[inline]

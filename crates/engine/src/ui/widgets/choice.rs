@@ -83,6 +83,7 @@ pub struct UiToggle {
     text_color: Option<Color>,
     state_text_color: Option<Color>,
     fill_width: bool,
+    min_height: f32,
     enabled: bool,
     sounds: UiWidgetSounds, // Toggled: Toggled.
     on_read_value: UiToggleReadValue,
@@ -156,7 +157,7 @@ impl UiWidget for UiToggle {
         if label.x > 0.0 {
             width += label.x + CONTROL_GAP * 2.0;
         }
-        let height = pill.y.max(internal::calc_text_line_height(ui_sys, self.font_scale));
+        let height = pill.y.max(internal::calc_text_line_height(ui_sys, self.font_scale)).max(self.min_height);
         if self.fill_width {
             width = width.max(internal::available_size(ui_sys).x);
         }
@@ -191,6 +192,7 @@ impl UiToggle {
             text_color: None,
             state_text_color: None,
             fill_width: false,
+            min_height: 0.0,
             enabled: true,
             sounds: UiWidgetSounds::new(),
             on_read_value: None,
@@ -232,6 +234,12 @@ impl UiToggle {
     // As wide as the menu, its pill at the right edge.
     pub fn with_fill_width(mut self, fill: bool) -> Self {
         self.fill_width = fill;
+        self
+    }
+
+    // At least `height` points tall, its texts and pill centred in it: a settings row's height.
+    pub fn with_min_height(mut self, height: f32) -> Self {
+        self.min_height = height.max(0.0);
         self
     }
 

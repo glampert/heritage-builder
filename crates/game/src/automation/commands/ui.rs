@@ -786,9 +786,12 @@ fn cmd_dialog_open(context: &mut CommandContext, params: Value) -> CommandResult
     let kind = dialog_kind(&params.name)?;
 
     // Close the others, but not the home menu's own dialog: the home menu would reopen it over
-    // this one. Its buttons open dialogs over it too.
+    // this one. Its buttons open dialogs over it too. Nor an open Settings dialog that `kind` opens
+    // on one of its tabs: it switches to that tab, its pending edits kept.
     let opened = context.session.with_ui_context(context.engine, |ui_context| {
-        for other in DialogMenuKind::iter().filter(|other| *other != kind && *other != DialogMenuKind::Home) {
+        for other in DialogMenuKind::iter()
+            .filter(|other| *other != kind && *other != DialogMenuKind::Home && !dialog::switches_in_place(kind, *other))
+        {
             if dialog::is_in_stack(other) {
                 dialog::close(other, ui_context);
             }

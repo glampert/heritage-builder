@@ -289,6 +289,12 @@ impl UiTextButton {
         self
     }
 
+    // Its text's scale over the button text style, in place of a UiTextButtonSize's.
+    pub fn with_font_scale(mut self, scale: UiFontScale) -> Self {
+        self.font_scale = scale;
+        self
+    }
+
     // Drawn under the text while hovered, in place of the style's button frame.
     pub fn with_hover_sprite<'a>(mut self, context: &mut dyn UiWidgetContext, sprite: impl Into<PathRef<'a>>) -> Self {
         self.hover = Some(context.load_texture(sprite.into()));

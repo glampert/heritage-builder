@@ -34,9 +34,23 @@ pub struct GameConfigs {
     #[debug_ui(nested)]
     pub sim: SimConfigs,
 
+    // The player's display choices (the Settings dialog):
+    #[debug_ui(nested)]
+    pub display: DisplayConfigs,
+
     // Debug:
     #[debug_ui(nested)]
     pub debug: DebugConfigs,
+}
+
+impl GameConfigs {
+    // The configs as assets/configs has them, without the user configs: what the Settings dialog's
+    // Restore defaults goes back to. GameConfigs::default() if they weren't loaded.
+    pub fn defaults() -> GameConfigs {
+        engine::config::user_configs_defaults(GAME_CONFIGS_USER_FILE)
+            .and_then(|json| serde_json::from_value(json).ok())
+            .unwrap_or_default()
+    }
 }
 
 // ----------------------------------------------
@@ -116,6 +130,9 @@ pub struct CameraConfigs {
 
     // In pixels from screen edge.
     pub scroll_margin: f32,
+
+    // Scroll the map when the cursor is at the window's edge (scroll_margin).
+    pub edge_scrolling: bool,
 }
 
 impl Default for CameraConfigs {
@@ -132,6 +149,7 @@ impl Default for CameraConfigs {
             enable_debug_draw: false,
             scroll_speed: 500.0,
             scroll_margin: 20.0,
+            edge_scrolling: true,
         }
     }
 }
@@ -145,6 +163,9 @@ pub struct SimConfigs {
     pub paused_update_frequency_secs: Seconds,
     pub starting_gold_units: u32,
     pub start_paused: bool,
+
+    // The speed a new game starts at (1 to 10 times; the Settings dialog's default game speed).
+    pub default_speed: f32,
 
     // Length of one in-game day, in simulation seconds. Lets rates (e.g. house
     // resource consumption) be expressed in intuitive units-per-day.
@@ -188,6 +209,7 @@ impl Default for SimConfigs {
             paused_update_frequency_secs: 0.5,
             starting_gold_units: 0,
             start_paused: false,
+            default_speed: 1.0,
             seconds_per_day: 600.0,
             // Calendar:
             seconds_per_month: 60.0,
@@ -304,6 +326,40 @@ impl Default for RiskConfigs {
     }
 }
 
+// The player's display choices, set in the Settings dialog.
+#[derive(DrawDebugUi, Serialize, Deserialize)]
+#[serde(default)]
+pub struct DisplayConfigs {
+    // The retail UI's size, in percent (75 to 200): its text and its dialogs (menu::skin::set_ui_scale).
+    pub ui_scale_percent: u32,
+
+    // Overlays drawn in colours that colour-blind players can tell apart.
+    // TODO(realm-ui): stored only: the Risk lens (M6) and the other overlays (M7) should read it
+    // and pick their colour-blind-safe palette.
+    pub color_blind_overlays: bool,
+
+    // Animate the water tiles.
+    // TODO(realm-ui): stored only: the water tiles have one frame each today. The tile renderer
+    // should skip their animation when it's off, once water animates.
+    pub animated_water: bool,
+}
+
+impl DisplayConfigs {
+    pub const UI_SCALE_PERCENT_RANGE: std::ops::RangeInclusive<u32> = 75..=200;
+
+    // The UI scale as a factor (1 at 100%), within the range the setting allows.
+    pub fn ui_scale(&self) -> f32 {
+        let range = Self::UI_SCALE_PERCENT_RANGE;
+        self.ui_scale_percent.clamp(*range.start(), *range.end()) as f32 / 100.0
+    }
+}
+
+impl Default for DisplayConfigs {
+    fn default() -> Self {
+        Self { ui_scale_percent: 100, color_blind_overlays: false, animated_water: true }
+    }
+}
+
 #[derive(DrawDebugUi, Serialize, Deserialize)]
 #[serde(default)]
 pub struct DebugConfigs {
@@ -350,4 +406,7 @@ impl RunLoopConfigs for GameConfigs {
 
 // Defaults in assets/configs/game/configs.json; the settings dialog's changes go to the user
 // configs, saves/user/configs.json (see engine::config).
+// The user configs file's name: saves/user/configs.json.
+const GAME_CONFIGS_USER_FILE: &str = "configs";
+
 engine::configurations! { GAME_CONFIGS_SINGLETON, GameConfigs, "game/configs", user_configs: "configs" }

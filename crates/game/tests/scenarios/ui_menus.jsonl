@@ -1,5 +1,7 @@
-# The main menus (docs/plans/realm-ui.md, Phase 1): the home menu, the campaign picker and the
-# Load / Save dialog in the three realms. The profile (profile.set) picks the realm and fills the
+# The main menus (docs/plans/realm-ui.md, Phase 1): the home menu, the campaign picker, the
+# Settings dialog and the Load / Save dialog in the three realms. Settings: every tab in each realm,
+# Cancel, edits kept through a rebuild, Ok (checked with config.get; a script leaves the user configs
+# alone) and Restore defaults. The profile (profile.set) picks the realm and fills the
 # campaign row: none reached, campaign II reached, all three; Campaign resumes the campaign at its
 # next mission, or opens the picker when more than one can be played, whose Continue starts the
 # campaign picked; Continue loads the last save. Load / Save saves two games, reads their rows and
@@ -56,6 +58,229 @@
 {"method": "assert.eq", "params": {"query": "dialog.current", "path": "/current", "value": "About"}}
 {"method": "input.key", "params": {"key": "Escape"}}
 {"method": "wait.frames", "params": {"frames": 2}}
+{"method": "assert.eq", "params": {"query": "dialog.current", "path": "/current", "value": "Home"}}
+{"method": "input.move", "params": {"park": true}}
+
+# ---- Settings: one dialog, MainSettings, with a tab per group of settings; Cancel, Ok, Restore defaults ----
+# Every tab in each realm's look (ui.realm), checked for layout issues and that its contents fit
+# without scrolling (the buttons stay put), and saved as a screenshot.
+{"method": "ui.click", "params": {"path": "Home/Settings"}}
+{"method": "assert.eq", "params": {"query": "dialog.current", "path": "/current", "value": "MainSettings"}}
+{"method": "input.move", "params": {"park": true}}
+{"method": "wait.frames", "params": {"frames": 2}}
+{"method": "assert.eq", "params": {"query": "ui.tree", "args": {"filter": "MainSettings/tab_bar", "kind": "tab_bar"}, "path": "/widgets/0/value", "value": "Game"}}
+{"method": "ui.realm", "params": {"realm": "dailong"}}
+{"method": "ui.click", "params": {"path": "MainSettings/Game"}}
+{"method": "input.move", "params": {"park": true}}
+{"method": "wait.frames", "params": {"frames": 2}}
+{"method": "assert.eq", "params": {"query": "ui.tree", "args": {"filter": "MainSettings/tab_bar", "kind": "tab_bar"}, "path": "/widgets/0/value", "value": "Game"}}
+{"method": "assert.eq", "params": {"query": "ui.layout_issues", "path": "/count", "value": 0}}
+{"method": "assert.eq", "params": {"query": "ui.tree", "args": {"filter": "MainSettings", "kind": "menu_content"}, "path": "/widgets/0/value/scrolls", "value": false}}
+{"method": "screenshot", "params": {"path": "out/ui_menus/settings_game_dailong.png"}}
+{"method": "ui.click", "params": {"path": "MainSettings/Sound"}}
+{"method": "input.move", "params": {"park": true}}
+{"method": "wait.frames", "params": {"frames": 2}}
+{"method": "assert.eq", "params": {"query": "ui.tree", "args": {"filter": "MainSettings/tab_bar", "kind": "tab_bar"}, "path": "/widgets/0/value", "value": "Sound"}}
+{"method": "assert.eq", "params": {"query": "ui.layout_issues", "path": "/count", "value": 0}}
+{"method": "assert.eq", "params": {"query": "ui.tree", "args": {"filter": "MainSettings", "kind": "menu_content"}, "path": "/widgets/0/value/scrolls", "value": false}}
+{"method": "screenshot", "params": {"path": "out/ui_menus/settings_sound_dailong.png"}}
+{"method": "ui.click", "params": {"path": "MainSettings/Graphics"}}
+{"method": "input.move", "params": {"park": true}}
+{"method": "wait.frames", "params": {"frames": 2}}
+{"method": "assert.eq", "params": {"query": "ui.tree", "args": {"filter": "MainSettings/tab_bar", "kind": "tab_bar"}, "path": "/widgets/0/value", "value": "Graphics"}}
+{"method": "assert.eq", "params": {"query": "ui.layout_issues", "path": "/count", "value": 0}}
+{"method": "assert.eq", "params": {"query": "ui.tree", "args": {"filter": "MainSettings", "kind": "menu_content"}, "path": "/widgets/0/value/scrolls", "value": false}}
+{"method": "screenshot", "params": {"path": "out/ui_menus/settings_graphics_dailong.png"}}
+{"method": "ui.click", "params": {"path": "MainSettings/Controls"}}
+{"method": "input.move", "params": {"park": true}}
+{"method": "wait.frames", "params": {"frames": 2}}
+{"method": "assert.eq", "params": {"query": "ui.tree", "args": {"filter": "MainSettings/tab_bar", "kind": "tab_bar"}, "path": "/widgets/0/value", "value": "Controls"}}
+{"method": "assert.eq", "params": {"query": "ui.layout_issues", "path": "/count", "value": 0}}
+{"method": "assert.eq", "params": {"query": "ui.tree", "args": {"filter": "MainSettings", "kind": "menu_content"}, "path": "/widgets/0/value/scrolls", "value": false}}
+{"method": "screenshot", "params": {"path": "out/ui_menus/settings_controls_dailong.png"}}
+{"method": "ui.realm", "params": {"realm": "kambara"}}
+{"method": "ui.click", "params": {"path": "MainSettings/Game"}}
+{"method": "input.move", "params": {"park": true}}
+{"method": "wait.frames", "params": {"frames": 2}}
+{"method": "assert.eq", "params": {"query": "ui.tree", "args": {"filter": "MainSettings/tab_bar", "kind": "tab_bar"}, "path": "/widgets/0/value", "value": "Game"}}
+{"method": "assert.eq", "params": {"query": "ui.layout_issues", "path": "/count", "value": 0}}
+{"method": "assert.eq", "params": {"query": "ui.tree", "args": {"filter": "MainSettings", "kind": "menu_content"}, "path": "/widgets/0/value/scrolls", "value": false}}
+{"method": "screenshot", "params": {"path": "out/ui_menus/settings_game_kambara.png"}}
+{"method": "ui.click", "params": {"path": "MainSettings/Sound"}}
+{"method": "input.move", "params": {"park": true}}
+{"method": "wait.frames", "params": {"frames": 2}}
+{"method": "assert.eq", "params": {"query": "ui.tree", "args": {"filter": "MainSettings/tab_bar", "kind": "tab_bar"}, "path": "/widgets/0/value", "value": "Sound"}}
+{"method": "assert.eq", "params": {"query": "ui.layout_issues", "path": "/count", "value": 0}}
+{"method": "assert.eq", "params": {"query": "ui.tree", "args": {"filter": "MainSettings", "kind": "menu_content"}, "path": "/widgets/0/value/scrolls", "value": false}}
+{"method": "screenshot", "params": {"path": "out/ui_menus/settings_sound_kambara.png"}}
+{"method": "ui.click", "params": {"path": "MainSettings/Graphics"}}
+{"method": "input.move", "params": {"park": true}}
+{"method": "wait.frames", "params": {"frames": 2}}
+{"method": "assert.eq", "params": {"query": "ui.tree", "args": {"filter": "MainSettings/tab_bar", "kind": "tab_bar"}, "path": "/widgets/0/value", "value": "Graphics"}}
+{"method": "assert.eq", "params": {"query": "ui.layout_issues", "path": "/count", "value": 0}}
+{"method": "assert.eq", "params": {"query": "ui.tree", "args": {"filter": "MainSettings", "kind": "menu_content"}, "path": "/widgets/0/value/scrolls", "value": false}}
+{"method": "screenshot", "params": {"path": "out/ui_menus/settings_graphics_kambara.png"}}
+{"method": "ui.click", "params": {"path": "MainSettings/Controls"}}
+{"method": "input.move", "params": {"park": true}}
+{"method": "wait.frames", "params": {"frames": 2}}
+{"method": "assert.eq", "params": {"query": "ui.tree", "args": {"filter": "MainSettings/tab_bar", "kind": "tab_bar"}, "path": "/widgets/0/value", "value": "Controls"}}
+{"method": "assert.eq", "params": {"query": "ui.layout_issues", "path": "/count", "value": 0}}
+{"method": "assert.eq", "params": {"query": "ui.tree", "args": {"filter": "MainSettings", "kind": "menu_content"}, "path": "/widgets/0/value/scrolls", "value": false}}
+{"method": "screenshot", "params": {"path": "out/ui_menus/settings_controls_kambara.png"}}
+{"method": "ui.realm", "params": {"realm": "tampadesa"}}
+{"method": "ui.click", "params": {"path": "MainSettings/Game"}}
+{"method": "input.move", "params": {"park": true}}
+{"method": "wait.frames", "params": {"frames": 2}}
+{"method": "assert.eq", "params": {"query": "ui.tree", "args": {"filter": "MainSettings/tab_bar", "kind": "tab_bar"}, "path": "/widgets/0/value", "value": "Game"}}
+{"method": "assert.eq", "params": {"query": "ui.layout_issues", "path": "/count", "value": 0}}
+{"method": "assert.eq", "params": {"query": "ui.tree", "args": {"filter": "MainSettings", "kind": "menu_content"}, "path": "/widgets/0/value/scrolls", "value": false}}
+{"method": "screenshot", "params": {"path": "out/ui_menus/settings_game_tampadesa.png"}}
+{"method": "ui.click", "params": {"path": "MainSettings/Sound"}}
+{"method": "input.move", "params": {"park": true}}
+{"method": "wait.frames", "params": {"frames": 2}}
+{"method": "assert.eq", "params": {"query": "ui.tree", "args": {"filter": "MainSettings/tab_bar", "kind": "tab_bar"}, "path": "/widgets/0/value", "value": "Sound"}}
+{"method": "assert.eq", "params": {"query": "ui.layout_issues", "path": "/count", "value": 0}}
+{"method": "assert.eq", "params": {"query": "ui.tree", "args": {"filter": "MainSettings", "kind": "menu_content"}, "path": "/widgets/0/value/scrolls", "value": false}}
+{"method": "screenshot", "params": {"path": "out/ui_menus/settings_sound_tampadesa.png"}}
+{"method": "ui.click", "params": {"path": "MainSettings/Graphics"}}
+{"method": "input.move", "params": {"park": true}}
+{"method": "wait.frames", "params": {"frames": 2}}
+{"method": "assert.eq", "params": {"query": "ui.tree", "args": {"filter": "MainSettings/tab_bar", "kind": "tab_bar"}, "path": "/widgets/0/value", "value": "Graphics"}}
+{"method": "assert.eq", "params": {"query": "ui.layout_issues", "path": "/count", "value": 0}}
+{"method": "assert.eq", "params": {"query": "ui.tree", "args": {"filter": "MainSettings", "kind": "menu_content"}, "path": "/widgets/0/value/scrolls", "value": false}}
+{"method": "screenshot", "params": {"path": "out/ui_menus/settings_graphics_tampadesa.png"}}
+{"method": "ui.click", "params": {"path": "MainSettings/Controls"}}
+{"method": "input.move", "params": {"park": true}}
+{"method": "wait.frames", "params": {"frames": 2}}
+{"method": "assert.eq", "params": {"query": "ui.tree", "args": {"filter": "MainSettings/tab_bar", "kind": "tab_bar"}, "path": "/widgets/0/value", "value": "Controls"}}
+{"method": "assert.eq", "params": {"query": "ui.layout_issues", "path": "/count", "value": 0}}
+{"method": "assert.eq", "params": {"query": "ui.tree", "args": {"filter": "MainSettings", "kind": "menu_content"}, "path": "/widgets/0/value/scrolls", "value": false}}
+{"method": "screenshot", "params": {"path": "out/ui_menus/settings_controls_tampadesa.png"}}
+{"method": "ui.realm", "params": {"realm": "auto"}}
+{"method": "wait.frames", "params": {"frames": 2}}
+# At 200% UI scale the dialog grows, as far as the window lets it, and its contents with it: they
+# still fit (on a 1280 × 720 window too), with the buttons in view.
+{"method": "config.set", "params": {"path": "/display/ui_scale_percent", "value": 200}}
+{"method": "wait.frames", "params": {"frames": 3}}
+{"method": "ui.click", "params": {"path": "MainSettings/Game"}}
+{"method": "input.move", "params": {"park": true}}
+{"method": "wait.frames", "params": {"frames": 2}}
+{"method": "assert.eq", "params": {"query": "ui.layout_issues", "path": "/count", "value": 0}}
+{"method": "assert.eq", "params": {"query": "ui.tree", "args": {"filter": "MainSettings", "kind": "menu_content"}, "path": "/widgets/0/value/scrolls", "value": false}}
+{"method": "screenshot", "params": {"path": "out/ui_menus/settings_game_200.png"}}
+{"method": "ui.click", "params": {"path": "MainSettings/Controls"}}
+{"method": "input.move", "params": {"park": true}}
+{"method": "wait.frames", "params": {"frames": 2}}
+{"method": "assert.eq", "params": {"query": "ui.layout_issues", "path": "/count", "value": 0}}
+{"method": "assert.eq", "params": {"query": "ui.tree", "args": {"filter": "MainSettings", "kind": "menu_content"}, "path": "/widgets/0/value/scrolls", "value": false}}
+{"method": "screenshot", "params": {"path": "out/ui_menus/settings_controls_200.png"}}
+# At 75% the dialog keeps its size at 100% on the smallest window, so its contents fit there too.
+{"method": "config.set", "params": {"path": "/display/ui_scale_percent", "value": 75}}
+{"method": "wait.frames", "params": {"frames": 3}}
+{"method": "ui.click", "params": {"path": "MainSettings/Game"}}
+{"method": "input.move", "params": {"park": true}}
+{"method": "wait.frames", "params": {"frames": 2}}
+{"method": "assert.eq", "params": {"query": "ui.layout_issues", "path": "/count", "value": 0}}
+{"method": "assert.eq", "params": {"query": "ui.tree", "args": {"filter": "MainSettings", "kind": "menu_content"}, "path": "/widgets/0/value/scrolls", "value": false}}
+{"method": "screenshot", "params": {"path": "out/ui_menus/settings_game_75.png"}}
+{"method": "config.set", "params": {"path": "/display/ui_scale_percent", "value": 100}}
+{"method": "wait.frames", "params": {"frames": 3}}
+# The controls show the configs: the camera's switches, 100% UI scale, the volumes, the key bindings.
+{"method": "ui.click", "params": {"path": "MainSettings/Game"}}
+{"method": "assert.eq", "params": {"query": "ui.tree", "args": {"filter": "MainSettings/Game/Edge scrolling", "kind": "toggle"}, "path": "/widgets/0/value", "value": true}}
+{"method": "assert.eq", "params": {"query": "ui.tree", "args": {"filter": "MainSettings/Game/Default game speed", "kind": "dropdown"}, "path": "/widgets/0/value", "value": "Normal"}}
+{"method": "assert.eq", "params": {"query": "ui.tree", "args": {"filter": "MainSettings/Game/UI scale", "kind": "slider"}, "path": "/widgets/0/value", "value": 100}}
+{"method": "assert.eq", "params": {"query": "ui.tree", "args": {"filter": "MainSettings/Game/Language", "kind": "dropdown"}, "path": "/widgets/0/value", "value": "English"}}
+{"method": "ui.click", "params": {"path": "MainSettings/Controls"}}
+{"method": "assert.eq", "params": {"query": "ui.tree", "args": {"filter": "MainSettings/Controls/Key bindings", "kind": "table"}, "path": "/widgets/0/value/rows/1", "value": ["Undo", "Ctrl + Z (Cmd + Z on macOS)"]}}
+# Cancel drops what was changed.
+{"method": "ui.click", "params": {"path": "MainSettings/Game"}}
+{"method": "ui.set", "params": {"path": "MainSettings/Game/Edge scrolling", "value": false}}
+{"method": "assert.eq", "params": {"query": "ui.tree", "args": {"filter": "MainSettings/Game/Edge scrolling", "kind": "toggle"}, "path": "/widgets/0/value", "value": false}}
+{"method": "ui.click", "params": {"path": "MainSettings/Cancel"}}
+{"method": "assert.eq", "params": {"query": "dialog.current", "path": "/current", "value": "Home"}}
+{"method": "assert.eq", "params": {"query": "config.get", "args": {"path": "/camera/edge_scrolling"}, "path": "", "value": true}}
+# A change on each tab, kept while the dialog is built again (a realm switch, a skin reload) with the tab shown;
+# then Ok writes them into the configs (in a script, for this run only: the user configs are left alone).
+{"method": "ui.click", "params": {"path": "Home/Settings"}}
+{"method": "assert.eq", "params": {"query": "ui.tree", "args": {"filter": "MainSettings/tab_bar", "kind": "tab_bar"}, "path": "/widgets/0/value", "value": "Game"}}
+{"method": "ui.set", "params": {"path": "MainSettings/Game/Edge scrolling", "value": false}}
+{"method": "ui.set", "params": {"path": "MainSettings/Game/Default game speed", "value": "2× speed"}}
+{"method": "ui.set", "params": {"path": "MainSettings/Game/Autosave interval", "value": "every 5 minutes"}}
+{"method": "ui.set", "params": {"path": "MainSettings/Game/UI scale", "value": 125}}
+{"method": "ui.click", "params": {"path": "MainSettings/Sound"}}
+{"method": "ui.set", "params": {"path": "MainSettings/Sound/Master volume", "value": 50}}
+{"method": "ui.set", "params": {"path": "MainSettings/Sound/Mute when the window is in the background", "value": false}}
+{"method": "ui.click", "params": {"path": "MainSettings/Graphics"}}
+{"method": "ui.set", "params": {"path": "MainSettings/Graphics/Use texture mipmaps", "value": true}}
+{"method": "ui.set", "params": {"path": "MainSettings/Graphics/Window mode (after a restart)", "value": "Fullscreen"}}
+{"method": "ui.realm", "params": {"realm": "kambara"}}
+{"method": "wait.frames", "params": {"frames": 3}}
+{"method": "assert.eq", "params": {"query": "dialog.current", "path": "/current", "value": "MainSettings"}}
+{"method": "assert.eq", "params": {"query": "ui.tree", "args": {"filter": "MainSettings/tab_bar", "kind": "tab_bar"}, "path": "/widgets/0/value", "value": "Graphics"}}
+{"method": "assert.eq", "params": {"query": "ui.tree", "args": {"filter": "MainSettings/Graphics/Use texture mipmaps", "kind": "toggle"}, "path": "/widgets/0/value", "value": true}}
+{"method": "assert.eq", "params": {"query": "ui.tree", "args": {"filter": "MainSettings/Graphics/Window mode (after a restart)", "kind": "dropdown"}, "path": "/widgets/0/value", "value": "Fullscreen"}}
+{"method": "ui.reload_skin", "params": {}}
+{"method": "wait.frames", "params": {"frames": 3}}
+{"method": "ui.click", "params": {"path": "MainSettings/Game"}}
+{"method": "assert.eq", "params": {"query": "ui.tree", "args": {"filter": "MainSettings/Game/Edge scrolling", "kind": "toggle"}, "path": "/widgets/0/value", "value": false}}
+{"method": "assert.eq", "params": {"query": "ui.tree", "args": {"filter": "MainSettings/Game/Default game speed", "kind": "dropdown"}, "path": "/widgets/0/value", "value": "2× speed"}}
+{"method": "ui.click", "params": {"path": "MainSettings/Sound"}}
+{"method": "assert.eq", "params": {"query": "ui.tree", "args": {"filter": "MainSettings/Sound/Master volume", "kind": "slider"}, "path": "/widgets/0/value", "value": 50}}
+{"method": "ui.realm", "params": {"realm": "auto"}}
+{"method": "wait.frames", "params": {"frames": 3}}
+{"method": "assert.eq", "params": {"query": "ui.tree", "args": {"filter": "MainSettings/Sound/Master volume", "kind": "slider"}, "path": "/widgets/0/value", "value": 50}}
+{"method": "assert.eq", "params": {"query": "config.get", "args": {"path": "/camera/edge_scrolling"}, "path": "", "value": true}}
+{"method": "ui.click", "params": {"path": "MainSettings/Ok"}}
+{"method": "assert.eq", "params": {"query": "dialog.current", "path": "/current", "value": "Home"}}
+{"method": "assert.eq", "params": {"query": "config.get", "args": {"path": "/camera/edge_scrolling"}, "path": "", "value": false}}
+{"method": "assert.eq", "params": {"query": "config.get", "args": {"path": "/sim/default_speed"}, "path": "", "value": 2.0}}
+{"method": "assert.eq", "params": {"query": "config.get", "args": {"path": "/save/autosave_frequency_secs"}, "path": "", "value": 300.0}}
+{"method": "assert.eq", "params": {"query": "config.get", "args": {"path": "/engine/sound_settings/master_volume"}, "path": "", "value": 0.5}}
+{"method": "assert.eq", "params": {"query": "config.get", "args": {"path": "/engine/mute_in_background"}, "path": "", "value": false}}
+{"method": "assert.eq", "params": {"query": "config.get", "args": {"path": "/engine/texture_settings/mipmaps"}, "path": "", "value": true}}
+{"method": "assert.eq", "params": {"query": "config.get", "args": {"path": "/engine/window_mode"}, "path": "", "value": "FullScreen"}}
+# The UI scale takes effect at once: the menus' text and dialogs are drawn larger.
+{"method": "assert.eq", "params": {"query": "config.get", "args": {"path": "/display/ui_scale_percent"}, "path": "", "value": 125}}
+{"method": "wait.frames", "params": {"frames": 2}}
+{"method": "screenshot", "params": {"path": "out/ui_menus/home_ui_scale_125.png"}}
+# A script never autosaves, whatever the setting.
+{"method": "assert.eq", "params": {"query": "config.get", "args": {"path": "/save/enable_autosave"}, "path": "", "value": true}}
+# The settings kinds open the dialog on their tab, showing what Ok committed.
+{"method": "dialog.open", "params": {"name": "SoundSettings"}}
+{"method": "wait.frames", "params": {"frames": 2}}
+{"method": "assert.eq", "params": {"query": "dialog.current", "path": "/current", "value": "MainSettings"}}
+{"method": "assert.eq", "params": {"query": "ui.tree", "args": {"filter": "MainSettings/tab_bar", "kind": "tab_bar"}, "path": "/widgets/0/value", "value": "Sound"}}
+{"method": "assert.eq", "params": {"query": "ui.tree", "args": {"filter": "MainSettings/Sound/Master volume", "kind": "slider"}, "path": "/widgets/0/value", "value": 50}}
+# Another settings kind opened while the dialog is open switches its tab, keeping a pending edit.
+{"method": "ui.set", "params": {"path": "MainSettings/Sound/Master volume", "value": 70}}
+{"method": "ui.sounds", "params": {"clear": true}}
+{"method": "dialog.open", "params": {"name": "GameSettings"}}
+{"method": "wait.frames", "params": {"frames": 2}}
+{"method": "assert.eq", "params": {"query": "ui.tree", "args": {"filter": "MainSettings/tab_bar", "kind": "tab_bar"}, "path": "/widgets/0/value", "value": "Game"}}
+{"method": "assert.eq", "params": {"query": "ui.tree", "args": {"filter": "MainSettings/Game/Edge scrolling", "kind": "toggle"}, "path": "/widgets/0/value", "value": false}}
+{"method": "dialog.open", "params": {"name": "SoundSettings"}}
+{"method": "wait.frames", "params": {"frames": 2}}
+{"method": "assert.eq", "params": {"query": "ui.tree", "args": {"filter": "MainSettings/Sound/Master volume", "kind": "slider"}, "path": "/widgets/0/value", "value": 70}}
+{"method": "assert.eq", "params": {"query": "ui.sounds", "args": {"roles": ["dialog_closed"]}, "path": "/count", "value": 0}}
+{"method": "assert.eq", "params": {"query": "config.get", "args": {"path": "/engine/sound_settings/master_volume"}, "path": "", "value": 0.5}}
+# Restore defaults sets every tab back to the configs' defaults, for Ok to commit.
+{"method": "ui.click", "params": {"path": "MainSettings/Restore defaults"}}
+{"method": "assert.eq", "params": {"query": "ui.tree", "args": {"filter": "MainSettings/Sound/Master volume", "kind": "slider"}, "path": "/widgets/0/value", "value": 100}}
+{"method": "ui.click", "params": {"path": "MainSettings/Game"}}
+{"method": "assert.eq", "params": {"query": "ui.tree", "args": {"filter": "MainSettings/Game/Edge scrolling", "kind": "toggle"}, "path": "/widgets/0/value", "value": true}}
+{"method": "assert.eq", "params": {"query": "ui.tree", "args": {"filter": "MainSettings/Game/Default game speed", "kind": "dropdown"}, "path": "/widgets/0/value", "value": "Normal"}}
+{"method": "assert.eq", "params": {"query": "config.get", "args": {"path": "/camera/edge_scrolling"}, "path": "", "value": false}}
+{"method": "ui.click", "params": {"path": "MainSettings/Ok"}}
+{"method": "wait.frames", "params": {"frames": 2}}
+{"method": "assert.eq", "params": {"query": "config.get", "args": {"path": "/camera/edge_scrolling"}, "path": "", "value": true}}
+{"method": "assert.eq", "params": {"query": "config.get", "args": {"path": "/sim/default_speed"}, "path": "", "value": 1.0}}
+{"method": "assert.eq", "params": {"query": "config.get", "args": {"path": "/save/autosave_frequency_secs"}, "path": "", "value": 60.0}}
+{"method": "assert.eq", "params": {"query": "config.get", "args": {"path": "/engine/sound_settings/master_volume"}, "path": "", "value": 1.0}}
+{"method": "assert.eq", "params": {"query": "config.get", "args": {"path": "/engine/mute_in_background"}, "path": "", "value": true}}
+{"method": "assert.eq", "params": {"query": "config.get", "args": {"path": "/engine/texture_settings/mipmaps"}, "path": "", "value": false}}
+{"method": "assert.eq", "params": {"query": "config.get", "args": {"path": "/engine/window_mode"}, "path": "", "value": "Windowed"}}
+{"method": "assert.eq", "params": {"query": "config.get", "args": {"path": "/display/ui_scale_percent"}, "path": "", "value": 100}}
 {"method": "assert.eq", "params": {"query": "dialog.current", "path": "/current", "value": "Home"}}
 {"method": "input.move", "params": {"park": true}}
 

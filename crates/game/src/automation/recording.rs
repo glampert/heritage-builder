@@ -60,6 +60,12 @@ pub fn recorded_autosave(engine: &Engine) -> Option<bool> {
     engine.replay_info(GAME_INFO_KEY)?.get("autosave")?.as_bool()
 }
 
+// Whether a replay may turn autosaving on (the Settings dialog's Ok, replayed): when the recorded
+// run could. None when not replaying, or for a recording made before it was recorded.
+pub fn recorded_autosave_allowed(engine: &Engine) -> Option<bool> {
+    engine.replay_info(GAME_INFO_KEY)?.get("autosave_allowed")?.as_bool()
+}
+
 // The player's profile a replay runs with: the recorded run's, since the UI realm (and so the
 // layout) follows it. A fresh one, with a warning, for a recording that holds none (an older one)
 // or one that doesn't load: never the local file's, which would make the replay depend on the
@@ -82,7 +88,7 @@ pub fn recorded_profile(engine: &Engine) -> Option<Profile> {
 }
 
 // Called from GameLoop::start once the run's settings are known.
-pub fn record_game_info(engine: &mut Engine, autosave: bool) {
+pub fn record_game_info(engine: &mut Engine, autosave: bool, autosave_allowed: bool) {
     if !engine.is_recording() {
         return;
     }
@@ -90,7 +96,13 @@ pub fn record_game_info(engine: &mut Engine, autosave: bool) {
     let configs = config_patches::get("").unwrap_or(Value::Null);
     engine.set_recording_info(
         GAME_INFO_KEY,
-        json!({ "version": crate::version(), "autosave": autosave, "configs": configs, "profile": profile::get().to_value() }),
+        json!({
+            "version": crate::version(),
+            "autosave": autosave,
+            "autosave_allowed": autosave_allowed,
+            "configs": configs,
+            "profile": profile::get().to_value(),
+        }),
     );
 }
 

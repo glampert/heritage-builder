@@ -168,6 +168,12 @@ fn remember_defaults(user_file_name: &'static str, defaults: Value) {
     }
 }
 
+// The defaults the user configs file <user_file_name> was loaded over, as JSON (the configs as
+// assets/configs has them), for a "Restore defaults". None if those configs weren't loaded.
+pub fn user_configs_defaults(user_file_name: &str) -> Option<Value> {
+    remembered_defaults(user_file_name)
+}
+
 fn remembered_defaults(user_file_name: &str) -> Option<Value> {
     let all_defaults = USER_CONFIGS_DEFAULTS.lock().unwrap();
     all_defaults.iter().find(|(name, _)| *name == user_file_name).map(|(_, defaults)| defaults.clone())
@@ -337,9 +343,24 @@ pub struct EngineConfigs {
     #[debug_ui(nested)]
     pub texture_settings: TextureSettings,
 
+    // Wait for the display's refresh before presenting a frame, and the most frames a second to
+    // draw (0: no limit). Set in the Settings dialog, stored only (its rows don't promise a restart
+    // applies them, since none does yet).
+    // TODO(realm-ui): the backends don't read them yet: Wgpu always presents with
+    // PresentMode::Fifo (render/wgpu), OpenGL keeps the driver's swap interval, and the runners
+    // don't limit the frame rate. Read them where the surface and the GL context are made, and in
+    // the desktop runner's loop.
+    pub vsync: bool,
+    pub frame_rate_limit: u32,
+
     // Sound System:
     #[debug_ui(skip)]
     pub sound_settings: SoundGlobalSettings,
+
+    // Silence every sound while the window doesn't have the focus. Set in the Settings dialog.
+    // TODO(realm-ui): the app backends don't report focus changes yet; when they do, the engine
+    // should mute the sound system while the window is in the background and this is on.
+    pub mute_in_background: bool,
 
     // Debug Grid:
     pub grid_color: Color,
@@ -349,8 +370,8 @@ pub struct EngineConfigs {
     pub log_level: log::Level,
 
     // The language of the player's text: assets/configs/ui/text/<language>.json (see ui::text).
-    // TODO(realm-ui): Phase 1's Game settings tab sets it, with ui::text::set_language, and saves
-    // it in the user configs.
+    // The Settings dialog's Game tab sets it (ui::text::set_language) and saves it in the user
+    // configs.
     pub language: String,
 }
 
@@ -371,9 +392,12 @@ impl Default for EngineConfigs {
             render_api: RenderApi::default(),
             use_packed_texture_atlas: false,
             texture_settings: TextureSettings::default(),
+            vsync: true,
+            frame_rate_limit: 0,
 
             // Sound System:
             sound_settings: SoundGlobalSettings::default(),
+            mute_in_background: true,
 
             // Debug Grid:
             grid_color: Color::white(),

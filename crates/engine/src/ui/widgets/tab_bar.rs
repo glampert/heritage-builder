@@ -21,20 +21,29 @@ use crate::ui::{
 // How a tab bar's tabs look: framed (a panel per state for the other tabs and for the selected
 // one, a skin's `tab` and `tab_selected` buttons) or painted in the style's colours; their font,
 // and their width: each its text's plus padding, but at least `min_tab_width`, so a longer label
-// (a localized one) widens its tab instead of being clipped.
+// (a localized one) widens its tab instead of being clipped; their height likewise.
 #[derive(Copy, Clone, Debug)]
 pub struct UiTabLook {
     pub tab: Option<UiTextButtonFrame>,
     pub selected: Option<UiTextButtonFrame>,
     pub font_scale: UiFontScale,
     pub min_tab_width: Option<f32>,
+    pub min_tab_height: Option<f32>,
     pub spacing: f32,      // Between tabs.
     pub margin_below: f32, // Between the tabs and the selected tab's contents.
 }
 
 impl Default for UiTabLook {
     fn default() -> Self {
-        Self { tab: None, selected: None, font_scale: UiFontScale::default(), min_tab_width: None, spacing: 6.0, margin_below: 10.0 }
+        Self {
+            tab: None,
+            selected: None,
+            font_scale: UiFontScale::default(),
+            min_tab_width: None,
+            min_tab_height: None,
+            spacing: 6.0,
+            margin_below: 10.0,
+        }
     }
 }
 
@@ -259,7 +268,9 @@ impl UiTabBar {
             .map(|(label, _)| {
                 let (text_size, font_size) = internal::calc_text_size(ui_sys, self.look.font_scale, label.resolve());
                 let width = (text_size.x + padding.x * 2.0).max(self.look.min_tab_width.unwrap_or(0.0));
-                Vec2::new(width, text_size.y.max(font_size) + padding.y * 2.0)
+                let height = (text_size.y.max(font_size) + padding.y * 2.0).max(self.look.min_tab_height.unwrap_or(0.0));
+                // Whole points, as the bar's own rect is laid out: its tabs then stay inside it.
+                Vec2::new(width.ceil(), height.ceil())
             })
             .collect()
     }

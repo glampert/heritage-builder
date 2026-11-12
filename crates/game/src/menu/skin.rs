@@ -458,10 +458,15 @@ pub const DIALOG_MIN_WINDOW: Vec2 = Vec2::new(1280.0, 720.0);
 // reference window, scaled down by as much as the window is smaller than it (the smaller of the
 // width and height ratios, so its proportions stay), but no further than on the minimum window,
 // and never larger than the window. Whole points, so its contents stay on the pixel grid.
-// TODO(realm-ui): Phase 1's UI scale setting (Settings, Game tab) scales the sizes too: with it the
-// factor is the window's ratio at 100% scale, so a dialog keeps its share of the screen while its
-// contents grow.
+// The player's UI scale (ui_scale) multiplies it, the dialog still no larger than the window, nor
+// smaller than at 100% on the minimum window: below that a small scale would shrink the dialog
+// under the sizes its widgets keep in points (fields, toggles), and its contents would scroll.
 pub fn dialog_size(size: SkinDialogSize, window: Vec2) -> Vec2 {
+    dialog_size_at(size, window, ui_scale())
+}
+
+// dialog_size at a UI scale of `ui_scale`.
+pub fn dialog_size_at(size: SkinDialogSize, window: Vec2, ui_scale: f32) -> Vec2 {
     let window = Vec2::new(window.x.max(1.0), window.y.max(1.0));
     let [width, height] = match size {
         SkinDialogSize::Mode(SkinDialogSizeMode::Fullscreen) => return window,
@@ -472,8 +477,32 @@ pub fn dialog_size(size: SkinDialogSize, window: Vec2) -> Vec2 {
     let fit = |size: f32, reference: f32| if size > 0.0 { size } else { (reference + size).max(1.0) };
     let size = Vec2::new(fit(width, reference.x), fit(height, reference.y));
 
-    let factor = dialog_scale(window);
+    let factor = (dialog_scale(window) * ui_scale).max(dialog_scale(DIALOG_MIN_WINDOW));
     Vec2::new((size.x * factor).min(window.x).round().max(1.0), (size.y * factor).min(window.y).round().max(1.0))
+}
+
+// The player's UI scale (the Settings dialog's, GameConfigs::display): every realm theme's text
+// and every dialog's size are this many times as large (1 at 100%). Widgets inside the dialogs
+// keep their sizes in points, so a dialog's contents grow only as far as their text does.
+// TODO(realm-ui): a full UI scale (egui's zoom factor, so the HUD, the minimap and every size in
+// points grow too) needs the engine's window points and the UI's points told apart: the cursor,
+// ui.tree's rects and the automation's clicks, and the HUD's layout from the window size.
+static UI_SCALE_BITS: std::sync::atomic::AtomicU32 = std::sync::atomic::AtomicU32::new(0x3f80_0000); // 1.0
+
+pub fn ui_scale() -> f32 {
+    f32::from_bits(UI_SCALE_BITS.load(std::sync::atomic::Ordering::Relaxed))
+}
+
+// Sets the UI scale (ui_scale): the realm themes' text takes it at once, and the menus build again
+// with it (a new version()).
+pub fn set_ui_scale(ui_sys: &mut UiSystem, scale: f32) {
+    let scale = if scale.is_finite() && scale > 0.0 { scale } else { 1.0 };
+    ui_sys.set_text_scale(scale);
+    if scale != ui_scale() {
+        UI_SCALE_BITS.store(scale.to_bits(), std::sync::atomic::Ordering::Relaxed);
+        SkinState::get_mut().version += 1;
+        log::info!(log::channel!("ui"), "UI scale: {:.0}%.", scale * 100.0);
+    }
 }
 
 // How much dialogs shrink on a window of `window` points (see dialog_size): 1 on the reference
@@ -493,6 +522,18 @@ pub fn dialog_scale(window: Vec2) -> f32 {
 pub fn dialog_content_scale(kind: &str, window: Vec2) -> f32 {
     let content_height = |window: Vec2| dialog_content_size(kind, window).y;
     (content_height(window) / content_height(DIALOG_REFERENCE_WINDOW)).min(1.0)
+}
+
+// How much the player's UI scale grew the dialog `kind` on a window of `window` points: ui_scale,
+// or less where the window caps the dialog's size (the smaller of its width's and height's
+// growth). A dialog that sizes its own contents scales them by this, and its text by this over
+// ui_scale, so they still fit it at 200% on a small window. Below 100% it's ui_scale, though the
+// minimum dialog size (dialog_size) may keep the dialog itself larger: its contents then leave room.
+pub fn dialog_ui_growth(kind: &str, window: Vec2) -> f32 {
+    let size = dialog_def(kind).size.unwrap_or(SkinDialogSize::DEFAULT);
+    let at_100 = dialog_size_at(size, window, 1.0);
+    let grown = dialog_size(size, window);
+    (grown.x / at_100.x).min(grown.y / at_100.y).min(ui_scale())
 }
 
 // The size in points of the dialog `kind`'s content area on a window of `window` points: its size
@@ -1238,9 +1279,26 @@ pub fn slider_look(context: &mut dyn UiWidgetContext) -> Option<UiSliderLook> {
 // A slider over `range` labeled `label` in the skin's sprites. Give it on_read_value and
 // on_update_value.
 pub fn slider<T: UiSliderValue>(context: &mut dyn UiWidgetContext, label: impl Into<UiString>, range: std::ops::RangeInclusive<T>) -> UiSlider {
+    slider_at(context, label, range, 1.0)
+}
+
+// A slider whose sprites are drawn `scale` times their size (a dialog that shrinks with the window).
+pub fn slider_at<T: UiSliderValue>(
+    context: &mut dyn UiWidgetContext,
+    label: impl Into<UiString>,
+    range: std::ops::RangeInclusive<T>,
+    scale: f32,
+) -> UiSlider {
     let slider = UiSlider::new(range).with_label(label);
     match slider_look(context) {
-        Some(look) => slider.with_look(look),
+        Some(mut look) => {
+            look.rail_height *= scale;
+            look.fill_height *= scale;
+            look.knob_size = look.knob_size * scale;
+            look.rail.scale *= scale;
+            look.fill.scale *= scale;
+            slider.with_look(look)
+        }
         None => slider,
     }
 }
@@ -1251,11 +1309,12 @@ pub fn dropdown_look(context: &mut dyn UiWidgetContext) -> Option<UiDropdownLook
     if def.arrow.is_empty() || !current().panels.contains_key(&def.field) {
         return None;
     }
-    let SkinPanel::NineSlice { slice, text_color, .. } = panel(context, &def.field) else {
+    let SkinPanel::NineSlice { slice, text_color, content } = panel(context, &def.field) else {
         return None;
     };
     let (arrow, arrow_size) = sprite_and_size(context, &def.arrow);
-    Some(UiDropdownLook { field: slice, arrow, arrow_size, text_color: text_color.or_else(|| color("ink")) })
+    let text_inset = insets_points(content).map_or(0.0, |[left, ..]| left);
+    Some(UiDropdownLook { field: slice, arrow, arrow_size, text_color: text_color.or_else(|| color("ink")), text_inset })
 }
 
 // A dropdown over `items` labeled `label` in the skin's art. Give it its callbacks.
@@ -1350,14 +1409,23 @@ fn color_or(name: &Option<String>, fallback: &str) -> Option<Color> {
 // A tab bar whose tabs are the skin's `tab` and `tab_selected` buttons, its tabs added with
 // with_tab or with_tab_contents.
 pub fn tab_bar(context: &mut dyn UiWidgetContext) -> UiTabBar {
+    tab_bar_sized(context, Vec2::zero(), 1.0)
+}
+
+// A tab bar whose tabs are at least `min_size` points large (and the skin's tab min_width), their
+// text `text_scale` times the skin's tab font.
+pub fn tab_bar_sized(context: &mut dyn UiWidgetContext, min_size: Vec2, text_scale: f32) -> UiTabBar {
     let tab = button_def(ButtonRole::Tab.key());
     let selected = button_def(ButtonRole::TabSelected.key());
     let font_scale = tab.font.map_or(UiFontScale::default(), |font| font.button_size().font_scale());
+    let font_scale = UiFontScale(font_scale.0 * text_scale);
+    let min_width = min_size.x;
     let look = UiTabLook {
         tab: button_frame(context, &tab),
         selected: button_frame(context, &selected),
         font_scale,
-        min_tab_width: tab.min_width,
+        min_tab_width: Some(tab.min_width.unwrap_or(0.0).max(min_width)).filter(|width| *width > 0.0),
+        min_tab_height: Some(min_size.y).filter(|height| *height > 0.0),
         ..UiTabLook::default()
     };
     UiTabBar::new().with_look(look)
@@ -1388,11 +1456,19 @@ pub fn toggle_look(context: &mut dyn UiWidgetContext) -> UiToggleLook {
 // A toggle labeled `label`, its state texts "On" and "Off", in the skin's look and colours. Give
 // it on_read_value and on_update_value; with_fill_width(true) for a settings row.
 pub fn toggle(context: &mut dyn UiWidgetContext, label: impl Into<UiString>) -> UiToggle {
-    // TODO(realm-ui): the toggle's (and step_selector's) font scale is the engine's default; take
-    // it from the skin (a `font` on controls.toggle) once the Phase 1 settings dialog sizes them.
+    toggle_at(context, label, 1.0)
+}
+
+// A toggle whose pill is drawn `scale` times its size (a dialog that shrinks with the window). Its
+// font is the engine's default: give it with_font_scale (the Settings dialog's rows do).
+pub fn toggle_at(context: &mut dyn UiWidgetContext, label: impl Into<UiString>, scale: f32) -> UiToggle {
     let def = &current().controls.toggle;
     let colors = (color_or(&def.text, "ink"), color_or(&def.state_text, "sub"));
-    UiToggle::new().with_label(label).with_look(toggle_look(context)).with_text_colors(colors.0, colors.1)
+    let look = match toggle_look(context) {
+        UiToggleLook::Sprites { off, on, knob, size, knob_size } => UiToggleLook::Sprites { off, on, knob, size: size * scale, knob_size: knob_size * scale },
+        UiToggleLook::Painted { on, off, knob, outline, size } => UiToggleLook::Painted { on, off, knob, outline, size: size * scale },
+    };
+    UiToggle::new().with_label(label).with_look(look).with_text_colors(colors.0, colors.1)
 }
 
 // The colours of the skin's painted meters.
@@ -1414,6 +1490,9 @@ pub fn meter(kind: UiMeterKind, size: Vec2) -> UiMeter {
 }
 
 // A step selector labeled `label` over `steps`, in the skin's meter colours and text colours.
+// TODO(realm-ui): its font scale is the engine's default; take it from the skin (a `font` on
+// controls) or from the dialog that sizes it (Custom Game's difficulty, P1d), as Settings sizes
+// its toggles with with_font_scale.
 pub fn step_selector(label: impl Into<UiString>, steps: impl IntoIterator<Item = UiString>) -> UiStepSelector {
     let meters = meter_look();
     let look = UiStepLook { fill: meters.fill, track: meters.track, outline: meters.outline, ..UiStepLook::default() };
@@ -1666,6 +1745,14 @@ mod tests {
         let from_edges = SkinDialogSize::Points([550.0, -120.0]);
         assert_eq!(dialog_size(from_edges, Vec2::new(1920.0, 1080.0)), Vec2::new(550.0, 960.0));
         assert_eq!(dialog_size(from_edges, Vec2::new(1440.0, 800.0)), Vec2::new(407.0, 711.0));
+
+        // The UI scale multiplies it, down to the 1280 × 720 window's size at 100%.
+        let at_scale = |width: f32, height: f32, scale: f32| dialog_size_at(size, Vec2::new(width, height), scale);
+        assert_eq!(at_scale(1920.0, 1080.0, 0.75), Vec2::new(915.0, 690.0));
+        assert_eq!(at_scale(1920.0, 1080.0, 1.5), Vec2::new(1830.0, 1080.0)); // Cut to the window.
+        assert_eq!(at_scale(1440.0, 800.0, 0.75), Vec2::new(813.0, 613.0)); // No smaller than two thirds.
+        assert_eq!(at_scale(1280.0, 720.0, 0.75), Vec2::new(813.0, 613.0));
+        assert_eq!(at_scale(1280.0, 720.0, 1.25), Vec2::new(1017.0, 720.0));
 
         let fullscreen = SkinDialogSize::Mode(SkinDialogSizeMode::Fullscreen);
         assert_eq!(dialog_size(fullscreen, Vec2::new(1440.0, 800.0)), Vec2::new(1440.0, 800.0));

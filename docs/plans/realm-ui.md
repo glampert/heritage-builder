@@ -1,6 +1,6 @@
 # Realm UI: menus, screens and HUD in each realm's style
 
-**Status (2026-11-11): Phase 0 done; Phase 1, the main menus, in progress: Home and Load / Save done.** The user reviewed it on 2026-11-07: their notes are folded in (see [Review notes](#review-notes)), the open decisions' defaults are accepted, and every mockup the phases need now exists. This plan builds and restyles every retail screen after the [UI mockups](../design/mockups/README.md): the main menus, the world map, the intermission, the story comics, the HUD and the city management pages. Each screen gets one look per realm: Đại Long, Kambara and Tampadesa. It is milestone **UI** of the [roadmap](roadmap.md). It was researched against `ccca1df` on `claude`. File and line references point at that commit, so re-check them before relying on them.
+**Status (2026-11-12): Phase 0 done; Phase 1, the main menus, in progress: Home, Load / Save and Settings done.** The user reviewed it on 2026-11-07: their notes are folded in (see [Review notes](#review-notes)), the open decisions' defaults are accepted, and every mockup the phases need now exists. This plan builds and restyles every retail screen after the [UI mockups](../design/mockups/README.md): the main menus, the world map, the intermission, the story comics, the HUD and the city management pages. Each screen gets one look per realm: Đại Long, Kambara and Tampadesa. It is milestone **UI** of the [roadmap](roadmap.md). It was researched against `ccca1df` on `claude`. File and line references point at that commit, so re-check them before relying on them.
 
 ![Home menu, Đại Long](../design/mockups/menu-home-dailong.jpg)
 
@@ -508,7 +508,7 @@ The existing dialogs keep their layouts but take their panels from the Đại Lo
   - This is the only save-adjacent change. The header is new top-level fields read before the session, and needs a migration script only if the loader requires them. The default is optional fields with a fallback, as the version probe allows.
 
 **Settings** (`MainSettings` with tabs; the Game, Sound and Graphics dialogs become tabs):
-- [ ] **Game:**
+- [x] **Game:**
   - autosave toggle and interval;
   - default game speed;
   - edge scrolling;
@@ -517,10 +517,10 @@ The existing dialogs keep their layouts but take their panels from the Đại Lo
   - colour-blind-safe overlays (a stored flag; the overlays follow in M6 and M7);
   - language (English only for now).
   - A language or realm change rebuilds the open dialogs (`dialog::rebuild_all`), which drops what their widgets hold: Settings must carry its pending edits across (the `TODO(realm-ui)` there).
-- [ ] **Sound:** master, music, SFX, ambience, narration and spatial volume; mute in the background.
-- [ ] **Graphics:** window mode, resolution, renderer, VSync, frame rate limit, texture filtering, mipmaps, animated water. Settings the engine can't change live say "after a restart".
-- [ ] **Controls:** the key bindings, read-only.
-- [ ] Restore defaults, Cancel, Ok, through the existing `SettingsCategory` commit path.
+- [x] **Sound:** master, music, SFX, ambience, narration and spatial volume; mute in the background.
+- [x] **Graphics:** window mode, resolution, renderer, VSync, frame rate limit, texture filtering, mipmaps, animated water. Settings the engine can't change live say "after a restart".
+- [x] **Controls:** the key bindings, read-only.
+- [x] Restore defaults, Cancel, Ok, through the existing `SettingsCategory` commit path.
 
 **Custom Game:**
 - [ ] **Realm rows**, locked until their campaign is started ("Start Campaign N to unlock").
@@ -547,6 +547,12 @@ The existing dialogs keep their layouts but take their panels from the Đại Lo
 - [ ] Scenarios:
   - `ui_menus.jsonl` (every dialog, every realm, Continue, Custom Game start, settings commit);
   - update `ui_new_game.jsonl` to the Blank map path.
+
+**Notes (2026-11-12, settings) (commit TODO):**
+- `dialog/settings/`: one `MainSettings` with tabs Game, Sound, Graphics, Controls; `GameSettings`, `SoundSettings`, `GraphicsSettings` open it on their tab. Rows: label left, toggle, slider or dropdown right, a rule under each, each tab's rows spread over the room. Pending values and the tab live in `settings::STATE`, so a rebuild (realm, language, window resize) keeps them. Ok writes changed values into `GameConfigs`, applies volumes, textures, autosave and language at once (UI scale next frame) and saves the user configs, except in scripts, replays and the smoke test. Choosing Wgpu also picks Winit.
+- Configs: `display` (UI scale, colour-blind overlays, animated water), `camera.edge_scrolling`, `sim.default_speed`, `engine.vsync`, `frame_rate_limit`, `mute_in_background`, a master volume (Web Audio applies volumes once, on its tracks). Recordings note whether autosave may be switched on.
+- Deviations: the UI scale scales the realm themes' text and dialog sizes, not the HUD or other point sizes (TODO); Settings' contents grow as far as the window lets the dialog; no dialog shrinks below its 100% size on 1280 × 720. VSync, frame rate limit, mute in background, colour-blind overlays and animated water are stored only (TODOs). Autosave interval is its own row; restart-only settings say so in their label; Controls lists the hard-coded keys.
+- Verified: build, tests, web check, `--check`; CI scenarios at 1440 × 800, `ui_menus` (no scrolling on any tab, 75% and 200% scale) also at 720p and 1080p; determinism twice; `ui_snapshot` per realm; `ui_build` record and replay; screenshots against the mockups.
 
 **Notes (2026-11-11, load / save) (commit `f80d9bf`):**
 - `dialog/load_save.rs`: one `LoadOrSaveGame`; `LoadGame`/`SaveGame` open it in load or save mode. Rows (realm emblem, "Campaign I · mission 2 · <place>", save time, era date), preview (thumbnail, details), Save as field (accent outline when focused), Delete with a popup, Overwrite popup. Rebuilt when saves change (`save_header::revision`) or the window rescales, keeping the pick; the autosave timer pauses while it's open. Home rebuilds on that revision too, so deleting Continue's save disables it.

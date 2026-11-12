@@ -401,6 +401,10 @@ impl Camera {
 
     pub fn update_scrolling(&mut self, cursor_screen_pos: Vec2, delta_time_secs: Seconds) {
         let configs = &GameConfigs::get().camera;
+        if !configs.edge_scrolling {
+            self.is_scrolling = false;
+            return;
+        }
 
         let scroll_dir = calc_scroll_delta(cursor_screen_pos, self.viewport_size, configs.scroll_margin);
 
