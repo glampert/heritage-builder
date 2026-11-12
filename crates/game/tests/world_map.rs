@@ -4,6 +4,7 @@ use game::{
         ActiveMission,
         config::{CampaignConfigs, ChoiceSite},
     },
+    menu::skin,
     profile::Profile,
     realm::Realm,
     world_map::{ConfigWorldMapProvider, WorldMapConfigs, WorldMapProvider, config::WorldMapDef},
@@ -26,6 +27,7 @@ fn main() {
         test_utils::test_fn!(test_trade_panels),
         test_utils::test_fn!(test_next_mission_choice),
         test_utils::test_fn!(test_validation_finds_errors),
+        test_utils::test_fn!(test_base_art_maps_the_world_files),
     ]);
 }
 
@@ -332,4 +334,39 @@ fn test_validation_finds_errors() {
     .expect("the test campaigns should parse");
     let errors = configs.validate();
     assert!(errors.iter().any(|error| error.contains("'late' comes after a hidden campaign")), "{errors:?}");
+}
+
+// Each campaign's map is its realm's base art (the skin's `world_map`), which covers the world
+// file's extent, and a city of the file lands on the base where the mockup generator draws it.
+// The generator places a city at common.P(x, y) = (52 + 1.29 x, 132 + 1.29 y) screen points, the
+// map viewport starts at (52, 132), and ui-art draws the base at 2 pixels per point: content.py's
+// Hoa Thành (742, 222) is at (1914.36, 572.76) pixels, Yasonagara (548, 410) in Kambara's map at
+// (1413.84, 1057.8), Pugara (236, 258) in Tampadesa's at (608.88, 665.64).
+// crates/tools/ui-art/tests checks every city against the generator itself.
+fn test_base_art_maps_the_world_files() {
+    let (campaigns, maps) = configs();
+    let files = skin::read_skin_files().unwrap_or_else(|err| panic!("{err}"));
+    let file = |realm: Realm| files.iter().find(|(file_realm, _)| *file_realm == realm).unwrap().1.clone();
+    let art = |realm: Realm| skin::merge_skin(realm, &file).unwrap_or_else(|err| panic!("{err}")).world_map;
+
+    for (index, campaign) in campaigns.campaigns.iter().enumerate() {
+        let map = maps.for_campaign(campaigns, index).unwrap();
+        let art = art(campaign.realm);
+        assert!(!art.base.is_empty() && !art.frame.is_empty() && !art.backdrop.is_empty(), "{}: the skin names the art", campaign.id);
+        assert_eq!(art.extent, map.extent, "{}: the base covers the world file's extent", campaign.id);
+    }
+
+    for (campaign, city, expected) in [
+        ("dragon_legacy", "hoa_thanh", [1914.36, 572.76]),
+        ("temple_mountain", "yasonagara", [1413.84, 1057.8]),
+        ("ten_thousand_temples", "pugara", [608.88, 665.64]),
+    ] {
+        let index = index_of(campaign);
+        let position = maps.for_campaign(campaigns, index).unwrap().city(city).unwrap().position;
+        let pixel = art(campaigns.campaigns[index].realm).base_pixel(position);
+        assert!(
+            (pixel.x - expected[0]).abs() < 0.5 && (pixel.y - expected[1]).abs() < 0.5,
+            "{campaign}: {city} lands on {pixel:?}, the generator draws it at {expected:?}"
+        );
+    }
 }

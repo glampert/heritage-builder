@@ -15,7 +15,8 @@ the mockup generator's own drawing code, so the game's UI looks like the
 Output: `assets/ui/skins/<realm>/<id>.png`, or `<id>_<state>.png` for an entry with states, at
 2 pixels per point, RGBA on a transparent background. An entry with `"format": "jpeg"` writes an
 opaque `<id>.jpg` instead, and one with a `scale` of its own is resized to it: the home menu's
-backdrops are 1920 × 1080 JPEGs at 1 pixel per point.
+backdrops are 1920 × 1080 JPEGs at 1 pixel per point. The world map's base is a JPEG at 2× (its
+markers, labels and routes are the game's, drawn live over it).
 
 ## 1. Running it
 
@@ -124,7 +125,8 @@ drawing reaches past its rect, which is the bleed it needs (rounded up to half p
 
 ## 4. What it makes
 
-Per realm (Đại Long, Kambara, Tampadesa), about 60 sprites and 0.6-1.6 MB, plus a backdrop:
+Per realm (Đại Long, Kambara, Tampadesa), about 60 sprites and 0.6-1.6 MB, plus a backdrop and
+the world map's art (about 0.8-1.7 MB):
 
 | Sprites | Call | Notes for the skins |
 |---|---|---|
@@ -148,6 +150,10 @@ Per realm (Đại Long, Kambara, Tampadesa), about 60 sprites and 0.6-1.6 MB, pl
 | `vine_tl`, `vine_br` (Kambara) | `mpanel`, captured | The dialog's vines, placed by their bleed relative to a 480-point panel's top-left and bottom-right corners. |
 | `crest` | `mpanel`, captured; `seal` | The home dialog's crest above the title: Kambara's prang and Tampadesa's stupa, captured from the panel (their bleed places them on a 480-point panel), and Đại Long's seal with the realm's initial, Đ (`seal`'s `letter`, in the title font). |
 | `home_backdrop` (Kambara, Tampadesa) | `home_scene` | The home menu's backdrop, `menus.py`'s scene, 1920 × 1080 at 1 pixel per point, as a JPEG (about 130 KB). Đại Long keeps its painting (`misc/home_menu_static_bg.png`). |
+| `world_map_base` | `world_map_base` (`map`: the realm's `content.py` map) | The world map without markers: `world_map.py`'s `base_map` (sea, land, terrain, the uncharted area's fill, hatching and outline, rivers, lakes, relief, the ships), without the labels, threats, routes, cities, choice sites and compass the game draws, at the mockup's map viewport: 1290 × 867 points, 2580 × 1734 pixels as a JPEG (0.5-0.6 MB). A map unit is 2.58 pixels (the generator's 1.29 points per unit at 2×), the skin's `world_map.pixels_per_unit`; the map's 1000 × 672 units cover 2580 × 1733.76 of its pixels. Its layers stop at whole points, so a copy 1 point lower fills the last row. `tests/test_world_map_art.py` checks every city of the world files lands where the generator draws it. |
+| `world_map_threat` (Tampadesa) | `world_map_threat` (`anchor`: the threat's point in the rect, in points) | A threat's storm clouds (`world_map.py`'s `threat_clouds`) without its words and arrow, as a PNG (about 25 KB) the game draws with the anchor (the skin's `world_map.threat_anchor`, in pixels) on the world file's threat, over the region labels and under the routes, as the mockup layers them. |
+| `world_map_frame` | `world_map_frame` | The frame round the map viewport (`world_map.py`'s `map_frame`: `frame_back` with the viewport cut out, and `frame_front`'s rules and ornaments), drawn over the map's edges, the map transparent. Its bleed is its margin round the map: the skin's `world_map.frame_map_rect` (its x and y are the left and top bleed at 2×). |
+| `world_map_backdrop` | `world_map_backdrop` | The world map screen's background (`world_map.py`'s `background`: wood, stone, bricks), 1920 × 1080 at 1 pixel per point, as a JPEG. |
 
 ## 5. Hand-made art
 
@@ -196,4 +202,7 @@ CI runs it with the unit tests, beside the tile generator's check.
    `art.json` and `manifest.json`.
 
 Keep generator changes for the mockups' sake only: this tool draws through overrides on the
-theme instance (section 2) and doesn't change what the mockups render.
+theme instance (section 2) and doesn't change what the mockups render. The exceptions are entry
+points that draw part of a mockup with the methods the mockup itself draws with, leaving its output
+the same (compare `build/` before and after): `world_map.py`'s `base_map` (on `base_layers` and
+`threat_clouds`, which `map_layer` and `threat` now call) and `map_frame`.

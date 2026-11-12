@@ -49,6 +49,7 @@ fn main() {
         test_utils::test_fn!(test_every_skin_loads),
         test_utils::test_fn!(test_realm_skins_inherit_dai_long),
         test_utils::test_fn!(test_every_sprite_exists_and_slices_fit),
+        test_utils::test_fn!(test_world_map_art_fits),
         test_utils::test_fn!(test_every_colour_and_widget_part_resolves),
         test_utils::test_fn!(test_every_sound_exists),
         test_utils::test_fn!(test_game_styles_cover_vietnamese),
@@ -232,6 +233,52 @@ fn test_every_sprite_exists_and_slices_fit() {
                 assert!(skin.panels.contains_key(panel), "{realm}: dialog '{kind}': no panel '{panel}'");
             }
         }
+    }
+}
+
+// A JPEG's size in pixels, from its frame header (SOF0 to SOF15 but DHT, JPG and DAC).
+fn jpeg_size(path: &str) -> (f32, f32) {
+    let bytes = std::fs::read(ui_asset(path)).unwrap_or_else(|err| panic!("assets/ui/{path}: {err}"));
+    assert!(bytes.starts_with(&[0xFF, 0xD8]), "assets/ui/{path} isn't a JPEG");
+    let mut at = 2;
+    while at + 9 <= bytes.len() {
+        assert_eq!(bytes[at], 0xFF, "assets/ui/{path}: broken JPEG marker at byte {at}");
+        let marker = bytes[at + 1];
+        if marker == 0xFF {
+            at += 1;
+            continue;
+        }
+        if marker == 0x01 || (0xD0..=0xD8).contains(&marker) {
+            at += 2;
+            continue;
+        }
+        if (0xC0..=0xCF).contains(&marker) && ![0xC4, 0xC8, 0xCC].contains(&marker) {
+            let be = |i: usize| u16::from_be_bytes([bytes[i], bytes[i + 1]]) as f32;
+            return (be(at + 7), be(at + 5));
+        }
+        at += 2 + u16::from_be_bytes([bytes[at + 2], bytes[at + 3]]) as usize;
+    }
+    panic!("assets/ui/{path}: no JPEG frame header");
+}
+
+// The world map's art (`world_map`): the base is the map's extent at its pixels per unit, in whole
+// pixels; a threat's clouds hold their anchor; the frame holds the map's rect with room for its
+// border; the backdrop is the 1920 × 1080 screen.
+fn test_world_map_art_fits() {
+    for (realm, skin) in skins() {
+        let art = &skin.world_map;
+        let map = art.base_map_size();
+        assert_eq!(jpeg_size(&art.base), (map.x.ceil(), map.y.ceil()), "{realm}: {} covers the extent {:?}", art.base, art.extent);
+        if !art.threat.is_empty() {
+            let (width, height) = png_size(&art.threat);
+            let [x, y] = art.threat_anchor;
+            assert!((0.0..=width).contains(&x) && (0.0..=height).contains(&y), "{realm}: {} holds its anchor {:?}", art.threat, art.threat_anchor);
+        }
+        let (width, height) = png_size(&art.frame);
+        let [x, y, map_width, map_height] = art.frame_map_rect;
+        assert!(x > 0.0 && y > 0.0 && x + map_width < width && y + map_height < height, "{realm}: {} holds the map at {:?}", art.frame, art.frame_map_rect);
+        assert!((map_width - map.x).abs() < 0.01 && (map_height - map.y).abs() < 0.01, "{realm}: the frame's map rect is the base's map");
+        assert_eq!(jpeg_size(&art.backdrop), (1920.0, 1080.0), "{realm}: {}", art.backdrop);
     }
 }
 

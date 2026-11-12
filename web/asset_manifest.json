@@ -895,6 +895,9 @@
   "assets/ui/skins/dailong/toggle_knob.png",
   "assets/ui/skins/dailong/toggle_off.png",
   "assets/ui/skins/dailong/toggle_on.png",
+  "assets/ui/skins/dailong/world_map_backdrop.jpg",
+  "assets/ui/skins/dailong/world_map_base.jpg",
+  "assets/ui/skins/dailong/world_map_frame.png",
   "assets/ui/skins/kambara/bubble_tail.png",
   "assets/ui/skins/kambara/button_primary_disabled.png",
   "assets/ui/skins/kambara/button_primary_hovered.png",
@@ -956,6 +959,9 @@
   "assets/ui/skins/kambara/toggle_on.png",
   "assets/ui/skins/kambara/vine_br.png",
   "assets/ui/skins/kambara/vine_tl.png",
+  "assets/ui/skins/kambara/world_map_backdrop.jpg",
+  "assets/ui/skins/kambara/world_map_base.jpg",
+  "assets/ui/skins/kambara/world_map_frame.png",
   "assets/ui/skins/tampadesa/bubble_tail.png",
   "assets/ui/skins/tampadesa/button_primary_disabled.png",
   "assets/ui/skins/tampadesa/button_primary_hovered.png",
@@ -1014,5 +1020,9 @@
   "assets/ui/skins/tampadesa/tab_selected_pressed.png",
   "assets/ui/skins/tampadesa/toggle_knob.png",
   "assets/ui/skins/tampadesa/toggle_off.png",
-  "assets/ui/skins/tampadesa/toggle_on.png"
+  "assets/ui/skins/tampadesa/toggle_on.png",
+  "assets/ui/skins/tampadesa/world_map_backdrop.jpg",
+  "assets/ui/skins/tampadesa/world_map_base.jpg",
+  "assets/ui/skins/tampadesa/world_map_frame.png",
+  "assets/ui/skins/tampadesa/world_map_threat.png"
 ]

@@ -8,6 +8,8 @@
 // - `headings`, `panels`, `buttons`, `separators`, `controls`, `emblems`, `ornaments`, `icons`,
 //   `icon_sets`, `cards`, `backdrops`, `dialogs`: the sprites, 9-slice borders, insets and sizes
 //   the screens use;
+// - `world_map`: the world map screen's art (its base without markers, the map's frame, the
+//   screen's background) and where the map's units fall on it;
 // - `toast`: the panel toasts draw on (the caption panel), at a scale, and their text colour;
 // - `meters`, `rows`: the colours (`text` names or "#RRGGBB(AA)") of painted meters and step
 //   selectors, and of list rows, key-value pairs and tables;
@@ -100,6 +102,7 @@ pub struct UiSkinDef {
     pub cards: SkinCardsDef,
     pub toast: SkinToastDef,
     pub backdrops: SkinBackdropsDef,
+    pub world_map: SkinWorldMapDef,
     pub dialogs: BTreeMap<String, SkinDialogDef>, // "default", then by dialog kind name.
     pub sounds: BTreeMap<String, Option<String>>,
 }
@@ -124,6 +127,7 @@ impl Default for UiSkinDef {
             cards: SkinCardsDef::default(),
             toast: SkinToastDef::default(),
             backdrops: SkinBackdropsDef::default(),
+            world_map: SkinWorldMapDef::default(),
             dialogs: BTreeMap::new(),
             sounds: BTreeMap::new(),
         }
@@ -401,6 +405,69 @@ impl Default for SkinBackdropsDef {
             dim_game: HexColor::rgba(0x00000026),
             dim_popup: HexColor::rgba(0x120B0559),
         }
+    }
+}
+
+// The world map screen's art (docs/plans/realm-ui.md, Phase 2: Base art), drawn by crates/tools/ui-art
+// from the mockup generator (world_map.py's base_map, map_frame and background). The game draws the
+// cities, routes, labels, choice sites and compass live over the base, at the positions of the
+// campaign's world file (crate::world_map::config), whose units are the generator's map space.
+// The base holds the map's scenery only: sea, land, rivers, lakes, relief, the sea traders' ships
+// (under the routes drawn live, where the mockup draws them over the routes) and each uncharted
+// area's fill, hatching and dashed outline, so a world file's uncharted `outline` must match the
+// art (the screen draws only the area's `title` and `subtitle` at its `label`). A threat's storm
+// clouds aren't in it: they're `threat`, drawn over the region labels and under the routes.
+// - `base`: the map without markers, a JPEG. Its top-left pixel is the map's origin, and it has
+//   `pixels_per_unit` pixels per map unit on both axes (the generator's viewport, 1.29 points per
+//   unit, at the art's 2 pixels per point: 2.58), so it covers `extent`, the world files' extent
+//   (1000 × 672 units: 2580 × 1733.76 pixels of its 2580 × 1734). Nothing past the extent belongs
+//   to the map.
+// - `threat`: a threat's storm clouds, a PNG (empty: the realm's threats have none), drawn with
+//   its pixel `threat_anchor` on each threat's `position` at the base's scale, cut to the map.
+// - `frame`: the map panel's frame and its ornaments, a PNG drawn over the map's edges, the map
+//   left transparent. `frame_map_rect` is where the map's extent lies in it, [x, y, width,
+//   height] in its pixels: the frame goes on the map panel's rect grown by the frame's margins at
+//   the panel's scale (the panel's width over that rect's width).
+// - `backdrop`: the screen's background behind the map, the top bar and the side panel, a 1920 ×
+//   1080 JPEG at 1 pixel per point.
+#[derive(Clone, Debug, Deserialize)]
+#[serde(default, deny_unknown_fields)]
+pub struct SkinWorldMapDef {
+    pub base: String,
+    pub extent: [f32; 2],
+    pub pixels_per_unit: f32,
+    pub threat: String,
+    pub threat_anchor: [f32; 2],
+    pub frame: String,
+    pub frame_map_rect: [f32; 4],
+    pub backdrop: String,
+}
+
+impl Default for SkinWorldMapDef {
+    fn default() -> Self {
+        Self {
+            base: String::new(),
+            extent: [1000.0, 672.0],
+            pixels_per_unit: 2.58,
+            threat: String::new(),
+            threat_anchor: [0.0, 0.0],
+            frame: String::new(),
+            frame_map_rect: [0.0, 0.0, 2580.0, 1733.76],
+            backdrop: String::new(),
+        }
+    }
+}
+
+impl SkinWorldMapDef {
+    // The pixel of `base` at a position in map units (a world file's city or route point).
+    pub fn base_pixel(&self, position: [f32; 2]) -> Vec2 {
+        Vec2::new(position[0] * self.pixels_per_unit, position[1] * self.pixels_per_unit)
+    }
+
+    // The part of `base` the map's extent covers, in pixels from its top left: the rest of its last
+    // row or column is past the map.
+    pub fn base_map_size(&self) -> Vec2 {
+        self.base_pixel(self.extent)
     }
 }
 
@@ -1018,6 +1085,11 @@ pub fn backdrop_dim(home_menu: bool) -> Color {
 // The colour a dialog opened over the home menu's own dims the screen with behind it.
 pub fn backdrop_dim_over_home() -> Color {
     current().backdrops.dim_home_dialog.color()
+}
+
+// The current skin's world map art.
+pub fn world_map() -> &'static SkinWorldMapDef {
+    &current().world_map
 }
 
 // The home menu's backdrop frames (one for a still), and the time between frames.

@@ -1,6 +1,6 @@
 # Realm UI: menus, screens and HUD in each realm's style
 
-**Status (2026-11-12): Phases 0 and 1 done (the main menus: Home, Load / Save, Settings, Custom Game, About and the in-game Game menu); Phase 2, the world map, in progress: its data is done.** The user reviewed it on 2026-11-07: their notes are folded in (see [Review notes](#review-notes)), the open decisions' defaults are accepted, and every mockup the phases need now exists. This plan builds and restyles every retail screen after the [UI mockups](../design/mockups/README.md): the main menus, the world map, the intermission, the story comics, the HUD and the city management pages. Each screen gets one look per realm: Đại Long, Kambara and Tampadesa. It is milestone **UI** of the [roadmap](roadmap.md). It was researched against `ccca1df` on `claude`. File and line references point at that commit, so re-check them before relying on them.
+**Status (2026-11-12): Phases 0 and 1 done (the main menus: Home, Load / Save, Settings, Custom Game, About and the in-game Game menu); Phase 2, the world map, in progress: its data and base art are done.** The user reviewed it on 2026-11-07: their notes are folded in (see [Review notes](#review-notes)), the open decisions' defaults are accepted, and every mockup the phases need now exists. This plan builds and restyles every retail screen after the [UI mockups](../design/mockups/README.md): the main menus, the world map, the intermission, the story comics, the HUD and the city management pages. Each screen gets one look per realm: Đại Long, Kambara and Tampadesa. It is milestone **UI** of the [roadmap](roadmap.md). It was researched against `ccca1df` on `claude`. File and line references point at that commit, so re-check them before relying on them.
 
 ![Home menu, Đại Long](../design/mockups/menu-home-dailong.jpg)
 
@@ -601,7 +601,7 @@ The existing dialogs keep their layouts but take their panels from the Đại Lo
   - **routes:** kind (river, sea, land), points, state, the cities they join;
   - **region labels**, uncharted areas and threats, the compass and the choice box.
   - Player cities come from the profile's finished missions: each mission names the city it founds (`city` in `campaigns.json`).
-- [ ] **Base art:** the map without markers, rendered per campaign by `ui-art` from `world_map.py`'s layers (sea, land, rivers, relief, frame) at 2×.
+- [x] **Base art:** the map without markers, rendered per campaign by `ui-art` from `world_map.py`'s layers (sea, land, rivers, relief, frame) at 2×.
 - [ ] **Markers and labels** drawn live over it, so a city joining the map needs no new art:
   - cities and their seals or lotus or stupa marks, in the realm font;
   - routes by kind and state;
@@ -625,6 +625,12 @@ The existing dialogs keep their layouts but take their panels from the Đại Lo
 - `campaigns.json`: missions gain `id`, `city` and `choices` (sites A and B, each starting the choice point itself or a variant); a step is a mission that isn't a variant, and numbering, `next_mission`, finishing and advancing go by steps. Campaign I's missions found Phù Sa, Bến Gốm and Thần Khê. The hidden `test_choices` campaign, last in the file, shares Campaign I's map. The save header's `city_name` and the Game menu's place line take the mission's city. `world_map.state`.
 - Deviations: the mockups' placeholder cities for unwritten missions (Đê Son, Chợ Đèo; Campaign II's four, Campaign III's two) are realm cities, not the player's, until those missions exist (only capitals, monuments and Kyautthin are `player`), and a trade route from one runs as the mockup shows (Hamsara's from Pashchima), where Vijara's waits for Bến Gốm; Kambara's and Tampadesa's choice sites wait for their missions; labels have no angles (the generator draws none).
 - Verified: build, tests (new `world_map` test), web check, `--check`, CI scenarios at 1440 × 800, determinism twice, a live `world_map.state`. No screen yet.
+
+**Notes (2026-11-12, world map base art) (commit TODO):**
+- ui-art draws per realm `world_map_base` (2580 × 1734 JPEG, 0.5–0.6 MB: the generator's map viewport at 2×, from `world_map.py`'s new `base_map`: sea, land, terrain, uncharted hatching, rivers, lakes, relief, ships), Tampadesa's `world_map_threat` (the storm clouds, a PNG anchored on the threat's position), `world_map_frame` (PNG, the viewport transparent, from `map_frame`) and `world_map_backdrop` (the screen's wood, stone or bricks, 1920 × 1080). `map_layer` and `threat` draw through the same new methods; the mockups' HTML is byte for byte unchanged.
+- Coordinates: a world-file unit is 2.58 base pixels (1.29 points × 2), from the base's top left; the 1000 × 672 extent covers 2580 × 1733.76 pixels. The skin's `world_map` block records it (`extent`, `pixels_per_unit`, `frame_map_rect`), with `skin::world_map()` and `SkinWorldMapDef::base_pixel`.
+- Deviations: the frame is separate, so zooming moves only the map; the ships are base art, so the routes drawn live cross them (the mockup draws them over the routes); the uncharted areas' shapes are base art (their world-file `outline` must match it), their and Western Baray's text the screen's.
+- Verified: each base diffed against its mockup's viewport (only labels, markers, routes, compass, choice box and frame rules differ), composites beside the mockups; tests `world_map` (a known city per map lands on the generator's pixel), `ui_skins`, ui-art's `test_world_map_art.py` (every city against the generator); build, web check, `--check`, CI scenarios at 1440 × 800.
 
 ### Phase 3: Intermission and briefing
 

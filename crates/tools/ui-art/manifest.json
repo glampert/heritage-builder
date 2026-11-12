@@ -696,6 +696,42 @@
       "source_hash": "f4bca6188c31c998",
       "state": null
     },
+    "assets/ui/skins/dailong/world_map_backdrop.jpg": {
+      "catalog_hash": "a07da52f6a3b1700",
+      "id": "world_map_backdrop",
+      "png_hash": "897571e678ec8fe8",
+      "png_size": [
+        1920,
+        1080
+      ],
+      "realm": "dailong",
+      "source_hash": "64d6e47861599ecc",
+      "state": null
+    },
+    "assets/ui/skins/dailong/world_map_base.jpg": {
+      "catalog_hash": "010bfe98ef204960",
+      "id": "world_map_base",
+      "png_hash": "b59a9887699fcbaa",
+      "png_size": [
+        2580,
+        1734
+      ],
+      "realm": "dailong",
+      "source_hash": "a39178cb888fb137",
+      "state": null
+    },
+    "assets/ui/skins/dailong/world_map_frame.png": {
+      "catalog_hash": "88ba90fbbb74b082",
+      "id": "world_map_frame",
+      "png_hash": "e437d4c62221bc80",
+      "png_size": [
+        2668,
+        1822
+      ],
+      "realm": "dailong",
+      "source_hash": "801b2642a0921254",
+      "state": null
+    },
     "assets/ui/skins/kambara/bubble_tail.png": {
       "catalog_hash": "0553102e2e5edd85",
       "id": "bubble_tail",
@@ -1428,6 +1464,42 @@
       "source_hash": "0a1492750f022fd9",
       "state": null
     },
+    "assets/ui/skins/kambara/world_map_backdrop.jpg": {
+      "catalog_hash": "2ca1eb1ed9cb5ec8",
+      "id": "world_map_backdrop",
+      "png_hash": "25392fd2f5a360cb",
+      "png_size": [
+        1920,
+        1080
+      ],
+      "realm": "kambara",
+      "source_hash": "d8f726cdf2f9b78d",
+      "state": null
+    },
+    "assets/ui/skins/kambara/world_map_base.jpg": {
+      "catalog_hash": "6fedd26bbe7aa36c",
+      "id": "world_map_base",
+      "png_hash": "6776b9cde691a2fd",
+      "png_size": [
+        2580,
+        1734
+      ],
+      "realm": "kambara",
+      "source_hash": "4506630b6366eccd",
+      "state": null
+    },
+    "assets/ui/skins/kambara/world_map_frame.png": {
+      "catalog_hash": "c9c75337bb9ba3b9",
+      "id": "world_map_frame",
+      "png_hash": "df24e46b6a64539d",
+      "png_size": [
+        2778,
+        1924
+      ],
+      "realm": "kambara",
+      "source_hash": "e50942c03173a900",
+      "state": null
+    },
     "assets/ui/skins/tampadesa/bubble_tail.png": {
       "catalog_hash": "19e19ecfd13bdbd9",
       "id": "bubble_tail",
@@ -2134,6 +2206,54 @@
       ],
       "realm": "tampadesa",
       "source_hash": "480d9adec6457f52",
+      "state": null
+    },
+    "assets/ui/skins/tampadesa/world_map_backdrop.jpg": {
+      "catalog_hash": "931dbbeeeb311677",
+      "id": "world_map_backdrop",
+      "png_hash": "6d3c477b2fa771fe",
+      "png_size": [
+        1920,
+        1080
+      ],
+      "realm": "tampadesa",
+      "source_hash": "45212e34c5de758a",
+      "state": null
+    },
+    "assets/ui/skins/tampadesa/world_map_base.jpg": {
+      "catalog_hash": "c8594029ccf0e217",
+      "id": "world_map_base",
+      "png_hash": "75537dc24e01ac8a",
+      "png_size": [
+        2580,
+        1734
+      ],
+      "realm": "tampadesa",
+      "source_hash": "2235d111547c70c3",
+      "state": null
+    },
+    "assets/ui/skins/tampadesa/world_map_frame.png": {
+      "catalog_hash": "b54f5cca02ede80e",
+      "id": "world_map_frame",
+      "png_hash": "585254c891be6221",
+      "png_size": [
+        2694,
+        1862
+      ],
+      "realm": "tampadesa",
+      "source_hash": "9f610f0d4aba5e07",
+      "state": null
+    },
+    "assets/ui/skins/tampadesa/world_map_threat.png": {
+      "catalog_hash": "3470505c2a27d485",
+      "id": "world_map_threat",
+      "png_hash": "e41b68f1e1dd6206",
+      "png_size": [
+        968,
+        312
+      ],
+      "realm": "tampadesa",
+      "source_hash": "01cafc28a46f3370",
       "state": null
     }
   },

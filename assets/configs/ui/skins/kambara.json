@@ -116,6 +116,8 @@
     "title": { "font_scale": 2.65 }
   },
   "backdrops": { "home": ["skins/kambara/home_backdrop.jpg"] },
+  "world_map": { "base": "skins/kambara/world_map_base.jpg", "frame": "skins/kambara/world_map_frame.png",
+    "frame_map_rect": [84, 106, 2580, 1733.76], "backdrop": "skins/kambara/world_map_backdrop.jpg" },
   "dialogs": {
     "Home": {"size": [560, 1000], "offset": [90, 0]}
   }

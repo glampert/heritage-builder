@@ -121,6 +121,10 @@
   },
   "ornaments": { "crest": "skins/tampadesa/crest.png" },
   "backdrops": { "home": ["skins/tampadesa/home_backdrop.jpg"] },
+  "world_map": { "base": "skins/tampadesa/world_map_base.jpg",
+    "threat": "skins/tampadesa/world_map_threat.png", "threat_anchor": [408, 200],
+    "frame": "skins/tampadesa/world_map_frame.png", "frame_map_rect": [54, 64, 2580, 1733.76],
+    "backdrop": "skins/tampadesa/world_map_backdrop.jpg" },
   "dialogs": {
     "Home": {"offset": [80, 0]},
     "CityManagement": {"size": [1600, 1020]},

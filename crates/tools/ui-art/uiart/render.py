@@ -169,7 +169,50 @@ CALLS = {
         th, th.title_font, lambda: th.seal(*_at(x, y, w, h, a), a.get("s", min(w, h)), a.get("letter", ""), a.get("color"))),
     # The home menu's backdrop scene (menus.py), drawn for 1920 x 1080 at the rect and cut to it.
     "home_scene": lambda th, x, y, w, h, a: _scene(th, x, y, w, h, th.home_scene()),
+    # The world map (world_map.py), for the world map screen: its base without markers, labels,
+    # threats or routes (`map`: the content.py map it draws, by realm), at the map viewport (its
+    # rect is the viewport, 1290 x 867 points: 1000 x 672 map units at common.MAP_S); a threat's
+    # storm clouds, centred on the point `anchor` ([x, y] points from the rect's top left), which
+    # the game puts on the threat's position; the frame around that viewport, with the viewport
+    # left transparent; and the screen's background, 1920 x 1080.
+    "world_map_base": lambda th, x, y, w, h, a: _map_view(th, x, y, w, h, lambda: th.base_map(_world_map(a))),
+    "world_map_threat": lambda th, x, y, w, h, a: th.threat_clouds(x + a["anchor"][0], y + a["anchor"][1]),
+    "world_map_frame": lambda th, x, y, w, h, a: _at_viewport(x, y, th.map_frame()),
+    "world_map_backdrop": lambda th, x, y, w, h, a: _scene(th, x, y, w, h, th.background()),
 }
+
+
+def _world_map(a):
+    # The world map content (generator's content.py) of a realm: DAILONG, KAMBARA, TAMPADESA.
+    import content
+    key = a.get("map")
+    if key not in REALM_CLASSES:
+        raise cat.CatalogError(f"world_map_base: map must be one of {sorted(REALM_CLASSES)}, not {key!r}")
+    return getattr(content, REALM_CLASSES[key][1])
+
+
+def _viewport():
+    import common
+    return common.MAP_X, common.MAP_Y, common.MAP_W, common.MAP_H
+
+
+def _at_viewport(x, y, body):
+    # World map layers are drawn in screen points with the viewport at (MAP_X, MAP_Y): moved so
+    # the viewport's top left is the rect's.
+    vx, vy, _, _ = _viewport()
+    return f'<g transform="translate({x - vx:g},{y - vy:g})">{body}</g>'
+
+
+def _map_view(th, x, y, w, h, draw):
+    # The map clipped to the rect. Most of its layers stop at whole points (int(MAP_H): 866 of
+    # the viewport's 866.88), so the map is cut there and a copy 1 point lower fills the last row.
+    vx, vy, _, vh = _viewport()
+    rect, whole = th.nid("view"), th.nid("view")
+    th.defs.append(f'<clipPath id="{rect}"><rect x="{vx:g}" y="{vy:g}" width="{w:g}" height="{h:g}"/></clipPath>'
+                   f'<clipPath id="{whole}"><rect x="{vx:g}" y="{vy:g}" width="{w:g}" height="{math.floor(vh):g}"/></clipPath>')
+    under, body = draw(), draw()
+    return _at_viewport(x, y, f'<g clip-path="url(#{rect})"><g transform="translate(0,1)">{under}</g>'
+                              f'<g clip-path="url(#{whole})">{body}</g></g>')
 
 
 def _scene(th, x, y, w, h, body):

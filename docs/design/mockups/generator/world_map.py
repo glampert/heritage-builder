@@ -108,24 +108,7 @@ class Theme:
 
     def map_layer(self):
         d = self.d
-        out = [self.sea()]
-        land = self.land_path()
-        isl = self.island_paths()
-        out.append(self.land(land, isl))
-        out.append(self.terrain_decor())
-        if d.get("unknown"):
-            out.append(self.unknown_area(*d["unknown"]))
-        for k in C.RIVERS:
-            w = 4.5 if k in ("son", "great", "shwemyit") else 3
-            out.append(self.river(self.river_path(k), w))
-        out.append(self.lake(self.lake_path()))
-        if d["key"] == "kambara":
-            out.append(self.barays())
-        mts = [("m", *m) for m in C.MOUNTAINS] + [("k", x, y, 1) for x, y in C.KARST] + [("h", x, y, 1) for x, y in C.HOLY_HILLS]
-        mts.sort(key=lambda m: m[2])
-        for kind, x, y, s in mts:
-            sx, sy = P(x, y)
-            out.append(self.mountain(sx, sy, s * C.MAP_S) if kind == "m" else self.karst(sx, sy) if kind == "k" else self.hill(sx, sy))
+        out = [self.base_layers(d)]
         for r in d["regions"]:
             text, x, y = C.REGIONS[r]
             sx, sy = P(x, y)
@@ -149,6 +132,47 @@ class Theme:
         out.append(self.compass(*P(958, 186)))
         return "".join(out)
 
+    def base_map(self, d=None):
+        """The map without what the game draws live over it (crates/tools/ui-art's world map base):
+        its layers and the sea traders' ships, but no labels, threats (their clouds are a sprite of
+        their own, threat_clouds, drawn at the threat's position), routes, cities, choice sites or
+        compass. Text it would hold (the uncharted area's title, Western Baray) is the game's too.
+        Drawn in screen points, like map_layer, for the map viewport."""
+        d = d or self.d
+        return self.base_layers(d) + self.sea_traders()
+
+    def map_frame(self):
+        """The map viewport's frame without the map (crates/tools/ui-art's world map frame):
+        frame_back with the viewport cut out of it, then frame_front, as render() layers them
+        around the map."""
+        cid = self.nid("framehole")
+        x, y, w, h = C.MAP_X, C.MAP_Y, f(C.MAP_W), f(C.MAP_H)
+        self.defs.append(f'<clipPath id="{cid}"><path clip-rule="evenodd" '
+                         f'd="M0,0 H{C.W} V{C.H} H0 Z M{x},{y} h{w} v{h} h-{w} Z"/></clipPath>')
+        return f'<g clip-path="url(#{cid})">{self.frame_back()}</g>{self.frame_front()}'
+
+    def base_layers(self, d):
+        # Sea, land, terrain, uncharted areas, rivers, lakes and relief: map_layer's first layers.
+        out = [self.sea()]
+        land = self.land_path()
+        isl = self.island_paths()
+        out.append(self.land(land, isl))
+        out.append(self.terrain_decor())
+        if d.get("unknown"):
+            out.append(self.unknown_area(*d["unknown"]))
+        for k in C.RIVERS:
+            w = 4.5 if k in ("son", "great", "shwemyit") else 3
+            out.append(self.river(self.river_path(k), w))
+        out.append(self.lake(self.lake_path()))
+        if d["key"] == "kambara":
+            out.append(self.barays())
+        mts = [("m", *m) for m in C.MOUNTAINS] + [("k", x, y, 1) for x, y in C.KARST] + [("h", x, y, 1) for x, y in C.HOLY_HILLS]
+        mts.sort(key=lambda m: m[2])
+        for kind, x, y, s in mts:
+            sx, sy = P(x, y)
+            out.append(self.mountain(sx, sy, s * C.MAP_S) if kind == "m" else self.karst(sx, sy) if kind == "k" else self.hill(sx, sy))
+        return "".join(out)
+
     # Defaults that themes can override ----------------------------------
     def terrain_decor(self):
         return ""
@@ -162,6 +186,9 @@ class Theme:
         return "".join(out)
 
     def threat(self, title, sub):
+        return ""
+
+    def threat_clouds(self, x=None, y=None):
         return ""
 
     def sea_traders(self):
@@ -1066,12 +1093,19 @@ class Tampadesa(Theme):
                     + T(x, y, text, self.title_font, size, self.gold(), "middle", 400, ls=10))
         return T(x, y, text, self.label_font if not big else self.title_font, size, self.ink, "middle", 700 if not big else 400, ls=8 if big else 4, extra='opacity="0.55"')
 
-    def threat(self, title, sub):
-        x, y = P(150, 30)
+    def threat_clouds(self, x=None, y=None):
+        # The storm over the steppe, without its words and arrow (threat), around (x, y) in screen
+        # points (the threat's position, P(150, 30), by default).
+        if x is None:
+            x, y = P(150, 30)
         cid = self.nid("storm")
         rnd = random.Random(2)
         blobs = "".join(f'<circle cx="{f(x + rnd.uniform(-170, 230))}" cy="{f(y + rnd.uniform(-60, 10))}" r="{f(rnd.uniform(30, 60))}"/>' for _ in range(14))
-        return (f'<g fill="#3a2a2a" opacity="0.55">{blobs}</g>'
+        return f'<g fill="#3a2a2a" opacity="0.55">{blobs}</g>'
+
+    def threat(self, title, sub):
+        x, y = P(150, 30)
+        return (self.threat_clouds()
                 + T(x + 30, y + 10, title, self.label_font, 21, "#f2dfb3", "middle", 700, ls=4)
                 + T(x + 30, y + 36, sub, self.body_font, 18, "#f2dfb3", "middle", 500, style="font-style:italic")
                 + f'<path d="M{f(x + 120)},{f(y + 44)} q30,40 10,90" fill="none" stroke="#7a1d12" stroke-width="2.5" stroke-dasharray="6 5"/>'

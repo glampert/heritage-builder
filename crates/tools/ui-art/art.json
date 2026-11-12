@@ -138,6 +138,15 @@
                   "tampadesa": { "capture": { "helper": "stupa", "index": 4 }, "bleed": [-212, -51, -212, -338] } } },
 
     { "id": "home_backdrop", "group": "backdrops", "call": "home_scene", "size": [1920, 1080], "scale": 1, "format": "jpeg",
-      "realms": { "kambara": {}, "tampadesa": {} } }
+      "realms": { "kambara": {}, "tampadesa": {} } },
+    { "id": "world_map_base", "group": "world_map", "call": "world_map_base", "size": [1290, 867], "format": "jpeg",
+      "realms": { "dailong": { "args": { "map": "dailong" } }, "kambara": { "args": { "map": "kambara" } },
+                  "tampadesa": { "args": { "map": "tampadesa" } } } },
+    { "id": "world_map_threat", "group": "world_map", "call": "world_map_threat", "size": [484, 156],
+      "args": { "anchor": [204, 100] }, "realms": { "tampadesa": {} } },
+    { "id": "world_map_frame", "group": "world_map", "call": "world_map_frame", "size": [1290, 867],
+      "realms": { "dailong": { "bleed": [22, 22, 22, 22] }, "kambara": { "bleed": [42, 53, 57, 42] },
+                  "tampadesa": { "bleed": [27, 32, 30, 32] } } },
+    { "id": "world_map_backdrop", "group": "world_map", "call": "world_map_backdrop", "size": [1920, 1080], "scale": 1, "format": "jpeg" }
   ]
 }
