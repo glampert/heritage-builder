@@ -23,7 +23,7 @@ use engine::{
 use crate::{
     building::construction::ConstructionMode,
     cheats,
-    sim::SimContext,
+    sim::SimContextMut,
     ui_context::GameUiContext,
     save_context::{Load, Save},
     undo_redo::{self, EditAction, EditedLayer},
@@ -473,7 +473,7 @@ impl TilePlacement {
 
     // Places a road segment from road::build_segment, as a player's drag does: every cell of the
     // segment, or none of them if it's blocked or the treasury can't pay for all of it.
-    pub fn place_road_segment(context: &SimContext, segment: &RoadSegment, undo_redo: bool) -> Result<(), RoadSegmentError> {
+    pub fn place_road_segment(context: &SimContextMut, segment: &RoadSegment, undo_redo: bool) -> Result<(), RoadSegmentError> {
         if segment.is_empty() {
             return Err(RoadSegmentError::Empty);
         }
@@ -575,7 +575,7 @@ impl TilePlacement {
     // `subtract_tile_cost`, and with ConstructionMode::Site, a building whose tier takes time
     // starts as a construction site.
     pub fn place(
-        context: &SimContext,
+        context: &SimContextMut,
         target_cell: Cell,
         tile_def: &'static TileDef,
         subtract_tile_cost: bool,
@@ -633,7 +633,7 @@ impl TilePlacement {
         unreachable!();
     }
 
-    pub fn clear(context: &SimContext, tile: &Tile, restore_tile_cost: bool, undo_redo: bool) -> PlaceOrClearResult {
+    pub fn clear(context: &SimContextMut, tile: &Tile, restore_tile_cost: bool, undo_redo: bool) -> PlaceOrClearResult {
         let tile_def = tile.tile_def();
 
         let is_terrain = tile.is(TileKind::Terrain);

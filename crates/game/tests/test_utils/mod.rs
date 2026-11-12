@@ -13,7 +13,7 @@ use game::{
     prop::{config::PropConfigs, PropId},
     sim::{
         commands::{self, SimCmdQueue, SpawnQueryResult, SpawnReadyResult},
-        SimCmds, SimContext, Simulation,
+        SimCmds, SimContextMut, Simulation,
     },
     tile::{
         sets::{
@@ -162,7 +162,7 @@ impl TestEnvironment {
         }
     }
 
-    pub fn new_sim_context(&mut self, delta_time_secs: Seconds) -> SimContext {
+    pub fn new_sim_context(&mut self, delta_time_secs: Seconds) -> SimContextMut<'_> {
         self.sim.new_sim_context(delta_time_secs, &mut self.tile_map, &mut self.world)
     }
 }
@@ -344,14 +344,13 @@ where
 // and polls the resulting SpawnPromise on the next. A per-tick local
 // `SimCmds` would drop the promise pool while the producer still holds
 // a reference to it, tripping the leak panic in `SpawnPromisePool::drop`.
+// One world step, as Simulation::update runs it (without the game systems): unit navigation,
+// then Simulation::step_world, the world's update on a read-only context with the world and tile
+// map locked, so whatever would change them must go through the commands, which run last on a
+// mutable context.
 pub fn tick(env: &mut TestEnvironment, delta_time_secs: Seconds) {
-    let context = env.new_sim_context(delta_time_secs);
-    let cmds = context.cmds_mut();
-
-    context.world_mut().update_unit_navigation(&context);
-    context.world_mut().update(cmds, &context);
-
-    cmds.execute(&context);
+    env.sim.update_unit_navigation(&mut env.world, &mut env.tile_map, delta_time_secs);
+    env.sim.step_world(&mut env.world, &mut env.tile_map, delta_time_secs, |_cmds, _context| {});
 }
 
 pub fn tick_n(env: &mut TestEnvironment, count: usize, delta_time_secs: Seconds) {

@@ -150,6 +150,10 @@ bitflags_with_display! {
 
         // A building on fire (building::risks): drawn darkened, with flames over its cells.
         const Burning            = 1 << 16;
+
+        // A sick house (building::risks): drawn with a sickly tint, a yellow cloth and incense
+        // smoke over its cells.
+        const Diseased           = 1 << 17;
     }
 }
 

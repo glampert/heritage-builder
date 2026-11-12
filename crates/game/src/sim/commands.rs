@@ -9,7 +9,7 @@ use enum_dispatch::enum_dispatch;
 use common::{coords::Cell, mem::RawPtr};
 use engine::{log, platform::DebugBacktrace};
 
-use super::SimContext;
+use super::SimContextMut;
 use crate::{
     constants::INITIAL_GENERATION,
     prop::{Prop, PropId},
@@ -386,21 +386,21 @@ type CallbackBox<F> = SmallBox<F, smallbox::space::S8>;
 
 // Game object callback: receives `&mut T` so the closure can initialize the
 // freshly-spawned object before it goes live (e.g. assigning a task to a new Unit).
-type GameObjectSpawnedCallback<T> = dyn Fn(&SimContext, Result<&mut T, TilePlacementErr>) + 'static;
+type GameObjectSpawnedCallback<T> = dyn Fn(&SimContextMut, Result<&mut T, TilePlacementErr>) + 'static;
 
 // Tile placement callback: receives borrowed refs to a small data enum.
 // No underlying mutable game object exists, so the borrowed shape avoids
 // the need to clone TilePlacementErr in the failure path.
-type TileSpawnedCallback = dyn Fn(&SimContext, Result<SpawnReadyResult, TilePlacementErr>) + 'static;
+type TileSpawnedCallback = dyn Fn(&SimContextMut, Result<SpawnReadyResult, TilePlacementErr>) + 'static;
 
 // Generic deferred update callback for tiles/units/buildings/props.
-type DeferredCallback<T> = dyn Fn(&SimContext, &mut T);
+type DeferredCallback<T> = dyn Fn(&SimContextMut, &mut T);
 
 // Optional post building visit callback. Receives the same arguments as Building::visited_by
-type BuildingVisitedCallback = dyn Fn(&SimContext, &mut Building, &mut Unit, BuildingVisitResult);
+type BuildingVisitedCallback = dyn Fn(&SimContextMut, &mut Building, &mut Unit, BuildingVisitResult);
 
 // Task completion callback for building + unit.
-type BuildingTaskCallback = dyn Fn(&SimContext, &mut Building, &mut Unit);
+type BuildingTaskCallback = dyn Fn(&SimContextMut, &mut Building, &mut Unit);
 
 // ----------------------------------------------
 // No callback sentinel values
@@ -408,13 +408,13 @@ type BuildingTaskCallback = dyn Fn(&SimContext, &mut Building, &mut Unit);
 
 // No-op tile spawn callback.
 #[inline]
-pub fn no_tile_callback() -> fn(&SimContext, Result<SpawnReadyResult, TilePlacementErr>) {
+pub fn no_tile_callback() -> fn(&SimContextMut, Result<SpawnReadyResult, TilePlacementErr>) {
     |_ctx, _result| {}
 }
 
 // No-op game object spawn callback. `T` is inferred from the surrounding spawn call.
 #[inline]
-pub fn no_object_callback<T>() -> fn(&SimContext, Result<&mut T, TilePlacementErr>) {
+pub fn no_object_callback<T>() -> fn(&SimContextMut, Result<&mut T, TilePlacementErr>) {
     |_ctx, _result| {}
 }
 
@@ -445,7 +445,7 @@ impl Default for SimCmds {
 pub trait SimCmdQueue: Sized {
     // -- Apply operations ----------------------
 
-    fn execute(&mut self, context: &SimContext);
+    fn execute(&mut self, context: &SimContextMut);
     fn reset(&mut self);
 
     // -- Queue API -----------------------------
@@ -472,7 +472,7 @@ pub trait SimCmdQueue: Sized {
     #[inline]
     fn spawn_tile_with_tile_def_promise<F>(&mut self, cell: Cell, tile_def: &'static TileDef, on_spawned: F) -> SpawnPromise<Tile>
     where
-        F: Fn(&SimContext, Result<SpawnReadyResult, TilePlacementErr>) + 'static
+        F: Fn(&SimContextMut, Result<SpawnReadyResult, TilePlacementErr>) + 'static
     {
         let promise = self.allocate_promise::<Tile>();
         self.push_cmd(SimCmd::SpawnTileWithTileDef { cell, tile_def, state_id: Some(promise.state_id), on_spawned: smallbox!(on_spawned) });
@@ -482,7 +482,7 @@ pub trait SimCmdQueue: Sized {
     #[inline]
     fn spawn_tile_with_tile_def_cb<F>(&mut self, cell: Cell, tile_def: &'static TileDef, on_spawned: F)
     where
-        F: Fn(&SimContext, Result<SpawnReadyResult, TilePlacementErr>) + 'static
+        F: Fn(&SimContextMut, Result<SpawnReadyResult, TilePlacementErr>) + 'static
     {
         self.push_cmd(SimCmd::SpawnTileWithTileDef { cell, tile_def, state_id: None, on_spawned: smallbox!(on_spawned) });
     }
@@ -495,7 +495,7 @@ pub trait SimCmdQueue: Sized {
     #[inline]
     fn defer_tile_update<F>(&mut self, cell: Cell, kind: TileKind, callback: F)
     where
-        F: Fn(&SimContext, &mut Tile) + 'static
+        F: Fn(&SimContextMut, &mut Tile) + 'static
     {
         self.push_cmd(SimCmd::DeferTileUpdate { cell, kind, callback: smallbox!(callback) });
     }
@@ -505,7 +505,7 @@ pub trait SimCmdQueue: Sized {
     #[inline]
     fn spawn_unit_with_config_promise<F>(&mut self, origin: Cell, config: UnitConfigKey, on_spawned: F) -> SpawnPromise<Unit>
     where
-        F: Fn(&SimContext, Result<&mut Unit, TilePlacementErr>) + 'static
+        F: Fn(&SimContextMut, Result<&mut Unit, TilePlacementErr>) + 'static
     {
         let promise = self.allocate_promise::<Unit>();
         self.push_cmd(SimCmd::SpawnUnitWithConfig { origin, config, state_id: Some(promise.state_id), on_spawned: smallbox!(on_spawned) });
@@ -515,7 +515,7 @@ pub trait SimCmdQueue: Sized {
     #[inline]
     fn spawn_unit_with_config_cb<F>(&mut self, origin: Cell, config: UnitConfigKey, on_spawned: F)
     where
-        F: Fn(&SimContext, Result<&mut Unit, TilePlacementErr>) + 'static
+        F: Fn(&SimContextMut, Result<&mut Unit, TilePlacementErr>) + 'static
     {
         self.push_cmd(SimCmd::SpawnUnitWithConfig { origin, config, state_id: None, on_spawned: smallbox!(on_spawned) });
     }
@@ -523,7 +523,7 @@ pub trait SimCmdQueue: Sized {
     #[inline]
     fn spawn_unit_with_tile_def_promise<F>(&mut self, origin: Cell, tile_def: &'static TileDef, on_spawned: F) -> SpawnPromise<Unit>
     where
-        F: Fn(&SimContext, Result<&mut Unit, TilePlacementErr>) + 'static
+        F: Fn(&SimContextMut, Result<&mut Unit, TilePlacementErr>) + 'static
     {
         let promise = self.allocate_promise::<Unit>();
         self.push_cmd(SimCmd::SpawnUnitWithTileDef { origin, tile_def, state_id: Some(promise.state_id), on_spawned: smallbox!(on_spawned) });
@@ -533,7 +533,7 @@ pub trait SimCmdQueue: Sized {
     #[inline]
     fn spawn_unit_with_tile_def_cb<F>(&mut self, origin: Cell, tile_def: &'static TileDef, on_spawned: F)
     where
-        F: Fn(&SimContext, Result<&mut Unit, TilePlacementErr>) + 'static
+        F: Fn(&SimContextMut, Result<&mut Unit, TilePlacementErr>) + 'static
     {
         self.push_cmd(SimCmd::SpawnUnitWithTileDef { origin, tile_def, state_id: None, on_spawned: smallbox!(on_spawned) });
     }
@@ -546,7 +546,7 @@ pub trait SimCmdQueue: Sized {
     #[inline]
     fn defer_unit_update<F>(&mut self, id: UnitId, callback: F)
     where
-        F: Fn(&SimContext, &mut Unit) + 'static
+        F: Fn(&SimContextMut, &mut Unit) + 'static
     {
         self.push_cmd(SimCmd::DeferUnitUpdate { id, callback: smallbox!(callback) });
     }
@@ -556,7 +556,7 @@ pub trait SimCmdQueue: Sized {
     #[inline]
     fn spawn_building_with_tile_def_promise<F>(&mut self, base_cell: Cell, tile_def: &'static TileDef, on_spawned: F) -> SpawnPromise<Building>
     where
-        F: Fn(&SimContext, Result<&mut Building, TilePlacementErr>) + 'static
+        F: Fn(&SimContextMut, Result<&mut Building, TilePlacementErr>) + 'static
     {
         let promise = self.allocate_promise::<Building>();
         self.push_cmd(SimCmd::SpawnBuildingWithTileDef { base_cell, tile_def, state_id: Some(promise.state_id), on_spawned: smallbox!(on_spawned) });
@@ -566,7 +566,7 @@ pub trait SimCmdQueue: Sized {
     #[inline]
     fn spawn_building_with_tile_def_cb<F>(&mut self, base_cell: Cell, tile_def: &'static TileDef, on_spawned: F)
     where
-        F: Fn(&SimContext, Result<&mut Building, TilePlacementErr>) + 'static
+        F: Fn(&SimContextMut, Result<&mut Building, TilePlacementErr>) + 'static
     {
         self.push_cmd(SimCmd::SpawnBuildingWithTileDef { base_cell, tile_def, state_id: None, on_spawned: smallbox!(on_spawned) });
     }
@@ -585,7 +585,7 @@ pub trait SimCmdQueue: Sized {
     #[inline]
     fn visit_building_with_completion<F>(&mut self, kind_and_id: BuildingKindAndId, unit_id: UnitId, on_post_visit: F)
     where
-        F: Fn(&SimContext, &mut Building, &mut Unit, BuildingVisitResult) + 'static
+        F: Fn(&SimContextMut, &mut Building, &mut Unit, BuildingVisitResult) + 'static
     {
         self.push_cmd(SimCmd::VisitBuilding { kind_and_id, unit_id, on_post_visit: Some(smallbox!(on_post_visit)) });
     }
@@ -593,7 +593,7 @@ pub trait SimCmdQueue: Sized {
     #[inline]
     fn defer_task_step<F>(&mut self, kind_and_id: BuildingKindAndId, unit_id: UnitId, callback: F)
     where
-        F: Fn(&SimContext, &mut Building, &mut Unit) + 'static
+        F: Fn(&SimContextMut, &mut Building, &mut Unit) + 'static
     {
         self.push_cmd(SimCmd::DeferBuildingTaskStep { kind_and_id, unit_id, callback: smallbox!(callback), on_complete: None });
     }
@@ -601,7 +601,7 @@ pub trait SimCmdQueue: Sized {
     #[inline]
     fn defer_task_step_with_completion<F>(&mut self, kind_and_id: BuildingKindAndId, unit_id: UnitId, callback: F, on_complete: F)
     where
-        F: Fn(&SimContext, &mut Building, &mut Unit) + 'static
+        F: Fn(&SimContextMut, &mut Building, &mut Unit) + 'static
     {
         self.push_cmd(SimCmd::DeferBuildingTaskStep { kind_and_id, unit_id, callback: smallbox!(callback), on_complete: Some(smallbox!(on_complete)) });
     }
@@ -609,7 +609,7 @@ pub trait SimCmdQueue: Sized {
     #[inline]
     fn defer_building_update<F>(&mut self, kind_and_id: BuildingKindAndId, callback: F)
     where
-        F: Fn(&SimContext, &mut Building) + 'static
+        F: Fn(&SimContextMut, &mut Building) + 'static
     {
         self.push_cmd(SimCmd::DeferBuildingUpdate { kind_and_id, callback: smallbox!(callback) });
     }
@@ -631,7 +631,7 @@ pub trait SimCmdQueue: Sized {
     #[inline]
     fn spawn_prop_with_tile_def_promise<F>(&mut self, origin: Cell, tile_def: &'static TileDef, on_spawned: F) -> SpawnPromise<Prop>
     where
-        F: Fn(&SimContext, Result<&mut Prop, TilePlacementErr>) + 'static
+        F: Fn(&SimContextMut, Result<&mut Prop, TilePlacementErr>) + 'static
     {
         let promise = self.allocate_promise::<Prop>();
         self.push_cmd(SimCmd::SpawnPropWithTileDef { origin, tile_def, state_id: Some(promise.state_id), on_spawned: smallbox!(on_spawned) });
@@ -641,7 +641,7 @@ pub trait SimCmdQueue: Sized {
     #[inline]
     fn spawn_prop_with_tile_def_cb<F>(&mut self, origin: Cell, tile_def: &'static TileDef, on_spawned: F)
     where
-        F: Fn(&SimContext, Result<&mut Prop, TilePlacementErr>) + 'static
+        F: Fn(&SimContextMut, Result<&mut Prop, TilePlacementErr>) + 'static
     {
         self.push_cmd(SimCmd::SpawnPropWithTileDef { origin, tile_def, state_id: None, on_spawned: smallbox!(on_spawned) });
     }
@@ -654,7 +654,7 @@ pub trait SimCmdQueue: Sized {
     #[inline]
     fn defer_prop_update<F>(&mut self, id: PropId, callback: F)
     where
-        F: Fn(&SimContext, &mut Prop) + 'static
+        F: Fn(&SimContextMut, &mut Prop) + 'static
     {
         self.push_cmd(SimCmd::DeferPropUpdate { id, callback: smallbox!(callback) });
     }
@@ -689,7 +689,7 @@ impl DeferredSimCmds {
 impl SimCmdQueue for DeferredSimCmds {
     // -- Apply operations ----------------------
 
-    fn execute(&mut self, context: &SimContext) {
+    fn execute(&mut self, context: &SimContextMut) {
         if self.cmds.is_empty() {
             return;
         }
@@ -813,17 +813,19 @@ impl SimCmdQueue for DeferredSimCmds {
 // ----------------------------------------------
 
 pub struct ImmediateModeSimCmds {
-    // NOTE: Using a raw pointer here to avoid having to add a reference lifetime to ImmediateModeSimCmds.
-    context: RawPtr<SimContext>,
+    // NOTE: Using a raw pointer with the context's lifetime erased, to avoid having to add a
+    // lifetime to ImmediateModeSimCmds (and so to SimCmds). SAFETY: the debug UI makes one over a
+    // context and drops it before the context (Simulation's draw_*_debug_ui).
+    context: RawPtr<SimContextMut<'static>>,
     promises: SpawnPromiseStatePool,
 }
 
 impl ImmediateModeSimCmds {
     #[inline]
     #[allow(clippy::new_ret_no_self)]
-    pub fn new(context: &SimContext) -> SimCmds {
+    pub fn new(context: &SimContextMut) -> SimCmds {
         SimCmds::ImmediateModeSimCmds(Self {
-            context: RawPtr::from_ref(context),
+            context: RawPtr::from_ptr((context as *const SimContextMut).cast::<SimContextMut<'static>>()),
             promises: SpawnPromiseStatePool::default(),
         })
     }
@@ -834,7 +836,7 @@ impl ImmediateModeSimCmds {
 impl SimCmdQueue for ImmediateModeSimCmds {
     // -- Apply operations ----------------------
 
-    fn execute(&mut self, _context: &SimContext) {
+    fn execute(&mut self, _context: &SimContextMut) {
         // Commands already executed on push_cmd().
     }
 
@@ -921,7 +923,7 @@ impl SimCmdQueue for ImmediateModeSimCmds {
 // Internal helpers
 // ----------------------------------------------
 
-fn execute_cmd(promises: &mut SpawnPromiseStatePool, queued_cmd: &QueuedSimCmd, context: &SimContext, spawner: &Spawner) {
+fn execute_cmd(promises: &mut SpawnPromiseStatePool, queued_cmd: &QueuedSimCmd, context: &SimContextMut, spawner: &Spawner) {
     match &queued_cmd.cmd {
         // --------------
         // Tiles:
@@ -1039,7 +1041,7 @@ fn execute_cmd(promises: &mut SpawnPromiseStatePool, queued_cmd: &QueuedSimCmd, 
             // no longer valid.
             if let Some(building) = context.find_building_mut(kind_and_id.kind, kind_and_id.id) {
                 let mut cmds = ImmediateModeSimCmds::new(context);
-                let building_ctx = building.new_context(context);
+                let building_ctx = building.new_context_mut(context);
                 building.as_house_mut().perform_upgrade(&mut cmds, &building_ctx, *dir);
             }
         }
@@ -1071,7 +1073,7 @@ fn execute_cmd(promises: &mut SpawnPromiseStatePool, queued_cmd: &QueuedSimCmd, 
 // The building a deferred command is for, or None, logged, if it's gone: a fire or collapse
 // can destroy a building that commands queued in an earlier step still name.
 fn find_building_or_skip<'game>(
-    context: &'game SimContext,
+    context: &'game SimContextMut<'game>,
     queued_cmd: &QueuedSimCmd,
     kind_and_id: &BuildingKindAndId,
 ) -> Option<&'game mut Building> {
@@ -1090,7 +1092,7 @@ fn resolve_game_object_spawn<T: GameObject>(
     queued_cmd: &QueuedSimCmd,
     state_id: &Option<SpawnPromiseStateId>,
     on_spawned: &CallbackBox<GameObjectSpawnedCallback<T>>,
-    context: &SimContext,
+    context: &SimContextMut,
     result: Result<&mut T, TilePlacementErr>,
 ) {
     if let Some(state_id) = state_id {

@@ -17,7 +17,7 @@ use super::{
     Building,
     BuildingVisitResult,
     BuildingBehavior,
-    BuildingContext,
+    BuildingContext, BuildingContextMut,
     BuildingKind,
     BuildingKindAndId,
     BuildingStock,
@@ -319,7 +319,7 @@ impl BuildingBehavior for HouseBuilding {
         self.current_level_config()
     }
 
-    fn despawned(&mut self, context: &BuildingContext) {
+    fn despawned(&mut self, context: &BuildingContextMut) {
         self.ambient_patrol.discard_spawn_promise(context.sim_ctx.cmds_mut());
     }
 
@@ -350,7 +350,7 @@ impl BuildingBehavior for HouseBuilding {
         }
     }
 
-    fn visited_by(&mut self, unit: &mut Unit, context: &BuildingContext) -> BuildingVisitResult {
+    fn visited_by(&mut self, unit: &mut Unit, context: &BuildingContextMut) -> BuildingVisitResult {
         if unit.is_settler() {
             self.visited_by_settler(unit, context)
         } else if unit.is_market_vendor(context.sim_ctx) {
@@ -456,7 +456,7 @@ impl BuildingBehavior for HouseBuilding {
             let amount_added = self.population.add(count);
             debug_popup_msg_color!(self.debug, Color::green(), "+{amount_added} Population");
             cmds.defer_building_update(context.kind_and_id(), |sim_ctx, building| {
-                let context = building.new_context(sim_ctx);
+                let context = building.new_context_mut(sim_ctx);
                 building.as_house_mut().adjust_workers_available(&context);
             });
             return amount_added;
@@ -469,7 +469,7 @@ impl BuildingBehavior for HouseBuilding {
             let amount_removed = self.population.remove(count);
             self.evict_population(cmds, context, amount_removed, false);
             cmds.defer_building_update(context.kind_and_id(), |sim_ctx, building| {
-                let context = building.new_context(sim_ctx);
+                let context = building.new_context_mut(sim_ctx);
                 building.as_house_mut().adjust_workers_available(&context);
             });
             return amount_removed;
@@ -519,7 +519,7 @@ impl BuildingBehavior for HouseBuilding {
         &mut self.debug
     }
 
-    fn draw_debug_ui(&mut self, cmds: &mut SimCmds, context: &BuildingContext, ui_sys: &UiSystem) {
+    fn draw_debug_ui(&mut self, cmds: &mut SimCmds, context: &BuildingContextMut, ui_sys: &UiSystem) {
         // Debug-UI drawing lives in `crate::debug::building`.
         self.draw_debug_ui_dispatch(cmds, context, ui_sys);
     }
@@ -644,7 +644,7 @@ impl HouseBuilding {
         }
     }
 
-    fn visited_by_market_vendor(&mut self, unit: &mut Unit, context: &BuildingContext) -> BuildingVisitResult {
+    fn visited_by_market_vendor(&mut self, unit: &mut Unit, context: &BuildingContextMut) -> BuildingVisitResult {
         if self.debug.freeze_stock_update() {
             return BuildingVisitResult::Refused;
         }
@@ -843,7 +843,7 @@ impl HouseBuilding {
         HouseLevelRequirements::new(context, self.next_level_config(), &self.stock)
     }
 
-    pub fn perform_upgrade(&mut self, cmds: &mut SimCmds, context: &BuildingContext, dir: HouseUpgradeDirection) {
+    pub fn perform_upgrade(&mut self, cmds: &mut SimCmds, context: &BuildingContextMut, dir: HouseUpgradeDirection) {
         let success = match dir {
             HouseUpgradeDirection::Upgrade => {
                 self.upgrade_state.try_upgrade(cmds, context, &mut self.debug)
@@ -874,7 +874,7 @@ impl HouseBuilding {
     pub fn merge(
         &mut self,
         cmds: &mut SimCmds,
-        context: &BuildingContext,
+        context: &BuildingContextMut,
         house_to_merge: &mut HouseBuilding,
         house_to_merge_kind_and_id: BuildingKindAndId,
         target_level_config: &HouseLevelConfig,
@@ -909,7 +909,7 @@ impl HouseBuilding {
     fn merge_population(
         &mut self,
         cmds: &mut SimCmds,
-        context: &BuildingContext,
+        context: &BuildingContextMut,
         house_to_merge: &mut HouseBuilding,
         target_level_config: &HouseLevelConfig,
     ) {
@@ -935,7 +935,7 @@ impl HouseBuilding {
 
     fn merge_workers(
         &mut self,
-        context: &BuildingContext,
+        context: &BuildingContextMut,
         house_to_merge: &mut HouseBuilding,
         house_to_merge_kind_and_id: BuildingKindAndId,
     ) {
@@ -996,7 +996,8 @@ impl HouseBuilding {
     // ----------------------
 
     fn population_update(&mut self, cmds: &mut SimCmds, context: &BuildingContext) {
-        if self.population.is_max() {
+        // A sick house doesn't grow.
+        if self.population.is_max() || context.has_outbreak {
             return;
         }
 
@@ -1015,7 +1016,13 @@ impl HouseBuilding {
         }
     }
 
-    fn visited_by_settler(&mut self, unit: &mut Unit, context: &BuildingContext) -> BuildingVisitResult {
+    fn visited_by_settler(&mut self, unit: &mut Unit, context: &BuildingContextMut) -> BuildingVisitResult {
+        // No one moves into a sick house.
+        if context.has_outbreak {
+            debug_popup_msg_color!(self.debug, Color::red(), "Refused settler: sickness");
+            return BuildingVisitResult::Refused;
+        }
+
         // We are already within a VisitBuilding command; execute recursive commands immediately.
         let mut cmds = ImmediateModeSimCmds::new(context.sim_ctx);
 
@@ -1049,6 +1056,26 @@ impl HouseBuilding {
         debug_popup_msg_color!(self.debug, Color::red(), "Evicted {amount_to_evict} residents");
     }
 
+    // Whether the house holds any food (building::risks: a house without it falls sick faster).
+    pub fn has_food(&self) -> bool {
+        self.stock.has_any_of(ResourceKind::foods())
+    }
+
+    // `count` residents die of sickness (building::risks): they leave no walker, and their jobs
+    // go with them. Returns how many died.
+    pub fn lose_residents_to_disease(&mut self, cmds: &mut SimCmds, context: &BuildingContext, count: u32) -> u32 {
+        if count == 0 || self.population.count() == 0 {
+            return 0;
+        }
+        let died = self.population.remove(count);
+        cmds.defer_building_update(context.kind_and_id(), |sim_ctx, building| {
+            let context = building.new_context_mut(sim_ctx);
+            building.as_house_mut().adjust_workers_available(&context);
+        });
+        debug_popup_msg_color!(self.debug, Color::red(), "{died} died of sickness");
+        died
+    }
+
     // Like remove_population, but the evicted residents leave the city (head for the
     // map exit) instead of trying to resettle elsewhere.
     fn emigrate_population(&mut self, cmds: &mut SimCmds, context: &BuildingContext, count: u32) -> u32 {
@@ -1056,7 +1083,7 @@ impl HouseBuilding {
             let amount_removed = self.population.remove(count);
             self.evict_population(cmds, context, amount_removed, true);
             cmds.defer_building_update(context.kind_and_id(), |sim_ctx, building| {
-                let context = building.new_context(sim_ctx);
+                let context = building.new_context_mut(sim_ctx);
                 building.as_house_mut().adjust_workers_available(&context);
             });
             return amount_removed;
@@ -1064,7 +1091,7 @@ impl HouseBuilding {
         0
     }
 
-    fn adjust_population(&mut self, cmds: &mut SimCmds, context: &BuildingContext, new_population: u32, new_max: u32) {
+    fn adjust_population(&mut self, cmds: &mut SimCmds, context: &BuildingContextMut, new_population: u32, new_max: u32) {
         let prev_population = self.population.count();
         let curr_population = self.population.set_max_and_count(new_max, new_population);
 
@@ -1078,7 +1105,7 @@ impl HouseBuilding {
         }
     }
 
-    fn adjust_workers_available(&mut self, context: &BuildingContext) {
+    fn adjust_workers_available(&mut self, context: &BuildingContextMut) {
         // Percentage of current household residents that are workers: [0,100].
         let worker_percentage = (self.current_level_config().worker_percentage as f32) / 100.0;
         let curr_population   = self.population.count() as f32;
@@ -1541,7 +1568,8 @@ impl HouseUpgradeState {
     }
 
     fn can_upgrade(&self, context: &BuildingContext, stock: &BuildingStock) -> bool {
-        if self.level.is_max() {
+        // A sick house neither renovates nor upgrades (building::risks).
+        if self.level.is_max() || context.has_outbreak {
             return false;
         }
 
@@ -1562,7 +1590,7 @@ impl HouseUpgradeState {
         !curr_level_requirements.has_required_services() || !curr_level_requirements.has_required_resources()
     }
 
-    fn try_upgrade(&mut self, cmds: &mut SimCmds, context: &BuildingContext, debug: &mut HouseDebug) -> bool {
+    fn try_upgrade(&mut self, cmds: &mut SimCmds, context: &BuildingContextMut, debug: &mut HouseDebug) -> bool {
         let mut upgraded_successfully = false;
 
         let configs = BuildingConfigs::get();
@@ -1606,7 +1634,7 @@ impl HouseUpgradeState {
         upgraded_successfully
     }
 
-    fn try_downgrade(&mut self, cmds: &mut SimCmds, context: &BuildingContext, debug: &mut HouseDebug) -> bool {
+    fn try_downgrade(&mut self, cmds: &mut SimCmds, context: &BuildingContextMut, debug: &mut HouseDebug) -> bool {
         let mut downgraded_successfully = false;
 
         let configs = BuildingConfigs::get();
@@ -1651,7 +1679,7 @@ impl HouseUpgradeState {
     fn try_replace_tile(
         &self,
         cmds: &mut SimCmds,
-        context: &BuildingContext,
+        context: &BuildingContextMut,
         current_level: HouseLevel,
         target_level: HouseLevel,
         target_tile_def: &'static TileDef,

@@ -226,7 +226,7 @@ impl BaseMinimapRenderer {
         let delta_time_secs = context.delta_time_secs;
         if context.tile_map.minimap_mut().lens_refresh_due(delta_time_secs) {
             let sim_context = context.sim.new_sim_context(0.0, context.tile_map, context.world);
-            context.tile_map.minimap_mut().refresh_lens(&sim_context);
+            super::Minimap::refresh_lens(&sim_context);
         }
 
         // The active lens's button shows pressed, and the alerts tool is off without alerts.

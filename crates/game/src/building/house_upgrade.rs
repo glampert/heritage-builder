@@ -13,6 +13,7 @@ use super::{
     BuildingId,
     BuildingKind,
     BuildingContext,
+    BuildingContextMut,
     config::BuildingConfigs,
     house::{HouseLevel, HouseLevelConfig},
 };
@@ -21,7 +22,7 @@ use crate::{
     sim::SimCmds,
     world::object::{GameObject, Spawner},
     pathfind::{Node, NodeKind as PathNodeKind},
-    tile::{TileKind, TileMapLayerKind, sets::TileDef},
+    tile::{TileFlags, TileKind, TileMapLayerKind, sets::TileDef},
 };
 
 // ----------------------------------------------
@@ -68,7 +69,7 @@ pub fn can_expand_house(
 // Attempts to expand the house by *one cell* in each dimension, e.g.: 1x1 -> 2x2.
 pub fn try_expand_house(
     cmds: &mut SimCmds,
-    context: &BuildingContext,
+    context: &BuildingContextMut,
     house_id: BuildingId,
     current_level: HouseLevel,
     target_level: HouseLevel,
@@ -126,7 +127,7 @@ pub fn try_expand_house(
 // Assumes there is enough room to place the new tile
 // (neighboring houses already merged and cleared).
 pub fn try_replace_tile(
-    context: &BuildingContext,
+    context: &BuildingContextMut,
     house_id: BuildingId,
     target_tile_def: &'static TileDef,
     new_cell_range: CellRange,
@@ -198,6 +199,11 @@ pub fn try_replace_tile(
     // Update game object handle:
     new_tile.set_game_object_handle(prev_game_object_handle);
     debug_assert!(new_tile.cell_range() == new_cell_range);
+
+    // A sick house that downgrades is still sick: the new tile shows it too.
+    if dest_house.has_outbreak() {
+        tile_map.set_tile_flags(new_cell_range.start, TileKind::Building, TileFlags::Diseased, true);
+    }
 
     // Update cell range cached in the building & context:
     if new_cell_range != prev_cell_range {
@@ -481,7 +487,7 @@ pub(crate) fn candidate_target_rects(current_cell_range: CellRange) -> [CellRect
 
 fn try_merge_and_replace_tile(
     cmds: &mut SimCmds,
-    context: &BuildingContext,
+    context: &BuildingContextMut,
     target_level_config: &HouseLevelConfig,
     target_tile_def: &'static TileDef,
     start_cell: Cell,
@@ -505,7 +511,7 @@ fn try_merge_and_replace_tile(
 // `ids_to_merge` houses. Ids are assumed to be all valid house buildings.
 fn merge_houses(
     cmds: &mut SimCmds,
-    context: &BuildingContext,
+    context: &BuildingContextMut,
     target_level_config: &HouseLevelConfig,
     dest_id: BuildingId,
     ids_to_merge: &[BuildingId],
@@ -528,7 +534,7 @@ fn merge_houses(
 // Merge resources, population and workers.
 fn merge_house(
     cmds: &mut SimCmds,
-    context: &BuildingContext,
+    context: &BuildingContextMut,
     dest_building: &mut Building,
     building_to_merge: &mut Building,
     target_level_config: &HouseLevelConfig,
@@ -548,7 +554,7 @@ fn merge_house(
     );
 }
 
-fn destroy_house(context: &BuildingContext, merged_building: &mut Building) {
+fn destroy_house(context: &BuildingContextMut, merged_building: &mut Building) {
     // NOTE: We can safely immediately despawn the merged house here since
     // the whole house upgrade logic is already deferred as a SimCmd.
     Spawner::new(context.sim_ctx).despawn_building(merged_building);
@@ -568,16 +574,20 @@ fn house_for_id<'game>(context: &'game BuildingContext, id: BuildingId) -> &'gam
         .expect("Invalid Building id! Expected to have a valid House Building.")
 }
 
-fn house_for_id_mut<'game>(context: &'game BuildingContext, id: BuildingId) -> &'game mut Building {
+fn house_for_id_mut<'game>(context: &'game BuildingContextMut, id: BuildingId) -> &'game mut Building {
     context.sim_ctx.find_building_mut(BuildingKind::House, id)
         .expect("Invalid Building id! Expected to have a valid House Building.")
 }
 
-// A house to merge with or expand into. A burning one is neither: the fire must burn it down
-// or be put out first.
+// A house to merge with or expand into. A burning or sick one is neither: the fire must burn it
+// down or be put out first, and a medic must cure the sickness.
 fn find_house_for_cell<'game>(context: &'game BuildingContext, cell: Cell) -> Option<&'game Building> {
     if let Some(building) = context.sim_ctx.find_building_for_cell(cell) {
-        if building.is(BuildingKind::House) && !building.is_burning() && !building.risks().is_doomed() {
+        if building.is(BuildingKind::House)
+            && !building.is_burning()
+            && !building.has_outbreak()
+            && !building.risks().is_doomed()
+        {
             return Some(building);
         }
     }

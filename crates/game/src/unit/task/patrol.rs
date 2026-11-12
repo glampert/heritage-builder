@@ -30,7 +30,7 @@ use crate::{
         RandomDirectionalBias,
         SearchResult,
     },
-    sim::{SimCmdQueue, SimContext},
+    sim::{SimCmdQueue, SimContext, SimContextMut},
     unit::{Unit, navigation::{self, UnitDirection, UnitNavGoal}},
     building::{Building, BuildingKind, BuildingKindAndId, BuildingTileInfo},
     world::object::GameObject,
@@ -190,7 +190,7 @@ impl PathFilter for UnitPatrolReturnPathFilter<'_> {
 // UnitTaskRandomizedPatrol
 // ----------------------------------------------
 
-pub type UnitTaskPatrolCompletionCallback = fn(&SimContext, &mut Building, &mut Unit);
+pub type UnitTaskPatrolCompletionCallback = fn(&SimContextMut, &mut Building, &mut Unit);
 
 #[derive(Copy, Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
 pub enum UnitTaskPatrolState {
@@ -517,7 +517,7 @@ impl UnitTask for UnitTaskRandomizedPatrol {
         self.completion_callback.post_load();
     }
 
-    fn draw_debug_ui(&mut self, unit: &mut Unit, sim_context: &SimContext, ui_sys: &UiSystem) {
+    fn draw_debug_ui(&mut self, unit: &mut Unit, sim_context: &SimContextMut, ui_sys: &UiSystem) {
         #[derive(DrawDebugUi)]
         struct View {
             #[debug_ui(label = "Origin Building")]

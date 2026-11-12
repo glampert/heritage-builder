@@ -11,7 +11,7 @@ use super::{
     despawn::UnitTaskPostDespawnCallback,
 };
 use crate::{
-    sim::{SimCmds, SimContext},
+    sim::{SimCmds, SimContext, SimContextMut},
     unit::Unit,
 };
 
@@ -23,7 +23,7 @@ use crate::{
 pub struct UnitTaskContext<'a> {
     pub unit: &'a mut Unit,
     pub sim_cmds: &'a mut SimCmds,
-    pub sim_context: &'a SimContext,
+    pub sim_context: &'a SimContext<'a>,
 }
 
 // ----------------------------------------------
@@ -110,7 +110,7 @@ pub trait UnitTask: Sized + 'static {
     fn post_load(&mut self) {}
 
     // Optional debug UI panel.
-    fn draw_debug_ui(&mut self, _unit: &mut Unit, _sim_context: &SimContext, _ui: &UiSystem) {}
+    fn draw_debug_ui(&mut self, _unit: &mut Unit, _sim_context: &SimContextMut, _ui: &UiSystem) {}
 }
 
 // ----------------------------------------------
@@ -137,7 +137,7 @@ pub trait UnitTaskFsm {
     fn terminate(&mut self, pool: &mut UnitTaskPool);
     fn run(&mut self, ctx: &mut UnitTaskContext) -> UnitTaskFlow;
     fn post_load(&mut self);
-    fn draw_debug_ui(&mut self, unit: &mut Unit, sim_context: &SimContext, ui: &UiSystem);
+    fn draw_debug_ui(&mut self, unit: &mut Unit, sim_context: &SimContextMut, ui: &UiSystem);
     fn as_any(&self) -> &dyn Any;
 }
 
@@ -171,7 +171,7 @@ impl<T: UnitTask> UnitTaskFsm for T {
         UnitTask::post_load(self);
     }
 
-    fn draw_debug_ui(&mut self, unit: &mut Unit, sim_context: &SimContext, ui: &UiSystem) {
+    fn draw_debug_ui(&mut self, unit: &mut Unit, sim_context: &SimContextMut, ui: &UiSystem) {
         UnitTask::draw_debug_ui(self, unit, sim_context, ui);
     }
 

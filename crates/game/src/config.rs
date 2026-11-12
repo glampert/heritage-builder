@@ -292,7 +292,7 @@ impl Default for FinanceConfigs {
     }
 }
 
-// Fire and collapse risk (building::risks). Each building's rates come from its building config.
+// Fire, collapse and disease risk (building::risks). Each building's rates come from its building config.
 #[derive(DrawDebugUi, Serialize, Deserialize)]
 #[serde(default)]
 pub struct RiskConfigs {
@@ -315,6 +315,34 @@ pub struct RiskConfigs {
 
     // Fire risk a burning building adds to each building next to it, per simulated second.
     pub spread_per_sec: f32,
+
+    // Disease (houses only). A house's disease risk builds up at its level's rate times how full
+    // it is, faster without water or food, slower with an apothecary in reach; a medic's visit
+    // resets it. Every `disease_check_secs` a house with people rolls for an outbreak, at
+    // `outbreak_chance_at_max` a month times (risk / 100) squared.
+    pub disease_check_secs: Seconds,
+    pub outbreak_chance_at_max: f32,
+
+    // Added to the disease rate's needs factor (1) without a well in reach, and without food.
+    pub missing_water_scale: f32,
+    pub missing_food_scale: f32,
+
+    // An apothecary in reach scales the disease rate and an outbreak's deaths by this.
+    pub apothecary_scale: f32,
+
+    // Disease risk a sick house adds to every house within `disease_spread_cells` of it, per
+    // simulated second.
+    pub disease_spread_per_sec: f32,
+    pub disease_spread_cells: i32,
+
+    // Deaths in a sick house: none for `death_grace_secs`, then every `death_interval_secs`
+    // round(population x fraction) residents die, at least one. The fraction starts at
+    // `death_fraction` and rises by `death_fraction_step` each time, up to `death_fraction_max`.
+    pub death_grace_secs: Seconds,
+    pub death_interval_secs: Seconds,
+    pub death_fraction: f32,
+    pub death_fraction_step: f32,
+    pub death_fraction_max: f32,
 }
 
 impl Default for RiskConfigs {
@@ -326,6 +354,18 @@ impl Default for RiskConfigs {
             water_check_secs: 10.0,
             burn_secs: 30.0,
             spread_per_sec: 5.0,
+            disease_check_secs: 10.0,
+            outbreak_chance_at_max: 0.5,
+            missing_water_scale: 1.0,
+            missing_food_scale: 1.0,
+            apothecary_scale: 0.5,
+            disease_spread_per_sec: 1.0,
+            disease_spread_cells: 2,
+            death_grace_secs: 30.0,
+            death_interval_secs: 20.0,
+            death_fraction: 0.1,
+            death_fraction_step: 0.05,
+            death_fraction_max: 0.3,
         }
     }
 }

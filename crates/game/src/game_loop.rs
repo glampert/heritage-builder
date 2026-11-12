@@ -34,7 +34,7 @@ use crate::{
     unit::config::UnitConfigs,
     building::{self, config::BuildingConfigs},
     prop::config::PropConfigs,
-    sim::{self, Simulation},
+    sim::Simulation,
     system::GameSystems,
     session::{self, GameSession, GameSessionCmdQueue},
     campaign::{self, config::CampaignConfigs},

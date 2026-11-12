@@ -51,7 +51,7 @@ These follow [overview.md](../design/overview.md#development-phases).
 | M3 | Building costs and construction | Medium to large | M1 | [construction.md](construction.md) | Done (fast build option waits for Custom Game) |
 | M4 | Finance | Medium | M1 | [finance.md](finance.md) | Done (the tax level's and wage's effects on ratings, and the overdue debt's failure, come with M9) |
 | M5 | Goods and production for missions I-1 to I-5 | Medium | M3 | [goods.md](goods.md) | Done (vegetables, house level 5 and month-based consumption rates deferred; see the plan) |
-| M6 | City risks: fire and collapse | Medium | M3, M1 | [city-risks.md](city-risks.md) | In progress: art and Phases 0–2 (risk state, save v7; fire, collapse, rubble; fire watch, builders' guild) done; Phase 3 (Risk lens, info panel) next |
+| M6 | City risks: fire, collapse and disease | Medium | M3, M1 | [city-risks.md](city-risks.md) | In progress: art and Phases 0–2 (risk state, save v7; fire, collapse, rubble; fire watch, builders' guild) and Phase 4 (disease, hospital dispatch, save v8) done; Phase 3 (Risk lens, info panel) next |
 | M7 | Seasons, floods and irrigation | Large | M1, M5 | — | Not started |
 | M8 | Faith and festivals | Medium | M1 | — | Not started |
 | M9 | Ratings, goals and failure | Medium | M4, M7, M8 | — | Not started |
@@ -134,7 +134,7 @@ Plan: [goods.md](goods.md). It starts by saving goods by name, so that adding a 
 - **Rebalance storage capacity** (8 slots × 4 units today) against construction costs, and against the house goods needs for common levels 1–5.
 - **Common house level 5**, if missions 1–5 need it.
 
-### M6: City risks: fire and collapse (medium)
+### M6: City risks: fire, collapse and disease (medium)
 
 See [city-risks.md](city-risks.md). GDD 5.9:
 - **Risk build-up:** fire and collapse risk per building, from its config and age; it goes up each month and is reset by a patrol walker's visit.
@@ -146,7 +146,9 @@ See [city-risks.md](city-risks.md). GDD 5.9:
 - **Overlay:** a risk overlay.
 - **Tests:** tests and a scenario.
 
-(Disease and crime come in Phase 2, with hospitals and unrest.)
+- **Disease** (added 2026-11-10, at the user's request; city-risks.md Phase 4): a house's disease risk, an outbreak rolled against it, deaths until a hospital's medic cures it, and spread to the houses around it. M7's floods add disease risk ("disease after a flood").
+
+(Crime comes in Phase 2, with unrest.)
 
 ### M7: Seasons, floods and irrigation (large)
 
@@ -265,7 +267,7 @@ These get their own plans when Phase 2 begins:
 - **Sea trade and docks;** foreign partners on the world map; gifts, relations and tribute (GDD 5.12 and 5.14).
 - **The silk chain;** Đại Long's signature goods.
 - **Examinations and scholar-officials** (GDD §6).
-- **Disease and hospitals;** crime and unrest.
+- **Crime and unrest.** (Disease and the hospital's medics came early, with M6.)
 - **Map choices** for missions 6–8 (two maps each).
 - **Story presentation:** the remaining comics, in-mission story events, and the stele screen.
 - **Missions I-6 to I-10.**
@@ -297,7 +299,8 @@ Bumps should be grouped where milestones land close together. Each bump needs a 
 | 5 | Goods saved by name, not position | M5 | Done |
 | 6 | One signed treasury (tax offices hold no gold); the yearly ledger, saved by category name; the finance rates and debt counter | M4 | Done |
 | 7 | Fire and collapse risk per building; the city's risks switch | M6 | Done |
-| 8 | Elevation map | T | Planned |
+| 8 | Disease risk and outbreaks per house; the city's disease switch and death count; the fire watcher's task generalised to `UnitTaskRespond` | M6 | Done |
+| 9 | Elevation map | T | Planned |
 | … | Flood, favour and ratings state | M7–M9 | Planned; group them where possible |
 
 ## Conventions for every milestone

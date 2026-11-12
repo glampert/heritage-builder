@@ -12,7 +12,7 @@ use crate::{
     config::GameConfigs,
     pathfind::{Node, Path},
     save_context::PostLoadContext,
-    sim::{SimCmds, SimContext},
+    sim::{SimCmds, SimContext, SimContextMut},
     tile::TileDepthSortOverride,
     unit::{
         Unit,
@@ -50,7 +50,7 @@ impl GameSystem for AmbientEffectsSystem {
         self.bird_spawn_timer.post_load(context.configs().sim.birds_spawn_frequency);
     }
 
-    fn draw_debug_ui(&mut self, engine: &mut Engine, cmds: &mut SimCmds, context: &SimContext) {
+    fn draw_debug_ui(&mut self, engine: &mut Engine, cmds: &mut SimCmds, context: &SimContextMut) {
         // Debug-UI drawing lives in `crate::debug::systems`.
         self.draw_debug_ui_dispatch(engine, cmds, context);
     }

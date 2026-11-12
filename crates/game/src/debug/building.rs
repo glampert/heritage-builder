@@ -20,6 +20,7 @@ use crate::{
         BuildingArchetypeKind,
         BuildingBehavior,
         BuildingContext,
+        BuildingContextMut,
         BuildingId,
         BuildingKind,
         BuildingKindAndId,
@@ -35,7 +36,7 @@ use crate::{
     },
     pathfind,
     debug::DebugUiMode,
-    sim::{SimCmds, SimContext, resources::ResourceKind},
+    sim::{SimCmds, SimContextMut, resources::ResourceKind},
     tile::{TileFlags, TileKind},
     unit::UnitTaskHelper,
     world::object::GameObject,
@@ -51,7 +52,7 @@ impl Building {
     pub(crate) fn draw_debug_ui_dispatch(
         &mut self,
         cmds: &mut SimCmds,
-        context: &SimContext,
+        context: &SimContextMut,
         ui_sys: &UiSystem,
         mode: DebugUiMode,
     ) {
@@ -64,7 +65,7 @@ impl Building {
             DebugUiMode::Detailed => {
                 if let Some(_path) = ui::collapsing_header_scope(ui_sys, "Building", false) {
                     ui::indent(ui_sys, 10.0, |ui_sys| {
-                        self.draw_debug_ui_detailed(cmds, &self.new_context(context), ui_sys);
+                        self.draw_debug_ui_detailed(cmds, &self.new_context_mut(context), ui_sys);
                     });
                 }
             }
@@ -159,7 +160,7 @@ impl Building {
         }
     }
 
-    fn draw_debug_ui_detailed(&mut self, cmds: &mut SimCmds, context: &BuildingContext, ui_sys: &UiSystem) {
+    fn draw_debug_ui_detailed(&mut self, cmds: &mut SimCmds, context: &BuildingContextMut, ui_sys: &UiSystem) {
         // NOTE: Use the special ##id here so we don't collide with Tile/Properties.
         if let Some(_path) =
             ui::collapsing_header_scope(ui_sys, "Properties##_building_properties", false)
@@ -298,7 +299,7 @@ impl Building {
         }
 
         if let Some(_path) = ui::collapsing_header_scope(ui_sys, "Risks", false) {
-            self.draw_debug_ui_risks(cmds, context, ui_sys);
+            self.draw_debug_ui_risks(context, ui_sys);
         }
 
         self.archetype_mut().debug_options().draw_debug_ui(ui_sys);
@@ -307,26 +308,49 @@ impl Building {
 }
 
 impl Building {
-    // Fire and collapse risk (building::risks): the raw values, and buttons to set the building on
-    // fire or collapse it, shown when it can.
-    fn draw_debug_ui_risks(&mut self, cmds: &mut SimCmds, context: &BuildingContext, ui_sys: &UiSystem) {
+    // Fire, collapse and disease risk (building::risks): the raw values, and buttons to set the
+    // building on fire, collapse it or make it sick, shown when it can.
+    fn draw_debug_ui_risks(&mut self, context: &BuildingContextMut, ui_sys: &UiSystem) {
         let rates = self.risk_rates();
+        let has_disease = self.configs().risk_rates().disease > 0.0;
+        let fullness = self.fullness();
         let risks = self.risks();
         ui::text(ui_sys, format_small!("Fire risk: {:.2} (+{:.2} a month)", risks.get(RiskKind::Fire), rates.fire));
         ui::text(ui_sys, format_small!("Collapse risk: {:.2} (+{:.2} a month)", risks.get(RiskKind::Collapse), rates.collapse));
+        if has_disease {
+            ui::text(ui_sys, format_small!("Disease risk: {:.2} (+{:.2} a month)", risks.get(RiskKind::Disease), rates.disease));
+            ui::text(ui_sys, format_small!(
+                "Needs: water {}, food {}, apothecary {}; fullness {:.2}",
+                risks.is_near_water(),
+                risks.has_food(),
+                risks.is_near_apothecary(),
+                fullness
+            ));
+        }
         ui::text(ui_sys, format_small!("Near water: {}, jitter: {:.3}", risks.is_near_water(), risks.jitter()));
         if let Some(burning) = risks.burning() {
             ui::text_colored(ui_sys, Color::red(), format_small!("Burning: {:.1}s left", burning.secs_left));
         }
+        if let Some(outbreak) = risks.outbreak() {
+            ui::text_colored(ui_sys, Color::yellow(), format_small!(
+                "Sick for {:.1}s: next deaths at {:.1}s ({:.0}%), {} died so far",
+                outbreak.secs,
+                outbreak.next_death_secs,
+                outbreak.fraction * 100.0,
+                outbreak.deaths
+            ));
+        }
         if !context.sim_ctx.risks().is_active() {
             ui::text_colored(ui_sys, Color::yellow(), "Risks are off: a fire neither spreads nor burns down.");
+        } else if has_disease && !context.sim_ctx.risks().is_disease_active() {
+            ui::text_colored(ui_sys, Color::yellow(), "Disease is off in this game.");
         }
 
         ui::separator(ui_sys);
 
         if self.can_catch_fire() {
             if ui::button(ui_sys, "Set On Fire") {
-                self.ignite(cmds, context.sim_ctx);
+                self.ignite_now(context.sim_ctx);
             }
         } else {
             ui::text(ui_sys, format_small!("Can't catch fire: {}.", self.risk_blocker(self.configs().risk_rates().fire)));
@@ -339,6 +363,23 @@ impl Building {
             }
         } else {
             ui::text(ui_sys, format_small!("Can't collapse: {}.", self.risk_blocker(self.configs().risk_rates().collapse)));
+        }
+
+        if has_disease {
+            if self.can_fall_sick() {
+                if ui::button(ui_sys, "Start Outbreak") {
+                    self.start_outbreak_now(context.sim_ctx);
+                }
+            } else {
+                let reason = if self.has_outbreak() {
+                    "it's sick already"
+                } else if self.population_count() == 0 && !self.is_under_construction() && !self.is_burning() {
+                    "no one lives in it"
+                } else {
+                    self.risk_blocker(self.configs().risk_rates().disease)
+                };
+                ui::text(ui_sys, format_small!("Can't fall sick: {reason}."));
+            }
         }
     }
 
@@ -749,14 +790,14 @@ impl ServiceBuilding {
 // ----------------------------------------------
 
 impl HouseBuilding {
-    pub(crate) fn draw_debug_ui_dispatch(&mut self, cmds: &mut SimCmds, context: &BuildingContext, ui_sys: &UiSystem) {
+    pub(crate) fn draw_debug_ui_dispatch(&mut self, cmds: &mut SimCmds, context: &BuildingContextMut, ui_sys: &UiSystem) {
         draw_house_merge_debug_ui(context, ui_sys);
         self.draw_debug_ui_timers(cmds, context, ui_sys);
         self.draw_debug_ui_stock(context, ui_sys);
         self.draw_debug_ui_upgrade_state(cmds, context, ui_sys);
     }
 
-    fn draw_debug_ui_upgrade_state(&mut self, cmds: &mut SimCmds, context: &BuildingContext, ui_sys: &UiSystem) {
+    fn draw_debug_ui_upgrade_state(&mut self, cmds: &mut SimCmds, context: &BuildingContextMut, ui_sys: &UiSystem) {
         let Some(_path) = ui::collapsing_header_scope(ui_sys, "Upgrade", false) else {
             return; // collapsed.
         };
@@ -928,7 +969,7 @@ impl HouseBuilding {
 // House merge Debug UI
 // ----------------------------------------------
 
-fn draw_house_merge_debug_ui(context: &BuildingContext, ui_sys: &UiSystem) {
+fn draw_house_merge_debug_ui(context: &BuildingContextMut, ui_sys: &UiSystem) {
     let Some(_path) = ui::collapsing_header_scope(ui_sys, "Merge Debug", false) else {
         return; // collapsed.
     };

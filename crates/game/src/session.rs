@@ -32,7 +32,7 @@ use crate::{
     menu::{GameMenusInputArgs, GameMenusMode, GameMenusSystem, home::HomeMenus, in_game::InGameMenus},
     ui_context::GameUiContext,
     save_context::*,
-    sim::{RandomGenerator, SimContext, Simulation},
+    sim::{RandomGenerator, SimContextMut, Simulation},
     system::GameSystems,
     tile::{
         TileFlags,
@@ -489,10 +489,9 @@ impl GameSession {
         self.world.refresh_stats(self.sim.finance());
     }
 
-    // Runs `edit_fn` with a SimContext over this session, for world edits made outside the
-    // simulation update (automation commands, for instance). Never keep the context: it holds
-    // raw pointers into the session.
-    pub(crate) fn with_sim_context<R>(&mut self, delta_time_secs: Seconds, edit_fn: impl FnOnce(&SimContext) -> R) -> R {
+    // Runs `edit_fn` with a mutable SimContext over this session, for world edits made outside
+    // the simulation update (automation commands, for instance).
+    pub(crate) fn with_sim_context<R>(&mut self, delta_time_secs: Seconds, edit_fn: impl FnOnce(&SimContextMut) -> R) -> R {
         let context = self.sim.new_sim_context(delta_time_secs, &mut self.tile_map, &mut self.world);
         edit_fn(&context)
     }
@@ -916,7 +915,7 @@ impl Load for GameSession {
 // Save file format version. Bumped whenever the serialized layout changes in a
 // way that older saves cannot be deserialized directly. Old saves must be run
 // through the matching script in crates/tools/save-migration-scripts/.
-const CURRENT_SAVE_VERSION: u32 = 7;
+const CURRENT_SAVE_VERSION: u32 = 8;
 
 // What the menus show of a save without loading it (the home menu's Continue, the Load / Save
 // dialog): whether this game can load it (its save version is this game's) and its header (blank

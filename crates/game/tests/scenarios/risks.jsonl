@@ -3,8 +3,9 @@
 # collapses falls at once; both leave rubble, which the clear tool removes. From the repository root:
 #   cargo run -p HeritageBuilder -- --script crates/game/tests/scenarios/risks.jsonl
 # A month is 60 simulated seconds, and a fire burns for 30. A fire watch sends a fire watcher to a
-# fire within its reach, over any land, who puts it out and goes on to the next one
-# (docs/plans/city-risks.md).
+# fire within its reach, over any land, who puts it out and goes on to the next one. A sick house
+# spreads disease risk around it and loses residents after 30 seconds, until a hospital's medic
+# cures it (docs/plans/city-risks.md).
 {"method": "time.fixed_dt", "params": {"dt": 0.016667}}
 {"method": "session.new_map", "params": {"size": [32, 24]}}
 {"method": "cheats.set", "params": {"name": "instant_construction", "value": true}}
@@ -90,3 +91,27 @@
 {"method": "assert.eq", "params": {"query": "world.building_at", "args": {"cell": [20, 16]}, "path": "/name", "value": "House Level 0"}}
 # Its fire risk went back to 0 and has built up for some seconds since.
 {"method": "assert.lt", "params": {"query": "world.building_at", "args": {"cell": [20, 11]}, "path": "/risks/fire", "value": 2.0}}
+
+# Disease: a house across the road with two residents falls sick, beside an empty one. No one dies
+# for 30 seconds, while the sickness raises the disease risk of the house next door; then one dies.
+{"method": "world.place", "params": {"tile": "house0", "cell": [16, 9]}}
+{"method": "world.place", "params": {"tile": "house0", "cell": [18, 9]}}
+{"method": "world.add_population", "params": {"cell": [16, 9], "count": 2}}
+{"method": "risks.infect", "params": {"cell": [16, 9]}}
+{"method": "assert.eq", "params": {"query": "risks.state", "path": "/sick", "value": 1}}
+{"method": "time.fast_forward", "params": {"sim_secs": 25}}
+{"method": "assert.eq", "params": {"query": "world.building_at", "args": {"cell": [16, 9]}, "path": "/population/count", "value": 2}}
+{"method": "assert.gt", "params": {"query": "world.building_at", "args": {"cell": [18, 9]}, "path": "/risks/disease", "value": 20.0}}
+{"method": "time.fast_forward", "params": {"sim_secs": 6}}
+{"method": "assert.eq", "params": {"query": "world.building_at", "args": {"cell": [16, 9]}, "path": "/population/count", "value": 1}}
+{"method": "assert.eq", "params": {"query": "world.building_at", "args": {"cell": [16, 9]}, "path": "/risks/outbreak/deaths", "value": 1}}
+
+# A hospital up the road sends a medic, who cures the house before the next death is due. Its
+# disease risk went back to 0 and has built up for some seconds since.
+{"method": "world.place", "params": {"tile": "hospital", "cell": [21, 8]}}
+{"method": "time.fast_forward", "params": {"sim_secs": 12}}
+{"method": "assert.eq", "params": {"query": "risks.state", "path": "/sick", "value": 0}}
+{"method": "assert.lt", "params": {"query": "world.building_at", "args": {"cell": [16, 9]}, "path": "/risks/disease", "value": 2.0}}
+{"method": "assert.eq", "params": {"query": "world.building_at", "args": {"cell": [16, 9]}, "path": "/population/count", "value": 1}}
+{"method": "assert.eq", "params": {"query": "risks.state", "path": "/disease_deaths", "value": 1}}
+{"method": "risks.state"}

@@ -23,7 +23,7 @@ use super::{
     sets::{OBJECTS_ROCKS_CATEGORY, PresetTiles, TileDef, TileSets},
 };
 use crate::{
-    sim::SimContext,
+    sim::{SimContext, SimContextMut},
     world::object::{Spawner, SpawnerResult},
 };
 
@@ -100,7 +100,7 @@ fn restore_land_under_lot(context: &SimContext, spawner: &Spawner, cell: Cell) {
 
 // Covers each empty cell of `area` with rubble and joins it to any rubble around it. Returns how
 // many cells got rubble. A cell something else still stands on is skipped and logged.
-pub fn place_pile(context: &SimContext, area: CellRange) -> usize {
+pub fn place_pile(context: &SimContextMut, area: CellRange) -> usize {
     let Some(rubble_def) = rubble_tile_def() else {
         log::error!(log::channel!("risks"), "No '{}' tile def in the objects tile set: no rubble placed.", RUBBLE_TILE.string);
         return 0;

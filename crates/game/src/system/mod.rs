@@ -12,7 +12,7 @@ use strum::{Display, EnumCount, EnumIter, IntoEnumIterator, VariantNames};
 
 use super::{
     constants::*,
-    sim::{SimCmds, SimContext, calendar::{CalendarDate, CalendarEvent, Season}},
+    sim::{SimCmds, SimContext, SimContextMut, calendar::{CalendarDate, CalendarEvent, Season}},
     world::object::GenerationalIndex,
 };
 use crate::save_context::*;
@@ -52,7 +52,7 @@ pub trait GameSystem: Any {
     fn update(&mut self, engine: &mut Engine, cmds: &mut SimCmds, context: &SimContext);
 
     // Optional overrides:
-    fn paused_update(&mut self, _engine: &mut Engine, _context: &SimContext) {}
+    fn paused_update(&mut self, _engine: &mut Engine, _context: &SimContextMut) {}
 
     // Calendar events, after the world step's update that crossed into the new month. When one
     // month boundary brings several, they come in this order: month, season, year.
@@ -61,7 +61,7 @@ pub trait GameSystem: Any {
     fn on_new_year(&mut self, _engine: &mut Engine, _cmds: &mut SimCmds, _context: &SimContext, _year: u32) {}
     fn reset(&mut self, _engine: &mut Engine) {}
     fn post_load(&mut self, _context: &mut PostLoadContext) {}
-    fn draw_debug_ui(&mut self, _engine: &mut Engine, _cmds: &mut SimCmds, _context: &SimContext) {}
+    fn draw_debug_ui(&mut self, _engine: &mut Engine, _cmds: &mut SimCmds, _context: &SimContextMut) {}
     fn register_callbacks(&self) {}
 }
 
@@ -193,7 +193,7 @@ impl GameSystems {
     }
 
     // Update called every simulation tick *only when the game IS paused*.
-    pub fn paused_update(&mut self, engine: &mut Engine, context: &SimContext) {
+    pub fn paused_update(&mut self, engine: &mut Engine, context: &SimContextMut) {
         for entry in &mut self.systems {
             entry.system.paused_update(engine, context);
         }

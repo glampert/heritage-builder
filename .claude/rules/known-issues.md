@@ -18,6 +18,7 @@ Last verified against the code on 2026-11-12. Remove an entry once it's resolved
 ## Open bugs / design questions
 
 - `ProducerBuilding` clears its stock as soon as it hands resources to a delivery unit, so the resources are lost if that unit fails to spawn. The TODO judges this low priority, since a spawn failure would itself be a bug — `crates/game/src/building/producer.rs`.
+- Fire watches and hospitals don't share out emergencies: each sends its walker to the nearest fire or sick house in reach, so two may go to the same one (the second goes on to the next). A unit task can't safely look through other walkers' tasks while units update — `crates/game/src/unit/task/respond.rs`, docs/plans/city-risks.md.
 - House access to a service is decided by proximity to the service building, measured from the house's road-link tile, not by a service patrol unit actually visiting. A TODO asks whether to switch to visit-based access — `crates/game/src/building/house.rs`.
 
 - Water shores are recomputed only when terrain is placed, so a save made before 2026-10-20, when the composed shore variations (channels, bays, several corners) were added, still draws plain water in a one-cell channel until the land next to it is placed again. Loading doesn't recompute them — `crates/game/src/session.rs`, see `.claude/rules/terrain-tiles.md`.

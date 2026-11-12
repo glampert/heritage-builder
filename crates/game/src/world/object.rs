@@ -23,7 +23,7 @@ use crate::{
     constants::*,
     save_context::*,
     debug::DebugUiMode,
-    sim::{SimCmds, SimContext, finance::LedgerCategory},
+    sim::{SimCmds, SimContext, SimContextMut, finance::LedgerCategory},
     undo_redo::GameObjectSavedState,
     prop::{Prop, PropId},
     building::{
@@ -129,7 +129,7 @@ pub trait GameObject {
     fn draw_debug_ui(
         &mut self,
         cmds: &mut SimCmds,
-        context: &SimContext,
+        context: &SimContextMut,
         ui_sys: &UiSystem,
         mode: DebugUiMode,
     );
@@ -210,9 +210,9 @@ where
         }
     }
 
-    pub fn clear<F>(&mut self, context: &SimContext, on_despawned_fn: F)
+    pub fn clear<F>(&mut self, context: &SimContextMut, on_despawned_fn: F)
     where
-        F: Fn(&mut T, &SimContext),
+        F: Fn(&mut T, &SimContextMut),
     {
         debug_assert!(self.is_valid());
 
@@ -224,9 +224,9 @@ where
         self.spawned.fill(false);
     }
 
-    pub fn spawn<F>(&mut self, context: &SimContext, on_spawned_fn: F) -> &mut T
+    pub fn spawn<F>(&mut self, context: &SimContextMut, on_spawned_fn: F) -> &mut T
     where
-        F: FnOnce(&mut T, &SimContext, GenerationalIndex),
+        F: FnOnce(&mut T, &SimContextMut, GenerationalIndex),
     {
         debug_assert!(self.is_valid());
 
@@ -260,9 +260,9 @@ where
         &mut self.instances[new_index]
     }
 
-    pub fn despawn<F>(&mut self, instance: &mut T, context: &SimContext, on_despawned_fn: F)
+    pub fn despawn<F>(&mut self, instance: &mut T, context: &SimContextMut, on_despawned_fn: F)
     where
-        F: FnOnce(&mut T, &SimContext),
+        F: FnOnce(&mut T, &SimContextMut),
     {
         debug_assert!(self.is_valid());
         debug_assert!(instance.is_spawned());
@@ -525,7 +525,7 @@ where
 // ----------------------------------------------
 
 pub struct Spawner<'game> {
-    context: &'game SimContext,
+    context: &'game SimContextMut<'game>,
     // Charge the tile's cost when spawning? Default false: only the player's placement paths
     // (TilePlacement::place, place_road_segment and their affordability checks) turn it on, so
     // deferred spawns (SimCmds, settler houses) and presets never charge.
@@ -557,7 +557,7 @@ impl SpawnerResult<'_> {
 
 impl<'game> Spawner<'game> {
     #[inline]
-    pub fn new(context: &'game SimContext) -> Self {
+    pub fn new(context: &'game SimContextMut) -> Self {
         Self { context, subtract_tile_cost: false, restore_tile_cost: false, construction_mode: ConstructionMode::Finished }
     }
 

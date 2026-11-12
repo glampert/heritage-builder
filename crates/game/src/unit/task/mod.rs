@@ -9,7 +9,7 @@ use engine::ui::UiSystem;
 use crate::{
     debug,
     building::{BuildingKind, BuildingKindAndId, BuildingTileInfo},
-    sim::SimContext,
+    sim::SimContextMut,
     tile::TileMapLayerKind,
     unit::Unit,
 };
@@ -18,7 +18,7 @@ mod common;
 mod despawn;
 mod deliver;
 mod fetch;
-mod fight_fire;
+mod respond;
 mod follow_path;
 mod harvest;
 mod manager;
@@ -30,7 +30,7 @@ pub use common::*;
 pub use despawn::*;
 pub use deliver::*;
 pub use fetch::*;
-pub use fight_fire::*;
+pub use respond::*;
 pub use follow_path::*;
 pub use harvest::*;
 pub use manager::*;
@@ -81,7 +81,7 @@ pub enum UnitTaskArchetype {
     UnitTaskSettler(UnitTaskSettler),
     UnitTaskHarvestWood(UnitTaskHarvestWood),
     UnitTaskFollowPath(UnitTaskFollowPath),
-    UnitTaskFightFire(UnitTaskFightFire),
+    UnitTaskRespond(UnitTaskRespond),
 }
 
 // Dispatches a method call to the wrapped concrete task, for every variant.
@@ -96,7 +96,7 @@ macro_rules! archetype_dispatch {
             UnitTaskArchetype::UnitTaskSettler($task) => $body,
             UnitTaskArchetype::UnitTaskHarvestWood($task) => $body,
             UnitTaskArchetype::UnitTaskFollowPath($task) => $body,
-            UnitTaskArchetype::UnitTaskFightFire($task) => $body,
+            UnitTaskArchetype::UnitTaskRespond($task) => $body,
         }
     };
 }
@@ -124,7 +124,7 @@ impl UnitTaskArchetype {
     }
 
     #[inline]
-    pub fn draw_debug_ui(&mut self, unit: &mut Unit, context: &SimContext, ui: &UiSystem) {
+    pub fn draw_debug_ui(&mut self, unit: &mut Unit, context: &SimContextMut, ui: &UiSystem) {
         archetype_dispatch!(self, task => UnitTaskFsm::draw_debug_ui(task, unit, context, ui))
     }
 
@@ -157,5 +157,5 @@ archetype_from!(
     UnitTaskSettler,
     UnitTaskHarvestWood,
     UnitTaskFollowPath,
-    UnitTaskFightFire,
+    UnitTaskRespond,
 );

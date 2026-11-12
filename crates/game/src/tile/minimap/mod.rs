@@ -659,13 +659,20 @@ impl Minimap {
         false
     }
 
-    pub fn refresh_lens(&mut self, sim: &crate::sim::SimContext) {
-        let lens = self.lens;
-        self.lens_data.clear(lens);
+    // Computes the open lens again. The minimap lives in the tile map that the lens providers
+    // read through `sim`, so its lens data is taken out while they compute it and put back after.
+    pub fn refresh_lens(sim: &crate::sim::SimContextMut) {
+        let mut lens_data = std::mem::take(&mut sim.minimap_mut().lens_data);
+
+        let minimap = sim.tile_map().minimap();
+        let lens = minimap.lens;
+        lens_data.clear(lens);
         if let Some(provider) = lens::provider(lens) {
-            let context = lens::LensContext { sim, features: &self.features, map_size: self.grid.size(), style: style::current() };
-            provider.compute(&context, &mut self.lens_data);
+            let context = lens::LensContext { sim, features: &minimap.features, map_size: minimap.grid.size(), style: style::current() };
+            provider.compute(&context, &mut lens_data);
         }
+
+        sim.minimap_mut().lens_data = lens_data;
     }
 
     // ----------------------

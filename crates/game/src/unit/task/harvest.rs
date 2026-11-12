@@ -33,7 +33,7 @@ use crate::{
     prop::PropId,
     unit::{Unit, UnitId, navigation::UnitNavGoal},
     building::{Building, BuildingKindAndId, BuildingTileInfo},
-    sim::{SimCmdQueue, SimContext, resources::ResourceKind},
+    sim::{SimCmdQueue, SimContext, SimContextMut, resources::ResourceKind},
     world::object::GameObject,
 };
 
@@ -41,7 +41,7 @@ use crate::{
 // UnitTaskHarvestWood
 // ----------------------------------------------
 
-pub type UnitTaskHarvestCompletionCallback = fn(&SimContext, &mut Building, &mut Unit);
+pub type UnitTaskHarvestCompletionCallback = fn(&SimContextMut, &mut Building, &mut Unit);
 
 // How long it takes for a unit to complete a harvest once it arrives at a tree.
 static WOOD_HARVEST_TIME_INTERVAL: SingleThreadStatic<Seconds> = SingleThreadStatic::new(20.0);
@@ -103,11 +103,11 @@ pub struct UnitTaskHarvestWood {
 }
 
 struct FindHarvestableTreeFilter<'task> {
-    context: &'task SimContext,
+    context: &'task SimContext<'task>,
 }
 
 impl<'task> FindHarvestableTreeFilter<'task> {
-    fn new(context: &'task SimContext) -> Self {
+    fn new(context: &'task SimContext<'task>) -> Self {
         Self { context }
     }
 }
@@ -436,7 +436,7 @@ impl UnitTask for UnitTaskHarvestWood {
         self.completion_callback.post_load();
     }
 
-    fn draw_debug_ui(&mut self, _unit: &mut Unit, _sim_context: &SimContext, ui_sys: &UiSystem) {
+    fn draw_debug_ui(&mut self, _unit: &mut Unit, _sim_context: &SimContextMut, ui_sys: &UiSystem) {
         #[derive(DrawDebugUi)]
         struct View {
             origin_building: UnitTaskOriginBuildingDebug,

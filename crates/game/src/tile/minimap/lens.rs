@@ -122,7 +122,7 @@ impl LensData {
 // ----------------------------------------------
 
 pub struct LensContext<'a> {
-    pub sim: &'a SimContext,
+    pub sim: &'a SimContext<'a>,
     pub features: &'a MinimapFeatures,
     pub map_size: Size,
     pub style: &'a MinimapStyle,

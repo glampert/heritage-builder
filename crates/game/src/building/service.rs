@@ -18,6 +18,7 @@ use super::{
     Building,
     BuildingBehavior,
     BuildingContext,
+    BuildingContextMut,
     BuildingKind,
     BuildingStock,
     config::{BuildingConfig, BuildingConfigs, building_config},
@@ -31,7 +32,7 @@ use crate::{
     debug::game_object_debug::{GameObjectDebugOptions, debug_popup_msg_color, game_object_debug_options},
     sim::{
         SimCmds,
-        SimContext,
+        SimContext, SimContextMut,
         finance::LedgerCategory,
         resources::{RESOURCE_KIND_COUNT, ResourceKind, ResourceKinds, ShoppingList, StockItem, Workers},
     },
@@ -45,11 +46,12 @@ use crate::{
             UnitTaskDespawn,
             UnitTaskFetchCompletionCallback,
             UnitTaskFetchFromStorage,
-            UnitTaskFightFire,
-            UnitTaskFightFireCompletionCallback,
-            UnitTaskFightFireState,
+            Emergency,
             UnitTaskRandomizedPatrol,
-            find_nearest_fire,
+            UnitTaskRespond,
+            UnitTaskRespondCompletionCallback,
+            UnitTaskRespondState,
+            find_nearest_emergency,
         },
     },
 };
@@ -225,7 +227,7 @@ impl BuildingBehavior for ServiceBuilding {
         self.config.unwrap()
     }
 
-    fn despawned(&mut self, context: &BuildingContext) {
+    fn despawned(&mut self, context: &BuildingContextMut) {
         self.runner.discard_spawn_promise(context.sim_ctx.cmds_mut());
         self.patrol.discard_spawn_promise(context.sim_ctx.cmds_mut());
     }
@@ -263,9 +265,14 @@ impl BuildingBehavior for ServiceBuilding {
             self.send_out_patrol_unit(cmds, context);
         }
 
-        // A fire watch answers fires as well as patrolling (freeze_patrol leaves this be).
-        if context.kind == BuildingKind::FireWatch && has_min_required_workers {
-            self.send_out_to_fire(cmds, context);
+        // A fire watch answers fires, and a hospital outbreaks, as well as patrolling
+        // (freeze_patrol leaves this be).
+        if has_min_required_workers {
+            if context.kind == BuildingKind::FireWatch {
+                self.send_out_responder(cmds, context, Emergency::Fire);
+            } else if context.kind == BuildingKind::Hospital {
+                self.send_out_responder(cmds, context, Emergency::Outbreak);
+            }
         }
     }
 
@@ -468,7 +475,7 @@ impl BuildingBehavior for ServiceBuilding {
         &mut self.debug
     }
 
-    fn draw_debug_ui(&mut self, cmds: &mut SimCmds, context: &BuildingContext, ui_sys: &UiSystem) {
+    fn draw_debug_ui(&mut self, cmds: &mut SimCmds, context: &BuildingContextMut, ui_sys: &UiSystem) {
         // Debug-UI drawing lives in `crate::debug::building`.
         self.draw_debug_ui_dispatch(cmds, context, ui_sys);
     }
@@ -494,7 +501,7 @@ impl ServiceBuilding {
     pub fn register_callbacks() {
         let _: Callback<UnitTaskFetchCompletionCallback> = callback::register!(ServiceBuilding::on_resources_fetched);
         let _: Callback<PatrolCompletionCallback> = callback::register!(ServiceBuilding::on_patrol_completed);
-        let _: Callback<UnitTaskFightFireCompletionCallback> = callback::register!(ServiceBuilding::on_fire_fought);
+        let _: Callback<UnitTaskRespondCompletionCallback> = callback::register!(ServiceBuilding::on_response_done);
     }
 
     // Fraction [0,1] the building runs at, based on how staffed it is relative to
@@ -557,7 +564,7 @@ impl ServiceBuilding {
         self.runner.is_running_task::<UnitTaskFetchFromStorage>(context)
     }
 
-    fn on_resources_fetched(context: &SimContext, this_building: &mut Building, runner_unit: &mut Unit) {
+    fn on_resources_fetched(context: &SimContextMut, this_building: &mut Building, runner_unit: &mut Unit) {
         let this_service = this_building.as_service_mut();
 
         debug_assert!(this_service.is_runner_fetching_resources(context), "No Runner was sent out by this building!");
@@ -643,7 +650,7 @@ impl ServiceBuilding {
         self.patrol.is_spawned_or_pending_spawn()
     }
 
-    fn on_patrol_completed(context: &SimContext, this_building: &mut Building, patrol_unit: &mut Unit) {
+    fn on_patrol_completed(context: &SimContextMut, this_building: &mut Building, patrol_unit: &mut Unit) {
         let this_building_kind = this_building.kind();
         let this_service = this_building.as_service_mut();
 
@@ -681,16 +688,16 @@ impl ServiceBuilding {
 
 impl ServiceBuilding {
     // ----------------------
-    // Fires (fire watch):
+    // Emergencies (fire watch, hospital):
     // ----------------------
 
-    // Sends a fire watcher straight to the nearest building burning within the fire watch's
-    // effect radius, over any land (FIRE_WATCHER_NODE_KINDS), unless one is out
-    // already. He goes on to any other fire near it before coming home. The patrol walker goes on
-    // patrolling.
-    fn send_out_to_fire(&mut self, cmds: &mut SimCmds, context: &BuildingContext) {
+    // Sends a walker straight to the nearest building with `emergency` within the building's
+    // effect radius, over any land (RESPONDER_NODE_KINDS), unless one is out already: a fire
+    // watcher to a fire, a medic to an outbreak. He goes on to any other such emergency near it
+    // before coming home. The patrol walker goes on patrolling.
+    fn send_out_responder(&mut self, cmds: &mut SimCmds, context: &BuildingContext, emergency: Emergency) {
         if self.runner.is_spawned_or_pending_spawn() {
-            return; // Out at a fire already.
+            return; // Out at one already (a fire watch and a hospital fetch no goods).
         }
 
         let Some(road_link) = context.road_link else {
@@ -700,44 +707,53 @@ impl ServiceBuilding {
         let radius = self.config.unwrap().effect_radius;
         let sim_ctx = context.sim_ctx;
 
-        // A cheap look first: a path search only when something burns near enough.
-        let mut fire_nearby = false;
+        // A cheap look first: a path search only when there's an emergency near enough.
+        let mut nearby = false;
         sim_ctx.world().for_each_building_of_any_kind(|building| {
-            fire_nearby |= building.is_burning() && cells_from(road_link, building.cell_range()) <= radius;
-            !fire_nearby
+            nearby |= emergency.is_at(building) && cells_from(road_link, building.cell_range()) <= radius;
+            !nearby
         });
-        if !fire_nearby {
+        if !nearby {
             return;
         }
 
-        // The nearest burning building within the radius that a fire watcher can walk up to.
-        let Some((fire, _path)) = find_nearest_fire(sim_ctx, road_link, radius, None) else {
+        // The nearest one within the radius that a walker can walk up to.
+        let Some((target, _path)) = find_nearest_emergency(sim_ctx, emergency, road_link, radius, None) else {
             return;
         };
 
-        let task = UnitTaskFightFire {
+        let task = UnitTaskRespond {
+            emergency,
             origin_building: context.kind_and_id(),
             origin_building_tile: context.tile_info(),
-            fire: fire.kind_and_id(),
-            fire_tile: fire.tile_info(),
-            completion_callback: callback::create!(ServiceBuilding::on_fire_fought),
+            target: target.kind_and_id(),
+            target_tile: target.tile_info(),
+            completion_callback: callback::create!(ServiceBuilding::on_response_done),
             completion_task: sim_ctx.task_manager_mut().new_task(UnitTaskDespawn::default()),
-            state: UnitTaskFightFireState::default(),
+            state: UnitTaskRespondState::default(),
             completion_callback_done: false,
         };
 
-        log::info!(log::channel!("risks"), "{} at {} sends a fire watcher to the fire at {}.", self.name(), context.base_cell(), fire.base_cell());
+        log::info!(
+            log::channel!("risks"),
+            "{} at {} sends a {} to the {} at {}.",
+            self.name(),
+            context.base_cell(),
+            emergency.responder_name(),
+            emergency.name(),
+            target.base_cell()
+        );
         self.runner.try_spawn_with_task(context.debug_name(), cmds, sim_ctx, road_link, self.config.unwrap().patrol_unit, task);
     }
 
-    fn on_fire_fought(context: &SimContext, this_building: &mut Building, fire_watcher: &mut Unit) {
+    fn on_response_done(context: &SimContextMut, this_building: &mut Building, responder: &mut Unit) {
         let this_service = this_building.as_service_mut();
 
-        debug_assert!(this_service.runner.unit_id() == fire_watcher.id());
-        debug_assert!(this_service.runner.is_running_task::<UnitTaskFightFire>(context), "No fire watcher was sent out by this building!");
+        debug_assert!(this_service.runner.unit_id() == responder.id());
+        debug_assert!(this_service.runner.is_running_task::<UnitTaskRespond>(context), "No responder was sent out by this building!");
 
         this_service.runner.reset();
-        debug_popup_msg_color!(this_service.debug, Color::magenta(), "Back from a fire");
+        debug_popup_msg_color!(this_service.debug, Color::magenta(), "Back from an emergency");
     }
 }
 

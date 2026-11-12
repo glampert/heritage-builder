@@ -30,7 +30,7 @@ pub mod commands;
 pub use commands::{SimCmds, SimCmdQueue};
 
 pub mod context;
-pub use context::SimContext;
+pub use context::{SimContext, SimContextMut};
 
 pub mod resources;
 
@@ -109,14 +109,61 @@ impl Simulation {
         }
     }
 
+    // A mutable context over this simulation, the world and the tile map, for edits made outside
+    // the world step (the player's tools, automation, tests). It borrows all three for as long
+    // as it lives.
     #[inline]
     pub fn new_sim_context<'game>(
         &'game mut self,
         delta_time_secs: Seconds,
         tile_map: &'game mut TileMap,
         world: &'game mut World,
-    ) -> SimContext {
-        context::make_update_context_mut!(self, delta_time_secs, tile_map, world)
+    ) -> SimContextMut<'game> {
+        // SAFETY: every part is borrowed for 'game.
+        unsafe { SimContextMut::from_raw(self.context_parts(tile_map, world), delta_time_secs, false) }
+    }
+
+    #[inline]
+    fn context_parts<'a>(&'a mut self, tile_map: &'a mut TileMap, world: &'a mut World) -> context::SimContextParts<'a> {
+        context::SimContextParts {
+            rng: &mut self.rng,
+            search: &mut self.search,
+            task_manager: &mut self.task_manager,
+            world,
+            tile_map,
+            finance: &mut self.finance,
+            calendar: &mut self.calendar,
+            risks: &mut self.risks,
+            cmds: &mut self.cmds,
+        }
+    }
+
+    // Contexts over parts the caller goes on using while the context lives: the world updates its
+    // game objects mutably while they read it through the context, and SimCmds run against the
+    // simulation that owns them.
+    //
+    // SAFETY: the caller must drop the context before the simulation, the world or the tile map
+    // is moved or dropped, and must not let it escape the call that uses it.
+    #[inline]
+    unsafe fn aliased_context<'a>(
+        &mut self,
+        delta_time_secs: Seconds,
+        tile_map: &mut TileMap,
+        world: &mut World,
+    ) -> SimContext<'a> {
+        unsafe { SimContext::from_raw(self.context_parts(tile_map, world), delta_time_secs, false) }
+    }
+
+    // SAFETY: as aliased_context.
+    #[inline]
+    unsafe fn aliased_context_mut<'a>(
+        &mut self,
+        delta_time_secs: Seconds,
+        tile_map: &mut TileMap,
+        world: &mut World,
+        is_world_teardown: bool,
+    ) -> SimContextMut<'a> {
+        unsafe { SimContextMut::from_raw(self.context_parts(tile_map, world), delta_time_secs, is_world_teardown) }
     }
 
     #[inline]
@@ -184,14 +231,14 @@ impl Simulation {
     ) {
         // Collapses the developer inspector asked for last frame (building::destruction::request).
         if crate::building::destruction::has_requests() {
-            let context = context::make_update_context_mut!(self, 0.0, tile_map, world);
+            let context = self.new_sim_context(0.0, tile_map, world);
             crate::building::destruction::run_requests(&context);
         }
 
         // Paused simulation update.
         if self.is_paused {
             if self.paused_update_timer.tick(delta_time_secs).should_update() {
-                let context = context::make_update_context_mut!(self, delta_time_secs, tile_map, world);
+                let context = self.new_sim_context(delta_time_secs, tile_map, world);
                 systems.paused_update(engine, &context);
             }
             return; // Early out.
@@ -200,46 +247,70 @@ impl Simulation {
         let scaled_delta_time_secs = delta_time_secs * self.speed;
 
         // Units movement needs to be smooth, so it updates every frame.
-        {
-            let context = context::make_update_context_mut!(self, scaled_delta_time_secs, tile_map, world);
-            world.update_unit_navigation(&context);
-        }
+        self.update_unit_navigation(world, tile_map, scaled_delta_time_secs);
 
         // Fixed step world & game systems update.
         if let Some(step) = self.advance_clocks(scaled_delta_time_secs) {
-            const LOCK_WORLD_AND_MAP_DURING_UPDATE: bool = cfg!(debug_assertions);
-
-            debug_assert!(self.cmds.is_empty());
-
-            if LOCK_WORLD_AND_MAP_DURING_UPDATE {
-                tile_map.lock();
-                world.lock();
-            }
-
-            // Update world and game systems. Cross entity mutation will be deferred into SimCmds.
-            {
-                let context = context::make_update_context_readonly!(self, step.delta_time_secs, tile_map, world);
-                world.update(&mut self.cmds, &context);
-                systems.update(engine, &mut self.cmds, &context);
-                systems.on_calendar_events(engine, &mut self.cmds, &context, &step.calendar_events);
-            }
-
-            if LOCK_WORLD_AND_MAP_DURING_UPDATE {
-                world.unlock();
-                tile_map.unlock();
-            }
-
-            // Any world or tile map mutation would have been deferred until now.
-            {
-                let context = context::make_update_context_mut!(self, step.delta_time_secs, tile_map, world);
-                self.cmds.execute(&context);
-            }
+            self.step_world(world, tile_map, step.delta_time_secs, |cmds, context| {
+                systems.update(engine, cmds, context);
+                systems.on_calendar_events(engine, cmds, context, &step.calendar_events);
+            });
 
             // Month-end charges and the new year's accounts, once the world is unlocked.
             self.finance.on_calendar_events(&step.calendar_events, world, tile_map);
-
-            debug_assert!(self.cmds.is_empty());
         }
+    }
+
+    // Moves the units along their paths. Runs every frame, for smooth movement.
+    pub fn update_unit_navigation(&mut self, world: &mut World, tile_map: &mut TileMap, delta_time_secs: Seconds) {
+        // SAFETY: the world moves its units through the context; it's dropped on return.
+        let context = unsafe { self.aliased_context_mut(delta_time_secs, tile_map, world, false) };
+        world.update_unit_navigation(&context);
+    }
+
+    // One world step: the world's update and `update_systems` on a read-only context, with the
+    // world and tile map locked in debug builds, then the SimCmds they queued on a mutable one.
+    // Whatever changes the world, the tile map or the simulation's state during the update goes
+    // through SimCmds. The test harness steps the world through here too.
+    pub fn step_world(
+        &mut self,
+        world: &mut World,
+        tile_map: &mut TileMap,
+        delta_time_secs: Seconds,
+        update_systems: impl FnOnce(&mut SimCmds, &SimContext),
+    ) {
+        const LOCK_WORLD_AND_MAP_DURING_UPDATE: bool = cfg!(debug_assertions);
+
+        debug_assert!(self.cmds.is_empty());
+
+        if LOCK_WORLD_AND_MAP_DURING_UPDATE {
+            tile_map.lock();
+            world.lock();
+        }
+
+        // Update world and game systems. Cross entity mutation will be deferred into SimCmds.
+        {
+            // SAFETY: the world updates its game objects while they read it through the
+            // context; it's dropped at the end of this block.
+            let context = unsafe { self.aliased_context(delta_time_secs, tile_map, world) };
+            world.update(&mut self.cmds, &context);
+            update_systems(&mut self.cmds, &context);
+        }
+
+        if LOCK_WORLD_AND_MAP_DURING_UPDATE {
+            world.unlock();
+            tile_map.unlock();
+        }
+
+        // Any world or tile map mutation would have been deferred until now.
+        {
+            // SAFETY: the commands run against the simulation that owns them; the context is
+            // dropped at the end of this block.
+            let context = unsafe { self.aliased_context_mut(delta_time_secs, tile_map, world, false) };
+            self.cmds.execute(&context);
+        }
+
+        debug_assert!(self.cmds.is_empty());
     }
 
     // Advances the simulation's clocks by one frame of simulated time (frame time times the
@@ -268,7 +339,9 @@ impl Simulation {
         tile_map: &mut TileMap,
     ) {
         {
-            let context = context::make_world_reset_context!(self, tile_map, world);
+            // SAFETY: the world despawns its game objects through the context; it's dropped at
+            // the end of this block.
+            let context = unsafe { self.aliased_context_mut(0.0, tile_map, world, true) };
             world.reset(&context);
         }
         systems.reset(engine);
@@ -363,7 +436,9 @@ impl Simulation {
         engine: &mut Engine,
         systems: &mut GameSystems,
     ) {
-        let sim_context = context::make_update_context_mut!(self, context.delta_time_secs, context.tile_map, context.world);
+        // SAFETY: the world draws its game objects' debug UI, which edits them through the context;
+        // it's dropped on return.
+        let sim_context = unsafe { self.aliased_context_mut(context.delta_time_secs, context.tile_map, context.world, false) };
         let mut cmds = commands::ImmediateModeSimCmds::new(&sim_context);
 
         systems.draw_debug_ui(engine, &mut cmds, &sim_context, context.ui_sys);
@@ -388,12 +463,16 @@ impl Simulation {
 
     // Buildings:
     fn draw_building_debug_popups(&mut self, context: &mut GameUiContext, visible_range: CellRange) {
-        let sim_context = context::make_update_context_mut!(self, context.delta_time_secs, context.tile_map, context.world);
+        // SAFETY: the world draws its game objects' debug UI, which edits them through the context;
+        // it's dropped on return.
+        let sim_context = unsafe { self.aliased_context_mut(context.delta_time_secs, context.tile_map, context.world, false) };
         context.world.draw_building_debug_popups(&sim_context, context.ui_sys, context.camera.transform(), visible_range);
     }
 
     fn draw_building_debug_ui(&mut self, context: &mut GameUiContext, tile: &Tile, mode: DebugUiMode) {
-        let sim_context = context::make_update_context_mut!(self, context.delta_time_secs, context.tile_map, context.world);
+        // SAFETY: the world draws its game objects' debug UI, which edits them through the context;
+        // it's dropped on return.
+        let sim_context = unsafe { self.aliased_context_mut(context.delta_time_secs, context.tile_map, context.world, false) };
         let mut cmds = commands::ImmediateModeSimCmds::new(&sim_context);
 
         context.world.draw_building_debug_ui(&mut cmds, &sim_context, context.ui_sys, tile, mode);
@@ -401,12 +480,16 @@ impl Simulation {
 
     // Units:
     fn draw_unit_debug_popups(&mut self, context: &mut GameUiContext, visible_range: CellRange) {
-        let sim_context = context::make_update_context_mut!(self, context.delta_time_secs, context.tile_map, context.world);
+        // SAFETY: the world draws its game objects' debug UI, which edits them through the context;
+        // it's dropped on return.
+        let sim_context = unsafe { self.aliased_context_mut(context.delta_time_secs, context.tile_map, context.world, false) };
         context.world.draw_unit_debug_popups(&sim_context, context.ui_sys, context.camera.transform(), visible_range);
     }
 
     fn draw_unit_debug_ui(&mut self, context: &mut GameUiContext, tile: &Tile, mode: DebugUiMode) {
-        let sim_context = context::make_update_context_mut!(self, context.delta_time_secs, context.tile_map, context.world);
+        // SAFETY: the world draws its game objects' debug UI, which edits them through the context;
+        // it's dropped on return.
+        let sim_context = unsafe { self.aliased_context_mut(context.delta_time_secs, context.tile_map, context.world, false) };
         let mut cmds = commands::ImmediateModeSimCmds::new(&sim_context);
 
         context.world.draw_unit_debug_ui(&mut cmds, &sim_context, context.ui_sys, tile, mode);
@@ -414,12 +497,16 @@ impl Simulation {
 
     // Props:
     fn draw_prop_debug_popups(&mut self, context: &mut GameUiContext, visible_range: CellRange) {
-        let sim_context = context::make_update_context_mut!(self, context.delta_time_secs, context.tile_map, context.world);
+        // SAFETY: the world draws its game objects' debug UI, which edits them through the context;
+        // it's dropped on return.
+        let sim_context = unsafe { self.aliased_context_mut(context.delta_time_secs, context.tile_map, context.world, false) };
         context.world.draw_prop_debug_popups(&sim_context, context.ui_sys, context.camera.transform(), visible_range);
     }
 
     fn draw_prop_debug_ui(&mut self, context: &mut GameUiContext, tile: &Tile, mode: DebugUiMode) {
-        let sim_context = context::make_update_context_mut!(self, context.delta_time_secs, context.tile_map, context.world);
+        // SAFETY: the world draws its game objects' debug UI, which edits them through the context;
+        // it's dropped on return.
+        let sim_context = unsafe { self.aliased_context_mut(context.delta_time_secs, context.tile_map, context.world, false) };
         let mut cmds = commands::ImmediateModeSimCmds::new(&sim_context);
 
         context.world.draw_prop_debug_ui(&mut cmds, &sim_context, context.ui_sys, tile, mode);

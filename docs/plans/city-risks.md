@@ -1,6 +1,6 @@
 # City risks: fire, collapse and disease
 
-**Status (2026-11-10): The art and Phases 0–2 are done. Phase 4, disease, was added at the user's request and planned in [§6](#6-disease-phase-4); the user approved it on 2026-11-10 with every default (Q11–Q17), so it can go before Phase 3.** This plan is milestone M6 of the [roadmap](roadmap.md). It covers the fire and collapse rows of GDD 5.9: each building's fire and collapse risk builds up over time, a patrol walker from the fire watch or the builders' guild resets it, and a building whose risk runs out catches fire or collapses and leaves rubble. Mission I-3 teaches "the fire watch and the builders' guild (fire and collapse risk)" ([campaigns.md](../design/campaigns.md#3-the-village-of-spirits)). Disease, planned for Phase 2 of the roadmap, was brought forward on 2026-11-10 (§6); crime still comes in Phase 2. It was researched against `063d306` on `claude`. File and line references point at that commit, so re-check them before relying on them.
+**Status (2026-11-11): The art and Phases 0–2 and 4 are done; Phase 3 is next.** Phase 4, disease, was added at the user's request and planned in [§6](#6-disease-phase-4); the user approved it on 2026-11-10 with every default (Q11–Q17), and it was built before Phase 3, which now covers all three risks. This plan is milestone M6 of the [roadmap](roadmap.md). It covers the fire and collapse rows of GDD 5.9: each building's fire and collapse risk builds up over time, a patrol walker from the fire watch or the builders' guild resets it, and a building whose risk runs out catches fire or collapses and leaves rubble. Mission I-3 teaches "the fire watch and the builders' guild (fire and collapse risk)" ([campaigns.md](../design/campaigns.md#3-the-village-of-spirits)). Disease, planned for Phase 2 of the roadmap, was brought forward on 2026-11-10 (§6); crime still comes in Phase 2. It was researched against `063d306` on `claude`. File and line references point at that commit, so re-check them before relying on them.
 
 ## How to resume this work
 
@@ -146,7 +146,7 @@
     The spear shaft (`#503b1a`) and the leg wraps (`#40381f`, `#393016`, `#2a2313`) lie between the same colours, so they're listed to keep. A prototype on three frames (2026-11-09) gave a red jacket and cap with the spear and legs unchanged; the leg laces pick up a slight tint, which the keep list can fix.
   - Both walkers wait on the Blender walker experiment (placeholder-art Phase 6) for art of their own.
 - **Patrols that visit every building.** `ServiceConfig` gets `visits: "Houses" | "AllBuildings"` (default `Houses`, today's behaviour). The fire watch and the builders' guild visit all buildings, so their walkers reset the risks of workshops, storage and services as well as houses.
-- **Dispatch to a fire.** A fire watch sends a second walker, from its runner slot (it has no stock to fetch), straight to the nearest building burning within its `effect_radius`. He walks over any land, road or not, to a cell next to it, puts the fire out on arrival, then goes on to the nearest other fire within the same radius of where he stands, and walks home once none is left. This is a new short task, `UnitTaskFightFire`. A fire watch with its responder out answers no other fire until he's back; its patrol goes on meanwhile. (Planned as the patrol walker sent when at home; built as a second walker, see the Phase 2 notes.)
+- **Dispatch to a fire.** A fire watch sends a second walker, from its runner slot (it has no stock to fetch), straight to the nearest building burning within its `effect_radius`. He walks over any land, road or not, to a cell next to it, puts the fire out on arrival, then goes on to the nearest other fire within the same radius of where he stands, and walks home once none is left. This is a new short task, `UnitTaskFightFire` (since Phase 4 `UnitTaskRespond`, which a hospital's medic runs too). A fire watch with its responder out answers no other fire until he's back; its patrol goes on meanwhile. (Planned as the patrol walker sent when at home; built as a second walker, see the Phase 2 notes.)
 - **Configs:**
 
   | | Fire watch | Builders' guild |
@@ -200,7 +200,7 @@
 
 ### 6. Disease (Phase 4)
 
-Added at the user's request (2026-11-10), ahead of the roadmap, which had disease come with hospitals in its Phase 2. Approved by the user the same day, with every default in Q11–Q17. Nothing is built yet, and the numbers are starting values for M13 to balance.
+Added at the user's request (2026-11-10), ahead of the roadmap, which had disease come with hospitals in its Phase 2. Approved by the user the same day, with every default in Q11–Q17, and built on 2026-11-11 (see the [Phase 4 notes](#phase-4-disease-medium) for the deviations). The numbers are starting values for M13 to balance.
 
 **What the design docs say.** GDD 5.9 lists the risk: "Disease: crowding, dirty water, floods; countered by apothecary and hospital walkers, clean water". [campaigns.md](../design/campaigns.md) teaches the apothecary in I-3 and "disease after a flood" in I-4, and II-8 has a goal of "health coverage over 80% of houses". The roadmap puts "disease and hospitals" in Phase 2. Nothing more is designed.
 
@@ -257,7 +257,7 @@ Added at the user's request (2026-11-10), ahead of the roadmap, which had diseas
 **Deaths:**
 - **Grace period:** for `death_grace_secs` (30) after the outbreak starts, no one dies. That leaves time for a medic to arrive.
 - **Then,** every `death_interval_secs` (20), `max(1, round(population × fraction))` residents die.
-- **The fraction** starts at `death_fraction` (0.1) and rises by `death_fraction_step` (0.05) each time, up to `death_fraction_max` (0.3). For a 12-resident level 2 house that's 1, 2, 2, 3, 2, 1, 1: empty in about 2½ minutes.
+- **The fraction** starts at `death_fraction` (0.1) and rises by `death_fraction_step` (0.05) each time, up to `death_fraction_max` (0.3). For a 12-resident level 2 house that's 1, 2, 2, 2, 2, 1, 1, 1: empty after 170 s, under 3 minutes.
 - **An apothecary in reach** halves the fraction (`apothecary_scale`).
 - **The dead leave no walker**, unlike evictions and emigration. The house's population drops, `adjust_workers_available` releases their jobs, and the world stats are recounted on the next step.
 - **The house keeps its count** of deaths for the outbreak, for the notice at its end.
@@ -281,7 +281,7 @@ Added at the user's request (2026-11-10), ahead of the roadmap, which had diseas
 
 **Missions.** A mission's `risks` block gets `disease` (default true), so a mission can keep fire and collapse but leave disease out (Q11).
 
-**Saves.** `BuildingRisks` gains `disease` and `outbreak` (`secs`, the death timer, the fraction reached and the deaths so far), and `CityRisks` gains `disease`. That's save version 8, with `v7_to_v8.py`: no risk, no outbreak, and disease on.
+**Saves.** `BuildingRisks` gains `disease`, `near_apothecary`, `has_food`, a `disease_check_timer` and `outbreak` (`secs`, `next_death_secs`, the `fraction` reached and the `deaths` so far), and `CityRisks` gains `disease` and `disease_deaths`. The fire watcher's task is renamed. That's save version 8, with `v7_to_v8.py`: no risk, no outbreak, disease on, no deaths, and a v7 `UnitTaskFightFire` rewritten as a `UnitTaskRespond` answering a fire.
 
 **Later milestones** hook into the same state:
 - M7's floods add disease risk to the houses they reach, through `Building::add_risk(RiskKind::Disease, ..)`; this is campaigns.md's "disease after a flood".
@@ -289,15 +289,16 @@ Added at the user's request (2026-11-10), ahead of the roadmap, which had diseas
 - II-8's health coverage can count the houses a medic has visited lately.
 
 **Automation:**
-- `risks.state` reports the sick houses (`outbreaks`, with their seconds and deaths), their count and the deaths this session.
-- `risks.set` takes `disease`; `risks.infect cell=[x,y]` starts an outbreak.
-- `world.building_at`'s `risks` adds `disease` and `outbreak`.
+- `risks.state` reports the sick houses (`outbreaks`, with their seconds, deaths and population), their count (`sick`), the houses at high disease risk, and the deaths in this game (`disease_deaths`, saved).
+- `risks.set` takes `disease`, and `disease_enabled` for the city's switch; `risks.infect cell=[x,y]` starts an outbreak.
+- `world.building_at`'s `risks` adds `disease`, `near_apothecary`, `has_food`, `outbreak` and the disease rate.
+- `world.add_population cell=[x,y] count=N` moves residents into a house at once, so a scenario needn't wait for settlers (added in Phase 4).
 - The developer Tile Inspector's Risks section shows the meter, its rate and the needs behind it, with a `Start Outbreak` button.
 
 **Tests** in `tests/risks.rs`:
 - the build-up rate for each need and the apothecary;
 - a medic's patrol resetting the meter;
-- the outbreak roll, with risk forced to 100 and a fixed seed;
+- the outbreak roll, with risk forced to 100 and a sure chance (`outbreak_chance_at_max` 1), and the chance's arithmetic;
 - the grace period and the death schedule;
 - the spread to a neighbour;
 - a medic curing an outbreak, and a hospital dispatching to one;
@@ -340,9 +341,9 @@ The user is redesigning the UI on another branch, so this is every UI change thi
 | Developer UI only | Tile Inspector risk section (raw values, Set On Fire and Collapse buttons; done in Phase 2, at the user's request), World Debug Risks tab. Not retail. | 2, 3 | `debug/building.rs`, `debug/` |
 | Map drawing | Burning buildings darkened with a fire overlay; rubble tiles. Not UI, but visible. | 1 | `tile/rendering.rs`, tile sets |
 | Toasts, minimap alerts | Outbreak and outbreak-over notices, through the same calls as fires. | 4 | `game_loop.rs`, call sites in `building/` |
-| Tile inspector, building panel | One or two more body lines for a house: "Disease risk: Low", and "Sickness!" while it's sick. The same panel as Phase 3's lines, so the same merge note applies. | 4 (or 3) | `menu/in_game/inspector/mod.rs` |
-| Minimap Risk lens | Disease counts towards a house's highest risk, and sick houses get a `risk_diseased` colour. No new button. | 4 (or 3) | `tile/minimap/lens.rs`, `dailong.json` |
-| Developer UI only | The inspector's Risks section shows the disease meter and its needs, with a `Start Outbreak` button. | 4 | `debug/building.rs` |
+| Tile inspector, building panel | One or two more body lines for a house: "Disease risk: Low", and "Sickness!" while it's sick. The same panel as Phase 3's lines, so the same merge note applies. | 3 | `menu/in_game/inspector/mod.rs` |
+| Minimap Risk lens | Disease counts towards a house's highest risk, and sick houses get a `risk_diseased` colour. No new button. | 3 | `tile/minimap/lens.rs`, `dailong.json` |
+| Developer UI only | The inspector's Risks section shows the disease meter, its rate and the needs behind it, the outbreak, and a `Start Outbreak` button. | 4 | `debug/building.rs` |
 | Map drawing | Sick houses tinted, with a `sickness_1x1` overlay. Not UI, but visible. | 4 | `tile/rendering.rs`, tile sets |
 
 ## Phases
@@ -458,29 +459,75 @@ Fixes after Phase 2, at the user's request (2026-11-09):
 
 ### Phase 3: The Risk lens, the info panel and documentation (small)
 
-- [ ] `RiskLens` and its style colours; `MinimapLens::available()`; tick the Risk provider in [minimap.md](minimap.md).
-- [ ] The inspector's risk lines.
+- [ ] `RiskLens` and its style colours, disease included (`risk_diseased` for a sick house); `MinimapLens::available()`; tick the Risk provider in [minimap.md](minimap.md).
+- [ ] The inspector's risk lines: fire, collapse and, for a house, disease; "On fire!" and "Sickness!".
 - [ ] Developer tools: the World Debug Risks tab. (The Tile Inspector section came with Phase 2.)
 - [ ] `risks.jsonl` covers the lens; `ui.layout_issues` stays 0 on the inspector with the new lines.
 - [x] `.claude/rules/terrain-tiles.md`: a Rubble section beside Roads (the neighbour mask, when variations are picked, the anchor). Written with Phase 1.
-- [ ] AGENTS.md (a City risks entry under Runtime architecture, `risks.jsonl` in the scenario list, `risks` in the test list), the roadmap's M6 row and save-version log, known-issues for what's left.
+- [ ] AGENTS.md (a City risks entry under Runtime architecture, `risks.jsonl` in the scenario list, `risks` in the test list), the roadmap's M6 row and save-version log, known-issues for what's left. (Mostly written as the phases landed; check it once more.)
 
 ### Phase 4: Disease (medium)
 
-Planned and approved on 2026-11-10 (§6); not started. It can go before Phase 3: Phase 3's lens and info panel lines would then cover all three risks in one go.
+Planned and approved on 2026-11-10 (§6); done on 2026-11-11, before Phase 3.
 
-- [ ] `RiskKind::Disease`; `disease` in house levels' `risks` blocks; the build-up rate from level, fullness, needs and the apothecary; the needs checked on the water timer.
-- [ ] A medic's patrol resets the meter (`risk_reset_by`, `BuildingKind::Hospital`).
-- [ ] The outbreak roll; `TileFlags::Diseased`; no growth, settlers, renovation or merging while sick; the spread to houses nearby.
-- [ ] Deaths: the grace period, the rising fraction, the apothecary's halving; workers adjusted; no walker.
-- [ ] The cure by a medic's visit; the hospital's dispatch, with `UnitTaskFightFire` generalised to `UnitTaskRespond`; an empty house ending its outbreak.
-- [ ] Notices, toasts and minimap alerts.
-- [ ] Art: `sickness_1x1` in `catalog/risks.json`, rendered with `tilegen.sh`; the tint and overlay in `TileMapRenderer::draw_tile`.
-- [ ] `SimConfigs::risks` settings; the mission block's `disease`; save version 8 with `v7_to_v8.py`, the local saves migrated, the smoke test, `sample_saves.zip` regenerated.
-- [ ] Automation: `risks.state`, `risks.set disease=`, `risks.infect`, `world.building_at`; the inspector's meter and `Start Outbreak` button.
-- [ ] Tests and the `risks.jsonl` additions (§6).
-- [ ] Add the apothecary to house level 3's `services_required` (Q16).
-- [ ] AGENTS.md's City risks entry, the roadmap (disease moves from Phase 2 to M6), known-issues.
+- [x] `RiskKind::Disease`; `disease` in house levels' `risks` blocks; the build-up rate from level, fullness, needs and the apothecary; the needs checked on the water timer.
+- [x] A medic's patrol resets the meter (`risk_reset_by`, `BuildingKind::Hospital`).
+- [x] The outbreak roll; `TileFlags::Diseased`; no growth, settlers, renovation or merging while sick; the spread to houses nearby.
+- [x] Deaths: the grace period, the rising fraction, the apothecary's halving; workers adjusted; no walker.
+- [x] The cure by a medic's visit; the hospital's dispatch, with `UnitTaskFightFire` generalised to `UnitTaskRespond`; an empty house ending its outbreak.
+- [x] Notices, toasts and minimap alerts.
+- [x] Art: `sickness_1x1` in `catalog/risks.json`, rendered with `tilegen.sh`; the tint and overlay in `TileMapRenderer::draw_tile`.
+- [x] `SimConfigs::risks` settings; the mission block's `disease`; save version 8 with `v7_to_v8.py`, the local saves migrated, the smoke test, `sample_saves.zip` regenerated.
+- [x] Automation: `risks.state`, `risks.set disease=`, `risks.infect`, `world.building_at`; the inspector's meter and `Start Outbreak` button.
+- [x] Tests and the `risks.jsonl` additions (§6).
+- [x] Add the apothecary to house level 3's `services_required` (Q16).
+- [x] AGENTS.md's City risks entry, the roadmap (disease moves from Phase 2 to M6), known-issues.
+
+Notes (2026-11-11):
+- **Code:**
+  - `building/risks.rs`: `RiskKind::Disease`, `RiskRates::disease`, `OutbreakState`, the needs (`near_apothecary`, `has_food`), the roll's timer, and `outbreak_chance`;
+  - `building/mod.rs`: `update_disease`, `update_outbreak`, `spread_disease`, `start_outbreak`, `end_outbreak`, `cure_outbreak`, `can_fall_sick` and `fullness`;
+  - `HouseBuilding::has_food` and `lose_residents_to_disease`;
+  - `unit/task/respond.rs`, which replaces `fight_fire.rs`: `UnitTaskRespond` with an `Emergency` (`Fire`, `Outbreak`), `find_nearest_emergency` and `RESPONDER_NODE_KINDS`;
+  - `ServiceBuilding::send_out_responder`, for the fire watch and the hospital.
+- **Where the rate's parts are applied.** `BuildingRisks::effective_rates` applies the jitter, the well and the needs factor. `Building::risk_rates` then scales disease by how full the house is, since that's the archetype's. `build_up` now takes the rates it adds, and keeps a sick house's meter at the top.
+- **A sick house is known to its archetype through `BuildingContext::has_outbreak`**, so `HouseBuilding` needn't reach back for its building. The house checks it to refuse settlers, skip its growth and refuse to upgrade, which also stops a renovation. The settlers' search for a house with room skips sick houses, and `house_upgrade::find_house_for_cell` won't merge one. A downgrade replaces the tile, so `try_replace_tile` sets `Diseased` on the new one.
+- **A disease switch beside the risks switch.** `CityRisks::disease` is a mission's `risks.disease`; while it's off, houses build up no disease and roll for nothing, and an outbreak waits, as a fire does while risks are off.
+- **Deaths are counted for the game,** not the session as §6 first said: `CityRisks::disease_deaths` is saved, for the ratings and health goals to come.
+- **`world.add_population`** is new, as `world.add_stock` is for goods: a house filled at once, so the scenario needn't wait for settlers.
+- **The death schedule** in §6 was corrected: a 12-resident house loses 1, 2, 2, 2, 2, 1, 1, 1 (§6 had it slightly wrong), and is empty 170 s after falling sick.
+- **The art** is its own recipe module, `hbgen/recipes/disease.py`. The build cache hashes each recipe's module, so putting it in `risks.py` would have re-rendered all the rubble and the fire. The smoke is one tapering tube on a wavy path whose waves climb with the frame; a column of puffs read as beads.
+- **The migration was checked end to end.** The commit before this one (v7) made a save with a fire watcher on his way to a fire; `v7_to_v8.py` rewrote his task. The debug build loaded it, so the callback hash resolved. He put the fire out, walked home and reported back, and his fire watch answered the next fire.
+- **Verified:**
+  - `cargo test --workspace`, with 42 tests in `tests/risks.rs`:
+    - the build-up for each need, the apothecary and fullness;
+    - the chance's arithmetic;
+    - a sure roll, and none for an empty house;
+    - a medic's patrol;
+    - the death schedule to the last resident, with the notice, the flag and the count;
+    - the apothecary's halving;
+    - the spread to houses in reach and not past it;
+    - a medic's cure and the hospital's dispatch;
+    - an empty house ending its outbreak;
+    - no settlers or growth while sick;
+    - a downgrade keeping the flag;
+    - the disease switch;
+    - the mission block and the save round trip.
+  - All 12 CI scenarios in release. `risks.jsonl` (78 commands) has a level 0 house fall sick beside an empty one, whose disease risk rises; one of its two residents dies after the grace period, and a hospital's medic cures it before the next death.
+  - `determinism.jsonl` twice gives the same output and save. The checksum moved from `b10f4eeae3845660` to `26720c82dab7ce0d` with the new saved fields and the rolls.
+  - Record and replay of `ui_build` and `determinism`.
+  - The save smoke test on the 13 migrated local saves; `mcp_extended_test.json` is a v2 save, outside the chain, and was left out.
+  - The web check, `sync_tileset.py --check`, and the generator's unit tests.
+  - Screenshots of two sick houses, a level 1 and a level 2, with their cloths and smoke and a medic on his way, then the same houses cured.
+- **Fixed after the commit, at the user's report (2026-11-11):**
+  - **The bug:** a sick house's deaths panicked in the debug game ("Called mutable method on a read-only SimContext!"). `update_outbreak` added them to the city's count through `SimContext::risks_mut` during the world step, whose context is read-only. The count now goes through a deferred building update, as everything else the step changes does.
+  - **Why the tests missed it:** `test_utils::tick` ran the world's update on a mutable context, unlike `Simulation::update`, and the CI scenarios run in release, where the check is a `debug_assert`.
+  - **The harness now steps the world as the game does:** a read-only context (`Simulation::new_readonly_sim_context`), with the world and tile map locked. With that change the three disease tests that reach a death failed on the same line before the fix, and every other suite passed unchanged.
+  - **Seen in a long debug run:** a sick house without its level's needs downgrades while it's sick (level 2 to 1 to 0), as §6 allows. Its evicted residents leave alive, so fewer die there; two later moved back into the empty, cured house.
+- **Not done:**
+  - the retail inspector's lines and the Risk lens, which Phase 3 now covers for all three risks;
+  - balance (M13);
+  - two hospitals still don't share out outbreaks, as two fire watches don't share out fires.
 
 ## Risks
 

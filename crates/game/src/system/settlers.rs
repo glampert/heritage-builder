@@ -15,7 +15,7 @@ use crate::{
     config::GameConfigs,
     save_context::PostLoadContext,
     building::{BuildingKind, construction::{self, ConstructionSite}},
-    sim::{SimCmds, SimContext, SimCmdQueue, commands::ImmediateModeSimCmds},
+    sim::{SimCmds, SimContext, SimContextMut, SimCmdQueue, commands::ImmediateModeSimCmds},
     world::city_stock::Withdrawal,
     tile::{
         TileFlags,
@@ -72,7 +72,7 @@ impl GameSystem for SettlersSpawnSystem {
         self.spawn_timer.post_load(context.configs().sim.settlers_spawn_frequency_secs);
     }
 
-    fn draw_debug_ui(&mut self, engine: &mut Engine, cmds: &mut SimCmds, context: &SimContext) {
+    fn draw_debug_ui(&mut self, engine: &mut Engine, cmds: &mut SimCmds, context: &SimContextMut) {
         // Debug-UI drawing lives in `crate::debug::systems`.
         self.draw_debug_ui_dispatch(engine, cmds, context);
     }
