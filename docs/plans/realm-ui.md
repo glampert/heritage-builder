@@ -674,7 +674,7 @@ The existing dialogs keep their layouts but take their panels from the Đại Lo
   - the "joins the world map" note;
   - "Keep playing" and "Continue to the world map". The second goes to Phase 2's screen, or to the next mission when no world map is configured.
 - [x] **Campaign complete:** the whole stele, a closing line, "Return to the menu". The profile marks the next campaign reached, which switches the home realm.
-- [x] **Briefing** (`briefing-<realm>.jpg`): a scroll or tablet with the mission's name, its stele lead-in, its text (`MissionDef.description`, which nothing shows today), its goals, and an image slot. "Begin". It opens when a mission's map loads and from a HUD button during the mission.
+- [x] **Briefing** (`briefing-<realm>.jpg`): a scroll or tablet with the mission's name, its stele lead-in, its text (the mission's `briefing` Story key; `description` stays the developers' note, shown only for a mission without one), its goals, and an image slot. "Begin". It opens when a mission's map loads and from a HUD button during the mission.
 - [x] **Flow:** `campaign::take_pending_prompt` opens the debrief. The `MissionComplete` and `CampaignComplete` kind names stay, so the snapshot scenario still finds them.
 - [x] Scenario `ui_intermission.jsonl`: finish a test mission (by meeting its goals with `world.*` and `time.fast_forward`), check the debrief's goals, continue, finish the campaign, and check that the profile reached the next one.
 
@@ -703,6 +703,12 @@ The existing dialogs keep their layouts but take their panels from the Đại Lo
 - `ui_intermission.jsonl` now plays the whole flow: Home's Campaign, Campaign I's three missions for real (briefing, debrief, world map, the next briefing; mission 3's goals met with world edits), the campaign-complete stele and the home menu in Kambara's look; then Kambara's and Tampadesa's hidden test campaigns in their own looks (briefing, debrief, the map's site A or B, the last debrief, the stele, Home).
 - Left as they are (in known-issues): stele lines wrap wider than the generator's estimates; the campaign-complete stele sets few lines at full size; a mission without goals leaves the goals' room empty; M9's distinctions and ratings, Phase 4's story and epilogue, Phase 5's HUD button; no blur, vines or italics; no scenario checks that `dialog.open MissionBriefing` fails outside a mission (no assert for an error).
 - Verified: build, tests, web check, `--check` and its tests, every CI scenario, determinism twice, record and replay; `ui_intermission.jsonl` at 1280 × 720, 1440 × 800 and 1920 × 1080; `ui_snapshot.jsonl` in each realm (layout issues 0); a final set at 1920 × 1080 beside the mockups: Campaign I's briefing, debrief and campaign complete under each realm's `ui.realm`, and Kambara's and Tampadesa's own flows through their test campaigns (`own_*`).
+
+**Notes (2026-11-13, end-of-phase review fixes):**
+- Deviation from the checklist: the briefing's text is the mission's `briefing` Story key, not `MissionDef.description`, which stays the developers' note (shown only for a mission without a briefing).
+- Fixed: the debrief's Treasury stat reads the world stats, as its goals do; the stele's lines set smaller keep their gaps, as the generator's `stele_scale` does; the briefing records the other site's pick only once its variant has started (`Profile::mission_started`); the autosave waits while a briefing is pending or open; the campaign-complete note says a next campaign without missions is coming soon; `intermission.state` refuses `newest` with `full`. Shared: `screen::BuiltOnOpen` for the screens built on opening, one prepare hook per kind in `open_dialog`, `world_map::provider::step_choice` for the choice's wording, `Stele::canvas_value` and `state_json`.
+- Tests: `test_briefing_request` (campaign), `test_intermission_art.py` (the skins' intermission geometry against the catalog), `intermission.state` in `ui_intermission.jsonl`, and no briefing (nor pause) after `ui_menus.jsonl`'s Continue.
+- Left (in known-issues, `TODO(realm-ui)` at `on_keep_playing`): nothing opens the debrief again after Keep playing, so the campaign-complete screen is lost after the last mission. The picker's Replay a mission moved to Later.
 
 ### Phase 4: Story comics
 
@@ -845,3 +851,4 @@ The user accepted every default on 2026-11-07, with the changes marked below.
 - Translations, into the language files the strings already live in.
 - Key rebinding on the Controls tab.
 - An encyclopedia (overview.md's content budget mentions entries).
+- A mission list for the campaign picker's Replay a mission (disabled, "coming soon", until then): replaying any mission of a campaign already played.

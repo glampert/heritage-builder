@@ -219,7 +219,7 @@ pub struct MissionDef {
     // leave it out and take its choice point's.
     #[serde(default)]
     pub stele_line: Option<String>,
-    // The briefing's lead-in, the line the stele will hold quoted above its text, a Story key.
+    // The briefing's lead-in, quoted above its text (its own line, not the stele's), a Story key.
     // Required of every mission, variants included.
     #[serde(default)]
     pub lead_in: Option<String>,
@@ -464,7 +464,7 @@ impl CampaignConfigs {
     // mission cities with one id, a hidden campaign before a visible one; a campaign with missions
     // and no stele title or closing line, a mission without its lead-in or briefing, a step (a
     // mission that isn't a variant) without its stele line, a distinction id given twice in a
-    // campaign. Empty when all is well. (That the keys are in en.json, the tests check: tests/campaign.rs.)
+    // campaign. Empty when all is well. (That the keys are in en.json, the tests check: tests/world_map.rs.)
     pub fn validate(&self) -> Vec<String> {
         let mut errors = Vec::new();
         let mut hidden_seen = false;

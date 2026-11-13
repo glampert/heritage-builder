@@ -8,7 +8,7 @@ use crate::{
     automation::{CommandContext, CommandDef, CommandError, CommandResult, ParamDef, done, parse_params},
     campaign::{
         config::{CampaignConfigs, MissionRef},
-        stele::{self, Stele},
+        stele,
     },
     profile, world_map,
 };
@@ -19,7 +19,8 @@ pub(super) const COMMANDS: &[CommandDef] = &[CommandDef {
            one line per finished step (the mission's stele line, or its choice point's for a variant without \
            one; each with its mission index, number, Story key and text) followed by a line per distinction \
            earned, the line freshly carved (newest), and how many steps are still to come (empty rows). \
-           full: the stele as it would stand with every step finished.",
+           full: the stele as it would stand with every step finished, at their first missions (no site \
+           picked, no distinctions), the last line freshly carved.",
     params: &[
         ParamDef {
             name: "campaign",
@@ -33,13 +34,14 @@ pub(super) const COMMANDS: &[CommandDef] = &[CommandDef {
             kind: "any",
             required: false,
             help: "The mission whose lines are freshly carved, by index or id (the one just finished). Default, \
-                   or a mission with no line yet: the last line's.",
+                   or a mission with no line yet: the last line's. Not with full, which carves the last line \
+                   freshly.",
         },
         ParamDef {
             name: "full",
             kind: "bool",
             required: false,
-            help: "The stele with every step finished (default false).",
+            help: "The stele with every step finished, at their first missions (default false).",
         },
     ],
     run: cmd_state,
@@ -55,6 +57,9 @@ fn cmd_state(_context: &mut CommandContext, params: Value) -> CommandResult {
         full: bool,
     }
     let params: Params = parse_params(params)?;
+    if params.full && params.newest.is_some() {
+        return Err(CommandError::invalid_params("newest can't be given with full: a full stele carves its last line freshly."));
+    }
     let configs = CampaignConfigs::get();
     let campaign_index = match &params.campaign {
         Some(id) => configs.find_by_id(id).ok_or_else(|| {
@@ -77,20 +82,5 @@ fn cmd_state(_context: &mut CommandContext, params: Value) -> CommandResult {
         stele::stele(configs, profile::get(), campaign_index, newest)
     };
     let stele = stele.ok_or_else(|| CommandError::not_found("There are no campaigns."))?;
-    done(json!({ "campaign": campaign.id, "stele": stele_json(&stele) }))
-}
-
-fn stele_json(stele: &Stele) -> Value {
-    json!({
-        "title": stele.title,
-        "lines": stele.lines.iter().map(|line| json!({
-            "mission": line.mission_index,
-            "number": line.mission_number,
-            "distinction": line.distinction,
-            "key": line.key,
-            "text": line.text,
-            "newest": line.newest,
-        })).collect::<Vec<_>>(),
-        "rows_to_come": stele.rows_to_come,
-    })
+    done(json!({ "campaign": campaign.id, "stele": stele.state_json() }))
 }

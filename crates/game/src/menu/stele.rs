@@ -6,7 +6,9 @@
 // Positions are the skin's, in points on the debrief's 1920 × 1080 screen; a caller draws the
 // composition at a scale (screen points per such point) from an origin (where its top left lands).
 // The text is laid out to fit above the slab's `bottom`: when there are too many lines, they're set
-// smaller (to half their size at most) until they do.
+// smaller (to half their size at most) until they do. As the generator's stele_scale does, that
+// scales the text's sizes and line height only: the gaps (under the title, above and below the
+// rule, between entries, between the empty rows) keep their size.
 
 use common::{Color, Rect, Vec2};
 use engine::{
@@ -146,12 +148,12 @@ impl SteleArt {
         let title_size = def.looks.get("title").map_or(30.0, |title| title.size) * title_fit;
         let title_lines = painter.wrap_label(&stele.title, &title_look, width * scale);
         for (index, line) in title_lines.iter().enumerate() {
-            let y = text_y + index as f32 * (title_size + def.title_gap * title_fit);
+            let y = text_y + index as f32 * (title_size + def.title_gap);
             layout.titles.push((line.clone(), to_screen(text_x + width * 0.5, y), title_look));
         }
-        let mut y = text_y + title_lines.len() as f32 * (title_size + def.title_gap * title_fit) + def.title_space * fit;
+        let mut y = text_y + title_lines.len() as f32 * (title_size + def.title_gap) + def.title_space;
         let [inset, above, _] = def.rule;
-        layout.rule = Some((to_screen(text_x + inset, y - above * fit), to_screen(text_x + width - inset, y - above * fit)));
+        layout.rule = Some((to_screen(text_x + inset, y - above), to_screen(text_x + width - inset, y - above)));
 
         let line_look = look("line", fit);
         let newest_look = look("newest", fit);
@@ -162,19 +164,20 @@ impl SteleArt {
             let wrapped = painter.wrap_label(&line.text, &look, width * scale);
             if line.newest && layout.mark.is_none() {
                 let [dx, dy] = def.mark_offset;
-                layout.mark = Some(to_screen(text_x + dx * fit, y + dy * fit));
+                // Its height follows the line's size, as the generator's (cy - size × 0.35).
+                layout.mark = Some(to_screen(text_x + dx, y + dy * fit));
             }
             for (index, text) in wrapped.iter().enumerate() {
                 last_baseline = y + index as f32 * line_height;
                 layout.texts.push((text.clone(), to_screen(text_x, last_baseline), look));
             }
-            y += wrapped.len().max(1) as f32 * line_height + def.entry_gap * fit;
+            y += wrapped.len().max(1) as f32 * line_height + def.entry_gap;
         }
         layout.fits = last_baseline <= def.bottom;
 
         // The empty rows for the missions to come, as many as fit.
         for index in 0..stele.rows_to_come.min(def.rows) {
-            let row_y = y + index as f32 * def.row_gap * fit;
+            let row_y = y + index as f32 * def.row_gap;
             if row_y > def.bottom {
                 break;
             }

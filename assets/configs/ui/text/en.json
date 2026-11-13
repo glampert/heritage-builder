@@ -333,6 +333,7 @@
     "campaign_complete.stat.city": "Last city",
     "campaign_complete.city": "{city} · {population}",
     "campaign_complete.next": "{campaign} is open: {name}, in {realm}.",
+    "campaign_complete.next.coming_soon": "{campaign} comes next: {name}, in {realm}. Coming soon.",
     "campaign_complete.next.none": "The stele is finished: its deeds will be read long after the city is gone.",
     "campaign_complete.return": "Return to the menu",
     "briefing.plain": "Mission briefing",

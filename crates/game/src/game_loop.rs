@@ -665,6 +665,13 @@ impl GameLoop {
             return;
         }
 
+        // Nor while a mission's briefing is waiting to open or open: a save before its Begin would
+        // load as a mission under way, which opens no briefing (and so offers no choice point's
+        // sites). The timer pauses the same way.
+        if campaign::is_briefing_pending() || (dialog::is_initialized() && dialog::is_in_stack(DialogMenuKind::MissionBriefing)) {
+            return;
+        }
+
         // Nor with a session switch queued (a Quit to menu this frame): the save would run after
         // it and save the next session (the home menu's) in the autosave's slot.
         if self.session_cmd_queue.has_session_switch() {

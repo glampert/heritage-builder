@@ -27,7 +27,7 @@
 // the world map, Continue to the next mission, or Continue).
 
 use super::*;
-use super::screen::{Scales, left_group, spacer, text_line, tight, tight_row};
+use super::screen::{BuiltOnOpen, Scales, left_group, spacer, text_line, tight, tight_row};
 use crate::{
     campaign::{
         self,
@@ -85,30 +85,18 @@ const GAPS: [f32; 6] = [12.0, 4.0, 16.0, 24.0, 26.0, 36.0];
 // State
 // ----------------------------------------------
 
-// Kept outside the widgets: whether it's prepared for opening (only then is it built in full: its
-// textures load when needed), and the window it was built for.
-struct DebriefState {
-    active: bool,
-    built_window: Option<(u32, u32)>,
-}
-
-static STATE: UiStaticVar<DebriefState> = UiStaticVar::new(DebriefState { active: false, built_window: None });
+// Kept outside the widgets (screen::BuiltOnOpen): whether it's prepared for opening, and the
+// window it was built for.
+static STATE: UiStaticVar<BuiltOnOpen> = UiStaticVar::new(BuiltOnOpen::new());
 
 // Sets the debrief up for opening (dialog::open_dialog builds it afresh then).
 pub(super) fn prepare() {
-    let state = STATE.as_mut();
-    state.active = true;
-    state.built_window = None;
+    STATE.as_mut().prepare();
 }
 
 // Whether the open debrief must be built again: the window's size changed.
 pub(super) fn needs_rebuild(context: &GameUiContext) -> bool {
-    STATE.as_ref().built_window != Some(window_key(context))
-}
-
-fn window_key(context: &GameUiContext) -> (u32, u32) {
-    let window = ui::screen_size(context.ui_sys);
-    (window.x.round() as u32, window.y.round() as u32)
+    STATE.as_ref().needs_rebuild(context)
 }
 
 // Where Continue goes.
@@ -246,9 +234,12 @@ impl Debrief {
         // The years the city was governed: its first year counts as one.
         let calendar = context.sim.calendar();
         let years = calendar.months_elapsed() / 12 + 1;
+        // The treasury as the world stats counted it, as the goals read it: the step that finished
+        // the mission may have charged month-end wages and upkeep after the count (the balance
+        // then reads lower), and the simulation stays paused under the debrief.
         let stats = vec![
             (ui::text::get(UiTextCategory::Menu, "debrief.stat.population").to_string(), digits(i64::from(stats.population.total))),
-            (ui::text::get(UiTextCategory::Menu, "debrief.stat.treasury").to_string(), digits(context.sim.finance().balance())),
+            (ui::text::get(UiTextCategory::Menu, "debrief.stat.treasury").to_string(), digits(stats.treasury.gold_units_total)),
             (ui::text::get(UiTextCategory::Menu, "debrief.stat.years").to_string(), years.to_string()),
         ];
         let joins = city.map(|city| ui::text::format(UiTextCategory::Menu, "debrief.joins", &[("city", city)]));
@@ -313,11 +304,16 @@ impl MissionComplete {
         columns.add_column(UiColumnWidth::Fraction(1.0), UiWidgetGroup::new());
         menu.add_widget(columns);
 
-        STATE.as_mut().built_window = Some(window_key(context));
+        STATE.as_mut().built(context);
         Self { menu: menu.into_rc() }
     }
 
     fn on_keep_playing(context: &mut GameUiContext) {
+        // TODO(realm-ui): nothing opens the debrief again once it's closed, so Keep playing (or
+        // Escape) leaves no way on where only its Continue goes on: after the campaign's last
+        // mission (the campaign-complete screen: the world map offers nothing after the last
+        // step), and where the world map doesn't show the campaign (a ui.realm override; the next
+        // mission). The HUD's mission panel (Phase 5) or the world map's box should offer it then.
         campaign::continue_playing();
         super::close(DialogMenuKind::MissionComplete, context);
     }
@@ -360,14 +356,7 @@ impl MissionComplete {
 // at the canvas's.
 fn stele_canvas(context: &mut GameUiContext, scales: Scales, stele: Option<Stele>) -> UiCanvas {
     let art = SteleArt::load(context);
-    let value = stele.as_ref().map(|stele| {
-        serde_json::json!({
-            "title": stele.title,
-            "lines": stele.lines.iter().map(|line| line.text.clone()).collect::<Vec<_>>(),
-            "newest": stele.lines.iter().find(|line| line.newest).map(|line| line.text.clone()),
-            "rows_to_come": stele.rows_to_come,
-        })
-    });
+    let value = stele.as_ref().map(Stele::canvas_value);
     let scale = scales.size;
     UiCanvas::new(Vec2::new(scales.pt(STELE_WIDTH), scales.pt(super::screen::REFERENCE.y)), move |_, painter, rect| {
         art.draw_niche(painter, rect.min, scale);

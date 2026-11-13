@@ -131,3 +131,43 @@ pub fn tight_row(points: f32, scales: Scales) -> f32 {
 pub fn text_width(context: &GameUiContext, text: &str, font: UiFontScale) -> f32 {
     context.calc_text_size(font, text).x.ceil() + 2.0
 }
+
+// ----------------------------------------------
+// Built on opening
+// ----------------------------------------------
+
+// What a screen built afresh each time it opens (the debrief, the campaign-complete screen, the
+// briefing) keeps outside its widgets: whether it's prepared for opening (only then is it built in
+// full, so its textures load when needed), and the window it was built for (its layout follows the
+// window: it's built again when that changes).
+pub struct BuiltOnOpen {
+    pub active: bool,
+    built_window: Option<(u32, u32)>,
+}
+
+impl BuiltOnOpen {
+    pub const fn new() -> Self {
+        Self { active: false, built_window: None }
+    }
+
+    // Sets it up for opening (dialog::open_dialog builds it afresh then).
+    pub fn prepare(&mut self) {
+        self.active = true;
+        self.built_window = None;
+    }
+
+    // Records that it was built for the current window.
+    pub fn built(&mut self, context: &GameUiContext) {
+        self.built_window = Some(window_key(context));
+    }
+
+    // Whether the open screen must be built again: the window's size changed.
+    pub fn needs_rebuild(&self, context: &GameUiContext) -> bool {
+        self.built_window != Some(window_key(context))
+    }
+}
+
+fn window_key(context: &GameUiContext) -> (u32, u32) {
+    let window = engine::ui::screen_size(context.ui_sys);
+    (window.x.round() as u32, window.y.round() as u32)
+}

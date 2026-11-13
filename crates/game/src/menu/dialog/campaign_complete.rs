@@ -27,7 +27,7 @@
 use common::{Color, Rect};
 
 use super::*;
-use super::screen::{Scales, left_group, spacer, text_line, tight, tight_row};
+use super::screen::{BuiltOnOpen, Scales, left_group, spacer, text_line, tight, tight_row};
 use crate::{
     GameLoop,
     campaign::{
@@ -85,30 +85,18 @@ const GAPS: [f32; 8] = [14.0, 6.0, 10.0, 34.0, 26.0, 10.0, 20.0, 36.0];
 // State
 // ----------------------------------------------
 
-// Kept outside the widgets, as the debrief's: whether it's prepared for opening, and the window it
-// was built for.
-struct CompleteState {
-    active: bool,
-    built_window: Option<(u32, u32)>,
-}
-
-static STATE: UiStaticVar<CompleteState> = UiStaticVar::new(CompleteState { active: false, built_window: None });
+// Kept outside the widgets, as the debrief's (screen::BuiltOnOpen): whether it's prepared for
+// opening, and the window it was built for.
+static STATE: UiStaticVar<BuiltOnOpen> = UiStaticVar::new(BuiltOnOpen::new());
 
 // Sets the screen up for opening (dialog::open_dialog builds it afresh then).
 pub(super) fn prepare() {
-    let state = STATE.as_mut();
-    state.active = true;
-    state.built_window = None;
+    STATE.as_mut().prepare();
 }
 
 // Whether the open screen must be built again: the window's size changed.
 pub(super) fn needs_rebuild(context: &GameUiContext) -> bool {
-    STATE.as_ref().built_window != Some(window_key(context))
-}
-
-fn window_key(context: &GameUiContext) -> (u32, u32) {
-    let window = ui::screen_size(context.ui_sys);
-    (window.x.round() as u32, window.y.round() as u32)
+    STATE.as_ref().needs_rebuild(context)
 }
 
 // ----------------------------------------------
@@ -233,15 +221,19 @@ impl Summary {
             ));
         }
 
+        // The next campaign, reached now: open, or coming soon while it has no missions yet (the
+        // home menu and the picker can't start it then).
         let next = Some(match configs.next_visible_after(active.campaign_id).and_then(|index| configs.campaign(index).map(|next| (index, next))) {
-            Some((index, next)) => (
-                Some(next.realm),
-                ui::text::format(
-                    UiTextCategory::Menu,
-                    "campaign_complete.next",
-                    &[("campaign", &super::home::campaign_number(index)), ("name", next.display_name()), ("realm", next.realm.display_name())],
-                ),
-            ),
+            Some((index, next)) => {
+                let number = super::home::campaign_number(index);
+                let args = [("campaign", number.as_str()), ("name", next.display_name()), ("realm", next.realm.display_name())];
+                let note = if next.missions.is_empty() {
+                    ui::text::format(UiTextCategory::Menu, "campaign_complete.next.coming_soon", &args)
+                } else {
+                    ui::text::format(UiTextCategory::Menu, "campaign_complete.next", &args)
+                };
+                (Some(next.realm), note)
+            }
             None => (None, ui::text::get(UiTextCategory::Menu, "campaign_complete.next.none").to_string()),
         });
 
@@ -288,7 +280,7 @@ impl CampaignComplete {
         columns.add_column(UiColumnWidth::Fraction(1.0), UiWidgetGroup::new());
         menu.add_widget(columns);
 
-        STATE.as_mut().built_window = Some(window_key(context));
+        STATE.as_mut().built(context);
         Self { menu: menu.into_rc() }
     }
 
@@ -310,14 +302,7 @@ impl CampaignComplete {
 fn stele_canvas(context: &mut GameUiContext, scales: Scales, width: f32, stele: Option<Stele>) -> UiCanvas {
     let complete = &skin::intermission().complete;
     let art = SteleArt::load(context).stretched(complete.stele, complete.niche_stretch, complete.rule_clearance);
-    let value = stele.as_ref().map(|stele| {
-        serde_json::json!({
-            "title": stele.title,
-            "lines": stele.lines.iter().map(|line| line.text.clone()).collect::<Vec<_>>(),
-            "newest": stele.lines.iter().find(|line| line.newest).map(|line| line.text.clone()),
-            "rows_to_come": stele.rows_to_come,
-        })
-    });
+    let value = stele.as_ref().map(Stele::canvas_value);
     let scale = scales.size;
     UiCanvas::new(Vec2::new(scales.pt(width), scales.pt(super::screen::REFERENCE.y)), move |_, painter, rect| {
         art.draw_niche(painter, rect.min, scale);

@@ -818,6 +818,10 @@
 {"method": "ui.click", "params": {"path": "Home/Continue"}}
 {"method": "wait.until", "params": {"query": "session.state", "path": "/menus_mode", "op": "eq", "value": "InGame", "timeout_frames": 120}}
 {"method": "assert.eq", "params": {"query": "session.state", "path": "/campaign/mission", "value": "A Thriving Town"}}
+# A save of a mission under way loads without its briefing, and the game isn't paused for one.
+{"method": "wait.frames", "params": {"frames": 3}}
+{"method": "assert.eq", "params": {"query": "dialog.list", "path": "/dialogs/MissionBriefing", "value": false}}
+{"method": "assert.eq", "params": {"query": "sim.state", "path": "/paused", "value": false}}
 {"method": "dialog.open", "params": {"name": "MainGame"}}
 {"method": "wait.frames", "params": {"frames": 3}}
 {"method": "assert.eq", "params": {"query": "ui.tree", "args": {"filter": "MainGame/last_saved", "kind": "rich_text"}, "path": "/widgets/0/value", "value": "Autosaved just now"}}
@@ -839,6 +843,9 @@
 {"method": "ui.click", "params": {"path": "Home/Continue"}}
 {"method": "wait.until", "params": {"query": "session.state", "path": "/menus_mode", "op": "eq", "value": "InGame", "timeout_frames": 120}}
 {"method": "assert.eq", "params": {"query": "session.state", "path": "/campaign/mission", "value": "A Thriving Town"}}
+{"method": "wait.frames", "params": {"frames": 3}}
+{"method": "assert.eq", "params": {"query": "dialog.list", "path": "/dialogs/MissionBriefing", "value": false}}
+{"method": "assert.eq", "params": {"query": "sim.state", "path": "/paused", "value": false}}
 {"method": "session.quit_to_menu"}
 {"method": "input.move", "params": {"park": true}}
 {"method": "wait.frames", "params": {"frames": 3}}

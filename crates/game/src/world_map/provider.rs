@@ -418,38 +418,58 @@ impl WorldMapProvider for ConfigWorldMapProvider<'_> {
     fn next_mission_choice(&self) -> Option<NextMissionChoice> {
         let campaign = self.campaign();
         let step = self.next_step()?;
-        let mission = campaign.missions.get(step)?;
-        if mission.choices.is_empty() {
-            return None;
-        }
-        let sites: Vec<ChoiceSiteInfo> = mission
-            .choices
-            .iter()
-            .filter_map(|choice| {
-                Some(ChoiceSiteInfo {
-                    site: choice.site,
-                    name_key: choice.name.clone(),
-                    name: text::get(UiTextCategory::Realm, &choice.name).to_string(),
-                    phrase: text::get(UiTextCategory::Realm, choice.phrase.as_ref().unwrap_or(&choice.name)).to_string(),
-                    phrased: choice.phrase.is_some(),
-                    position: choice.position,
-                    label: choice.label,
-                    mission_index: campaign.resolve_mission(&choice.mission)?,
-                })
-            })
-            .collect();
+        let StepChoice { sites, line_key, line } = step_choice(campaign, step)?;
         let name = campaign.mission_display_name(step).unwrap_or_default();
-        let site_name = |site: ChoiceSite| sites.iter().find(|info| info.site == site).map_or("", |info| info.phrase.as_str());
-        // The choice point's own line (the mockups word each realm's their own way), else
-        // "Choose <A> or <B>".
-        let subtitle_key = mission.choice_text.clone().unwrap_or_else(|| "world_map.choice.subtitle".to_string());
         Some(NextMissionChoice {
             mission_index: step,
             title: text::format(UiTextCategory::Menu, "world_map.choice.title", &[("mission", name)]),
-            subtitle: text::format(UiTextCategory::Menu, &subtitle_key, &[("a", site_name(ChoiceSite::A)), ("b", site_name(ChoiceSite::B))]),
-            subtitle_key,
+            subtitle: line,
+            subtitle_key: line_key,
             sites,
             open: self.is_next_open(),
         })
     }
+}
+
+// ----------------------------------------------
+// A choice point's wording
+// ----------------------------------------------
+
+// A choice point's sites and the line that words them: what the world map's choice box and the
+// briefing that offers the sites both show.
+#[derive(Clone, Debug, PartialEq)]
+pub struct StepChoice {
+    pub sites: Vec<ChoiceSiteInfo>, // The sites whose mission resolves.
+    pub line_key: String,           // Its Menu key, {a} and {b} the sites' phrases.
+    pub line: String,
+}
+
+// The choice the mission at `step` of `campaign` offers, if it's a choice point: its sites (each
+// with its name, its phrase and the mission it starts) and its line, the choice point's own
+// (`choice_text`: the mockups word each realm's their own way), else "Choose <A> or <B>".
+pub fn step_choice(campaign: &CampaignDef, step: usize) -> Option<StepChoice> {
+    let mission = campaign.missions.get(step)?;
+    if mission.choices.is_empty() {
+        return None;
+    }
+    let sites: Vec<ChoiceSiteInfo> = mission
+        .choices
+        .iter()
+        .filter_map(|choice| {
+            Some(ChoiceSiteInfo {
+                site: choice.site,
+                name_key: choice.name.clone(),
+                name: text::get(UiTextCategory::Realm, &choice.name).to_string(),
+                phrase: text::get(UiTextCategory::Realm, choice.phrase.as_ref().unwrap_or(&choice.name)).to_string(),
+                phrased: choice.phrase.is_some(),
+                position: choice.position,
+                label: choice.label,
+                mission_index: campaign.resolve_mission(&choice.mission)?,
+            })
+        })
+        .collect();
+    let phrase = |site: ChoiceSite| sites.iter().find(|info| info.site == site).map_or("", |info| info.phrase.as_str());
+    let line_key = mission.choice_text.clone().unwrap_or_else(|| "world_map.choice.subtitle".to_string());
+    let line = text::format(UiTextCategory::Menu, &line_key, &[("a", phrase(ChoiceSite::A)), ("b", phrase(ChoiceSite::B))]);
+    Some(StepChoice { sites, line_key, line })
 }

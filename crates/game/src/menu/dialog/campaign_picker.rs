@@ -261,7 +261,8 @@ fn buttons(context: &mut GameUiContext, scale: PickerScale) -> UiColumns {
     .with_width(UiTextButtonWidth::Fixed(BACK_BUTTON_WIDTH))
     .with_min_height(height);
 
-    // TODO(realm-ui): Phase 3's mission list: replaying any mission of a campaign already played.
+    // TODO(realm-ui): a mission list, replaying any mission of a campaign already played; no phase
+    // builds it yet (docs/plans/realm-ui.md, Later).
     let replay = fitted(make_text_button(context, ButtonRole::Secondary, UiString::key(UiTextCategory::Menu, "campaign_picker.replay"), |_, _| {}))
         .with_width(UiTextButtonWidth::Fixed(REPLAY_BUTTON_WIDTH))
         .with_min_height(height)

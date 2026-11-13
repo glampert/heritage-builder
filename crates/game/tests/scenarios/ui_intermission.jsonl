@@ -13,8 +13,8 @@
 # mission without a choice ("Begin the mission", which asks in a popup) and starts it, with its
 # briefing. Mission 2's town meets its goals too: its debrief, the map, mission 3's briefing. Its
 # goals met with world edits and finance.set, its Continue goes to the campaign-complete screen: the
-# stele carved in full, the closing line, the missions, the note that Campaign II is open, the
-# layout in each realm and scale, and Return to the menu, which shows Kambara's look, the profile
+# stele carved in full, the closing line, the missions, the note that Campaign II comes next (coming
+# soon), the layout in each realm and scale, and Return to the menu, which shows Kambara's look, the profile
 # having reached Campaign II. A hidden test campaign's mission (test_choices) is finished by
 # settling a resident: its Continue opens the map's A/B choice, whose site B starts the campaign's
 # last mission; finishing that one, Continue goes to the campaign-complete screen. The same flow in
@@ -104,6 +104,15 @@
 {"method": "wait.frames", "params": {"frames": 3}}
 # The stele: the campaign's title, mission 1's line freshly carved, a row for each mission to come.
 {"method": "assert.eq", "params": {"query": "ui.tree", "args": {"filter": "MissionComplete/stele", "kind": "canvas"}, "path": "/widgets/0/value", "value": {"title": "The Deeds of the Governor of the South", "lines": ["In the first year, Khai Sơn raised Phù Sa from the empty flood plain."], "newest": "In the first year, Khai Sơn raised Phù Sa from the empty flood plain.", "rows_to_come": 2}}}
+# intermission.state reads the same stele from the profile: by default the mission being played's
+# campaign, mission 1's line carved and freshly marked, two rows to come; newest by index; full,
+# every step carved at its first mission, the last line freshly marked.
+{"method": "assert.eq", "params": {"query": "intermission.state", "path": "/campaign", "value": "dragon_legacy"}}
+{"method": "assert.eq", "params": {"query": "intermission.state", "args": {"campaign": "dragon_legacy"}, "path": "/stele/lines/0", "value": {"mission": 0, "number": 1, "distinction": null, "key": "mission.dragon_legacy.1.stele", "text": "In the first year, Khai Sơn raised Phù Sa from the empty flood plain.", "newest": true}}}
+{"method": "assert.eq", "params": {"query": "intermission.state", "args": {"campaign": "dragon_legacy", "newest": 0}, "path": "/stele/rows_to_come", "value": 2}}
+{"method": "assert.eq", "params": {"query": "intermission.state", "args": {"campaign": "dragon_legacy", "full": true}, "path": "/stele/rows_to_come", "value": 0}}
+{"method": "assert.eq", "params": {"query": "intermission.state", "args": {"campaign": "dragon_legacy", "full": true}, "path": "/stele/lines/2/newest", "value": true}}
+{"method": "assert.eq", "params": {"query": "intermission.state", "args": {"campaign": "dragon_legacy", "full": true}, "path": "/stele/lines/0/newest", "value": false}}
 # The panel: the heading, the goals (one: twenty residents, met), the stats and the note.
 {"method": "assert.eq", "params": {"query": "ui.tree", "args": {"filter": "MissionComplete/panel/kicker"}, "path": "/widgets/0/value", "value": "MISSION 1 COMPLETE"}}
 {"method": "assert.eq", "params": {"query": "ui.tree", "args": {"filter": "MissionComplete/panel/name"}, "path": "/widgets/0/value", "value": "A Humble Beginning"}}
@@ -281,7 +290,7 @@
 {"method": "assert.eq", "params": {"query": "ui.tree", "args": {"filter": "CampaignComplete/panel/missions", "kind": "table"}, "path": "/widgets/0/value/rows", "value": [["1", "A Humble Beginning"], ["2", "A Thriving Town"], ["3", "Master of the Realm"]]}}
 {"method": "assert.eq", "params": {"query": "ui.tree", "args": {"filter": "CampaignComplete/panel/stats", "kind": "key_values"}, "path": "/widgets/0/value/0", "value": ["Missions", "3 of 3"]}}
 {"method": "assert.eq", "params": {"query": "ui.tree", "args": {"filter": "CampaignComplete/panel/stats", "kind": "key_values"}, "path": "/widgets/0/value/1/0", "value": "Last city"}}
-{"method": "assert.eq", "params": {"query": "ui.tree", "args": {"filter": "CampaignComplete/panel/note/next"}, "path": "/widgets/0/value", "value": "Campaign II is open: The Temple Mountain, in Kambara."}}
+{"method": "assert.eq", "params": {"query": "ui.tree", "args": {"filter": "CampaignComplete/panel/note/next"}, "path": "/widgets/0/value", "value": "Campaign II comes next: The Temple Mountain, in Kambara. Coming soon."}}
 {"method": "assert.exists", "params": {"query": "ui.tree", "args": {"filter": "CampaignComplete/panel/Return to the menu"}, "path": "/widgets/0"}}
 {"method": "assert.eq", "params": {"query": "ui.layout_issues", "path": "/count", "value": 0}}
 {"method": "screenshot", "params": {"path": "out/ui_intermission/campaign_complete_dailong.png"}}
@@ -375,6 +384,9 @@
 {"method": "assert.eq", "params": {"query": "ui.tree", "args": {"filter": "MissionComplete/panel/kicker"}, "path": "/widgets/0/value", "value": "MISSION 2 COMPLETE"}}
 {"method": "assert.eq", "params": {"query": "ui.tree", "args": {"filter": "MissionComplete/stele", "kind": "canvas"}, "path": "/widgets/0/value/lines", "value": ["Test: at Phù Sa the first seal was set in the river mud.", "Test: at Vân Cảng the island harbour opened instead."]}}
 {"method": "assert.eq", "params": {"query": "ui.tree", "args": {"filter": "MissionComplete/stele", "kind": "canvas"}, "path": "/widgets/0/value/rows_to_come", "value": 0}}
+# intermission.state with newest by id: site B's line (the one it carved, the profile having it).
+{"method": "assert.eq", "params": {"query": "intermission.state", "args": {"campaign": "test_choices", "newest": "southern_shore_b"}, "path": "/stele/lines/1", "value": {"mission": 2, "number": 2, "distinction": null, "key": "mission.test_choices.3.stele", "text": "Test: at Vân Cảng the island harbour opened instead.", "newest": true}}}
+{"method": "assert.eq", "params": {"query": "intermission.state", "args": {"campaign": "test_choices", "newest": "southern_shore_b"}, "path": "/stele/lines/0/newest", "value": false}}
 {"method": "assert.eq", "params": {"query": "ui.layout_issues", "path": "/count", "value": 0}}
 {"method": "screenshot", "params": {"path": "out/ui_intermission/debrief_last_mission.png"}}
 {"method": "ui.click", "params": {"path": "MissionComplete/panel/Continue"}}

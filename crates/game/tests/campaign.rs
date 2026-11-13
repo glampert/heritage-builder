@@ -49,6 +49,7 @@ fn main() {
         test_utils::test_fn!(test_continue_playing_no_requeue),
         test_utils::test_fn!(test_snapshot_restore_and_suppress),
         test_utils::test_fn!(test_cancelled_mission_start),
+        test_utils::test_fn!(test_briefing_request),
         test_utils::test_fn!(test_mission_calendar),
         // The stele:
         test_utils::test_fn!(test_stele_lines),
@@ -432,6 +433,55 @@ fn test_cancelled_mission_start() {
     campaign::cancel_mission_start();
     assert_eq!(campaign::active_mission().map(|active| active.mission_index), Some(0));
     campaign::reset();
+}
+
+// The briefing is asked for once a mission's map has loaded (GameSession::start_mission), only
+// while a mission is active, and taken once; any other session change drops the request: a save of
+// a mission under way, a mission start that failed, the next start.
+fn test_briefing_request() {
+    ensure_campaign_setup();
+
+    // No mission: no briefing.
+    campaign::request_briefing();
+    assert!(!campaign::is_briefing_pending(), "no briefing outside a mission");
+    assert!(!campaign::take_pending_briefing());
+
+    // A mission starts: its map loads (the restore it suppresses), then the briefing is asked for,
+    // and taken once.
+    assert!(campaign::start_mission(0, 0).is_some());
+    assert!(!campaign::is_briefing_pending(), "asked for only once the map has loaded");
+    assert!(campaign::restore_snapshot(CampaignProgress::default()), "the mission's own load");
+    campaign::request_briefing();
+    assert!(campaign::is_briefing_pending());
+    assert!(campaign::take_pending_briefing(), "taken once");
+    assert!(!campaign::take_pending_briefing(), "and only once");
+    assert!(!campaign::is_briefing_pending());
+
+    // A save of the mission under way loads without one.
+    campaign::request_briefing();
+    let saved = CampaignProgress { active: Some(ActiveMission { campaign_id: 0, mission_index: 0, completed: false }) };
+    assert!(!campaign::restore_snapshot(saved));
+    assert!(!campaign::is_briefing_pending(), "a save's load drops the request");
+
+    // The next start drops a request still waiting, and so does a start whose map fails.
+    campaign::request_briefing();
+    assert!(campaign::start_mission(0, 1).is_some());
+    assert!(!campaign::is_briefing_pending(), "a new start drops the request");
+    campaign::request_briefing();
+    campaign::cancel_mission_start();
+    assert!(!campaign::is_briefing_pending(), "a failed start drops the request");
+
+    // Advancing to the next mission drops it too.
+    campaign::request_briefing();
+    assert!(campaign::is_briefing_pending());
+    assert!(campaign::advance_to_next_mission().is_some());
+    assert!(!campaign::is_briefing_pending(), "advancing drops the request");
+
+    // A reset (quit to the menu, another game) drops it.
+    campaign::take_mission_start();
+    campaign::request_briefing();
+    campaign::reset();
+    assert!(!campaign::is_briefing_pending(), "a reset drops the request");
 }
 
 // A mission starts with its own calendar over the configs' defaults, and its campaign's eras.

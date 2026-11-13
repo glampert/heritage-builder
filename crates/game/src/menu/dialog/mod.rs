@@ -688,30 +688,23 @@ impl DialogMenusSingleton {
             None => dialog_menu_kind,
         };
 
-        // Custom Game: built afresh from the maps and the profile.
-        if dialog_menu_kind == DialogMenuKind::CustomGame && !self.find_dialog(dialog_menu_kind).is_open() {
-            custom_game::prepare(in_home_menu());
-            self.dialog_menus[dialog_menu_kind as usize] = dialog_menu_kind.build_menu(context);
-            self.frames[dialog_menu_kind as usize] = DialogFrame::from_skin(dialog_menu_kind);
-        }
-
-        // The debrief: built afresh from the mission just finished and the city's stats.
-        if dialog_menu_kind == DialogMenuKind::MissionComplete && !self.find_dialog(dialog_menu_kind).is_open() {
-            mission_complete::prepare();
-            self.dialog_menus[dialog_menu_kind as usize] = dialog_menu_kind.build_menu(context);
-            self.frames[dialog_menu_kind as usize] = DialogFrame::from_skin(dialog_menu_kind);
-        }
-
-        // The campaign-complete screen: built afresh from the campaign just finished.
-        if dialog_menu_kind == DialogMenuKind::CampaignComplete && !self.find_dialog(dialog_menu_kind).is_open() {
-            campaign_complete::prepare();
-            self.dialog_menus[dialog_menu_kind as usize] = dialog_menu_kind.build_menu(context);
-            self.frames[dialog_menu_kind as usize] = DialogFrame::from_skin(dialog_menu_kind);
-        }
-
-        // The briefing: built afresh from the mission being played.
-        if dialog_menu_kind == DialogMenuKind::MissionBriefing && !self.find_dialog(dialog_menu_kind).is_open() {
-            mission_briefing::prepare();
+        // The dialogs built afresh each time they open, prepared first: Custom Game (from the maps
+        // and the profile), the debrief (from the mission just finished and the city's stats), the
+        // campaign-complete screen (from the campaign just finished), the briefing (from the
+        // mission being played) and the world map (for the UI realm's campaign, its default city
+        // selected).
+        let prepare_on_open: Option<fn()> = match dialog_menu_kind {
+            DialogMenuKind::CustomGame => Some(|| custom_game::prepare(in_home_menu())),
+            DialogMenuKind::MissionComplete => Some(mission_complete::prepare),
+            DialogMenuKind::CampaignComplete => Some(campaign_complete::prepare),
+            DialogMenuKind::MissionBriefing => Some(mission_briefing::prepare),
+            DialogMenuKind::WorldMap => Some(world_map::prepare),
+            _ => None,
+        };
+        if let Some(prepare_fn) = prepare_on_open
+            && !self.find_dialog(dialog_menu_kind).is_open()
+        {
+            prepare_fn();
             self.dialog_menus[dialog_menu_kind as usize] = dialog_menu_kind.build_menu(context);
             self.frames[dialog_menu_kind as usize] = DialogFrame::from_skin(dialog_menu_kind);
         }
@@ -719,13 +712,6 @@ impl DialogMenusSingleton {
         // The Game menu: built again when it's opened in a game of another kind than it was built
         // for (its Mission briefing item is a campaign mission's only).
         if dialog_menu_kind == DialogMenuKind::MainGame && !self.find_dialog(dialog_menu_kind).is_open() && main_game::needs_rebuild() {
-            self.dialog_menus[dialog_menu_kind as usize] = dialog_menu_kind.build_menu(context);
-            self.frames[dialog_menu_kind as usize] = DialogFrame::from_skin(dialog_menu_kind);
-        }
-
-        // The world map: built afresh for the UI realm's campaign, its default city selected.
-        if dialog_menu_kind == DialogMenuKind::WorldMap && !self.find_dialog(dialog_menu_kind).is_open() {
-            world_map::prepare();
             self.dialog_menus[dialog_menu_kind as usize] = dialog_menu_kind.build_menu(context);
             self.frames[dialog_menu_kind as usize] = DialogFrame::from_skin(dialog_menu_kind);
         }

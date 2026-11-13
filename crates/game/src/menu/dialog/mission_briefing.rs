@@ -5,7 +5,7 @@
 // - left, an image of the mission's land (a placeholder until real art: the realm's world map
 //   around the mission's city, its place ringed) with its caption, what's new in the mission and
 //   its threats (the mission's `briefing_new` and `briefing_threats`, when it has them);
-// - right, the lead-in (the line its stele will hold) in quotes, the briefing's text (its
+// - right, the lead-in (its `lead_in`) in quotes, the briefing's text (its
 //   `briefing`, else the developers' `description`), the goals and their targets, and Begin.
 //
 // It opens when a campaign mission's map loads (campaign::take_pending_briefing, InGameMenus), the
@@ -14,8 +14,8 @@
 // (the home menu's Campaign resumes there: Profile::next_mission) offers its two sites in place of
 // Begin, as the world map's choice box does, in the briefing that opens as the mission starts only:
 // the site whose mission is this one begins it (and so does Escape), the other starts its own
-// mission; the pick is recorded in the profile once its mission goes on or has started
-// (Profile::choice_made).
+// mission; the pick is recorded in the profile once its mission goes on (Profile::choice_made) or
+// has started (Profile::mission_started records the variant's site).
 //
 // Its size is the skin's (`dialogs.MissionBriefing`: the mockup's panel, scaled to the window and
 // grown by the UI scale), and its contents are laid out from the mockup's coordinates at the
@@ -31,7 +31,7 @@
 use common::{Color, Rect};
 
 use super::*;
-use super::screen::{Scales, left_group, spacer, text_line, tight};
+use super::screen::{BuiltOnOpen, Scales, left_group, spacer, text_line, tight};
 use crate::{
     campaign::{
         self,
@@ -40,6 +40,7 @@ use crate::{
     menu::skin::SkinPanel,
     profile,
     realm,
+    world_map::provider::step_choice,
 };
 
 // ----------------------------------------------
@@ -95,15 +96,15 @@ const FIT_STEP: f32 = 0.94;
 // State
 // ----------------------------------------------
 
-// Kept outside the widgets: whether it's prepared for opening, whether it's the one that opened as
-// the mission started (only that one offers a choice point's sites), and the window it was built for.
+// Kept outside the widgets: whether it's prepared for opening and the window it was built for
+// (screen::BuiltOnOpen), and whether it's the one that opened as the mission started (only that
+// one offers a choice point's sites).
 struct BriefingState {
-    active: bool,
+    built: BuiltOnOpen,
     at_start: bool,
-    built_window: Option<(u32, u32)>,
 }
 
-static STATE: UiStaticVar<BriefingState> = UiStaticVar::new(BriefingState { active: false, at_start: false, built_window: None });
+static STATE: UiStaticVar<BriefingState> = UiStaticVar::new(BriefingState { built: BuiltOnOpen::new(), at_start: false });
 
 // Opens the briefing as the mission starts (InGameMenus, campaign::take_pending_briefing): a
 // choice point with no site picked offers its sites then. Opened any other way (the Game menu's
@@ -120,19 +121,12 @@ pub(super) fn open_at_mission_start(context: &mut GameUiContext) -> bool {
 
 // Sets the briefing up for opening (dialog::open_dialog builds it afresh then).
 pub(super) fn prepare() {
-    let state = STATE.as_mut();
-    state.active = true;
-    state.built_window = None;
+    STATE.as_mut().built.prepare();
 }
 
 // Whether the open briefing must be built again: the window's size changed.
 pub(super) fn needs_rebuild(context: &GameUiContext) -> bool {
-    STATE.as_ref().built_window != Some(window_key(context))
-}
-
-fn window_key(context: &GameUiContext) -> (u32, u32) {
-    let window = ui::screen_size(context.ui_sys);
-    (window.x.round() as u32, window.y.round() as u32)
+    STATE.as_ref().built.needs_rebuild(context)
 }
 
 // ----------------------------------------------
@@ -169,7 +163,7 @@ impl DialogMenu for MissionBriefing {
     fn open(&mut self, context: &mut GameUiContext) -> bool {
         if campaign::active_mission().is_none() {
             let state = STATE.as_mut();
-            state.active = false;
+            state.built.active = false;
             state.at_start = false;
             return false;
         }
@@ -189,7 +183,7 @@ impl DialogMenu for MissionBriefing {
         }
         self.menu_mut().close(context);
         let state = STATE.as_mut();
-        state.active = false;
+        state.built.active = false;
         state.at_start = false;
         true
     }
@@ -199,7 +193,7 @@ impl DialogMenu for MissionBriefing {
         menu.reset_message_box();
         menu.set_flags(UiMenuFlags::IsOpen, false);
         let state = STATE.as_mut();
-        state.active = false;
+        state.built.active = false;
         state.at_start = false;
     }
 }
@@ -312,29 +306,20 @@ fn text_of(category: UiTextCategory, key: &str) -> String {
 
 // The sites the mission being played offers, if it's a choice point the player hasn't picked a
 // site of: the home menu's Campaign resumes a campaign at the choice point itself then
-// (Profile::next_mission). Worded as the world map's choice box words them. Only the briefing that
-// opens as the mission starts offers them (open_at_mission_start).
+// (Profile::next_mission). Worded as the world map's choice box words them
+// (world_map::provider::step_choice). Only the briefing that opens as the mission starts offers
+// them (open_at_mission_start).
 fn choice(campaign_index: usize, mission_index: usize) -> Option<BriefingChoice> {
-    let configs = CampaignConfigs::get();
-    let campaign = configs.campaign(campaign_index)?;
-    let mission = campaign.missions.get(mission_index)?;
-    if mission.choices.is_empty() || profile::get().record(&campaign.id).and_then(|record| record.choice(mission_index)).is_some() {
+    let campaign = CampaignConfigs::get().campaign(campaign_index)?;
+    if profile::get().record(&campaign.id).and_then(|record| record.choice(mission_index)).is_some() {
         return None;
     }
-    let sites: Vec<(ChoiceSite, String, usize)> = mission
-        .choices
-        .iter()
-        .filter_map(|choice| Some((choice.site, text_of(UiTextCategory::Realm, &choice.name), campaign.resolve_mission(&choice.mission)?)))
-        .collect();
-    if sites.len() < 2 {
+    let choice = step_choice(campaign, mission_index)?;
+    if choice.sites.len() < 2 {
         return None;
     }
-    let phrase = |site: ChoiceSite| {
-        mission.choices.iter().find(|choice| choice.site == site).map_or(String::new(), |choice| text_of(UiTextCategory::Realm, choice.phrase.as_ref().unwrap_or(&choice.name)))
-    };
-    let key = mission.choice_text.clone().unwrap_or_else(|| "world_map.choice.subtitle".to_string());
-    let line = ui::text::format(UiTextCategory::Menu, &key, &[("a", &phrase(ChoiceSite::A)), ("b", &phrase(ChoiceSite::B))]);
-    Some(BriefingChoice { campaign: campaign_index, step: mission_index, line, sites })
+    let sites = choice.sites.into_iter().map(|site| (site.site, site.name, site.mission_index)).collect();
+    Some(BriefingChoice { campaign: campaign_index, step: mission_index, line: choice.line, sites })
 }
 
 impl MissionBriefing {
@@ -347,7 +332,7 @@ impl MissionBriefing {
 
         // Built at boot and on every rebuild for every dialog kind, but shown only once prepared
         // for opening: until then an empty menu, so its textures load only when needed.
-        if !STATE.as_ref().active {
+        if !STATE.as_ref().built.active {
             return Self { menu: menu.into_rc() };
         }
 
@@ -383,7 +368,7 @@ impl MissionBriefing {
             menu.add_widget(part);
         }
 
-        STATE.as_mut().built_window = Some(window_key(context));
+        STATE.as_mut().built.built(context);
         Self { menu: menu.into_rc() }
     }
 
@@ -393,15 +378,15 @@ impl MissionBriefing {
     }
 
     // A site of the choice: its mission begins here if it's this one (closing records the pick),
-    // else it starts (its map loads, and its own briefing opens) and the pick is recorded once it
-    // has; if it can't start, nothing is recorded and this mission goes on.
-    fn on_site(context: &mut GameUiContext, choice: &BriefingChoice, site: ChoiceSite, mission: usize) {
+    // else it starts (its map loads, and its own briefing opens). That's the other site's
+    // variant, which records the pick once it has started (Profile::mission_started), so a map
+    // that fails to load records nothing. If it can't start at all, nothing is recorded and this
+    // mission goes on.
+    fn on_site(context: &mut GameUiContext, choice: &BriefingChoice, mission: usize) {
         let current = campaign::active_mission().map(|active| active.mission_index);
         if current == Some(mission) {
             super::close(DialogMenuKind::MissionBriefing, context);
-        } else if super::home::start_campaign_mission(choice.campaign, mission) {
-            profile::on_choice_made(choice.campaign, choice.step, site);
-        } else {
+        } else if !super::home::start_campaign_mission(choice.campaign, mission) {
             STATE.as_mut().at_start = false;
             super::close(DialogMenuKind::MissionBriefing, context);
         }
@@ -650,10 +635,10 @@ fn buttons(context: &mut GameUiContext, scales: Scales, briefing: &Briefing, wid
                 .with_text_color(skin::intermission_color("accent", "accent"));
             group.add_widget(tight(context, line, font, TEXT_SIZE, scales));
             group.add_widget(spacer(scales.pt(12.0)));
-            for (site, name, mission) in choice.sites.clone() {
+            for (_, name, mission) in choice.sites.clone() {
                 let choice = choice.clone();
                 let button = skin::button(context, ButtonRole::Primary, name, move |_, context| {
-                    MissionBriefing::on_site(context_as_mut::<GameUiContext>(context), &choice, site, mission);
+                    MissionBriefing::on_site(context_as_mut::<GameUiContext>(context), &choice, mission);
                 });
                 columns.add_column(UiColumnWidth::Fixed(scales.pt(SITE_WIDTH)), left_group().with_widget(sized(button, SITE_WIDTH)));
             }
