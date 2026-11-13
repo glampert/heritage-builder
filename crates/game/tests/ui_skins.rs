@@ -51,6 +51,7 @@ fn main() {
         test_utils::test_fn!(test_every_sprite_exists_and_slices_fit),
         test_utils::test_fn!(test_world_map_art_fits),
         test_utils::test_fn!(test_intermission_art_fits),
+        test_utils::test_fn!(test_story_art_fits),
         test_utils::test_fn!(test_every_colour_and_widget_part_resolves),
         test_utils::test_fn!(test_every_sound_exists),
         test_utils::test_fn!(test_game_styles_cover_vietnamese),
@@ -370,6 +371,45 @@ fn test_intermission_art_fits() {
             assert!(skin.panels.contains_key(panel), "{realm}: no panel '{panel}' for the intermission or briefing");
         }
         assert!(resolves(&skin.briefing.image_outline), "{realm}: briefing: no colour '{}'", skin.briefing.image_outline);
+    }
+}
+
+// The comic viewer's art (skin::SkinStoryDef): the frame is the story panel (story::PANEL_SIZE)
+// grown by its bleed, at one pixel per point as ui-art draws it; the backdrop is the 1920 × 1080
+// screen; the caption's panel is a 9-slice; every colour and look resolves.
+fn test_story_art_fits() {
+    for (realm, skin) in skins() {
+        let art = &skin.story;
+        assert!(ui_asset_exists(&art.frame), "{realm}: story frame {} doesn't exist", art.frame);
+        let [left, top, right, bottom] = art.frame_bleed;
+        let [width, height] = game::story::PANEL_SIZE;
+        assert_eq!(png_size(&art.frame), (width + left + right, height + top + bottom), "{realm}: {} isn't the panel and its bleed", art.frame);
+        assert_eq!(jpeg_size(&art.backdrop), (1920.0, 1080.0), "{realm}: {}", art.backdrop);
+        assert!(
+            skin.panels.get(&art.caption.panel).is_some_and(|panel| panel.slice.is_some()),
+            "{realm}: no 9-slice panel '{}' for the story's caption",
+            art.caption.panel
+        );
+        let [x, y] = art.caption.at;
+        assert!(x >= 0.0 && y >= 0.0 && x + art.caption.width <= width && y + art.caption.baseline + art.caption.bottom <= height, "{realm}: the caption fits the panel");
+
+        let resolves = |name: &str| if name.starts_with('#') { HexColor::parse(name).is_some() } else { skin.text.contains_key(name) };
+        let bubble = &art.bubble;
+        let looks = [&art.caption.look, &bubble.name, &bubble.text].into_iter().chain(["title", "line"].into_iter().map(|role| {
+            art.stele.get(role).unwrap_or_else(|| panic!("{realm}: the story has no stele '{role}' look"))
+        }));
+        for look in looks {
+            for name in std::iter::once(&look.color).chain(look.halo.iter()).chain(look.shadow.iter()).chain(look.highlight.iter()) {
+                assert!(resolves(name), "{realm}: story look: no colour '{name}'");
+            }
+        }
+        for name in [&bubble.fill, &bubble.ink, &bubble.whisper_text, &art.sepia_tint, &art.sepia_wash] {
+            assert!(resolves(name), "{realm}: story: no colour '{name}'");
+        }
+        for role in ["bar_text", "bar_sub", "dot", "dot_ring", "dot_done", "dot_line"] {
+            let value = art.colors.get(role).unwrap_or_else(|| panic!("{realm}: the story has no '{role}' colour"));
+            assert!(resolves(value), "{realm}: story colour '{role}': no colour '{value}'");
+        }
     }
 }
 

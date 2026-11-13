@@ -180,6 +180,21 @@
     }
   },
   "briefing": { "image_outline": "#4A4436", "bullet": "diamond", "bullet_color": "#3F6A2A" },
+  "story": {
+    "backdrop": "skins/kambara/world_map_backdrop.jpg",
+    "frame": "skins/kambara/story_frame.png",
+    "frame_bleed": [42, 53, 57, 42],
+    "caption": { "at": [50, 36], "line_height": 38, "inset": 34,
+                 "look": { "size": 27, "heading": true, "color": "ink", "highlight": "#F1E8D2CC", "highlight_offset": [1.2, 1.4] } },
+    "bubble": { "fill": "#EFE6CF", "stroke": 3, "radius": 30, "inset": 36, "name_baseline": 42, "text_baseline": 80, "line_height": 36,
+                "bottom": 36, "tail_width": 80,
+                "text": { "size": 25, "heading": false, "color": "ink" } },
+    "stele": {
+      "title": { "size": 27, "heading": true, "color": "ink", "highlight": "#F1E8D2CC", "highlight_offset": [1.2, 1.4] },
+      "line": { "size": 22, "heading": false, "color": "ink", "highlight": "#F1E8D2CC", "highlight_offset": [1.2, 1.4] }
+    },
+    "colors": { "bar_text": "#EFE6CF", "bar_sub": "#B9C99A", "dot_ring": "#EFE6CF", "dot_done": "#B9C99A", "dot_line": "#B9C99A" }
+  },
   "dialogs": {
     "Home": {"size": [560, 1000], "offset": [90, 0]}
   }

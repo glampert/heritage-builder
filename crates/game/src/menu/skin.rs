@@ -109,6 +109,7 @@ pub struct UiSkinDef {
     pub world_map: SkinWorldMapDef,
     pub intermission: SkinIntermissionDef,
     pub briefing: SkinBriefingDef,
+    pub story: SkinStoryDef,
     pub dialogs: BTreeMap<String, SkinDialogDef>, // "default", then by dialog kind name.
     pub sounds: BTreeMap<String, Option<String>>,
 }
@@ -136,6 +137,7 @@ impl Default for UiSkinDef {
             world_map: SkinWorldMapDef::default(),
             intermission: SkinIntermissionDef::default(),
             briefing: SkinBriefingDef::default(),
+            story: SkinStoryDef::default(),
             dialogs: BTreeMap::new(),
             sounds: BTreeMap::new(),
         }
@@ -844,6 +846,149 @@ impl Default for SkinBriefingDef {
     fn default() -> Self {
         Self { panel: "dialog".into(), image_outline: "ink".into(), image_outline_width: 3.0, bullet: SkinBullet::Square, bullet_color: "accent".into() }
     }
+}
+
+// The comic viewer's art (docs/plans/realm-ui.md, Phase 4: Viewer; intro-<realm>.jpg, the mockup
+// generator's screens.py intro()), in points on its 1920 × 1080 screen:
+// - `backdrop`: the screen's background, a 1920 × 1080 JPEG (the world map's: the same drawing);
+// - `frame`: the realm frame round the panel (ui-art's story_frame, the panel left transparent),
+//   drawn on the panel's rect grown by `frame_bleed` (left, top, right, bottom), as ui-art draws it;
+// - `caption`: the narration's box (SkinStoryCaptionDef);
+// - `bubble`: the speech bubbles (SkinStoryBubbleDef);
+// - `sepia`: a flashback panel's picture is drawn multiplied by `sepia_tint`, then `sepia_wash`
+//   over it (colours: `text` names or "#RRGGBB(AA)");
+// - `stele`: the look of a dynamic panel's stele lines (`title` and `line`, SkinMapTextDef), on the
+//   caption's panel;
+// - `colors`: the bottom bar's text (`bar_text`, `bar_sub`) and its panel dots (`dot`: the current
+//   one's fill, `dot_ring` its ring, `dot_done` the done ones' fill, `dot_line` the others' ring).
+#[derive(Clone, Debug, Deserialize)]
+#[serde(default, deny_unknown_fields)]
+pub struct SkinStoryDef {
+    pub backdrop: String,
+    pub frame: String,
+    pub frame_bleed: [f32; 4],
+    pub caption: SkinStoryCaptionDef,
+    pub bubble: SkinStoryBubbleDef,
+    pub sepia_tint: String,
+    pub sepia_wash: String,
+    pub stele: BTreeMap<String, SkinMapTextDef>,
+    pub colors: BTreeMap<String, String>,
+}
+
+impl Default for SkinStoryDef {
+    fn default() -> Self {
+        Self {
+            backdrop: String::new(),
+            frame: String::new(),
+            frame_bleed: [0.0; 4],
+            caption: SkinStoryCaptionDef::default(),
+            bubble: SkinStoryBubbleDef::default(),
+            sepia_tint: "#E8D2A8".into(),
+            sepia_wash: "#70421438".into(),
+            stele: BTreeMap::new(),
+            colors: BTreeMap::new(),
+        }
+    }
+}
+
+// The narration's box, the generator's caption(): the skin's `panel` (a 9-slice), `width` points
+// wide, its top-left corner `at` in panel points (where a panel's own `narration_anchor` doesn't
+// put it); its text in `look`, wrapped `inset` points in from each side, the first baseline
+// `baseline` points below the top, lines `line_height` apart, and `bottom` points under the last.
+#[derive(Clone, Debug, Deserialize)]
+#[serde(default, deny_unknown_fields)]
+pub struct SkinStoryCaptionDef {
+    pub panel: String,
+    pub at: [f32; 2],
+    pub width: f32,
+    pub inset: f32,
+    pub baseline: f32,
+    pub line_height: f32,
+    pub bottom: f32,
+    pub look: SkinMapTextDef,
+}
+
+impl Default for SkinStoryCaptionDef {
+    fn default() -> Self {
+        Self {
+            panel: "caption".into(),
+            at: [50.0, 44.0],
+            width: 760.0,
+            inset: 35.0,
+            baseline: 54.0,
+            line_height: 40.0,
+            bottom: 36.0,
+            look: SkinMapTextDef { size: 30.0, heading: true, ..SkinMapTextDef::default() },
+        }
+    }
+}
+
+// A speech bubble, the generator's speech(), painted: a rounded box `radius` points round in
+// `fill`, outlined `stroke` points wide in `ink`, `width` points wide (where the bubble's own width
+// doesn't say), with a tail `tail_width` points wide at its base from the edge facing its tip. The
+// speaker's name in `name` (its baseline `name_baseline` points below the top), the line in `text`
+// (its first baseline `text_baseline` below the top, or at `name_baseline` without a name; lines
+// `line_height` apart, `bottom` points under the last), both `inset` points in from the sides.
+// Kinds: a whisper's outline in dashes (`whisper_dash`: length and gap) and its text in
+// `whisper_text`; a group's a second outline `group_offset` points out; bold ink's outline
+// `bold_stroke` times as wide and its text `bold_scale` times as large.
+#[derive(Clone, Debug, Deserialize)]
+#[serde(default, deny_unknown_fields)]
+pub struct SkinStoryBubbleDef {
+    pub fill: String,
+    pub ink: String,
+    pub stroke: f32,
+    pub radius: f32,
+    pub width: f32,
+    pub inset: f32,
+    pub name_baseline: f32,
+    pub text_baseline: f32,
+    pub line_height: f32,
+    pub bottom: f32,
+    pub tail_width: f32,
+    pub name: SkinMapTextDef,
+    pub text: SkinMapTextDef,
+    pub whisper_dash: [f32; 2],
+    pub whisper_text: String,
+    pub group_offset: f32,
+    pub bold_stroke: f32,
+    pub bold_scale: f32,
+}
+
+impl Default for SkinStoryBubbleDef {
+    fn default() -> Self {
+        Self {
+            fill: "#FFFAF0".into(),
+            ink: "ink".into(),
+            stroke: 3.0,
+            radius: 36.0,
+            width: 560.0,
+            inset: 38.0,
+            name_baseline: 44.0,
+            text_baseline: 84.0,
+            line_height: 40.0,
+            bottom: 34.0,
+            tail_width: 84.0,
+            name: SkinMapTextDef { size: 18.0, heading: true, capitals: true, letter_spacing: 2.0, color: "accent".into(), ..SkinMapTextDef::default() },
+            text: SkinMapTextDef { size: 28.0, heading: true, ..SkinMapTextDef::default() },
+            whisper_dash: [10.0, 7.0],
+            whisper_text: "sub".into(),
+            group_offset: 8.0,
+            bold_stroke: 2.0,
+            bold_scale: 1.1,
+        }
+    }
+}
+
+// The current skin's comic viewer art.
+pub fn story() -> &'static SkinStoryDef {
+    &current().story
+}
+
+// A colour of the comic viewer by its role (SkinStoryDef::colors), else the `text` colour
+// `fallback` names.
+pub fn story_color(role: &str, fallback: &str) -> Color {
+    story().colors.get(role).and_then(|name| color(name)).or_else(|| color(fallback)).unwrap_or(Color::black())
 }
 
 // A list's bullet (engine::ui::widgets::UiBullet), as skins spell it.

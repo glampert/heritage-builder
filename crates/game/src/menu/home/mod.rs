@@ -112,6 +112,10 @@ impl GameMenusSystem for HomeMenus {
 
     fn handle_input(&mut self, context: &mut GameUiContext, args: GameMenusInputArgs) -> UiInputEvent {
         if let GameMenusInputArgs::Key { key, action, .. } = args {
+            // The dialog on top's own keys (the comic viewer's).
+            if action == InputAction::Press && dialog::handle_key(key, context) {
+                return UiInputEvent::Handled;
+            }
             // [ESCAPE]: Close the dialog on top (only that one: the dialogs don't close themselves on
             // Escape), unless it's the home menu's own.
             if key == InputKey::Escape && action == InputAction::Press {

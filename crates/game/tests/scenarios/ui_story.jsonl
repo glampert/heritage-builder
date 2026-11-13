@@ -1,0 +1,194 @@
+# The story comics (docs/plans/realm-ui.md, Phase 4): the comic viewer (StoryComic), laid out as
+# intro-<realm>.jpg. story.play plays Campaign I's I-A over the home menu in Đại Long's look: its
+# panel (the sequence, the panel and their count, the narration, the bubbles' speakers, texts and
+# kinds, a flashback's sepia), the bar (the campaign line, the title, the dots, "Panel N of M",
+# Back disabled on the first panel), stepping through it with Next, Back and the keys (Right,
+# Space, Enter forward; Left back), Continue on the last panel, which ends it without touching the
+# profile; seen=true records it once Skip ends it, and Escape skips too. The layout at 100%, 200% and
+# 75% UI scale in each realm (ui.realm): the hidden test campaigns' sequences, a group bubble and
+# bold ink, and a dynamic panel listing the player's stele lines. Last, in a game, the simulation
+# stays paused while a sequence plays. Screenshots go to out/ui_story/.
+#
+# Run it with --fresh-profile, as CI does, at 1280 × 720, 1440 × 800 (CI's) and 1920 × 1080:
+#   cargo run -p HeritageBuilder -- --fresh-profile --window-size 1440x800 --script crates/game/tests/scenarios/ui_story.jsonl
+{"method": "time.fixed_dt", "params": {"dt": 0.016667}}
+{"method": "input.move", "params": {"park": true}}
+{"method": "wait.frames", "params": {"frames": 3}}
+# Listing the widgets turns the widget registry on, for the ui.tree queries below.
+{"method": "ui.tree", "params": {"filter": "Home/", "fields": ["path"]}}
+{"method": "assert.eq", "params": {"query": "dialog.list", "path": "/dialogs/StoryComic", "value": false}}
+
+# ---- I-A in Đại Long's look, over the home menu ----
+{"method": "story.play", "params": {"campaign": "dragon_legacy", "sequence": "i_a"}}
+{"method": "wait.frames", "params": {"frames": 3}}
+{"method": "assert.eq", "params": {"query": "dialog.current", "path": "/current", "value": "StoryComic"}}
+{"method": "assert.eq", "params": {"query": "story.state", "args": {"campaign": "dragon_legacy"}, "path": "/playing", "value": {"campaign": "dragon_legacy", "sequence": "i_a", "panel": 1}}}
+{"method": "assert.eq", "params": {"query": "ui.tree", "args": {"filter": "StoryComic/panel", "kind": "canvas"}, "path": "/widgets/0/value/sequence", "value": "i_a"}}
+{"method": "assert.eq", "params": {"query": "ui.tree", "args": {"filter": "StoryComic/panel", "kind": "canvas"}, "path": "/widgets/0/value/panel", "value": 1}}
+{"method": "assert.eq", "params": {"query": "ui.tree", "args": {"filter": "StoryComic/panel", "kind": "canvas"}, "path": "/widgets/0/value/panels", "value": 6}}
+{"method": "assert.eq", "params": {"query": "ui.tree", "args": {"filter": "StoryComic/panel", "kind": "canvas"}, "path": "/widgets/0/value/narration", "value": "Not born of the Dragon Line, yet raised beneath the royal sun."}}
+{"method": "assert.eq", "params": {"query": "ui.tree", "args": {"filter": "StoryComic/panel", "kind": "canvas"}, "path": "/widgets/0/value/bubbles", "value": [{"speaker": "Courtier", "text": "He is not of the Dragon Line.", "kind": "whisper"}]}}
+{"method": "assert.eq", "params": {"query": "ui.tree", "args": {"filter": "StoryComic/bar/campaign"}, "path": "/widgets/0/value", "value": "CAMPAIGN I · THE DRAGON LEGACY"}}
+{"method": "assert.eq", "params": {"query": "ui.tree", "args": {"filter": "StoryComic/bar/title"}, "path": "/widgets/0/value", "value": "Adopted, Yet Chosen"}}
+{"method": "assert.eq", "params": {"query": "ui.tree", "args": {"filter": "StoryComic/bar/dots", "kind": "canvas"}, "path": "/widgets/0/value", "value": {"current": 1, "count": 6}}}
+{"method": "assert.eq", "params": {"query": "ui.tree", "args": {"filter": "StoryComic/bar/count"}, "path": "/widgets/0/value", "value": "Panel 1 of 6"}}
+{"method": "assert.eq", "params": {"query": "ui.tree", "args": {"filter": "StoryComic/bar/Back"}, "path": "/widgets/0/enabled", "value": false}}
+{"method": "assert.exists", "params": {"query": "ui.tree", "args": {"filter": "StoryComic/bar/Skip"}, "path": "/widgets/0"}}
+{"method": "assert.exists", "params": {"query": "ui.tree", "args": {"filter": "StoryComic/bar/Next"}, "path": "/widgets/0"}}
+{"method": "assert.eq", "params": {"query": "ui.layout_issues", "path": "/count", "value": 0}}
+{"method": "screenshot", "params": {"path": "out/ui_story/i_a_1_dailong.png"}}
+
+# Next, the keys forward (Right, Space, Enter) and back (Left), Back.
+{"method": "ui.click", "params": {"path": "StoryComic/bar/Next"}}
+{"method": "wait.frames", "params": {"frames": 2}}
+{"method": "assert.eq", "params": {"query": "ui.tree", "args": {"filter": "StoryComic/bar/count"}, "path": "/widgets/0/value", "value": "Panel 2 of 6"}}
+{"method": "assert.eq", "params": {"query": "ui.tree", "args": {"filter": "StoryComic/panel", "kind": "canvas"}, "path": "/widgets/0/value/sepia", "value": true}}
+{"method": "assert.eq", "params": {"query": "ui.tree", "args": {"filter": "StoryComic/bar/Back"}, "path": "/widgets/0/enabled", "value": true}}
+{"method": "input.move", "params": {"park": true}}
+{"method": "wait.frames", "params": {"frames": 2}}
+{"method": "screenshot", "params": {"path": "out/ui_story/i_a_2_sepia_dailong.png"}}
+{"method": "input.key", "params": {"key": "Right"}}
+{"method": "wait.frames", "params": {"frames": 2}}
+{"method": "assert.eq", "params": {"query": "ui.tree", "args": {"filter": "StoryComic/panel", "kind": "canvas"}, "path": "/widgets/0/value/panel", "value": 3}}
+{"method": "input.key", "params": {"key": "Space"}}
+{"method": "wait.frames", "params": {"frames": 2}}
+{"method": "assert.eq", "params": {"query": "ui.tree", "args": {"filter": "StoryComic/panel", "kind": "canvas"}, "path": "/widgets/0/value/panel", "value": 4}}
+{"method": "input.key", "params": {"key": "Enter"}}
+{"method": "wait.frames", "params": {"frames": 2}}
+{"method": "assert.eq", "params": {"query": "ui.tree", "args": {"filter": "StoryComic/panel", "kind": "canvas"}, "path": "/widgets/0/value/panel", "value": 5}}
+{"method": "input.key", "params": {"key": "Left"}}
+{"method": "wait.frames", "params": {"frames": 2}}
+{"method": "assert.eq", "params": {"query": "ui.tree", "args": {"filter": "StoryComic/panel", "kind": "canvas"}, "path": "/widgets/0/value/panel", "value": 4}}
+{"method": "ui.click", "params": {"path": "StoryComic/bar/Back"}}
+{"method": "wait.frames", "params": {"frames": 2}}
+{"method": "assert.eq", "params": {"query": "ui.tree", "args": {"filter": "StoryComic/bar/dots", "kind": "canvas"}, "path": "/widgets/0/value", "value": {"current": 3, "count": 6}}}
+{"method": "input.key", "params": {"key": "Right"}}
+{"method": "wait.frames", "params": {"frames": 2}}
+{"method": "input.key", "params": {"key": "Right"}}
+{"method": "wait.frames", "params": {"frames": 2}}
+{"method": "input.key", "params": {"key": "Right"}}
+{"method": "wait.frames", "params": {"frames": 2}}
+# The last panel: Next is Continue.
+{"method": "assert.eq", "params": {"query": "ui.tree", "args": {"filter": "StoryComic/bar/count"}, "path": "/widgets/0/value", "value": "Panel 6 of 6"}}
+{"method": "assert.eq", "params": {"query": "ui.tree", "args": {"filter": "StoryComic/panel", "kind": "canvas"}, "path": "/widgets/0/value/bubbles/0/kind", "value": "bold"}}
+{"method": "assert.exists", "params": {"query": "ui.tree", "args": {"filter": "StoryComic/bar/Continue"}, "path": "/widgets/0"}}
+{"method": "assert.eq", "params": {"query": "ui.layout_issues", "path": "/count", "value": 0}}
+{"method": "input.move", "params": {"park": true}}
+{"method": "wait.frames", "params": {"frames": 2}}
+{"method": "screenshot", "params": {"path": "out/ui_story/i_a_6_dailong.png"}}
+# Continue ends it; story.play without seen leaves the profile alone.
+{"method": "ui.click", "params": {"path": "StoryComic/bar/Continue"}}
+{"method": "wait.until", "params": {"query": "dialog.current", "path": "/current", "op": "eq", "value": "Home", "timeout_frames": 30}}
+{"method": "assert.eq", "params": {"query": "dialog.list", "path": "/dialogs/StoryComic", "value": false}}
+{"method": "assert.eq", "params": {"query": "story.state", "args": {"campaign": "dragon_legacy"}, "path": "/seen", "value": []}}
+
+# seen=true: Skip ends it at once and still records it seen.
+{"method": "story.play", "params": {"campaign": "dragon_legacy", "sequence": "i_a", "panel": 3, "seen": true}}
+{"method": "wait.frames", "params": {"frames": 3}}
+{"method": "assert.eq", "params": {"query": "ui.tree", "args": {"filter": "StoryComic/bar/count"}, "path": "/widgets/0/value", "value": "Panel 3 of 6"}}
+{"method": "ui.click", "params": {"path": "StoryComic/bar/Skip"}}
+{"method": "wait.until", "params": {"query": "dialog.current", "path": "/current", "op": "eq", "value": "Home", "timeout_frames": 30}}
+{"method": "assert.eq", "params": {"query": "story.state", "args": {"campaign": "dragon_legacy"}, "path": "/seen", "value": ["i_a"]}}
+{"method": "profile.reset"}
+# Escape skips too.
+{"method": "story.play", "params": {"campaign": "dragon_legacy", "sequence": "i_a"}}
+{"method": "wait.frames", "params": {"frames": 3}}
+{"method": "input.key", "params": {"key": "Escape"}}
+{"method": "wait.until", "params": {"query": "dialog.current", "path": "/current", "op": "eq", "value": "Home", "timeout_frames": 30}}
+
+# ---- The layout at 200% and 75% UI scale, then each realm's look ----
+{"method": "story.play", "params": {"campaign": "dragon_legacy", "sequence": "i_a", "panel": 5}}
+{"method": "config.set", "params": {"path": "/display/ui_scale_percent", "value": 200}}
+{"method": "wait.frames", "params": {"frames": 3}}
+{"method": "assert.eq", "params": {"query": "ui.layout_issues", "path": "/count", "value": 0}}
+{"method": "screenshot", "params": {"path": "out/ui_story/i_a_5_dailong_200.png"}}
+{"method": "config.set", "params": {"path": "/display/ui_scale_percent", "value": 75}}
+{"method": "wait.frames", "params": {"frames": 3}}
+{"method": "assert.eq", "params": {"query": "ui.layout_issues", "path": "/count", "value": 0}}
+{"method": "config.set", "params": {"path": "/display/ui_scale_percent", "value": 100}}
+{"method": "wait.frames", "params": {"frames": 3}}
+# A dynamic panel lists the player's stele lines: Campaign I's first mission finished.
+{"method": "profile.set", "params": {"campaigns": [{"id": "test_choices", "reached": true, "missions_finished": [0]}]}}
+{"method": "story.play", "params": {"campaign": "test_choices", "sequence": "test_epilogue", "panel": 2}}
+{"method": "wait.frames", "params": {"frames": 3}}
+{"method": "assert.eq", "params": {"query": "ui.tree", "args": {"filter": "StoryComic/bar/campaign"}, "path": "/widgets/0/value", "value": "TEST: CHOICES"}}
+{"method": "assert.eq", "params": {"query": "ui.tree", "args": {"filter": "StoryComic/panel", "kind": "canvas"}, "path": "/widgets/0/value/stele_lines/title", "value": "The Deeds of the Governor of the South"}}
+{"method": "assert.eq", "params": {"query": "ui.tree", "args": {"filter": "StoryComic/panel", "kind": "canvas"}, "path": "/widgets/0/value/stele_lines/lines", "value": ["Test: at Phù Sa the first seal was set in the river mud."]}}
+{"method": "assert.eq", "params": {"query": "ui.layout_issues", "path": "/count", "value": 0}}
+{"method": "screenshot", "params": {"path": "out/ui_story/test_epilogue_dailong.png"}}
+{"method": "profile.reset"}
+
+# Kambara: its test campaign's sequence before its first mission, the flashback in sepia.
+{"method": "ui.realm", "params": {"realm": "kambara"}}
+{"method": "story.play", "params": {"campaign": "test_choices_kambara", "sequence": "test_before"}}
+{"method": "wait.frames", "params": {"frames": 3}}
+{"method": "assert.eq", "params": {"query": "ui.tree", "args": {"filter": "StoryComic/panel", "kind": "canvas"}, "path": "/widgets/0/value/bubbles/0/text", "value": "A test line, spoken before the gate opens."}}
+{"method": "assert.eq", "params": {"query": "ui.tree", "args": {"filter": "StoryComic/bar/dots", "kind": "canvas"}, "path": "/widgets/0/value", "value": {"current": 1, "count": 3}}}
+{"method": "assert.eq", "params": {"query": "ui.layout_issues", "path": "/count", "value": 0}}
+{"method": "screenshot", "params": {"path": "out/ui_story/test_before_1_kambara.png"}}
+{"method": "input.key", "params": {"key": "Right"}}
+{"method": "wait.frames", "params": {"frames": 2}}
+{"method": "assert.eq", "params": {"query": "ui.tree", "args": {"filter": "StoryComic/panel", "kind": "canvas"}, "path": "/widgets/0/value/sepia", "value": true}}
+{"method": "screenshot", "params": {"path": "out/ui_story/test_before_2_kambara.png"}}
+{"method": "config.set", "params": {"path": "/display/ui_scale_percent", "value": 200}}
+{"method": "wait.frames", "params": {"frames": 3}}
+{"method": "assert.eq", "params": {"query": "ui.layout_issues", "path": "/count", "value": 0}}
+{"method": "config.set", "params": {"path": "/display/ui_scale_percent", "value": 75}}
+{"method": "wait.frames", "params": {"frames": 3}}
+{"method": "assert.eq", "params": {"query": "ui.layout_issues", "path": "/count", "value": 0}}
+{"method": "config.set", "params": {"path": "/display/ui_scale_percent", "value": 100}}
+{"method": "input.key", "params": {"key": "Right"}}
+{"method": "wait.frames", "params": {"frames": 3}}
+{"method": "assert.exists", "params": {"query": "ui.tree", "args": {"filter": "StoryComic/bar/Continue"}, "path": "/widgets/0"}}
+{"method": "input.key", "params": {"key": "Enter"}}
+{"method": "wait.until", "params": {"query": "dialog.current", "path": "/current", "op": "eq", "value": "Home", "timeout_frames": 30}}
+{"method": "story.play", "params": {"campaign": "test_choices_kambara", "sequence": "test_after"}}
+{"method": "wait.frames", "params": {"frames": 3}}
+{"method": "assert.eq", "params": {"query": "ui.tree", "args": {"filter": "StoryComic/panel", "kind": "canvas"}, "path": "/widgets/0/value/bubbles/0/kind", "value": "group"}}
+{"method": "assert.eq", "params": {"query": "ui.layout_issues", "path": "/count", "value": 0}}
+{"method": "screenshot", "params": {"path": "out/ui_story/test_after_1_kambara.png"}}
+{"method": "input.key", "params": {"key": "Escape"}}
+{"method": "wait.until", "params": {"query": "dialog.current", "path": "/current", "op": "eq", "value": "Home", "timeout_frames": 30}}
+
+# Tampadesa: its caption at the panel's foot, a group bubble, then bold ink.
+{"method": "ui.realm", "params": {"realm": "tampadesa"}}
+{"method": "story.play", "params": {"campaign": "test_choices_tampadesa", "sequence": "test_before"}}
+{"method": "wait.frames", "params": {"frames": 3}}
+{"method": "assert.eq", "params": {"query": "ui.layout_issues", "path": "/count", "value": 0}}
+{"method": "screenshot", "params": {"path": "out/ui_story/test_before_1_tampadesa.png"}}
+{"method": "story.play", "params": {"campaign": "test_choices_tampadesa", "sequence": "test_after"}}
+{"method": "wait.frames", "params": {"frames": 3}}
+{"method": "assert.eq", "params": {"query": "ui.tree", "args": {"filter": "StoryComic/bar/title"}, "path": "/widgets/0/value", "value": "Test: After the Copper Road"}}
+{"method": "assert.eq", "params": {"query": "ui.layout_issues", "path": "/count", "value": 0}}
+{"method": "screenshot", "params": {"path": "out/ui_story/test_after_1_tampadesa.png"}}
+{"method": "config.set", "params": {"path": "/display/ui_scale_percent", "value": 200}}
+{"method": "wait.frames", "params": {"frames": 3}}
+{"method": "assert.eq", "params": {"query": "ui.layout_issues", "path": "/count", "value": 0}}
+{"method": "config.set", "params": {"path": "/display/ui_scale_percent", "value": 75}}
+{"method": "wait.frames", "params": {"frames": 3}}
+{"method": "assert.eq", "params": {"query": "ui.layout_issues", "path": "/count", "value": 0}}
+{"method": "config.set", "params": {"path": "/display/ui_scale_percent", "value": 100}}
+{"method": "ui.click", "params": {"path": "StoryComic/bar/Next"}}
+{"method": "wait.frames", "params": {"frames": 2}}
+{"method": "assert.eq", "params": {"query": "ui.tree", "args": {"filter": "StoryComic/panel", "kind": "canvas"}, "path": "/widgets/0/value/bubbles/0/kind", "value": "bold"}}
+{"method": "input.move", "params": {"park": true}}
+{"method": "wait.frames", "params": {"frames": 2}}
+{"method": "screenshot", "params": {"path": "out/ui_story/test_after_2_tampadesa.png"}}
+{"method": "ui.click", "params": {"path": "StoryComic/bar/Continue"}}
+{"method": "wait.until", "params": {"query": "dialog.current", "path": "/current", "op": "eq", "value": "Home", "timeout_frames": 30}}
+{"method": "ui.realm", "params": {"realm": "auto"}}
+
+# ---- In a game: the simulation stays paused while a sequence plays ----
+{"method": "session.new_map", "params": {"size": [32, 32]}}
+{"method": "wait.frames", "params": {"frames": 3}}
+{"method": "sim.resume"}
+{"method": "wait.frames", "params": {"frames": 2}}
+{"method": "assert.eq", "params": {"query": "sim.state", "path": "/paused", "value": false}}
+{"method": "story.play", "params": {"campaign": "dragon_legacy", "sequence": "i_a"}}
+{"method": "wait.frames", "params": {"frames": 3}}
+{"method": "assert.eq", "params": {"query": "sim.state", "path": "/paused", "value": true}}
+{"method": "assert.eq", "params": {"query": "ui.layout_issues", "path": "/count", "value": 0}}
+{"method": "ui.click", "params": {"path": "StoryComic/bar/Skip"}}
+{"method": "wait.until", "params": {"query": "dialog.list", "path": "/dialogs/StoryComic", "op": "eq", "value": false, "timeout_frames": 30}}
+{"method": "assert.eq", "params": {"query": "sim.state", "path": "/paused", "value": false}}
+{"method": "assert.eq", "params": {"query": "story.state", "args": {"campaign": "dragon_legacy"}, "path": "/seen", "value": []}}

@@ -185,6 +185,22 @@
     }
   },
   "briefing": { "image_outline": "#6B4A2A", "bullet": "circle", "bullet_color": "#A88A2A" },
+  "story": {
+    "backdrop": "skins/tampadesa/world_map_backdrop.jpg",
+    "frame": "skins/tampadesa/story_frame.png",
+    "frame_bleed": [27, 32, 38, 34],
+    "caption": { "at": [50, 686], "inset": 34,
+                 "look": { "size": 30, "heading": true, "color": "light" } },
+    "bubble": { "fill": "#FBF1DC", "stroke": 3, "radius": 34, "inset": 36, "name_baseline": 42, "text_baseline": 80, "line_height": 38,
+                "bottom": 36, "tail_width": 80,
+                "name": { "color": "#8A2216" },
+                "text": { "size": 27, "heading": false, "color": "ink" } },
+    "stele": {
+      "title": { "size": 30, "heading": true, "color": "light" },
+      "line": { "size": 24, "heading": false, "color": "light" }
+    },
+    "colors": { "bar_text": "#F7E3B0", "bar_sub": "#E2B866", "dot_ring": "#F7E3B0", "dot_done": "#E2B866", "dot_line": "#E2B866" }
+  },
   "dialogs": {
     "Home": {"offset": [80, 0]},
     "CityManagement": {"size": [1600, 1020]},

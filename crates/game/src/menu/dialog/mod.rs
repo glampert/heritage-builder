@@ -56,6 +56,10 @@ use campaign_complete::*;
 mod mission_briefing;
 use mission_briefing::*;
 
+mod story_comic;
+use story_comic::*;
+pub use story_comic::StoryRequest;
+
 mod screen;
 
 pub mod world_map;
@@ -113,6 +117,9 @@ pub enum DialogMenuImpl {
 
     // The world map:
     WorldMap,
+
+    // The story comics:
+    StoryComic,
 }
 
 const DIALOG_MENU_FACTORIES: [DialogMenuFactoryFn; DIALOG_MENU_COUNT] = dialog_menu_factories![
@@ -141,6 +148,8 @@ const DIALOG_MENU_FACTORIES: [DialogMenuFactoryFn; DIALOG_MENU_COUNT] = dialog_m
     MissionBriefing,
 
     WorldMap,
+
+    StoryComic,
 ];
 
 impl DialogMenuKind {
@@ -200,6 +209,12 @@ pub fn sync(context: &mut GameUiContext) {
     if !DialogMenusSingleton::is_initialized() {
         return;
     }
+    // A story sequence that ended: what was to follow it (StoryRequest::on_end), now that its
+    // viewer has closed.
+    if let Some(on_end) = story_comic::take_finished() {
+        on_end(context);
+    }
+
     let dialogs = DialogMenusSingleton::get_mut();
     if dialogs.built != built_versions() {
         rebuild_all(context);
@@ -242,6 +257,9 @@ pub fn sync(context: &mut GameUiContext) {
         // The window's size changed the briefing's, which its layout follows (a UI scale change
         // rebuilds every dialog: rebuild_all).
         dialogs.rebuild(context, |kind| kind == DialogMenuKind::MissionBriefing);
+    } else if dialogs.menu_stack.contains(&DialogMenuKind::StoryComic) && story_comic::needs_rebuild(context) {
+        // Another panel shows, or the window's size changed: the viewer is built for each.
+        dialogs.rebuild(context, |kind| kind == DialogMenuKind::StoryComic);
     } else if dialogs.menu_stack.contains(&DialogMenuKind::MainSettings)
         && !dialogs.find_dialog(DialogMenuKind::MainSettings).menu().is_message_box_open()
         && settings::needs_rebuild(context)
@@ -349,6 +367,28 @@ pub fn open(dialog_menu_kind: DialogMenuKind, close_all_others: bool, context: &
 // choice point's sites, when none is picked yet (mission_briefing::open_at_mission_start).
 pub fn open_mission_briefing_at_start(context: &mut GameUiContext) -> bool {
     mission_briefing::open_at_mission_start(context)
+}
+
+// Plays a story sequence in the comic viewer (StoryRequest: which, from which panel, whether the
+// profile records it seen, what follows it), over the dialogs open. False if it didn't open (no such
+// sequence, or the viewer is open already).
+pub fn play_story(request: StoryRequest, context: &mut GameUiContext) -> bool {
+    if !is_initialized() || is_in_stack(DialogMenuKind::StoryComic) {
+        return false;
+    }
+    story_comic::request(request);
+    DialogMenusSingleton::get_mut().open_dialog(DialogMenuKind::StoryComic, context)
+}
+
+// The sequence the comic viewer shows: its campaign's index, its id and the panel (from 0).
+pub fn story_playing() -> Option<(usize, String, usize)> {
+    if is_initialized() && is_in_stack(DialogMenuKind::StoryComic) { story_comic::playing() } else { None }
+}
+
+// A key pressed for the dialog on top (the menus' handlers pass every press but Escape's, which
+// closes it): the comic viewer's Space, Enter, Right and Left. True if it took the key.
+pub fn handle_key(key: engine::app::input::InputKey, context: &mut GameUiContext) -> bool {
+    is_initialized() && current() == Some(DialogMenuKind::StoryComic) && story_comic::on_key(context, key)
 }
 
 pub fn close(dialog_menu_kind: DialogMenuKind, context: &mut GameUiContext) -> bool {
@@ -699,6 +739,7 @@ impl DialogMenusSingleton {
             DialogMenuKind::CampaignComplete => Some(campaign_complete::prepare),
             DialogMenuKind::MissionBriefing => Some(mission_briefing::prepare),
             DialogMenuKind::WorldMap => Some(world_map::prepare),
+            DialogMenuKind::StoryComic => Some(story_comic::prepare),
             _ => None,
         };
         if let Some(prepare_fn) = prepare_on_open

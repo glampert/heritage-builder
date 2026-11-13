@@ -365,6 +365,25 @@
     }
   },
   "briefing": { "panel": "dialog", "image_outline": "#6B4F33", "image_outline_width": 3, "bullet": "square", "bullet_color": "accent" },
+  "story": {
+    "backdrop": "skins/dailong/world_map_backdrop.jpg",
+    "frame": "skins/dailong/story_frame.png",
+    "frame_bleed": [24, 24, 24, 24],
+    "caption": { "panel": "caption", "at": [50, 44], "width": 760, "inset": 36, "baseline": 54, "line_height": 40, "bottom": 36,
+                 "look": { "size": 30, "heading": true, "color": "ink" } },
+    "bubble": { "fill": "#FFFAF0", "ink": "ink", "stroke": 3.5, "radius": 40, "width": 560, "inset": 40, "name_baseline": 44, "text_baseline": 84,
+                "line_height": 40, "bottom": 34, "tail_width": 90,
+                "name": { "size": 18, "heading": true, "capitals": true, "letter_spacing": 2, "color": "accent" },
+                "text": { "size": 30, "heading": true, "color": "ink" },
+                "whisper_dash": [10, 7], "whisper_text": "sub", "group_offset": 8, "bold_stroke": 2, "bold_scale": 1.1 },
+    "sepia_tint": "#E8D2A8",
+    "sepia_wash": "#70421438",
+    "stele": {
+      "title": { "size": 30, "heading": true, "color": "ink" },
+      "line": { "size": 24, "heading": false, "color": "ink" }
+    },
+    "colors": { "bar_text": "#F3E3BD", "bar_sub": "#D9B98A", "dot": "accent", "dot_ring": "#F3E3BD", "dot_done": "#D9B98A", "dot_line": "#D9B98A" }
+  },
   "dialogs": {
     "default": {"panel": "dialog", "size": [760, 960]},
     "Home": {"size": [600, 1000], "align": "left", "offset": [64, 0]},
@@ -373,6 +392,7 @@
     "WorldMap": {"size": "fullscreen"},
     "MissionComplete": {"size": "fullscreen"},
     "CampaignComplete": {"size": "fullscreen"},
+    "StoryComic": {"size": "fullscreen"},
     "MissionBriefing": {"size": [1520, 980]},
     "MainGame": {"size": [640, 920]},
     "LoadOrSaveGame": {"size": [1540, 940]},

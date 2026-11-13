@@ -7,31 +7,64 @@ use serde_json::{Value, json};
 use engine::ui::text::{self, UiTextCategory};
 
 use crate::{
-    automation::{CommandContext, CommandDef, CommandError, CommandResult, ParamDef, done, parse_params},
+    automation::{CommandContext, CommandDef, CommandError, CommandResult, ErrorCode, ParamDef, done, parse_params},
     campaign::config::{CampaignConfigs, MissionRef},
+    menu::dialog::{self, DialogMenuKind, StoryRequest},
     profile,
     story::{self, PANEL_SIZE, PanelDef, SequenceDef, StoryConfigs, TriggerPoint, config::resolve_trigger},
     world_map,
 };
 
-pub(super) const COMMANDS: &[CommandDef] = &[CommandDef {
-    name: "story.state",
-    help: "A campaign's story sequences (assets/configs/story/<campaign>.json): each with its id, title, trigger \
+pub(super) const COMMANDS: &[CommandDef] = &[
+    CommandDef {
+        name: "story.state",
+        help: "A campaign's story sequences (assets/configs/story/<campaign>.json): each with its id, title, trigger \
            (before_mission or after_mission and the mission, or epilogue; pending while its mission isn't written \
            yet), whether the profile has seen it and whether it plays on its own (unseen, its mission there; never an \
            epilogue, which only Watch the epilogue plays), and its panels \
            (picture, narration, bubbles with their speaker, kind, anchor and tail in panel points, sepia, \
            stele_lines). Also: the panel's size in points, what plays before and after the mission being played, \
            the campaign's epilogue, and every sequence the profile has seen, in Replay the story's order.",
-    params: &[ParamDef {
-        name: "campaign",
-        kind: "string",
-        required: false,
-        help: "A campaign id (campaigns.json), hidden ones included. Default: the mission being played's \
+        params: &[ParamDef {
+            name: "campaign",
+            kind: "string",
+            required: false,
+            help: "A campaign id (campaigns.json), hidden ones included. Default: the mission being played's \
                campaign, else the custom game's realm's, else the latest the player can play.",
-    }],
-    run: cmd_state,
-}];
+        }],
+        run: cmd_state,
+    },
+    CommandDef {
+        name: "story.play",
+        help: "Play a story sequence in the comic viewer (StoryComic), over the dialogs open, in the UI realm's look \
+           (ui.realm), the simulation paused while it plays. A sequence playing is ended first. It doesn't change \
+           the profile unless seen=true: then ending it (Skip, Escape, Continue) records it seen, as the campaign \
+           flow does. Its panels are StoryComic/panel (kind canvas) in ui.tree; StoryComic/bar/Next, Back and Skip \
+           step through it, and so do the keys (Space, Enter, Right, Left, Escape).",
+        params: &[
+            ParamDef {
+                name: "campaign",
+                kind: "string",
+                required: false,
+                help: "A campaign id (campaigns.json), hidden ones included. Default: as story.state's.",
+            },
+            ParamDef {
+                name: "sequence",
+                kind: "string",
+                required: false,
+                help: "The sequence's id (story.state). Default: the campaign's first, in the order they play.",
+            },
+            ParamDef { name: "panel", kind: "int", required: false, help: "The panel to start on, from 1. Default: 1." },
+            ParamDef {
+                name: "seen",
+                kind: "bool",
+                required: false,
+                help: "Record it seen in the profile once it ends. Default: false.",
+            },
+        ],
+        run: cmd_play,
+    },
+];
 
 fn cmd_state(_context: &mut CommandContext, params: Value) -> CommandResult {
     #[derive(Deserialize)]
@@ -103,7 +136,94 @@ fn cmd_state(_context: &mut CommandContext, params: Value) -> CommandResult {
         "active_mission": playing,
         "epilogue": id_of(stories.epilogue(campaigns, campaign_index)),
         "replay": replay,
+        "playing": playing_json(),
     }))
+}
+
+// The sequence the comic viewer shows, if it's open.
+fn playing_json() -> Value {
+    let Some((campaign_index, sequence, panel)) = crate::menu::dialog::story_playing() else {
+        return Value::Null;
+    };
+    let campaign = CampaignConfigs::get().campaign(campaign_index).map(|campaign| campaign.id.clone());
+    json!({ "campaign": campaign, "sequence": sequence, "panel": panel + 1 })
+}
+
+fn campaign_param(campaign: Option<&str>) -> Result<usize, CommandError> {
+    let campaigns = CampaignConfigs::get();
+    match campaign {
+        Some(id) => campaigns.find_by_id(id).ok_or_else(|| {
+            let ids: Vec<&str> = campaigns.campaigns.iter().map(|campaign| campaign.id.as_str()).collect();
+            CommandError::not_found(format!("No campaign has the id '{id}'. Campaigns: {}.", ids.join(", ")))
+        }),
+        None => Ok(world_map::default_campaign()),
+    }
+}
+
+fn cmd_play(context: &mut CommandContext, params: Value) -> CommandResult {
+    #[derive(Deserialize)]
+    #[serde(deny_unknown_fields)]
+    struct Params {
+        campaign: Option<String>,
+        sequence: Option<String>,
+        panel: Option<usize>,
+        #[serde(default)]
+        seen: bool,
+    }
+    let params: Params = parse_params(params)?;
+    if !dialog::is_initialized() {
+        return Err(CommandError::new(ErrorCode::NotInGame, "No dialogs here: they come with the home and in-game menus."));
+    }
+    let campaigns = CampaignConfigs::get();
+    let campaign_index = campaign_param(params.campaign.as_deref())?;
+    let campaign = campaigns.campaign(campaign_index).ok_or_else(|| CommandError::not_found("There are no campaigns."))?;
+    let stories = StoryConfigs::get();
+    let story = stories.stories.get(&campaign.id);
+    let ids: Vec<String> =
+        story.map_or_else(Vec::new, |story| story.sequences.iter().map(|sequence| sequence.id.clone()).collect());
+    let sequence = match &params.sequence {
+        Some(id) => story.and_then(|story| story.sequence(id)).ok_or_else(|| {
+            CommandError::not_found(format!(
+                "Campaign '{}' has no story sequence '{id}'. Its sequences: {}.",
+                campaign.id,
+                if ids.is_empty() { "none".to_string() } else { ids.join(", ") }
+            ))
+        })?,
+        None => {
+            let first = stories.sequences_in_order(campaigns, campaign_index).into_iter().next();
+            first
+                .map(|sequence| sequence.sequence)
+                .ok_or_else(|| CommandError::not_found(format!("Campaign '{}' has no story sequences.", campaign.id)))?
+        }
+    };
+    let panel = params.panel.unwrap_or(1);
+    if panel == 0 || panel > sequence.panels.len() {
+        return Err(CommandError::invalid_params(format!(
+            "Sequence '{}' has panels 1 to {}.",
+            sequence.id,
+            sequence.panels.len()
+        )));
+    }
+
+    let request = StoryRequest {
+        campaign_index,
+        sequence_id: sequence.id.clone(),
+        panel: panel - 1,
+        records_seen: params.seen,
+        on_end: None,
+    };
+    let opened = context.session.with_ui_context(context.engine, |ui_context| {
+        if dialog::is_in_stack(DialogMenuKind::StoryComic) {
+            dialog::close(DialogMenuKind::StoryComic, ui_context);
+        }
+        dialog::play_story(request, ui_context)
+    });
+    if !opened {
+        return Err(CommandError::failed(format!("Sequence '{}' didn't play.", sequence.id)));
+    }
+    done(
+        json!({ "campaign": campaign.id, "sequence": sequence.id, "panel": panel, "panels": sequence.panels.len(), "seen": params.seen }),
+    )
 }
 
 fn trigger_json(campaign: &crate::campaign::config::CampaignDef, sequence: &SequenceDef, point: TriggerPoint) -> Value {

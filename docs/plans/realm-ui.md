@@ -1,6 +1,6 @@
 # Realm UI: menus, screens and HUD in each realm's style
 
-**Status (2026-11-13): Phases 0 and 1 done (the main menus: Home, Load / Save, Settings, Custom Game, About and the in-game Game menu); Phase 2 done (the world map: its data, base art, screen, pan and zoom, and the next mission's choice); Phase 3 done (the debrief, the campaign-complete stele and the briefing); Phase 4 (story comics) in progress: the story data and panel art done.** The user reviewed it on 2026-11-07: their notes are folded in (see [Review notes](#review-notes)), the open decisions' defaults are accepted, and every mockup the phases need now exists. This plan builds and restyles every retail screen after the [UI mockups](../design/mockups/README.md): the main menus, the world map, the intermission, the story comics, the HUD and the city management pages. Each screen gets one look per realm: Đại Long, Kambara and Tampadesa. It is milestone **UI** of the [roadmap](roadmap.md). It was researched against `ccca1df` on `claude`. File and line references point at that commit, so re-check them before relying on them.
+**Status (2026-11-13): Phases 0 and 1 done (the main menus: Home, Load / Save, Settings, Custom Game, About and the in-game Game menu); Phase 2 done (the world map: its data, base art, screen, pan and zoom, and the next mission's choice); Phase 3 done (the debrief, the campaign-complete stele and the briefing); Phase 4 (story comics) in progress: the story data and panel art, and the comic viewer done.** The user reviewed it on 2026-11-07: their notes are folded in (see [Review notes](#review-notes)), the open decisions' defaults are accepted, and every mockup the phases need now exists. This plan builds and restyles every retail screen after the [UI mockups](../design/mockups/README.md): the main menus, the world map, the intermission, the story comics, the HUD and the city management pages. Each screen gets one look per realm: Đại Long, Kambara and Tampadesa. It is milestone **UI** of the [roadmap](roadmap.md). It was researched against `ccca1df` on `claude`. File and line references point at that commit, so re-check them before relying on them.
 
 ![Home menu, Đại Long](../design/mockups/menu-home-dailong.jpg)
 
@@ -719,14 +719,14 @@ The existing dialogs keep their layouts but take their panels from the Đại Lo
   - a narration caption;
   - bubbles: speaker, text, kind (speech, whisper, group, bold), anchor and tail point;
   - an optional sepia flag for flashbacks.
-- [ ] **Viewer:**
+- [x] **Viewer:**
   - the full-screen panel in the realm frame;
   - the caption on the skin's `caption` panel;
   - bubbles painted (rounded panel and tail) or 9-sliced from the skin's `bubble`;
   - **bottom bar:** campaign line, sequence title, panel dots (done, current, to come), "Panel N of M", Skip, Next.
   - Keys: Space, Enter and Right go forward; Left goes back; Escape skips.
 - [ ] **Triggers:** the campaign flow plays a sequence before a mission's briefing or after its debrief, as its trigger says. Each sequence plays once per profile, and Home gets "Replay the story" when one has been seen.
-- [ ] **Dynamic panels:** a panel can list the player's stele lines (I-E, the epilogue).
+- [x] **Dynamic panels:** a panel can list the player's stele lines (I-E, the epilogue).
 - [x] **Placeholder art:** `ui-art` makes each panel from the realm's scene drawing and frame, with the panel's description from the script as a dim caption. Real art replaces a file of the same name.
 - [ ] Scenario `ui_story.jsonl`: start campaign I, step through I-A, check the panel count and that Skip lands on the briefing.
 - [ ] **Debug screens menu** (the user, 2026-11-13): a menu in the developer editor's menu bar that opens the retail screens that are otherwise hard to reach (the briefings, the debrief and campaign-complete screens, the world map's next-mission and choice states, every story sequence) for a campaign and mission picked in it, without changing the profile or starting a session unless the item says so; closing the screen returns to the editor.
@@ -736,6 +736,11 @@ The existing dialogs keep their layouts but take their panels from the Đại Lo
 - Provider: `before_mission`, `after_mission`, `epilogue`, `sequences_in_order`, `seen_sequences` (Replay's order), and `story::to_play_before/after` for P4c. Profile: `CampaignRecord::sequences_seen` (left out while empty, no version bump), `Profile::sequence_seen`, `profile::on_sequence_seen`; `story::has_replay` decides Home's Replay; `profile.set` checks the ids. A story file named for no campaign is an error. Automation: `story.state`.
 - Art: ui-art's `story_panel` (the realm's `intro_scene` with a dim caption: label and the panel's `visual`), JPEGs at 1 pixel a point under `assets/ui/story/` (180-270 KB each), one per Campaign I panel and one per realm for the test campaigns; `story_frame` per skin (the frame with the panel cut out, also at 1 pixel a point: 110-300 KB) for P4b, named by no skin yet. `test_story_art.py` checks captions match `visual`.
 - Verified: build, tests (new `story`, `realm_profile`, `world_map`, `ui_skins`), web check, `--check` and its tests, CI scenarios, determinism twice; the panels beside `intro-<realm>.jpg`.
+
+**Notes (2026-11-13, comic viewer) (commit TODO):**
+- Built: `StoryComic` (`menu/dialog/story_comic.rs`), full screen from `intro()`'s coordinates (`screen::Scales`): the panel in the skin's `story.frame`, sepia for flashbacks, the narration on the caption 9-slice, painted bubbles by kind (whisper dashed, group stacked, bold heavier), a `stele_lines` panel listing the profile's stele lines; the bar with campaign line, title, dots, "Panel N of M", Back, Skip and Next/Continue. Keys through `dialog::handle_key` (Space, Enter, Right, Left; Escape closes, which skips). `dialog::play_story(StoryRequest)`: start panel, `records_seen`, an `on_end` run by `dialog::sync` after it closes (P4c's hook). Skin `story` block per realm; `story.play` command, `story.state`'s `playing`.
+- Deviations: a Back button the mockup lacks; sepia is a tint and wash (no desaturation); no italics; bubbles painted, not 9-sliced; tails leave the edge facing their tip, centred on it.
+- Verified: build, workspace tests (new `ui_skins` story art test), web check, ui-art `--check` and tests, the CI scenarios, determinism twice; `ui_story.jsonl` (new, in CI) at 1280 × 720, 1440 × 800 and 1920 × 1080, layout issues 0 in three realms at 75/100/200%; screenshots compared with `intro-<realm>.jpg`.
 
 ### Phase 5: HUD
 
