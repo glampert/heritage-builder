@@ -13,7 +13,9 @@
 // - the next mission's choice, when the step after the one being played (or the profile's next)
 //   offers one: its A/B sites on the map and the choice box ("Next: <mission>", "Choose <A> or
 //   <B>") in the map's corner. Clicking a site or its name in the box asks in a popup (Choose Site
-//   Popup) before its mission starts.
+//   Popup) before its mission starts. A next mission without a choice shows in the same box once
+//   the mission being played is finished (the debrief's Continue to the world map): "Next:
+//   <mission>" and "Begin the mission", which asks in Begin Mission Popup.
 //
 // The screen reads everything from the campaign's WorldMapProvider (crate::world_map): the
 // campaign whose map it shows is the UI realm's (screen_campaign), so each realm's skin shows its
@@ -26,7 +28,9 @@
 // relations_meter, route, route_detail, They sell, They buy, request/title, request/goods, note,
 // Set trade limits, Send a gift; WorldMap/legend (kind canvas); WorldMap/choice (kind choice_box:
 // title, subtitle, mission) and its sites' names WorldMap/choice/<phrase> (kind choice_option: site,
-// mission); the popup's Choose Site Popup/Cancel and Choose Site Popup/Begin the mission.
+// mission), or WorldMap/choice/Begin the mission (kind choice_option: mission); the popups' Choose
+// Site Popup/Cancel, Choose Site Popup/Begin the mission and Begin Mission Popup/Cancel and
+// Begin the mission.
 
 mod overlay;
 
@@ -47,14 +51,13 @@ use crate::{
 };
 
 use overlay::MapScene;
+use super::screen::{Scales, left_group, row, spacer, text_line, text_width, tight};
 
 
 // ----------------------------------------------
 // Layout (points on a 1920 × 1080 window, as the mockup generator draws it; scaled by the window:
-// screen_scale)
+// screen::screen_scale)
 // ----------------------------------------------
-
-const REFERENCE: Vec2 = Vec2::new(1920.0, 1080.0);
 
 const BAR_RECT: [f32; 4] = [30.0, 20.0, 1860.0, 92.0];
 const MAP_ORIGIN: [f32; 2] = [52.0, 132.0];
@@ -107,18 +110,11 @@ const PRICE_WIDTH: f32 = 44.0;
 const GOODS_CELL_GAP: f32 = 6.0;
 const GOODS_COLUMN_GAP: f32 = 24.0;
 const PANEL_SLACK: f32 = 6.0; // Left under the panel's parts for what measuring misses.
-const TIGHT_LINE: f32 = 1.3; // The tallest row of text the screen keeps, in ems (tight).
 
 // Zoom: how far in, and by what factor a wheel step zooms.
 const MAX_ZOOM: f32 = 3.0;
 const WHEEL_STEP: f32 = 1.25;
 
-// How much the screen's sizes scale on a window of `window` points: as the generator's 1920 × 1080
-// composition fits it (the smaller of the width's and the height's ratios). The composition is
-// centred on a window of another shape.
-pub fn screen_scale(window: Vec2) -> f32 {
-    (window.x.max(1.0) / REFERENCE.x).min(window.y.max(1.0) / REFERENCE.y)
-}
 
 // ----------------------------------------------
 // State
@@ -353,48 +349,6 @@ impl DialogMenu for WorldMap {
     }
 }
 
-// The screen's scales on the current window: its sizes', and its text's over the realm theme's body
-// size (which the UI scale grows; the screen's layout follows the window only, so its text takes
-// the UI scale back out).
-#[derive(Copy, Clone)]
-struct Scales {
-    size: f32,
-    body: f32, // The theme's body text size at 100%.
-    origin: Vec2, // The composition's top left in the window.
-}
-
-impl Scales {
-    fn new(window: Vec2) -> Self {
-        let size = screen_scale(window);
-        let origin = Vec2::new(((window.x - REFERENCE.x * size) * 0.5).max(0.0), ((window.y - REFERENCE.y * size) * 0.5).max(0.0));
-        Self { size, body: body_text_size(), origin }
-    }
-
-    #[inline]
-    fn pt(&self, points: f32) -> f32 {
-        points * self.size
-    }
-
-    // The font scale of body text `points` large (the generator's font size: an em, where the
-    // theme's sizes are line heights, skin::font_em).
-    fn font(&self, points: f32) -> UiFontScale {
-        UiFontScale((points / skin::font_em(false) * self.size / (self.body * skin::ui_scale())).max(0.05))
-    }
-
-    // The font scale of text `points` large in the heading font (UiRichText::with_heading_font).
-    fn heading_font(&self, points: f32) -> UiFontScale {
-        UiFontScale((points / skin::font_em(true) * self.size / (self.body * skin::ui_scale())).max(0.05))
-    }
-}
-
-// The realm theme's body text size at 100% (its style's `text_styles.body.size`).
-fn body_text_size() -> f32 {
-    style_number("/text_styles/body/size", 20.0)
-}
-
-fn style_number(pointer: &str, default: f32) -> f32 {
-    skin::current().style.pointer(pointer).and_then(serde_json::Value::as_f64).map_or(default, |value| value as f32).max(0.01)
-}
 
 // A world map colour of the skin (its `world_map.colors`, a `text` name or "#RRGGBB(AA)").
 fn map_color(name: &str) -> Option<Color> {
@@ -461,46 +415,6 @@ fn map_height(art: &skin::SkinWorldMapDef) -> f32 {
     MAP_WIDTH * art.extent[1] / art.extent[0].max(1.0)
 }
 
-// A blank row `height` points tall.
-fn spacer(height: f32) -> UiSeparator {
-    UiSeparator::new().with_size(Vec2::new(1.0, height.max(0.0)))
-}
-
-// A group whose widgets keep to its left.
-fn left_group() -> UiWidgetGroup {
-    UiWidgetGroup::new().with_center_horizontally(false)
-}
-
-// A row holding `widget` `x` points (on the reference window) in from the composition's left.
-fn row(scales: Scales, x: f32, widget: impl Into<UiWidgetImpl>) -> UiColumns {
-    let mut columns = UiColumns::new().with_spacing(0.0);
-    columns.add_column(UiColumnWidth::Fixed(scales.origin.x + scales.pt(x)), UiWidgetGroup::new());
-    columns.add_column(UiColumnWidth::Fraction(1.0), left_group().with_widget(widget));
-    columns
-}
-
-// A line of text, `width` points wide (0: its own), labeled for automation.
-fn text_line(text: &str, label: &str, font: UiFontScale, color: Color, width: f32, align: UiTextAlign) -> UiRichText {
-    let mut line = UiRichText::from_spans([UiTextSpan::plain(text)]).with_label(label).with_font_scale(font).with_align(align).with_text_color(color);
-    if width > 0.0 {
-        line = line.with_width(width);
-    }
-    line
-}
-
-// `line` with its row cut to TIGHT_LINE ems of its text, `points` large, where the realm font's own
-// line is taller (Tampadesa's Amita draws its rows twice as tall as its letters): the mockup's
-// rows. Its letters stay centred in the row.
-fn tight(context: &GameUiContext, line: UiRichText, font: UiFontScale, points: f32, scales: Scales) -> UiRichText {
-    let row = context.calc_text_size(font, "Ag").y;
-    let spacing = (points * scales.size * TIGHT_LINE - row).min(0.0);
-    if spacing < 0.0 { line.with_line_spacing(spacing) } else { line }
-}
-
-// How wide `text` is at `font` in the theme's body (or heading) font.
-fn text_width(context: &GameUiContext, text: &str, font: UiFontScale) -> f32 {
-    context.calc_text_size(font, text).x.ceil() + 2.0
-}
 
 // ----------------------------------------------
 // Top bar
@@ -549,7 +463,7 @@ fn top_bar(context: &mut GameUiContext, scales: Scales) -> UiFrame {
     })
     .with_width(UiTextButtonWidth::Fixed(scales.pt(BAR_BUTTON[1])))
     .with_min_height(scales.pt(BAR_BUTTON[2]));
-    let button = scale_button_text(button, scales);
+    let button = scales.button_text(button, BUTTON_TEXT_SIZE);
 
     let centred = |widget: UiWidgetImpl| left_group().with_center_vertically(true).with_widget(widget);
     let mut columns = UiColumns::new().with_spacing(0.0);
@@ -571,13 +485,6 @@ fn top_bar(context: &mut GameUiContext, scales: Scales) -> UiFrame {
     frame
 }
 
-// A button's text at the generator's button size (in the title font), over the button text style's
-// own size at the UI scale.
-fn scale_button_text(button: UiTextButton, scales: Scales) -> UiTextButton {
-    let points = BUTTON_TEXT_SIZE / skin::font_em(true) * scales.size;
-    let font = points / (style_number("/text_styles/button/size", 20.0) * skin::ui_scale());
-    button.with_font_scale(UiFontScale(font.max(0.05)))
-}
 
 // ----------------------------------------------
 // Map
@@ -625,6 +532,9 @@ fn map_view(context: &mut GameUiContext, scales: Scales, art: &skin::SkinWorldMa
                     state.selected = Some(id);
                     ui_sound::play(*context.sound_sys(), SoundKey::ItemSelected);
                 }
+            } else if let (Some(next), Some(campaign)) = (scene.next(&id), state.campaign) {
+                ui_sound::play(*context.sound_sys(), SoundKey::ItemSelected);
+                open_begin_popup(context_as_mut::<GameUiContext>(context), campaign, next.mission_index);
             } else if let (Some((choice, site)), Some(campaign)) = (scene.site(&id), state.campaign) {
                 ui_sound::play(*context.sound_sys(), SoundKey::ItemSelected);
                 let context = context_as_mut::<GameUiContext>(context);
@@ -645,6 +555,9 @@ fn map_view(context: &mut GameUiContext, scales: Scales, art: &skin::SkinWorldMa
 
 // The label of the popup that asks before a site's mission starts (its buttons' paths start with it).
 pub const CHOOSE_SITE_POPUP_LABEL: &str = "Choose Site Popup";
+
+// The label of the popup that asks before the next mission starts, when it has no choice.
+pub const BEGIN_MISSION_POPUP_LABEL: &str = "Begin Mission Popup";
 
 // The label of the popup a site picked before the mission being played is finished opens.
 pub const FINISH_FIRST_POPUP_LABEL: &str = "Finish Mission Popup";
@@ -694,8 +607,40 @@ fn open_choice_popup(context: &mut GameUiContext, campaign: usize, step: usize, 
     });
 }
 
+// The next mission picked in the choice box when it offers no choice ("Begin the mission"; the box
+// shows it only once the mission being played is finished): asks before it starts, which leaves
+// the city being played. Begin starts it (home::start_campaign_mission, through the session command
+// queue); a map that can't load starts nothing, and the popup closes.
+fn open_begin_popup(context: &mut GameUiContext, campaign: usize, mission_index: usize) {
+    let dialog = super::find::<WorldMap>();
+    if !dialog.menu.is_open() || dialog.menu.is_message_box_open() {
+        return;
+    }
+    let mission = CampaignConfigs::get().campaign(campaign).and_then(|def| def.mission_display_name(mission_index)).unwrap_or_default().to_string();
+    dialog.menu.reset_message_box();
+    dialog.menu.open_message_box(context, move |context| {
+        let title = ui::text::format(UiTextCategory::Menu, "popup.begin_mission.title", &[("mission", &mission)]);
+        let body = ui::text::format(UiTextCategory::Menu, "popup.begin_mission.body", &[("mission", &mission)]);
+        let body = [(UiString::from(body), "ink"), (UiString::key(UiTextCategory::Menu, "popup.choose_site.unsaved"), "sub")];
+        let window = ui::screen_size(context.ui_sys());
+        let sized = |button: UiTextButton| skin::size_popup_button(button, window);
+        skin::popup_with_colored_body(context, BEGIN_MISSION_POPUP_LABEL, [UiString::from(title)], body).with_buttons([
+            sized(make_text_button(context, ButtonRole::Secondary, UiString::key(UiTextCategory::Menu, "button.cancel"), |_, context| {
+                super::find::<WorldMap>().menu.close_message_box(context);
+            })),
+            sized(make_text_button(context, ButtonRole::Primary, UiString::key(UiTextCategory::Menu, "popup.choose_site.begin"), move |_, context| {
+                // The session switch closes every dialog; a mission that can't start leaves the
+                // screen as it was.
+                if !super::home::start_campaign_mission(campaign, mission_index) {
+                    super::find::<WorldMap>().menu.close_message_box(context);
+                }
+            })),
+        ])
+    });
+}
+
 // A site picked while the campaign's mission being played is unfinished: the next mission waits
-// for its goals (MissionComplete's Next Mission brings the map back then). Or while another game is
+// for its goals (the debrief's Continue to the world map brings the map back then). Or while another game is
 // being played, which starting the mission would end. Says so, with an Ok.
 fn open_finish_first_popup(context: &mut GameUiContext, campaign: usize) {
     let dialog = super::find::<WorldMap>();
@@ -743,7 +688,7 @@ fn side_panel(context: &mut GameUiContext, scales: Scales, panel: Option<&world_
                 .with_min_height(scales.pt(PANEL_BUTTON_HEIGHT))
                 .with_enabled(false)
                 .with_tooltip(skin::tooltip(context, UiString::key(UiTextCategory::Menu, "world_map.coming_with_trade")));
-            scale_button_text(button, scales)
+            scales.button_text(button, BUTTON_TEXT_SIZE)
         })
         .collect();
     let gap = scales.pt(PANEL_BUTTON_GAP);

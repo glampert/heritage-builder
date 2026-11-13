@@ -7,9 +7,10 @@
 # until M10), the legend, zooming in with the wheel and back out to the fit, panning by dragging
 # the map (ui.drag), ui.layout_issues at 100%, 200% and 75% UI scale, and Return to the
 # city. Then the next mission's choice in the hidden test campaigns (one per realm): the choice box
-# and the A/B sites, the popup that says to finish the mission being played first, MissionComplete's
-# Next Mission opening the map, the popup a site asks in, Cancel, and Begin, which starts the B
-# mission and records the choice in the profile. Screenshots go to out/ui_world_map/.
+# and the A/B sites, the popup that says to finish the mission being played first, the debrief's
+# (MissionComplete) Continue to the world map opening the map, the popup a site asks in, Cancel,
+# and Begin, which starts the B mission and records the choice in the profile. Screenshots go to
+# out/ui_world_map/.
 #
 # Campaign I's first mission loads a sample save, so extract them first (unzip saves/sample_saves.zip,
 # as CI does). Run it with --fresh-profile, as CI does, at any window size (CI's is 1440 × 800; it
@@ -272,7 +273,7 @@
 # ---- The next mission's choice: the hidden test campaigns (only automation reaches them; Campaign
 # I's missions 6-8 bring the real ones). Playing a mission whose next step offers a choice, the map
 # shows its A/B sites and the choice box; until the mission's goals are met a site only says to
-# finish it first. Once they are, MissionComplete's Next Mission opens the map, a site (on the map
+# finish it first. Once they are, the debrief's Continue to the world map opens the map, a site (on the map
 # or in the box) asks before its mission starts, and the profile records the site picked. ----
 {"method": "profile.set", "params": {"reached": ["dragon_legacy", "test_choices", "test_choices_kambara", "test_choices_tampadesa"]}}
 {"method": "session.start_mission", "params": {"campaign": "test_choices", "mission": 0}}
@@ -301,7 +302,7 @@
 {"method": "ui.click", "params": {"path": "Finish Mission Popup/Ok"}}
 {"method": "assert.eq", "params": {"query": "ui.tree", "args": {"filter": "Finish Mission Popup"}, "path": "/widgets", "value": []}}
 {"method": "ui.click", "params": {"path": "WorldMap/bar/Return to the city"}}
-# A resident meets the goal: MissionComplete's Next Mission opens the map, its choice open.
+# A resident meets the goal: the debrief's Continue to the world map opens the map, its choice open.
 {"method": "cheats.set", "params": {"name": "instant_construction", "value": true}}
 {"method": "cheats.set", "params": {"name": "ignore_tile_cost", "value": true}}
 {"method": "world.place", "params": {"tile": "house0", "cell": [2, 2]}}
@@ -309,7 +310,7 @@
 {"method": "world.add_population", "params": {"cell": [2, 2], "count": 1}}
 {"method": "wait.until", "params": {"query": "dialog.current", "path": "/current", "op": "eq", "value": "MissionComplete", "timeout_frames": 300}}
 {"method": "assert.eq", "params": {"query": "session.state", "path": "/campaign/completed", "value": true}}
-{"method": "ui.click", "params": {"path": "MissionComplete/Next Mission"}}
+{"method": "ui.click", "params": {"path": "MissionComplete/panel/Continue to the world map"}}
 {"method": "input.move", "params": {"park": true}}
 {"method": "wait.frames", "params": {"frames": 3}}
 {"method": "assert.eq", "params": {"query": "dialog.current", "path": "/current", "value": "WorldMap"}}
@@ -362,11 +363,11 @@
 {"method": "assert.eq", "params": {"query": "ui.tree", "args": {"filter": "WorldMap/choice", "kind": "choice_box"}, "path": "/widgets", "value": []}}
 {"method": "ui.click", "params": {"path": "WorldMap/bar/Return to the city"}}
 
-# Kambara's choice box, on Campaign II's map: its test mission 0 has no goals, so MissionComplete
-# comes at once, and its Next Mission opens the map.
+# Kambara's choice box, on Campaign II's map: its test mission 0 has no goals, so the debrief
+# comes at once, and its Continue to the world map opens the map.
 {"method": "session.start_mission", "params": {"campaign": "test_choices_kambara", "mission": 0}}
 {"method": "wait.until", "params": {"query": "dialog.current", "path": "/current", "op": "eq", "value": "MissionComplete", "timeout_frames": 300}}
-{"method": "ui.click", "params": {"path": "MissionComplete/Next Mission"}}
+{"method": "ui.click", "params": {"path": "MissionComplete/panel/Continue to the world map"}}
 {"method": "input.move", "params": {"park": true}}
 {"method": "wait.frames", "params": {"frames": 3}}
 {"method": "assert.eq", "params": {"query": "world_map.state", "path": "/screen/campaign", "value": "test_choices_kambara"}}
@@ -386,7 +387,7 @@
 # Tampadesa's, on Campaign III's map, at the lower left.
 {"method": "session.start_mission", "params": {"campaign": "test_choices_tampadesa", "mission": 0}}
 {"method": "wait.until", "params": {"query": "dialog.current", "path": "/current", "op": "eq", "value": "MissionComplete", "timeout_frames": 300}}
-{"method": "ui.click", "params": {"path": "MissionComplete/Next Mission"}}
+{"method": "ui.click", "params": {"path": "MissionComplete/panel/Continue to the world map"}}
 {"method": "input.move", "params": {"park": true}}
 {"method": "wait.frames", "params": {"frames": 3}}
 {"method": "assert.eq", "params": {"query": "world_map.state", "path": "/screen/campaign", "value": "test_choices_tampadesa"}}
@@ -404,11 +405,12 @@
 {"method": "assert.eq", "params": {"query": "dialog.list", "path": "/dialogs/WorldMap", "value": false}}
 
 # In another realm's look (ui.realm) the map would show that realm's campaign, without this choice:
-# Next Mission starts the next step itself (the choice point, nothing picked).
+# the debrief's Continue to the next mission starts the next step itself (the choice point, nothing
+# picked).
 {"method": "session.start_mission", "params": {"campaign": "test_choices_tampadesa", "mission": 0}}
 {"method": "ui.realm", "params": {"realm": "dailong"}}
 {"method": "wait.until", "params": {"query": "dialog.current", "path": "/current", "op": "eq", "value": "MissionComplete", "timeout_frames": 300}}
-{"method": "ui.click", "params": {"path": "MissionComplete/Next Mission"}}
+{"method": "ui.click", "params": {"path": "MissionComplete/panel/Continue to the next mission"}}
 {"method": "wait.until", "params": {"query": "session.state", "path": "/campaign/mission_index", "op": "eq", "value": 1, "timeout_frames": 600}}
 {"method": "assert.eq", "params": {"query": "session.state", "path": "/campaign/campaign_id", "value": "test_choices_tampadesa"}}
 {"method": "assert.eq", "params": {"query": "dialog.list", "path": "/dialogs/WorldMap", "value": false}}

@@ -96,6 +96,8 @@ pub struct CourtRequest {
 }
 
 // The next mission's choice: "Next: The Southern Shore", "Choose Hội Thủy or Vân Cảng", and its sites.
+// Or, from WorldMapProvider::next_mission, the next mission without a choice: "Next: A Thriving
+// Town" and "Begin the mission", with no sites.
 #[derive(Clone, Debug, PartialEq)]
 pub struct NextMissionChoice {
     pub mission_index: usize, // The choice point.
@@ -145,6 +147,11 @@ pub trait WorldMapProvider {
 
     // The choice the next mission offers, if it has one.
     fn next_mission_choice(&self) -> Option<NextMissionChoice>;
+
+    // What the world map offers next: the next mission's choice, else, once it can start now (the
+    // mission being played is finished: `open`), the next mission itself, with no sites to pick
+    // (the debrief's Continue to the world map leads to it). None after the campaign's last step.
+    fn next_mission(&self) -> Option<NextMissionChoice>;
 
     // The player's cities.
     fn player_cities(&self) -> Vec<MapCity> {
@@ -223,6 +230,15 @@ impl<'a> ConfigWorldMapProvider<'a> {
 
     fn is_shown(&self, route: &RouteDef, cities: &[MapCity]) -> bool {
         route.cities.iter().all(|id| cities.iter().any(|city| city.id == *id))
+    }
+
+    // Whether the next mission can start now: once this campaign's mission is finished, or with
+    // no game being played; never over another game (a custom game, another campaign's mission).
+    fn is_next_open(&self) -> bool {
+        match &self.active {
+            Some(active) => active.completed,
+            None => !self.other_game,
+        }
     }
 
     // The next step: the one straight after the mission being played, finished or not, as
@@ -378,6 +394,27 @@ impl WorldMapProvider for ConfigWorldMapProvider<'_> {
         Some(panel)
     }
 
+    fn next_mission(&self) -> Option<NextMissionChoice> {
+        if let Some(choice) = self.next_mission_choice() {
+            return Some(choice);
+        }
+        let campaign = self.campaign();
+        let step = self.next_step()?;
+        if !self.is_next_open() {
+            return None;
+        }
+        let name = campaign.mission_display_name(step).unwrap_or_default();
+        let subtitle_key = "world_map.next.begin".to_string();
+        Some(NextMissionChoice {
+            mission_index: step,
+            title: text::format(UiTextCategory::Menu, "world_map.choice.title", &[("mission", name)]),
+            subtitle: text::get(UiTextCategory::Menu, "world_map.next.begin").to_string(),
+            subtitle_key,
+            sites: Vec::new(),
+            open: true,
+        })
+    }
+
     fn next_mission_choice(&self) -> Option<NextMissionChoice> {
         let campaign = self.campaign();
         let step = self.next_step()?;
@@ -412,12 +449,7 @@ impl WorldMapProvider for ConfigWorldMapProvider<'_> {
             subtitle: text::format(UiTextCategory::Menu, &subtitle_key, &[("a", site_name(ChoiceSite::A)), ("b", site_name(ChoiceSite::B))]),
             subtitle_key,
             sites,
-            // Open once this campaign's mission is finished, or with no game being played; never
-            // over another game (a custom game, another campaign's mission).
-            open: match &self.active {
-                Some(active) => active.completed,
-                None => !self.other_game,
-            },
+            open: self.is_next_open(),
         })
     }
 }

@@ -627,7 +627,7 @@ The existing dialogs keep their layouts but take their panels from the Đại Lo
 - Left: the HUD and the minimap are still updated under the world map (their widgets stay in `ui.tree`), and its rebuild key is formatted each frame; `ui_snapshot.jsonl` keeps the plain map only, since `ui_world_map.jsonl` screenshots the choice box and both popups.
 
 **Notes (2026-11-12, next mission choice and wrap-up) (commit `012257c`):**
-- The choice box, live in the view's corner where the world file puts it at the fit (it stays there zoomed), with dotted lines to the A/B sites. A site, or its name in the box, opens `Choose Site Popup`; Begin starts its mission (`campaign::start_mission_if_loadable`, shared with `session.start_mission`) and records the pick (`CampaignRecord::choices`, left out while empty: no version bump; a variant started records its site too). Until the mission being played is finished, or over another game, a site opens `Finish Mission Popup` instead; MissionComplete's Next Mission opens the map when the next step offers a choice the map shows.
+- The choice box, live in the view's corner where the world file puts it at the fit (it stays there zoomed), with dotted lines to the A/B sites. A site, or its name in the box, opens `Choose Site Popup`; Begin starts its mission (`campaign::start_mission_if_loadable`, shared with `session.start_mission`) and records the pick (`CampaignRecord::choices`, left out while empty: no version bump; a variant started records its site too). Until the mission being played is finished, or over another game, a site opens `Finish Mission Popup` instead; MissionComplete's Next Mission opens the map when the next step offers a choice the map shows (now the debrief's Continue to the world map, P3b).
 - Hidden test campaigns per realm; a choice point may word its line (`choice_text`), a site its name in it (`phrase`). `session.state` gains `campaign_id` and `mission_id`. Under a dialog the minimap and the camera's edge scrolling ignore the pointer (`covers_hud`). The minimap's tooltips and lens names are text keys.
 - Deviations: no italics; Kambara's stone and leaves are a flat fill; the box grows leftwards for longer titles; the home menu's Campaign starts a choice point itself while nothing is picked (`TODO(realm-ui)` at `Profile::next_mission`, Phase 3). Left from earlier steps: Tampadesa's rows cut, the window-only scale, the frame over the top bar, ships under routes, label angles, placeholder cities.
 - Verified: build, tests, web check, `--check`; CI scenarios; `ui_world_map` at 720p, 800p and 1080p; determinism twice; `ui_snapshot` per realm; `ui_build` and determinism replays; screenshots against the mockups.
@@ -665,7 +665,7 @@ The existing dialogs keep their layouts but take their panels from the Đại Lo
   - the newest line highlighted and freshly marked;
   - empty rows for the missions to come.
   - "Carved" text is the realm font drawn twice, with an offset shadow and highlight from skin colours.
-- [ ] **Panel, right:**
+- [x] **Panel, right:**
   - "MISSION N COMPLETE", the name, the city and its era year;
   - goals table, target and achieved, from the mission's requirements;
   - distinctions: hidden until M9 brings them;
@@ -675,7 +675,7 @@ The existing dialogs keep their layouts but take their panels from the Đại Lo
   - "Keep playing" and "Continue to the world map". The second goes to Phase 2's screen, or to the next mission when no world map is configured.
 - [ ] **Campaign complete:** the whole stele, a closing line, "Return to the menu". The profile marks the next campaign reached, which switches the home realm.
 - [ ] **Briefing** (`briefing-<realm>.jpg`): a scroll or tablet with the mission's name, its stele lead-in, its text (`MissionDef.description`, which nothing shows today), its goals, and an image slot. "Begin". It opens when a mission's map loads and from a HUD button during the mission.
-- [ ] **Flow:** `campaign::take_pending_prompt` opens the debrief. The `MissionComplete` and `CampaignComplete` kind names stay, so the snapshot scenario still finds them.
+- [x] **Flow:** `campaign::take_pending_prompt` opens the debrief. The `MissionComplete` and `CampaignComplete` kind names stay, so the snapshot scenario still finds them.
 - [ ] Scenario `ui_intermission.jsonl`: finish a test mission (by meeting its goals with `world.*` and `time.fast_forward`), check the debrief's goals, continue, finish the campaign, and check that the profile reached the next one.
 
 **Notes (2026-11-12, stele art and mission data) (commit `e76e91d`):**
@@ -685,6 +685,12 @@ The existing dialogs keep their layouts but take their panels from the Đại Lo
 - `campaign::stele` (lines per finished step, a variant taking its choice point's, newest, rows to come), `intermission.state`, the Skin Gallery's Intermission section (partly carved, so the empty rows show).
 - Deviations: one stele size; the campaign-complete screen (wider in the mockup) will scale it. Wrapping is measured, so title breaks differ from the generator's.
 - Verified: build, tests (`campaign`, `world_map`, `ui_skins`), web check, `--check`, CI scenarios, determinism twice; the gallery in each realm beside the mockups.
+
+**Notes (2026-11-13, debrief) (commit TODO):**
+- `MissionComplete` is the debrief, full screen (`dialogs.MissionComplete`), laid out from `intermission()`'s 1920 × 1080 coordinates with the world map's scales, now shared in `dialog/screen.rs`: the stele (a canvas: `SteleArt` on its niche, carved from a profile copy that already has the mission, since the profile records it a frame later) and the panel on the skin's `intermission.panel`: kicker, name, city and era year, goals (`UiTable` with `UiTableHeader`, letter-spaced, per-column colours and `UiTableStatusLook::Badges`), stats (`UiKeyValues::with_columns`, rows capped as the mockup's for Amita's tall line), the "joins the world map" note, Keep playing and Continue. Colours: `intermission.colors`, mostly the realm's `text` names.
+- Continue: the world map when it shows the campaign and offers the next mission (`WorldMapProvider::next_mission`: the A/B choice, or once the mission is finished "Next: <mission>" with `Begin the mission` and `Begin Mission Popup`); else the next mission at once; after the last step, CampaignComplete (P3c restyles it). `TODO(realm-ui)` for Phase 4's sequence and M9's distinctions and ratings.
+- Deviations: the space for distinctions and ratings sits between the goals and the stats; goals are the requirements against the stats (not the mockup's trade, requests, ratings); the note names no role; layout follows the window only, as the world map's. The choice-point TODO at `Profile::next_mission` stays for the briefing (P3d).
+- Verified: build, tests, web check, `--check` and its tests, CI scenarios, determinism twice; `ui_intermission.jsonl` (new, in CI) at 1280 × 720, 1440 × 800 and 1920 × 1080; screenshots in three realms beside the mockups.
 
 ### Phase 4: Story comics
 

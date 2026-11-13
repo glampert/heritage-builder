@@ -361,6 +361,11 @@ fn test_intermission_art_fits() {
             let value = art.stele.colors.get(name).unwrap_or_else(|| panic!("{realm}: the stele has no '{name}' colour"));
             assert!(resolves(value), "{realm}: stele colour '{name}': no colour '{value}'");
         }
+        // The debrief's panel colours, by role: every one the dialog asks for.
+        for role in ["text", "sub", "heading", "accent", "section", "rule", "check", "check_mark", "check_open", "note_fill", "note_border"] {
+            let value = art.colors.get(role).unwrap_or_else(|| panic!("{realm}: the intermission has no '{role}' colour"));
+            assert!(resolves(value), "{realm}: intermission colour '{role}': no colour '{value}'");
+        }
         for panel in [&art.panel, &skin.briefing.panel] {
             assert!(skin.panels.contains_key(panel), "{realm}: no panel '{panel}' for the intermission or briefing");
         }

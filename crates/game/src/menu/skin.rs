@@ -669,7 +669,11 @@ impl SkinWorldMapDef {
 // - `niche`: what stands behind the stele (Đại Long's lacquer niche, Kambara's vines, Tampadesa's
 //   whitewashed niche): its sprite goes on `rect` grown by `bleed` (left, top, right, bottom), as
 //   ui-art draws it;
-// - `stele`: the stele (SkinSteleDef).
+// - `stele`: the stele (SkinSteleDef);
+// - `colors`: the debrief's panel's colours by role (`text`, `sub`, `heading`, `accent` (the
+//   kicker), `section`, `rule`, `check`, `check_mark`, `check_open`, `note_fill`, `note_border`),
+//   each a `text` name (the realm's own, so a realm's file names only the ones it changes) or
+//   "#RRGGBB(AA)" (intermission_color).
 #[derive(Clone, Debug, Deserialize)]
 #[serde(default, deny_unknown_fields)]
 pub struct SkinIntermissionDef {
@@ -677,6 +681,7 @@ pub struct SkinIntermissionDef {
     pub panel: String,
     pub niche: SkinPlacedSpriteDef,
     pub stele: SkinSteleDef,
+    pub colors: BTreeMap<String, String>,
 }
 
 impl Default for SkinIntermissionDef {
@@ -686,8 +691,15 @@ impl Default for SkinIntermissionDef {
             panel: "card".into(),
             niche: SkinPlacedSpriteDef::default(),
             stele: SkinSteleDef::default(),
+            colors: BTreeMap::new(),
         }
     }
+}
+
+// A colour of the intermission's panel by its role (SkinIntermissionDef::colors), else the `text`
+// colour `fallback` names.
+pub fn intermission_color(role: &str, fallback: &str) -> Color {
+    intermission().colors.get(role).and_then(|name| color(name)).or_else(|| color(fallback)).unwrap_or(Color::black())
 }
 
 // A sprite drawn over `rect` (x, y, width, height in points on a 1920 × 1080 screen) grown by

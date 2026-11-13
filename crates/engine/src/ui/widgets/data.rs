@@ -84,7 +84,25 @@ const KEY_VALUE_GAP: f32 = 8.0;
 
 // The text in `rect`, cut at its width.
 fn draw_cell_text(ui: &egui::Ui, rect: egui::Rect, text: &str, font: &egui::FontId, color: egui::Color32, align: UiColumnAlign) {
-    let galley = ui.painter().layout(text.to_string(), font.clone(), color, f32::INFINITY);
+    draw_spaced_cell_text(ui, rect, text, font, color, align, 0.0);
+}
+
+// The same with `letter_spacing` points between its letters.
+fn draw_spaced_cell_text(
+    ui: &egui::Ui,
+    rect: egui::Rect,
+    text: &str,
+    font: &egui::FontId,
+    color: egui::Color32,
+    align: UiColumnAlign,
+    letter_spacing: f32,
+) {
+    let galley = if letter_spacing == 0.0 {
+        ui.painter().layout(text.to_string(), font.clone(), color, f32::INFINITY)
+    } else {
+        let format = egui::TextFormat { font_id: font.clone(), color, extra_letter_spacing: letter_spacing, ..Default::default() };
+        ui.painter().layout_job(egui::text::LayoutJob::single_section(text.to_string(), format))
+    };
     let anchor = align.anchor();
     let pos = anchor.anchor_size(align.anchor_pos(rect), galley.size()).min;
     ui.painter().with_clip_rect(rect.intersect(ui.clip_rect())).galley(pos, galley, color);
@@ -95,14 +113,55 @@ fn draw_cell_text(ui: &egui::Ui, rect: egui::Rect, text: &str, font: &egui::Font
 // ----------------------------------------------
 
 // Label and value pairs in two columns, labels on the left and values right-aligned, with a rule
-// under each row: a map's preview, the intermission's stats, the city pages. As wide as the menu
-// (or a given width). Recorded as kind "key_values", its value the pairs: [[label, value], ...].
+// under each row: a map's preview, the city pages. Or side by side (with_columns), each pair a
+// column with its label over its value, larger: the debrief's stats. As wide as the menu (or a
+// given width). Recorded as kind "key_values", its value the pairs: [[label, value], ...].
 pub struct UiKeyValues {
     label: UiString,
     pairs: Vec<(UiString, UiString)>,
     font_scale: UiFontScale,
     width: Option<f32>,
     look: UiRowLook,
+    columns: Option<UiKeyValueColumns>,
+}
+
+// The side-by-side layout (UiKeyValues::with_columns): each value at `value_font_scale`, in the
+// heading font or not, `gap` points under its label. `max_lines` caps the label's and the value's
+// rows at that many points (their text stays centred in them), for a font whose own line is much
+// taller than its letters; None keeps the font's.
+#[derive(Copy, Clone, Debug)]
+pub struct UiKeyValueColumns {
+    pub value_font_scale: UiFontScale,
+    pub heading_font: bool,
+    pub gap: f32,
+    pub max_lines: Option<[f32; 2]>,
+}
+
+impl UiKeyValueColumns {
+    fn value_font(&self, ui_sys: &UiSystem) -> egui::FontId {
+        let mut font = internal::font(ui_sys, self.value_font_scale);
+        if self.heading_font {
+            font.family = ui_sys.style_font(&egui::TextStyle::Heading).family;
+        }
+        font
+    }
+
+    // The label's and the value's rows: their fonts' lines, capped by `max_lines`.
+    fn lines(&self, ui_sys: &UiSystem, font_scale: UiFontScale) -> [f32; 2] {
+        let value_font = self.value_font(ui_sys);
+        let label_line = internal::calc_text_line_height(ui_sys, font_scale);
+        let value_line = ui_sys.ctx().fonts_mut(|fonts| fonts.row_height(&value_font));
+        match self.max_lines {
+            Some([label_max, value_max]) => [label_line.min(label_max.max(1.0)), value_line.min(value_max.max(1.0))],
+            None => [label_line, value_line],
+        }
+    }
+
+    // The height of the pairs: a label's row, the gap and a value's row, and the look's padding.
+    fn height(&self, ui_sys: &UiSystem, font_scale: UiFontScale, look: &UiRowLook) -> f32 {
+        let [label_row, value_row] = self.lines(ui_sys, font_scale);
+        label_row + look.padding * 2.0 + self.gap + value_row
+    }
 }
 
 impl UiWidget for UiKeyValues {
@@ -116,6 +175,11 @@ impl UiWidget for UiKeyValues {
         let ui_sys = context.ui_sys();
         let row = row_height(ui_sys, self.font_scale, &self.look);
         let font = internal::font(ui_sys, self.font_scale);
+
+        if let Some(columns) = self.columns {
+            self.draw_columns(ui_sys, &columns);
+            return;
+        }
 
         ui_sys.with_ui(|ui| {
             let width = self.width.unwrap_or_else(|| immediate::fill_size(ui).x);
@@ -144,6 +208,9 @@ impl UiWidget for UiKeyValues {
     fn measure(&self, context: &dyn UiWidgetContext) -> Vec2 {
         let ui_sys = context.ui_sys();
         let width = self.width.unwrap_or_else(|| internal::available_size(ui_sys).x);
+        if let Some(columns) = self.columns {
+            return Vec2::new(width, columns.height(ui_sys, self.font_scale, &self.look));
+        }
         Vec2::new(width, row_height(ui_sys, self.font_scale, &self.look) * self.pairs.len() as f32)
     }
 
@@ -164,7 +231,56 @@ impl Default for UiKeyValues {
 
 impl UiKeyValues {
     pub fn new() -> Self {
-        Self { label: UiString::default(), pairs: Vec::new(), font_scale: UiFontScale::default(), width: None, look: UiRowLook::default() }
+        Self {
+            label: UiString::default(),
+            pairs: Vec::new(),
+            font_scale: UiFontScale::default(),
+            width: None,
+            look: UiRowLook::default(),
+            columns: None,
+        }
+    }
+
+    // The pairs side by side, in columns of equal width, each label over its value (UiKeyValueColumns).
+    pub fn with_columns(mut self, columns: UiKeyValueColumns) -> Self {
+        debug_assert!(columns.value_font_scale.is_valid());
+        self.columns = Some(columns);
+        self
+    }
+
+    fn draw_columns(&self, ui_sys: &UiSystem, columns: &UiKeyValueColumns) {
+        let font = internal::font(ui_sys, self.font_scale);
+        let value_font = columns.value_font(ui_sys);
+        let label_line = internal::calc_text_line_height(ui_sys, self.font_scale);
+        let value_line = ui_sys.ctx().fonts_mut(|fonts| fonts.row_height(&value_font));
+        let [label_row, value_row] = columns.lines(ui_sys, self.font_scale);
+        let height = columns.height(ui_sys, self.font_scale, &self.look);
+
+        ui_sys.with_ui(|ui| {
+            let width = self.width.unwrap_or_else(|| immediate::fill_size(ui).x);
+            let (rect, response) = ui.allocate_exact_size(vec2(width, height), Sense::hover());
+            let label_color = self.look.label_color.map_or_else(|| ui.visuals().weak_text_color(), color32);
+            let value_color = self.look.value_color.map_or_else(|| ui.visuals().text_color(), color32);
+            let column_width = width / self.pairs.len().max(1) as f32;
+            for (index, (label, value)) in self.pairs.iter().enumerate() {
+                let left = rect.left() + column_width * index as f32;
+                let top = rect.top() + self.look.padding;
+                let cell_width = column_width - KEY_VALUE_GAP;
+                // Each text centred in its row, in a rect of its font's line so a capped row
+                // doesn't clip its letters.
+                let label_middle = pos2(left + cell_width * 0.5, top + label_row * 0.5);
+                let label_rect = egui::Rect::from_center_size(label_middle, vec2(cell_width, label_line));
+                draw_cell_text(ui, label_rect, label.resolve(), &font, label_color, UiColumnAlign::Left);
+                let value_middle = pos2(left + cell_width * 0.5, top + label_row + columns.gap + value_row * 0.5);
+                let value_rect = egui::Rect::from_center_size(value_middle, vec2(cell_width, value_line));
+                draw_cell_text(ui, value_rect, value.resolve(), &value_font, value_color, UiColumnAlign::Left);
+            }
+
+            immediate::record_lazy(ui_sys, ui, &response, "key_values", self.label.resolve(), None, true, || {
+                let pairs = self.pairs.iter().map(|(label, value)| serde_json::json!([label.resolve(), value.resolve()])).collect();
+                Some(serde_json::Value::Array(pairs))
+            });
+        });
     }
 
     // Names it in widget paths ("<menu>/key_values" without one).
@@ -219,11 +335,23 @@ pub struct UiTableColumn {
     pub title: UiString,
     pub width: UiColumnWidth,
     pub align: UiColumnAlign,
+    pub title_color: Option<Color>, // Its header's colour: the look's header colour if None.
+    pub color: Option<Color>,       // Its cells' colour: the look's label colour if None.
 }
 
 impl UiTableColumn {
     pub fn new(title: impl Into<UiString>, width: UiColumnWidth, align: UiColumnAlign) -> Self {
-        Self { title: title.into(), width, align }
+        Self { title: title.into(), width, align, title_color: None, color: None }
+    }
+
+    pub fn with_title_color(mut self, color: Color) -> Self {
+        self.title_color = Some(color);
+        self
+    }
+
+    pub fn with_color(mut self, color: Color) -> Self {
+        self.color = Some(color);
+        self
     }
 }
 
@@ -268,6 +396,9 @@ impl UiTableRow {
 pub enum UiTableStatusLook {
     Painted { done: Color, pending: Color, failed: Color },
     Sprites { done: TextureHandle, pending: TextureHandle, failed: TextureHandle },
+    // A disc in `done` with a tick in `mark` for a goal met; a ring in `open` for one still open,
+    // with a cross in it for one failed (the debrief's goals).
+    Badges { done: Color, mark: Color, open: Color },
 }
 
 impl Default for UiTableStatusLook {
@@ -290,6 +421,26 @@ pub struct UiTable {
     width: Option<f32>,
     look: UiRowLook,
     column_spacing: f32,
+    header: UiTableHeader,
+}
+
+// How a table's header row is drawn: its text at its own font scale (the table's if None), in the
+// heading font or not, with a rule under it or not, and its first column's title reaching over the
+// status column (a section title, as the debrief's "GOALS"), its letters `letter_spacing` points
+// apart.
+#[derive(Copy, Clone, Debug)]
+pub struct UiTableHeader {
+    pub font_scale: Option<UiFontScale>,
+    pub heading_font: bool,
+    pub rule: bool,
+    pub over_status: bool,
+    pub letter_spacing: f32,
+}
+
+impl Default for UiTableHeader {
+    fn default() -> Self {
+        Self { font_scale: None, heading_font: false, rule: true, over_status: false, letter_spacing: 0.0 }
+    }
 }
 
 // The width of a table's bullet column, over its bullets' size.
@@ -339,9 +490,15 @@ impl UiWidget for UiTable {
             0.0
         };
 
+        let header_row = self.header_height(ui_sys);
+        let mut header_font = internal::font(ui_sys, self.header.font_scale.unwrap_or(self.font_scale));
+        if self.header.heading_font {
+            header_font.family = ui_sys.style_font(&egui::TextStyle::Heading).family;
+        }
+
         ui_sys.with_ui(|ui| {
             let width = self.width.unwrap_or_else(|| immediate::fill_size(ui).x);
-            let height = row * (self.rows.len() + 1) as f32;
+            let height = header_row + row * self.rows.len() as f32;
             let (rect, response) = ui.allocate_exact_size(vec2(width, height), Sense::hover());
 
             let column_widths: Vec<UiColumnWidth> = self.columns.iter().map(|column| column.width).collect();
@@ -355,14 +512,21 @@ impl UiWidget for UiTable {
             let header_color = self.look.header_color.map_or_else(|| ui.visuals().strong_text_color(), color32);
             let text_color = self.look.label_color.map_or_else(|| ui.visuals().text_color(), color32);
 
-            let header_rect = egui::Rect::from_min_size(rect.min, vec2(width, row));
+            let header_rect = egui::Rect::from_min_size(rect.min, vec2(width, header_row));
             for (index, column) in self.columns.iter().enumerate() {
-                draw_cell_text(ui, column_rect(index, header_rect), column.title.resolve(), &font, header_color, column.align);
+                let mut cell = column_rect(index, header_rect);
+                if index == 0 && self.header.over_status {
+                    cell = cell.with_min_x(rect.left());
+                }
+                let color = column.title_color.map_or(header_color, color32);
+                draw_spaced_cell_text(ui, cell, column.title.resolve(), &header_font, color, column.align, self.header.letter_spacing);
             }
-            draw_rule(ui, header_rect, &UiRowLook { rule_color: self.look.rule_color.or(Some(Color::gray())), ..self.look });
+            if self.header.rule {
+                draw_rule(ui, header_rect, &UiRowLook { rule_color: self.look.rule_color.or(Some(Color::gray())), ..self.look });
+            }
 
             for (row_index, table_row) in self.rows.iter().enumerate() {
-                let row_rect = egui::Rect::from_min_size(pos2(rect.left(), rect.top() + row * (row_index + 1) as f32), vec2(width, row));
+                let row_rect = egui::Rect::from_min_size(pos2(rect.left(), rect.top() + header_row + row * row_index as f32), vec2(width, row));
                 if let (Some(look), Some(status)) = (&self.status_column, table_row.status) {
                     let icon_rect = egui::Rect::from_center_size(pos2(rect.left() + status_width * 0.5, row_rect.center().y), vec2(row, row) * 0.55);
                     draw_status(ui, icon_rect, status, look);
@@ -373,7 +537,8 @@ impl UiWidget for UiTable {
                 }
                 for (index, column) in self.columns.iter().enumerate() {
                     let text = table_row.cells.get(index).map_or("", String::as_str);
-                    draw_cell_text(ui, column_rect(index, row_rect), text, &font, text_color, column.align);
+                    let color = column.color.map_or(text_color, color32);
+                    draw_cell_text(ui, column_rect(index, row_rect), text, &font, color, column.align);
                 }
                 draw_rule(ui, row_rect, &self.look);
             }
@@ -385,7 +550,7 @@ impl UiWidget for UiTable {
     fn measure(&self, context: &dyn UiWidgetContext) -> Vec2 {
         let ui_sys = context.ui_sys();
         let width = self.width.unwrap_or_else(|| internal::available_size(ui_sys).x);
-        Vec2::new(width, row_height(ui_sys, self.font_scale, &self.look) * (self.rows.len() + 1) as f32)
+        Vec2::new(width, self.header_height(ui_sys) + row_height(ui_sys, self.font_scale, &self.look) * self.rows.len() as f32)
     }
 
     fn label(&self) -> &str {
@@ -406,6 +571,27 @@ fn draw_status(ui: &egui::Ui, rect: egui::Rect, status: UiTableStatus, look: &Ui
                 UiTableStatus::Failed => failed,
             };
             ui.painter().image(egui_texture(texture), rect, uv_full(), egui::Color32::WHITE);
+        }
+        UiTableStatusLook::Badges { done, mark, open } => {
+            let radius = rect.width() * 0.5;
+            let width = (rect.width() * 0.09).max(1.0);
+            match status {
+                UiTableStatus::Done => {
+                    ui.painter().circle_filled(rect.center(), radius, color32(done));
+                    let c = rect.center();
+                    let points = vec![c + vec2(-radius * 0.5, 0.0), c + vec2(-radius * 0.17, radius * 0.42), c + vec2(radius * 0.5, -radius * 0.42)];
+                    ui.painter().add(egui::Shape::line(points, Stroke::new(width * 1.4, color32(mark))));
+                }
+                UiTableStatus::Pending | UiTableStatus::Failed => {
+                    ui.painter().circle_stroke(rect.center(), radius - width * 0.5, Stroke::new(width, color32(open)));
+                    if status == UiTableStatus::Failed {
+                        let r = rect.shrink(radius * 0.58);
+                        let stroke = Stroke::new(width, color32(open));
+                        ui.painter().line_segment([r.left_top(), r.right_bottom()], stroke);
+                        ui.painter().line_segment([r.right_top(), r.left_bottom()], stroke);
+                    }
+                }
+            }
         }
         UiTableStatusLook::Painted { done, pending, failed } => {
             let width = (rect.width() * 0.18).max(1.5);
@@ -450,6 +636,26 @@ impl UiTable {
             width: None,
             look: UiRowLook::default(),
             column_spacing: 8.0,
+            header: UiTableHeader::default(),
+        }
+    }
+
+    // How its header row is drawn (UiTableHeader).
+    pub fn with_header(mut self, header: UiTableHeader) -> Self {
+        debug_assert!(header.font_scale.is_none_or(|scale| scale.is_valid()));
+        self.header = header;
+        self
+    }
+
+    // The header row's height: its text's line and the look's padding.
+    fn header_height(&self, ui_sys: &UiSystem) -> f32 {
+        let font_scale = self.header.font_scale.unwrap_or(self.font_scale);
+        if self.header.heading_font {
+            let mut font = internal::font(ui_sys, font_scale);
+            font.family = ui_sys.style_font(&egui::TextStyle::Heading).family;
+            ui_sys.ctx().fonts_mut(|fonts| fonts.row_height(&font)) + self.look.padding * 2.0
+        } else {
+            row_height(ui_sys, font_scale, &self.look)
         }
     }
 

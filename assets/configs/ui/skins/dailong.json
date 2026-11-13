@@ -346,6 +346,7 @@
     "choice_box": { "size": [292, 74], "border_width": 1.5, "inner_inset": 4, "inner_width": 1, "title_baseline": 32,
       "subtitle_baseline": 58, "text_x": 18, "line_width": 1.2, "seal": true } },
   "intermission": {
+    "colors": { "text": "ink", "sub": "sub", "heading": "title", "accent": "accent", "section": "accent", "rule": "#C9B083", "check": "accent", "check_mark": "on_accent", "check_open": "sub", "note_fill": "#F2E4C0", "note_border": "accent" },
     "backdrop": "skins/dailong/world_map_backdrop.jpg",
     "panel": "card",
     "niche": { "sprite": "skins/dailong/stele_niche.png", "rect": [106, 36, 708, 1018], "bleed": [-2, -42, -2, -2] },
@@ -369,6 +370,7 @@
     "CampaignPicker": {"size": [1600, 980]},
     "About": {"size": [940, 940]},
     "WorldMap": {"size": "fullscreen"},
+    "MissionComplete": {"size": "fullscreen"},
     "MainGame": {"size": [640, 920]},
     "LoadOrSaveGame": {"size": [1540, 940]},
     "MainSettings": {"size": [1200, 920]},

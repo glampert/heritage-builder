@@ -176,7 +176,7 @@ fn cmd_state(_context: &mut CommandContext, params: Value) -> CommandResult {
                 })
             })
             .collect::<Vec<_>>(),
-        "next_mission": provider.next_mission_choice().map(|choice| choice_json(&choice)),
+        "next_mission": provider.next_mission().map(|choice| choice_json(&choice)),
         "selected": screen.as_ref().filter(|screen| screen.campaign == Some(campaign_index)).and_then(|screen| screen.selected.clone()),
         "screen_open": screen.is_some(),
         "screen": screen.as_ref().map(screen_json),
@@ -234,6 +234,7 @@ fn route_json(route: &MapRoute) -> Value {
 fn choice_json(choice: &NextMissionChoice) -> Value {
     json!({
         "mission": choice.mission_index,
+        "choice": !choice.sites.is_empty(),
         "title": choice.title,
         "subtitle": choice.subtitle,
         "open": choice.open,

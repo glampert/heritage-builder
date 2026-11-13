@@ -148,9 +148,10 @@ pub fn start_mission_if_loadable(campaign_id: usize, mission_index: usize) -> Re
 // Advance to the next mission: the campaign's next step (a variant's sibling sites are skipped).
 // Returns its map to load, or None when there is no next mission (in which case a
 // CampaignComplete prompt is raised).
-// A next step with choices goes through the world map's choice box instead (MissionComplete opens
-// the world map, whose box starts the site picked); without a world map to show it, this starts
-// the site picked before (the profile's choice), else the choice point itself.
+// The debrief's (MissionComplete) Continue goes through the world map instead when it shows the
+// campaign: its choice box starts the site picked, or the next mission without a choice; without a
+// world map to show it, this starts the site picked before (the profile's choice), else the choice
+// point itself.
 pub fn advance_to_next_mission() -> Option<MissionMap> {
     let mgr = CampaignManager::get_mut();
 

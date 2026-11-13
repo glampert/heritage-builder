@@ -1,0 +1,210 @@
+# The intermission (docs/plans/realm-ui.md, Phase 3): the debrief after a mission (MissionComplete),
+# in each realm's look (ui.realm), and the campaign's flow through it. Campaign I's first mission
+# (its island already holds the twenty residents its goal asks for, so it's finished at once):
+# the debrief's stele (its title, the line just carved, the rows to come), "MISSION 1 COMPLETE", the
+# mission's name, its city and year, the goals table (target, achieved and a mark per goal), the
+# stats, the note that its city joins the world map, ui.layout_issues at 100%, 200% and 75% UI scale
+# in each realm, Keep playing (the game goes on, the mission stays finished), then Continue to the
+# world map, whose box offers the next mission without a choice ("Begin the mission", which asks in
+# a popup) and starts it. A hidden test campaign's mission (test_choices) is finished by settling a
+# resident: its Continue opens the map's A/B choice, whose site B starts the campaign's last mission;
+# finishing that one, Continue goes to the campaign-complete screen. Campaign I's last mission
+# (its goals met with world edits and finance.set) does the same and reaches Campaign II in the
+# profile. Screenshots go to out/ui_intermission/.
+#
+# Campaign I's missions load the sample saves, so extract them first (unzip saves/sample_saves.zip,
+# as CI does). Run it with --fresh-profile, as CI does, at any window size (CI's is 1440 × 800; it
+# was checked at 1280 × 720 and 1920 × 1080 too):
+#   cargo run -p HeritageBuilder -- --fresh-profile --script crates/game/tests/scenarios/ui_intermission.jsonl
+{"method": "time.fixed_dt", "params": {"dt": 0.016667}}
+{"method": "input.move", "params": {"park": true}}
+{"method": "wait.frames", "params": {"frames": 3}}
+# Listing the widgets turns the widget registry on, for the ui.tree queries below.
+{"method": "ui.tree", "params": {"filter": "Home/", "fields": ["path"]}}
+{"method": "profile.set", "params": {"reached": ["dragon_legacy", "test_choices"]}}
+
+# ---- Campaign I, mission 1: finished at once; the debrief opens ----
+{"method": "session.start_mission", "params": {"campaign": "dragon_legacy", "mission": 0}}
+{"method": "wait.until", "params": {"query": "dialog.current", "path": "/current", "op": "eq", "value": "MissionComplete", "timeout_frames": 300}}
+{"method": "assert.eq", "params": {"query": "session.state", "path": "/campaign/completed", "value": true}}
+{"method": "input.move", "params": {"park": true}}
+{"method": "wait.frames", "params": {"frames": 3}}
+# The stele: the campaign's title, mission 1's line freshly carved, a row for each mission to come.
+{"method": "assert.eq", "params": {"query": "ui.tree", "args": {"filter": "MissionComplete/stele", "kind": "canvas"}, "path": "/widgets/0/value", "value": {"title": "The Deeds of the Governor of the South", "lines": ["In the first year, Khai Sơn raised Phù Sa from the empty flood plain."], "newest": "In the first year, Khai Sơn raised Phù Sa from the empty flood plain.", "rows_to_come": 2}}}
+# The panel: the heading, the goals (one: twenty residents, met), the stats and the note.
+{"method": "assert.eq", "params": {"query": "ui.tree", "args": {"filter": "MissionComplete/panel/kicker"}, "path": "/widgets/0/value", "value": "MISSION 1 COMPLETE"}}
+{"method": "assert.eq", "params": {"query": "ui.tree", "args": {"filter": "MissionComplete/panel/name"}, "path": "/widgets/0/value", "value": "A Humble Beginning"}}
+{"method": "assert.eq", "params": {"query": "ui.tree", "args": {"filter": "MissionComplete/panel/place"}, "path": "/widgets/0/value", "value": "Phù Sa · Long Thái era, year 1"}}
+{"method": "assert.eq", "params": {"query": "ui.tree", "args": {"filter": "MissionComplete/panel/goals", "kind": "table"}, "path": "/widgets/0/value/columns", "value": ["GOALS", "TARGET", "ACHIEVED"]}}
+{"method": "assert.eq", "params": {"query": "ui.tree", "args": {"filter": "MissionComplete/panel/goals", "kind": "table"}, "path": "/widgets/0/value/rows/0/0", "value": "Population"}}
+{"method": "assert.eq", "params": {"query": "ui.tree", "args": {"filter": "MissionComplete/panel/goals", "kind": "table"}, "path": "/widgets/0/value/rows/0/1", "value": "20"}}
+{"method": "assert.eq", "params": {"query": "ui.tree", "args": {"filter": "MissionComplete/panel/goals", "kind": "table"}, "path": "/widgets/0/value/status", "value": ["done"]}}
+{"method": "assert.eq", "params": {"query": "ui.tree", "args": {"filter": "MissionComplete/panel/stats", "kind": "key_values"}, "path": "/widgets/0/value/2", "value": ["Years taken", "1"]}}
+{"method": "assert.eq", "params": {"query": "ui.tree", "args": {"filter": "MissionComplete/panel/stats", "kind": "key_values"}, "path": "/widgets/0/value/0/0", "value": "Population"}}
+{"method": "assert.eq", "params": {"query": "ui.tree", "args": {"filter": "MissionComplete/panel/note/joins"}, "path": "/widgets/0/value", "value": "Phù Sa joins the world map as one of your cities."}}
+{"method": "assert.exists", "params": {"query": "ui.tree", "args": {"filter": "MissionComplete/panel/Keep playing"}, "path": "/widgets/0"}}
+{"method": "assert.exists", "params": {"query": "ui.tree", "args": {"filter": "MissionComplete/panel/Continue to the world map"}, "path": "/widgets/0"}}
+{"method": "assert.eq", "params": {"query": "ui.layout_issues", "path": "/count", "value": 0}}
+{"method": "screenshot", "params": {"path": "out/ui_intermission/debrief_dailong.png"}}
+{"method": "config.set", "params": {"path": "/display/ui_scale_percent", "value": 200}}
+{"method": "wait.frames", "params": {"frames": 3}}
+{"method": "assert.eq", "params": {"query": "ui.layout_issues", "path": "/count", "value": 0}}
+{"method": "screenshot", "params": {"path": "out/ui_intermission/debrief_dailong_200.png"}}
+{"method": "config.set", "params": {"path": "/display/ui_scale_percent", "value": 75}}
+{"method": "wait.frames", "params": {"frames": 3}}
+{"method": "assert.eq", "params": {"query": "ui.layout_issues", "path": "/count", "value": 0}}
+{"method": "config.set", "params": {"path": "/display/ui_scale_percent", "value": 100}}
+{"method": "wait.frames", "params": {"frames": 3}}
+
+# The same debrief in Kambara's and Tampadesa's looks.
+{"method": "ui.realm", "params": {"realm": "kambara"}}
+{"method": "wait.frames", "params": {"frames": 3}}
+{"method": "assert.eq", "params": {"query": "dialog.current", "path": "/current", "value": "MissionComplete"}}
+{"method": "assert.eq", "params": {"query": "ui.tree", "args": {"filter": "MissionComplete/panel/place"}, "path": "/widgets/0/value", "value": "Phù Sa · Reign of Long Thái, year 1"}}
+{"method": "assert.eq", "params": {"query": "ui.layout_issues", "path": "/count", "value": 0}}
+{"method": "screenshot", "params": {"path": "out/ui_intermission/debrief_kambara.png"}}
+{"method": "config.set", "params": {"path": "/display/ui_scale_percent", "value": 200}}
+{"method": "wait.frames", "params": {"frames": 3}}
+{"method": "assert.eq", "params": {"query": "ui.layout_issues", "path": "/count", "value": 0}}
+{"method": "config.set", "params": {"path": "/display/ui_scale_percent", "value": 75}}
+{"method": "wait.frames", "params": {"frames": 3}}
+{"method": "assert.eq", "params": {"query": "ui.layout_issues", "path": "/count", "value": 0}}
+{"method": "config.set", "params": {"path": "/display/ui_scale_percent", "value": 100}}
+{"method": "ui.realm", "params": {"realm": "tampadesa"}}
+{"method": "wait.frames", "params": {"frames": 3}}
+{"method": "assert.eq", "params": {"query": "ui.layout_issues", "path": "/count", "value": 0}}
+{"method": "screenshot", "params": {"path": "out/ui_intermission/debrief_tampadesa.png"}}
+{"method": "config.set", "params": {"path": "/display/ui_scale_percent", "value": 200}}
+{"method": "wait.frames", "params": {"frames": 3}}
+{"method": "assert.eq", "params": {"query": "ui.layout_issues", "path": "/count", "value": 0}}
+{"method": "config.set", "params": {"path": "/display/ui_scale_percent", "value": 75}}
+{"method": "wait.frames", "params": {"frames": 3}}
+{"method": "assert.eq", "params": {"query": "ui.layout_issues", "path": "/count", "value": 0}}
+{"method": "config.set", "params": {"path": "/display/ui_scale_percent", "value": 100}}
+# In another realm's look the world map would show that realm's campaign: Continue starts the next
+# mission straight away instead.
+{"method": "assert.exists", "params": {"query": "ui.tree", "args": {"filter": "MissionComplete/panel/Continue to the next mission"}, "path": "/widgets/0"}}
+{"method": "ui.realm", "params": {"realm": "auto"}}
+{"method": "wait.frames", "params": {"frames": 3}}
+{"method": "assert.exists", "params": {"query": "ui.tree", "args": {"filter": "MissionComplete/panel/Continue to the world map"}, "path": "/widgets/0"}}
+
+# Keep playing: the debrief closes, the game goes on, and the mission stays finished.
+{"method": "ui.click", "params": {"path": "MissionComplete/panel/Keep playing"}}
+{"method": "assert.eq", "params": {"query": "dialog.list", "path": "/dialogs/MissionComplete", "value": false}}
+{"method": "time.fast_forward", "params": {"sim_secs": 2}}
+{"method": "assert.eq", "params": {"query": "dialog.list", "path": "/dialogs/MissionComplete", "value": false}}
+{"method": "assert.eq", "params": {"query": "session.state", "path": "/campaign/completed", "value": true}}
+{"method": "assert.eq", "params": {"query": "profile.state", "path": "/profile/campaigns/0/missions_finished", "value": [0]}}
+
+# ---- Continue to the world map: it offers the next mission, which has no choice ----
+{"method": "dialog.open", "params": {"name": "MissionComplete"}}
+{"method": "input.move", "params": {"park": true}}
+{"method": "wait.frames", "params": {"frames": 3}}
+{"method": "ui.click", "params": {"path": "MissionComplete/panel/Continue to the world map"}}
+{"method": "input.move", "params": {"park": true}}
+{"method": "wait.frames", "params": {"frames": 3}}
+{"method": "assert.eq", "params": {"query": "dialog.current", "path": "/current", "value": "WorldMap"}}
+{"method": "assert.eq", "params": {"query": "dialog.list", "path": "/dialogs/MissionComplete", "value": false}}
+{"method": "assert.eq", "params": {"query": "ui.tree", "args": {"filter": "WorldMap/choice", "kind": "choice_box"}, "path": "/widgets/0/value", "value": {"title": "Next: A Thriving Town", "subtitle": "Begin the mission", "mission": 1, "open": true}}}
+{"method": "assert.eq", "params": {"query": "world_map.state", "path": "/next_mission/choice", "value": false}}
+{"method": "assert.eq", "params": {"query": "ui.tree", "args": {"filter": "WorldMap/choice/Begin the mission", "kind": "choice_option"}, "path": "/widgets/0/value", "value": {"mission": 1}}}
+{"method": "assert.eq", "params": {"query": "ui.layout_issues", "path": "/count", "value": 0}}
+{"method": "screenshot", "params": {"path": "out/ui_intermission/world_map_next.png"}}
+# Begin the mission asks first; Cancel keeps the city being played.
+{"method": "ui.click", "params": {"path": "WorldMap/choice/Begin the mission"}}
+{"method": "assert.exists", "params": {"query": "ui.tree", "args": {"filter": "Begin Mission Popup/Begin A Thriving Town?"}, "path": "/widgets/0"}}
+{"method": "assert.eq", "params": {"query": "ui.layout_issues", "path": "/count", "value": 0}}
+{"method": "input.move", "params": {"park": true}}
+{"method": "wait.frames", "params": {"frames": 2}}
+{"method": "screenshot", "params": {"path": "out/ui_intermission/world_map_begin_popup.png"}}
+{"method": "ui.click", "params": {"path": "Begin Mission Popup/Cancel"}}
+{"method": "assert.eq", "params": {"query": "ui.tree", "args": {"filter": "Begin Mission Popup"}, "path": "/widgets", "value": []}}
+{"method": "assert.eq", "params": {"query": "session.state", "path": "/campaign/mission_index", "value": 0}}
+{"method": "ui.click", "params": {"path": "WorldMap/choice/Begin the mission"}}
+{"method": "ui.click", "params": {"path": "Begin Mission Popup/Begin the mission"}}
+{"method": "wait.until", "params": {"query": "session.state", "path": "/campaign/mission_index", "op": "eq", "value": 1, "timeout_frames": 600}}
+{"method": "assert.eq", "params": {"query": "session.state", "path": "/campaign/campaign_id", "value": "dragon_legacy"}}
+{"method": "assert.eq", "params": {"query": "session.state", "path": "/campaign/completed", "value": false}}
+{"method": "assert.eq", "params": {"query": "dialog.list", "path": "/dialogs/WorldMap", "value": false}}
+
+# ---- A test campaign: a resident meets mission 0's goal; Continue opens the map's A/B choice ----
+{"method": "session.start_mission", "params": {"campaign": "test_choices", "mission": 0}}
+{"method": "wait.frames", "params": {"frames": 3}}
+{"method": "assert.eq", "params": {"query": "session.state", "path": "/campaign/campaign_id", "value": "test_choices"}}
+{"method": "cheats.set", "params": {"name": "instant_construction", "value": true}}
+{"method": "cheats.set", "params": {"name": "ignore_tile_cost", "value": true}}
+{"method": "world.place", "params": {"tile": "house0", "cell": [2, 2]}}
+{"method": "time.fast_forward", "params": {"sim_secs": 1}}
+{"method": "world.add_population", "params": {"cell": [2, 2], "count": 1}}
+{"method": "wait.until", "params": {"query": "dialog.current", "path": "/current", "op": "eq", "value": "MissionComplete", "timeout_frames": 300}}
+{"method": "input.move", "params": {"park": true}}
+{"method": "wait.frames", "params": {"frames": 3}}
+{"method": "assert.eq", "params": {"query": "ui.tree", "args": {"filter": "MissionComplete/panel/name"}, "path": "/widgets/0/value", "value": "Test: The First Seal"}}
+{"method": "assert.eq", "params": {"query": "ui.tree", "args": {"filter": "MissionComplete/panel/goals", "kind": "table"}, "path": "/widgets/0/value/rows/0/1", "value": "1"}}
+{"method": "assert.eq", "params": {"query": "ui.tree", "args": {"filter": "MissionComplete/stele", "kind": "canvas"}, "path": "/widgets/0/value/rows_to_come", "value": 1}}
+{"method": "assert.eq", "params": {"query": "ui.layout_issues", "path": "/count", "value": 0}}
+{"method": "ui.click", "params": {"path": "MissionComplete/panel/Continue to the world map"}}
+{"method": "input.move", "params": {"park": true}}
+{"method": "wait.frames", "params": {"frames": 3}}
+{"method": "assert.eq", "params": {"query": "dialog.current", "path": "/current", "value": "WorldMap"}}
+{"method": "assert.eq", "params": {"query": "ui.tree", "args": {"filter": "WorldMap/choice", "kind": "choice_box"}, "path": "/widgets/0/value", "value": {"title": "Next: Test: The Southern Shore", "subtitle": "Choose Hội Thủy or Vân Cảng", "mission": 1, "open": true}}}
+{"method": "assert.eq", "params": {"query": "world_map.state", "path": "/next_mission/choice", "value": true}}
+{"method": "ui.click", "params": {"path": "WorldMap/choice/Vân Cảng"}}
+{"method": "ui.click", "params": {"path": "Choose Site Popup/Begin the mission"}}
+{"method": "wait.until", "params": {"query": "session.state", "path": "/campaign/mission_index", "op": "eq", "value": 2, "timeout_frames": 600}}
+{"method": "assert.eq", "params": {"query": "session.state", "path": "/campaign/mission_id", "value": "southern_shore_b"}}
+
+# Site B's mission is the campaign's last step: its Continue goes to the campaign-complete screen.
+{"method": "input.move", "params": {"park": true}}
+{"method": "wait.frames", "params": {"frames": 3}}
+{"method": "cheats.set", "params": {"name": "instant_construction", "value": true}}
+{"method": "cheats.set", "params": {"name": "ignore_tile_cost", "value": true}}
+{"method": "world.place", "params": {"tile": "house0", "cell": [2, 2]}}
+{"method": "time.fast_forward", "params": {"sim_secs": 1}}
+{"method": "world.add_population", "params": {"cell": [2, 2], "count": 1}}
+{"method": "wait.until", "params": {"query": "dialog.current", "path": "/current", "op": "eq", "value": "MissionComplete", "timeout_frames": 300}}
+{"method": "input.move", "params": {"park": true}}
+{"method": "wait.frames", "params": {"frames": 3}}
+{"method": "assert.eq", "params": {"query": "ui.tree", "args": {"filter": "MissionComplete/panel/kicker"}, "path": "/widgets/0/value", "value": "MISSION 2 COMPLETE"}}
+{"method": "assert.eq", "params": {"query": "ui.tree", "args": {"filter": "MissionComplete/stele", "kind": "canvas"}, "path": "/widgets/0/value/lines", "value": ["Test: at Phù Sa the first seal was set in the river mud.", "Test: at Vân Cảng the island harbour opened instead."]}}
+{"method": "assert.eq", "params": {"query": "ui.tree", "args": {"filter": "MissionComplete/stele", "kind": "canvas"}, "path": "/widgets/0/value/rows_to_come", "value": 0}}
+{"method": "assert.eq", "params": {"query": "ui.layout_issues", "path": "/count", "value": 0}}
+{"method": "screenshot", "params": {"path": "out/ui_intermission/debrief_last_mission.png"}}
+{"method": "ui.click", "params": {"path": "MissionComplete/panel/Continue"}}
+{"method": "wait.until", "params": {"query": "dialog.current", "path": "/current", "op": "eq", "value": "CampaignComplete", "timeout_frames": 60}}
+{"method": "assert.eq", "params": {"query": "profile.state", "path": "/profile/campaigns/1/finished", "value": true}}
+{"method": "dialog.close"}
+
+# ---- Campaign I's last mission: its goals met, Continue goes to the campaign-complete screen and
+# the profile reaches Campaign II ----
+{"method": "session.start_mission", "params": {"campaign": "dragon_legacy", "mission": 2}}
+{"method": "wait.frames", "params": {"frames": 3}}
+{"method": "assert.eq", "params": {"query": "session.state", "path": "/campaign/mission_index", "value": 2}}
+# Its goals: a hundred residents (its town has 44: three large houses take 75 more) and 5,000 gold.
+{"method": "cheats.set", "params": {"name": "instant_construction", "value": true}}
+{"method": "cheats.set", "params": {"name": "ignore_tile_cost", "value": true}}
+{"method": "world.place", "params": {"tile": "house4", "cell": [20, 20]}}
+{"method": "world.place", "params": {"tile": "house4", "cell": [20, 30]}}
+{"method": "world.place", "params": {"tile": "house4", "cell": [20, 40]}}
+{"method": "time.fast_forward", "params": {"sim_secs": 1}}
+{"method": "world.add_population", "params": {"cell": [20, 20], "count": 25}}
+{"method": "world.add_population", "params": {"cell": [20, 30], "count": 25}}
+{"method": "world.add_population", "params": {"cell": [20, 40], "count": 25}}
+{"method": "finance.set", "params": {"balance": 6000}}
+{"method": "time.fast_forward", "params": {"sim_secs": 1}}
+{"method": "wait.until", "params": {"query": "dialog.current", "path": "/current", "op": "eq", "value": "MissionComplete", "timeout_frames": 300}}
+{"method": "input.move", "params": {"park": true}}
+{"method": "wait.frames", "params": {"frames": 3}}
+{"method": "assert.eq", "params": {"query": "ui.tree", "args": {"filter": "MissionComplete/panel/kicker"}, "path": "/widgets/0/value", "value": "MISSION 3 COMPLETE"}}
+{"method": "assert.eq", "params": {"query": "ui.tree", "args": {"filter": "MissionComplete/panel/goals", "kind": "table"}, "path": "/widgets/0/value/status", "value": ["done", "done"]}}
+{"method": "assert.eq", "params": {"query": "ui.layout_issues", "path": "/count", "value": 0}}
+{"method": "assert.eq", "params": {"query": "profile.state", "path": "/profile/campaigns/0/reached", "value": true}}
+{"method": "ui.click", "params": {"path": "MissionComplete/panel/Continue"}}
+{"method": "wait.until", "params": {"query": "dialog.current", "path": "/current", "op": "eq", "value": "CampaignComplete", "timeout_frames": 60}}
+{"method": "assert.eq", "params": {"query": "profile.state", "path": "/profile/campaigns/0/finished", "value": true}}
+{"method": "assert.eq", "params": {"query": "profile.state", "path": "/profile/campaigns/2/id", "value": "temple_mountain"}}
+{"method": "assert.eq", "params": {"query": "profile.state", "path": "/profile/campaigns/2/reached", "value": true}}
+{"method": "dialog.close"}
+{"method": "session.quit_to_menu"}
+{"method": "wait.frames", "params": {"frames": 3}}
+{"method": "assert.eq", "params": {"query": "ui.realm", "path": "/realm", "value": "kambara"}}

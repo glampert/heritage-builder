@@ -64,6 +64,26 @@ pub fn site_id(site: ChoiceSite) -> String {
     format!("site:{site}")
 }
 
+// The id the choice box's "Begin the mission" answers the pointer by, when the next mission has no
+// choice (WorldMapProvider::next_mission).
+pub const NEXT_ID: &str = "next";
+
+// What a part of the choice box's second line picks: a site, or the next mission itself.
+#[derive(Copy, Clone)]
+pub enum ChoicePick<'c> {
+    Site(&'c ChoiceSiteInfo),
+    Next,
+}
+
+impl ChoicePick<'_> {
+    pub fn id(&self) -> String {
+        match self {
+            Self::Site(site) => site_id(site.site),
+            Self::Next => NEXT_ID.to_string(),
+        }
+    }
+}
+
 // ----------------------------------------------
 // MapScene
 // ----------------------------------------------
@@ -93,7 +113,7 @@ impl MapScene {
             compass: map.compass,
             extent: Vec2::new(map.extent[0], map.extent[1]),
             choice_box: map.choice_box,
-            choice: provider.next_mission_choice(),
+            choice: provider.next_mission(),
         }
     }
 
@@ -105,6 +125,11 @@ impl MapScene {
     pub fn site(&self, id: &str) -> Option<(&NextMissionChoice, &ChoiceSiteInfo)> {
         let choice = self.choice.as_ref()?;
         choice.sites.iter().find(|site| site_id(site.site) == id).map(|site| (choice, site))
+    }
+
+    // The next mission without a choice, if a pointer id names its "Begin the mission".
+    pub fn next(&self, id: &str) -> Option<&NextMissionChoice> {
+        self.choice.as_ref().filter(|choice| choice.sites.is_empty() && id == NEXT_ID)
     }
 
     // Draws the scene, records its markers, and returns the id of the city or site under the
@@ -221,7 +246,7 @@ impl MapScene {
             let (box_rect, names) = look.draw_choice_box(painter, choice, corner, &sites, transform.rect, hovered);
             let pointed = pointer_at.is_some_and(|cursor| box_rect.contains_point(cursor));
             if pointed {
-                hit = names.iter().find(|(_, rect)| pointer_at.is_some_and(|cursor| rect.contains_point(cursor))).map(|(site, _)| site_id(site.site));
+                hit = names.iter().find(|(_, rect)| pointer_at.is_some_and(|cursor| rect.contains_point(cursor))).map(|(pick, _)| pick.id());
             }
             (choice, box_rect, names, pointed)
         });
@@ -233,10 +258,13 @@ impl MapScene {
             let value = serde_json::json!({ "title": choice.title, "subtitle": choice.subtitle, "mission": choice.mission_index, "open": choice.open });
             record_map_item(ui_sys, "choice_box", "choice", box_rect, transform.rect, pointed, Some(value));
             let _scope = path_scope(ui_sys, "choice");
-            for (site, rect) in &names {
-                let id = site_id(site.site);
-                let value = serde_json::json!({ "site": site.site.to_string(), "mission": site.mission_index });
-                record_map_item(ui_sys, "choice_option", &site.phrase, *rect, transform.rect, hit.as_deref() == Some(id.as_str()), Some(value));
+            for (pick, rect) in &names {
+                let id = pick.id();
+                let (label, value) = match pick {
+                    ChoicePick::Site(site) => (site.phrase.as_str(), serde_json::json!({ "site": site.site.to_string(), "mission": site.mission_index })),
+                    ChoicePick::Next => (choice.subtitle.as_str(), serde_json::json!({ "mission": choice.mission_index })),
+                };
+                record_map_item(ui_sys, "choice_option", label, *rect, transform.rect, hit.as_deref() == Some(id.as_str()), Some(value));
             }
         }
         hit
@@ -332,10 +360,12 @@ impl MapTextLook {
     }
 }
 
-// A piece of the choice box's subtitle: its text, or a site's name.
+// A piece of the choice box's subtitle: its text, a site's name, or the next mission's "Begin the
+// mission" (a choice without sites).
 enum SubtitlePiece<'c> {
     Text(String),
     Site(&'c ChoiceSiteInfo),
+    Next(&'c str),
 }
 
 impl SubtitlePiece<'_> {
@@ -343,6 +373,7 @@ impl SubtitlePiece<'_> {
         match self {
             Self::Text(text) => text,
             Self::Site(site) => &site.phrase,
+            Self::Next(text) => text,
         }
     }
 }
@@ -351,6 +382,9 @@ impl SubtitlePiece<'_> {
 // names, so each can be pointed at. A text without both names in it is one piece, the subtitle as
 // the provider gives it.
 fn subtitle_pieces(choice: &NextMissionChoice) -> Vec<SubtitlePiece<'_>> {
+    if choice.sites.is_empty() {
+        return vec![SubtitlePiece::Next(&choice.subtitle)];
+    }
     split_subtitle(text::get(UiTextCategory::Menu, &choice.subtitle_key), choice)
 }
 
@@ -582,7 +616,7 @@ impl MapLook {
         sites: &[Vec2],
         view: Rect,
         hovered: Option<&str>,
-    ) -> (Rect, Vec<(&'c ChoiceSiteInfo, Rect)>) {
+    ) -> (Rect, Vec<(ChoicePick<'c>, Rect)>) {
         let k = self.scale;
         let def = &self.choice_box;
         let title_look = self.text("choice_title", 0.0);
@@ -593,7 +627,9 @@ impl MapLook {
         let measure = |text: &str, look: &UiLabelLook| painter.label_rect(Vec2::zero(), UiTextAnchor::Start, text, look).width();
         let title_width = measure(&choice.title, &title_look);
         let sub_width: f32 = pieces.iter().map(|piece| measure(piece.text(), &sub_look)).sum();
-        let seal_room = if def.seal { CHOICE_SEAL_ROOM * k } else { def.text_x * k };
+        // The seal's arrows (one each way) mark a choice: none for the next mission alone.
+        let seal = def.seal && !choice.sites.is_empty();
+        let seal_room = if seal { CHOICE_SEAL_ROOM * k } else { def.text_x * k };
         let width = (def.size[0] * k).max(def.text_x * k + title_width.max(sub_width) + seal_room).ceil();
         let height = (def.size[1] * k).ceil();
         // A wider box grows to the left, keeping the mockup's right edge, and stays a margin
@@ -655,20 +691,24 @@ impl MapLook {
                 SubtitlePiece::Text(_) => {
                     x += painter.label(Vec2::new(x, baseline), UiTextAnchor::Start, text, &sub_look).width();
                 }
-                SubtitlePiece::Site(site) => {
-                    let lit = hovered == Some(site_id(site.site).as_str());
+                SubtitlePiece::Site(_) | SubtitlePiece::Next(_) => {
+                    let pick = match piece {
+                        SubtitlePiece::Site(site) => ChoicePick::Site(site),
+                        _ => ChoicePick::Next,
+                    };
+                    let lit = hovered == Some(pick.id().as_str());
                     let look = if lit { UiLabelLook { color: hover, ..sub_look.clone() } } else { sub_look.clone() };
                     let drawn = painter.label(Vec2::new(x, baseline), UiTextAnchor::Start, text, &look);
                     let underline = baseline + 3.0 * k;
                     let color = if lit { hover } else { Color::new(sub_look.color.r, sub_look.color.g, sub_look.color.b, sub_look.color.a * 0.45) };
                     painter.line(Vec2::new(drawn.min.x, underline), Vec2::new(drawn.max.x, underline), (if lit { 1.5 } else { 1.0 }) * k, color);
-                    names.push((*site, drawn));
+                    names.push((pick, drawn));
                     x += drawn.width();
                 }
             }
         }
 
-        if def.seal {
+        if seal {
             self.draw_choice_seal(painter, rect.max - Vec2::new(CHOICE_SEAL_INSET[0] * k, CHOICE_SEAL_INSET[1] * k));
         }
         (rect, names)
@@ -791,6 +831,7 @@ mod tests {
             .map(|piece| match piece {
                 SubtitlePiece::Text(text) => text.clone(),
                 SubtitlePiece::Site(site) => format!("<{}>", site.site),
+                SubtitlePiece::Next(text) => format!("[{text}]"),
             })
             .collect()
     }

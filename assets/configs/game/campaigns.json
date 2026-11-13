@@ -146,7 +146,7 @@
       "missions": [
         {
           "name": "Test: The Lotus Gate",
-          "description": "A hidden test mission: only automation reaches this campaign, to show Kambara's choice box. No goals: it's finished at once, and MissionComplete's Next Mission opens the world map's choice.",
+          "description": "A hidden test mission: only automation reaches this campaign, to show Kambara's choice box. No goals: it's finished at once, and the debrief's Continue to the world map opens the world map's choice.",
           "stele_line": "mission.test_choices_kambara.1.stele",
           "lead_in": "mission.test_choices_kambara.1.lead_in",
           "briefing": "mission.test_choices_kambara.1.briefing",
@@ -195,7 +195,7 @@
       "missions": [
         {
           "name": "Test: The Copper Road",
-          "description": "A hidden test mission: only automation reaches this campaign, to show Tampadesa's choice box. No goals: it's finished at once, and MissionComplete's Next Mission opens the world map's choice.",
+          "description": "A hidden test mission: only automation reaches this campaign, to show Tampadesa's choice box. No goals: it's finished at once, and the debrief's Continue to the world map opens the world map's choice.",
           "stele_line": "mission.test_choices_tampadesa.1.stele",
           "lead_in": "mission.test_choices_tampadesa.1.lead_in",
           "briefing": "mission.test_choices_tampadesa.1.briefing",

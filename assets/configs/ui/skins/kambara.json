@@ -164,6 +164,7 @@
     "choice_box": { "size": [330, 78], "border_width": 2, "inner_inset": 5, "inner_width": 1.2, "subtitle_baseline": 60,
       "line_width": 1.5, "seal": false } },
   "intermission": {
+    "colors": { "rule": "#A1957A", "note_fill": "#C9BC9C" },
     "backdrop": "skins/kambara/world_map_backdrop.jpg",
     "niche": { "sprite": "skins/kambara/stele_niche.png", "rect": [30, 40, 850, 1030], "bleed": [-2, -38.5, -8.5, 4] },
     "stele": {

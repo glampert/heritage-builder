@@ -26,6 +26,7 @@ fn main() {
         test_utils::test_fn!(test_player_cities_and_routes),
         test_utils::test_fn!(test_trade_panels),
         test_utils::test_fn!(test_next_mission_choice),
+        test_utils::test_fn!(test_next_mission_without_a_choice),
         test_utils::test_fn!(test_validation_finds_errors),
         test_utils::test_fn!(test_base_art_maps_the_world_files),
     ]);
@@ -316,6 +317,31 @@ fn test_next_mission_choice() {
 
     // Campaign I's missions have no choices yet.
     assert!(provider(&Profile::new(), "dragon_legacy", None).next_mission_choice().is_none());
+}
+
+// The next mission without a choice (WorldMapProvider::next_mission): offered with no sites once
+// the mission being played is finished, as the debrief's Continue to the world map leads to it; a
+// choice comes first; nothing after the campaign's last step.
+fn test_next_mission_without_a_choice() {
+    let index = index_of("dragon_legacy");
+    let profile = Profile::new();
+    let playing = ActiveMission { campaign_id: index, mission_index: 0, completed: false };
+    assert!(provider(&profile, "dragon_legacy", Some(playing)).next_mission().is_none(), "not before the mission is finished");
+
+    let finished = ActiveMission { campaign_id: index, mission_index: 0, completed: true };
+    let next = provider(&profile, "dragon_legacy", Some(finished)).next_mission().expect("the next mission");
+    assert_eq!(next.mission_index, 1);
+    assert!(next.sites.is_empty() && next.open);
+    assert_eq!(next.title, "Next: A Thriving Town");
+    assert_eq!(next.subtitle, "Begin the mission");
+
+    let last = ActiveMission { campaign_id: index, mission_index: 2, completed: true };
+    assert!(provider(&profile, "dragon_legacy", Some(last)).next_mission().is_none(), "nothing after the last step");
+
+    // A next step with a choice: the choice itself.
+    let test = ActiveMission { campaign_id: index_of(TEST_CAMPAIGN), mission_index: 0, completed: true };
+    let choice = provider(&profile, TEST_CAMPAIGN, Some(test)).next_mission().expect("the choice");
+    assert_eq!(choice.sites.len(), 2);
 }
 
 // A broken file and broken choices are reported, each problem once.

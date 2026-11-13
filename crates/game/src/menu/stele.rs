@@ -66,11 +66,16 @@ impl SteleArt {
         }
     }
 
-    // The stele and its carved text, as draw_niche places things.
-    pub fn draw_stele(&self, painter: &UiPainter, stele: &Stele, origin: Vec2, scale: f32) {
+    // The stele's slab with nothing carved on it, as draw_niche places things.
+    pub fn draw_slab(&self, painter: &UiPainter, origin: Vec2, scale: f32) {
         if let Some(texture) = self.stele {
             painter.image(texture, place(self.def.sprite_rect(), origin, scale), Color::white());
         }
+    }
+
+    // The stele and its carved text, as draw_niche places things.
+    pub fn draw_stele(&self, painter: &UiPainter, stele: &Stele, origin: Vec2, scale: f32) {
+        self.draw_slab(painter, origin, scale);
         let layout = self.layout(painter, stele, origin, scale);
         for (text, at, look) in &layout.texts {
             painter.label(*at, UiTextAnchor::Start, text, look);
