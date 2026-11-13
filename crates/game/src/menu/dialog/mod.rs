@@ -62,6 +62,8 @@ pub use story_comic::{StoryEnd, StoryRequest};
 
 mod screen;
 
+pub mod preview;
+
 pub mod world_map;
 use world_map::WorldMap;
 

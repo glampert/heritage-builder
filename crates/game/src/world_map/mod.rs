@@ -21,7 +21,8 @@ pub fn provider(campaign_index: usize) -> Option<ConfigWorldMapProvider<'static>
     if !CampaignConfigs::is_initialized() || !WorldMapConfigs::is_initialized() {
         return None;
     }
-    let active = if campaign::CampaignManager::is_initialized() { campaign::active_mission() } else { None };
+    // A preview's mission (the developer editor's Screens menu) shows as the one being played.
+    let active = if campaign::CampaignManager::is_initialized() { campaign::preview::shown_mission() } else { None };
     // Any game but the home menu's: a custom game, another campaign's mission or a preset.
     let in_game = GameLoop::is_initialized() && GameLoop::get().is_in_game();
     ConfigWorldMapProvider::new(CampaignConfigs::get(), WorldMapConfigs::get(), campaign_index, profile::get(), active)
@@ -34,7 +35,7 @@ pub fn provider(campaign_index: usize) -> Option<ConfigWorldMapProvider<'static>
 pub fn default_campaign() -> usize {
     let configs = CampaignConfigs::get();
     if campaign::CampaignManager::is_initialized()
-        && let Some(mission) = campaign::active_mission()
+        && let Some(mission) = campaign::preview::shown_mission()
     {
         return mission.campaign_id;
     }

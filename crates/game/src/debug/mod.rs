@@ -41,6 +41,7 @@ mod inspector;
 mod misc;
 mod palette;
 mod prop;
+mod screens;
 mod settings;
 mod sim;
 mod systems;

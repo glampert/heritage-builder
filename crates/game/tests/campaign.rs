@@ -51,6 +51,7 @@ fn main() {
         test_utils::test_fn!(test_cancelled_mission_start),
         test_utils::test_fn!(test_briefing_request),
         test_utils::test_fn!(test_mission_calendar),
+        test_utils::test_fn!(test_mission_preview),
         // The stele:
         test_utils::test_fn!(test_stele_lines),
         test_utils::test_fn!(test_stele_validation),
@@ -482,6 +483,38 @@ fn test_briefing_request() {
     campaign::request_briefing();
     campaign::reset();
     assert!(!campaign::is_briefing_pending(), "a reset drops the request");
+}
+
+// A preview (the developer editor's Screens menu) shows its mission in place of the one being
+// played while it's set, and carves its stele from a copy of the profile played up to it.
+fn test_mission_preview() {
+    ensure_campaign_setup();
+    assert!(campaign::start_mission(0, 1).is_some());
+    let shown = |preview: Option<campaign::preview::MissionPreview>| {
+        campaign::preview::set(preview);
+        let mission = campaign::preview::shown_mission().map(|mission| (mission.campaign_id, mission.mission_index, mission.completed));
+        campaign::preview::set(None);
+        mission
+    };
+    assert_eq!(shown(None), Some((0, 1, false)), "the mission being played without one");
+    let preview = campaign::preview::MissionPreview { campaign_index: 0, mission_index: 0, completed: true };
+    assert_eq!(shown(Some(preview)), Some((0, 0, true)));
+    assert!(!campaign::preview::is_active(), "cleared");
+    assert_eq!(campaign::active_mission().map(|mission| mission.mission_index), Some(1), "the mission being played is left alone");
+
+    // Played up to a mission: every step before it finished (at its first mission), then it.
+    let configs = CampaignConfigs { campaigns: vec![build_choice_campaign()] };
+    let finished = |profile: &Profile| profile.record("choice_campaign").map(|record| record.missions_finished.clone()).unwrap_or_default();
+    let empty = Profile::default();
+    assert_eq!(finished(&campaign::preview::profile_through(&empty, &configs, 0, 0)), vec![0]);
+    assert_eq!(finished(&campaign::preview::profile_through(&empty, &configs, 0, 2)), vec![0, 2], "a variant: its choice point isn't finished");
+    assert_eq!(finished(&campaign::preview::profile_through(&empty, &configs, 0, 3)), vec![0, 1, 3]);
+    assert!(finished(&empty).is_empty(), "the profile itself is left alone");
+    // A step the profile finished through its variant stays so.
+    let mut played = Profile::default();
+    played.mission_finished(&configs, 0, 2);
+    assert_eq!(finished(&campaign::preview::profile_through(&played, &configs, 0, 3)), vec![0, 2, 3]);
+    campaign::reset();
 }
 
 // A mission starts with its own calendar over the configs' defaults, and its campaign's eras.

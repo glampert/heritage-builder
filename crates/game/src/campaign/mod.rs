@@ -14,6 +14,7 @@
 // unit-testable in the headless test harness.
 
 pub mod config;
+pub mod preview;
 pub mod stele;
 
 use config::{CampaignConfigs, MissionFinanceDef, MissionMap, MissionRisksDef};

@@ -377,6 +377,13 @@ impl GameLoop {
         self.engine.app_mut().request_quit();
     }
 
+    // Switches between the developer editor's menus and the in-game HUD at the start of the next
+    // frame, as Ctrl+/ does (the Screens menu's previews: menu::dialog::preview).
+    #[inline]
+    pub fn toggle_menus_mode(&mut self) {
+        self.session_cmd_queue.push_toggle_menus_mode();
+    }
+
     #[inline]
     pub fn quit_to_main_menu(&mut self) {
         self.after_save = None;

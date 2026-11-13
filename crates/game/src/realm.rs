@@ -160,12 +160,13 @@ pub fn override_realm() -> Option<Realm> {
     RealmState::get().override_realm
 }
 
-// The realm of the campaign being played, if any. None before the campaign configs load (tests).
+// The realm of the campaign being played (or previewed), if any. None before the campaign configs load (tests).
 pub fn active_campaign_realm() -> Option<Realm> {
     if !CampaignManager::is_initialized() || !CampaignConfigs::is_initialized() {
         return None;
     }
-    let active = campaign::active_mission()?;
+    // A preview's mission (the developer editor's Screens menu) shows as the one being played.
+    let active = campaign::preview::shown_mission()?;
     CampaignConfigs::get().campaign(active.campaign_id).map(|campaign| campaign.realm)
 }
 

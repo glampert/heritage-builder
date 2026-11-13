@@ -161,9 +161,9 @@ impl DialogMenu for MissionBriefing {
         &self.menu
     }
 
-    // Only in a campaign mission.
+    // Only in a campaign mission (or a preview's: campaign::preview).
     fn open(&mut self, context: &mut GameUiContext) -> bool {
-        if campaign::active_mission().is_none() {
+        if campaign::preview::shown_mission().is_none() {
             let state = STATE.as_mut();
             state.built.active = false;
             state.at_start = false;
@@ -174,9 +174,10 @@ impl DialogMenu for MissionBriefing {
     }
 
     // Closed while it offers a choice point's sites (Escape), the mission being played goes on: its
-    // site is the one picked, as its own button would record.
+    // site is the one picked, as its own button would record. A preview records nothing.
     fn close(&mut self, context: &mut GameUiContext) -> bool {
         if STATE.as_ref().at_start
+            && !campaign::preview::is_active()
             && let Some(active) = campaign::active_mission()
             && let Some(choice) = choice(active.campaign_id, active.mission_index)
             && let Some(&(site, _, _)) = choice.sites.iter().find(|(_, _, mission)| *mission == active.mission_index)
@@ -242,7 +243,7 @@ impl Briefing {
             goals: Vec::new(),
             choice: None,
         };
-        let Some(active) = campaign::active_mission() else {
+        let Some(active) = campaign::preview::shown_mission() else {
             return plain();
         };
         let (Some(campaign), Some(mission)) = (configs.campaign(active.campaign_id), configs.mission(active.campaign_id, active.mission_index)) else {
@@ -310,10 +311,11 @@ fn text_of(category: UiTextCategory, key: &str) -> String {
 // site of: the home menu's Campaign resumes a campaign at the choice point itself then
 // (Profile::next_mission). Worded as the world map's choice box words them
 // (world_map::provider::step_choice). Only the briefing that opens as the mission starts offers
-// them (open_at_mission_start).
+// them (open_at_mission_start). A preview offers them whatever the profile picked.
 fn choice(campaign_index: usize, mission_index: usize) -> Option<BriefingChoice> {
     let campaign = CampaignConfigs::get().campaign(campaign_index)?;
-    if profile::get().record(&campaign.id).and_then(|record| record.choice(mission_index)).is_some() {
+    let picked = profile::get().record(&campaign.id).and_then(|record| record.choice(mission_index)).is_some();
+    if picked && !campaign::preview::is_active() {
         return None;
     }
     let choice = step_choice(campaign, mission_index)?;
@@ -399,7 +401,12 @@ impl MissionBriefing {
     // variant, which records the pick once it has started (Profile::mission_started), so a map
     // that fails to load records nothing. If it can't start at all, nothing is recorded and this
     // mission goes on.
+    // A preview's sites only close it: nothing starts, nothing is recorded.
     fn on_site(context: &mut GameUiContext, choice: &BriefingChoice, mission: usize) {
+        if campaign::preview::is_active() {
+            super::close(DialogMenuKind::MissionBriefing, context);
+            return;
+        }
         let current = campaign::active_mission().map(|active| active.mission_index);
         if current == Some(mission) {
             super::close(DialogMenuKind::MissionBriefing, context);
@@ -674,7 +681,7 @@ fn buttons(context: &mut GameUiContext, scales: Scales, briefing: &Briefing, wid
 // The sequence before the mission being played (its own, else its step's), seen or not: Replay the
 // story's. None: it has none.
 fn replay_sequence() -> Option<crate::story::SequenceRef<'static>> {
-    let active = campaign::active_mission()?;
+    let active = campaign::preview::shown_mission()?;
     crate::story::before(active.campaign_id, active.mission_index)
 }
 

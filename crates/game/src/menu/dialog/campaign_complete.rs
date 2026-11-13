@@ -176,7 +176,7 @@ impl Summary {
             stele: None,
         };
         let configs = CampaignConfigs::get();
-        let Some(active) = campaign::active_mission() else {
+        let Some(active) = campaign::preview::shown_mission() else {
             return plain();
         };
         let Some(campaign) = configs.campaign(active.campaign_id) else {
@@ -195,7 +195,10 @@ impl Summary {
             .as_deref()
             .map(|key| ui::text::format(UiTextCategory::Menu, "campaign_complete.closing", &[("line", ui::text::get(UiTextCategory::Story, key))]));
 
-        let profile = profile::get();
+        // A preview's (campaign::preview): as if the campaign had been played up to its mission.
+        let preview_profile = campaign::preview::is_active()
+            .then(|| campaign::preview::profile_through(profile::get(), configs, active.campaign_id, active.mission_index));
+        let profile = preview_profile.as_ref().unwrap_or_else(|| profile::get());
         let stele = stele_data::stele(configs, profile, active.campaign_id, None);
 
         // A row per step: the mission that finished it (a site's, once picked), else the step's own.
@@ -297,7 +300,12 @@ impl CampaignComplete {
     // included). An epilogue Watch the epilogue played on this screen isn't played again: it's
     // recorded as seen now, its first viewing. Quitting also resets the campaign
     // (cmd_quit_to_main_menu).
+    // A preview's only closes the screen (campaign::preview).
     fn on_return(context: &mut GameUiContext) {
+        if campaign::preview::is_active() {
+            super::close(DialogMenuKind::CampaignComplete, context);
+            return;
+        }
         if let Some(campaign_index) = epilogue_campaign()
             && let Some(epilogue) = crate::story::epilogue(campaign_index)
             && !epilogue.is_seen(profile::get())
@@ -340,7 +348,7 @@ impl CampaignComplete {
 
 // The campaign whose epilogue the screen offers: the mission being played's, if it has one.
 fn epilogue_campaign() -> Option<usize> {
-    let campaign_index = campaign::active_mission()?.campaign_id;
+    let campaign_index = campaign::preview::shown_mission()?.campaign_id;
     crate::story::epilogue(campaign_index).map(|_| campaign_index)
 }
 

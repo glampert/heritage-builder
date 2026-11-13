@@ -8,7 +8,7 @@ use engine::{
 };
 use proc_macros::DrawDebugUi;
 
-use super::{log_viewer, preset_maps};
+use super::{log_viewer, preset_maps, screens::ScreensDevMenu};
 use crate::{
     cheats,
     GameLoop,
@@ -41,6 +41,8 @@ pub struct DebugSettingsDevMenu {
     save_file_name: String,
     #[debug_ui(skip)]
     save_file_selected: usize,
+    #[debug_ui(skip)]
+    screens_menu: ScreensDevMenu,
 
     #[debug_ui(edit)]
     draw_terrain: bool,
@@ -209,6 +211,8 @@ impl DebugSettingsDevMenu {
             ui::menu(ui_sys, "Camera", |_| self.camera_menu(context));
             ui::menu(ui_sys, "Cheats", |_| self.cheats_menu(context));
             ui::menu(ui_sys, "Debug", |_| self.debug_options_menu(context, enable_dev_tile_inspector));
+            // The retail screens hard to reach in play, as previews (debug::screens).
+            ui::menu(ui_sys, "Screens", |_| self.screens_menu.draw(context));
 
             self.menu_bar_text(context, log_viewer);
         });

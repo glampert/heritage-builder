@@ -562,6 +562,36 @@ pub const BEGIN_MISSION_POPUP_LABEL: &str = "Begin Mission Popup";
 // The label of the popup a site picked before the mission being played is finished opens.
 pub const FINISH_FIRST_POPUP_LABEL: &str = "Finish Mission Popup";
 
+// The world map's popups, as a preview opens them (debug::screens: dialog::preview).
+#[derive(Copy, Clone, PartialEq, Eq, Debug)]
+pub enum MapPopup {
+    BeginMission, // The next mission, without a choice, once the mission being played is finished.
+    ChooseSite,   // The choice's first site, once the mission being played is finished.
+    FinishFirst,  // A site, while the mission being played is unfinished.
+}
+
+// Opens `popup` over the open screen, as clicking the choice box's entry would. False if the
+// screen isn't open or its next mission doesn't offer it (no choice, a choice for the Begin popup,
+// or the choice not open, or open, as the popup needs).
+pub(super) fn open_popup(context: &mut GameUiContext, popup: MapPopup) -> bool {
+    if !super::is_open(DialogMenuKind::WorldMap) {
+        return false;
+    }
+    let Some(campaign) = STATE.as_ref().campaign else {
+        return false;
+    };
+    let Some(next) = world_map_data::provider(campaign).and_then(|provider| provider.next_mission()) else {
+        return false;
+    };
+    match popup {
+        MapPopup::BeginMission if next.sites.is_empty() && next.open => open_begin_popup(context, campaign, next.mission_index),
+        MapPopup::ChooseSite if next.open && !next.sites.is_empty() => open_choice_popup(context, campaign, next.mission_index, next.sites[0].clone()),
+        MapPopup::FinishFirst if !next.open && !next.sites.is_empty() => open_finish_first_popup(context, campaign),
+        _ => return false,
+    }
+    super::find::<WorldMap>().menu.is_message_box_open()
+}
+
 // A site of the next mission's choice picked (on the map or in the choice box) at the choice point
 // `step`: asks before its mission starts, which leaves the city being played. Begin starts it
 // (home::start_campaign_mission, through the session command queue) and records the site in the
@@ -596,8 +626,8 @@ fn open_choice_popup(context: &mut GameUiContext, campaign: usize, step: usize, 
             })),
             sized(make_text_button(context, ButtonRole::Primary, UiString::key(UiTextCategory::Menu, "popup.choose_site.begin"), move |_, context| {
                 // The session switch closes every dialog; a mission that can't start leaves the
-                // screen as it was.
-                if super::home::start_campaign_mission(campaign, mission_index) {
+                // screen as it was. A preview's (campaign::preview) starts nothing.
+                if !campaign::preview::is_active() && super::home::start_campaign_mission(campaign, mission_index) {
                     profile::on_choice_made(campaign, step, picked);
                 } else {
                     super::find::<WorldMap>().menu.close_message_box(context);
@@ -630,8 +660,8 @@ fn open_begin_popup(context: &mut GameUiContext, campaign: usize, mission_index:
             })),
             sized(make_text_button(context, ButtonRole::Primary, UiString::key(UiTextCategory::Menu, "popup.choose_site.begin"), move |_, context| {
                 // The session switch closes every dialog; a mission that can't start leaves the
-                // screen as it was.
-                if !super::home::start_campaign_mission(campaign, mission_index) {
+                // screen as it was. A preview's (campaign::preview) starts nothing.
+                if campaign::preview::is_active() || !super::home::start_campaign_mission(campaign, mission_index) {
                     super::find::<WorldMap>().menu.close_message_box(context);
                 }
             })),
@@ -648,7 +678,7 @@ fn open_finish_first_popup(context: &mut GameUiContext, campaign: usize) {
         return;
     }
     // None: another game is being played (a custom game, another campaign's mission).
-    let playing = campaign::active_mission()
+    let playing = campaign::preview::shown_mission()
         .filter(|active| active.campaign_id == campaign)
         .and_then(|active| CampaignConfigs::get().campaign(campaign)?.mission_display_name(active.mission_index));
     dialog.menu.reset_message_box();

@@ -1,0 +1,624 @@
+# The developer editor's Screens menu (debug::screens; docs/plans/realm-ui.md, Phase 4): opens the
+# retail screens that are hard to reach in play as previews (menu::dialog::preview), for a campaign
+# and mission picked in it, over the city in the in-game menus, and goes back to the editor once
+# they close. For each hidden test campaign, in its realm's look: the briefing (its Replay the
+# story), the briefing with a choice point's sites, the debrief (its Continue plays the sequence
+# after the mission, then the world map with the next mission's choice), the world map during the
+# mission, the Finish Mission and Choose Site popups (whose Begin starts nothing), the
+# campaign-complete screen (test_choices' Watch the epilogue) and a story sequence. Then Campaign
+# I: its Begin Mission popup, and in Kambara's look (Screens/Realm, the ui.realm override) its
+# debrief, whose Continue goes to the next mission (Kambara's map is Campaign II's) and starts
+# nothing, and I-B, a sequence whose mission isn't written yet. After each: the editor is back,
+# the profile is empty, no mission is being played and the map is the same; the simulation's
+# pause is kept. Layout issues 0 on every screen. Screenshots go to out/ui_dev_screens/.
+#
+# Run it with --fresh-profile, as CI does, at 1280 × 720, 1440 × 800 (CI's) and 1920 × 1080:
+#   cargo run -p HeritageBuilder -- --fresh-profile --window-size 1440x800 --script crates/game/tests/scenarios/ui_dev_screens.jsonl
+{"method": "time.fixed_dt", "params": {"dt": 0.016667}}
+{"method": "session.new_map", "params": {"size": [16, 16]}}
+# Paused from here to the Escape below: the previews keep it paused, not one simulation frame runs (sim_time stays).
+{"method": "sim.pause", "params": {}}
+{"method": "menus.mode", "params": {"mode": "DevEditor"}}
+{"method": "input.move", "params": {"park": true}}
+# Listing the widgets turns the widget registry on, for the ui.tree queries below.
+{"method": "ui.tree", "params": {"filter": "Screens", "fields": ["path"]}}
+
+# The menu: the realm (auto follows the campaign), the campaign, the mission, a button per screen, the sequences.
+{"method": "ui.click", "params": {"path": "Screens"}}
+{"method": "assert.eq", "params": {"query": "ui.tree", "args": {"filter": "Screens/Realm"}, "path": "/widgets/0/value", "value": "auto"}}
+{"method": "assert.eq", "params": {"query": "ui.tree", "args": {"filter": "Screens/Campaign"}, "path": "/widgets/0/value", "value": "dragon_legacy"}}
+{"method": "assert.eq", "params": {"query": "ui.tree", "args": {"filter": "Screens/Mission"}, "path": "/widgets/0/value", "value": "1 · A Humble Beginning"}}
+{"method": "assert.exists", "params": {"query": "ui.tree", "args": {"filter": "Screens/Mission briefing"}, "path": "/widgets/0"}}
+{"method": "assert.exists", "params": {"query": "ui.tree", "args": {"filter": "Screens/Debrief"}, "path": "/widgets/0"}}
+{"method": "assert.exists", "params": {"query": "ui.tree", "args": {"filter": "Screens/Campaign complete"}, "path": "/widgets/0"}}
+{"method": "assert.exists", "params": {"query": "ui.tree", "args": {"filter": "Screens/World map after the mission"}, "path": "/widgets/0"}}
+{"method": "assert.exists", "params": {"query": "ui.tree", "args": {"filter": "Screens/World map during the mission"}, "path": "/widgets/0"}}
+{"method": "assert.exists", "params": {"query": "ui.tree", "args": {"filter": "Screens/Begin Mission Popup"}, "path": "/widgets/0"}}
+{"method": "assert.exists", "params": {"query": "ui.tree", "args": {"filter": "Screens/Play sequence"}, "path": "/widgets/0"}}
+{"method": "assert.eq", "params": {"query": "ui.tree", "args": {"filter": "Screens/Sequence"}, "path": "/widgets/0/value", "value": "i_a"}}
+# Campaign II has no missions yet: no mission screens, no sequences.
+{"method": "ui.set", "params": {"path": "Screens/Campaign", "value": "temple_mountain"}}
+{"method": "assert.eq", "params": {"query": "ui.tree", "args": {"filter": "Screens/Debrief"}, "path": "/widgets", "value": []}}
+{"method": "assert.eq", "params": {"query": "ui.tree", "args": {"filter": "Screens/Play sequence"}, "path": "/widgets", "value": []}}
+{"method": "ui.click", "params": {"path": "Screens"}}
+{"method": "wait.frames", "params": {"frames": 2}}
+
+# ---- test_choices, in dailong's look ----
+# The briefing, as the Game menu shows it: Begin, and Replay the story (its sequence over it, recording nothing).
+# Paused in the editor, the simulation is paused again once the preview has closed, in the same frame.
+{"method": "assert.eq", "params": {"query": "sim.state", "path": "/sim_time", "value": 0.0}}
+{"method": "ui.click", "params": {"path": "Screens"}}
+{"method": "ui.set", "params": {"path": "Screens/Campaign", "value": "test_choices"}}
+{"method": "ui.set", "params": {"path": "Screens/Mission", "value": 0}}
+{"method": "ui.click", "params": {"path": "Screens/Mission briefing"}}
+{"method": "wait.until", "params": {"query": "dialog.current", "path": "/current", "op": "eq", "value": "MissionBriefing", "timeout_frames": 30}}
+{"method": "assert.eq", "params": {"query": "session.state", "path": "/menus_mode", "value": "InGame"}}
+{"method": "assert.eq", "params": {"query": "ui.realm", "path": "/realm", "value": "dailong"}}
+{"method": "assert.eq", "params": {"query": "ui.realm", "path": "/source", "value": "campaign"}}
+{"method": "assert.eq", "params": {"query": "ui.tree", "args": {"filter": "MissionBriefing/kicker"}, "path": "/widgets/0/value", "value": "TEST: CHOICES · MISSION 1"}}
+{"method": "assert.exists", "params": {"query": "ui.tree", "args": {"filter": "MissionBriefing/Begin"}, "path": "/widgets/0"}}
+{"method": "assert.eq", "params": {"query": "ui.layout_issues", "path": "/count", "value": 0}}
+{"method": "screenshot", "params": {"path": "out/ui_dev_screens/briefing_dailong.png"}}
+{"method": "ui.click", "params": {"path": "MissionBriefing/Replay the story"}}
+{"method": "wait.until", "params": {"query": "dialog.current", "path": "/current", "op": "eq", "value": "StoryComic", "timeout_frames": 30}}
+{"method": "assert.eq", "params": {"query": "story.state", "args": {"campaign": "test_choices"}, "path": "/playing", "value": {"campaign": "test_choices", "sequence": "test_before", "panel": 1}}}
+{"method": "ui.click", "params": {"path": "StoryComic/bar/Skip"}}
+{"method": "wait.until", "params": {"query": "dialog.current", "path": "/current", "op": "eq", "value": "MissionBriefing", "timeout_frames": 30}}
+{"method": "ui.click", "params": {"path": "MissionBriefing/Begin"}}
+{"method": "wait.until", "params": {"query": "session.state", "path": "/menus_mode", "op": "eq", "value": "DevEditor", "timeout_frames": 30}}
+{"method": "assert.eq", "params": {"query": "dialog.current", "path": "", "value": {"current": null}}}
+{"method": "assert.eq", "params": {"query": "profile.state", "path": "/profile/campaigns", "value": []}}
+{"method": "assert.eq", "params": {"query": "ui.realm", "path": "/source", "value": "default"}}
+{"method": "assert.eq", "params": {"query": "session.state", "path": "/map_size", "value": [16, 16]}}
+{"method": "assert.eq", "params": {"query": "sim.state", "path": "/paused", "value": true}}
+{"method": "assert.eq", "params": {"query": "sim.state", "path": "/sim_time", "value": 0.0}}
+{"method": "assert.eq", "params": {"query": "ui.realm", "path": "/source", "value": "default"}}
+
+# The choice point's briefing as its mission starts: its sites in place of Begin. Escape closes it, recording no pick.
+{"method": "ui.click", "params": {"path": "Screens"}}
+{"method": "ui.set", "params": {"path": "Screens/Campaign", "value": "test_choices"}}
+{"method": "ui.set", "params": {"path": "Screens/Mission", "value": 1}}
+{"method": "ui.click", "params": {"path": "Screens/Briefing with its sites"}}
+{"method": "wait.until", "params": {"query": "dialog.current", "path": "/current", "op": "eq", "value": "MissionBriefing", "timeout_frames": 30}}
+{"method": "assert.eq", "params": {"query": "session.state", "path": "/menus_mode", "value": "InGame"}}
+{"method": "assert.eq", "params": {"query": "ui.realm", "path": "/realm", "value": "dailong"}}
+{"method": "assert.exists", "params": {"query": "ui.tree", "args": {"filter": "MissionBriefing/choice"}, "path": "/widgets/0/value"}}
+{"method": "assert.eq", "params": {"query": "ui.tree", "args": {"filter": "MissionBriefing/Begin"}, "path": "/widgets", "value": []}}
+{"method": "assert.eq", "params": {"query": "ui.layout_issues", "path": "/count", "value": 0}}
+{"method": "screenshot", "params": {"path": "out/ui_dev_screens/briefing_sites_dailong.png"}}
+{"method": "input.key", "params": {"key": "Escape"}}
+{"method": "wait.until", "params": {"query": "session.state", "path": "/menus_mode", "op": "eq", "value": "DevEditor", "timeout_frames": 30}}
+{"method": "assert.eq", "params": {"query": "dialog.current", "path": "", "value": {"current": null}}}
+{"method": "assert.eq", "params": {"query": "profile.state", "path": "/profile/campaigns", "value": []}}
+{"method": "assert.eq", "params": {"query": "ui.realm", "path": "/source", "value": "default"}}
+{"method": "assert.eq", "params": {"query": "session.state", "path": "/map_size", "value": [16, 16]}}
+{"method": "assert.eq", "params": {"query": "sim.state", "path": "/paused", "value": true}}
+{"method": "assert.eq", "params": {"query": "sim.state", "path": "/sim_time", "value": 0.0}}
+{"method": "sim.resume", "params": {}}
+
+# The debrief of mission 1: its stele carved up to it. Continue plays the sequence after it (recording nothing), then the world map offers the next mission's choice.
+{"method": "ui.click", "params": {"path": "Screens"}}
+{"method": "ui.set", "params": {"path": "Screens/Campaign", "value": "test_choices"}}
+{"method": "ui.set", "params": {"path": "Screens/Mission", "value": 0}}
+{"method": "ui.click", "params": {"path": "Screens/Debrief"}}
+{"method": "wait.until", "params": {"query": "dialog.current", "path": "/current", "op": "eq", "value": "MissionComplete", "timeout_frames": 30}}
+{"method": "assert.eq", "params": {"query": "session.state", "path": "/menus_mode", "value": "InGame"}}
+{"method": "assert.eq", "params": {"query": "ui.realm", "path": "/realm", "value": "dailong"}}
+{"method": "assert.eq", "params": {"query": "ui.tree", "args": {"filter": "MissionComplete/panel/kicker"}, "path": "/widgets/0/value", "value": "MISSION 1 COMPLETE"}}
+{"method": "assert.eq", "params": {"query": "ui.tree", "args": {"filter": "MissionComplete/stele", "kind": "canvas"}, "path": "/widgets/0/value/rows_to_come", "value": 1}}
+{"method": "assert.eq", "params": {"query": "ui.layout_issues", "path": "/count", "value": 0}}
+{"method": "screenshot", "params": {"path": "out/ui_dev_screens/debrief_dailong.png"}}
+{"method": "ui.click", "params": {"path": "MissionComplete/panel/Continue to the world map"}}
+{"method": "wait.until", "params": {"query": "dialog.current", "path": "/current", "op": "eq", "value": "StoryComic", "timeout_frames": 30}}
+{"method": "assert.eq", "params": {"query": "story.state", "args": {"campaign": "test_choices"}, "path": "/playing/sequence", "value": "test_after"}}
+{"method": "ui.click", "params": {"path": "StoryComic/bar/Skip"}}
+{"method": "wait.until", "params": {"query": "dialog.current", "path": "/current", "op": "eq", "value": "WorldMap", "timeout_frames": 30}}
+{"method": "assert.eq", "params": {"query": "ui.tree", "args": {"filter": "WorldMap/choice", "kind": "choice_box"}, "path": "/widgets/0/value/open", "value": true}}
+{"method": "assert.eq", "params": {"query": "ui.tree", "args": {"filter": "WorldMap/choice", "kind": "choice_box"}, "path": "/widgets/0/value/mission", "value": 1}}
+{"method": "assert.eq", "params": {"query": "ui.layout_issues", "path": "/count", "value": 0}}
+{"method": "screenshot", "params": {"path": "out/ui_dev_screens/world_map_after_dailong.png"}}
+{"method": "ui.click", "params": {"path": "WorldMap/bar/Return to the city"}}
+{"method": "wait.until", "params": {"query": "session.state", "path": "/menus_mode", "op": "eq", "value": "DevEditor", "timeout_frames": 30}}
+{"method": "assert.eq", "params": {"query": "dialog.current", "path": "", "value": {"current": null}}}
+{"method": "assert.eq", "params": {"query": "profile.state", "path": "/profile/campaigns", "value": []}}
+{"method": "assert.eq", "params": {"query": "ui.realm", "path": "/source", "value": "default"}}
+{"method": "assert.eq", "params": {"query": "session.state", "path": "/map_size", "value": [16, 16]}}
+
+# The world map during mission 1: the choice shows, closed until the mission is finished; a site asks to finish it first.
+{"method": "ui.click", "params": {"path": "Screens"}}
+{"method": "ui.set", "params": {"path": "Screens/Campaign", "value": "test_choices"}}
+{"method": "ui.set", "params": {"path": "Screens/Mission", "value": 0}}
+{"method": "ui.click", "params": {"path": "Screens/World map during the mission"}}
+{"method": "wait.until", "params": {"query": "dialog.current", "path": "/current", "op": "eq", "value": "WorldMap", "timeout_frames": 30}}
+{"method": "assert.eq", "params": {"query": "session.state", "path": "/menus_mode", "value": "InGame"}}
+{"method": "assert.eq", "params": {"query": "ui.realm", "path": "/realm", "value": "dailong"}}
+{"method": "assert.eq", "params": {"query": "ui.tree", "args": {"filter": "WorldMap/choice", "kind": "choice_box"}, "path": "/widgets/0/value/open", "value": false}}
+{"method": "ui.click", "params": {"path": "WorldMap/bar/Return to the city"}}
+{"method": "wait.until", "params": {"query": "session.state", "path": "/menus_mode", "op": "eq", "value": "DevEditor", "timeout_frames": 30}}
+{"method": "assert.eq", "params": {"query": "dialog.current", "path": "", "value": {"current": null}}}
+{"method": "assert.eq", "params": {"query": "profile.state", "path": "/profile/campaigns", "value": []}}
+{"method": "assert.eq", "params": {"query": "ui.realm", "path": "/source", "value": "default"}}
+{"method": "assert.eq", "params": {"query": "session.state", "path": "/map_size", "value": [16, 16]}}
+{"method": "ui.click", "params": {"path": "Screens"}}
+{"method": "ui.set", "params": {"path": "Screens/Campaign", "value": "test_choices"}}
+{"method": "ui.set", "params": {"path": "Screens/Mission", "value": 0}}
+{"method": "ui.click", "params": {"path": "Screens/Finish Mission Popup"}}
+{"method": "wait.until", "params": {"query": "dialog.current", "path": "/current", "op": "eq", "value": "WorldMap", "timeout_frames": 30}}
+{"method": "assert.eq", "params": {"query": "session.state", "path": "/menus_mode", "value": "InGame"}}
+{"method": "assert.eq", "params": {"query": "ui.realm", "path": "/realm", "value": "dailong"}}
+{"method": "assert.exists", "params": {"query": "ui.tree", "args": {"filter": "Finish Mission Popup/Ok"}, "path": "/widgets/0"}}
+{"method": "assert.eq", "params": {"query": "ui.layout_issues", "path": "/count", "value": 0}}
+{"method": "screenshot", "params": {"path": "out/ui_dev_screens/finish_popup_dailong.png"}}
+{"method": "ui.click", "params": {"path": "Finish Mission Popup/Ok"}}
+{"method": "assert.eq", "params": {"query": "ui.tree", "args": {"filter": "Finish Mission Popup"}, "path": "/widgets", "value": []}}
+{"method": "ui.click", "params": {"path": "WorldMap/bar/Return to the city"}}
+{"method": "wait.until", "params": {"query": "session.state", "path": "/menus_mode", "op": "eq", "value": "DevEditor", "timeout_frames": 30}}
+{"method": "assert.eq", "params": {"query": "dialog.current", "path": "", "value": {"current": null}}}
+{"method": "assert.eq", "params": {"query": "profile.state", "path": "/profile/campaigns", "value": []}}
+{"method": "assert.eq", "params": {"query": "ui.realm", "path": "/source", "value": "default"}}
+{"method": "assert.eq", "params": {"query": "session.state", "path": "/map_size", "value": [16, 16]}}
+# The Choose Site popup: its Begin starts nothing in a preview, and only closes it.
+{"method": "ui.click", "params": {"path": "Screens"}}
+{"method": "ui.set", "params": {"path": "Screens/Campaign", "value": "test_choices"}}
+{"method": "ui.set", "params": {"path": "Screens/Mission", "value": 0}}
+{"method": "ui.click", "params": {"path": "Screens/Choose Site Popup"}}
+{"method": "wait.until", "params": {"query": "dialog.current", "path": "/current", "op": "eq", "value": "WorldMap", "timeout_frames": 30}}
+{"method": "assert.eq", "params": {"query": "session.state", "path": "/menus_mode", "value": "InGame"}}
+{"method": "assert.eq", "params": {"query": "ui.realm", "path": "/realm", "value": "dailong"}}
+{"method": "assert.exists", "params": {"query": "ui.tree", "args": {"filter": "Choose Site Popup/Begin the mission"}, "path": "/widgets/0"}}
+{"method": "assert.eq", "params": {"query": "ui.layout_issues", "path": "/count", "value": 0}}
+{"method": "screenshot", "params": {"path": "out/ui_dev_screens/choose_popup_dailong.png"}}
+{"method": "ui.click", "params": {"path": "Choose Site Popup/Begin the mission"}}
+{"method": "wait.frames", "params": {"frames": 3}}
+{"method": "assert.eq", "params": {"query": "dialog.current", "path": "/current", "value": "WorldMap"}}
+{"method": "assert.eq", "params": {"query": "ui.tree", "args": {"filter": "Choose Site Popup"}, "path": "/widgets", "value": []}}
+{"method": "ui.click", "params": {"path": "WorldMap/bar/Return to the city"}}
+{"method": "wait.until", "params": {"query": "session.state", "path": "/menus_mode", "op": "eq", "value": "DevEditor", "timeout_frames": 30}}
+{"method": "assert.eq", "params": {"query": "dialog.current", "path": "", "value": {"current": null}}}
+{"method": "assert.eq", "params": {"query": "profile.state", "path": "/profile/campaigns", "value": []}}
+{"method": "assert.eq", "params": {"query": "ui.realm", "path": "/source", "value": "default"}}
+{"method": "assert.eq", "params": {"query": "session.state", "path": "/map_size", "value": [16, 16]}}
+
+# The campaign-complete screen: the stele carved in full; Return to the menu only closes it.
+{"method": "ui.click", "params": {"path": "Screens"}}
+{"method": "ui.set", "params": {"path": "Screens/Campaign", "value": "test_choices"}}
+{"method": "ui.set", "params": {"path": "Screens/Mission", "value": 0}}
+{"method": "ui.click", "params": {"path": "Screens/Campaign complete"}}
+{"method": "wait.until", "params": {"query": "dialog.current", "path": "/current", "op": "eq", "value": "CampaignComplete", "timeout_frames": 30}}
+{"method": "assert.eq", "params": {"query": "session.state", "path": "/menus_mode", "value": "InGame"}}
+{"method": "assert.eq", "params": {"query": "ui.realm", "path": "/realm", "value": "dailong"}}
+{"method": "assert.eq", "params": {"query": "ui.tree", "args": {"filter": "CampaignComplete/stele", "kind": "canvas"}, "path": "/widgets/0/value/rows_to_come", "value": 0}}
+{"method": "assert.eq", "params": {"query": "ui.tree", "args": {"filter": "CampaignComplete/panel/stats"}, "path": "/widgets/0/value/0", "value": ["Missions", "2 of 2"]}}
+# Its epilogue plays over it, recording nothing.
+{"method": "ui.click", "params": {"path": "CampaignComplete/panel/Watch the epilogue"}}
+{"method": "wait.until", "params": {"query": "dialog.current", "path": "/current", "op": "eq", "value": "StoryComic", "timeout_frames": 30}}
+{"method": "assert.eq", "params": {"query": "story.state", "args": {"campaign": "test_choices"}, "path": "/playing/sequence", "value": "test_epilogue"}}
+{"method": "input.key", "params": {"key": "Escape"}}
+{"method": "wait.until", "params": {"query": "dialog.current", "path": "/current", "op": "eq", "value": "CampaignComplete", "timeout_frames": 30}}
+{"method": "assert.eq", "params": {"query": "ui.layout_issues", "path": "/count", "value": 0}}
+{"method": "screenshot", "params": {"path": "out/ui_dev_screens/campaign_complete_dailong.png"}}
+{"method": "ui.click", "params": {"path": "CampaignComplete/panel/Return to the menu"}}
+{"method": "wait.until", "params": {"query": "session.state", "path": "/menus_mode", "op": "eq", "value": "DevEditor", "timeout_frames": 30}}
+{"method": "assert.eq", "params": {"query": "dialog.current", "path": "", "value": {"current": null}}}
+{"method": "assert.eq", "params": {"query": "profile.state", "path": "/profile/campaigns", "value": []}}
+{"method": "assert.eq", "params": {"query": "ui.realm", "path": "/source", "value": "default"}}
+{"method": "assert.eq", "params": {"query": "session.state", "path": "/map_size", "value": [16, 16]}}
+
+# A story sequence: Escape skips it, and it isn't recorded seen.
+{"method": "ui.click", "params": {"path": "Screens"}}
+{"method": "ui.set", "params": {"path": "Screens/Campaign", "value": "test_choices"}}
+{"method": "ui.set", "params": {"path": "Screens/Sequence", "value": "test_after"}}
+{"method": "ui.click", "params": {"path": "Screens/Play sequence"}}
+{"method": "wait.until", "params": {"query": "dialog.current", "path": "/current", "op": "eq", "value": "StoryComic", "timeout_frames": 30}}
+{"method": "assert.eq", "params": {"query": "ui.realm", "path": "/realm", "value": "dailong"}}
+{"method": "assert.eq", "params": {"query": "story.state", "args": {"campaign": "test_choices"}, "path": "/playing", "value": {"campaign": "test_choices", "sequence": "test_after", "panel": 1}}}
+{"method": "assert.eq", "params": {"query": "ui.layout_issues", "path": "/count", "value": 0}}
+{"method": "input.key", "params": {"key": "Escape"}}
+{"method": "wait.until", "params": {"query": "session.state", "path": "/menus_mode", "op": "eq", "value": "DevEditor", "timeout_frames": 30}}
+{"method": "assert.eq", "params": {"query": "dialog.current", "path": "", "value": {"current": null}}}
+{"method": "assert.eq", "params": {"query": "profile.state", "path": "/profile/campaigns", "value": []}}
+{"method": "assert.eq", "params": {"query": "ui.realm", "path": "/source", "value": "default"}}
+{"method": "assert.eq", "params": {"query": "session.state", "path": "/map_size", "value": [16, 16]}}
+{"method": "assert.eq", "params": {"query": "story.state", "args": {"campaign": "test_choices"}, "path": "/seen", "value": []}}
+
+# ---- test_choices_kambara, in kambara's look ----
+# The briefing, as the Game menu shows it: Begin, and Replay the story (its sequence over it, recording nothing).
+{"method": "ui.click", "params": {"path": "Screens"}}
+{"method": "ui.set", "params": {"path": "Screens/Campaign", "value": "test_choices_kambara"}}
+{"method": "ui.set", "params": {"path": "Screens/Mission", "value": 0}}
+{"method": "ui.click", "params": {"path": "Screens/Mission briefing"}}
+{"method": "wait.until", "params": {"query": "dialog.current", "path": "/current", "op": "eq", "value": "MissionBriefing", "timeout_frames": 30}}
+{"method": "assert.eq", "params": {"query": "session.state", "path": "/menus_mode", "value": "InGame"}}
+{"method": "assert.eq", "params": {"query": "ui.realm", "path": "/realm", "value": "kambara"}}
+{"method": "assert.eq", "params": {"query": "ui.realm", "path": "/source", "value": "campaign"}}
+{"method": "assert.eq", "params": {"query": "ui.tree", "args": {"filter": "MissionBriefing/kicker"}, "path": "/widgets/0/value", "value": "TEST: CHOICES (KAMBARA) · MISSION 1"}}
+{"method": "assert.exists", "params": {"query": "ui.tree", "args": {"filter": "MissionBriefing/Begin"}, "path": "/widgets/0"}}
+{"method": "assert.eq", "params": {"query": "ui.layout_issues", "path": "/count", "value": 0}}
+{"method": "screenshot", "params": {"path": "out/ui_dev_screens/briefing_kambara.png"}}
+{"method": "ui.click", "params": {"path": "MissionBriefing/Replay the story"}}
+{"method": "wait.until", "params": {"query": "dialog.current", "path": "/current", "op": "eq", "value": "StoryComic", "timeout_frames": 30}}
+{"method": "assert.eq", "params": {"query": "story.state", "args": {"campaign": "test_choices_kambara"}, "path": "/playing", "value": {"campaign": "test_choices_kambara", "sequence": "test_before", "panel": 1}}}
+{"method": "ui.click", "params": {"path": "StoryComic/bar/Skip"}}
+{"method": "wait.until", "params": {"query": "dialog.current", "path": "/current", "op": "eq", "value": "MissionBriefing", "timeout_frames": 30}}
+{"method": "ui.click", "params": {"path": "MissionBriefing/Begin"}}
+{"method": "wait.until", "params": {"query": "session.state", "path": "/menus_mode", "op": "eq", "value": "DevEditor", "timeout_frames": 30}}
+{"method": "assert.eq", "params": {"query": "dialog.current", "path": "", "value": {"current": null}}}
+{"method": "assert.eq", "params": {"query": "profile.state", "path": "/profile/campaigns", "value": []}}
+{"method": "assert.eq", "params": {"query": "ui.realm", "path": "/source", "value": "default"}}
+{"method": "assert.eq", "params": {"query": "session.state", "path": "/map_size", "value": [16, 16]}}
+{"method": "assert.eq", "params": {"query": "ui.realm", "path": "/source", "value": "default"}}
+
+# The choice point's briefing as its mission starts: its sites in place of Begin. Escape closes it, recording no pick.
+{"method": "ui.click", "params": {"path": "Screens"}}
+{"method": "ui.set", "params": {"path": "Screens/Campaign", "value": "test_choices_kambara"}}
+{"method": "ui.set", "params": {"path": "Screens/Mission", "value": 1}}
+{"method": "ui.click", "params": {"path": "Screens/Briefing with its sites"}}
+{"method": "wait.until", "params": {"query": "dialog.current", "path": "/current", "op": "eq", "value": "MissionBriefing", "timeout_frames": 30}}
+{"method": "assert.eq", "params": {"query": "session.state", "path": "/menus_mode", "value": "InGame"}}
+{"method": "assert.eq", "params": {"query": "ui.realm", "path": "/realm", "value": "kambara"}}
+{"method": "assert.exists", "params": {"query": "ui.tree", "args": {"filter": "MissionBriefing/choice"}, "path": "/widgets/0/value"}}
+{"method": "assert.eq", "params": {"query": "ui.tree", "args": {"filter": "MissionBriefing/Begin"}, "path": "/widgets", "value": []}}
+{"method": "assert.eq", "params": {"query": "ui.layout_issues", "path": "/count", "value": 0}}
+{"method": "screenshot", "params": {"path": "out/ui_dev_screens/briefing_sites_kambara.png"}}
+{"method": "input.key", "params": {"key": "Escape"}}
+{"method": "wait.until", "params": {"query": "session.state", "path": "/menus_mode", "op": "eq", "value": "DevEditor", "timeout_frames": 30}}
+{"method": "assert.eq", "params": {"query": "dialog.current", "path": "", "value": {"current": null}}}
+{"method": "assert.eq", "params": {"query": "profile.state", "path": "/profile/campaigns", "value": []}}
+{"method": "assert.eq", "params": {"query": "ui.realm", "path": "/source", "value": "default"}}
+{"method": "assert.eq", "params": {"query": "session.state", "path": "/map_size", "value": [16, 16]}}
+
+# The debrief of mission 1: its stele carved up to it. Continue plays the sequence after it (recording nothing), then the world map offers the next mission's choice.
+{"method": "ui.click", "params": {"path": "Screens"}}
+{"method": "ui.set", "params": {"path": "Screens/Campaign", "value": "test_choices_kambara"}}
+{"method": "ui.set", "params": {"path": "Screens/Mission", "value": 0}}
+{"method": "ui.click", "params": {"path": "Screens/Debrief"}}
+{"method": "wait.until", "params": {"query": "dialog.current", "path": "/current", "op": "eq", "value": "MissionComplete", "timeout_frames": 30}}
+{"method": "assert.eq", "params": {"query": "session.state", "path": "/menus_mode", "value": "InGame"}}
+{"method": "assert.eq", "params": {"query": "ui.realm", "path": "/realm", "value": "kambara"}}
+{"method": "assert.eq", "params": {"query": "ui.tree", "args": {"filter": "MissionComplete/panel/kicker"}, "path": "/widgets/0/value", "value": "MISSION 1 COMPLETE"}}
+{"method": "assert.eq", "params": {"query": "ui.tree", "args": {"filter": "MissionComplete/stele", "kind": "canvas"}, "path": "/widgets/0/value/rows_to_come", "value": 1}}
+{"method": "assert.eq", "params": {"query": "ui.layout_issues", "path": "/count", "value": 0}}
+{"method": "screenshot", "params": {"path": "out/ui_dev_screens/debrief_kambara.png"}}
+{"method": "ui.click", "params": {"path": "MissionComplete/panel/Continue to the world map"}}
+{"method": "wait.until", "params": {"query": "dialog.current", "path": "/current", "op": "eq", "value": "StoryComic", "timeout_frames": 30}}
+{"method": "assert.eq", "params": {"query": "story.state", "args": {"campaign": "test_choices_kambara"}, "path": "/playing/sequence", "value": "test_after"}}
+{"method": "ui.click", "params": {"path": "StoryComic/bar/Skip"}}
+{"method": "wait.until", "params": {"query": "dialog.current", "path": "/current", "op": "eq", "value": "WorldMap", "timeout_frames": 30}}
+{"method": "assert.eq", "params": {"query": "ui.tree", "args": {"filter": "WorldMap/choice", "kind": "choice_box"}, "path": "/widgets/0/value/open", "value": true}}
+{"method": "assert.eq", "params": {"query": "ui.tree", "args": {"filter": "WorldMap/choice", "kind": "choice_box"}, "path": "/widgets/0/value/mission", "value": 1}}
+{"method": "assert.eq", "params": {"query": "ui.layout_issues", "path": "/count", "value": 0}}
+{"method": "screenshot", "params": {"path": "out/ui_dev_screens/world_map_after_kambara.png"}}
+{"method": "ui.click", "params": {"path": "WorldMap/bar/Return to the city"}}
+{"method": "wait.until", "params": {"query": "session.state", "path": "/menus_mode", "op": "eq", "value": "DevEditor", "timeout_frames": 30}}
+{"method": "assert.eq", "params": {"query": "dialog.current", "path": "", "value": {"current": null}}}
+{"method": "assert.eq", "params": {"query": "profile.state", "path": "/profile/campaigns", "value": []}}
+{"method": "assert.eq", "params": {"query": "ui.realm", "path": "/source", "value": "default"}}
+{"method": "assert.eq", "params": {"query": "session.state", "path": "/map_size", "value": [16, 16]}}
+
+# The world map during mission 1: the choice shows, closed until the mission is finished; a site asks to finish it first.
+{"method": "ui.click", "params": {"path": "Screens"}}
+{"method": "ui.set", "params": {"path": "Screens/Campaign", "value": "test_choices_kambara"}}
+{"method": "ui.set", "params": {"path": "Screens/Mission", "value": 0}}
+{"method": "ui.click", "params": {"path": "Screens/World map during the mission"}}
+{"method": "wait.until", "params": {"query": "dialog.current", "path": "/current", "op": "eq", "value": "WorldMap", "timeout_frames": 30}}
+{"method": "assert.eq", "params": {"query": "session.state", "path": "/menus_mode", "value": "InGame"}}
+{"method": "assert.eq", "params": {"query": "ui.realm", "path": "/realm", "value": "kambara"}}
+{"method": "assert.eq", "params": {"query": "ui.tree", "args": {"filter": "WorldMap/choice", "kind": "choice_box"}, "path": "/widgets/0/value/open", "value": false}}
+{"method": "ui.click", "params": {"path": "WorldMap/bar/Return to the city"}}
+{"method": "wait.until", "params": {"query": "session.state", "path": "/menus_mode", "op": "eq", "value": "DevEditor", "timeout_frames": 30}}
+{"method": "assert.eq", "params": {"query": "dialog.current", "path": "", "value": {"current": null}}}
+{"method": "assert.eq", "params": {"query": "profile.state", "path": "/profile/campaigns", "value": []}}
+{"method": "assert.eq", "params": {"query": "ui.realm", "path": "/source", "value": "default"}}
+{"method": "assert.eq", "params": {"query": "session.state", "path": "/map_size", "value": [16, 16]}}
+{"method": "ui.click", "params": {"path": "Screens"}}
+{"method": "ui.set", "params": {"path": "Screens/Campaign", "value": "test_choices_kambara"}}
+{"method": "ui.set", "params": {"path": "Screens/Mission", "value": 0}}
+{"method": "ui.click", "params": {"path": "Screens/Finish Mission Popup"}}
+{"method": "wait.until", "params": {"query": "dialog.current", "path": "/current", "op": "eq", "value": "WorldMap", "timeout_frames": 30}}
+{"method": "assert.eq", "params": {"query": "session.state", "path": "/menus_mode", "value": "InGame"}}
+{"method": "assert.eq", "params": {"query": "ui.realm", "path": "/realm", "value": "kambara"}}
+{"method": "assert.exists", "params": {"query": "ui.tree", "args": {"filter": "Finish Mission Popup/Ok"}, "path": "/widgets/0"}}
+{"method": "assert.eq", "params": {"query": "ui.layout_issues", "path": "/count", "value": 0}}
+{"method": "screenshot", "params": {"path": "out/ui_dev_screens/finish_popup_kambara.png"}}
+{"method": "ui.click", "params": {"path": "Finish Mission Popup/Ok"}}
+{"method": "assert.eq", "params": {"query": "ui.tree", "args": {"filter": "Finish Mission Popup"}, "path": "/widgets", "value": []}}
+{"method": "ui.click", "params": {"path": "WorldMap/bar/Return to the city"}}
+{"method": "wait.until", "params": {"query": "session.state", "path": "/menus_mode", "op": "eq", "value": "DevEditor", "timeout_frames": 30}}
+{"method": "assert.eq", "params": {"query": "dialog.current", "path": "", "value": {"current": null}}}
+{"method": "assert.eq", "params": {"query": "profile.state", "path": "/profile/campaigns", "value": []}}
+{"method": "assert.eq", "params": {"query": "ui.realm", "path": "/source", "value": "default"}}
+{"method": "assert.eq", "params": {"query": "session.state", "path": "/map_size", "value": [16, 16]}}
+# The Choose Site popup: its Begin starts nothing in a preview, and only closes it.
+{"method": "ui.click", "params": {"path": "Screens"}}
+{"method": "ui.set", "params": {"path": "Screens/Campaign", "value": "test_choices_kambara"}}
+{"method": "ui.set", "params": {"path": "Screens/Mission", "value": 0}}
+{"method": "ui.click", "params": {"path": "Screens/Choose Site Popup"}}
+{"method": "wait.until", "params": {"query": "dialog.current", "path": "/current", "op": "eq", "value": "WorldMap", "timeout_frames": 30}}
+{"method": "assert.eq", "params": {"query": "session.state", "path": "/menus_mode", "value": "InGame"}}
+{"method": "assert.eq", "params": {"query": "ui.realm", "path": "/realm", "value": "kambara"}}
+{"method": "assert.exists", "params": {"query": "ui.tree", "args": {"filter": "Choose Site Popup/Begin the mission"}, "path": "/widgets/0"}}
+{"method": "assert.eq", "params": {"query": "ui.layout_issues", "path": "/count", "value": 0}}
+{"method": "screenshot", "params": {"path": "out/ui_dev_screens/choose_popup_kambara.png"}}
+{"method": "ui.click", "params": {"path": "Choose Site Popup/Begin the mission"}}
+{"method": "wait.frames", "params": {"frames": 3}}
+{"method": "assert.eq", "params": {"query": "dialog.current", "path": "/current", "value": "WorldMap"}}
+{"method": "assert.eq", "params": {"query": "ui.tree", "args": {"filter": "Choose Site Popup"}, "path": "/widgets", "value": []}}
+{"method": "ui.click", "params": {"path": "WorldMap/bar/Return to the city"}}
+{"method": "wait.until", "params": {"query": "session.state", "path": "/menus_mode", "op": "eq", "value": "DevEditor", "timeout_frames": 30}}
+{"method": "assert.eq", "params": {"query": "dialog.current", "path": "", "value": {"current": null}}}
+{"method": "assert.eq", "params": {"query": "profile.state", "path": "/profile/campaigns", "value": []}}
+{"method": "assert.eq", "params": {"query": "ui.realm", "path": "/source", "value": "default"}}
+{"method": "assert.eq", "params": {"query": "session.state", "path": "/map_size", "value": [16, 16]}}
+
+# The campaign-complete screen: the stele carved in full; Return to the menu only closes it.
+{"method": "ui.click", "params": {"path": "Screens"}}
+{"method": "ui.set", "params": {"path": "Screens/Campaign", "value": "test_choices_kambara"}}
+{"method": "ui.set", "params": {"path": "Screens/Mission", "value": 0}}
+{"method": "ui.click", "params": {"path": "Screens/Campaign complete"}}
+{"method": "wait.until", "params": {"query": "dialog.current", "path": "/current", "op": "eq", "value": "CampaignComplete", "timeout_frames": 30}}
+{"method": "assert.eq", "params": {"query": "session.state", "path": "/menus_mode", "value": "InGame"}}
+{"method": "assert.eq", "params": {"query": "ui.realm", "path": "/realm", "value": "kambara"}}
+{"method": "assert.eq", "params": {"query": "ui.tree", "args": {"filter": "CampaignComplete/stele", "kind": "canvas"}, "path": "/widgets/0/value/rows_to_come", "value": 0}}
+{"method": "assert.eq", "params": {"query": "ui.tree", "args": {"filter": "CampaignComplete/panel/stats"}, "path": "/widgets/0/value/0", "value": ["Missions", "2 of 2"]}}
+{"method": "assert.eq", "params": {"query": "ui.layout_issues", "path": "/count", "value": 0}}
+{"method": "screenshot", "params": {"path": "out/ui_dev_screens/campaign_complete_kambara.png"}}
+{"method": "ui.click", "params": {"path": "CampaignComplete/panel/Return to the menu"}}
+{"method": "wait.until", "params": {"query": "session.state", "path": "/menus_mode", "op": "eq", "value": "DevEditor", "timeout_frames": 30}}
+{"method": "assert.eq", "params": {"query": "dialog.current", "path": "", "value": {"current": null}}}
+{"method": "assert.eq", "params": {"query": "profile.state", "path": "/profile/campaigns", "value": []}}
+{"method": "assert.eq", "params": {"query": "ui.realm", "path": "/source", "value": "default"}}
+{"method": "assert.eq", "params": {"query": "session.state", "path": "/map_size", "value": [16, 16]}}
+
+# A story sequence: Escape skips it, and it isn't recorded seen.
+{"method": "ui.click", "params": {"path": "Screens"}}
+{"method": "ui.set", "params": {"path": "Screens/Campaign", "value": "test_choices_kambara"}}
+{"method": "ui.set", "params": {"path": "Screens/Sequence", "value": "test_after"}}
+{"method": "ui.click", "params": {"path": "Screens/Play sequence"}}
+{"method": "wait.until", "params": {"query": "dialog.current", "path": "/current", "op": "eq", "value": "StoryComic", "timeout_frames": 30}}
+{"method": "assert.eq", "params": {"query": "ui.realm", "path": "/realm", "value": "kambara"}}
+{"method": "assert.eq", "params": {"query": "story.state", "args": {"campaign": "test_choices_kambara"}, "path": "/playing", "value": {"campaign": "test_choices_kambara", "sequence": "test_after", "panel": 1}}}
+{"method": "assert.eq", "params": {"query": "ui.layout_issues", "path": "/count", "value": 0}}
+{"method": "input.key", "params": {"key": "Escape"}}
+{"method": "wait.until", "params": {"query": "session.state", "path": "/menus_mode", "op": "eq", "value": "DevEditor", "timeout_frames": 30}}
+{"method": "assert.eq", "params": {"query": "dialog.current", "path": "", "value": {"current": null}}}
+{"method": "assert.eq", "params": {"query": "profile.state", "path": "/profile/campaigns", "value": []}}
+{"method": "assert.eq", "params": {"query": "ui.realm", "path": "/source", "value": "default"}}
+{"method": "assert.eq", "params": {"query": "session.state", "path": "/map_size", "value": [16, 16]}}
+{"method": "assert.eq", "params": {"query": "story.state", "args": {"campaign": "test_choices_kambara"}, "path": "/seen", "value": []}}
+
+# ---- test_choices_tampadesa, in tampadesa's look ----
+# The briefing, as the Game menu shows it: Begin, and Replay the story (its sequence over it, recording nothing).
+{"method": "ui.click", "params": {"path": "Screens"}}
+{"method": "ui.set", "params": {"path": "Screens/Campaign", "value": "test_choices_tampadesa"}}
+{"method": "ui.set", "params": {"path": "Screens/Mission", "value": 0}}
+{"method": "ui.click", "params": {"path": "Screens/Mission briefing"}}
+{"method": "wait.until", "params": {"query": "dialog.current", "path": "/current", "op": "eq", "value": "MissionBriefing", "timeout_frames": 30}}
+{"method": "assert.eq", "params": {"query": "session.state", "path": "/menus_mode", "value": "InGame"}}
+{"method": "assert.eq", "params": {"query": "ui.realm", "path": "/realm", "value": "tampadesa"}}
+{"method": "assert.eq", "params": {"query": "ui.realm", "path": "/source", "value": "campaign"}}
+{"method": "assert.eq", "params": {"query": "ui.tree", "args": {"filter": "MissionBriefing/kicker"}, "path": "/widgets/0/value", "value": "TEST: CHOICES (TAMPADESA) · MISSION 1"}}
+{"method": "assert.exists", "params": {"query": "ui.tree", "args": {"filter": "MissionBriefing/Begin"}, "path": "/widgets/0"}}
+{"method": "assert.eq", "params": {"query": "ui.layout_issues", "path": "/count", "value": 0}}
+{"method": "screenshot", "params": {"path": "out/ui_dev_screens/briefing_tampadesa.png"}}
+{"method": "ui.click", "params": {"path": "MissionBriefing/Replay the story"}}
+{"method": "wait.until", "params": {"query": "dialog.current", "path": "/current", "op": "eq", "value": "StoryComic", "timeout_frames": 30}}
+{"method": "assert.eq", "params": {"query": "story.state", "args": {"campaign": "test_choices_tampadesa"}, "path": "/playing", "value": {"campaign": "test_choices_tampadesa", "sequence": "test_before", "panel": 1}}}
+{"method": "ui.click", "params": {"path": "StoryComic/bar/Skip"}}
+{"method": "wait.until", "params": {"query": "dialog.current", "path": "/current", "op": "eq", "value": "MissionBriefing", "timeout_frames": 30}}
+{"method": "ui.click", "params": {"path": "MissionBriefing/Begin"}}
+{"method": "wait.until", "params": {"query": "session.state", "path": "/menus_mode", "op": "eq", "value": "DevEditor", "timeout_frames": 30}}
+{"method": "assert.eq", "params": {"query": "dialog.current", "path": "", "value": {"current": null}}}
+{"method": "assert.eq", "params": {"query": "profile.state", "path": "/profile/campaigns", "value": []}}
+{"method": "assert.eq", "params": {"query": "ui.realm", "path": "/source", "value": "default"}}
+{"method": "assert.eq", "params": {"query": "session.state", "path": "/map_size", "value": [16, 16]}}
+{"method": "assert.eq", "params": {"query": "ui.realm", "path": "/source", "value": "default"}}
+
+# The choice point's briefing as its mission starts: its sites in place of Begin. Escape closes it, recording no pick.
+{"method": "ui.click", "params": {"path": "Screens"}}
+{"method": "ui.set", "params": {"path": "Screens/Campaign", "value": "test_choices_tampadesa"}}
+{"method": "ui.set", "params": {"path": "Screens/Mission", "value": 1}}
+{"method": "ui.click", "params": {"path": "Screens/Briefing with its sites"}}
+{"method": "wait.until", "params": {"query": "dialog.current", "path": "/current", "op": "eq", "value": "MissionBriefing", "timeout_frames": 30}}
+{"method": "assert.eq", "params": {"query": "session.state", "path": "/menus_mode", "value": "InGame"}}
+{"method": "assert.eq", "params": {"query": "ui.realm", "path": "/realm", "value": "tampadesa"}}
+{"method": "assert.exists", "params": {"query": "ui.tree", "args": {"filter": "MissionBriefing/choice"}, "path": "/widgets/0/value"}}
+{"method": "assert.eq", "params": {"query": "ui.tree", "args": {"filter": "MissionBriefing/Begin"}, "path": "/widgets", "value": []}}
+{"method": "assert.eq", "params": {"query": "ui.layout_issues", "path": "/count", "value": 0}}
+{"method": "screenshot", "params": {"path": "out/ui_dev_screens/briefing_sites_tampadesa.png"}}
+{"method": "input.key", "params": {"key": "Escape"}}
+{"method": "wait.until", "params": {"query": "session.state", "path": "/menus_mode", "op": "eq", "value": "DevEditor", "timeout_frames": 30}}
+{"method": "assert.eq", "params": {"query": "dialog.current", "path": "", "value": {"current": null}}}
+{"method": "assert.eq", "params": {"query": "profile.state", "path": "/profile/campaigns", "value": []}}
+{"method": "assert.eq", "params": {"query": "ui.realm", "path": "/source", "value": "default"}}
+{"method": "assert.eq", "params": {"query": "session.state", "path": "/map_size", "value": [16, 16]}}
+
+# The debrief of mission 1: its stele carved up to it. Continue plays the sequence after it (recording nothing), then the world map offers the next mission's choice.
+{"method": "ui.click", "params": {"path": "Screens"}}
+{"method": "ui.set", "params": {"path": "Screens/Campaign", "value": "test_choices_tampadesa"}}
+{"method": "ui.set", "params": {"path": "Screens/Mission", "value": 0}}
+{"method": "ui.click", "params": {"path": "Screens/Debrief"}}
+{"method": "wait.until", "params": {"query": "dialog.current", "path": "/current", "op": "eq", "value": "MissionComplete", "timeout_frames": 30}}
+{"method": "assert.eq", "params": {"query": "session.state", "path": "/menus_mode", "value": "InGame"}}
+{"method": "assert.eq", "params": {"query": "ui.realm", "path": "/realm", "value": "tampadesa"}}
+{"method": "assert.eq", "params": {"query": "ui.tree", "args": {"filter": "MissionComplete/panel/kicker"}, "path": "/widgets/0/value", "value": "MISSION 1 COMPLETE"}}
+{"method": "assert.eq", "params": {"query": "ui.tree", "args": {"filter": "MissionComplete/stele", "kind": "canvas"}, "path": "/widgets/0/value/rows_to_come", "value": 1}}
+{"method": "assert.eq", "params": {"query": "ui.layout_issues", "path": "/count", "value": 0}}
+{"method": "screenshot", "params": {"path": "out/ui_dev_screens/debrief_tampadesa.png"}}
+{"method": "ui.click", "params": {"path": "MissionComplete/panel/Continue to the world map"}}
+{"method": "wait.until", "params": {"query": "dialog.current", "path": "/current", "op": "eq", "value": "StoryComic", "timeout_frames": 30}}
+{"method": "assert.eq", "params": {"query": "story.state", "args": {"campaign": "test_choices_tampadesa"}, "path": "/playing/sequence", "value": "test_after"}}
+{"method": "ui.click", "params": {"path": "StoryComic/bar/Skip"}}
+{"method": "wait.until", "params": {"query": "dialog.current", "path": "/current", "op": "eq", "value": "WorldMap", "timeout_frames": 30}}
+{"method": "assert.eq", "params": {"query": "ui.tree", "args": {"filter": "WorldMap/choice", "kind": "choice_box"}, "path": "/widgets/0/value/open", "value": true}}
+{"method": "assert.eq", "params": {"query": "ui.tree", "args": {"filter": "WorldMap/choice", "kind": "choice_box"}, "path": "/widgets/0/value/mission", "value": 1}}
+{"method": "assert.eq", "params": {"query": "ui.layout_issues", "path": "/count", "value": 0}}
+{"method": "screenshot", "params": {"path": "out/ui_dev_screens/world_map_after_tampadesa.png"}}
+{"method": "ui.click", "params": {"path": "WorldMap/bar/Return to the city"}}
+{"method": "wait.until", "params": {"query": "session.state", "path": "/menus_mode", "op": "eq", "value": "DevEditor", "timeout_frames": 30}}
+{"method": "assert.eq", "params": {"query": "dialog.current", "path": "", "value": {"current": null}}}
+{"method": "assert.eq", "params": {"query": "profile.state", "path": "/profile/campaigns", "value": []}}
+{"method": "assert.eq", "params": {"query": "ui.realm", "path": "/source", "value": "default"}}
+{"method": "assert.eq", "params": {"query": "session.state", "path": "/map_size", "value": [16, 16]}}
+
+# The world map during mission 1: the choice shows, closed until the mission is finished; a site asks to finish it first.
+{"method": "ui.click", "params": {"path": "Screens"}}
+{"method": "ui.set", "params": {"path": "Screens/Campaign", "value": "test_choices_tampadesa"}}
+{"method": "ui.set", "params": {"path": "Screens/Mission", "value": 0}}
+{"method": "ui.click", "params": {"path": "Screens/World map during the mission"}}
+{"method": "wait.until", "params": {"query": "dialog.current", "path": "/current", "op": "eq", "value": "WorldMap", "timeout_frames": 30}}
+{"method": "assert.eq", "params": {"query": "session.state", "path": "/menus_mode", "value": "InGame"}}
+{"method": "assert.eq", "params": {"query": "ui.realm", "path": "/realm", "value": "tampadesa"}}
+{"method": "assert.eq", "params": {"query": "ui.tree", "args": {"filter": "WorldMap/choice", "kind": "choice_box"}, "path": "/widgets/0/value/open", "value": false}}
+{"method": "ui.click", "params": {"path": "WorldMap/bar/Return to the city"}}
+{"method": "wait.until", "params": {"query": "session.state", "path": "/menus_mode", "op": "eq", "value": "DevEditor", "timeout_frames": 30}}
+{"method": "assert.eq", "params": {"query": "dialog.current", "path": "", "value": {"current": null}}}
+{"method": "assert.eq", "params": {"query": "profile.state", "path": "/profile/campaigns", "value": []}}
+{"method": "assert.eq", "params": {"query": "ui.realm", "path": "/source", "value": "default"}}
+{"method": "assert.eq", "params": {"query": "session.state", "path": "/map_size", "value": [16, 16]}}
+{"method": "ui.click", "params": {"path": "Screens"}}
+{"method": "ui.set", "params": {"path": "Screens/Campaign", "value": "test_choices_tampadesa"}}
+{"method": "ui.set", "params": {"path": "Screens/Mission", "value": 0}}
+{"method": "ui.click", "params": {"path": "Screens/Finish Mission Popup"}}
+{"method": "wait.until", "params": {"query": "dialog.current", "path": "/current", "op": "eq", "value": "WorldMap", "timeout_frames": 30}}
+{"method": "assert.eq", "params": {"query": "session.state", "path": "/menus_mode", "value": "InGame"}}
+{"method": "assert.eq", "params": {"query": "ui.realm", "path": "/realm", "value": "tampadesa"}}
+{"method": "assert.exists", "params": {"query": "ui.tree", "args": {"filter": "Finish Mission Popup/Ok"}, "path": "/widgets/0"}}
+{"method": "assert.eq", "params": {"query": "ui.layout_issues", "path": "/count", "value": 0}}
+{"method": "screenshot", "params": {"path": "out/ui_dev_screens/finish_popup_tampadesa.png"}}
+{"method": "ui.click", "params": {"path": "Finish Mission Popup/Ok"}}
+{"method": "assert.eq", "params": {"query": "ui.tree", "args": {"filter": "Finish Mission Popup"}, "path": "/widgets", "value": []}}
+{"method": "ui.click", "params": {"path": "WorldMap/bar/Return to the city"}}
+{"method": "wait.until", "params": {"query": "session.state", "path": "/menus_mode", "op": "eq", "value": "DevEditor", "timeout_frames": 30}}
+{"method": "assert.eq", "params": {"query": "dialog.current", "path": "", "value": {"current": null}}}
+{"method": "assert.eq", "params": {"query": "profile.state", "path": "/profile/campaigns", "value": []}}
+{"method": "assert.eq", "params": {"query": "ui.realm", "path": "/source", "value": "default"}}
+{"method": "assert.eq", "params": {"query": "session.state", "path": "/map_size", "value": [16, 16]}}
+# The Choose Site popup: its Begin starts nothing in a preview, and only closes it.
+{"method": "ui.click", "params": {"path": "Screens"}}
+{"method": "ui.set", "params": {"path": "Screens/Campaign", "value": "test_choices_tampadesa"}}
+{"method": "ui.set", "params": {"path": "Screens/Mission", "value": 0}}
+{"method": "ui.click", "params": {"path": "Screens/Choose Site Popup"}}
+{"method": "wait.until", "params": {"query": "dialog.current", "path": "/current", "op": "eq", "value": "WorldMap", "timeout_frames": 30}}
+{"method": "assert.eq", "params": {"query": "session.state", "path": "/menus_mode", "value": "InGame"}}
+{"method": "assert.eq", "params": {"query": "ui.realm", "path": "/realm", "value": "tampadesa"}}
+{"method": "assert.exists", "params": {"query": "ui.tree", "args": {"filter": "Choose Site Popup/Begin the mission"}, "path": "/widgets/0"}}
+{"method": "assert.eq", "params": {"query": "ui.layout_issues", "path": "/count", "value": 0}}
+{"method": "screenshot", "params": {"path": "out/ui_dev_screens/choose_popup_tampadesa.png"}}
+{"method": "ui.click", "params": {"path": "Choose Site Popup/Begin the mission"}}
+{"method": "wait.frames", "params": {"frames": 3}}
+{"method": "assert.eq", "params": {"query": "dialog.current", "path": "/current", "value": "WorldMap"}}
+{"method": "assert.eq", "params": {"query": "ui.tree", "args": {"filter": "Choose Site Popup"}, "path": "/widgets", "value": []}}
+{"method": "ui.click", "params": {"path": "WorldMap/bar/Return to the city"}}
+{"method": "wait.until", "params": {"query": "session.state", "path": "/menus_mode", "op": "eq", "value": "DevEditor", "timeout_frames": 30}}
+{"method": "assert.eq", "params": {"query": "dialog.current", "path": "", "value": {"current": null}}}
+{"method": "assert.eq", "params": {"query": "profile.state", "path": "/profile/campaigns", "value": []}}
+{"method": "assert.eq", "params": {"query": "ui.realm", "path": "/source", "value": "default"}}
+{"method": "assert.eq", "params": {"query": "session.state", "path": "/map_size", "value": [16, 16]}}
+
+# The campaign-complete screen: the stele carved in full; Return to the menu only closes it.
+{"method": "ui.click", "params": {"path": "Screens"}}
+{"method": "ui.set", "params": {"path": "Screens/Campaign", "value": "test_choices_tampadesa"}}
+{"method": "ui.set", "params": {"path": "Screens/Mission", "value": 0}}
+{"method": "ui.click", "params": {"path": "Screens/Campaign complete"}}
+{"method": "wait.until", "params": {"query": "dialog.current", "path": "/current", "op": "eq", "value": "CampaignComplete", "timeout_frames": 30}}
+{"method": "assert.eq", "params": {"query": "session.state", "path": "/menus_mode", "value": "InGame"}}
+{"method": "assert.eq", "params": {"query": "ui.realm", "path": "/realm", "value": "tampadesa"}}
+{"method": "assert.eq", "params": {"query": "ui.tree", "args": {"filter": "CampaignComplete/stele", "kind": "canvas"}, "path": "/widgets/0/value/rows_to_come", "value": 0}}
+{"method": "assert.eq", "params": {"query": "ui.tree", "args": {"filter": "CampaignComplete/panel/stats"}, "path": "/widgets/0/value/0", "value": ["Missions", "2 of 2"]}}
+{"method": "assert.eq", "params": {"query": "ui.layout_issues", "path": "/count", "value": 0}}
+{"method": "screenshot", "params": {"path": "out/ui_dev_screens/campaign_complete_tampadesa.png"}}
+{"method": "ui.click", "params": {"path": "CampaignComplete/panel/Return to the menu"}}
+{"method": "wait.until", "params": {"query": "session.state", "path": "/menus_mode", "op": "eq", "value": "DevEditor", "timeout_frames": 30}}
+{"method": "assert.eq", "params": {"query": "dialog.current", "path": "", "value": {"current": null}}}
+{"method": "assert.eq", "params": {"query": "profile.state", "path": "/profile/campaigns", "value": []}}
+{"method": "assert.eq", "params": {"query": "ui.realm", "path": "/source", "value": "default"}}
+{"method": "assert.eq", "params": {"query": "session.state", "path": "/map_size", "value": [16, 16]}}
+
+# A story sequence: Escape skips it, and it isn't recorded seen.
+{"method": "ui.click", "params": {"path": "Screens"}}
+{"method": "ui.set", "params": {"path": "Screens/Campaign", "value": "test_choices_tampadesa"}}
+{"method": "ui.set", "params": {"path": "Screens/Sequence", "value": "test_after"}}
+{"method": "ui.click", "params": {"path": "Screens/Play sequence"}}
+{"method": "wait.until", "params": {"query": "dialog.current", "path": "/current", "op": "eq", "value": "StoryComic", "timeout_frames": 30}}
+{"method": "assert.eq", "params": {"query": "ui.realm", "path": "/realm", "value": "tampadesa"}}
+{"method": "assert.eq", "params": {"query": "story.state", "args": {"campaign": "test_choices_tampadesa"}, "path": "/playing", "value": {"campaign": "test_choices_tampadesa", "sequence": "test_after", "panel": 1}}}
+{"method": "assert.eq", "params": {"query": "ui.layout_issues", "path": "/count", "value": 0}}
+{"method": "input.key", "params": {"key": "Escape"}}
+{"method": "wait.until", "params": {"query": "session.state", "path": "/menus_mode", "op": "eq", "value": "DevEditor", "timeout_frames": 30}}
+{"method": "assert.eq", "params": {"query": "dialog.current", "path": "", "value": {"current": null}}}
+{"method": "assert.eq", "params": {"query": "profile.state", "path": "/profile/campaigns", "value": []}}
+{"method": "assert.eq", "params": {"query": "ui.realm", "path": "/source", "value": "default"}}
+{"method": "assert.eq", "params": {"query": "session.state", "path": "/map_size", "value": [16, 16]}}
+{"method": "assert.eq", "params": {"query": "story.state", "args": {"campaign": "test_choices_tampadesa"}, "path": "/seen", "value": []}}
+
+# ---- Campaign I ----
+# The Begin Mission popup (mission 1's next mission has no choice): its Begin starts nothing.
+{"method": "ui.click", "params": {"path": "Screens"}}
+{"method": "ui.set", "params": {"path": "Screens/Campaign", "value": "dragon_legacy"}}
+{"method": "ui.set", "params": {"path": "Screens/Mission", "value": 0}}
+{"method": "ui.click", "params": {"path": "Screens/Begin Mission Popup"}}
+{"method": "wait.until", "params": {"query": "dialog.current", "path": "/current", "op": "eq", "value": "WorldMap", "timeout_frames": 30}}
+{"method": "assert.eq", "params": {"query": "session.state", "path": "/menus_mode", "value": "InGame"}}
+{"method": "assert.eq", "params": {"query": "ui.realm", "path": "/realm", "value": "dailong"}}
+{"method": "assert.exists", "params": {"query": "ui.tree", "args": {"filter": "Begin Mission Popup/Begin the mission"}, "path": "/widgets/0"}}
+{"method": "assert.eq", "params": {"query": "ui.layout_issues", "path": "/count", "value": 0}}
+{"method": "screenshot", "params": {"path": "out/ui_dev_screens/begin_popup_dailong.png"}}
+{"method": "ui.click", "params": {"path": "Begin Mission Popup/Begin the mission"}}
+{"method": "wait.frames", "params": {"frames": 3}}
+{"method": "assert.eq", "params": {"query": "dialog.current", "path": "/current", "value": "WorldMap"}}
+{"method": "ui.click", "params": {"path": "WorldMap/bar/Return to the city"}}
+{"method": "wait.until", "params": {"query": "session.state", "path": "/menus_mode", "op": "eq", "value": "DevEditor", "timeout_frames": 30}}
+{"method": "assert.eq", "params": {"query": "dialog.current", "path": "", "value": {"current": null}}}
+{"method": "assert.eq", "params": {"query": "profile.state", "path": "/profile/campaigns", "value": []}}
+{"method": "assert.eq", "params": {"query": "ui.realm", "path": "/source", "value": "default"}}
+{"method": "assert.eq", "params": {"query": "session.state", "path": "/map_size", "value": [16, 16]}}
+
+# In Kambara's look (Screens/Realm sets the ui.realm override), whose world map is Campaign II's: the debrief's
+# Continue goes to the next mission, which a preview doesn't start.
+{"method": "ui.click", "params": {"path": "Screens"}}
+{"method": "ui.set", "params": {"path": "Screens/Realm", "value": "kambara"}}
+{"method": "assert.eq", "params": {"query": "ui.realm", "path": "/source", "value": "override"}}
+# Switching the realm closes the menu: open it again.
+{"method": "wait.frames", "params": {"frames": 2}}
+{"method": "ui.click", "params": {"path": "Screens"}}
+{"method": "ui.set", "params": {"path": "Screens/Campaign", "value": "dragon_legacy"}}
+{"method": "ui.set", "params": {"path": "Screens/Mission", "value": 0}}
+{"method": "ui.click", "params": {"path": "Screens/Debrief"}}
+{"method": "wait.until", "params": {"query": "dialog.current", "path": "/current", "op": "eq", "value": "MissionComplete", "timeout_frames": 30}}
+{"method": "assert.eq", "params": {"query": "session.state", "path": "/menus_mode", "value": "InGame"}}
+{"method": "assert.eq", "params": {"query": "ui.realm", "path": "/realm", "value": "kambara"}}
+{"method": "assert.exists", "params": {"query": "ui.tree", "args": {"filter": "MissionComplete/panel/Continue to the next mission"}, "path": "/widgets/0"}}
+{"method": "assert.eq", "params": {"query": "ui.layout_issues", "path": "/count", "value": 0}}
+{"method": "screenshot", "params": {"path": "out/ui_dev_screens/debrief_override_kambara.png"}}
+{"method": "ui.click", "params": {"path": "MissionComplete/panel/Continue to the next mission"}}
+{"method": "wait.until", "params": {"query": "session.state", "path": "/menus_mode", "op": "eq", "value": "DevEditor", "timeout_frames": 30}}
+{"method": "assert.eq", "params": {"query": "dialog.current", "path": "", "value": {"current": null}}}
+{"method": "assert.eq", "params": {"query": "profile.state", "path": "/profile/campaigns", "value": []}}
+{"method": "assert.eq", "params": {"query": "ui.realm", "path": "/source", "value": "override"}}
+{"method": "assert.eq", "params": {"query": "session.state", "path": "/map_size", "value": [16, 16]}}
+# I-B, after mission 5, which isn't written yet: its trigger waits, but it plays here.
+{"method": "ui.click", "params": {"path": "Screens"}}
+{"method": "ui.set", "params": {"path": "Screens/Sequence", "value": "i_b"}}
+{"method": "ui.click", "params": {"path": "Screens/Play sequence"}}
+{"method": "wait.until", "params": {"query": "dialog.current", "path": "/current", "op": "eq", "value": "StoryComic", "timeout_frames": 30}}
+{"method": "assert.eq", "params": {"query": "story.state", "args": {"campaign": "dragon_legacy"}, "path": "/playing", "value": {"campaign": "dragon_legacy", "sequence": "i_b", "panel": 1}}}
+{"method": "assert.eq", "params": {"query": "ui.layout_issues", "path": "/count", "value": 0}}
+{"method": "screenshot", "params": {"path": "out/ui_dev_screens/story_i_b_kambara.png"}}
+{"method": "ui.click", "params": {"path": "StoryComic/bar/Skip"}}
+{"method": "wait.until", "params": {"query": "session.state", "path": "/menus_mode", "op": "eq", "value": "DevEditor", "timeout_frames": 30}}
+{"method": "assert.eq", "params": {"query": "dialog.current", "path": "", "value": {"current": null}}}
+{"method": "assert.eq", "params": {"query": "profile.state", "path": "/profile/campaigns", "value": []}}
+{"method": "assert.eq", "params": {"query": "ui.realm", "path": "/source", "value": "override"}}
+{"method": "assert.eq", "params": {"query": "session.state", "path": "/map_size", "value": [16, 16]}}
+{"method": "ui.click", "params": {"path": "Screens"}}
+{"method": "ui.set", "params": {"path": "Screens/Realm", "value": "auto"}}
+{"method": "assert.eq", "params": {"query": "ui.realm", "path": "/source", "value": "default"}}
+{"method": "wait.frames", "params": {"frames": 2}}
+{"method": "ui.click", "params": {"path": "Screens"}}
+{"method": "screenshot", "params": {"path": "out/ui_dev_screens/menu.png"}}
+{"method": "ui.click", "params": {"path": "Screens"}}
+
+# Nothing was recorded, and no session started.
+{"method": "assert.eq", "params": {"query": "profile.state", "path": "/profile/campaigns", "value": []}}
+{"method": "assert.eq", "params": {"query": "ui.realm", "path": "/source", "value": "default"}}
+{"method": "assert.eq", "params": {"query": "session.state", "path": "/menus_mode", "value": "DevEditor"}}

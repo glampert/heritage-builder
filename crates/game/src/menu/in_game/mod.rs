@@ -124,12 +124,14 @@ impl GameMenusSystem for InGameMenus {
         if let GameMenusInputArgs::Key { key, action, .. } = args {
             // The dialog on top's own keys (the comic viewer's).
             if action == InputAction::Press && dialog::handle_key(key, context) {
+                dialog::preview::return_if_closed(context); // A preview's last screen closed: paused again before the step.
                 return UiInputEvent::Handled;
             }
             // [ESCAPE]: Close the dialog on top, or its popup (only that: the dialogs don't close
             // themselves on Escape).
             if key == InputKey::Escape && action == InputAction::Press {
                 if dialog::close_current_on_escape(context) {
+                    dialog::preview::return_if_closed(context);
                     return UiInputEvent::Handled; // Key press is handled.
                 }
             }
@@ -150,10 +152,13 @@ impl GameMenusSystem for InGameMenus {
         // A mission's briefing opens first, as its map loads, after the mission's story sequence
         // if the profile hasn't seen it (dialog::open_mission_start): a prompt raised meanwhile (a
         // mission finished at once) waits for its Begin.
-        if dialog::current().is_none() && campaign::is_briefing_pending() {
+        // A preview from the developer editor's Screens menu (dialog::preview) opens its screen,
+        // and goes back to the editor once it has closed (return_if_closed); no prompt opens meanwhile.
+        let previewing = dialog::preview::update(context);
+        if !previewing && dialog::current().is_none() && campaign::is_briefing_pending() {
             dialog::open_mission_start(context);
         }
-        if dialog::current().is_none() {
+        if !previewing && dialog::current().is_none() {
             match campaign::take_pending_prompt() {
                 Some(CampaignPrompt::MissionComplete) => {
                     dialog::open(dialog::DialogMenuKind::MissionComplete, false, context);
@@ -166,6 +171,7 @@ impl GameMenusSystem for InGameMenus {
         }
 
         dialog::draw_current(context);
+        dialog::preview::return_if_closed(context);
     }
 }
 
@@ -176,6 +182,7 @@ impl GameMenusSystem for InGameMenus {
 impl Drop for InGameMenus {
     fn drop(&mut self) {
         dialog::reset();
+        dialog::preview::reset();
     }
 }
 
@@ -187,5 +194,6 @@ impl Save for InGameMenus {}
 impl Load for InGameMenus {
     fn pre_load(&mut self, _context: &mut PreLoadContext) {
         dialog::reset();
+        dialog::preview::reset();
     }
 }

@@ -225,6 +225,10 @@
 {"method": "ui.tree", "params": {"fields": ["path", "kind", "enabled", "value"]}}
 {"method": "assert.image", "params": {"golden": "dev_menu_debug.png", "path": "out/ui_snapshot/dev_menu_debug.png"}}
 {"method": "ui.click", "params": {"path": "Debug"}}
+{"method": "ui.click", "params": {"path": "Screens"}}
+{"method": "ui.tree", "params": {"fields": ["path", "kind", "enabled", "value"]}}
+{"method": "assert.image", "params": {"golden": "dev_menu_screens.png", "path": "out/ui_snapshot/dev_menu_screens.png"}}
+{"method": "ui.click", "params": {"path": "Screens"}}
 {"method": "ui.click", "params": {"path": "Minimap/debug"}}
 {"method": "input.move", "params": {"park": true}}
 {"method": "wait.frames", "params": {"frames": 3}}

@@ -110,7 +110,7 @@ enum ContinueTo {
 }
 
 fn continue_to() -> ContinueTo {
-    let Some(active) = campaign::active_mission() else {
+    let Some(active) = campaign::preview::shown_mission() else {
         return ContinueTo::Close;
     };
     let Some(campaign) = CampaignConfigs::get().campaign(active.campaign_id) else {
@@ -203,7 +203,7 @@ impl Debrief {
             continue_label: continue_label.clone(),
         };
         let configs = CampaignConfigs::get();
-        let Some(active) = campaign::active_mission() else {
+        let Some(active) = campaign::preview::shown_mission() else {
             return plain();
         };
         let (Some(campaign), Some(mission)) = (configs.campaign(active.campaign_id), configs.mission(active.campaign_id, active.mission_index)) else {
@@ -246,9 +246,15 @@ impl Debrief {
         let joins = city.map(|city| ui::text::format(UiTextCategory::Menu, "debrief.joins", &[("city", city)]));
 
         // The profile records the mission at the start of the next frame (GameLoop takes the
-        // finished missions then), so the stele is carved from a copy that has it already.
-        let mut profile = profile::get().clone();
-        profile.mission_finished(configs, active.campaign_id, active.mission_index);
+        // finished missions then), so the stele is carved from a copy that has it already. A
+        // preview's (campaign::preview), as if the campaign had been played up to the mission.
+        let profile = if campaign::preview::is_active() {
+            campaign::preview::profile_through(profile::get(), configs, active.campaign_id, active.mission_index)
+        } else {
+            let mut profile = profile::get().clone();
+            profile.mission_finished(configs, active.campaign_id, active.mission_index);
+            profile
+        };
         let stele = stele_data::stele(configs, &profile, active.campaign_id, Some(active.mission_index));
 
         Self { kicker, name, place, goals, stats, joins, stele, continue_label }
@@ -317,13 +323,19 @@ impl MissionComplete {
         // mission), and the mission's story sequence after it (story::to_play_after), which only
         // Continue plays. The HUD's mission panel (Phase 5) or the world map's box should offer
         // them then.
-        campaign::continue_playing();
+        if !campaign::preview::is_active() {
+            campaign::continue_playing();
+        }
         super::close(DialogMenuKind::MissionComplete, context);
     }
 
     // The mission's story sequence after it first, over the debrief, if the profile hasn't seen it
     // (story::to_play_after; recorded once it ends, Skip included); then the way on.
     fn on_continue(context: &mut GameUiContext) {
+        if campaign::preview::is_active() {
+            Self::preview_continue(context);
+            return;
+        }
         if let Some(active) = campaign::active_mission()
             && let Some(sequence) = crate::story::to_play_after(active.campaign_id, active.mission_index)
         {
@@ -339,6 +351,41 @@ impl MissionComplete {
             }
         }
         Self::go_on(context);
+    }
+
+    // A preview's Continue (campaign::preview): the sequence after the mission, seen or not and
+    // recorded nowhere, then the screen that follows as a preview too (the world map, the
+    // campaign-complete screen), or nothing (no next mission starts).
+    fn preview_continue(context: &mut GameUiContext) {
+        if let Some(active) = campaign::preview::shown_mission()
+            && let Some(sequence) = crate::story::after(active.campaign_id, active.mission_index)
+        {
+            let request = StoryRequest {
+                campaign_index: sequence.campaign_index,
+                sequence_id: sequence.sequence.id.clone(),
+                panel: 0,
+                records_seen: false,
+                on_end: Some(|context, _| Self::preview_go_on(context)),
+            };
+            if super::play_story(request, context) {
+                return;
+            }
+        }
+        Self::preview_go_on(context);
+    }
+
+    fn preview_go_on(context: &mut GameUiContext) {
+        match continue_to() {
+            ContinueTo::WorldMap => {
+                super::open(DialogMenuKind::WorldMap, true, context);
+            }
+            ContinueTo::CampaignComplete => {
+                super::open(DialogMenuKind::CampaignComplete, true, context);
+            }
+            ContinueTo::NextMission | ContinueTo::Close => {
+                super::close(DialogMenuKind::MissionComplete, context);
+            }
+        }
     }
 
     // The world map, the next mission or the campaign-complete screen, as continue_to says.

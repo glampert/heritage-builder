@@ -167,6 +167,12 @@ pub fn before(campaign_index: usize, mission_index: usize) -> Option<SequenceRef
     stories.before_mission(campaigns, campaign_index, mission_index)
 }
 
+// The sequence that plays after the mission, seen or not (the debrief's preview: debug::screens).
+pub fn after(campaign_index: usize, mission_index: usize) -> Option<SequenceRef<'static>> {
+    let (stories, campaigns) = configs()?;
+    stories.after_mission(campaigns, campaign_index, mission_index)
+}
+
 // The campaign's epilogue (the campaign-complete screen's Watch the epilogue).
 pub fn epilogue(campaign_index: usize) -> Option<SequenceRef<'static>> {
     let (stories, campaigns) = configs()?;
