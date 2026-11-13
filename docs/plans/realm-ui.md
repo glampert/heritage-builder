@@ -734,6 +734,8 @@ The existing dialogs keep their layouts but take their panels from the Đại Lo
 
 **Delivers:** the in-game HUD as in `hud-<realm>.jpg`, with every old sprite gone.
 
+> **Before starting (the user, 2026-11-13):** the tile palette (the build bar's child menus) is to show a custom icon for each building instead of its text label, a deviation from the build bar item below. New mockups for it are to be designed with the user first, so Phase 5 doesn't start until they've been drawn and agreed. Remind the user of this when Phase 5 comes up.
+
 - [ ] **Top-left bar:** speed controls (pause, play, fast, faster) and the date in the realm's era with the season under it. This replaces SpeedControlsBar and the TopBar's date.
 - [ ] **Top-centre bar:**
   - population, treasury and food, each with its icon;
