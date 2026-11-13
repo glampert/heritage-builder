@@ -58,7 +58,7 @@ use mission_briefing::*;
 
 mod story_comic;
 use story_comic::*;
-pub use story_comic::StoryRequest;
+pub use story_comic::{StoryEnd, StoryRequest};
 
 mod screen;
 
@@ -211,8 +211,8 @@ pub fn sync(context: &mut GameUiContext) {
     }
     // A story sequence that ended: what was to follow it (StoryRequest::on_end), now that its
     // viewer has closed.
-    if let Some(on_end) = story_comic::take_finished() {
-        on_end(context);
+    if let Some((on_end, end)) = story_comic::take_finished() {
+        on_end(context, end);
     }
 
     let dialogs = DialogMenusSingleton::get_mut();
@@ -367,6 +367,43 @@ pub fn open(dialog_menu_kind: DialogMenuKind, close_all_others: bool, context: &
 // choice point's sites, when none is picked yet (mission_briefing::open_at_mission_start).
 pub fn open_mission_briefing_at_start(context: &mut GameUiContext) -> bool {
     mission_briefing::open_at_mission_start(context)
+}
+
+// A campaign mission has just started (campaign::is_briefing_pending; the in-game menus call it
+// once no dialog is open): its story sequence first, if it has one the profile hasn't seen
+// (story::to_play_before), recorded as seen once it ends, Skip included; then its briefing. The
+// briefing stays pending while the sequence plays, so the simulation stays paused and the autosave
+// waits; a session switch meanwhile drops both. True if either opened.
+pub fn open_mission_start(context: &mut GameUiContext) -> bool {
+    if let Some(active) = crate::campaign::active_mission()
+        && let Some(sequence) = crate::story::to_play_before(active.campaign_id, active.mission_index)
+    {
+        let request = StoryRequest {
+            campaign_index: sequence.campaign_index,
+            sequence_id: sequence.sequence.id.clone(),
+            panel: 0,
+            records_seen: true,
+            on_end: Some(|context, _| {
+                open_pending_briefing(context);
+            }),
+        };
+        if play_story(request, context) {
+            return true;
+        }
+    }
+    open_pending_briefing(context)
+}
+
+// The briefing still pending (none if a key that ended the sequence let the in-game menus open it
+// already this frame).
+fn open_pending_briefing(context: &mut GameUiContext) -> bool {
+    crate::campaign::take_pending_briefing() && open_mission_briefing_at_start(context)
+}
+
+// Whether a story sequence plays, or what follows one that has just ended is still to run (the
+// autosave waits: a save then would lose what was to follow, a mission's briefing).
+pub fn is_story_playing() -> bool {
+    is_initialized() && (is_in_stack(DialogMenuKind::StoryComic) || story_comic::is_ending())
 }
 
 // Plays a story sequence in the comic viewer (StoryRequest: which, from which panel, whether the

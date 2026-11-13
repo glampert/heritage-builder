@@ -19,7 +19,14 @@
 // size changes. `dialog.open StoryComic` without a request plays the first sequence of the
 // campaign the world map would show (world_map::default_campaign). Ending it (Skip, Escape,
 // Continue on the last panel) closes it, records the sequence seen if asked (Skip counts too) and
-// queues its `on_end`, which dialog::sync runs at the start of the next frame.
+// queues its `on_end`, which dialog::sync runs at the start of the next frame, told how it ended
+// (StoryEnd: Continue on the last panel, or skipped). While an `on_end` follows, the simulation
+// stays paused (what follows decides: the briefing, the world map, the next mission).
+//
+// The campaign flow plays a mission's sequence before its briefing (dialog::open_mission_start) and
+// after its debrief (MissionComplete's Continue), and the campaign-complete screen its epilogue,
+// each once per profile; the home menu's Replay the story, the briefing's Replay the story and the
+// campaign-complete screen's Watch the epilogue play them again.
 //
 // Paths: StoryComic/panel (kind canvas: campaign, sequence, title, panel, panels, image, narration,
 // bubbles (speaker, text, kind), sepia, stele_lines); StoryComic/bar/campaign, title, dots (kind
@@ -96,19 +103,36 @@ pub struct StoryRequest {
     pub sequence_id: String,
     pub panel: usize,
     pub records_seen: bool,
-    pub on_end: Option<fn(&mut GameUiContext)>,
+    pub on_end: Option<StoryOnEnd>,
 }
+
+// How a sequence ended: Continue on its last panel (Finished), or Skip or Escape (Skipped).
+#[derive(Copy, Clone, PartialEq, Eq, Debug)]
+pub enum StoryEnd {
+    Finished,
+    Skipped,
+}
+
+// What runs once a sequence has ended and its viewer closed.
+pub type StoryOnEnd = fn(&mut GameUiContext, StoryEnd);
 
 struct State {
     built: BuiltOnOpen,
     request: Option<StoryRequest>, // Asked for, not open yet.
     playing: Option<StoryRequest>, // Open: its `panel` is the one showing.
     built_panel: Option<usize>,    // The panel the open viewer was built for.
-    finished: Option<fn(&mut GameUiContext)>,
+    reached_end: bool,             // Closing now ends it past its last panel (not a skip).
+    finished: Option<(StoryOnEnd, StoryEnd)>,
 }
 
-static STATE: UiStaticVar<State> =
-    UiStaticVar::new(State { built: BuiltOnOpen::new(), request: None, playing: None, built_panel: None, finished: None });
+static STATE: UiStaticVar<State> = UiStaticVar::new(State {
+    built: BuiltOnOpen::new(),
+    request: None,
+    playing: None,
+    built_panel: None,
+    reached_end: false,
+    finished: None,
+});
 
 // Asks for `request` to play: dialog::play_story opens the viewer with it.
 pub(super) fn request(request: StoryRequest) {
@@ -147,9 +171,14 @@ pub(super) fn needs_rebuild(context: &GameUiContext) -> bool {
     state.built.needs_rebuild(context) || state.built_panel != state.playing.as_ref().map(|playing| playing.panel)
 }
 
-// What runs now that a sequence has ended and its viewer closed (dialog::sync).
-pub(super) fn take_finished() -> Option<fn(&mut GameUiContext)> {
+// What runs now that a sequence has ended and its viewer closed (dialog::sync), and how it ended.
+pub(super) fn take_finished() -> Option<(StoryOnEnd, StoryEnd)> {
     STATE.as_mut().finished.take()
+}
+
+// Whether something waits for a sequence that has just ended (its `on_end`, not run yet).
+pub(super) fn is_ending() -> bool {
+    STATE.as_ref().finished.is_some()
 }
 
 // The sequence showing: its campaign's index, its id and the panel (from 0). None: none.
@@ -181,7 +210,9 @@ fn step(context: &mut GameUiContext, delta: i32) {
     let count = sequence_panels(playing).unwrap_or(1);
     let next = playing.panel as i64 + i64::from(delta);
     if next >= count as i64 {
+        STATE.as_mut().reached_end = true;
         super::close(DialogMenuKind::StoryComic, context);
+        STATE.as_mut().reached_end = false;
     } else {
         playing.panel = next.max(0) as usize;
     }
@@ -228,7 +259,9 @@ impl DialogMenu for StoryComic {
     }
 
     // Ends the sequence (Skip, Escape, Continue on its last panel): the profile records it seen if
-    // asked, and its `on_end` runs at the start of the next frame.
+    // asked, and its `on_end` runs at the start of the next frame. The simulation stays paused
+    // until then: closing the viewer resumes it (PauseSimIfOpen), and a key that ends it is handled
+    // before the frame's simulation step (the briefing that follows must find it unstarted).
     fn close(&mut self, context: &mut GameUiContext) -> bool {
         self.menu_mut().close(context);
         let state = STATE.as_mut();
@@ -238,16 +271,19 @@ impl DialogMenu for StoryComic {
             if playing.records_seen {
                 profile::on_sequence_seen(playing.campaign_index, &playing.sequence_id);
             }
-            state.finished = playing.on_end;
+            let end = if state.reached_end { StoryEnd::Finished } else { StoryEnd::Skipped };
+            state.finished = playing.on_end.map(|on_end| (on_end, end));
+            if state.finished.is_some() {
+                context.sim.pause();
+            }
         }
         true
     }
 
-    // A session switch drops it without ending it: it isn't recorded as seen, and neither its
-    // `on_end` nor that of a sequence that ended this frame, or one asked for and not open yet,
-    // runs in the new session.
-    // TODO(realm-ui): P4c's triggers decide whether a sequence a session switch cuts off counts as
-    // seen (records_seen), and whether what was to follow it still opens.
+    // A session switch drops it without ending it: it isn't recorded as seen (a mission started
+    // again plays its sequence again), and neither its `on_end` nor that of a sequence that ended
+    // this frame, or one asked for and not open yet, runs in the new session: what was to follow
+    // belonged to the session left (its briefing, its debrief's way on).
     fn reset(&mut self) {
         let menu = self.menu_mut();
         menu.reset_message_box();
@@ -257,6 +293,7 @@ impl DialogMenu for StoryComic {
         state.request = None;
         state.playing = None;
         state.built_panel = None;
+        state.reached_end = false;
         state.finished = None;
     }
 }

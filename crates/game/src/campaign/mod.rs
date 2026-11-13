@@ -203,7 +203,9 @@ pub fn take_pending_prompt() -> Option<CampaignPrompt> {
 }
 
 // The active mission's map has loaded and it starts (GameSession::start_mission): its briefing is
-// to open. A save of a mission under way loads without one.
+// to open, after the mission's story sequence when the profile hasn't seen it (the in-game menus:
+// menu::dialog::open_mission_start; it stays pending while the sequence plays). A save of a
+// mission under way loads without either.
 pub fn request_briefing() {
     // Cleared by every other session change (reset, restore_snapshot, cancel_mission_start), so
     // only a mission that has just started opens one.

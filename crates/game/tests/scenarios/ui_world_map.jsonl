@@ -28,8 +28,11 @@
 {"method": "ui.click", "params": {"path": "Home/Campaign"}}
 {"method": "wait.until", "params": {"query": "session.state", "path": "/menus_mode", "op": "eq", "value": "InGame", "timeout_frames": 600}}
 {"method": "assert.eq", "params": {"query": "session.state", "path": "/campaign/mission_index", "value": 0}}
-# The mission's briefing opens first (MissionBriefing); Begin goes to the city, whose island
+# The mission's briefing opens first (MissionBriefing, after I-A); Begin goes to the city, whose island
 # already meets the mission's goal: the debrief opens, and Keep playing goes back to the city.
+# Its story sequence (I-A) plays before the briefing: skipped (ui_story.jsonl steps through it).
+{"method": "wait.until", "params": {"query": "dialog.current", "path": "/current", "op": "eq", "value": "StoryComic", "timeout_frames": 300}}
+{"method": "input.key", "params": {"key": "Escape"}}
 {"method": "wait.until", "params": {"query": "dialog.current", "path": "/current", "op": "eq", "value": "MissionBriefing", "timeout_frames": 60}}
 {"method": "ui.click", "params": {"path": "MissionBriefing/Begin"}}
 {"method": "wait.until", "params": {"query": "dialog.current", "path": "/current", "op": "eq", "value": "MissionComplete", "timeout_frames": 300}}
@@ -283,6 +286,9 @@
 # or in the box) asks before its mission starts, and the profile records the site picked. ----
 {"method": "profile.set", "params": {"reached": ["dragon_legacy", "test_choices", "test_choices_kambara", "test_choices_tampadesa"]}}
 {"method": "session.start_mission", "params": {"campaign": "test_choices", "mission": 0}}
+# Its sequence before the mission first: skipped (ui_story.jsonl checks the sequences).
+{"method": "wait.until", "params": {"query": "dialog.current", "path": "/current", "op": "eq", "value": "StoryComic", "timeout_frames": 300}}
+{"method": "input.key", "params": {"key": "Escape"}}
 {"method": "wait.until", "params": {"query": "dialog.current", "path": "/current", "op": "eq", "value": "MissionBriefing", "timeout_frames": 300}}
 {"method": "ui.click", "params": {"path": "MissionBriefing/Begin"}}
 {"method": "assert.eq", "params": {"query": "session.state", "path": "/campaign/campaign_id", "value": "test_choices"}}
@@ -319,6 +325,9 @@
 {"method": "wait.until", "params": {"query": "dialog.current", "path": "/current", "op": "eq", "value": "MissionComplete", "timeout_frames": 300}}
 {"method": "assert.eq", "params": {"query": "session.state", "path": "/campaign/completed", "value": true}}
 {"method": "ui.click", "params": {"path": "MissionComplete/panel/Continue to the world map"}}
+# Its sequence after the mission first (over the debrief): skipped.
+{"method": "wait.until", "params": {"query": "dialog.current", "path": "/current", "op": "eq", "value": "StoryComic", "timeout_frames": 300}}
+{"method": "input.key", "params": {"key": "Escape"}}
 {"method": "input.move", "params": {"park": true}}
 {"method": "wait.frames", "params": {"frames": 3}}
 {"method": "assert.eq", "params": {"query": "dialog.current", "path": "/current", "value": "WorldMap"}}
@@ -377,10 +386,16 @@
 # Kambara's choice box, on Campaign II's map: its test mission 0 has no goals, so the debrief
 # comes at once, and its Continue to the world map opens the map.
 {"method": "session.start_mission", "params": {"campaign": "test_choices_kambara", "mission": 0}}
+# Its sequence before the mission first: skipped.
+{"method": "wait.until", "params": {"query": "dialog.current", "path": "/current", "op": "eq", "value": "StoryComic", "timeout_frames": 300}}
+{"method": "input.key", "params": {"key": "Escape"}}
 {"method": "wait.until", "params": {"query": "dialog.current", "path": "/current", "op": "eq", "value": "MissionBriefing", "timeout_frames": 300}}
 {"method": "ui.click", "params": {"path": "MissionBriefing/Begin"}}
 {"method": "wait.until", "params": {"query": "dialog.current", "path": "/current", "op": "eq", "value": "MissionComplete", "timeout_frames": 300}}
 {"method": "ui.click", "params": {"path": "MissionComplete/panel/Continue to the world map"}}
+# Its sequence after the mission first: skipped.
+{"method": "wait.until", "params": {"query": "dialog.current", "path": "/current", "op": "eq", "value": "StoryComic", "timeout_frames": 300}}
+{"method": "input.key", "params": {"key": "Escape"}}
 {"method": "input.move", "params": {"park": true}}
 {"method": "wait.frames", "params": {"frames": 3}}
 {"method": "assert.eq", "params": {"query": "world_map.state", "path": "/screen/campaign", "value": "test_choices_kambara"}}
@@ -399,10 +414,16 @@
 
 # Tampadesa's, on Campaign III's map, at the lower left.
 {"method": "session.start_mission", "params": {"campaign": "test_choices_tampadesa", "mission": 0}}
+# Its sequence before the mission first: skipped.
+{"method": "wait.until", "params": {"query": "dialog.current", "path": "/current", "op": "eq", "value": "StoryComic", "timeout_frames": 300}}
+{"method": "input.key", "params": {"key": "Escape"}}
 {"method": "wait.until", "params": {"query": "dialog.current", "path": "/current", "op": "eq", "value": "MissionBriefing", "timeout_frames": 300}}
 {"method": "ui.click", "params": {"path": "MissionBriefing/Begin"}}
 {"method": "wait.until", "params": {"query": "dialog.current", "path": "/current", "op": "eq", "value": "MissionComplete", "timeout_frames": 300}}
 {"method": "ui.click", "params": {"path": "MissionComplete/panel/Continue to the world map"}}
+# Its sequence after the mission first: skipped.
+{"method": "wait.until", "params": {"query": "dialog.current", "path": "/current", "op": "eq", "value": "StoryComic", "timeout_frames": 300}}
+{"method": "input.key", "params": {"key": "Escape"}}
 {"method": "input.move", "params": {"park": true}}
 {"method": "wait.frames", "params": {"frames": 3}}
 {"method": "assert.eq", "params": {"query": "world_map.state", "path": "/screen/campaign", "value": "test_choices_tampadesa"}}

@@ -6,8 +6,20 @@
 # Space, Enter forward; Left back), Continue on the last panel, which ends it without touching the
 # profile; seen=true records it once Skip ends it, and Escape skips too. The layout at 100%, 200% and
 # 75% UI scale in each realm (ui.realm): the hidden test campaigns' sequences, a group bubble and
-# bold ink, and a dynamic panel listing the player's stele lines. Last, in a game, the simulation
-# stays paused while a sequence plays. Screenshots go to out/ui_story/.
+# bold ink, and a dynamic panel listing the player's stele lines. In a game, the simulation stays
+# paused while a sequence plays. Then the campaign flow: Campaign I from Home plays I-A before its
+# first briefing (paused, Back and the keys), Skip lands on the briefing and records it seen, the
+# briefing's Replay the story plays it again over it (recording nothing), the layout with that
+# button in each realm and scale, Campaign I's campaign-complete screen without Watch the epilogue,
+# and neither starting the mission again nor loading a save of it plays I-A again. Each hidden test
+# campaign plays its sequence before its first mission's briefing and, on the debrief's Continue,
+# its sequence after it (over the debrief), then the world map, in its realm's look; a second start
+# plays neither. test_choices' campaign-complete screen offers Watch the epilogue (each realm and
+# scale), which plays over it, recording nothing (Return to the menu then records it without
+# playing it again); unseen and not watched, Return to the menu plays it first.
+# Last, Home's Replay the story (its subline; with Continue's subline Home still doesn't scroll,
+# each realm and scale) plays the sequences seen in order: Continue goes on to the next, Skip ends
+# it. Screenshots go to out/ui_story/.
 #
 # Run it with --fresh-profile, as CI does, at 1280 × 720, 1440 × 800 (CI's) and 1920 × 1080:
 #   cargo run -p HeritageBuilder -- --fresh-profile --window-size 1440x800 --script crates/game/tests/scenarios/ui_story.jsonl
@@ -192,3 +204,339 @@
 {"method": "wait.until", "params": {"query": "dialog.list", "path": "/dialogs/StoryComic", "op": "eq", "value": false, "timeout_frames": 30}}
 {"method": "assert.eq", "params": {"query": "sim.state", "path": "/paused", "value": false}}
 {"method": "assert.eq", "params": {"query": "story.state", "args": {"campaign": "dragon_legacy"}, "path": "/seen", "value": []}}
+{"method": "session.quit_to_menu"}
+{"method": "wait.until", "params": {"query": "dialog.current", "path": "/current", "op": "eq", "value": "Home", "timeout_frames": 300}}
+
+# ---- The campaign flow: Campaign I from Home plays I-A before its first briefing ----
+# Nothing seen yet: Home has no Replay the story.
+{"method": "profile.reset"}
+{"method": "wait.frames", "params": {"frames": 3}}
+{"method": "assert.eq", "params": {"query": "ui.tree", "args": {"filter": "Home/Replay the story"}, "path": "/widgets", "value": []}}
+{"method": "ui.click", "params": {"path": "Home/Campaign"}}
+{"method": "wait.until", "params": {"query": "dialog.current", "path": "/current", "op": "eq", "value": "StoryComic", "timeout_frames": 300}}
+{"method": "assert.eq", "params": {"query": "story.state", "args": {"campaign": "dragon_legacy"}, "path": "/playing", "value": {"campaign": "dragon_legacy", "sequence": "i_a", "panel": 1}}}
+{"method": "assert.eq", "params": {"query": "story.state", "args": {"campaign": "dragon_legacy"}, "path": "/sequences/0/plays", "value": true}}
+{"method": "assert.eq", "params": {"query": "dialog.list", "path": "/dialogs/MissionBriefing", "value": false}}
+{"method": "assert.eq", "params": {"query": "sim.state", "path": "/paused", "value": true}}
+{"method": "assert.eq", "params": {"query": "ui.tree", "args": {"filter": "StoryComic/bar/dots", "kind": "canvas"}, "path": "/widgets/0/value", "value": {"current": 1, "count": 6}}}
+{"method": "ui.click", "params": {"path": "StoryComic/bar/Next"}}
+{"method": "wait.frames", "params": {"frames": 2}}
+{"method": "assert.eq", "params": {"query": "ui.tree", "args": {"filter": "StoryComic/bar/count"}, "path": "/widgets/0/value", "value": "Panel 2 of 6"}}
+{"method": "input.key", "params": {"key": "Right"}}
+{"method": "wait.frames", "params": {"frames": 2}}
+{"method": "ui.click", "params": {"path": "StoryComic/bar/Back"}}
+{"method": "wait.frames", "params": {"frames": 2}}
+{"method": "assert.eq", "params": {"query": "ui.tree", "args": {"filter": "StoryComic/bar/dots", "kind": "canvas"}, "path": "/widgets/0/value", "value": {"current": 2, "count": 6}}}
+{"method": "assert.eq", "params": {"query": "sim.state", "path": "/paused", "value": true}}
+{"method": "input.move", "params": {"park": true}}
+{"method": "wait.frames", "params": {"frames": 2}}
+{"method": "screenshot", "params": {"path": "out/ui_story/flow_i_a_2_dailong.png"}}
+# Skip lands on the briefing, still paused, and records I-A seen.
+{"method": "ui.click", "params": {"path": "StoryComic/bar/Skip"}}
+{"method": "wait.until", "params": {"query": "dialog.current", "path": "/current", "op": "eq", "value": "MissionBriefing", "timeout_frames": 30}}
+{"method": "assert.eq", "params": {"query": "dialog.list", "path": "/dialogs/StoryComic", "value": false}}
+{"method": "assert.eq", "params": {"query": "story.state", "args": {"campaign": "dragon_legacy"}, "path": "/seen", "value": ["i_a"]}}
+{"method": "assert.eq", "params": {"query": "story.state", "args": {"campaign": "dragon_legacy"}, "path": "/sequences/0/plays", "value": false}}
+{"method": "assert.eq", "params": {"query": "sim.state", "path": "/paused", "value": true}}
+{"method": "assert.eq", "params": {"query": "session.state", "path": "/campaign/mission_index", "value": 0}}
+{"method": "assert.eq", "params": {"query": "session.state", "path": "/campaign/completed", "value": false}}
+{"method": "assert.exists", "params": {"query": "ui.tree", "args": {"filter": "MissionBriefing/Replay the story"}, "path": "/widgets/0"}}
+{"method": "assert.exists", "params": {"query": "ui.tree", "args": {"filter": "MissionBriefing/Begin"}, "path": "/widgets/0"}}
+{"method": "assert.eq", "params": {"query": "ui.layout_issues", "path": "/count", "value": 0}}
+{"method": "input.move", "params": {"park": true}}
+{"method": "wait.frames", "params": {"frames": 2}}
+{"method": "screenshot", "params": {"path": "out/ui_story/briefing_replay_dailong.png"}}
+# The briefing's Replay the story: I-A over the briefing, which shows again once it ends; nothing new recorded.
+{"method": "ui.click", "params": {"path": "MissionBriefing/Replay the story"}}
+{"method": "wait.until", "params": {"query": "dialog.current", "path": "/current", "op": "eq", "value": "StoryComic", "timeout_frames": 30}}
+{"method": "assert.eq", "params": {"query": "story.state", "args": {"campaign": "dragon_legacy"}, "path": "/playing/sequence", "value": "i_a"}}
+{"method": "input.key", "params": {"key": "Escape"}}
+{"method": "wait.until", "params": {"query": "dialog.current", "path": "/current", "op": "eq", "value": "MissionBriefing", "timeout_frames": 30}}
+{"method": "assert.eq", "params": {"query": "sim.state", "path": "/paused", "value": true}}
+{"method": "assert.eq", "params": {"query": "story.state", "args": {"campaign": "dragon_legacy"}, "path": "/seen", "value": ["i_a"]}}
+# The layout with Replay the story in each realm and at 200% and 75%.
+{"method": "ui.realm", "params": {"realm": "kambara"}}
+{"method": "wait.frames", "params": {"frames": 3}}
+{"method": "assert.eq", "params": {"query": "ui.layout_issues", "path": "/count", "value": 0}}
+{"method": "screenshot", "params": {"path": "out/ui_story/briefing_replay_kambara.png"}}
+{"method": "ui.realm", "params": {"realm": "tampadesa"}}
+{"method": "wait.frames", "params": {"frames": 3}}
+{"method": "assert.eq", "params": {"query": "ui.layout_issues", "path": "/count", "value": 0}}
+{"method": "screenshot", "params": {"path": "out/ui_story/briefing_replay_tampadesa.png"}}
+{"method": "config.set", "params": {"path": "/display/ui_scale_percent", "value": 200}}
+{"method": "wait.frames", "params": {"frames": 3}}
+{"method": "assert.eq", "params": {"query": "ui.layout_issues", "path": "/count", "value": 0}}
+{"method": "config.set", "params": {"path": "/display/ui_scale_percent", "value": 75}}
+{"method": "wait.frames", "params": {"frames": 3}}
+{"method": "assert.eq", "params": {"query": "ui.layout_issues", "path": "/count", "value": 0}}
+{"method": "ui.realm", "params": {"realm": "auto"}}
+{"method": "config.set", "params": {"path": "/display/ui_scale_percent", "value": 200}}
+{"method": "wait.frames", "params": {"frames": 3}}
+{"method": "assert.eq", "params": {"query": "ui.layout_issues", "path": "/count", "value": 0}}
+{"method": "config.set", "params": {"path": "/display/ui_scale_percent", "value": 100}}
+{"method": "wait.frames", "params": {"frames": 3}}
+# Campaign I has no epilogue: the campaign-complete screen has no Watch the epilogue.
+{"method": "dialog.open", "params": {"name": "CampaignComplete"}}
+{"method": "wait.frames", "params": {"frames": 3}}
+{"method": "assert.exists", "params": {"query": "ui.tree", "args": {"filter": "CampaignComplete/panel/Return to the menu"}, "path": "/widgets/0"}}
+{"method": "assert.eq", "params": {"query": "ui.tree", "args": {"filter": "CampaignComplete/panel/Watch the epilogue"}, "path": "/widgets", "value": []}}
+# (dialog.open closed the briefing under it: once it closes, the simulation steps and the mission, whose goals the map meets, is finished.)
+{"method": "dialog.close"}
+{"method": "wait.until", "params": {"query": "dialog.current", "path": "/current", "op": "eq", "value": "MissionComplete", "timeout_frames": 300}}
+
+# Starting the mission again doesn't play I-A again: its briefing opens at once.
+{"method": "session.start_mission", "params": {"campaign": "dragon_legacy", "mission": 0}}
+{"method": "wait.until", "params": {"query": "dialog.current", "path": "/current", "op": "eq", "value": "MissionBriefing", "timeout_frames": 300}}
+{"method": "assert.eq", "params": {"query": "dialog.list", "path": "/dialogs/StoryComic", "value": false}}
+# A save of the mission under way loads without the sequence or the briefing.
+{"method": "ui.click", "params": {"path": "MissionBriefing/Begin"}}
+{"method": "wait.until", "params": {"query": "dialog.current", "path": "/current", "op": "eq", "value": "MissionComplete", "timeout_frames": 300}}
+{"method": "ui.click", "params": {"path": "MissionComplete/panel/Keep playing"}}
+{"method": "wait.frames", "params": {"frames": 2}}
+{"method": "session.save", "params": {"name": "ui_story_mission"}}
+{"method": "session.load_save", "params": {"name": "ui_story_mission"}}
+{"method": "wait.frames", "params": {"frames": 10}}
+{"method": "assert.eq", "params": {"query": "dialog.current", "path": "", "value": {"current": null}}}
+{"method": "assert.eq", "params": {"query": "dialog.list", "path": "/dialogs/StoryComic", "value": false}}
+{"method": "session.quit_to_menu"}
+# The save stays until the end: Continue's subline, with Replay the story's, still fits Home.
+{"method": "wait.until", "params": {"query": "dialog.current", "path": "/current", "op": "eq", "value": "Home", "timeout_frames": 300}}
+
+# ---- The test campaigns: each realm's sequence before its first mission's briefing and after its debrief ----
+{"method": "profile.set", "params": {"reached": ["dragon_legacy", "test_choices", "test_choices_kambara", "test_choices_tampadesa"], "campaigns": [{"id": "dragon_legacy", "reached": true, "sequences_seen": ["i_a"]}]}}
+# Đại Long's: a resident meets mission 0's goal.
+{"method": "session.start_mission", "params": {"campaign": "test_choices", "mission": 0}}
+{"method": "wait.until", "params": {"query": "dialog.current", "path": "/current", "op": "eq", "value": "StoryComic", "timeout_frames": 300}}
+{"method": "assert.eq", "params": {"query": "story.state", "args": {"campaign": "test_choices"}, "path": "/playing", "value": {"campaign": "test_choices", "sequence": "test_before", "panel": 1}}}
+{"method": "assert.eq", "params": {"query": "ui.realm", "path": "/realm", "value": "dailong"}}
+{"method": "input.key", "params": {"key": "Right"}}
+{"method": "wait.frames", "params": {"frames": 2}}
+{"method": "input.key", "params": {"key": "Right"}}
+{"method": "wait.frames", "params": {"frames": 2}}
+{"method": "assert.exists", "params": {"query": "ui.tree", "args": {"filter": "StoryComic/bar/Continue"}, "path": "/widgets/0"}}
+# Continue on the last panel (a key, handled before the frame's simulation step): the briefing, unstarted.
+{"method": "input.key", "params": {"key": "Enter"}}
+{"method": "wait.until", "params": {"query": "dialog.current", "path": "/current", "op": "eq", "value": "MissionBriefing", "timeout_frames": 30}}
+{"method": "assert.eq", "params": {"query": "sim.state", "path": "/paused", "value": true}}
+{"method": "assert.eq", "params": {"query": "story.state", "args": {"campaign": "test_choices"}, "path": "/seen", "value": ["test_before"]}}
+{"method": "ui.click", "params": {"path": "MissionBriefing/Begin"}}
+{"method": "cheats.set", "params": {"name": "instant_construction", "value": true}}
+{"method": "cheats.set", "params": {"name": "ignore_tile_cost", "value": true}}
+{"method": "world.place", "params": {"tile": "house0", "cell": [2, 2]}}
+{"method": "time.fast_forward", "params": {"sim_secs": 1}}
+{"method": "world.add_population", "params": {"cell": [2, 2], "count": 1}}
+{"method": "wait.until", "params": {"query": "dialog.current", "path": "/current", "op": "eq", "value": "MissionComplete", "timeout_frames": 300}}
+# The debrief's Continue: the sequence after the mission, over the debrief, then the world map.
+{"method": "ui.click", "params": {"path": "MissionComplete/panel/Continue to the world map"}}
+{"method": "wait.until", "params": {"query": "dialog.current", "path": "/current", "op": "eq", "value": "StoryComic", "timeout_frames": 30}}
+{"method": "assert.eq", "params": {"query": "story.state", "args": {"campaign": "test_choices"}, "path": "/playing/sequence", "value": "test_after"}}
+{"method": "assert.eq", "params": {"query": "sim.state", "path": "/paused", "value": true}}
+{"method": "assert.eq", "params": {"query": "ui.layout_issues", "path": "/count", "value": 0}}
+{"method": "input.move", "params": {"park": true}}
+{"method": "wait.frames", "params": {"frames": 2}}
+{"method": "screenshot", "params": {"path": "out/ui_story/flow_test_after_dailong.png"}}
+{"method": "ui.click", "params": {"path": "StoryComic/bar/Next"}}
+{"method": "ui.click", "params": {"path": "StoryComic/bar/Continue"}}
+{"method": "wait.until", "params": {"query": "dialog.current", "path": "/current", "op": "eq", "value": "WorldMap", "timeout_frames": 30}}
+{"method": "assert.eq", "params": {"query": "dialog.list", "path": "/dialogs/MissionComplete", "value": false}}
+{"method": "assert.eq", "params": {"query": "story.state", "args": {"campaign": "test_choices"}, "path": "/seen", "value": ["test_before", "test_after"]}}
+{"method": "ui.click", "params": {"path": "WorldMap/bar/Return to the city"}}
+
+# Kambara's: its first mission has no goals, so the debrief comes as Begin lets the simulation step.
+{"method": "session.start_mission", "params": {"campaign": "test_choices_kambara", "mission": 0}}
+{"method": "wait.until", "params": {"query": "dialog.current", "path": "/current", "op": "eq", "value": "StoryComic", "timeout_frames": 300}}
+{"method": "assert.eq", "params": {"query": "story.state", "args": {"campaign": "test_choices_kambara"}, "path": "/playing/sequence", "value": "test_before"}}
+{"method": "assert.eq", "params": {"query": "ui.realm", "path": "/realm", "value": "kambara"}}
+{"method": "assert.eq", "params": {"query": "ui.layout_issues", "path": "/count", "value": 0}}
+{"method": "input.move", "params": {"park": true}}
+{"method": "wait.frames", "params": {"frames": 2}}
+{"method": "screenshot", "params": {"path": "out/ui_story/flow_test_before_kambara.png"}}
+# Escape skips: the briefing (its Replay the story too), the mission not finished yet.
+{"method": "input.key", "params": {"key": "Escape"}}
+{"method": "wait.until", "params": {"query": "dialog.current", "path": "/current", "op": "eq", "value": "MissionBriefing", "timeout_frames": 30}}
+{"method": "assert.eq", "params": {"query": "session.state", "path": "/campaign/completed", "value": false}}
+{"method": "assert.exists", "params": {"query": "ui.tree", "args": {"filter": "MissionBriefing/Replay the story"}, "path": "/widgets/0"}}
+{"method": "assert.eq", "params": {"query": "ui.layout_issues", "path": "/count", "value": 0}}
+{"method": "ui.click", "params": {"path": "MissionBriefing/Begin"}}
+{"method": "wait.until", "params": {"query": "dialog.current", "path": "/current", "op": "eq", "value": "MissionComplete", "timeout_frames": 300}}
+{"method": "ui.click", "params": {"path": "MissionComplete/panel/Continue to the world map"}}
+{"method": "wait.until", "params": {"query": "dialog.current", "path": "/current", "op": "eq", "value": "StoryComic", "timeout_frames": 30}}
+{"method": "assert.eq", "params": {"query": "story.state", "args": {"campaign": "test_choices_kambara"}, "path": "/playing/sequence", "value": "test_after"}}
+{"method": "ui.click", "params": {"path": "StoryComic/bar/Skip"}}
+{"method": "wait.until", "params": {"query": "dialog.current", "path": "/current", "op": "eq", "value": "WorldMap", "timeout_frames": 30}}
+{"method": "assert.eq", "params": {"query": "story.state", "args": {"campaign": "test_choices_kambara"}, "path": "/seen", "value": ["test_before", "test_after"]}}
+{"method": "ui.click", "params": {"path": "WorldMap/bar/Return to the city"}}
+
+# Tampadesa's; then its first mission again plays neither (the debrief's Continue goes straight on).
+{"method": "session.start_mission", "params": {"campaign": "test_choices_tampadesa", "mission": 0}}
+{"method": "wait.until", "params": {"query": "dialog.current", "path": "/current", "op": "eq", "value": "StoryComic", "timeout_frames": 300}}
+{"method": "assert.eq", "params": {"query": "ui.realm", "path": "/realm", "value": "tampadesa"}}
+{"method": "assert.eq", "params": {"query": "ui.layout_issues", "path": "/count", "value": 0}}
+{"method": "input.move", "params": {"park": true}}
+{"method": "wait.frames", "params": {"frames": 2}}
+{"method": "screenshot", "params": {"path": "out/ui_story/flow_test_before_tampadesa.png"}}
+{"method": "ui.click", "params": {"path": "StoryComic/bar/Skip"}}
+{"method": "wait.until", "params": {"query": "dialog.current", "path": "/current", "op": "eq", "value": "MissionBriefing", "timeout_frames": 30}}
+{"method": "assert.eq", "params": {"query": "ui.layout_issues", "path": "/count", "value": 0}}
+{"method": "input.move", "params": {"park": true}}
+{"method": "wait.frames", "params": {"frames": 2}}
+{"method": "screenshot", "params": {"path": "out/ui_story/briefing_replay_own_tampadesa.png"}}
+{"method": "ui.click", "params": {"path": "MissionBriefing/Begin"}}
+{"method": "wait.until", "params": {"query": "dialog.current", "path": "/current", "op": "eq", "value": "MissionComplete", "timeout_frames": 300}}
+{"method": "ui.click", "params": {"path": "MissionComplete/panel/Continue to the world map"}}
+{"method": "wait.until", "params": {"query": "dialog.current", "path": "/current", "op": "eq", "value": "StoryComic", "timeout_frames": 30}}
+{"method": "assert.eq", "params": {"query": "story.state", "args": {"campaign": "test_choices_tampadesa"}, "path": "/playing/sequence", "value": "test_after"}}
+{"method": "input.move", "params": {"park": true}}
+{"method": "wait.frames", "params": {"frames": 2}}
+{"method": "screenshot", "params": {"path": "out/ui_story/flow_test_after_tampadesa.png"}}
+{"method": "input.key", "params": {"key": "Escape"}}
+{"method": "wait.until", "params": {"query": "dialog.current", "path": "/current", "op": "eq", "value": "WorldMap", "timeout_frames": 30}}
+{"method": "session.start_mission", "params": {"campaign": "test_choices_tampadesa", "mission": 0}}
+{"method": "wait.until", "params": {"query": "dialog.current", "path": "/current", "op": "eq", "value": "MissionBriefing", "timeout_frames": 300}}
+{"method": "assert.eq", "params": {"query": "dialog.list", "path": "/dialogs/StoryComic", "value": false}}
+{"method": "ui.click", "params": {"path": "MissionBriefing/Begin"}}
+{"method": "wait.until", "params": {"query": "dialog.current", "path": "/current", "op": "eq", "value": "MissionComplete", "timeout_frames": 300}}
+{"method": "ui.click", "params": {"path": "MissionComplete/panel/Continue to the world map"}}
+{"method": "wait.until", "params": {"query": "dialog.current", "path": "/current", "op": "eq", "value": "WorldMap", "timeout_frames": 30}}
+{"method": "assert.eq", "params": {"query": "dialog.list", "path": "/dialogs/StoryComic", "value": false}}
+{"method": "ui.click", "params": {"path": "WorldMap/bar/Return to the city"}}
+
+# ---- The epilogue: Watch the epilogue on test_choices' campaign-complete screen ----
+{"method": "session.start_mission", "params": {"campaign": "test_choices", "mission": 2}}
+{"method": "wait.until", "params": {"query": "dialog.current", "path": "/current", "op": "eq", "value": "MissionBriefing", "timeout_frames": 300}}
+{"method": "assert.eq", "params": {"query": "ui.tree", "args": {"filter": "MissionBriefing/Replay the story"}, "path": "/widgets", "value": []}}
+{"method": "ui.click", "params": {"path": "MissionBriefing/Begin"}}
+{"method": "cheats.set", "params": {"name": "instant_construction", "value": true}}
+{"method": "cheats.set", "params": {"name": "ignore_tile_cost", "value": true}}
+{"method": "world.place", "params": {"tile": "house0", "cell": [2, 2]}}
+{"method": "time.fast_forward", "params": {"sim_secs": 1}}
+{"method": "world.add_population", "params": {"cell": [2, 2], "count": 1}}
+{"method": "wait.until", "params": {"query": "dialog.current", "path": "/current", "op": "eq", "value": "MissionComplete", "timeout_frames": 300}}
+{"method": "ui.click", "params": {"path": "MissionComplete/panel/Continue"}}
+{"method": "wait.until", "params": {"query": "dialog.current", "path": "/current", "op": "eq", "value": "CampaignComplete", "timeout_frames": 60}}
+{"method": "assert.exists", "params": {"query": "ui.tree", "args": {"filter": "CampaignComplete/panel/Watch the epilogue"}, "path": "/widgets/0"}}
+{"method": "assert.eq", "params": {"query": "story.state", "args": {"campaign": "test_choices"}, "path": "/epilogue", "value": "test_epilogue"}}
+{"method": "assert.eq", "params": {"query": "ui.layout_issues", "path": "/count", "value": 0}}
+{"method": "input.move", "params": {"park": true}}
+{"method": "wait.frames", "params": {"frames": 2}}
+{"method": "screenshot", "params": {"path": "out/ui_story/campaign_complete_epilogue_dailong.png"}}
+{"method": "ui.realm", "params": {"realm": "kambara"}}
+{"method": "wait.frames", "params": {"frames": 3}}
+{"method": "assert.eq", "params": {"query": "ui.layout_issues", "path": "/count", "value": 0}}
+{"method": "screenshot", "params": {"path": "out/ui_story/campaign_complete_epilogue_kambara.png"}}
+{"method": "ui.realm", "params": {"realm": "tampadesa"}}
+{"method": "wait.frames", "params": {"frames": 3}}
+{"method": "assert.eq", "params": {"query": "ui.layout_issues", "path": "/count", "value": 0}}
+{"method": "screenshot", "params": {"path": "out/ui_story/campaign_complete_epilogue_tampadesa.png"}}
+{"method": "config.set", "params": {"path": "/display/ui_scale_percent", "value": 200}}
+{"method": "wait.frames", "params": {"frames": 3}}
+{"method": "assert.eq", "params": {"query": "ui.layout_issues", "path": "/count", "value": 0}}
+{"method": "config.set", "params": {"path": "/display/ui_scale_percent", "value": 75}}
+{"method": "wait.frames", "params": {"frames": 3}}
+{"method": "assert.eq", "params": {"query": "ui.layout_issues", "path": "/count", "value": 0}}
+{"method": "config.set", "params": {"path": "/display/ui_scale_percent", "value": 100}}
+{"method": "ui.realm", "params": {"realm": "auto"}}
+{"method": "wait.frames", "params": {"frames": 3}}
+# It plays over the screen, which shows again once it ends; a replay, it records nothing.
+{"method": "ui.click", "params": {"path": "CampaignComplete/panel/Watch the epilogue"}}
+{"method": "wait.until", "params": {"query": "dialog.current", "path": "/current", "op": "eq", "value": "StoryComic", "timeout_frames": 30}}
+{"method": "assert.eq", "params": {"query": "story.state", "args": {"campaign": "test_choices"}, "path": "/playing/sequence", "value": "test_epilogue"}}
+{"method": "input.key", "params": {"key": "Escape"}}
+{"method": "wait.until", "params": {"query": "dialog.current", "path": "/current", "op": "eq", "value": "CampaignComplete", "timeout_frames": 30}}
+{"method": "assert.eq", "params": {"query": "story.state", "args": {"campaign": "test_choices"}, "path": "/seen", "value": ["test_before", "test_after"]}}
+# Return to the menu then plays it no more: it counts as seen once, as Return leaves.
+{"method": "ui.click", "params": {"path": "CampaignComplete/panel/Return to the menu"}}
+{"method": "wait.until", "params": {"query": "dialog.current", "path": "/current", "op": "eq", "value": "Home", "timeout_frames": 300}}
+{"method": "assert.eq", "params": {"query": "story.state", "args": {"campaign": "test_choices"}, "path": "/seen", "value": ["test_before", "test_after", "test_epilogue"]}}
+# Unseen and not watched, Return to the menu plays it first (once), then quits to the menu.
+{"method": "profile.set", "params": {"campaigns": [{"id": "dragon_legacy", "reached": true, "sequences_seen": ["i_a"]}, {"id": "test_choices", "reached": true, "missions_finished": [0, 2], "sequences_seen": ["test_before", "test_after"]}, {"id": "test_choices_kambara", "reached": true, "sequences_seen": ["test_before", "test_after"]}, {"id": "test_choices_tampadesa", "reached": true, "sequences_seen": ["test_before", "test_after"]}]}}
+{"method": "session.start_mission", "params": {"campaign": "test_choices", "mission": 2}}
+{"method": "wait.until", "params": {"query": "dialog.current", "path": "/current", "op": "eq", "value": "MissionBriefing", "timeout_frames": 300}}
+{"method": "ui.click", "params": {"path": "MissionBriefing/Begin"}}
+{"method": "cheats.set", "params": {"name": "instant_construction", "value": true}}
+{"method": "cheats.set", "params": {"name": "ignore_tile_cost", "value": true}}
+{"method": "world.place", "params": {"tile": "house0", "cell": [2, 2]}}
+{"method": "time.fast_forward", "params": {"sim_secs": 1}}
+{"method": "world.add_population", "params": {"cell": [2, 2], "count": 1}}
+{"method": "wait.until", "params": {"query": "dialog.current", "path": "/current", "op": "eq", "value": "MissionComplete", "timeout_frames": 300}}
+{"method": "ui.click", "params": {"path": "MissionComplete/panel/Continue"}}
+{"method": "wait.until", "params": {"query": "dialog.current", "path": "/current", "op": "eq", "value": "CampaignComplete", "timeout_frames": 60}}
+{"method": "ui.click", "params": {"path": "CampaignComplete/panel/Return to the menu"}}
+{"method": "wait.until", "params": {"query": "dialog.current", "path": "/current", "op": "eq", "value": "StoryComic", "timeout_frames": 30}}
+{"method": "assert.eq", "params": {"query": "story.state", "args": {"campaign": "test_choices"}, "path": "/playing/sequence", "value": "test_epilogue"}}
+{"method": "ui.click", "params": {"path": "StoryComic/bar/Next"}}
+{"method": "ui.click", "params": {"path": "StoryComic/bar/Continue"}}
+{"method": "wait.until", "params": {"query": "dialog.current", "path": "/current", "op": "eq", "value": "Home", "timeout_frames": 300}}
+{"method": "assert.eq", "params": {"query": "story.state", "args": {"campaign": "test_choices"}, "path": "/seen", "value": ["test_before", "test_after", "test_epilogue"]}}
+
+# ---- Home's Replay the story: the sequences seen, in order; Continue goes on to the next, Skip ends it ----
+{"method": "wait.frames", "params": {"frames": 3}}
+{"method": "assert.eq", "params": {"query": "ui.tree", "args": {"filter": "Home/Replay the story", "kind": "menu_entry"}, "path": "/widgets/0/value/subline", "value": "8 stories seen · from Adopted, Yet Chosen"}}
+{"method": "assert.eq", "params": {"query": "ui.layout_issues", "path": "/count", "value": 0}}
+{"method": "assert.exists", "params": {"query": "ui.tree", "args": {"filter": "Home/Continue", "kind": "menu_entry"}, "path": "/widgets/0/value/subline"}}
+{"method": "assert.eq", "params": {"query": "ui.tree", "args": {"filter": "Home", "kind": "menu_content"}, "path": "/widgets/0/value", "value": {"scrolls": false}}}
+{"method": "input.move", "params": {"park": true}}
+{"method": "wait.frames", "params": {"frames": 2}}
+{"method": "screenshot", "params": {"path": "out/ui_story/home_replay_dailong.png"}}
+{"method": "ui.click", "params": {"path": "Home/Replay the story"}}
+{"method": "wait.until", "params": {"query": "dialog.current", "path": "/current", "op": "eq", "value": "StoryComic", "timeout_frames": 30}}
+{"method": "assert.eq", "params": {"query": "story.state", "args": {"campaign": "dragon_legacy"}, "path": "/playing", "value": {"campaign": "dragon_legacy", "sequence": "i_a", "panel": 1}}}
+{"method": "input.key", "params": {"key": "Right"}}
+{"method": "wait.frames", "params": {"frames": 2}}
+{"method": "input.key", "params": {"key": "Right"}}
+{"method": "wait.frames", "params": {"frames": 2}}
+{"method": "input.key", "params": {"key": "Right"}}
+{"method": "wait.frames", "params": {"frames": 2}}
+{"method": "input.key", "params": {"key": "Right"}}
+{"method": "wait.frames", "params": {"frames": 2}}
+{"method": "input.key", "params": {"key": "Right"}}
+{"method": "wait.frames", "params": {"frames": 2}}
+{"method": "input.key", "params": {"key": "Right"}}
+{"method": "wait.until", "params": {"query": "story.state", "args": {"campaign": "test_choices"}, "path": "/playing/sequence", "op": "eq", "value": "test_before", "timeout_frames": 30}}
+{"method": "assert.eq", "params": {"query": "story.state", "args": {"campaign": "test_choices"}, "path": "/playing/campaign", "value": "test_choices"}}
+{"method": "ui.click", "params": {"path": "StoryComic/bar/Skip"}}
+{"method": "wait.until", "params": {"query": "dialog.current", "path": "/current", "op": "eq", "value": "Home", "timeout_frames": 30}}
+{"method": "wait.frames", "params": {"frames": 3}}
+{"method": "assert.eq", "params": {"query": "dialog.list", "path": "/dialogs/StoryComic", "value": false}}
+{"method": "assert.eq", "params": {"query": "story.state", "args": {"campaign": "dragon_legacy"}, "path": "/seen", "value": ["i_a"]}}
+# Home with Replay the story in each realm and at 200% and 75%.
+{"method": "config.set", "params": {"path": "/display/ui_scale_percent", "value": 200}}
+{"method": "wait.frames", "params": {"frames": 3}}
+{"method": "assert.eq", "params": {"query": "ui.layout_issues", "path": "/count", "value": 0}}
+{"method": "assert.eq", "params": {"query": "ui.tree", "args": {"filter": "Home", "kind": "menu_content"}, "path": "/widgets/0/value", "value": {"scrolls": false}}}
+{"method": "config.set", "params": {"path": "/display/ui_scale_percent", "value": 75}}
+{"method": "wait.frames", "params": {"frames": 3}}
+{"method": "assert.eq", "params": {"query": "ui.layout_issues", "path": "/count", "value": 0}}
+{"method": "assert.eq", "params": {"query": "ui.tree", "args": {"filter": "Home", "kind": "menu_content"}, "path": "/widgets/0/value", "value": {"scrolls": false}}}
+{"method": "config.set", "params": {"path": "/display/ui_scale_percent", "value": 100}}
+{"method": "ui.realm", "params": {"realm": "kambara"}}
+{"method": "wait.frames", "params": {"frames": 3}}
+{"method": "assert.eq", "params": {"query": "ui.layout_issues", "path": "/count", "value": 0}}
+{"method": "assert.eq", "params": {"query": "ui.tree", "args": {"filter": "Home", "kind": "menu_content"}, "path": "/widgets/0/value", "value": {"scrolls": false}}}
+{"method": "input.move", "params": {"park": true}}
+{"method": "wait.frames", "params": {"frames": 2}}
+{"method": "screenshot", "params": {"path": "out/ui_story/home_replay_kambara.png"}}
+{"method": "config.set", "params": {"path": "/display/ui_scale_percent", "value": 200}}
+{"method": "wait.frames", "params": {"frames": 3}}
+{"method": "assert.eq", "params": {"query": "ui.layout_issues", "path": "/count", "value": 0}}
+{"method": "assert.eq", "params": {"query": "ui.tree", "args": {"filter": "Home", "kind": "menu_content"}, "path": "/widgets/0/value", "value": {"scrolls": false}}}
+{"method": "config.set", "params": {"path": "/display/ui_scale_percent", "value": 100}}
+{"method": "ui.realm", "params": {"realm": "tampadesa"}}
+{"method": "wait.frames", "params": {"frames": 3}}
+{"method": "assert.eq", "params": {"query": "ui.layout_issues", "path": "/count", "value": 0}}
+{"method": "assert.eq", "params": {"query": "ui.tree", "args": {"filter": "Home", "kind": "menu_content"}, "path": "/widgets/0/value", "value": {"scrolls": false}}}
+{"method": "input.move", "params": {"park": true}}
+{"method": "wait.frames", "params": {"frames": 2}}
+{"method": "screenshot", "params": {"path": "out/ui_story/home_replay_tampadesa.png"}}
+{"method": "config.set", "params": {"path": "/display/ui_scale_percent", "value": 200}}
+{"method": "wait.frames", "params": {"frames": 3}}
+{"method": "assert.eq", "params": {"query": "ui.layout_issues", "path": "/count", "value": 0}}
+{"method": "assert.eq", "params": {"query": "ui.tree", "args": {"filter": "Home", "kind": "menu_content"}, "path": "/widgets/0/value", "value": {"scrolls": false}}}
+{"method": "config.set", "params": {"path": "/display/ui_scale_percent", "value": 75}}
+{"method": "wait.frames", "params": {"frames": 3}}
+{"method": "assert.eq", "params": {"query": "ui.layout_issues", "path": "/count", "value": 0}}
+{"method": "assert.eq", "params": {"query": "ui.tree", "args": {"filter": "Home", "kind": "menu_content"}, "path": "/widgets/0/value", "value": {"scrolls": false}}}
+{"method": "config.set", "params": {"path": "/display/ui_scale_percent", "value": 100}}
+{"method": "ui.realm", "params": {"realm": "auto"}}
+{"method": "profile.reset"}
+{"method": "session.delete_save", "params": {"name": "ui_story_mission"}}

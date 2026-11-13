@@ -21,8 +21,9 @@
 # Kambara's and Tampadesa's own looks, through their hidden test campaigns: briefing, debrief, the
 # map's choice (site A, then site B), the last debrief, the finished stele and back to the home
 # menu. Last, a choice point started with no site picked offers its two sites in its briefing: one
-# begins it there, the other starts its own mission; either is recorded in the profile. Screenshots
-# go to out/ui_intermission/.
+# begins it there, the other starts its own mission; either is recorded in the profile. The story
+# sequences that now play before a briefing and on a debrief's Continue are skipped (Escape) where
+# they first play: ui_story.jsonl checks them. Screenshots go to out/ui_intermission/.
 #
 # Campaign I's missions load the sample saves, so extract them first (unzip saves/sample_saves.zip,
 # as CI does). Run it with --fresh-profile, as CI does, at any window size (CI's is 1440 × 800; it
@@ -35,10 +36,13 @@
 {"method": "ui.tree", "params": {"filter": "Home/", "fields": ["path"]}}
 {"method": "profile.set", "params": {"reached": ["dragon_legacy", "test_choices"]}}
 
-# ---- Campaign I, mission 1: Home's Campaign starts it; its briefing opens as its map loads, the
+# ---- Campaign I, mission 1: Home's Campaign starts it; its briefing opens as its map loads (after I-A), the
 # simulation paused ----
 {"method": "assert.eq", "params": {"query": "ui.tree", "args": {"filter": "Home/Campaign", "kind": "menu_entry"}, "path": "/widgets/0/value/subline", "value": "Campaign I · mission 1 of 3"}}
 {"method": "ui.click", "params": {"path": "Home/Campaign"}}
+# Its story sequence (I-A) plays first: skipped here (ui_story.jsonl steps through it).
+{"method": "wait.until", "params": {"query": "dialog.current", "path": "/current", "op": "eq", "value": "StoryComic", "timeout_frames": 300}}
+{"method": "input.key", "params": {"key": "Escape"}}
 {"method": "wait.until", "params": {"query": "dialog.current", "path": "/current", "op": "eq", "value": "MissionBriefing", "timeout_frames": 300}}
 {"method": "input.move", "params": {"park": true}}
 {"method": "wait.frames", "params": {"frames": 3}}
@@ -340,6 +344,9 @@
 
 # ---- A test campaign: a resident meets mission 0's goal; Continue opens the map's A/B choice ----
 {"method": "session.start_mission", "params": {"campaign": "test_choices", "mission": 0}}
+# Its story sequence before the mission first: skipped (ui_story.jsonl checks it).
+{"method": "wait.until", "params": {"query": "dialog.current", "path": "/current", "op": "eq", "value": "StoryComic", "timeout_frames": 300}}
+{"method": "input.key", "params": {"key": "Escape"}}
 {"method": "wait.until", "params": {"query": "dialog.current", "path": "/current", "op": "eq", "value": "MissionBriefing", "timeout_frames": 300}}
 {"method": "assert.eq", "params": {"query": "session.state", "path": "/campaign/campaign_id", "value": "test_choices"}}
 {"method": "ui.click", "params": {"path": "MissionBriefing/Begin"}}
@@ -356,6 +363,9 @@
 {"method": "assert.eq", "params": {"query": "ui.tree", "args": {"filter": "MissionComplete/stele", "kind": "canvas"}, "path": "/widgets/0/value/rows_to_come", "value": 1}}
 {"method": "assert.eq", "params": {"query": "ui.layout_issues", "path": "/count", "value": 0}}
 {"method": "ui.click", "params": {"path": "MissionComplete/panel/Continue to the world map"}}
+# Its story sequence after the mission first (over the debrief): skipped.
+{"method": "wait.until", "params": {"query": "dialog.current", "path": "/current", "op": "eq", "value": "StoryComic", "timeout_frames": 300}}
+{"method": "input.key", "params": {"key": "Escape"}}
 {"method": "input.move", "params": {"park": true}}
 {"method": "wait.frames", "params": {"frames": 3}}
 {"method": "assert.eq", "params": {"query": "dialog.current", "path": "/current", "value": "WorldMap"}}
@@ -406,6 +416,9 @@
 # briefing and debrief, the finished stele and the home menu ----
 # Kambara's: site A, the bay port, begins the choice point itself.
 {"method": "session.start_mission", "params": {"campaign": "test_choices_kambara", "mission": 0}}
+# Its sequence before the mission first: skipped.
+{"method": "wait.until", "params": {"query": "dialog.current", "path": "/current", "op": "eq", "value": "StoryComic", "timeout_frames": 300}}
+{"method": "input.key", "params": {"key": "Escape"}}
 {"method": "wait.until", "params": {"query": "dialog.current", "path": "/current", "op": "eq", "value": "MissionBriefing", "timeout_frames": 300}}
 {"method": "input.move", "params": {"park": true}}
 {"method": "wait.frames", "params": {"frames": 3}}
@@ -424,6 +437,9 @@
 {"method": "assert.eq", "params": {"query": "ui.layout_issues", "path": "/count", "value": 0}}
 {"method": "screenshot", "params": {"path": "out/ui_intermission/flow_kambara_debrief.png"}}
 {"method": "ui.click", "params": {"path": "MissionComplete/panel/Continue to the world map"}}
+# Its sequence after the mission first: skipped.
+{"method": "wait.until", "params": {"query": "dialog.current", "path": "/current", "op": "eq", "value": "StoryComic", "timeout_frames": 300}}
+{"method": "input.key", "params": {"key": "Escape"}}
 {"method": "input.move", "params": {"park": true}}
 {"method": "wait.frames", "params": {"frames": 3}}
 {"method": "assert.eq", "params": {"query": "dialog.current", "path": "/current", "value": "WorldMap"}}
@@ -463,6 +479,9 @@
 {"method": "assert.eq", "params": {"query": "ui.realm", "path": "/source", "value": "profile"}}
 # Tampadesa's: site B, the upriver town, starts the choice's other mission.
 {"method": "session.start_mission", "params": {"campaign": "test_choices_tampadesa", "mission": 0}}
+# Its sequence before the mission first: skipped.
+{"method": "wait.until", "params": {"query": "dialog.current", "path": "/current", "op": "eq", "value": "StoryComic", "timeout_frames": 300}}
+{"method": "input.key", "params": {"key": "Escape"}}
 {"method": "wait.until", "params": {"query": "dialog.current", "path": "/current", "op": "eq", "value": "MissionBriefing", "timeout_frames": 300}}
 {"method": "input.move", "params": {"park": true}}
 {"method": "wait.frames", "params": {"frames": 3}}
@@ -481,6 +500,9 @@
 {"method": "assert.eq", "params": {"query": "ui.layout_issues", "path": "/count", "value": 0}}
 {"method": "screenshot", "params": {"path": "out/ui_intermission/flow_tampadesa_debrief.png"}}
 {"method": "ui.click", "params": {"path": "MissionComplete/panel/Continue to the world map"}}
+# Its sequence after the mission first: skipped.
+{"method": "wait.until", "params": {"query": "dialog.current", "path": "/current", "op": "eq", "value": "StoryComic", "timeout_frames": 300}}
+{"method": "input.key", "params": {"key": "Escape"}}
 {"method": "input.move", "params": {"park": true}}
 {"method": "wait.frames", "params": {"frames": 3}}
 {"method": "assert.eq", "params": {"query": "dialog.current", "path": "/current", "value": "WorldMap"}}

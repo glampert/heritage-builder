@@ -632,11 +632,11 @@ impl GameSession {
         custom_game::end();
         if let Some(mission) = campaign::active_mission() {
             profile::on_mission_started(mission.campaign_id, mission.mission_index);
-            // TODO(realm-ui): Phase 4's story sequence before this mission (story-script.md: I-A
-            // before mission 1) plays here, before its briefing.
             if self.current_menus_mode() == Some(GameMenusMode::InGame) {
-                // Only the in-game menus open it: a mission started under the developer editor
-                // (start_in_dev_editor_mode) neither waits for one nor opens one later.
+                // Only the in-game menus open it, after the mission's story sequence if the profile
+                // hasn't seen it (dialog::open_mission_start): a mission started under the
+                // developer editor (start_in_dev_editor_mode) neither waits for them nor opens them
+                // later.
                 campaign::request_briefing();
             }
         }

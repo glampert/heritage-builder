@@ -4,7 +4,10 @@
 // latest playable, or locked); the menu items with their sublines, the realm's marker on the one
 // hovered; and the version. Continue loads the profile's last save; Campaign starts or resumes the
 // campaign the player can play, at its next mission, or opens the campaign picker when they can
-// play more than one.
+// play more than one. Replay the story, shown once the profile has seen a story sequence, plays
+// the sequences seen again, in the order the campaigns play them (story::seen), one after another:
+// Continue on a sequence's last panel goes on to the next, Skip (or Escape) ends the replay. A
+// replay records nothing.
 //
 // It shows the profile, the campaigns and the last save as they were when it was built. The
 // dialogs that show them are built again when the profile changes, whenever the home menu opens
@@ -36,6 +39,7 @@ use crate::{
 const HOME_WIDGET_SPACING: f32 = 6.0;  // Between the panel's parts.
 const HOME_ITEM_SPACING: f32 = 4.0;    // Between the menu items.
 const HOME_ITEM_SCALE: f32 = 1.1;      // The items' fonts, padding and marker, over the skin's menu_item role.
+const HOME_ITEM_SCALE_EIGHT: f32 = 0.88; // Times that with Replay the story's eighth item, so the panel still fits.
 const HOME_EMBLEM_SIZE: f32 = 72.0;
 const HOME_EMBLEM_LABEL_FONT_SCALE: f32 = 0.85;
 const HOME_VERSION_FONT_SCALE: f32 = 0.8;
@@ -51,6 +55,7 @@ const HOME_CREST_HEIGHT: f32 = 76.0;   // The crest is drawn this tall at most, 
 enum HomeItem {
     Continue,
     Campaign,
+    ReplayStory,
     CustomGame,
     LoadGame,
     Settings,
@@ -59,12 +64,13 @@ enum HomeItem {
 }
 
 impl HomeItem {
-    const ALL: [Self; 7] = [Self::Continue, Self::Campaign, Self::CustomGame, Self::LoadGame, Self::Settings, Self::About, Self::Quit];
+    const ALL: [Self; 8] = [Self::Continue, Self::Campaign, Self::ReplayStory, Self::CustomGame, Self::LoadGame, Self::Settings, Self::About, Self::Quit];
 
     fn label(self) -> UiString {
         match self {
             Self::Continue => UiString::key(UiTextCategory::Menu, "home.continue"),
             Self::Campaign => UiString::key(UiTextCategory::Menu, "home.campaign"),
+            Self::ReplayStory => UiString::key(UiTextCategory::Menu, "home.replay"),
             Self::CustomGame => UiString::key(UiTextCategory::Menu, "home.custom_game"),
             Self::LoadGame => UiString::key(UiTextCategory::Menu, "home.load_game"),
             Self::Settings => UiString::key(UiTextCategory::Menu, "home.settings"),
@@ -78,6 +84,7 @@ impl HomeItem {
         match self {
             Self::Continue => on_continue(),
             Self::Campaign => on_campaign(context),
+            Self::ReplayStory => start_replay(context),
             Self::CustomGame => super::open(DialogMenuKind::CustomGame, CLOSE_ALL_OTHERS, context),
             Self::LoadGame => super::open(DialogMenuKind::LoadGame, CLOSE_ALL_OTHERS, context),
             Self::Settings => super::open(DialogMenuKind::MainSettings, CLOSE_ALL_OTHERS, context),
@@ -320,6 +327,53 @@ fn on_campaign(context: &mut GameUiContext) -> bool {
 }
 
 // ----------------------------------------------
+// Replay the story
+// ----------------------------------------------
+
+// The sequences still to replay, as (campaign index, sequence id), the next first.
+static REPLAY: UiStaticVar<Vec<(usize, String)>> = UiStaticVar::new(Vec::new());
+
+// What Replay the story's subline says: how many sequences were seen, and the first's title.
+// None: none was (the item isn't shown).
+fn replay_subline() -> Option<String> {
+    let seen = crate::story::seen();
+    let first = seen.first()?;
+    let title = ui::text::get(UiTextCategory::Story, &first.sequence.title);
+    Some(ui::text::format_count(UiTextCategory::Menu, "home.replay.subline", seen.len() as i64, &[("title", title)]))
+}
+
+fn start_replay(context: &mut GameUiContext) -> bool {
+    *REPLAY.as_mut() = crate::story::seen().into_iter().map(|sequence| (sequence.campaign_index, sequence.sequence.id.clone())).collect();
+    play_next_replay(context)
+}
+
+// The next sequence of the replay, if any is left: false once none is (or it didn't play).
+fn play_next_replay(context: &mut GameUiContext) -> bool {
+    let replay = REPLAY.as_mut();
+    if replay.is_empty() {
+        return false;
+    }
+    let (campaign_index, sequence_id) = replay.remove(0);
+    let request = StoryRequest {
+        campaign_index,
+        sequence_id,
+        panel: 0,
+        records_seen: false,
+        on_end: Some(|context, end| match end {
+            StoryEnd::Finished => {
+                play_next_replay(context);
+            }
+            StoryEnd::Skipped => REPLAY.as_mut().clear(),
+        }),
+    };
+    let played = super::play_story(request, context);
+    if !played {
+        REPLAY.as_mut().clear();
+    }
+    played
+}
+
+// ----------------------------------------------
 // Home
 // ----------------------------------------------
 
@@ -410,10 +464,19 @@ fn campaign_row(context: &mut GameUiContext, scale: f32, text_scale: f32) -> UiC
 // The menu's items, Continue's and Campaign's with their sublines, the disabled ones with a tooltip
 // that says why. Sized at `scale`, their text at `text_scale`.
 fn menu_items(context: &mut GameUiContext, scale: f32, text_scale: f32) -> UiWidgetGroup {
-    let mut group = UiWidgetGroup::new().with_widget_spacing(Vec2::new(0.0, HOME_ITEM_SPACING * scale));
+    // Replay the story only in the home menu, once a sequence was seen. The mockups' panel holds
+    // seven items: with the eighth, all of them are set smaller so it still fits without scrolling.
+    let replay = replay_subline().filter(|_| super::in_home_menu());
+    let item_scale = if replay.is_some() { HOME_ITEM_SCALE * HOME_ITEM_SCALE_EIGHT } else { HOME_ITEM_SCALE };
+    let spacing = if replay.is_some() { HOME_ITEM_SPACING * HOME_ITEM_SCALE_EIGHT } else { HOME_ITEM_SPACING };
+    let mut group = UiWidgetGroup::new().with_widget_spacing(Vec2::new(0.0, spacing * scale));
 
     for item_kind in HomeItem::ALL {
         let (subline, enabled, tooltip) = match item_kind {
+            HomeItem::ReplayStory => match replay.clone() {
+                Some(subline) => (Some(subline), true, None),
+                None => continue,
+            },
             HomeItem::Continue if !super::in_home_menu() => (None, false, None),
             HomeItem::Continue => {
                 let info = continue_info();
@@ -423,7 +486,7 @@ fn menu_items(context: &mut GameUiContext, scale: f32, text_scale: f32) -> UiWid
             _ => (None, true, None),
         };
 
-        let mut item = skin::menu_item_scaled(context, item_kind.label(), subline.map(UiString::from), scale * HOME_ITEM_SCALE, text_scale * HOME_ITEM_SCALE)
+        let mut item = skin::menu_item_scaled(context, item_kind.label(), subline.map(UiString::from), scale * item_scale, text_scale * item_scale)
             .with_enabled(enabled)
             .on_pressed(move |_, context| {
                 item_kind.on_pressed(context_as_mut::<GameUiContext>(context));

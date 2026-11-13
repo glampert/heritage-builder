@@ -9,8 +9,9 @@
 //   requirements and the city's stats; the stats (population, treasury, years taken); the note
 //   that its city joins the world map; and Keep playing and Continue.
 //
-// Keep playing closes it and the game goes on (the mission stays finished). Continue goes on with
-// the campaign: to the world map, which offers the next mission (the A/B sites of a choice, or
+// Keep playing closes it and the game goes on (the mission stays finished). Continue first plays
+// the mission's story sequence after it, over the debrief, if the profile hasn't seen it
+// (story::to_play_after), then goes on with the campaign: to the world map, which offers the next mission (the A/B sites of a choice, or
 // "Next: <mission>" and Begin), when it shows this campaign; to the next mission straight away
 // when it doesn't (no world map, or another realm's look under a ui.realm override); and after the
 // campaign's last mission, to the campaign-complete screen (CampaignComplete).
@@ -313,14 +314,35 @@ impl MissionComplete {
         // Escape) leaves no way on where only its Continue goes on: after the campaign's last
         // mission (the campaign-complete screen: the world map offers nothing after the last
         // step), and where the world map doesn't show the campaign (a ui.realm override; the next
-        // mission). The HUD's mission panel (Phase 5) or the world map's box should offer it then.
+        // mission), and the mission's story sequence after it (story::to_play_after), which only
+        // Continue plays. The HUD's mission panel (Phase 5) or the world map's box should offer
+        // them then.
         campaign::continue_playing();
         super::close(DialogMenuKind::MissionComplete, context);
     }
 
+    // The mission's story sequence after it first, over the debrief, if the profile hasn't seen it
+    // (story::to_play_after; recorded once it ends, Skip included); then the way on.
     fn on_continue(context: &mut GameUiContext) {
-        // TODO(realm-ui): Phase 4's story sequence after this mission plays here, before the world
-        // map, the next mission or the campaign-complete screen (story-script.md: I-B after mission 5).
+        if let Some(active) = campaign::active_mission()
+            && let Some(sequence) = crate::story::to_play_after(active.campaign_id, active.mission_index)
+        {
+            let request = StoryRequest {
+                campaign_index: sequence.campaign_index,
+                sequence_id: sequence.sequence.id.clone(),
+                panel: 0,
+                records_seen: true,
+                on_end: Some(|context, _| Self::go_on(context)),
+            };
+            if super::play_story(request, context) {
+                return;
+            }
+        }
+        Self::go_on(context);
+    }
+
+    // The world map, the next mission or the campaign-complete screen, as continue_to says.
+    fn go_on(context: &mut GameUiContext) {
         match continue_to() {
             // The world map offers the next mission: its choice box's sites, or "Begin the
             // mission". The mission just finished stays the one being played until then.

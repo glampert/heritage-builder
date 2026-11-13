@@ -20,11 +20,12 @@ pub(super) const COMMANDS: &[CommandDef] = &[
         name: "story.state",
         help: "A campaign's story sequences (assets/configs/story/<campaign>.json): each with its id, title, trigger \
            (before_mission or after_mission and the mission, or epilogue; pending while its mission isn't written \
-           yet), whether the profile has seen it and whether it plays on its own (unseen, its mission there; never an \
-           epilogue, which only Watch the epilogue plays), and its panels \
-           (picture, narration, bubbles with their speaker, kind, anchor and tail in panel points, sepia, \
-           stele_lines). Also: the panel's size in points, what plays before and after the mission being played, \
-           the campaign's epilogue, and every sequence the profile has seen, in Replay the story's order.",
+           yet), whether the profile has seen it and whether it plays on its own (unseen and its mission there: \
+           before the mission's briefing, on its debrief's Continue, or an epilogue on the campaign-complete \
+           screen's Return to the menu), and its panels (picture, narration, bubbles with their speaker, kind, \
+           anchor and tail in panel points, sepia, stele_lines). Also: the panel's size in points, what plays \
+           before and after the mission being played, the campaign's epilogue, and every sequence the profile has \
+           seen, in Replay the story's order.",
         params: &[ParamDef {
             name: "campaign",
             kind: "string",
@@ -99,9 +100,9 @@ fn cmd_state(_context: &mut CommandContext, params: Value) -> CommandResult {
                     "title_text": text::get(UiTextCategory::Story, &sequence.title),
                     "trigger": trigger_json(campaign, sequence, point),
                     "seen": seen,
-                    // Plays on its own in the campaign flow: an epilogue never does (Watch the
-                    // epilogue plays it).
-                    "plays": !seen && matches!(point, TriggerPoint::Before(_) | TriggerPoint::After(_)),
+                    // Plays on its own in the campaign flow: before the briefing, on the debrief's
+                    // Continue, or an epilogue on the campaign-complete screen's Return to the menu.
+                    "plays": !seen && !matches!(point, TriggerPoint::Pending | TriggerPoint::Unknown),
                     "panel_count": sequence.panels.len(),
                     "panels": sequence.panels.iter().map(panel_json).collect::<Vec<_>>(),
                 })
@@ -221,9 +222,13 @@ fn cmd_play(context: &mut CommandContext, params: Value) -> CommandResult {
     if !opened {
         return Err(CommandError::failed(format!("Sequence '{}' didn't play.", sequence.id)));
     }
-    done(
-        json!({ "campaign": campaign.id, "sequence": sequence.id, "panel": panel, "panels": sequence.panels.len(), "seen": params.seen }),
-    )
+    done(json!({
+        "campaign": campaign.id,
+        "sequence": sequence.id,
+        "panel": panel,
+        "panels": sequence.panels.len(),
+        "seen": params.seen,
+    }))
 }
 
 fn trigger_json(campaign: &crate::campaign::config::CampaignDef, sequence: &SequenceDef, point: TriggerPoint) -> Value {

@@ -7,7 +7,9 @@
 // - right, on the skin's big panel: "CAMPAIGN I COMPLETE", the campaign's name, the realm and the
 //   date it was finished in, its closing line (the campaign's `stele_closing`), its missions, the
 //   stats (missions finished, the last city and its population), the note that the next campaign
-//   is open (or that every one is finished), and Return to the menu.
+//   is open (or that every one is finished), Watch the epilogue when the campaign has one (it
+//   plays over the screen), and Return to the menu, which plays the epilogue first while the
+//   profile hasn't seen it.
 //
 // It's built afresh each time it opens (prepare), from the mission being played (the campaign's
 // last: campaign::active_mission) and the profile, which has recorded it by then, and again when
@@ -22,7 +24,7 @@
 // Paths: CampaignComplete/stele (kind canvas: title, lines, newest, rows_to_come);
 // CampaignComplete/panel/kicker, name, place, closing, missions_title, missions (kind table: a row
 // per mission, its number and name; missions_2 for a second column), stats (kind key_values),
-// note/next, Return to the menu.
+// note/next, Watch the epilogue (only for a campaign with an epilogue), Return to the menu.
 
 use common::{Color, Rect};
 
@@ -74,6 +76,7 @@ const NOTE_HEIGHT: f32 = 84.0;
 const NOTE_EMBLEM: [f32; 3] = [46.0, 28.0, 90.0]; // The emblem's centre and radius, and the text's left, in from the box's left.
 const BUTTON_HEIGHT: f32 = 58.0;
 const RETURN_WIDTH: f32 = 340.0;
+const EPILOGUE_WIDTH: f32 = 300.0;
 
 // The gaps between the panel's parts as the mockup spaces them (tightness 1), from the top: after
 // the kicker, the name, the place, the rule, the closing line and the missions' title; and from
@@ -89,9 +92,14 @@ const GAPS: [f32; 8] = [14.0, 6.0, 10.0, 34.0, 26.0, 10.0, 20.0, 36.0];
 // opening, and the window it was built for.
 static STATE: UiStaticVar<BuiltOnOpen> = UiStaticVar::new(BuiltOnOpen::new());
 
+// Whether Watch the epilogue played it since the screen was prepared: Return to the menu then
+// quits without playing it again (runtime only, reset when the screen is prepared).
+static EPILOGUE_WATCHED: UiStaticVar<bool> = UiStaticVar::new(false);
+
 // Sets the screen up for opening (dialog::open_dialog builds it afresh then).
 pub(super) fn prepare() {
     STATE.as_mut().prepare();
+    *EPILOGUE_WATCHED.as_mut() = false;
 }
 
 // Whether the open screen must be built again: the window's size changed.
@@ -284,13 +292,56 @@ impl CampaignComplete {
         Self { menu: menu.into_rc() }
     }
 
-    // Back to the home menu, which shows the realm of the campaign the profile reached. Quitting
-    // also resets the campaign (cmd_quit_to_main_menu).
-    fn on_return(_context: &mut GameUiContext) {
-        // TODO(realm-ui): Phase 4's epilogue (story-script.md: I-E) gets its own button beside this
-        // one ("Watch the epilogue", as the mockup has it), and plays once before the menu.
+    // Back to the home menu, which shows the realm of the campaign the profile reached, after the
+    // campaign's epilogue if the profile hasn't seen it (it plays once, recorded once it ends, Skip
+    // included). An epilogue Watch the epilogue played on this screen isn't played again: it's
+    // recorded as seen now, its first viewing. Quitting also resets the campaign
+    // (cmd_quit_to_main_menu).
+    fn on_return(context: &mut GameUiContext) {
+        if let Some(campaign_index) = epilogue_campaign()
+            && let Some(epilogue) = crate::story::epilogue(campaign_index)
+            && !epilogue.is_seen(profile::get())
+        {
+            if *EPILOGUE_WATCHED.as_ref() {
+                profile::on_sequence_seen(campaign_index, &epilogue.sequence.id);
+                GameLoop::get_mut().quit_to_main_menu();
+                return;
+            }
+            let request = StoryRequest {
+                campaign_index,
+                sequence_id: epilogue.sequence.id.clone(),
+                panel: 0,
+                records_seen: true,
+                on_end: Some(|_, _| GameLoop::get_mut().quit_to_main_menu()),
+            };
+            if super::play_story(request, context) {
+                return;
+            }
+        }
         GameLoop::get_mut().quit_to_main_menu();
     }
+
+    // Watch the epilogue: plays it over the screen, which shows again once it ends. A replay, so
+    // it records nothing; Return to the menu then records an unseen epilogue without playing it
+    // again (EPILOGUE_WATCHED).
+    fn on_watch_epilogue(context: &mut GameUiContext) {
+        let Some(campaign_index) = epilogue_campaign() else {
+            return;
+        };
+        let Some(epilogue) = crate::story::epilogue(campaign_index) else {
+            return;
+        };
+        let request = StoryRequest { campaign_index, sequence_id: epilogue.sequence.id.clone(), panel: 0, records_seen: false, on_end: None };
+        if super::play_story(request, context) {
+            *EPILOGUE_WATCHED.as_mut() = true;
+        }
+    }
+}
+
+// The campaign whose epilogue the screen offers: the mission being played's, if it has one.
+fn epilogue_campaign() -> Option<usize> {
+    let campaign_index = campaign::active_mission()?.campaign_id;
+    crate::story::epilogue(campaign_index).map(|_| campaign_index)
 }
 
 // ----------------------------------------------
@@ -545,7 +596,8 @@ fn note_box(context: &mut GameUiContext, scales: Scales, realm: Option<Realm>, n
         .with_outline(UiFrameOutline { color: border, width: scales.pt(1.5).max(1.0), inset: 0.0, dash: Some([scales.pt(6.0), scales.pt(3.0)]) })
 }
 
-// Return to the menu, at the right.
+// Watch the epilogue at the left, when the campaign has one (hidden otherwise), and Return to the
+// menu at the right.
 fn buttons(context: &mut GameUiContext, scales: Scales, width: f32) -> UiColumns {
     let back = skin::button(context, ButtonRole::Primary, UiString::key(UiTextCategory::Menu, "campaign_complete.return"), |_, context| {
         CampaignComplete::on_return(context_as_mut::<GameUiContext>(context));
@@ -553,6 +605,14 @@ fn buttons(context: &mut GameUiContext, scales: Scales, width: f32) -> UiColumns
     .with_width(UiTextButtonWidth::Fixed(scales.pt(RETURN_WIDTH)))
     .with_min_height(scales.pt(BUTTON_HEIGHT));
     let mut columns = UiColumns::new().with_spacing(0.0).with_width(width);
+    if epilogue_campaign().is_some() {
+        let watch = skin::button(context, ButtonRole::Secondary, UiString::key(UiTextCategory::Menu, "campaign_complete.epilogue"), |_, context| {
+            CampaignComplete::on_watch_epilogue(context_as_mut::<GameUiContext>(context));
+        })
+        .with_width(UiTextButtonWidth::Fixed(scales.pt(EPILOGUE_WIDTH)))
+        .with_min_height(scales.pt(BUTTON_HEIGHT));
+        columns.add_column(UiColumnWidth::Fixed(scales.pt(EPILOGUE_WIDTH)), left_group().with_widget(scales.button_text(watch, BUTTON_TEXT_SIZE)));
+    }
     columns.add_column(UiColumnWidth::Fraction(1.0), UiWidgetGroup::new());
     columns.add_column(UiColumnWidth::Fixed(scales.pt(RETURN_WIDTH)), left_group().with_widget(scales.button_text(back, BUTTON_TEXT_SIZE)));
     columns

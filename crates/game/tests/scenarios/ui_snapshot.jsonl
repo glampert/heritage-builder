@@ -174,10 +174,18 @@
 {"method": "assert.eq", "params": {"query": "ui.layout_issues", "path": "/count", "value": 0}}
 {"method": "assert.image", "params": {"golden": "ingame_campaign_complete.png", "path": "out/ui_snapshot/ingame_campaign_complete.png"}}
 {"method": "dialog.close"}
-# The briefing, a campaign mission's only: a hidden test campaign's first mission (on this preset
-# map), then the preset again for the developer editor.
+# The story comic and the briefing, a campaign mission's only: a hidden test campaign's first
+# mission (on this preset map), its sequence before it, then the preset again for the developer editor.
 {"method": "profile.set", "params": {"reached": ["dragon_legacy", "test_choices"]}}
 {"method": "session.start_mission", "params": {"campaign": "test_choices", "mission": 0}}
+# Its story sequence plays first, in the comic viewer (StoryComic); Escape skips it.
+{"method": "wait.until", "params": {"query": "dialog.current", "path": "/current", "op": "eq", "value": "StoryComic", "timeout_frames": 300}}
+{"method": "input.move", "params": {"park": true}}
+{"method": "wait.frames", "params": {"frames": 3}}
+{"method": "ui.tree", "params": {"fields": ["path", "kind", "enabled", "value"]}}
+{"method": "assert.eq", "params": {"query": "ui.layout_issues", "path": "/count", "value": 0}}
+{"method": "assert.image", "params": {"golden": "ingame_story_comic.png", "path": "out/ui_snapshot/ingame_story_comic.png"}}
+{"method": "input.key", "params": {"key": "Escape"}}
 {"method": "wait.until", "params": {"query": "dialog.current", "path": "/current", "op": "eq", "value": "MissionBriefing", "timeout_frames": 300}}
 {"method": "input.move", "params": {"park": true}}
 {"method": "wait.frames", "params": {"frames": 3}}

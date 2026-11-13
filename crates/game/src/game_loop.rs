@@ -675,6 +675,12 @@ impl GameLoop {
             return;
         }
 
+        // Nor while a story sequence plays or what follows it is still to open (a mission's
+        // briefing, its debrief's way on): a save then would load without them.
+        if dialog::is_story_playing() {
+            return;
+        }
+
         // Nor with a session switch queued (a Quit to menu this frame): the save would run after
         // it and save the next session (the home menu's) in the autosave's slot.
         if self.session_cmd_queue.has_session_switch() {

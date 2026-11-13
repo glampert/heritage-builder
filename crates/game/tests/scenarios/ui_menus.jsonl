@@ -656,7 +656,10 @@
 {"method": "wait.until", "params": {"query": "session.state", "path": "/menus_mode", "op": "eq", "value": "InGame", "timeout_frames": 120}}
 {"method": "assert.eq", "params": {"query": "session.state", "path": "/campaign/campaign", "value": "The Dragon Legacy"}}
 {"method": "assert.eq", "params": {"query": "session.state", "path": "/campaign/mission_index", "value": 0}}
-# A mission starts with its briefing (MissionBriefing; ui_intermission.jsonl reads it).
+# A mission starts with its briefing (MissionBriefing; ui_intermission.jsonl reads it), Campaign I's first after I-A.
+# Its story sequence (I-A) plays before the briefing: skipped (ui_story.jsonl steps through it).
+{"method": "wait.until", "params": {"query": "dialog.current", "path": "/current", "op": "eq", "value": "StoryComic", "timeout_frames": 300}}
+{"method": "input.key", "params": {"key": "Escape"}}
 {"method": "wait.until", "params": {"query": "dialog.current", "path": "/current", "op": "eq", "value": "MissionBriefing", "timeout_frames": 60}}
 {"method": "assert.eq", "params": {"query": "ui.tree", "args": {"filter": "MissionBriefing/name"}, "path": "/widgets/0/value", "value": "A Humble Beginning"}}
 {"method": "session.quit_to_menu"}

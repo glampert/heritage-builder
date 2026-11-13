@@ -25,7 +25,8 @@
 //
 // Paths: MissionBriefing/kicker, name, place, image (kind canvas: city, position), caption,
 // section_new, new (kind table: a row per item), section_threats, threats (the line), lead_in, text_<n> (a
-// paragraph each), goals (kind table: Goals, Target), Begin; for a choice, choice (its line) and a
+// paragraph each), goals (kind table: Goals, Target), Replay the story (when the mission has a
+// sequence before it), Begin; for a choice, choice (its line) and a
 // button per site, by its name (MissionBriefing/Vân Cảng).
 
 use common::{Color, Rect};
@@ -73,6 +74,7 @@ const GOAL_ROW: f32 = 42.0;
 const TARGET_WIDTH: f32 = 220.0;
 const BUTTON_HEIGHT: f32 = 58.0;
 const BEGIN_WIDTH: f32 = 240.0;
+const REPLAY_WIDTH: f32 = 260.0;
 const SITE_WIDTH: f32 = 300.0;
 const BUTTON_GAP: f32 = 20.0;
 
@@ -377,6 +379,21 @@ impl MissionBriefing {
         super::close(DialogMenuKind::MissionBriefing, context);
     }
 
+    // Replay the story: the sequence before the mission, over the briefing, which shows again once
+    // it ends. A replay records nothing.
+    fn on_replay(context: &mut GameUiContext) {
+        if let Some(sequence) = replay_sequence() {
+            let request = StoryRequest {
+                campaign_index: sequence.campaign_index,
+                sequence_id: sequence.sequence.id.clone(),
+                panel: 0,
+                records_seen: false,
+                on_end: None,
+            };
+            super::play_story(request, context);
+        }
+    }
+
     // A site of the choice: its mission begins here if it's this one (closing records the pick),
     // else it starts (its map loads, and its own briefing opens). That's the other site's
     // variant, which records the pick once it has started (Profile::mission_started), so a map
@@ -608,10 +625,10 @@ fn goals_table(context: &GameUiContext, scales: Scales, briefing: &Briefing, wid
     table
 }
 
-// Begin at the right; for a choice, its line and a button per site.
+// Begin at the right, Replay the story left of it when the mission has a sequence before it; for a
+// choice, its line and a button per site (no Replay the story: the sites take its room, and the
+// sequence before a choice point is its step's, which just played).
 fn buttons(context: &mut GameUiContext, scales: Scales, briefing: &Briefing, width: f32) -> UiWidgetGroup {
-    // TODO(realm-ui): Phase 4's "Replay the story" button goes left of Begin, as the mockup has it,
-    // once the story sequences exist.
     let sized = |button: UiTextButton, button_width: f32| {
         scales.button_text(button.with_width(UiTextButtonWidth::Fixed(scales.pt(button_width))).with_min_height(scales.pt(BUTTON_HEIGHT)), BUTTON_TEXT_SIZE)
     };
@@ -620,6 +637,12 @@ fn buttons(context: &mut GameUiContext, scales: Scales, briefing: &Briefing, wid
     columns.add_column(UiColumnWidth::Fraction(1.0), UiWidgetGroup::new());
     match &briefing.choice {
         None => {
+            if replay_sequence().is_some() {
+                let replay = skin::button(context, ButtonRole::Secondary, UiString::key(UiTextCategory::Menu, "briefing.replay"), |_, context| {
+                    MissionBriefing::on_replay(context_as_mut::<GameUiContext>(context));
+                });
+                columns.add_column(UiColumnWidth::Fixed(scales.pt(REPLAY_WIDTH)), left_group().with_widget(sized(replay, REPLAY_WIDTH)));
+            }
             let begin = skin::button(context, ButtonRole::Primary, UiString::key(UiTextCategory::Menu, "briefing.begin"), |_, context| {
                 MissionBriefing::on_begin(context_as_mut::<GameUiContext>(context));
             });
@@ -646,6 +669,13 @@ fn buttons(context: &mut GameUiContext, scales: Scales, briefing: &Briefing, wid
     }
     group.add_widget(columns);
     group
+}
+
+// The sequence before the mission being played (its own, else its step's), seen or not: Replay the
+// story's. None: it has none.
+fn replay_sequence() -> Option<crate::story::SequenceRef<'static>> {
+    let active = campaign::active_mission()?;
+    crate::story::before(active.campaign_id, active.mission_index)
 }
 
 // ----------------------------------------------

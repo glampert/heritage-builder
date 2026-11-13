@@ -3,9 +3,13 @@
 // campaign's epilogue, and which sequences the player's profile has seen (each plays once per
 // profile; Replay the story plays them again).
 //
-// The comic viewer (menu::dialog's StoryComic, dialog::play_story) shows a sequence.
-// TODO(realm-ui): the campaign flow plays them (P4c: to_play_before / to_play_after); the other
-// sequences of docs/design/story-script.md wait for their missions (game Phases 2-4).
+// The comic viewer (menu::dialog's StoryComic, dialog::play_story) shows a sequence. The campaign
+// flow plays them: a mission's before its briefing (dialog::open_mission_start: to_play_before),
+// its after-sequence on its debrief's Continue (to_play_after), the epilogue from the
+// campaign-complete screen.
+// TODO(realm-ui): the other sequences of docs/design/story-script.md wait for their missions (game
+// Phases 2-4), and its story events (a sequence on a city's event, not a mission's start or end)
+// for game Phase 2.
 
 pub mod config;
 
