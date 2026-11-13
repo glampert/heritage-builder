@@ -1,15 +1,24 @@
-# The intermission (docs/plans/realm-ui.md, Phase 3): the debrief after a mission (MissionComplete),
-# in each realm's look (ui.realm), and the campaign's flow through it. Campaign I's first mission
-# (its island already holds the twenty residents its goal asks for, so it's finished at once):
-# the debrief's stele (its title, the line just carved, the rows to come), "MISSION 1 COMPLETE", the
-# mission's name, its city and year, the goals table (target, achieved and a mark per goal), the
-# stats, the note that its city joins the world map, ui.layout_issues at 100%, 200% and 75% UI scale
-# in each realm, Keep playing (the game goes on, the mission stays finished), then Continue to the
-# world map, whose box offers the next mission without a choice ("Begin the mission", which asks in
-# a popup) and starts it. A hidden test campaign's mission (test_choices) is finished by settling a
-# resident: its Continue opens the map's A/B choice, whose site B starts the campaign's last mission;
-# finishing that one, Continue goes to the campaign-complete screen. Campaign I's last mission
-# (its goals met with world edits and finance.set) does the same and reaches Campaign II in the
+# The intermission and the briefing (docs/plans/realm-ui.md, Phase 3): the briefing before a mission
+# (MissionBriefing), the debrief after it (MissionComplete) and the finished stele at the end of a
+# campaign (CampaignComplete), in each realm's look (ui.realm), and the campaign's flow through
+# them. Campaign I's first mission: its briefing opens as its map loads, the simulation paused (its
+# kicker, name, city and year, image, what's new, threats, lead-in, text, goals), ui.layout_issues
+# at 100%, 200% and 75% UI scale in each realm, and Begin, which unpauses it. Its island already holds
+# the twenty residents its goal asks for, so it's finished at once: the debrief's stele (its title,
+# the line just carved, the rows to come), "MISSION 1 COMPLETE", the mission's name, its city and
+# year, the goals table (target, achieved and a mark per goal), the stats, the note that its city
+# joins the world map, the layout in each realm and scale, Keep playing (the game goes on, the
+# mission stays finished; the Game menu's Mission briefing opens the briefing again), then Continue
+# to the world map, whose box offers the next mission without a choice ("Begin the mission", which
+# asks in a popup) and starts it, with its briefing. A hidden test campaign's mission
+# (test_choices) is finished by settling a resident: its Continue opens the map's A/B choice, whose
+# site B starts the campaign's last mission; finishing that one, Continue goes to the
+# campaign-complete screen. Campaign I's last mission (its goals met with world edits and
+# finance.set, the missions before it finished through profile.set) does the same: the stele carved
+# in full, the closing line, the missions, the note that Campaign II is open, the layout in each
+# realm and scale, and Return to the menu, which shows Kambara's look, the profile having reached
+# Campaign II. Last, a choice point started with no site picked offers its two sites in its
+# briefing: one begins it there, the other starts its own mission; either is recorded in the
 # profile. Screenshots go to out/ui_intermission/.
 #
 # Campaign I's missions load the sample saves, so extract them first (unzip saves/sample_saves.zip,
@@ -23,8 +32,67 @@
 {"method": "ui.tree", "params": {"filter": "Home/", "fields": ["path"]}}
 {"method": "profile.set", "params": {"reached": ["dragon_legacy", "test_choices"]}}
 
-# ---- Campaign I, mission 1: finished at once; the debrief opens ----
+# ---- Campaign I, mission 1: its briefing opens as its map loads, the simulation paused ----
 {"method": "session.start_mission", "params": {"campaign": "dragon_legacy", "mission": 0}}
+{"method": "wait.until", "params": {"query": "dialog.current", "path": "/current", "op": "eq", "value": "MissionBriefing", "timeout_frames": 300}}
+{"method": "input.move", "params": {"park": true}}
+{"method": "wait.frames", "params": {"frames": 3}}
+{"method": "assert.eq", "params": {"query": "sim.state", "path": "/paused", "value": true}}
+# No step has run yet: its map already meets its goal, but it isn't finished before Begin.
+{"method": "assert.eq", "params": {"query": "session.state", "path": "/campaign/completed", "value": false}}
+{"method": "assert.eq", "params": {"query": "ui.tree", "args": {"filter": "MissionBriefing/kicker"}, "path": "/widgets/0/value", "value": "CAMPAIGN I · MISSION 1"}}
+{"method": "assert.eq", "params": {"query": "ui.tree", "args": {"filter": "MissionBriefing/name"}, "path": "/widgets/0/value", "value": "A Humble Beginning"}}
+{"method": "assert.eq", "params": {"query": "ui.tree", "args": {"filter": "MissionBriefing/place"}, "path": "/widgets/0/value", "value": "Phù Sa · Long Thái era, year 1"}}
+{"method": "assert.eq", "params": {"query": "ui.tree", "args": {"filter": "MissionBriefing/image", "kind": "canvas"}, "path": "/widgets/0/value/city", "value": "Phù Sa"}}
+{"method": "assert.eq", "params": {"query": "ui.tree", "args": {"filter": "MissionBriefing/caption"}, "path": "/widgets/0/value", "value": "The land around Phù Sa"}}
+{"method": "assert.eq", "params": {"query": "ui.tree", "args": {"filter": "MissionBriefing/new", "kind": "table"}, "path": "/widgets/0/value/rows", "value": [["Roads, houses and wells"], ["Rice fields and the granary"]]}}
+{"method": "assert.eq", "params": {"query": "ui.tree", "args": {"filter": "MissionBriefing/threats", "kind": "rich_text"}, "path": "/widgets/0/value", "value": "Fire, in a village of thatch and timber."}}
+{"method": "assert.eq", "params": {"query": "ui.tree", "args": {"filter": "MissionBriefing/lead_in"}, "path": "/widgets/0/value", "value": "“The river had emptied the plain, and the court sent him to fill it.”"}}
+{"method": "assert.exists", "params": {"query": "ui.tree", "args": {"filter": "MissionBriefing/text_2"}, "path": "/widgets/0"}}
+{"method": "assert.eq", "params": {"query": "ui.tree", "args": {"filter": "MissionBriefing/goals", "kind": "table"}, "path": "/widgets/0/value/columns", "value": ["GOALS", "TARGET"]}}
+{"method": "assert.eq", "params": {"query": "ui.tree", "args": {"filter": "MissionBriefing/goals", "kind": "table"}, "path": "/widgets/0/value/rows", "value": [["Population", "20"]]}}
+{"method": "assert.exists", "params": {"query": "ui.tree", "args": {"filter": "MissionBriefing/Begin"}, "path": "/widgets/0"}}
+{"method": "assert.eq", "params": {"query": "ui.layout_issues", "path": "/count", "value": 0}}
+{"method": "screenshot", "params": {"path": "out/ui_intermission/briefing_dailong.png"}}
+{"method": "config.set", "params": {"path": "/display/ui_scale_percent", "value": 200}}
+{"method": "wait.frames", "params": {"frames": 3}}
+{"method": "assert.eq", "params": {"query": "ui.layout_issues", "path": "/count", "value": 0}}
+{"method": "screenshot", "params": {"path": "out/ui_intermission/briefing_dailong_200.png"}}
+{"method": "config.set", "params": {"path": "/display/ui_scale_percent", "value": 75}}
+{"method": "wait.frames", "params": {"frames": 3}}
+{"method": "assert.eq", "params": {"query": "ui.layout_issues", "path": "/count", "value": 0}}
+{"method": "config.set", "params": {"path": "/display/ui_scale_percent", "value": 100}}
+{"method": "ui.realm", "params": {"realm": "kambara"}}
+{"method": "wait.frames", "params": {"frames": 3}}
+{"method": "assert.eq", "params": {"query": "dialog.current", "path": "/current", "value": "MissionBriefing"}}
+{"method": "assert.eq", "params": {"query": "ui.tree", "args": {"filter": "MissionBriefing/place"}, "path": "/widgets/0/value", "value": "Phù Sa · Reign of Long Thái, year 1"}}
+{"method": "assert.eq", "params": {"query": "ui.layout_issues", "path": "/count", "value": 0}}
+{"method": "screenshot", "params": {"path": "out/ui_intermission/briefing_kambara.png"}}
+{"method": "config.set", "params": {"path": "/display/ui_scale_percent", "value": 200}}
+{"method": "wait.frames", "params": {"frames": 3}}
+{"method": "assert.eq", "params": {"query": "ui.layout_issues", "path": "/count", "value": 0}}
+{"method": "config.set", "params": {"path": "/display/ui_scale_percent", "value": 75}}
+{"method": "wait.frames", "params": {"frames": 3}}
+{"method": "assert.eq", "params": {"query": "ui.layout_issues", "path": "/count", "value": 0}}
+{"method": "config.set", "params": {"path": "/display/ui_scale_percent", "value": 100}}
+{"method": "ui.realm", "params": {"realm": "tampadesa"}}
+{"method": "wait.frames", "params": {"frames": 3}}
+{"method": "assert.eq", "params": {"query": "ui.layout_issues", "path": "/count", "value": 0}}
+{"method": "screenshot", "params": {"path": "out/ui_intermission/briefing_tampadesa.png"}}
+{"method": "config.set", "params": {"path": "/display/ui_scale_percent", "value": 200}}
+{"method": "wait.frames", "params": {"frames": 3}}
+{"method": "assert.eq", "params": {"query": "ui.layout_issues", "path": "/count", "value": 0}}
+{"method": "config.set", "params": {"path": "/display/ui_scale_percent", "value": 75}}
+{"method": "wait.frames", "params": {"frames": 3}}
+{"method": "assert.eq", "params": {"query": "ui.layout_issues", "path": "/count", "value": 0}}
+{"method": "config.set", "params": {"path": "/display/ui_scale_percent", "value": 100}}
+{"method": "ui.realm", "params": {"realm": "auto"}}
+{"method": "wait.frames", "params": {"frames": 3}}
+# Begin: the briefing closes and the game goes on.
+{"method": "ui.click", "params": {"path": "MissionBriefing/Begin"}}
+{"method": "assert.eq", "params": {"query": "sim.state", "path": "/paused", "value": false}}
+
+# ---- Finished at once: the debrief opens ----
 {"method": "wait.until", "params": {"query": "dialog.current", "path": "/current", "op": "eq", "value": "MissionComplete", "timeout_frames": 300}}
 {"method": "assert.eq", "params": {"query": "session.state", "path": "/campaign/completed", "value": true}}
 {"method": "input.move", "params": {"park": true}}
@@ -95,6 +163,19 @@
 {"method": "assert.eq", "params": {"query": "dialog.list", "path": "/dialogs/MissionComplete", "value": false}}
 {"method": "assert.eq", "params": {"query": "session.state", "path": "/campaign/completed", "value": true}}
 {"method": "assert.eq", "params": {"query": "profile.state", "path": "/profile/campaigns/0/missions_finished", "value": [0]}}
+# The Game menu's Mission briefing (a campaign mission's only) opens the briefing again, paused.
+{"method": "dialog.open", "params": {"name": "MainGame"}}
+{"method": "input.move", "params": {"park": true}}
+{"method": "wait.frames", "params": {"frames": 3}}
+{"method": "assert.eq", "params": {"query": "ui.layout_issues", "path": "/count", "value": 0}}
+{"method": "ui.click", "params": {"path": "MainGame/Mission briefing"}}
+{"method": "assert.eq", "params": {"query": "dialog.current", "path": "/current", "value": "MissionBriefing"}}
+{"method": "assert.eq", "params": {"query": "dialog.list", "path": "/dialogs/MainGame", "value": false}}
+{"method": "assert.eq", "params": {"query": "sim.state", "path": "/paused", "value": true}}
+{"method": "assert.eq", "params": {"query": "ui.tree", "args": {"filter": "MissionBriefing/name"}, "path": "/widgets/0/value", "value": "A Humble Beginning"}}
+{"method": "ui.click", "params": {"path": "MissionBriefing/Begin"}}
+{"method": "assert.eq", "params": {"query": "dialog.list", "path": "/dialogs/MissionBriefing", "value": false}}
+{"method": "assert.eq", "params": {"query": "sim.state", "path": "/paused", "value": false}}
 
 # ---- Continue to the world map: it offers the next mission, which has no choice ----
 {"method": "dialog.open", "params": {"name": "MissionComplete"}}
@@ -125,12 +206,19 @@
 {"method": "wait.until", "params": {"query": "session.state", "path": "/campaign/mission_index", "op": "eq", "value": 1, "timeout_frames": 600}}
 {"method": "assert.eq", "params": {"query": "session.state", "path": "/campaign/campaign_id", "value": "dragon_legacy"}}
 {"method": "assert.eq", "params": {"query": "session.state", "path": "/campaign/completed", "value": false}}
-{"method": "assert.eq", "params": {"query": "dialog.list", "path": "/dialogs/WorldMap", "value": false}}
+{"method": "wait.until", "params": {"query": "dialog.current", "path": "/current", "op": "eq", "value": "MissionBriefing", "timeout_frames": 60}}
+{"method": "assert.eq", "params": {"query": "ui.tree", "args": {"filter": "MissionBriefing/kicker"}, "path": "/widgets/0/value", "value": "CAMPAIGN I · MISSION 2"}}
+{"method": "assert.eq", "params": {"query": "ui.tree", "args": {"filter": "MissionBriefing/goals", "kind": "table"}, "path": "/widgets/0/value/rows", "value": [["Population", "50"], ["Workers employed", "30"], ["Treasury", "1,000"]]}}
+{"method": "assert.eq", "params": {"query": "ui.layout_issues", "path": "/count", "value": 0}}
+{"method": "input.move", "params": {"park": true}}
+{"method": "wait.frames", "params": {"frames": 2}}
+{"method": "screenshot", "params": {"path": "out/ui_intermission/briefing_mission_2.png"}}
 
 # ---- A test campaign: a resident meets mission 0's goal; Continue opens the map's A/B choice ----
 {"method": "session.start_mission", "params": {"campaign": "test_choices", "mission": 0}}
-{"method": "wait.frames", "params": {"frames": 3}}
+{"method": "wait.until", "params": {"query": "dialog.current", "path": "/current", "op": "eq", "value": "MissionBriefing", "timeout_frames": 300}}
 {"method": "assert.eq", "params": {"query": "session.state", "path": "/campaign/campaign_id", "value": "test_choices"}}
+{"method": "ui.click", "params": {"path": "MissionBriefing/Begin"}}
 {"method": "cheats.set", "params": {"name": "instant_construction", "value": true}}
 {"method": "cheats.set", "params": {"name": "ignore_tile_cost", "value": true}}
 {"method": "world.place", "params": {"tile": "house0", "cell": [2, 2]}}
@@ -155,6 +243,10 @@
 {"method": "assert.eq", "params": {"query": "session.state", "path": "/campaign/mission_id", "value": "southern_shore_b"}}
 
 # Site B's mission is the campaign's last step: its Continue goes to the campaign-complete screen.
+# Its site was picked on the map, so its briefing offers no choice: Begin.
+{"method": "wait.until", "params": {"query": "dialog.current", "path": "/current", "op": "eq", "value": "MissionBriefing", "timeout_frames": 300}}
+{"method": "assert.eq", "params": {"query": "ui.tree", "args": {"filter": "MissionBriefing/choice"}, "path": "/widgets", "value": []}}
+{"method": "ui.click", "params": {"path": "MissionBriefing/Begin"}}
 {"method": "input.move", "params": {"park": true}}
 {"method": "wait.frames", "params": {"frames": 3}}
 {"method": "cheats.set", "params": {"name": "instant_construction", "value": true}}
@@ -173,13 +265,24 @@
 {"method": "ui.click", "params": {"path": "MissionComplete/panel/Continue"}}
 {"method": "wait.until", "params": {"query": "dialog.current", "path": "/current", "op": "eq", "value": "CampaignComplete", "timeout_frames": 60}}
 {"method": "assert.eq", "params": {"query": "profile.state", "path": "/profile/campaigns/1/finished", "value": true}}
+# A hidden campaign reaches none: the note says the stele is finished.
+{"method": "input.move", "params": {"park": true}}
+{"method": "wait.frames", "params": {"frames": 3}}
+{"method": "assert.eq", "params": {"query": "ui.tree", "args": {"filter": "CampaignComplete/stele", "kind": "canvas"}, "path": "/widgets/0/value/rows_to_come", "value": 0}}
+{"method": "assert.eq", "params": {"query": "ui.tree", "args": {"filter": "CampaignComplete/panel/missions", "kind": "table"}, "path": "/widgets/0/value/rows", "value": [["1", "Test: The First Seal"], ["2", "Test: The Southern Shore (Vân Cảng)"]]}}
+{"method": "assert.eq", "params": {"query": "ui.tree", "args": {"filter": "CampaignComplete/panel/note/next"}, "path": "/widgets/0/value", "value": "The stele is finished: its deeds will be read long after the city is gone."}}
+{"method": "assert.eq", "params": {"query": "ui.layout_issues", "path": "/count", "value": 0}}
 {"method": "dialog.close"}
 
 # ---- Campaign I's last mission: its goals met, Continue goes to the campaign-complete screen and
 # the profile reaches Campaign II ----
+# The missions before it finished, so the stele is carved in full.
+{"method": "profile.set", "params": {"campaigns": [{"id": "dragon_legacy", "reached": true, "missions_finished": [0, 1]}, {"id": "test_choices", "reached": true, "missions_finished": [0, 2], "finished": true, "choices": [{"step": 1, "site": "B"}]}]}}
 {"method": "session.start_mission", "params": {"campaign": "dragon_legacy", "mission": 2}}
-{"method": "wait.frames", "params": {"frames": 3}}
+{"method": "wait.until", "params": {"query": "dialog.current", "path": "/current", "op": "eq", "value": "MissionBriefing", "timeout_frames": 300}}
 {"method": "assert.eq", "params": {"query": "session.state", "path": "/campaign/mission_index", "value": 2}}
+{"method": "assert.eq", "params": {"query": "ui.tree", "args": {"filter": "MissionBriefing/kicker"}, "path": "/widgets/0/value", "value": "CAMPAIGN I · MISSION 3"}}
+{"method": "ui.click", "params": {"path": "MissionBriefing/Begin"}}
 # Its goals: a hundred residents (its town has 44: three large houses take 75 more) and 5,000 gold.
 {"method": "cheats.set", "params": {"name": "instant_construction", "value": true}}
 {"method": "cheats.set", "params": {"name": "ignore_tile_cost", "value": true}}
@@ -204,7 +307,166 @@
 {"method": "assert.eq", "params": {"query": "profile.state", "path": "/profile/campaigns/0/finished", "value": true}}
 {"method": "assert.eq", "params": {"query": "profile.state", "path": "/profile/campaigns/2/id", "value": "temple_mountain"}}
 {"method": "assert.eq", "params": {"query": "profile.state", "path": "/profile/campaigns/2/reached", "value": true}}
-{"method": "dialog.close"}
-{"method": "session.quit_to_menu"}
+
+# ---- The campaign-complete screen: the stele carved in full, the closing line, the missions, the
+# stats and the note that Campaign II is open ----
+{"method": "input.move", "params": {"park": true}}
 {"method": "wait.frames", "params": {"frames": 3}}
+{"method": "assert.eq", "params": {"query": "ui.tree", "args": {"filter": "CampaignComplete/stele", "kind": "canvas"}, "path": "/widgets/0/value", "value": {"title": "The Deeds of the Governor of the South", "lines": ["In the first year, Khai Sơn raised Phù Sa from the empty flood plain.", "He drew fish from the sea and clay from the shore at Bến Gốm.", "In the valley of spirits, the villages of Thần Khê came to his shrines."], "newest": "In the valley of spirits, the villages of Thần Khê came to his shrines.", "rows_to_come": 0}}}
+{"method": "assert.eq", "params": {"query": "ui.tree", "args": {"filter": "CampaignComplete/panel/kicker"}, "path": "/widgets/0/value", "value": "CAMPAIGN I COMPLETE"}}
+{"method": "assert.eq", "params": {"query": "ui.tree", "args": {"filter": "CampaignComplete/panel/name"}, "path": "/widgets/0/value", "value": "The Dragon Legacy"}}
+{"method": "assert.eq", "params": {"query": "ui.tree", "args": {"filter": "CampaignComplete/panel/closing"}, "path": "/widgets/0/value", "value": "“The dragon rose from the river, and the river remembered.”"}}
+{"method": "assert.eq", "params": {"query": "ui.tree", "args": {"filter": "CampaignComplete/panel/missions", "kind": "table"}, "path": "/widgets/0/value/rows", "value": [["1", "A Humble Beginning"], ["2", "A Thriving Town"], ["3", "Master of the Realm"]]}}
+{"method": "assert.eq", "params": {"query": "ui.tree", "args": {"filter": "CampaignComplete/panel/stats", "kind": "key_values"}, "path": "/widgets/0/value/0", "value": ["Missions", "3 of 3"]}}
+{"method": "assert.eq", "params": {"query": "ui.tree", "args": {"filter": "CampaignComplete/panel/stats", "kind": "key_values"}, "path": "/widgets/0/value/1/0", "value": "Last city"}}
+{"method": "assert.eq", "params": {"query": "ui.tree", "args": {"filter": "CampaignComplete/panel/note/next"}, "path": "/widgets/0/value", "value": "Campaign II is open: The Temple Mountain, in Kambara."}}
+{"method": "assert.exists", "params": {"query": "ui.tree", "args": {"filter": "CampaignComplete/panel/Return to the menu"}, "path": "/widgets/0"}}
+{"method": "assert.eq", "params": {"query": "ui.layout_issues", "path": "/count", "value": 0}}
+{"method": "screenshot", "params": {"path": "out/ui_intermission/campaign_complete_dailong.png"}}
+{"method": "config.set", "params": {"path": "/display/ui_scale_percent", "value": 200}}
+{"method": "wait.frames", "params": {"frames": 3}}
+{"method": "assert.eq", "params": {"query": "ui.layout_issues", "path": "/count", "value": 0}}
+{"method": "config.set", "params": {"path": "/display/ui_scale_percent", "value": 75}}
+{"method": "wait.frames", "params": {"frames": 3}}
+{"method": "assert.eq", "params": {"query": "ui.layout_issues", "path": "/count", "value": 0}}
+{"method": "config.set", "params": {"path": "/display/ui_scale_percent", "value": 100}}
+{"method": "ui.realm", "params": {"realm": "kambara"}}
+{"method": "wait.frames", "params": {"frames": 3}}
+{"method": "assert.eq", "params": {"query": "dialog.current", "path": "/current", "value": "CampaignComplete"}}
+{"method": "assert.eq", "params": {"query": "ui.layout_issues", "path": "/count", "value": 0}}
+{"method": "screenshot", "params": {"path": "out/ui_intermission/campaign_complete_kambara.png"}}
+{"method": "config.set", "params": {"path": "/display/ui_scale_percent", "value": 200}}
+{"method": "wait.frames", "params": {"frames": 3}}
+{"method": "assert.eq", "params": {"query": "ui.layout_issues", "path": "/count", "value": 0}}
+{"method": "config.set", "params": {"path": "/display/ui_scale_percent", "value": 75}}
+{"method": "wait.frames", "params": {"frames": 3}}
+{"method": "assert.eq", "params": {"query": "ui.layout_issues", "path": "/count", "value": 0}}
+{"method": "config.set", "params": {"path": "/display/ui_scale_percent", "value": 100}}
+{"method": "ui.realm", "params": {"realm": "tampadesa"}}
+{"method": "wait.frames", "params": {"frames": 3}}
+{"method": "assert.eq", "params": {"query": "ui.layout_issues", "path": "/count", "value": 0}}
+{"method": "screenshot", "params": {"path": "out/ui_intermission/campaign_complete_tampadesa.png"}}
+{"method": "config.set", "params": {"path": "/display/ui_scale_percent", "value": 200}}
+{"method": "wait.frames", "params": {"frames": 3}}
+{"method": "assert.eq", "params": {"query": "ui.layout_issues", "path": "/count", "value": 0}}
+{"method": "config.set", "params": {"path": "/display/ui_scale_percent", "value": 75}}
+{"method": "wait.frames", "params": {"frames": 3}}
+{"method": "assert.eq", "params": {"query": "ui.layout_issues", "path": "/count", "value": 0}}
+{"method": "config.set", "params": {"path": "/display/ui_scale_percent", "value": 100}}
+{"method": "ui.realm", "params": {"realm": "auto"}}
+{"method": "wait.frames", "params": {"frames": 3}}
+
+# Return to the menu: the home menu, in the look of Campaign II's realm, which the profile reached.
+{"method": "ui.click", "params": {"path": "CampaignComplete/panel/Return to the menu"}}
+{"method": "wait.until", "params": {"query": "dialog.current", "path": "/current", "op": "eq", "value": "Home", "timeout_frames": 120}}
 {"method": "assert.eq", "params": {"query": "ui.realm", "path": "/realm", "value": "kambara"}}
+{"method": "assert.eq", "params": {"query": "ui.realm", "path": "/source", "value": "profile"}}
+{"method": "assert.eq", "params": {"query": "profile.state", "path": "/ui_realm/realm", "value": "kambara"}}
+{"method": "input.move", "params": {"park": true}}
+{"method": "wait.frames", "params": {"frames": 3}}
+{"method": "screenshot", "params": {"path": "out/ui_intermission/home_after_campaign.png"}}
+
+# ---- A choice point started with no site picked: its briefing offers the two sites ----
+{"method": "profile.reset"}
+{"method": "profile.set", "params": {"reached": ["dragon_legacy", "test_choices"]}}
+{"method": "session.start_mission", "params": {"campaign": "test_choices", "mission": 1}}
+{"method": "wait.until", "params": {"query": "dialog.current", "path": "/current", "op": "eq", "value": "MissionBriefing", "timeout_frames": 300}}
+{"method": "input.move", "params": {"park": true}}
+{"method": "wait.frames", "params": {"frames": 3}}
+{"method": "assert.eq", "params": {"query": "ui.tree", "args": {"filter": "MissionBriefing/choice"}, "path": "/widgets/0/value", "value": "Choose Hội Thủy or Vân Cảng"}}
+{"method": "assert.exists", "params": {"query": "ui.tree", "args": {"filter": "MissionBriefing/Hội Thủy"}, "path": "/widgets/0"}}
+{"method": "assert.eq", "params": {"query": "ui.tree", "args": {"filter": "MissionBriefing/Begin"}, "path": "/widgets", "value": []}}
+{"method": "assert.eq", "params": {"query": "ui.layout_issues", "path": "/count", "value": 0}}
+{"method": "screenshot", "params": {"path": "out/ui_intermission/briefing_choice.png"}}
+# The choice in every realm's look and at 200% and 75%: the sites stay offered through the rebuilds.
+{"method": "config.set", "params": {"path": "/display/ui_scale_percent", "value": 200}}
+{"method": "wait.frames", "params": {"frames": 3}}
+{"method": "assert.exists", "params": {"query": "ui.tree", "args": {"filter": "MissionBriefing/Hội Thủy"}, "path": "/widgets/0"}}
+{"method": "assert.eq", "params": {"query": "ui.layout_issues", "path": "/count", "value": 0}}
+{"method": "config.set", "params": {"path": "/display/ui_scale_percent", "value": 75}}
+{"method": "wait.frames", "params": {"frames": 3}}
+{"method": "assert.exists", "params": {"query": "ui.tree", "args": {"filter": "MissionBriefing/Hội Thủy"}, "path": "/widgets/0"}}
+{"method": "assert.eq", "params": {"query": "ui.layout_issues", "path": "/count", "value": 0}}
+{"method": "config.set", "params": {"path": "/display/ui_scale_percent", "value": 100}}
+{"method": "ui.realm", "params": {"realm": "kambara"}}
+{"method": "wait.frames", "params": {"frames": 3}}
+{"method": "assert.exists", "params": {"query": "ui.tree", "args": {"filter": "MissionBriefing/Hội Thủy"}, "path": "/widgets/0"}}
+{"method": "assert.eq", "params": {"query": "ui.layout_issues", "path": "/count", "value": 0}}
+{"method": "screenshot", "params": {"path": "out/ui_intermission/briefing_choice_kambara.png"}}
+{"method": "config.set", "params": {"path": "/display/ui_scale_percent", "value": 200}}
+{"method": "wait.frames", "params": {"frames": 3}}
+{"method": "assert.exists", "params": {"query": "ui.tree", "args": {"filter": "MissionBriefing/Hội Thủy"}, "path": "/widgets/0"}}
+{"method": "assert.eq", "params": {"query": "ui.layout_issues", "path": "/count", "value": 0}}
+{"method": "config.set", "params": {"path": "/display/ui_scale_percent", "value": 75}}
+{"method": "wait.frames", "params": {"frames": 3}}
+{"method": "assert.exists", "params": {"query": "ui.tree", "args": {"filter": "MissionBriefing/Hội Thủy"}, "path": "/widgets/0"}}
+{"method": "assert.eq", "params": {"query": "ui.layout_issues", "path": "/count", "value": 0}}
+{"method": "config.set", "params": {"path": "/display/ui_scale_percent", "value": 100}}
+{"method": "ui.realm", "params": {"realm": "tampadesa"}}
+{"method": "wait.frames", "params": {"frames": 3}}
+{"method": "assert.exists", "params": {"query": "ui.tree", "args": {"filter": "MissionBriefing/Hội Thủy"}, "path": "/widgets/0"}}
+{"method": "assert.eq", "params": {"query": "ui.layout_issues", "path": "/count", "value": 0}}
+{"method": "screenshot", "params": {"path": "out/ui_intermission/briefing_choice_tampadesa.png"}}
+{"method": "config.set", "params": {"path": "/display/ui_scale_percent", "value": 200}}
+{"method": "wait.frames", "params": {"frames": 3}}
+{"method": "assert.exists", "params": {"query": "ui.tree", "args": {"filter": "MissionBriefing/Hội Thủy"}, "path": "/widgets/0"}}
+{"method": "assert.eq", "params": {"query": "ui.layout_issues", "path": "/count", "value": 0}}
+{"method": "config.set", "params": {"path": "/display/ui_scale_percent", "value": 75}}
+{"method": "wait.frames", "params": {"frames": 3}}
+{"method": "assert.exists", "params": {"query": "ui.tree", "args": {"filter": "MissionBriefing/Hội Thủy"}, "path": "/widgets/0"}}
+{"method": "assert.eq", "params": {"query": "ui.layout_issues", "path": "/count", "value": 0}}
+{"method": "config.set", "params": {"path": "/display/ui_scale_percent", "value": 100}}
+{"method": "ui.realm", "params": {"realm": "auto"}}
+{"method": "wait.frames", "params": {"frames": 3}}
+# Hội Thủy's mission is this one: it begins here, and the pick is recorded.
+{"method": "ui.click", "params": {"path": "MissionBriefing/Hội Thủy"}}
+{"method": "assert.eq", "params": {"query": "dialog.list", "path": "/dialogs/MissionBriefing", "value": false}}
+{"method": "assert.eq", "params": {"query": "session.state", "path": "/campaign/mission_index", "value": 1}}
+{"method": "assert.eq", "params": {"query": "profile.state", "path": "/profile/campaigns/1/choices", "value": [{"step": 1, "site": "A"}]}}
+# Picked, the same mission's briefing offers Begin.
+{"method": "dialog.open", "params": {"name": "MissionBriefing"}}
+{"method": "wait.frames", "params": {"frames": 2}}
+{"method": "assert.exists", "params": {"query": "ui.tree", "args": {"filter": "MissionBriefing/Begin"}, "path": "/widgets/0"}}
+{"method": "dialog.close"}
+# Vân Cảng's is another: it starts, with its own briefing.
+{"method": "profile.reset"}
+{"method": "profile.set", "params": {"reached": ["dragon_legacy", "test_choices"]}}
+{"method": "session.start_mission", "params": {"campaign": "test_choices", "mission": 1}}
+{"method": "wait.until", "params": {"query": "dialog.current", "path": "/current", "op": "eq", "value": "MissionBriefing", "timeout_frames": 300}}
+{"method": "ui.click", "params": {"path": "MissionBriefing/Vân Cảng"}}
+{"method": "wait.until", "params": {"query": "session.state", "path": "/campaign/mission_index", "op": "eq", "value": 2, "timeout_frames": 600}}
+{"method": "assert.eq", "params": {"query": "session.state", "path": "/campaign/mission_id", "value": "southern_shore_b"}}
+{"method": "wait.until", "params": {"query": "dialog.current", "path": "/current", "op": "eq", "value": "MissionBriefing", "timeout_frames": 300}}
+{"method": "assert.eq", "params": {"query": "profile.state", "path": "/profile/campaigns/1/choices", "value": [{"step": 1, "site": "B"}]}}
+{"method": "ui.click", "params": {"path": "MissionBriefing/Begin"}}
+# Escape closes the choice: the mission being played goes on, its site the one picked.
+{"method": "profile.reset"}
+{"method": "profile.set", "params": {"reached": ["dragon_legacy", "test_choices"]}}
+{"method": "session.start_mission", "params": {"campaign": "test_choices", "mission": 1}}
+{"method": "wait.until", "params": {"query": "dialog.current", "path": "/current", "op": "eq", "value": "MissionBriefing", "timeout_frames": 300}}
+{"method": "assert.exists", "params": {"query": "ui.tree", "args": {"filter": "MissionBriefing/choice"}, "path": "/widgets/0"}}
+{"method": "input.key", "params": {"key": "Escape"}}
+{"method": "wait.frames", "params": {"frames": 2}}
+{"method": "assert.eq", "params": {"query": "dialog.list", "path": "/dialogs/MissionBriefing", "value": false}}
+{"method": "assert.eq", "params": {"query": "session.state", "path": "/campaign/mission_index", "value": 1}}
+{"method": "assert.eq", "params": {"query": "profile.state", "path": "/profile/campaigns/1/choices", "value": [{"step": 1, "site": "A"}]}}
+# Opened during the mission with no site picked, it offers no choice (picking the other would
+# leave the city unsaved): Begin.
+{"method": "profile.reset"}
+{"method": "dialog.open", "params": {"name": "MainGame"}}
+{"method": "ui.click", "params": {"path": "MainGame/Mission briefing"}}
+{"method": "wait.until", "params": {"query": "dialog.current", "path": "/current", "op": "eq", "value": "MissionBriefing", "timeout_frames": 60}}
+{"method": "wait.frames", "params": {"frames": 2}}
+{"method": "assert.eq", "params": {"query": "ui.tree", "args": {"filter": "MissionBriefing/choice"}, "path": "/widgets", "value": []}}
+{"method": "assert.exists", "params": {"query": "ui.tree", "args": {"filter": "MissionBriefing/Begin"}, "path": "/widgets/0"}}
+{"method": "ui.click", "params": {"path": "MissionBriefing/Begin"}}
+
+# Outside a campaign mission there's no briefing.
+{"method": "session.new_map", "params": {"size": [32, 32]}}
+{"method": "wait.frames", "params": {"frames": 3}}
+{"method": "assert.eq", "params": {"query": "dialog.list", "path": "/dialogs/MissionBriefing", "value": false}}
+{"method": "dialog.open", "params": {"name": "MainGame"}}
+{"method": "wait.frames", "params": {"frames": 2}}
+{"method": "assert.exists", "params": {"query": "ui.tree", "args": {"filter": "MainGame/Resume"}, "path": "/widgets/0"}}
+{"method": "assert.eq", "params": {"query": "ui.tree", "args": {"filter": "MainGame/Mission briefing"}, "path": "/widgets", "value": []}}
+{"method": "dialog.close"}

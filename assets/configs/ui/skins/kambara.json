@@ -179,7 +179,7 @@
       "colors": { "rule": "#2C2A22B3", "row": "#2C2A2266" }
     }
   },
-  "briefing": { "image_outline": "#4A4436" },
+  "briefing": { "image_outline": "#4A4436", "bullet": "diamond", "bullet_color": "#3F6A2A" },
   "dialogs": {
     "Home": {"size": [560, 1000], "offset": [90, 0]}
   }

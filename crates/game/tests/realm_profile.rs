@@ -63,6 +63,8 @@ fn mission(name: &str) -> MissionDef {
         stele_line: None,
         lead_in: None,
         briefing: None,
+        briefing_new: Vec::new(),
+        briefing_threats: None,
         distinctions: Vec::new(),
     }
 }

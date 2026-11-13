@@ -48,6 +48,25 @@ impl SteleArt {
         }
     }
 
+    // The same art placed as the campaign-complete screen places it (skin::SkinCampaignCompleteDef):
+    // the stele's sprite stretched to `rect` ([x, y, width, height]), its text as far in from its
+    // left and top as before but as much wider and lower as the rect grows (the generator's
+    // stele() takes its text's width and bottom from its rect's), and the niche stretched sideways
+    // by `niche_stretch` ([factor, about x]). The lines start `rule_clearance` points lower, the
+    // rule under the title staying where it was.
+    pub fn stretched(mut self, rect: [f32; 4], niche_stretch: [f32; 2], rule_clearance: f32) -> Self {
+        let [_, _, width, height] = self.def.rect;
+        self.def.text[2] += rect[2] - width;
+        self.def.bottom += rect[3] - height;
+        self.def.rect = rect;
+        self.def.title_space += rule_clearance;
+        self.def.rule[1] += rule_clearance;
+        let [factor, about] = niche_stretch;
+        let [x, y, niche_width, niche_height] = self.niche_rect;
+        self.niche_rect = [about + (x - about) * factor, y, niche_width * factor, niche_height];
+        self
+    }
+
     // The niche's and the stele's sprites together, [x, y, width, height] in the composition's
     // points: what draw_niche and draw_stele cover.
     pub fn bounds(&self) -> Rect {

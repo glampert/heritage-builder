@@ -85,6 +85,8 @@ fn build_test_configs() -> CampaignConfigs {
                     stele_line: None,
                     lead_in: None,
                     briefing: None,
+                    briefing_new: Vec::new(),
+                    briefing_threats: None,
                     distinctions: Vec::new(),
                 },
                 MissionDef {
@@ -102,6 +104,8 @@ fn build_test_configs() -> CampaignConfigs {
                     stele_line: None,
                     lead_in: None,
                     briefing: None,
+                    briefing_new: Vec::new(),
+                    briefing_threats: None,
                     distinctions: Vec::new(),
                 },
             ],
@@ -134,6 +138,8 @@ fn build_choice_campaign() -> CampaignDef {
         stele_line: None,
         lead_in: None,
         briefing: None,
+        briefing_new: Vec::new(),
+        briefing_threats: None,
         distinctions: Vec::new(),
     };
     let site = |site, mission| MissionChoiceDef { site, name: "city.hoi_thuy".into(), phrase: None, position: [0.0, 0.0], label: LabelSide::Below, mission };

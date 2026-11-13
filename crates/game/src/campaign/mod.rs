@@ -67,6 +67,9 @@ pub struct CampaignManager {
     // Missions whose goals were met since GameLoop last took them, as (campaign id,
     // mission index): the player's profile records them (take_finished_missions).
     finished_missions: Vec<(usize, usize)>,
+    // A mission's map has loaded: the in-game menus open its briefing (take_pending_briefing),
+    // before any prompt (a mission finished at once waits for the briefing's Begin).
+    briefing_pending: bool,
 }
 
 impl CampaignManager {
@@ -77,6 +80,7 @@ impl CampaignManager {
             suppress_snapshot_restore: false,
             progress_before_start: CampaignProgress::default(),
             finished_missions: Vec::new(),
+            briefing_pending: false,
         }
     }
 }
@@ -123,6 +127,7 @@ pub fn start_mission(campaign_id: usize, mission_index: usize) -> Option<Mission
     mgr.progress_before_start = mgr.progress.clone();
     mgr.progress.active = Some(ActiveMission { campaign_id, mission_index, completed: false });
     mgr.pending_prompt = None;
+    mgr.briefing_pending = false; // Asked for again once the mission's map has loaded.
     mgr.suppress_snapshot_restore = true;
 
     Some(map)
@@ -173,6 +178,7 @@ pub fn advance_to_next_mission() -> Option<MissionMap> {
         mgr.progress_before_start = mgr.progress.clone();
         mgr.progress.active = Some(ActiveMission { campaign_id, mission_index: next_index, completed: false });
         mgr.pending_prompt = None;
+        mgr.briefing_pending = false;
         mgr.suppress_snapshot_restore = true;
         Some(map)
     } else {
@@ -196,6 +202,25 @@ pub fn take_pending_prompt() -> Option<CampaignPrompt> {
     CampaignManager::get_mut().pending_prompt.take()
 }
 
+// The active mission's map has loaded and it starts (GameSession::start_mission): its briefing is
+// to open. A save of a mission under way loads without one.
+pub fn request_briefing() {
+    // Cleared by every other session change (reset, restore_snapshot, cancel_mission_start), so
+    // only a mission that has just started opens one.
+    let mgr = CampaignManager::get_mut();
+    mgr.briefing_pending = mgr.progress.active.is_some();
+}
+
+// Whether a briefing is waiting to open (GameSession keeps the simulation paused for it).
+pub fn is_briefing_pending() -> bool {
+    CampaignManager::get().briefing_pending
+}
+
+// Whether the briefing is to open, once: the in-game menus open it (MissionBriefing).
+pub fn take_pending_briefing() -> bool {
+    std::mem::take(&mut CampaignManager::get_mut().briefing_pending)
+}
+
 // The missions finished since the last call, as (campaign id, mission index). tick() runs inside
 // the simulation step, so GameLoop takes them each frame and records them in the profile.
 pub fn take_finished_missions() -> Vec<(usize, usize)> {
@@ -217,6 +242,7 @@ pub fn restore_snapshot(progress: CampaignProgress) -> bool {
     let mgr = CampaignManager::get_mut();
     mgr.progress = progress;
     mgr.pending_prompt = None;
+    mgr.briefing_pending = false; // A save of a mission under way loads without its briefing.
     false
 }
 
@@ -234,6 +260,7 @@ pub fn cancel_mission_start() {
     if take_mission_start() {
         let mgr = CampaignManager::get_mut();
         mgr.progress = std::mem::take(&mut mgr.progress_before_start);
+        mgr.briefing_pending = false;
         log::warning!(log::channel!("campaign"), "The mission's map didn't load: the mission doesn't start.");
     }
 }

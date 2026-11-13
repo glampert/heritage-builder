@@ -427,7 +427,8 @@ pub struct UiTable {
 // How a table's header row is drawn: its text at its own font scale (the table's if None), in the
 // heading font or not, with a rule under it or not, and its first column's title reaching over the
 // status column (a section title, as the debrief's "GOALS"), its letters `letter_spacing` points
-// apart.
+// apart; or not at all (`hidden`: a list whose section title stands above it, the campaign-complete
+// screen's missions).
 #[derive(Copy, Clone, Debug)]
 pub struct UiTableHeader {
     pub font_scale: Option<UiFontScale>,
@@ -435,11 +436,12 @@ pub struct UiTableHeader {
     pub rule: bool,
     pub over_status: bool,
     pub letter_spacing: f32,
+    pub hidden: bool,
 }
 
 impl Default for UiTableHeader {
     fn default() -> Self {
-        Self { font_scale: None, heading_font: false, rule: true, over_status: false, letter_spacing: 0.0 }
+        Self { font_scale: None, heading_font: false, rule: true, over_status: false, letter_spacing: 0.0, hidden: false }
     }
 }
 
@@ -513,7 +515,7 @@ impl UiWidget for UiTable {
             let text_color = self.look.label_color.map_or_else(|| ui.visuals().text_color(), color32);
 
             let header_rect = egui::Rect::from_min_size(rect.min, vec2(width, header_row));
-            for (index, column) in self.columns.iter().enumerate() {
+            for (index, column) in self.columns.iter().enumerate().filter(|_| !self.header.hidden) {
                 let mut cell = column_rect(index, header_rect);
                 if index == 0 && self.header.over_status {
                     cell = cell.with_min_x(rect.left());
@@ -521,7 +523,7 @@ impl UiWidget for UiTable {
                 let color = column.title_color.map_or(header_color, color32);
                 draw_spaced_cell_text(ui, cell, column.title.resolve(), &header_font, color, column.align, self.header.letter_spacing);
             }
-            if self.header.rule {
+            if self.header.rule && !self.header.hidden {
                 draw_rule(ui, header_rect, &UiRowLook { rule_color: self.look.rule_color.or(Some(Color::gray())), ..self.look });
             }
 
@@ -649,6 +651,9 @@ impl UiTable {
 
     // The header row's height: its text's line and the look's padding.
     fn header_height(&self, ui_sys: &UiSystem) -> f32 {
+        if self.header.hidden {
+            return 0.0;
+        }
         let font_scale = self.header.font_scale.unwrap_or(self.font_scale);
         if self.header.heading_font {
             let mut font = internal::font(ui_sys, font_scale);

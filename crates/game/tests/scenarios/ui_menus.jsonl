@@ -656,6 +656,9 @@
 {"method": "wait.until", "params": {"query": "session.state", "path": "/menus_mode", "op": "eq", "value": "InGame", "timeout_frames": 120}}
 {"method": "assert.eq", "params": {"query": "session.state", "path": "/campaign/campaign", "value": "The Dragon Legacy"}}
 {"method": "assert.eq", "params": {"query": "session.state", "path": "/campaign/mission_index", "value": 0}}
+# A mission starts with its briefing (MissionBriefing; ui_intermission.jsonl reads it).
+{"method": "wait.until", "params": {"query": "dialog.current", "path": "/current", "op": "eq", "value": "MissionBriefing", "timeout_frames": 60}}
+{"method": "assert.eq", "params": {"query": "ui.tree", "args": {"filter": "MissionBriefing/name"}, "path": "/widgets/0/value", "value": "A Humble Beginning"}}
 {"method": "session.quit_to_menu"}
 {"method": "input.move", "params": {"park": true}}
 {"method": "wait.frames", "params": {"frames": 3}}
@@ -671,11 +674,14 @@
 {"method": "assert.eq", "params": {"query": "session.state", "path": "/campaign/mission", "value": "A Thriving Town"}}
 {"method": "assert.eq", "params": {"query": "session.state", "path": "/campaign/mission_index", "value": 1}}
 {"method": "assert.eq", "params": {"query": "profile.state", "path": "/profile/campaigns/0/current_mission", "value": 1}}
-# ---- The Game menu in game: Resume, Save, Load, World map, Settings, Quit to menu, Exit game; the popups; Save and quit ----
+{"method": "wait.until", "params": {"query": "dialog.current", "path": "/current", "op": "eq", "value": "MissionBriefing", "timeout_frames": 60}}
+{"method": "assert.eq", "params": {"query": "ui.tree", "args": {"filter": "MissionBriefing/name"}, "path": "/widgets/0/value", "value": "A Thriving Town"}}
+{"method": "ui.click", "params": {"path": "MissionBriefing/Begin"}}
+# ---- The Game menu in game: Resume, Mission briefing (a campaign mission's), Save, Load, World map, Settings, Quit to menu, Exit game; the popups; Save and quit ----
 {"method": "dialog.open", "params": {"name": "MainGame"}}
 {"method": "input.move", "params": {"park": true}}
 {"method": "wait.frames", "params": {"frames": 3}}
-{"method": "assert.eq", "params": {"query": "ui.tree", "args": {"filter": "MainGame/", "kind": "menu_entry", "fields": ["path", "kind"]}, "path": "/widgets", "value": [{"path": "MainGame/Resume", "kind": "menu_entry"}, {"path": "MainGame/Save", "kind": "menu_entry"}, {"path": "MainGame/Load", "kind": "menu_entry"}, {"path": "MainGame/World map", "kind": "menu_entry"}, {"path": "MainGame/Settings", "kind": "menu_entry"}, {"path": "MainGame/Quit to menu", "kind": "menu_entry"}, {"path": "MainGame/Exit game", "kind": "menu_entry"}]}}
+{"method": "assert.eq", "params": {"query": "ui.tree", "args": {"filter": "MainGame/", "kind": "menu_entry", "fields": ["path", "kind"]}, "path": "/widgets", "value": [{"path": "MainGame/Resume", "kind": "menu_entry"}, {"path": "MainGame/Mission briefing", "kind": "menu_entry"}, {"path": "MainGame/Save", "kind": "menu_entry"}, {"path": "MainGame/Load", "kind": "menu_entry"}, {"path": "MainGame/World map", "kind": "menu_entry"}, {"path": "MainGame/Settings", "kind": "menu_entry"}, {"path": "MainGame/Quit to menu", "kind": "menu_entry"}, {"path": "MainGame/Exit game", "kind": "menu_entry"}]}}
 # What is played, and when it was saved: a mission just started is a new city.
 {"method": "assert.eq", "params": {"query": "ui.tree", "args": {"filter": "MainGame/place", "kind": "rich_text"}, "path": "/widgets/0/value", "value": "A Thriving Town · Bến Gốm"}}
 {"method": "assert.eq", "params": {"query": "ui.tree", "args": {"filter": "MainGame/last_saved", "kind": "rich_text"}, "path": "/widgets/0/value", "value": "Not saved yet"}}
@@ -847,6 +853,8 @@
 # ---- Load / Save: save two games, read their rows and preview, delete one, load the other ----
 {"method": "ui.click", "params": {"path": "Home/Campaign"}}
 {"method": "wait.until", "params": {"query": "session.state", "path": "/menus_mode", "op": "eq", "value": "InGame", "timeout_frames": 120}}
+{"method": "wait.until", "params": {"query": "dialog.current", "path": "/current", "op": "eq", "value": "MissionBriefing", "timeout_frames": 60}}
+{"method": "ui.click", "params": {"path": "MissionBriefing/Begin"}}
 {"method": "input.move", "params": {"park": true}}
 # SaveGame opens the dialog in save mode, on a new name.
 {"method": "dialog.open", "params": {"name": "SaveGame"}}

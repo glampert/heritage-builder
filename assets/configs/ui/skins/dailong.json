@@ -349,6 +349,7 @@
     "colors": { "text": "ink", "sub": "sub", "heading": "title", "accent": "accent", "section": "accent", "rule": "#C9B083", "check": "accent", "check_mark": "on_accent", "check_open": "sub", "note_fill": "#F2E4C0", "note_border": "accent" },
     "backdrop": "skins/dailong/world_map_backdrop.jpg",
     "panel": "card",
+    "complete": { "stele": [80, 40, 780, 1010], "niche_stretch": [1.12, 460], "panel": [900, 60, 980, 960], "rule_clearance": 10 },
     "niche": { "sprite": "skins/dailong/stele_niche.png", "rect": [106, 36, 708, 1018], "bleed": [-2, -42, -2, -2] },
     "stele": {
       "sprite": "skins/dailong/stele.png", "rect": [140, 70, 640, 950], "bleed": [-20, -38, -20, 10],
@@ -363,7 +364,7 @@
       "colors": { "rule": "#2B2620B3", "row": "#2B262066" }
     }
   },
-  "briefing": { "panel": "dialog", "image_outline": "#6B4F33", "image_outline_width": 3 },
+  "briefing": { "panel": "dialog", "image_outline": "#6B4F33", "image_outline_width": 3, "bullet": "square", "bullet_color": "accent" },
   "dialogs": {
     "default": {"panel": "dialog", "size": [760, 960]},
     "Home": {"size": [600, 1000], "align": "left", "offset": [64, 0]},
@@ -371,6 +372,8 @@
     "About": {"size": [940, 940]},
     "WorldMap": {"size": "fullscreen"},
     "MissionComplete": {"size": "fullscreen"},
+    "CampaignComplete": {"size": "fullscreen"},
+    "MissionBriefing": {"size": [1520, 980]},
     "MainGame": {"size": [640, 920]},
     "LoadOrSaveGame": {"size": [1540, 940]},
     "MainSettings": {"size": [1200, 920]},

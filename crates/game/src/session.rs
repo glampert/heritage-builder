@@ -610,7 +610,8 @@ impl GameSession {
             session.start_mission();
         }
 
-        if configs.sim.start_paused {
+        if configs.sim.start_paused || campaign::is_briefing_pending() {
+            // A mission that has just started waits for its briefing's Begin (MissionBriefing).
             session.sim.pause();
         } else {
             session.sim.resume();
@@ -631,6 +632,13 @@ impl GameSession {
         custom_game::end();
         if let Some(mission) = campaign::active_mission() {
             profile::on_mission_started(mission.campaign_id, mission.mission_index);
+            // TODO(realm-ui): Phase 4's story sequence before this mission (story-script.md: I-A
+            // before mission 1) plays here, before its briefing.
+            if self.current_menus_mode() == Some(GameMenusMode::InGame) {
+                // Only the in-game menus open it: a mission started under the developer editor
+                // (start_in_dev_editor_mode) neither waits for one nor opens one later.
+                campaign::request_briefing();
+            }
         }
         if let Some(settings) = campaign::active_mission_calendar() {
             self.sim.calendar_mut().restart(settings);
@@ -722,6 +730,8 @@ impl GameSession {
                     self.menus = Some(self.create_game_menus(engine, GameMenusMode::InGame));
                 }
                 GameMenusMode::InGame => {
+                    // A briefing not yet shown would open mid-mission on the way back: drop it.
+                    campaign::take_pending_briefing();
                     self.menus = Some(self.create_game_menus(engine, GameMenusMode::DevEditor));
                 }
                 GameMenusMode::Home => {} // Cannot toggle out of home menu.
@@ -909,6 +919,10 @@ impl Load for GameSession {
         // which start the mission's calendar instead of the map's.
         if campaign::restore_snapshot(self.campaign_progress.clone()) {
             self.start_mission();
+            if campaign::is_briefing_pending() {
+                // A mission that has just started waits for its briefing's Begin (MissionBriefing).
+                self.sim.pause();
+            }
         }
     }
 }

@@ -197,9 +197,9 @@ impl Profile {
     // (a choice point stands for its sites' missions: CampaignDef, Missions and choices), the
     // mission of the site picked there if one was, or its first again once every one is finished.
     // None for a campaign without missions (yet).
-    // TODO(realm-ui): a choice point with no site picked resumes at the choice point itself (one of
-    // its sites' missions: CampaignConfigs::validate); the briefing (Phase 3) should offer its sites
-    // there instead, as the debrief's Continue to the world map does through the map's choice box.
+    // A choice point with no site picked resumes at the choice point itself (one of its sites'
+    // missions: CampaignConfigs::validate), whose briefing offers its sites (MissionBriefing), as
+    // the debrief's Continue to the world map does through the map's choice box.
     pub fn next_mission(&self, configs: &CampaignConfigs, campaign_index: usize) -> Option<usize> {
         let campaign = configs.campaign(campaign_index)?;
         let record = self.record(&campaign.id);

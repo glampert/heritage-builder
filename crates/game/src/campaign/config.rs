@@ -227,6 +227,12 @@ pub struct MissionDef {
     // mission, variants included; `description` is the developers' note.
     #[serde(default)]
     pub briefing: Option<String>,
+    // The briefing's "New in this mission" list (what the mission brings: buildings, goods, rules)
+    // and its "Threats" line, Story keys. Optional: the briefing leaves out a section it lacks.
+    #[serde(default)]
+    pub briefing_new: Vec<String>,
+    #[serde(default)]
+    pub briefing_threats: Option<String>,
     // The distinctions the mission can earn and the line each adds to the stele once earned
     // (docs/plans/realm-ui.md, Phase 3: Stele). Empty until M9 defines distinctions and awards
     // them into the profile (CampaignRecord::distinctions, by id).
@@ -251,12 +257,14 @@ impl MissionDef {
         self.lead_in.as_deref().map(|key| text::get(UiTextCategory::Story, key))
     }
 
-    // The Story keys it names: its stele line, lead-in, briefing and distinctions' lines.
+    // The Story keys it names: its stele line, lead-in, briefing (its text, what's new and its
+    // threats) and distinctions' lines.
     pub fn story_keys(&self) -> impl Iterator<Item = &str> {
-        [&self.stele_line, &self.lead_in, &self.briefing]
+        [&self.stele_line, &self.lead_in, &self.briefing, &self.briefing_threats]
             .into_iter()
             .flatten()
             .map(String::as_str)
+            .chain(self.briefing_new.iter().map(String::as_str))
             .chain(self.distinctions.iter().map(|distinction| distinction.stele_line.as_str()))
     }
 }

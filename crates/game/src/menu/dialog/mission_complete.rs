@@ -37,6 +37,7 @@ use crate::{
     menu::{skin::SkinPanel, stele::SteleArt},
     profile,
     realm,
+    world::stats::WorldStats,
     world_map::{self as world_map_data, WorldMapProvider},
 };
 
@@ -237,24 +238,7 @@ impl Debrief {
             .goals
             .iter()
             .map(|goal| {
-                let (text, target, achieved) = match goal {
-                    MissionGoal::Population { min } => {
-                        (ui::text::get(UiTextCategory::Menu, "debrief.goal.population").to_string(), i64::from(*min), i64::from(stats.population.total))
-                    }
-                    MissionGoal::Employment { min_employed } => (
-                        ui::text::get(UiTextCategory::Menu, "debrief.goal.employment").to_string(),
-                        i64::from(*min_employed),
-                        i64::from(stats.population.employed),
-                    ),
-                    MissionGoal::Treasury { min_gold } => {
-                        (ui::text::get(UiTextCategory::Menu, "debrief.goal.treasury").to_string(), i64::from(*min_gold), stats.treasury.gold_units_total)
-                    }
-                    MissionGoal::Resource { kind, min } => (
-                        ui::text::format(UiTextCategory::Menu, "debrief.goal.resource", &[("good", &kind.display_name())]),
-                        i64::from(*min),
-                        i64::from(stats.resources.all.count(*kind)),
-                    ),
-                };
+                let (text, target, achieved) = goal_line(goal, stats);
                 (text, digits(target), digits(achieved), goal.is_met(stats))
             })
             .collect();
@@ -276,6 +260,27 @@ impl Debrief {
         let stele = stele_data::stele(configs, &profile, active.campaign_id, Some(active.mission_index));
 
         Self { kicker, name, place, goals, stats, joins, stele, continue_label }
+    }
+}
+
+// A goal as the player reads it ("Population"), its target and what the city has of it now: the
+// debrief's and the briefing's goals.
+pub(super) fn goal_line(goal: &MissionGoal, stats: &WorldStats) -> (String, i64, i64) {
+    match goal {
+        MissionGoal::Population { min } => {
+            (ui::text::get(UiTextCategory::Menu, "debrief.goal.population").to_string(), i64::from(*min), i64::from(stats.population.total))
+        }
+        MissionGoal::Employment { min_employed } => {
+            (ui::text::get(UiTextCategory::Menu, "debrief.goal.employment").to_string(), i64::from(*min_employed), i64::from(stats.population.employed))
+        }
+        MissionGoal::Treasury { min_gold } => {
+            (ui::text::get(UiTextCategory::Menu, "debrief.goal.treasury").to_string(), i64::from(*min_gold), stats.treasury.gold_units_total)
+        }
+        MissionGoal::Resource { kind, min } => (
+            ui::text::format(UiTextCategory::Menu, "debrief.goal.resource", &[("good", &kind.display_name())]),
+            i64::from(*min),
+            i64::from(stats.resources.all.count(*kind)),
+        ),
     }
 }
 
@@ -514,7 +519,7 @@ fn goals_table(context: &GameUiContext, scales: Scales, debrief: &Debrief, width
         .with_width(width)
         .with_font_scale(font)
         .with_column_spacing(scales.pt(GOAL_COLUMN_GAP))
-        .with_header(UiTableHeader { font_scale: Some(scales.heading_font(HEADER_SIZE)), heading_font: true, rule: false, over_status: true, letter_spacing: scales.pt(HEADER_LETTER_SPACING) })
+        .with_header(UiTableHeader { font_scale: Some(scales.heading_font(HEADER_SIZE)), heading_font: true, rule: false, over_status: true, letter_spacing: scales.pt(HEADER_LETTER_SPACING), hidden: false })
         .with_status_column(UiTableStatusLook::Badges {
             done: color("check", "accent"),
             mark: color("check_mark", "on_accent"),

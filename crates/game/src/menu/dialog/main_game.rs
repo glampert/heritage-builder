@@ -1,8 +1,9 @@
 // The in-game Game menu (docs/plans/realm-ui.md, Phase 1, In-game Game menu), as the game-menu
 // mockups draw it: the realm's crest, "Game", the mission or custom game being played, a rule, the
-// menu items (Resume, Save, Load, World map, Settings, Quit to menu, Exit game: World map is a
-// stopgap opener of the world map screen until the HUD has its button, Phase 5) with the realm's marker on the
-// one hovered, and when the city was last saved. Quit to menu and Exit game ask first in a popup
+// menu items (Resume, Mission briefing (in a campaign mission only), Save, Load, World map,
+// Settings, Quit to menu, Exit game: Mission briefing and World map are stopgap openers of the
+// briefing and the world map screen until the HUD has their buttons, Phase 5) with the realm's
+// marker on the one hovered, and when the city was last saved. Quit to menu and Exit game ask first in a popup
 // (game-quit mockups): Cancel, Save and quit (or Save and exit: the game saved in the autosave's
 // slot, which Continue loads, then left once the save is written) and Quit (or Exit).
 //
@@ -30,6 +31,7 @@ const GAME_MENU_ITEM_SCALE: f32 = 1.15;      // The items' fonts, padding and ma
 const GAME_MENU_CREST_HEIGHT: f32 = 72.0;    // The crest is drawn this tall at most, keeping its shape.
 const GAME_MENU_PLACE_FONT_SCALE: f32 = 0.8; // The place line, over the skin's subtitle.
 const GAME_MENU_SAVED_FONT_SCALE: f32 = 0.9; // "Saved 12 minutes ago".
+const GAME_MENU_MIN_FIT: f32 = 0.7;          // The smallest the items are set to fit.
 
 // Automation labels of the lines filled in when the menu opens.
 const PLACE_LABEL: &str = "place";
@@ -51,6 +53,7 @@ const EXIT_POPUP_LABEL: &str = "Exit Game Popup";
 #[derive(Copy, Clone, Debug, PartialEq, Eq)]
 enum GameMenuItem {
     Resume,
+    Briefing,
     Save,
     Load,
     WorldMap,
@@ -60,11 +63,17 @@ enum GameMenuItem {
 }
 
 impl GameMenuItem {
-    const ALL: [Self; 7] = [Self::Resume, Self::Save, Self::Load, Self::WorldMap, Self::Settings, Self::QuitToMenu, Self::ExitGame];
+    const ALL: [Self; 8] = [Self::Resume, Self::Briefing, Self::Save, Self::Load, Self::WorldMap, Self::Settings, Self::QuitToMenu, Self::ExitGame];
+
+    // Whether the menu shows it: the briefing in a campaign mission only.
+    fn shown(self, in_mission: bool) -> bool {
+        self != Self::Briefing || in_mission
+    }
 
     fn label(self) -> UiString {
         match self {
             Self::Resume => UiString::key(UiTextCategory::Menu, "game_menu.resume"),
+            Self::Briefing => UiString::key(UiTextCategory::Menu, "game_menu.briefing"),
             Self::Save => UiString::key(UiTextCategory::Menu, "game_menu.save"),
             Self::Load => UiString::key(UiTextCategory::Menu, "game_menu.load"),
             Self::WorldMap => UiString::key(UiTextCategory::Menu, "game_menu.world_map"),
@@ -78,6 +87,10 @@ impl GameMenuItem {
         const CLOSE_ALL_OTHERS: bool = false;
         match self {
             Self::Resume => super::close_current(context),
+            // With the Game menu closed, so its Begin goes back to the city.
+            // TODO(realm-ui): the HUD's briefing button (Phase 5) opens it too; this entry is a
+            // stopgap until then.
+            Self::Briefing => super::open(DialogMenuKind::MissionBriefing, true, context),
             Self::Save => super::open(DialogMenuKind::SaveGame, CLOSE_ALL_OTHERS, context),
             Self::Load => super::open(DialogMenuKind::LoadGame, CLOSE_ALL_OTHERS, context),
             // With the Game menu closed, so its Return to the city goes back to the city.
@@ -89,6 +102,15 @@ impl GameMenuItem {
             Self::ExitGame => open_leave_popup(context, Leave::ExitGame),
         }
     }
+}
+
+// Whether the menu was last built in a campaign mission, with its Mission briefing item.
+static BUILT_IN_MISSION: UiStaticVar<bool> = UiStaticVar::new(false);
+
+// Whether the menu must be built again before it opens: it was built for a game of another kind
+// (a campaign mission, or not), so its Mission briefing item would be wrong.
+pub(super) fn needs_rebuild() -> bool {
+    *BUILT_IN_MISSION.as_ref() != campaign::active_mission().is_some()
 }
 
 // ----------------------------------------------
@@ -162,13 +184,24 @@ impl MainGame {
         let rule = skin::separator(context, "rule");
         parts_height += rule.measure(context).y + spacing;
         menu.add_widget(rule);
-        let items = menu_items(context, scale, text);
-        parts_height += items.measure(context).y + spacing;
-        menu.add_widget(items);
         let saved = line_text(&shown.1, LAST_SAVED_LABEL, "sub", GAME_MENU_SAVED_FONT_SCALE * text);
         parts_height += saved.measure(context).y;
 
+        // The items, set closer and smaller where they wouldn't fit (a campaign mission's menu has
+        // one more: Mission briefing).
         let content = skin::dialog_content_size(&kind, window);
+        let mut fit = 1.0;
+        let items = loop {
+            let items = menu_items(context, scale * fit, text * fit);
+            let height = items.measure(context).y + spacing;
+            if parts_height + height + spacing + GAME_MENU_SLACK * scale <= content.y || fit <= GAME_MENU_MIN_FIT {
+                parts_height += height;
+                break items;
+            }
+            fit = (fit - 0.04).max(GAME_MENU_MIN_FIT);
+        };
+        menu.add_widget(items);
+
         let room = (content.y - parts_height - spacing - GAME_MENU_SLACK * scale).floor();
         if room > 0.0 {
             menu.add_widget(UiSeparator::new().with_size(Vec2::new(1.0, room)));
@@ -199,7 +232,9 @@ impl MainGame {
 // The menu's items, each pressing its action: sized at `scale`, their text at `text_scale`.
 fn menu_items(context: &mut GameUiContext, scale: f32, text_scale: f32) -> UiWidgetGroup {
     let mut group = UiWidgetGroup::new().with_widget_spacing(Vec2::new(0.0, (GAME_MENU_ITEM_SPACING * scale).round()));
-    for item_kind in GameMenuItem::ALL {
+    let in_mission = campaign::active_mission().is_some();
+    *BUILT_IN_MISSION.as_mut() = in_mission;
+    for item_kind in GameMenuItem::ALL.into_iter().filter(|item| item.shown(in_mission)) {
         let item = skin::menu_item_scaled(context, item_kind.label(), None, scale * GAME_MENU_ITEM_SCALE, text_scale * GAME_MENU_ITEM_SCALE).on_pressed(move |_, context| {
             item_kind.on_pressed(context_as_mut::<GameUiContext>(context));
         });

@@ -46,6 +46,12 @@ impl Scales {
         Self { size, body: body_text_size(), origin }
     }
 
+    // Scales of `size` screen points per generator point, from the top left: a dialog laid out
+    // from the generator's coordinates in a rect of its own (the briefing).
+    pub fn with_size(size: f32) -> Self {
+        Self { size, body: body_text_size(), origin: Vec2::zero() }
+    }
+
     #[inline]
     pub fn pt(&self, points: f32) -> f32 {
         points * self.size

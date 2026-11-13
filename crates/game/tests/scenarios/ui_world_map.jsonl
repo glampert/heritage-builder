@@ -28,6 +28,12 @@
 {"method": "ui.click", "params": {"path": "Home/Campaign"}}
 {"method": "wait.until", "params": {"query": "session.state", "path": "/menus_mode", "op": "eq", "value": "InGame", "timeout_frames": 600}}
 {"method": "assert.eq", "params": {"query": "session.state", "path": "/campaign/mission_index", "value": 0}}
+# The mission's briefing opens first (MissionBriefing); Begin goes to the city, whose island
+# already meets the mission's goal: the debrief opens, and Keep playing goes back to the city.
+{"method": "wait.until", "params": {"query": "dialog.current", "path": "/current", "op": "eq", "value": "MissionBriefing", "timeout_frames": 60}}
+{"method": "ui.click", "params": {"path": "MissionBriefing/Begin"}}
+{"method": "wait.until", "params": {"query": "dialog.current", "path": "/current", "op": "eq", "value": "MissionComplete", "timeout_frames": 300}}
+{"method": "ui.click", "params": {"path": "MissionComplete/panel/Keep playing"}}
 {"method": "finance.set", "params": {"balance": 3240}}
 {"method": "input.move", "params": {"park": true}}
 {"method": "wait.frames", "params": {"frames": 3}}
@@ -277,6 +283,8 @@
 # or in the box) asks before its mission starts, and the profile records the site picked. ----
 {"method": "profile.set", "params": {"reached": ["dragon_legacy", "test_choices", "test_choices_kambara", "test_choices_tampadesa"]}}
 {"method": "session.start_mission", "params": {"campaign": "test_choices", "mission": 0}}
+{"method": "wait.until", "params": {"query": "dialog.current", "path": "/current", "op": "eq", "value": "MissionBriefing", "timeout_frames": 300}}
+{"method": "ui.click", "params": {"path": "MissionBriefing/Begin"}}
 {"method": "assert.eq", "params": {"query": "session.state", "path": "/campaign/campaign_id", "value": "test_choices"}}
 {"method": "assert.eq", "params": {"query": "session.state", "path": "/campaign/mission_index", "value": 0}}
 {"method": "input.move", "params": {"park": true}}
@@ -347,6 +355,9 @@
 {"method": "wait.until", "params": {"query": "session.state", "path": "/campaign/mission_index", "op": "eq", "value": 2, "timeout_frames": 600}}
 {"method": "assert.eq", "params": {"query": "session.state", "path": "/campaign/campaign_id", "value": "test_choices"}}
 {"method": "assert.eq", "params": {"query": "session.state", "path": "/campaign/mission_id", "value": "southern_shore_b"}}
+# Its site was picked: its briefing offers Begin.
+{"method": "wait.until", "params": {"query": "dialog.current", "path": "/current", "op": "eq", "value": "MissionBriefing", "timeout_frames": 300}}
+{"method": "ui.click", "params": {"path": "MissionBriefing/Begin"}}
 # Records keep the order they were made in: dragon_legacy's (started from Home above), then
 # test_choices's (profile.set), so test_choices's is the second.
 {"method": "assert.eq", "params": {"query": "profile.state", "path": "/profile/campaigns/1/id", "value": "test_choices"}}
@@ -366,6 +377,8 @@
 # Kambara's choice box, on Campaign II's map: its test mission 0 has no goals, so the debrief
 # comes at once, and its Continue to the world map opens the map.
 {"method": "session.start_mission", "params": {"campaign": "test_choices_kambara", "mission": 0}}
+{"method": "wait.until", "params": {"query": "dialog.current", "path": "/current", "op": "eq", "value": "MissionBriefing", "timeout_frames": 300}}
+{"method": "ui.click", "params": {"path": "MissionBriefing/Begin"}}
 {"method": "wait.until", "params": {"query": "dialog.current", "path": "/current", "op": "eq", "value": "MissionComplete", "timeout_frames": 300}}
 {"method": "ui.click", "params": {"path": "MissionComplete/panel/Continue to the world map"}}
 {"method": "input.move", "params": {"park": true}}
@@ -386,6 +399,8 @@
 
 # Tampadesa's, on Campaign III's map, at the lower left.
 {"method": "session.start_mission", "params": {"campaign": "test_choices_tampadesa", "mission": 0}}
+{"method": "wait.until", "params": {"query": "dialog.current", "path": "/current", "op": "eq", "value": "MissionBriefing", "timeout_frames": 300}}
+{"method": "ui.click", "params": {"path": "MissionBriefing/Begin"}}
 {"method": "wait.until", "params": {"query": "dialog.current", "path": "/current", "op": "eq", "value": "MissionComplete", "timeout_frames": 300}}
 {"method": "ui.click", "params": {"path": "MissionComplete/panel/Continue to the world map"}}
 {"method": "input.move", "params": {"park": true}}
@@ -409,9 +424,16 @@
 # picked).
 {"method": "session.start_mission", "params": {"campaign": "test_choices_tampadesa", "mission": 0}}
 {"method": "ui.realm", "params": {"realm": "dailong"}}
+{"method": "wait.until", "params": {"query": "dialog.current", "path": "/current", "op": "eq", "value": "MissionBriefing", "timeout_frames": 300}}
+{"method": "ui.click", "params": {"path": "MissionBriefing/Begin"}}
 {"method": "wait.until", "params": {"query": "dialog.current", "path": "/current", "op": "eq", "value": "MissionComplete", "timeout_frames": 300}}
 {"method": "ui.click", "params": {"path": "MissionComplete/panel/Continue to the next mission"}}
 {"method": "wait.until", "params": {"query": "session.state", "path": "/campaign/mission_index", "op": "eq", "value": 1, "timeout_frames": 600}}
 {"method": "assert.eq", "params": {"query": "session.state", "path": "/campaign/campaign_id", "value": "test_choices_tampadesa"}}
 {"method": "assert.eq", "params": {"query": "dialog.list", "path": "/dialogs/WorldMap", "value": false}}
+# Nothing picked there: the choice point's briefing offers its two sites in place of Begin.
+{"method": "wait.until", "params": {"query": "dialog.current", "path": "/current", "op": "eq", "value": "MissionBriefing", "timeout_frames": 300}}
+{"method": "assert.exists", "params": {"query": "ui.tree", "args": {"filter": "MissionBriefing/choice"}, "path": "/widgets/0"}}
+{"method": "assert.eq", "params": {"query": "ui.tree", "args": {"filter": "MissionBriefing/Begin"}, "path": "/widgets", "value": []}}
+{"method": "assert.eq", "params": {"query": "ui.layout_issues", "path": "/count", "value": 0}}
 {"method": "ui.realm", "params": {"realm": "auto"}}

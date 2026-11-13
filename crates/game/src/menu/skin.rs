@@ -673,7 +673,8 @@ impl SkinWorldMapDef {
 // - `colors`: the debrief's panel's colours by role (`text`, `sub`, `heading`, `accent` (the
 //   kicker), `section`, `rule`, `check`, `check_mark`, `check_open`, `note_fill`, `note_border`),
 //   each a `text` name (the realm's own, so a realm's file names only the ones it changes) or
-//   "#RRGGBB(AA)" (intermission_color).
+//   "#RRGGBB(AA)" (intermission_color);
+// - `complete`: where the campaign-complete screen puts them (SkinCampaignCompleteDef).
 #[derive(Clone, Debug, Deserialize)]
 #[serde(default, deny_unknown_fields)]
 pub struct SkinIntermissionDef {
@@ -682,6 +683,7 @@ pub struct SkinIntermissionDef {
     pub niche: SkinPlacedSpriteDef,
     pub stele: SkinSteleDef,
     pub colors: BTreeMap<String, String>,
+    pub complete: SkinCampaignCompleteDef,
 }
 
 impl Default for SkinIntermissionDef {
@@ -692,6 +694,35 @@ impl Default for SkinIntermissionDef {
             niche: SkinPlacedSpriteDef::default(),
             stele: SkinSteleDef::default(),
             colors: BTreeMap::new(),
+            complete: SkinCampaignCompleteDef::default(),
+        }
+    }
+}
+
+// The campaign-complete screen's stele, wider than the debrief's for every line of a finished
+// campaign, as the mockup generator's dialogs.py campaign_complete() draws it (points on the
+// 1920 × 1080 screen): `stele`, the stele's rect (its sprite stretched to it, its text as wide and
+// as low as it grows: menu::stele::SteleArt::stretched); `niche_stretch`, [factor, x], the niche
+// stretched sideways by that factor about that x; `panel`, the right side's panel's rect;
+// `rule_clearance`, points the lines move down from the rule under the title (which stays where
+// the debrief's is): the debrief's lines touch it, as the mockup's do, but the mockup sets the
+// campaign-complete screen's smaller, clear of it, where a short campaign's are full size.
+#[derive(Clone, Debug, Deserialize)]
+#[serde(default, deny_unknown_fields)]
+pub struct SkinCampaignCompleteDef {
+    pub stele: [f32; 4],
+    pub niche_stretch: [f32; 2],
+    pub panel: [f32; 4],
+    pub rule_clearance: f32,
+}
+
+impl Default for SkinCampaignCompleteDef {
+    fn default() -> Self {
+        Self {
+            stele: [80.0, 40.0, 780.0, 1010.0],
+            niche_stretch: [1.12, 460.0],
+            panel: [900.0, 60.0, 980.0, 960.0],
+            rule_clearance: 10.0,
         }
     }
 }
@@ -795,19 +826,42 @@ impl SkinSteleDef {
 }
 
 // The briefing's art (docs/plans/realm-ui.md, Phase 3: Briefing): the scroll or tablet it's on
-// (`panel`, the generator's mpanel: the dialogs' panel) and the outline round its image
-// (`image_outline` colour, `image_outline_width` points).
+// (`panel`, the generator's mpanel: the dialogs' panel), the outline round its image
+// (`image_outline` colour, `image_outline_width` points), and the mark before each of its "New in
+// this mission" items (`bullet`: square, diamond or circle, the generator's good_bullet; in the
+// `bullet_color` colour).
 #[derive(Clone, Debug, Deserialize)]
 #[serde(default, deny_unknown_fields)]
 pub struct SkinBriefingDef {
     pub panel: String,
     pub image_outline: String,
     pub image_outline_width: f32,
+    pub bullet: SkinBullet,
+    pub bullet_color: String,
 }
 
 impl Default for SkinBriefingDef {
     fn default() -> Self {
-        Self { panel: "dialog".into(), image_outline: "ink".into(), image_outline_width: 3.0 }
+        Self { panel: "dialog".into(), image_outline: "ink".into(), image_outline_width: 3.0, bullet: SkinBullet::Square, bullet_color: "accent".into() }
+    }
+}
+
+// A list's bullet (engine::ui::widgets::UiBullet), as skins spell it.
+#[derive(Copy, Clone, Debug, PartialEq, Eq, Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum SkinBullet {
+    Square,
+    Diamond,
+    Circle,
+}
+
+impl SkinBullet {
+    pub fn bullet(self) -> UiBullet {
+        match self {
+            Self::Square => UiBullet::Square,
+            Self::Diamond => UiBullet::Diamond,
+            Self::Circle => UiBullet::Circle,
+        }
     }
 }
 

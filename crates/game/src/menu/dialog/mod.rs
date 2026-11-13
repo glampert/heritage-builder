@@ -53,6 +53,9 @@ use mission_complete::*;
 mod campaign_complete;
 use campaign_complete::*;
 
+mod mission_briefing;
+use mission_briefing::*;
+
 mod screen;
 
 pub mod world_map;
@@ -106,6 +109,7 @@ pub enum DialogMenuImpl {
     // Campaign progression menus:
     MissionComplete,
     CampaignComplete,
+    MissionBriefing,
 
     // The world map:
     WorldMap,
@@ -134,6 +138,7 @@ const DIALOG_MENU_FACTORIES: [DialogMenuFactoryFn; DIALOG_MENU_COUNT] = dialog_m
 
     MissionComplete,
     CampaignComplete,
+    MissionBriefing,
 
     WorldMap,
 ];
@@ -227,6 +232,16 @@ pub fn sync(context: &mut GameUiContext) {
     } else if dialogs.menu_stack.contains(&DialogMenuKind::MissionComplete) && mission_complete::needs_rebuild(context) {
         // The window's size changed: the debrief's layout follows it.
         dialogs.rebuild(context, |kind| kind == DialogMenuKind::MissionComplete);
+    } else if dialogs.menu_stack.contains(&DialogMenuKind::CampaignComplete) && campaign_complete::needs_rebuild(context) {
+        // The window's size changed: the campaign-complete screen's layout follows it.
+        dialogs.rebuild(context, |kind| kind == DialogMenuKind::CampaignComplete);
+    } else if dialogs.menu_stack.contains(&DialogMenuKind::MissionBriefing)
+        && !dialogs.find_dialog(DialogMenuKind::MissionBriefing).menu().is_message_box_open()
+        && mission_briefing::needs_rebuild(context)
+    {
+        // The window's size changed the briefing's, which its layout follows (a UI scale change
+        // rebuilds every dialog: rebuild_all).
+        dialogs.rebuild(context, |kind| kind == DialogMenuKind::MissionBriefing);
     } else if dialogs.menu_stack.contains(&DialogMenuKind::MainSettings)
         && !dialogs.find_dialog(DialogMenuKind::MainSettings).menu().is_message_box_open()
         && settings::needs_rebuild(context)
@@ -328,6 +343,12 @@ pub fn open(dialog_menu_kind: DialogMenuKind, close_all_others: bool, context: &
     }
 
     DialogMenusSingleton::get_mut().open_dialog(dialog_menu_kind, context)
+}
+
+// The mission's briefing as its map loads (campaign::take_pending_briefing): only this one offers a
+// choice point's sites, when none is picked yet (mission_briefing::open_at_mission_start).
+pub fn open_mission_briefing_at_start(context: &mut GameUiContext) -> bool {
+    mission_briefing::open_at_mission_start(context)
 }
 
 pub fn close(dialog_menu_kind: DialogMenuKind, context: &mut GameUiContext) -> bool {
@@ -677,6 +698,27 @@ impl DialogMenusSingleton {
         // The debrief: built afresh from the mission just finished and the city's stats.
         if dialog_menu_kind == DialogMenuKind::MissionComplete && !self.find_dialog(dialog_menu_kind).is_open() {
             mission_complete::prepare();
+            self.dialog_menus[dialog_menu_kind as usize] = dialog_menu_kind.build_menu(context);
+            self.frames[dialog_menu_kind as usize] = DialogFrame::from_skin(dialog_menu_kind);
+        }
+
+        // The campaign-complete screen: built afresh from the campaign just finished.
+        if dialog_menu_kind == DialogMenuKind::CampaignComplete && !self.find_dialog(dialog_menu_kind).is_open() {
+            campaign_complete::prepare();
+            self.dialog_menus[dialog_menu_kind as usize] = dialog_menu_kind.build_menu(context);
+            self.frames[dialog_menu_kind as usize] = DialogFrame::from_skin(dialog_menu_kind);
+        }
+
+        // The briefing: built afresh from the mission being played.
+        if dialog_menu_kind == DialogMenuKind::MissionBriefing && !self.find_dialog(dialog_menu_kind).is_open() {
+            mission_briefing::prepare();
+            self.dialog_menus[dialog_menu_kind as usize] = dialog_menu_kind.build_menu(context);
+            self.frames[dialog_menu_kind as usize] = DialogFrame::from_skin(dialog_menu_kind);
+        }
+
+        // The Game menu: built again when it's opened in a game of another kind than it was built
+        // for (its Mission briefing item is a campaign mission's only).
+        if dialog_menu_kind == DialogMenuKind::MainGame && !self.find_dialog(dialog_menu_kind).is_open() && main_game::needs_rebuild() {
             self.dialog_menus[dialog_menu_kind as usize] = dialog_menu_kind.build_menu(context);
             self.frames[dialog_menu_kind as usize] = DialogFrame::from_skin(dialog_menu_kind);
         }
