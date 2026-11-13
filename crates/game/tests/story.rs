@@ -203,6 +203,25 @@ fn test_triggers_resolve() {
     let order: Vec<String> =
         stories.sequences_in_order(&campaigns, 0).iter().map(|sequence| sequence.sequence.id.clone()).collect();
     assert_eq!(order, ["start", "before_two", "after_two", "after_two_b", "end"], "play order, the waiting one left out");
+
+    // A variant listed after a later step (missions are appended, since saves name them by index)
+    // still plays, and sorts, with its choice point's step.
+    let mut later_variant = synthetic_campaigns();
+    later_variant.campaigns[0].missions.swap(2, 3);
+    later_variant.campaigns[0].missions[1].choices[1].mission = MissionRef::Index(3);
+    assert_eq!(later_variant.campaigns[0].step_of(3), 1);
+    let stories = stories_for(
+        &later_variant,
+        serde_json::json!({ "sequences": [
+            sequence("after_three", serde_json::json!({ "after_mission": 2 })),
+            sequence("after_two_b", serde_json::json!({ "after_mission": "two_b" })),
+            sequence("after_two", serde_json::json!({ "after_mission": 1 })),
+        ]}),
+    );
+    assert_eq!(stories.validate(&later_variant), Vec::<String>::new());
+    let order: Vec<String> =
+        stories.sequences_in_order(&later_variant, 0).iter().map(|sequence| sequence.sequence.id.clone()).collect();
+    assert_eq!(order, ["after_two", "after_two_b", "after_three"], "the variant's with its step, before the later step's");
 }
 
 fn test_validation_finds_errors() {
@@ -277,7 +296,6 @@ fn test_seen_sequences_and_replay() {
         ]}),
     );
     let mut profile = Profile::new();
-    assert!(!profile.has_seen_any_sequence());
     assert!(!profile.to_json().contains("sequences_seen"), "none seen: none in the file");
     assert!(stories.seen_sequences(&campaigns, &profile).is_empty());
 
@@ -285,7 +303,6 @@ fn test_seen_sequences_and_replay() {
     profile.sequence_seen(&campaigns, 0, "start");
     profile.sequence_seen(&campaigns, 0, "start");
     profile.sequence_seen(&campaigns, 5, "start"); // No such campaign: nothing.
-    assert!(profile.has_seen_any_sequence());
     assert!(profile.has_seen_sequence("one", "start"));
     assert!(!profile.record("one").unwrap().reached, "seeing a sequence reaches nothing");
     assert_eq!(profile.record("one").unwrap().sequences_seen, ["end", "start"], "each once, as first seen");
@@ -303,4 +320,20 @@ fn test_seen_sequences_and_replay() {
         )
         .unwrap();
     assert_eq!(edited.record("one").unwrap().sequences_seen, ["start", "end"]);
+
+    // profile.set refuses ids the campaign's story lacks (story::check_seen_sequences, on the
+    // shipped stories).
+    let (shipped, _) = configs();
+    let with_seen = |campaign: &str, seen: &[&str]| {
+        let mut profile = Profile::new();
+        profile
+            .set_campaign_records(shipped, vec![serde_json::json!({ "id": campaign, "sequences_seen": seen })])
+            .unwrap();
+        game::story::check_seen_sequences(&profile)
+    };
+    assert_eq!(with_seen("dragon_legacy", &["i_a"]), Ok(()));
+    let unknown = with_seen("dragon_legacy", &["i_a", "nope"]).unwrap_err();
+    assert!(unknown.contains("'nope'") && unknown.contains("i_a, i_b"), "{unknown}");
+    let none = with_seen("temple_mountain", &["i_a"]).unwrap_err();
+    assert!(none.contains("temple_mountain") && none.contains("none"), "{none}");
 }

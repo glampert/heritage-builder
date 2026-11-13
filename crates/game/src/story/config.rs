@@ -106,13 +106,15 @@ pub enum TriggerPoint {
 }
 
 impl TriggerPoint {
-    // Where it plays in the campaign, for the order sequences are listed and replayed in: before a
-    // mission, then after it, the epilogue last. None for one that can't play.
-    pub fn order(self) -> Option<(usize, u8)> {
+    // Where it plays in the campaign, for the order sequences are listed and replayed in: by the
+    // step its mission belongs to (a variant with its choice point, wherever campaigns.json lists
+    // it), before the step's missions, then after them, the epilogue last. None for one that can't
+    // play.
+    pub fn order(self, campaign: &CampaignDef) -> Option<(usize, u8, usize)> {
         match self {
-            Self::Before(mission) => Some((mission, 0)),
-            Self::After(mission) => Some((mission, 1)),
-            Self::Epilogue => Some((usize::MAX, 2)),
+            Self::Before(mission) => Some((campaign.step_of(mission), 0, mission)),
+            Self::After(mission) => Some((campaign.step_of(mission), 1, mission)),
+            Self::Epilogue => Some((usize::MAX, 2, usize::MAX)),
             Self::Pending | Self::Unknown => None,
         }
     }
@@ -223,7 +225,7 @@ impl StoryDef {
                 errors.push(format!("Sequence '{id}' plays {:?}, which isn't a mission of the campaign.", sequence.trigger));
             }
             // Two sequences on one point; for those that wait for their mission, on one trigger.
-            if point.order().is_some() || point == TriggerPoint::Pending {
+            if point.order(campaign).is_some() || point == TriggerPoint::Pending {
                 let same = |(other_point, other_sequence): &&(TriggerPoint, &SequenceDef)| {
                     *other_point == point && (point != TriggerPoint::Pending || other_sequence.trigger == sequence.trigger)
                 };

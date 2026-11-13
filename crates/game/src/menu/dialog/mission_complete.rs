@@ -249,7 +249,7 @@ impl Debrief {
         // finished missions then), so the stele is carved from a copy that has it already. A
         // preview's (campaign::preview), as if the campaign had been played up to the mission.
         let profile = if campaign::preview::is_active() {
-            campaign::preview::profile_through(profile::get(), configs, active.campaign_id, active.mission_index)
+            campaign::preview::shown_profile().clone()
         } else {
             let mut profile = profile::get().clone();
             profile.mission_finished(configs, active.campaign_id, active.mission_index);

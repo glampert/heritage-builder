@@ -25,7 +25,9 @@ pub fn provider(campaign_index: usize) -> Option<ConfigWorldMapProvider<'static>
     let active = if campaign::CampaignManager::is_initialized() { campaign::preview::shown_mission() } else { None };
     // Any game but the home menu's: a custom game, another campaign's mission or a preset.
     let in_game = GameLoop::is_initialized() && GameLoop::get().is_in_game();
-    ConfigWorldMapProvider::new(CampaignConfigs::get(), WorldMapConfigs::get(), campaign_index, profile::get(), active)
+    // Its profile too: as if the campaign had been played up to it (campaign::preview::shown_profile).
+    let profile = campaign::preview::shown_profile();
+    ConfigWorldMapProvider::new(CampaignConfigs::get(), WorldMapConfigs::get(), campaign_index, profile, active)
         .map(|provider| provider.with_other_game(in_game))
 }
 

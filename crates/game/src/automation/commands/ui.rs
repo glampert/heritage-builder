@@ -171,7 +171,9 @@ pub(super) const COMMANDS: &[CommandDef] = &[
     CommandDef { name: "dialog.current", help: "The dialog on top, or null.", params: &[], run: cmd_dialog_current },
     CommandDef {
         name: "dialog.open",
-        help: "Open a dialog, closing the others except the home menu, e.g. CustomGame, LoadGame, MainSettings.",
+        help: "Open a dialog, closing the others except the home menu, e.g. CustomGame, LoadGame, MainSettings. A \
+           story sequence playing (StoryComic) is dropped, not ended, as story.play drops it. StoryComic opens \
+           in the home and in-game menus only.",
         params: &[ParamDef { name: "name", kind: "string", required: true, help: "Dialog name, see dialog.list." }],
         run: cmd_dialog_open,
     },
@@ -658,6 +660,19 @@ fn require_dialogs() -> Result<(), CommandError> {
     }
 }
 
+// Dialogs that only the home and in-game menus draw (the comic viewer): the developer editor keeps
+// the dialogs but draws none, so one opened there would pause the game unseen and take no keys.
+pub(super) fn require_retail_menus(context: &CommandContext) -> Result<(), CommandError> {
+    require_dialogs()?;
+    match context.session.current_menus_mode() {
+        Some(GameMenusMode::Home | GameMenusMode::InGame) => Ok(()),
+        _ => Err(CommandError::new(
+            ErrorCode::NotInGame,
+            "The developer editor draws no dialogs: switch to the in-game menus first (menus.mode mode=InGame).",
+        )),
+    }
+}
+
 fn dialog_kind(name: &str) -> Result<DialogMenuKind, CommandError> {
     DialogMenuKind::iter().find(|kind| kind.to_string().eq_ignore_ascii_case(name)).ok_or_else(|| {
         let names: Vec<String> = DialogMenuKind::iter().map(|kind| kind.to_string()).collect();
@@ -840,11 +855,18 @@ fn cmd_dialog_open(context: &mut CommandContext, params: Value) -> CommandResult
     let params: Params = parse_params(params)?;
     require_dialogs()?;
     let kind = dialog_kind(&params.name)?;
+    if kind == DialogMenuKind::StoryComic {
+        require_retail_menus(context)?;
+    }
 
     // Close the others, but not the home menu's own dialog: the home menu would reopen it over
     // this one. Its buttons open dialogs over it too. Nor an open Settings dialog that `kind` opens
     // on one of its tabs: it switches to that tab, its pending edits kept.
     let opened = context.session.with_ui_context(context.engine, |ui_context| {
+        // A sequence playing is dropped, not ended, as story.play drops it.
+        if kind != DialogMenuKind::StoryComic {
+            dialog::stop_story(ui_context);
+        }
         for other in DialogMenuKind::iter()
             .filter(|other| *other != kind && *other != DialogMenuKind::Home && !dialog::switches_in_place(kind, *other))
         {

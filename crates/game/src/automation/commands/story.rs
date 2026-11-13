@@ -7,9 +7,9 @@ use serde_json::{Value, json};
 use engine::ui::text::{self, UiTextCategory};
 
 use crate::{
-    automation::{CommandContext, CommandDef, CommandError, CommandResult, ErrorCode, ParamDef, done, parse_params},
+    automation::{CommandContext, CommandDef, CommandError, CommandResult, ParamDef, done, parse_params},
     campaign::config::{CampaignConfigs, MissionRef},
-    menu::dialog::{self, DialogMenuKind, StoryRequest},
+    menu::dialog::{self, StoryRequest},
     profile,
     story::{self, PANEL_SIZE, PanelDef, SequenceDef, StoryConfigs, TriggerPoint, config::resolve_trigger},
     world_map,
@@ -38,8 +38,10 @@ pub(super) const COMMANDS: &[CommandDef] = &[
     CommandDef {
         name: "story.play",
         help: "Play a story sequence in the comic viewer (StoryComic), over the dialogs open, in the UI realm's look \
-           (ui.realm), the simulation paused while it plays. A sequence playing is ended first. It doesn't change \
-           the profile unless seen=true: then ending it (Skip, Escape, Continue) records it seen, as the campaign \
+           (ui.realm), the simulation paused while it plays; in the home and in-game menus only (the developer \
+           editor draws no dialogs). A sequence playing is dropped first, not ended: it isn't recorded seen, \
+           and what the campaign flow had to follow it doesn't run (a mission's briefing stays pending, its \
+           sequence first, once no dialog is open). It doesn't change the profile unless seen=true: then ending it (Skip, Escape, Continue) records it seen, as the campaign \
            flow does. Its panels are StoryComic/panel (kind canvas) in ui.tree; StoryComic/bar/Next, Back and Skip \
            step through it, and so do the keys (Space, Enter, Right, Left, Escape).",
         params: &[
@@ -75,13 +77,7 @@ fn cmd_state(_context: &mut CommandContext, params: Value) -> CommandResult {
     }
     let params: Params = parse_params(params)?;
     let campaigns = CampaignConfigs::get();
-    let campaign_index = match &params.campaign {
-        Some(id) => campaigns.find_by_id(id).ok_or_else(|| {
-            let ids: Vec<&str> = campaigns.campaigns.iter().map(|campaign| campaign.id.as_str()).collect();
-            CommandError::not_found(format!("No campaign has the id '{id}'. Campaigns: {}.", ids.join(", ")))
-        })?,
-        None => world_map::default_campaign(),
-    };
+    let campaign_index = campaign_param(params.campaign.as_deref())?;
     let campaign = campaigns.campaign(campaign_index).ok_or_else(|| CommandError::not_found("There are no campaigns."))?;
     let stories = StoryConfigs::get();
     let profile = profile::get();
@@ -172,9 +168,7 @@ fn cmd_play(context: &mut CommandContext, params: Value) -> CommandResult {
         seen: bool,
     }
     let params: Params = parse_params(params)?;
-    if !dialog::is_initialized() {
-        return Err(CommandError::new(ErrorCode::NotInGame, "No dialogs here: they come with the home and in-game menus."));
-    }
+    super::ui::require_retail_menus(context)?;
     let campaigns = CampaignConfigs::get();
     let campaign_index = campaign_param(params.campaign.as_deref())?;
     let campaign = campaigns.campaign(campaign_index).ok_or_else(|| CommandError::not_found("There are no campaigns."))?;
@@ -214,9 +208,7 @@ fn cmd_play(context: &mut CommandContext, params: Value) -> CommandResult {
         on_end: None,
     };
     let opened = context.session.with_ui_context(context.engine, |ui_context| {
-        if dialog::is_in_stack(DialogMenuKind::StoryComic) {
-            dialog::close(DialogMenuKind::StoryComic, ui_context);
-        }
+        dialog::stop_story(ui_context);
         dialog::play_story(request, ui_context)
     });
     if !opened {

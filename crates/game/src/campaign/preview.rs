@@ -24,8 +24,21 @@ pub struct MissionPreview {
 // The preview and the session generation it was set in (session::generation).
 static PREVIEW: SingleThreadStatic<Option<(MissionPreview, u64)>> = SingleThreadStatic::new(None);
 
+// The profile the preview's screens read (shown_profile): the player's as it was when the preview
+// was set, played up to its mission (profile_through, the mission finished only if it shows so).
+static PREVIEW_PROFILE: SingleThreadStatic<Option<Profile>> = SingleThreadStatic::new(None);
+
 pub fn set(preview: Option<MissionPreview>) {
     PREVIEW.set(preview.map(|preview| (preview, crate::session::generation())));
+    PREVIEW_PROFILE.set(preview.filter(|_| CampaignConfigs::is_initialized()).map(|preview| {
+        played_up_to(
+            crate::profile::get(),
+            CampaignConfigs::get(),
+            preview.campaign_index,
+            preview.mission_index,
+            preview.completed,
+        )
+    }));
 }
 
 pub fn get() -> Option<MissionPreview> {
@@ -53,25 +66,54 @@ pub fn shown_mission() -> Option<ActiveMission> {
     }
 }
 
-// The profile as it would be had the campaign been played up to the mission at `mission_index`:
-// `profile` with every step before its step finished (at the step's first mission, where the
-// profile hasn't finished it otherwise), then the mission itself. The debrief's preview carves its
-// stele from it.
+// The profile the retail screens read: a preview's (as if the campaign had been played up to its
+// mission, the mission finished if it shows so: every screen of a preview shows the same progress,
+// the stele, the world map's cities and routes, a story panel's stele lines), else the player's.
+pub fn shown_profile() -> &'static Profile {
+    match PREVIEW_PROFILE.as_ref() {
+        Some(profile) if is_active() => profile,
+        _ => crate::profile::get(),
+    }
+}
+
+// The profile as it would be had the campaign been played up to the mission at `mission_index`
+// and through it: `profile` with every step before its step finished (at the step's first mission,
+// where the profile hasn't finished it otherwise), none after it (the steps the player finished
+// later, and the picks made at their choice points, are dropped), then the mission itself.
 pub fn profile_through(
     profile: &Profile,
     configs: &CampaignConfigs,
     campaign_index: usize,
     mission_index: usize,
 ) -> Profile {
+    played_up_to(profile, configs, campaign_index, mission_index, true)
+}
+
+// profile_through, the mission itself finished only if `finished`.
+fn played_up_to(
+    profile: &Profile,
+    configs: &CampaignConfigs,
+    campaign_index: usize,
+    mission_index: usize,
+    finished: bool,
+) -> Profile {
     let mut profile = profile.clone();
-    if let Some(campaign) = configs.campaign(campaign_index) {
-        let step = campaign.step_of(mission_index);
-        let finished = profile.record(&campaign.id).map(|record| record.missions_finished.clone()).unwrap_or_default();
-        for earlier in campaign.steps().into_iter().filter(|&earlier| earlier < step) {
-            if !campaign.is_step_finished(earlier, &finished) {
-                profile.mission_finished(configs, campaign_index, earlier);
-            }
+    let Some(campaign) = configs.campaign(campaign_index) else {
+        return profile;
+    };
+    let step = campaign.step_of(mission_index);
+    if let Some(record) = profile.campaigns.iter_mut().find(|record| record.id == campaign.id) {
+        record.missions_finished.retain(|&mission| campaign.step_of(mission) < step);
+        record.choices.retain(|choice| choice.step <= step);
+        record.finished = false;
+    }
+    let finished_missions = profile.record(&campaign.id).map(|record| record.missions_finished.clone()).unwrap_or_default();
+    for earlier in campaign.steps().into_iter().filter(|&earlier| earlier < step) {
+        if !campaign.is_step_finished(earlier, &finished_missions) {
+            profile.mission_finished(configs, campaign_index, earlier);
         }
+    }
+    if finished {
         profile.mission_finished(configs, campaign_index, mission_index);
     }
     profile

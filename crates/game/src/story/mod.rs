@@ -47,7 +47,8 @@ impl SequenceRef<'_> {
 
 impl StoryConfigs {
     // The campaign's sequences that can play (their triggers resolve), in the order they play:
-    // before a mission, after it, then the epilogue.
+    // step by step (a variant's with its choice point's), before a mission, after it, then the
+    // epilogue (TriggerPoint::order).
     pub fn sequences_in_order<'a>(&'a self, campaigns: &'a CampaignConfigs, campaign_index: usize) -> Vec<SequenceRef<'a>> {
         let Some(campaign) = campaigns.campaign(campaign_index) else {
             return Vec::new();
@@ -55,11 +56,11 @@ impl StoryConfigs {
         let Some(story) = self.stories.get(&campaign.id) else {
             return Vec::new();
         };
-        let mut sequences: Vec<((usize, u8), SequenceRef<'a>)> = story
+        let mut sequences: Vec<((usize, u8, usize), SequenceRef<'a>)> = story
             .sequences
             .iter()
             .filter_map(|sequence| {
-                let order = config::resolve_trigger(campaign, &sequence.trigger).order()?;
+                let order = config::resolve_trigger(campaign, &sequence.trigger).order(campaign)?;
                 Some((order, SequenceRef { campaign_index, campaign, sequence }))
             })
             .collect();
@@ -179,15 +180,10 @@ pub fn epilogue(campaign_index: usize) -> Option<SequenceRef<'static>> {
     stories.epilogue(campaigns, campaign_index)
 }
 
-// The sequences the profile has seen, as Replay the story lists them.
+// The sequences the profile has seen that can still play, as Replay the story lists them: the
+// home menu offers it while there's one (home.rs, replay_subline).
 pub fn seen() -> Vec<SequenceRef<'static>> {
     configs().map_or_else(Vec::new, |(stories, campaigns)| stories.seen_sequences(campaigns, profile::get()))
-}
-
-// Whether the home menu offers Replay the story: some sequence seen that can still play (not
-// Profile::has_seen_any_sequence, which counts ids the data may no longer have).
-pub fn has_replay() -> bool {
-    !seen().is_empty()
 }
 
 // Whether every sequence each campaign record of `profile` has seen is one of its campaign's (for

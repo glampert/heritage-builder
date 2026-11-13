@@ -196,9 +196,7 @@ impl Summary {
             .map(|key| ui::text::format(UiTextCategory::Menu, "campaign_complete.closing", &[("line", ui::text::get(UiTextCategory::Story, key))]));
 
         // A preview's (campaign::preview): as if the campaign had been played up to its mission.
-        let preview_profile = campaign::preview::is_active()
-            .then(|| campaign::preview::profile_through(profile::get(), configs, active.campaign_id, active.mission_index));
-        let profile = preview_profile.as_ref().unwrap_or_else(|| profile::get());
+        let profile = campaign::preview::shown_profile();
         let stele = stele_data::stele(configs, profile, active.campaign_id, None);
 
         // A row per step: the mission that finished it (a site's, once picked), else the step's own.

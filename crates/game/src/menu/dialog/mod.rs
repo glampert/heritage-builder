@@ -419,6 +419,20 @@ pub fn play_story(request: StoryRequest, context: &mut GameUiContext) -> bool {
     DialogMenusSingleton::get_mut().open_dialog(DialogMenuKind::StoryComic, context)
 }
 
+// Closes the comic viewer without ending its sequence, for automation that replaces it (story.play,
+// dialog.open): it isn't recorded seen, and neither its `on_end` nor that of a sequence that ended
+// this frame runs, so a mission's briefing stays pending (the in-game menus start it again once no
+// dialog is open: its sequence first, still unseen).
+pub fn stop_story(context: &mut GameUiContext) {
+    if !is_initialized() {
+        return;
+    }
+    story_comic::drop_playing();
+    if is_in_stack(DialogMenuKind::StoryComic) {
+        close(DialogMenuKind::StoryComic, context);
+    }
+}
+
 // The sequence the comic viewer shows: its campaign's index, its id and the panel (from 0).
 pub fn story_playing() -> Option<(usize, String, usize)> {
     if is_initialized() && is_in_stack(DialogMenuKind::StoryComic) { story_comic::playing() } else { None }

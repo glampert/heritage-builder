@@ -21,6 +21,9 @@
 # each realm and scale) plays the sequences seen in order: Continue goes on to the next, Skip ends
 # it. Screenshots go to out/ui_story/.
 #
+# Campaign I's first mission loads a sample save, so extract them first (unzip saves/sample_saves.zip,
+# as CI does).
+#
 # Run it with --fresh-profile, as CI does, at 1280 × 720, 1440 × 800 (CI's) and 1920 × 1080:
 #   cargo run -p HeritageBuilder -- --fresh-profile --window-size 1440x800 --script crates/game/tests/scenarios/ui_story.jsonl
 {"method": "time.fixed_dt", "params": {"dt": 0.016667}}

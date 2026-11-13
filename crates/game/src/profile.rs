@@ -180,12 +180,6 @@ impl Profile {
         self.record(campaign_id).is_some_and(|record| record.sequences_seen.iter().any(|seen| seen == sequence_id))
     }
 
-    // Whether any story sequence id is recorded, whether the story data still has it or not: not
-    // the test for Replay the story (story::has_replay, which counts only those that can play).
-    pub fn has_seen_any_sequence(&self) -> bool {
-        self.campaigns.iter().any(|record| !record.sequences_seen.is_empty())
-    }
-
     pub fn is_reached(&self, campaign_id: &str) -> bool {
         self.record(campaign_id).is_some_and(|record| record.reached)
     }

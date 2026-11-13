@@ -64,11 +64,22 @@ const BAR: [f32; 4] = [40.0, 958.0, 1840.0, 96.0];
 const BAR_TEXT_X: f32 = 80.0;
 const DOTS_CENTRE: f32 = 960.0;
 const DOT_SPACING: f32 = 34.0;
-const DOTS_WIDTH: f32 = 340.0;
+// The dots' and the count's column, centred on DOTS_CENTRE and ending where Back starts.
+const DOTS_WIDTH: f32 = 320.0;
 const BACK_BUTTON: [f32; 2] = [1120.0, 160.0];
 const SKIP_BUTTON: [f32; 2] = [1300.0, 220.0];
 const NEXT_BUTTON: [f32; 2] = [1540.0, 300.0];
 const BUTTON_HEIGHT: f32 = 56.0;
+// The bar is laid out as fixed columns, the gaps between these parts among them: a negative gap
+// would be clamped to 0 and push everything after it right.
+const _: () = assert!(
+    BAR_TEXT_X >= BAR[0]
+        && DOTS_CENTRE - DOTS_WIDTH * 0.5 >= BAR_TEXT_X
+        && BACK_BUTTON[0] >= DOTS_CENTRE + DOTS_WIDTH * 0.5
+        && SKIP_BUTTON[0] >= BACK_BUTTON[0] + BACK_BUTTON[1]
+        && NEXT_BUTTON[0] >= SKIP_BUTTON[0] + SKIP_BUTTON[1]
+        && BAR[0] + BAR[2] >= NEXT_BUTTON[0] + NEXT_BUTTON[1]
+);
 
 // Text sizes (the generator's font sizes).
 const CAMPAIGN_SIZE: f32 = 18.0;
@@ -179,6 +190,15 @@ pub(super) fn take_finished() -> Option<(StoryOnEnd, StoryEnd)> {
 // Whether something waits for a sequence that has just ended (its `on_end`, not run yet).
 pub(super) fn is_ending() -> bool {
     STATE.as_ref().finished.is_some()
+}
+
+// Drops the sequence playing, and what follows one that has just ended, without ending it: closing
+// the viewer then records nothing and runs no `on_end` (dialog::stop_story).
+pub(super) fn drop_playing() {
+    let state = STATE.as_mut();
+    state.playing = None;
+    state.reached_end = false;
+    state.finished = None;
 }
 
 // The sequence showing: its campaign's index, its id and the panel (from 0). None: none.
@@ -364,7 +384,8 @@ fn read(context: &mut GameUiContext) -> Option<Shown> {
     let title = ui::text::get(UiTextCategory::Story, &sequence.title).to_string();
 
     let stele = panel.stele_lines.then(|| {
-        let stele = stele_data::stele(configs, profile::get(), campaign_index, None);
+        // A preview's as its other screens show it (campaign::preview::shown_profile).
+        let stele = stele_data::stele(configs, crate::campaign::preview::shown_profile(), campaign_index, None);
         let title = stele.as_ref().map_or_else(|| campaign.display_name().to_string(), |stele| stele.title.clone());
         let lines: Vec<String> = stele.map_or_else(Vec::new, |stele| stele.lines.into_iter().map(|line| line.text).collect());
         (title, lines)

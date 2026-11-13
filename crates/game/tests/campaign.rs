@@ -504,7 +504,8 @@ fn test_mission_preview() {
 
     // Played up to a mission: every step before it finished (at its first mission), then it.
     let configs = CampaignConfigs { campaigns: vec![build_choice_campaign()] };
-    let finished = |profile: &Profile| profile.record("choice_campaign").map(|record| record.missions_finished.clone()).unwrap_or_default();
+    let finished_in = |profile: &Profile, id: &str| profile.record(id).map(|record| record.missions_finished.clone()).unwrap_or_default();
+    let finished = |profile: &Profile| finished_in(profile, "choice_campaign");
     let empty = Profile::default();
     assert_eq!(finished(&campaign::preview::profile_through(&empty, &configs, 0, 0)), vec![0]);
     assert_eq!(finished(&campaign::preview::profile_through(&empty, &configs, 0, 2)), vec![0, 2], "a variant: its choice point isn't finished");
@@ -514,6 +515,29 @@ fn test_mission_preview() {
     let mut played = Profile::default();
     played.mission_finished(&configs, 0, 2);
     assert_eq!(finished(&campaign::preview::profile_through(&played, &configs, 0, 3)), vec![0, 2, 3]);
+    // Steps the profile finished after the mission are dropped: the campaign as played up to it.
+    let mut ahead = Profile::default();
+    for mission in [0, 1, 3] {
+        ahead.mission_finished(&configs, 0, mission);
+    }
+    assert!(ahead.record("choice_campaign").unwrap().finished);
+    let through_first = campaign::preview::profile_through(&ahead, &configs, 0, 0);
+    assert_eq!(finished(&through_first), vec![0], "the later steps are left out");
+    assert!(!through_first.record("choice_campaign").unwrap().finished, "nor is the campaign finished");
+    assert_eq!(finished(&campaign::preview::profile_through(&ahead, &configs, 0, 2)), vec![0, 2], "its other site too");
+    assert!(campaign::preview::profile_through(&ahead, &configs, 0, 3).record("choice_campaign").unwrap().finished);
+    // A preview's screens read its profile: the mission finished only if it shows so.
+    assert!(std::ptr::eq(campaign::preview::shown_profile(), profile::get()), "the player's without a preview");
+    let first_id = CampaignConfigs::get().campaigns[0].id.clone();
+    let shown_finished = |completed: bool| {
+        campaign::preview::set(Some(campaign::preview::MissionPreview { campaign_index: 0, mission_index: 0, completed }));
+        let missions = finished_in(campaign::preview::shown_profile(), &first_id);
+        campaign::preview::set(None);
+        missions
+    };
+    assert_eq!(shown_finished(true), vec![0]);
+    assert!(shown_finished(false).is_empty());
+    assert!(std::ptr::eq(campaign::preview::shown_profile(), profile::get()), "cleared");
     campaign::reset();
 }
 
