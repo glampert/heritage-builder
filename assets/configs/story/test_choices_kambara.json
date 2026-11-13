@@ -1,0 +1,78 @@
+{
+  "sequences": [
+    {
+      "id": "test_before",
+      "title": "story.test_choices_kambara.test_before.title",
+      "trigger": {
+        "before_mission": 0
+      },
+      "note": "A test sequence before the first mission.",
+      "panels": [
+        {
+          "image": "story/placeholder_kambara.jpg",
+          "narration": "story.test_choices_kambara.test_before.1.narration",
+          "bubbles": [
+            {
+              "speaker": "speaker.sovanna",
+              "text": "story.test_choices_kambara.test_before.1.bubble_1",
+              "anchor": [1000, 300],
+              "tail": [820, 600]
+            }
+          ]
+        },
+        {
+          "image": "story/placeholder_kambara.jpg",
+          "bubbles": [
+            {
+              "speaker": "speaker.achar_vama",
+              "text": "story.test_choices_kambara.test_before.2.bubble_1",
+              "kind": "whisper",
+              "anchor": [200, 260],
+              "tail": [480, 600]
+            }
+          ],
+          "sepia": true
+        },
+        {
+          "image": "story/placeholder_kambara.jpg",
+          "narration": "story.test_choices_kambara.test_before.3.narration"
+        }
+      ]
+    },
+    {
+      "id": "test_after",
+      "title": "story.test_choices_kambara.test_after.title",
+      "trigger": {
+        "after_mission": 0
+      },
+      "note": "A test sequence after the first mission.",
+      "panels": [
+        {
+          "image": "story/placeholder_kambara.jpg",
+          "narration": "story.test_choices_kambara.test_after.1.narration",
+          "bubbles": [
+            {
+              "speaker": "speaker.villagers",
+              "text": "story.test_choices_kambara.test_after.1.bubble_1",
+              "kind": "group",
+              "anchor": [1000, 300],
+              "tail": [820, 600]
+            }
+          ]
+        },
+        {
+          "image": "story/placeholder_kambara.jpg",
+          "bubbles": [
+            {
+              "speaker": "speaker.sovanna",
+              "text": "story.test_choices_kambara.test_after.2.bubble_1",
+              "kind": "bold",
+              "anchor": [950, 280],
+              "tail": [780, 560]
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

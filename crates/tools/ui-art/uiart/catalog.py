@@ -41,6 +41,10 @@ CATALOG_PATH = os.path.join(HERE, "art.json")
 MANIFEST_PATH = os.path.join(HERE, "manifest.json")
 UI_DIR = "assets/ui"
 SKIN_ART_DIR = "skins"                 # under assets/ui
+# The story comics' panels (docs/plans/realm-ui.md, Phase 4): one picture per panel, by campaign,
+# named by the story files (assets/configs/story/<campaign>.json), not by a skin.
+STORY_ART_DIR = "story"                # under assets/ui
+ART_DIRS = (SKIN_ART_DIR, STORY_ART_DIR)
 SKIN_CONFIG_DIR = "assets/configs/ui/skins"
 WEB_MANIFEST = "web/asset_manifest.json"
 MANIFEST_VERSION = 1
@@ -57,7 +61,8 @@ KNOWN_CALLS = (
     "button", "tab", "item_marker", "icon_button", "build_button", "checkbox", "toggle", "slider",
     "dropdown", "divider", "realm_emblem", "seal", "home_scene", "world_map_base", "world_map_threat",
     "world_map_frame", "world_map_backdrop", "world_map_mark", "world_map_compass", "world_map_coin",
-    "world_map_emblem", "world_map_power_emblem", "stele", "stele_backdrop", "stele_mark",
+    "world_map_emblem", "world_map_power_emblem", "stele", "stele_backdrop", "stele_mark", "story_panel",
+    "story_frame",
 )
 
 TOP_KEYS = {"version", "scale", "pad", "realms", "state_filters", "sprites", "notes"}
@@ -272,7 +277,7 @@ def _record(e, realm, shot_scale, pad, filters, where):
         except (KeyError, IndexError) as err:
             raise CatalogError(f"{where}: out pattern {pattern!r}: unknown field {err}")
         if not out_ok(out, fmt):
-            raise CatalogError(f"{where}: output {out!r} must be a {FORMATS[fmt]} under {SKIN_ART_DIR}/")
+            raise CatalogError(f"{where}: output {out!r} must be a {FORMATS[fmt]} under {' or '.join(d + '/' for d in ART_DIRS)}")
         states.append({"state": name, "css": css, "call": st_call, "args": st_args, "out": out})
     if len({s["out"] for s in states}) != len(states):
         raise CatalogError(f"{where}: two states share an output path; put {{state}} in out")
@@ -288,12 +293,12 @@ def _record(e, realm, shot_scale, pad, filters, where):
 
 
 def out_ok(out, fmt="png"):
-    """An output path, relative to assets/ui, must be inside skins/, with its format's extension
-    (.png, or .jpg for JPEG)."""
+    """An output path, relative to assets/ui, must be inside skins/ (or story/, the story panels),
+    with its format's extension (.png, or .jpg for JPEG)."""
     if not out.endswith(FORMATS[fmt]) or "\\" in out or out.startswith("/"):
         return False
     parts = out.split("/")
-    return parts[0] == SKIN_ART_DIR and len(parts) >= 2 and all(p not in ("", ".", "..") for p in parts)
+    return parts[0] in ART_DIRS and len(parts) >= 2 and all(p not in ("", ".", "..") for p in parts)
 
 
 def repo_path(out):

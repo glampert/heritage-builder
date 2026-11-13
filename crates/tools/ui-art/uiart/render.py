@@ -92,17 +92,13 @@ _TEXT = None
 
 # The game's font files for the families a sprite's text may use: the page embeds the one it
 # needs, so a sprite's text doesn't depend on the generator's downloaded fonts.
-TEXT_FONTS = {"Protest Revolution": "protest_revolution_regular.ttf"}
+TEXT_FONTS = {"Protest Revolution": "protest_revolution_regular.ttf", "Spectral": "spectral_semi_bold.ttf"}
 
 
 def _with_text(th, family, draw):
     """Calls draw() with the generator's text helper back in world_map (where seal() lives), and
     embeds `family` from assets/fonts in the sprite's defs."""
-    if family not in TEXT_FONTS:
-        raise cat.CatalogError(f"no font file for the family {family!r} (render.TEXT_FONTS)")
-    data = (pathlib.Path(cat.REPO_ROOT) / "assets" / "fonts" / TEXT_FONTS[family]).read_bytes()
-    th.defs.append(f"<style>@font-face{{font-family:'{family}';"
-                   f"src:url(data:font/ttf;base64,{base64.b64encode(data).decode()})}}</style>")
+    _embed_font(th, family)
     import world_map
     stripped, world_map.T = world_map.T, _TEXT
     try:
@@ -216,7 +212,71 @@ CALLS = {
     "stele": lambda th, x, y, w, h, a: th.stele(x, y, w, h, "", []),
     "stele_backdrop": lambda th, x, y, w, h, a: _at_origin(x, y, a["origin"], th.stele_backdrop()),
     "stele_mark": lambda th, x, y, w, h, a: th.fresh_mark(*_at(x, y, w, h, a)),
+    # The story comics (screens.py's intro): a placeholder panel, the realm's story scene
+    # (intro_scene) cut to the rect (the mockup's panel, 1800 x 870 points), with `label` and the
+    # panel's visual description from the story script (`text`) as a dim caption along its
+    # bottom; and the realm frame round the panel (frame_back_at with the panel cut out of it,
+    # then frame_front_at), the panel left transparent.
+    "story_panel": lambda th, x, y, w, h, a: _story_panel(th, x, y, w, h, a.get("label", ""), a.get("text", "")),
+    "story_frame": lambda th, x, y, w, h, a: _story_frame(th, x, y, w, h),
 }
+
+
+# The story panels' dim caption: its font (render.TEXT_FONTS), sizes in points, and how wide a
+# character is taken to be, in ems, to wrap the description.
+STORY_CAPTION_FONT = "Spectral"
+STORY_CAPTION_LABEL_SIZE = 20
+STORY_CAPTION_SIZE = 26
+STORY_CAPTION_CHAR_EM = 0.5
+
+
+def _xml(text):
+    return text.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
+
+
+def _embed_font(th, family):
+    if family not in TEXT_FONTS:
+        raise cat.CatalogError(f"no font file for the family {family!r} (render.TEXT_FONTS)")
+    data = (pathlib.Path(cat.REPO_ROOT) / "assets" / "fonts" / TEXT_FONTS[family]).read_bytes()
+    th.defs.append(f"<style>@font-face{{font-family:'{family}';"
+                   f"src:url(data:font/ttf;base64,{base64.b64encode(data).decode()})}}</style>")
+
+
+def _story_panel(th, x, y, w, h, label, text):
+    import textwrap
+    cid = th.nid("panel")
+    th.defs.append(f'<clipPath id="{cid}"><rect x="{x:g}" y="{y:g}" width="{w:g}" height="{h:g}"/></clipPath>')
+    out = [f'<g clip-path="url(#{cid})">{th.intro_scene(x, y, w, h)}']
+    margin = 60
+    lines = textwrap.wrap(text, max(20, int((w - 2 * margin) / (STORY_CAPTION_SIZE * STORY_CAPTION_CHAR_EM))))
+    if label or lines:
+        _embed_font(th, STORY_CAPTION_FONT)
+        line_h = STORY_CAPTION_SIZE * 1.3
+        band = 28 + (STORY_CAPTION_LABEL_SIZE * 1.4 if label else 0) + len(lines) * line_h + 16
+        top = y + h - band
+        out.append(f'<rect x="{x:g}" y="{top:g}" width="{w:g}" height="{band:g}" fill="#000" opacity="0.42"/>')
+        cy = top + 28 + STORY_CAPTION_LABEL_SIZE * 0.8
+        font = f"font-family=\"'{STORY_CAPTION_FONT}'\""
+        if label:
+            out.append(f'<text x="{x + margin:g}" y="{cy:g}" {font} font-size="{STORY_CAPTION_LABEL_SIZE}" '
+                       f'letter-spacing="3" fill="#f0e2c0" opacity="0.7">{_xml(label.upper())}</text>')
+            cy += STORY_CAPTION_LABEL_SIZE * 1.4
+        for line in lines:
+            cy_line = cy + STORY_CAPTION_SIZE * 0.4
+            out.append(f'<text x="{x + margin:g}" y="{cy_line:g}" {font} font-size="{STORY_CAPTION_SIZE}" '
+                       f'fill="#f0e2c0" opacity="0.75">{_xml(line)}</text>')
+            cy += line_h
+    out.append("</g>")
+    return "".join(out)
+
+
+def _story_frame(th, x, y, w, h):
+    # Everything but the panel: a page-sized path with the rect cut out (evenodd).
+    cid = th.nid("framehole")
+    th.defs.append(f'<clipPath id="{cid}"><path clip-rule="evenodd" '
+                   f'd="M{x - 500:g},{y - 500:g} h{w + 1000:g} v{h + 1000:g} h-{w + 1000:g} Z '
+                   f'M{x:g},{y:g} h{w:g} v{h:g} h-{w:g} Z"/></clipPath>')
+    return f'<g clip-path="url(#{cid})">{th.frame_back_at(x, y, w, h)}</g>{th.frame_front_at(x, y, w, h)}'
 
 
 def _at_origin(x, y, origin, body):

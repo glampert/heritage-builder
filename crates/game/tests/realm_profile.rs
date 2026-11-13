@@ -170,6 +170,7 @@ fn sample_profile() -> Profile {
                 distinctions: vec!["builder".into()],
                 finished: true,
                 choices: vec![ChoiceRecord { step: 1, site: ChoiceSite::B }],
+                sequences_seen: vec!["i_a".into()],
             },
             CampaignRecord { id: "two".into(), reached: true, current_mission: None, ..Default::default() },
         ],

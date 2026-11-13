@@ -1,0 +1,154 @@
+{
+  "sequences": [
+    {
+      "id": "i_a",
+      "title": "story.dragon_legacy.i_a.title",
+      "trigger": {
+        "before_mission": 0
+      },
+      "note": "I-A in docs/design/story-script.md: before mission 1.",
+      "panels": [
+        {
+          "image": "story/dragon_legacy/i_a_1.jpg",
+          "visual": "The throne hall at Hoa Thành, lacquer red and gold. The ageing Emperor Long Thái is seated. The young Khai Sơn kneels, and courtiers whisper behind fans.",
+          "narration": "story.dragon_legacy.i_a.1.narration",
+          "bubbles": [
+            {
+              "speaker": "speaker.courtier",
+              "text": "story.dragon_legacy.i_a.1.bubble_1",
+              "kind": "whisper",
+              "anchor": [1120, 380],
+              "tail": [1010, 640]
+            }
+          ]
+        },
+        {
+          "image": "story/dragon_legacy/i_a_2.jpg",
+          "visual": "A flashback in sepia ink. General Phan Trung falls defending a gate, and the Emperor holds a child's hand.",
+          "bubbles": [
+            {
+              "speaker": "speaker.emperor_long_thai",
+              "text": "story.dragon_legacy.i_a.2.bubble_1",
+              "anchor": [950, 120],
+              "width": 640,
+              "tail": [800, 540]
+            }
+          ],
+          "sepia": true
+        },
+        {
+          "image": "story/dragon_legacy/i_a_3.jpg",
+          "visual": "Prince Long Uy stands beside the throne, arms folded, his eyes on Khai Sơn.",
+          "bubbles": [
+            {
+              "speaker": "speaker.long_uy",
+              "text": "story.dragon_legacy.i_a.3.bubble_1",
+              "anchor": [1060, 300],
+              "tail": [1250, 560]
+            }
+          ]
+        },
+        {
+          "image": "story/dragon_legacy/i_a_4.jpg",
+          "visual": "The Emperor hands Khai Sơn a sealed scroll and a governor's seal.",
+          "bubbles": [
+            {
+              "speaker": "speaker.emperor_long_thai",
+              "text": "story.dragon_legacy.i_a.4.bubble_1",
+              "anchor": [900, 90],
+              "width": 760,
+              "tail": [780, 560]
+            }
+          ]
+        },
+        {
+          "image": "story/dragon_legacy/i_a_5.jpg",
+          "visual": "Khai Sơn leads settlers through a wooden gate towards the river lands, carrying tools, seed rice and scrolls. Master Văn Lễ rides an ox cart. Woodblock-print hills, fish, cranes and sun.",
+          "narration": "story.dragon_legacy.i_a.5.narration",
+          "bubbles": [
+            {
+              "speaker": "speaker.khai_son",
+              "text": "story.dragon_legacy.i_a.5.bubble_1",
+              "anchor": [950, 330],
+              "tail": [790, 580]
+            }
+          ]
+        },
+        {
+          "image": "story/dragon_legacy/i_a_6.jpg",
+          "visual": "Khai Sơn drives a wooden stake into the riverbank mud. Settlers stand behind him, and cranes rise into the sky.",
+          "narration": "story.dragon_legacy.i_a.6.narration",
+          "bubbles": [
+            {
+              "speaker": "speaker.khai_son",
+              "text": "story.dragon_legacy.i_a.6.bubble_1",
+              "kind": "bold",
+              "anchor": [950, 304],
+              "tail": [798, 554]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "i_b",
+      "title": "story.dragon_legacy.i_b.title",
+      "trigger": {
+        "after_mission": 4
+      },
+      "note": "I-B in docs/design/story-script.md: after mission 5, which isn't written yet (it waits for that mission).",
+      "panels": [
+        {
+          "image": "story/dragon_legacy/i_b_1.jpg",
+          "visual": "A montage of the delta villages, dykes and the highland market, all thriving.",
+          "narration": "story.dragon_legacy.i_b.1.narration"
+        },
+        {
+          "image": "story/dragon_legacy/i_b_2.jpg",
+          "visual": "Villagers bow and offer flowers and rice to Khai Sơn.",
+          "bubbles": [
+            {
+              "speaker": "speaker.villagers",
+              "text": "story.dragon_legacy.i_b.2.bubble_1",
+              "kind": "group",
+              "anchor": [120, 300],
+              "tail": [420, 600]
+            },
+            {
+              "speaker": "speaker.khai_son",
+              "text": "story.dragon_legacy.i_b.2.bubble_2",
+              "anchor": [1060, 330],
+              "tail": [860, 600]
+            }
+          ]
+        },
+        {
+          "image": "story/dragon_legacy/i_b_3.jpg",
+          "visual": "In the throne hall, the Emperor names Khai Sơn Governor of the Southern Provinces.",
+          "bubbles": [
+            {
+              "speaker": "speaker.emperor_long_thai",
+              "text": "story.dragon_legacy.i_b.3.bubble_1",
+              "anchor": [950, 200],
+              "tail": [800, 540]
+            }
+          ]
+        },
+        {
+          "image": "story/dragon_legacy/i_b_4.jpg",
+          "visual": "In the shadows, Prince Long Uy listens as Chancellor Đoàn Kỳ murmurs to him.",
+          "bubbles": [
+            {
+              "speaker": "speaker.doan_ky",
+              "text": "story.dragon_legacy.i_b.4.bubble_1",
+              "kind": "whisper",
+              "anchor": [900, 240],
+              "width": 640,
+              "tail": [700, 560]
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

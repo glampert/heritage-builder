@@ -12,7 +12,7 @@ the mockup generator's own drawing code, so the game's UI looks like the
 - `uiart/catalog.py` (catalog, manifest, checks; standard library only), `uiart/render.py`
   (the generator adapter and the browser), `render.js` (Playwright), `tests/`.
 
-Output: `assets/ui/skins/<realm>/<id>.png`, or `<id>_<state>.png` for an entry with states, at
+Output: `assets/ui/skins/<realm>/<id>.png` (or, for the story panels, `assets/ui/story/`), or `<id>_<state>.png` for an entry with states, at
 2 pixels per point, RGBA on a transparent background. An entry with `"format": "jpeg"` writes an
 opaque `<id>.jpg` instead, and one with a `scale` of its own is resized to it: the home menu's
 backdrops are 1920 × 1080 JPEGs at 1 pixel per point. The world map's base is a JPEG at 2× (its
@@ -118,7 +118,7 @@ changes), not the browser, so a Chromium update doesn't re-render anything by it
 | `format` | `png` (default: RGBA, `.png`) or `jpeg` (opaque, `.jpg`), for full-screen pictures such as the home backdrops. |
 | `realms` | Realm → overrides of any key but `id`. Without it the entry is made for every realm. |
 | `elements`, `capture`, `omit`, `attrs`, `rotate` | See section 2. |
-| `out` | Another output pattern under `skins/`, with `{realm}`, `{id}` and `{state}`. |
+| `out` | Another output pattern under `skins/` (or `story/`), with `{realm}`, `{id}` and `{state}`. |
 
 Values in the catalog are points except `slice` (pixels). `--measure` prints how far an entry's
 drawing reaches past its rect, which is the bleed it needs (rounded up to half points).
@@ -164,6 +164,8 @@ briefing's scroll or tablet is `panel_dialog` (the same `mpanel`), so neither ha
 | `stele` | `stele` (`omit`: `stele_lines`) | The debrief's stele (`screens.py`'s `stele`: Đại Long's slab on its tortoise, Kambara's on its lotus pedestal, Tampadesa's gilded slab on its brick plinth) at the mockup's rect, 640 × 950 points, without its text: the game carves the title, the lines, the rule under the title, the newest line's mark and the empty rows live (`menu::stele`). At 1.5 pixels a point (an entry `scale`): its noisy stone is 2-2.5 MB a realm at 2. Its bleed crops the empty top and sides. |
 | `stele_niche` | `stele_backdrop` (`origin`) | What stands behind the stele (`stele_backdrop`: Đại Long's lacquer niche, Kambara's vines, Tampadesa's whitewashed niche), drawn at its place on the debrief's screen: `origin` is the rect's top left in screen points, and the skin's `intermission.niche` gives the same rect and bleed. |
 | `stele_mark` | `stele_mark` (`at`) | The newest line's mark (`fresh_mark`: Đại Long's seal, Kambara's and Tampadesa's dots), centred on the sprite. |
+| `story_frame` | `story_frame` | The realm frame round a story panel (`screens.py`'s intro: `frame_back_at` with the 1800 × 870 panel cut out, then `frame_front_at`), the panel transparent. Its bleed is its margin round the panel (`--measure` leaves out the frame's drop shadow: check the PNG's bottom row fades out). Drawn at 1 pixel per point, since it spans the window and is mostly transparent. |
+| `story_<campaign>_<sequence>_<n>`, `story_placeholder` | `story_panel` (`label`, `text`) | Placeholder story panels, written under `assets/ui/story/` (not a skin's folder: the story files name them, `out`): the realm's story scene (`intro_scene`) at the mockup's 1800 × 870 panel, 1 pixel a point, as a JPEG (180-270 KB), with a dim caption along the bottom: `label` (sequence and panel) and `text`, the panel's `visual` from `assets/configs/story/<campaign>.json`, in Spectral (`render.TEXT_FONTS`). One per Campaign I panel; `story/placeholder_<realm>.jpg` for the hidden test campaigns. Real art replaces a file of the same name (section 5). `tests/test_story_art.py` checks each story file's picture is drawn with its panel's `visual`, and every story picture is named. |
 
 ## 5. Hand-made art
 
@@ -180,7 +182,7 @@ skin keeps pointing at the same path.
 
 With the standard library only (CI has no Pillow or browser), it checks that:
 - the catalog is valid: known keys, calls and states; ids unique per realm; outputs under
-  `skins/`; whole-pixel sizes; borders that fit, with a middle when it tiles;
+  `skins/` or `story/`; whole-pixel sizes; borders that fit, with a middle when it tiles;
 - every sprite exists at the catalog's pixel size, is in `manifest.json` with the same hash,
   and is in `web/asset_manifest.json`; the manifest lists nothing else;
 - no sprite's catalog entry changed since it was rendered: the manifest records a hash of what

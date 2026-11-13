@@ -26,9 +26,9 @@ use crate::{
 
 // Bump when the layout changes. A profile of another version is replaced by a fresh one (with a
 // warning) until a migration exists. A field added with a default and left out while it holds it
-// (CampaignRecord::choices) is read from older files and written as before while it's empty, so
-// it needs no bump; but CampaignRecord denies unknown fields, so a build without the field reads a
-// profile that has a value in it as broken and starts afresh (backing the file up to
+// (CampaignRecord::choices, sequences_seen) is read from older files and written as before while
+// it's empty, so it needs no bump; but CampaignRecord denies unknown fields, so a build without the
+// field reads a profile that has a value in it as broken and starts afresh (backing the file up to
 // profile_unloaded.json first).
 pub const PROFILE_VERSION: u32 = 1;
 
@@ -70,6 +70,11 @@ pub struct CampaignRecord {
     // campaign resumes there (next_mission). Left out of the file while empty.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub choices: Vec<ChoiceRecord>,
+    // The campaign's story sequences seen (crate::story), by id, in the order first seen: each
+    // plays once, and Replay the story offers them again. Left out of the file while empty, as
+    // `choices` is (no PROFILE_VERSION bump).
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub sequences_seen: Vec<String>,
 }
 
 // A choice made: the site picked at the choice point at `step` (a mission index).
@@ -168,6 +173,17 @@ impl Profile {
             }
         };
         &mut self.campaigns[index]
+    }
+
+    // Whether the story sequence `sequence_id` of the campaign has been seen (crate::story).
+    pub fn has_seen_sequence(&self, campaign_id: &str, sequence_id: &str) -> bool {
+        self.record(campaign_id).is_some_and(|record| record.sequences_seen.iter().any(|seen| seen == sequence_id))
+    }
+
+    // Whether any story sequence id is recorded, whether the story data still has it or not: not
+    // the test for Replay the story (story::has_replay, which counts only those that can play).
+    pub fn has_seen_any_sequence(&self) -> bool {
+        self.campaigns.iter().any(|record| !record.sequences_seen.is_empty())
     }
 
     pub fn is_reached(&self, campaign_id: &str) -> bool {
@@ -280,6 +296,18 @@ impl Profile {
         }
     }
 
+    // The story sequence `sequence_id` of the campaign at `campaign_index` was seen (played to its
+    // end or skipped). It doesn't reach the campaign.
+    pub fn sequence_seen(&mut self, configs: &CampaignConfigs, campaign_index: usize, sequence_id: &str) {
+        let Some(campaign) = configs.campaign(campaign_index) else {
+            return;
+        };
+        if self.has_seen_sequence(&campaign.id, sequence_id) {
+            return;
+        }
+        self.record_mut(&campaign.id).sequences_seen.push(sequence_id.to_string());
+    }
+
     pub fn game_saved(&mut self, save_name: &str) {
         self.last_save = Some(save_name.to_string());
     }
@@ -365,6 +393,14 @@ fn campaign_record_from_json(configs: &CampaignConfigs, record: Value) -> Result
 
     record.missions_finished.sort_unstable();
     record.missions_finished.dedup();
+    // The sequences seen, each once, in their order (story::check_seen_sequences checks their ids).
+    let mut seen: Vec<String> = Vec::new();
+    for id in std::mem::take(&mut record.sequences_seen) {
+        if !seen.contains(&id) {
+            seen.push(id);
+        }
+    }
+    record.sequences_seen = seen;
     Ok(record)
 }
 
@@ -546,6 +582,14 @@ pub fn on_mission_finished(campaign_index: usize, mission_index: usize) {
         return;
     }
     update(|profile| profile.mission_finished(CampaignConfigs::get(), campaign_index, mission_index));
+}
+
+// A story sequence was seen: played to its end or skipped (the comic viewer).
+pub fn on_sequence_seen(campaign_index: usize, sequence_id: &str) {
+    if !CampaignConfigs::is_initialized() {
+        return;
+    }
+    update(|profile| profile.sequence_seen(CampaignConfigs::get(), campaign_index, sequence_id));
 }
 
 // A game was saved (GameSession::save_game), the autosave included.

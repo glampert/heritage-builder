@@ -95,6 +95,12 @@ class CatalogTest(unittest.TestCase):
         rec = next(r for r in expand(change) if r["id"] == "backdrop")
         self.assertEqual((rec["png_size"], rec["scale"], rec["shot_scale"], rec["format"]), ([60, 40], 1, 2, "jpeg"))
         self.assertEqual(rec["states"][0]["out"], "skins/kambara/backdrop.jpg")
+        # A story panel: outside the skins, under story/.
+        def story(raw):
+            raw["sprites"].append({"id": "panel_1", "call": "story_panel", "size": [60, 40], "scale": 1, "format": "jpeg",
+                                   "out": "story/campaign/{id}.jpg", "realms": {"dailong": {}}})
+        rec = next(r for r in expand(story) if r["id"] == "panel_1")
+        self.assertEqual(rec["states"][0]["out"], "story/campaign/panel_1.jpg")
         # The defaults (PNG, the catalog's scale) leave the catalog hash as it was before them.
         panel = expand()[0]
         bare = {k: v for k, v in panel.items() if k not in ("format", "shot_scale")}
@@ -144,6 +150,7 @@ class CatalogTest(unittest.TestCase):
         self.assertRejects(entry(states=["idle", "sleepy"]), "unknown state")
         self.assertRejects(entry(out="ui/{realm}/{id}.png"), "under skins/")
         self.assertRejects(entry(out="skins/../{id}.png"), "under skins/")
+        self.assertRejects(entry(out="story/../{id}.png"), "or story/")
         self.assertRejects(entry(bleed=[40, 0, 0, 0]), "pad")
         self.assertRejects(entry(size=[60.25, 40]), "whole pixels")
         self.assertRejects(entry(bleed=[-60, 0, 0, 0]), "positive")

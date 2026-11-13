@@ -1,6 +1,6 @@
 # Realm UI: menus, screens and HUD in each realm's style
 
-**Status (2026-11-13): Phases 0 and 1 done (the main menus: Home, Load / Save, Settings, Custom Game, About and the in-game Game menu); Phase 2 done (the world map: its data, base art, screen, pan and zoom, and the next mission's choice); Phase 3 done (the debrief, the campaign-complete stele and the briefing); Phase 4, story comics, next.** The user reviewed it on 2026-11-07: their notes are folded in (see [Review notes](#review-notes)), the open decisions' defaults are accepted, and every mockup the phases need now exists. This plan builds and restyles every retail screen after the [UI mockups](../design/mockups/README.md): the main menus, the world map, the intermission, the story comics, the HUD and the city management pages. Each screen gets one look per realm: Đại Long, Kambara and Tampadesa. It is milestone **UI** of the [roadmap](roadmap.md). It was researched against `ccca1df` on `claude`. File and line references point at that commit, so re-check them before relying on them.
+**Status (2026-11-13): Phases 0 and 1 done (the main menus: Home, Load / Save, Settings, Custom Game, About and the in-game Game menu); Phase 2 done (the world map: its data, base art, screen, pan and zoom, and the next mission's choice); Phase 3 done (the debrief, the campaign-complete stele and the briefing); Phase 4 (story comics) in progress: the story data and panel art done.** The user reviewed it on 2026-11-07: their notes are folded in (see [Review notes](#review-notes)), the open decisions' defaults are accepted, and every mockup the phases need now exists. This plan builds and restyles every retail screen after the [UI mockups](../design/mockups/README.md): the main menus, the world map, the intermission, the story comics, the HUD and the city management pages. Each screen gets one look per realm: Đại Long, Kambara and Tampadesa. It is milestone **UI** of the [roadmap](roadmap.md). It was researched against `ccca1df` on `claude`. File and line references point at that commit, so re-check them before relying on them.
 
 ![Home menu, Đại Long](../design/mockups/menu-home-dailong.jpg)
 
@@ -714,7 +714,7 @@ The existing dialogs keep their layouts but take their panels from the Đại Lo
 
 **Delivers:** the comic viewer (`intro-<realm>.jpg`), with sequences I-A (before mission 1) and I-B (after mission 5) of story-script.md as data with placeholder panels. Every other sequence is data only, later.
 
-- [ ] **Data:** `assets/configs/story/<campaign>.json`. Sequences have an id, a title and a trigger ("before mission N", "after mission N", "epilogue"). Panels have:
+- [x] **Data:** `assets/configs/story/<campaign>.json`. Sequences have an id, a title and a trigger ("before mission N", "after mission N", "epilogue"). Panels have:
   - an image;
   - a narration caption;
   - bubbles: speaker, text, kind (speech, whisper, group, bold), anchor and tail point;
@@ -727,8 +727,15 @@ The existing dialogs keep their layouts but take their panels from the Đại Lo
   - Keys: Space, Enter and Right go forward; Left goes back; Escape skips.
 - [ ] **Triggers:** the campaign flow plays a sequence before a mission's briefing or after its debrief, as its trigger says. Each sequence plays once per profile, and Home gets "Replay the story" when one has been seen.
 - [ ] **Dynamic panels:** a panel can list the player's stele lines (I-E, the epilogue).
-- [ ] **Placeholder art:** `ui-art` makes each panel from the realm's scene drawing and frame, with the panel's description from the script as a dim caption. Real art replaces a file of the same name.
+- [x] **Placeholder art:** `ui-art` makes each panel from the realm's scene drawing and frame, with the panel's description from the script as a dim caption. Real art replaces a file of the same name.
 - [ ] Scenario `ui_story.jsonl`: start campaign I, step through I-A, check the panel count and that Skip lands on the briefing.
+- [ ] **Debug screens menu** (the user, 2026-11-13): a menu in the developer editor's menu bar that opens the retail screens that are otherwise hard to reach (the briefings, the debrief and campaign-complete screens, the world map's next-mission and choice states, every story sequence) for a campaign and mission picked in it, without changing the profile or starting a session unless the item says so; closing the screen returns to the editor.
+
+**Notes (2026-11-13, story data and panel art) (commit TODO):**
+- Data: `assets/configs/story/<campaign id>.json` (`game::story`: `StoryConfigs`, loaded after `campaigns.json` and checked: ids, triggers, duplicate triggers, placements on the 1800 × 870 panel, keys, pictures; errors on the `campaign` channel). Triggers (`before_mission`, `after_mission`, `epilogue`) name missions as `campaigns.json` does; one named for a choice point also plays for its variant; an index past the missions waits (I-B, after Campaign I's unwritten mission 5). I-A (6 panels) and I-B (4) are Story keys, speakers Realm keys; the hidden test campaigns have `test_before` (3 panels, one sepia) and `test_after` (2), and `test_choices` a `test_epilogue` with a `stele_lines` panel, every bubble kind among them.
+- Provider: `before_mission`, `after_mission`, `epilogue`, `sequences_in_order`, `seen_sequences` (Replay's order), and `story::to_play_before/after` for P4c. Profile: `CampaignRecord::sequences_seen` (left out while empty, no version bump), `Profile::sequence_seen`, `profile::on_sequence_seen`; `story::has_replay` decides Home's Replay; `profile.set` checks the ids. A story file named for no campaign is an error. Automation: `story.state`.
+- Art: ui-art's `story_panel` (the realm's `intro_scene` with a dim caption: label and the panel's `visual`), JPEGs at 1 pixel a point under `assets/ui/story/` (180-270 KB each), one per Campaign I panel and one per realm for the test campaigns; `story_frame` per skin (the frame with the panel cut out, also at 1 pixel a point: 110-300 KB) for P4b, named by no skin yet. `test_story_art.py` checks captions match `visual`.
+- Verified: build, tests (new `story`, `realm_profile`, `world_map`, `ui_skins`), web check, `--check` and its tests, CI scenarios, determinism twice; the panels beside `intro-<realm>.jpg`.
 
 ### Phase 5: HUD
 

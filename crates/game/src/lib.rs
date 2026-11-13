@@ -23,6 +23,7 @@ pub mod save_context;
 pub mod save_header;
 pub mod session;
 pub mod sim;
+pub mod story;
 pub mod system;
 pub mod tile;
 pub mod ui_context;

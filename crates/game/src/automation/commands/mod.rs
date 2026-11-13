@@ -24,6 +24,7 @@ mod profile;
 mod risks;
 mod session;
 mod sim;
+mod story;
 mod strings;
 mod time;
 mod ui;
@@ -47,6 +48,7 @@ pub(super) const COMMAND_GROUPS: &[&[CommandDef]] = &[
     profile::COMMANDS,
     world_map::COMMANDS,
     intermission::COMMANDS,
+    story::COMMANDS,
     strings::COMMANDS,
     config::COMMANDS,
     observe::COMMANDS,

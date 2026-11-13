@@ -37,7 +37,8 @@ pub(super) const COMMANDS: &[CommandDef] = &[
                 kind: "array",
                 required: false,
                 help: "Every campaign's record, as profile.state lists them: {id, reached, current_mission, \
-                       missions_finished, distinctions, finished}. Fields left out take their defaults.",
+                       missions_finished, distinctions, finished, choices, sequences_seen}. Fields left out take \
+                       their defaults; sequences_seen names the campaign's story sequences (story.state).",
             },
             ParamDef {
                 name: "last_save",
@@ -98,6 +99,7 @@ fn cmd_set(context: &mut CommandContext, params: Value) -> CommandResult {
 
     if let Some(records) = params.campaigns {
         edited.set_campaign_records(configs, records).map_err(CommandError::invalid_params)?;
+        crate::story::check_seen_sequences(&edited).map_err(CommandError::invalid_params)?;
     }
     if let Some(reached) = params.reached {
         edited.set_reached(configs, &reached).map_err(CommandError::invalid_params)?;

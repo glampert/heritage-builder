@@ -600,6 +600,18 @@
       "source_hash": "636de7f59358e0d0",
       "state": null
     },
+    "assets/ui/skins/dailong/story_frame.png": {
+      "catalog_hash": "3fc10b98129954f1",
+      "id": "story_frame",
+      "png_hash": "888ef50d92fabbd8",
+      "png_size": [
+        1848,
+        918
+      ],
+      "realm": "dailong",
+      "source_hash": "3d4dde33f40789c2",
+      "state": null
+    },
     "assets/ui/skins/dailong/tab_disabled.png": {
       "catalog_hash": "f2691ef7e8e06272",
       "id": "tab",
@@ -1474,6 +1486,18 @@
       ],
       "realm": "kambara",
       "source_hash": "22c10db95abe3e89",
+      "state": null
+    },
+    "assets/ui/skins/kambara/story_frame.png": {
+      "catalog_hash": "d9f5520eefd511ea",
+      "id": "story_frame",
+      "png_hash": "d1e03f1cb469e789",
+      "png_size": [
+        1899,
+        965
+      ],
+      "realm": "kambara",
+      "source_hash": "bd36fef6a751a02c",
       "state": null
     },
     "assets/ui/skins/kambara/tab_disabled.png": {
@@ -2376,6 +2400,18 @@
       "source_hash": "9c021da7ddbc05c4",
       "state": null
     },
+    "assets/ui/skins/tampadesa/story_frame.png": {
+      "catalog_hash": "cfd3088d5fb9acc5",
+      "id": "story_frame",
+      "png_hash": "c642b5b1e18eb27d",
+      "png_size": [
+        1865,
+        936
+      ],
+      "realm": "tampadesa",
+      "source_hash": "d9844dbac5e10ace",
+      "state": null
+    },
     "assets/ui/skins/tampadesa/tab_disabled.png": {
       "catalog_hash": "d7ffe1977df3cc49",
       "id": "tab",
@@ -2650,6 +2686,162 @@
       ],
       "realm": "tampadesa",
       "source_hash": "01cafc28a46f3370",
+      "state": null
+    },
+    "assets/ui/story/dragon_legacy/i_a_1.jpg": {
+      "catalog_hash": "5c8dcca798aae3c6",
+      "id": "story_dragon_legacy_i_a_1",
+      "png_hash": "1a590859208a943b",
+      "png_size": [
+        1800,
+        870
+      ],
+      "realm": "dailong",
+      "source_hash": "38638e295d75c60c",
+      "state": null
+    },
+    "assets/ui/story/dragon_legacy/i_a_2.jpg": {
+      "catalog_hash": "d9104b5c8145fa02",
+      "id": "story_dragon_legacy_i_a_2",
+      "png_hash": "de28f4a284179e60",
+      "png_size": [
+        1800,
+        870
+      ],
+      "realm": "dailong",
+      "source_hash": "223abb002457d763",
+      "state": null
+    },
+    "assets/ui/story/dragon_legacy/i_a_3.jpg": {
+      "catalog_hash": "c823199b9b382ab8",
+      "id": "story_dragon_legacy_i_a_3",
+      "png_hash": "b8552bd53be54289",
+      "png_size": [
+        1800,
+        870
+      ],
+      "realm": "dailong",
+      "source_hash": "8706d2754c6eca15",
+      "state": null
+    },
+    "assets/ui/story/dragon_legacy/i_a_4.jpg": {
+      "catalog_hash": "42559346cda90a09",
+      "id": "story_dragon_legacy_i_a_4",
+      "png_hash": "768787e19b570a5f",
+      "png_size": [
+        1800,
+        870
+      ],
+      "realm": "dailong",
+      "source_hash": "c0b8fd49507ce2e2",
+      "state": null
+    },
+    "assets/ui/story/dragon_legacy/i_a_5.jpg": {
+      "catalog_hash": "9a6b7fa058fb1c6e",
+      "id": "story_dragon_legacy_i_a_5",
+      "png_hash": "1d1d6e042b98f73e",
+      "png_size": [
+        1800,
+        870
+      ],
+      "realm": "dailong",
+      "source_hash": "0bae722249b2db5f",
+      "state": null
+    },
+    "assets/ui/story/dragon_legacy/i_a_6.jpg": {
+      "catalog_hash": "333f178526331fcf",
+      "id": "story_dragon_legacy_i_a_6",
+      "png_hash": "325be0e6dfd23b2c",
+      "png_size": [
+        1800,
+        870
+      ],
+      "realm": "dailong",
+      "source_hash": "9075e2d2462a875f",
+      "state": null
+    },
+    "assets/ui/story/dragon_legacy/i_b_1.jpg": {
+      "catalog_hash": "625c04c89449bc67",
+      "id": "story_dragon_legacy_i_b_1",
+      "png_hash": "c567b9ef7525cee7",
+      "png_size": [
+        1800,
+        870
+      ],
+      "realm": "dailong",
+      "source_hash": "90fa662c6bc1ae9b",
+      "state": null
+    },
+    "assets/ui/story/dragon_legacy/i_b_2.jpg": {
+      "catalog_hash": "e6cd0d3b3e8e2cd7",
+      "id": "story_dragon_legacy_i_b_2",
+      "png_hash": "22e2c6418742caf2",
+      "png_size": [
+        1800,
+        870
+      ],
+      "realm": "dailong",
+      "source_hash": "a69e6bbd2f61c4c4",
+      "state": null
+    },
+    "assets/ui/story/dragon_legacy/i_b_3.jpg": {
+      "catalog_hash": "6e08e8af8d8957eb",
+      "id": "story_dragon_legacy_i_b_3",
+      "png_hash": "628a1d72d89005d8",
+      "png_size": [
+        1800,
+        870
+      ],
+      "realm": "dailong",
+      "source_hash": "a598b82188ceca7e",
+      "state": null
+    },
+    "assets/ui/story/dragon_legacy/i_b_4.jpg": {
+      "catalog_hash": "d2bcb256ea85ee68",
+      "id": "story_dragon_legacy_i_b_4",
+      "png_hash": "c13e9a48fd2724f1",
+      "png_size": [
+        1800,
+        870
+      ],
+      "realm": "dailong",
+      "source_hash": "d7f18711f518b355",
+      "state": null
+    },
+    "assets/ui/story/placeholder_dailong.jpg": {
+      "catalog_hash": "f304a20ec5f7dfcf",
+      "id": "story_placeholder",
+      "png_hash": "d3bc1fd1c8fd1352",
+      "png_size": [
+        1800,
+        870
+      ],
+      "realm": "dailong",
+      "source_hash": "4c8cf9ef7c2e06a5",
+      "state": null
+    },
+    "assets/ui/story/placeholder_kambara.jpg": {
+      "catalog_hash": "f521e6afdd71011b",
+      "id": "story_placeholder",
+      "png_hash": "e056aafda4187821",
+      "png_size": [
+        1800,
+        870
+      ],
+      "realm": "kambara",
+      "source_hash": "892e87f687d2e0c5",
+      "state": null
+    },
+    "assets/ui/story/placeholder_tampadesa.jpg": {
+      "catalog_hash": "368c269eba38c500",
+      "id": "story_placeholder",
+      "png_hash": "1e2140660201ef78",
+      "png_size": [
+        1800,
+        870
+      ],
+      "realm": "tampadesa",
+      "source_hash": "9052a37383b4cc99",
       "state": null
     }
   },
