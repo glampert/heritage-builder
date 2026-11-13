@@ -698,6 +698,12 @@ The existing dialogs keep their layouts but take their panels from the Đại Lo
 - Deviations: no span of years, distinctions, largest city, epilogue or Replay the story (`TODO(realm-ui)`: profile records, M9, Phase 4); dimmed, not blurred, city; stretched stele art. No scenario checks that `dialog.open MissionBriefing` fails outside a mission (script mode stops at a failure).
 - Verified: build, tests, web check, `--check`, CI scenarios, determinism, record and replay; `ui_intermission.jsonl` at 1280 × 720, 1440 × 800 and 1920 × 1080 (the choice briefing too, in each realm and scale); screenshots beside the mockups.
 
+**Notes (2026-11-13, Phase 3 wrap-up) (commit TODO):**
+- Reviewed Phase 3 against the plan and the mockups: every item is in, Phase 4's hooks included (`TODO(realm-ui)` in `GameSession::start_mission` and the debrief's `on_continue`).
+- `ui_intermission.jsonl` now plays the whole flow: Home's Campaign, Campaign I's three missions for real (briefing, debrief, world map, the next briefing; mission 3's goals met with world edits), the campaign-complete stele and the home menu in Kambara's look; then Kambara's and Tampadesa's hidden test campaigns in their own looks (briefing, debrief, the map's site A or B, the last debrief, the stele, Home).
+- Left as they are (in known-issues): stele lines wrap wider than the generator's estimates; the campaign-complete stele sets few lines at full size; a mission without goals leaves the goals' room empty; M9's distinctions and ratings, Phase 4's story and epilogue, Phase 5's HUD button; no blur, vines or italics; no scenario checks that `dialog.open MissionBriefing` fails outside a mission (no assert for an error).
+- Verified: build, tests, web check, `--check` and its tests, every CI scenario, determinism twice, record and replay; `ui_intermission.jsonl` at 1280 × 720, 1440 × 800 and 1920 × 1080; `ui_snapshot.jsonl` in each realm (layout issues 0); a final set at 1920 × 1080 beside the mockups: Campaign I's briefing, debrief and campaign complete under each realm's `ui.realm`, and Kambara's and Tampadesa's own flows through their test campaigns (`own_*`).
+
 ### Phase 4: Story comics
 
 **Delivers:** the comic viewer (`intro-<realm>.jpg`), with sequences I-A (before mission 1) and I-B (after mission 5) of story-script.md as data with placeholder panels. Every other sequence is data only, later.

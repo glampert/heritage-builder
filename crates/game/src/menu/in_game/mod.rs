@@ -145,6 +145,8 @@ impl GameMenusSystem for InGameMenus {
         // then, so it is taken only when it is actually shown.
         // A mission's briefing opens first, as its map loads: a prompt raised meanwhile (a mission
         // finished at once) waits for its Begin.
+        // Phase 4's story sequence before the mission (the TODO(realm-ui) in
+        // GameSession::start_mission, which decides it) plays before this opens the briefing.
         if dialog::current().is_none() && campaign::take_pending_briefing() {
             dialog::open_mission_briefing_at_start(context);
         }
