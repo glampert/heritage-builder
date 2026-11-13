@@ -57,12 +57,12 @@ These follow [overview.md](../design/overview.md#development-phases).
 | M9 | Ratings, goals and failure | Medium | M4, M7, M8 | — | Not started |
 | M10 | Trade v1 and court requests | Large | M1, M4, M5 | — | Not started |
 | M11 | Messages and advisors | Medium | M9 (grows with each system) | — | Not started |
-| M12 | Story presentation v1 | Small to medium | — | — | Briefing and stele debrief done with realm-ui Phase 3; the comic viewer and the text work remain |
+| M12 | Story presentation v1 | Small to medium | — | — | Briefing and stele debrief done with realm-ui Phase 3, the comic viewer (I-A and I-B as data) with Phase 4; the other sequences wait for their missions |
 | M13 | Missions I-1 to I-5: maps, configs, balance, scenarios | Large | All of the above | — | Not started |
 | T | Terrain height | Medium to large | M3 (spike after) | [terrain-height.md](terrain-height.md) | Not started |
 | U | Eight-direction movement for off-road walkers | Medium | M3; art from M2 Phase 6 | [unit-movement.md](unit-movement.md) | Not started |
 | MM | Minimap: painted relief, lenses and tools | Medium | — (lenses grow with M6, M7, M8) | [minimap.md](minimap.md) | Done (the Risk lens came with M6; Faith, Flood and Fertility come with M8, M7) |
-| UI | Realm UI: menus, world map, intermission, comics, HUD and city pages in each realm's style | Large | — (screens fill in with M4, M9, M10, M11, M12) | [realm-ui.md](realm-ui.md) | Phases 0–3 done (skins, main menus, world map, intermission and briefing); Phase 4 next |
+| UI | Realm UI: menus, world map, intermission, comics, HUD and city pages in each realm's style | Large | — (screens fill in with M4, M9, M10, M11, M12) | [realm-ui.md](realm-ui.md) | Phases 0–4 done (skins, main menus, world map, intermission and briefing, story comics); Phase 5 (HUD) next, after the tile palette icon mockups |
 
 Suggested order:
 - **First:** M1 → M3 → M5, with M2 running alongside from the start.
@@ -203,7 +203,7 @@ GDD 5.12 and 5.14:
 
 - **Briefing dialog:** a scroll with text, goals and an image, from mission config. Done with realm-ui Phase 3 (`MissionBriefing`).
 - **Debrief:** stele lines added, then the stele shown. Done with realm-ui Phase 3 (the debrief and the campaign-complete stele).
-- **Comic viewer:** a sequence of full-screen images with caption and dialogue text, from data. It's used for the I-A and I-B sequences ([story-script.md](../design/story-script.md)).
+- **Comic viewer:** a sequence of full-screen images with caption and dialogue text, from data. It's used for the I-A and I-B sequences ([story-script.md](../design/story-script.md)). Done with realm-ui Phase 4 (`StoryComic`, `assets/configs/story/`); I-B waits for mission 5, and I-C to I-E for their missions.
 - **Text** lives in the localized strings (`assets/configs/ui/text/<language>.json`) or a new story file, ready for localisation later.
 
 ### M13: Missions I-1 to I-5 (large, content)

@@ -42,6 +42,7 @@
 {"method": "ui.click", "params": {"path": "Home/Campaign"}}
 # Its story sequence (I-A) plays first: skipped here (ui_story.jsonl steps through it).
 {"method": "wait.until", "params": {"query": "dialog.current", "path": "/current", "op": "eq", "value": "StoryComic", "timeout_frames": 300}}
+{"method": "assert.eq", "params": {"query": "story.state", "args": {"campaign": "dragon_legacy"}, "path": "/playing/sequence", "value": "i_a"}}
 {"method": "input.key", "params": {"key": "Escape"}}
 {"method": "wait.until", "params": {"query": "dialog.current", "path": "/current", "op": "eq", "value": "MissionBriefing", "timeout_frames": 300}}
 {"method": "input.move", "params": {"park": true}}
@@ -346,6 +347,7 @@
 {"method": "session.start_mission", "params": {"campaign": "test_choices", "mission": 0}}
 # Its story sequence before the mission first: skipped (ui_story.jsonl checks it).
 {"method": "wait.until", "params": {"query": "dialog.current", "path": "/current", "op": "eq", "value": "StoryComic", "timeout_frames": 300}}
+{"method": "assert.eq", "params": {"query": "story.state", "args": {"campaign": "test_choices"}, "path": "/playing/sequence", "value": "test_before"}}
 {"method": "input.key", "params": {"key": "Escape"}}
 {"method": "wait.until", "params": {"query": "dialog.current", "path": "/current", "op": "eq", "value": "MissionBriefing", "timeout_frames": 300}}
 {"method": "assert.eq", "params": {"query": "session.state", "path": "/campaign/campaign_id", "value": "test_choices"}}
@@ -365,6 +367,7 @@
 {"method": "ui.click", "params": {"path": "MissionComplete/panel/Continue to the world map"}}
 # Its story sequence after the mission first (over the debrief): skipped.
 {"method": "wait.until", "params": {"query": "dialog.current", "path": "/current", "op": "eq", "value": "StoryComic", "timeout_frames": 300}}
+{"method": "assert.eq", "params": {"query": "story.state", "args": {"campaign": "test_choices"}, "path": "/playing/sequence", "value": "test_after"}}
 {"method": "input.key", "params": {"key": "Escape"}}
 {"method": "input.move", "params": {"park": true}}
 {"method": "wait.frames", "params": {"frames": 3}}
@@ -418,6 +421,7 @@
 {"method": "session.start_mission", "params": {"campaign": "test_choices_kambara", "mission": 0}}
 # Its sequence before the mission first: skipped.
 {"method": "wait.until", "params": {"query": "dialog.current", "path": "/current", "op": "eq", "value": "StoryComic", "timeout_frames": 300}}
+{"method": "assert.eq", "params": {"query": "story.state", "args": {"campaign": "test_choices_kambara"}, "path": "/playing/sequence", "value": "test_before"}}
 {"method": "input.key", "params": {"key": "Escape"}}
 {"method": "wait.until", "params": {"query": "dialog.current", "path": "/current", "op": "eq", "value": "MissionBriefing", "timeout_frames": 300}}
 {"method": "input.move", "params": {"park": true}}
@@ -439,6 +443,7 @@
 {"method": "ui.click", "params": {"path": "MissionComplete/panel/Continue to the world map"}}
 # Its sequence after the mission first: skipped.
 {"method": "wait.until", "params": {"query": "dialog.current", "path": "/current", "op": "eq", "value": "StoryComic", "timeout_frames": 300}}
+{"method": "assert.eq", "params": {"query": "story.state", "args": {"campaign": "test_choices_kambara"}, "path": "/playing/sequence", "value": "test_after"}}
 {"method": "input.key", "params": {"key": "Escape"}}
 {"method": "input.move", "params": {"park": true}}
 {"method": "wait.frames", "params": {"frames": 3}}
@@ -481,6 +486,7 @@
 {"method": "session.start_mission", "params": {"campaign": "test_choices_tampadesa", "mission": 0}}
 # Its sequence before the mission first: skipped.
 {"method": "wait.until", "params": {"query": "dialog.current", "path": "/current", "op": "eq", "value": "StoryComic", "timeout_frames": 300}}
+{"method": "assert.eq", "params": {"query": "story.state", "args": {"campaign": "test_choices_tampadesa"}, "path": "/playing/sequence", "value": "test_before"}}
 {"method": "input.key", "params": {"key": "Escape"}}
 {"method": "wait.until", "params": {"query": "dialog.current", "path": "/current", "op": "eq", "value": "MissionBriefing", "timeout_frames": 300}}
 {"method": "input.move", "params": {"park": true}}
@@ -502,6 +508,7 @@
 {"method": "ui.click", "params": {"path": "MissionComplete/panel/Continue to the world map"}}
 # Its sequence after the mission first: skipped.
 {"method": "wait.until", "params": {"query": "dialog.current", "path": "/current", "op": "eq", "value": "StoryComic", "timeout_frames": 300}}
+{"method": "assert.eq", "params": {"query": "story.state", "args": {"campaign": "test_choices_tampadesa"}, "path": "/playing/sequence", "value": "test_after"}}
 {"method": "input.key", "params": {"key": "Escape"}}
 {"method": "input.move", "params": {"park": true}}
 {"method": "wait.frames", "params": {"frames": 3}}
