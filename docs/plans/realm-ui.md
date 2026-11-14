@@ -1,6 +1,6 @@
 # Realm UI: menus, screens and HUD in each realm's style
 
-**Status (2026-11-14): Phases 0 and 1 done (the main menus: Home, Load / Save, Settings, Custom Game, About and the in-game Game menu); Phase 2 done (the world map: its data, base art, screen, pan and zoom, and the next mission's choice); Phase 3 done (the debrief, the campaign-complete stele and the briefing); Phase 4 done (story comics: the story data and panel art, the comic viewer, the triggers and replays, and the developer editor's Screens menu); Phase 5 done (the HUD: its art, the top bar and goals, the build palette, the minimap, message log and inspector on the HUD's frames, and every dialog restyled onto them); Phase 6 done (the City book); Phase 7 done (the old UI assets nothing used, deleted).** The user reviewed it on 2026-11-07: their notes are folded in (see [Review notes](#review-notes)), the open decisions' defaults are accepted, and every mockup the phases need now exists. This plan builds and restyles every retail screen after the [UI mockups](../design/mockups/README.md): the main menus, the world map, the intermission, the story comics, the HUD and the city management pages. Each screen gets one look per realm: Đại Long, Kambara and Tampadesa. It is milestone **UI** of the [roadmap](roadmap.md). It was researched against `ccca1df` on `claude`. File and line references point at that commit, so re-check them before relying on them.
+**Status (2026-11-14): Phases 0 and 1 done (the main menus: Home, Load / Save, Settings, Custom Game, About and the in-game Game menu); Phase 2 done (the world map: its data, base art, screen, pan and zoom, and the next mission's choice); Phase 3 done (the debrief, the campaign-complete stele and the briefing); Phase 4 done (story comics: the story data and panel art, the comic viewer, the triggers and replays, and the developer editor's Screens menu); Phase 5 done (the HUD: its art, the top bar and goals, the build palette, the minimap, message log and inspector on the HUD's frames, and every dialog restyled onto them); Phase 6 done (the City book); Phase 7 done (the old UI assets nothing used, deleted); Phase 8 (the inspector's panels, after `inspector-<realm>.jpg`) next, not started.** The user reviewed it on 2026-11-07: their notes are folded in (see [Review notes](#review-notes)), the open decisions' defaults are accepted, and every mockup the phases need now exists. This plan builds and restyles every retail screen after the [UI mockups](../design/mockups/README.md): the main menus, the world map, the intermission, the story comics, the HUD and the city management pages. Each screen gets one look per realm: Đại Long, Kambara and Tampadesa. It is milestone **UI** of the [roadmap](roadmap.md). It was researched against `ccca1df` on `claude`. File and line references point at that commit, so re-check them before relying on them.
 
 ![Home menu, Đại Long](../design/mockups/menu-home-dailong.jpg)
 
@@ -830,6 +830,36 @@ Left for later (in known-issues): no building is locked by mission yet, so a til
 - Done (2026-11-14). Every file under `assets/ui/`, `assets/sounds/` and `assets/fonts/` was checked against the paths the configs, the skins (stems with their states, emblems by realm), the game's and the engine's sources, the launcher's bundle config and the art generators name, and the folders the code fills by name (the HUD's glyphs against the tile sets, the glyph constants and aliases; the HUD and City book icons against `HUD_ICONS` and `CITY_ICONS`; the developer minimap's buttons against the names its code builds). Deleted: Đại Long's home painting (`misc/home_menu_static_bg.png`, replaced by its generated scene) and, in each realm, the comic bubble's 9-slice and tail (`panel_bubble.png`, `bubble_tail.png`: the viewer paints its bubbles from the skin's colours), with the skins' `bubble` panel and their ui-art catalog entries. Kept, though nothing draws them yet: the scrollbar sprites (a skin names them and `TODO(realm-ui)` at `SkinControlsDef` plans to draw them), the `trade` HUD icon (in `HUD_ICONS`, for M10's messages) and the developer minimap's Faith, Flood and Fertility lens buttons (`MinimapLens` has those lenses). The music, ambience and test sounds are the developer Sound window's. Nothing else was left over: the earlier phases removed the prototype's art as they replaced it.
 - Later the same day: the minimap style's `frame` sprite turned out to be read only as a flag (the retail minimap is on the skin's `hud_panel`, the developer editor's in a plain window), so the field went, with `misc/square_page_bg.png` and ui-icons' `minimap/frame_kambara.png` and `frame_tampadesa.png`.
 
+### Phase 8: Inspector panels
+
+**Delivers:** the inspector as in `inspector-<realm>.jpg`: a panel for each kind of thing you can click, laid out by sections like the mockup's, in place of today's text-only layout (title, sprite, key values, body text) that P5d moved onto the HUD's frame. Added on 2026-11-14 at the user's request: the plan had left the mockup's contents to "the City book's data (Phase 6)", and Phase 6 didn't add them. Comes next.
+
+The mockup draws one panel, a workshop (the pottery kiln), and so is the pattern for the rest. The panel stands at the right, under the top bar and left of the build column, on the HUD's large panel. From top to bottom:
+- **Header:** the building's icon tile (its palette glyph), its realm name, kind and size ("Workshop · 2×2") and the Close tile.
+- **Status line:** a coloured dot and a word (Working, Short of workers, No clay, Storage full, On fire, Sick, Under construction, Renovating), with a summary on the right ("Pottery for 18 houses").
+- **Workers:** employed against needed, a figure per post (empty ones faded), and a note on what's short. The labour priority ("Industry is priority 2") waits for M11.
+- **Production:** each input and output against its capacity as a meter, the batch ("2 jars every 15 days") and the next batch's progress; then a line on what its walker is doing ("A cart is taking 4 jars to the storage yard").
+- **Costs:** upkeep a year, wages (workers × wage), when it was built.
+- **Actions:** Pause work and Demolish.
+
+Steps, each implemented, reviewed, fixed, committed and pushed in order, then the phase review:
+
+- [ ] **P8a Mockups for the other panels**, drawn with the user, in all three realms (`dialogs.py`/`palette.py`'s `inspector`, one page per kind):
+  - house (level, residents against room, the needs met and missing, the next level's needs, the goods stocked, the services in reach, the tax it pays, its risks);
+  - storage yard and granary (a row per good stored, against its room);
+  - service building (workers, the houses or buildings its walker reaches, where its walker is; the fire watch's and hospital's emergencies);
+  - market (its stock and the houses it supplies);
+  - construction site (progress, the time left, the materials it took, Cancel with the refund);
+  - unit (who, what it's doing, what it carries, where from and to);
+  - prop and terrain (name, description, whether it can be cleared and for how much).
+  The workshop's mockup also stands for farms and other producers.
+- [ ] **P8b The figures:** a report per building, read when the panel is built and while it's open (as `city::CityReport` is for the City book): status, workers, inputs and outputs with their stock and capacity, the batch and its progress, the walker's errand, coverage, the house's needs, upkeep and wages, risks (the risk line it shows today). An automation query (`inspector.state`, or `world.building_at` grown) reports it, so scenarios check the numbers.
+  - The built date needs a field saved on the building, set when its site finishes. That's a save-version bump, with a migration script, so decide here whether to save it or leave the line out. Old saves would show "—".
+- [ ] **P8c The panel framework:** one inspector menu built from sections (header, status, workers, meters, an errand line, key values, actions) in the skin's colours. A panel per kind, each listing its sections, so a later milestone adds its own (M8's temples, M10's trade posts, game Phase 2's monuments). Painted parts are read each frame, as the goals panel's are. The panel is at the mockup's place, not centred. The paths `BuildingInspector/Close` stay, with sections under the panel's label (`BuildingInspector/Workers`, `BuildingInspector/Production`, ...).
+- [ ] **P8d The panels:** workshop and farm, house, storage, service, market, construction site; the unit, prop and terrain inspectors in the same frame.
+- [ ] **P8e Actions:** Demolish asks in a popup first, then clears the building through the player's own path (`TilePlacement::clear`, no refund), and a site's Cancel refunds what it took, as clearing a site does today. Pause work stops a workplace (no production or service, its workers freed). It needs a saved flag (another save-version bump, which can share P8b's). Decide whether it waits for M11's labour, or is disabled with a tooltip until then.
+- [ ] **P8f Wrap-up:** a scenario (`ui_inspector.jsonl`: each panel in each realm, its figures against `world.building_at` and `city.state`, Demolish and its popup, Pause work); `ui_snapshot.jsonl`'s inspectors; the docs (AGENTS.md's HUD notes) and known issues; final screenshots beside the mockups.
+
 ## Dependencies on other milestones
 
 | Screen | Works now with | Filled in by |
@@ -857,7 +887,7 @@ Every screen the phases build has a mockup in all three realms, in [docs/design/
 | Briefing scroll | 3 | `briefing-<realm>.jpg` |
 | Campaign complete (the finished stele) | 3 | `campaign-complete-<realm>.jpg` |
 | The HUD (one top bar, goals panel, build column, minimap, message log) and the build palette with its icons, redrawn with the user on 2026-11-14 | 5 | `hud-<realm>.jpg`, `build-palette-<realm>.jpg`, `build-icons-<realm>.jpg` |
-| Building inspector | 5 | `inspector-<realm>.jpg` |
+| Building inspector (the workshop; the other kinds' panels are P8a's) | 5, 8 | `inspector-<realm>.jpg` |
 | City book: Overview, Population, Goods, Finances | 6 | `city-{overview,population,goods,finances}-<realm>.jpg` |
 | City book: Ratings, Labour, Food | 6, for M9 and M11 | `city-{ratings,labour,food}-<realm>.jpg` |
 | City book: Heritage (monument, patrons, festivals; added 2026-11-08) | 6, for M8 and game Phase 2 | `city-heritage-<realm>.jpg` (Festivals tab) |
