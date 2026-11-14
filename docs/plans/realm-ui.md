@@ -869,8 +869,8 @@ The HUD's menu buttons first got their own bar left of the build bar; the redraw
 - Skins load once per realm switch: tens of sprites, a few MB.
 - **9-slice:** 9 quads per panel, the same draw path as today's stretched sprites.
 - **World map:** one textured quad for the base, plus tens of painted markers.
-- **Comics:** one panel image loaded at a time, the next prefetched.
-- **City pages:** the history buffer is 120 samples per series, sampled monthly.
+- **Comics:** one panel image loaded at a time, the next prefetched (into the texture cache, as each panel is built: `story_comic.rs`).
+- **City pages:** the history buffer is 120 samples per series, sampled monthly. As built (Phase 6): 13 samples (the 12 months the trend lines draw and the month before them), runtime only.
 
 ## Open decisions
 

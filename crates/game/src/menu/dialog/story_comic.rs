@@ -391,6 +391,13 @@ fn read(context: &mut GameUiContext) -> Option<Shown> {
         (title, lines)
     });
     let art = PanelArt::load(context, panel, stele.clone());
+    // The next panel's picture, loaded now into the texture cache (which keeps it), so Next shows
+    // it without a wait.
+    if let Some(next) = sequence.panels.get(panel_index + 1)
+        && !next.image.is_empty()
+    {
+        context.load_texture(PathRef::from_str(&next.image));
+    }
 
     let value = json!({
         "campaign": campaign.id,
