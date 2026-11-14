@@ -182,6 +182,7 @@ every drawing method of the dialogs too. The skins' `hud` block and `hud_*` pane
 | `deco_top`, `deco_bottom` (Đại Long), `deco_crest`, `deco_crest_large` (Kambara; Tampadesa's crest), `deco_pier_left`, `deco_pier_right`, `deco_naga_left`, `deco_naga_right` (Tampadesa) | `hud_panel_ornament` (`parts`, `panel`, `origin`) | A large panel's ornaments (`panel_ornaments`, Kambara's `crest`), each cut to its own rect: `origin` is the panel's top left in that rect, so the skin's decoration `offset` is the sprite's centre from its anchor on the panel's 9-slice rect (the panel's rect grown by its bleed). |
 | `ornament_gap_wide`, `ornament_gap_narrow` | `hud_ornament` | The gap ornaments (`gap_ornament`) at 6 and 3 times their 36-point height; the bleed crops them to the drawing. |
 | `icon_<name>` | `hud_icon` | The line icons (`screens.py`'s `icon`) in the accent colour, 36 points with 4 of bleed: population, coin, food, and the messages' kinds. |
+| `page_icon_<name>` | `page_icon` | The City book's page icons (`pages.py`'s `glyph`, its own jar and star with `screens.py`'s icons) in white, for the game to tint, 36 points with 4 of bleed, under `skins/<realm>/city/icons/`: learning (Overview), population, jar (Goods), coin (Finances), star (Ratings), industry (Labour), food, monument (Heritage). |
 
 ## 5. Hand-made art
 

@@ -49,14 +49,16 @@
 {"method": "time.fast_forward", "params": {"sim_secs": 60}}
 {"method": "assert.eq", "params": {"query": "finance.state", "path": "/months_in_debt", "value": 0}}
 
-# The finances dialog: the accounts, the treasury, and the tax level and wage controls.
+# The City book's Finances page (FinancesManagement opens it there): the accounts, the treasury, and
+# the tax level and wage controls.
 {"method": "dialog.open", "params": {"name": "FinancesManagement"}}
+{"method": "assert.eq", "params": {"query": "dialog.current", "path": "/current", "value": "CityManagement"}}
 {"method": "input.move", "params": {"park": true}}
 {"method": "wait.frames", "params": {"frames": 3}}
 {"method": "ui.tree", "params": {"fields": ["path", "kind", "value"]}}
 {"method": "assert.eq", "params": {"query": "ui.layout_issues", "path": "/count", "value": 0}}
-{"method": "ui.set", "params": {"path": "FinancesManagement/Tax Level", "value": "High"}}
-{"method": "ui.set", "params": {"path": "FinancesManagement/Yearly Wage", "value": 8}}
+{"method": "ui.set", "params": {"path": "CityManagement/Finances/Tax level", "value": "High"}}
+{"method": "ui.set", "params": {"path": "CityManagement/Finances/Wage", "value": 8}}
 {"method": "assert.eq", "params": {"query": "finance.state", "path": "/tax_level", "value": "High"}}
 {"method": "assert.eq", "params": {"query": "finance.state", "path": "/wage", "value": 8}}
 {"method": "screenshot", "params": {"path": "out/finance.png"}}

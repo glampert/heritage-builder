@@ -289,6 +289,9 @@ CALLS = {
     "hud_panel_ornament": _hud_panel_ornament,
     "hud_ornament": _hud_ornament,
     "hud_icon": lambda th, x, y, w, h, a: th.icon(a["icon"], *_at(x, y, w, h, a), a.get("s", 1), a.get("color") or th.accent),
+    # The City book's tab icons (pages.py's glyph, its own icons as well as screens.py's), in white
+    # for the game to tint.
+    "page_icon": lambda th, x, y, w, h, a: th.glyph(a["icon"], *_at(x, y, w, h, a), a.get("s", 1), a.get("color", "#ffffff")),
 }
 
 

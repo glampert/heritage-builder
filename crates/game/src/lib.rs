@@ -7,6 +7,7 @@
 pub mod automation;
 pub mod building;
 pub mod camera;
+pub mod city;
 pub mod campaign;
 pub mod cheats;
 pub mod config;

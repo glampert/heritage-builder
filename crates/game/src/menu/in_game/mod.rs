@@ -8,6 +8,7 @@ use engine::{
 use inspector::{TileInspectorMenu, TileInspectorMenuRcMut};
 use message_log::MessageLog;
 use top_bar::TopBar;
+pub(crate) use top_bar::{rating_names, season_text};
 use palette::{TilePaletteMenu, TilePaletteMenuRcMut};
 
 use super::{GameMenusInputArgs, GameMenusMode, GameMenusSystem, TileInspector, TilePalette, TilePlacement, dialog, skin};

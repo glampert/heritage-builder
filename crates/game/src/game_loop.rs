@@ -331,6 +331,10 @@ impl RunLoop for GameLoop {
 
         // Game Logic:
         let visible_range = self.update_simulation(cursor_screen_pos, delta_time_secs);
+        if self.is_in_game() {
+            // The City book's trends: the city at the start of each month.
+            crate::city::history::sample_if_new_month(self.session.world(), self.session.sim());
+        }
 
         // Rendering:
         let render_flags = self.menus_begin_frame();
@@ -720,6 +724,7 @@ impl GameLoop {
         }
         self.session_generation = generation;
         crate::messages::clear(); // Each game's notices are its own.
+        crate::city::history::clear(); // And its history.
 
         let map_size = self.session.tile_map().size_in_cells();
         self.engine.send_automation_event("session.changed", serde_json::json!({

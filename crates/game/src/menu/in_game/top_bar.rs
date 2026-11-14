@@ -91,7 +91,7 @@ fn food_stored(context: &GameUiContext) -> u32 {
     ResourceKind::foods().iter().map(|kind| resources.granaries.count(kind) + resources.markets.count(kind)).sum()
 }
 
-fn season_text(realm: Realm, season: Season) -> String {
+pub(crate) fn season_text(realm: Realm, season: Season) -> String {
     let key = match season {
         Season::Wet => format!("season.{realm}.wet"),
         Season::Dry => format!("season.{realm}.dry"),
@@ -138,7 +138,7 @@ fn digits(value: i64) -> String {
 }
 
 // The fourth rating is the realm's own: the Mandate, Divine favour, Merit.
-fn rating_names(realm: Realm) -> [String; 4] {
+pub(crate) fn rating_names(realm: Realm) -> [String; 4] {
     let get = |key: &str| ui::text::get(UiTextCategory::Hud, key).to_string();
     [
         get("rating.prosperity"),

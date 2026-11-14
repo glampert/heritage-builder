@@ -1,0 +1,185 @@
+# The City book (docs/plans/realm-ui.md, Phase 6): a small city's pages in each realm, their figures
+# against the world's stats, the kinds that open it on a page, the Finances page's tax level and
+# wage, a month's refresh and the UI scale. Saves screenshots to out/ui_city/. From the repository root:
+#   cargo run -p HeritageBuilder -- --fresh-profile --default-configs --window-size 1920x1080 --script crates/game/tests/scenarios/ui_city.jsonl
+{"method": "time.fixed_dt", "params": {"dt": 0.016667}}
+{"method": "session.new_map", "params": {"size": [24, 24]}}
+{"method": "cheats.set", "params": {"name": "instant_construction", "value": true}}
+{"method": "cheats.set", "params": {"name": "ignore_worker_requirements", "value": true}}
+{"method": "cheats.set", "params": {"name": "no_city_risks", "value": true}}
+{"method": "finance.set", "params": {"balance": 1000}}
+{"method": "world.road", "params": {"from": [3, 10], "to": [20, 10]}}
+
+# Two houses with a well, a market and food; a storage yard and a granary with goods; a tax office.
+{"method": "world.place", "params": {"tile": "storage_yard", "cell": [4, 11]}}
+{"method": "world.add_stock", "params": {"resources": {"Wood": 12, "Bricks": 8, "Clay": 5}}}
+{"method": "world.place", "params": {"tile": "granary", "cell": [17, 11]}}
+{"method": "world.add_stock", "params": {"cell": [17, 11], "resources": {"Rice": 40}}}
+{"method": "world.place", "params": {"tile": "house0", "cell": [8, 9]}}
+{"method": "world.place", "params": {"tile": "house0", "cell": [13, 9]}}
+{"method": "world.place", "params": {"tile": "small_well", "cell": [11, 9]}}
+{"method": "world.place", "params": {"tile": "market", "cell": [10, 11]}}
+{"method": "world.place", "params": {"tile": "tax_office", "cell": [14, 11]}}
+{"method": "world.add_stock", "params": {"cell": [8, 9], "resources": {"Rice": 5}}}
+{"method": "world.add_stock", "params": {"cell": [13, 9], "resources": {"Rice": 5}}}
+# Three months: the history has a sample at each month's start.
+{"method": "time.fast_forward", "params": {"sim_secs": 185}}
+{"method": "sim.pause"}
+{"method": "city.state"}
+{"method": "assert.ge", "params": {"query": "city.state", "path": "/history/2/ordinal_month", "value": 0}}
+
+# ---- Opened from the HUD: the Overview page ----
+{"method": "ui.click", "params": {"path": "TopBar/City book"}}
+{"method": "input.move", "params": {"park": true}}
+{"method": "wait.frames", "params": {"frames": 3}}
+{"method": "assert.eq", "params": {"query": "dialog.current", "path": "/current", "value": "CityManagement"}}
+{"method": "assert.eq", "params": {"query": "ui.tree", "args": {"filter": "CityManagement/tab_bar", "kind": "tab_bar"}, "path": "/widgets/0/value", "value": "Overview"}}
+{"method": "ui.tree", "params": {"fields": ["path", "kind", "value"]}}
+{"method": "assert.eq", "params": {"query": "ui.layout_issues", "path": "/count", "value": 0}}
+{"method": "screenshot", "params": {"path": "out/ui_city/dailong-overview.png"}}
+# The figures are the world's: its stats and the treasury.
+{"method": "assert.eq", "params": {"query": "world.stats", "path": "/population/total", "value": 4}}
+{"method": "assert.eq", "params": {"query": "ui.tree", "args": {"filter": "CityManagement/Overview/cards", "kind": "canvas"}, "path": "/widgets/0/value/population", "value": 4}}
+{"method": "assert.eq", "params": {"query": "world.stats", "path": "/population/unemployed", "value": 1}}
+{"method": "assert.eq", "params": {"query": "ui.tree", "args": {"filter": "CityManagement/Overview/cards", "kind": "canvas"}, "path": "/widgets/0/value/unemployed", "value": 1}}
+{"method": "assert.eq", "params": {"query": "sim.state", "path": "/gold", "value": 934}}
+{"method": "assert.eq", "params": {"query": "ui.tree", "args": {"filter": "CityManagement/Overview/cards", "kind": "canvas"}, "path": "/widgets/0/value/treasury", "value": 934}}
+{"method": "assert.eq", "params": {"query": "ui.tree", "args": {"filter": "CityManagement/Overview/attention", "kind": "canvas"}, "path": "/widgets/0/value/0", "value": "1 person is looking for work."}}
+{"method": "assert.eq", "params": {"query": "ui.tree", "args": {"filter": "CityManagement/Overview/title", "kind": "canvas"}, "path": "/widgets/0/value/note", "value": "Updated each month"}}
+
+# ---- Each page in each realm ----
+{"method": "ui.set", "params": {"path": "CityManagement/tab_bar", "value": "Population"}}
+{"method": "wait.frames", "params": {"frames": 2}}
+{"method": "assert.eq", "params": {"query": "ui.layout_issues", "path": "/count", "value": 0}}
+{"method": "screenshot", "params": {"path": "out/ui_city/dailong-population.png"}}
+{"method": "assert.eq", "params": {"query": "ui.tree", "args": {"filter": "CityManagement/Population/population", "kind": "canvas"}, "path": "/widgets/0/value/employed", "value": 2}}
+{"method": "assert.eq", "params": {"query": "world.stats", "path": "/population/employed", "value": 2}}
+{"method": "assert.eq", "params": {"query": "ui.tree", "args": {"filter": "CityManagement/Population/housing", "kind": "canvas"}, "path": "/widgets/0/value/1", "value": {"level": 2, "house": "Cottage", "houses": 2, "residents": 4, "next_level_needs": "Large well, Shrine, Apothecary, Police station, rice, meat/fish, pottery"}}}
+{"method": "ui.set", "params": {"path": "CityManagement/tab_bar", "value": "Goods"}}
+{"method": "wait.frames", "params": {"frames": 2}}
+{"method": "assert.eq", "params": {"query": "ui.layout_issues", "path": "/count", "value": 0}}
+{"method": "screenshot", "params": {"path": "out/ui_city/dailong-goods.png"}}
+{"method": "assert.eq", "params": {"query": "world.stats", "path": "/city_stock/Wood", "value": 8}}
+{"method": "assert.eq", "params": {"query": "ui.tree", "args": {"filter": "CityManagement/Goods/goods", "kind": "canvas"}, "path": "/widgets/0/value/goods/5/good", "value": "Wood"}}
+{"method": "assert.eq", "params": {"query": "ui.tree", "args": {"filter": "CityManagement/Goods/goods", "kind": "canvas"}, "path": "/widgets/0/value/goods/5/stored", "value": 8}}
+{"method": "assert.eq", "params": {"query": "ui.tree", "args": {"filter": "CityManagement/Goods/goods", "kind": "canvas"}, "path": "/widgets/0/value/granaries", "value": {"buildings": 1, "stored": 20, "capacity": 64}}}
+{"method": "ui.click", "params": {"path": "CityManagement/Finances"}}
+{"method": "input.move", "params": {"park": true}}
+{"method": "wait.frames", "params": {"frames": 2}}
+{"method": "assert.eq", "params": {"query": "ui.layout_issues", "path": "/count", "value": 0}}
+{"method": "screenshot", "params": {"path": "out/ui_city/dailong-finances.png"}}
+{"method": "ui.set", "params": {"path": "CityManagement/tab_bar", "value": "Heritage"}}
+{"method": "wait.frames", "params": {"frames": 2}}
+{"method": "assert.eq", "params": {"query": "ui.layout_issues", "path": "/count", "value": 0}}
+{"method": "screenshot", "params": {"path": "out/ui_city/dailong-heritage.png"}}
+
+# ---- The Finances page: the tax level and the wage ----
+{"method": "ui.set", "params": {"path": "CityManagement/tab_bar", "value": "Finances"}}
+{"method": "wait.frames", "params": {"frames": 2}}
+{"method": "assert.eq", "params": {"query": "ui.tree", "args": {"filter": "CityManagement/Finances/Tax level", "kind": "step_selector"}, "path": "/widgets/0/value", "value": "Normal"}}
+{"method": "ui.click", "params": {"path": "CityManagement/Finances/Tax level/High"}}
+{"method": "wait.frames", "params": {"frames": 2}}
+{"method": "assert.eq", "params": {"query": "finance.state", "path": "/tax_level", "value": "High"}}
+{"method": "assert.eq", "params": {"query": "ui.tree", "args": {"filter": "CityManagement/Finances/tax_level_line", "kind": "canvas"}, "path": "/widgets/0/value/percent", "value": 150}}
+{"method": "ui.click", "params": {"path": "CityManagement/Finances/Wage/Next"}}
+{"method": "wait.frames", "params": {"frames": 2}}
+{"method": "assert.eq", "params": {"query": "finance.state", "path": "/wage", "value": 7}}
+{"method": "assert.eq", "params": {"query": "ui.tree", "args": {"filter": "CityManagement/Finances/wages", "kind": "canvas"}, "path": "/widgets/0/value/wage", "value": 7}}
+{"method": "ui.set", "params": {"path": "CityManagement/Finances/Wage", "value": "6"}}
+{"method": "assert.eq", "params": {"query": "finance.state", "path": "/wage", "value": 6}}
+{"method": "assert.eq", "params": {"query": "ui.tree", "args": {"filter": "CityManagement/Finances/accounts", "kind": "canvas"}, "path": "/widgets/0/value/6/line", "value": "Net"}}
+
+# ---- The kinds that open the book on a page: in place while it's open ----
+{"method": "dialog.open", "params": {"name": "PopulationManagement"}}
+{"method": "wait.frames", "params": {"frames": 2}}
+{"method": "assert.eq", "params": {"query": "dialog.current", "path": "/current", "value": "CityManagement"}}
+{"method": "assert.eq", "params": {"query": "ui.tree", "args": {"filter": "CityManagement/tab_bar", "kind": "tab_bar"}, "path": "/widgets/0/value", "value": "Population"}}
+{"method": "dialog.close"}
+{"method": "dialog.open", "params": {"name": "ResourcesManagement"}}
+{"method": "wait.frames", "params": {"frames": 2}}
+{"method": "assert.eq", "params": {"query": "ui.tree", "args": {"filter": "CityManagement/tab_bar", "kind": "tab_bar"}, "path": "/widgets/0/value", "value": "Goods"}}
+{"method": "dialog.close"}
+# CityManagement opens on the page shown last.
+{"method": "dialog.open", "params": {"name": "CityManagement"}}
+{"method": "wait.frames", "params": {"frames": 2}}
+{"method": "assert.eq", "params": {"query": "ui.tree", "args": {"filter": "CityManagement/tab_bar", "kind": "tab_bar"}, "path": "/widgets/0/value", "value": "Goods"}}
+
+# ---- The Heritage page's tabs, kept through a rebuild ----
+{"method": "ui.set", "params": {"path": "CityManagement/tab_bar", "value": "Heritage"}}
+{"method": "wait.frames", "params": {"frames": 2}}
+{"method": "ui.click", "params": {"path": "CityManagement/Heritage/Monument"}}
+{"method": "input.move", "params": {"park": true}}
+{"method": "wait.frames", "params": {"frames": 2}}
+{"method": "assert.eq", "params": {"query": "ui.tree", "args": {"filter": "CityManagement/Heritage/Monument/monument", "kind": "canvas"}, "path": "/widgets/0/value/empty", "value": true}}
+
+# ---- Kambara's and Tampadesa's looks ----
+{"method": "ui.realm", "params": {"realm": "kambara"}}
+{"method": "wait.frames", "params": {"frames": 3}}
+{"method": "assert.eq", "params": {"query": "ui.tree", "args": {"filter": "CityManagement/tab_bar", "kind": "tab_bar"}, "path": "/widgets/0/value", "value": "Heritage"}}
+{"method": "assert.eq", "params": {"query": "ui.tree", "args": {"filter": "CityManagement/Heritage/Sections", "kind": "tab_bar"}, "path": "/widgets/0/value", "value": "Monument"}}
+{"method": "assert.eq", "params": {"query": "ui.layout_issues", "path": "/count", "value": 0}}
+{"method": "screenshot", "params": {"path": "out/ui_city/kambara-heritage.png"}}
+{"method": "ui.set", "params": {"path": "CityManagement/tab_bar", "value": "Overview"}}
+{"method": "wait.frames", "params": {"frames": 2}}
+{"method": "assert.eq", "params": {"query": "ui.layout_issues", "path": "/count", "value": 0}}
+{"method": "screenshot", "params": {"path": "out/ui_city/kambara-overview.png"}}
+{"method": "ui.set", "params": {"path": "CityManagement/tab_bar", "value": "Population"}}
+{"method": "wait.frames", "params": {"frames": 2}}
+{"method": "assert.eq", "params": {"query": "ui.layout_issues", "path": "/count", "value": 0}}
+{"method": "screenshot", "params": {"path": "out/ui_city/kambara-population.png"}}
+{"method": "ui.set", "params": {"path": "CityManagement/tab_bar", "value": "Goods"}}
+{"method": "wait.frames", "params": {"frames": 2}}
+{"method": "assert.eq", "params": {"query": "ui.layout_issues", "path": "/count", "value": 0}}
+{"method": "screenshot", "params": {"path": "out/ui_city/kambara-goods.png"}}
+{"method": "ui.set", "params": {"path": "CityManagement/tab_bar", "value": "Finances"}}
+{"method": "wait.frames", "params": {"frames": 2}}
+{"method": "assert.eq", "params": {"query": "ui.layout_issues", "path": "/count", "value": 0}}
+{"method": "screenshot", "params": {"path": "out/ui_city/kambara-finances.png"}}
+{"method": "ui.realm", "params": {"realm": "tampadesa"}}
+{"method": "wait.frames", "params": {"frames": 3}}
+{"method": "assert.eq", "params": {"query": "ui.layout_issues", "path": "/count", "value": 0}}
+{"method": "screenshot", "params": {"path": "out/ui_city/tampadesa-finances.png"}}
+{"method": "ui.set", "params": {"path": "CityManagement/tab_bar", "value": "Overview"}}
+{"method": "wait.frames", "params": {"frames": 2}}
+{"method": "assert.eq", "params": {"query": "ui.layout_issues", "path": "/count", "value": 0}}
+{"method": "screenshot", "params": {"path": "out/ui_city/tampadesa-overview.png"}}
+{"method": "ui.set", "params": {"path": "CityManagement/tab_bar", "value": "Population"}}
+{"method": "wait.frames", "params": {"frames": 2}}
+{"method": "assert.eq", "params": {"query": "ui.layout_issues", "path": "/count", "value": 0}}
+{"method": "screenshot", "params": {"path": "out/ui_city/tampadesa-population.png"}}
+{"method": "ui.set", "params": {"path": "CityManagement/tab_bar", "value": "Goods"}}
+{"method": "wait.frames", "params": {"frames": 2}}
+{"method": "assert.eq", "params": {"query": "ui.layout_issues", "path": "/count", "value": 0}}
+{"method": "screenshot", "params": {"path": "out/ui_city/tampadesa-goods.png"}}
+{"method": "ui.set", "params": {"path": "CityManagement/tab_bar", "value": "Heritage"}}
+{"method": "wait.frames", "params": {"frames": 2}}
+{"method": "assert.eq", "params": {"query": "ui.layout_issues", "path": "/count", "value": 0}}
+{"method": "screenshot", "params": {"path": "out/ui_city/tampadesa-heritage.png"}}
+{"method": "ui.realm", "params": {"realm": "auto"}}
+
+# ---- A month passes with the book open: it reads the city again ----
+{"method": "ui.set", "params": {"path": "CityManagement/tab_bar", "value": "Finances"}}
+{"method": "wait.frames", "params": {"frames": 2}}
+{"method": "assert.eq", "params": {"query": "ui.tree", "args": {"filter": "CityManagement/Finances/title", "kind": "canvas"}, "path": "/widgets/0/value/note", "value": "Year 1 · month 4"}}
+{"method": "time.fast_forward", "params": {"sim_secs": 60, "resume": true}}
+{"method": "sim.pause"}
+{"method": "wait.frames", "params": {"frames": 3}}
+{"method": "assert.eq", "params": {"query": "ui.tree", "args": {"filter": "CityManagement/Finances/title", "kind": "canvas"}, "path": "/widgets/0/value/note", "value": "Year 1 · month 5"}}
+{"method": "assert.eq", "params": {"query": "ui.tree", "args": {"filter": "CityManagement/tab_bar", "kind": "tab_bar"}, "path": "/widgets/0/value", "value": "Finances"}}
+
+# ---- The UI scale: the book grows with it, as far as the window lets it ----
+{"method": "config.set", "params": {"path": "/display/ui_scale_percent", "value": 200}}
+{"method": "wait.frames", "params": {"frames": 3}}
+{"method": "assert.eq", "params": {"query": "ui.layout_issues", "path": "/count", "value": 0}}
+{"method": "screenshot", "params": {"path": "out/ui_city/dailong-finances-200.png"}}
+{"method": "config.set", "params": {"path": "/display/ui_scale_percent", "value": 75}}
+{"method": "wait.frames", "params": {"frames": 3}}
+{"method": "assert.eq", "params": {"query": "ui.layout_issues", "path": "/count", "value": 0}}
+{"method": "screenshot", "params": {"path": "out/ui_city/dailong-finances-75.png"}}
+{"method": "config.set", "params": {"path": "/display/ui_scale_percent", "value": 100}}
+{"method": "wait.frames", "params": {"frames": 3}}
+
+# ---- Close ----
+{"method": "ui.click", "params": {"path": "CityManagement/Close"}}
+{"method": "wait.frames", "params": {"frames": 2}}
+{"method": "assert.eq", "params": {"query": "dialog.current", "path": "", "value": {"current": null}}}

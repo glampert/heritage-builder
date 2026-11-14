@@ -65,6 +65,7 @@ KNOWN_CALLS = (
     "world_map_frame", "world_map_backdrop", "world_map_mark", "world_map_compass", "world_map_coin",
     "world_map_emblem", "world_map_power_emblem", "stele", "stele_backdrop", "stele_mark", "story_panel",
     "story_frame", "hud_tile", "hud_panel", "hud_panel_ornament", "hud_ornament", "hud_icon",
+    "page_icon",
 )
 
 TOP_KEYS = {"version", "scale", "pad", "realms", "state_filters", "sprites", "notes"}

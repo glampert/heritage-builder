@@ -132,6 +132,102 @@
       "source_hash": "c46dbf364b115da4",
       "state": null
     },
+    "assets/ui/skins/dailong/city/icons/coin.png": {
+      "catalog_hash": "f7e88d57c975f5b4",
+      "id": "page_icon_coin",
+      "png_hash": "7aea6467d6de56b5",
+      "png_size": [
+        88,
+        88
+      ],
+      "realm": "dailong",
+      "source_hash": "4da51b4e509dc537",
+      "state": null
+    },
+    "assets/ui/skins/dailong/city/icons/food.png": {
+      "catalog_hash": "f56354ed30111a9c",
+      "id": "page_icon_food",
+      "png_hash": "2460cd62725a1661",
+      "png_size": [
+        88,
+        88
+      ],
+      "realm": "dailong",
+      "source_hash": "e56e5fc0cee92572",
+      "state": null
+    },
+    "assets/ui/skins/dailong/city/icons/industry.png": {
+      "catalog_hash": "0755e51aeecf637f",
+      "id": "page_icon_industry",
+      "png_hash": "f458eec6c00e58da",
+      "png_size": [
+        88,
+        88
+      ],
+      "realm": "dailong",
+      "source_hash": "2a9577366b91c97d",
+      "state": null
+    },
+    "assets/ui/skins/dailong/city/icons/jar.png": {
+      "catalog_hash": "0b2c65bbc35d952e",
+      "id": "page_icon_jar",
+      "png_hash": "cdd8991b9bd806e6",
+      "png_size": [
+        88,
+        88
+      ],
+      "realm": "dailong",
+      "source_hash": "d7e9ca57495b6587",
+      "state": null
+    },
+    "assets/ui/skins/dailong/city/icons/learning.png": {
+      "catalog_hash": "43403dc5ae709cff",
+      "id": "page_icon_learning",
+      "png_hash": "1958a76b8e5433b0",
+      "png_size": [
+        88,
+        88
+      ],
+      "realm": "dailong",
+      "source_hash": "cca76429fabdf806",
+      "state": null
+    },
+    "assets/ui/skins/dailong/city/icons/monument.png": {
+      "catalog_hash": "64e21ad941cbcb82",
+      "id": "page_icon_monument",
+      "png_hash": "45c41d8880f44c65",
+      "png_size": [
+        88,
+        88
+      ],
+      "realm": "dailong",
+      "source_hash": "ad51d2f1eb62754d",
+      "state": null
+    },
+    "assets/ui/skins/dailong/city/icons/population.png": {
+      "catalog_hash": "4f277efc39881767",
+      "id": "page_icon_population",
+      "png_hash": "121761b0d145b61a",
+      "png_size": [
+        88,
+        88
+      ],
+      "realm": "dailong",
+      "source_hash": "9fbbab03e8cbb63c",
+      "state": null
+    },
+    "assets/ui/skins/dailong/city/icons/star.png": {
+      "catalog_hash": "7cb5b980cc0dc97b",
+      "id": "page_icon_star",
+      "png_hash": "d079ce9aeb854586",
+      "png_size": [
+        88,
+        88
+      ],
+      "realm": "dailong",
+      "source_hash": "36362adbc2f79046",
+      "state": null
+    },
     "assets/ui/skins/dailong/crest.png": {
       "catalog_hash": "f6eac751c1c01ba3",
       "id": "crest",
@@ -2820,6 +2916,102 @@
       "source_hash": "41b231394ab136aa",
       "state": null
     },
+    "assets/ui/skins/kambara/city/icons/coin.png": {
+      "catalog_hash": "c8cc652e84b65dbf",
+      "id": "page_icon_coin",
+      "png_hash": "7aea6467d6de56b5",
+      "png_size": [
+        88,
+        88
+      ],
+      "realm": "kambara",
+      "source_hash": "4da51b4e509dc537",
+      "state": null
+    },
+    "assets/ui/skins/kambara/city/icons/food.png": {
+      "catalog_hash": "75a88c8b75bbf195",
+      "id": "page_icon_food",
+      "png_hash": "2460cd62725a1661",
+      "png_size": [
+        88,
+        88
+      ],
+      "realm": "kambara",
+      "source_hash": "e56e5fc0cee92572",
+      "state": null
+    },
+    "assets/ui/skins/kambara/city/icons/industry.png": {
+      "catalog_hash": "df680a0fd338db72",
+      "id": "page_icon_industry",
+      "png_hash": "f458eec6c00e58da",
+      "png_size": [
+        88,
+        88
+      ],
+      "realm": "kambara",
+      "source_hash": "2a9577366b91c97d",
+      "state": null
+    },
+    "assets/ui/skins/kambara/city/icons/jar.png": {
+      "catalog_hash": "10e9695e2e594aad",
+      "id": "page_icon_jar",
+      "png_hash": "cdd8991b9bd806e6",
+      "png_size": [
+        88,
+        88
+      ],
+      "realm": "kambara",
+      "source_hash": "d7e9ca57495b6587",
+      "state": null
+    },
+    "assets/ui/skins/kambara/city/icons/learning.png": {
+      "catalog_hash": "834f0d65d333e830",
+      "id": "page_icon_learning",
+      "png_hash": "1958a76b8e5433b0",
+      "png_size": [
+        88,
+        88
+      ],
+      "realm": "kambara",
+      "source_hash": "cca76429fabdf806",
+      "state": null
+    },
+    "assets/ui/skins/kambara/city/icons/monument.png": {
+      "catalog_hash": "940f3252bc3bc942",
+      "id": "page_icon_monument",
+      "png_hash": "45c41d8880f44c65",
+      "png_size": [
+        88,
+        88
+      ],
+      "realm": "kambara",
+      "source_hash": "ad51d2f1eb62754d",
+      "state": null
+    },
+    "assets/ui/skins/kambara/city/icons/population.png": {
+      "catalog_hash": "b47e38c8dae59f06",
+      "id": "page_icon_population",
+      "png_hash": "121761b0d145b61a",
+      "png_size": [
+        88,
+        88
+      ],
+      "realm": "kambara",
+      "source_hash": "9fbbab03e8cbb63c",
+      "state": null
+    },
+    "assets/ui/skins/kambara/city/icons/star.png": {
+      "catalog_hash": "8846a20e9135fbf9",
+      "id": "page_icon_star",
+      "png_hash": "d079ce9aeb854586",
+      "png_size": [
+        88,
+        88
+      ],
+      "realm": "kambara",
+      "source_hash": "36362adbc2f79046",
+      "state": null
+    },
     "assets/ui/skins/kambara/dropdown_arrow.png": {
       "catalog_hash": "47088942e23abebf",
       "id": "dropdown_arrow",
@@ -5494,6 +5686,102 @@
       ],
       "realm": "tampadesa",
       "source_hash": "262ab5723e5839d5",
+      "state": null
+    },
+    "assets/ui/skins/tampadesa/city/icons/coin.png": {
+      "catalog_hash": "403dc0814494a5f3",
+      "id": "page_icon_coin",
+      "png_hash": "7aea6467d6de56b5",
+      "png_size": [
+        88,
+        88
+      ],
+      "realm": "tampadesa",
+      "source_hash": "4da51b4e509dc537",
+      "state": null
+    },
+    "assets/ui/skins/tampadesa/city/icons/food.png": {
+      "catalog_hash": "b9e89a47e2d0d03a",
+      "id": "page_icon_food",
+      "png_hash": "2460cd62725a1661",
+      "png_size": [
+        88,
+        88
+      ],
+      "realm": "tampadesa",
+      "source_hash": "e56e5fc0cee92572",
+      "state": null
+    },
+    "assets/ui/skins/tampadesa/city/icons/industry.png": {
+      "catalog_hash": "52ebe3a912e5ff24",
+      "id": "page_icon_industry",
+      "png_hash": "f458eec6c00e58da",
+      "png_size": [
+        88,
+        88
+      ],
+      "realm": "tampadesa",
+      "source_hash": "2a9577366b91c97d",
+      "state": null
+    },
+    "assets/ui/skins/tampadesa/city/icons/jar.png": {
+      "catalog_hash": "6bc171c3d225e1f5",
+      "id": "page_icon_jar",
+      "png_hash": "cdd8991b9bd806e6",
+      "png_size": [
+        88,
+        88
+      ],
+      "realm": "tampadesa",
+      "source_hash": "d7e9ca57495b6587",
+      "state": null
+    },
+    "assets/ui/skins/tampadesa/city/icons/learning.png": {
+      "catalog_hash": "1999c951209192fb",
+      "id": "page_icon_learning",
+      "png_hash": "1958a76b8e5433b0",
+      "png_size": [
+        88,
+        88
+      ],
+      "realm": "tampadesa",
+      "source_hash": "cca76429fabdf806",
+      "state": null
+    },
+    "assets/ui/skins/tampadesa/city/icons/monument.png": {
+      "catalog_hash": "f0e3f3b3fba0e0c1",
+      "id": "page_icon_monument",
+      "png_hash": "45c41d8880f44c65",
+      "png_size": [
+        88,
+        88
+      ],
+      "realm": "tampadesa",
+      "source_hash": "ad51d2f1eb62754d",
+      "state": null
+    },
+    "assets/ui/skins/tampadesa/city/icons/population.png": {
+      "catalog_hash": "f523b930908b9a3a",
+      "id": "page_icon_population",
+      "png_hash": "121761b0d145b61a",
+      "png_size": [
+        88,
+        88
+      ],
+      "realm": "tampadesa",
+      "source_hash": "9fbbab03e8cbb63c",
+      "state": null
+    },
+    "assets/ui/skins/tampadesa/city/icons/star.png": {
+      "catalog_hash": "5b02ce9904838a6a",
+      "id": "page_icon_star",
+      "png_hash": "d079ce9aeb854586",
+      "png_size": [
+        88,
+        88
+      ],
+      "realm": "tampadesa",
+      "source_hash": "36362adbc2f79046",
       "state": null
     },
     "assets/ui/skins/tampadesa/dropdown_arrow.png": {

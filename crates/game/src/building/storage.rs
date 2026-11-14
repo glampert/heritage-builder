@@ -537,6 +537,24 @@ impl StorageSlots {
         self.slot_capacity
     }
 
+    // The room the slots have for each good (the City book's goods): its own slots' capacity, and
+    // every free slot's that accepts it (shared, so the goods' rooms add up to more than the whole);
+    // and their whole capacity.
+    pub(crate) fn room(&self) -> ([u32; RESOURCE_KIND_COUNT], u32) {
+        let mut room = [0; RESOURCE_KIND_COUNT];
+        for slot in &self.slots {
+            match slot.allocated_resource_kind {
+                Some(kind) => room[kind.index()] += self.slot_capacity,
+                None => {
+                    for kind in slot.accepted_kinds().iter() {
+                        room[kind.index()] += self.slot_capacity;
+                    }
+                }
+            }
+        }
+        (room, self.slot_capacity * self.slots.len() as u32)
+    }
+
     #[inline]
     pub(crate) fn is_slot_free(&self, slot_index: usize) -> bool {
         self.slots[slot_index].is_free()

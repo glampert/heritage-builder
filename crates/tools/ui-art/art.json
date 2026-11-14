@@ -224,6 +224,8 @@
       "realms": {"dailong": {"bleed": [5.5, 2.5, 7.5, 2.0]}, "kambara": {"bleed": [-8.5, -4.0, -6.5, 2.5]}, "tampadesa": {"bleed": [8.0, 9.5, 10.0, 4.5]}} },
     {"id": "icon_{each}", "group": "hud", "call": "hud_icon", "args": {"icon": "{each}", "s": 1.0}, "size": [36, 36], "out": "skins/{realm}/hud/icons/{each}.png", "bleed": [4, 4, 4, 4],
       "each": ["population", "coin", "food", "request", "trade", "warn", "monument"] },
+    {"id": "page_icon_{each}", "group": "hud", "call": "page_icon", "args": {"icon": "{each}", "s": 1.0}, "size": [36, 36], "out": "skins/{realm}/city/icons/{each}.png", "bleed": [4, 4, 4, 4],
+      "each": ["learning", "population", "jar", "coin", "star", "industry", "food", "monument"] },
     {"id": "deco_top", "group": "hud", "call": "hud_panel_ornament", "args": {"panel": [480, 440], "origin": [0, 80]}, "size": [480, 160], "out": "skins/{realm}/hud/{id}.png",
       "realms": {"dailong": {"args": {"parts": ["cloud_top_left", "cloud_top_right", "medallion"], "origin": [-100.5, 59.0]}, "size": [281.0, 83.5]}} },
     {"id": "deco_bottom", "group": "hud", "call": "hud_panel_ornament", "args": {"panel": [480, 440], "origin": [0, -380]}, "size": [480, 160], "out": "skins/{realm}/hud/{id}.png",

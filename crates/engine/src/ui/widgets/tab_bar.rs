@@ -2,16 +2,20 @@ use std::any::Any;
 use smallbox::smallbox;
 use egui::{Align2, Sense, StrokeKind, pos2, vec2};
 
-use common::Vec2;
+use common::{Color, Rect, Vec2};
 
 use super::{
-    UiSpriteButtonState, UiTextButtonFrame, UiWidget, UiWidgetCallback, UiWidgetContext, UiWidgetImpl, list_index, widget_id,
+    UiSpriteButtonState, UiTextButtonFrame, UiWidget, UiWidgetCallback, UiWidgetContext, UiWidgetGroup, UiWidgetImpl, list_index,
+    widget_id,
 };
-use crate::ui::{
-    UiFontScale, UiString, UiSystem,
-    immediate::{self, color32, nine_slice_shape},
-    internal,
-    sound::{UiSoundEvent, UiSoundKey, UiWidgetSounds},
+use crate::{
+    render::texture::TextureHandle,
+    ui::{
+        UiFontScale, UiString, UiSystem,
+        immediate::{self, UiLabelLook, UiPainter, UiTextAnchor, color32, nine_slice_shape, to_rect},
+        internal,
+        sound::{UiSoundEvent, UiSoundKey, UiWidgetSounds},
+    },
 };
 
 // ----------------------------------------------
@@ -48,6 +52,69 @@ impl Default for UiTabLook {
 }
 
 // ----------------------------------------------
+// UiSideTabLook
+// ----------------------------------------------
+
+// How a side tab bar's column looks (UiTabBar::with_side): its tabs stacked down a column, each
+// as wide as it, painted: the selected one filled, the others with a rule under them; an icon
+// (white art, tinted) before each label; a line between the column and the contents.
+#[derive(Copy, Clone, Debug)]
+pub struct UiSideTabLook {
+    pub width: f32,   // The column's.
+    pub height: f32,  // Each tab's.
+    pub spacing: f32, // Between tabs.
+    pub gap: f32,     // Between the column and the contents (the divider in its middle).
+    pub padding: f32, // The icon's (or the text's) room from the tab's left edge.
+    pub icon_size: f32,
+    pub icon_gap: f32, // Between the icon and the text.
+    pub rounding: f32,
+    pub text_size: f32, // In points, as UiPainter::label draws it.
+    pub heading_font: bool,
+    pub text: Color,
+    pub selected_text: Color,
+    pub icon: Color,
+    pub selected_icon: Color,
+    pub selected_fill: Color,
+    pub hover_fill: Color,
+    pub rule: Option<Color>,           // Under each tab but the selected one.
+    pub divider: Option<(Color, f32)>, // Its colour and how far in from the top and bottom it stops.
+}
+
+impl Default for UiSideTabLook {
+    fn default() -> Self {
+        Self {
+            width: 240.0,
+            height: 48.0,
+            spacing: 8.0,
+            gap: 40.0,
+            padding: 12.0,
+            icon_size: 24.0,
+            icon_gap: 12.0,
+            rounding: 5.0,
+            text_size: 20.0,
+            heading_font: true,
+            text: Color::black(),
+            selected_text: Color::white(),
+            icon: Color::black(),
+            selected_icon: Color::white(),
+            selected_fill: Color::gray(),
+            hover_fill: Color::new(1.0, 1.0, 1.0, 0.1),
+            rule: None,
+            divider: None,
+        }
+    }
+}
+
+// The side layout: the column's look, what goes above the tabs (a header) and pinned to the
+// column's foot (a footer), and the bar's height.
+struct UiTabSide {
+    look: UiSideTabLook,
+    header: UiWidgetGroup,
+    footer: UiWidgetGroup,
+    height: f32,
+}
+
+// ----------------------------------------------
 // UiTabBar
 // ----------------------------------------------
 
@@ -59,9 +126,15 @@ pub type UiTabBarTabChanged = UiWidgetCallback<dyn Fn(&UiTabBar, &mut dyn UiWidg
 // UI. Each tab records itself (kind "tab", value: whether it's selected), and the bar too (kind
 // "tab_bar", value: the selected tab's label), which ui.set takes a tab's label or index on.
 // Plays TabSelected when a tab is picked.
+//
+// With a side (with_side), the tabs stack down a column at the left instead, under a header and
+// above a footer pinned to the column's foot, and the selected tab's contents fill the rest, as
+// tall as the bar: the City book's pages.
 pub struct UiTabBar {
     label: UiString,
     tabs: Vec<(UiString, Option<UiWidgetImpl>)>,
+    icons: Vec<Option<TextureHandle>>, // One per tab: side tabs draw it.
+    side: Option<UiTabSide>,
     selected: usize,
     look: UiTabLook,
     sounds: UiWidgetSounds, // Hovered: nothing, Selected: TabSelected.
@@ -76,6 +149,11 @@ impl UiWidget for UiTabBar {
 
     fn draw(&mut self, context: &mut dyn UiWidgetContext) {
         debug_assert!(context.is_inside_widget_window());
+
+        if self.side.is_some() {
+            self.draw_side(context);
+            return;
+        }
 
         let ui_sys = context.ui_sys();
         let sizes = self.tab_sizes(ui_sys);
@@ -143,6 +221,13 @@ impl UiWidget for UiTabBar {
     }
 
     fn measure(&self, context: &dyn UiWidgetContext) -> Vec2 {
+        if let Some(side) = &self.side {
+            let contents = match self.tabs.get(self.selected) {
+                Some((_, Some(contents))) => contents.measure(context),
+                _ => Vec2::zero(),
+            };
+            return Vec2::new(side.look.width + side.look.gap + contents.x, side.height);
+        }
         let (row_width, row_height) = self.row_size(&self.tab_sizes(context.ui_sys()));
         let contents = match self.tabs.get(self.selected) {
             Some((_, Some(contents))) => contents.measure(context),
@@ -168,6 +253,8 @@ impl UiTabBar {
         Self {
             label: UiString::default(),
             tabs: Vec::new(),
+            icons: Vec::new(),
+            side: None,
             selected: 0,
             look: UiTabLook::default(),
             sounds: UiWidgetSounds::new(),
@@ -186,12 +273,28 @@ impl UiTabBar {
     // A tab with nothing under it: on_tab_changed shows what it stands for.
     pub fn with_tab(mut self, label: impl Into<UiString>) -> Self {
         self.tabs.push((label.into(), None));
+        self.icons.push(None);
         self
     }
 
     // A tab whose contents draw under the bar while it's selected.
     pub fn with_tab_contents(mut self, label: impl Into<UiString>, contents: impl Into<UiWidgetImpl>) -> Self {
         self.tabs.push((label.into(), Some(contents.into())));
+        self.icons.push(None);
+        self
+    }
+
+    // A side tab with an icon before its label (white art, tinted by the look), and its contents.
+    pub fn with_icon_tab_contents(mut self, label: impl Into<UiString>, icon: TextureHandle, contents: impl Into<UiWidgetImpl>) -> Self {
+        self.tabs.push((label.into(), Some(contents.into())));
+        self.icons.push(Some(icon));
+        self
+    }
+
+    // Lays the tabs out down a column at the left, `height` points tall, the selected tab's
+    // contents beside it; `header` goes above the tabs and `footer` at the column's foot.
+    pub fn with_side(mut self, look: UiSideTabLook, header: UiWidgetGroup, footer: UiWidgetGroup, height: f32) -> Self {
+        self.side = Some(UiTabSide { look, header, footer, height });
         self
     }
 
@@ -240,6 +343,98 @@ impl UiTabBar {
 
     pub fn tab_contents_mut(&mut self, index: usize) -> Option<&mut UiWidgetImpl> {
         self.tabs.get_mut(index).and_then(|(_, contents)| contents.as_mut())
+    }
+
+    // The side layout's draw: the header, the tabs, the footer and the divider in the column, the
+    // selected tab's contents beside it.
+    fn draw_side(&mut self, context: &mut dyn UiWidgetContext) {
+        let ui_sys = context.ui_sys();
+        let Some(side) = self.side.as_mut() else {
+            return;
+        };
+        let look = side.look;
+        let (origin, available) = ui_sys.with_ui(|ui| (ui.cursor().min, immediate::fill_size(ui)));
+        let width = available.x.max(look.width + look.gap);
+        let height = side.height;
+        let column = egui::Rect::from_min_size(origin, vec2(look.width, height));
+
+        // The header, then the tabs under it; the footer at the column's foot.
+        let (_, header_rect) = ui_sys.draw_at(column, |_| side.header.draw(context));
+        let tabs_top = if side.header.is_empty() { column.top() } else { header_rect.bottom() };
+        let footer_height = ui_sys.draw_at(column, |_| side.footer.measure(context)).0.y;
+        let footer_rect = egui::Rect::from_min_size(pos2(column.left(), column.bottom() - footer_height), vec2(look.width, footer_height));
+        ui_sys.draw_at(footer_rect, |_| side.footer.draw(context));
+
+        let id = widget_id(self, self.label.id_source());
+        let labels: Vec<&str> = self.tabs.iter().map(|(label, _)| label.resolve()).collect();
+        let selected = self.selected;
+        let tabs_rect = egui::Rect::from_min_size(
+            pos2(column.left(), tabs_top),
+            vec2(look.width, (look.height + look.spacing) * labels.len() as f32 - look.spacing.min(0.0)),
+        );
+
+        let (clicked, hovered, set_value) = ui_sys.with_ui(|ui| {
+            let response = ui.interact(tabs_rect, id.with("bar"), Sense::hover());
+            let selected_label = labels.get(selected).copied().unwrap_or_default();
+            let set_value = immediate::record(
+                ui_sys,
+                ui,
+                &response,
+                "tab_bar",
+                self.label.resolve(),
+                None,
+                true,
+                Some(serde_json::Value::String(selected_label.to_string())),
+            );
+
+            let painter = UiPainter::from_egui(ui.painter().clone(), ui_sys);
+            let mut clicked = None;
+            let mut hovered = None;
+            for (index, label) in labels.iter().enumerate() {
+                let top = tabs_top + index as f32 * (look.height + look.spacing);
+                let tab_rect = egui::Rect::from_min_size(pos2(column.left(), top), vec2(look.width, look.height));
+                let response = ui.interact(tab_rect, id.with(index), Sense::click());
+                let is_selected = index == selected;
+                if ui.is_rect_visible(tab_rect) {
+                    paint_side_tab(&painter, &look, to_rect(tab_rect), label, self.icons.get(index).copied().flatten(), is_selected, response.hovered());
+                }
+                immediate::record(ui_sys, ui, &response, "tab", label, None, true, Some(serde_json::Value::Bool(is_selected)));
+                if response.clicked() {
+                    clicked = Some(index);
+                }
+                if response.hovered() {
+                    hovered = Some(index);
+                }
+            }
+
+            if let Some((color, inset)) = look.divider {
+                let x = column.right() + look.gap * 0.5;
+                painter.line(Vec2::new(x, column.top() + inset), Vec2::new(x, column.bottom() - inset), 1.5, color);
+            }
+            (clicked, hovered, set_value)
+        });
+
+        if hovered.is_some() && hovered != self.hovered {
+            self.sounds.play(context, UiSoundEvent::Hovered, None);
+        }
+        self.hovered = hovered;
+
+        let picked = clicked.or_else(|| set_value.and_then(|value| list_index(&value, &labels)));
+        if let Some(index) = picked {
+            self.select(context, index);
+        }
+
+        // The selected tab's contents, beside the column, under its label.
+        let contents_rect =
+            egui::Rect::from_min_size(pos2(column.right() + look.gap, origin.y), vec2(width - look.width - look.gap, height));
+        let selected = self.selected;
+        if let Some((label, Some(contents))) = self.tabs.get_mut(selected) {
+            let _path = immediate::path_scope(ui_sys, label.resolve());
+            ui_sys.draw_at(contents_rect, |_| contents.draw(context));
+        }
+
+        let rect = egui::Rect::from_min_size(origin, vec2(width, height));
+        ui_sys.with_ui(|ui| ui.advance_cursor_after_rect(rect));
     }
 
     fn select(&mut self, context: &mut dyn UiWidgetContext, index: usize) {
@@ -309,3 +504,35 @@ impl UiTabBar {
     }
 }
 
+
+// A side tab: filled while selected (or lightly while hovered), else a rule under it; its icon
+// and label from its left edge.
+fn paint_side_tab(painter: &UiPainter, look: &UiSideTabLook, rect: Rect, label: &str, icon: Option<TextureHandle>, selected: bool, hovered: bool) {
+    if selected {
+        painter.rect_filled(rect, look.selected_fill, look.rounding);
+    } else {
+        if hovered {
+            painter.rect_filled(rect, look.hover_fill, look.rounding);
+        }
+        if let Some(rule) = look.rule {
+            painter.line(Vec2::new(rect.min.x + look.padding, rect.max.y), Vec2::new(rect.max.x, rect.max.y), 1.0, rule);
+        }
+    }
+
+    let middle = (rect.min.y + rect.max.y) * 0.5;
+    let mut x = rect.min.x + look.padding;
+    if let Some(icon) = icon {
+        let half = look.icon_size * 0.5;
+        let icon_rect = Rect::from_pos_and_size(Vec2::new(x, middle - half), Vec2::new(look.icon_size, look.icon_size));
+        painter.image(icon, icon_rect, if selected { look.selected_icon } else { look.icon });
+        x += look.icon_size + look.icon_gap;
+    }
+    let text = UiLabelLook {
+        size: look.text_size,
+        heading_font: look.heading_font,
+        color: if selected { look.selected_text } else { look.text },
+        ..Default::default()
+    };
+    // The label's baseline: its letters centred on the tab.
+    painter.label(Vec2::new(x, middle + look.text_size * 0.32), UiTextAnchor::Start, label, &text);
+}

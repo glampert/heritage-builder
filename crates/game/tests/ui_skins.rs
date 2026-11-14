@@ -590,6 +590,14 @@ fn test_hud_art_exists() {
         for (role, name) in &hud.colors {
             assert!(resolves(name), "{realm}: HUD colour '{role}': no colour '{name}'");
         }
+        // The City book's page icons and colours.
+        for name in menu::skin::CITY_ICONS {
+            let path = format!("{}/{name}.png", skin.city.icons);
+            assert!(ui_asset_exists(&path), "{realm}: no City book icon {path}");
+        }
+        for (role, name) in &skin.city.colors {
+            assert!(resolves(name), "{realm}: City book colour '{role}': no colour '{name}'");
+        }
         for name in [&hud.badge.fill, &hud.badge.ring, &hud.badge.text] {
             assert!(resolves(name), "{realm}: HUD badge: no colour '{name}'");
         }

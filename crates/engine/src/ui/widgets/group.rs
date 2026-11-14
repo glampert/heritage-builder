@@ -103,6 +103,11 @@ impl UiWidgetGroup {
         }
     }
 
+    // Whether it holds no widget.
+    pub fn is_empty(&self) -> bool {
+        self.widgets.is_empty()
+    }
+
     pub fn with_widget_spacing(mut self, spacing: Vec2) -> Self {
         debug_assert!(spacing.x >= 0.0 && spacing.y >= 0.0);
         self.widget_spacing = spacing;

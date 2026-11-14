@@ -373,10 +373,13 @@
     "LoadOrSaveGame": {"size": [1540, 940]},
     "MainSettings": {"size": [1200, 920]},
     "CustomGame": {"size": [1700, 960]},
-    "CityManagement": {"size": [1600, 950]},
-    "PopulationManagement": {"size": [1600, 950]},
-    "ResourcesManagement": {"size": [1600, 950]},
-    "FinancesManagement": {"size": [1600, 950]}
+    "CityManagement": {"size": [1620, 960]}
+  },
+  "city": {
+    "icons": "skins/dailong/city/icons",
+    "colors": { "text": "ink", "sub": "sub", "title": "title", "accent": "accent", "on_accent": "on_accent", "rule": "#c9b083",
+                "card": "#f7ead08c", "card_outline": "#c9b083", "field": "#f7ead0", "field_outline": "#6b4f33", "good": "#4f6f2a",
+                "track": "#c9b08399", "hover": "#a8261c1f" }
   },
   "hud": {
     "tiles": {"large": {"size": [84, 87.5], "frame": "skins/dailong/hud/tile_large", "bleed": [12.5, 43.0, 13.5, 12.0]}, "sector": {"size": [54, 56.5], "frame": "skins/dailong/hud/tile_sector", "bleed": [10.5, 22.5, 11.5, 10.0]}, "small": {"size": [36, 36], "frame": "skins/dailong/hud/tile_small", "bleed": [9.5, 9.5, 9.5, 9.5]}},

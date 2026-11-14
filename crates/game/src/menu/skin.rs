@@ -115,6 +115,7 @@ pub struct UiSkinDef {
     pub story: SkinStoryDef,
     pub dialogs: BTreeMap<String, SkinDialogDef>, // "default", then by dialog kind name.
     pub hud: SkinHudDef,
+    pub city: SkinCityDef,
     pub sounds: BTreeMap<String, Option<String>>,
 }
 
@@ -143,6 +144,7 @@ impl Default for UiSkinDef {
             story: SkinStoryDef::default(),
             dialogs: BTreeMap::new(),
             hud: SkinHudDef::default(),
+            city: SkinCityDef::default(),
             sounds: BTreeMap::new(),
         }
     }
@@ -1729,6 +1731,35 @@ pub fn intermission() -> &'static SkinIntermissionDef {
 // The current skin's briefing art.
 pub fn briefing() -> &'static SkinBriefingDef {
     &current().briefing
+}
+
+// The City book's look (Phase 6): its page icons' folder (white art the book tints) and its
+// colours by role: `text`, `sub`, `title`, `accent`, `on_accent` (text on an accent fill), `rule`,
+// `card` (a card's fill), `card_outline`, `field` and `field_outline` (buttons drawn on the page),
+// `good` (a rise), `track` (a bar's empty part).
+#[derive(Clone, Debug, Default, Deserialize)]
+#[serde(default, deny_unknown_fields)]
+pub struct SkinCityDef {
+    pub icons: String,
+    pub colors: BTreeMap<String, String>,
+}
+
+// The page icons every skin draws, by name (the mockup generator's glyphs): Overview, Population,
+// Goods, Finances, Ratings, Labour, Food and Heritage.
+pub const CITY_ICONS: &[&str] = &["learning", "population", "jar", "coin", "star", "industry", "food", "monument"];
+
+pub fn city() -> &'static SkinCityDef {
+    &current().city
+}
+
+// A City book colour by role (SkinCityDef), else the skin's colour `fallback`.
+pub fn city_color(role: &str, fallback: &str) -> Color {
+    city().colors.get(role).and_then(|name| color(name)).or_else(|| color(fallback)).unwrap_or(Color::black())
+}
+
+// A City book page icon (white, to tint) by name (CITY_ICONS).
+pub fn city_icon(context: &mut dyn UiWidgetContext, name: &str) -> TextureHandle {
+    sprite_and_size(context, &format!("{}/{name}.png", city().icons)).0
 }
 
 pub fn hud() -> &'static SkinHudDef {

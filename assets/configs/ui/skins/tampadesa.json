@@ -207,11 +207,12 @@
   },
   "dialogs": {
     "Home": {"offset": [80, 0]},
-    "About": {"size": [940, 980]},
-    "CityManagement": {"size": [1600, 1020]},
-    "PopulationManagement": {"size": [1600, 1020]},
-    "ResourcesManagement": {"size": [1600, 1020]},
-    "FinancesManagement": {"size": [1600, 1020]}
+    "About": {"size": [940, 980]}
+  },
+  "city": {
+    "icons": "skins/tampadesa/city/icons",
+    "colors": { "rule": "#8a6a48", "card": "#3a1e148c", "card_outline": "#8a6a48", "field": "#3a1e14", "field_outline": "#8a6a48",
+                "good": "#b5c46a", "track": "#8a6a4899", "hover": "#e9c97726" }
   },
   "hud": {
     "tiles": {"large": {"size": [84, 87.5], "frame": "skins/tampadesa/hud/tile_large", "bleed": [9.5, 35.0, 11.0, 12.0]}, "sector": {"size": [54, 56.5], "frame": "skins/tampadesa/hud/tile_sector", "bleed": [9.0, 17.0, 10.5, 11.5]}, "small": {"size": [36, 36], "frame": "skins/tampadesa/hud/tile_small", "bleed": [8.5, 8.5, 10.0, 11.0]}},

@@ -41,8 +41,8 @@ use about::*;
 mod load_save;
 use load_save::*;
 
-mod city_management;
-use city_management::*;
+mod city_book;
+use city_book::*;
 
 mod settings;
 use settings::*;
@@ -248,6 +248,13 @@ pub fn sync(context: &mut GameUiContext) {
         // changed (its map), or the top bar's date or treasury. What's selected and the view are
         // kept (world_map::STATE).
         dialogs.rebuild(context, |kind| kind == DialogMenuKind::WorldMap);
+    } else if dialogs.menu_stack.contains(&DialogMenuKind::CityManagement)
+        && !dialogs.find_dialog(DialogMenuKind::CityManagement).menu().is_message_box_open()
+        && city_book::needs_rebuild(context)
+    {
+        // A game month passed (the book reads the city), the window's size changed, or the tax
+        // level or wage did (the Finances page's figures). The page shown is kept.
+        dialogs.rebuild(context, |kind| kind == DialogMenuKind::CityManagement);
     } else if dialogs.menu_stack.contains(&DialogMenuKind::MissionComplete) && mission_complete::needs_rebuild(context) {
         // The window's size changed: the debrief's layout follows it.
         dialogs.rebuild(context, |kind| kind == DialogMenuKind::MissionComplete);
@@ -287,12 +294,16 @@ fn window_version(context: &GameUiContext) -> u32 {
 }
 
 // The dialog a kind opens: LoadGame and SaveGame open LoadOrSaveGame (load_save::redirect);
-// GameSettings, SoundSettings and GraphicsSettings open MainSettings (settings::redirect).
+// GameSettings, SoundSettings and GraphicsSettings open MainSettings (settings::redirect);
+// PopulationManagement, ResourcesManagement and FinancesManagement open the City book,
+// CityManagement (city_book::redirect).
 fn opened_kind(dialog_menu_kind: DialogMenuKind) -> DialogMenuKind {
     if load_save::redirect(dialog_menu_kind).is_some() {
         DialogMenuKind::LoadOrSaveGame
     } else if settings::redirect(dialog_menu_kind).is_some() {
         DialogMenuKind::MainSettings
+    } else if city_book::redirect(dialog_menu_kind).is_some() {
+        DialogMenuKind::CityManagement
     } else {
         dialog_menu_kind
     }
@@ -348,10 +359,12 @@ pub fn is_open(dialog_menu_kind: DialogMenuKind) -> bool {
 }
 
 // Whether opening `kind` while `other` is open switches the open dialog instead of opening another:
-// both open the Settings dialog, which shows `kind`'s tab, its pending edits kept (open_dialog).
+// both open the Settings dialog, which shows `kind`'s tab, its pending edits kept, or both the City
+// book, which shows `kind`'s page (open_dialog).
 // Not Load / Save, whose load or save mode is picked when it's built.
 pub fn switches_in_place(kind: DialogMenuKind, other: DialogMenuKind) -> bool {
-    settings::redirect(kind).is_some() && settings::redirect(other).is_some()
+    (settings::redirect(kind).is_some() && settings::redirect(other).is_some())
+        || (city_book::redirect(kind).is_some() && city_book::redirect(other).is_some())
 }
 
 // Whether the dialog is anywhere in the stack, on top or under others.
@@ -776,6 +789,25 @@ impl DialogMenusSingleton {
                     return false;
                 }
                 settings::prepare(tab);
+                self.dialog_menus[kind as usize] = kind.build_menu(context);
+                self.frames[kind as usize] = DialogFrame::from_skin(kind);
+                kind
+            }
+            None => dialog_menu_kind,
+        };
+
+        // The City book and the kinds that open it on their page: built afresh from the city, or
+        // switched to that page if it's open.
+        let dialog_menu_kind = match city_book::redirect(dialog_menu_kind) {
+            Some(page) => {
+                let kind = DialogMenuKind::CityManagement;
+                if self.find_dialog(kind).is_open() {
+                    if let Some(page) = page {
+                        self.find_dialog_as::<CityManagement>().select_page(page);
+                    }
+                    return false;
+                }
+                city_book::prepare(page);
                 self.dialog_menus[kind as usize] = kind.build_menu(context);
                 self.frames[kind as usize] = DialogFrame::from_skin(kind);
                 kind

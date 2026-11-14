@@ -330,6 +330,9 @@ pub enum UiStepSelectorStyle {
     Segments,
     // The current step's text between a previous and a next arrow, right of the label.
     Arrows,
+    // A row of buttons, one per step with its text, the current one filled; no label drawn (the
+    // City book's tax level).
+    Buttons,
 }
 
 // The segments' and arrows' colours.
@@ -339,6 +342,8 @@ pub struct UiStepLook {
     pub track: Color,
     pub outline: Option<Color>,
     pub segment_height: f32,
+    pub selected_text: Option<Color>, // Buttons: the current button's text (else the value colour).
+    pub rounding: f32,                // Buttons: their corners.
 }
 
 impl Default for UiStepLook {
@@ -348,6 +353,8 @@ impl Default for UiStepLook {
             track: Color::new(0.95, 0.89, 0.74, 1.0),
             outline: Some(Color::new(0.42, 0.31, 0.2, 1.0)),
             segment_height: 10.0,
+            selected_text: None,
+            rounding: 4.0,
         }
     }
 }
@@ -370,6 +377,7 @@ pub struct UiStepSelector {
     text_color: Option<Color>,
     value_color: Option<Color>,
     width: Option<f32>, // The menu's width if None.
+    hide_label: bool,   // The label is only in paths (Buttons never draw it).
     sounds: UiWidgetSounds, // Changed: SliderChanged.
     on_changed: UiStepSelectorChanged,
 }
@@ -408,7 +416,9 @@ impl UiWidget for UiStepSelector {
             let text_color = self.text_color.map_or_else(|| ui.visuals().text_color(), color32);
             let value_color = self.value_color.map_or(text_color, color32);
             let label_rect = egui::Rect::from_min_size(rect.min, vec2(width, line));
-            ui.painter().text(label_rect.left_center(), Align2::LEFT_CENTER, self.label.resolve(), font.clone(), text_color);
+            if self.style != UiStepSelectorStyle::Buttons && !self.hide_label {
+                ui.painter().text(label_rect.left_center(), Align2::LEFT_CENTER, self.label.resolve(), font.clone(), text_color);
+            }
 
             let _path = immediate::path_scope(ui_sys, self.label.resolve());
             let mut picked = None;
@@ -432,6 +442,29 @@ impl UiWidget for UiStepSelector {
                             ui.painter().rect_stroke(segment, 2.0, Stroke::new(1.0, color32(outline)), StrokeKind::Inside);
                         }
                         immediate::record(ui_sys, ui, &response, "step", label, None, true, Some(serde_json::Value::Bool(index == current)));
+                        if response.clicked() {
+                            picked = Some(index);
+                        }
+                    }
+                }
+                UiStepSelectorStyle::Buttons => {
+                    let count = labels.len().max(1);
+                    let gap = 6.0;
+                    let button_width = ((width - gap * (count - 1) as f32) / count as f32).max(1.0);
+                    let selected_text = self.look.selected_text.map_or(value_color, color32);
+                    for (index, label) in labels.iter().enumerate() {
+                        let button = egui::Rect::from_min_size(pos2(rect.left() + (button_width + gap) * index as f32, rect.top()), vec2(button_width, rect.height()));
+                        let response = ui.interact(button, id.with(index), Sense::click());
+                        let is_current = index == current;
+                        let color = if is_current { self.look.fill } else { self.look.track };
+                        let fill = if response.hovered() && !is_current { color32(color).gamma_multiply(0.85) } else { color32(color) };
+                        ui.painter().rect_filled(button, self.look.rounding, fill);
+                        if let Some(outline) = self.look.outline {
+                            ui.painter().rect_stroke(button, self.look.rounding, Stroke::new(1.5, color32(outline)), StrokeKind::Inside);
+                        }
+                        let color = if is_current { selected_text } else { text_color };
+                        ui.painter().with_clip_rect(button).text(button.center(), Align2::CENTER_CENTER, *label, font.clone(), color);
+                        immediate::record(ui_sys, ui, &response, "step", label, None, true, Some(serde_json::Value::Bool(is_current)));
                         if response.clicked() {
                             picked = Some(index);
                         }
@@ -476,7 +509,7 @@ impl UiWidget for UiStepSelector {
     fn measure(&self, context: &dyn UiWidgetContext) -> Vec2 {
         let ui_sys = context.ui_sys();
         let line = internal::calc_text_line_height(ui_sys, self.font_scale);
-        let label = internal::calc_text_size(ui_sys, self.font_scale, self.label.resolve()).0.x;
+        let label = if self.hide_label { 0.0 } else { internal::calc_text_size(ui_sys, self.font_scale, self.label.resolve()).0.x };
         let width = self.width.unwrap_or_else(|| internal::available_size(ui_sys).x);
         match self.style {
             UiStepSelectorStyle::Segments => {
@@ -487,6 +520,7 @@ impl UiWidget for UiStepSelector {
                 let min_width = label + CONTROL_GAP * 3.0 + line * 2.0 + self.value_width(ui_sys);
                 Vec2::new(width.max(min_width), line)
             }
+            UiStepSelectorStyle::Buttons => Vec2::new(width, self.look.segment_height.max(line)),
         }
     }
 
@@ -520,6 +554,7 @@ impl UiStepSelector {
             text_color: None,
             value_color: None,
             width: None,
+            hide_label: false,
             sounds: UiWidgetSounds::new(),
             on_changed: None,
         }
@@ -556,6 +591,12 @@ impl UiStepSelector {
     pub fn with_text_colors(mut self, label: Option<Color>, value: Option<Color>) -> Self {
         self.text_color = label;
         self.value_color = value;
+        self
+    }
+
+    // Its label only in widget paths, not drawn (the Arrows style; Buttons never draw it).
+    pub fn with_label_hidden(mut self, hidden: bool) -> Self {
+        self.hide_label = hidden;
         self
     }
 
