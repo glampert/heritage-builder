@@ -100,7 +100,7 @@ fn build_key(context: &GameUiContext) -> BuildKey {
 // Whether the open book must be built again: a month passed, the window's size changed, or the
 // tax level or wage (the page shown and the Heritage tab are kept).
 pub(super) fn needs_rebuild(context: &GameUiContext) -> bool {
-    STATE.as_ref().built != Some(build_key(context))
+    !in_home_menu() && STATE.as_ref().built != Some(build_key(context))
 }
 
 // The kinds that open the City book, and on which page: CityManagement on the one shown last.
@@ -200,6 +200,7 @@ impl CityManagement {
 
         // Only in game: the book reads the city. Built at boot for the home menu too, empty there.
         if in_home_menu() {
+            STATE.as_mut().built = Some(build_key(context));
             let tab_bar = menu.add_widget(UiTabBar::new());
             return Self { menu: menu.into_rc(), tab_bar };
         }

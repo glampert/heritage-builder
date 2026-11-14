@@ -370,7 +370,8 @@ impl UiTabBar {
         let selected = self.selected;
         let tabs_rect = egui::Rect::from_min_size(
             pos2(column.left(), tabs_top),
-            vec2(look.width, (look.height + look.spacing) * labels.len() as f32 - look.spacing.min(0.0)),
+            // To the last tab's foot, reckoned as the tabs are placed.
+            vec2(look.width, labels.len().saturating_sub(1) as f32 * (look.height + look.spacing) + if labels.is_empty() { 0.0 } else { look.height }),
         );
 
         let (clicked, hovered, set_value) = ui_sys.with_ui(|ui| {

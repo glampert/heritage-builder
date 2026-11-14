@@ -25,6 +25,9 @@ pub struct MonthSample {
     pub population: u32,
     pub employed: u32,
     pub balance: i64,
+    // Taken after the month began: the game's first, a new or loaded game's month. Changes "this
+    // month" aren't counted from it.
+    pub partial: bool,
     #[serde(skip)]
     pub stored: [u32; RESOURCE_KIND_COUNT], // Each good in the storage yards and granaries.
 }
@@ -40,6 +43,7 @@ impl MonthSample {
             population: stats.population.total,
             employed: stats.population.employed,
             balance: sim.finance().balance(),
+            partial: false,
             stored,
         }
     }
@@ -63,9 +67,9 @@ impl CityHistory {
     }
 
     // The sample at the start of `month` (the current month: history::current_month), if it was
-    // taken.
+    // taken then (not one taken partway through the month).
     pub fn sample(&self, month: u32) -> Option<&MonthSample> {
-        self.months.iter().rev().find(|sample| sample.ordinal_month == month)
+        self.months.iter().rev().find(|sample| sample.ordinal_month == month && !sample.partial)
     }
 
     // The population over the last `count` months, oldest first: each month before `month` (the
@@ -112,7 +116,10 @@ pub fn sample_if_new_month(world: &World, sim: &Simulation) {
     if history.months.back().is_some_and(|last| last.ordinal_month > month) {
         history.months.clear();
     }
-    history.months.push_back(MonthSample::read(world, sim));
+    // The first sample of a game is taken when it starts or loads, partway through its month.
+    let mut sample = MonthSample::read(world, sim);
+    sample.partial = history.months.is_empty();
+    history.months.push_back(sample);
     while history.months.len() > MONTHS_KEPT {
         history.months.pop_front();
     }

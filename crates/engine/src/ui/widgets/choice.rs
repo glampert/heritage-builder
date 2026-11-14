@@ -463,7 +463,7 @@ impl UiWidget for UiStepSelector {
                             ui.painter().rect_stroke(button, self.look.rounding, Stroke::new(1.5, color32(outline)), StrokeKind::Inside);
                         }
                         let color = if is_current { selected_text } else { text_color };
-                        ui.painter().with_clip_rect(button).text(button.center(), Align2::CENTER_CENTER, *label, font.clone(), color);
+                        ui.painter().with_clip_rect(button.intersect(ui.clip_rect())).text(button.center(), Align2::CENTER_CENTER, *label, font.clone(), color);
                         immediate::record(ui_sys, ui, &response, "step", label, None, true, Some(serde_json::Value::Bool(is_current)));
                         if response.clicked() {
                             picked = Some(index);
