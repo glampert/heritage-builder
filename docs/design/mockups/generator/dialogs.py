@@ -335,18 +335,12 @@ class Dialogs(Pages):
         return (f'<circle cx="{f(x)}" cy="{f(y)}" r="8.5" fill="none" stroke="{c}" stroke-width="2"/>'
                 f'<path d="M{f(x - 3.5)},{f(y - 3.5)} l7,7 m0,-7 l-7,7" stroke="{c}" stroke-width="2" stroke-linecap="round"/>')
 
-    def checkbox(self, x, y, on):
-        """A checkbox, its top-left corner at (x, y): ticked on the accent, or an empty box."""
-        out = f'<rect x="{f(x)}" y="{f(y)}" width="20" height="20" rx="3" fill="{self.accent if on else self.field_fill}" fill-opacity="{1 if on else 0.6}" stroke="{self.panel_rule}" stroke-width="1.5"/>'
-        if on:
-            out += f'<path d="M{f(x + 5)},{f(y + 10)} l4,4.5 l7,-9" fill="none" stroke="{self.on_icon}" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/>'
-        return out
-
-    def mode_pill(self, x, y, w, h, mode, enabled=True):
-        """A good's order in a store, Accept, Get or Empty, stepped with the arrows at its ends."""
-        on = mode != "accept"
-        label = {"accept": "Accept", "get": "Get", "empty": "Empty"}[mode]
-        op = 1 if enabled else 0.45
+    def mode_pill(self, x, y, w, h, mode):
+        """A good's order in a store, Refuse, Accept, Get or Empty, stepped with the arrows at its ends:
+        Get and Empty filled, Refuse faded."""
+        on = mode in ("get", "empty")
+        label = {"refuse": "Refuse", "accept": "Accept", "get": "Get", "empty": "Empty"}[mode]
+        op = 0.55 if mode == "refuse" else 1
         text = self.on_icon if on else self.panel_text
         return (f'<g opacity="{op}"><rect x="{f(x)}" y="{f(y)}" width="{f(w)}" height="{h}" rx="{h / 2}" fill="{self.accent if on else self.field_fill}" '
                 f'fill-opacity="{1 if on else 0.6}" stroke="{self.panel_rule}" stroke-width="1.2"/>'
@@ -494,13 +488,14 @@ class Dialogs(Pages):
                 body.append(self.section_title(x0, cy, title))
                 body.append(self.t(x1, cy, note, 17, self.panel_sub, "end", 600, italic=True))
                 mx, mw = x0 + 150, x1 - x0 - 360
-                for i, (good, n, cap, accepted, mode) in enumerate(rows):
+                for i, (good, n, cap, mode) in enumerate(rows):
                     ry = cy + 36 + i * 32
-                    body.append(self.checkbox(x0, ry - 17, accepted))
-                    body.append(self.t(x0 + 30, ry, good, 18, self.panel_text if accepted else self.panel_sub, "start", 700 if accepted else 600))
+                    taken = mode != "refuse"
+                    body.append(self.good_bullet(x0 + 4, ry - 6))
+                    body.append(self.t(x0 + 20, ry, good, 18, self.panel_text if taken else self.panel_sub, "start", 700 if taken else 600))
                     body.append(self.bar(mx, ry - 11, mw, 9, n / cap))
-                    body.append(self.t(x1 - 112, ry, f"{n} / {cap}", 17, self.panel_text, "end", 600))
-                    body.append(self.mode_pill(x1 - 96, ry - 19, 96, 26, mode, accepted or mode == "empty"))  # a refused good may still be emptied
+                    body.append(self.t(x1 - 118, ry, f"{n} / {cap}", 17, self.panel_text, "end", 600))
+                    body.append(self.mode_pill(x1 - 102, ry - 19, 102, 26, mode))
                 cy += 36 + len(rows) * 32
                 bw = 150
                 body.append(self.button(x0, cy - 8, bw, 40, "Accept all", False))
