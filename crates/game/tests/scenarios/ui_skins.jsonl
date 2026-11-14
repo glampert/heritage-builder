@@ -74,7 +74,7 @@
 {"method": "assert.eq", "params": {"query": "ui.tree", "args": {"filter": "Skin Gallery/List", "kind": "item_list"}, "path": "/widgets/0/value", "value": "Row 5"}}
 {"method": "assert.eq", "params": {"query": "ui.tree", "args": {"filter": "Skin Gallery/Realm List", "kind": "item_list"}, "path": "/widgets/0/value", "value": "Đại Long"}}
 {"method": "assert.eq", "params": {"query": "ui.tree", "args": {"filter": "Skin Gallery/Realm List/Kambara"}, "path": "/widgets/0/enabled", "value": false}}
-# A disabled button, buttons of a set width, menu items (a hover and a click play their sounds), and icon buttons: a click (scrolled into view first) toggles one.
+# A disabled button, buttons of a set width, menu items (a hover and a click play their sounds), and an icon button: a click (scrolled into view first) toggles it.
 {"method": "assert.eq", "params": {"query": "ui.tree", "args": {"filter": "Skin Gallery/Disabled", "kind": "text_button"}, "path": "/widgets/0/enabled", "value": false}}
 {"method": "assert.eq", "params": {"query": "ui.tree", "args": {"filter": "Skin Gallery/Fixed Width"}, "path": "/widgets/0/rect/2", "value": 150.0}}
 {"method": "assert.ge", "params": {"query": "ui.tree", "args": {"filter": "Skin Gallery/Min"}, "path": "/widgets/0/rect/2", "value": 120.0}}
@@ -85,8 +85,9 @@
 {"method": "ui.click", "params": {"path": "Skin Gallery/Menu Item"}}
 {"method": "wait.frames", "params": {"frames": 2}}
 {"method": "assert.eq", "params": {"query": "ui.sounds", "args": {"clear": true}, "path": "/roles", "value": ["item_hovered", "item_selected"]}}
-{"method": "ui.click", "params": {"path": "Skin Gallery/icon gold"}}
-{"method": "assert.eq", "params": {"query": "ui.tree", "args": {"filter": "Skin Gallery/icon gold", "kind": "icon_button"}, "path": "/widgets/0/value", "value": true}}
+{"method": "assert.eq", "params": {"query": "ui.tree", "args": {"filter": "Skin Gallery/icon clear_tool", "kind": "icon_button"}, "path": "/widgets/0/value", "value": true}}
+{"method": "ui.click", "params": {"path": "Skin Gallery/icon clear_tool"}}
+{"method": "assert.eq", "params": {"query": "ui.tree", "args": {"filter": "Skin Gallery/icon clear_tool", "kind": "icon_button"}, "path": "/widgets/0/value", "value": false}}
 {"method": "assert.eq", "params": {"query": "ui.tree", "args": {"filter": "Skin Gallery/icon disabled", "kind": "icon_button"}, "path": "/widgets/0/enabled", "value": false}}
 # The HUD's icon tiles (Phase 5): a badge's text, a disabled tile, and a click (scrolled into view first) selecting a toggle tile.
 {"method": "assert.eq", "params": {"query": "ui.tree", "args": {"filter": "Skin Gallery/HUD tile goals", "kind": "icon_button"}, "path": "/widgets/0/value/badge", "value": "1/3"}}
