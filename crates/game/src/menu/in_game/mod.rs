@@ -6,6 +6,7 @@ use engine::{
     ui::UiInputEvent,
 };
 use inspector::{TileInspectorMenu, TileInspectorMenuRcMut};
+use message_log::MessageLog;
 use top_bar::TopBar;
 use palette::{TilePaletteMenu, TilePaletteMenuRcMut};
 
@@ -20,6 +21,7 @@ use crate::{
 
 mod inspector;
 mod layout;
+mod message_log;
 mod palette;
 mod top_bar;
 
@@ -32,6 +34,7 @@ pub struct InGameMenus {
     tile_palette: TilePaletteMenuRcMut,
     tile_inspector: TileInspectorMenuRcMut,
     top_bar: TopBar,
+    message_log: MessageLog,
     minimap_renderer: InGameUiMinimapRenderer,
     built: (u32, u32), // The skin's and the strings' versions the HUD was built with.
 }
@@ -50,7 +53,8 @@ impl InGameMenus {
             tile_placement: TilePlacement::new(),
             tile_palette: TilePaletteMenu::new(context),
             tile_inspector: TileInspectorMenu::new(context),
-            top_bar: TopBar::new(context),
+            top_bar: TopBar::new(context, false),
+            message_log: MessageLog::new(),
             minimap_renderer: InGameUiMinimapRenderer::new(context),
             built: Self::versions(),
         }
@@ -74,7 +78,9 @@ impl InGameMenus {
         }
         self.tile_palette = TilePaletteMenu::new(context);
         self.tile_inspector = TileInspectorMenu::new(context);
-        self.top_bar = TopBar::new(context);
+        let goals_open = self.top_bar.goals_open();
+        self.top_bar = TopBar::new(context, goals_open);
+        self.message_log.reset();
         self.built = Self::versions();
     }
 }
@@ -145,6 +151,7 @@ impl GameMenusSystem for InGameMenus {
         self.minimap_renderer.draw(context);
         self.tile_palette.draw(context);
         self.top_bar.draw(context);
+        self.message_log.draw(context);
         self.tile_inspector.draw(context);
 
         // Open a pending campaign prompt, but only when no other dialog is open

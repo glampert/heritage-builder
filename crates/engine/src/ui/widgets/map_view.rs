@@ -466,6 +466,11 @@ impl UiCanvas {
         self
     }
 
+    // Its tooltip, changed after it's built (the HUD's date, as the days pass).
+    pub fn set_tooltip(&mut self, tooltip: Option<UiTooltipText>) {
+        self.tooltip = tooltip;
+    }
+
     // The value it records, changed after it's built (the HUD's stats, each frame).
     pub fn set_value(&mut self, value: Option<Value>) {
         self.value = value;

@@ -19,6 +19,9 @@ use super::{
 };
 use crate::{menu::dialog::DialogMenuKind, realm::{self, Realm}, ui_context::GameUiContext};
 
+// Room between the retail minimap's panel and the screen's edges (the HUD's).
+const HUD_MARGIN: f32 = 6.0;
+
 // ----------------------------------------------
 // MinimapTool
 // ----------------------------------------------
@@ -70,12 +73,105 @@ pub trait MinimapRenderer {
 }
 
 struct MinimapButtons {
-    lenses: Vec<(MinimapLens, UiSpriteButton)>,
-    tools: Vec<(MinimapTool, UiSpriteButton)>,
+    lenses: Vec<(MinimapLens, MinimapButton)>,
+    tools: Vec<(MinimapTool, MinimapButton)>,
     // The building icons toggle: a button per state, the one showing the current state drawn.
-    landmarks_on: UiSpriteButton,
-    landmarks_off: UiSpriteButton,
-    debug: Option<UiSpriteButton>,
+    landmarks_on: MinimapButton,
+    landmarks_off: MinimapButton,
+    debug: Option<MinimapButton>,
+}
+
+// A minimap button: the style's sprite button in the developer UI, the HUD's small icon tile in
+// game (Phase 5), named the same in widget paths. A tile reports a click until the next press().
+enum MinimapButton {
+    Sprite(UiSpriteButton),
+    Tile { tile: UiIconTile, clicked: std::rc::Rc<std::cell::Cell<bool>> },
+}
+
+impl MinimapButton {
+    // The HUD's glyph for a minimap button's sprite name.
+    fn glyph(sprite: &str) -> &'static str {
+        match sprite {
+            "lens_city" | "open" => "city",
+            "lens_sectors" => "sectors",
+            "lens_water" => "water",
+            "lens_risk" => "fire",
+            "landmarks_on" | "landmarks_off" => "pin",
+            "zoom_in" => "plus",
+            "zoom_out" => "minus",
+            "alerts" => "alert",
+            "home" => "home",
+            "world_map" => "world",
+            "collapse" => "collapse",
+            _ => "city",
+        }
+    }
+
+    fn tile(context: &mut GameUiContext, name: &str, tooltip: UiTooltipText) -> Self {
+        let clicked = std::rc::Rc::new(std::cell::Cell::new(false));
+        let flag = clicked.clone();
+        let scale = BUTTON_SIZE / crate::menu::skin::hud_tile_size(crate::menu::skin::HudTileKind::Small).x;
+        let tile = crate::menu::skin::hud_tile_scaled(
+            context,
+            crate::menu::skin::HudTileKind::Small,
+            scale,
+            name,
+            crate::menu::skin::HudGlyphGroup::Minimap,
+            Self::glyph(name),
+        )
+        .with_tooltip(tooltip)
+        .on_pressed(move |_, _| flag.set(true));
+        Self::Tile { tile, clicked }
+    }
+
+    fn draw(&mut self, context: &mut GameUiContext) {
+        match self {
+            Self::Sprite(button) => button.draw(context),
+            Self::Tile { tile, .. } => tile.draw(context),
+        }
+    }
+
+    fn is_pressed(&self) -> bool {
+        match self {
+            Self::Sprite(button) => button.is_pressed(),
+            Self::Tile { clicked, .. } => clicked.get(),
+        }
+    }
+
+    // Shown pressed (a lens in use) or not; a tile's click is taken.
+    fn press(&mut self, pressed: bool) {
+        match self {
+            Self::Sprite(button) => button.press(pressed),
+            Self::Tile { tile, clicked } => {
+                tile.set_selected(pressed);
+                clicked.set(false);
+            }
+        }
+    }
+
+    fn enable(&mut self, enabled: bool) {
+        match self {
+            Self::Sprite(button) => button.enable(enabled),
+            Self::Tile { tile, .. } => tile.set_enabled(enabled),
+        }
+    }
+
+    fn is_tile(&self) -> bool {
+        matches!(self, Self::Tile { .. })
+    }
+
+    fn set_badge(&mut self, count: Option<u32>) {
+        if let Self::Tile { tile, .. } = self {
+            tile.set_badge(count);
+        }
+    }
+
+    fn position(&self) -> Vec2 {
+        match self {
+            Self::Sprite(button) => button.position(),
+            Self::Tile { .. } => Vec2::zero(),
+        }
+    }
 }
 
 // ----------------------------------------------
@@ -121,9 +217,14 @@ impl BaseMinimapRenderer {
         let sounds = self.button_sounds;
         let frame = self.with_frame.then(|| style.frame.clone());
 
-        let make_menu = |context: &mut GameUiContext, label: &str| match &frame {
-            Some(sprite) => UiMenu::new(label).with_background(context, PathRef::from_str(sprite)),
-            None => UiMenu::new(label),
+        // The retail minimap is on the HUD's panel (the skin's `hud_panel`), its buttons the HUD's
+        // small icon tiles; the developer UI's is a plain window with the style's sprite buttons.
+        let make_menu = |context: &mut GameUiContext, label: &str| {
+            let menu = UiMenu::new(label);
+            match &frame {
+                Some(_) => crate::menu::skin::panel(context, "hud_panel").apply_to_menu(menu),
+                None => menu,
+            }
         };
         // The buttons' tooltips look like the rest of the HUD's (the developer UI's are plain);
         // the style's tooltip settings are for the map's hover tooltip.
@@ -133,7 +234,12 @@ impl BaseMinimapRenderer {
         };
         let make_button = |context: &mut GameUiContext, sprite: &str, tooltip: &str| {
             let tooltip = make_tooltip(context, tooltip);
-            UiSpriteButton::new(context, sprite, Vec2::new(BUTTON_SIZE, BUTTON_SIZE)).with_tooltip(tooltip).with_sounds(sounds)
+            if with_frame {
+                let name = sprite.rsplit('/').next().unwrap_or(sprite);
+                MinimapButton::tile(context, name, tooltip)
+            } else {
+                MinimapButton::Sprite(UiSpriteButton::new(context, sprite, Vec2::new(BUTTON_SIZE, BUTTON_SIZE)).with_tooltip(tooltip).with_sounds(sounds))
+            }
         };
 
         // Its size follows the layout every frame (the style's map size, the lens legend).
@@ -158,13 +264,25 @@ impl BaseMinimapRenderer {
                 Vec2::new(0.0, ui::screen_size(context.ui_sys()).y - open_menu_size.y)
             }))
             .into_rc();
-        let open_button = make_button(context, &format!("{}/open", style.buttons), ui::text::get(ui::text::UiTextCategory::Menu, "minimap.open")).on_state_changed(|button, context, _| {
-            if button.is_pressed() {
-                ui::widgets::context_as_mut::<GameUiContext>(context).tile_map.minimap_mut().set_open(true);
-                button.press(false); // Single click button.
-            }
-        });
-        open_button_menu.add_widget(open_button);
+        let open_tooltip = make_tooltip(context, ui::text::get(ui::text::UiTextCategory::Menu, "minimap.open"));
+        if with_frame {
+            let scale = BUTTON_SIZE / crate::menu::skin::hud_tile_size(crate::menu::skin::HudTileKind::Small).x;
+            let open_button = crate::menu::skin::hud_tile_scaled(context, crate::menu::skin::HudTileKind::Small, scale, "open", crate::menu::skin::HudGlyphGroup::Minimap, MinimapButton::glyph("open"))
+                .with_tooltip(open_tooltip)
+                .on_pressed(|_, context| ui::widgets::context_as_mut::<GameUiContext>(context).tile_map.minimap_mut().set_open(true));
+            open_button_menu.add_widget(open_button);
+        } else {
+            let open_button = UiSpriteButton::new(context, &format!("{}/open", style.buttons), Vec2::new(BUTTON_SIZE, BUTTON_SIZE))
+                .with_tooltip(open_tooltip)
+                .with_sounds(sounds)
+                .on_state_changed(|button, context, _| {
+                    if button.is_pressed() {
+                        ui::widgets::context_as_mut::<GameUiContext>(context).tile_map.minimap_mut().set_open(true);
+                        button.press(false); // Single click button.
+                    }
+                });
+            open_button_menu.add_widget(open_button);
+        }
 
         let lenses = MinimapLens::available()
             .iter()
@@ -185,6 +303,17 @@ impl BaseMinimapRenderer {
             Some(sprite) => (UiTooltipBackground::Sprite(context.load_texture(PathRef::from_str(sprite))), None),
             None => crate::menu::skin::tooltip_background(context),
         });
+
+        // The room the frame takes: the HUD panel's content insets, the window a margin from the
+        // screen's edges; the developer UI's plain window, its padding.
+        let frame = match self.with_frame.then(|| crate::menu::skin::panel(context, "hud_panel")) {
+            Some(crate::menu::skin::SkinPanel::NineSlice { content, .. }) => super::MinimapFrame {
+                insets: [content.left, content.top, content.right, content.bottom],
+                margin: HUD_MARGIN,
+            },
+            _ => super::MinimapFrame::default(),
+        };
+        context.tile_map.minimap_mut().set_frame(frame);
 
         self.minimap_menu = Some(minimap_menu);
         self.open_button_menu = Some(open_button_menu);
@@ -237,9 +366,11 @@ impl BaseMinimapRenderer {
         for (lens, button) in &mut buttons.lenses {
             button.press(*lens == current_lens);
         }
+        let alert_count = context.tile_map.minimap().alert_count();
         for (tool, button) in &mut buttons.tools {
             if *tool == MinimapTool::Alerts {
                 button.enable(has_alerts);
+                button.set_badge((alert_count > 0).then_some(alert_count as u32));
             }
         }
 
@@ -279,6 +410,13 @@ impl BaseMinimapRenderer {
 
         if let Some(debug) = &mut buttons.debug {
             ui::place_at(ui_sys, right_slot(slot), true, GAP, |_| debug.draw(context));
+            slot += 1;
+        }
+
+        // The realm's gap ornament in the row's free stretch, left of its buttons (the HUD's).
+        if self.with_frame {
+            let free = Rect { min: layout.lens_row.min, max: Vec2::new(right_slot(slot).max.x - GAP * 0.5, layout.lens_row.max.y) };
+            Self::paint_ornament(context, free);
         }
 
         ui::place_at(ui_sys, layout.tools, false, layout.tool_spacing, |_| {
@@ -528,6 +666,22 @@ impl BaseMinimapRenderer {
         }
     }
 
+    // A gap ornament in `rect`, its height the rect's, the wide one where it fits; none in a short gap.
+    fn paint_ornament(context: &mut GameUiContext, rect: Rect) {
+        let height = rect.height() * 0.9;
+        let scale = height / 36.0;
+        for wide in [true, false] {
+            let (texture, size) = crate::menu::skin::hud_ornament(context, wide);
+            let drawn = size * scale;
+            if drawn.x <= rect.width() - 6.0 {
+                let painter = ui::painter(context.ui_sys, UiLayer::Window);
+                painter.image(texture, Rect::from_pos_and_size(rect.center() - drawn * 0.5, drawn), Color::white());
+                return;
+            }
+        }
+    }
+
+    // The alerts tool's count, on the developer UI's sprite button (a tile draws its own badge).
     fn paint_badge(&self, context: &mut GameUiContext) {
         let count = context.tile_map.minimap().alert_count();
         if count == 0 {
@@ -536,6 +690,9 @@ impl BaseMinimapRenderer {
         let Some((_, button)) = self.buttons.as_ref().unwrap().tools.iter().find(|(tool, _)| *tool == MinimapTool::Alerts) else {
             return;
         };
+        if button.is_tile() {
+            return;
+        }
         let style = style::current();
         let center = button.position() + Vec2::new(BUTTON_SIZE - 3.0, 3.0);
         let painter = ui::painter(context.ui_sys, UiLayer::Window);

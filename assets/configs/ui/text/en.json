@@ -427,6 +427,7 @@
     "rating.placeholder": "{rating}: not rated yet. Ratings come in a later update.",
     "speed.paused": "Paused",
     "speed.multiplier": "{speed}×",
+    "date.day": "Day {day}, month {month}",
     "goals.title": "Goals",
     "goals.none": "No goals in this game",
     "goals.badge": "{done}/{total}",

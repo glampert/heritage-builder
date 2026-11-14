@@ -520,12 +520,12 @@ impl UiIconTile {
         self.pressed_glyph = pressed;
     }
 
-    // A count in its badge, or no badge.
     // Its tooltip, changed after it's built (the build palette's, as the stock changes).
     pub fn set_tooltip(&mut self, tooltip: Option<UiTooltipText>) {
         self.tooltip = tooltip;
     }
 
+    // A count in its badge, or no badge.
     pub fn set_badge(&mut self, badge: Option<u32>) {
         self.badge = badge.map(UiIconTileBadgeValue::Count);
     }

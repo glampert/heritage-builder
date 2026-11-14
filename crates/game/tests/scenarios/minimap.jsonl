@@ -22,13 +22,13 @@
 # Without alerts, the alerts tool is off.
 {"method": "ui.tree", "params": {"filter": "Minimap"}}
 {"method": "assert.eq", "params": {"query": "ui.tree", "args": {"filter": "Minimap/alerts", "fields": ["enabled"]}, "path": "/widgets/0/enabled", "value": false}}
-# Lenses through the lens bar. A lens's legend gets rows under the map: the widget grows (310 x 210
+# Lenses through the lens bar. A lens's legend gets rows under the map: the widget grows (357.5 x 266 on Đại Long's HUD panel
 # without one), and shrinks back for City.
-{"method": "assert.eq", "params": {"query": "minimap.state", "path": "/window_size", "value": [310.0, 210.0]}}
+{"method": "assert.eq", "params": {"query": "minimap.state", "path": "/window_size", "value": [357.5, 266.0]}}
 {"method": "ui.click", "params": {"path": "Minimap/lens_water"}}
 {"method": "assert.eq", "params": {"query": "minimap.state", "path": "/lens", "value": "water"}}
 {"method": "wait.frames", "params": {"frames": 2}}
-{"method": "assert.gt", "params": {"query": "minimap.state", "path": "/window_size/1", "value": 210.0}}
+{"method": "assert.gt", "params": {"query": "minimap.state", "path": "/window_size/1", "value": 266.0}}
 {"method": "assert.eq", "params": {"query": "minimap.state", "path": "/map_rect_size", "value": [250.0, 150.0]}}
 {"method": "ui.click", "params": {"path": "Minimap/lens_sectors"}}
 {"method": "assert.eq", "params": {"query": "minimap.state", "path": "/lens", "value": "sectors"}}
@@ -41,7 +41,7 @@
 {"method": "ui.click", "params": {"path": "Minimap/lens_city"}}
 {"method": "assert.eq", "params": {"query": "minimap.state", "path": "/lens", "value": "city"}}
 {"method": "wait.frames", "params": {"frames": 1}}
-{"method": "assert.eq", "params": {"query": "minimap.state", "path": "/window_size", "value": [310.0, 210.0]}}
+{"method": "assert.eq", "params": {"query": "minimap.state", "path": "/window_size", "value": [357.5, 266.0]}}
 # The building icons toggle: one button per state.
 {"method": "assert.eq", "params": {"query": "minimap.state", "path": "/show_landmarks", "value": true}}
 {"method": "ui.click", "params": {"path": "Minimap/landmarks_on"}}

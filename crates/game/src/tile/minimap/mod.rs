@@ -49,6 +49,7 @@ use lens::LensData;
 use model::{FeatureState, LandmarkKind, MinimapFeature, MinimapFeatures, MinimapGrid};
 use shapes::ShapeCache;
 use style::MinimapStyle;
+pub use widget::MinimapFrame;
 use widget::{MinimapLayout, MinimapView};
 
 // ----------------------------------------------
@@ -381,6 +382,7 @@ pub struct Minimap {
 
     view: MinimapView,
     layout: MinimapLayout,
+    frame: MinimapFrame, // The room its window's frame takes, set by the renderer drawing it.
     is_open: bool,
     show_landmarks: bool, // The building icons in the City view; alerts show either way.
     pointer_blocked: bool, // A dialog covers the HUD: no hover tooltip, no click to move the camera.
@@ -404,6 +406,7 @@ impl Default for Minimap {
             raised_alerts: 0,
             view: MinimapView::default(),
             layout: MinimapLayout::default(),
+            frame: MinimapFrame::default(),
             is_open: true,
             show_landmarks: true,
             pointer_blocked: false,
@@ -440,7 +443,7 @@ impl Minimap {
         self.update_alerts(delta_time_secs);
 
         let legend_entries = if self.lens == MinimapLens::City { 0 } else { self.lens_data.legend.len() };
-        self.layout = MinimapLayout::new(ui::screen_size(ui_sys), render::TOOL_COUNT, style.map_size(), legend_entries, style.legend.scale());
+        self.layout = MinimapLayout::new(ui::screen_size(ui_sys), render::TOOL_COUNT, style.map_size(), legend_entries, style.legend.scale(), self.frame);
         if !self.is_open || !self.grid.size().is_valid() {
             return;
         }
@@ -721,6 +724,11 @@ impl Minimap {
     }
 
     #[inline]
+    // The room its window's frame takes (the retail HUD's panel), from the next layout on.
+    pub fn set_frame(&mut self, frame: MinimapFrame) {
+        self.frame = frame;
+    }
+
     pub fn layout(&self) -> &MinimapLayout {
         &self.layout
     }

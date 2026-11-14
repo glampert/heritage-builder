@@ -1,11 +1,11 @@
 use arrayvec::{ArrayString, ArrayVec};
 use common::{Vec2, format_fixed_string};
-use engine::ui::{UiFontScale, widgets::*};
+use engine::ui::{self, UiFontScale, UiString, text::UiTextCategory, widgets::*};
 use strum::EnumCount;
 
 use super::{TileInspector, TileInspectorMenuWeakMut};
 use crate::{
-    menu::{make_text_button, skin::{self, ButtonRole}},
+    menu::skin,
     tile::{TileKind, sets::TileIconSprite},
     ui_context::GameUiContext,
 };
@@ -19,7 +19,10 @@ const INSPECTOR_SUBHEADING_FONT_SCALE: UiFontScale = UiFontScale(1.0);
 const INSPECTOR_BODY_TEXT_FONT_SCALE:  UiFontScale = UiFontScale(1.0);
 
 const INSPECTOR_BODY_TEXT_MAX_LINES: usize = 14;
-const INSPECTOR_CONTENT_INSET:       f32   = 20.0; // The page sprite's torn edges.
+const INSPECTOR_CONTENT_INSET:       f32   = 20.0; // Without a 9-slice panel.
+const INSPECTOR_PANEL:               &str  = "hud_large";
+const INSPECTOR_WIDTH:               f32   = 520.0;
+const INSPECTOR_TOP:                 f32   = 130.0; // Under the top bar, room for a large panel's crest.
 const INSPECTOR_BODY_TEXT_MAX_LEN:   usize = 1024;
 const INSPECTOR_FMT_STR_MAX_LEN:     usize = 128;
 
@@ -229,12 +232,15 @@ impl InspectorMenuRenderer {
     ) -> Self {
         let icon = UiSpriteIcon::new(Vec2::one()).with_outline(true); // placeholder size; set_icon sizes it.
 
-        const TITLE: UiText = UiText::empty(INSPECTOR_TITLE_FONT_SCALE);
-        const SUBHEADING: UiText = UiText::empty(INSPECTOR_SUBHEADING_FONT_SCALE);
+        // In the HUD's colours, on its panel (light text on Kambara's stone and Tampadesa's mudbrick).
+        let text_color = skin::hud_color("text", "ink");
+        let sub_color = skin::hud_color("sub", "sub");
+        let title = UiText::empty(INSPECTOR_TITLE_FONT_SCALE).with_color(text_color);
+        let subheading = UiText::empty(INSPECTOR_SUBHEADING_FONT_SCALE).with_color(sub_color);
 
         // Placeholders: the title, then INSPECTOR_SUBHEADING_COUNT subheadings.
-        let heading =
-            UiMenuHeading::new([TITLE, SUBHEADING, SUBHEADING, SUBHEADING, SUBHEADING]).with_center_horizontally(false);
+        let heading = UiMenuHeading::new([title, subheading.clone(), subheading.clone(), subheading.clone(), subheading])
+            .with_center_horizontally(false);
 
         let mut icon_and_heading_group =
             UiWidgetGroup::new().with_widget_spacing(Vec2::new(20.0, 8.0)).with_stack_vertically(false);
@@ -243,33 +249,41 @@ impl InspectorMenuRenderer {
         let heading_index = icon_and_heading_group.add_widget(heading);
 
         let close_button_inspector_menu_weak_ref = tile_inspector_menu_weak_ref.clone();
-        let close_button = make_text_button(context, ButtonRole::HudItem, "Close", move |_, context| {
-            let mut inspector_menu = close_button_inspector_menu_weak_ref.upgrade().unwrap();
-            inspector_menu.close(context_as_mut::<GameUiContext>(context));
-        });
+        // The HUD's close tile, named Close in widget paths (`BuildingInspector/Close`).
+        let close_button = skin::hud_tile(context, skin::HudTileKind::Small, "Close", skin::HudGlyphGroup::Hud, "close")
+            .with_tooltip(skin::tooltip(context, UiString::key(UiTextCategory::Hud, "button.close")))
+            .on_pressed(move |_, context| {
+                let mut inspector_menu = close_button_inspector_menu_weak_ref.upgrade().unwrap();
+                inspector_menu.close(context_as_mut::<GameUiContext>(context));
+            });
 
         let button_group = UiWidgetGroup::new().with_stack_vertically(false).with_widget(close_button);
 
         let menu_size = Self::calc_menu_size(context);
 
         // Placeholder text, wrapped at the menu's content width.
-        let body_line = UiText::empty(INSPECTOR_BODY_TEXT_FONT_SCALE).with_wrap_width(menu_size.x - INSPECTOR_CONTENT_INSET * 2.0);
+        let insets = match skin::panel(context, INSPECTOR_PANEL) {
+            skin::SkinPanel::NineSlice { content, .. } => content.left + content.right,
+            skin::SkinPanel::Sprite { .. } => INSPECTOR_CONTENT_INSET * 2.0,
+        };
+        let body_line = UiText::empty(INSPECTOR_BODY_TEXT_FONT_SCALE).with_color(text_color).with_wrap_width(menu_size.x - insets);
         let body_text = UiMenuHeading::new(vec![body_line; INSPECTOR_BODY_TEXT_MAX_LINES]);
 
         let separator = UiSeparator::new(); // Includes widget_spacing/item_spacing.
 
+        // Beside the build column, under the top bar (inspector-<realm>.jpg).
+        let window = ui::screen_size(context.ui_sys);
+        let position = Vec2::new(
+            (window.x - super::super::layout::column_width(context) - super::super::layout::MARGIN - super::super::layout::GAP - menu_size.x).max(0.0),
+            INSPECTOR_TOP,
+        );
         let menu = UiMenu::new(menu_name)
-            .with_flags(
-                UiMenuFlags::PauseSimIfOpen
-                    | UiMenuFlags::AlignCenter
-                    | UiMenuFlags::Modal
-                    | UiMenuFlags::CloseModalOnEscape
-                    | UiMenuFlags::AdjustSizeToContents,
-            )
+            .with_flags(UiMenuFlags::PauseSimIfOpen | UiMenuFlags::Modal | UiMenuFlags::CloseModalOnEscape | UiMenuFlags::AdjustSizeToContents)
+            .with_position(position)
             .with_size(menu_size)
             .with_widget_spacing(Vec2::new(0.0, 10.0));
-        // The skin's old page art (Phase 5 restyles the inspector), insets as before.
-        let mut menu = skin::panel(context, "hud_page").apply_to_menu(menu).with_content_insets(UiMenuInsets::same(INSPECTOR_CONTENT_INSET));
+        // The HUD's large panel, its ornaments included.
+        let mut menu = skin::panel(context, INSPECTOR_PANEL).apply_to_menu(menu);
 
         menu.add_widget(separator.clone());
         let icon_and_heading_group_index = menu.add_widget(icon_and_heading_group);
@@ -311,10 +325,9 @@ impl InspectorMenuRenderer {
         self.menu.widget_as_mut::<UiMenuHeading>(body_text_index).unwrap()
     }
 
+    // The mockup's width where the window has room; as tall as half the window.
     fn calc_menu_size(context: &GameUiContext) -> Vec2 {
-        Vec2::new(
-            context.viewport_size.width  as f32 * 0.5 - 120.0,
-            context.viewport_size.height as f32 * 0.5
-        )
+        let window = Vec2::new(context.viewport_size.width as f32, context.viewport_size.height as f32);
+        Vec2::new(INSPECTOR_WIDTH.min(window.x * 0.5), (window.y * 0.5).max(320.0).min(window.y - INSPECTOR_TOP - 140.0))
     }
 }

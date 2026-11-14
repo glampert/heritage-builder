@@ -71,8 +71,14 @@ const GRID_COLUMNS: usize = 4;
 const GRID_GAP: f32 = 12.0;
 const GRID_TITLE_HEIGHT: f32 = 34.0;
 
-// The rule between the column's groups, and the room round it.
-const SEPARATOR_HEIGHT: f32 = 14.0;
+// The rule between the column's groups (the column's spacing round it).
+const SEPARATOR_LINE: f32 = 2.0;
+
+// A few points spare in the column, so its window never scrolls.
+const COLUMN_SLACK: f32 = 8.0;
+
+// The smallest the column's tiles get on a short window.
+const MIN_COLUMN_SCALE: f32 = 0.35;
 
 // ----------------------------------------------
 // TilePaletteMainButtonDef
@@ -222,7 +228,7 @@ fn unbuildable_reason(context: &GameUiContext, tile_def: &TileDef) -> Option<Str
     if tile_def.cost > 0 && finance.is_in_debt() {
         return Some(ui::text::get(UiTextCategory::Hud, "palette.in_debt").to_string());
     }
-    if !finance.can_afford(tile_def.cost) {
+    if tile_def.cost > 0 && !finance.can_afford(tile_def.cost) {
         return Some(ui::text::get(UiTextCategory::Hud, "palette.cannot_afford").to_string());
     }
     tile_def.materials.iter().find(|item| CityStock::available(context.world, item.kind) < item.count).map(|item| {
@@ -304,7 +310,10 @@ impl SectorGrid {
         );
         let size = Vec2::new(inner.x + insets[0] + insets[2], inner.y + insets[1] + insets[3] + 8.0);
         let window = ui::screen_size(context.ui_sys);
-        let position = Vec2::new(column_x - size.x - 8.0, (tile_y - insets[1] - GRID_TITLE_HEIGHT).clamp(layout::MARGIN + 90.0, (window.y - size.y - layout::MARGIN).max(0.0)));
+        // Level with its sector's tile, under the top bar, on the window if it fits.
+        let lowest = (window.y - size.y - layout::MARGIN).max(0.0);
+        let y = (tile_y - insets[1] - GRID_TITLE_HEIGHT).min(lowest).max((layout::MARGIN + 90.0).min(lowest));
+        let position = Vec2::new((column_x - size.x - 8.0).max(0.0), y);
 
         let title = ui::text::get(UiTextCategory::Hud, def.get_str("Title").unwrap_or_default()).to_string();
         let accent = skin::hud_color("accent", "accent");
@@ -397,9 +406,18 @@ pub struct TilePaletteMenu {
     main_buttons: ArrayVec<MainButton, TILE_PALETTE_MAIN_BUTTON_COUNT>,
     menu: UiMenuRcMut,
     column_x: f32,
+    window: Vec2, // The window's size it was built for.
     open: Option<(TilePaletteMainButtonDef, SectorGrid)>,
     picked_from: Option<TilePaletteMainButtonDef>, // The sector whose tool is picked.
     actions: PaletteActions,
+}
+
+// The sector column as built for one window size.
+struct Column {
+    menu: UiMenuRcMut,
+    main_buttons: ArrayVec<MainButton, TILE_PALETTE_MAIN_BUTTON_COUNT>,
+    column_x: f32,
+    window: Vec2,
 }
 
 pub type TilePaletteMenuRcMut   = RcMut<TilePaletteMenu>;
@@ -469,82 +487,117 @@ impl TilePalette for TilePaletteMenu {
 impl TilePaletteMenu {
     pub fn new(context: &mut GameUiContext) -> TilePaletteMenuRcMut {
         let actions: PaletteActions = Rc::new(RefCell::new(Vec::new()));
-        let panel = skin::panel(context, "hud_panel");
-        let insets = match &panel {
-            SkinPanel::NineSlice { content, .. } => [content.left, content.top, content.right, content.bottom],
-            SkinPanel::Sprite { .. } => [8.0; 4],
-        };
-        let window = ui::screen_size(context.ui_sys);
-        // The tiles at their size where the column fits the window, else smaller (fixed sizes
-        // otherwise: the HUD doesn't grow with the UI scale).
-        let full = skin::hud_tile_size(HudTileKind::Sector);
-        let full_crest = skin::hud_tile_bleed(HudTileKind::Sector)[1];
-        let full_spacing = (full_crest * 0.75).max(12.0); // The crests reach into it; their glow a little further.
-        let separators = TilePaletteMainButtonDef::iter().filter(|def| def.separator_follows()).count() as f32;
-        let count = TilePaletteMainButtonDef::COUNT as f32;
-        let needed = insets[1] + full_crest + insets[3] + count * (full.y + full_spacing) + separators * SEPARATOR_HEIGHT;
-        let scale = ((window.y - 2.0 * layout::MARGIN) / needed).min(1.0);
-        let tile = full * scale;
-        let crest = full_crest * scale;
-        let spacing = full_spacing * scale;
-        let width = layout::column_width(context);
-        let column_x = window.x - width - layout::MARGIN;
-
-        let mut menu = panel.apply_to_menu(
-            UiMenu::new("TilePaletteMenu")
-                .with_flags(UiMenuFlags::IsOpen)
-                .with_position(Vec2::new(column_x, layout::MARGIN))
-                .with_widget_spacing(Vec2::new(0.0, spacing)),
-        );
-        let rule = skin::hud_color("rule", "sub");
-
-        let mut main_buttons = ArrayVec::new();
-        let mut y = layout::MARGIN + insets[1] + crest;
-        let mut height = insets[1] + crest + insets[3];
-        for def in TilePaletteMainButtonDef::iter() {
-            let children = def.build_child_button_defs();
-            let enabled = !(matches!(def, TilePaletteMainButtonDef::Undo | TilePaletteMainButtonDef::Redo)
-                || (def.disabled_if_empty() && children.is_empty()));
-            let actions_ref = actions.clone();
-            let mut sector = skin::hud_tile_scaled(context, HudTileKind::Sector, scale, def.label_str(), HudGlyphGroup::Sector, def.glyph())
-                .with_tooltip(skin::tooltip_beside(context, def.tooltip()))
-                .with_enabled(enabled)
-                .on_pressed(move |_, _| actions_ref.borrow_mut().push(PaletteAction::Sector(def)));
-            if def.disabled_if_empty() && children.is_empty() {
-                sector = sector.with_tooltip(skin::tooltip_beside(context, format!("{}\n{}", def.tooltip(), ui::text::get(UiTextCategory::Hud, "sector.empty"))));
-            }
-            let index = menu.add_widget(sector);
-            main_buttons.push(MainButton { def, children, index, y });
-            y += tile.y + spacing;
-            height += tile.y + spacing;
-
-            if def.separator_follows() {
-                let line = UiCanvas::new(Vec2::new(tile.x + 2.0 * layout::COLUMN_PAD, SEPARATOR_HEIGHT - spacing).max(Vec2::new(1.0, 2.0)), move |_, painter, rect| {
-                    let y = rect.center().y;
-                    painter.line(Vec2::new(rect.min.x + 4.0, y), Vec2::new(rect.max.x - 4.0, y), 2.0, rule);
-                });
-                menu.add_widget(line);
-                let step = (SEPARATOR_HEIGHT - spacing).max(2.0) + spacing;
-                y += step;
-                height += step;
-            }
-        }
-        let menu = menu.with_size(Vec2::new(width, height - spacing)).into_rc();
-
+        let column = Self::build_column(context, &actions);
         TilePaletteMenuRcMut::new(Self {
             left_mouse_button_pressed: false,
             current_selection: TilePaletteSelection::None,
             selection_renderer: TileSelectionRenderer::new(context),
-            main_buttons,
-            menu,
-            column_x,
+            main_buttons: column.main_buttons,
+            menu: column.menu,
+            column_x: column.column_x,
+            window: column.window,
             open: None,
             picked_from: None,
             actions,
         })
     }
 
+    // The sector column for the current window: its tiles at their size where it fits the
+    // window's height, else smaller (the HUD's sizes are fixed otherwise: they don't grow with the
+    // UI scale), centred in the column; a crest's room over the first; rules between the groups.
+    fn build_column(context: &mut GameUiContext, actions: &PaletteActions) -> Column {
+        let panel = skin::panel(context, "hud_panel");
+        let insets = match &panel {
+            SkinPanel::NineSlice { content, .. } => [content.left, content.top, content.right, content.bottom],
+            SkinPanel::Sprite { .. } => [8.0; 4],
+        };
+        let window = ui::screen_size(context.ui_sys);
+        let full = skin::hud_tile_size(HudTileKind::Sector);
+        let full_crest = skin::hud_tile_bleed(HudTileKind::Sector)[1];
+        let full_spacing = (full_crest * 0.75).max(12.0); // The crests reach into it; their glow a little further.
+        let separators = TilePaletteMainButtonDef::iter().filter(|def| def.separator_follows()).count() as f32;
+        let count = TilePaletteMainButtonDef::COUNT as f32;
+        // Its height: the insets and rules, which keep their size, and the rest, which scales.
+        let fixed = insets[1] + insets[3] + separators * SEPARATOR_LINE + COLUMN_SLACK;
+        let scaled = full_crest + count * full.y + (count + separators) * full_spacing;
+        let room = window.y - 2.0 * layout::MARGIN - fixed;
+        let scale = (room / scaled).clamp(MIN_COLUMN_SCALE, 1.0);
+        let tile = full * scale;
+        let crest = full_crest * scale;
+        let spacing = full_spacing * scale;
+        let pad = layout::COLUMN_PAD * scale;
+        let width = insets[0] + insets[2] + tile.x + 2.0 * pad;
+        let column_x = window.x - width - layout::MARGIN;
+
+        let menu = panel.apply_to_menu(
+            UiMenu::new("TilePaletteMenu")
+                .with_flags(UiMenuFlags::IsOpen)
+                .with_position(Vec2::new(column_x, layout::MARGIN))
+                .with_widget_spacing(Vec2::new(0.0, spacing)),
+        );
+        // The tiles centred: the pad on either side of them.
+        let mut menu = menu.with_content_insets(UiMenuInsets::points(insets[0] + pad, insets[1], insets[2] + pad, insets[3]));
+        let rule = skin::hud_color("rule", "sub");
+
+        // The first tile's crest stands in this room.
+        menu.add_widget(UiCanvas::new(Vec2::new(1.0, (crest - spacing).max(1.0)), |_, _, _| {}));
+        let mut y = layout::MARGIN + insets[1] + (crest - spacing).max(1.0) + spacing;
+        let mut height = insets[1] + (crest - spacing).max(1.0) + insets[3];
+
+        let mut main_buttons = ArrayVec::new();
+        for def in TilePaletteMainButtonDef::iter() {
+            let children = def.build_child_button_defs();
+            let enabled = !(matches!(def, TilePaletteMainButtonDef::Undo | TilePaletteMainButtonDef::Redo)
+                || (def.disabled_if_empty() && children.is_empty()));
+            let actions_ref = actions.clone();
+            let tooltip = if def.disabled_if_empty() && children.is_empty() {
+                format!("{}\n{}", def.tooltip(), ui::text::get(UiTextCategory::Hud, "sector.empty"))
+            } else {
+                def.tooltip()
+            };
+            let sector = skin::hud_tile_scaled(context, HudTileKind::Sector, scale, def.label_str(), HudGlyphGroup::Sector, def.glyph())
+                .with_tooltip(skin::tooltip_beside(context, tooltip))
+                .with_enabled(enabled)
+                .on_pressed(move |_, _| actions_ref.borrow_mut().push(PaletteAction::Sector(def)));
+            let index = menu.add_widget(sector);
+            main_buttons.push(MainButton { def, children, index, y });
+            y += tile.y + spacing;
+            height += spacing + tile.y;
+
+            if def.separator_follows() {
+                let line = UiCanvas::new(Vec2::new(tile.x, SEPARATOR_LINE), move |_, painter, rect| {
+                    let y = rect.center().y;
+                    painter.line(Vec2::new(rect.min.x - 4.0, y), Vec2::new(rect.max.x + 4.0, y), 2.0, rule);
+                });
+                menu.add_widget(line);
+                y += SEPARATOR_LINE + spacing;
+                height += spacing + SEPARATOR_LINE;
+            }
+        }
+        Column { menu: menu.with_size(Vec2::new(width, height + COLUMN_SLACK)).into_rc(), main_buttons, column_x, window }
+    }
+
+    // Built again for a new window size, keeping the tool picked and the sector open.
+    fn follow_window(&mut self, context: &mut GameUiContext) {
+        if ui::screen_size(context.ui_sys) == self.window {
+            return;
+        }
+        let column = Self::build_column(context, &self.actions);
+        self.menu = column.menu;
+        self.main_buttons = column.main_buttons;
+        self.column_x = column.column_x;
+        self.window = column.window;
+        if let Some((def, _)) = self.open.take()
+            && let Some(button) = self.main_buttons.iter().find(|button| button.def == def)
+        {
+            let grid = SectorGrid::new(context, def, &button.children, &self.actions, self.column_x, button.y);
+            self.open = Some((def, grid));
+        }
+    }
+
     pub fn draw(&mut self, context: &mut GameUiContext) {
+        self.follow_window(context);
+
         // The column's states: the open sector's tile, or the one whose tool is picked, pressed;
         // undo and redo enabled while there's something to undo or redo.
         let open = self.open.as_ref().map(|(def, _)| *def);

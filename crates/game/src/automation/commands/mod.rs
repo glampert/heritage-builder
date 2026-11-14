@@ -17,6 +17,7 @@ mod config;
 mod finance;
 mod input;
 mod intermission;
+mod messages;
 mod meta;
 mod minimap;
 mod observe;
@@ -43,6 +44,7 @@ pub(super) const COMMAND_GROUPS: &[&[CommandDef]] = &[
     risks::COMMANDS,
     camera::COMMANDS,
     minimap::COMMANDS,
+    messages::COMMANDS,
     input::COMMANDS,
     ui::COMMANDS,
     profile::COMMANDS,

@@ -122,7 +122,7 @@
 {"method": "wait.frames", "params": {"frames": 5}}
 {"method": "assert.eq", "params": {"query": "ui.sounds", "args": {"clear": true, "roles": ["popup_closed", "dialog_closed", "tile_placement_canceled"]}, "path": "/roles", "value": ["dialog_closed", "tile_placement_canceled"]}}
 
-# A building the player had built finished: its toast plays construction_completed once, and not
+# A building the player had built finished: its message plays construction_completed once, and not
 # notification.
 {"method": "world.place", "params": {"tile": "storage_yard", "cell": [10, 3]}}
 {"method": "time.fast_forward", "params": {"sim_secs": 16}}

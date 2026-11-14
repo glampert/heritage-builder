@@ -15,6 +15,7 @@ pub mod custom_game;
 pub mod debug;
 pub mod launch;
 pub mod menu;
+pub mod messages;
 pub mod pathfind;
 pub mod profile;
 pub mod prop;

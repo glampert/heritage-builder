@@ -49,6 +49,7 @@ const MIN_SQUEEZE: f32 = 0.75;
 struct BarStats {
     date: String,
     season: String,
+    day: String, // "Day 12 of month 3": the date's tooltip, with the season.
     population: u32,
     treasury: i64,
     food: u32,
@@ -104,6 +105,11 @@ impl BarStats {
         Self {
             date: realm::date_text(realm, calendar),
             season: season_text(realm, calendar.season()),
+            day: {
+                let configs = &crate::config::GameConfigs::get().sim;
+                let date = calendar.date(configs.days_per_month, configs.seconds_per_month);
+                ui::text::format(UiTextCategory::Hud, "date.day", &[("day", &date.day.to_string()), ("month", &date.month.to_string())])
+            },
             population: context.world.stats().population.total,
             treasury: context.sim.finance().balance(),
             food: food_stored(context),
@@ -257,7 +263,8 @@ pub struct TopBar {
 }
 
 impl TopBar {
-    pub fn new(context: &mut GameUiContext) -> Self {
+    // `goals_open`: the goals panel shows from the start (kept through a rebuild).
+    pub fn new(context: &mut GameUiContext, goals_open: bool) -> Self {
         let stats: SharedStats = Rc::new(RefCell::new(BarStats::read(context)));
         let built_for = Self::built_for(context, &stats.borrow());
         let window = built_for.window;
@@ -278,6 +285,7 @@ impl TopBar {
             let tile = skin::hud_tile(context, HudTileKind::Small, button.label(), HudGlyphGroup::Hud, button.glyph())
                 .with_tooltip(skin::tooltip(context, UiString::key(UiTextCategory::Hud, button.tooltip())))
                 .with_toggle(button == BarButton::Goals)
+                .with_selected(button == BarButton::Goals && goals_open)
                 .on_pressed(move |_, context| button.on_pressed(context_as_mut::<GameUiContext>(context)));
             buttons.push((button, row.add_widget(tile)));
         };
@@ -352,31 +360,26 @@ impl TopBar {
     pub fn draw(&mut self, context: &mut GameUiContext) {
         let stats = BarStats::read(context);
         if Self::built_for(context, &stats) != self.built_for {
-            *self = Self::new(context);
-        } else if *self.stats.borrow() != stats {
+            let goals_open = self.goals_open();
+            *self = Self::new(context, goals_open);
+        }
+        let changed = *self.stats.borrow() != stats;
+        if changed {
             *self.stats.borrow_mut() = stats;
+            self.update_canvases(context);
         }
 
         // The tiles' states: the speed in use, the goals badge, the goals panel open with its button.
         let paused = context.sim.is_paused();
         let speed = context.sim.speed();
-        let speed_index = SPEEDS.iter().rposition(|step| speed >= *step - 0.01).unwrap_or(0);
+        // The tile of the speed in use; none for a speed set another way (sim.speed's 3×).
+        let speed_index = SPEEDS.iter().position(|step| (speed - *step).abs() < 0.01).unwrap_or(usize::MAX);
         let goals_badge = {
             let stats = self.stats.borrow();
             format!("{}/{}", stats.goals_met(), stats.goals.len())
         };
         let mut goals_open = false;
         if let Some(row) = self.menu.widget_as_mut::<UiWidgetGroup>(self.row) {
-            let stats = self.stats.borrow();
-            for (stat, index) in &self.canvases {
-                if let Some(canvas) = row.widget_as_mut::<UiCanvas>(*index) {
-                    canvas.set_value(Some(match stat {
-                        None => json!({ "date": stats.date, "season": stats.season }),
-                        Some(stat) => json!(stat.value(&stats)),
-                    }));
-                }
-            }
-            drop(stats);
             for (button, index) in &self.buttons {
                 let Some(tile) = row.widget_as_mut::<UiIconTile>(*index) else { continue };
                 match button {
@@ -397,7 +400,28 @@ impl TopBar {
         if let Some(panel) = &mut self.goals_panel
             && goals_open
         {
-            panel.draw(context, &self.stats.borrow());
+            panel.draw(context);
+        }
+    }
+
+    // The painted stats' recorded values and the date's tooltip, after the stats changed.
+    fn update_canvases(&mut self, context: &mut GameUiContext) {
+        let stats = self.stats.borrow().clone();
+        let date_tooltip = skin::tooltip(context, format!("{}\n{}", stats.day, stats.season));
+        let Some(row) = self.menu.widget_as_mut::<UiWidgetGroup>(self.row) else { return };
+        for (stat, index) in &self.canvases {
+            if let Some(canvas) = row.widget_as_mut::<UiCanvas>(*index) {
+                match stat {
+                    None => {
+                        canvas.set_value(Some(json!({ "date": stats.date, "season": stats.season, "day": stats.day })));
+                        canvas.set_tooltip(Some(date_tooltip.clone()));
+                    }
+                    Some(stat) => canvas.set_value(Some(json!(stat.value(&stats)))),
+                }
+            }
+        }
+        if let Some(panel) = &mut self.goals_panel {
+            panel.set_value(&stats);
         }
     }
 
@@ -428,8 +452,8 @@ fn date_canvas(context: &mut GameUiContext, stats: &SharedStats, size: Vec2) -> 
         painter.label(Vec2::new(rect.min.x + 10.0, rect.min.y + 16.0), UiTextAnchor::Start, &stats.date, &look(16.0, text, false));
         painter.label(Vec2::new(rect.min.x + 10.0, rect.min.y + 33.0), UiTextAnchor::Start, &stats.season, &look(14.0, sub, false));
     })
-    .with_label("date", Some(json!({ "date": stats.date, "season": stats.season })))
-    .with_tooltip(skin::tooltip(context, stats.season.clone()))
+    .with_label("date", Some(json!({ "date": stats.date, "season": stats.season, "day": stats.day })))
+    .with_tooltip(skin::tooltip(context, format!("{}\n{}", stats.day, stats.season)))
 }
 
 // A gap ornament in the middle of a stretch, the wide one where it fits; none in a short gap.
@@ -590,10 +614,11 @@ impl GoalsPanel {
         let notch_at = button.x - position.x;
         let canvas = UiCanvas::new(inner, move |_, painter, rect| {
             let stats = shared.borrow();
-            // The notch on the panel's top edge, under the button, inside the window (its edge clips).
-            let top = rect.min.y - insets[1] + 1.0;
+            // The notch on the panel's top edge under the button, outside the contents' clip.
+            let top = rect.min.y - insets[1];
             let x = rect.min.x - insets[0] + notch_at;
-            painter.convex_polygon(&[Vec2::new(x - 12.0, top + 14.0), Vec2::new(x, top), Vec2::new(x + 12.0, top + 14.0)], notch, 1.5, notch_outline);
+            let unclipped = painter.unclipped(Rect::from_pos_and_size(Vec2::new(x - 16.0, top - 16.0), Vec2::new(32.0, 32.0)));
+            unclipped.convex_polygon(&[Vec2::new(x - 12.0, top + 2.0), Vec2::new(x, top - 12.0), Vec2::new(x + 12.0, top + 2.0)], notch, 1.5, notch_outline);
             let title_look = UiLabelLook { letter_spacing: 2.0, ..look(16.0, accent, true) };
             painter.label(Vec2::new(rect.min.x, rect.min.y + 20.0), UiTextAnchor::Start, &ui::text::get(UiTextCategory::Hud, "goals.title").to_uppercase(), &title_look);
             painter.label(Vec2::new(rect.max.x, rect.min.y + 20.0), UiTextAnchor::End, &title, &look(16.0, sub, false));
@@ -623,10 +648,13 @@ impl GoalsPanel {
         Self { menu: menu.into_rc(), canvas }
     }
 
-    fn draw(&mut self, context: &mut GameUiContext, stats: &BarStats) {
+    fn set_value(&mut self, stats: &BarStats) {
         if let Some(canvas) = self.menu.widget_as_mut::<UiCanvas>(self.canvas) {
             canvas.set_value(Some(goals_value(stats)));
         }
+    }
+
+    fn draw(&mut self, context: &mut GameUiContext) {
         self.menu.draw(context);
     }
 }

@@ -32,6 +32,21 @@ pub const TOOL_MIN_SPACING: f32 = 3.0;
 pub const LEGEND_ROW_HEIGHT: f32 = 14.0;
 pub const LEGEND_COLUMN_WIDTH: f32 = 75.0;
 
+// The room round the minimap's contents (left, top, right, bottom points: its window's frame and
+// padding) and between its window and the screen's edges: the developer UI's plain window, or the
+// retail HUD's panel.
+#[derive(Copy, Clone, PartialEq, Debug)]
+pub struct MinimapFrame {
+    pub insets: [f32; 4],
+    pub margin: f32,
+}
+
+impl Default for MinimapFrame {
+    fn default() -> Self {
+        Self { insets: [PADDING; 4], margin: 0.0 }
+    }
+}
+
 #[derive(Copy, Clone, Default)]
 pub struct MinimapLayout {
     pub window: Rect,   // The whole widget, in window points.
@@ -52,7 +67,8 @@ impl MinimapLayout {
 
     // In the bottom left corner of a screen of `screen_size` points, with `tool_count` tools, a map
     // of `map_size` points and `legend_entries` legend entries (0 without a lens) at `legend_scale`.
-    pub fn new(screen_size: Vec2, tool_count: usize, map_size: Vec2, legend_entries: usize, legend_scale: f32) -> Self {
+    pub fn new(screen_size: Vec2, tool_count: usize, map_size: Vec2, legend_entries: usize, legend_scale: f32, frame: MinimapFrame) -> Self {
+        let [left, top, right, bottom] = frame.insets;
         let legend_columns = Self::legend_columns(map_size.x, legend_scale);
         let legend_rows = legend_entries.div_ceil(legend_columns);
         let legend_height = if legend_rows > 0 { GAP + legend_rows as f32 * LEGEND_ROW_HEIGHT * legend_scale } else { 0.0 };
@@ -61,10 +77,10 @@ impl MinimapLayout {
         let tools_height = (BUTTON_SIZE + GAP + map_size.y)
             .max(BUTTON_SIZE * tool_count as f32 + TOOL_MIN_SPACING * tool_count.saturating_sub(1) as f32);
         let inner_height = tools_height.max(BUTTON_SIZE + GAP + map_size.y + legend_height);
-        let size = Vec2::new(PADDING * 2.0 + map_size.x + GAP + BUTTON_SIZE, PADDING * 2.0 + inner_height);
+        let size = Vec2::new(left + right + map_size.x + GAP + BUTTON_SIZE, top + bottom + inner_height);
 
-        let window = Rect::from_pos_and_size(Vec2::new(0.0, screen_size.y - size.y), size);
-        let inner_min = window.min + Vec2::new(PADDING, PADDING);
+        let window = Rect::from_pos_and_size(Vec2::new(frame.margin, screen_size.y - size.y - frame.margin), size);
+        let inner_min = window.min + Vec2::new(left, top);
         let lens_row = Rect::from_pos_and_size(inner_min, Vec2::new(map_size.x, BUTTON_SIZE));
         let map = Rect::from_pos_and_size(inner_min + Vec2::new(0.0, BUTTON_SIZE + GAP), map_size);
         let legend = Rect::from_pos_and_size(Vec2::new(map.min.x, map.max.y + GAP), Vec2::new(map_size.x, legend_height - GAP).max(Vec2::zero()));

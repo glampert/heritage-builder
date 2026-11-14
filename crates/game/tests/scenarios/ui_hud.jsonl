@@ -32,6 +32,10 @@
 {"method": "ui.click", "params": {"path": "TopBar/Play"}}
 {"method": "assert.eq", "params": {"query": "sim.state", "path": "/speed", "value": 1.0}}
 {"method": "assert.eq", "params": {"query": "sim.state", "path": "/paused", "value": false}}
+# A speed the controls don't set (sim.speed's 3x) shows none of them pressed.
+{"method": "sim.speed", "params": {"speed": 3}}
+{"method": "assert.eq", "params": {"query": "ui.tree", "args": {"filter": "TopBar/Fast", "kind": "icon_button"}, "path": "/widgets/0/value/selected", "value": false}}
+{"method": "assert.eq", "params": {"query": "ui.tree", "args": {"filter": "TopBar/Faster", "kind": "icon_button"}, "path": "/widgets/0/value/selected", "value": false}}
 {"method": "sim.pause"}
 
 # The goals panel drops down under its button and closes with it.
@@ -45,12 +49,12 @@
 {"method": "wait.frames", "params": {"frames": 2}}
 {"method": "screenshot", "params": {"path": "out/ui_hud/dailong.png"}}
 
-# Each realm's look, the goals panel still open.
+# Each realm's look: the HUD is built again, the goals panel kept open.
 {"method": "ui.realm", "params": {"realm": "kambara"}}
 {"method": "wait.frames", "params": {"frames": 3}}
 {"method": "assert.eq", "params": {"query": "ui.tree", "args": {"filter": "TopBar/ratings", "kind": "canvas"}, "path": "/widgets/0/value/names/3", "value": "Divine favour"}}
 {"method": "assert.eq", "params": {"query": "ui.layout_issues", "path": "/count", "value": 0}}
-{"method": "ui.click", "params": {"path": "TopBar/Goals"}}
+{"method": "assert.eq", "params": {"query": "ui.tree", "args": {"filter": "TopBar/Goals", "kind": "icon_button"}, "path": "/widgets/0/value/selected", "value": true}}
 {"method": "input.move", "params": {"park": true}}
 {"method": "wait.frames", "params": {"frames": 2}}
 {"method": "screenshot", "params": {"path": "out/ui_hud/kambara.png"}}
@@ -58,7 +62,7 @@
 {"method": "wait.frames", "params": {"frames": 3}}
 {"method": "assert.eq", "params": {"query": "ui.tree", "args": {"filter": "TopBar/ratings", "kind": "canvas"}, "path": "/widgets/0/value/names/3", "value": "Merit"}}
 {"method": "assert.eq", "params": {"query": "ui.layout_issues", "path": "/count", "value": 0}}
-{"method": "ui.click", "params": {"path": "TopBar/Goals"}}
+{"method": "assert.eq", "params": {"query": "ui.tree", "args": {"filter": "TopBar/Goals", "kind": "icon_button"}, "path": "/widgets/0/value/selected", "value": true}}
 {"method": "input.move", "params": {"park": true}}
 {"method": "wait.frames", "params": {"frames": 2}}
 {"method": "screenshot", "params": {"path": "out/ui_hud/tampadesa.png"}}
@@ -127,6 +131,33 @@
 {"method": "ui.realm", "params": {"realm": "auto"}}
 {"method": "wait.frames", "params": {"frames": 3}}
 
+# ---- The message log ----
+# Each game's log starts empty; the three latest show at the bottom, newest first.
+{"method": "assert.eq", "params": {"query": "ui.tree", "args": {"filter": "MessageLog/"}, "path": "/widgets", "value": []}}
+{"method": "finance.set", "params": {"balance": 400}}
+{"method": "world.place", "params": {"tile": "small_well", "cell": [30, 30]}}
+{"method": "sim.resume"}
+{"method": "time.fast_forward", "params": {"sim_secs": 20}}
+{"method": "sim.pause"}
+{"method": "wait.frames", "params": {"frames": 2}}
+{"method": "assert.eq", "params": {"query": "messages.state", "path": "/messages/0/kind", "value": "construction"}}
+{"method": "assert.eq", "params": {"query": "messages.state", "path": "/messages/0/text", "value": "Small Well completed."}}
+{"method": "messages.push", "params": {"kind": "warning", "text": "A fire broke out in the potters' quarter."}}
+{"method": "messages.push", "params": {"kind": "finance", "text": "The treasury is out of debt."}}
+{"method": "messages.push", "params": {"kind": "construction", "text": "The shrine was finished."}}
+{"method": "wait.frames", "params": {"frames": 2}}
+{"method": "assert.eq", "params": {"query": "ui.tree", "args": {"filter": "MessageLog/messages", "kind": "canvas"}, "path": "/widgets/0/value", "value": [{"kind": "construction", "text": "The shrine was finished."}, {"kind": "finance", "text": "The treasury is out of debt."}, {"kind": "warning", "text": "A fire broke out in the potters' quarter."}]}}
+{"method": "assert.eq", "params": {"query": "ui.layout_issues", "path": "/count", "value": 0}}
+{"method": "input.move", "params": {"park": true}}
+{"method": "wait.frames", "params": {"frames": 2}}
+{"method": "screenshot", "params": {"path": "out/ui_hud/dailong_messages.png"}}
+{"method": "ui.realm", "params": {"realm": "tampadesa"}}
+{"method": "wait.frames", "params": {"frames": 3}}
+{"method": "assert.eq", "params": {"query": "ui.layout_issues", "path": "/count", "value": 0}}
+{"method": "screenshot", "params": {"path": "out/ui_hud/tampadesa_messages.png"}}
+{"method": "ui.realm", "params": {"realm": "auto"}}
+{"method": "wait.frames", "params": {"frames": 3}}
+
 # ---- A game outside a campaign: no goals button, no Briefing ----
 {"method": "session.new_map", "params": {"size": [32, 32]}}
 {"method": "wait.frames", "params": {"frames": 5}}
@@ -134,3 +165,4 @@
 {"method": "assert.eq", "params": {"query": "ui.tree", "args": {"filter": "TopBar/Briefing"}, "path": "/widgets", "value": []}}
 {"method": "assert.exists", "params": {"query": "ui.tree", "args": {"filter": "TopBar/Pause", "kind": "icon_button"}, "path": "/widgets/0"}}
 {"method": "assert.eq", "params": {"query": "ui.layout_issues", "path": "/count", "value": 0}}
+{"method": "assert.eq", "params": {"query": "messages.state", "path": "/count", "value": 0}}

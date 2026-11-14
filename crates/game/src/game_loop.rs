@@ -719,6 +719,7 @@ impl GameLoop {
             return;
         }
         self.session_generation = generation;
+        crate::messages::clear(); // Each game's notices are its own.
 
         let map_size = self.session.tile_map().size_in_cells();
         self.engine.send_automation_event("session.changed", serde_json::json!({
@@ -728,7 +729,7 @@ impl GameLoop {
         }));
     }
 
-    // A toast for each building the player had built that completed last frame, and one
+    // A message (the HUD's log) for each building the player had built that completed last frame, and one
     // ConstructionCompleted sound for them all (not Notification).
     fn notify_constructions_completed(&mut self) {
         let completed = building::construction::take_completed();
@@ -738,12 +739,12 @@ impl GameLoop {
 
         for name in &completed {
             let message = ui::text::format(UiTextCategory::Messages, "toast.construction_completed", &[("building", name)]);
-            self.engine.ui_system().show_toast(message);
+            crate::messages::push(crate::messages::MessageKind::Construction, message);
         }
         ui::sound::play(self.engine.sound_system_mut(), UiSoundKey::ConstructionCompleted);
     }
 
-    // A toast for each debt notice the simulation raised last frame (sim::finance::Finance). Going into
+    // A message for each debt notice the simulation raised last frame (sim::finance::Finance). Going into
     // debt and the warnings play Alert; getting out of debt is good news and plays Notification.
     fn notify_finances(&mut self) {
         // TODO(realm-ui): sim::finance's notices should carry their severity, rather than
@@ -751,11 +752,13 @@ impl GameLoop {
         let out_of_debt = ui::text::get(UiTextCategory::Messages, "finance.out_of_debt");
         let notices = self.session.sim_mut().finance_mut().take_notices();
         for message in notices {
-            let sound = if message == out_of_debt { UiSoundKey::Notification } else { UiSoundKey::Alert };
-            show_toast(self.engine, message, sound);
+            let good_news = message == out_of_debt;
+            let sound = if good_news { UiSoundKey::Notification } else { UiSoundKey::Alert };
+            let kind = if good_news { crate::messages::MessageKind::Finance } else { crate::messages::MessageKind::Warning };
+            crate::messages::push(kind, message);
+            ui::sound::play(self.engine.sound_system_mut(), sound);
         }
-        // TODO(realm-ui): M11's message log: when a message arrives, show it and play
-        // UiSoundKey::Notification, or UiSoundKey::Alert for a warning (ui::sound::play).
+        // TODO(realm-ui): M11's messages replace crate::messages with typed messages.
     }
 
     // An Alert for the minimap alerts raised since last frame.
@@ -772,11 +775,11 @@ impl GameLoop {
         }
     }
 
-    // A toast for each fire, fire put out, building burnt down and collapse last frame
+    // A message for each fire, fire put out, building burnt down and collapse last frame
     // (building::risks).
     fn notify_risks(&mut self) {
         for message in building::risks::take_notices() {
-            self.engine.ui_system().show_toast(message);
+            crate::messages::push(crate::messages::MessageKind::Warning, message);
         }
     }
 
