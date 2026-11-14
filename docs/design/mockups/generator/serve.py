@@ -47,22 +47,24 @@ SHEETS = [("minimap-concepts", "Minimap concepts"), ("minimap-lenses", "Minimap 
 # Which build steps a changed file needs. The scripts import each other
 # (screens imports world_map, menus imports both), so a change to a shared
 # file rebuilds everything that depends on it.
-STEPS = ["fonts", "backdrops", "world_map", "screens", "menus", "minimap", "pages", "dialogs"]
+STEPS = ["fonts", "backdrops", "world_map", "screens", "menus", "minimap", "pages", "dialogs", "palette"]
 AFFECTS = {
-    "fonts.py": ["fonts", "world_map", "screens", "menus", "minimap", "pages", "dialogs"],
-    "backdrops.py": ["backdrops", "screens", "menus", "pages", "dialogs"],
-    "common.py": ["world_map", "screens", "menus", "minimap", "pages", "dialogs"],
-    "world_map.py": ["world_map", "screens", "menus", "minimap", "pages", "dialogs"],
+    "fonts.py": ["fonts", "world_map", "screens", "menus", "minimap", "pages", "dialogs", "palette"],
+    "backdrops.py": ["backdrops", "screens", "menus", "pages", "dialogs", "palette"],
+    "common.py": ["world_map", "screens", "menus", "minimap", "pages", "dialogs", "palette"],
+    "world_map.py": ["world_map", "screens", "menus", "minimap", "pages", "dialogs", "palette"],
     "content.py": ["world_map"],
-    "screens.py": ["screens", "menus", "pages", "dialogs"],
-    "screens_content.py": ["screens", "dialogs"],
-    "menus.py": ["menus", "pages", "dialogs"],
-    "menus_content.py": ["menus", "pages", "dialogs"],
-    "minimap.py": ["minimap", "screens", "menus", "pages", "dialogs"],
-    "pages.py": ["pages", "dialogs"],
-    "pages_content.py": ["pages", "dialogs"],
-    "dialogs.py": ["dialogs"],
-    "dialogs_content.py": ["dialogs"],
+    "screens.py": ["screens", "menus", "pages", "dialogs", "palette"],
+    "screens_content.py": ["screens", "dialogs", "palette"],
+    "menus.py": ["menus", "pages", "dialogs", "palette"],
+    "menus_content.py": ["menus", "pages", "dialogs", "palette"],
+    "minimap.py": ["minimap", "screens", "menus", "pages", "dialogs", "palette"],
+    "pages.py": ["pages", "dialogs", "palette"],
+    "pages_content.py": ["pages", "dialogs", "palette"],
+    "dialogs.py": ["dialogs", "palette"],
+    "dialogs_content.py": ["dialogs", "palette"],
+    "palette.py": ["palette"],
+    "palette_glyphs.py": ["palette"],
 }
 
 

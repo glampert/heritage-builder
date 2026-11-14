@@ -83,6 +83,20 @@ The screens the [realm UI plan](../../plans/realm-ui.md#mockups) found missing. 
 
 Placeholders: the briefing and event text (from campaigns.md where it has it), the last three stele lines of each campaign, the distinctions, and the inspector's numbers.
 
+## Build palette icons
+
+A proposal for the HUD's build palette (realm-ui.md Phase 5), after the user's request of 2026-11-14: an icon per building instead of its text label, as in Pharaoh: A New Era. Clicking a sector's button opens its buildings as a grid of icons left of the column; hovering one shows its name and cost (gold, and each material with what's in storage, in the accent colour when short); clicking it picks the building and closes the grid.
+
+The sector column and the buildings use the same pictograms, drawn by `palette_glyphs.py` in each realm's architecture (Đại Long's curved tile roofs, Kambara's naga-finialed roofs and lotus-bud prasat, Tampadesa's tiered roofs and stupa), so the temple, shrine and university differ by realm, and every roofed building takes its realm's roof. `palette.py` gives them each realm's treatment:
+
+| Realm | Treatment | Every icon and its states | In the HUD |
+|---|---|---|---|
+| Đại Long | Seal stamps in vermilion ink on paper; pressed is the seal cut the other way, red ground with the building bare | [build-icons-dailong.jpg](build-icons-dailong.jpg) | [build-palette-dailong.jpg](build-palette-dailong.jpg) |
+| Kambara | Reliefs carved in sandstone, with moss; pressed sinks the block | [build-icons-kambara.jpg](build-icons-kambara.jpg) | [build-palette-kambara.jpg](build-palette-kambara.jpg) |
+| Tampadesa | Gold leaf on red lacquer in an arched, gilt niche; pressed is gold ground with the building in lacquer | [build-icons-tampadesa.jpg](build-icons-tampadesa.jpg) | [build-palette-tampadesa.jpg](build-palette-tampadesa.jpg) |
+
+The sectors and buildings are the game's (`TilePaletteMainButtonDef`, the sectors and costs in `assets/tiles/objects/tile_set.json`); the HUD screens open Industry and resources, with the mine disabled and the distillery hovered, short of bricks. The realm names of the shrine, temple and university are placeholders, as are the bricks in storage.
+
 ## City book
 
 The City book: one dialog with a page per area, opened from the HUD. Each realm's set shows its HUD city, so the population, treasury, food and ratings are the HUD's, and the pages agree with each other: the houses' residents add up to the population, the labour sectors to the workforce, the ledger to the treasury.
@@ -136,7 +150,7 @@ builds every screen and serves them at http://127.0.0.1:8765/ (`--port` and `--h
 
 ## Regenerating
 
-The generator lives in [generator/](generator/): `common.py` holds the shared geography and layout, `content.py` what each realm's map shows, and `world_map.py` the three styles. `screens.py` (with its text in `screens_content.py`) draws the intro, intermission and HUD screens in the same styles, and `menus.py` (text in `menus_content.py`) the main menu screens. `pages.py` (text in `pages_content.py`) draws the City book, and `dialogs.py` (text in `dialogs_content.py`) the in-game dialogs and the campaign flow screens. It needs Python 3, Node with Playwright and Chromium, and network access to Google Fonts the first time.
+The generator lives in [generator/](generator/): `common.py` holds the shared geography and layout, `content.py` what each realm's map shows, and `world_map.py` the three styles. `screens.py` (with its text in `screens_content.py`) draws the intro, intermission and HUD screens in the same styles, and `menus.py` (text in `menus_content.py`) the main menu screens. `pages.py` (text in `pages_content.py`) draws the City book, `palette.py` (pictograms in `palette_glyphs.py`) the build palette's icons, and `dialogs.py` (text in `dialogs_content.py`) the in-game dialogs and the campaign flow screens. It needs Python 3, Node with Playwright and Chromium, and network access to Google Fonts the first time.
 
 ```bash
 cd docs/design/mockups/generator
@@ -150,6 +164,7 @@ python3 menus.py        # writes build/menu-{home,load-save,settings,custom-game
 node shot.js menu-home-dailong   # and so on
 python3 pages.py        # writes build/city-{overview,population,goods,finances,ratings,labour,food}-<realm>.html
 python3 dialogs.py      # writes build/{game-menu,game-quit,campaign-picker,briefing,campaign-complete,hud-menus,inspector,event}-<realm>.html
+python3 palette.py      # writes build/{build-icons,build-palette}-<realm>.html
 node shot.js city-overview-dailong game-menu-dailong   # and so on
 ```
 
