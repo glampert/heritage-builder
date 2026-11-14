@@ -65,9 +65,10 @@ AFFECTS = {
     "dialogs_content.py": ["dialogs", "palette"],
     "palette.py": ["palette"],
     "palette_glyphs.py": ["palette"],
-    "kambara_carving.py": ["palette"],
-    "dailong_carving.py": ["palette"],
-    "tampadesa_brick.py": ["palette"],
+    "kambara_carving.py": ["menus", "pages", "dialogs", "palette"],
+    "dailong_carving.py": ["menus", "pages", "dialogs", "palette"],
+    "tampadesa_brick.py": ["menus", "pages", "dialogs", "palette"],
+    "frames.py": ["menus", "pages", "dialogs", "palette"],
 }
 
 

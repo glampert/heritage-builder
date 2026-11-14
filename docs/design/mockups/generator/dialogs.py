@@ -220,6 +220,14 @@ class Dialogs(Pages):
         parts.append(self.button(x1 - 240, bb, 240, 58, "Begin", True))
         self.page(f"briefing-{d['key']}", parts)
 
+    # ------------------------------------------------------------ debrief
+    def intermission(self):
+        """screens.py's debrief, its panel on the HUD's frames."""
+        menus_sd = self.sd
+        self.sd = next(s for s in (SC.DAILONG, SC.KAMBARA, SC.TAMPADESA) if s["key"] == self.dd["key"])
+        super().intermission()
+        self.sd = menus_sd
+
     # ------------------------------------------------------------ campaign complete
     def campaign_complete(self):
         d = self.dd
@@ -297,6 +305,17 @@ class Dialogs(Pages):
         return (f'<circle cx="{x}" cy="{y}" r="9" fill="#c99a3c" stroke="#5a3a14" stroke-width="1.5"/>'
                 f'<rect x="{x - 3}" y="{y - 3}" width="6" height="6" fill="#2a170c"/>')
 
+    def inspector_at(self, w):
+        return W - 96 - 12 - 20 - w, 100
+
+    def inspector_icon(self, x, y, s):
+        return (f'<rect x="{x}" y="{y}" width="{s}" height="{s}" rx="8" fill="{self.btn_fill}" stroke="{self.panel_rule}" stroke-width="1.5"/>'
+                + self.glyph("industry", x + s / 2, y + s / 2 + 4, 1.4, self.accent))
+
+    def close_button(self, x, y, s):
+        return (f'<rect x="{x}" y="{y}" width="{s}" height="{s}" rx="5" fill="none" stroke="{self.panel_rule}" stroke-width="1.5"/>'
+                + self.glyph("close", x + s / 2, y + s / 2, 0.8, self.panel_text, 3))
+
     # ------------------------------------------------------------ inspector
     def inspector(self):
         d = self.dd
@@ -304,16 +323,14 @@ class Dialogs(Pages):
         parts = self.hud_parts(keep_style=True)
         bar, _ = self.menu_buttons()
         parts.append(bar)
-        w, h = 500, 780
-        x, y = W - 96 - 12 - 20 - w, 100
+        w, h = 500, 824
+        x, y = self.inspector_at(w)
         parts.append(self.box(x, y, w, h))
         x0, x1 = x + 28, x + w - 28
-        parts.append(f'<rect x="{x0}" y="{y + 28}" width="76" height="76" rx="8" fill="{self.btn_fill}" stroke="{self.panel_rule}" stroke-width="1.5"/>'
-                     + self.glyph("industry", x0 + 38, y + 66, 1.4, self.accent))
+        parts.append(self.inspector_icon(x0, y + 28, 76))
         parts.append(T(x0 + 96, y + 64, b["name"], self.title_font, 30, self.panel_text, "start", 700))
         parts.append(self.t(x0 + 96, y + 94, f"{b['kind']} · {b['size']}", 18, self.panel_sub, "start", 600, italic=True))
-        parts.append(f'<rect x="{x1 - 36}" y="{y + 24}" width="36" height="36" rx="5" fill="none" stroke="{self.panel_rule}" stroke-width="1.5"/>'
-                     + self.glyph("close", x1 - 18, y + 42, 0.8, self.panel_text, 3))
+        parts.append(self.close_button(x1 - 36, y + 24, 36))
         sy = y + 130
         parts.append(f'<circle cx="{x0 + 8}" cy="{sy}" r="7" fill="{self.good_col}"/>')
         parts.append(self.t(x0 + 24, sy + 7, b["status"], 20, self.panel_text, "start", 700))
@@ -425,7 +442,8 @@ class TampadesaDialogs(Dialogs, TampadesaMenus):
 
 
 REALMS = [(DaiLongDialogs, DC.DAILONG), (KambaraDialogs, DC.KAMBARA), (TampadesaDialogs, DC.TAMPADESA)]
-SCREENS = ["game_menu", "game_quit", "campaign_picker", "briefing", "campaign_complete", "inspector", "event"]
+# The HUD behind game_menu, game_quit, inspector and event is palette.py's: it renders those.
+SCREENS = ["campaign_picker", "briefing", "intermission", "campaign_complete"]
 
 if __name__ == "__main__":
     import sys

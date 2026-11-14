@@ -13,6 +13,7 @@ from PIL import Image
 
 from world_map import T, f, BUILD, Kambara, Tampadesa
 from screens import DaiLongScreens, KambaraScreens, TampadesaScreens
+from frames import DaiLongFrames, KambaraFrames, TampadesaFrames
 import menus_content as MC
 
 W, H = 1920, 1080
@@ -339,7 +340,7 @@ class Menus:
 
 
 # ====================================================================== Đại Long
-class DaiLongMenus(Menus, DaiLongScreens):
+class DaiLongMenus(DaiLongFrames, Menus, DaiLongScreens):
     field_fill = "#f7ead0"
     field_stroke = "#6b4f33"
     knob_fill = "#fff8ea"
@@ -359,23 +360,12 @@ class DaiLongMenus(Menus, DaiLongScreens):
                        f'<circle cx="{ex - d * 12}" cy="{y}" r="13" fill="#d6a65c" stroke="#2a170c" stroke-width="2.5"/>')
         return "".join(out)
 
-    def mpanel(self, x, y, w, h, crest=False):
-        px, py, pw, ph = x + 30, y + 24, w - 60, h - 48
-        rough = self.rough(3, 0.04)
-        out = [f'<rect x="{px + 8}" y="{py + 10}" width="{pw}" height="{ph}" fill="#000" opacity="0.35"/>',
-               f'<g filter="{rough}"><rect x="{px}" y="{py}" width="{pw}" height="{ph}" fill="#f0dcae"/></g>',
-               self.noise(px, py, pw, ph, "0.008", 4, (0.55, 0.38, 0.15), 1.0, -0.42, 31 + x % 7),
-               self.noise(px, py, pw, ph, "0.9", 2, (0.4, 0.3, 0.15), 0.3, -0.06, 4),
-               f'<rect x="{px}" y="{py}" width="{pw}" height="{ph}" fill="{self.rad([(0.6, "#000", 0), (1, "#6a4418", 0.35)], r=0.75)}"/>',
-               self.roller(x, y + 24, w), self.roller(x, y + h - 24, w)]
-        return "".join(out)
-
     def item_marker(self, x, y):
         return self.seal(x, y, 24, "")
 
 
 # ====================================================================== Kambara
-class KambaraMenus(Menus, KambaraScreens):
+class KambaraMenus(KambaraFrames, Menus, KambaraScreens):
     field_fill = "#d6cbb0"
     field_stroke = "#4a4436"
     knob_fill = "#efe6cf"
@@ -383,26 +373,6 @@ class KambaraMenus(Menus, KambaraScreens):
     mini_land = ["#6f8f44", "#5f7f3a", "#8d8169", "#c4b696", "#4f6f30"]
     mini_water = "#3f6a62"
     title_size = 46
-
-    def heading_center(self, x, y, s, size):
-        return self.engrave(x, y, s, self.title_font, size, "middle", 700)
-
-    def mpanel(self, x, y, w, h, crest=False):
-        pid = self.nid("petal")
-        self.defs.append(f'<pattern id="{pid}" x="{x}" width="22" height="16" patternUnits="userSpaceOnUse">'
-                         f'<path d="M1,16 Q1,3 11,1 Q21,3 21,16" fill="#8d8169" stroke="#3a352a" stroke-width="1.2"/></pattern>')
-        out = [f'<rect x="{x + 8}" y="{y + 10}" width="{w}" height="{h}" fill="#000" opacity="0.45"/>',
-               self.stone(x, y, w, h, "#bdb193", 61 + x % 5),
-               self.moss_patch(x, y, w, h, 62, 0.75),
-               f'<rect x="{x + 10}" y="{y + 8}" width="{w - 20}" height="16" fill="url(#{pid})"/>',
-               f'<rect x="{x + 10}" y="{y + h - 24}" width="{w - 20}" height="16" fill="url(#{pid})" transform="rotate(180 {x + w / 2} {y + h - 16})"/>',
-               f'<rect x="{x}" y="{y}" width="{w}" height="{h}" fill="none" stroke="#1c1a14" stroke-width="3"/>',
-               f'<rect x="{x + 16}" y="{y + 32}" width="{w - 32}" height="{h - 64}" fill="none" stroke="#5d5646" stroke-width="1.2"/>']
-        out.append(self.vine([(x - 16, y + 120), (x - 8, y - 10), (x + 140, y - 18), (x + 240, y - 6)], 3 + x % 5, 16))
-        out.append(self.vine([(x + w + 14, y + h - 260), (x + w + 6, y + h + 6), (x + w - 160, y + h + 16)], 5 + x % 3, 14))
-        if crest:
-            out.append(self.prang(x + w / 2, y + 128, 1.6, "#c9bc9c"))
-        return "".join(out)
 
     def item_marker(self, x, y):
         return self.leaf(x - 14, y, 0.9, 0, "#6e9a48")
@@ -501,7 +471,7 @@ class KambaraMenus(Menus, KambaraScreens):
 
 
 # ====================================================================== Tampadesa
-class TampadesaMenus(Menus, TampadesaScreens):
+class TampadesaMenus(TampadesaFrames, Menus, TampadesaScreens):
     field_fill = "#f6e3bc"
     field_stroke = "#6b4a2a"
     knob_fill = "#fff6e2"
@@ -509,24 +479,6 @@ class TampadesaMenus(Menus, TampadesaScreens):
     mini_land = ["#d8b47a", "#c99a55", "#9b4527", "#7a8a48", "#e3bf86"]
     mini_water = "#6f8f86"
     sub_size = 25
-
-    def heading_center(self, x, y, s, size):
-        return T(x, y, s, self.title_font, size, self.panel_text, "middle", 400)
-
-    def mpanel(self, x, y, w, h, crest=False):
-        out = [f'<rect x="{x + 8}" y="{y + 10}" width="{w}" height="{h}" fill="#000" opacity="0.45"/>',
-               self.teak(x, y, w, h, 7 + x % 5),
-               f'<rect x="{x + 22}" y="{y + 22}" width="{w - 44}" height="{h - 44}" fill="#ecd3a3"/>',
-               self.noise(x + 22, y + 22, w - 44, h - 44, "0.01", 4, (0.62, 0.36, 0.16), 1.4, -0.7, 51 + x % 5),
-               self.noise(x + 22, y + 22, w - 44, h - 44, "0.8", 2, (0.4, 0.22, 0.08), 0.3, -0.06, 52),
-               f'<rect x="{x + 8}" y="{y + 8}" width="{w - 16}" height="{h - 16}" fill="none" stroke="{self.gold()}" stroke-width="4"/>',
-               f'<rect x="{x + 22}" y="{y + 22}" width="{w - 44}" height="{h - 44}" fill="none" stroke="{self.gold()}" stroke-width="2.5"/>',
-               f'<rect x="{x + 32}" y="{y + 32}" width="{w - 64}" height="{h - 64}" fill="none" stroke="{self.ink}" stroke-width="1" opacity="0.5"/>']
-        for cx, cy in [(x, y + 26), (x + w, y + 26), (x, y + h + 4), (x + w, y + h + 4)]:
-            out.append(self.stupa(cx, cy, 0.95))
-        if crest:
-            out.append(self.stupa(x + w / 2, y + 140, 1.9))
-        return "".join(out)
 
     def item_marker(self, x, y):
         return self.stupa(x, y + 14, 0.5)

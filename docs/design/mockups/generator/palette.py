@@ -84,6 +84,8 @@ def hud_glyph(key):
     P, R, Ci, E = G.P, G.R, G.Ci, G.E
     if key == "pause":
         return [R(-20, -28, 14, 56, rx=3), R(6, -28, 14, 56, rx=3)]
+    if key == "close":
+        return [P("M-26,-26 L26,26 M26,-26 L-26,26", True, 12)]
     if key == "play":
         return [P("M-18,-30 L28,0 L-18,30Z")]
     if key == "fast":
@@ -159,10 +161,6 @@ class Palette:
     short_col = None
     crest_k = 0.0          # Kambara's tiles carry a crest above their top, this much of their width
     sector_size = 62
-
-    def pid(self, base):
-        self._pid = getattr(self, "_pid", 0) + 1
-        return f"pal-{base}-{self._pid}"
 
     def mask_of(self, elements, x, y, s, inverse=False, box=None):
         """A mask of the glyph at (x, y), scaled s from its 100-unit box."""
@@ -251,11 +249,6 @@ class Palette:
         markup, _ = self.woodwork().tile(x, y, size, ink, state, small=small, crest=None if small else size * k)
         return markup
 
-    def woodwork(self):
-        if getattr(self, "_woodwork", None) is None:
-            self._woodwork = DW.Woodwork(self.defs, self.pid)
-        return self._woodwork
-
     def tile_kambara(self, x, y, size, els, state, small, crest_k):
         carve = self.carving()
         cy = y + size * (0.5 if small else 0.56)
@@ -276,16 +269,6 @@ class Palette:
         k = self.crest_k if crest_k is None else crest_k
         markup, _ = bw.tile(x, y, size, glyph, state, small=small, crest=None if small else size * k)
         return markup
-
-    def brickwork(self):
-        if getattr(self, "_brickwork", None) is None:
-            self._brickwork = TB.Brickwork(self.defs, self.pid, self.carving())
-        return self._brickwork
-
-    def carving(self):
-        if getattr(self, "_carving", None) is None:
-            self._carving = KC.Carving(self.defs, self.pid)
-        return self._carving
 
     badge_colors = ("#b3271b", "#fff4dc", "#fff")   # fill, ring, text
 
@@ -501,6 +484,23 @@ class Palette:
             parts.append(self.goals_panel(*goals_btn))
         return parts, cx0, open_y
 
+    # ------------------------------------------------------------ the dialogs over the HUD
+    def hud_parts(self, keep_style=False):
+        parts, self._col_x0, _ = self.hud_v2()
+        return parts
+
+    def menu_buttons(self, hover=None):
+        return "", 0   # in the top bar now
+
+    def inspector_at(self, w):
+        return self._col_x0 - 18 - w, 116
+
+    def inspector_icon(self, x, y, s):
+        return self.icon_tile(x, y + self.tile_crest(s) * 0.4, s - 6, G.glyph("pottery_kiln", self.dd["key"]), small=True)
+
+    def close_button(self, x, y, s):
+        return self.icon_tile(x, y, s, hud_glyph("close"), small=True)
+
     # ------------------------------------------------------------ pages
     def building_name(self, b):
         return REALM_NAMES[self.dd["key"]].get(b, G.BUILDINGS[b][0])
@@ -620,11 +620,6 @@ class DaiLongPalette(Palette, D.DaiLongDialogs):
     badge_colors = ("#a8261c", "#e7b13e", "#fff4dc")   # a vermilion seal ringed in gilt
     sector_size = 54
 
-    def box(self, x, y, w, h, big=False):
-        big = w >= 300 and h >= 220 and y > 120
-        return self.woodwork().panel(x, y, w, h, big=big)
-
-
 class KambaraPalette(Palette, D.KambaraDialogs):
     style_line = "carved sandstone, moss and vines, a Bayon face over each"
     notch_fill = "#7c5f3a"
@@ -633,21 +628,6 @@ class KambaraPalette(Palette, D.KambaraDialogs):
     crest_k = 0.34
     tile_h_k = 1.08
     sector_size = 54
-
-    def __init__(self, dd):
-        D.KambaraDialogs.__init__(self, dd)
-        # Light text on the carved frames' dark stone.
-        # Moss and stone for the accents: icons, bars, rings and titles.
-        self.panel_text, self.panel_sub, self.panel_rule, self.accent = "#efe3c6", "#c9b690", "#5f6152", "#98ad7a"
-
-    def box(self, x, y, w, h, big=False):
-        big = w >= 300 and h >= 220 and y > 120
-        return self.carving().frame(x, y, w, h, t=11 if h < 120 else 13, crest=46 if big else None, seed=int(x * 7 + y) % 89,
-                                    vines=True, small=False)
-
-    def section_title(self, x, y, s):
-        return T(x, y, s.upper(), self.title_font, 20, self.accent, "start", 700, style="letter-spacing:2px")
-
 
 class TampadesaPalette(Palette, D.TampadesaDialogs):
     style_line = "gold on weathered brick, under gilt stupas, singhas at the foot, vines; dark mudbrick inside"
@@ -659,20 +639,10 @@ class TampadesaPalette(Palette, D.TampadesaDialogs):
     tile_h_k = 1.04
     sector_size = 54
 
-    def box(self, x, y, w, h, big=False):
-        big = w >= 300 and h >= 220 and y > 120
-        return self.brickwork().panel(x, y, w, h, big=big)
-
-    def __init__(self, dd):
-        D.TampadesaDialogs.__init__(self, dd)
-        # Light text on the dark mudbrick (screens.py's HUD colours).
-        self.box_style = "lacquer"
-        self.panel_text, self.panel_sub, self.panel_rule = "#f3e2bf", "#d9b98a", "#8a6a48"
-        self.accent, self.btn_fill, self.btn_fill_hover = "#e9c977", "#4e3826", "#634831"
 
 
 REALMS = [(DaiLongPalette, DC.DAILONG), (KambaraPalette, DC.KAMBARA), (TampadesaPalette, DC.TAMPADESA)]
-SCREENS = ["build_icons", "build_palette", "hud_goals"]
+SCREENS = ["build_icons", "build_palette", "hud_goals", "game_menu", "game_quit", "inspector", "event"]
 
 if __name__ == "__main__":
     import sys

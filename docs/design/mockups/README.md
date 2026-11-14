@@ -44,7 +44,7 @@ The HUD of gdd.md 10 over a city, as agreed with the user on 2026-11-14 (the des
 | Kambara | [hud-kambara.jpg](hud-kambara.jpg) | [build-palette-kambara.jpg](build-palette-kambara.jpg) |
 | Tampadesa | [hud-tampadesa.jpg](hud-tampadesa.jpg) | [build-palette-tampadesa.jpg](build-palette-tampadesa.jpg) |
 
-The dialogs drawn over the HUD (the Game menu, the Quit popup, the inspector, the event popup) still show the earlier HUD behind them; their own panels are unchanged.
+Every dialog takes the HUD's frames and colours (the user's call on 2026-11-14, `generator/frames.py`): the main menus, the campaign picker, the Game menu and its popups, the briefing, the debrief's and campaign-complete screen's panels, the event popup, the inspector and the City book. Đại Long keeps its parchment and dark ink inside carved red wood; Kambara's dialogs are dark cracked stone in carved sandstone with light text and moss-green accents; Tampadesa's dark mudbrick in weathered brick with light text and gold. The dialogs over the city show the new HUD behind them, and the inspector stands left of the build column, its building's icon an icon tile. The world map and the comic viewer keep their own frames.
 
 The city behind the HUD is existing art: Đại Long's is cropped from `../../images/prototype_apr_2026_3.jpg`, and Kambara's and Tampadesa's are the small reference mocks in `../../images/references/` scaled up, so they look soft.
 
@@ -154,21 +154,21 @@ builds every screen and serves them at http://127.0.0.1:8765/ (`--port` and `--h
 
 ## Regenerating
 
-The generator lives in [generator/](generator/): `common.py` holds the shared geography and layout, `content.py` what each realm's map shows, and `world_map.py` the three styles. `screens.py` (with its text in `screens_content.py`) draws the intro and intermission screens in the same styles (and the earlier HUD the dialogs sit over), and `menus.py` (text in `menus_content.py`) the main menu screens. `pages.py` (text in `pages_content.py`) draws the City book, `palette.py` (pictograms in `palette_glyphs.py`, Kambara's carving in `kambara_carving.py`, Đại Long's woodwork in `dailong_carving.py`, Tampadesa's brickwork in `tampadesa_brick.py`) the build palette's icons and the HUD's buttons, and `dialogs.py` (text in `dialogs_content.py`) the in-game dialogs and the campaign flow screens. It needs Python 3, Node with Playwright and Chromium, and network access to Google Fonts the first time.
+The generator lives in [generator/](generator/): `common.py` holds the shared geography and layout, `content.py` what each realm's map shows, and `world_map.py` the three styles. `screens.py` (with its text in `screens_content.py`) draws the intro and intermission screens in the same styles, and `menus.py` (text in `menus_content.py`) the main menu screens. `pages.py` (text in `pages_content.py`) draws the City book, `palette.py` (pictograms in `palette_glyphs.py`, Kambara's carving in `kambara_carving.py`, Đại Long's woodwork in `dailong_carving.py`, Tampadesa's brickwork in `tampadesa_brick.py`) the build palette's icons and the HUD's buttons, and `dialogs.py` (text in `dialogs_content.py`) the in-game dialogs and the campaign flow screens. `frames.py` gives the menus, the City book, the dialogs and the HUD their panels: each realm's `box` and `mpanel` from the carving modules, and Kambara's and Tampadesa's colours for dark panels. It needs Python 3, Node with Playwright and Chromium, and network access to Google Fonts the first time.
 
 ```bash
 cd docs/design/mockups/generator
 python3 fonts.py        # embeds the fonts into build/fonts.css (git-ignored): Google Fonts and assets/fonts
 python3 world_map.py    # writes build/world-map-<realm>.html
 node shot.js world-map-dailong world-map-kambara world-map-tampadesa
-python3 screens.py      # writes build/{intro,intermission}-<realm>.html
-node shot.js intro-dailong intermission-dailong   # and so on per realm
+python3 screens.py      # writes build/intro-<realm>.html
+node shot.js intro-dailong   # and so on per realm
 python3 minimap.py      # writes build/minimap-concepts.html and minimap-lenses.html
 python3 menus.py        # writes build/menu-{home,load-save,settings,custom-game,about}-<realm>.html
 node shot.js menu-home-dailong   # and so on
 python3 pages.py        # writes build/city-{overview,population,goods,finances,ratings,labour,food}-<realm>.html
-python3 dialogs.py      # writes build/{game-menu,game-quit,campaign-picker,briefing,campaign-complete,inspector,event}-<realm>.html
-python3 palette.py      # writes build/{hud,build-palette,build-icons}-<realm>.html
+python3 dialogs.py      # writes build/{campaign-picker,briefing,intermission,campaign-complete}-<realm>.html
+python3 palette.py      # writes build/{hud,build-palette,build-icons,game-menu,game-quit,inspector,event}-<realm>.html (the dialogs over the HUD)
 node shot.js city-overview-dailong game-menu-dailong   # and so on
 ```
 
