@@ -15,6 +15,7 @@ use crate::{
     ui_context::GameUiContext,
 };
 
+const LOG_SLACK: f32 = 4.0; // Room the panel keeps below the canvas.
 const SHOWN: usize = 3;
 const ROW_HEIGHT: f32 = 30.0;
 const MAX_WIDTH: f32 = 860.0;
@@ -42,7 +43,9 @@ impl MessageLog {
         let side = minimap_right.max(layout::column_width(context) + layout::MARGIN) + layout::GAP;
         let width = (window.x - 2.0 * side).min(MAX_WIDTH).max(240.0);
         let inner = Vec2::new(width - insets[0] - insets[2], SHOWN as f32 * ROW_HEIGHT);
-        let size = Vec2::new(width, inner.y + insets[1] + insets[3]);
+        // A few points of slack: the menu lays its contents out in whole points, so fractional insets
+        // (Đại Long's) would otherwise leave the canvas a point too tall for it and make it scroll.
+        let size = Vec2::new(width, (inner.y + insets[1] + insets[3] + LOG_SLACK).ceil());
         let position = Vec2::new((window.x - width) * 0.5, window.y - size.y - layout::MARGIN);
 
         let text = skin::hud_color("text", "ink");

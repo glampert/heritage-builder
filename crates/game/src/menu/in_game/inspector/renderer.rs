@@ -271,12 +271,15 @@ impl InspectorMenuRenderer {
 
         let separator = UiSeparator::new(); // Includes widget_spacing/item_spacing.
 
-        // Beside the build column, under the top bar (inspector-<realm>.jpg).
-        let window = ui::screen_size(context.ui_sys);
-        let position = Vec2::new(
-            (window.x - super::super::layout::column_width(context) - super::super::layout::MARGIN - super::super::layout::GAP - menu_size.x).max(0.0),
-            INSPECTOR_TOP,
-        );
+        // Beside the build column, under the top bar (inspector-<realm>.jpg), placed each frame so it
+        // follows the window (the menus are built before the window's first frame when a game starts
+        // from the command line, and aren't built again on a resize).
+        let right_of_inspector = super::super::layout::column_width(context) + super::super::layout::MARGIN + super::super::layout::GAP;
+        let width = menu_size.x;
+        let position = UiMenuPosition::callback(move |_, context| {
+            let window = ui::screen_size(context.ui_sys());
+            Vec2::new((window.x - right_of_inspector - width).max(0.0), INSPECTOR_TOP)
+        });
         let menu = UiMenu::new(menu_name)
             .with_flags(UiMenuFlags::PauseSimIfOpen | UiMenuFlags::Modal | UiMenuFlags::CloseModalOnEscape | UiMenuFlags::AdjustSizeToContents)
             .with_position(position)

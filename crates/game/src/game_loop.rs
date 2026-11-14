@@ -739,7 +739,7 @@ impl GameLoop {
 
         for name in &completed {
             let message = ui::text::format(UiTextCategory::Messages, "toast.construction_completed", &[("building", name)]);
-            crate::messages::push(crate::messages::MessageKind::Construction, message);
+            self.post_message(crate::messages::MessageKind::Construction, message);
         }
         ui::sound::play(self.engine.sound_system_mut(), UiSoundKey::ConstructionCompleted);
     }
@@ -755,7 +755,7 @@ impl GameLoop {
             let good_news = message == out_of_debt;
             let sound = if good_news { UiSoundKey::Notification } else { UiSoundKey::Alert };
             let kind = if good_news { crate::messages::MessageKind::Finance } else { crate::messages::MessageKind::Warning };
-            crate::messages::push(kind, message);
+            self.post_message(kind, message);
             ui::sound::play(self.engine.sound_system_mut(), sound);
         }
         // TODO(realm-ui): M11's messages replace crate::messages with typed messages.
@@ -779,8 +779,17 @@ impl GameLoop {
     // (building::risks).
     fn notify_risks(&mut self) {
         for message in building::risks::take_notices() {
-            crate::messages::push(crate::messages::MessageKind::Warning, message);
+            self.post_message(crate::messages::MessageKind::Warning, message);
         }
+    }
+
+    // A notice for the HUD's message log; the developer editor, which draws no log, shows it as a
+    // toast as it always did.
+    fn post_message(&mut self, kind: crate::messages::MessageKind, message: String) {
+        if self.session.current_menus_mode() == Some(GameMenusMode::DevEditor) {
+            self.engine.ui_system().show_toast(message.clone());
+        }
+        crate::messages::push(kind, message);
     }
 
     // Saves the current frame to screenshots/. A toast reports the result once it's written.
