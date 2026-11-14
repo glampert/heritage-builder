@@ -35,6 +35,7 @@ bitflags_with_display! {
         const HideWhenMessageBoxOpen = 1 << 9;
         const AdjustSizeToContents   = 1 << 10; // Even if explicit size given, adjust to contents on menu opening.
         const NoTitleBar             = 1 << 11;
+        const NoFrame                = 1 << 12; // No window frame or background: its widgets alone (a lone button).
     }
 }
 
@@ -597,7 +598,7 @@ impl UiMenu {
 
         // A background replaces the window's frame. The frame has no margin of its own: the menu
         // lays its contents out in its inner rect, its rect minus `insets`.
-        let frame = if self.background.is_some() {
+        let frame = if self.background.is_some() || self.has_flags(UiMenuFlags::NoFrame) {
             egui::Frame::NONE
         } else {
             egui::Frame::window(&style).inner_margin(egui::Margin::ZERO).shadow(egui::Shadow::NONE)

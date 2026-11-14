@@ -39,7 +39,8 @@ const STAT_WIDTH: f32 = 134.0;
 const RATING_STEP: f32 = 72.0;
 const RATINGS_WIDTH: f32 = 4.0 * RATING_STEP + 20.0;
 // How far the stats squeeze on a narrow window before the ratings are left out.
-const MIN_SQUEEZE: f32 = 0.75;
+const MIN_SQUEEZE: f32 = 0.66;
+const ORNAMENT_MIN_GAP: f32 = 64.0; // Each gap's room for its ornament, which shrinks to fit (ornament_canvas).
 
 // ----------------------------------------------
 // The stats the bar paints
@@ -275,7 +276,11 @@ impl TopBar {
             SkinPanel::Sprite { .. } => [8.0; 4],
         };
         let tile = skin::hud_tile_size(HudTileKind::Small);
-        let width = (window.x - layout::column_width(context) - 2.0 * layout::MARGIN - layout::GAP).max(640.0);
+        // The room left of the build column; the bar at its natural width at most, centred in it.
+        let span = (window.x - layout::column_width(context) - 2.0 * layout::MARGIN - layout::GAP).max(640.0);
+        let natural = Self::natural_width(context, &built_for, insets, tile);
+        let width = span.min(natural);
+        let bar_x = layout::MARGIN + ((span - width) * 0.5).floor();
         // In whole points with one to spare: the menu lays its contents out in whole points, so a
         // frame's fractional insets would leave the tiles a point short of room and make it scroll.
         let height = (insets[1] + tile.y + insets[3]).ceil() + 1.0;
@@ -307,13 +312,14 @@ impl TopBar {
             .collect();
         fixed += menu_buttons.len() as f32 * (tile.x + TILE_GAP);
 
-        // The stats between the speed controls and the menu, their gaps split either side: at their
-        // size where they fit, narrower on a narrow window, and without the ratings (placeholders
-        // until M9) where even that doesn't fit.
+        // The stats between the speed controls and the menu, their gaps split either side, each gap
+        // keeping room for its ornament: the stats at their size where they fit, narrower on a
+        // narrow window, and without the ratings (placeholders until M9) where even that doesn't fit.
         let room = inner_width - fixed - 6.0 * TILE_GAP;
+        let stats_room = room - 2.0 * ORNAMENT_MIN_GAP;
         let full = DATE_WIDTH + 3.0 * STAT_WIDTH + RATINGS_WIDTH;
-        let k = (room / full).clamp(MIN_SQUEEZE, 1.0);
-        let with_ratings = full * MIN_SQUEEZE <= room;
+        let k = (stats_room / full).clamp(MIN_SQUEEZE, 1.0);
+        let with_ratings = full * MIN_SQUEEZE <= stats_room;
         let (date_width, stat_width) = (DATE_WIDTH * k, STAT_WIDTH * k);
         let ratings_width = if with_ratings { RATINGS_WIDTH * k } else { 0.0 };
         let middle = date_width + 3.0 * stat_width + ratings_width;
@@ -335,7 +341,7 @@ impl TopBar {
 
         let menu = UiMenu::new("TopBar")
             .with_flags(UiMenuFlags::IsOpen)
-            .with_position(Vec2::new(layout::MARGIN, layout::MARGIN))
+            .with_position(Vec2::new(bar_x, layout::MARGIN))
             .with_size(Vec2::new(width, height))
             .with_widget_spacing(Vec2::zero());
         let mut menu = panel.apply_to_menu(menu);
@@ -344,11 +350,19 @@ impl TopBar {
 
         // The goals panel hangs under the goals button, the first tile.
         let goals_panel = built_for.has_goals.then(|| {
-            let anchor = Vec2::new(layout::MARGIN + insets[0] + tile.x * 0.5, layout::MARGIN + height);
+            let anchor = Vec2::new(bar_x + insets[0] + tile.x * 0.5, layout::MARGIN + height);
             GoalsPanel::new(context, &stats, anchor)
         });
 
         Self { menu, row, goals_panel, stats, built_for, buttons, canvases }
+    }
+
+    // The bar's width with everything at its size: its tiles, the stats and ratings, and each gap
+    // holding the wide ornament.
+    fn natural_width(context: &mut GameUiContext, built_for: &BuiltFor, insets: [f32; 4], tile: Vec2) -> f32 {
+        let tiles = 8 + usize::from(built_for.has_goals) + usize::from(built_for.in_mission);
+        let ornament = skin::hud_ornament(context, true).1.x * (tile.y / 36.0) + 16.0;
+        insets[0] + insets[2] + tiles as f32 * (tile.x + TILE_GAP) + 6.0 * TILE_GAP + DATE_WIDTH + 3.0 * STAT_WIDTH + RATINGS_WIDTH + 2.0 * ornament
     }
 
     fn built_for(context: &GameUiContext, stats: &BarStats) -> BuiltFor {
@@ -463,16 +477,8 @@ fn ornament_canvas(context: &mut GameUiContext, label: &str, size: Vec2) -> UiCa
     let wide = skin::hud_ornament(context, true);
     let narrow = skin::hud_ornament(context, false);
     UiCanvas::new(size, move |_, painter, rect| {
-        let height = rect.height();
-        let pick = [wide, narrow].into_iter().find(|(_, art)| {
-            let scale = height / 36.0;
-            art.x * scale <= rect.width() - 8.0
-        });
-        if let Some((texture, art)) = pick {
-            let scale = height / 36.0;
-            let drawn = art * scale;
-            let center = rect.center();
-            painter.image(texture, Rect::from_pos_and_size(center - drawn * 0.5, drawn), Color::white());
+        if let Some((texture, drawn)) = skin::fit_hud_ornament([wide, narrow], rect.height() / 36.0, rect.width() - 8.0) {
+            painter.image(texture, Rect::from_pos_and_size(rect.center() - drawn * 0.5, drawn), Color::white());
         }
     })
     .with_label(label, None)
@@ -577,8 +583,9 @@ fn rating_initial(name: &str) -> String {
 // GoalsPanel
 // ----------------------------------------------
 
-const GOALS_WIDTH: f32 = 440.0;
-const GOAL_ROW: f32 = 64.0;
+const GOALS_WIDTH: f32 = 357.5; // The retail minimap's width, until its first layout gives it.
+const GOAL_ROW: f32 = 54.0;
+const GOALS_HEADER: f32 = 36.0;
 
 // The mission's goals, dropped down under the goals button (`Goals`): a row per goal with its
 // progress, on the skin's `hud_panel` panel, the notch pointing up at the button.
@@ -599,10 +606,14 @@ impl GoalsPanel {
             SkinPanel::Sprite { .. } => [16.0; 4],
         };
         let count = stats.borrow().goals.len().max(1);
-        let inner = Vec2::new(GOALS_WIDTH - 52.0, 44.0 + count as f32 * GOAL_ROW);
+        // As wide as the minimap.
+        let minimap_width = context.tile_map.minimap().layout().window.width();
+        let width = if minimap_width > 1.0 { minimap_width } else { GOALS_WIDTH };
+        let inner = Vec2::new(width - insets[0] - insets[2], GOALS_HEADER + count as f32 * GOAL_ROW);
         // A few points spare, so the window never scrolls its canvas.
         let size = Vec2::new(inner.x + insets[0] + insets[2], inner.y + insets[1] + insets[3] + 8.0);
-        let position = Vec2::new((button.x - 60.0).max(layout::MARGIN), button.y + 18.0);
+        // Under the minimap's left edge, the notch under the button.
+        let position = Vec2::new(layout::MARGIN, button.y + 18.0);
 
         let title = mission_name();
         let text = skin::hud_color("text", "ink");
@@ -622,10 +633,10 @@ impl GoalsPanel {
             let unclipped = painter.unclipped(Rect::from_pos_and_size(Vec2::new(x - 16.0, top - 16.0), Vec2::new(32.0, 32.0)));
             unclipped.convex_polygon(&[Vec2::new(x - 12.0, top + 2.0), Vec2::new(x, top - 12.0), Vec2::new(x + 12.0, top + 2.0)], notch, 1.5, notch_outline);
             let title_look = UiLabelLook { letter_spacing: 2.0, ..look(16.0, accent, true) };
-            painter.label(Vec2::new(rect.min.x, rect.min.y + 20.0), UiTextAnchor::Start, &ui::text::get(UiTextCategory::Hud, "goals.title").to_uppercase(), &title_look);
-            painter.label(Vec2::new(rect.max.x, rect.min.y + 20.0), UiTextAnchor::End, &title, &look(16.0, sub, false));
+            painter.label(Vec2::new(rect.min.x, rect.min.y + 18.0), UiTextAnchor::Start, &ui::text::get(UiTextCategory::Hud, "goals.title").to_uppercase(), &title_look);
+            painter.label(Vec2::new(rect.max.x, rect.min.y + 18.0), UiTextAnchor::End, &title, &look(16.0, sub, false));
             for (k, goal) in stats.goals.iter().enumerate() {
-                let y = rect.min.y + 44.0 + k as f32 * GOAL_ROW + 22.0;
+                let y = rect.min.y + GOALS_HEADER + k as f32 * GOAL_ROW + 20.0;
                 let mark = Vec2::new(rect.min.x + 11.0, y - 6.0);
                 if goal.met {
                     painter.circle_filled(mark, 11.0, accent);

@@ -453,6 +453,7 @@
     "palette.short": "Not enough {name} in storage",
     "palette.short_mark": "short",
     "palette.locked": "Not available in this mission",
+    "messages.close": "Close the messages",
     "messages.now": "now"
   },
   "City": {},

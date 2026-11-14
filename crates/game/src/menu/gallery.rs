@@ -578,22 +578,27 @@ fn hud(context: &mut GameUiContext) -> UiWidgetGroup {
         tiles.add_widget(captioned(tile, caption_text));
     }
 
-    // The panels at sizes the HUD uses, each in a canvas with room round it for their ornaments.
+    // The panels at sizes the HUD uses, each in a canvas with room round it for its ornaments (the
+    // large one's: Tampadesa's piers stand 80 points over it), the large one on a row of its own so
+    // the section fits the gallery on a 1280 × 720 window.
     let mut panels = row();
-    for (name, size) in [("hud_bar", Vec2::new(300.0, 58.0)), ("hud_panel", Vec2::new(260.0, 150.0)), ("hud_large", Vec2::new(320.0, 240.0))] {
+    let mut large_panel = row();
+    for (name, size, room) in
+        [("hud_bar", Vec2::new(300.0, 58.0), 20.0), ("hud_panel", Vec2::new(260.0, 150.0), 20.0), ("hud_large", Vec2::new(320.0, 240.0), 90.0)]
+    {
         let panel = match skin::panel(context, name) {
             SkinPanel::NineSlice { slice, decorations, .. } => Some(UiDecoratedPanel::new(slice).with_decorations(decorations)),
             SkinPanel::Sprite { .. } => None,
         };
-        const ROOM: f32 = 90.0; // Room for the ornaments: Tampadesa's piers stand 80 points over the panel.
-        let canvas = UiCanvas::new(size + Vec2::new(ROOM, ROOM) * 2.0, move |_, painter, rect| {
+        let canvas = UiCanvas::new(size + Vec2::new(room, room) * 2.0, move |_, painter, rect| {
             if let Some(panel) = &panel {
-                let inner = common::Rect::from_pos_and_size(rect.min + Vec2::new(ROOM, ROOM), size);
+                let inner = common::Rect::from_pos_and_size(rect.min + Vec2::new(room, room), size);
                 painter.decorated_panel(inner, panel, common::Color::white());
             }
         })
         .with_label(format!("HUD panel {name}"), None);
-        panels.add_widget(captioned(canvas, name));
+        let target = if name == "hud_large" { &mut large_panel } else { &mut panels };
+        target.add_widget(captioned(canvas, name));
     }
 
     let mut icons = row();
@@ -606,6 +611,12 @@ fn hud(context: &mut GameUiContext) -> UiWidgetGroup {
         icons.add_widget(captioned(UiImage::from_texture(texture, size, size).with_label(format!("HUD {name}")), name));
     }
 
-    UiWidgetGroup::new().with_center_horizontally(false).with_widget_spacing(Vec2::new(0.0, 12.0)).with_widget(tiles).with_widget(panels).with_widget(icons)
+    UiWidgetGroup::new()
+        .with_center_horizontally(false)
+        .with_widget_spacing(Vec2::new(0.0, 12.0))
+        .with_widget(tiles)
+        .with_widget(panels)
+        .with_widget(large_panel)
+        .with_widget(icons)
 }
 

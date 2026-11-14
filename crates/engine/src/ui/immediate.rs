@@ -1941,6 +1941,33 @@ pub fn combo(ui_sys: &UiSystem, label: &str, current_item: &mut usize, items: &[
     let selected_text = items.get(*current_item).map_or("", |item| item.as_ref());
 
     let response = ui_sys.with_parent_ui(|parent| {
+        // In a menu (the developer editor's Screens menu), a combo box's list is a popup of its own,
+        // which closes the menu as it opens: the choices are a submenu there instead.
+        if egui::containers::menu::is_in_menu(parent) {
+            let response = parent
+                .horizontal(|row| {
+                    let button = egui::containers::menu::SubMenuButton::new(selected_text).ui(row, |ui| {
+                        ui_sys.ui_scope(ui, |ui_sys| {
+                            let _path = path_scope(ui_sys, label);
+                            ui_sys.with_ui(|ui| {
+                                for (index, item) in items.iter().enumerate() {
+                                    let item = item.as_ref();
+                                    let response = ui.selectable_value(current_item, index, item);
+                                    record(ui_sys, ui, &response, "list_item", item, None, true, Some(Value::Bool(*current_item == index)));
+                                    if response.clicked() {
+                                        ui.close();
+                                    }
+                                }
+                            });
+                        });
+                    });
+                    row.label(rich_text(ui_sys, row, label_text(label)));
+                    button.0
+                })
+                .inner;
+            let visible = parent.clip_rect().contains(response.rect.center());
+            return (response, visible);
+        }
         let combo = egui::ComboBox::new(("ui_combo", label), rich_text(ui_sys, parent, label_text(label)))
             .selected_text(selected_text)
             .show_ui(parent, |ui| {

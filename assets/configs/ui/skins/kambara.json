@@ -52,6 +52,7 @@
     "card": {"sprite": "skins/kambara/panel_well.png", "slice": [16, 16, 16, 16], "content": [14, 14, 14, 14]},
     "hud_bar": {"sprite": "skins/kambara/hud/panel_hud_bar.png", "slice": [81, 56, 80, 64], "content": [28.5, 23.0, 28.0, 26.5]},
     "hud_panel": {"sprite": "skins/kambara/hud/panel_hud.png", "slice": [123, 218, 92, 90], "content": [52.5, 34.0, 41.0, 38.0]},
+    "hud_column": {"sprite": "skins/kambara/hud/panel_hud.png", "slice": [123, 218, 92, 90], "content": [44.5, 34.0, 33.0, 38.0]},
     "hud_large": {"sprite": "skins/kambara/hud/panel_hud.png", "slice": [123, 218, 92, 90], "content": [54.5, 36.0, 43.0, 40.0], "decorations": [{"sprite": "skins/kambara/hud/deco_crest.png", "anchor": "top_center", "offset": [2.0, 1.0], "min_panel": [280, 180]}]},
     "bar": {
       "sprite": "skins/kambara/panel_bar.png",

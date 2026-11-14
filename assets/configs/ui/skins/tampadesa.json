@@ -57,6 +57,7 @@
     "card": {"sprite": "skins/tampadesa/panel_well.png", "slice": [16, 16, 16, 16], "content": [14, 14, 14, 14]},
     "hud_bar": {"sprite": "skins/tampadesa/hud/panel_hud_bar.png", "slice": [78, 64, 84, 74], "content": [27.0, 23.0, 30.0, 28.0]},
     "hud_panel": {"sprite": "skins/tampadesa/hud/panel_hud.png", "slice": [102, 112, 108, 110], "content": [31.0, 36.0, 34.0, 35.0]},
+    "hud_column": {"sprite": "skins/tampadesa/hud/panel_hud.png", "slice": [102, 112, 108, 110], "content": [23.0, 36.0, 26.0, 35.0]},
     "hud_large": {"sprite": "skins/tampadesa/hud/panel_hud_large.png", "slice": [122, 132, 128, 130], "content": [37.0, 42.0, 40.0, 41.0], "decorations": [{"sprite": "skins/tampadesa/hud/deco_pier_left.png", "anchor": "top_left", "offset": [49.75, -1.25], "min_panel": [280, 180]}, {"sprite": "skins/tampadesa/hud/deco_pier_right.png", "anchor": "top_right", "offset": [-51.25, -3.0], "min_panel": [280, 180]}, {"sprite": "skins/tampadesa/hud/deco_crest_large.png", "anchor": "top_center", "offset": [0.0, -37.0], "min_panel": [280, 180]}, {"sprite": "skins/tampadesa/hud/deco_naga_left.png", "anchor": "bottom_left", "offset": [114.25, -37.0], "min_panel": [280, 180]}, {"sprite": "skins/tampadesa/hud/deco_naga_right.png", "anchor": "bottom_right", "offset": [-115.25, -37.0], "min_panel": [280, 180]}]},
     "bar": { "sprite": "skins/tampadesa/panel_bar.png", "slice": [16, 16, 24, 28], "content": [12.0, 12.0, 16.0, 18.0] },
     "side": { "sprite": "skins/tampadesa/panel_side.png", "slice": [48, 48, 48, 48] },

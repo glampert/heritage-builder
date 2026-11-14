@@ -7,17 +7,21 @@ use engine::ui::widgets::UiWidgetContext;
 use crate::menu::skin::{self, HudTileKind, SkinPanel};
 
 // Room between the HUD's panels and the window's edges.
-pub const MARGIN: f32 = 6.0;
+pub const MARGIN: f32 = 2.0;
 
 // Room between two of the HUD's panels side by side (their frames' corner pieces reach past them).
 pub const GAP: f32 = 22.0;
 
 // Room on each side of the sector column's tiles, inside its panel's content.
-pub const COLUMN_PAD: f32 = 8.0;
+pub const COLUMN_PAD: f32 = 4.0;
+
+// The build column's panel: the HUD panel's art with less room inside its frame (the skin's
+// `hud_column`), so the column fits its tiles closely.
+pub const COLUMN_PANEL: &str = "hud_column";
 
 // The build column's width: its sector tiles, the room round them and its panel's insets.
 pub fn column_width(context: &mut dyn UiWidgetContext) -> f32 {
-    let insets = match skin::panel(context, "hud_panel") {
+    let insets = match skin::panel(context, COLUMN_PANEL) {
         SkinPanel::NineSlice { content, .. } => content.left + content.right,
         SkinPanel::Sprite { .. } => 16.0,
     };

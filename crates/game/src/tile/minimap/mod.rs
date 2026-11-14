@@ -729,6 +729,11 @@ impl Minimap {
         self.frame = frame;
     }
 
+    #[inline]
+    pub fn frame(&self) -> MinimapFrame {
+        self.frame
+    }
+
     pub fn layout(&self) -> &MinimapLayout {
         &self.layout
     }

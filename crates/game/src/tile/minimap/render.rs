@@ -20,7 +20,7 @@ use super::{
 use crate::{menu::dialog::DialogMenuKind, realm::{self, Realm}, ui_context::GameUiContext};
 
 // Room between the retail minimap's panel and the screen's edges (the HUD's).
-const HUD_MARGIN: f32 = 6.0;
+const HUD_MARGIN: f32 = crate::menu::in_game::layout::MARGIN;
 
 // ----------------------------------------------
 // MinimapTool
@@ -192,6 +192,7 @@ struct BaseMinimapRenderer {
     with_debug_button: bool,
     opens_world_map: bool, // The World map tool opens the retail WorldMap dialog; the developer editor draws none.
     apply_widget_clip_rect: bool,
+    frame: super::MinimapFrame, // The room its frame takes, set on the minimap each frame it draws: the minimap is shared with the other menus mode's renderer.
 }
 
 impl BaseMinimapRenderer {
@@ -208,6 +209,7 @@ impl BaseMinimapRenderer {
             with_debug_button,
             opens_world_map,
             apply_widget_clip_rect: true,
+            frame: super::MinimapFrame::default(),
         }
     }
 
@@ -255,13 +257,16 @@ impl BaseMinimapRenderer {
 
         // Unlabeled: its button is named "open" in widget paths. In the bottom left corner, where
         // the minimap's tools were.
-        const OPEN_MENU_PADDING: f32 = 6.0;
-        let open_menu_size = Vec2::new(BUTTON_SIZE + OPEN_MENU_PADDING * 2.0, BUTTON_SIZE + OPEN_MENU_PADDING * 2.0);
-        let mut open_button_menu = make_menu(context, "")
+        // The retail one is the button alone, a margin from the screen's corner; the developer UI's
+        // a small plain window.
+        let (open_menu_padding, open_menu_margin) = if with_frame { (0.0, HUD_MARGIN) } else { (6.0, 0.0) };
+        let open_menu_size = Vec2::new(BUTTON_SIZE + open_menu_padding * 2.0, BUTTON_SIZE + open_menu_padding * 2.0);
+        let open_menu = if with_frame { UiMenu::new("").with_flags(UiMenuFlags::NoFrame) } else { make_menu(context, "") };
+        let mut open_button_menu = open_menu
             .with_size(open_menu_size)
-            .with_content_insets(UiMenuInsets::same(OPEN_MENU_PADDING))
+            .with_content_insets(UiMenuInsets::same(open_menu_padding))
             .with_position(UiMenuPosition::callback(move |_menu, context| {
-                Vec2::new(0.0, ui::screen_size(context.ui_sys()).y - open_menu_size.y)
+                Vec2::new(open_menu_margin, ui::screen_size(context.ui_sys()).y - open_menu_size.y - open_menu_margin)
             }))
             .into_rc();
         let open_tooltip = make_tooltip(context, ui::text::get(ui::text::UiTextCategory::Menu, "minimap.open"));
@@ -313,7 +318,7 @@ impl BaseMinimapRenderer {
             },
             _ => super::MinimapFrame::default(),
         };
-        context.tile_map.minimap_mut().set_frame(frame);
+        self.frame = frame;
 
         self.minimap_menu = Some(minimap_menu);
         self.open_button_menu = Some(open_button_menu);
@@ -331,6 +336,9 @@ impl BaseMinimapRenderer {
         if self.minimap_menu.is_none() || self.style_version != style_version {
             self.create_menus(context);
             self.style_version = style_version;
+        }
+        if context.tile_map.minimap().frame() != self.frame {
+            context.tile_map.minimap_mut().set_frame(self.frame);
         }
 
         // The minimap's open state is the truth; the menus follow it.
@@ -666,18 +674,12 @@ impl BaseMinimapRenderer {
         }
     }
 
-    // A gap ornament in `rect`, its height the rect's, the wide one where it fits; none in a short gap.
+    // A gap ornament in `rect`, its height the rect's, the wide one where it fits, else the narrow one shrunk to fit (skin::fit_hud_ornament).
     fn paint_ornament(context: &mut GameUiContext, rect: Rect) {
-        let height = rect.height() * 0.9;
-        let scale = height / 36.0;
-        for wide in [true, false] {
-            let (texture, size) = crate::menu::skin::hud_ornament(context, wide);
-            let drawn = size * scale;
-            if drawn.x <= rect.width() - 6.0 {
-                let painter = ui::painter(context.ui_sys, UiLayer::Window);
-                painter.image(texture, Rect::from_pos_and_size(rect.center() - drawn * 0.5, drawn), Color::white());
-                return;
-            }
+        let ornaments = [crate::menu::skin::hud_ornament(context, true), crate::menu::skin::hud_ornament(context, false)];
+        if let Some((texture, drawn)) = crate::menu::skin::fit_hud_ornament(ornaments, rect.height() * 0.9 / 36.0, rect.width() - 6.0) {
+            let painter = ui::painter(context.ui_sys, UiLayer::Window);
+            painter.image(texture, Rect::from_pos_and_size(rect.center() - drawn * 0.5, drawn), Color::white());
         }
     }
 

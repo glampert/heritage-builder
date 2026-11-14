@@ -40,9 +40,10 @@ pub struct Message {
 struct MessageLog {
     messages: VecDeque<Message>,
     next_id: u64,
+    dismissed: u64, // The newest message's id when the player closed the HUD's log: it shows again for a newer one.
 }
 
-static LOG: SingleThreadStatic<MessageLog> = SingleThreadStatic::new(MessageLog { messages: VecDeque::new(), next_id: 1 });
+static LOG: SingleThreadStatic<MessageLog> = SingleThreadStatic::new(MessageLog { messages: VecDeque::new(), next_id: 1, dismissed: 0 });
 
 // A new message, the newest.
 pub fn push(kind: MessageKind, text: impl Into<String>) {
@@ -63,7 +64,21 @@ pub fn newest_id() -> u64 {
     LOG.as_ref().messages.front().map_or(0, |message| message.id)
 }
 
+// The player closed the HUD's log: hidden until a newer message comes.
+pub fn dismiss() {
+    let log = LOG.as_mut();
+    log.dismissed = log.messages.front().map_or(0, |message| message.id);
+}
+
+// Whether the HUD's log was closed since the newest message came.
+pub fn is_dismissed() -> bool {
+    let log = LOG.as_ref();
+    log.messages.front().is_none_or(|message| message.id <= log.dismissed)
+}
+
 // Empties the log: a new game, a load, the home menu.
 pub fn clear() {
-    LOG.as_mut().messages.clear();
+    let log = LOG.as_mut();
+    log.messages.clear();
+    log.dismissed = 0;
 }

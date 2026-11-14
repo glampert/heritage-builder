@@ -124,6 +124,7 @@
     "card": {"sprite": "skins/dailong/panel_well.png", "slice": [16, 16, 16, 16], "content": [18, 18, 18, 18]},
     "hud_bar": {"sprite": "skins/dailong/hud/panel_hud_bar.png", "slice": [81, 67, 87, 77], "content": [28.5, 24.5, 31.5, 29.5]},
     "hud_panel": {"sprite": "skins/dailong/hud/panel_hud.png", "slice": [110, 119, 113, 121], "content": [35.0, 39.5, 36.5, 40.5]},
+    "hud_column": {"sprite": "skins/dailong/hud/panel_hud.png", "slice": [110, 119, 113, 121], "content": [27.0, 39.5, 28.5, 40.5]},
     "hud_large": {"sprite": "skins/dailong/hud/panel_hud_large.png", "slice": [135, 151, 138, 145], "content": [43.5, 51.5, 45.0, 48.5], "decorations": [{"sprite": "skins/dailong/hud/deco_top.png", "anchor": "top_center", "offset": [0.25, 20.25], "min_panel": [280, 180]}, {"sprite": "skins/dailong/hud/deco_bottom.png", "anchor": "bottom_center", "offset": [-7.25, -19.5], "min_panel": [280, 180]}]},
     "bar": {
       "sprite": "skins/dailong/panel_bar.png",

@@ -68,8 +68,9 @@ const TILE_PALETTE_MAIN_BUTTON_COUNT: usize = TilePaletteMainButtonDef::COUNT;
 
 // The grid: buildings per row and the room between tiles, in points.
 const GRID_COLUMNS: usize = 4;
-const GRID_GAP: f32 = 12.0;
-const GRID_TITLE_HEIGHT: f32 = 34.0;
+const GRID_GAP: f32 = 10.0;
+const GRID_TITLE_HEIGHT: f32 = 20.0; // The title's row, the first row's crests below it.
+const GRID_TITLE_BASELINE: f32 = 15.0;
 
 // The rule between the column's groups (the column's spacing round it).
 const SEPARATOR_LINE: f32 = 2.0;
@@ -299,8 +300,10 @@ impl SectorGrid {
             SkinPanel::NineSlice { content, .. } => [content.left, content.top, content.right, content.bottom],
             SkinPanel::Sprite { .. } => [16.0; 4],
         };
-        let tile = skin::hud_tile_size(HudTileKind::Large);
-        let crest = skin::hud_tile_bleed(HudTileKind::Large)[1];
+        // The buildings' tiles at the sector column's size: the large tile's art scaled down.
+        let scale = skin::hud_tile_size(HudTileKind::Sector).x / skin::hud_tile_size(HudTileKind::Large).x;
+        let tile = skin::hud_tile_size(HudTileKind::Large) * scale;
+        let crest = skin::hud_tile_bleed(HudTileKind::Large)[1] * scale;
         let columns = children.len().clamp(1, GRID_COLUMNS);
         let rows = children.len().div_ceil(GRID_COLUMNS).max(1);
         let row_gap = GRID_GAP + crest;
@@ -319,7 +322,7 @@ impl SectorGrid {
         let accent = skin::hud_color("accent", "accent");
         let title_look = engine::ui::UiLabelLook { size: 17.0, heading_font: true, letter_spacing: 1.5, color: accent, ..Default::default() };
         let heading = UiCanvas::new(Vec2::new(inner.x, GRID_TITLE_HEIGHT + crest), move |_, painter, rect| {
-            painter.label(Vec2::new(rect.min.x, rect.min.y + 20.0), engine::ui::UiTextAnchor::Start, &title.to_uppercase(), &title_look);
+            painter.label(Vec2::new(rect.min.x, rect.min.y + GRID_TITLE_BASELINE), engine::ui::UiTextAnchor::Start, &title.to_uppercase(), &title_look);
         });
 
         let mut menu = panel.apply_to_menu(
@@ -339,7 +342,7 @@ impl SectorGrid {
             for child in chunk {
                 let handle = child.tile_def_handle;
                 let actions = actions.clone();
-                let tile = skin::hud_tile(context, HudTileKind::Large, &child.label, HudGlyphGroup::Building, &tile_def_of(handle).name)
+                let tile = skin::hud_tile_scaled(context, HudTileKind::Large, scale, &child.label, HudGlyphGroup::Building, &tile_def_of(handle).name)
                     .on_pressed(move |_, _| actions.borrow_mut().push(PaletteAction::Pick(def, handle)));
                 in_row.push((row.add_widget(tile), handle));
             }
@@ -506,7 +509,7 @@ impl TilePaletteMenu {
     // window's height, else smaller (the HUD's sizes are fixed otherwise: they don't grow with the
     // UI scale), centred in the column; a crest's room over the first; rules between the groups.
     fn build_column(context: &mut GameUiContext, actions: &PaletteActions) -> Column {
-        let panel = skin::panel(context, "hud_panel");
+        let panel = skin::panel(context, layout::COLUMN_PANEL);
         let insets = match &panel {
             SkinPanel::NineSlice { content, .. } => [content.left, content.top, content.right, content.bottom],
             SkinPanel::Sprite { .. } => [8.0; 4],

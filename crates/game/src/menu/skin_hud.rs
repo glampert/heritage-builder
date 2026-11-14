@@ -275,3 +275,15 @@ pub fn hud_ornament(context: &mut dyn UiWidgetContext, wide: bool) -> (TextureHa
     let ornaments = &skin::hud().ornaments;
     sprite_and_size(context, if wide { &ornaments.wide } else { &ornaments.narrow })
 }
+
+// Which gap ornament to draw in a gap `room` points wide, at `scale` times its size (the gap's
+// height over 36 points): the wide one where it fits, else the narrow one, shrunk to fit down to
+// 40% of its size; none in a gap narrower than that. Its texture and size in points.
+pub fn fit_hud_ornament(ornaments: [(TextureHandle, Vec2); 2], scale: f32, room: f32) -> Option<(TextureHandle, Vec2)> {
+    let [wide, narrow] = ornaments;
+    if wide.1.x * scale <= room {
+        return Some((wide.0, wide.1 * scale));
+    }
+    let fit = (room / narrow.1.x.max(1.0)).min(scale);
+    (fit >= scale * 0.4).then(|| (narrow.0, narrow.1 * fit))
+}
