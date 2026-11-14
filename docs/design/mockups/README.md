@@ -46,7 +46,7 @@ The HUD of gdd.md 10 over a city, as agreed with the user on 2026-11-14 (the des
 
 Every dialog takes the HUD's frames and colours (the user's call on 2026-11-14, `generator/frames.py`): the main menus, the campaign picker, the Game menu and its popups, the briefing, the debrief's and campaign-complete screen's panels, the event popup, the inspector and the City book. Đại Long keeps its parchment and dark ink inside carved red wood; Kambara's dialogs are dark cracked stone in carved sandstone with light text and moss-green accents; Tampadesa's dark mudbrick in weathered brick with light text and gold. The dialogs over the city show the new HUD behind them, and the inspector stands left of the build column, its building's icon an icon tile. The world map and the comic viewer keep their own frames.
 
-The city behind the HUD is existing art: Đại Long's is cropped from `../../images/prototype_apr_2026_3.jpg`, and Kambara's and Tampadesa's are the small reference mocks in `../../images/references/` scaled up, so they look soft.
+The city behind the HUD is each realm's painted city in `../../images/references/` (`Ancient Vietnamese Riverside Temple Town.jpg`, `Angkor Temple City in the Jungle.jpg`, `Golden Temple City by the River.jpg`), scaled to 1920 × 1080.
 
 Placeholders in these screens: the stele lines, goals, numbers and distinctions, and the dialogue not given in story-script.md.
 
@@ -62,7 +62,7 @@ The home menu and its dialogs: load / save, settings, custom game and about. The
 | Custom game | [menu-custom-game-dailong.jpg](menu-custom-game-dailong.jpg) | [menu-custom-game-kambara.jpg](menu-custom-game-kambara.jpg) | [menu-custom-game-tampadesa.jpg](menu-custom-game-tampadesa.jpg) |
 | About | [menu-about-dailong.jpg](menu-about-dailong.jpg) | [menu-about-kambara.jpg](menu-about-kambara.jpg) | [menu-about-tampadesa.jpg](menu-about-tampadesa.jpg) |
 
-Đại Long's home backdrop is the game's own painting (`assets/ui/misc/home_menu_static_bg.png`); Kambara's and Tampadesa's are flat vector stand-ins drawn by `menus.py`. Placeholders: the save names, maps, numbers and credit names.
+The home backdrops are flat vector scenes drawn by `menus.py` (`home_scene`), the same ones the game shows: Đại Long's river town under the karsts, Kambara's temple mountain over its baray, Tampadesa's plain of temples. Placeholders: the save names, maps, numbers and credit names.
 
 ## In-game dialogs and the campaign flow
 
@@ -174,6 +174,6 @@ node shot.js city-overview-dailong game-menu-dailong   # and so on
 
 `node prev.js NAME...` saves quick 1x previews as `build/prev-<name>.jpg`, and `OUTDIR=DIR node shot.js ...` writes the full-size images somewhere other than this folder, e.g. to compare before replacing them.
 
-Run `python3 backdrops.py` (needs Pillow) before `screens.py`: it crops the city art behind the HUD into `build/city_<realm>.jpg`.
+Run `python3 backdrops.py` (needs Pillow) before `screens.py`: it scales the city art behind the HUD into `build/city_<realm>.jpg`.
 
 `shot.js` saves `../<name>.jpg` at 2x (3840 x 2160); `SCALE` and `QUALITY` change that.

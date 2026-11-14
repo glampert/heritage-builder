@@ -22,7 +22,7 @@
 ## Goals
 
 1. **Every retail screen in its realm's style**, as the mockups draw it: materials, frames, fonts, colours and motifs. The look follows the realm the player has reached (menus) or is playing (in game).
-2. **Đại Long moves to the mockup style.** The prototype's sprites go: the parchment scrolls, page backgrounds, brush strokes, and the red menu-bar and palette buttons. Đại Long's home backdrop painting stays (see [open decisions](#open-decisions)).
+2. **Đại Long moves to the mockup style.** The prototype's sprites go: the parchment scrolls, page backgrounds, brush strokes, and the red menu-bar and palette buttons. Đại Long's home backdrop painting stayed until 2026-11-14, when a generated scene in the other realms' style replaced it (see [open decisions](#open-decisions)).
 3. **Skins as data.** One skin file per realm, merged over Đại Long's, names the sprites, fonts, colours and sizes. A new realm needs a skin file and an art run, not code. This follows the minimap's [style files](minimap.md#style-files).
 4. **Placeholder art made by script**, from the same drawing code as the mockups, so the game and the mockups stay alike. It's never hand-placed, and hand-made art is never overwritten.
 5. **The screens that don't exist yet are built now**, with the data the game has today:
@@ -278,7 +278,7 @@ The realm fonts are those of the mockups (`generator/common.py`, `REALM_FONTS`):
 - **Separators** and ornaments.
 - **Emblems:** the three realm emblems, plus locked and current states.
 - **HUD and page icons:** population, treasury, food, ratings, goals, message types, build categories, speed controls, the left-bar actions.
-- **Home backdrops:** for Kambara and Tampadesa, from `menus.py`'s `home_scene`. Đại Long keeps its painting.
+- **Home backdrops:** each realm's from `menus.py`'s `home_scene` (Đại Long's since 2026-11-14, in place of its painting).
 - **The world map base,** without markers (`world_map.py`'s map layers).
 - **The stele**, without text (`screens.py`'s `stele`).
 - **Comic placeholder panels:** the realm frame, an intro scene from `screens.py`'s `intro_scene`, and the panel's description as a dim caption. They're placeholders until real art exists.
@@ -492,7 +492,7 @@ The existing dialogs keep their layouts but take their panels from the Đại Lo
   - **Campaign** starts or resumes the reached campaign at its next mission (a campaign picker when more than one is reached: `campaign-picker-<realm>.jpg`);
   - **Custom Game**, Load Game, Settings, About, Quit Game.
 - [x] The realm marker on the hovered item, and the version string.
-- [x] **Backdrop:** Đại Long's painting; Kambara's and Tampadesa's generated scenes. The skin decides.
+- [x] **Backdrop:** each realm's generated scene (Đại Long's painting until 2026-11-14). The skin decides.
 - [x] `HomeItem` (was `HomeButtonKind`) loses New Game, whose options move into Custom Game (see [open decisions](#open-decisions)).
 
 **Load / Save** (one dialog, `LoadOrSaveGame`):
@@ -818,6 +818,15 @@ Left for later (in known-issues): no building is locked by mission yet, so a til
 - [ ] **Paths:** `CityManagement` stays as the dialog kind, with the page names as tabs. `PopulationManagement`, `ResourcesManagement` and `FinancesManagement` open the City dialog on their page, so `ui_snapshot.jsonl`'s `dialog.open` calls still work.
 - [ ] Scenario `ui_city.jsonl`: open each page in each realm after building a small town; check the numbers against `world.stats`.
 
+### Phase 7: Old UI asset cleanup
+
+**Delivers:** an `assets/ui/` that holds only what the game and the art generators use, once Phase 6 is done (the user's call on 2026-11-14).
+
+- [ ] **Find the unreferenced files:** every file under `assets/ui/` (and the UI sounds and fonts) that no skin, config, tile set, style or source names, and that neither `crates/tools/ui-art`, `crates/tools/ui-icons` nor the mockup generator (`docs/design/mockups/generator/`) reads. Paths built at run time count as references: list the patterns (`skins/<realm>/hud/<kind>/<name>_idle.png`, the story panels, the minimap's sprites by realm) before calling a file unused. Known candidates: Đại Long's home painting (`misc/home_menu_static_bg.png`, replaced on 2026-11-14) and the prototype's leftovers the earlier phases didn't remove.
+- [ ] **Delete them** in one commit, with the list in its message, and drop them from `web/asset_manifest.json` (`cargo run -p web-builder -- manifest`).
+- [ ] **Check:** `make_ui_art.py --check`, `cargo test -p game --test ui_skins`, the ui scenarios and `ui_snapshot.jsonl` on a desktop backend (no missing-texture warnings in the log), and the web build's smoke test, which preloads the manifest.
+- [ ] **Docs:** AGENTS.md's notes on the prototype's art left outside `assets/ui/skins/`, the ui-art and mockup READMEs, and known-issues.md.
+
 ## Dependencies on other milestones
 
 | Screen | Works now with | Filled in by |
@@ -868,7 +877,7 @@ The user accepted every default on 2026-11-07, with the changes marked below.
 | # | Question | Default |
 |---|---|---|
 | 1 | Body text in the realm font, as the mockups have it, or a plainer face for small text? | Realm font. A skin can set a plainer body face if small text reads poorly in testing. |
-| 2 | Đại Long's home backdrop | Keep the painting, as the mockup does. Only the UI sprites go. |
+| 2 | Đại Long's home backdrop | Keep the painting, as the mockup does. Only the UI sprites go. Changed 2026-11-14: a generated scene in Kambara's and Tampadesa's style (`home_scene`) replaces it, in the game and the mockups; the painting goes in Phase 7. |
 | 3 | New Game (map size and terrain) on Home | Remove it. A Blank map entry in Custom Game takes its options. |
 | 4 | Where the profile lives | `saves/user/profile.json`, beside the user configs; localStorage on web. (Changed in review.) |
 | 5 | 9-slice centres | Stretch. `center: "tile"` per panel where grain shows. |

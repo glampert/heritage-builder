@@ -1,30 +1,41 @@
-"""Crops the city art behind the HUD mockups into build/city_<realm>.jpg (1920 x 1080).
+"""Scales the city art behind the HUD mockups into build/city_<realm>.jpg (1920 x 1080).
 
-Đại Long uses the April 2026 prototype screenshot; Kambara and Tampadesa use
-the reference mocks, scaled up from 800 px wide. Needs Pillow.
+Each realm has its own painted city in ../../../images/references/ (1673 x 940,
+16:9 to within a pixel). Needs Pillow.
 """
 import pathlib
 
-from PIL import Image, ImageFilter
+from PIL import Image
 
 HERE = pathlib.Path(__file__).parent
 IMAGES = HERE / "../../../images"
 BUILD = HERE / "build"
 
+CITIES = {
+    "dailong": "Ancient Vietnamese Riverside Temple Town.jpg",
+    "kambara": "Angkor Temple City in the Jungle.jpg",
+    "tampadesa": "Golden Temple City by the River.jpg",
+}
 
-def save(img, name):
-    BUILD.mkdir(exist_ok=True)
-    img.resize((1920, 1080), Image.LANCZOS).save(BUILD / name, quality=88)
-    print("wrote", BUILD / name)
+
+def cover(img, w, h):
+    """Crops img to w:h about its centre, then scales it to w x h."""
+    sw, sh = img.size
+    if sw * h > sh * w:
+        cw = round(sh * w / h)
+        img = img.crop(((sw - cw) // 2, 0, (sw - cw) // 2 + cw, sh))
+    else:
+        ch = round(sw * h / w)
+        img = img.crop((0, (sh - ch) // 2, sw, (sh - ch) // 2 + ch))
+    return img.resize((w, h), Image.LANCZOS)
 
 
 def main():
-    proto = Image.open(IMAGES / "prototypes/prototype_apr_2026_3.jpg").convert("RGB")
-    save(proto.crop((330, 100, 2640, 1400)), "city_dailong.jpg")
-    for realm, name in [("kambara", "mock_khr.jpg"), ("tampadesa", "mock_burma.jpg")]:
-        mock = Image.open(IMAGES / "references" / name).convert("RGB")
-        city = mock.crop((0, 110, 655, 478)).resize((1310, 736), Image.NEAREST).filter(ImageFilter.SMOOTH_MORE)
-        save(city, f"city_{realm}.jpg")
+    BUILD.mkdir(exist_ok=True)
+    for realm, name in CITIES.items():
+        city = Image.open(IMAGES / "references" / name).convert("RGB")
+        cover(city, 1920, 1080).save(BUILD / f"city_{realm}.jpg", quality=88)
+        print("wrote", BUILD / f"city_{realm}.jpg")
 
 
 if __name__ == "__main__":

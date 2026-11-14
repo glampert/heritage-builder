@@ -1,7 +1,7 @@
 """Renders the main menu mockups for each realm into build/: home, load / save,
 settings, custom game and about. The realm styles come from world_map.py and
 screens.py; this file adds the menu panels, the form widgets and the home
-backdrops for Kambara and Tampadesa (Đại Long uses the game's own painting).
+backdrops (the scene each realm draws in `home_scene`).
 """
 import base64
 import io
@@ -18,7 +18,6 @@ import menus_content as MC
 
 W, H = 1920, 1080
 HERE = pathlib.Path(__file__).parent
-ASSETS = HERE / "../../../../assets"
 
 
 def jpeg_b64(path, size=None):
@@ -349,8 +348,230 @@ class DaiLongMenus(DaiLongFrames, Menus, DaiLongScreens):
     mini_water = "#6f8f92"
 
     def home_scene(self):
-        img = jpeg_b64(ASSETS / "ui/misc/home_menu_static_bg.png")
-        return f'<image x="0" y="0" width="{W}" height="{H}" xlink:href="data:image/jpeg;base64,{img}" preserveAspectRatio="xMidYMid slice"/>'
+        """A river town under the karsts: the gate tower, the pagoda, paddies, a junk and lotuses."""
+        ink = "#2b2118"
+        out = []
+        sky = self.lin([(0, "#86c4e2"), (0.7, "#d4ecef"), (1, "#f6e4bc")])
+        out.append(f'<rect width="{W}" height="680" fill="{sky}"/>')
+        out.append(f'<circle cx="1500" cy="300" r="170" fill="#fff1cc" opacity="0.45"/><circle cx="1500" cy="300" r="70" fill="#fff4d8"/>')
+        out.append(KambaraMenus.toon_clouds(self, [(1720, 120, 0.9), (1020, 150, 0.7), (380, 110, 0.6)], "#ffffff", ink))
+        for (cx, cy, s, fl) in [(1180, 230, 0.55, 1), (1290, 270, 0.42, 1), (1880, 320, 0.4, -1)]:
+            out.append(self.crane(cx, cy, s, fl, ink))
+        # Karsts: a pale far row, then green towers at the sides.
+        out.append(self.karst_row(610, "#a9c0b2", 70, 190, 70, 130, 4, ink, 0.5))
+        out.append(self.karst_row(640, "#6e9f5c", 120, 330, 110, 170, 8, ink, 1.0, skip=(520, 1560)))
+        # The plain: paddies in strips with dikes.
+        plain = self.lin([(0, "#9cc05a"), (1, "#78a446")])
+        out.append(f'<rect y="630" width="{W}" height="200" fill="{plain}"/>')
+        out.append(f'<line x1="0" y1="630" x2="{W}" y2="630" stroke="{ink}" stroke-width="3"/>')
+        rnd = random.Random(5)
+        for k, y0 in enumerate([648, 672, 702, 740, 786]):
+            h = [20, 26, 34, 42, 48][k]
+            x = -40
+            while x < W:
+                w = rnd.uniform(160, 300) * (1 + k * 0.25)
+                col = rnd.choice(["#a8cc62", "#8fbc52", "#c8d470", "#7fae48", "#b4c86a"])
+                out.append(f'<path d="M{f(x)},{y0} h{f(w)} l{f(6 + k * 3)},{h} h{f(-w)}Z" fill="{col}" stroke="{ink}" stroke-width="{1.5 + k * 0.4:.1f}"/>')
+                for r in range(1, 3 + k // 2):
+                    yy = y0 + h * r / (3 + k // 2)
+                    out.append(f'<path d="M{f(x + 8)},{f(yy)} h{f(w - 16)}" stroke="#5f8a36" stroke-width="1.2" stroke-dasharray="3 7" opacity="0.7"/>')
+                x += w + 6
+        # Bamboo and areca palms behind the town.
+        for (bx, by, s) in [(690, 700, 0.9), (960, 690, 0.7), (1950, 720, 1.0)]:
+            out.append(self.bamboo(bx, by, s, ink))
+        # The town: houses, the gate tower on its platform, the pagoda.
+        for (hx, hy, s, flip) in [(800, 760, 0.8, 1), (1010, 742, 0.6, -1), (1560, 752, 0.7, 1), (1790, 772, 0.85, -1)]:
+            out.append(self.house(hx, hy, s, ink, flip))
+        out.append(self.pagoda(1700, 740, 1.0, ink))
+        out.append(self.gate_tower(1250, 800, ink))
+        for (px, py, s) in [(700, 820, 1.15), (880, 800, 0.85), (1560, 810, 0.95), (1880, 830, 1.25)]:
+            out.append(self.areca(px, py, s, ink))
+        # The river, with a junk and a sampan.
+        water = self.lin([(0, "#5bb0c2"), (1, "#2f8aa0")])
+        river = "M0,840 Q420,812 900,836 T1920,828 V1080 H0Z"
+        out.append(f'<path d="{river}" fill="{water}" stroke="{ink}" stroke-width="3"/>')
+        for _ in range(55):
+            wx, wy = rnd.uniform(0, W), rnd.uniform(860, 1070)
+            out.append(f'<path d="M{f(wx)},{f(wy)} q14,-8 28,0 q14,8 28,0" fill="none" stroke="#e8f8fb" stroke-width="2.5" opacity="0.65"/>')
+        out.append(f'<g opacity="0.22" transform="translate(0,1680) scale(1,-1)" {self.clip(0, 840, W, 240)}>{self.gate_tower(1250, 800, ink)}</g>')
+        out.append(self.junk(800, 970, 1.0, ink))
+        out.append(self.sampan(1600, 900, 0.7, ink))
+        for (lx, ly, s) in [(1110, 1040, 1.2), (560, 1060, 0.9), (1430, 1040, 1.1), (1780, 1000, 1.3), (1880, 1070, 0.9), (650, 900, 0.7)]:
+            out.append(self.lotus(lx, ly, s, ink, flower=(lx * 7) % 3 != 0))
+        return "".join(out)
+
+    def karst_row(self, base, color, hmin, hmax, wmin, wmax, seed, ink, lw, skip=None):
+        r = random.Random(seed)
+        out = []
+        x = -80
+        while x < W + 60:
+            w, h = r.uniform(wmin, wmax), r.uniform(hmin, hmax)
+            if skip and skip[0] < x + w / 2 < skip[1]:
+                h *= 0.35
+            p = (f"M{f(x)},{f(base)} C{f(x - 8)},{f(base - h * 0.7)} {f(x + w * 0.08)},{f(base - h)} {f(x + w * 0.5)},{f(base - h)} "
+                 f"C{f(x + w * 0.92)},{f(base - h)} {f(x + w + 8)},{f(base - h * 0.6)} {f(x + w)},{f(base)}Z")
+            out.append(f'<path d="{p}" fill="{color}" stroke="{ink}" stroke-width="{3 * lw:.1f}"/>')
+            out.append(f'<path d="M{f(x + w * 0.3)},{f(base - h * 0.85)} q-10,{f(h * 0.3)} 0,{f(h * 0.6)}" fill="none" stroke="{ink}" stroke-width="2" opacity="0.45"/>')
+            if lw >= 1:
+                cap = (f"M{f(x + w * 0.04)},{f(base - h * 0.62)} C{f(x + w * 0.1)},{f(base - h)} {f(x + w * 0.9)},{f(base - h)} {f(x + w * 0.97)},{f(base - h * 0.55)} "
+                       f"q{f(-w * 0.12)},{f(h * 0.08)} {f(-w * 0.2)},{f(-h * 0.02)} q{f(-w * 0.1)},{f(h * 0.1)} {f(-w * 0.22)},{f(h * 0.02)} "
+                       f"q{f(-w * 0.14)},{f(h * 0.09)} {f(-w * 0.24)},{f(-h * 0.02)} q{f(-w * 0.1)},{f(h * 0.06)} {f(-w * 0.27)},{f(-h * 0.03)}Z")
+                out.append(f'<path d="{cap}" fill="#4f8a44" stroke="{ink}" stroke-width="2.5"/>')
+            x += w * r.uniform(0.6, 0.95)
+        return "".join(out)
+
+    def roof(self, cx, y, w, h, ink, fill="#b0482a", ridge="#7a2c1a", tip=22):
+        """A tiled roof with upturned eave tips and a ridge ending in curls; y is the eave line."""
+        l, r, rw = cx - w / 2, cx + w / 2, w * 0.62
+        p = (f"M{f(l - tip)},{f(y - tip * 0.9)} Q{f(l + tip * 0.6)},{f(y + 4)} {f(l + tip * 1.6)},{f(y)} H{f(r - tip * 1.6)} "
+             f"Q{f(r - tip * 0.6)},{f(y + 4)} {f(r + tip)},{f(y - tip * 0.9)} Q{f(cx + rw / 2 + 10)},{f(y - h * 0.4)} {f(cx + rw / 2)},{f(y - h)} "
+             f"H{f(cx - rw / 2)} Q{f(cx - rw / 2 - 10)},{f(y - h * 0.4)} {f(l - tip)},{f(y - tip * 0.9)}Z")
+        out = [f'<path d="{p}" fill="{fill}" stroke="{ink}" stroke-width="3"/>']
+        n = max(3, int(w / 26))
+        for k in range(1, n):
+            t = k / n
+            out.append(f'<path d="M{f(cx - rw / 2 + rw * t)},{f(y - h + 4)} L{f(l + tip * 1.2 + (w - tip * 2.4) * t)},{f(y - 3)}" stroke="{ridge}" stroke-width="1.6" opacity="0.6"/>')
+        out.append(f'<rect x="{f(cx - rw / 2 - 6)}" y="{f(y - h - 9)}" width="{f(rw + 12)}" height="10" rx="3" fill="{ridge}" stroke="{ink}" stroke-width="2.5"/>')
+        for d in (-1, 1):
+            ex = cx + d * (rw / 2 + 6)
+            out.append(f'<path d="M{f(ex)},{f(y - h - 4)} q{d * 14},-2 {d * 14},-16 q0,-10 {-d * 9},-8 q-5,3 0,8" fill="none" stroke="{ink}" stroke-width="3.5" stroke-linecap="round"/>'
+                       f'<path d="M{f(ex)},{f(y - h - 4)} q{d * 14},-2 {d * 14},-16 q0,-10 {-d * 9},-8 q-5,3 0,8" fill="none" stroke="{ridge}" stroke-width="1.6" stroke-linecap="round"/>')
+        return "".join(out)
+
+    def lantern(self, x, y, s, ink):
+        return (f'<line x1="{f(x)}" y1="{f(y - 12 * s)}" x2="{f(x)}" y2="{f(y - 6 * s)}" stroke="{ink}" stroke-width="1.5"/>'
+                f'<ellipse cx="{f(x)}" cy="{f(y + 2 * s)}" rx="{f(7 * s)}" ry="{f(9 * s)}" fill="#d63a22" stroke="{ink}" stroke-width="1.8"/>'
+                f'<line x1="{f(x)}" y1="{f(y + 11 * s)}" x2="{f(x)}" y2="{f(y + 17 * s)}" stroke="#e8b040" stroke-width="2"/>')
+
+    def gate_tower(self, cx, base, ink):
+        """A two-tier gate tower on an ochre platform with three arches, as at a citadel's gate."""
+        wall, shade, pillar = "#e2b24c", "#c08a32", "#9e2a1e"
+        out = [f'<path d="M{cx - 330},{base} L{cx - 300},{base - 120} H{cx + 300} L{cx + 330},{base}Z" fill="{wall}" stroke="{ink}" stroke-width="3"/>',
+               f'<path d="M{cx + 300},{base - 120} L{cx + 330},{base} H{cx + 270} L{cx + 250},{base - 120}Z" fill="{shade}" opacity="0.6"/>']
+        for row in range(4):
+            yy = base - 30 * (row + 1)
+            out.append(f'<line x1="{cx - 320 + row * 7}" y1="{yy}" x2="{cx + 320 - row * 7}" y2="{yy}" stroke="{shade}" stroke-width="1.5"/>')
+        for dx, aw, ah in [(-170, 50, 70), (0, 70, 92), (170, 50, 70)]:
+            out.append(f'<path d="M{cx + dx - aw / 2},{base} V{base - ah + aw / 2} A{aw / 2},{aw / 2} 0 0 1 {cx + dx + aw / 2},{base - ah + aw / 2} V{base}Z" fill="#3a2414" stroke="{ink}" stroke-width="3"/>')
+        out.append(f'<rect x="{cx - 310}" y="{base - 132}" width="620" height="14" fill="#c9a25a" stroke="{ink}" stroke-width="2.5"/>')
+        for k in range(16):
+            out.append(f'<rect x="{cx - 300 + k * 39}" y="{base - 146}" width="16" height="14" fill="#c9a25a" stroke="{ink}" stroke-width="1.5"/>')
+        # Lower hall.
+        y1 = base - 132
+        out.append(f'<rect x="{cx - 220}" y="{y1 - 70}" width="440" height="70" fill="#f1dca8" stroke="{ink}" stroke-width="3"/>')
+        for k in range(9):
+            px = cx - 210 + k * 52.5
+            out.append(f'<rect x="{f(px - 5)}" y="{y1 - 70}" width="10" height="70" fill="{pillar}" stroke="{ink}" stroke-width="1.5"/>')
+        for k in range(8):
+            out.append(f'<rect x="{f(cx - 196 + k * 52.5)}" y="{y1 - 52}" width="24" height="34" fill="#7a3a1e" opacity="0.55"/>')
+        out.append(self.roof(cx, y1 - 64, 540, 70, ink))
+        # Upper pavilion.
+        y2 = y1 - 140
+        out.append(f'<rect x="{cx - 130}" y="{y2 - 56}" width="260" height="62" fill="#f1dca8" stroke="{ink}" stroke-width="3"/>')
+        for k in range(6):
+            out.append(f'<rect x="{f(cx - 125 + k * 50 - 4)}" y="{y2 - 56}" width="9" height="62" fill="{pillar}" stroke="{ink}" stroke-width="1.5"/>')
+        out.append(f'<rect x="{cx - 46}" y="{y2 - 46}" width="92" height="28" rx="3" fill="#7a2c1a" stroke="{ink}" stroke-width="2"/>'
+                   f'<rect x="{cx - 40}" y="{y2 - 41}" width="80" height="18" fill="none" stroke="#e8b040" stroke-width="1.5"/>')
+        out.append(self.roof(cx, y2 - 50, 360, 64, ink))
+        out.append(f'<circle cx="{cx}" cy="{y2 - 128}" r="10" fill="#e8b040" stroke="{ink}" stroke-width="2.5"/>'
+                   f'<path d="M{cx - 8},{y2 - 136} q8,-16 16,0 M{cx - 4},{y2 - 138} q4,-10 8,0" fill="none" stroke="#e8b040" stroke-width="3"/>')
+        for dx in (-250, -120, 120, 250):
+            out.append(self.lantern(cx + dx * (0.96 if abs(dx) > 200 else 0.9), (y1 - 52) if abs(dx) > 200 else (y2 - 36), 1.1, ink))
+        # Flags on the platform.
+        for dx in (-290, 290):
+            out.append(f'<line x1="{cx + dx}" y1="{base - 146}" x2="{cx + dx}" y2="{base - 250}" stroke="{ink}" stroke-width="3"/>'
+                       f'<path d="M{cx + dx},{base - 248} q{-dx / 290 * -40},10 {-dx / 290 * -70},-2 q-10,16 0,30 q-30,-8 {-dx / 290 * 70},2Z" fill="#d63a22" stroke="{ink}" stroke-width="2"/>')
+        return "".join(out)
+
+    def pagoda(self, cx, base, s, ink):
+        """A seven-tier tower, each tier narrower, with a gourd finial."""
+        out = [f'<rect x="{f(cx - 70 * s)}" y="{f(base - 16 * s)}" width="{f(140 * s)}" height="{f(16 * s)}" fill="#c9a25a" stroke="{ink}" stroke-width="2.5"/>']
+        y = base - 16 * s
+        w = 96 * s
+        for k in range(7):
+            th = (52 - k * 3) * s
+            out.append(f'<rect x="{f(cx - w / 2)}" y="{f(y - th)}" width="{f(w)}" height="{f(th)}" fill="#f1dca8" stroke="{ink}" stroke-width="2.5"/>'
+                       f'<path d="M{f(cx - 7 * s)},{f(y)} V{f(y - th * 0.55)} a{f(7 * s)},{f(7 * s)} 0 0 1 {f(14 * s)},0 V{f(y)}Z" fill="#3a2414"/>')
+            out.append(self.roof(cx, y - th + 4 * s, w + 30 * s, 18 * s, ink, tip=12 * s))
+            y -= th + 14 * s
+            w *= 0.86
+        out.append(f'<path d="M{f(cx)},{f(y - 4 * s)} V{f(y - 60 * s)}" stroke="{ink}" stroke-width="{f(4 * s)}"/>'
+                   f'<circle cx="{f(cx)}" cy="{f(y - 14 * s)}" r="{f(10 * s)}" fill="#e8b040" stroke="{ink}" stroke-width="2"/>'
+                   f'<circle cx="{f(cx)}" cy="{f(y - 36 * s)}" r="{f(7 * s)}" fill="#e8b040" stroke="{ink}" stroke-width="2"/>')
+        return "".join(out)
+
+    def house(self, cx, base, s, ink, flip=1):
+        """A town house: ochre walls, a tiled roof and a lantern by the door."""
+        w, h = 170 * s, 74 * s
+        out = [f'<rect x="{f(cx - w / 2)}" y="{f(base - h)}" width="{f(w)}" height="{f(h)}" fill="#e7bf5c" stroke="{ink}" stroke-width="2.5"/>',
+               f'<rect x="{f(cx - 22 * s)}" y="{f(base - 50 * s)}" width="{f(44 * s)}" height="{f(50 * s)}" fill="#6a3a1c" stroke="{ink}" stroke-width="2"/>']
+        for d in (-1, 1):
+            out.append(f'<rect x="{f(cx + d * 54 * s - 14 * s)}" y="{f(base - 52 * s)}" width="{f(28 * s)}" height="{f(22 * s)}" fill="#7a3a1e" stroke="{ink}" stroke-width="1.8"/>')
+        out.append(self.roof(cx, base - h + 6 * s, w + 40 * s, 52 * s, ink, fill="#a8432a", tip=16 * s))
+        out.append(self.lantern(cx + flip * 34 * s, base - 54 * s, s, ink))
+        return "".join(out)
+
+    def areca(self, x, base, s, ink):
+        top = base - 280 * s
+        out = [f'<path d="M{x},{base} Q{x - 10 * s},{f(base - 140 * s)} {x},{f(top)}" fill="none" stroke="{ink}" stroke-width="{f(12 * s)}"/>',
+               f'<path d="M{x},{base} Q{x - 10 * s},{f(base - 140 * s)} {x},{f(top)}" fill="none" stroke="#9a8460" stroke-width="{f(7 * s)}"/>']
+        for a, l in ((195, 95), (222, 100), (250, 80), (290, 80), (318, 100), (345, 95)):
+            r = math.radians(a)
+            ex, ey = x + l * s * math.cos(r), top + l * s * math.sin(r) + 60 * s
+            mx, my = x + l * 0.55 * s * math.cos(r), top + l * 0.7 * s * math.sin(r) - 8 * s
+            nx, ny = -(ey - top), ex - x
+            n = math.hypot(nx, ny) or 1
+            nx, ny = nx / n * 12 * s, ny / n * 12 * s
+            out.append(f'<path d="M{x},{f(top)} Q{f(mx + nx)},{f(my + ny)} {f(ex)},{f(ey)} Q{f(mx - nx)},{f(my - ny)} {x},{f(top)}Z" fill="#4f8a3a" stroke="{ink}" stroke-width="2.2"/>'
+                       f'<path d="M{x},{f(top)} Q{f(mx)},{f(my)} {f(ex)},{f(ey)}" fill="none" stroke="#2f5a24" stroke-width="1.4"/>')
+        out.append(f'<circle cx="{x - 6 * s}" cy="{f(top + 16 * s)}" r="{f(6 * s)}" fill="#d9a032" stroke="{ink}" stroke-width="1.5"/>'
+                   f'<circle cx="{x + 6 * s}" cy="{f(top + 18 * s)}" r="{f(6 * s)}" fill="#d9a032" stroke="{ink}" stroke-width="1.5"/>')
+        return "".join(out)
+
+    def bamboo(self, x, base, s, ink):
+        out = []
+        for k, (dx, h, lean) in enumerate([(-30, 240, -14), (-10, 300, -4), (12, 270, 8), (32, 220, 18)]):
+            x0, x1, y1 = x + dx * s, x + (dx + lean) * s, base - h * s
+            out.append(f'<path d="M{f(x0)},{base} L{f(x1)},{f(y1)}" stroke="{ink}" stroke-width="{f(9 * s)}"/>'
+                       f'<path d="M{f(x0)},{base} L{f(x1)},{f(y1)}" stroke="#8aa848" stroke-width="{f(5 * s)}"/>')
+            for j in range(1, 6):
+                t = j / 6
+                out.append(f'<line x1="{f(x0 + (x1 - x0) * t - 4 * s)}" y1="{f(base + (y1 - base) * t)}" x2="{f(x0 + (x1 - x0) * t + 4 * s)}" y2="{f(base + (y1 - base) * t)}" stroke="{ink}" stroke-width="2"/>')
+            for j in range(3):
+                t = 0.55 + j * 0.2
+                lx, ly = x0 + (x1 - x0) * t, base + (y1 - base) * t
+                d = -1 if (j + k) % 2 else 1
+                out.append(f'<path d="M{f(lx)},{f(ly)} q{f(d * 20 * s)},{f(-14 * s)} {f(d * 46 * s)},{f(-4 * s)} q{f(-d * 22 * s)},{f(12 * s)} {f(-d * 46 * s)},{f(4 * s)}Z" fill="#6a9a3e" stroke="{ink}" stroke-width="1.8"/>')
+        return "".join(out)
+
+    def junk(self, x, y, s, ink):
+        """A river junk with ribbed batwing sails."""
+        out = [f'<path d="M{f(x - 150 * s)},{f(y - 30 * s)} Q{f(x - 110 * s)},{f(y + 20 * s)} {f(x)},{f(y + 22 * s)} Q{f(x + 120 * s)},{f(y + 20 * s)} {f(x + 170 * s)},{f(y - 40 * s)} '
+               f'L{f(x + 120 * s)},{f(y - 22 * s)} H{f(x - 110 * s)}Z" fill="#7a4a26" stroke="{ink}" stroke-width="3"/>',
+               f'<path d="M{f(x - 140 * s)},{f(y - 20 * s)} H{f(x + 150 * s)}" stroke="#b07a40" stroke-width="{f(5 * s)}"/>',
+               f'<path d="M{f(x - 70 * s)},{f(y - 22 * s)} v{f(-40 * s)} h{f(90 * s)} v{f(40 * s)}" fill="#c9a258" stroke="{ink}" stroke-width="2.5"/>']
+        for mx, h, w in [(x - 10 * s, 230 * s, 130 * s), (x + 100 * s, 160 * s, 90 * s)]:
+            out.append(f'<line x1="{f(mx)}" y1="{f(y - 22 * s)}" x2="{f(mx)}" y2="{f(y - 22 * s - h)}" stroke="{ink}" stroke-width="{f(5 * s)}"/>')
+            top, bot = y - 22 * s - h, y - 60 * s
+            p = (f"M{f(mx)},{f(top)} Q{f(mx + w * 0.7)},{f(top - 10 * s)} {f(mx + w)},{f(top + 20 * s)} "
+                 f"L{f(mx + w * 0.86)},{f(bot)} H{f(mx - w * 0.22)} L{f(mx - w * 0.12)},{f(top + 20 * s)}Z")
+            out.append(f'<path d="{p}" fill="#d9713a" stroke="{ink}" stroke-width="3"/>')
+            for k in range(1, 5):
+                t = k / 5
+                yy = top + 20 * s + (bot - top - 20 * s) * t
+                out.append(f'<line x1="{f(mx - w * (0.12 + 0.1 * t))}" y1="{f(yy)}" x2="{f(mx + w - w * 0.14 * t)}" y2="{f(yy - 10 * s * (1 - t))}" stroke="{ink}" stroke-width="2"/>')
+        out.append(f'<circle cx="{f(x + 140 * s)}" cy="{f(y - 22 * s)}" r="{f(7 * s)}" fill="#f6efe0" stroke="{ink}" stroke-width="2"/>'
+                   f'<circle cx="{f(x + 141 * s)}" cy="{f(y - 22 * s)}" r="{f(3 * s)}" fill="{ink}"/>')
+        return "".join(out)
+
+    def sampan(self, x, y, s, ink):
+        return (f'<path d="M{f(x - 90 * s)},{f(y - 14 * s)} Q{f(x)},{f(y + 22 * s)} {f(x + 90 * s)},{f(y - 14 * s)}Z" fill="#7a4a26" stroke="{ink}" stroke-width="2.5"/>'
+                f'<path d="M{f(x - 30 * s)},{f(y - 6 * s)} Q{f(x)},{f(y - 50 * s)} {f(x + 34 * s)},{f(y - 6 * s)}Z" fill="#c9a258" stroke="{ink}" stroke-width="2.5"/>'
+                f'<path d="M{f(x + 50 * s)},{f(y - 8 * s)} l{f(-10 * s)},{f(-34 * s)} l{f(20 * s)},0Z" fill="#e8d29a" stroke="{ink}" stroke-width="2"/>'
+                f'<line x1="{f(x + 50 * s)}" y1="{f(y - 30 * s)}" x2="{f(x + 120 * s)}" y2="{f(y + 30 * s)}" stroke="{ink}" stroke-width="3"/>')
+
+    def lotus(self, x, y, s, ink, flower=True):
+        return KambaraMenus.lotus(self, x, y, s, ink, flower).replace("#2a86a0", "#3a94aa")
 
     def roller(self, x, y, w):
         g = self.lin([(0, "#3a1c0c"), (0.35, "#a0612e"), (0.55, "#7a4420"), (1, "#3a1c0c")])

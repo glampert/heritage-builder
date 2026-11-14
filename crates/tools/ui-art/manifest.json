@@ -264,6 +264,18 @@
       "source_hash": "c981db4e36ddae90",
       "state": "locked"
     },
+    "assets/ui/skins/dailong/home_backdrop.jpg": {
+      "catalog_hash": "9e4b1accb41024c2",
+      "id": "home_backdrop",
+      "png_hash": "383d13f7ea26a9cb",
+      "png_size": [
+        1920,
+        1080
+      ],
+      "realm": "dailong",
+      "source_hash": "a80bcd375fba6eab",
+      "state": null
+    },
     "assets/ui/skins/dailong/hud/deco_bottom.png": {
       "catalog_hash": "0511ce09edec775a",
       "id": "deco_bottom",

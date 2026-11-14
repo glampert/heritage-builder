@@ -112,7 +112,7 @@
       "realms": { "dailong": { "call": "seal", "args": { "s": 56, "letter": "Đ" }, "size": [64, 64], "bleed": [0, 0, 0, 0] } } },
 
     { "id": "home_backdrop", "group": "backdrops", "call": "home_scene", "size": [1920, 1080], "scale": 1, "format": "jpeg",
-      "realms": { "kambara": {}, "tampadesa": {} } },
+      "realms": { "dailong": {}, "kambara": {}, "tampadesa": {} } },
     { "id": "world_map_base", "group": "world_map", "call": "world_map_base", "size": [1290, 867], "format": "jpeg",
       "realms": { "dailong": { "args": { "map": "dailong" } }, "kambara": { "args": { "map": "kambara" } },
                   "tampadesa": { "args": { "map": "tampadesa" } } } },
