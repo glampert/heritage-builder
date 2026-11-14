@@ -387,14 +387,17 @@ TOOLS = [("plus", "Zoom in"), ("minus", "Zoom out"), ("alert", "Next alert"), ("
 
 
 def widget_layout(x, y, map_w, btn, gap, pad):
-    """The widget's layout: lens icons in a row across the top, the map under them, the
-    tools in a column on the right. Returns the total size and where everything goes."""
+    """The widget's layout, as the game lays it out: lens icons in a row across the top,
+    right-aligned against the tools, the map under them, the tools in a column on the
+    right. Returns the total size and where everything goes."""
     map_x, map_y = x + pad, y + pad + btn + gap
     col_x = map_x + map_w + gap
     inner_h = btn + gap + map_w / 2
     W = pad * 2 + map_w + gap + btn
     H = pad * 2 + inner_h
-    lens_pos = [(map_x + k * (btn + gap), y + pad) for k in range(len(LENSES))]
+    n = len(LENSES)
+    lens_x0 = map_x + map_w - n * btn - (n - 1) * gap
+    lens_pos = [(lens_x0 + k * (btn + gap), y + pad) for k in range(n)]
     step = (inner_h - btn) / (len(TOOLS) - 1)
     tool_pos = [(col_x, y + pad + k * step) for k in range(len(TOOLS))]
     return W, H, (map_x, map_y), lens_pos, tool_pos
