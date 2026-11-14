@@ -167,12 +167,6 @@
       "slice": [16, 16, 16, 16],
       "center": "stretch",
       "content": [12.0, 12.0, 12.0, 12.0]
-    },
-    "bubble": {
-      "sprite": "skins/dailong/panel_bubble.png",
-      "slice": [88, 88, 88, 88],
-      "center": "stretch",
-      "content": [48.0, 48.0, 48.0, 48.0]
     }
   },
   "buttons": {

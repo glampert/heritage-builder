@@ -29,16 +29,6 @@
     { "id": "panel_row_selected", "group": "panels", "call": "row_bg", "args": { "selected": true },
       "size": [96, 48], "bleed": [2, 2, 2, 2], "slice": [20, 20, 20, 20] },
     { "id": "panel_field", "group": "panels", "call": "text_input", "size": [96, 48], "bleed": [1, 1, 1, 1], "slice": [16, 16, 16, 16] },
-    { "id": "panel_bubble", "group": "panels", "call": "speech", "elements": [1], "bleed": [2, 2, 2, 2],
-      "realms": {
-        "dailong": { "args": { "lines": 2, "tip": [165, 218] }, "size": [160, 158], "slice": [88, 88, 88, 88] },
-        "kambara": { "args": { "lines": 2, "tip": [80, 212] }, "size": [160, 152], "slice": [68, 68, 68, 68] },
-        "tampadesa": { "args": { "lines": 2, "tip": [40, 214] }, "size": [160, 154], "slice": [72, 72, 72, 72] } } },
-    { "id": "bubble_tail", "group": "panels", "call": "speech", "elements": [0, 2],
-      "realms": {
-        "dailong": { "args": { "lines": 2, "tip": [165, 218] }, "size": [160, 158], "bleed": [-116, -152, 54, 62] },
-        "kambara": { "args": { "lines": 2, "tip": [80, 212] }, "size": [160, 152], "bleed": [-36, -146, -36, 62] },
-        "tampadesa": { "args": { "lines": 2, "tip": [40, 214] }, "size": [160, 154], "bleed": [4, -148, -76, 62] } } },
 
     { "id": "button_primary", "group": "buttons", "call": "button", "args": { "primary": true }, "size": [120, 56],
       "states": ["idle", "hovered", "pressed", "disabled"],

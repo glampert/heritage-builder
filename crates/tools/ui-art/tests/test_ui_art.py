@@ -263,12 +263,12 @@ class CheckTest(unittest.TestCase):
             json.dump(skin, f)
 
     def test_skins(self):
-        write_png(os.path.join(self.root, cat.UI_DIR, "misc/home_menu_static_bg.png"), 4, 4)
+        write_png(os.path.join(self.root, cat.UI_DIR, "misc/painting.png"), 4, 4)
         self.write_skin("dailong", {
             "style": {"fonts": {"body": {"file": "fonts/not_a_sprite.ttf"}}},
             "panels": {"dialog": {"sprite": "skins/dailong/panel.png", "slice": [20, 20, 24, 28], "center": "round"}},
             "buttons": {"primary": {"sprite": "skins/dailong/button", "content": [1, 2, 3, 4]}},
-            "backdrops": {"home": ["misc/home_menu_static_bg.png"]},
+            "backdrops": {"home": ["misc/painting.png"]},
             "sounds": {"button_pressed": "buttons/default/pressed.wav"},
         })
         self.assertEqual(self.errors(), [])

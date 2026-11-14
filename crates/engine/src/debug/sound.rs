@@ -68,7 +68,7 @@ impl DrawDebugUi for SoundSystem {
             ui::text(ui_sys, "Ambience:");
 
             if ui::button(ui_sys, "Play Ambience") {
-                let sound_key = self.load_ambience(PathRef::from_str("birds_chirping_ambiance.mp3"));
+                let sound_key = self.load_ambience(PathRef::from_str("birds_chirping.mp3"));
                 self.play_ambience(sound_key, *LOOPING);
             }
 
@@ -80,7 +80,7 @@ impl DrawDebugUi for SoundSystem {
             ui::input_f32_xy(ui_sys, "Spatial:", SPATIAL_ORIGIN.as_mut(), false, None, None);
 
             if ui::button(ui_sys, "Play Spatial") {
-                let sound_key = self.load_ambience(PathRef::from_str("birds_chirping_ambiance.mp3"));
+                let sound_key = self.load_ambience(PathRef::from_str("birds_chirping.mp3"));
                 self.play_spatial_ambience(sound_key, IsoPointF32(*SPATIAL_ORIGIN), *LOOPING);
             }
 

@@ -70,8 +70,7 @@
     "well": { "sprite": "skins/kambara/panel_well.png", "slice": [16, 16, 16, 16] },
     "row": { "sprite": "skins/kambara/panel_row.png", "slice": [20, 0, 20, 4] },
     "row_selected": { "sprite": "skins/kambara/panel_row_selected.png", "slice": [20, 20, 20, 20] },
-    "field": { "sprite": "skins/kambara/panel_field.png", "slice": [16, 16, 16, 16] },
-    "bubble": { "sprite": "skins/kambara/panel_bubble.png", "slice": [68, 68, 68, 68], "content": [38.0, 38.0, 38.0, 38.0] }
+    "field": { "sprite": "skins/kambara/panel_field.png", "slice": [16, 16, 16, 16] }
   },
   "buttons": {
     "primary": { "sprite": "skins/kambara/button_primary", "slice": [12, 12, 16, 20], "center": "round", "text": "#f6eedc" },

@@ -70,12 +70,7 @@
     "well": { "sprite": "skins/tampadesa/panel_well.png", "slice": [16, 16, 16, 16] },
     "row": { "sprite": "skins/tampadesa/panel_row.png", "slice": [20, 0, 20, 4] },
     "row_selected": { "sprite": "skins/tampadesa/panel_row_selected.png", "slice": [20, 20, 20, 20] },
-    "field": { "sprite": "skins/tampadesa/panel_field.png", "slice": [16, 16, 16, 16] },
-    "bubble": {
-      "sprite": "skins/tampadesa/panel_bubble.png",
-      "slice": [72, 72, 72, 72],
-      "content": [40.0, 40.0, 40.0, 40.0]
-    }
+    "field": { "sprite": "skins/tampadesa/panel_field.png", "slice": [16, 16, 16, 16] }
   },
   "buttons": {
     "primary": { "sprite": "skins/tampadesa/button_primary", "slice": [20, 20, 24, 28], "text": "#f6df8e" },

@@ -139,7 +139,6 @@ and the cards on `panel_well`:
 | `panel_bar` | `bar_bg` | The world map's top bar (dark wood; mossy stone; teak and gilt). |
 | `panel_caption` | `caption` | Story captions. Đại Long's cloud scroll sits in the bottom-right corner. |
 | `panel_well`, `panel_row`, `panel_row_selected`, `panel_field` | `card`, `row_bg`, `text_input` | Flat shapes in the skin's colours. A row is only its bottom rule. |
-| `panel_bubble`, `bubble_tail` | `speech` | The bubble's body (9-slice) and its tail, placed by the tail's bleed relative to a bubble of the catalog's size. |
 | `button_primary`, `button_secondary`, `tab`, `tab_selected` | `button`, `tab` | Four states each, hovered, pressed and disabled derived by CSS filters. |
 | `icon_frame` (4 states), `icon_frame_selected` | `build_button`, `icon_button` | The frame only; the glyphs stay with `crates/tools/ui-icons/`. Tampadesa's use the HUD's lacquer colours. |
 | `marker` | `item_marker` | The menu item marker: a seal, a leaf, a small stupa. |
