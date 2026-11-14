@@ -777,8 +777,8 @@ impl UiWidget for UiSpriteButton {
 }
 
 impl UiSpriteButton {
-    // `sprite` names its state sprites under assets/ui/buttons/, e.g. "palette/housing" for
-    // buttons/palette/housing_idle.png and the other states', and labels the button. It starts
+    // `sprite` names its state sprites under assets/ui/buttons/, e.g. "minimap/alerts" for
+    // buttons/minimap/alerts_idle.png and the other states', and labels the button. It starts
     // idle, with its press sound on, and shows a press at once.
     pub fn new(context: &mut dyn UiWidgetContext, sprite: impl Into<String>, size: Vec2) -> Self {
         let label = sprite.into();

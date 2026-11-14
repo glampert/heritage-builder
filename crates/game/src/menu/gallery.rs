@@ -367,7 +367,7 @@ fn controls(context: &mut GameUiContext) -> UiWidgetGroup {
         .with_widget(realm_list)
 }
 
-// A button of every role, and disabled ones; the icon buttons; the HUD's sprite buttons.
+// A button of every role, and disabled ones; the icon buttons.
 fn buttons(context: &mut GameUiContext) -> UiWidgetGroup {
     let framed = row()
         .with_widget(skin::button(context, ButtonRole::Primary, "Primary", |_, _| {}).with_tooltip(skin::tooltip(context, "The primary role")))
@@ -377,8 +377,7 @@ fn buttons(context: &mut GameUiContext) -> UiWidgetGroup {
         .with_widget(skin::button(context, ButtonRole::Primary, "Min", |_, _| {}).with_width(UiTextButtonWidth::Min(MIN_BUTTON_WIDTH)));
     let tabs = row()
         .with_widget(skin::button(context, ButtonRole::Tab, "Tab", |_, _| {}))
-        .with_widget(skin::button(context, ButtonRole::TabSelected, "Selected Tab", |_, _| {}))
-        .with_widget(skin::button(context, ButtonRole::HudItem, "HUD Item", |_, _| {}));
+        .with_widget(skin::button(context, ButtonRole::TabSelected, "Selected Tab", |_, _| {}));
     let items = UiWidgetGroup::new()
         .with_center_horizontally(false)
         .with_widget(skin::menu_item(context, "Menu Item", Some(UiString::from("With a subline"))))
@@ -398,13 +397,6 @@ fn buttons(context: &mut GameUiContext) -> UiWidgetGroup {
     }
     icons.add_widget(skin::icon_button(context, "icon disabled", icon_names.first().map_or("", String::as_str)).with_enabled(false));
 
-    let mut sprites = row();
-    // A sample button of each set the gallery knows a sprite of.
-    const SAMPLE_SPRITES: [(&str, &str); 2] = [("menu_bar", "main_menu"), ("palette", "housing")];
-    for (set, name) in SAMPLE_SPRITES.into_iter().filter(|(set, _)| skin::current().icon_sets.contains_key(*set)) {
-        sprites.add_widget(skin::sprite_button(context, set, name, Vec2::new(40.0, 40.0)).with_tooltip(skin::tooltip(context, format!("{set}/{name}"))));
-    }
-
     UiWidgetGroup::new()
         .with_center_horizontally(false)
         .with_widget_spacing(Vec2::new(0.0, 8.0))
@@ -413,7 +405,6 @@ fn buttons(context: &mut GameUiContext) -> UiWidgetGroup {
         .with_widget(items)
         .with_widget(card)
         .with_widget(icons)
-        .with_widget(sprites)
 }
 
 // Each framed role's four state sprites, as 9-slices, and its selected frame if it has one (the

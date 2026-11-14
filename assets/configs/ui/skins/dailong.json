@@ -172,10 +172,7 @@
       "slice": [88, 88, 88, 88],
       "center": "stretch",
       "content": [48.0, 48.0, 48.0, 48.0]
-    },
-    "hud_wide": { "sprite": "misc/wide_page_bg.png" },
-    "hud_tall": { "sprite": "misc/tall_page_bg.png" },
-    "hud_page": { "sprite": "misc/square_page_bg.png", "content": [20.0, 20.0, 20.0, 20.0] }
+    }
   },
   "buttons": {
     "primary": {
@@ -224,14 +221,9 @@
       "selected": "skins/dailong/icon_frame_selected.png",
       "selected_slice": [16, 16, 16, 16],
       "size": 28.0
-    },
-    "hud_item": { "hover_sprite": "misc/brush_stroke_divider.png", "font": "normal" }
+    }
   },
-  "icon_sets": { "menu_bar": "buttons/menu_bar", "palette": "buttons/palette" },
   "icons": {
-    "population": "icons/population_icon.png",
-    "player": "icons/player_icon.png",
-    "gold": "icons/gold_icon.png",
     "clear_tool": "icons/red_x_icon.png"
   },
   "controls": {
@@ -265,9 +257,7 @@
       "ornament": "skins/dailong/ornament.png",
       "ornament_size": [18.0, 18.0]
     },
-    "plain": { "sprite": "skins/dailong/rule.png", "slice": [8, 0, 8, 0], "height": 6.0 },
-    "hud": { "sprite": "misc/brush_stroke_divider.png" },
-    "hud_vertical": { "sprite": "misc/brush_stroke_divider_vertical.png" }
+    "plain": { "sprite": "skins/dailong/rule.png", "slice": [8, 0, 8, 0], "height": 6.0 }
   },
   "emblems": {
     "dailong": "skins/dailong/emblem_dailong",

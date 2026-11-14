@@ -16,7 +16,7 @@ use engine::{
         UiInputEvent,
         UiStyleSource,
         UiString,
-        widgets::{UiSpriteButton, UiSpriteButtonState, UiTextButton, UiTooltipText, UiWidgetContext},
+        widgets::{UiTextButton, UiTooltipText, UiWidgetContext},
     },
 };
 
@@ -903,19 +903,6 @@ trait ButtonDef: Sized + Copy + Clone + EnumProperty {
         }
 
         button
-    }
-
-    // A sprite button from the skin's icon set `icon_set` (e.g. "palette"), its sprites named by
-    // the Label prop, which also names the button.
-    fn new_sprite_button<F>(self, context: &mut GameUiContext, icon_set: &str, size: Vec2, on_state_changed: F) -> UiSpriteButton
-    where
-        F: for<'a> Fn(&'a mut UiSpriteButton, &mut dyn UiWidgetContext, UiSpriteButtonState) + 'static,
-    {
-        // Always give a tooltip for sprite buttons, beside the button: they sit in bars along the
-        // screen's edges, where a tooltip at the pointer would cover the buttons next to it.
-        let tooltip = skin::tooltip_beside(context, self.tooltip());
-
-        skin::sprite_button(context, icon_set, &self.label(), size).with_tooltip(tooltip).on_state_changed(on_state_changed)
     }
 
     fn on_pressed(self, _context: &mut GameUiContext) -> bool {

@@ -127,7 +127,7 @@ fn test_every_skin_loads() {
         assert!(skin.sprite_scale > 0.0, "{realm}");
         skin::check_required(&skin).unwrap_or_else(|err| panic!("{realm}: {err}"));
         assert!(skin.panels.contains_key("caption"), "{realm}: no panel 'caption'");
-        for role in ["primary", "secondary", "menu_item", "hud_item"] {
+        for role in ["primary", "secondary", "menu_item"] {
             assert!(skin.buttons.contains_key(role), "{realm}: no button role '{role}'");
         }
         for level in ["title", "subtitle", "dialog", "popup", "section"] {
@@ -195,9 +195,6 @@ fn test_every_sprite_exists_and_slices_fit() {
             if let Some(separator) = &heading.separator {
                 assert!(skin.separators.contains_key(separator), "{realm}: heading '{level}': no separator '{separator}'");
             }
-        }
-        for (set, folder) in &skin.icon_sets {
-            assert!(repo_path("assets/ui").join(folder).is_dir(), "{realm}: icon set '{set}': {folder} isn't a folder");
         }
         for (name, path) in &skin.icons {
             assert!(ui_asset_exists(path), "{realm}: icon '{name}': {path} doesn't exist");

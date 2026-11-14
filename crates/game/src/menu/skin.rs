@@ -6,8 +6,8 @@
 //   spacing), loaded at boot as the theme named after the realm ("dailong", ...);
 // - `text`: named text colours (ink, accent, on_accent, ...), which the other blocks name;
 // - `headings`, `panels`, `buttons`, `separators`, `controls`, `emblems`, `ornaments`, `icons`,
-//   `icon_sets`, `cards`, `backdrops`, `dialogs`: the sprites, 9-slice borders, insets and sizes
-//   the screens use;
+//   `cards`, `backdrops`, `dialogs`: the sprites, 9-slice borders, insets and sizes the screens
+//   use; `hud` (skin_hud.rs): the HUD's tiles, glyphs, icons and colours;
 // - `world_map`: the world map screen's art (its base without markers, the map's frame, the
 //   screen's background) and where the map's units fall on it;
 // - `intermission`, `briefing`: the debrief's and the campaign-complete screen's art (the stele,
@@ -97,8 +97,7 @@ pub struct UiSkinDef {
     pub headings: BTreeMap<String, SkinHeadingDef>,
     pub panels: BTreeMap<String, SkinPanelDef>,
     pub buttons: BTreeMap<String, SkinButtonDef>,
-    pub icon_sets: BTreeMap<String, String>, // Sprite-button sets: name → folder of state sprites.
-    pub icons: BTreeMap<String, String>,     // Single sprites by name.
+    pub icons: BTreeMap<String, String>, // Single sprites by name: the clear tool's cursor, icon buttons'.
     pub controls: SkinControlsDef,
     pub meters: SkinMetersDef,
     pub rows: SkinRowsDef,
@@ -128,7 +127,6 @@ impl Default for UiSkinDef {
             headings: BTreeMap::new(),
             panels: BTreeMap::new(),
             buttons: BTreeMap::new(),
-            icon_sets: BTreeMap::new(),
             icons: BTreeMap::new(),
             controls: SkinControlsDef::default(),
             meters: SkinMetersDef::default(),
@@ -1854,7 +1852,7 @@ fn separator_look(context: &mut dyn UiWidgetContext, kind: &str) -> Option<Separ
     Some(SeparatorLook::Art(art))
 }
 
-// A separator line of `kind` (rule, plain, or the HUD's hud and hud_vertical), across the menu.
+// A separator line of `kind` (rule or plain), across the menu.
 pub fn separator(context: &mut dyn UiWidgetContext, kind: &str) -> UiSeparator {
     match separator_look(context, kind) {
         Some(SeparatorLook::Art(art)) => {
@@ -1878,7 +1876,6 @@ pub enum ButtonRole {
     MenuItem,    // A dialog's list of choices: Home's, the Game menu's.
     Tab,
     TabSelected,
-    HudItem,     // The HUD's text buttons (the palette's lists, the inspector), until Phase 5.
 }
 
 impl ButtonRole {
@@ -1889,7 +1886,6 @@ impl ButtonRole {
             Self::MenuItem => "menu_item",
             Self::Tab => "tab",
             Self::TabSelected => "tab_selected",
-            Self::HudItem => "hud_item",
         }
     }
 }
@@ -2146,10 +2142,10 @@ pub fn text_input(context: &mut dyn UiWidgetContext, label: impl Into<UiString>)
 }
 
 // ----------------------------------------------
-// Icons and sprite buttons
+// Icons
 // ----------------------------------------------
 
-// The single sprite `name` (the HUD's icons), under assets/ui/. Empty if the skin lacks it.
+// The single sprite `name` (the clear tool's cursor), under assets/ui/. Empty if the skin lacks it.
 pub fn icon(name: &str) -> &'static str {
     match current().icons.get(name) {
         Some(path) => path,
@@ -2158,22 +2154,6 @@ pub fn icon(name: &str) -> &'static str {
             ""
         }
     }
-}
-
-// The state sprites' stem of sprite button `name` in icon set `set` (e.g. "palette", "services").
-pub fn icon_stem(set: &str, name: &str) -> String {
-    match current().icon_sets.get(set) {
-        Some(folder) => format!("{folder}/{name}"),
-        None => {
-            log::error!(log::channel!("ui"), "UI skin '{}' has no icon set '{set}'.", current_realm());
-            name.to_string()
-        }
-    }
-}
-
-// A sprite button labeled `label` ("settings": its name in widget paths) from icon set `set`.
-pub fn sprite_button(context: &mut dyn UiWidgetContext, set: &str, label: &str, size: Vec2) -> UiSpriteButton {
-    UiSpriteButton::with_sprite_stem(context, label, &icon_stem(set, label), size)
 }
 
 // ----------------------------------------------

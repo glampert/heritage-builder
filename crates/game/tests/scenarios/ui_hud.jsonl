@@ -48,6 +48,17 @@
 {"method": "input.move", "params": {"park": true}}
 {"method": "wait.frames", "params": {"frames": 2}}
 {"method": "screenshot", "params": {"path": "out/ui_hud/dailong.png"}}
+# Its rows follow the city: the treasury goal is met once the treasury reaches its target, and the
+# button's badge counts it.
+{"method": "assert.eq", "params": {"query": "ui.tree", "args": {"filter": "Goals/goals", "kind": "canvas"}, "path": "/widgets/0/value/1/met", "value": false}}
+{"method": "finance.set", "params": {"balance": 1000000}}
+{"method": "sim.resume"}
+{"method": "time.fast_forward", "params": {"sim_secs": 2}}
+{"method": "sim.pause"}
+{"method": "wait.frames", "params": {"frames": 2}}
+{"method": "assert.eq", "params": {"query": "ui.tree", "args": {"filter": "Goals/goals", "kind": "canvas"}, "path": "/widgets/0/value/1/met", "value": true}}
+{"method": "assert.eq", "params": {"query": "ui.tree", "args": {"filter": "Goals/goals", "kind": "canvas"}, "path": "/widgets/0/value/0/met", "value": false}}
+{"method": "assert.eq", "params": {"query": "ui.tree", "args": {"filter": "TopBar/Goals", "kind": "icon_button"}, "path": "/widgets/0/value/badge", "value": "1/2"}}
 
 # Each realm's look: the HUD is built again, the goals panel kept open.
 {"method": "ui.realm", "params": {"realm": "kambara"}}
@@ -157,6 +168,35 @@
 {"method": "screenshot", "params": {"path": "out/ui_hud/tampadesa_messages.png"}}
 {"method": "ui.realm", "params": {"realm": "auto"}}
 {"method": "wait.frames", "params": {"frames": 3}}
+
+# ---- The UI scale ----
+# The HUD keeps its sizes (TODO(realm-ui) at skin::ui_scale), its text grows with the scale: at 200%
+# and 75% it's all there, with the goals panel and the palette's grid open.
+{"method": "config.set", "params": {"path": "/display/ui_scale_percent", "value": 200}}
+{"method": "wait.frames", "params": {"frames": 4}}
+{"method": "ui.click", "params": {"path": "TopBar/Goals"}}
+{"method": "ui.click", "params": {"path": "TilePaletteMenu/services"}}
+{"method": "assert.exists", "params": {"query": "ui.tree", "args": {"filter": "Goals/goals", "kind": "canvas"}, "path": "/widgets/0"}}
+{"method": "assert.exists", "params": {"query": "ui.tree", "args": {"filter": "Hospital", "kind": "icon_button"}, "path": "/widgets/0"}}
+{"method": "assert.exists", "params": {"query": "ui.tree", "args": {"filter": "TopBar/treasury", "kind": "canvas"}, "path": "/widgets/0"}}
+{"method": "input.move", "params": {"park": true}}
+{"method": "wait.frames", "params": {"frames": 2}}
+{"method": "screenshot", "params": {"path": "out/ui_hud/dailong_200.png"}}
+{"method": "config.set", "params": {"path": "/display/ui_scale_percent", "value": 75}}
+{"method": "ui.realm", "params": {"realm": "kambara"}}
+{"method": "wait.frames", "params": {"frames": 4}}
+{"method": "ui.click", "params": {"path": "TilePaletteMenu/services"}}
+{"method": "assert.exists", "params": {"query": "ui.tree", "args": {"filter": "Goals/goals", "kind": "canvas"}, "path": "/widgets/0"}}
+{"method": "assert.exists", "params": {"query": "ui.tree", "args": {"filter": "Hospital", "kind": "icon_button"}, "path": "/widgets/0"}}
+{"method": "input.move", "params": {"park": true}}
+{"method": "wait.frames", "params": {"frames": 2}}
+{"method": "screenshot", "params": {"path": "out/ui_hud/kambara_75.png"}}
+{"method": "input.key", "params": {"key": "Escape"}}
+{"method": "ui.click", "params": {"path": "TopBar/Goals"}}
+{"method": "config.set", "params": {"path": "/display/ui_scale_percent", "value": 100}}
+{"method": "ui.realm", "params": {"realm": "auto"}}
+{"method": "wait.frames", "params": {"frames": 3}}
+{"method": "assert.eq", "params": {"query": "ui.tree", "args": {"filter": "Goals/"}, "path": "/widgets", "value": []}}
 
 # ---- A game outside a campaign: no goals button, no Briefing ----
 {"method": "session.new_map", "params": {"size": [32, 32]}}

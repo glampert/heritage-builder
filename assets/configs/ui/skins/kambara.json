@@ -48,7 +48,7 @@
   "panels": {
     "dialog": {"sprite": "skins/kambara/hud/panel_hud_large.png", "slice": [138, 261, 97, 113], "content": [73.0, 56.5, 56.5, 60.5], "decorations": [{"sprite": "skins/kambara/hud/deco_crest_large.png", "anchor": "top_center", "offset": [1.75, -0.75], "min_panel": [280, 180]}]},
     "popup": {"sprite": "skins/kambara/hud/panel_hud.png", "slice": [123, 218, 92, 90], "content": [60.5, 42.0, 49.0, 46.0]},
-    "tooltip": {"sprite": "skins/kambara/hud/panel_hud_bar.png", "slice": [81, 56, 80, 64], "content": [35.5, 25.0, 35.0, 29.0]},
+    "tooltip": {"sprite": "skins/kambara/hud/panel_hud.png", "slice": [123, 218, 92, 90], "content": [42.0, 30.0, 34.0, 32.0]},
     "card": {"sprite": "skins/kambara/panel_well.png", "slice": [16, 16, 16, 16], "content": [14, 14, 14, 14]},
     "hud_bar": {"sprite": "skins/kambara/hud/panel_hud_bar.png", "slice": [81, 56, 80, 64], "content": [28.5, 19.0, 28.0, 23.0]},
     "hud_panel": {"sprite": "skins/kambara/hud/panel_hud.png", "slice": [123, 218, 92, 90], "content": [52.5, 34.0, 41.0, 38.0]},
