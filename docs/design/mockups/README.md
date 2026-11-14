@@ -44,7 +44,7 @@ The HUD of gdd.md 10 over a city, as agreed with the user on 2026-11-14 (the des
 | Kambara | [hud-kambara.jpg](hud-kambara.jpg) | [build-palette-kambara.jpg](build-palette-kambara.jpg) |
 | Tampadesa | [hud-tampadesa.jpg](hud-tampadesa.jpg) | [build-palette-tampadesa.jpg](build-palette-tampadesa.jpg) |
 
-Every dialog takes the HUD's frames and colours (the user's call on 2026-11-14, `generator/frames.py`): the main menus, the campaign picker, the Game menu and its popups, the briefing, the debrief's and campaign-complete screen's panels, the event popup, the inspector and the City book. Đại Long keeps its parchment and dark ink inside carved red wood; Kambara's dialogs are dark cracked stone in carved sandstone with light text and moss-green accents; Tampadesa's dark mudbrick in weathered brick with light text and gold. The dialogs over the city show the new HUD behind them, and the inspector stands left of the build column, its building's icon an icon tile. The world map and the comic viewer keep their own frames.
+Every dialog takes the HUD's frames and colours (the user's call on 2026-11-14, `generator/frames.py`): the main menus, the campaign picker, the Game menu and its popups, the briefing, the debrief's and campaign-complete screen's panels, the event popup, the inspector and the City book. Đại Long keeps its parchment and dark ink inside carved red wood; Kambara's dialogs are dark cracked stone in carved sandstone with light text and moss-green accents; Tampadesa's dark mudbrick in weathered brick with light text and gold. The dialogs over the city show the new HUD behind them, and the inspector stands left of the build column, its building's icon an icon tile. The inspector has a panel per kind of thing clicked (realm-ui Phase 8, drawn 2026-11-14): a workshop, a house, a storage yard, a service (the fire watch), a market, a construction site, a walker and terrain or a prop. Each is a header, a status line and sections (workers or residents, production, stock meters, services ticked, values, an errand line, risks), with the panel's buttons at its foot (`INSPECTORS` in `dialogs_content.py`, drawn by `Dialogs.inspector`). A risk is Low, Medium or High (from 75), High in the realm's red (`risk_col`), as are shortages and a missing need. The world map and the comic viewer keep their own frames.
 
 The city behind the HUD is each realm's painted city in `../../images/references/` (`Ancient Vietnamese Riverside Temple Town.jpg`, `Angkor Temple City in the Jungle.jpg`, `Golden Temple City by the River.jpg`), scaled to 1920 × 1080.
 
@@ -75,7 +75,14 @@ The screens the [realm UI plan](../../plans/realm-ui.md#mockups) found missing. 
 | Campaign picker | [campaign-picker-dailong.jpg](campaign-picker-dailong.jpg) | [campaign-picker-kambara.jpg](campaign-picker-kambara.jpg) | [campaign-picker-tampadesa.jpg](campaign-picker-tampadesa.jpg) |
 | Briefing | [briefing-dailong.jpg](briefing-dailong.jpg) | [briefing-kambara.jpg](briefing-kambara.jpg) | [briefing-tampadesa.jpg](briefing-tampadesa.jpg) |
 | Campaign complete (the finished stele) | [campaign-complete-dailong.jpg](campaign-complete-dailong.jpg) | [campaign-complete-kambara.jpg](campaign-complete-kambara.jpg) | [campaign-complete-tampadesa.jpg](campaign-complete-tampadesa.jpg) |
-| Building inspector | [inspector-dailong.jpg](inspector-dailong.jpg) | [inspector-kambara.jpg](inspector-kambara.jpg) | [inspector-tampadesa.jpg](inspector-tampadesa.jpg) |
+| Inspector: workshop | [inspector-dailong.jpg](inspector-dailong.jpg) | [inspector-kambara.jpg](inspector-kambara.jpg) | [inspector-tampadesa.jpg](inspector-tampadesa.jpg) |
+| Inspector: house | [inspector-house-dailong.jpg](inspector-house-dailong.jpg) | [inspector-house-kambara.jpg](inspector-house-kambara.jpg) | [inspector-house-tampadesa.jpg](inspector-house-tampadesa.jpg) |
+| Inspector: storage yard | [inspector-storage-dailong.jpg](inspector-storage-dailong.jpg) | [inspector-storage-kambara.jpg](inspector-storage-kambara.jpg) | [inspector-storage-tampadesa.jpg](inspector-storage-tampadesa.jpg) |
+| Inspector: service (fire watch) | [inspector-service-dailong.jpg](inspector-service-dailong.jpg) | [inspector-service-kambara.jpg](inspector-service-kambara.jpg) | [inspector-service-tampadesa.jpg](inspector-service-tampadesa.jpg) |
+| Inspector: market | [inspector-market-dailong.jpg](inspector-market-dailong.jpg) | [inspector-market-kambara.jpg](inspector-market-kambara.jpg) | [inspector-market-tampadesa.jpg](inspector-market-tampadesa.jpg) |
+| Inspector: construction site | [inspector-site-dailong.jpg](inspector-site-dailong.jpg) | [inspector-site-kambara.jpg](inspector-site-kambara.jpg) | [inspector-site-tampadesa.jpg](inspector-site-tampadesa.jpg) |
+| Inspector: walker (a cart) | [inspector-unit-dailong.jpg](inspector-unit-dailong.jpg) | [inspector-unit-kambara.jpg](inspector-unit-kambara.jpg) | [inspector-unit-tampadesa.jpg](inspector-unit-tampadesa.jpg) |
+| Inspector: terrain and props | [inspector-terrain-dailong.jpg](inspector-terrain-dailong.jpg) | [inspector-terrain-kambara.jpg](inspector-terrain-kambara.jpg) | [inspector-terrain-tampadesa.jpg](inspector-terrain-tampadesa.jpg) |
 | Important-event popup (flood, court request, fire) | [event-dailong.jpg](event-dailong.jpg) | [event-kambara.jpg](event-kambara.jpg) | [event-tampadesa.jpg](event-tampadesa.jpg) |
 
 - The campaign picker only appears once a second campaign is reached, so Đại Long's version, with Campaign I alone open, shows its look rather than a state the game would show.
@@ -168,7 +175,7 @@ python3 menus.py        # writes build/menu-{home,load-save,settings,custom-game
 node shot.js menu-home-dailong   # and so on
 python3 pages.py        # writes build/city-{overview,population,goods,finances,ratings,labour,food}-<realm>.html
 python3 dialogs.py      # writes build/{campaign-picker,briefing,intermission,campaign-complete}-<realm>.html
-python3 palette.py      # writes build/{hud,build-palette,build-icons,game-menu,game-quit,inspector,event}-<realm>.html (the dialogs over the HUD)
+python3 palette.py      # writes build/{hud,build-palette,build-icons,game-menu,game-quit,inspector,inspector-<kind>,event}-<realm>.html (the dialogs over the HUD)
 node shot.js city-overview-dailong game-menu-dailong   # and so on
 ```
 

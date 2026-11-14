@@ -79,6 +79,17 @@ REALM_NAMES = {
 
 
 # ---------------------------------------------------------------- sector pictograms
+def inspector_glyph(key, realm):
+    """The inspector's icons for what has no palette glyph: a walker's and a prop's."""
+    P, R, Ci = G.P, G.R, G.Ci
+    if key == "cart":  # a handcart, its load roped down
+        return [P("M-40,-2 H30 L38,-12", True, 4), R(-36, -26, 56, 22, rx=3), P("M-30,-26 Q-8,-38 14,-26", True, 3),
+                Ci(-16, 16, 14, False, 5), Ci(-16, 16, 3), P("M-16,2 V30 M-30,16 H-2", True, 2.4), P("M38,-12 V28", True, 3)]
+    if key == "tree":
+        return G.tree(0, 36, 2.4)
+    raise KeyError(key)
+
+
 def hud_glyph(key):
     """The HUD's buttons, in the pictograms' 100-unit box."""
     P, R, Ci, E = G.P, G.R, G.Ci, G.E
@@ -500,8 +511,43 @@ class Palette:
     def inspector_at(self, w):
         return self._col_x0 - 18 - w, 116
 
-    def inspector_icon(self, x, y, s):
-        return self.icon_tile(x, y + self.tile_crest(s) * 0.4, s - 6, G.glyph("pottery_kiln", self.dd["key"]), small=True)
+    def inspector_icon(self, x, y, s, spec=("building", "pottery_kiln")):
+        group, name = spec
+        realm = self.dd["key"]
+        els = (G.glyph(name, realm) if group == "building" else sector_glyph(name, realm) if group == "sector"
+               else inspector_glyph(name, realm))
+        return self.icon_tile(x, y + self.tile_crest(s) * 0.4, s - 6, els, small=True)
+
+    def inspector_name(self, spec):
+        group, v = spec
+        if group == "building":
+            return self.building_name(v)
+        if group == "house":
+            return DC.HOUSE_NAMES[self.dd["key"]][v]
+        return v
+
+    # The inspector's kinds (realm-ui Phase 8): the workshop is inspector-<realm>, the others
+    # inspector-<kind>-<realm>.
+    def inspector_house(self):
+        self.inspector("house")
+
+    def inspector_storage(self):
+        self.inspector("storage")
+
+    def inspector_service(self):
+        self.inspector("service")
+
+    def inspector_market(self):
+        self.inspector("market")
+
+    def inspector_site(self):
+        self.inspector("site")
+
+    def inspector_unit(self):
+        self.inspector("unit")
+
+    def inspector_terrain(self):
+        self.inspector("terrain")
 
     def close_button(self, x, y, s):
         return self.icon_tile(x, y, s, hud_glyph("close"), small=True)
@@ -623,12 +669,14 @@ class DaiLongPalette(Palette, D.DaiLongDialogs):
     crest_k = 0.3
     tile_h_k = 1.04
     badge_colors = ("#a8261c", "#e7b13e", "#fff4dc")   # a vermilion seal ringed in gilt
+    risk_col = "#b01e14"   # the inspector's high risks and shortages
     sector_size = 54
 
 class KambaraPalette(Palette, D.KambaraDialogs):
     style_line = "carved sandstone, moss and vines, a Bayon face over each"
     notch_fill = "#7c5f3a"
     short_col = "#e8946a"
+    risk_col = "#f0705a"
     badge_colors = ("#55703a", "#d9c9a0", "#f3ecd6")   # moss on a sandstone ring
     crest_k = 0.34
     tile_h_k = 1.08
@@ -638,6 +686,7 @@ class TampadesaPalette(Palette, D.TampadesaDialogs):
     style_line = "gold on weathered brick, under gilt stupas, singhas at the foot, vines; dark mudbrick inside"
     notch_fill = "#9a3a24"
     short_col = "#f08a5a"
+    risk_col = "#ff7458"
     badge_colors = ("#e2b04a", "#5e1810", "#3a1408")   # gold leaf ringed in lacquer
 
     crest_k = 0.32
@@ -647,7 +696,9 @@ class TampadesaPalette(Palette, D.TampadesaDialogs):
 
 
 REALMS = [(DaiLongPalette, DC.DAILONG), (KambaraPalette, DC.KAMBARA), (TampadesaPalette, DC.TAMPADESA)]
-SCREENS = ["build_icons", "build_palette", "hud_goals", "game_menu", "game_quit", "inspector", "event"]
+INSPECTOR_SCREENS = ["inspector", "inspector_house", "inspector_storage", "inspector_service", "inspector_market",
+                     "inspector_site", "inspector_unit", "inspector_terrain"]
+SCREENS = ["build_icons", "build_palette", "hud_goals", "game_menu", "game_quit"] + INSPECTOR_SCREENS + ["event"]
 
 if __name__ == "__main__":
     import sys

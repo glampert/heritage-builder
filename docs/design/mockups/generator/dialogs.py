@@ -317,65 +317,176 @@ class Dialogs(Pages):
                 + self.glyph("close", x + s / 2, y + s / 2, 0.8, self.panel_text, 3))
 
     # ------------------------------------------------------------ inspector
-    def inspector(self):
+    risk_col = None   # High risks' text; the realm's warning colour when unset
+
+    def inspector_name(self, spec):
+        """A name from the content: ("text", s), or what palette.py resolves by realm."""
+        return spec[1] if isinstance(spec[1], str) else str(spec[1])
+
+    def risk_level(self, v):
+        return "High" if v >= 0.75 else "Medium" if v >= 0.4 else "Low"
+
+    def tick(self, x, y, ok):
+        """A filled disc with a tick, or a ring with a cross, centred at (x, y)."""
+        if ok:
+            return (f'<circle cx="{f(x)}" cy="{f(y)}" r="9" fill="{self.good_col}"/>'
+                    f'<path d="M{f(x - 4.5)},{f(y)} l3.2,3.4 l6,-7" fill="none" stroke="{self.on_icon}" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/>')
+        c = self.risk_col or self.accent
+        return (f'<circle cx="{f(x)}" cy="{f(y)}" r="8.5" fill="none" stroke="{c}" stroke-width="2"/>'
+                f'<path d="M{f(x - 3.5)},{f(y - 3.5)} l7,7 m0,-7 l-7,7" stroke="{c}" stroke-width="2" stroke-linecap="round"/>')
+
+    def inspector(self, kind="workshop"):
         d = self.dd
-        b = DC.INSPECTOR
+        b = DC.INSPECTORS[kind]
         parts = self.hud_parts(keep_style=True)
         bar, _ = self.menu_buttons()
         parts.append(bar)
-        w, h = 500, 824
+        w = 500
         x, y = self.inspector_at(w)
-        parts.append(self.box(x, y, w, h))
         x0, x1 = x + 28, x + w - 28
-        parts.append(self.inspector_icon(x0, y + 28, 76))
-        parts.append(T(x0 + 96, y + 64, b["name"], self.title_font, 30, self.panel_text, "start", 700))
-        parts.append(self.t(x0 + 96, y + 94, f"{b['kind']} · {b['size']}", 18, self.panel_sub, "start", 600, italic=True))
-        parts.append(self.close_button(x1 - 36, y + 24, 36))
-        sy = y + 130
-        parts.append(f'<circle cx="{x0 + 8}" cy="{sy}" r="7" fill="{self.good_col}"/>')
-        parts.append(self.t(x0 + 24, sy + 7, b["status"], 20, self.panel_text, "start", 700))
-        parts.append(self.t(x1, sy + 7, "Pottery for 18 houses", 18, self.panel_sub, "end", 600, italic=True))
-        parts.append(self.rule(x0, x1, sy + 28))
-        # Workers.
-        wy = sy + 74
-        parts.append(self.section_title(x0, wy, "Workers"))
-        have, need = b["workers"]
-        parts.append(self.t(x1, wy, f"{have} / {need}", 19, self.panel_text, "end", 700))
-        for k in range(need):
-            parts.append(self.glyph("population", x0 + 12 + k * 36, wy + 38, 0.62, self.accent if k < have else self.panel_rule))
-        parts.append(self.t(x0, wy + 80, b["labour_note"], 17, self.accent, "start", 600, italic=True))
-        # Production.
-        py = wy + 132
-        parts.append(self.section_title(x0, py, "Production"))
-        parts.append(self.t(x1, py, b["batch"], 17, self.panel_sub, "end", 600, italic=True))
-        rows = [("Needs", *b["inputs"][0]), ("Makes", *b["outputs"][0])]
-        for k, (lab, good, n, cap) in enumerate(rows):
-            ry = py + 44 + k * 44
-            parts.append(self.t(x0, ry, lab, 18, self.panel_sub, "start", 600))
-            parts.append(self.good_bullet(x0 + 82, ry - 6))
-            parts.append(self.t(x0 + 98, ry, good, 19, self.panel_text, "start", 700))
-            parts.append(self.bar(x0 + 190, ry - 12, x1 - x0 - 290, 10, n / cap))
-            parts.append(self.t(x1, ry, f"{n} / {cap}", 18, self.panel_text, "end", 600))
-        ry = py + 44 + 2 * 44
-        parts.append(self.t(x0, ry, "Next batch", 18, self.panel_sub, "start", 600))
-        parts.append(self.bar(x0 + 190, ry - 12, x1 - x0 - 290, 10, b["progress"]))
-        parts.append(self.t(x1, ry, f"{round(b['progress'] * 100)}%", 18, self.panel_text, "end", 600))
-        dy = ry + 34
-        parts.append(self.rule(x0, x1, dy))
-        parts.append(self.glyph("cart", x0 + 16, dy + 36, 0.8, self.accent))
-        parts.append(self.t(x0 + 44, dy + 43, b["delivery"], 18, self.panel_text, "start", 600))
-        # Costs.
-        cy = dy + 104
-        parts.append(self.section_title(x0, cy, "Costs"))
-        wages = have * self.pd["wage"]
-        for k, (lab, v) in enumerate([("Upkeep", f"{b['upkeep']} gold a year"), ("Wages", f"{have} workers · {wages} gold a year"), ("Built", b["built"])]):
-            ry = cy + 40 + k * 36
-            parts.append(self.t(x0, ry, lab, 18, self.panel_sub, "start", 600))
-            parts.append(self.t(x1, ry, v, 18, self.panel_text, "end", 600))
+        bad = self.risk_col or self.accent
+        body = []
+        body.append(self.inspector_icon(x0, y + 28, 76, b["icon"]))
+        body.append(T(x0 + 96, y + 64, self.inspector_name(b["name"]), self.title_font, 30, self.panel_text, "start", 700))
+        sub = b["kind"] + (f" · {b['size']}" if b["size"] else "")
+        body.append(self.t(x0 + 96, y + 94, sub, 18, self.panel_sub, "start", 600, italic=True))
+        body.append(self.close_button(x1 - 36, y + 24, 36))
+        cy = y + 130
+        if b["status"]:
+            word, tone, summary = b["status"]
+            dot = {"good": self.good_col, "pending": self.accent, "bad": bad}[tone]
+            body.append(f'<circle cx="{x0 + 8}" cy="{cy}" r="7" fill="{dot}"/>')
+            body.append(self.t(x0 + 24, cy + 7, word, 20, bad if tone == "bad" else self.panel_text, "start", 700))
+            body.append(self.t(x1, cy + 7, self.inspector_name(summary) if isinstance(summary, tuple) else summary,
+                               18, self.panel_sub, "end", 600, italic=True))
+            cy += 28
+        else:
+            cy -= 16
+        body.append(self.rule(x0, x1, cy))
+        cy += 42
+        meter_x, meter_w = x0 + 190, x1 - x0 - 290
+        last_errand = False
+        for sec in b["sections"]:
+            k = sec[0]
+            if k != "errand" and last_errand:
+                cy += 20
+            if k in ("workers", "residents"):
+                _, have, need, note = sec
+                body.append(self.section_title(x0, cy, "Workers" if k == "workers" else "Residents"))
+                body.append(self.t(x1, cy, f"{have} / {need}", 19, self.panel_text, "end", 700))
+                step = min(36, (x1 - x0 - 12) / need)
+                sc = 0.62 if step >= 30 else 0.5
+                for i in range(need):
+                    body.append(self.glyph("population", x0 + 12 + i * step, cy + 38, sc, self.accent if i < have else self.panel_rule))
+                body.append(self.t(x0, cy + 74, note, 17, self.accent if "short" in note else self.panel_sub, "start", 600, italic=True))
+                cy += 116
+            elif k == "production":
+                _, note, rows, progress = sec
+                body.append(self.section_title(x0, cy, "Production"))
+                body.append(self.t(x1, cy, note, 17, self.panel_sub, "end", 600, italic=True))
+                for i, (lab, good, n, cap) in enumerate(rows):
+                    ry = cy + 38 + i * 38
+                    body.append(self.t(x0, ry, lab, 18, self.panel_sub, "start", 600))
+                    body.append(self.good_bullet(x0 + 82, ry - 6))
+                    body.append(self.t(x0 + 98, ry, good, 19, self.panel_text, "start", 700))
+                    body.append(self.bar(meter_x, ry - 12, meter_w, 10, n / cap))
+                    body.append(self.t(x1, ry, f"{n} / {cap}", 18, self.panel_text, "end", 600))
+                ry = cy + 38 + len(rows) * 38
+                body.append(self.t(x0, ry, "Next batch", 18, self.panel_sub, "start", 600))
+                body.append(self.bar(meter_x, ry - 12, meter_w, 10, progress))
+                body.append(self.t(x1, ry, f"{round(progress * 100)}%", 18, self.panel_text, "end", 600))
+                cy = ry + 54
+            elif k == "stock":
+                _, title, note, rows, footer = sec
+                body.append(self.section_title(x0, cy, title))
+                if note:
+                    body.append(self.t(x1, cy, note, 17, self.panel_sub, "end", 600, italic=True))
+                for i, (good, n, cap) in enumerate(rows):
+                    ry = cy + 34 + i * 30
+                    body.append(self.good_bullet(x0 + 4, ry - 6))
+                    body.append(self.t(x0 + 20, ry, good, 19, bad if n == 0 else self.panel_text, "start", 700))
+                    body.append(self.bar(meter_x, ry - 12, meter_w, 10, n / cap))
+                    body.append(self.t(x1, ry, f"{n} / {cap}", 18, bad if n == 0 else self.panel_text, "end", 600))
+                cy += 34 + len(rows) * 30
+                if footer:
+                    body.append(self.t(x0, cy, footer, 17, self.panel_sub, "start", 600, italic=True))
+                    cy += 28
+                cy += 16
+            elif k == "ticks":
+                _, title, note, rows, footer = sec
+                body.append(self.section_title(x0, cy, title))
+                if note:
+                    body.append(self.t(x1, cy, note, 17, self.panel_sub, "end", 600, italic=True))
+                half = (len(rows) + 1) // 2
+                colw = (x1 - x0) / 2
+                for i, (name, ok) in enumerate(rows):
+                    cx, ry = x0 + (i // half) * colw, cy + 34 + (i % half) * 27
+                    body.append(self.tick(cx + 9, ry - 6, ok))
+                    body.append(self.t(cx + 28, ry, name, 17, self.panel_text, "start", 600))
+                cy += 34 + half * 27
+                if footer:
+                    level_name = self.inspector_name(("house", 1))
+                    body.append(self.tick(x0 + 9, cy - 6, False))
+                    body.append(self.t(x0 + 28, cy, f"A {level_name.lower()} also needs a {footer[1].lower()}", 17, bad, "start", 600, italic=True))
+                    cy += 27
+                cy += 18
+            elif k == "values":
+                _, title, note, rows = sec
+                body.append(self.section_title(x0, cy, title))
+                if note:
+                    body.append(self.t(x1, cy, note, 17, self.panel_sub, "end", 600, italic=True))
+                for i, (lab, v) in enumerate(rows):
+                    ry = cy + 34 + i * 29
+                    body.append(self.t(x0, ry, lab, 18, self.panel_sub, "start", 600))
+                    body.append(self.t(x1, ry, v, 18, bad if v.endswith("High") else self.panel_text, "end", 600))
+                cy += 34 + len(rows) * 29 + 16
+            elif k == "progress":
+                _, title, note, v = sec
+                body.append(self.section_title(x0, cy, title))
+                body.append(self.t(x1, cy, note, 17, self.panel_sub, "end", 600, italic=True))
+                body.append(self.bar(x0, cy + 28, x1 - x0 - 70, 14, v))
+                body.append(self.t(x1, cy + 40, f"{round(v * 100)}%", 19, self.panel_text, "end", 700))
+                cy += 82
+            elif k == "errand":
+                _, icon, text = sec
+                if not last_errand:
+                    body.append(self.rule(x0, x1, cy - 34))
+                    cy += 4
+                body.append(self.glyph(icon, x0 + 16, cy - 7, 0.8 if icon == "cart" else 0.7, self.accent))
+                body.append(self.t(x0 + 44, cy, text, 18, self.panel_text, "start", 600))
+                cy += 34
+            elif k == "risks":
+                body.append(self.section_title(x0, cy, "Risks"))
+                for i, (lab, v) in enumerate(sec[1]):
+                    ry = cy + 34 + i * 29
+                    level = self.risk_level(v)
+                    high = level == "High"
+                    body.append(self.t(x0, ry, lab, 18, bad if high else self.panel_sub, "start", 700 if high else 600))
+                    body.append(self.bar(meter_x, ry - 12, meter_w, 10, v, ))
+                    body.append(self.t(x1, ry, level, 18, bad if high else self.panel_text, "end", 700 if high else 600))
+                cy += 34 + len(sec[1]) * 29 + 16
+            elif k == "text":
+                lines = self.wrap(sec[1], x1 - x0, 18, 0.46)
+                for i, line in enumerate(lines):
+                    body.append(self.t(x0, cy - 10 + i * 27, line, 18, self.panel_text, "start", 600))
+                cy += len(lines) * 27 + 26
+            last_errand = k == "errand"
+        bh = 56
+        h = max(cy - y + bh + 6, 300)
         bb = y + h - 86
-        parts.append(self.button(x0, bb, 210, 56, "Pause work", False))
-        parts.append(self.button(x1 - 210, bb, 210, 56, "Demolish", False))
-        self.page(f"inspector-{d['key']}", parts)
+        btns = b["buttons"]
+        if len(btns) == 1:
+            label, primary = btns[0]
+            bw = 240
+            body.append(self.button(x1 - bw, bb, bw, bh, label, primary))
+        else:
+            for i, (label, primary) in enumerate(btns):
+                bx = x0 if i == 0 else x1 - 210
+                body.append(self.button(bx, bb, 210, bh, label, primary))
+        parts.append(self.box(x, y, w, h))
+        parts.extend(body)
+        page = "inspector" if kind == "workshop" else f"inspector-{kind}"
+        self.page(f"{page}-{d['key']}", parts)
 
     # ------------------------------------------------------------ event popup
     def event(self):

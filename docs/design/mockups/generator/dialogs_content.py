@@ -138,12 +138,118 @@ TAMPADESA = dict(
 )
 
 # The building inspector: a pottery kiln, in every realm.
-INSPECTOR = dict(
-    name="Pottery kiln", kind="Workshop", size="2×2", status="Working",
-    workers=(6, 8), labour_note="2 short · Industry is priority 2",
-    inputs=[("Clay", 8, 20)], outputs=[("Pottery", 4, 10)], progress=0.6, batch="2 jars every 15 days",
-    delivery="A cart is taking 4 jars to the storage yard.",
-    upkeep=6, built="Month 2 of year 16",
-)
+# The inspector, one panel per kind of thing clicked (realm-ui Phase 8, P8a). Each panel is a
+# header (icon, name, kind and size), a status line, then sections drawn top to bottom:
+#   ("workers", have, need, note)            figures per post, empty ones faded
+#   ("residents", have, room, note)          the same for a house's people
+#   ("production", note, rows, progress)     rows: (label, good, have, capacity); then the next batch
+#   ("stock", title, note, rows, footer)     rows: (good, have, capacity), a meter each
+#   ("ticks", title, note, rows, footer)     rows: (name, met), two columns of ticks and crosses
+#   ("values", title, note, rows)            rows: (label, value)
+#   ("progress", title, note, value)         one meter with its percentage
+#   ("errand", icon, text)                   what its walker is doing, under a rule
+#   ("risks", rows)                          rows: (label, level 0-1); High (from 0.75) in red
+#   ("text", text)                           a short paragraph
+# then its buttons: (label, primary). The status's tone is good, pending or bad.
+# Names that differ by realm are a dict by realm key. Numbers are placeholders.
+HOUSE_NAMES = {"dailong": ("Tiled house", "Courtyard house"), "kambara": ("Tiled house", "Brick mansion"),
+               "tampadesa": ("Brick house", "Gilded house")}
+
+INSPECTORS = {
+    "workshop": dict(
+        icon=("building", "pottery_kiln"), name=("building", "pottery_kiln"), kind="Workshop", size="2×2",
+        status=("Working", "good", "Pottery for 18 houses"),
+        sections=[
+            ("workers", 6, 8, "2 short · Industry is priority 2"),
+            ("production", "2 jars every 15 days", [("Needs", "Clay", 8, 20), ("Makes", "Pottery", 4, 10)], 0.6),
+            ("errand", "cart", "A cart is taking 4 jars to the storage yard."),
+            ("values", "Costs", None, [("Upkeep", "6 gold a year"), ("Wages", "6 workers · 36 gold a year")]),
+            ("risks", [("Fire risk", 0.52), ("Collapse risk", 0.81)]),
+        ],
+        buttons=[("Pause work", False), ("Demolish", False)],
+    ),
+    "house": dict(
+        icon=("sector", "housing"), name=("house", 0), kind="House · level 4 of 5", size="2×2",
+        status=("Growing", "good", "Pays 9 gold a year in taxes"),
+        sections=[
+            ("residents", 14, 20, "7 of working age · 1 looking for work"),
+            ("ticks", "Services", "All that level 4 needs", [("Large well", True), ("Market", True), ("Tax office", True), ("Temple", True),
+              ("Apothecary", True), ("Hospital", True), ("Guard post", True), ("Theatre", True), ("University", True), ("Garden", True)],
+             ("next", "Shrine")),
+            ("stock", "Goods", "Enough for 3 months", [("Rice", 6, 25), ("Fish", 4, 25), ("Pottery", 2, 25), ("Wine", 0, 25)], None),
+            ("risks", [("Fire risk", 0.22), ("Collapse risk", 0.35), ("Disease risk", 0.84)]),
+        ],
+        buttons=[("Demolish", False)],
+    ),
+    "storage": dict(
+        icon=("building", "storage_yard"), name=("building", "storage_yard"), kind="Storage", size="3×3",
+        status=("Working", "good", "9 of 12 slots used"),
+        sections=[
+            ("workers", 4, 4, "Fully staffed"),
+            ("stock", "Stored", "16 to a slot", [("Wood", 24, 32), ("Bricks", 16, 16), ("Clay", 12, 16), ("Roof tiles", 8, 16), ("Pottery", 40, 48)],
+             "3 slots free, for any good"),
+            ("errand", "cart", "A cart is fetching clay from the clay pit."),
+            ("values", "Costs", None, [("Upkeep", "4 gold a year"), ("Wages", "4 workers · 24 gold a year")]),
+            ("risks", [("Fire risk", 0.48), ("Collapse risk", 0.12)]),
+        ],
+        buttons=[("Pause work", False), ("Demolish", False)],
+    ),
+    "service": dict(
+        icon=("building", "fire_watch"), name=("building", "fire_watch"), kind="Service", size="1×1",
+        status=("Working", "good", "Watching 46 buildings"),
+        sections=[
+            ("workers", 3, 4, "1 short · Services are priority 1"),
+            ("values", "Patrol", "Within 12 cells", [("Buildings in reach", "46"), ("Visited this month", "31"),
+              ("Highest fire risk", "Distillery · High"), ("Fires answered", "Off the road too")]),
+            ("errand", "defence", "A fire watcher is on his rounds, 9 cells out."),
+            ("values", "Costs", None, [("Upkeep", "3 gold a year"), ("Wages", "3 workers · 18 gold a year")]),
+            ("risks", [("Fire risk", 0.08), ("Collapse risk", 0.30)]),
+        ],
+        buttons=[("Pause work", False), ("Demolish", False)],
+    ),
+    "market": dict(
+        icon=("building", "market"), name=("building", "market"), kind="Market", size="2×2",
+        status=("Short of meat", "bad", "Supplies 24 houses"),
+        sections=[
+            ("workers", 5, 6, "1 short · Food is priority 1"),
+            ("stock", "Stalls", "Restocked 4 days ago", [("Rice", 18, 40), ("Fish", 12, 40), ("Meat", 0, 40), ("Pottery", 9, 20), ("Wine", 4, 20)], None),
+            ("errand", "cart", "A buyer is fetching rice from the granary."),
+            ("errand", "population", "A seller is on her rounds, 14 houses to go."),
+            ("values", "Costs", None, [("Upkeep", "5 gold a year"), ("Wages", "5 workers · 30 gold a year")]),
+            ("risks", [("Fire risk", 0.61), ("Collapse risk", 0.18)]),
+        ],
+        buttons=[("Pause work", False), ("Demolish", False)],
+    ),
+    "site": dict(
+        icon=("building", "temple"), name=("building", "temple"), kind="Construction site", size="3×3",
+        status=("Being built", "pending", "Ready in about 2 months"),
+        sections=[
+            ("progress", "Construction", "Stage 3 of 4", 0.62),
+            ("text", "A civic building takes 6 months to build. It needs no workers until it's finished."),
+            ("values", "Paid", "Given back if cancelled", [("Gold", "120"), ("Wood", "6"), ("Bricks", "8"), ("Roof tiles", "4")]),
+            ("values", "Once built", None, [("Workers", "4"), ("Upkeep", "10 gold a year")]),
+        ],
+        buttons=[("Cancel and refund", False)],
+    ),
+    "unit": dict(
+        icon=("walker", "cart"), name=("text", "Cart"), kind="Walker · from the Pottery kiln", size=None,
+        status=("Delivering", "good", "Arrives in about 3 days"),
+        sections=[
+            ("values", "Errand", None, [("Carrying", "4 jars of pottery"), ("From", "Pottery kiln"), ("To", "Storage yard"), ("Still to go", "11 cells")]),
+            ("text", "Carts take a workplace's goods to storage and bring back what it needs. They keep to the road."),
+        ],
+        buttons=[("Show its home", False)],
+    ),
+    "terrain": dict(
+        icon=("walker", "tree"), name=("text", "Banyan tree"), kind="Woodland", size="1×1",
+        status=None,
+        sections=[
+            ("text", "An old banyan, its roots grown down from the branches. Woodland holds the soil and feeds the lumberyards."),
+            ("values", "Clearing it", None, [("Cost", "2 gold"), ("Leaves", "Grass")]),
+            ("values", "Here", None, [("Blocks", "Building and walking"), ("Cell", "41, 27")]),
+        ],
+        buttons=[("Clear", False)],
+    ),
+}
 
 REALMS = [DAILONG, KAMBARA, TAMPADESA]

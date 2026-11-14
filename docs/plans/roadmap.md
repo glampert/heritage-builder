@@ -62,7 +62,7 @@ These follow [overview.md](../design/overview.md#development-phases).
 | T | Terrain height | Medium to large | M3 (spike after) | [terrain-height.md](terrain-height.md) | Not started |
 | U | Eight-direction movement for off-road walkers | Medium | M3; art from M2 Phase 6 | [unit-movement.md](unit-movement.md) | Not started |
 | MM | Minimap: painted relief, lenses and tools | Medium | — (lenses grow with M6, M7, M8) | [minimap.md](minimap.md) | Done (the Risk lens came with M6; Faith, Flood and Fertility come with M8, M7) |
-| UI | Realm UI: menus, world map, intermission, comics, HUD and city pages in each realm's style | Large | — (screens fill in with M4, M9, M10, M11, M12) | [realm-ui.md](realm-ui.md) | Phases 0–4 done (skins, main menus, world map, intermission and briefing, story comics); Phase 5 (HUD) next, after the tile palette icon mockups |
+| UI | Realm UI: menus, world map, intermission, comics, HUD and city pages in each realm's style | Large | — (screens fill in with M4, M9, M10, M11, M12) | [realm-ui.md](realm-ui.md) | Phases 0–7 done (skins, main menus, world map, intermission and briefing, story comics, HUD, City book, old assets); Phase 8 (the inspector's panels) in progress |
 
 Suggested order:
 - **First:** M1 → M3 → M5, with M2 running alongside from the start.
@@ -197,6 +197,7 @@ GDD 5.12 and 5.14:
 
 - **Message log:** a typed message system with priorities, a log panel, and a popup for important events (floods, fires, requests, blessings, goals).
 - **Advisor screens:** labour, food, finance (M4) and ratings (M9), at a basic level.
+- **Pause work:** the inspector's Pause work button (realm-ui Phase 8 adds it, disabled with a tooltip) stops a workplace and frees its workers: a flag saved on the building (a save-version bump). Hook the button up here, and give the inspector's workers note the sector's labour priority ("2 short · Industry is priority 2").
 - **Automation:** `messages.list` for scenarios.
 
 ### M12: Story presentation v1 (small to medium)
