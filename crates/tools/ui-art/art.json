@@ -9,33 +9,11 @@
     "disabled": "grayscale(0.8) opacity(0.55)"
   },
   "sprites": [
-    { "id": "panel_dialog", "group": "panels", "call": "mpanel", "omit": ["vine"], "center": "tile",
-      "realms": {
-        "dailong": { "size": [200, 232], "bleed": [27, 4, 27, 4], "slice": [126, 112, 126, 112] },
-        "kambara": { "size": [216, 240], "bleed": [2, 2, 8, 10], "slice": [44, 76, 56, 92] },
-        "tampadesa": { "size": [216, 222], "bleed": [14, 19, 14, 10], "slice": [100, 110, 100, 104] } } },
-    { "id": "panel_popup", "group": "panels", "call": "mpanel", "omit": ["vine"], "center": "tile",
-      "realms": {
-        "dailong": { "size": [168, 200], "bleed": [27, 4, 27, 4], "slice": [126, 112, 126, 112] },
-        "kambara": { "size": [172, 208], "bleed": [2, 2, 8, 10], "slice": [44, 76, 56, 92] },
-        "tampadesa": { "size": [184, 190], "bleed": [14, 19, 14, 10], "slice": [100, 110, 100, 104] } } },
     { "id": "panel_side", "group": "panels", "call": "panel_bg", "omit": ["vine"], "size": [188, 188], "center": "tile",
       "realms": {
         "dailong": { "bleed": [10, 10, 10, 10], "slice": [48, 48, 48, 48] },
         "kambara": { "bleed": [2, 2, 6, 8], "slice": [32, 32, 40, 44] },
         "tampadesa": { "bleed": [10, 10, 10, 10], "slice": [48, 48, 48, 48] } } },
-    { "id": "panel_card", "group": "panels", "call": "box", "center": "tile",
-      "realms": {
-        "dailong": { "size": [128, 128], "bleed": [6, 6, 6, 6], "slice": [28, 28, 28, 28] },
-        "kambara": { "size": [148, 148], "bleed": [2, 2, 4, 6], "slice": [20, 20, 24, 28] },
-        "tampadesa": { "size": [140, 140], "bleed": [6, 6, 6, 6], "slice": [20, 20, 20, 20] } } },
-    { "id": "panel_tooltip", "group": "panels", "call": "box",
-      "realms": {
-        "dailong": { "call": "paper_box", "size": [112, 112], "bleed": [1, 1, 1, 1], "slice": [28, 28, 28, 28], "center": "tile",
-                     "notes": "A thin outline in place of the box's 6-point frame, too heavy round a one-line tooltip." },
-        "kambara": { "size": [116, 116], "bleed": [2, 2, 4, 6], "slice": [20, 20, 24, 28], "center": "tile" },
-        "tampadesa": { "size": [140, 100], "bleed": [4, 4, 4, 6], "slice": [24, 24, 24, 28], "center": "stretch",
-                       "attrs": { "box_style": "lacquer" } } } },
     { "id": "panel_bar", "group": "panels", "call": "bar_bg",
       "realms": {
         "dailong": { "size": [120, 64], "slice": [20, 20, 20, 20], "center": "stretch" },
@@ -129,14 +107,9 @@
     { "id": "emblem_tampadesa", "group": "emblems", "call": "realm_emblem", "args": { "key": "tampadesa" }, "size": [80, 80], "bleed": [2, 2, 2, 2],
       "states": { "idle": {}, "locked": { "args": { "locked": true } }, "current": { "args": { "current": true } } } },
 
-    { "id": "vine_tl", "group": "ornaments", "call": "mpanel", "size": [480, 480], "capture": { "helper": "vine", "index": 0 },
-      "bleed": [48, 51, -238, -331], "realms": { "kambara": {} } },
-    { "id": "vine_br", "group": "ornaments", "call": "mpanel", "size": [480, 480], "capture": { "helper": "vine", "index": 1 },
-      "bleed": [-318, -218, 40, 36], "realms": { "kambara": {} } },
     { "id": "crest", "group": "ornaments", "call": "mpanel", "args": { "crest": true }, "size": [480, 480],
-      "realms": { "dailong": { "call": "seal", "args": { "s": 56, "letter": "Đ" }, "size": [64, 64], "bleed": [0, 0, 0, 0] },
-                  "kambara": { "capture": { "helper": "prang", "index": 0 }, "bleed": [-222, -53, -222, -350] },
-                  "tampadesa": { "capture": { "helper": "stupa", "index": 4 }, "bleed": [-212, -51, -212, -338] } } },
+      "notes": "Đại Long's home crest; Kambara's and Tampadesa's dialogs carry their crests as the HUD panel's ornaments.",
+      "realms": { "dailong": { "call": "seal", "args": { "s": 56, "letter": "Đ" }, "size": [64, 64], "bleed": [0, 0, 0, 0] } } },
 
     { "id": "home_backdrop", "group": "backdrops", "call": "home_scene", "size": [1920, 1080], "scale": 1, "format": "jpeg",
       "realms": { "kambara": {}, "tampadesa": {} } },
@@ -173,7 +146,7 @@
       "notes": "The newest line's mark, centred: Đại Long's seal, Kambara's and Tampadesa's dots.",
       "realms": {
         "dailong": { "args": { "at": [22, 18] }, "bleed": [-5.5, -5.5, -5.5, -5.5] },
-        "kambara": { "bleed": [-12, -12, -12, -12] },
+        "kambara": { "bleed": [-12, -12, -12, -12], "attrs": { "accent": "#9a4a2e" } },
         "tampadesa": { "bleed": [-10.5, -10.5, -10.5, -10.5] } } },
     { "id": "story_frame", "group": "story", "call": "story_frame", "size": [1800, 870], "scale": 1,
       "notes": "The realm frame round a story panel (the intro mockup's), the panel left transparent. Its bleed is its margin round the panel (Kambara's and Tampadesa's bottoms, and Tampadesa's right side, past what --measure reports, which leaves out the frames' drop shadow). At 1 pixel per point, as the panels: the frame covers the window's width, mostly transparent, so 2x art would quadruple its file and texture for little.",

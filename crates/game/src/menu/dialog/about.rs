@@ -26,7 +26,9 @@ const ABOUT_QUOTE_FONT_SCALE: f32 = 1.2;
 const ABOUT_FOOTER_FONT_SCALE: f32 = 0.85; // The version and copyright.
 const ABOUT_BACK_BUTTON_WIDTH: f32 = 240.0;
 const ABOUT_BACK_BUTTON_HEIGHT: f32 = 56.0;
-const ABOUT_SLACK: f32 = 12.0;             // Room the content area keeps free below Back, so rounding (more of it at a UI scale) never makes it scroll.
+// Room the content area keeps free below Back, so rounding (more of it at a UI scale) and the credits'
+// columns, measured at the whole width as About is built (no UI open), never make it scroll.
+const ABOUT_SLACK: f32 = 24.0;
 
 // ----------------------------------------------
 // About

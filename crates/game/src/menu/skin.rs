@@ -719,7 +719,10 @@ impl SkinWorldMapDef {
 // and the campaign-complete screen show the campaign's stele, with its text carved live
 // (menu::stele). In points on the debrief's 1920 × 1080 screen (the mockup's):
 // - `backdrop`: the screen's background, a 1920 × 1080 JPEG (the world map's: the same drawing);
-// - `panel`: the panel the debrief's and the campaign-complete screen's right side is on;
+// - `panel`: the panel the debrief's and the campaign-complete screen's right side is on (the
+//   dialogs' frame, its ornaments with it), and `panel_padding`, the room its contents keep inside
+//   it (left, top, right, bottom; the screens' own by default, and never less than the panel's
+//   content insets), e.g. below Tampadesa's piers;
 // - `niche`: what stands behind the stele (Đại Long's lacquer niche, Kambara's vines, Tampadesa's
 //   whitewashed niche): its sprite goes on `rect` grown by `bleed` (left, top, right, bottom), as
 //   ui-art draws it;
@@ -734,6 +737,7 @@ impl SkinWorldMapDef {
 pub struct SkinIntermissionDef {
     pub backdrop: String,
     pub panel: String,
+    pub panel_padding: Option<[f32; 4]>,
     pub niche: SkinPlacedSpriteDef,
     pub stele: SkinSteleDef,
     pub colors: BTreeMap<String, String>,
@@ -744,7 +748,8 @@ impl Default for SkinIntermissionDef {
     fn default() -> Self {
         Self {
             backdrop: String::new(),
-            panel: "card".into(),
+            panel: "dialog".into(),
+            panel_padding: None,
             niche: SkinPlacedSpriteDef::default(),
             stele: SkinSteleDef::default(),
             colors: BTreeMap::new(),
@@ -2455,8 +2460,10 @@ pub fn emblem(context: &mut dyn UiWidgetContext, realm: Realm, state: EmblemStat
 
 // The skin's decoration `name` (its `ornaments`, e.g. "crest"): its texture and size in points.
 // None if the skin has none of that name: a realm may go without.
+// None when the skin has none by that name, or names it "" (a realm leaving out Đại Long's: Kambara's
+// and Tampadesa's dialogs carry their crests as the panel's ornaments).
 pub fn ornament(context: &mut dyn UiWidgetContext, name: &str) -> Option<(TextureHandle, Vec2)> {
-    let path = current().ornaments.get(name)?.clone();
+    let path = current().ornaments.get(name).filter(|path| !path.is_empty())?.clone();
     Some(sprite_and_size(context, &path))
 }
 

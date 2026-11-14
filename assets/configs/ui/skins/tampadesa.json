@@ -13,32 +13,37 @@
       "small": { "size": 22.0, "fallbacks": ["body_vi", "mono", "icons"] }
     },
     "colors": {
-      "text": "#3b2412",
+      "text": "#f3e2bf",
       "text_disabled": "#8f7a5c",
-      "window_fill": "#f3dfb4",
-      "border": "#6b4a2a",
-      "separator": "#c79d64",
-      "faint_fill": "#f6e3bc8c",
-      "extreme_fill": "#f6e3bc",
-      "text_edit_fill": "#f6e3bc",
+      "window_fill": "#3a1e14",
+      "border": "#8a6a48",
+      "separator": "#8a6a48",
+      "faint_fill": "#4e30208c",
+      "extreme_fill": "#2e1a0c",
+      "text_edit_fill": "#2e1a0c",
       "selection": "#8a2216",
-      "hyperlink": "#8a2216"
+      "selection_text": "#f6df8e",
+      "hyperlink": "#e9c977"
     },
     "widgets": {
-      "noninteractive": { "fill": "#f3dfb4", "weak_fill": "#f6e3bc8c", "stroke": "#c79d64", "text": "#3b2412" },
-      "inactive": { "fill": "#f6e3bc", "weak_fill": "#e8cfa0", "stroke": "#6b4a2a", "text": "#3b2412" },
-      "hovered": { "fill": "#f6e3bc", "weak_fill": "#f6e3b8", "stroke": "#8a2216", "text": "#3b2412" },
-      "active": { "fill": "#e8cfa0", "weak_fill": "#8a2216", "stroke": "#8a2216" },
-      "open": { "fill": "#f6e3bc", "weak_fill": "#e8cfa0", "stroke": "#6b4a2a", "text": "#3b2412" }
+      "noninteractive": { "fill": "#3a1e14", "weak_fill": "#4e30208c", "stroke": "#8a6a48", "text": "#f3e2bf" },
+      "inactive": { "fill": "#2e1a0c", "weak_fill": "#4e3826", "stroke": "#8a6a48", "text": "#f3e2bf" },
+      "hovered": { "fill": "#4e3826", "weak_fill": "#634831", "stroke": "#e9c977", "text": "#f6df8e" },
+      "active": { "fill": "#634831", "weak_fill": "#8a2216", "stroke": "#e9c977", "text": "#f6df8e" },
+      "open": { "fill": "#2e1a0c", "weak_fill": "#4e3826", "stroke": "#8a6a48", "text": "#f3e2bf" }
     }
   },
   "text": {
-    "ink": "#3b2412",
-    "title": "#3b2412",
-    "accent": "#8a2216",
-    "sub": "#7a4f2a",
+    "ink": "#f3e2bf",
+    "title": "#f3e2bf",
+    "accent": "#e9c977",
+    "sub": "#d9b98a",
+    "on_accent": "#3b2412",
     "disabled": "#8f7a5c",
-    "light": "#f7e3b0"
+    "light": "#f7e3b0",
+    "story_ink": "#3b2412",
+    "story_sub": "#7a4f2a",
+    "story_accent": "#8a2216"
   },
   "headings": {
     "title": { "font_scale": 2.6 },
@@ -46,19 +51,13 @@
     "dialog": { "margin_bottom": 2.0 }
   },
   "panels": {
+    "dialog": {"sprite": "skins/tampadesa/hud/panel_hud_large.png", "slice": [122, 132, 128, 130], "content": [47.0, 52.0, 50.0, 84.0], "decorations": [{"sprite": "skins/tampadesa/hud/deco_pier_left.png", "anchor": "top_left", "offset": [49.75, -1.25], "min_panel": [280, 180]}, {"sprite": "skins/tampadesa/hud/deco_pier_right.png", "anchor": "top_right", "offset": [-51.25, -3.0], "min_panel": [280, 180]}, {"sprite": "skins/tampadesa/hud/deco_crest_large.png", "anchor": "top_center", "offset": [0.0, -37.0], "min_panel": [280, 180]}, {"sprite": "skins/tampadesa/hud/deco_naga_left.png", "anchor": "bottom_left", "offset": [114.25, -37.0], "min_panel": [280, 180]}, {"sprite": "skins/tampadesa/hud/deco_naga_right.png", "anchor": "bottom_right", "offset": [-115.25, -37.0], "min_panel": [280, 180]}]},
+    "popup": {"sprite": "skins/tampadesa/hud/panel_hud.png", "slice": [102, 112, 108, 110], "content": [39.0, 44.0, 42.0, 43.0]},
+    "tooltip": {"sprite": "skins/tampadesa/hud/panel_hud_bar.png", "slice": [78, 64, 84, 74], "content": [23.0, 18.0, 26.0, 23.0]},
+    "card": {"sprite": "skins/tampadesa/panel_well.png", "slice": [16, 16, 16, 16], "content": [14, 14, 14, 14]},
     "hud_bar": {"sprite": "skins/tampadesa/hud/panel_hud_bar.png", "slice": [78, 64, 84, 74], "content": [27.0, 23.0, 30.0, 28.0]},
     "hud_panel": {"sprite": "skins/tampadesa/hud/panel_hud.png", "slice": [102, 112, 108, 110], "content": [31.0, 36.0, 34.0, 35.0]},
     "hud_large": {"sprite": "skins/tampadesa/hud/panel_hud_large.png", "slice": [122, 132, 128, 130], "content": [37.0, 42.0, 40.0, 41.0], "decorations": [{"sprite": "skins/tampadesa/hud/deco_pier_left.png", "anchor": "top_left", "offset": [49.75, -1.25], "min_panel": [280, 180]}, {"sprite": "skins/tampadesa/hud/deco_pier_right.png", "anchor": "top_right", "offset": [-51.25, -3.0], "min_panel": [280, 180]}, {"sprite": "skins/tampadesa/hud/deco_crest_large.png", "anchor": "top_center", "offset": [0.0, -37.0], "min_panel": [280, 180]}, {"sprite": "skins/tampadesa/hud/deco_naga_left.png", "anchor": "bottom_left", "offset": [114.25, -37.0], "min_panel": [280, 180]}, {"sprite": "skins/tampadesa/hud/deco_naga_right.png", "anchor": "bottom_right", "offset": [-115.25, -37.0], "min_panel": [280, 180]}]},
-    "dialog": { "sprite": "skins/tampadesa/panel_dialog.png", "slice": [100, 110, 100, 104], "content": [62, 66, 62, 62] },
-    "popup": { "sprite": "skins/tampadesa/panel_popup.png", "slice": [100, 110, 100, 104], "content": [62, 64, 62, 60] },
-    "tooltip": {
-      "sprite": "skins/tampadesa/panel_tooltip.png",
-      "slice": [24, 24, 24, 28],
-      "center": "stretch",
-      "content": [14, 12, 14, 14],
-      "text": "#f3e2bf"
-    },
-    "card": { "sprite": "skins/tampadesa/panel_card.png", "slice": [20, 20, 20, 20], "content": [14.0, 14.0, 14.0, 14.0] },
     "bar": { "sprite": "skins/tampadesa/panel_bar.png", "slice": [16, 16, 24, 28], "content": [12.0, 12.0, 16.0, 18.0] },
     "side": { "sprite": "skins/tampadesa/panel_side.png", "slice": [48, 48, 48, 48] },
     "caption": {
@@ -78,8 +77,8 @@
     }
   },
   "buttons": {
-    "primary": { "sprite": "skins/tampadesa/button_primary", "slice": [20, 20, 24, 28] },
-    "secondary": { "sprite": "skins/tampadesa/button_secondary", "slice": [20, 20, 24, 28] },
+    "primary": { "sprite": "skins/tampadesa/button_primary", "slice": [20, 20, 24, 28], "text": "#f6df8e" },
+    "secondary": { "sprite": "skins/tampadesa/button_secondary", "slice": [20, 20, 24, 28], "text": "#f6df8e" },
     "tab": { "sprite": "skins/tampadesa/tab", "slice": [16, 16, 16, 16] },
     "tab_selected": { "sprite": "skins/tampadesa/tab_selected", "slice": [16, 16, 16, 16] },
     "menu_item": { "marker": "skins/tampadesa/marker.png", "padding": [0.0, 0.0] },
@@ -122,7 +121,7 @@
     "kambara": "skins/tampadesa/emblem_kambara",
     "tampadesa": "skins/tampadesa/emblem_tampadesa"
   },
-  "ornaments": { "crest": "skins/tampadesa/crest.png" },
+  "ornaments": { "crest": "" },
   "backdrops": { "home": ["skins/tampadesa/home_backdrop.jpg"] },
   "world_map": { "base": "skins/tampadesa/world_map_base.jpg",
     "threat": "skins/tampadesa/world_map_threat.png", "threat_anchor": [408, 200],
@@ -172,8 +171,9 @@
     "choice_box": { "size": [392, 78], "border_width": 0, "inner_inset": 4, "inner_width": 2, "title_baseline": 33,
       "subtitle_baseline": 60, "line_width": 1.5, "seal": false } },
   "intermission": {
-    "colors": { "section": "#7A1D12", "rule": "#C79D64", "note_fill": "#F3DFB4" },
+    "colors": { "section": "#E9C977", "rule": "#8A6A48", "note_fill": "#3A1E14" },
     "backdrop": "skins/tampadesa/world_map_backdrop.jpg",
+    "panel_padding": [56, 84, 56, 40],
     "niche": { "sprite": "skins/tampadesa/stele_niche.png", "rect": [96, 26, 728, 1038], "bleed": [-1, -70.5, -1, -1] },
     "stele": {
       "sprite": "skins/tampadesa/stele.png", "bleed": [2, -12, 2, 2],
@@ -187,17 +187,17 @@
       "colors": { "rule": "#EFE4CCB3", "row": "#EFE4CC66" }
     }
   },
-  "briefing": { "image_outline": "#6B4A2A", "bullet": "circle", "bullet_color": "#A88A2A" },
+  "briefing": { "image_outline": "#8A6A48", "bullet": "circle", "bullet_color": "#E9C977" },
   "story": {
     "backdrop": "skins/tampadesa/world_map_backdrop.jpg",
     "frame": "skins/tampadesa/story_frame.png",
     "frame_bleed": [27, 32, 38, 34],
     "caption": { "at": [50, 686], "inset": 34,
                  "look": { "size": 30, "heading": true, "color": "light" } },
-    "bubble": { "fill": "#FBF1DC", "stroke": 3, "radius": 34, "inset": 36, "name_baseline": 42, "text_baseline": 80, "line_height": 38,
+    "bubble": { "fill": "#FBF1DC", "ink": "story_ink", "whisper_text": "story_sub", "stroke": 3, "radius": 34, "inset": 36, "name_baseline": 42, "text_baseline": 80, "line_height": 38,
                 "bottom": 36, "tail_width": 80,
                 "name": { "color": "#8A2216" },
-                "text": { "size": 27, "heading": false, "color": "ink" } },
+                "text": { "size": 27, "heading": false, "color": "story_ink" } },
     "stele": {
       "title": { "size": 30, "heading": true, "color": "light" },
       "line": { "size": 24, "heading": false, "color": "light" }
@@ -206,22 +206,11 @@
   },
   "dialogs": {
     "Home": {"offset": [80, 0]},
+    "About": {"size": [940, 980]},
     "CityManagement": {"size": [1600, 1020]},
     "PopulationManagement": {"size": [1600, 1020]},
     "ResourcesManagement": {"size": [1600, 1020]},
     "FinancesManagement": {"size": [1600, 1020]}
-  },
-  "hud": {
-    "tiles": {"large": {"size": [84, 87.5], "frame": "skins/tampadesa/hud/tile_large", "bleed": [9.5, 35.0, 11.0, 12.0]}, "sector": {"size": [54, 56.5], "frame": "skins/tampadesa/hud/tile_sector", "bleed": [9.0, 17.0, 10.5, 11.5]}, "small": {"size": [36, 36], "frame": "skins/tampadesa/hud/tile_small", "bleed": [8.5, 8.5, 10.0, 11.0]}},
-    "glyphs": "skins/tampadesa/hud/glyphs",
-    "glyph_bleed": 1,
-    "glyph_tints": {"disabled": "#6a5034bf"},
-    "pressed_offset": 0,
-    "icons": "skins/tampadesa/hud/icons",
-    "icon_bleed": 4,
-    "ornaments": {"wide": "skins/tampadesa/hud/ornament_gap_wide.png", "narrow": "skins/tampadesa/hud/ornament_gap_narrow.png"},
-    "badge": {"fill": "#e2b04a", "ring": "#5e1810", "text": "#3a1408", "radius": 10, "ring_width": 1.6, "font_size": 11, "offset": [-1, 1]},
-    "colors": {"text": "#f3e2bf", "sub": "#d9b98a", "accent": "#e9c977", "rule": "#8a6a48", "warning": "#f08a5a", "rating_track": "#8a6a48", "rating_fill": "#e9c977", "notch": "#9a3a24", "notch_outline": "#8a6a48"}
   },
   "hud": {
     "tiles": {"large": {"size": [84, 87.5], "frame": "skins/tampadesa/hud/tile_large", "bleed": [9.5, 35.0, 11.0, 12.0]}, "sector": {"size": [54, 56.5], "frame": "skins/tampadesa/hud/tile_sector", "bleed": [9.0, 17.0, 10.5, 11.5]}, "small": {"size": [36, 36], "frame": "skins/tampadesa/hud/tile_small", "bleed": [8.5, 8.5, 10.0, 11.0]}},

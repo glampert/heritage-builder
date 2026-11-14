@@ -38,8 +38,8 @@ const PLACE_LABEL: &str = "place";
 const LAST_SAVED_LABEL: &str = "last_saved";
 
 // Room the content area keeps free below the last-saved line, so rounding (more of it at a UI
-// scale) never makes it scroll.
-const GAME_MENU_SLACK: f32 = 12.0;
+// scale) and text measured as the menu is built (no UI open) never make it scroll.
+const GAME_MENU_SLACK: f32 = 24.0;
 
 // The popups' labels (automation ids: "Quit Game Popup/Save and quit").
 const QUIT_POPUP_LABEL: &str = "Quit Game Popup";

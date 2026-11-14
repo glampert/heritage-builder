@@ -2232,30 +2232,6 @@
       "source_hash": "aba2f566c8fa0648",
       "state": null
     },
-    "assets/ui/skins/dailong/panel_card.png": {
-      "catalog_hash": "f180e542af6a650a",
-      "id": "panel_card",
-      "png_hash": "229c4d4cc7540dd2",
-      "png_size": [
-        280,
-        280
-      ],
-      "realm": "dailong",
-      "source_hash": "8bacd0203d70798d",
-      "state": null
-    },
-    "assets/ui/skins/dailong/panel_dialog.png": {
-      "catalog_hash": "bdff6cb238fcaf6b",
-      "id": "panel_dialog",
-      "png_hash": "497db18fecebfa3b",
-      "png_size": [
-        508,
-        480
-      ],
-      "realm": "dailong",
-      "source_hash": "3734e52e0786502f",
-      "state": null
-    },
     "assets/ui/skins/dailong/panel_field.png": {
       "catalog_hash": "1da37e9f2b13e444",
       "id": "panel_field",
@@ -2266,18 +2242,6 @@
       ],
       "realm": "dailong",
       "source_hash": "f44012b864b35c2a",
-      "state": null
-    },
-    "assets/ui/skins/dailong/panel_popup.png": {
-      "catalog_hash": "faec17deddacf44a",
-      "id": "panel_popup",
-      "png_hash": "b052ffc9aee356f7",
-      "png_size": [
-        444,
-        416
-      ],
-      "realm": "dailong",
-      "source_hash": "93043e8e898b6542",
       "state": null
     },
     "assets/ui/skins/dailong/panel_row.png": {
@@ -2314,18 +2278,6 @@
       ],
       "realm": "dailong",
       "source_hash": "8b952f84b1eddeda",
-      "state": null
-    },
-    "assets/ui/skins/dailong/panel_tooltip.png": {
-      "catalog_hash": "209c1caea5720cab",
-      "id": "panel_tooltip",
-      "png_hash": "13a579966a94ea28",
-      "png_size": [
-        228,
-        228
-      ],
-      "realm": "dailong",
-      "source_hash": "8ed1ab3698d07c84",
       "state": null
     },
     "assets/ui/skins/dailong/panel_well.png": {
@@ -2739,253 +2691,241 @@
     "assets/ui/skins/kambara/button_primary_disabled.png": {
       "catalog_hash": "bc26f1e10512e605",
       "id": "button_primary",
-      "png_hash": "8150d1c4afae3dcc",
+      "png_hash": "a752a7486c2689c7",
       "png_size": [
         248,
         124
       ],
       "realm": "kambara",
-      "source_hash": "0a80db1410211aa5",
+      "source_hash": "42bb8b9d42daa5d4",
       "state": "disabled"
     },
     "assets/ui/skins/kambara/button_primary_hovered.png": {
       "catalog_hash": "28175c3646dc016d",
       "id": "button_primary",
-      "png_hash": "ab5a802ef77faa83",
+      "png_hash": "26f78988ba25cbaf",
       "png_size": [
         248,
         124
       ],
       "realm": "kambara",
-      "source_hash": "05168c6c34c49182",
+      "source_hash": "a716d3bbe41f8fce",
       "state": "hovered"
     },
     "assets/ui/skins/kambara/button_primary_idle.png": {
       "catalog_hash": "87fa82f438bdd950",
       "id": "button_primary",
-      "png_hash": "81fe8325697a5221",
+      "png_hash": "38e59045ba7a44cc",
       "png_size": [
         248,
         124
       ],
       "realm": "kambara",
-      "source_hash": "cbb8f4ceb6306d8f",
+      "source_hash": "d1ec209e2dfbf3e2",
       "state": "idle"
     },
     "assets/ui/skins/kambara/button_primary_pressed.png": {
       "catalog_hash": "f977697f84a60bb6",
       "id": "button_primary",
-      "png_hash": "2b61de92814e4952",
+      "png_hash": "fb1e98682464c9db",
       "png_size": [
         248,
         124
       ],
       "realm": "kambara",
-      "source_hash": "3dfa7b822dd8de92",
+      "source_hash": "8f55dd33404793f4",
       "state": "pressed"
     },
     "assets/ui/skins/kambara/button_secondary_disabled.png": {
       "catalog_hash": "837b2e1607b24dde",
       "id": "button_secondary",
-      "png_hash": "fc6e162048f0e054",
+      "png_hash": "0d6531929664accc",
       "png_size": [
         248,
         124
       ],
       "realm": "kambara",
-      "source_hash": "bbd9eb1c24c88b9f",
+      "source_hash": "a8a7462e9e145b15",
       "state": "disabled"
     },
     "assets/ui/skins/kambara/button_secondary_hovered.png": {
       "catalog_hash": "9c14ea5a7a770be8",
       "id": "button_secondary",
-      "png_hash": "986ad3166ae1acfd",
+      "png_hash": "567150fa7a0dbd04",
       "png_size": [
         248,
         124
       ],
       "realm": "kambara",
-      "source_hash": "28b4dd8e366a40a3",
+      "source_hash": "ec7530397258f4f4",
       "state": "hovered"
     },
     "assets/ui/skins/kambara/button_secondary_idle.png": {
       "catalog_hash": "9d892f861cae9b40",
       "id": "button_secondary",
-      "png_hash": "e4465f2ac0b42c6b",
+      "png_hash": "6879dda2abcc34e8",
       "png_size": [
         248,
         124
       ],
       "realm": "kambara",
-      "source_hash": "310b11ee0e52802b",
+      "source_hash": "d5a27bbe6c6a8574",
       "state": "idle"
     },
     "assets/ui/skins/kambara/button_secondary_pressed.png": {
       "catalog_hash": "ba583936047e5619",
       "id": "button_secondary",
-      "png_hash": "ce1c8764a35a1c67",
+      "png_hash": "0b4227c75b330203",
       "png_size": [
         248,
         124
       ],
       "realm": "kambara",
-      "source_hash": "0f56ba8163dff0fc",
+      "source_hash": "1eb642ce49567e32",
       "state": "pressed"
     },
     "assets/ui/skins/kambara/checkbox_off.png": {
       "catalog_hash": "7912786d266cb741",
       "id": "checkbox_off",
-      "png_hash": "7367b3ebea082fcb",
+      "png_hash": "5d7633bc1b2a8519",
       "png_size": [
         60,
         60
       ],
       "realm": "kambara",
-      "source_hash": "036f2eb8d093f15f",
+      "source_hash": "617b3bb33563590c",
       "state": null
     },
     "assets/ui/skins/kambara/checkbox_on.png": {
       "catalog_hash": "1825ae53f21215d0",
       "id": "checkbox_on",
-      "png_hash": "6c807cf39412b096",
+      "png_hash": "ae2b62e6f66e1982",
       "png_size": [
         60,
         60
       ],
       "realm": "kambara",
-      "source_hash": "877f545eaad698ca",
-      "state": null
-    },
-    "assets/ui/skins/kambara/crest.png": {
-      "catalog_hash": "1f05c4216bd7bbaf",
-      "id": "crest",
-      "png_hash": "6cc7a104e4d9e468",
-      "png_size": [
-        72,
-        154
-      ],
-      "realm": "kambara",
-      "source_hash": "f3141bd6e33da151",
+      "source_hash": "41b231394ab136aa",
       "state": null
     },
     "assets/ui/skins/kambara/dropdown_arrow.png": {
       "catalog_hash": "47088942e23abebf",
       "id": "dropdown_arrow",
-      "png_hash": "efa32483dc13b51c",
+      "png_hash": "e0368dcf66adc165",
       "png_size": [
         40,
         24
       ],
       "realm": "kambara",
-      "source_hash": "b1b4fd654e428f22",
+      "source_hash": "96934be72f6732ae",
       "state": null
     },
     "assets/ui/skins/kambara/emblem_dailong_current.png": {
       "catalog_hash": "3d931f6003fb1086",
       "id": "emblem_dailong",
-      "png_hash": "eed7fcd8ac4ebae4",
+      "png_hash": "2ff8911b54c457a0",
       "png_size": [
         168,
         168
       ],
       "realm": "kambara",
-      "source_hash": "077735b9e98c14f8",
+      "source_hash": "eb47dad77395fba5",
       "state": "current"
     },
     "assets/ui/skins/kambara/emblem_dailong_idle.png": {
       "catalog_hash": "ac8030eb575be375",
       "id": "emblem_dailong",
-      "png_hash": "754ea436f6f5d2de",
+      "png_hash": "cbb11c6fa0808ac3",
       "png_size": [
         168,
         168
       ],
       "realm": "kambara",
-      "source_hash": "c6e53bcc22c68917",
+      "source_hash": "810dcd38e309fa5a",
       "state": "idle"
     },
     "assets/ui/skins/kambara/emblem_dailong_locked.png": {
       "catalog_hash": "d0e7d46bc45a9fc2",
       "id": "emblem_dailong",
-      "png_hash": "61f7c3bd0f58b08a",
+      "png_hash": "f39b7bca3ba0a113",
       "png_size": [
         168,
         168
       ],
       "realm": "kambara",
-      "source_hash": "a90eda7e5948011d",
+      "source_hash": "695bc40268de6ed7",
       "state": "locked"
     },
     "assets/ui/skins/kambara/emblem_kambara_current.png": {
       "catalog_hash": "97711dd061f0fa2c",
       "id": "emblem_kambara",
-      "png_hash": "0b85aebb0cabaf05",
+      "png_hash": "ce2dd60590359148",
       "png_size": [
         168,
         168
       ],
       "realm": "kambara",
-      "source_hash": "918fc92dc3b77c72",
+      "source_hash": "7f8a9764c8337ef3",
       "state": "current"
     },
     "assets/ui/skins/kambara/emblem_kambara_idle.png": {
       "catalog_hash": "f347f74a0f804599",
       "id": "emblem_kambara",
-      "png_hash": "9f386e7e58d4ee96",
+      "png_hash": "76e80dfb6f9f223f",
       "png_size": [
         168,
         168
       ],
       "realm": "kambara",
-      "source_hash": "64a38d20f3be2524",
+      "source_hash": "5df92300f2737172",
       "state": "idle"
     },
     "assets/ui/skins/kambara/emblem_kambara_locked.png": {
       "catalog_hash": "87a940c14be320d9",
       "id": "emblem_kambara",
-      "png_hash": "2eb37d59ebfbbfa9",
+      "png_hash": "d3ab30ee79b5548e",
       "png_size": [
         168,
         168
       ],
       "realm": "kambara",
-      "source_hash": "3fd93fb3246b586e",
+      "source_hash": "b54daa6d67c93c73",
       "state": "locked"
     },
     "assets/ui/skins/kambara/emblem_tampadesa_current.png": {
       "catalog_hash": "2138b02f4b54f75b",
       "id": "emblem_tampadesa",
-      "png_hash": "6f6f75849e710e02",
+      "png_hash": "f909a1810e2f8baf",
       "png_size": [
         168,
         168
       ],
       "realm": "kambara",
-      "source_hash": "a3a82076a76ef839",
+      "source_hash": "fc46c0c36b8fe2bd",
       "state": "current"
     },
     "assets/ui/skins/kambara/emblem_tampadesa_idle.png": {
       "catalog_hash": "1fbf689e7b325dd5",
       "id": "emblem_tampadesa",
-      "png_hash": "172a7330801f6eb4",
+      "png_hash": "35684d1e625cf478",
       "png_size": [
         168,
         168
       ],
       "realm": "kambara",
-      "source_hash": "441865861c9d9f38",
+      "source_hash": "81d8d13ba46c5332",
       "state": "idle"
     },
     "assets/ui/skins/kambara/emblem_tampadesa_locked.png": {
       "catalog_hash": "597bb68cd3631465",
       "id": "emblem_tampadesa",
-      "png_hash": "71277a36e71ef375",
+      "png_hash": "d6acf551b1b43639",
       "png_size": [
         168,
         168
       ],
       "realm": "kambara",
-      "source_hash": "d174fd5c8f48b22b",
+      "source_hash": "8afaf406178542cd",
       "state": "locked"
     },
     "assets/ui/skins/kambara/home_backdrop.jpg": {
@@ -4851,61 +4791,61 @@
     "assets/ui/skins/kambara/icon_frame_disabled.png": {
       "catalog_hash": "4d18f9e6c29467d8",
       "id": "icon_frame",
-      "png_hash": "003ecfedd1bd8eaf",
+      "png_hash": "7ec74b9b7f1a1795",
       "png_size": [
         144,
         144
       ],
       "realm": "kambara",
-      "source_hash": "bde94ef83e56b932",
+      "source_hash": "f49920dc57e02dc5",
       "state": "disabled"
     },
     "assets/ui/skins/kambara/icon_frame_hovered.png": {
       "catalog_hash": "5b6c4d26c1a3a20f",
       "id": "icon_frame",
-      "png_hash": "18af0c30472eff90",
+      "png_hash": "87a2978429a8741e",
       "png_size": [
         144,
         144
       ],
       "realm": "kambara",
-      "source_hash": "2d0a33c982a928da",
+      "source_hash": "69e79f93c60c02bd",
       "state": "hovered"
     },
     "assets/ui/skins/kambara/icon_frame_idle.png": {
       "catalog_hash": "7f54c59e3a2f4eeb",
       "id": "icon_frame",
-      "png_hash": "3dae7f6eefb93a3c",
+      "png_hash": "8f40bb5879f0d897",
       "png_size": [
         144,
         144
       ],
       "realm": "kambara",
-      "source_hash": "d3463463ff941211",
+      "source_hash": "fa40edf3a565b883",
       "state": "idle"
     },
     "assets/ui/skins/kambara/icon_frame_pressed.png": {
       "catalog_hash": "3f075c7fa33e190b",
       "id": "icon_frame",
-      "png_hash": "0df51a9707b7335a",
+      "png_hash": "bc8d766ffd00f53c",
       "png_size": [
         144,
         144
       ],
       "realm": "kambara",
-      "source_hash": "d0cfa92eaa4e22e6",
+      "source_hash": "2001d6a15f3e0eab",
       "state": "pressed"
     },
     "assets/ui/skins/kambara/icon_frame_selected.png": {
       "catalog_hash": "20879eda62ad8c94",
       "id": "icon_frame_selected",
-      "png_hash": "2ce3e58c8009901f",
+      "png_hash": "0617efe44c53c1a4",
       "png_size": [
         84,
         84
       ],
       "realm": "kambara",
-      "source_hash": "91447598db254fde",
+      "source_hash": "17878df6e811e6c3",
       "state": null
     },
     "assets/ui/skins/kambara/marker.png": {
@@ -4923,13 +4863,13 @@
     "assets/ui/skins/kambara/ornament.png": {
       "catalog_hash": "f83a89758914f6ca",
       "id": "ornament",
-      "png_hash": "26575be76e542031",
+      "png_hash": "57bca857e0568f0e",
       "png_size": [
         144,
         24
       ],
       "realm": "kambara",
-      "source_hash": "06d4978f2cd6e961",
+      "source_hash": "fd19d1eeb2fe1ebc",
       "state": null
     },
     "assets/ui/skins/kambara/panel_bar.png": {
@@ -4968,76 +4908,40 @@
       "source_hash": "185b84f19975d9e1",
       "state": null
     },
-    "assets/ui/skins/kambara/panel_card.png": {
-      "catalog_hash": "bf7e16d728b4a967",
-      "id": "panel_card",
-      "png_hash": "f8bd655451430654",
-      "png_size": [
-        308,
-        312
-      ],
-      "realm": "kambara",
-      "source_hash": "5de21917a340b893",
-      "state": null
-    },
-    "assets/ui/skins/kambara/panel_dialog.png": {
-      "catalog_hash": "fd60cbee0a892a27",
-      "id": "panel_dialog",
-      "png_hash": "7457b46cfadd1987",
-      "png_size": [
-        452,
-        504
-      ],
-      "realm": "kambara",
-      "source_hash": "b98f99c3d9d9351f",
-      "state": null
-    },
     "assets/ui/skins/kambara/panel_field.png": {
       "catalog_hash": "509194e866af6e57",
       "id": "panel_field",
-      "png_hash": "00b027030d8f13a8",
+      "png_hash": "fdfc04e21d58202c",
       "png_size": [
         196,
         100
       ],
       "realm": "kambara",
-      "source_hash": "b9d5d0a06f2cf065",
-      "state": null
-    },
-    "assets/ui/skins/kambara/panel_popup.png": {
-      "catalog_hash": "8ba0b3a5f0daaad4",
-      "id": "panel_popup",
-      "png_hash": "e51ab4d124c1d5a4",
-      "png_size": [
-        364,
-        440
-      ],
-      "realm": "kambara",
-      "source_hash": "926891bea137e9c2",
+      "source_hash": "c4030ed3601e60bd",
       "state": null
     },
     "assets/ui/skins/kambara/panel_row.png": {
       "catalog_hash": "fdaeb8552fce60a3",
       "id": "panel_row",
-      "png_hash": "66dd564fe5fd7353",
+      "png_hash": "237dc0a91b2288fd",
       "png_size": [
         128,
         98
       ],
       "realm": "kambara",
-      "source_hash": "f70bdfa04d483b45",
+      "source_hash": "d83dde763fe575fc",
       "state": null
     },
     "assets/ui/skins/kambara/panel_row_selected.png": {
       "catalog_hash": "dcea310c0f4c36f7",
       "id": "panel_row_selected",
-      "png_hash": "f40669fef210abe0",
+      "png_hash": "c79c0e580bf69628",
       "png_size": [
         200,
         104
       ],
       "realm": "kambara",
-      "source_hash": "8a290d1a1b9c8355",
+      "source_hash": "5706c16a40a282ea",
       "state": null
     },
     "assets/ui/skins/kambara/panel_side.png": {
@@ -5052,100 +4956,88 @@
       "source_hash": "f83fd4fdbf86e537",
       "state": null
     },
-    "assets/ui/skins/kambara/panel_tooltip.png": {
-      "catalog_hash": "b0d26bc00bf06733",
-      "id": "panel_tooltip",
-      "png_hash": "5e04863da0921165",
-      "png_size": [
-        244,
-        248
-      ],
-      "realm": "kambara",
-      "source_hash": "0d5d434ef772a84c",
-      "state": null
-    },
     "assets/ui/skins/kambara/panel_well.png": {
       "catalog_hash": "d85188eb1748d153",
       "id": "panel_well",
-      "png_hash": "1399b4a6219c0111",
+      "png_hash": "18750881e9ff06c9",
       "png_size": [
         132,
         132
       ],
       "realm": "kambara",
-      "source_hash": "124f4e0520a766ef",
+      "source_hash": "6f96b2869c686d2e",
       "state": null
     },
     "assets/ui/skins/kambara/rule.png": {
       "catalog_hash": "bf51f59a8745de07",
       "id": "rule",
-      "png_hash": "f9d1f560841831b7",
+      "png_hash": "c4f44ad19fc190ff",
       "png_size": [
         240,
         10
       ],
       "realm": "kambara",
-      "source_hash": "7f7b0569ba821037",
+      "source_hash": "8188e1304e565661",
       "state": null
     },
     "assets/ui/skins/kambara/scrollbar_thumb.png": {
       "catalog_hash": "9579e0faf69491db",
       "id": "scrollbar_thumb",
-      "png_hash": "f1e03d70600e9897",
+      "png_hash": "a47eda831c8e178e",
       "png_size": [
         20,
         128
       ],
       "realm": "kambara",
-      "source_hash": "7e90dd3780cc4937",
+      "source_hash": "43515dcfa47418f4",
       "state": null
     },
     "assets/ui/skins/kambara/scrollbar_track.png": {
       "catalog_hash": "4e47f9502d9ce507",
       "id": "scrollbar_track",
-      "png_hash": "db2c90288fdb38fb",
+      "png_hash": "6b3d86f79ec103a7",
       "png_size": [
         24,
         132
       ],
       "realm": "kambara",
-      "source_hash": "636099724f9ead9b",
+      "source_hash": "579a11de9d6e2184",
       "state": null
     },
     "assets/ui/skins/kambara/slider_fill.png": {
       "catalog_hash": "9ddd57b4fb15e38c",
       "id": "slider_fill",
-      "png_hash": "c4b05a20ea1b6c4f",
+      "png_hash": "ab1c3079ec221696",
       "png_size": [
         128,
         20
       ],
       "realm": "kambara",
-      "source_hash": "b49b9fade2faeb2d",
+      "source_hash": "f82c44d42871951d",
       "state": null
     },
     "assets/ui/skins/kambara/slider_knob.png": {
       "catalog_hash": "44a2bcde706a7560",
       "id": "slider_knob",
-      "png_hash": "c34a18cfb9645919",
+      "png_hash": "cf4e2df2ec0fdf16",
       "png_size": [
         56,
         56
       ],
       "realm": "kambara",
-      "source_hash": "d695084e95a99fa9",
+      "source_hash": "39e3cad795009e11",
       "state": null
     },
     "assets/ui/skins/kambara/slider_rail.png": {
       "catalog_hash": "f1d837318f028e54",
       "id": "slider_rail",
-      "png_hash": "4836444b0decf433",
+      "png_hash": "26517729bf5983d4",
       "png_size": [
         132,
         24
       ],
       "realm": "kambara",
-      "source_hash": "0c041c16677b9cb1",
+      "source_hash": "abe91182db6d8109",
       "state": null
     },
     "assets/ui/skins/kambara/stele.png": {
@@ -5161,7 +5053,7 @@
       "state": null
     },
     "assets/ui/skins/kambara/stele_mark.png": {
-      "catalog_hash": "918c5eb41f6d4852",
+      "catalog_hash": "c006aec9c5e37fed",
       "id": "stele_mark",
       "png_hash": "ab20bae9eef8d50f",
       "png_size": [
@@ -5199,157 +5091,133 @@
     "assets/ui/skins/kambara/tab_disabled.png": {
       "catalog_hash": "a14fdada79303537",
       "id": "tab",
-      "png_hash": "1f712ed65b8842fc",
+      "png_hash": "662c8bcb6c5e720d",
       "png_size": [
         244,
         104
       ],
       "realm": "kambara",
-      "source_hash": "68888887d7cde0b9",
+      "source_hash": "2addfdba32b25709",
       "state": "disabled"
     },
     "assets/ui/skins/kambara/tab_hovered.png": {
       "catalog_hash": "2956b4d7411f264e",
       "id": "tab",
-      "png_hash": "efbb40fc3e730811",
+      "png_hash": "4a4699fcb30b645c",
       "png_size": [
         244,
         104
       ],
       "realm": "kambara",
-      "source_hash": "8d295727e28a0355",
+      "source_hash": "e1f238108b4b227a",
       "state": "hovered"
     },
     "assets/ui/skins/kambara/tab_idle.png": {
       "catalog_hash": "8d8f8b0eaa993fc0",
       "id": "tab",
-      "png_hash": "683c44b9db23ad0a",
+      "png_hash": "349cd6ee7b6a2439",
       "png_size": [
         244,
         104
       ],
       "realm": "kambara",
-      "source_hash": "335001c36f092c64",
+      "source_hash": "4285d79b6153e93f",
       "state": "idle"
     },
     "assets/ui/skins/kambara/tab_pressed.png": {
       "catalog_hash": "c5495d712359b73c",
       "id": "tab",
-      "png_hash": "b6ee62afa8846314",
+      "png_hash": "2332a1fc57feff93",
       "png_size": [
         244,
         104
       ],
       "realm": "kambara",
-      "source_hash": "4d3ebb0ffc896c05",
+      "source_hash": "51af1608200b7bb9",
       "state": "pressed"
     },
     "assets/ui/skins/kambara/tab_selected_disabled.png": {
       "catalog_hash": "f8880ad82490cd49",
       "id": "tab_selected",
-      "png_hash": "09119aac029bfb0d",
+      "png_hash": "d600a440c10255d8",
       "png_size": [
         244,
         104
       ],
       "realm": "kambara",
-      "source_hash": "0c68e3d9d622ad54",
+      "source_hash": "0285151cb8118641",
       "state": "disabled"
     },
     "assets/ui/skins/kambara/tab_selected_hovered.png": {
       "catalog_hash": "3b929bdd34b9c4ee",
       "id": "tab_selected",
-      "png_hash": "fd71ed33e094b4b1",
+      "png_hash": "401c1f23f08e7dec",
       "png_size": [
         244,
         104
       ],
       "realm": "kambara",
-      "source_hash": "fe2d3d70fde81a3d",
+      "source_hash": "f35404ea76b81276",
       "state": "hovered"
     },
     "assets/ui/skins/kambara/tab_selected_idle.png": {
       "catalog_hash": "090252d889f2eb23",
       "id": "tab_selected",
-      "png_hash": "8168a123f4999785",
+      "png_hash": "d3cf3d5e36de0e11",
       "png_size": [
         244,
         104
       ],
       "realm": "kambara",
-      "source_hash": "24b43b145bf9ee4e",
+      "source_hash": "b1b5df211e0d6bb3",
       "state": "idle"
     },
     "assets/ui/skins/kambara/tab_selected_pressed.png": {
       "catalog_hash": "e276d4bfbb4d5f3f",
       "id": "tab_selected",
-      "png_hash": "a6d5e170240aefa6",
+      "png_hash": "22a2d64934cab54b",
       "png_size": [
         244,
         104
       ],
       "realm": "kambara",
-      "source_hash": "8eadc7a0703f1bd5",
+      "source_hash": "a97e6a469380183e",
       "state": "pressed"
     },
     "assets/ui/skins/kambara/toggle_knob.png": {
       "catalog_hash": "a6687fb70ccaab82",
       "id": "toggle_knob",
-      "png_hash": "a97f42d548ff44cc",
+      "png_hash": "7be0c4b086e1cb7f",
       "png_size": [
         48,
         48
       ],
       "realm": "kambara",
-      "source_hash": "b92c0c4e98a3f098",
+      "source_hash": "0166e61bd906b00c",
       "state": null
     },
     "assets/ui/skins/kambara/toggle_off.png": {
       "catalog_hash": "83e769289c5a1290",
       "id": "toggle_off",
-      "png_hash": "7fc840aa246a7cf8",
+      "png_hash": "a48077d3448adbf1",
       "png_size": [
         128,
         64
       ],
       "realm": "kambara",
-      "source_hash": "c34594ff7c1927b6",
+      "source_hash": "7cb513b9e93f77e3",
       "state": null
     },
     "assets/ui/skins/kambara/toggle_on.png": {
       "catalog_hash": "8dee3fc3718294a0",
       "id": "toggle_on",
-      "png_hash": "ed3c1a55bc4c1e09",
+      "png_hash": "d45b5cd60ce6b365",
       "png_size": [
         128,
         64
       ],
       "realm": "kambara",
-      "source_hash": "fc88ac383d9a7c15",
-      "state": null
-    },
-    "assets/ui/skins/kambara/vine_br.png": {
-      "catalog_hash": "1f22b318ecc97353",
-      "id": "vine_br",
-      "png_hash": "7a0fa880a6d5730e",
-      "png_size": [
-        404,
-        596
-      ],
-      "realm": "kambara",
-      "source_hash": "b361f58d669bd7e4",
-      "state": null
-    },
-    "assets/ui/skins/kambara/vine_tl.png": {
-      "catalog_hash": "7aa6563e32775c10",
-      "id": "vine_tl",
-      "png_hash": "57c79643716635bb",
-      "png_size": [
-        580,
-        400
-      ],
-      "realm": "kambara",
-      "source_hash": "0a1492750f022fd9",
+      "source_hash": "3af293fe2fad554a",
       "state": null
     },
     "assets/ui/skins/kambara/world_map_backdrop.jpg": {
@@ -5595,157 +5463,145 @@
     "assets/ui/skins/tampadesa/checkbox_off.png": {
       "catalog_hash": "c5c482035db3e7da",
       "id": "checkbox_off",
-      "png_hash": "6e273a647da3ff49",
+      "png_hash": "678fd1042987f165",
       "png_size": [
         60,
         60
       ],
       "realm": "tampadesa",
-      "source_hash": "6738bd88b8ee9137",
+      "source_hash": "63a97bb2dff7c195",
       "state": null
     },
     "assets/ui/skins/tampadesa/checkbox_on.png": {
       "catalog_hash": "dfe405bbbbb873db",
       "id": "checkbox_on",
-      "png_hash": "ed9b7813d5853697",
+      "png_hash": "dac6bbb40e3e9dee",
       "png_size": [
         60,
         60
       ],
       "realm": "tampadesa",
-      "source_hash": "7111e538aa94f36f",
-      "state": null
-    },
-    "assets/ui/skins/tampadesa/crest.png": {
-      "catalog_hash": "7f2f25d14ec9dd24",
-      "id": "crest",
-      "png_hash": "5988c5cc4efab2fa",
-      "png_size": [
-        112,
-        182
-      ],
-      "realm": "tampadesa",
-      "source_hash": "7cc3cefaf09a7b1a",
+      "source_hash": "262ab5723e5839d5",
       "state": null
     },
     "assets/ui/skins/tampadesa/dropdown_arrow.png": {
       "catalog_hash": "54702c2a50019fe3",
       "id": "dropdown_arrow",
-      "png_hash": "6a3f1b21341def8f",
+      "png_hash": "bb15badcfcff5db4",
       "png_size": [
         40,
         24
       ],
       "realm": "tampadesa",
-      "source_hash": "c9d6abcfc96836e4",
+      "source_hash": "626c55c055b019ac",
       "state": null
     },
     "assets/ui/skins/tampadesa/emblem_dailong_current.png": {
       "catalog_hash": "5896a5364c497f0b",
       "id": "emblem_dailong",
-      "png_hash": "108cc7d31b86eee0",
+      "png_hash": "7332447e150e8371",
       "png_size": [
         168,
         168
       ],
       "realm": "tampadesa",
-      "source_hash": "8446db1b9024e7c9",
+      "source_hash": "fa837bf8da5a9a4c",
       "state": "current"
     },
     "assets/ui/skins/tampadesa/emblem_dailong_idle.png": {
       "catalog_hash": "1fc498a9356316fe",
       "id": "emblem_dailong",
-      "png_hash": "317a6451cf77baa0",
+      "png_hash": "49db6490bd733d60",
       "png_size": [
         168,
         168
       ],
       "realm": "tampadesa",
-      "source_hash": "33aff8b58b97510d",
+      "source_hash": "a667eb147b039de0",
       "state": "idle"
     },
     "assets/ui/skins/tampadesa/emblem_dailong_locked.png": {
       "catalog_hash": "7e14d9733e8c87b4",
       "id": "emblem_dailong",
-      "png_hash": "f1ffd1ccef5d110d",
+      "png_hash": "0f037d32315d9c62",
       "png_size": [
         168,
         168
       ],
       "realm": "tampadesa",
-      "source_hash": "af61769bd1526d1c",
+      "source_hash": "8d8ac99df80e4748",
       "state": "locked"
     },
     "assets/ui/skins/tampadesa/emblem_kambara_current.png": {
       "catalog_hash": "55e873c1222dd3e0",
       "id": "emblem_kambara",
-      "png_hash": "43b0470dd3e087e7",
+      "png_hash": "4adcdea33929e0e5",
       "png_size": [
         168,
         168
       ],
       "realm": "tampadesa",
-      "source_hash": "818717a4352e161a",
+      "source_hash": "18b96b523cc22608",
       "state": "current"
     },
     "assets/ui/skins/tampadesa/emblem_kambara_idle.png": {
       "catalog_hash": "e745cb4d21f1627e",
       "id": "emblem_kambara",
-      "png_hash": "b88caa6ecdd0d3c2",
+      "png_hash": "e6c0c7c2af13a6c7",
       "png_size": [
         168,
         168
       ],
       "realm": "tampadesa",
-      "source_hash": "1d68ac42b576b268",
+      "source_hash": "2a61b79d5c21928c",
       "state": "idle"
     },
     "assets/ui/skins/tampadesa/emblem_kambara_locked.png": {
       "catalog_hash": "ecd3168173f74e99",
       "id": "emblem_kambara",
-      "png_hash": "d4ff4e2c06ccfa6b",
+      "png_hash": "bd9a206311687f0b",
       "png_size": [
         168,
         168
       ],
       "realm": "tampadesa",
-      "source_hash": "5dfa933eb1f568a7",
+      "source_hash": "203bda7391455ef8",
       "state": "locked"
     },
     "assets/ui/skins/tampadesa/emblem_tampadesa_current.png": {
       "catalog_hash": "953de4051f7f6c64",
       "id": "emblem_tampadesa",
-      "png_hash": "c686f9b230b8c560",
+      "png_hash": "99bf77e0d53fd807",
       "png_size": [
         168,
         168
       ],
       "realm": "tampadesa",
-      "source_hash": "e8784396459811b4",
+      "source_hash": "13c9d37b67e6dd9d",
       "state": "current"
     },
     "assets/ui/skins/tampadesa/emblem_tampadesa_idle.png": {
       "catalog_hash": "fc4ce6856fa1f7e8",
       "id": "emblem_tampadesa",
-      "png_hash": "1cee283f9d12a5a0",
+      "png_hash": "0f4cfbde75345902",
       "png_size": [
         168,
         168
       ],
       "realm": "tampadesa",
-      "source_hash": "b7d4930d193b290e",
+      "source_hash": "b3d91dab4495a77f",
       "state": "idle"
     },
     "assets/ui/skins/tampadesa/emblem_tampadesa_locked.png": {
       "catalog_hash": "725e2b9195d1bf62",
       "id": "emblem_tampadesa",
-      "png_hash": "9cd431e9d63ba9ee",
+      "png_hash": "8223c7ef4151f14c",
       "png_size": [
         168,
         168
       ],
       "realm": "tampadesa",
-      "source_hash": "283d2b98166265c8",
+      "source_hash": "7006652abf9e82f3",
       "state": "locked"
     },
     "assets/ui/skins/tampadesa/home_backdrop.jpg": {
@@ -7764,76 +7620,40 @@
       "source_hash": "d6bac5102f79d767",
       "state": null
     },
-    "assets/ui/skins/tampadesa/panel_card.png": {
-      "catalog_hash": "05e29b58b799b272",
-      "id": "panel_card",
-      "png_hash": "3017b84aa5151c20",
-      "png_size": [
-        304,
-        304
-      ],
-      "realm": "tampadesa",
-      "source_hash": "783ed909cbad5e14",
-      "state": null
-    },
-    "assets/ui/skins/tampadesa/panel_dialog.png": {
-      "catalog_hash": "6ac1675cf1cfa77b",
-      "id": "panel_dialog",
-      "png_hash": "575e66df558f013e",
-      "png_size": [
-        488,
-        502
-      ],
-      "realm": "tampadesa",
-      "source_hash": "2da84073f4e55a02",
-      "state": null
-    },
     "assets/ui/skins/tampadesa/panel_field.png": {
       "catalog_hash": "f2cb99dcdaa2f952",
       "id": "panel_field",
-      "png_hash": "7ef722ecde5f35c3",
+      "png_hash": "90f1655cd11a8650",
       "png_size": [
         196,
         100
       ],
       "realm": "tampadesa",
-      "source_hash": "ec78d0ec19456dbf",
-      "state": null
-    },
-    "assets/ui/skins/tampadesa/panel_popup.png": {
-      "catalog_hash": "570e77f5af25510e",
-      "id": "panel_popup",
-      "png_hash": "169b2afc02052806",
-      "png_size": [
-        424,
-        438
-      ],
-      "realm": "tampadesa",
-      "source_hash": "c3cf9711326d0d36",
+      "source_hash": "fde3e198145513e4",
       "state": null
     },
     "assets/ui/skins/tampadesa/panel_row.png": {
       "catalog_hash": "bc0721f107b63a18",
       "id": "panel_row",
-      "png_hash": "aee5daaddfa06f55",
+      "png_hash": "73972c0ca14413bd",
       "png_size": [
         128,
         98
       ],
       "realm": "tampadesa",
-      "source_hash": "a80518ab49c0067a",
+      "source_hash": "89cfed192f311b51",
       "state": null
     },
     "assets/ui/skins/tampadesa/panel_row_selected.png": {
       "catalog_hash": "010f466913f4a180",
       "id": "panel_row_selected",
-      "png_hash": "02db179664e8a246",
+      "png_hash": "da205c11184c2cb2",
       "png_size": [
         200,
         104
       ],
       "realm": "tampadesa",
-      "source_hash": "81b290b0199869a6",
+      "source_hash": "83145e82c82287ee",
       "state": null
     },
     "assets/ui/skins/tampadesa/panel_side.png": {
@@ -7848,28 +7668,16 @@
       "source_hash": "ad56721c1712f725",
       "state": null
     },
-    "assets/ui/skins/tampadesa/panel_tooltip.png": {
-      "catalog_hash": "740a1a885ff4318d",
-      "id": "panel_tooltip",
-      "png_hash": "33e2f79357749259",
-      "png_size": [
-        296,
-        220
-      ],
-      "realm": "tampadesa",
-      "source_hash": "32ff0166de1f8227",
-      "state": null
-    },
     "assets/ui/skins/tampadesa/panel_well.png": {
       "catalog_hash": "90e730654607a32b",
       "id": "panel_well",
-      "png_hash": "ea5bef859a5538e9",
+      "png_hash": "14cf475843147312",
       "png_size": [
         132,
         132
       ],
       "realm": "tampadesa",
-      "source_hash": "8ee9b34cb2c405ba",
+      "source_hash": "8ba73ca814cd466f",
       "state": null
     },
     "assets/ui/skins/tampadesa/rule.png": {
@@ -7887,61 +7695,61 @@
     "assets/ui/skins/tampadesa/scrollbar_thumb.png": {
       "catalog_hash": "42c4815fec13eb38",
       "id": "scrollbar_thumb",
-      "png_hash": "f459cae2c7242ddd",
+      "png_hash": "d1e1759bca99ffcb",
       "png_size": [
         20,
         128
       ],
       "realm": "tampadesa",
-      "source_hash": "f0beb3ff2b71f517",
+      "source_hash": "1c5be4c7624431de",
       "state": null
     },
     "assets/ui/skins/tampadesa/scrollbar_track.png": {
       "catalog_hash": "de116428a69d8953",
       "id": "scrollbar_track",
-      "png_hash": "fe864c0f7c18348c",
+      "png_hash": "01a8b4dd1d5b57f9",
       "png_size": [
         24,
         132
       ],
       "realm": "tampadesa",
-      "source_hash": "5fd77d28b2ea4782",
+      "source_hash": "c8ae78d05d9dbae8",
       "state": null
     },
     "assets/ui/skins/tampadesa/slider_fill.png": {
       "catalog_hash": "7450b617cfdfba88",
       "id": "slider_fill",
-      "png_hash": "59371b777faeb819",
+      "png_hash": "678e83fdf07dba30",
       "png_size": [
         128,
         20
       ],
       "realm": "tampadesa",
-      "source_hash": "dc715e49126ca627",
+      "source_hash": "0c57158f187f59bb",
       "state": null
     },
     "assets/ui/skins/tampadesa/slider_knob.png": {
       "catalog_hash": "9dc927c5bce5507f",
       "id": "slider_knob",
-      "png_hash": "8535a4dc674fbc7e",
+      "png_hash": "a3b7bfd94a7886ae",
       "png_size": [
         56,
         56
       ],
       "realm": "tampadesa",
-      "source_hash": "c5239aea36a7fc9f",
+      "source_hash": "5450798739906c7a",
       "state": null
     },
     "assets/ui/skins/tampadesa/slider_rail.png": {
       "catalog_hash": "fcc9dace377b473a",
       "id": "slider_rail",
-      "png_hash": "74e548fc3bc3e352",
+      "png_hash": "43fe750aef9edf6b",
       "png_size": [
         132,
         24
       ],
       "realm": "tampadesa",
-      "source_hash": "1bd29d484b42b340",
+      "source_hash": "50091a2219d679a6",
       "state": null
     },
     "assets/ui/skins/tampadesa/stele.png": {
@@ -7995,133 +7803,133 @@
     "assets/ui/skins/tampadesa/tab_disabled.png": {
       "catalog_hash": "d7ffe1977df3cc49",
       "id": "tab",
-      "png_hash": "a2cdbff7b27b43e0",
+      "png_hash": "b6c497f1f6366e20",
       "png_size": [
         244,
         104
       ],
       "realm": "tampadesa",
-      "source_hash": "7da66aec55b423a0",
+      "source_hash": "37ca09351ea9fa34",
       "state": "disabled"
     },
     "assets/ui/skins/tampadesa/tab_hovered.png": {
       "catalog_hash": "8efb328edea426ab",
       "id": "tab",
-      "png_hash": "1439b7ff16c9d3be",
+      "png_hash": "9fb6d0ced205aa5c",
       "png_size": [
         244,
         104
       ],
       "realm": "tampadesa",
-      "source_hash": "19f7f15ce8fa5270",
+      "source_hash": "95f94b5e0609de48",
       "state": "hovered"
     },
     "assets/ui/skins/tampadesa/tab_idle.png": {
       "catalog_hash": "fa4106256be43639",
       "id": "tab",
-      "png_hash": "693ecea25e9592d3",
+      "png_hash": "e8cf21b7ae7b3677",
       "png_size": [
         244,
         104
       ],
       "realm": "tampadesa",
-      "source_hash": "e7b054de6a6f75bb",
+      "source_hash": "d8f2e0e0c38d4e3d",
       "state": "idle"
     },
     "assets/ui/skins/tampadesa/tab_pressed.png": {
       "catalog_hash": "5c28b89bb1866c82",
       "id": "tab",
-      "png_hash": "f59b3a8f4e872d80",
+      "png_hash": "205b9dcb1d6ae680",
       "png_size": [
         244,
         104
       ],
       "realm": "tampadesa",
-      "source_hash": "2a3695f78d0f4e97",
+      "source_hash": "4c052461cf17fb0f",
       "state": "pressed"
     },
     "assets/ui/skins/tampadesa/tab_selected_disabled.png": {
       "catalog_hash": "41ff8c390bb31bf8",
       "id": "tab_selected",
-      "png_hash": "625b7b1d688829b3",
+      "png_hash": "15c0c326e68683c8",
       "png_size": [
         244,
         104
       ],
       "realm": "tampadesa",
-      "source_hash": "651789ac5fe2c428",
+      "source_hash": "5d187f602ae14431",
       "state": "disabled"
     },
     "assets/ui/skins/tampadesa/tab_selected_hovered.png": {
       "catalog_hash": "301e231247ce04c4",
       "id": "tab_selected",
-      "png_hash": "8ee0d9b58442ccdd",
+      "png_hash": "7bfaac053264b933",
       "png_size": [
         244,
         104
       ],
       "realm": "tampadesa",
-      "source_hash": "b3071ea65041a514",
+      "source_hash": "e6f8f7ff73b8f4b2",
       "state": "hovered"
     },
     "assets/ui/skins/tampadesa/tab_selected_idle.png": {
       "catalog_hash": "35682be88dbe690d",
       "id": "tab_selected",
-      "png_hash": "206c17c4129f11fe",
+      "png_hash": "4da8fd6061038212",
       "png_size": [
         244,
         104
       ],
       "realm": "tampadesa",
-      "source_hash": "7d611166337ab5de",
+      "source_hash": "a7c14e2bdd802a4f",
       "state": "idle"
     },
     "assets/ui/skins/tampadesa/tab_selected_pressed.png": {
       "catalog_hash": "7a3732d24d9e4935",
       "id": "tab_selected",
-      "png_hash": "4ae1db294f1975e2",
+      "png_hash": "d09562b373c267df",
       "png_size": [
         244,
         104
       ],
       "realm": "tampadesa",
-      "source_hash": "82815379583bd946",
+      "source_hash": "9e92fa627d15cca0",
       "state": "pressed"
     },
     "assets/ui/skins/tampadesa/toggle_knob.png": {
       "catalog_hash": "4e2fa5b250e202ba",
       "id": "toggle_knob",
-      "png_hash": "50dd10fa10e9a252",
+      "png_hash": "e96c6a5342c6e421",
       "png_size": [
         48,
         48
       ],
       "realm": "tampadesa",
-      "source_hash": "73e5270230be6c50",
+      "source_hash": "9f6b8c4ccb4c01ab",
       "state": null
     },
     "assets/ui/skins/tampadesa/toggle_off.png": {
       "catalog_hash": "fc9e519cb647893a",
       "id": "toggle_off",
-      "png_hash": "085e14f643fd957e",
+      "png_hash": "c237ad17bd138304",
       "png_size": [
         128,
         64
       ],
       "realm": "tampadesa",
-      "source_hash": "5b7f55a3ecf8c5c9",
+      "source_hash": "f24e75a32db29257",
       "state": null
     },
     "assets/ui/skins/tampadesa/toggle_on.png": {
       "catalog_hash": "2d3d30f981deda9a",
       "id": "toggle_on",
-      "png_hash": "f803ce15042808ee",
+      "png_hash": "3564da3582446b9c",
       "png_size": [
         128,
         64
       ],
       "realm": "tampadesa",
-      "source_hash": "480d9adec6457f52",
+      "source_hash": "8372b73268f88675",
       "state": null
     },
     "assets/ui/skins/tampadesa/world_map_backdrop.jpg": {

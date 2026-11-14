@@ -21,7 +21,7 @@ markers, labels and routes are the game's, drawn live over it).
 ## 1. Running it
 
     python3 crates/tools/ui-art/make_ui_art.py                    # render what changed
-    python3 crates/tools/ui-art/make_ui_art.py --realm kambara panel_dialog
+    python3 crates/tools/ui-art/make_ui_art.py --realm kambara panel_hud_large
     python3 crates/tools/ui-art/make_ui_art.py --measure button_primary
     python3 crates/tools/ui-art/make_ui_art.py --list
     python3 crates/tools/ui-art/make_ui_art.py --check            # what CI runs
@@ -129,13 +129,13 @@ drawing reaches past its rect, which is the bleed it needs (rounded up to half p
 Per realm (Đại Long, Kambara, Tampadesa), about 60 sprites and 0.6-1.6 MB, plus a backdrop, the
 world map's art (about 0.8-1.7 MB) and the intermission's stele (0.6-1.6 MB). The intermission's
 screen background is the world map's (`world_map_backdrop`, the same `background` drawing) and the
-briefing's scroll or tablet is `panel_dialog` (the same `mpanel`), so neither has a sprite of its own:
+briefing's frame is the dialogs' (`panel_hud_large`, below), so neither has a sprite of its own. The
+dialogs, popups and tooltips are on the HUD's panels (`panel_hud_large`, `panel_hud`, `panel_hud_bar`)
+and the cards on `panel_well`:
 
 | Sprites | Call | Notes for the skins |
 |---|---|---|
-| `panel_dialog`, `panel_popup` | `mpanel` | The menu dialogs' frame (scroll and rollers; stone with petal bands; teak, gilt and corner stupas), tiled. The popup is the same art with a smaller tile. Kambara's vines are separate (`vine_tl`, `vine_br`). |
 | `panel_side` | `panel_bg` | The world map's side panel. |
-| `panel_card`, `panel_tooltip` | `box` | The HUD's boxes. Tampadesa's tooltip is the HUD's dark lacquer box (light text), stretched. |
 | `panel_bar` | `bar_bg` | The world map's top bar (dark wood; mossy stone; teak and gilt). |
 | `panel_caption` | `caption` | Story captions. Đại Long's cloud scroll sits in the bottom-right corner. |
 | `panel_well`, `panel_row`, `panel_row_selected`, `panel_field` | `card`, `row_bg`, `text_input` | Flat shapes in the skin's colours. A row is only its bottom rule. |
@@ -150,8 +150,7 @@ briefing's scroll or tablet is `panel_dialog` (the same `mpanel`), so neither ha
 | `scrollbar_track`, `scrollbar_thumb` | `slider`, turned | The generator has no scrollbar: the slider's rail and fill, vertical. |
 | `rule`, `ornament` | `divider` | The realm divider split in two: a rule that stretches and the ornament drawn at its middle (Đại Long's diamond sits 2 points above the line). |
 | `emblem_<realm>` (`idle`, `locked`, `current`) | `realm_emblem` | Each realm's emblem drawn in this skin's colours, as the home menu shows them. |
-| `vine_tl`, `vine_br` (Kambara) | `mpanel`, captured | The dialog's vines, placed by their bleed relative to a 480-point panel's top-left and bottom-right corners. |
-| `crest` | `mpanel`, captured; `seal` | The home dialog's crest above the title: Kambara's prang and Tampadesa's stupa, captured from the panel (their bleed places them on a 480-point panel), and Đại Long's seal with the realm's initial, Đ (`seal`'s `letter`, in the title font). |
+| `crest` (Đại Long) | `seal` | The home dialog's crest above the title: Đại Long's seal with the realm's initial, Đ (`seal`'s `letter`, in the title font). Kambara's and Tampadesa's dialogs have none: their large panel's crest (`deco_crest_large`, `deco_crest`) stands over it. |
 | `home_backdrop` (Kambara, Tampadesa) | `home_scene` | The home menu's backdrop, `menus.py`'s scene, 1920 × 1080 at 1 pixel per point, as a JPEG (about 130 KB). Đại Long keeps its painting (`misc/home_menu_static_bg.png`). |
 | `world_map_base` | `world_map_base` (`map`: the realm's `content.py` map) | The world map without markers: `world_map.py`'s `base_map` (sea, land, terrain, the uncharted area's fill, hatching and outline, rivers, lakes, relief, the ships), without the labels, threats, routes, cities, choice sites and compass the game draws, at the mockup's map viewport: 1290 × 867 points, 2580 × 1734 pixels as a JPEG (0.5-0.6 MB). A map unit is 2.58 pixels (the generator's 1.29 points per unit at 2×), the skin's `world_map.pixels_per_unit`; the map's 1000 × 672 units cover 2580 × 1733.76 of its pixels. Its layers stop at whole points, so a copy 1 point lower fills the last row. `tests/test_world_map_art.py` checks every city of the world files lands where the generator draws it. |
 | `world_map_threat` (Tampadesa) | `world_map_threat` (`anchor`: the threat's point in the rect, in points) | A threat's storm clouds (`world_map.py`'s `threat_clouds`) without its words and arrow, as a PNG (about 25 KB) the game draws with the anchor (the skin's `world_map.threat_anchor`, in pixels) on the world file's threat, over the region labels and under the routes, as the mockup layers them. |

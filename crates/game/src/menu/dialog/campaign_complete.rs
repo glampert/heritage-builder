@@ -38,7 +38,7 @@ use crate::{
         stele::{self as stele_data, Stele},
     },
     menu::{
-        skin::{EmblemState, SkinPanel},
+        skin::EmblemState,
         stele::SteleArt,
     },
     profile,
@@ -378,7 +378,7 @@ fn stele_canvas(context: &mut GameUiContext, scales: Scales, width: f32, stele: 
 fn panel(context: &mut GameUiContext, scales: Scales, summary: &Summary) -> UiFrame {
     let [_, _, width, height] = skin::intermission().complete.panel;
     let size = Vec2::new(scales.pt(width), scales.pt(height));
-    let padding = PANEL_PADDING.map(|side| scales.pt(side));
+    let (panel, padding) = super::screen::intermission_panel(context, scales, PANEL_PADDING);
     let inner = Vec2::new(size.x - padding[0] - padding[2], size.y - padding[1] - padding[3]);
 
     let buttons = buttons(context, scales, inner.x);
@@ -411,8 +411,8 @@ fn panel(context: &mut GameUiContext, scales: Scales, summary: &Summary) -> UiFr
     group.add_widget(buttons);
 
     let mut frame = UiFrame::new(group, size).with_label("panel").with_padding(padding);
-    if let SkinPanel::NineSlice { slice, .. } = skin::panel(context, &skin::intermission().panel) {
-        frame = frame.with_panel(slice);
+    if let Some(panel) = panel {
+        frame = frame.with_panel(panel);
     }
     frame
 }

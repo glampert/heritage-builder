@@ -13,43 +13,46 @@
       "small": { "size": 17.0, "fallbacks": ["body_vi", "mono", "icons"] }
     },
     "colors": {
-      "text": "#2c2a22",
-      "text_disabled": "#7d7563",
-      "window_fill": "#c9bc9c",
-      "border": "#4a4436",
-      "separator": "#a1957a",
-      "faint_fill": "#d6cbb08c",
-      "extreme_fill": "#d6cbb0",
-      "text_edit_fill": "#d6cbb0",
-      "selection": "#9a4a2e",
+      "text": "#efe3c6",
+      "text_disabled": "#8a8270",
+      "window_fill": "#2e2a22",
+      "border": "#77705a",
+      "separator": "#5f6152",
+      "faint_fill": "#3a362c8c",
+      "extreme_fill": "#2a2620",
+      "text_edit_fill": "#2a2620",
+      "selection": "#5f7a40",
       "selection_text": "#f6eedc",
-      "hyperlink": "#9a4a2e"
+      "hyperlink": "#98ad7a"
     },
     "widgets": {
-      "noninteractive": { "fill": "#c9bc9c", "weak_fill": "#d6cbb08c", "stroke": "#a1957a", "text": "#2c2a22" },
-      "inactive": { "fill": "#d6cbb0", "weak_fill": "#c4b796", "stroke": "#4a4436", "text": "#2c2a22" },
-      "hovered": { "fill": "#d6cbb0", "weak_fill": "#d8ccae", "stroke": "#9a4a2e", "text": "#2c2a22" },
-      "active": { "fill": "#c4b796", "weak_fill": "#9a4a2e", "stroke": "#9a4a2e", "text": "#f6eedc" },
-      "open": { "fill": "#d6cbb0", "weak_fill": "#c4b796", "stroke": "#4a4436", "text": "#2c2a22" }
+      "noninteractive": { "fill": "#2e2a22", "weak_fill": "#3a362c8c", "stroke": "#5f6152", "text": "#efe3c6" },
+      "inactive": { "fill": "#2a2620", "weak_fill": "#3a362c", "stroke": "#77705a", "text": "#efe3c6" },
+      "hovered": { "fill": "#3a362c", "weak_fill": "#4a4538", "stroke": "#98ad7a", "text": "#f6eedc" },
+      "active": { "fill": "#4a4538", "weak_fill": "#5f7a40", "stroke": "#98ad7a", "text": "#f6eedc" },
+      "open": { "fill": "#2a2620", "weak_fill": "#3a362c", "stroke": "#77705a", "text": "#efe3c6" }
     }
   },
   "text": {
-    "ink": "#2c2a22",
-    "title": "#2c2a22",
-    "accent": "#9a4a2e",
-    "sub": "#5d5646",
-    "on_accent": "#f6eedc",
-    "disabled": "#7d7563",
-    "light": "#efe6cf"
+    "ink": "#efe3c6",
+    "title": "#efe3c6",
+    "accent": "#98ad7a",
+    "sub": "#c9b690",
+    "on_accent": "#1f2418",
+    "disabled": "#8a8270",
+    "light": "#efe6cf",
+    "story_ink": "#2c2a22",
+    "story_sub": "#5d5646",
+    "story_accent": "#9a4a2e"
   },
   "panels": {
+    "dialog": {"sprite": "skins/kambara/hud/panel_hud_large.png", "slice": [138, 261, 97, 113], "content": [73.0, 56.5, 56.5, 60.5], "decorations": [{"sprite": "skins/kambara/hud/deco_crest_large.png", "anchor": "top_center", "offset": [1.75, -0.75], "min_panel": [280, 180]}]},
+    "popup": {"sprite": "skins/kambara/hud/panel_hud.png", "slice": [123, 218, 92, 90], "content": [60.5, 42.0, 49.0, 46.0]},
+    "tooltip": {"sprite": "skins/kambara/hud/panel_hud_bar.png", "slice": [81, 56, 80, 64], "content": [35.5, 25.0, 35.0, 29.0]},
+    "card": {"sprite": "skins/kambara/panel_well.png", "slice": [16, 16, 16, 16], "content": [14, 14, 14, 14]},
     "hud_bar": {"sprite": "skins/kambara/hud/panel_hud_bar.png", "slice": [81, 56, 80, 64], "content": [28.5, 19.0, 28.0, 23.0]},
     "hud_panel": {"sprite": "skins/kambara/hud/panel_hud.png", "slice": [123, 218, 92, 90], "content": [52.5, 34.0, 41.0, 38.0]},
     "hud_large": {"sprite": "skins/kambara/hud/panel_hud.png", "slice": [123, 218, 92, 90], "content": [54.5, 36.0, 43.0, 40.0], "decorations": [{"sprite": "skins/kambara/hud/deco_crest.png", "anchor": "top_center", "offset": [2.0, 1.0], "min_panel": [280, 180]}]},
-    "dialog": { "sprite": "skins/kambara/panel_dialog.png", "slice": [44, 76, 56, 92], "content": [40, 52, 46, 60] },
-    "popup": { "sprite": "skins/kambara/panel_popup.png", "slice": [44, 76, 56, 92], "content": [40, 50, 46, 58] },
-    "tooltip": { "sprite": "skins/kambara/panel_tooltip.png", "slice": [20, 20, 24, 28], "content": [14, 12, 16, 16] },
-    "card": { "sprite": "skins/kambara/panel_card.png", "slice": [20, 20, 24, 28], "content": [14.0, 14.0, 16.0, 18.0] },
     "bar": {
       "sprite": "skins/kambara/panel_bar.png",
       "slice": [16, 16, 24, 28],
@@ -70,7 +73,7 @@
     "bubble": { "sprite": "skins/kambara/panel_bubble.png", "slice": [68, 68, 68, 68], "content": [38.0, 38.0, 38.0, 38.0] }
   },
   "buttons": {
-    "primary": { "sprite": "skins/kambara/button_primary", "slice": [12, 12, 16, 20], "center": "round" },
+    "primary": { "sprite": "skins/kambara/button_primary", "slice": [12, 12, 16, 20], "center": "round", "text": "#f6eedc" },
     "secondary": { "sprite": "skins/kambara/button_secondary", "slice": [12, 12, 16, 20], "center": "round", "text": "ink" },
     "tab": { "sprite": "skins/kambara/tab", "slice": [16, 16, 16, 16] },
     "tab_selected": { "sprite": "skins/kambara/tab_selected", "slice": [16, 16, 16, 16] },
@@ -114,7 +117,7 @@
     "kambara": "skins/kambara/emblem_kambara",
     "tampadesa": "skins/kambara/emblem_tampadesa"
   },
-  "ornaments": { "crest": "skins/kambara/crest.png" },
+  "ornaments": { "crest": "" },
   "headings": {
     "title": { "font_scale": 2.65 }
   },
@@ -167,7 +170,7 @@
     "choice_box": { "size": [330, 78], "border_width": 2, "inner_inset": 5, "inner_width": 1.2, "subtitle_baseline": 60,
       "line_width": 1.5, "seal": false } },
   "intermission": {
-    "colors": { "rule": "#A1957A", "note_fill": "#C9BC9C" },
+    "colors": { "rule": "#5F6152", "note_fill": "#2E2A22" },
     "backdrop": "skins/kambara/world_map_backdrop.jpg",
     "niche": { "sprite": "skins/kambara/stele_niche.png", "rect": [30, 40, 850, 1030], "bleed": [-2, -38.5, -8.5, 4] },
     "stele": {
@@ -182,36 +185,25 @@
       "colors": { "rule": "#2C2A22B3", "row": "#2C2A2266" }
     }
   },
-  "briefing": { "image_outline": "#4A4436", "bullet": "diamond", "bullet_color": "#3F6A2A" },
+  "briefing": { "image_outline": "#77705A", "bullet": "diamond", "bullet_color": "#98AD7A" },
   "story": {
     "backdrop": "skins/kambara/world_map_backdrop.jpg",
     "frame": "skins/kambara/story_frame.png",
     "frame_bleed": [42, 53, 57, 42],
     "caption": { "at": [50, 36], "line_height": 38, "inset": 34,
-                 "look": { "size": 27, "heading": true, "color": "ink", "highlight": "#F1E8D2CC", "highlight_offset": [1.2, 1.4] } },
-    "bubble": { "fill": "#EFE6CF", "stroke": 3, "radius": 30, "inset": 36, "name_baseline": 42, "text_baseline": 80, "line_height": 36,
+                 "look": { "size": 27, "heading": true, "color": "story_ink", "highlight": "#F1E8D2CC", "highlight_offset": [1.2, 1.4] } },
+    "bubble": { "fill": "#EFE6CF", "ink": "story_ink", "whisper_text": "story_sub", "stroke": 3, "radius": 30, "inset": 36, "name_baseline": 42, "text_baseline": 80, "line_height": 36,
                 "bottom": 36, "tail_width": 80,
-                "text": { "size": 25, "heading": false, "color": "ink" } },
+                "name": { "color": "story_accent" },
+                "text": { "size": 25, "heading": false, "color": "story_ink" } },
     "stele": {
-      "title": { "size": 27, "heading": true, "color": "ink", "highlight": "#F1E8D2CC", "highlight_offset": [1.2, 1.4] },
-      "line": { "size": 22, "heading": false, "color": "ink", "highlight": "#F1E8D2CC", "highlight_offset": [1.2, 1.4] }
+      "title": { "size": 27, "heading": true, "color": "story_ink", "highlight": "#F1E8D2CC", "highlight_offset": [1.2, 1.4] },
+      "line": { "size": 22, "heading": false, "color": "story_ink", "highlight": "#F1E8D2CC", "highlight_offset": [1.2, 1.4] }
     },
     "colors": { "bar_text": "#EFE6CF", "bar_sub": "#B9C99A", "dot_ring": "#EFE6CF", "dot_done": "#B9C99A", "dot_line": "#B9C99A" }
   },
   "dialogs": {
     "Home": {"size": [560, 1000], "offset": [90, 0]}
-  },
-  "hud": {
-    "tiles": {"large": {"size": [84, 91], "frame": "skins/kambara/hud/tile_large", "bleed": [18.5, 38.0, 13.5, 18.5]}, "sector": {"size": [54, 58.5], "frame": "skins/kambara/hud/tile_sector", "bleed": [14.5, 20.5, 11.5, 15.0]}, "small": {"size": [36, 36], "frame": "skins/kambara/hud/tile_small", "bleed": [8.5, 8.5, 10.0, 10.5]}},
-    "glyphs": "skins/kambara/hud/glyphs",
-    "glyph_bleed": 1,
-    "glyph_tints": {"disabled": "#7a6e5cb3"},
-    "pressed_offset": 0,
-    "icons": "skins/kambara/hud/icons",
-    "icon_bleed": 4,
-    "ornaments": {"wide": "skins/kambara/hud/ornament_gap_wide.png", "narrow": "skins/kambara/hud/ornament_gap_narrow.png"},
-    "badge": {"fill": "#55703a", "ring": "#d9c9a0", "text": "#f3ecd6", "radius": 10, "ring_width": 1.6, "font_size": 11, "offset": [-1, 1]},
-    "colors": {"text": "#efe3c6", "sub": "#c9b690", "accent": "#98ad7a", "rule": "#5f6152", "warning": "#e8946a", "rating_track": "#5f6152", "rating_fill": "#98ad7a", "notch": "#7c5f3a", "notch_outline": "#5f6152"}
   },
   "hud": {
     "tiles": {"large": {"size": [84, 91], "frame": "skins/kambara/hud/tile_large", "bleed": [18.5, 38.0, 13.5, 18.5]}, "sector": {"size": [54, 58.5], "frame": "skins/kambara/hud/tile_sector", "bleed": [14.5, 20.5, 11.5, 15.0]}, "small": {"size": [36, 36], "frame": "skins/kambara/hud/tile_small", "bleed": [8.5, 8.5, 10.0, 10.5]}},

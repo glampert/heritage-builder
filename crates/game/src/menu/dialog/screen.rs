@@ -10,6 +10,7 @@
 
 use common::{Color, Vec2};
 use engine::ui::{
+    UiDecoratedPanel,
     UiFontScale,
     widgets::*,
 };
@@ -19,6 +20,31 @@ use crate::ui_context::GameUiContext;
 
 // The generator's screen, in points.
 pub const REFERENCE: Vec2 = Vec2::new(1920.0, 1080.0);
+
+// The intermission screens' panel (the debrief's, the campaign-complete screen's): the skin's
+// `intermission.panel` (the dialogs' frame, its ornaments with it) at the screen's `scales`, and
+// the padding its contents keep: the skin's `panel_padding`, else the mockup's `padding`, in
+// generator points, or the frame's content insets where they're wider.
+pub fn intermission_panel(context: &mut GameUiContext, scales: Scales, padding: [f32; 4]) -> (Option<UiDecoratedPanel>, [f32; 4]) {
+    let mut padding = skin::intermission().panel_padding.unwrap_or(padding).map(|side| scales.pt(side));
+    let skin::SkinPanel::NineSlice { mut slice, content, decorations, .. } = skin::panel(context, &skin::intermission().panel) else {
+        return (None, padding);
+    };
+    slice.scale *= scales.size;
+    let decorations = decorations.into_iter().map(|mut decoration| {
+        decoration.size = decoration.size * scales.size;
+        decoration.offset = decoration.offset * scales.size;
+        decoration.min_panel_size = decoration.min_panel_size * scales.size;
+        decoration
+    });
+    if !content.relative {
+        let insets = [content.left, content.top, content.right, content.bottom];
+        for (side, inset) in padding.iter_mut().zip(insets) {
+            *side = side.max((inset * scales.size).ceil());
+        }
+    }
+    (Some(UiDecoratedPanel::new(slice).with_decorations(decorations)), padding)
+}
 
 // The tallest row of text the screens keep, in ems (tight).
 const TIGHT_LINE: f32 = 1.3;

@@ -210,7 +210,7 @@ fn test_every_sprite_exists_and_slices_fit() {
         for path in &skin.backdrops.home {
             assert!(ui_asset_exists(path), "{realm}: home backdrop {path} doesn't exist");
         }
-        for (name, path) in &skin.ornaments {
+        for (name, path) in skin.ornaments.iter().filter(|(_, path)| !path.is_empty()) {
             assert!(ui_asset_exists(path), "{realm}: ornament '{name}': {path} doesn't exist");
         }
 
