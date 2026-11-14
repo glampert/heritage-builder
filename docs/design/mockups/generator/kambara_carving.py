@@ -227,7 +227,7 @@ class Carving:
             out.append(f'<path d="{ring}" fill-rule="evenodd" fill="#000" filter="url(#{self.filt("moss")})" opacity="0.7"/>')
         # The crest: a face over the top, volutes either side, on a plinth.
         if crest:
-            out.append(self.crest(x, y, w, h, t, crest, seed, vines))
+            out.append(self.crest(x, y, w, h, t, crest, seed, vines, small))
         if vines and not small:
             s = max(7, min(t * 1.5, 22))
             out.append(f'<g filter="url(#{self.filt("leaf")})">'
@@ -239,9 +239,9 @@ class Carving:
         return "".join(out)
 
 
-    def crest(self, x, y, w, h, t, ch, seed=1, vines=True):
+    def crest(self, x, y, w, h, t, ch, seed=1, vines=True, small=False):
         """The crest over a frame's top middle: a face, volutes either side, on a plinth (its height ch)."""
-        stone = self.filt("stone")
+        stone = self.filt("stone_small" if small else "stone")
         out = []
         cx = x + w / 2
         pw = ch * 0.95

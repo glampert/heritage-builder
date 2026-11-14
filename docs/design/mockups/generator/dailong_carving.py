@@ -253,22 +253,31 @@ class Woodwork:
         return f'<path d="{d}" fill="#8a321b"/>'
 
     def panel_ornaments(self, x, y, w, h):
-        """A large panel's ornaments outside its frame, by place: gilt ruyi clouds along the top
-        beam, a gilt cloud at the foot, and a lotus medallion under a little roof at the top's middle."""
+        """A large panel's ornaments outside its frame, by place: ruyi clouds along the top beam, a
+        cloud at the foot (bare: ornaments_markup gilds them together), and a lotus medallion under
+        a little roof at the top's middle."""
         tb, bb = 30, 24
         g = self.filt("goldgrad")
         gilt = self.filt("gilt")
         r = tb * 1.05
         mcx, mcy = x + w / 2, y - tb * 0.45
         return {
-            "cloud_top_left": f'<g filter="url(#{gilt})">' + self.ruyi_cloud(x + w * 0.28, y - tb * 0.55, tb * 2.4, -1) + "</g>",
-            "cloud_top_right": f'<g filter="url(#{gilt})">' + self.ruyi_cloud(x + w * 0.72, y - tb * 0.55, tb * 2.4, 1) + "</g>",
-            "cloud_bottom": f'<g filter="url(#{gilt})">' + self.ruyi_cloud(x + w / 2, y + h + bb * 0.6, bb * 3.4, 1) + "</g>",
+            "cloud_top_left": self.ruyi_cloud(x + w * 0.28, y - tb * 0.55, tb * 2.4, -1),
+            "cloud_top_right": self.ruyi_cloud(x + w * 0.72, y - tb * 0.55, tb * 2.4, 1),
+            "cloud_bottom": self.ruyi_cloud(x + w / 2, y + h + bb * 0.6, bb * 3.4, 1),
             "medallion": (self.roof(mcx, mcy - r * 0.62, r * 3.1, r * 0.75, gilt_top=False)
                           + f'<g filter="url(#{self.filt("wood")})"><circle cx="{f(mcx)}" cy="{f(mcy)}" r="{f(r)}" fill="#7c2814"/></g>'
                           + f'<g filter="url(#{gilt})"><circle cx="{f(mcx)}" cy="{f(mcy)}" r="{f(r * 0.86)}" fill="none" stroke="url(#{g})" stroke-width="{f(r * 0.1)}"/>'
                           + self.lotus(mcx, mcy + r * 0.38, r * 0.9) + "</g>"),
         }
+
+    def ornaments_markup(self, x, y, w, h, names=None):
+        """The ornaments `names` (all by default) as the panel draws them: the clouds gilded together, then the medallion."""
+        parts = self.panel_ornaments(x, y, w, h)
+        names = list(parts) if names is None else names
+        clouds = "".join(parts[n] for n in names if n.startswith("cloud"))
+        out = f'<g filter="url(#{self.filt("gilt")})">{clouds}</g>' if clouds else ""
+        return out + "".join(parts[n] for n in names if not n.startswith("cloud"))
 
     def panel(self, x, y, w, h, big=False, lanterns=None, ornaments=True):
         """Carved red wood round parchment, every ornament outside the parchment: gilt key-pattern blocks on the corners, and for a large panel a
@@ -302,7 +311,7 @@ class Woodwork:
                     lat.append(f"M{f(k)},{f(y - tb * 0.82)} L{f(k + step)},{f(y - tb * 0.18)} M{f(k + step)},{f(y - tb * 0.82)} L{f(k)},{f(y - tb * 0.18)}")
                     k += step
             out.append(f'<path d="{" ".join(lat)}" stroke="#3a0e04" stroke-width="2" opacity="0.55"/>')
-            out.extend(self.panel_ornaments(x, y, w, h).values())
+            out.append(self.ornaments_markup(x, y, w, h))
         # Key-pattern blocks on the corners, outside the parchment.
         if thin:
             fs = max(t, tb) * 1.7

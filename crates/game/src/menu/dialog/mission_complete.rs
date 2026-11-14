@@ -263,7 +263,7 @@ impl Debrief {
 
 // A goal as the player reads it ("Population"), its target and what the city has of it now: the
 // debrief's and the briefing's goals.
-pub(super) fn goal_line(goal: &MissionGoal, stats: &WorldStats) -> (String, i64, i64) {
+pub(crate) fn goal_line(goal: &MissionGoal, stats: &WorldStats) -> (String, i64, i64) {
     match goal {
         MissionGoal::Population { min } => {
             (ui::text::get(UiTextCategory::Menu, "debrief.goal.population").to_string(), i64::from(*min), i64::from(stats.population.total))

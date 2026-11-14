@@ -222,7 +222,7 @@ fn none_text() -> String {
 }
 
 // 1234567 → "1,234,567", with the language's separator.
-pub(super) fn group_digits(value: i64) -> String {
+pub(crate) fn group_digits(value: i64) -> String {
     let separator = ui::text::get(UiTextCategory::Menu, "number.thousands_separator");
     let digits = value.unsigned_abs().to_string();
     let mut text = String::new();

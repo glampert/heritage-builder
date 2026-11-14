@@ -1,12 +1,12 @@
 use std::any::Any;
 
-use bars::{InGameMenuBars, InGameMenuBarsRcMut};
 use common::coords::CellRange;
 use engine::{
     app::input::{InputAction, InputKey},
     ui::UiInputEvent,
 };
 use inspector::{TileInspectorMenu, TileInspectorMenuRcMut};
+use top_bar::TopBar;
 use palette::{TilePaletteMenu, TilePaletteMenuRcMut};
 
 use super::{GameMenusInputArgs, GameMenusMode, GameMenusSystem, TileInspector, TilePalette, TilePlacement, dialog, skin};
@@ -18,9 +18,10 @@ use crate::{
     ui_context::GameUiContext,
 };
 
-mod bars;
 mod inspector;
+mod layout;
 mod palette;
+mod top_bar;
 
 // ----------------------------------------------
 // InGameMenus
@@ -30,7 +31,7 @@ pub struct InGameMenus {
     tile_placement: TilePlacement,
     tile_palette: TilePaletteMenuRcMut,
     tile_inspector: TileInspectorMenuRcMut,
-    menu_bars: InGameMenuBarsRcMut,
+    top_bar: TopBar,
     minimap_renderer: InGameUiMinimapRenderer,
     built: (u32, u32), // The skin's and the strings' versions the HUD was built with.
 }
@@ -49,7 +50,7 @@ impl InGameMenus {
             tile_placement: TilePlacement::new(),
             tile_palette: TilePaletteMenu::new(context),
             tile_inspector: TileInspectorMenu::new(context),
-            menu_bars: InGameMenuBars::new(context),
+            top_bar: TopBar::new(context),
             minimap_renderer: InGameUiMinimapRenderer::new(context),
             built: Self::versions(),
         }
@@ -73,7 +74,7 @@ impl InGameMenus {
         }
         self.tile_palette = TilePaletteMenu::new(context);
         self.tile_inspector = TileInspectorMenu::new(context);
-        self.menu_bars = InGameMenuBars::new(context);
+        self.top_bar = TopBar::new(context);
         self.built = Self::versions();
     }
 }
@@ -143,7 +144,7 @@ impl GameMenusSystem for InGameMenus {
     fn end_frame(&mut self, context: &mut GameUiContext, _visible_range: CellRange) {
         self.minimap_renderer.draw(context);
         self.tile_palette.draw(context);
-        self.menu_bars.draw(context);
+        self.top_bar.draw(context);
         self.tile_inspector.draw(context);
 
         // Open a pending campaign prompt, but only when no other dialog is open

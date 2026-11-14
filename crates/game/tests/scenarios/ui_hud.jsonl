@@ -1,0 +1,99 @@
+# The in-game HUD (docs/plans/realm-ui.md, Phase 5): the top bar's speed controls, goals button and
+# panel, game menu buttons, painted stats and placeholder ratings in each realm, and a game without
+# goals or a mission (no goals button, no Briefing). Saves screenshots to out/ui_hud/. It needs the
+# sample saves extracted (unzip saves/sample_saves.zip). From the repository root:
+#   cargo run -p HeritageBuilder -- --fresh-profile --default-configs --window-size 1920x1080 --script crates/game/tests/scenarios/ui_hud.jsonl
+{"method": "time.fixed_dt", "params": {"dt": 0.016667}}
+
+# ---- Campaign I's third mission: goals the city hasn't met ----
+{"method": "session.start_mission", "params": {"campaign": "dragon_legacy", "mission": 2}}
+{"method": "wait.frames", "params": {"frames": 5}}
+{"method": "ui.click", "params": {"path": "MissionBriefing/Begin"}}
+{"method": "input.move", "params": {"park": true}}
+{"method": "wait.frames", "params": {"frames": 3}}
+{"method": "assert.eq", "params": {"query": "dialog.current", "path": "", "value": {"current": null}}}
+{"method": "assert.eq", "params": {"query": "ui.layout_issues", "path": "/count", "value": 0}}
+{"method": "assert.eq", "params": {"query": "ui.tree", "args": {"filter": "TopBar/ratings", "kind": "canvas"}, "path": "/widgets/0/value/placeholder", "value": true}}
+{"method": "assert.eq", "params": {"query": "ui.tree", "args": {"filter": "TopBar/ratings", "kind": "canvas"}, "path": "/widgets/0/value/names/3", "value": "The Mandate"}}
+{"method": "assert.exists", "params": {"query": "ui.tree", "args": {"filter": "TopBar/date", "kind": "canvas"}, "path": "/widgets/0/value/season"}}
+{"method": "assert.exists", "params": {"query": "ui.tree", "args": {"filter": "TopBar/Briefing", "kind": "icon_button"}, "path": "/widgets/0"}}
+
+# The speed controls: the speed in use shows pressed.
+{"method": "ui.click", "params": {"path": "TopBar/Fast"}}
+{"method": "assert.eq", "params": {"query": "sim.state", "path": "/speed", "value": 2.0}}
+{"method": "assert.eq", "params": {"query": "sim.state", "path": "/paused", "value": false}}
+{"method": "assert.eq", "params": {"query": "ui.tree", "args": {"filter": "TopBar/Fast", "kind": "icon_button"}, "path": "/widgets/0/value/selected", "value": true}}
+{"method": "ui.click", "params": {"path": "TopBar/Faster"}}
+{"method": "assert.eq", "params": {"query": "sim.state", "path": "/speed", "value": 4.0}}
+{"method": "ui.click", "params": {"path": "TopBar/Pause"}}
+{"method": "assert.eq", "params": {"query": "sim.state", "path": "/paused", "value": true}}
+{"method": "assert.eq", "params": {"query": "ui.tree", "args": {"filter": "TopBar/Pause", "kind": "icon_button"}, "path": "/widgets/0/value/selected", "value": true}}
+{"method": "assert.eq", "params": {"query": "ui.tree", "args": {"filter": "TopBar/Faster", "kind": "icon_button"}, "path": "/widgets/0/value/selected", "value": false}}
+{"method": "ui.click", "params": {"path": "TopBar/Play"}}
+{"method": "assert.eq", "params": {"query": "sim.state", "path": "/speed", "value": 1.0}}
+{"method": "assert.eq", "params": {"query": "sim.state", "path": "/paused", "value": false}}
+{"method": "sim.pause"}
+
+# The goals panel drops down under its button and closes with it.
+{"method": "assert.eq", "params": {"query": "ui.tree", "args": {"filter": "Goals/"}, "path": "/widgets", "value": []}}
+{"method": "ui.click", "params": {"path": "TopBar/Goals"}}
+{"method": "assert.eq", "params": {"query": "ui.tree", "args": {"filter": "Goals/goals", "kind": "canvas"}, "path": "/widgets/0/value/0/goal", "value": "Population"}}
+{"method": "assert.eq", "params": {"query": "ui.tree", "args": {"filter": "Goals/goals", "kind": "canvas"}, "path": "/widgets/0/value/1/goal", "value": "Treasury"}}
+{"method": "assert.eq", "params": {"query": "ui.tree", "args": {"filter": "TopBar/Goals", "kind": "icon_button"}, "path": "/widgets/0/value/selected", "value": true}}
+{"method": "assert.eq", "params": {"query": "ui.layout_issues", "path": "/count", "value": 0}}
+{"method": "input.move", "params": {"park": true}}
+{"method": "wait.frames", "params": {"frames": 2}}
+{"method": "screenshot", "params": {"path": "out/ui_hud/dailong.png"}}
+
+# Each realm's look, the goals panel still open.
+{"method": "ui.realm", "params": {"realm": "kambara"}}
+{"method": "wait.frames", "params": {"frames": 3}}
+{"method": "assert.eq", "params": {"query": "ui.tree", "args": {"filter": "TopBar/ratings", "kind": "canvas"}, "path": "/widgets/0/value/names/3", "value": "Divine favour"}}
+{"method": "assert.eq", "params": {"query": "ui.layout_issues", "path": "/count", "value": 0}}
+{"method": "ui.click", "params": {"path": "TopBar/Goals"}}
+{"method": "input.move", "params": {"park": true}}
+{"method": "wait.frames", "params": {"frames": 2}}
+{"method": "screenshot", "params": {"path": "out/ui_hud/kambara.png"}}
+{"method": "ui.realm", "params": {"realm": "tampadesa"}}
+{"method": "wait.frames", "params": {"frames": 3}}
+{"method": "assert.eq", "params": {"query": "ui.tree", "args": {"filter": "TopBar/ratings", "kind": "canvas"}, "path": "/widgets/0/value/names/3", "value": "Merit"}}
+{"method": "assert.eq", "params": {"query": "ui.layout_issues", "path": "/count", "value": 0}}
+{"method": "ui.click", "params": {"path": "TopBar/Goals"}}
+{"method": "input.move", "params": {"park": true}}
+{"method": "wait.frames", "params": {"frames": 2}}
+{"method": "screenshot", "params": {"path": "out/ui_hud/tampadesa.png"}}
+{"method": "ui.click", "params": {"path": "TopBar/Goals"}}
+{"method": "assert.eq", "params": {"query": "ui.tree", "args": {"filter": "Goals/"}, "path": "/widgets", "value": []}}
+{"method": "ui.realm", "params": {"realm": "auto"}}
+{"method": "wait.frames", "params": {"frames": 3}}
+
+# The game menu's buttons open their dialogs.
+{"method": "ui.click", "params": {"path": "TopBar/Briefing"}}
+{"method": "assert.eq", "params": {"query": "dialog.current", "path": "/current", "value": "MissionBriefing"}}
+{"method": "input.key", "params": {"key": "Escape"}}
+{"method": "wait.frames", "params": {"frames": 3}}
+{"method": "ui.click", "params": {"path": "TopBar/City book"}}
+{"method": "assert.eq", "params": {"query": "dialog.current", "path": "/current", "value": "CityManagement"}}
+{"method": "input.key", "params": {"key": "Escape"}}
+{"method": "wait.frames", "params": {"frames": 3}}
+{"method": "ui.click", "params": {"path": "TopBar/Load and save"}}
+{"method": "assert.eq", "params": {"query": "dialog.current", "path": "/current", "value": "LoadOrSaveGame"}}
+{"method": "input.key", "params": {"key": "Escape"}}
+{"method": "wait.frames", "params": {"frames": 3}}
+{"method": "ui.click", "params": {"path": "TopBar/Settings"}}
+{"method": "assert.eq", "params": {"query": "dialog.current", "path": "/current", "value": "MainSettings"}}
+{"method": "input.key", "params": {"key": "Escape"}}
+{"method": "wait.frames", "params": {"frames": 3}}
+{"method": "ui.click", "params": {"path": "TopBar/Game"}}
+{"method": "assert.eq", "params": {"query": "dialog.current", "path": "/current", "value": "MainGame"}}
+{"method": "input.key", "params": {"key": "Escape"}}
+{"method": "wait.frames", "params": {"frames": 3}}
+{"method": "assert.eq", "params": {"query": "dialog.current", "path": "", "value": {"current": null}}}
+
+# ---- A game outside a campaign: no goals button, no Briefing ----
+{"method": "session.new_map", "params": {"size": [32, 32]}}
+{"method": "wait.frames", "params": {"frames": 5}}
+{"method": "assert.eq", "params": {"query": "ui.tree", "args": {"filter": "TopBar/Goals"}, "path": "/widgets", "value": []}}
+{"method": "assert.eq", "params": {"query": "ui.tree", "args": {"filter": "TopBar/Briefing"}, "path": "/widgets", "value": []}}
+{"method": "assert.exists", "params": {"query": "ui.tree", "args": {"filter": "TopBar/Pause", "kind": "icon_button"}, "path": "/widgets/0"}}
+{"method": "assert.eq", "params": {"query": "ui.layout_issues", "path": "/count", "value": 0}}

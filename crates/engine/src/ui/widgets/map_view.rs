@@ -4,7 +4,7 @@ use egui::Sense;
 use common::{Rect, Vec2};
 use serde_json::{Value, json};
 
-use super::{UiWidget, UiWidgetContext};
+use super::{UiTooltipText, UiWidget, UiWidgetContext};
 use crate::{
     render::texture::TextureHandle,
     ui::{UiPainter, UiString, UiSystem, immediate::{self, egui_vec2, to_rect}},
@@ -402,13 +402,14 @@ fn wheel_event_steps(delta: f32) -> f32 {
 
 pub type UiCanvasPaint = Box<dyn FnMut(&mut dyn UiWidgetContext, &UiPainter, Rect)>;
 
-// A rect painted by a callback each frame: a legend's glyphs, a coin. Recorded as kind "canvas"
-// when labeled, with the value it's given.
+// A rect painted by a callback each frame: a legend's glyphs, a coin, the HUD's stats. Recorded as
+// kind "canvas" when labeled, with the value it's given, and its tooltip shown while it's hovered.
 pub struct UiCanvas {
     label: UiString,
     size: Vec2,
     paint: Option<UiCanvasPaint>,
     value: Option<Value>,
+    tooltip: Option<UiTooltipText>,
 }
 
 impl UiWidget for UiCanvas {
@@ -430,9 +431,15 @@ impl UiWidget for UiCanvas {
         }
         if !self.label.is_empty() {
             let value = &self.value;
-            ui_sys.with_ui(|ui| immediate::record_lazy(ui_sys, ui, &response, "canvas", self.label.resolve(), None, true, || value.clone()));
+            let tooltip = self.tooltip.as_ref().map(|tooltip| tooltip.text.resolve());
+            ui_sys.with_ui(|ui| immediate::record_lazy(ui_sys, ui, &response, "canvas", self.label.resolve(), tooltip, true, || value.clone()));
         } else {
             ui_sys.set_last_response(&response);
+        }
+        if response.hovered()
+            && let Some(tooltip) = &self.tooltip
+        {
+            tooltip.draw(context);
         }
     }
 
@@ -450,7 +457,18 @@ impl UiCanvas {
     where
         F: FnMut(&mut dyn UiWidgetContext, &UiPainter, Rect) + 'static,
     {
-        Self { label: UiString::default(), size, paint: Some(Box::new(paint)), value: None }
+        Self { label: UiString::default(), size, paint: Some(Box::new(paint)), value: None, tooltip: None }
+    }
+
+    // Shown while the pointer is over it.
+    pub fn with_tooltip(mut self, tooltip: UiTooltipText) -> Self {
+        self.tooltip = Some(tooltip);
+        self
+    }
+
+    // The value it records, changed after it's built (the HUD's stats, each frame).
+    pub fn set_value(&mut self, value: Option<Value>) {
+        self.value = value;
     }
 
     // Names it in widget paths and records it, with `value`.

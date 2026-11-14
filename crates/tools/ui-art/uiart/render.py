@@ -186,7 +186,9 @@ def _hud_panel_ornament(th, x, y, w, h, a):
     pw, ph = a["panel"]
     if realm == "kambara":
         return th.carving().crest(px, py, pw, ph, a.get("t", 13), a["ch"], a.get("seed", 1))
-    parts = (th.woodwork() if realm == "dailong" else th.brickwork()).panel_ornaments(px, py, pw, ph)
+    if realm == "dailong":
+        return th.woodwork().ornaments_markup(px, py, pw, ph, a["parts"])
+    parts = th.brickwork().panel_ornaments(px, py, pw, ph)
     return "".join(parts[n] for n in a["parts"])
 
 

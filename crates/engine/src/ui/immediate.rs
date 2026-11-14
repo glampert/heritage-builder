@@ -2293,12 +2293,20 @@ impl UiPainter {
 
     // A decorated panel over `rect`, multiplied by `tint`: its behind decorations, its 9-slice,
     // then its other decorations (UiDecoratedPanel). The panel keeps the current clip rect; the
-    // decorations are drawn anywhere on the screen, since they reach past the panel by design.
+    // decorations reach past it by their overhang (as overhang_painter does), so a scroll area's
+    // edge doesn't cut them, but a panel scrolled out of view doesn't draw them over what's beyond.
     pub fn decorated_panel(&self, rect: Rect, panel: &UiDecoratedPanel, tint: Color) {
         let tint = color32(tint);
+        let [left, top, right, bottom] = panel.overhang(rect);
         let rect = egui_rect(rect);
+        let clip = self.painter.clip_rect();
+        if !clip.intersects(rect) {
+            self.painter.add(nine_slice_shape(rect, &panel.panel, tint));
+            return;
+        }
+        let grown = egui::Rect::from_min_max(clip.min - vec2(left, top), clip.max + vec2(right, bottom));
         let mut screen = self.painter.clone();
-        screen.set_clip_rect(self.painter.ctx().content_rect());
+        screen.set_clip_rect(grown.intersect(self.painter.ctx().content_rect()));
         screen.add(decoration_shapes(rect, &panel.decorations, tint, true));
         self.painter.add(nine_slice_shape(rect, &panel.panel, tint));
         screen.add(decoration_shapes(rect, &panel.decorations, tint, false));

@@ -96,7 +96,7 @@
 {"method": "ui.tree", "params": {"fields": ["path", "kind", "enabled", "value"]}}
 {"method": "assert.eq", "params": {"query": "ui.layout_issues", "path": "/count", "value": 0}}
 {"method": "assert.image", "params": {"golden": "ingame.png", "path": "out/ui_snapshot/ingame.png"}}
-{"method": "ui.hover", "params": {"path": "LeftBar/settings"}}
+{"method": "ui.hover", "params": {"path": "TopBar/Settings"}}
 {"method": "wait.frames", "params": {"frames": 2}}
 {"method": "assert.image", "params": {"golden": "ingame_hud_tooltip.png", "path": "out/ui_snapshot/ingame_hud_tooltip.png"}}
 {"method": "ui.click", "params": {"path": "TilePaletteMenu/services"}}

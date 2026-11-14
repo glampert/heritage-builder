@@ -43,7 +43,7 @@
     "light": "#efe6cf"
   },
   "panels": {
-    "hud_bar": {"sprite": "skins/kambara/hud/panel_hud_bar.png", "slice": [81, 56, 80, 64], "content": [25.5, 19.0, 25.0, 23.0]},
+    "hud_bar": {"sprite": "skins/kambara/hud/panel_hud_bar.png", "slice": [81, 56, 80, 64], "content": [28.5, 19.0, 28.0, 23.0]},
     "hud_panel": {"sprite": "skins/kambara/hud/panel_hud.png", "slice": [123, 218, 92, 90], "content": [52.5, 34.0, 41.0, 38.0]},
     "hud_large": {"sprite": "skins/kambara/hud/panel_hud.png", "slice": [123, 218, 92, 90], "content": [54.5, 36.0, 43.0, 40.0], "decorations": [{"sprite": "skins/kambara/hud/deco_crest.png", "anchor": "top_center", "offset": [2.0, 1.0], "min_panel": [280, 180]}]},
     "dialog": { "sprite": "skins/kambara/panel_dialog.png", "slice": [44, 76, 56, 92], "content": [40, 52, 46, 60] },
@@ -200,6 +200,18 @@
   },
   "dialogs": {
     "Home": {"size": [560, 1000], "offset": [90, 0]}
+  },
+  "hud": {
+    "tiles": {"large": {"size": [84, 91], "frame": "skins/kambara/hud/tile_large", "bleed": [18.5, 38.0, 13.5, 18.5]}, "sector": {"size": [54, 58.5], "frame": "skins/kambara/hud/tile_sector", "bleed": [14.5, 20.5, 11.5, 15.0]}, "small": {"size": [36, 36], "frame": "skins/kambara/hud/tile_small", "bleed": [8.5, 8.5, 10.0, 10.5]}},
+    "glyphs": "skins/kambara/hud/glyphs",
+    "glyph_bleed": 1,
+    "glyph_tints": {"disabled": "#7a6e5cb3"},
+    "pressed_offset": 0,
+    "icons": "skins/kambara/hud/icons",
+    "icon_bleed": 4,
+    "ornaments": {"wide": "skins/kambara/hud/ornament_gap_wide.png", "narrow": "skins/kambara/hud/ornament_gap_narrow.png"},
+    "badge": {"fill": "#55703a", "ring": "#d9c9a0", "text": "#f3ecd6", "radius": 10, "ring_width": 1.6, "font_size": 11, "offset": [-1, 1]},
+    "colors": {"text": "#efe3c6", "sub": "#c9b690", "accent": "#98ad7a", "rule": "#5f6152", "warning": "#e8946a", "rating_track": "#5f6152", "rating_fill": "#98ad7a", "notch": "#7c5f3a", "notch_outline": "#5f6152"}
   },
   "hud": {
     "tiles": {"large": {"size": [84, 91], "frame": "skins/kambara/hud/tile_large", "bleed": [18.5, 38.0, 13.5, 18.5]}, "sector": {"size": [54, 58.5], "frame": "skins/kambara/hud/tile_sector", "bleed": [14.5, 20.5, 11.5, 15.0]}, "small": {"size": [36, 36], "frame": "skins/kambara/hud/tile_small", "bleed": [8.5, 8.5, 10.0, 10.5]}},

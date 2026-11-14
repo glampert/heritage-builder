@@ -59,6 +59,8 @@ use mission_briefing::*;
 mod story_comic;
 use story_comic::*;
 pub use story_comic::{StoryEnd, StoryRequest};
+pub(crate) use load_save::group_digits;
+pub(crate) use mission_complete::goal_line;
 
 mod screen;
 

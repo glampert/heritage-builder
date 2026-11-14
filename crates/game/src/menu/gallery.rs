@@ -594,7 +594,7 @@ fn hud(context: &mut GameUiContext) -> UiWidgetGroup {
             SkinPanel::NineSlice { slice, decorations, .. } => Some(UiDecoratedPanel::new(slice).with_decorations(decorations)),
             SkinPanel::Sprite { .. } => None,
         };
-        const ROOM: f32 = 60.0;
+        const ROOM: f32 = 90.0; // Room for the ornaments: Tampadesa's piers stand 80 points over the panel.
         let canvas = UiCanvas::new(size + Vec2::new(ROOM, ROOM) * 2.0, move |_, painter, rect| {
             if let Some(panel) = &panel {
                 let inner = common::Rect::from_pos_and_size(rect.min + Vec2::new(ROOM, ROOM), size);

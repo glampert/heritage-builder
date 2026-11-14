@@ -69,11 +69,11 @@
 {"method": "ui.click", "params": {"path": "MainSettings/Cancel"}}
 {"method": "wait.frames", "params": {"frames": 15}}
 
-# In game, a sprite button plays only its press (no hover sound by default), then its dialog opens.
+# In game, a HUD icon tile plays only its press (no hover sound by default), then its dialog opens.
 {"method": "session.new_map", "params": {"size": [16, 16]}}
 {"method": "wait.frames", "params": {"frames": 5}}
 {"method": "ui.sounds", "params": {"clear": true}}
-{"method": "ui.click", "params": {"path": "LeftBar/main_menu"}}
+{"method": "ui.click", "params": {"path": "TopBar/Game"}}
 {"method": "wait.frames", "params": {"frames": 15}}
 {"method": "assert.eq", "params": {"query": "ui.sounds", "args": {"clear": true}, "path": "/roles", "value": ["button_pressed", "dialog_opened"]}}
 

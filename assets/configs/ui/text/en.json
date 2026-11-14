@@ -424,8 +424,7 @@
     "rating.prosperity": "Prosperity",
     "rating.culture": "Culture",
     "rating.security": "Security",
-    "rating.favour": "Divine favour",
-    "rating.placeholder": "{rating}: rated once ratings arrive",
+    "rating.placeholder": "{rating}: not rated yet. Ratings come in a later update.",
     "speed.paused": "Paused",
     "speed.multiplier": "{speed}×",
     "goals.title": "Goals",
@@ -558,6 +557,9 @@
     "story.test_choices_tampadesa.test_before.title": "Test: Before the Copper Road"
   },
   "Realm": {
+    "rating.dailong.fourth": "The Mandate",
+    "rating.kambara.fourth": "Divine favour",
+    "rating.tampadesa.fourth": "Merit",
     "building.dailong.shrine": "Spirit shrine",
     "building.dailong.temple": "Temple",
     "building.dailong.university": "Temple of Literature",

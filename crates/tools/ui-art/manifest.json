@@ -279,13 +279,13 @@
     "assets/ui/skins/dailong/hud/deco_top.png": {
       "catalog_hash": "53d493dd1d3ba4b4",
       "id": "deco_top",
-      "png_hash": "35ab4c4d2060a706",
+      "png_hash": "111ed3b466566440",
       "png_size": [
         562,
         167
       ],
       "realm": "dailong",
-      "source_hash": "30882517639785c9",
+      "source_hash": "56266d0ef4640616",
       "state": null
     },
     "assets/ui/skins/dailong/hud/glyphs/building/apothecary_idle.png": {
