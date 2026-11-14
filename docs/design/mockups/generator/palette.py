@@ -222,12 +222,17 @@ class Palette:
         k = self.crest_k if crest_k is None else crest_k
         return 0 if small else size * k
 
-    def icon_tile(self, x, y, size, elements, state="idle", small=False, crest_k=None):
+    def icon_tile(self, x, y, size, elements, state="idle", small=False, crest_k=None, part="all"):
         """An icon tile with its top-left corner at (x, y), in the realm's treatment;
-        small ones (the HUD's and the minimap's buttons) keep less ornament."""
-        return getattr(self, f"tile_{self.dd['key']}")(x, y, size, elements, state, small, crest_k)
+        small ones (the HUD's and the minimap's buttons) keep less ornament. `part` draws only
+        the "frame" or the "glyph" (ui-art makes them separate sprites); "all" draws both."""
+        return getattr(self, f"tile_{self.dd['key']}")(x, y, size, elements, state, small, crest_k, part)
 
-    def tile_dailong(self, x, y, size, els, state, small, crest_k):
+    @staticmethod
+    def tile_part(frame, glyph, part):
+        return {"frame": frame, "glyph": glyph}.get(part, frame + glyph)
+
+    def tile_dailong(self, x, y, size, els, state, small, crest_k, part="all"):
         """Parchment in a gilt bamboo frame under a small tiled roof; the icon stamped in vermilion."""
         fl = self.filters()
         h = self.tile_height(size, small)
@@ -246,18 +251,18 @@ class Palette:
             ink = (f'<g filter="url(#{grain})" opacity="{0.55 if state == "disabled" else 1}">'
                    f'<rect x="{x}" y="{y}" width="{size}" height="{h}" fill="{col}" mask="{m}"/></g>')
         k = self.crest_k if crest_k is None else crest_k
-        markup, _ = self.woodwork().tile(x, y, size, ink, state, small=small, crest=None if small else size * k)
-        return markup
+        frame, _ = self.woodwork().tile(x, y, size, "", state, small=small, crest=None if small else size * k)
+        return self.tile_part(frame, ink, part)
 
-    def tile_kambara(self, x, y, size, els, state, small, crest_k):
+    def tile_kambara(self, x, y, size, els, state, small, crest_k, part="all"):
         carve = self.carving()
         cy = y + size * (0.5 if small else 0.56)
         mask = self.mask_of(els, x + size / 2, cy, size / 100 * (0.84 if small else 0.78))
         k = self.crest_k if crest_k is None else crest_k
-        markup, _ = carve.tile(x, y, size, mask, state, small=small, crest=None if small else size * k, seed=int(x + y) % 97)
+        markup, _ = carve.tile(x, y, size, mask, state, small=small, crest=None if small else size * k, seed=int(x + y) % 97, part=part)
         return markup
 
-    def tile_tampadesa(self, x, y, size, els, state, small, crest_k):
+    def tile_tampadesa(self, x, y, size, els, state, small, crest_k, part="all"):
         """A brick frame with gold filigree under three gilt spires; the icon in gold leaf on dark mudbrick."""
         bw = self.brickwork()
         h = self.tile_height(size, small)
@@ -267,8 +272,8 @@ class Palette:
         glyph = (f'<g filter="url(#{bw.filt("gilt")})" opacity="{0.75 if state == "disabled" else 1}">'
                  f'<rect x="{x}" y="{y}" width="{size}" height="{h}" fill="{fill}" mask="{m}"/></g>')
         k = self.crest_k if crest_k is None else crest_k
-        markup, _ = bw.tile(x, y, size, glyph, state, small=small, crest=None if small else size * k)
-        return markup
+        frame, _ = bw.tile(x, y, size, "", state, small=small, crest=None if small else size * k)
+        return self.tile_part(frame, glyph, part)
 
     badge_colors = ("#b3271b", "#fff4dc", "#fff")   # fill, ring, text
 

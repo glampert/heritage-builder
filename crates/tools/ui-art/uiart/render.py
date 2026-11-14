@@ -45,8 +45,10 @@ MIN_TILE_PERIODS = 5
 BLOTCH_FREQ = 0.1
 TILE_BLOTCH_CONTRAST = 0.45
 
-REALM_CLASSES = {"dailong": ("DaiLongDialogs", "DAILONG"), "kambara": ("KambaraDialogs", "KAMBARA"),
-                 "tampadesa": ("TampadesaDialogs", "TAMPADESA")}
+# palette.py's realm classes: the dialogs' (and so the menus' and the screens') drawing methods,
+# with the HUD's icon tiles, panels and ornaments on top.
+REALM_CLASSES = {"dailong": ("DaiLongPalette", "DAILONG"), "kambara": ("KambaraPalette", "KAMBARA"),
+                 "tampadesa": ("TampadesaPalette", "TAMPADESA")}
 
 
 # ----------------------------------------------------------------------------
@@ -72,7 +74,7 @@ def load_generator():
             return "" if self == fonts_css else original(self, *a, **k)
         pathlib.Path.read_text = read_text
     try:
-        import world_map, screens, menus, pages, dialogs  # noqa: E401
+        import world_map, screens, menus, pages, dialogs, frames, palette  # noqa: E401
         import dialogs_content
     finally:
         pathlib.Path.read_text = original
@@ -81,9 +83,9 @@ def load_generator():
         return ""
     global _TEXT
     _TEXT = world_map.T
-    for m in (world_map, screens, menus, pages, dialogs):
+    for m in (world_map, screens, menus, pages, dialogs, frames, palette):
         m.T = no_text
-    _GEN = (dialogs, dialogs_content)
+    _GEN = (palette, dialogs_content)
     return _GEN
 
 
@@ -133,6 +135,64 @@ def _paper_box(th, x, y, w, h, stroke):
         raise ValueError("paper_box: box() no longer starts with Đại Long's frame")
     return (svg[frame_end:]
             + f'<rect x="{x}" y="{y}" width="{w}" height="{h}" rx="3" fill="none" stroke="#2a170c" stroke-width="{stroke}"/>')
+
+
+def _glyph(th, spec):
+    """A pictogram's elements by "group:name": building (palette_glyphs, in the realm's architecture),
+    sector or hud (palette.py's sector column and HUD buttons, the minimap's included); "" is none."""
+    if not spec:
+        return []
+    import palette
+    import palette_glyphs
+    group, name = spec.split(":", 1)
+    if group == "building":
+        return palette_glyphs.glyph(name, th.dd["key"])
+    if group == "sector":
+        return palette.sector_glyph(name, th.dd["key"])
+    if group == "hud":
+        return palette.hud_glyph(name)
+    raise ValueError(f"unknown glyph group {group!r}")
+
+
+def _hud_tile(th, x, y, w, h, a):
+    """An icon tile w wide at (x, y) (its height is the realm's for its kind, the crest above y):
+    `part` frame or glyph, `glyph` "group:name", `state` idle, hover, pressed or disabled, `small`
+    (the top bar's and the minimap's), `crest_k` (the sector column's crest, a share of the realm's)."""
+    k = a.get("crest_k")
+    return th.icon_tile(x, y, w, _glyph(th, a.get("glyph", "")), a.get("state", "idle"), a.get("small", False),
+                        None if k is None else th.crest_k * k, a.get("part", "all"))
+
+
+def _hud_panel(th, x, y, w, h, a):
+    """A HUD panel at its rect without a large panel's ornaments (`big` keeps its thicker frame):
+    Đại Long's carved wood round parchment, Kambara's carved frame round dark stone (`t` thick),
+    Tampadesa's brick round dark mudbrick."""
+    realm = th.dd["key"]
+    big = a.get("big", False)
+    if realm == "dailong":
+        return th.woodwork().panel(x, y, w, h, big=big, ornaments=False)
+    if realm == "kambara":
+        return th.carving().frame(x, y, w, h, t=a.get("t", 13), crest=None, seed=a.get("seed", 1), vines=True)
+    return th.brickwork().panel(x, y, w, h, big=big, ornaments=False)
+
+
+def _hud_panel_ornament(th, x, y, w, h, a):
+    """A large panel's ornaments (`parts`, by name) round a panel `panel` ([w, h]) whose top left is
+    `origin` ([x, y]) from the rect's: Đại Long's and Tampadesa's panel_ornaments, Kambara's crest
+    (`ch` high, over a frame `t` thick). The rect is the ornament's own, so the engine anchors it on
+    the panel by that origin."""
+    realm = th.dd["key"]
+    px, py = x + a["origin"][0], y + a["origin"][1]
+    pw, ph = a["panel"]
+    if realm == "kambara":
+        return th.carving().crest(px, py, pw, ph, a.get("t", 13), a["ch"], a.get("seed", 1))
+    parts = (th.woodwork() if realm == "dailong" else th.brickwork()).panel_ornaments(px, py, pw, ph)
+    return "".join(parts[n] for n in a["parts"])
+
+
+def _hud_ornament(th, x, y, w, h, a):
+    """A gap ornament (palette.gap_ornament) filling the rect, h tall."""
+    return th.gap_ornament(x, x + w, y + h / 2, h)
 
 
 def _with_lines(th, n, draw):
@@ -219,6 +279,14 @@ CALLS = {
     # then frame_front_at), the panel left transparent.
     "story_panel": lambda th, x, y, w, h, a: _story_panel(th, x, y, w, h, a.get("label", ""), a.get("text", "")),
     "story_frame": lambda th, x, y, w, h, a: _story_frame(th, x, y, w, h),
+    # The HUD (palette.py): an icon tile's frame or glyph, a HUD panel and a large one's ornaments,
+    # a gap ornament, and a line icon (screens.py's icon(): the resources', the messages') `s`
+    # large in the accent colour, at the rect's centre.
+    "hud_tile": _hud_tile,
+    "hud_panel": _hud_panel,
+    "hud_panel_ornament": _hud_panel_ornament,
+    "hud_ornament": _hud_ornament,
+    "hud_icon": lambda th, x, y, w, h, a: th.icon(a["icon"], *_at(x, y, w, h, a), a.get("s", 1), a.get("color") or th.accent),
 }
 
 

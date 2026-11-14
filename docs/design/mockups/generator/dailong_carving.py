@@ -252,7 +252,25 @@ class Woodwork:
              f"Q{f(x + side * s * 0.74)},{f(y - s * 0.28)} {f(x + side * s * 0.6)},{f(y - s * 0.3)} H{f(x)}Z")
         return f'<path d="{d}" fill="#8a321b"/>'
 
-    def panel(self, x, y, w, h, big=False, lanterns=None):
+    def panel_ornaments(self, x, y, w, h):
+        """A large panel's ornaments outside its frame, by place: gilt ruyi clouds along the top
+        beam, a gilt cloud at the foot, and a lotus medallion under a little roof at the top's middle."""
+        tb, bb = 30, 24
+        g = self.filt("goldgrad")
+        gilt = self.filt("gilt")
+        r = tb * 1.05
+        mcx, mcy = x + w / 2, y - tb * 0.45
+        return {
+            "cloud_top_left": f'<g filter="url(#{gilt})">' + self.ruyi_cloud(x + w * 0.28, y - tb * 0.55, tb * 2.4, -1) + "</g>",
+            "cloud_top_right": f'<g filter="url(#{gilt})">' + self.ruyi_cloud(x + w * 0.72, y - tb * 0.55, tb * 2.4, 1) + "</g>",
+            "cloud_bottom": f'<g filter="url(#{gilt})">' + self.ruyi_cloud(x + w / 2, y + h + bb * 0.6, bb * 3.4, 1) + "</g>",
+            "medallion": (self.roof(mcx, mcy - r * 0.62, r * 3.1, r * 0.75, gilt_top=False)
+                          + f'<g filter="url(#{self.filt("wood")})"><circle cx="{f(mcx)}" cy="{f(mcy)}" r="{f(r)}" fill="#7c2814"/></g>'
+                          + f'<g filter="url(#{gilt})"><circle cx="{f(mcx)}" cy="{f(mcy)}" r="{f(r * 0.86)}" fill="none" stroke="url(#{g})" stroke-width="{f(r * 0.1)}"/>'
+                          + self.lotus(mcx, mcy + r * 0.38, r * 0.9) + "</g>"),
+        }
+
+    def panel(self, x, y, w, h, big=False, lanterns=None, ornaments=True):
         """Carved red wood round parchment, every ornament outside the parchment: gilt key-pattern blocks on the corners, and for a large panel a
         lattice and gilt ruyi clouds carved along the top beam, a lotus medallion under a little roof
         at its middle, and a gilt cloud at the foot."""
@@ -273,7 +291,7 @@ class Woodwork:
         # The lip round the parchment: a dark cut and a light edge, both on the wood.
         out.append(f'<rect x="{f(x - 1.5)}" y="{f(y - 1.5)}" width="{f(w + 3)}" height="{f(h + 3)}" fill="none" stroke="#2e0a03" stroke-width="2.4" opacity="0.8"/>'
                    f'<rect x="{f(x - 4)}" y="{f(y - 4)}" width="{f(w + 8)}" height="{f(h + 8)}" fill="none" stroke="#d9783f" stroke-width="1" opacity="0.4"/>')
-        if big:
+        if big and ornaments:
             # A lattice carved into the top beam, either side of the medallion.
             lat = []
             step = tb * 0.7
@@ -284,17 +302,7 @@ class Woodwork:
                     lat.append(f"M{f(k)},{f(y - tb * 0.82)} L{f(k + step)},{f(y - tb * 0.18)} M{f(k + step)},{f(y - tb * 0.82)} L{f(k)},{f(y - tb * 0.18)}")
                     k += step
             out.append(f'<path d="{" ".join(lat)}" stroke="#3a0e04" stroke-width="2" opacity="0.55"/>')
-            g = self.filt("goldgrad")
-            out.append(f'<g filter="url(#{self.filt("gilt")})">'
-                       + self.ruyi_cloud(x + w * 0.28, y - tb * 0.55, tb * 2.4, -1) + self.ruyi_cloud(x + w * 0.72, y - tb * 0.55, tb * 2.4, 1)
-                       + self.ruyi_cloud(x + w / 2, y + h + bb * 0.6, bb * 3.4, 1) + "</g>")
-            # The medallion: a carved disc with a gilt lotus in a key-pattern ring, under a little roof.
-            r = tb * 1.05
-            mcx, mcy = x + w / 2, y - tb * 0.45
-            out.append(self.roof(mcx, mcy - r * 0.62, r * 3.1, r * 0.75, gilt_top=False))
-            out.append(f'<g filter="url(#{self.filt("wood")})"><circle cx="{f(mcx)}" cy="{f(mcy)}" r="{f(r)}" fill="#7c2814"/></g>')
-            out.append(f'<g filter="url(#{self.filt("gilt")})"><circle cx="{f(mcx)}" cy="{f(mcy)}" r="{f(r * 0.86)}" fill="none" stroke="url(#{g})" stroke-width="{f(r * 0.1)}"/>'
-                       + self.lotus(mcx, mcy + r * 0.38, r * 0.9) + "</g>")
+            out.extend(self.panel_ornaments(x, y, w, h).values())
         # Key-pattern blocks on the corners, outside the parchment.
         if thin:
             fs = max(t, tb) * 1.7

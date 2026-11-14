@@ -9,8 +9,8 @@ use crate::{
     file_sys::paths::PathRef,
     render::texture::TextureHandle,
     ui::{
-        UiNineSlice, UiSystem,
-        immediate::{self, egui_pos2, egui_vec2, nine_slice_shape, uv_full},
+        UiDecoratedPanel, UiSystem,
+        immediate::{self, decorated_panel_shapes, egui_pos2, egui_vec2, uv_full},
         renderer::egui_texture,
         sound::{UiSoundEvent, UiSoundKey, UiWidgetSounds},
     },
@@ -138,17 +138,19 @@ impl UiMenuInsets {
 // ----------------------------------------------
 
 // What a menu draws behind its contents in place of the style's window frame.
-#[derive(Copy, Clone, PartialEq, Debug)]
+#[derive(Clone, PartialEq, Debug)]
 pub enum UiMenuBackground {
-    Sprite(TextureHandle), // Stretched over the menu.
-    Panel(UiNineSlice),    // A 9-slice panel over the menu.
+    Sprite(TextureHandle),   // Stretched over the menu.
+    Panel(UiDecoratedPanel), // A 9-slice panel over the menu, and the decorations hung on it.
 }
 
 impl UiMenuBackground {
-    fn shape(&self, rect: egui::Rect) -> egui::Shape {
+    // What goes under the contents over `rect` (behind decorations, then the sprite or panel), and
+    // what goes over them (the panel's other decorations).
+    fn shapes(&self, rect: egui::Rect) -> (egui::Shape, egui::Shape) {
         match self {
-            Self::Sprite(texture) => egui::Shape::image(egui_texture(*texture), rect, uv_full(), Color32::WHITE),
-            Self::Panel(panel) => nine_slice_shape(rect, panel, Color32::WHITE),
+            Self::Sprite(texture) => (egui::Shape::image(egui_texture(*texture), rect, uv_full(), Color32::WHITE), egui::Shape::Noop),
+            Self::Panel(panel) => decorated_panel_shapes(rect, panel, Color32::WHITE),
         }
     }
 }
@@ -293,9 +295,12 @@ impl UiMenu {
     }
 
     // A 9-slice panel over the window, in place of the style's frame and title bar, with the
-    // contents inside `content_insets` (see with_content_insets).
-    pub fn with_panel(mut self, panel: UiNineSlice, content_insets: UiMenuInsets) -> Self {
-        self.background = Some(UiMenuBackground::Panel(panel));
+    // contents inside `content_insets` (see with_content_insets). A UiDecoratedPanel's decorations
+    // (a UiNineSlice converts into one without any) are drawn past the window's rect on its layer,
+    // behind ones under the panel and the others over the contents. They don't change the window's
+    // size, content rect, layout or hit testing, nor what ui.layout_issues checks.
+    pub fn with_panel(mut self, panel: impl Into<UiDecoratedPanel>, content_insets: UiMenuInsets) -> Self {
+        self.background = Some(UiMenuBackground::Panel(panel.into()));
         self.content_insets = Some(content_insets);
         self
     }
@@ -604,7 +609,7 @@ impl UiMenu {
         // A menu's content area is its inner rect: its window minus `insets`, its background's
         // insets or the style's window margin.
         let draw_window = |ui: &mut egui::Ui| -> bool {
-            let background_slot = self.background.map(|_| ui.painter().add(egui::Shape::Noop));
+            let background_slot = self.background.as_ref().map(|_| ui.painter().add(egui::Shape::Noop));
 
             // Its content area, for the layout check: listed before its widgets, filled in once the
             // frame has drawn.
@@ -669,7 +674,12 @@ impl UiMenu {
             let (close_clicked, inner, scrolls) = frame_response.inner;
 
             if let (Some(slot), Some(background)) = (background_slot, &self.background) {
-                ui.painter().set(slot, background.shape(frame_response.response.rect));
+                // On the whole screen, not the window's rect: a panel's decorations reach past it.
+                // Only the frame's rect counts for the window's size and input.
+                let (under, over) = background.shapes(frame_response.response.rect);
+                let painter = immediate::screen_painter(ui);
+                painter.set(slot, under);
+                painter.add(over);
             }
 
             // A menu with a size says whether its contents scroll, so the layout check knows when

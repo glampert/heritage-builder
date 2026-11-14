@@ -88,6 +88,12 @@
 {"method": "ui.click", "params": {"path": "Skin Gallery/icon gold"}}
 {"method": "assert.eq", "params": {"query": "ui.tree", "args": {"filter": "Skin Gallery/icon gold", "kind": "icon_button"}, "path": "/widgets/0/value", "value": true}}
 {"method": "assert.eq", "params": {"query": "ui.tree", "args": {"filter": "Skin Gallery/icon disabled", "kind": "icon_button"}, "path": "/widgets/0/enabled", "value": false}}
+# The HUD's icon tiles (Phase 5): a badge's text, a disabled tile, and a click (scrolled into view first) selecting a toggle tile.
+{"method": "assert.eq", "params": {"query": "ui.tree", "args": {"filter": "Skin Gallery/HUD tile goals", "kind": "icon_button"}, "path": "/widgets/0/value/badge", "value": "1/3"}}
+{"method": "assert.eq", "params": {"query": "ui.tree", "args": {"filter": "Skin Gallery/HUD tile citadel", "kind": "icon_button"}, "path": "/widgets/0/enabled", "value": false}}
+{"method": "ui.click", "params": {"path": "Skin Gallery/HUD tile temple"}}
+{"method": "assert.eq", "params": {"query": "ui.tree", "args": {"filter": "Skin Gallery/HUD tile temple", "kind": "icon_button"}, "path": "/widgets/0/value/selected", "value": true}}
+{"method": "assert.eq", "params": {"query": "ui.layout_issues", "path": "/count", "value": 0}}
 # The data widgets report what they show; images in each fit; the 9-slice centres.
 {"method": "assert.eq", "params": {"query": "ui.tree", "args": {"filter": "Skin Gallery/Key Values", "kind": "key_values"}, "path": "/widgets/0/value/1", "value": ["Treasury", "2,315 gold"]}}
 {"method": "assert.eq", "params": {"query": "ui.tree", "args": {"filter": "Skin Gallery/Table", "kind": "table"}, "path": "/widgets/0/value/status", "value": ["done", "pending", "failed"]}}

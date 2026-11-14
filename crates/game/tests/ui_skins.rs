@@ -52,6 +52,7 @@ fn main() {
         test_utils::test_fn!(test_world_map_art_fits),
         test_utils::test_fn!(test_intermission_art_fits),
         test_utils::test_fn!(test_story_art_fits),
+        test_utils::test_fn!(test_hud_art_exists),
         test_utils::test_fn!(test_every_colour_and_widget_part_resolves),
         test_utils::test_fn!(test_every_sound_exists),
         test_utils::test_fn!(test_game_styles_cover_vietnamese),
@@ -525,6 +526,78 @@ fn test_realm_fonts_need_their_fallbacks() {
                     "{name}: {err}"
                 );
             }
+        }
+    }
+}
+
+// The HUD's art (the skin's `hud` block and its panels, Phase 5): every tile kind's frame in each
+// state at its size and bleed, a glyph (idle and pressed) for every building the build palette
+// lists and every sector, HUD and minimap button, the line icons and gap ornaments, the large
+// panel's ornaments, and every colour the block names.
+fn test_hud_art_exists() {
+    use game::tile::sets::{OBJECTS_BUILDINGS_CATEGORY, TERRAIN_LAND_CATEGORY, TileSector, TileSets};
+
+    let mut buildings = Vec::new();
+    TileSets::get().for_each_category(|_, category| {
+        if category.hash == OBJECTS_BUILDINGS_CATEGORY.hash || category.hash == TERRAIN_LAND_CATEGORY.hash {
+            category.for_each_tile_def(|tile_def| {
+                if !matches!(tile_def.sector, TileSector::None | TileSector::Housing) {
+                    buildings.push(tile_def.name.to_string());
+                }
+                true
+            });
+        }
+        true
+    });
+    assert!(buildings.len() >= 20, "the build palette lists {} buildings", buildings.len());
+
+    for (realm, skin) in skins() {
+        let hud = &skin.hud;
+        for kind in ["large", "sector", "small"] {
+            let tile = hud.tiles.get(kind).unwrap_or_else(|| panic!("{realm}: no HUD tile '{kind}'"));
+            let [left, top, right, bottom] = tile.bleed;
+            for state in ["idle", "hovered", "pressed", "disabled"] {
+                let path = format!("{}_{state}.png", tile.frame);
+                assert!(ui_asset_exists(&path), "{realm}: HUD tile '{kind}': {path} doesn't exist");
+                let scale = skin.sprite_scale;
+                let size = ((tile.size[0] + left + right) * scale, (tile.size[1] + top + bottom) * scale);
+                assert_eq!(png_size(&path), size, "{realm}: {path} isn't the tile and its bleed");
+            }
+        }
+        let glyph = |group: &str, name: &str| {
+            let name = hud.glyph_aliases.get(name).map_or(name, String::as_str);
+            for state in ["idle", "pressed"] {
+                let path = format!("{}/{group}/{name}_{state}.png", hud.glyphs);
+                assert!(ui_asset_exists(&path), "{realm}: no {group} glyph '{name}': {path}");
+            }
+        };
+        buildings.iter().for_each(|name| glyph("building", name));
+        menu::skin::SECTOR_GLYPHS.iter().for_each(|name| glyph("sector", name));
+        menu::skin::HUD_GLYPHS.iter().for_each(|name| glyph("hud", name));
+        menu::skin::MINIMAP_GLYPHS.iter().for_each(|name| glyph("minimap", name));
+        for name in menu::skin::HUD_ICONS {
+            let path = format!("{}/{name}.png", hud.icons);
+            assert!(ui_asset_exists(&path), "{realm}: no HUD icon {path}");
+        }
+        for path in [&hud.ornaments.wide, &hud.ornaments.narrow] {
+            assert!(ui_asset_exists(path), "{realm}: no HUD ornament {path}");
+        }
+        for name in ["hud_bar", "hud_panel", "hud_large"] {
+            let panel = skin.panels.get(name).unwrap_or_else(|| panic!("{realm}: no panel '{name}'"));
+            check_slice(realm, name, &panel.sprite, panel.slice.unwrap_or_else(|| panic!("{realm}: '{name}' isn't a 9-slice")));
+            for deco in &panel.decorations {
+                assert!(ui_asset_exists(&deco.sprite), "{realm}: panel '{name}': ornament {} doesn't exist", deco.sprite);
+            }
+        }
+        let resolves = |name: &str| if name.starts_with('#') { HexColor::parse(name).is_some() } else { skin.text.contains_key(name) };
+        for (role, name) in &hud.colors {
+            assert!(resolves(name), "{realm}: HUD colour '{role}': no colour '{name}'");
+        }
+        for name in [&hud.badge.fill, &hud.badge.ring, &hud.badge.text] {
+            assert!(resolves(name), "{realm}: HUD badge: no colour '{name}'");
+        }
+        for name in [&hud.glyph_tints.idle, &hud.glyph_tints.hovered, &hud.glyph_tints.pressed, &hud.glyph_tints.disabled].into_iter().flatten() {
+            assert!(resolves(name), "{realm}: HUD glyph tint: no colour '{name}'");
         }
     }
 }

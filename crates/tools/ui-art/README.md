@@ -119,6 +119,7 @@ changes), not the browser, so a Chromium update doesn't re-render anything by it
 | `realms` | Realm → overrides of any key but `id`. Without it the entry is made for every realm. |
 | `elements`, `capture`, `omit`, `attrs`, `rotate` | See section 2. |
 | `out` | Another output pattern under `skins/` (or `story/`), with `{realm}`, `{id}` and `{state}`. |
+| `each` | A list of names: the entry is made once per name, `{each}` in its strings (id, args, out) replaced by it. The HUD's glyphs use it, one sprite per building, sector and button. |
 
 Values in the catalog are points except `slice` (pixels). `--measure` prints how far an entry's
 drawing reaches past its rect, which is the bleed it needs (rounded up to half points).
@@ -166,6 +167,22 @@ briefing's scroll or tablet is `panel_dialog` (the same `mpanel`), so neither ha
 | `stele_mark` | `stele_mark` (`at`) | The newest line's mark (`fresh_mark`: Đại Long's seal, Kambara's and Tampadesa's dots), centred on the sprite. |
 | `story_frame` | `story_frame` | The realm frame round a story panel (`screens.py`'s intro: `frame_back_at` with the 1800 × 870 panel cut out, then `frame_front_at`), the panel transparent. Its bleed is its margin round the panel (`--measure` leaves out the frame's drop shadow: check the PNG's bottom row fades out). Drawn at 1 pixel per point, since it spans the window and is mostly transparent. |
 | `story_<campaign>_<sequence>_<n>`, `story_placeholder` | `story_panel` (`label`, `text`) | Placeholder story panels, written under `assets/ui/story/` (not a skin's folder: the story files name them, `out`): the realm's story scene (`intro_scene`) at the mockup's 1800 × 870 panel, 1 pixel a point, as a JPEG (180-270 KB), with a dim caption along the bottom: `label` (sequence and panel) and `text`, the panel's `visual` from `assets/configs/story/<campaign>.json`, in Spectral (`render.TEXT_FONTS`). One per Campaign I panel; `story/placeholder_<realm>.jpg` for the hidden test campaigns. Real art replaces a file of the same name (section 5). `tests/test_story_art.py` checks each story file's picture is drawn with its panel's `visual`, and every story picture is named. |
+
+### The HUD (Phase 5)
+
+From `palette.py`'s icon tiles and the carving modules (`dailong_carving.py`, `kambara_carving.py`,
+`tampadesa_brick.py`), under `skins/<realm>/hud/`; the theme is `palette.<Realm>Palette`, which has
+every drawing method of the dialogs too. The skins' `hud` block and `hud_*` panels name them
+(AGENTS.md, Skins).
+
+| Sprites | Call | Notes for the skins |
+|---|---|---|
+| `tile_large`, `tile_sector`, `tile_small` (4 states each) | `hud_tile` (`part`: frame) | The icon tile's frame without its glyph: the build palette's (84 points wide), the sector column's (54, a smaller crest: `crest_k` 0.7 of the realm's) and the top bar's and minimap's (36, no crest). The states are the generator's own (hovered glows, pressed sinks or rings, disabled greys), not CSS filters. Their bleed holds the crest and the hover glow: the skin's `tiles.<kind>.bleed`. |
+| `glyph_<group>_<name>` (`idle`, `pressed`) | `hud_tile` (`part`: glyph) | The pictogram as the tile draws it (stamped, carved, gilded), on the tile's rect with 1 point of bleed (`glyph_bleed`), so the game lays it on the tile's rect. Groups: `building` (every building the palette lists, `palette_glyphs.py`), `sector`, `hud` (36 points) and `minimap` (30). Hovered and disabled are tints in the game. |
+| `panel_hud_bar`, `panel_hud`, `panel_hud_large` | `hud_panel` | The HUD's panels without a large panel's ornaments, as 9-slices; Kambara's `t` is the carved frame's thickness. Đại Long's large panel loses the lattice carved into its top beam, which a 9-slice would stretch. |
+| `deco_top`, `deco_bottom` (Đại Long), `deco_crest`, `deco_crest_large` (Kambara; Tampadesa's crest), `deco_pier_left`, `deco_pier_right`, `deco_naga_left`, `deco_naga_right` (Tampadesa) | `hud_panel_ornament` (`parts`, `panel`, `origin`) | A large panel's ornaments (`panel_ornaments`, Kambara's `crest`), each cut to its own rect: `origin` is the panel's top left in that rect, so the skin's decoration `offset` is the sprite's centre from its anchor on the panel's 9-slice rect (the panel's rect grown by its bleed). |
+| `ornament_gap_wide`, `ornament_gap_narrow` | `hud_ornament` | The gap ornaments (`gap_ornament`) at 6 and 3 times their 36-point height; the bleed crops them to the drawing. |
+| `icon_<name>` | `hud_icon` | The line icons (`screens.py`'s `icon`) in the accent colour, 36 points with 4 of bleed: population, coin, food, and the messages' kinds. |
 
 ## 5. Hand-made art
 

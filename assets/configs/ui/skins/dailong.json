@@ -118,6 +118,9 @@
     "section": { "font_scale": 1.2, "separator": "plain", "margin_top": 0.0, "margin_bottom": 4.0 }
   },
   "panels": {
+    "hud_bar": {"sprite": "skins/dailong/hud/panel_hud_bar.png", "slice": [81, 67, 87, 77], "content": [14.5, 13.5, 17.5, 18.5]},
+    "hud_panel": {"sprite": "skins/dailong/hud/panel_hud.png", "slice": [110, 119, 113, 121], "content": [35.0, 39.5, 36.5, 40.5]},
+    "hud_large": {"sprite": "skins/dailong/hud/panel_hud_large.png", "slice": [135, 151, 138, 145], "content": [43.5, 51.5, 45.0, 48.5], "decorations": [{"sprite": "skins/dailong/hud/deco_top.png", "anchor": "top_center", "offset": [0.25, 20.25], "min_panel": [280, 180]}, {"sprite": "skins/dailong/hud/deco_bottom.png", "anchor": "bottom_center", "offset": [-7.25, -19.5], "min_panel": [280, 180]}]},
     "dialog": {
       "sprite": "skins/dailong/panel_dialog.png",
       "slice": [126, 112, 126, 112],
@@ -402,6 +405,19 @@
     "PopulationManagement": {"size": [1600, 950]},
     "ResourcesManagement": {"size": [1600, 950]},
     "FinancesManagement": {"size": [1600, 950]}
+  },
+  "hud": {
+    "tiles": {"large": {"size": [84, 87.5], "frame": "skins/dailong/hud/tile_large", "bleed": [12.5, 43.0, 13.5, 12.0]}, "sector": {"size": [54, 56.5], "frame": "skins/dailong/hud/tile_sector", "bleed": [10.5, 22.5, 11.5, 10.0]}, "small": {"size": [36, 36], "frame": "skins/dailong/hud/tile_small", "bleed": [9.5, 9.5, 9.5, 9.5]}},
+    "glyphs": "skins/dailong/hud/glyphs",
+    "glyph_bleed": 1,
+    "glyph_tints": {"disabled": "#8d7b628c"},
+    "pressed_offset": 0,
+    "icons": "skins/dailong/hud/icons",
+    "icon_bleed": 4,
+    "ornaments": {"wide": "skins/dailong/hud/ornament_gap_wide.png", "narrow": "skins/dailong/hud/ornament_gap_narrow.png"},
+    "badge": {"fill": "#a8261c", "ring": "#e7b13e", "text": "#fff4dc", "radius": 10, "ring_width": 1.6, "font_size": 11, "offset": [-1, 1]},
+    "colors": {"text": "ink", "sub": "sub", "accent": "accent", "rule": "#c9b083", "warning": "accent", "rating_track": "#c9b083", "rating_fill": "accent", "notch": "#86301a", "notch_outline": "#c9b083"},
+    "glyph_aliases": {"dirt_road": "road", "paved_road": "road"}
   },
   "sounds": {
     "button_hovered": "buttons/default/hovered.wav",

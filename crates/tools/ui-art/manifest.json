@@ -264,6 +264,1854 @@
       "source_hash": "c981db4e36ddae90",
       "state": "locked"
     },
+    "assets/ui/skins/dailong/hud/deco_bottom.png": {
+      "catalog_hash": "0511ce09edec775a",
+      "id": "deco_bottom",
+      "png_hash": "889d1497e4379354",
+      "png_size": [
+        188,
+        86
+      ],
+      "realm": "dailong",
+      "source_hash": "94395fb8a84d4170",
+      "state": null
+    },
+    "assets/ui/skins/dailong/hud/deco_top.png": {
+      "catalog_hash": "53d493dd1d3ba4b4",
+      "id": "deco_top",
+      "png_hash": "35ab4c4d2060a706",
+      "png_size": [
+        562,
+        167
+      ],
+      "realm": "dailong",
+      "source_hash": "30882517639785c9",
+      "state": null
+    },
+    "assets/ui/skins/dailong/hud/glyphs/building/apothecary_idle.png": {
+      "catalog_hash": "ef57a07c56dbb45a",
+      "id": "glyph_building_apothecary",
+      "png_hash": "b38e56984f0429d1",
+      "png_size": [
+        172,
+        179
+      ],
+      "realm": "dailong",
+      "source_hash": "8570b2ff27ee5dbc",
+      "state": "idle"
+    },
+    "assets/ui/skins/dailong/hud/glyphs/building/apothecary_pressed.png": {
+      "catalog_hash": "cb9e49b4053ae056",
+      "id": "glyph_building_apothecary",
+      "png_hash": "4d470900daba3ff0",
+      "png_size": [
+        172,
+        179
+      ],
+      "realm": "dailong",
+      "source_hash": "51f13cafc7d9220c",
+      "state": "pressed"
+    },
+    "assets/ui/skins/dailong/hud/glyphs/building/brick_maker_idle.png": {
+      "catalog_hash": "33ee1d6995de29fb",
+      "id": "glyph_building_brick_maker",
+      "png_hash": "a1a39a0b70da7319",
+      "png_size": [
+        172,
+        179
+      ],
+      "realm": "dailong",
+      "source_hash": "cc170871e371f74a",
+      "state": "idle"
+    },
+    "assets/ui/skins/dailong/hud/glyphs/building/brick_maker_pressed.png": {
+      "catalog_hash": "5dc1a42244e34292",
+      "id": "glyph_building_brick_maker",
+      "png_hash": "17085a1429976281",
+      "png_size": [
+        172,
+        179
+      ],
+      "realm": "dailong",
+      "source_hash": "ed0b1bdaea19d8a0",
+      "state": "pressed"
+    },
+    "assets/ui/skins/dailong/hud/glyphs/building/builders_guild_idle.png": {
+      "catalog_hash": "724cf5e3b60bbda3",
+      "id": "glyph_building_builders_guild",
+      "png_hash": "8780d138ddcfab93",
+      "png_size": [
+        172,
+        179
+      ],
+      "realm": "dailong",
+      "source_hash": "f023b560b2391897",
+      "state": "idle"
+    },
+    "assets/ui/skins/dailong/hud/glyphs/building/builders_guild_pressed.png": {
+      "catalog_hash": "6574541012ac844a",
+      "id": "glyph_building_builders_guild",
+      "png_hash": "27a086d84f08be18",
+      "png_size": [
+        172,
+        179
+      ],
+      "realm": "dailong",
+      "source_hash": "1574049cbbd46729",
+      "state": "pressed"
+    },
+    "assets/ui/skins/dailong/hud/glyphs/building/citadel_idle.png": {
+      "catalog_hash": "9e41fb7c5895b6cc",
+      "id": "glyph_building_citadel",
+      "png_hash": "69b7219c4f925c53",
+      "png_size": [
+        172,
+        179
+      ],
+      "realm": "dailong",
+      "source_hash": "86cd217fe72bce33",
+      "state": "idle"
+    },
+    "assets/ui/skins/dailong/hud/glyphs/building/citadel_pressed.png": {
+      "catalog_hash": "11fdbec2af795a49",
+      "id": "glyph_building_citadel",
+      "png_hash": "3fa7e51c87a03be5",
+      "png_size": [
+        172,
+        179
+      ],
+      "realm": "dailong",
+      "source_hash": "2a3a1d0d8ec74a4b",
+      "state": "pressed"
+    },
+    "assets/ui/skins/dailong/hud/glyphs/building/clay_pit_idle.png": {
+      "catalog_hash": "22acf33927c08e25",
+      "id": "glyph_building_clay_pit",
+      "png_hash": "ef5e6b859b3adb13",
+      "png_size": [
+        172,
+        179
+      ],
+      "realm": "dailong",
+      "source_hash": "9af8fd5718a15295",
+      "state": "idle"
+    },
+    "assets/ui/skins/dailong/hud/glyphs/building/clay_pit_pressed.png": {
+      "catalog_hash": "5fc6a394c295f75a",
+      "id": "glyph_building_clay_pit",
+      "png_hash": "9fca88541d855a4d",
+      "png_size": [
+        172,
+        179
+      ],
+      "realm": "dailong",
+      "source_hash": "229e45c5af0e0201",
+      "state": "pressed"
+    },
+    "assets/ui/skins/dailong/hud/glyphs/building/distillery_idle.png": {
+      "catalog_hash": "1be2588e0719608d",
+      "id": "glyph_building_distillery",
+      "png_hash": "13c15164de31ec1c",
+      "png_size": [
+        172,
+        179
+      ],
+      "realm": "dailong",
+      "source_hash": "1bd1d00551249738",
+      "state": "idle"
+    },
+    "assets/ui/skins/dailong/hud/glyphs/building/distillery_pressed.png": {
+      "catalog_hash": "1a73c158fd0c6639",
+      "id": "glyph_building_distillery",
+      "png_hash": "77ed719911a1e9f8",
+      "png_size": [
+        172,
+        179
+      ],
+      "realm": "dailong",
+      "source_hash": "449ecf7a5daa3403",
+      "state": "pressed"
+    },
+    "assets/ui/skins/dailong/hud/glyphs/building/fire_watch_idle.png": {
+      "catalog_hash": "c5010d0d309eb45f",
+      "id": "glyph_building_fire_watch",
+      "png_hash": "ce3843b2d8f4b734",
+      "png_size": [
+        172,
+        179
+      ],
+      "realm": "dailong",
+      "source_hash": "25caa830c083600e",
+      "state": "idle"
+    },
+    "assets/ui/skins/dailong/hud/glyphs/building/fire_watch_pressed.png": {
+      "catalog_hash": "5cfa33b6660a9846",
+      "id": "glyph_building_fire_watch",
+      "png_hash": "39630fb41c64e909",
+      "png_size": [
+        172,
+        179
+      ],
+      "realm": "dailong",
+      "source_hash": "6f8f3f04d4653f35",
+      "state": "pressed"
+    },
+    "assets/ui/skins/dailong/hud/glyphs/building/fishing_wharf_idle.png": {
+      "catalog_hash": "7c767c981ba4c69c",
+      "id": "glyph_building_fishing_wharf",
+      "png_hash": "c372afd5318173f5",
+      "png_size": [
+        172,
+        179
+      ],
+      "realm": "dailong",
+      "source_hash": "8e067e798575cf6b",
+      "state": "idle"
+    },
+    "assets/ui/skins/dailong/hud/glyphs/building/fishing_wharf_pressed.png": {
+      "catalog_hash": "cce4a8243ccc1ba2",
+      "id": "glyph_building_fishing_wharf",
+      "png_hash": "17cc2e63dae73529",
+      "png_size": [
+        172,
+        179
+      ],
+      "realm": "dailong",
+      "source_hash": "a1bd7f617b6368f3",
+      "state": "pressed"
+    },
+    "assets/ui/skins/dailong/hud/glyphs/building/garden_idle.png": {
+      "catalog_hash": "3aeb422075d9fd6b",
+      "id": "glyph_building_garden",
+      "png_hash": "c13f472ca5c599bd",
+      "png_size": [
+        172,
+        179
+      ],
+      "realm": "dailong",
+      "source_hash": "4eef6c58eda5e06f",
+      "state": "idle"
+    },
+    "assets/ui/skins/dailong/hud/glyphs/building/garden_pressed.png": {
+      "catalog_hash": "65f942d76083276b",
+      "id": "glyph_building_garden",
+      "png_hash": "7eab3a3749463093",
+      "png_size": [
+        172,
+        179
+      ],
+      "realm": "dailong",
+      "source_hash": "d0640405cf34f6d0",
+      "state": "pressed"
+    },
+    "assets/ui/skins/dailong/hud/glyphs/building/governor_palace_idle.png": {
+      "catalog_hash": "0d6dcb317f738a23",
+      "id": "glyph_building_governor_palace",
+      "png_hash": "01853fe0cd52acf4",
+      "png_size": [
+        172,
+        179
+      ],
+      "realm": "dailong",
+      "source_hash": "b34175112d9cc8ee",
+      "state": "idle"
+    },
+    "assets/ui/skins/dailong/hud/glyphs/building/governor_palace_pressed.png": {
+      "catalog_hash": "5916fb53bdfaae41",
+      "id": "glyph_building_governor_palace",
+      "png_hash": "7e8b18950ee95635",
+      "png_size": [
+        172,
+        179
+      ],
+      "realm": "dailong",
+      "source_hash": "4a3477a686e19a80",
+      "state": "pressed"
+    },
+    "assets/ui/skins/dailong/hud/glyphs/building/granary_idle.png": {
+      "catalog_hash": "90a41c0b522180b5",
+      "id": "glyph_building_granary",
+      "png_hash": "a38234c2b7aa1e8a",
+      "png_size": [
+        172,
+        179
+      ],
+      "realm": "dailong",
+      "source_hash": "25d16f973f67db54",
+      "state": "idle"
+    },
+    "assets/ui/skins/dailong/hud/glyphs/building/granary_pressed.png": {
+      "catalog_hash": "5c72c86315771cd9",
+      "id": "glyph_building_granary",
+      "png_hash": "646922cfcc84aaec",
+      "png_size": [
+        172,
+        179
+      ],
+      "realm": "dailong",
+      "source_hash": "3eba010f23f93ab1",
+      "state": "pressed"
+    },
+    "assets/ui/skins/dailong/hud/glyphs/building/hospital_idle.png": {
+      "catalog_hash": "96f292d4e2c33abe",
+      "id": "glyph_building_hospital",
+      "png_hash": "c0f475590173ce22",
+      "png_size": [
+        172,
+        179
+      ],
+      "realm": "dailong",
+      "source_hash": "ec93446d263f5ea8",
+      "state": "idle"
+    },
+    "assets/ui/skins/dailong/hud/glyphs/building/hospital_pressed.png": {
+      "catalog_hash": "8196c25b1ec14bdc",
+      "id": "glyph_building_hospital",
+      "png_hash": "d50706822872ff70",
+      "png_size": [
+        172,
+        179
+      ],
+      "realm": "dailong",
+      "source_hash": "eaa160fb2782ab12",
+      "state": "pressed"
+    },
+    "assets/ui/skins/dailong/hud/glyphs/building/large_well_idle.png": {
+      "catalog_hash": "7ad228c6122f3e8d",
+      "id": "glyph_building_large_well",
+      "png_hash": "fa241774573f2d14",
+      "png_size": [
+        172,
+        179
+      ],
+      "realm": "dailong",
+      "source_hash": "2ab01dbb89c6d7a2",
+      "state": "idle"
+    },
+    "assets/ui/skins/dailong/hud/glyphs/building/large_well_pressed.png": {
+      "catalog_hash": "d59d367d22ff37fd",
+      "id": "glyph_building_large_well",
+      "png_hash": "7267d4ae15d267fa",
+      "png_size": [
+        172,
+        179
+      ],
+      "realm": "dailong",
+      "source_hash": "fa20286f476413e3",
+      "state": "pressed"
+    },
+    "assets/ui/skins/dailong/hud/glyphs/building/livestock_farm_idle.png": {
+      "catalog_hash": "dc7e725628aa64b8",
+      "id": "glyph_building_livestock_farm",
+      "png_hash": "c474d1f4696ae1e6",
+      "png_size": [
+        172,
+        179
+      ],
+      "realm": "dailong",
+      "source_hash": "0e2bb7d741595851",
+      "state": "idle"
+    },
+    "assets/ui/skins/dailong/hud/glyphs/building/livestock_farm_pressed.png": {
+      "catalog_hash": "8921520a1b155f92",
+      "id": "glyph_building_livestock_farm",
+      "png_hash": "d1e7d0853b8ba3d7",
+      "png_size": [
+        172,
+        179
+      ],
+      "realm": "dailong",
+      "source_hash": "be9e6818767b0731",
+      "state": "pressed"
+    },
+    "assets/ui/skins/dailong/hud/glyphs/building/lumberyard_idle.png": {
+      "catalog_hash": "3f8d4fa8e550990f",
+      "id": "glyph_building_lumberyard",
+      "png_hash": "5fe282779bbb1469",
+      "png_size": [
+        172,
+        179
+      ],
+      "realm": "dailong",
+      "source_hash": "7aac5e3aebb09c47",
+      "state": "idle"
+    },
+    "assets/ui/skins/dailong/hud/glyphs/building/lumberyard_pressed.png": {
+      "catalog_hash": "18e41bc1d7bb3726",
+      "id": "glyph_building_lumberyard",
+      "png_hash": "c55d1c9cad6c04ce",
+      "png_size": [
+        172,
+        179
+      ],
+      "realm": "dailong",
+      "source_hash": "60affa2aa871e794",
+      "state": "pressed"
+    },
+    "assets/ui/skins/dailong/hud/glyphs/building/market_idle.png": {
+      "catalog_hash": "c8dbc213332c04ed",
+      "id": "glyph_building_market",
+      "png_hash": "3493b4cf3a0ef385",
+      "png_size": [
+        172,
+        179
+      ],
+      "realm": "dailong",
+      "source_hash": "3bcf61adbcb13a82",
+      "state": "idle"
+    },
+    "assets/ui/skins/dailong/hud/glyphs/building/market_pressed.png": {
+      "catalog_hash": "02e63f96acaa0c98",
+      "id": "glyph_building_market",
+      "png_hash": "e7b07c1a867faaee",
+      "png_size": [
+        172,
+        179
+      ],
+      "realm": "dailong",
+      "source_hash": "a7f387028907fa73",
+      "state": "pressed"
+    },
+    "assets/ui/skins/dailong/hud/glyphs/building/mine_idle.png": {
+      "catalog_hash": "de8d332a4768d2bb",
+      "id": "glyph_building_mine",
+      "png_hash": "a6f80a8a85e115e2",
+      "png_size": [
+        172,
+        179
+      ],
+      "realm": "dailong",
+      "source_hash": "30b8723040409c42",
+      "state": "idle"
+    },
+    "assets/ui/skins/dailong/hud/glyphs/building/mine_pressed.png": {
+      "catalog_hash": "210fc8dc27c03263",
+      "id": "glyph_building_mine",
+      "png_hash": "0682a2dbd771594b",
+      "png_size": [
+        172,
+        179
+      ],
+      "realm": "dailong",
+      "source_hash": "fdc6d332585661ff",
+      "state": "pressed"
+    },
+    "assets/ui/skins/dailong/hud/glyphs/building/police_station_idle.png": {
+      "catalog_hash": "6b6f2a0bda4dee19",
+      "id": "glyph_building_police_station",
+      "png_hash": "64bcddfc9b371537",
+      "png_size": [
+        172,
+        179
+      ],
+      "realm": "dailong",
+      "source_hash": "26bcb5af63dc2636",
+      "state": "idle"
+    },
+    "assets/ui/skins/dailong/hud/glyphs/building/police_station_pressed.png": {
+      "catalog_hash": "d5e2fc2c74858ee6",
+      "id": "glyph_building_police_station",
+      "png_hash": "e30e16e722083f04",
+      "png_size": [
+        172,
+        179
+      ],
+      "realm": "dailong",
+      "source_hash": "4aa0cc1eec06b1b5",
+      "state": "pressed"
+    },
+    "assets/ui/skins/dailong/hud/glyphs/building/pottery_kiln_idle.png": {
+      "catalog_hash": "7a40860642ed654a",
+      "id": "glyph_building_pottery_kiln",
+      "png_hash": "b2c6f5d2548d30cc",
+      "png_size": [
+        172,
+        179
+      ],
+      "realm": "dailong",
+      "source_hash": "1b0a01e7726bf6ac",
+      "state": "idle"
+    },
+    "assets/ui/skins/dailong/hud/glyphs/building/pottery_kiln_pressed.png": {
+      "catalog_hash": "c59d49152ff4ab11",
+      "id": "glyph_building_pottery_kiln",
+      "png_hash": "26ddae3218e3d02d",
+      "png_size": [
+        172,
+        179
+      ],
+      "realm": "dailong",
+      "source_hash": "3c64790a1265a860",
+      "state": "pressed"
+    },
+    "assets/ui/skins/dailong/hud/glyphs/building/rice_farm_idle.png": {
+      "catalog_hash": "8c4e6fda61cb4cc5",
+      "id": "glyph_building_rice_farm",
+      "png_hash": "43af0f3710e521b4",
+      "png_size": [
+        172,
+        179
+      ],
+      "realm": "dailong",
+      "source_hash": "0c0d5395a8cfa864",
+      "state": "idle"
+    },
+    "assets/ui/skins/dailong/hud/glyphs/building/rice_farm_pressed.png": {
+      "catalog_hash": "df7ce71d30608a39",
+      "id": "glyph_building_rice_farm",
+      "png_hash": "be1ef30d809430a4",
+      "png_size": [
+        172,
+        179
+      ],
+      "realm": "dailong",
+      "source_hash": "2f70dd0e1ed8f7c4",
+      "state": "pressed"
+    },
+    "assets/ui/skins/dailong/hud/glyphs/building/road_idle.png": {
+      "catalog_hash": "14bbdce27014fc01",
+      "id": "glyph_building_road",
+      "png_hash": "3f497ec0cac0ec6e",
+      "png_size": [
+        172,
+        179
+      ],
+      "realm": "dailong",
+      "source_hash": "c376df3abee64f49",
+      "state": "idle"
+    },
+    "assets/ui/skins/dailong/hud/glyphs/building/road_pressed.png": {
+      "catalog_hash": "2994207ece5b0b78",
+      "id": "glyph_building_road",
+      "png_hash": "646b96122b3a8a69",
+      "png_size": [
+        172,
+        179
+      ],
+      "realm": "dailong",
+      "source_hash": "546d4ced0b33a0ba",
+      "state": "pressed"
+    },
+    "assets/ui/skins/dailong/hud/glyphs/building/roof_tile_kiln_idle.png": {
+      "catalog_hash": "bdcd796b697ddb5e",
+      "id": "glyph_building_roof_tile_kiln",
+      "png_hash": "7e39718884c61c3c",
+      "png_size": [
+        172,
+        179
+      ],
+      "realm": "dailong",
+      "source_hash": "bb4143c4644099b3",
+      "state": "idle"
+    },
+    "assets/ui/skins/dailong/hud/glyphs/building/roof_tile_kiln_pressed.png": {
+      "catalog_hash": "e9c89aa7bbf65a59",
+      "id": "glyph_building_roof_tile_kiln",
+      "png_hash": "ddaaa771d8bb3f46",
+      "png_size": [
+        172,
+        179
+      ],
+      "realm": "dailong",
+      "source_hash": "0a22623017788ee4",
+      "state": "pressed"
+    },
+    "assets/ui/skins/dailong/hud/glyphs/building/shrine_idle.png": {
+      "catalog_hash": "bb04ff2fd052f195",
+      "id": "glyph_building_shrine",
+      "png_hash": "0258c52854ad13a2",
+      "png_size": [
+        172,
+        179
+      ],
+      "realm": "dailong",
+      "source_hash": "736612b5c9e34604",
+      "state": "idle"
+    },
+    "assets/ui/skins/dailong/hud/glyphs/building/shrine_pressed.png": {
+      "catalog_hash": "3e99677a77b75805",
+      "id": "glyph_building_shrine",
+      "png_hash": "8860683c129e8875",
+      "png_size": [
+        172,
+        179
+      ],
+      "realm": "dailong",
+      "source_hash": "66350541217fdb16",
+      "state": "pressed"
+    },
+    "assets/ui/skins/dailong/hud/glyphs/building/small_well_idle.png": {
+      "catalog_hash": "a8586004090d67e5",
+      "id": "glyph_building_small_well",
+      "png_hash": "67a846ffeb6376b6",
+      "png_size": [
+        172,
+        179
+      ],
+      "realm": "dailong",
+      "source_hash": "22523bba22fb1259",
+      "state": "idle"
+    },
+    "assets/ui/skins/dailong/hud/glyphs/building/small_well_pressed.png": {
+      "catalog_hash": "210d01bcc7c07a89",
+      "id": "glyph_building_small_well",
+      "png_hash": "59f471d2324deae7",
+      "png_size": [
+        172,
+        179
+      ],
+      "realm": "dailong",
+      "source_hash": "6798ecdeb06fc43c",
+      "state": "pressed"
+    },
+    "assets/ui/skins/dailong/hud/glyphs/building/storage_yard_idle.png": {
+      "catalog_hash": "1aad9e4f21152e36",
+      "id": "glyph_building_storage_yard",
+      "png_hash": "dba51a58824fcce0",
+      "png_size": [
+        172,
+        179
+      ],
+      "realm": "dailong",
+      "source_hash": "e5ad63549767610e",
+      "state": "idle"
+    },
+    "assets/ui/skins/dailong/hud/glyphs/building/storage_yard_pressed.png": {
+      "catalog_hash": "af6327ffd21d8ab7",
+      "id": "glyph_building_storage_yard",
+      "png_hash": "05de72e6cea4ce8c",
+      "png_size": [
+        172,
+        179
+      ],
+      "realm": "dailong",
+      "source_hash": "57880568a82a5817",
+      "state": "pressed"
+    },
+    "assets/ui/skins/dailong/hud/glyphs/building/tax_office_idle.png": {
+      "catalog_hash": "afd058967a588800",
+      "id": "glyph_building_tax_office",
+      "png_hash": "464d439c234b7a29",
+      "png_size": [
+        172,
+        179
+      ],
+      "realm": "dailong",
+      "source_hash": "de3941fb87514328",
+      "state": "idle"
+    },
+    "assets/ui/skins/dailong/hud/glyphs/building/tax_office_pressed.png": {
+      "catalog_hash": "dc7097ffc5f84e88",
+      "id": "glyph_building_tax_office",
+      "png_hash": "ad91126328eb6fc5",
+      "png_size": [
+        172,
+        179
+      ],
+      "realm": "dailong",
+      "source_hash": "cfdbf8f956e4b43a",
+      "state": "pressed"
+    },
+    "assets/ui/skins/dailong/hud/glyphs/building/temple_idle.png": {
+      "catalog_hash": "a012e75479e15073",
+      "id": "glyph_building_temple",
+      "png_hash": "9cebd01794ba0cf3",
+      "png_size": [
+        172,
+        179
+      ],
+      "realm": "dailong",
+      "source_hash": "f427c6e4fad568c5",
+      "state": "idle"
+    },
+    "assets/ui/skins/dailong/hud/glyphs/building/temple_pressed.png": {
+      "catalog_hash": "742970a248ee11e2",
+      "id": "glyph_building_temple",
+      "png_hash": "a0aaed1842d88b6f",
+      "png_size": [
+        172,
+        179
+      ],
+      "realm": "dailong",
+      "source_hash": "261cc6cd90583a3a",
+      "state": "pressed"
+    },
+    "assets/ui/skins/dailong/hud/glyphs/building/theater_idle.png": {
+      "catalog_hash": "c71e6e29249a531f",
+      "id": "glyph_building_theater",
+      "png_hash": "4e2737987733b6fb",
+      "png_size": [
+        172,
+        179
+      ],
+      "realm": "dailong",
+      "source_hash": "333355540a7a7e88",
+      "state": "idle"
+    },
+    "assets/ui/skins/dailong/hud/glyphs/building/theater_pressed.png": {
+      "catalog_hash": "5f71bea5e63e8b37",
+      "id": "glyph_building_theater",
+      "png_hash": "fe32b86ef03c812b",
+      "png_size": [
+        172,
+        179
+      ],
+      "realm": "dailong",
+      "source_hash": "12af425ce0a1ed82",
+      "state": "pressed"
+    },
+    "assets/ui/skins/dailong/hud/glyphs/building/university_idle.png": {
+      "catalog_hash": "5a83d4d32d80d11a",
+      "id": "glyph_building_university",
+      "png_hash": "1f82675f8d50cec6",
+      "png_size": [
+        172,
+        179
+      ],
+      "realm": "dailong",
+      "source_hash": "a412d8ced917ae38",
+      "state": "idle"
+    },
+    "assets/ui/skins/dailong/hud/glyphs/building/university_pressed.png": {
+      "catalog_hash": "3ef707c33def3c96",
+      "id": "glyph_building_university",
+      "png_hash": "39548e593fde84eb",
+      "png_size": [
+        172,
+        179
+      ],
+      "realm": "dailong",
+      "source_hash": "b744dd68c831aaa8",
+      "state": "pressed"
+    },
+    "assets/ui/skins/dailong/hud/glyphs/building/vacant_lot_idle.png": {
+      "catalog_hash": "35e826d26d567be6",
+      "id": "glyph_building_vacant_lot",
+      "png_hash": "32ae9c5ef115b623",
+      "png_size": [
+        172,
+        179
+      ],
+      "realm": "dailong",
+      "source_hash": "e6dc717f64761727",
+      "state": "idle"
+    },
+    "assets/ui/skins/dailong/hud/glyphs/building/vacant_lot_pressed.png": {
+      "catalog_hash": "1193c732973deea5",
+      "id": "glyph_building_vacant_lot",
+      "png_hash": "5fb66559c13eacdd",
+      "png_size": [
+        172,
+        179
+      ],
+      "realm": "dailong",
+      "source_hash": "ec68d5e0292962b8",
+      "state": "pressed"
+    },
+    "assets/ui/skins/dailong/hud/glyphs/hud/book_idle.png": {
+      "catalog_hash": "a3e9fd4858404ba7",
+      "id": "glyph_hud_book",
+      "png_hash": "33abb5dcffea2c95",
+      "png_size": [
+        76,
+        76
+      ],
+      "realm": "dailong",
+      "source_hash": "5a8a0e1e342cec90",
+      "state": "idle"
+    },
+    "assets/ui/skins/dailong/hud/glyphs/hud/book_pressed.png": {
+      "catalog_hash": "889f28db5b6d39c0",
+      "id": "glyph_hud_book",
+      "png_hash": "c6f4b0604c9c4efe",
+      "png_size": [
+        76,
+        76
+      ],
+      "realm": "dailong",
+      "source_hash": "d8763807bc44d1b1",
+      "state": "pressed"
+    },
+    "assets/ui/skins/dailong/hud/glyphs/hud/briefing_idle.png": {
+      "catalog_hash": "c9348294db13f3d4",
+      "id": "glyph_hud_briefing",
+      "png_hash": "6d984f01a9c33d68",
+      "png_size": [
+        76,
+        76
+      ],
+      "realm": "dailong",
+      "source_hash": "d06d3e33f6691958",
+      "state": "idle"
+    },
+    "assets/ui/skins/dailong/hud/glyphs/hud/briefing_pressed.png": {
+      "catalog_hash": "d8ff556ab26d310c",
+      "id": "glyph_hud_briefing",
+      "png_hash": "04e8538a6ee366f4",
+      "png_size": [
+        76,
+        76
+      ],
+      "realm": "dailong",
+      "source_hash": "878a4e4e1f55fd81",
+      "state": "pressed"
+    },
+    "assets/ui/skins/dailong/hud/glyphs/hud/close_idle.png": {
+      "catalog_hash": "c5a33b0d084f817d",
+      "id": "glyph_hud_close",
+      "png_hash": "c86ffaafd16ef817",
+      "png_size": [
+        76,
+        76
+      ],
+      "realm": "dailong",
+      "source_hash": "26e0f26815b8db2a",
+      "state": "idle"
+    },
+    "assets/ui/skins/dailong/hud/glyphs/hud/close_pressed.png": {
+      "catalog_hash": "19908b7612d69c77",
+      "id": "glyph_hud_close",
+      "png_hash": "e67538beb56f7366",
+      "png_size": [
+        76,
+        76
+      ],
+      "realm": "dailong",
+      "source_hash": "43243b8d03bde80d",
+      "state": "pressed"
+    },
+    "assets/ui/skins/dailong/hud/glyphs/hud/fast_idle.png": {
+      "catalog_hash": "aa6ee194bd939478",
+      "id": "glyph_hud_fast",
+      "png_hash": "293f892e4543ab19",
+      "png_size": [
+        76,
+        76
+      ],
+      "realm": "dailong",
+      "source_hash": "10608e9ed0e43e3d",
+      "state": "idle"
+    },
+    "assets/ui/skins/dailong/hud/glyphs/hud/fast_pressed.png": {
+      "catalog_hash": "d84f266317ba02a6",
+      "id": "glyph_hud_fast",
+      "png_hash": "48ccff993bfffe8a",
+      "png_size": [
+        76,
+        76
+      ],
+      "realm": "dailong",
+      "source_hash": "49d103ad7909879e",
+      "state": "pressed"
+    },
+    "assets/ui/skins/dailong/hud/glyphs/hud/faster_idle.png": {
+      "catalog_hash": "7f057c9b1814c308",
+      "id": "glyph_hud_faster",
+      "png_hash": "e978f8a099a75cd7",
+      "png_size": [
+        76,
+        76
+      ],
+      "realm": "dailong",
+      "source_hash": "cae92e029cbd8ff7",
+      "state": "idle"
+    },
+    "assets/ui/skins/dailong/hud/glyphs/hud/faster_pressed.png": {
+      "catalog_hash": "011eee6bdf13bf16",
+      "id": "glyph_hud_faster",
+      "png_hash": "2ac8ddcf9e1cf069",
+      "png_size": [
+        76,
+        76
+      ],
+      "realm": "dailong",
+      "source_hash": "f425ce18b7d54bc3",
+      "state": "pressed"
+    },
+    "assets/ui/skins/dailong/hud/glyphs/hud/gear_idle.png": {
+      "catalog_hash": "03975f6d16510693",
+      "id": "glyph_hud_gear",
+      "png_hash": "895dfc1abeda4a60",
+      "png_size": [
+        76,
+        76
+      ],
+      "realm": "dailong",
+      "source_hash": "346b2236277f9e68",
+      "state": "idle"
+    },
+    "assets/ui/skins/dailong/hud/glyphs/hud/gear_pressed.png": {
+      "catalog_hash": "4e545c5d9d7fb652",
+      "id": "glyph_hud_gear",
+      "png_hash": "bf047d3f340b2c39",
+      "png_size": [
+        76,
+        76
+      ],
+      "realm": "dailong",
+      "source_hash": "509c5815e607b49a",
+      "state": "pressed"
+    },
+    "assets/ui/skins/dailong/hud/glyphs/hud/goals_idle.png": {
+      "catalog_hash": "42f152dd1fec2acf",
+      "id": "glyph_hud_goals",
+      "png_hash": "6892fc1f58528400",
+      "png_size": [
+        76,
+        76
+      ],
+      "realm": "dailong",
+      "source_hash": "a168c48ff1158e57",
+      "state": "idle"
+    },
+    "assets/ui/skins/dailong/hud/glyphs/hud/goals_pressed.png": {
+      "catalog_hash": "1daef628fb680609",
+      "id": "glyph_hud_goals",
+      "png_hash": "466ab2f8e9c25351",
+      "png_size": [
+        76,
+        76
+      ],
+      "realm": "dailong",
+      "source_hash": "5cded2f9b7295f4f",
+      "state": "pressed"
+    },
+    "assets/ui/skins/dailong/hud/glyphs/hud/menu_idle.png": {
+      "catalog_hash": "8d493af9b4064b22",
+      "id": "glyph_hud_menu",
+      "png_hash": "e3e6c5409fa6372d",
+      "png_size": [
+        76,
+        76
+      ],
+      "realm": "dailong",
+      "source_hash": "198aa4124b8b1de6",
+      "state": "idle"
+    },
+    "assets/ui/skins/dailong/hud/glyphs/hud/menu_pressed.png": {
+      "catalog_hash": "2d798493d83e6e7e",
+      "id": "glyph_hud_menu",
+      "png_hash": "8cdebdd3d63b7524",
+      "png_size": [
+        76,
+        76
+      ],
+      "realm": "dailong",
+      "source_hash": "f853884fb0e8e1dd",
+      "state": "pressed"
+    },
+    "assets/ui/skins/dailong/hud/glyphs/hud/pause_idle.png": {
+      "catalog_hash": "bd94daa1bc4b7857",
+      "id": "glyph_hud_pause",
+      "png_hash": "0fbeda646c27608c",
+      "png_size": [
+        76,
+        76
+      ],
+      "realm": "dailong",
+      "source_hash": "105252559f8380d8",
+      "state": "idle"
+    },
+    "assets/ui/skins/dailong/hud/glyphs/hud/pause_pressed.png": {
+      "catalog_hash": "eb9539c69ce90105",
+      "id": "glyph_hud_pause",
+      "png_hash": "4b65c3b24b7387f0",
+      "png_size": [
+        76,
+        76
+      ],
+      "realm": "dailong",
+      "source_hash": "8f20a3821850b839",
+      "state": "pressed"
+    },
+    "assets/ui/skins/dailong/hud/glyphs/hud/play_idle.png": {
+      "catalog_hash": "753f7ecf2b8b4cfb",
+      "id": "glyph_hud_play",
+      "png_hash": "457966619550c291",
+      "png_size": [
+        76,
+        76
+      ],
+      "realm": "dailong",
+      "source_hash": "2d6ca98caf361a58",
+      "state": "idle"
+    },
+    "assets/ui/skins/dailong/hud/glyphs/hud/play_pressed.png": {
+      "catalog_hash": "ed18e0c89b6e2a3a",
+      "id": "glyph_hud_play",
+      "png_hash": "dd25ac2978f71453",
+      "png_size": [
+        76,
+        76
+      ],
+      "realm": "dailong",
+      "source_hash": "23a6d0cc15e6c097",
+      "state": "pressed"
+    },
+    "assets/ui/skins/dailong/hud/glyphs/hud/save_idle.png": {
+      "catalog_hash": "494c6a561ece5d02",
+      "id": "glyph_hud_save",
+      "png_hash": "d91888e8c5587dfb",
+      "png_size": [
+        76,
+        76
+      ],
+      "realm": "dailong",
+      "source_hash": "618774dd2c45e589",
+      "state": "idle"
+    },
+    "assets/ui/skins/dailong/hud/glyphs/hud/save_pressed.png": {
+      "catalog_hash": "04cf5a514dd677e2",
+      "id": "glyph_hud_save",
+      "png_hash": "d598e4f47df1b0da",
+      "png_size": [
+        76,
+        76
+      ],
+      "realm": "dailong",
+      "source_hash": "99063318f54aa86c",
+      "state": "pressed"
+    },
+    "assets/ui/skins/dailong/hud/glyphs/minimap/alert_idle.png": {
+      "catalog_hash": "4afbd7e1e25dfed0",
+      "id": "glyph_minimap_alert",
+      "png_hash": "b1bbf4ce9c56978c",
+      "png_size": [
+        64,
+        64
+      ],
+      "realm": "dailong",
+      "source_hash": "1a231e5372ce3dba",
+      "state": "idle"
+    },
+    "assets/ui/skins/dailong/hud/glyphs/minimap/alert_pressed.png": {
+      "catalog_hash": "540248477ecf7e04",
+      "id": "glyph_minimap_alert",
+      "png_hash": "9fb8dad6cac37bc7",
+      "png_size": [
+        64,
+        64
+      ],
+      "realm": "dailong",
+      "source_hash": "23bc0a5dd6dfec04",
+      "state": "pressed"
+    },
+    "assets/ui/skins/dailong/hud/glyphs/minimap/city_idle.png": {
+      "catalog_hash": "f1c184858b482f07",
+      "id": "glyph_minimap_city",
+      "png_hash": "ed29026dbc24497b",
+      "png_size": [
+        64,
+        64
+      ],
+      "realm": "dailong",
+      "source_hash": "f43a76785099654c",
+      "state": "idle"
+    },
+    "assets/ui/skins/dailong/hud/glyphs/minimap/city_pressed.png": {
+      "catalog_hash": "8ddf541393f9e983",
+      "id": "glyph_minimap_city",
+      "png_hash": "150e17423fe6dee4",
+      "png_size": [
+        64,
+        64
+      ],
+      "realm": "dailong",
+      "source_hash": "01be080f64980a2b",
+      "state": "pressed"
+    },
+    "assets/ui/skins/dailong/hud/glyphs/minimap/collapse_idle.png": {
+      "catalog_hash": "b261f05ccf41ff80",
+      "id": "glyph_minimap_collapse",
+      "png_hash": "0b25f01c5bfc2631",
+      "png_size": [
+        64,
+        64
+      ],
+      "realm": "dailong",
+      "source_hash": "e3496640e0e80dd0",
+      "state": "idle"
+    },
+    "assets/ui/skins/dailong/hud/glyphs/minimap/collapse_pressed.png": {
+      "catalog_hash": "7cbaa67461e35ec1",
+      "id": "glyph_minimap_collapse",
+      "png_hash": "f722ffcc48eed4a5",
+      "png_size": [
+        64,
+        64
+      ],
+      "realm": "dailong",
+      "source_hash": "23980fce3618aafb",
+      "state": "pressed"
+    },
+    "assets/ui/skins/dailong/hud/glyphs/minimap/fire_idle.png": {
+      "catalog_hash": "73fc67b9fa74770a",
+      "id": "glyph_minimap_fire",
+      "png_hash": "bd8c301d37462899",
+      "png_size": [
+        64,
+        64
+      ],
+      "realm": "dailong",
+      "source_hash": "3c156ae36e0c74b4",
+      "state": "idle"
+    },
+    "assets/ui/skins/dailong/hud/glyphs/minimap/fire_pressed.png": {
+      "catalog_hash": "4a0232c70fe213b3",
+      "id": "glyph_minimap_fire",
+      "png_hash": "c683a31eb1349d6a",
+      "png_size": [
+        64,
+        64
+      ],
+      "realm": "dailong",
+      "source_hash": "6861a0e52fb212f0",
+      "state": "pressed"
+    },
+    "assets/ui/skins/dailong/hud/glyphs/minimap/home_idle.png": {
+      "catalog_hash": "253fbc07bbfa4fb5",
+      "id": "glyph_minimap_home",
+      "png_hash": "f23c13dd947134d6",
+      "png_size": [
+        64,
+        64
+      ],
+      "realm": "dailong",
+      "source_hash": "4769dcdb99540c81",
+      "state": "idle"
+    },
+    "assets/ui/skins/dailong/hud/glyphs/minimap/home_pressed.png": {
+      "catalog_hash": "63443addcef81cb2",
+      "id": "glyph_minimap_home",
+      "png_hash": "2a2cb8602d626e71",
+      "png_size": [
+        64,
+        64
+      ],
+      "realm": "dailong",
+      "source_hash": "0682d19d1ba79b4c",
+      "state": "pressed"
+    },
+    "assets/ui/skins/dailong/hud/glyphs/minimap/minus_idle.png": {
+      "catalog_hash": "1d04edb8fc27c311",
+      "id": "glyph_minimap_minus",
+      "png_hash": "27c5db869e88e718",
+      "png_size": [
+        64,
+        64
+      ],
+      "realm": "dailong",
+      "source_hash": "1a58c3c8768ab8ac",
+      "state": "idle"
+    },
+    "assets/ui/skins/dailong/hud/glyphs/minimap/minus_pressed.png": {
+      "catalog_hash": "e87b4e57ee85c719",
+      "id": "glyph_minimap_minus",
+      "png_hash": "2ad143c60f347a2a",
+      "png_size": [
+        64,
+        64
+      ],
+      "realm": "dailong",
+      "source_hash": "d0c285b7a5d015a7",
+      "state": "pressed"
+    },
+    "assets/ui/skins/dailong/hud/glyphs/minimap/pin_idle.png": {
+      "catalog_hash": "91277113e5c6c172",
+      "id": "glyph_minimap_pin",
+      "png_hash": "020a067169cdadc9",
+      "png_size": [
+        64,
+        64
+      ],
+      "realm": "dailong",
+      "source_hash": "86edbe26760f7148",
+      "state": "idle"
+    },
+    "assets/ui/skins/dailong/hud/glyphs/minimap/pin_pressed.png": {
+      "catalog_hash": "1cbee10a69d864fb",
+      "id": "glyph_minimap_pin",
+      "png_hash": "31f21a49d6e3bbbb",
+      "png_size": [
+        64,
+        64
+      ],
+      "realm": "dailong",
+      "source_hash": "2f32dedba56ec3b7",
+      "state": "pressed"
+    },
+    "assets/ui/skins/dailong/hud/glyphs/minimap/plus_idle.png": {
+      "catalog_hash": "87d0e319dd6c8acf",
+      "id": "glyph_minimap_plus",
+      "png_hash": "296736c00fcb119b",
+      "png_size": [
+        64,
+        64
+      ],
+      "realm": "dailong",
+      "source_hash": "ac94d1061b9bad04",
+      "state": "idle"
+    },
+    "assets/ui/skins/dailong/hud/glyphs/minimap/plus_pressed.png": {
+      "catalog_hash": "4717827bb06dd622",
+      "id": "glyph_minimap_plus",
+      "png_hash": "c5c95797cb20f6a1",
+      "png_size": [
+        64,
+        64
+      ],
+      "realm": "dailong",
+      "source_hash": "65e83c00f85299ef",
+      "state": "pressed"
+    },
+    "assets/ui/skins/dailong/hud/glyphs/minimap/sectors_idle.png": {
+      "catalog_hash": "235c8da607447cc8",
+      "id": "glyph_minimap_sectors",
+      "png_hash": "47d3144d8361749d",
+      "png_size": [
+        64,
+        64
+      ],
+      "realm": "dailong",
+      "source_hash": "596265df50e8188b",
+      "state": "idle"
+    },
+    "assets/ui/skins/dailong/hud/glyphs/minimap/sectors_pressed.png": {
+      "catalog_hash": "35f04c534db0e23f",
+      "id": "glyph_minimap_sectors",
+      "png_hash": "4746f4dd1cb67252",
+      "png_size": [
+        64,
+        64
+      ],
+      "realm": "dailong",
+      "source_hash": "bb75861b734a3e74",
+      "state": "pressed"
+    },
+    "assets/ui/skins/dailong/hud/glyphs/minimap/water_idle.png": {
+      "catalog_hash": "4587bb7281fd5fcc",
+      "id": "glyph_minimap_water",
+      "png_hash": "03386eb1807542c2",
+      "png_size": [
+        64,
+        64
+      ],
+      "realm": "dailong",
+      "source_hash": "1dc320232f28f84b",
+      "state": "idle"
+    },
+    "assets/ui/skins/dailong/hud/glyphs/minimap/water_pressed.png": {
+      "catalog_hash": "5760e20f5c110355",
+      "id": "glyph_minimap_water",
+      "png_hash": "cd44e027bd336452",
+      "png_size": [
+        64,
+        64
+      ],
+      "realm": "dailong",
+      "source_hash": "cb9cefe5a4ebf088",
+      "state": "pressed"
+    },
+    "assets/ui/skins/dailong/hud/glyphs/minimap/world_idle.png": {
+      "catalog_hash": "4957538cee0a8bf1",
+      "id": "glyph_minimap_world",
+      "png_hash": "bb14d89fb4879feb",
+      "png_size": [
+        64,
+        64
+      ],
+      "realm": "dailong",
+      "source_hash": "59fa327e5b8541b7",
+      "state": "idle"
+    },
+    "assets/ui/skins/dailong/hud/glyphs/minimap/world_pressed.png": {
+      "catalog_hash": "d233c6768936cdab",
+      "id": "glyph_minimap_world",
+      "png_hash": "2132c2d96d5aacc7",
+      "png_size": [
+        64,
+        64
+      ],
+      "realm": "dailong",
+      "source_hash": "d71ff48dd6bf76d3",
+      "state": "pressed"
+    },
+    "assets/ui/skins/dailong/hud/glyphs/sector/beauty_idle.png": {
+      "catalog_hash": "19241ee06831c6ee",
+      "id": "glyph_sector_beauty",
+      "png_hash": "00a3b23ccee824ff",
+      "png_size": [
+        112,
+        117
+      ],
+      "realm": "dailong",
+      "source_hash": "0a5c528990d4a00b",
+      "state": "idle"
+    },
+    "assets/ui/skins/dailong/hud/glyphs/sector/beauty_pressed.png": {
+      "catalog_hash": "04a80e09bf9cafaf",
+      "id": "glyph_sector_beauty",
+      "png_hash": "1ace3b7dab665aba",
+      "png_size": [
+        112,
+        117
+      ],
+      "realm": "dailong",
+      "source_hash": "3c0e5e32c4fa4968",
+      "state": "pressed"
+    },
+    "assets/ui/skins/dailong/hud/glyphs/sector/clear_idle.png": {
+      "catalog_hash": "ae2bb7ee0ba4cf7a",
+      "id": "glyph_sector_clear",
+      "png_hash": "b20d46e24aca4fc3",
+      "png_size": [
+        112,
+        117
+      ],
+      "realm": "dailong",
+      "source_hash": "c2962c48c75867c6",
+      "state": "idle"
+    },
+    "assets/ui/skins/dailong/hud/glyphs/sector/clear_pressed.png": {
+      "catalog_hash": "21c2a81b00a3d873",
+      "id": "glyph_sector_clear",
+      "png_hash": "7241f578df660989",
+      "png_size": [
+        112,
+        117
+      ],
+      "realm": "dailong",
+      "source_hash": "d518c52ace2d4844",
+      "state": "pressed"
+    },
+    "assets/ui/skins/dailong/hud/glyphs/sector/culture_idle.png": {
+      "catalog_hash": "a55da9d672d9dbad",
+      "id": "glyph_sector_culture",
+      "png_hash": "234c43ac34250f5e",
+      "png_size": [
+        112,
+        117
+      ],
+      "realm": "dailong",
+      "source_hash": "0db5cc59fb5e523b",
+      "state": "idle"
+    },
+    "assets/ui/skins/dailong/hud/glyphs/sector/culture_pressed.png": {
+      "catalog_hash": "478b3cf49e672ef1",
+      "id": "glyph_sector_culture",
+      "png_hash": "f9936cdb1a5ed6aa",
+      "png_size": [
+        112,
+        117
+      ],
+      "realm": "dailong",
+      "source_hash": "b331389e8a1d9679",
+      "state": "pressed"
+    },
+    "assets/ui/skins/dailong/hud/glyphs/sector/food_idle.png": {
+      "catalog_hash": "1b7fa5803134bb82",
+      "id": "glyph_sector_food",
+      "png_hash": "4d1869d453c3b694",
+      "png_size": [
+        112,
+        117
+      ],
+      "realm": "dailong",
+      "source_hash": "6a6825317c112f85",
+      "state": "idle"
+    },
+    "assets/ui/skins/dailong/hud/glyphs/sector/food_pressed.png": {
+      "catalog_hash": "8026c104e7d9f65c",
+      "id": "glyph_sector_food",
+      "png_hash": "95e26b9a9b8d1cee",
+      "png_size": [
+        112,
+        117
+      ],
+      "realm": "dailong",
+      "source_hash": "26451f87bdb65d6e",
+      "state": "pressed"
+    },
+    "assets/ui/skins/dailong/hud/glyphs/sector/housing_idle.png": {
+      "catalog_hash": "ff10d49b3cecbf86",
+      "id": "glyph_sector_housing",
+      "png_hash": "27ef5b3474ce4b73",
+      "png_size": [
+        112,
+        117
+      ],
+      "realm": "dailong",
+      "source_hash": "8aea631459d117bd",
+      "state": "idle"
+    },
+    "assets/ui/skins/dailong/hud/glyphs/sector/housing_pressed.png": {
+      "catalog_hash": "a3844f743d1ab901",
+      "id": "glyph_sector_housing",
+      "png_hash": "261c3d6c2f030e49",
+      "png_size": [
+        112,
+        117
+      ],
+      "realm": "dailong",
+      "source_hash": "ff795de414a06116",
+      "state": "pressed"
+    },
+    "assets/ui/skins/dailong/hud/glyphs/sector/industry_idle.png": {
+      "catalog_hash": "0b685256cf503ec1",
+      "id": "glyph_sector_industry",
+      "png_hash": "557db2d8b6f81c9b",
+      "png_size": [
+        112,
+        117
+      ],
+      "realm": "dailong",
+      "source_hash": "67521ca25a1b22a4",
+      "state": "idle"
+    },
+    "assets/ui/skins/dailong/hud/glyphs/sector/industry_pressed.png": {
+      "catalog_hash": "c4077113167fe9dd",
+      "id": "glyph_sector_industry",
+      "png_hash": "019debc5fd2e9137",
+      "png_size": [
+        112,
+        117
+      ],
+      "realm": "dailong",
+      "source_hash": "a872b2ca6524a528",
+      "state": "pressed"
+    },
+    "assets/ui/skins/dailong/hud/glyphs/sector/infrastructure_idle.png": {
+      "catalog_hash": "62037bbb50794435",
+      "id": "glyph_sector_infrastructure",
+      "png_hash": "54ced8d154884036",
+      "png_size": [
+        112,
+        117
+      ],
+      "realm": "dailong",
+      "source_hash": "c8c1bdd9c9c8d5fe",
+      "state": "idle"
+    },
+    "assets/ui/skins/dailong/hud/glyphs/sector/infrastructure_pressed.png": {
+      "catalog_hash": "40da9e43c4743bcd",
+      "id": "glyph_sector_infrastructure",
+      "png_hash": "a1b601174529bd03",
+      "png_size": [
+        112,
+        117
+      ],
+      "realm": "dailong",
+      "source_hash": "6567c090ede62042",
+      "state": "pressed"
+    },
+    "assets/ui/skins/dailong/hud/glyphs/sector/redo_idle.png": {
+      "catalog_hash": "27a28a0e8c4efb4f",
+      "id": "glyph_sector_redo",
+      "png_hash": "211091ab5cb9be69",
+      "png_size": [
+        112,
+        117
+      ],
+      "realm": "dailong",
+      "source_hash": "b9884b10c4cdf4b1",
+      "state": "idle"
+    },
+    "assets/ui/skins/dailong/hud/glyphs/sector/redo_pressed.png": {
+      "catalog_hash": "443a571911d1f2bb",
+      "id": "glyph_sector_redo",
+      "png_hash": "360e6ac7a56c5cae",
+      "png_size": [
+        112,
+        117
+      ],
+      "realm": "dailong",
+      "source_hash": "aa100cc2f814ce28",
+      "state": "pressed"
+    },
+    "assets/ui/skins/dailong/hud/glyphs/sector/roads_idle.png": {
+      "catalog_hash": "1b5b433a7d461063",
+      "id": "glyph_sector_roads",
+      "png_hash": "50550dedb1af6c34",
+      "png_size": [
+        112,
+        117
+      ],
+      "realm": "dailong",
+      "source_hash": "21136c29eacd312b",
+      "state": "idle"
+    },
+    "assets/ui/skins/dailong/hud/glyphs/sector/roads_pressed.png": {
+      "catalog_hash": "d3cb62f33333bb11",
+      "id": "glyph_sector_roads",
+      "png_hash": "f234dd9c9ba9659b",
+      "png_size": [
+        112,
+        117
+      ],
+      "realm": "dailong",
+      "source_hash": "feb219e74309ee5f",
+      "state": "pressed"
+    },
+    "assets/ui/skins/dailong/hud/glyphs/sector/services_idle.png": {
+      "catalog_hash": "5dea3d34e39884a5",
+      "id": "glyph_sector_services",
+      "png_hash": "bbad95bfe3d51f43",
+      "png_size": [
+        112,
+        117
+      ],
+      "realm": "dailong",
+      "source_hash": "db71de1859289060",
+      "state": "idle"
+    },
+    "assets/ui/skins/dailong/hud/glyphs/sector/services_pressed.png": {
+      "catalog_hash": "8395d4bed0694e6c",
+      "id": "glyph_sector_services",
+      "png_hash": "154a8e8dc7881acf",
+      "png_size": [
+        112,
+        117
+      ],
+      "realm": "dailong",
+      "source_hash": "d109fb317567d6b9",
+      "state": "pressed"
+    },
+    "assets/ui/skins/dailong/hud/glyphs/sector/trade_idle.png": {
+      "catalog_hash": "25308888e7f8880d",
+      "id": "glyph_sector_trade",
+      "png_hash": "a84e5a9f49c11fbe",
+      "png_size": [
+        112,
+        117
+      ],
+      "realm": "dailong",
+      "source_hash": "c6c9f7c51bdb1567",
+      "state": "idle"
+    },
+    "assets/ui/skins/dailong/hud/glyphs/sector/trade_pressed.png": {
+      "catalog_hash": "91a5aac5633dab1b",
+      "id": "glyph_sector_trade",
+      "png_hash": "f1e91958467f270c",
+      "png_size": [
+        112,
+        117
+      ],
+      "realm": "dailong",
+      "source_hash": "4a46a8a173e12d54",
+      "state": "pressed"
+    },
+    "assets/ui/skins/dailong/hud/glyphs/sector/undo_idle.png": {
+      "catalog_hash": "f85a326aaad278f8",
+      "id": "glyph_sector_undo",
+      "png_hash": "72441bedf5be7a7a",
+      "png_size": [
+        112,
+        117
+      ],
+      "realm": "dailong",
+      "source_hash": "3909fadfdfeea52c",
+      "state": "idle"
+    },
+    "assets/ui/skins/dailong/hud/glyphs/sector/undo_pressed.png": {
+      "catalog_hash": "2094d21e01412542",
+      "id": "glyph_sector_undo",
+      "png_hash": "bd38fe6d1f468ccc",
+      "png_size": [
+        112,
+        117
+      ],
+      "realm": "dailong",
+      "source_hash": "07696f76a4c7664d",
+      "state": "pressed"
+    },
+    "assets/ui/skins/dailong/hud/icons/coin.png": {
+      "catalog_hash": "ecea6f8dbc26a6dc",
+      "id": "icon_coin",
+      "png_hash": "22aad1f8d7ec23cb",
+      "png_size": [
+        88,
+        88
+      ],
+      "realm": "dailong",
+      "source_hash": "feecd87386c865ca",
+      "state": null
+    },
+    "assets/ui/skins/dailong/hud/icons/food.png": {
+      "catalog_hash": "1c8478c687d346b0",
+      "id": "icon_food",
+      "png_hash": "3d0f265121b22440",
+      "png_size": [
+        88,
+        88
+      ],
+      "realm": "dailong",
+      "source_hash": "823df0095a253dbe",
+      "state": null
+    },
+    "assets/ui/skins/dailong/hud/icons/monument.png": {
+      "catalog_hash": "b7513ce99c95adec",
+      "id": "icon_monument",
+      "png_hash": "69f8e09e748a884f",
+      "png_size": [
+        88,
+        88
+      ],
+      "realm": "dailong",
+      "source_hash": "628cd26fdb6c0e61",
+      "state": null
+    },
+    "assets/ui/skins/dailong/hud/icons/population.png": {
+      "catalog_hash": "bb2e046a2d9dea31",
+      "id": "icon_population",
+      "png_hash": "71897c233d2443e3",
+      "png_size": [
+        88,
+        88
+      ],
+      "realm": "dailong",
+      "source_hash": "48ea4399f1bb9e00",
+      "state": null
+    },
+    "assets/ui/skins/dailong/hud/icons/request.png": {
+      "catalog_hash": "d1596a73da27fb22",
+      "id": "icon_request",
+      "png_hash": "b903b6c201bb3857",
+      "png_size": [
+        88,
+        88
+      ],
+      "realm": "dailong",
+      "source_hash": "780a2fe60e020a5c",
+      "state": null
+    },
+    "assets/ui/skins/dailong/hud/icons/trade.png": {
+      "catalog_hash": "c04f10de60134ebf",
+      "id": "icon_trade",
+      "png_hash": "9b1d5035a9b731d7",
+      "png_size": [
+        88,
+        88
+      ],
+      "realm": "dailong",
+      "source_hash": "776e3c235383041e",
+      "state": null
+    },
+    "assets/ui/skins/dailong/hud/icons/warn.png": {
+      "catalog_hash": "14c4d2532374e8db",
+      "id": "icon_warn",
+      "png_hash": "6ac16031650c8ad1",
+      "png_size": [
+        88,
+        88
+      ],
+      "realm": "dailong",
+      "source_hash": "10c1f2e55ce9a13d",
+      "state": null
+    },
+    "assets/ui/skins/dailong/hud/ornament_gap_narrow.png": {
+      "catalog_hash": "ed8a9c4293c65648",
+      "id": "ornament_gap_narrow",
+      "png_hash": "981deb011a847a6d",
+      "png_size": [
+        242,
+        81
+      ],
+      "realm": "dailong",
+      "source_hash": "62134299e798c9db",
+      "state": null
+    },
+    "assets/ui/skins/dailong/hud/ornament_gap_wide.png": {
+      "catalog_hash": "daf9e7d09ba532cd",
+      "id": "ornament_gap_wide",
+      "png_hash": "300a4e2eebcb7c36",
+      "png_size": [
+        374,
+        81
+      ],
+      "realm": "dailong",
+      "source_hash": "193288c3ea4bb23d",
+      "state": null
+    },
+    "assets/ui/skins/dailong/hud/panel_hud.png": {
+      "catalog_hash": "f6c63e9e913a4b96",
+      "id": "panel_hud",
+      "png_hash": "ae1cacdb4432b072",
+      "png_size": [
+        735,
+        552
+      ],
+      "realm": "dailong",
+      "source_hash": "4887560352fbb746",
+      "state": null
+    },
+    "assets/ui/skins/dailong/hud/panel_hud_bar.png": {
+      "catalog_hash": "019e2e2885574ffc",
+      "id": "panel_hud_bar",
+      "png_hash": "4781329ea7490b9b",
+      "png_size": [
+        864,
+        180
+      ],
+      "realm": "dailong",
+      "source_hash": "4785ae91895009b2",
+      "state": null
+    },
+    "assets/ui/skins/dailong/hud/panel_hud_large.png": {
+      "catalog_hash": "5133c7ad270497ad",
+      "id": "panel_hud_large",
+      "png_hash": "7965bfed7d03d12a",
+      "png_size": [
+        1081,
+        1024
+      ],
+      "realm": "dailong",
+      "source_hash": "95e09b492ac48038",
+      "state": null
+    },
+    "assets/ui/skins/dailong/hud/tile_large_disabled.png": {
+      "catalog_hash": "c73a25700e5f0b7b",
+      "id": "tile_large",
+      "png_hash": "e5c3157a32c1207c",
+      "png_size": [
+        220,
+        285
+      ],
+      "realm": "dailong",
+      "source_hash": "a78786739cd9d56a",
+      "state": "disabled"
+    },
+    "assets/ui/skins/dailong/hud/tile_large_hovered.png": {
+      "catalog_hash": "650d6c0a042ac7d0",
+      "id": "tile_large",
+      "png_hash": "039689934d1ad2ce",
+      "png_size": [
+        220,
+        285
+      ],
+      "realm": "dailong",
+      "source_hash": "99f612ca24224ddf",
+      "state": "hovered"
+    },
+    "assets/ui/skins/dailong/hud/tile_large_idle.png": {
+      "catalog_hash": "85cac014838d69e1",
+      "id": "tile_large",
+      "png_hash": "10a2e93b962c7743",
+      "png_size": [
+        220,
+        285
+      ],
+      "realm": "dailong",
+      "source_hash": "db083e7e58b18eee",
+      "state": "idle"
+    },
+    "assets/ui/skins/dailong/hud/tile_large_pressed.png": {
+      "catalog_hash": "23ac215997c1c1e0",
+      "id": "tile_large",
+      "png_hash": "0fa0a89def8c43e7",
+      "png_size": [
+        220,
+        285
+      ],
+      "realm": "dailong",
+      "source_hash": "c714039dbd01c7f7",
+      "state": "pressed"
+    },
+    "assets/ui/skins/dailong/hud/tile_sector_disabled.png": {
+      "catalog_hash": "dc1d1e62be3fc57d",
+      "id": "tile_sector",
+      "png_hash": "cc054492892177b3",
+      "png_size": [
+        152,
+        178
+      ],
+      "realm": "dailong",
+      "source_hash": "8811f213b3ba37dd",
+      "state": "disabled"
+    },
+    "assets/ui/skins/dailong/hud/tile_sector_hovered.png": {
+      "catalog_hash": "f3ef921ccccb29dd",
+      "id": "tile_sector",
+      "png_hash": "8f77b55638a9dfac",
+      "png_size": [
+        152,
+        178
+      ],
+      "realm": "dailong",
+      "source_hash": "209d2f7f01796586",
+      "state": "hovered"
+    },
+    "assets/ui/skins/dailong/hud/tile_sector_idle.png": {
+      "catalog_hash": "04a98a9b745a418e",
+      "id": "tile_sector",
+      "png_hash": "220c4c8a5aff35b1",
+      "png_size": [
+        152,
+        178
+      ],
+      "realm": "dailong",
+      "source_hash": "6f61e632c70d052e",
+      "state": "idle"
+    },
+    "assets/ui/skins/dailong/hud/tile_sector_pressed.png": {
+      "catalog_hash": "8c1dc3fb5cdcf8f3",
+      "id": "tile_sector",
+      "png_hash": "953593da0cff1009",
+      "png_size": [
+        152,
+        178
+      ],
+      "realm": "dailong",
+      "source_hash": "d957de27da9b9ac4",
+      "state": "pressed"
+    },
+    "assets/ui/skins/dailong/hud/tile_small_disabled.png": {
+      "catalog_hash": "6623857d33c25eb3",
+      "id": "tile_small",
+      "png_hash": "d15d8daa779a1b56",
+      "png_size": [
+        110,
+        110
+      ],
+      "realm": "dailong",
+      "source_hash": "b922f809e620e542",
+      "state": "disabled"
+    },
+    "assets/ui/skins/dailong/hud/tile_small_hovered.png": {
+      "catalog_hash": "3e5fe74927ba33b5",
+      "id": "tile_small",
+      "png_hash": "8d76e1dcd513299c",
+      "png_size": [
+        110,
+        110
+      ],
+      "realm": "dailong",
+      "source_hash": "7f92fcb00d4fd7af",
+      "state": "hovered"
+    },
+    "assets/ui/skins/dailong/hud/tile_small_idle.png": {
+      "catalog_hash": "f87aa2ad653179ea",
+      "id": "tile_small",
+      "png_hash": "cf75f57f614991b0",
+      "png_size": [
+        110,
+        110
+      ],
+      "realm": "dailong",
+      "source_hash": "dafd0f5d954ca837",
+      "state": "idle"
+    },
+    "assets/ui/skins/dailong/hud/tile_small_pressed.png": {
+      "catalog_hash": "4f538964cc274912",
+      "id": "tile_small",
+      "png_hash": "237a63312eaac152",
+      "png_size": [
+        110,
+        110
+      ],
+      "realm": "dailong",
+      "source_hash": "8ac63458e5e7e593",
+      "state": "pressed"
+    },
     "assets/ui/skins/dailong/icon_frame_disabled.png": {
       "catalog_hash": "c89ea6a8e92f26ed",
       "id": "icon_frame",
@@ -1151,6 +2999,1854 @@
       "realm": "kambara",
       "source_hash": "7bee1c5ba5e1d0aa",
       "state": null
+    },
+    "assets/ui/skins/kambara/hud/deco_crest.png": {
+      "catalog_hash": "e017c2ec10a101ad",
+      "id": "deco_crest",
+      "png_hash": "d1b282364d87779a",
+      "png_size": [
+        157,
+        178
+      ],
+      "realm": "kambara",
+      "source_hash": "b339b635b9209891",
+      "state": null
+    },
+    "assets/ui/skins/kambara/hud/deco_crest_large.png": {
+      "catalog_hash": "ac1cb0129073be24",
+      "id": "deco_crest_large",
+      "png_hash": "d60240882e8cd13c",
+      "png_size": [
+        242,
+        273
+      ],
+      "realm": "kambara",
+      "source_hash": "a74e5ebc2d216075",
+      "state": null
+    },
+    "assets/ui/skins/kambara/hud/glyphs/building/apothecary_idle.png": {
+      "catalog_hash": "bd3840f97cc1a70e",
+      "id": "glyph_building_apothecary",
+      "png_hash": "924acc2c03780550",
+      "png_size": [
+        172,
+        186
+      ],
+      "realm": "kambara",
+      "source_hash": "59171b23aca67292",
+      "state": "idle"
+    },
+    "assets/ui/skins/kambara/hud/glyphs/building/apothecary_pressed.png": {
+      "catalog_hash": "aaa98f2c335d8676",
+      "id": "glyph_building_apothecary",
+      "png_hash": "43157fbd15ad79b6",
+      "png_size": [
+        172,
+        186
+      ],
+      "realm": "kambara",
+      "source_hash": "c1e64e84b8955c2c",
+      "state": "pressed"
+    },
+    "assets/ui/skins/kambara/hud/glyphs/building/brick_maker_idle.png": {
+      "catalog_hash": "4bf25e4755e60b79",
+      "id": "glyph_building_brick_maker",
+      "png_hash": "a1b0dfb4ce2633a3",
+      "png_size": [
+        172,
+        186
+      ],
+      "realm": "kambara",
+      "source_hash": "65b7d76191bb6892",
+      "state": "idle"
+    },
+    "assets/ui/skins/kambara/hud/glyphs/building/brick_maker_pressed.png": {
+      "catalog_hash": "c47ba0786623dca3",
+      "id": "glyph_building_brick_maker",
+      "png_hash": "bfc19f1737b1db96",
+      "png_size": [
+        172,
+        186
+      ],
+      "realm": "kambara",
+      "source_hash": "f6f62ee3cd38f359",
+      "state": "pressed"
+    },
+    "assets/ui/skins/kambara/hud/glyphs/building/builders_guild_idle.png": {
+      "catalog_hash": "db03717d011fba5e",
+      "id": "glyph_building_builders_guild",
+      "png_hash": "e3e467e1bd79d1f3",
+      "png_size": [
+        172,
+        186
+      ],
+      "realm": "kambara",
+      "source_hash": "35dd417645dae762",
+      "state": "idle"
+    },
+    "assets/ui/skins/kambara/hud/glyphs/building/builders_guild_pressed.png": {
+      "catalog_hash": "ebfdcb54e7de9eef",
+      "id": "glyph_building_builders_guild",
+      "png_hash": "0313348fcc170c6a",
+      "png_size": [
+        172,
+        186
+      ],
+      "realm": "kambara",
+      "source_hash": "98121f1b11747f46",
+      "state": "pressed"
+    },
+    "assets/ui/skins/kambara/hud/glyphs/building/citadel_idle.png": {
+      "catalog_hash": "c24e03531056cc76",
+      "id": "glyph_building_citadel",
+      "png_hash": "e8b8b97386ead45f",
+      "png_size": [
+        172,
+        186
+      ],
+      "realm": "kambara",
+      "source_hash": "1b592b9c000ba21e",
+      "state": "idle"
+    },
+    "assets/ui/skins/kambara/hud/glyphs/building/citadel_pressed.png": {
+      "catalog_hash": "90b133b2dd0d205d",
+      "id": "glyph_building_citadel",
+      "png_hash": "574a5287e8c867d1",
+      "png_size": [
+        172,
+        186
+      ],
+      "realm": "kambara",
+      "source_hash": "a9d87529ab4ac439",
+      "state": "pressed"
+    },
+    "assets/ui/skins/kambara/hud/glyphs/building/clay_pit_idle.png": {
+      "catalog_hash": "07fead7d1bcff8a5",
+      "id": "glyph_building_clay_pit",
+      "png_hash": "e38125013a2b8a5b",
+      "png_size": [
+        172,
+        186
+      ],
+      "realm": "kambara",
+      "source_hash": "9efb94ad6d6302ce",
+      "state": "idle"
+    },
+    "assets/ui/skins/kambara/hud/glyphs/building/clay_pit_pressed.png": {
+      "catalog_hash": "670c94364de83ed6",
+      "id": "glyph_building_clay_pit",
+      "png_hash": "38e8585624ea979b",
+      "png_size": [
+        172,
+        186
+      ],
+      "realm": "kambara",
+      "source_hash": "24ab3d2ba19e0f9b",
+      "state": "pressed"
+    },
+    "assets/ui/skins/kambara/hud/glyphs/building/distillery_idle.png": {
+      "catalog_hash": "29b754b0799a333e",
+      "id": "glyph_building_distillery",
+      "png_hash": "ad08372b6c8abe55",
+      "png_size": [
+        172,
+        186
+      ],
+      "realm": "kambara",
+      "source_hash": "202cbbd7a728c6ec",
+      "state": "idle"
+    },
+    "assets/ui/skins/kambara/hud/glyphs/building/distillery_pressed.png": {
+      "catalog_hash": "b03ed9bb647bba80",
+      "id": "glyph_building_distillery",
+      "png_hash": "8b55207724bfd3ff",
+      "png_size": [
+        172,
+        186
+      ],
+      "realm": "kambara",
+      "source_hash": "aad2e459175c4263",
+      "state": "pressed"
+    },
+    "assets/ui/skins/kambara/hud/glyphs/building/fire_watch_idle.png": {
+      "catalog_hash": "914b401e160eb7c5",
+      "id": "glyph_building_fire_watch",
+      "png_hash": "4ee57000e8f0d601",
+      "png_size": [
+        172,
+        186
+      ],
+      "realm": "kambara",
+      "source_hash": "cef7daed133dcfb7",
+      "state": "idle"
+    },
+    "assets/ui/skins/kambara/hud/glyphs/building/fire_watch_pressed.png": {
+      "catalog_hash": "6d4d1551511322ee",
+      "id": "glyph_building_fire_watch",
+      "png_hash": "6d829bdcb978a7e1",
+      "png_size": [
+        172,
+        186
+      ],
+      "realm": "kambara",
+      "source_hash": "8f5fe84da8d1ab11",
+      "state": "pressed"
+    },
+    "assets/ui/skins/kambara/hud/glyphs/building/fishing_wharf_idle.png": {
+      "catalog_hash": "b8706f901894e22e",
+      "id": "glyph_building_fishing_wharf",
+      "png_hash": "bce138fb1fdf1e5c",
+      "png_size": [
+        172,
+        186
+      ],
+      "realm": "kambara",
+      "source_hash": "f5f6af762cfc3d59",
+      "state": "idle"
+    },
+    "assets/ui/skins/kambara/hud/glyphs/building/fishing_wharf_pressed.png": {
+      "catalog_hash": "2349372c2bcc019b",
+      "id": "glyph_building_fishing_wharf",
+      "png_hash": "1fc125594af6df63",
+      "png_size": [
+        172,
+        186
+      ],
+      "realm": "kambara",
+      "source_hash": "0f2eff386670d6b2",
+      "state": "pressed"
+    },
+    "assets/ui/skins/kambara/hud/glyphs/building/garden_idle.png": {
+      "catalog_hash": "08fee8cbff8cd4ba",
+      "id": "glyph_building_garden",
+      "png_hash": "7e87dbc55ffd4fad",
+      "png_size": [
+        172,
+        186
+      ],
+      "realm": "kambara",
+      "source_hash": "6834792538053d1b",
+      "state": "idle"
+    },
+    "assets/ui/skins/kambara/hud/glyphs/building/garden_pressed.png": {
+      "catalog_hash": "364befd237b720f2",
+      "id": "glyph_building_garden",
+      "png_hash": "c4f8914169e01f4c",
+      "png_size": [
+        172,
+        186
+      ],
+      "realm": "kambara",
+      "source_hash": "99fffa57a5ff8d92",
+      "state": "pressed"
+    },
+    "assets/ui/skins/kambara/hud/glyphs/building/governor_palace_idle.png": {
+      "catalog_hash": "628a102fd25c1a82",
+      "id": "glyph_building_governor_palace",
+      "png_hash": "6571afa0e6a8dff9",
+      "png_size": [
+        172,
+        186
+      ],
+      "realm": "kambara",
+      "source_hash": "ddc319693e29ec29",
+      "state": "idle"
+    },
+    "assets/ui/skins/kambara/hud/glyphs/building/governor_palace_pressed.png": {
+      "catalog_hash": "a85e3b6951035463",
+      "id": "glyph_building_governor_palace",
+      "png_hash": "a449785afd41ccb9",
+      "png_size": [
+        172,
+        186
+      ],
+      "realm": "kambara",
+      "source_hash": "9bf26356be61cbd0",
+      "state": "pressed"
+    },
+    "assets/ui/skins/kambara/hud/glyphs/building/granary_idle.png": {
+      "catalog_hash": "13d2b4c4e9deb041",
+      "id": "glyph_building_granary",
+      "png_hash": "a922e7c300984c37",
+      "png_size": [
+        172,
+        186
+      ],
+      "realm": "kambara",
+      "source_hash": "53cfe6c15377f3e6",
+      "state": "idle"
+    },
+    "assets/ui/skins/kambara/hud/glyphs/building/granary_pressed.png": {
+      "catalog_hash": "0cdc9227f3ca5069",
+      "id": "glyph_building_granary",
+      "png_hash": "db880f75b5c22d74",
+      "png_size": [
+        172,
+        186
+      ],
+      "realm": "kambara",
+      "source_hash": "58a00ae6a2ebdea1",
+      "state": "pressed"
+    },
+    "assets/ui/skins/kambara/hud/glyphs/building/hospital_idle.png": {
+      "catalog_hash": "eb062857b28f528b",
+      "id": "glyph_building_hospital",
+      "png_hash": "f1c3e10927bc2d00",
+      "png_size": [
+        172,
+        186
+      ],
+      "realm": "kambara",
+      "source_hash": "cffca2fd084aa8bd",
+      "state": "idle"
+    },
+    "assets/ui/skins/kambara/hud/glyphs/building/hospital_pressed.png": {
+      "catalog_hash": "58452dc514012d02",
+      "id": "glyph_building_hospital",
+      "png_hash": "4c6f5e4a489b43b7",
+      "png_size": [
+        172,
+        186
+      ],
+      "realm": "kambara",
+      "source_hash": "b095595dddb7cdc7",
+      "state": "pressed"
+    },
+    "assets/ui/skins/kambara/hud/glyphs/building/large_well_idle.png": {
+      "catalog_hash": "7b1d932463e12bb5",
+      "id": "glyph_building_large_well",
+      "png_hash": "20d76c09332ea65e",
+      "png_size": [
+        172,
+        186
+      ],
+      "realm": "kambara",
+      "source_hash": "dda41fe400d807b5",
+      "state": "idle"
+    },
+    "assets/ui/skins/kambara/hud/glyphs/building/large_well_pressed.png": {
+      "catalog_hash": "e54311baca68b7fc",
+      "id": "glyph_building_large_well",
+      "png_hash": "7a900c34bfe655ff",
+      "png_size": [
+        172,
+        186
+      ],
+      "realm": "kambara",
+      "source_hash": "6733cec34417aa99",
+      "state": "pressed"
+    },
+    "assets/ui/skins/kambara/hud/glyphs/building/livestock_farm_idle.png": {
+      "catalog_hash": "551b5435f6d30598",
+      "id": "glyph_building_livestock_farm",
+      "png_hash": "b7d709fa0c197eaa",
+      "png_size": [
+        172,
+        186
+      ],
+      "realm": "kambara",
+      "source_hash": "d349ba76cd1ed37c",
+      "state": "idle"
+    },
+    "assets/ui/skins/kambara/hud/glyphs/building/livestock_farm_pressed.png": {
+      "catalog_hash": "60e02dfa7e6987af",
+      "id": "glyph_building_livestock_farm",
+      "png_hash": "54baec17194329a3",
+      "png_size": [
+        172,
+        186
+      ],
+      "realm": "kambara",
+      "source_hash": "3eb5d441ce849df0",
+      "state": "pressed"
+    },
+    "assets/ui/skins/kambara/hud/glyphs/building/lumberyard_idle.png": {
+      "catalog_hash": "d384c3bef26e4801",
+      "id": "glyph_building_lumberyard",
+      "png_hash": "edafd28e5a4734c6",
+      "png_size": [
+        172,
+        186
+      ],
+      "realm": "kambara",
+      "source_hash": "bc044bdf16c4533d",
+      "state": "idle"
+    },
+    "assets/ui/skins/kambara/hud/glyphs/building/lumberyard_pressed.png": {
+      "catalog_hash": "b7d9f6e9c91ce71c",
+      "id": "glyph_building_lumberyard",
+      "png_hash": "b62694a9dba23913",
+      "png_size": [
+        172,
+        186
+      ],
+      "realm": "kambara",
+      "source_hash": "96c8986b2144d110",
+      "state": "pressed"
+    },
+    "assets/ui/skins/kambara/hud/glyphs/building/market_idle.png": {
+      "catalog_hash": "8b0dbf5140149b31",
+      "id": "glyph_building_market",
+      "png_hash": "b18a7a21fce03f81",
+      "png_size": [
+        172,
+        186
+      ],
+      "realm": "kambara",
+      "source_hash": "b1415bb755e7beec",
+      "state": "idle"
+    },
+    "assets/ui/skins/kambara/hud/glyphs/building/market_pressed.png": {
+      "catalog_hash": "bd7be4ceedf71248",
+      "id": "glyph_building_market",
+      "png_hash": "003dfa42b35b6eca",
+      "png_size": [
+        172,
+        186
+      ],
+      "realm": "kambara",
+      "source_hash": "72834c7e3edb93ff",
+      "state": "pressed"
+    },
+    "assets/ui/skins/kambara/hud/glyphs/building/mine_idle.png": {
+      "catalog_hash": "6b9b63458f5c6348",
+      "id": "glyph_building_mine",
+      "png_hash": "9cd0706ca7e70ee4",
+      "png_size": [
+        172,
+        186
+      ],
+      "realm": "kambara",
+      "source_hash": "cf0f5bf812248d9a",
+      "state": "idle"
+    },
+    "assets/ui/skins/kambara/hud/glyphs/building/mine_pressed.png": {
+      "catalog_hash": "b0e8fc0406635566",
+      "id": "glyph_building_mine",
+      "png_hash": "885240159d11278b",
+      "png_size": [
+        172,
+        186
+      ],
+      "realm": "kambara",
+      "source_hash": "2a44ac240e9ee774",
+      "state": "pressed"
+    },
+    "assets/ui/skins/kambara/hud/glyphs/building/police_station_idle.png": {
+      "catalog_hash": "5b7a0604dc128339",
+      "id": "glyph_building_police_station",
+      "png_hash": "5a2060d296159545",
+      "png_size": [
+        172,
+        186
+      ],
+      "realm": "kambara",
+      "source_hash": "0ad8646483e38ba9",
+      "state": "idle"
+    },
+    "assets/ui/skins/kambara/hud/glyphs/building/police_station_pressed.png": {
+      "catalog_hash": "3b781836dbdd45db",
+      "id": "glyph_building_police_station",
+      "png_hash": "baa03de54ca8b1dc",
+      "png_size": [
+        172,
+        186
+      ],
+      "realm": "kambara",
+      "source_hash": "6d04235f8852b400",
+      "state": "pressed"
+    },
+    "assets/ui/skins/kambara/hud/glyphs/building/pottery_kiln_idle.png": {
+      "catalog_hash": "9716923354f1184d",
+      "id": "glyph_building_pottery_kiln",
+      "png_hash": "cd1940c275237e0b",
+      "png_size": [
+        172,
+        186
+      ],
+      "realm": "kambara",
+      "source_hash": "92fb796105288ccc",
+      "state": "idle"
+    },
+    "assets/ui/skins/kambara/hud/glyphs/building/pottery_kiln_pressed.png": {
+      "catalog_hash": "8ed60a2a36e58f71",
+      "id": "glyph_building_pottery_kiln",
+      "png_hash": "1d54324926e42406",
+      "png_size": [
+        172,
+        186
+      ],
+      "realm": "kambara",
+      "source_hash": "ea9f19b2484672cf",
+      "state": "pressed"
+    },
+    "assets/ui/skins/kambara/hud/glyphs/building/rice_farm_idle.png": {
+      "catalog_hash": "363fec0ec68fd40b",
+      "id": "glyph_building_rice_farm",
+      "png_hash": "02d2d79a1c7a205c",
+      "png_size": [
+        172,
+        186
+      ],
+      "realm": "kambara",
+      "source_hash": "32055032e5e79160",
+      "state": "idle"
+    },
+    "assets/ui/skins/kambara/hud/glyphs/building/rice_farm_pressed.png": {
+      "catalog_hash": "c43d546974da218a",
+      "id": "glyph_building_rice_farm",
+      "png_hash": "46dd869790a731c3",
+      "png_size": [
+        172,
+        186
+      ],
+      "realm": "kambara",
+      "source_hash": "d39562f301b5511d",
+      "state": "pressed"
+    },
+    "assets/ui/skins/kambara/hud/glyphs/building/road_idle.png": {
+      "catalog_hash": "4f6bccb32853ccdc",
+      "id": "glyph_building_road",
+      "png_hash": "32bb8f34718a61e5",
+      "png_size": [
+        172,
+        186
+      ],
+      "realm": "kambara",
+      "source_hash": "37fe6bdd8e1eec07",
+      "state": "idle"
+    },
+    "assets/ui/skins/kambara/hud/glyphs/building/road_pressed.png": {
+      "catalog_hash": "8e4c72e3fdfb1244",
+      "id": "glyph_building_road",
+      "png_hash": "4cdf770e13f9aea0",
+      "png_size": [
+        172,
+        186
+      ],
+      "realm": "kambara",
+      "source_hash": "0c2d28d357126dbf",
+      "state": "pressed"
+    },
+    "assets/ui/skins/kambara/hud/glyphs/building/roof_tile_kiln_idle.png": {
+      "catalog_hash": "6903c366e9e0d72b",
+      "id": "glyph_building_roof_tile_kiln",
+      "png_hash": "bf3e30100c5ede31",
+      "png_size": [
+        172,
+        186
+      ],
+      "realm": "kambara",
+      "source_hash": "f1bfa93f65d5c596",
+      "state": "idle"
+    },
+    "assets/ui/skins/kambara/hud/glyphs/building/roof_tile_kiln_pressed.png": {
+      "catalog_hash": "b50c4fac880c6947",
+      "id": "glyph_building_roof_tile_kiln",
+      "png_hash": "d8ee7599e9be3ac1",
+      "png_size": [
+        172,
+        186
+      ],
+      "realm": "kambara",
+      "source_hash": "bab01514459fc106",
+      "state": "pressed"
+    },
+    "assets/ui/skins/kambara/hud/glyphs/building/shrine_idle.png": {
+      "catalog_hash": "6ebe441cc0dd64b1",
+      "id": "glyph_building_shrine",
+      "png_hash": "c202039e8d11b0d1",
+      "png_size": [
+        172,
+        186
+      ],
+      "realm": "kambara",
+      "source_hash": "47b246c66e3ae64f",
+      "state": "idle"
+    },
+    "assets/ui/skins/kambara/hud/glyphs/building/shrine_pressed.png": {
+      "catalog_hash": "540e32176a72016d",
+      "id": "glyph_building_shrine",
+      "png_hash": "d21c29c7dabe265b",
+      "png_size": [
+        172,
+        186
+      ],
+      "realm": "kambara",
+      "source_hash": "fea9f4e3d8ce6c04",
+      "state": "pressed"
+    },
+    "assets/ui/skins/kambara/hud/glyphs/building/small_well_idle.png": {
+      "catalog_hash": "35e2ca63d7bd63e9",
+      "id": "glyph_building_small_well",
+      "png_hash": "640a28869e833275",
+      "png_size": [
+        172,
+        186
+      ],
+      "realm": "kambara",
+      "source_hash": "2e41050624d43686",
+      "state": "idle"
+    },
+    "assets/ui/skins/kambara/hud/glyphs/building/small_well_pressed.png": {
+      "catalog_hash": "45f3922afd9e3689",
+      "id": "glyph_building_small_well",
+      "png_hash": "9bcc50a62fd48850",
+      "png_size": [
+        172,
+        186
+      ],
+      "realm": "kambara",
+      "source_hash": "e678617fab404098",
+      "state": "pressed"
+    },
+    "assets/ui/skins/kambara/hud/glyphs/building/storage_yard_idle.png": {
+      "catalog_hash": "07303ac3d1416ad6",
+      "id": "glyph_building_storage_yard",
+      "png_hash": "712b6344d5b0ca4b",
+      "png_size": [
+        172,
+        186
+      ],
+      "realm": "kambara",
+      "source_hash": "de859a12f75fad04",
+      "state": "idle"
+    },
+    "assets/ui/skins/kambara/hud/glyphs/building/storage_yard_pressed.png": {
+      "catalog_hash": "b03a046c58617ccb",
+      "id": "glyph_building_storage_yard",
+      "png_hash": "f18bb984b61d4d71",
+      "png_size": [
+        172,
+        186
+      ],
+      "realm": "kambara",
+      "source_hash": "ff6c297424979647",
+      "state": "pressed"
+    },
+    "assets/ui/skins/kambara/hud/glyphs/building/tax_office_idle.png": {
+      "catalog_hash": "e909c517fea0681a",
+      "id": "glyph_building_tax_office",
+      "png_hash": "322f137284155ce7",
+      "png_size": [
+        172,
+        186
+      ],
+      "realm": "kambara",
+      "source_hash": "56c4b7939f07e5a6",
+      "state": "idle"
+    },
+    "assets/ui/skins/kambara/hud/glyphs/building/tax_office_pressed.png": {
+      "catalog_hash": "22c7b15e085a99a9",
+      "id": "glyph_building_tax_office",
+      "png_hash": "bf5d5aeb7d01f205",
+      "png_size": [
+        172,
+        186
+      ],
+      "realm": "kambara",
+      "source_hash": "32e5200ba9ddf3ad",
+      "state": "pressed"
+    },
+    "assets/ui/skins/kambara/hud/glyphs/building/temple_idle.png": {
+      "catalog_hash": "894f987772e53d8f",
+      "id": "glyph_building_temple",
+      "png_hash": "da35a881302436a0",
+      "png_size": [
+        172,
+        186
+      ],
+      "realm": "kambara",
+      "source_hash": "04466f97bbcd3b81",
+      "state": "idle"
+    },
+    "assets/ui/skins/kambara/hud/glyphs/building/temple_pressed.png": {
+      "catalog_hash": "cafa0be1da66ed3c",
+      "id": "glyph_building_temple",
+      "png_hash": "281a12ee1181846e",
+      "png_size": [
+        172,
+        186
+      ],
+      "realm": "kambara",
+      "source_hash": "9f28d09f09be033a",
+      "state": "pressed"
+    },
+    "assets/ui/skins/kambara/hud/glyphs/building/theater_idle.png": {
+      "catalog_hash": "3358b48ee21ea07c",
+      "id": "glyph_building_theater",
+      "png_hash": "32bd170bc5909900",
+      "png_size": [
+        172,
+        186
+      ],
+      "realm": "kambara",
+      "source_hash": "ca04ea51c1856a4f",
+      "state": "idle"
+    },
+    "assets/ui/skins/kambara/hud/glyphs/building/theater_pressed.png": {
+      "catalog_hash": "1e6a80d16095d39b",
+      "id": "glyph_building_theater",
+      "png_hash": "e4d97d3bb1bfc5f0",
+      "png_size": [
+        172,
+        186
+      ],
+      "realm": "kambara",
+      "source_hash": "9620a1c3a5a2cc95",
+      "state": "pressed"
+    },
+    "assets/ui/skins/kambara/hud/glyphs/building/university_idle.png": {
+      "catalog_hash": "ef9c26b6db717861",
+      "id": "glyph_building_university",
+      "png_hash": "e1297b8d6f2adf99",
+      "png_size": [
+        172,
+        186
+      ],
+      "realm": "kambara",
+      "source_hash": "6b7d960bbbe2f569",
+      "state": "idle"
+    },
+    "assets/ui/skins/kambara/hud/glyphs/building/university_pressed.png": {
+      "catalog_hash": "b9e33d3437b4a1ef",
+      "id": "glyph_building_university",
+      "png_hash": "3c35227efa789472",
+      "png_size": [
+        172,
+        186
+      ],
+      "realm": "kambara",
+      "source_hash": "df1707a50859a9fe",
+      "state": "pressed"
+    },
+    "assets/ui/skins/kambara/hud/glyphs/building/vacant_lot_idle.png": {
+      "catalog_hash": "ed8b72ddff1475c5",
+      "id": "glyph_building_vacant_lot",
+      "png_hash": "ef96d638321f3507",
+      "png_size": [
+        172,
+        186
+      ],
+      "realm": "kambara",
+      "source_hash": "622cd3f94d5a0085",
+      "state": "idle"
+    },
+    "assets/ui/skins/kambara/hud/glyphs/building/vacant_lot_pressed.png": {
+      "catalog_hash": "ee600576c284ec00",
+      "id": "glyph_building_vacant_lot",
+      "png_hash": "7a27cec7ff958918",
+      "png_size": [
+        172,
+        186
+      ],
+      "realm": "kambara",
+      "source_hash": "8879e0ed3e826993",
+      "state": "pressed"
+    },
+    "assets/ui/skins/kambara/hud/glyphs/hud/book_idle.png": {
+      "catalog_hash": "3ee4a093b91ef97e",
+      "id": "glyph_hud_book",
+      "png_hash": "78d052e57d6cacb3",
+      "png_size": [
+        76,
+        76
+      ],
+      "realm": "kambara",
+      "source_hash": "a62f91d0c6cccaa0",
+      "state": "idle"
+    },
+    "assets/ui/skins/kambara/hud/glyphs/hud/book_pressed.png": {
+      "catalog_hash": "4bf3d21fc943c422",
+      "id": "glyph_hud_book",
+      "png_hash": "26b2cdf75c9faa11",
+      "png_size": [
+        76,
+        76
+      ],
+      "realm": "kambara",
+      "source_hash": "8bc5c815eee42dbf",
+      "state": "pressed"
+    },
+    "assets/ui/skins/kambara/hud/glyphs/hud/briefing_idle.png": {
+      "catalog_hash": "2a7eb1b4d793957d",
+      "id": "glyph_hud_briefing",
+      "png_hash": "3fea8a91cdb0af1c",
+      "png_size": [
+        76,
+        76
+      ],
+      "realm": "kambara",
+      "source_hash": "4cf086356b0bf1d3",
+      "state": "idle"
+    },
+    "assets/ui/skins/kambara/hud/glyphs/hud/briefing_pressed.png": {
+      "catalog_hash": "cad2f68f5263e0e3",
+      "id": "glyph_hud_briefing",
+      "png_hash": "39d889a22e99cbac",
+      "png_size": [
+        76,
+        76
+      ],
+      "realm": "kambara",
+      "source_hash": "6d90ba91187cc95f",
+      "state": "pressed"
+    },
+    "assets/ui/skins/kambara/hud/glyphs/hud/close_idle.png": {
+      "catalog_hash": "009ffe7a75bd5830",
+      "id": "glyph_hud_close",
+      "png_hash": "78cc3331fa771cf0",
+      "png_size": [
+        76,
+        76
+      ],
+      "realm": "kambara",
+      "source_hash": "8e66524b85520b1f",
+      "state": "idle"
+    },
+    "assets/ui/skins/kambara/hud/glyphs/hud/close_pressed.png": {
+      "catalog_hash": "04f57294e3852419",
+      "id": "glyph_hud_close",
+      "png_hash": "d8fa89309d124df1",
+      "png_size": [
+        76,
+        76
+      ],
+      "realm": "kambara",
+      "source_hash": "19717b7721821e2d",
+      "state": "pressed"
+    },
+    "assets/ui/skins/kambara/hud/glyphs/hud/fast_idle.png": {
+      "catalog_hash": "5b3dc16e879fe82e",
+      "id": "glyph_hud_fast",
+      "png_hash": "502b246259ff80bc",
+      "png_size": [
+        76,
+        76
+      ],
+      "realm": "kambara",
+      "source_hash": "37b74c7dfa99b423",
+      "state": "idle"
+    },
+    "assets/ui/skins/kambara/hud/glyphs/hud/fast_pressed.png": {
+      "catalog_hash": "6af2674ced14fbbb",
+      "id": "glyph_hud_fast",
+      "png_hash": "dd3e46ae10e831ab",
+      "png_size": [
+        76,
+        76
+      ],
+      "realm": "kambara",
+      "source_hash": "db325a06ad0ef77f",
+      "state": "pressed"
+    },
+    "assets/ui/skins/kambara/hud/glyphs/hud/faster_idle.png": {
+      "catalog_hash": "922ab0b72e55b322",
+      "id": "glyph_hud_faster",
+      "png_hash": "842d538592130734",
+      "png_size": [
+        76,
+        76
+      ],
+      "realm": "kambara",
+      "source_hash": "c1d649f5f93f8469",
+      "state": "idle"
+    },
+    "assets/ui/skins/kambara/hud/glyphs/hud/faster_pressed.png": {
+      "catalog_hash": "2bc36424109fcfb7",
+      "id": "glyph_hud_faster",
+      "png_hash": "5239e2613ccdac5b",
+      "png_size": [
+        76,
+        76
+      ],
+      "realm": "kambara",
+      "source_hash": "01c10ffc1c7a3098",
+      "state": "pressed"
+    },
+    "assets/ui/skins/kambara/hud/glyphs/hud/gear_idle.png": {
+      "catalog_hash": "325c77a8598d6e64",
+      "id": "glyph_hud_gear",
+      "png_hash": "555371c19b3fe497",
+      "png_size": [
+        76,
+        76
+      ],
+      "realm": "kambara",
+      "source_hash": "4355ab43181cca3d",
+      "state": "idle"
+    },
+    "assets/ui/skins/kambara/hud/glyphs/hud/gear_pressed.png": {
+      "catalog_hash": "9342176a2a1033bd",
+      "id": "glyph_hud_gear",
+      "png_hash": "d99bbe804db793c5",
+      "png_size": [
+        76,
+        76
+      ],
+      "realm": "kambara",
+      "source_hash": "482920e4122f8b39",
+      "state": "pressed"
+    },
+    "assets/ui/skins/kambara/hud/glyphs/hud/goals_idle.png": {
+      "catalog_hash": "1817111836e25d3c",
+      "id": "glyph_hud_goals",
+      "png_hash": "def2937ba4b35e37",
+      "png_size": [
+        76,
+        76
+      ],
+      "realm": "kambara",
+      "source_hash": "07cea9146a93c6fe",
+      "state": "idle"
+    },
+    "assets/ui/skins/kambara/hud/glyphs/hud/goals_pressed.png": {
+      "catalog_hash": "4aae23f034c8013d",
+      "id": "glyph_hud_goals",
+      "png_hash": "fde341bb221b8591",
+      "png_size": [
+        76,
+        76
+      ],
+      "realm": "kambara",
+      "source_hash": "eb828b61da573fde",
+      "state": "pressed"
+    },
+    "assets/ui/skins/kambara/hud/glyphs/hud/menu_idle.png": {
+      "catalog_hash": "8bd7cf5dea17789d",
+      "id": "glyph_hud_menu",
+      "png_hash": "6429d30d593f2ab2",
+      "png_size": [
+        76,
+        76
+      ],
+      "realm": "kambara",
+      "source_hash": "3547735d10c57c9f",
+      "state": "idle"
+    },
+    "assets/ui/skins/kambara/hud/glyphs/hud/menu_pressed.png": {
+      "catalog_hash": "f2eb600436dec468",
+      "id": "glyph_hud_menu",
+      "png_hash": "5d3c51cfe80f0a49",
+      "png_size": [
+        76,
+        76
+      ],
+      "realm": "kambara",
+      "source_hash": "9544357fb33560bb",
+      "state": "pressed"
+    },
+    "assets/ui/skins/kambara/hud/glyphs/hud/pause_idle.png": {
+      "catalog_hash": "1c2a8c76e98c061a",
+      "id": "glyph_hud_pause",
+      "png_hash": "81a38b402790582d",
+      "png_size": [
+        76,
+        76
+      ],
+      "realm": "kambara",
+      "source_hash": "375f4c98a69f4959",
+      "state": "idle"
+    },
+    "assets/ui/skins/kambara/hud/glyphs/hud/pause_pressed.png": {
+      "catalog_hash": "151fd2c70e7eb455",
+      "id": "glyph_hud_pause",
+      "png_hash": "e213aa3104cf5e2f",
+      "png_size": [
+        76,
+        76
+      ],
+      "realm": "kambara",
+      "source_hash": "f0ab60007da15b24",
+      "state": "pressed"
+    },
+    "assets/ui/skins/kambara/hud/glyphs/hud/play_idle.png": {
+      "catalog_hash": "c6dc54c721504b2a",
+      "id": "glyph_hud_play",
+      "png_hash": "d1605a0241beeca5",
+      "png_size": [
+        76,
+        76
+      ],
+      "realm": "kambara",
+      "source_hash": "0a159faa53995680",
+      "state": "idle"
+    },
+    "assets/ui/skins/kambara/hud/glyphs/hud/play_pressed.png": {
+      "catalog_hash": "e4ed88166c4b4fce",
+      "id": "glyph_hud_play",
+      "png_hash": "f7886b87756ea534",
+      "png_size": [
+        76,
+        76
+      ],
+      "realm": "kambara",
+      "source_hash": "88d9649ce429c717",
+      "state": "pressed"
+    },
+    "assets/ui/skins/kambara/hud/glyphs/hud/save_idle.png": {
+      "catalog_hash": "b3396fffff989203",
+      "id": "glyph_hud_save",
+      "png_hash": "bac2590ba25f9846",
+      "png_size": [
+        76,
+        76
+      ],
+      "realm": "kambara",
+      "source_hash": "310c7e7b9d8653d8",
+      "state": "idle"
+    },
+    "assets/ui/skins/kambara/hud/glyphs/hud/save_pressed.png": {
+      "catalog_hash": "e98c5231f68aa872",
+      "id": "glyph_hud_save",
+      "png_hash": "024962f2225d3b3d",
+      "png_size": [
+        76,
+        76
+      ],
+      "realm": "kambara",
+      "source_hash": "82eacace4f0fd8f6",
+      "state": "pressed"
+    },
+    "assets/ui/skins/kambara/hud/glyphs/minimap/alert_idle.png": {
+      "catalog_hash": "28bb461b1c4818da",
+      "id": "glyph_minimap_alert",
+      "png_hash": "a75710a05d7c6280",
+      "png_size": [
+        64,
+        64
+      ],
+      "realm": "kambara",
+      "source_hash": "313f4feefac84be4",
+      "state": "idle"
+    },
+    "assets/ui/skins/kambara/hud/glyphs/minimap/alert_pressed.png": {
+      "catalog_hash": "758fdbb94f9ad989",
+      "id": "glyph_minimap_alert",
+      "png_hash": "4a1c469c1d921dc4",
+      "png_size": [
+        64,
+        64
+      ],
+      "realm": "kambara",
+      "source_hash": "a4de0bea84410c4d",
+      "state": "pressed"
+    },
+    "assets/ui/skins/kambara/hud/glyphs/minimap/city_idle.png": {
+      "catalog_hash": "59e13067d3c2dd76",
+      "id": "glyph_minimap_city",
+      "png_hash": "b3970705580759d6",
+      "png_size": [
+        64,
+        64
+      ],
+      "realm": "kambara",
+      "source_hash": "7f0962f109363233",
+      "state": "idle"
+    },
+    "assets/ui/skins/kambara/hud/glyphs/minimap/city_pressed.png": {
+      "catalog_hash": "acc38eaffa844b44",
+      "id": "glyph_minimap_city",
+      "png_hash": "f07c312400ace996",
+      "png_size": [
+        64,
+        64
+      ],
+      "realm": "kambara",
+      "source_hash": "f401eb1ec0e3b1ea",
+      "state": "pressed"
+    },
+    "assets/ui/skins/kambara/hud/glyphs/minimap/collapse_idle.png": {
+      "catalog_hash": "6b0c75170ef1047e",
+      "id": "glyph_minimap_collapse",
+      "png_hash": "e09ca9598718d0ea",
+      "png_size": [
+        64,
+        64
+      ],
+      "realm": "kambara",
+      "source_hash": "1582c3a4e2c1775d",
+      "state": "idle"
+    },
+    "assets/ui/skins/kambara/hud/glyphs/minimap/collapse_pressed.png": {
+      "catalog_hash": "5102ba2a696c43d5",
+      "id": "glyph_minimap_collapse",
+      "png_hash": "74d0c06402438315",
+      "png_size": [
+        64,
+        64
+      ],
+      "realm": "kambara",
+      "source_hash": "636f4852f7656983",
+      "state": "pressed"
+    },
+    "assets/ui/skins/kambara/hud/glyphs/minimap/fire_idle.png": {
+      "catalog_hash": "7e6f1463f7ebca6a",
+      "id": "glyph_minimap_fire",
+      "png_hash": "0e25eb1fbc0f5aec",
+      "png_size": [
+        64,
+        64
+      ],
+      "realm": "kambara",
+      "source_hash": "33cf45eb56c6f40f",
+      "state": "idle"
+    },
+    "assets/ui/skins/kambara/hud/glyphs/minimap/fire_pressed.png": {
+      "catalog_hash": "a92cb1c40640060b",
+      "id": "glyph_minimap_fire",
+      "png_hash": "91b9354d63b522c4",
+      "png_size": [
+        64,
+        64
+      ],
+      "realm": "kambara",
+      "source_hash": "775ea626eae876c0",
+      "state": "pressed"
+    },
+    "assets/ui/skins/kambara/hud/glyphs/minimap/home_idle.png": {
+      "catalog_hash": "9910f495a3898212",
+      "id": "glyph_minimap_home",
+      "png_hash": "85bcf799db923203",
+      "png_size": [
+        64,
+        64
+      ],
+      "realm": "kambara",
+      "source_hash": "398579677c309151",
+      "state": "idle"
+    },
+    "assets/ui/skins/kambara/hud/glyphs/minimap/home_pressed.png": {
+      "catalog_hash": "27644069d9274399",
+      "id": "glyph_minimap_home",
+      "png_hash": "920254f8d19b0f72",
+      "png_size": [
+        64,
+        64
+      ],
+      "realm": "kambara",
+      "source_hash": "32da7a5e669d768d",
+      "state": "pressed"
+    },
+    "assets/ui/skins/kambara/hud/glyphs/minimap/minus_idle.png": {
+      "catalog_hash": "7e7a05134fbd553b",
+      "id": "glyph_minimap_minus",
+      "png_hash": "8e702334c2bde273",
+      "png_size": [
+        64,
+        64
+      ],
+      "realm": "kambara",
+      "source_hash": "6d120cba1f127e7f",
+      "state": "idle"
+    },
+    "assets/ui/skins/kambara/hud/glyphs/minimap/minus_pressed.png": {
+      "catalog_hash": "ffbe6b11b8abfd2a",
+      "id": "glyph_minimap_minus",
+      "png_hash": "9996d265db834c2c",
+      "png_size": [
+        64,
+        64
+      ],
+      "realm": "kambara",
+      "source_hash": "7df81f34df03a173",
+      "state": "pressed"
+    },
+    "assets/ui/skins/kambara/hud/glyphs/minimap/pin_idle.png": {
+      "catalog_hash": "5e5bee1aad30b3a2",
+      "id": "glyph_minimap_pin",
+      "png_hash": "95d51b40611f0811",
+      "png_size": [
+        64,
+        64
+      ],
+      "realm": "kambara",
+      "source_hash": "6ff72aba1b403fc5",
+      "state": "idle"
+    },
+    "assets/ui/skins/kambara/hud/glyphs/minimap/pin_pressed.png": {
+      "catalog_hash": "ab97daa195a76fc8",
+      "id": "glyph_minimap_pin",
+      "png_hash": "eecb31e421b34b15",
+      "png_size": [
+        64,
+        64
+      ],
+      "realm": "kambara",
+      "source_hash": "a14414d90ba624c6",
+      "state": "pressed"
+    },
+    "assets/ui/skins/kambara/hud/glyphs/minimap/plus_idle.png": {
+      "catalog_hash": "96a7cd21ae6727a1",
+      "id": "glyph_minimap_plus",
+      "png_hash": "8dec8f17cc551567",
+      "png_size": [
+        64,
+        64
+      ],
+      "realm": "kambara",
+      "source_hash": "e69a557c01a15554",
+      "state": "idle"
+    },
+    "assets/ui/skins/kambara/hud/glyphs/minimap/plus_pressed.png": {
+      "catalog_hash": "1e07e96fe88131e0",
+      "id": "glyph_minimap_plus",
+      "png_hash": "882d6d2f1266c047",
+      "png_size": [
+        64,
+        64
+      ],
+      "realm": "kambara",
+      "source_hash": "56dd12499060f3f8",
+      "state": "pressed"
+    },
+    "assets/ui/skins/kambara/hud/glyphs/minimap/sectors_idle.png": {
+      "catalog_hash": "26404e1a5cd35dad",
+      "id": "glyph_minimap_sectors",
+      "png_hash": "113fcf6c3cf0c004",
+      "png_size": [
+        64,
+        64
+      ],
+      "realm": "kambara",
+      "source_hash": "7d7739fe6a66b8b1",
+      "state": "idle"
+    },
+    "assets/ui/skins/kambara/hud/glyphs/minimap/sectors_pressed.png": {
+      "catalog_hash": "5394442a481dc108",
+      "id": "glyph_minimap_sectors",
+      "png_hash": "78a1328b7ebd4ed9",
+      "png_size": [
+        64,
+        64
+      ],
+      "realm": "kambara",
+      "source_hash": "4299ba0e0f950e77",
+      "state": "pressed"
+    },
+    "assets/ui/skins/kambara/hud/glyphs/minimap/water_idle.png": {
+      "catalog_hash": "519cafae633ca4c6",
+      "id": "glyph_minimap_water",
+      "png_hash": "dc2adb21b7df8595",
+      "png_size": [
+        64,
+        64
+      ],
+      "realm": "kambara",
+      "source_hash": "4ec68fce49cf9ca9",
+      "state": "idle"
+    },
+    "assets/ui/skins/kambara/hud/glyphs/minimap/water_pressed.png": {
+      "catalog_hash": "5cba81a973055beb",
+      "id": "glyph_minimap_water",
+      "png_hash": "565b9ad0e1ca1ca0",
+      "png_size": [
+        64,
+        64
+      ],
+      "realm": "kambara",
+      "source_hash": "6ebf45bfa8283a73",
+      "state": "pressed"
+    },
+    "assets/ui/skins/kambara/hud/glyphs/minimap/world_idle.png": {
+      "catalog_hash": "05b8a36b364d9a07",
+      "id": "glyph_minimap_world",
+      "png_hash": "22ef803737663e06",
+      "png_size": [
+        64,
+        64
+      ],
+      "realm": "kambara",
+      "source_hash": "b3b1a9dd7cedfd7d",
+      "state": "idle"
+    },
+    "assets/ui/skins/kambara/hud/glyphs/minimap/world_pressed.png": {
+      "catalog_hash": "1f679327928b9f7e",
+      "id": "glyph_minimap_world",
+      "png_hash": "d4ea986cd1cdd1e2",
+      "png_size": [
+        64,
+        64
+      ],
+      "realm": "kambara",
+      "source_hash": "7400f22d6064fe9d",
+      "state": "pressed"
+    },
+    "assets/ui/skins/kambara/hud/glyphs/sector/beauty_idle.png": {
+      "catalog_hash": "df4db179325217b7",
+      "id": "glyph_sector_beauty",
+      "png_hash": "2d090e7e5300c181",
+      "png_size": [
+        112,
+        121
+      ],
+      "realm": "kambara",
+      "source_hash": "1a4baa8a792a9502",
+      "state": "idle"
+    },
+    "assets/ui/skins/kambara/hud/glyphs/sector/beauty_pressed.png": {
+      "catalog_hash": "770621c74d1a8b59",
+      "id": "glyph_sector_beauty",
+      "png_hash": "3db12422f9fce7c1",
+      "png_size": [
+        112,
+        121
+      ],
+      "realm": "kambara",
+      "source_hash": "f860da64555d7124",
+      "state": "pressed"
+    },
+    "assets/ui/skins/kambara/hud/glyphs/sector/clear_idle.png": {
+      "catalog_hash": "c9896dadef5d801e",
+      "id": "glyph_sector_clear",
+      "png_hash": "07157b42b43169cb",
+      "png_size": [
+        112,
+        121
+      ],
+      "realm": "kambara",
+      "source_hash": "11aaabb3f1131b32",
+      "state": "idle"
+    },
+    "assets/ui/skins/kambara/hud/glyphs/sector/clear_pressed.png": {
+      "catalog_hash": "d4fffb4f9125b090",
+      "id": "glyph_sector_clear",
+      "png_hash": "efa3cbbd7afdeae1",
+      "png_size": [
+        112,
+        121
+      ],
+      "realm": "kambara",
+      "source_hash": "23aa744a064991eb",
+      "state": "pressed"
+    },
+    "assets/ui/skins/kambara/hud/glyphs/sector/culture_idle.png": {
+      "catalog_hash": "5d1e1635fb54d5d2",
+      "id": "glyph_sector_culture",
+      "png_hash": "59052a7dd8c64150",
+      "png_size": [
+        112,
+        121
+      ],
+      "realm": "kambara",
+      "source_hash": "acf54cd3e41247c6",
+      "state": "idle"
+    },
+    "assets/ui/skins/kambara/hud/glyphs/sector/culture_pressed.png": {
+      "catalog_hash": "3a49d2e0c7b66269",
+      "id": "glyph_sector_culture",
+      "png_hash": "61c1ffc1e443da7b",
+      "png_size": [
+        112,
+        121
+      ],
+      "realm": "kambara",
+      "source_hash": "b16fb812ec059e21",
+      "state": "pressed"
+    },
+    "assets/ui/skins/kambara/hud/glyphs/sector/food_idle.png": {
+      "catalog_hash": "ecffcbe7a672434c",
+      "id": "glyph_sector_food",
+      "png_hash": "a3f014a08862cc7c",
+      "png_size": [
+        112,
+        121
+      ],
+      "realm": "kambara",
+      "source_hash": "a859276d0a1f8cb2",
+      "state": "idle"
+    },
+    "assets/ui/skins/kambara/hud/glyphs/sector/food_pressed.png": {
+      "catalog_hash": "9d10a7544de86b91",
+      "id": "glyph_sector_food",
+      "png_hash": "6e9757b5646e2527",
+      "png_size": [
+        112,
+        121
+      ],
+      "realm": "kambara",
+      "source_hash": "e8a9a6032fc43c4e",
+      "state": "pressed"
+    },
+    "assets/ui/skins/kambara/hud/glyphs/sector/housing_idle.png": {
+      "catalog_hash": "b508aa05aa4e93b0",
+      "id": "glyph_sector_housing",
+      "png_hash": "29a28f4912421a2d",
+      "png_size": [
+        112,
+        121
+      ],
+      "realm": "kambara",
+      "source_hash": "6326f144864ae5fd",
+      "state": "idle"
+    },
+    "assets/ui/skins/kambara/hud/glyphs/sector/housing_pressed.png": {
+      "catalog_hash": "46fc5287330048d6",
+      "id": "glyph_sector_housing",
+      "png_hash": "3b4e1322792c875a",
+      "png_size": [
+        112,
+        121
+      ],
+      "realm": "kambara",
+      "source_hash": "02b1075b338bc153",
+      "state": "pressed"
+    },
+    "assets/ui/skins/kambara/hud/glyphs/sector/industry_idle.png": {
+      "catalog_hash": "1a2565042573e257",
+      "id": "glyph_sector_industry",
+      "png_hash": "9941be0f2d423e64",
+      "png_size": [
+        112,
+        121
+      ],
+      "realm": "kambara",
+      "source_hash": "b10487e75aefb65e",
+      "state": "idle"
+    },
+    "assets/ui/skins/kambara/hud/glyphs/sector/industry_pressed.png": {
+      "catalog_hash": "215c7b78c6c3b973",
+      "id": "glyph_sector_industry",
+      "png_hash": "414ee06f3f8852a1",
+      "png_size": [
+        112,
+        121
+      ],
+      "realm": "kambara",
+      "source_hash": "d44f584f257e0d86",
+      "state": "pressed"
+    },
+    "assets/ui/skins/kambara/hud/glyphs/sector/infrastructure_idle.png": {
+      "catalog_hash": "53f30416cbfcbba0",
+      "id": "glyph_sector_infrastructure",
+      "png_hash": "8e415ad694104143",
+      "png_size": [
+        112,
+        121
+      ],
+      "realm": "kambara",
+      "source_hash": "36a7b98468945c64",
+      "state": "idle"
+    },
+    "assets/ui/skins/kambara/hud/glyphs/sector/infrastructure_pressed.png": {
+      "catalog_hash": "5197662d9356a137",
+      "id": "glyph_sector_infrastructure",
+      "png_hash": "8bbe4737ff03b449",
+      "png_size": [
+        112,
+        121
+      ],
+      "realm": "kambara",
+      "source_hash": "5a0d918ce1ae00d9",
+      "state": "pressed"
+    },
+    "assets/ui/skins/kambara/hud/glyphs/sector/redo_idle.png": {
+      "catalog_hash": "fbe6904ff752c070",
+      "id": "glyph_sector_redo",
+      "png_hash": "3940323e57d349e2",
+      "png_size": [
+        112,
+        121
+      ],
+      "realm": "kambara",
+      "source_hash": "09ea35703a71c64e",
+      "state": "idle"
+    },
+    "assets/ui/skins/kambara/hud/glyphs/sector/redo_pressed.png": {
+      "catalog_hash": "f3abc8748aeb16b2",
+      "id": "glyph_sector_redo",
+      "png_hash": "6c3b39f0b009c6fd",
+      "png_size": [
+        112,
+        121
+      ],
+      "realm": "kambara",
+      "source_hash": "dbe92a10019582ca",
+      "state": "pressed"
+    },
+    "assets/ui/skins/kambara/hud/glyphs/sector/roads_idle.png": {
+      "catalog_hash": "8771448c9509aee2",
+      "id": "glyph_sector_roads",
+      "png_hash": "af16175fea38f5da",
+      "png_size": [
+        112,
+        121
+      ],
+      "realm": "kambara",
+      "source_hash": "ad5c62a67d919295",
+      "state": "idle"
+    },
+    "assets/ui/skins/kambara/hud/glyphs/sector/roads_pressed.png": {
+      "catalog_hash": "c11fcaa0978d48bb",
+      "id": "glyph_sector_roads",
+      "png_hash": "3fcabd93b9982066",
+      "png_size": [
+        112,
+        121
+      ],
+      "realm": "kambara",
+      "source_hash": "1ca444717936f574",
+      "state": "pressed"
+    },
+    "assets/ui/skins/kambara/hud/glyphs/sector/services_idle.png": {
+      "catalog_hash": "dca89e0cfc326b83",
+      "id": "glyph_sector_services",
+      "png_hash": "f8304167a9f30122",
+      "png_size": [
+        112,
+        121
+      ],
+      "realm": "kambara",
+      "source_hash": "32b750a0d19ece3a",
+      "state": "idle"
+    },
+    "assets/ui/skins/kambara/hud/glyphs/sector/services_pressed.png": {
+      "catalog_hash": "34a3dba86ee80106",
+      "id": "glyph_sector_services",
+      "png_hash": "d45dca69aac25324",
+      "png_size": [
+        112,
+        121
+      ],
+      "realm": "kambara",
+      "source_hash": "ebf5665a541d3687",
+      "state": "pressed"
+    },
+    "assets/ui/skins/kambara/hud/glyphs/sector/trade_idle.png": {
+      "catalog_hash": "25bf8bda18d839ed",
+      "id": "glyph_sector_trade",
+      "png_hash": "2cdcb265422daa11",
+      "png_size": [
+        112,
+        121
+      ],
+      "realm": "kambara",
+      "source_hash": "5558535b907b921a",
+      "state": "idle"
+    },
+    "assets/ui/skins/kambara/hud/glyphs/sector/trade_pressed.png": {
+      "catalog_hash": "cfa96a8a147362ab",
+      "id": "glyph_sector_trade",
+      "png_hash": "78a270ef9ab5beeb",
+      "png_size": [
+        112,
+        121
+      ],
+      "realm": "kambara",
+      "source_hash": "4b35455017c66c43",
+      "state": "pressed"
+    },
+    "assets/ui/skins/kambara/hud/glyphs/sector/undo_idle.png": {
+      "catalog_hash": "4df4bfad82de2c74",
+      "id": "glyph_sector_undo",
+      "png_hash": "bbae9d455c0d9ee4",
+      "png_size": [
+        112,
+        121
+      ],
+      "realm": "kambara",
+      "source_hash": "18192b41e5b85833",
+      "state": "idle"
+    },
+    "assets/ui/skins/kambara/hud/glyphs/sector/undo_pressed.png": {
+      "catalog_hash": "19556f0a03f9912f",
+      "id": "glyph_sector_undo",
+      "png_hash": "112caef8fb7d0895",
+      "png_size": [
+        112,
+        121
+      ],
+      "realm": "kambara",
+      "source_hash": "c60ee54330be5e97",
+      "state": "pressed"
+    },
+    "assets/ui/skins/kambara/hud/icons/coin.png": {
+      "catalog_hash": "a30e84a1bff9d375",
+      "id": "icon_coin",
+      "png_hash": "5fcff5ea0752027a",
+      "png_size": [
+        88,
+        88
+      ],
+      "realm": "kambara",
+      "source_hash": "ec0b9df287b5bf01",
+      "state": null
+    },
+    "assets/ui/skins/kambara/hud/icons/food.png": {
+      "catalog_hash": "1cc1088ecc331bb8",
+      "id": "icon_food",
+      "png_hash": "4cb0d86b35cb331f",
+      "png_size": [
+        88,
+        88
+      ],
+      "realm": "kambara",
+      "source_hash": "a6136ee1c7d3d9fb",
+      "state": null
+    },
+    "assets/ui/skins/kambara/hud/icons/monument.png": {
+      "catalog_hash": "37e2f1cf72be175f",
+      "id": "icon_monument",
+      "png_hash": "90dd67310ba43ec9",
+      "png_size": [
+        88,
+        88
+      ],
+      "realm": "kambara",
+      "source_hash": "7d9bf5c4bceeb0e6",
+      "state": null
+    },
+    "assets/ui/skins/kambara/hud/icons/population.png": {
+      "catalog_hash": "3c2503d58f616164",
+      "id": "icon_population",
+      "png_hash": "a7c37a5db31d65a7",
+      "png_size": [
+        88,
+        88
+      ],
+      "realm": "kambara",
+      "source_hash": "b5f7373bf026b425",
+      "state": null
+    },
+    "assets/ui/skins/kambara/hud/icons/request.png": {
+      "catalog_hash": "7eddc759038ba868",
+      "id": "icon_request",
+      "png_hash": "d119af989d0fccc2",
+      "png_size": [
+        88,
+        88
+      ],
+      "realm": "kambara",
+      "source_hash": "a0301229fce4784e",
+      "state": null
+    },
+    "assets/ui/skins/kambara/hud/icons/trade.png": {
+      "catalog_hash": "b0b5828fe2c3545a",
+      "id": "icon_trade",
+      "png_hash": "5a948bc21035e086",
+      "png_size": [
+        88,
+        88
+      ],
+      "realm": "kambara",
+      "source_hash": "b4aa892b8d0e977f",
+      "state": null
+    },
+    "assets/ui/skins/kambara/hud/icons/warn.png": {
+      "catalog_hash": "b5a01b4f761085d5",
+      "id": "icon_warn",
+      "png_hash": "d922d42e7a386575",
+      "png_size": [
+        88,
+        88
+      ],
+      "realm": "kambara",
+      "source_hash": "1ba57674c242f29b",
+      "state": null
+    },
+    "assets/ui/skins/kambara/hud/ornament_gap_narrow.png": {
+      "catalog_hash": "b75f54536bc52fff",
+      "id": "ornament_gap_narrow",
+      "png_hash": "b21adbe9ee29e5fe",
+      "png_size": [
+        186,
+        69
+      ],
+      "realm": "kambara",
+      "source_hash": "5334f07fd4ebeafd",
+      "state": null
+    },
+    "assets/ui/skins/kambara/hud/ornament_gap_wide.png": {
+      "catalog_hash": "872e74a27d345a2d",
+      "id": "ornament_gap_wide",
+      "png_hash": "f0da24cf3a94c5d1",
+      "png_size": [
+        276,
+        69
+      ],
+      "realm": "kambara",
+      "source_hash": "840e5f5b75bd3c79",
+      "state": null
+    },
+    "assets/ui/skins/kambara/hud/panel_hud.png": {
+      "catalog_hash": "25ec62ea41ab0f3d",
+      "id": "panel_hud",
+      "png_hash": "7e35622b1af8acec",
+      "png_size": [
+        727,
+        484
+      ],
+      "realm": "kambara",
+      "source_hash": "e1d861d15310b6c0",
+      "state": null
+    },
+    "assets/ui/skins/kambara/hud/panel_hud_bar.png": {
+      "catalog_hash": "f7ffc5f23422f2e2",
+      "id": "panel_hud_bar",
+      "png_hash": "852c5a6b84a893cd",
+      "png_size": [
+        857,
+        156
+      ],
+      "realm": "kambara",
+      "source_hash": "867c5bda4d5009e0",
+      "state": null
+    },
+    "assets/ui/skins/kambara/hud/panel_hud_large.png": {
+      "catalog_hash": "83f95f0d4b8da8b0",
+      "id": "panel_hud_large",
+      "png_hash": "39c54108d4efc5d4",
+      "png_size": [
+        1043,
+        938
+      ],
+      "realm": "kambara",
+      "source_hash": "05afdb76943325be",
+      "state": null
+    },
+    "assets/ui/skins/kambara/hud/tile_large_disabled.png": {
+      "catalog_hash": "1d303ccaae6f8f25",
+      "id": "tile_large",
+      "png_hash": "15c1821c4e74f987",
+      "png_size": [
+        232,
+        295
+      ],
+      "realm": "kambara",
+      "source_hash": "d360dbebe0460354",
+      "state": "disabled"
+    },
+    "assets/ui/skins/kambara/hud/tile_large_hovered.png": {
+      "catalog_hash": "3f7d8b53de18a68f",
+      "id": "tile_large",
+      "png_hash": "fa5137afdabf5ec0",
+      "png_size": [
+        232,
+        295
+      ],
+      "realm": "kambara",
+      "source_hash": "ad471ef4833401c3",
+      "state": "hovered"
+    },
+    "assets/ui/skins/kambara/hud/tile_large_idle.png": {
+      "catalog_hash": "e655fdd017a7a6fb",
+      "id": "tile_large",
+      "png_hash": "9a20521c9043f1a6",
+      "png_size": [
+        232,
+        295
+      ],
+      "realm": "kambara",
+      "source_hash": "899f5b7b93df7d6b",
+      "state": "idle"
+    },
+    "assets/ui/skins/kambara/hud/tile_large_pressed.png": {
+      "catalog_hash": "3b02e6881e8d78b5",
+      "id": "tile_large",
+      "png_hash": "db81f3562c039fec",
+      "png_size": [
+        232,
+        295
+      ],
+      "realm": "kambara",
+      "source_hash": "7ba0e78156b0b00b",
+      "state": "pressed"
+    },
+    "assets/ui/skins/kambara/hud/tile_sector_disabled.png": {
+      "catalog_hash": "3867c62dba1d6da3",
+      "id": "tile_sector",
+      "png_hash": "98f6a30a5169b21e",
+      "png_size": [
+        160,
+        188
+      ],
+      "realm": "kambara",
+      "source_hash": "d52918337b763945",
+      "state": "disabled"
+    },
+    "assets/ui/skins/kambara/hud/tile_sector_hovered.png": {
+      "catalog_hash": "8ada1a2b14f9a9e6",
+      "id": "tile_sector",
+      "png_hash": "fc4f6414268a013f",
+      "png_size": [
+        160,
+        188
+      ],
+      "realm": "kambara",
+      "source_hash": "3aaf6544e3194306",
+      "state": "hovered"
+    },
+    "assets/ui/skins/kambara/hud/tile_sector_idle.png": {
+      "catalog_hash": "cecc8538136ec966",
+      "id": "tile_sector",
+      "png_hash": "01652b2027307e41",
+      "png_size": [
+        160,
+        188
+      ],
+      "realm": "kambara",
+      "source_hash": "644a4fe3e1a0de79",
+      "state": "idle"
+    },
+    "assets/ui/skins/kambara/hud/tile_sector_pressed.png": {
+      "catalog_hash": "d4f2bdaa18b5d108",
+      "id": "tile_sector",
+      "png_hash": "6c2524a7e9ea5967",
+      "png_size": [
+        160,
+        188
+      ],
+      "realm": "kambara",
+      "source_hash": "b7d924cd55c01c20",
+      "state": "pressed"
+    },
+    "assets/ui/skins/kambara/hud/tile_small_disabled.png": {
+      "catalog_hash": "6dce9cc751637b30",
+      "id": "tile_small",
+      "png_hash": "f1f93252d3c44f6d",
+      "png_size": [
+        109,
+        110
+      ],
+      "realm": "kambara",
+      "source_hash": "1f8f840ab351e6a0",
+      "state": "disabled"
+    },
+    "assets/ui/skins/kambara/hud/tile_small_hovered.png": {
+      "catalog_hash": "adf9856736b61665",
+      "id": "tile_small",
+      "png_hash": "e392fcfb94725273",
+      "png_size": [
+        109,
+        110
+      ],
+      "realm": "kambara",
+      "source_hash": "8355bd9d3bcc23da",
+      "state": "hovered"
+    },
+    "assets/ui/skins/kambara/hud/tile_small_idle.png": {
+      "catalog_hash": "b1263742af884029",
+      "id": "tile_small",
+      "png_hash": "1884d936807f3028",
+      "png_size": [
+        109,
+        110
+      ],
+      "realm": "kambara",
+      "source_hash": "3199b7c9592c2007",
+      "state": "idle"
+    },
+    "assets/ui/skins/kambara/hud/tile_small_pressed.png": {
+      "catalog_hash": "a15deb7b7b1bac89",
+      "id": "tile_small",
+      "png_hash": "87814f6b5def5a06",
+      "png_size": [
+        109,
+        110
+      ],
+      "realm": "kambara",
+      "source_hash": "6910bbf0d04383df",
+      "state": "pressed"
     },
     "assets/ui/skins/kambara/icon_frame_disabled.png": {
       "catalog_hash": "4d18f9e6c29467d8",
@@ -2063,6 +5759,1890 @@
       "realm": "tampadesa",
       "source_hash": "1a584a02311a97c7",
       "state": null
+    },
+    "assets/ui/skins/tampadesa/hud/deco_crest_large.png": {
+      "catalog_hash": "e605862b24957e55",
+      "id": "deco_crest_large",
+      "png_hash": "0906508c27f7dc28",
+      "png_size": [
+        250,
+        180
+      ],
+      "realm": "tampadesa",
+      "source_hash": "b6de73701fe17ff4",
+      "state": null
+    },
+    "assets/ui/skins/tampadesa/hud/deco_naga_left.png": {
+      "catalog_hash": "513ad58b76398a07",
+      "id": "deco_naga_left",
+      "png_hash": "839943547bf87084",
+      "png_size": [
+        361,
+        136
+      ],
+      "realm": "tampadesa",
+      "source_hash": "7d1e5085c56a64f2",
+      "state": null
+    },
+    "assets/ui/skins/tampadesa/hud/deco_naga_right.png": {
+      "catalog_hash": "2d15d8452604122e",
+      "id": "deco_naga_right",
+      "png_hash": "b7ea782a19e679fc",
+      "png_size": [
+        361,
+        136
+      ],
+      "realm": "tampadesa",
+      "source_hash": "3151ff4b4b2ac643",
+      "state": null
+    },
+    "assets/ui/skins/tampadesa/hud/deco_pier_left.png": {
+      "catalog_hash": "c25bfea00e7d0bb5",
+      "id": "deco_pier_left",
+      "png_hash": "b87e636d781c6ffa",
+      "png_size": [
+        221,
+        331
+      ],
+      "realm": "tampadesa",
+      "source_hash": "b75d26014367cc07",
+      "state": null
+    },
+    "assets/ui/skins/tampadesa/hud/deco_pier_right.png": {
+      "catalog_hash": "7a2041cdb6ca7a28",
+      "id": "deco_pier_right",
+      "png_hash": "a0df7734958ed117",
+      "png_size": [
+        227,
+        324
+      ],
+      "realm": "tampadesa",
+      "source_hash": "6d24e098bf264730",
+      "state": null
+    },
+    "assets/ui/skins/tampadesa/hud/glyphs/building/apothecary_idle.png": {
+      "catalog_hash": "6f898deadb326866",
+      "id": "glyph_building_apothecary",
+      "png_hash": "4b6294eaba5d5eff",
+      "png_size": [
+        172,
+        179
+      ],
+      "realm": "tampadesa",
+      "source_hash": "4ca7d295f6c1a330",
+      "state": "idle"
+    },
+    "assets/ui/skins/tampadesa/hud/glyphs/building/apothecary_pressed.png": {
+      "catalog_hash": "faafa61e733d00eb",
+      "id": "glyph_building_apothecary",
+      "png_hash": "d67f06e24769c40d",
+      "png_size": [
+        172,
+        179
+      ],
+      "realm": "tampadesa",
+      "source_hash": "5e1187bded9c2844",
+      "state": "pressed"
+    },
+    "assets/ui/skins/tampadesa/hud/glyphs/building/brick_maker_idle.png": {
+      "catalog_hash": "b2d2010d41a52d71",
+      "id": "glyph_building_brick_maker",
+      "png_hash": "cf85aca32b8db462",
+      "png_size": [
+        172,
+        179
+      ],
+      "realm": "tampadesa",
+      "source_hash": "0288585f16b16b01",
+      "state": "idle"
+    },
+    "assets/ui/skins/tampadesa/hud/glyphs/building/brick_maker_pressed.png": {
+      "catalog_hash": "68dbb7b4b6557135",
+      "id": "glyph_building_brick_maker",
+      "png_hash": "189e47c71a9dad55",
+      "png_size": [
+        172,
+        179
+      ],
+      "realm": "tampadesa",
+      "source_hash": "13513500862f1eb6",
+      "state": "pressed"
+    },
+    "assets/ui/skins/tampadesa/hud/glyphs/building/builders_guild_idle.png": {
+      "catalog_hash": "d8d86cd83e778afa",
+      "id": "glyph_building_builders_guild",
+      "png_hash": "9140da8632f60e58",
+      "png_size": [
+        172,
+        179
+      ],
+      "realm": "tampadesa",
+      "source_hash": "6e3322422cfc3adb",
+      "state": "idle"
+    },
+    "assets/ui/skins/tampadesa/hud/glyphs/building/builders_guild_pressed.png": {
+      "catalog_hash": "2d43deeca17a5904",
+      "id": "glyph_building_builders_guild",
+      "png_hash": "74757e8c40171e81",
+      "png_size": [
+        172,
+        179
+      ],
+      "realm": "tampadesa",
+      "source_hash": "bf8df3b0e3176cf8",
+      "state": "pressed"
+    },
+    "assets/ui/skins/tampadesa/hud/glyphs/building/citadel_idle.png": {
+      "catalog_hash": "67dca52de721d707",
+      "id": "glyph_building_citadel",
+      "png_hash": "c366a5411d67c844",
+      "png_size": [
+        172,
+        179
+      ],
+      "realm": "tampadesa",
+      "source_hash": "b7426e06402abcee",
+      "state": "idle"
+    },
+    "assets/ui/skins/tampadesa/hud/glyphs/building/citadel_pressed.png": {
+      "catalog_hash": "f290be45eff58347",
+      "id": "glyph_building_citadel",
+      "png_hash": "4dd534985d5bbf1b",
+      "png_size": [
+        172,
+        179
+      ],
+      "realm": "tampadesa",
+      "source_hash": "7472e2bd665ce88e",
+      "state": "pressed"
+    },
+    "assets/ui/skins/tampadesa/hud/glyphs/building/clay_pit_idle.png": {
+      "catalog_hash": "5c64c70659b533e8",
+      "id": "glyph_building_clay_pit",
+      "png_hash": "8fcdeb2b191013e3",
+      "png_size": [
+        172,
+        179
+      ],
+      "realm": "tampadesa",
+      "source_hash": "6e57fd8e401ebf64",
+      "state": "idle"
+    },
+    "assets/ui/skins/tampadesa/hud/glyphs/building/clay_pit_pressed.png": {
+      "catalog_hash": "a4f37c9d208f84c2",
+      "id": "glyph_building_clay_pit",
+      "png_hash": "c1fd33ef449faebc",
+      "png_size": [
+        172,
+        179
+      ],
+      "realm": "tampadesa",
+      "source_hash": "059f65a371d95fd3",
+      "state": "pressed"
+    },
+    "assets/ui/skins/tampadesa/hud/glyphs/building/distillery_idle.png": {
+      "catalog_hash": "693ca15c652c394e",
+      "id": "glyph_building_distillery",
+      "png_hash": "0dbbf449dce259a4",
+      "png_size": [
+        172,
+        179
+      ],
+      "realm": "tampadesa",
+      "source_hash": "745e4c25338c9117",
+      "state": "idle"
+    },
+    "assets/ui/skins/tampadesa/hud/glyphs/building/distillery_pressed.png": {
+      "catalog_hash": "67e6ab1191f8d84f",
+      "id": "glyph_building_distillery",
+      "png_hash": "af27a15bd928c664",
+      "png_size": [
+        172,
+        179
+      ],
+      "realm": "tampadesa",
+      "source_hash": "0c06b4bb6dcf8b79",
+      "state": "pressed"
+    },
+    "assets/ui/skins/tampadesa/hud/glyphs/building/fire_watch_idle.png": {
+      "catalog_hash": "2525a4c013451f8d",
+      "id": "glyph_building_fire_watch",
+      "png_hash": "657d74d3ca1c2ec4",
+      "png_size": [
+        172,
+        179
+      ],
+      "realm": "tampadesa",
+      "source_hash": "82ec2cd40e4c785a",
+      "state": "idle"
+    },
+    "assets/ui/skins/tampadesa/hud/glyphs/building/fire_watch_pressed.png": {
+      "catalog_hash": "8e640ff9f0483598",
+      "id": "glyph_building_fire_watch",
+      "png_hash": "339f810f43d959e6",
+      "png_size": [
+        172,
+        179
+      ],
+      "realm": "tampadesa",
+      "source_hash": "cb0509d4283fd961",
+      "state": "pressed"
+    },
+    "assets/ui/skins/tampadesa/hud/glyphs/building/fishing_wharf_idle.png": {
+      "catalog_hash": "3c99b0ef28388a4b",
+      "id": "glyph_building_fishing_wharf",
+      "png_hash": "e6c1b6ee0c4c75a2",
+      "png_size": [
+        172,
+        179
+      ],
+      "realm": "tampadesa",
+      "source_hash": "142e7b2acfa62a7d",
+      "state": "idle"
+    },
+    "assets/ui/skins/tampadesa/hud/glyphs/building/fishing_wharf_pressed.png": {
+      "catalog_hash": "b2bbb17b4aa38074",
+      "id": "glyph_building_fishing_wharf",
+      "png_hash": "97073ecde74012fc",
+      "png_size": [
+        172,
+        179
+      ],
+      "realm": "tampadesa",
+      "source_hash": "cc166300438fd59b",
+      "state": "pressed"
+    },
+    "assets/ui/skins/tampadesa/hud/glyphs/building/garden_idle.png": {
+      "catalog_hash": "ac0da16500b0a89b",
+      "id": "glyph_building_garden",
+      "png_hash": "0257913c9bdae3ee",
+      "png_size": [
+        172,
+        179
+      ],
+      "realm": "tampadesa",
+      "source_hash": "354af0efd37fdd70",
+      "state": "idle"
+    },
+    "assets/ui/skins/tampadesa/hud/glyphs/building/garden_pressed.png": {
+      "catalog_hash": "6a02203ccc9b3ea8",
+      "id": "glyph_building_garden",
+      "png_hash": "3825d7c586dc37e4",
+      "png_size": [
+        172,
+        179
+      ],
+      "realm": "tampadesa",
+      "source_hash": "a08daaefd4f6305c",
+      "state": "pressed"
+    },
+    "assets/ui/skins/tampadesa/hud/glyphs/building/governor_palace_idle.png": {
+      "catalog_hash": "5a9b793223a76347",
+      "id": "glyph_building_governor_palace",
+      "png_hash": "ef83046d0d679589",
+      "png_size": [
+        172,
+        179
+      ],
+      "realm": "tampadesa",
+      "source_hash": "698d80caa1311b3b",
+      "state": "idle"
+    },
+    "assets/ui/skins/tampadesa/hud/glyphs/building/governor_palace_pressed.png": {
+      "catalog_hash": "5ed5e61b4e357b0d",
+      "id": "glyph_building_governor_palace",
+      "png_hash": "0989706c69a4e50d",
+      "png_size": [
+        172,
+        179
+      ],
+      "realm": "tampadesa",
+      "source_hash": "5213443bafd815aa",
+      "state": "pressed"
+    },
+    "assets/ui/skins/tampadesa/hud/glyphs/building/granary_idle.png": {
+      "catalog_hash": "15c9c00b781a31cd",
+      "id": "glyph_building_granary",
+      "png_hash": "116e9afb059276f4",
+      "png_size": [
+        172,
+        179
+      ],
+      "realm": "tampadesa",
+      "source_hash": "8ffaac89d74f9203",
+      "state": "idle"
+    },
+    "assets/ui/skins/tampadesa/hud/glyphs/building/granary_pressed.png": {
+      "catalog_hash": "9a6cd6cbe8b1a746",
+      "id": "glyph_building_granary",
+      "png_hash": "a37edf3f2c0cc5d9",
+      "png_size": [
+        172,
+        179
+      ],
+      "realm": "tampadesa",
+      "source_hash": "88ec39eeb68557ce",
+      "state": "pressed"
+    },
+    "assets/ui/skins/tampadesa/hud/glyphs/building/hospital_idle.png": {
+      "catalog_hash": "d10ba9b41348c6da",
+      "id": "glyph_building_hospital",
+      "png_hash": "726921dc26db4e3d",
+      "png_size": [
+        172,
+        179
+      ],
+      "realm": "tampadesa",
+      "source_hash": "4b644d0864f6a5ec",
+      "state": "idle"
+    },
+    "assets/ui/skins/tampadesa/hud/glyphs/building/hospital_pressed.png": {
+      "catalog_hash": "3e599b6a7e1a5224",
+      "id": "glyph_building_hospital",
+      "png_hash": "4fb3e97c2d9c217e",
+      "png_size": [
+        172,
+        179
+      ],
+      "realm": "tampadesa",
+      "source_hash": "4e291bc92aaca61f",
+      "state": "pressed"
+    },
+    "assets/ui/skins/tampadesa/hud/glyphs/building/large_well_idle.png": {
+      "catalog_hash": "ac7c8652dcff0ac2",
+      "id": "glyph_building_large_well",
+      "png_hash": "785457ee10f0f0b9",
+      "png_size": [
+        172,
+        179
+      ],
+      "realm": "tampadesa",
+      "source_hash": "5f7cd7dcc80cf779",
+      "state": "idle"
+    },
+    "assets/ui/skins/tampadesa/hud/glyphs/building/large_well_pressed.png": {
+      "catalog_hash": "7f2b27cc30f3a388",
+      "id": "glyph_building_large_well",
+      "png_hash": "0f2c0e035a75aaec",
+      "png_size": [
+        172,
+        179
+      ],
+      "realm": "tampadesa",
+      "source_hash": "6724570487795574",
+      "state": "pressed"
+    },
+    "assets/ui/skins/tampadesa/hud/glyphs/building/livestock_farm_idle.png": {
+      "catalog_hash": "81a7cc979faaecd0",
+      "id": "glyph_building_livestock_farm",
+      "png_hash": "cd2ee4d41a5b14d5",
+      "png_size": [
+        172,
+        179
+      ],
+      "realm": "tampadesa",
+      "source_hash": "60711e673ffa0f27",
+      "state": "idle"
+    },
+    "assets/ui/skins/tampadesa/hud/glyphs/building/livestock_farm_pressed.png": {
+      "catalog_hash": "3f6500d37daa1b37",
+      "id": "glyph_building_livestock_farm",
+      "png_hash": "f2d964ebd3cd2710",
+      "png_size": [
+        172,
+        179
+      ],
+      "realm": "tampadesa",
+      "source_hash": "c423d1b2fb734bf1",
+      "state": "pressed"
+    },
+    "assets/ui/skins/tampadesa/hud/glyphs/building/lumberyard_idle.png": {
+      "catalog_hash": "06d2668b8524c7ef",
+      "id": "glyph_building_lumberyard",
+      "png_hash": "5e7b65072ffeba3c",
+      "png_size": [
+        172,
+        179
+      ],
+      "realm": "tampadesa",
+      "source_hash": "d1dd46435d381411",
+      "state": "idle"
+    },
+    "assets/ui/skins/tampadesa/hud/glyphs/building/lumberyard_pressed.png": {
+      "catalog_hash": "1e5a502475408e67",
+      "id": "glyph_building_lumberyard",
+      "png_hash": "b5740cbbc25dcaca",
+      "png_size": [
+        172,
+        179
+      ],
+      "realm": "tampadesa",
+      "source_hash": "75ad0d1552f911bb",
+      "state": "pressed"
+    },
+    "assets/ui/skins/tampadesa/hud/glyphs/building/market_idle.png": {
+      "catalog_hash": "fe33d52a849a33d4",
+      "id": "glyph_building_market",
+      "png_hash": "ee66a2b3fa0d2279",
+      "png_size": [
+        172,
+        179
+      ],
+      "realm": "tampadesa",
+      "source_hash": "257b67c74771e006",
+      "state": "idle"
+    },
+    "assets/ui/skins/tampadesa/hud/glyphs/building/market_pressed.png": {
+      "catalog_hash": "0909af161259097e",
+      "id": "glyph_building_market",
+      "png_hash": "c9fd94b339338dff",
+      "png_size": [
+        172,
+        179
+      ],
+      "realm": "tampadesa",
+      "source_hash": "7d5eadde11c55c4d",
+      "state": "pressed"
+    },
+    "assets/ui/skins/tampadesa/hud/glyphs/building/mine_idle.png": {
+      "catalog_hash": "33f44c1009e7ceb5",
+      "id": "glyph_building_mine",
+      "png_hash": "05c5121c6eaf0f79",
+      "png_size": [
+        172,
+        179
+      ],
+      "realm": "tampadesa",
+      "source_hash": "ad6a218c65bea246",
+      "state": "idle"
+    },
+    "assets/ui/skins/tampadesa/hud/glyphs/building/mine_pressed.png": {
+      "catalog_hash": "3c8a4eb20f4e80d1",
+      "id": "glyph_building_mine",
+      "png_hash": "193ac16d825a9b13",
+      "png_size": [
+        172,
+        179
+      ],
+      "realm": "tampadesa",
+      "source_hash": "ed72785fbe595889",
+      "state": "pressed"
+    },
+    "assets/ui/skins/tampadesa/hud/glyphs/building/police_station_idle.png": {
+      "catalog_hash": "d5962c91408954ab",
+      "id": "glyph_building_police_station",
+      "png_hash": "c0017cb639ddce0f",
+      "png_size": [
+        172,
+        179
+      ],
+      "realm": "tampadesa",
+      "source_hash": "1fa9bac754643c7d",
+      "state": "idle"
+    },
+    "assets/ui/skins/tampadesa/hud/glyphs/building/police_station_pressed.png": {
+      "catalog_hash": "a700f4873e1f8b1c",
+      "id": "glyph_building_police_station",
+      "png_hash": "62a1f113e7523825",
+      "png_size": [
+        172,
+        179
+      ],
+      "realm": "tampadesa",
+      "source_hash": "a274769825110862",
+      "state": "pressed"
+    },
+    "assets/ui/skins/tampadesa/hud/glyphs/building/pottery_kiln_idle.png": {
+      "catalog_hash": "cb65ca359719063e",
+      "id": "glyph_building_pottery_kiln",
+      "png_hash": "f8a4636ee333760c",
+      "png_size": [
+        172,
+        179
+      ],
+      "realm": "tampadesa",
+      "source_hash": "f289a7871684aeb5",
+      "state": "idle"
+    },
+    "assets/ui/skins/tampadesa/hud/glyphs/building/pottery_kiln_pressed.png": {
+      "catalog_hash": "46f617a36e664e05",
+      "id": "glyph_building_pottery_kiln",
+      "png_hash": "4a40b38816c4b9a5",
+      "png_size": [
+        172,
+        179
+      ],
+      "realm": "tampadesa",
+      "source_hash": "db6b0367e5c10309",
+      "state": "pressed"
+    },
+    "assets/ui/skins/tampadesa/hud/glyphs/building/rice_farm_idle.png": {
+      "catalog_hash": "035675c301e79baa",
+      "id": "glyph_building_rice_farm",
+      "png_hash": "4982e8f72233b00e",
+      "png_size": [
+        172,
+        179
+      ],
+      "realm": "tampadesa",
+      "source_hash": "1685f6d64c8070f8",
+      "state": "idle"
+    },
+    "assets/ui/skins/tampadesa/hud/glyphs/building/rice_farm_pressed.png": {
+      "catalog_hash": "c3a7448d43c3e794",
+      "id": "glyph_building_rice_farm",
+      "png_hash": "3d58c206eacaa0d3",
+      "png_size": [
+        172,
+        179
+      ],
+      "realm": "tampadesa",
+      "source_hash": "9a767af316ab7f1a",
+      "state": "pressed"
+    },
+    "assets/ui/skins/tampadesa/hud/glyphs/building/road_idle.png": {
+      "catalog_hash": "e55466012d3b827f",
+      "id": "glyph_building_road",
+      "png_hash": "2c8dec1b84d4b1e4",
+      "png_size": [
+        172,
+        179
+      ],
+      "realm": "tampadesa",
+      "source_hash": "9097da0d3bdba02c",
+      "state": "idle"
+    },
+    "assets/ui/skins/tampadesa/hud/glyphs/building/road_pressed.png": {
+      "catalog_hash": "7df0968eec331da6",
+      "id": "glyph_building_road",
+      "png_hash": "19f0188c598fd96f",
+      "png_size": [
+        172,
+        179
+      ],
+      "realm": "tampadesa",
+      "source_hash": "bb0715c571653483",
+      "state": "pressed"
+    },
+    "assets/ui/skins/tampadesa/hud/glyphs/building/roof_tile_kiln_idle.png": {
+      "catalog_hash": "659f34c0c1ab3841",
+      "id": "glyph_building_roof_tile_kiln",
+      "png_hash": "4150ffe5f14517e1",
+      "png_size": [
+        172,
+        179
+      ],
+      "realm": "tampadesa",
+      "source_hash": "2b2a0c3c5ebb28c8",
+      "state": "idle"
+    },
+    "assets/ui/skins/tampadesa/hud/glyphs/building/roof_tile_kiln_pressed.png": {
+      "catalog_hash": "4bcebcd82f78f555",
+      "id": "glyph_building_roof_tile_kiln",
+      "png_hash": "0347e9ca17153a11",
+      "png_size": [
+        172,
+        179
+      ],
+      "realm": "tampadesa",
+      "source_hash": "4ad595540e412039",
+      "state": "pressed"
+    },
+    "assets/ui/skins/tampadesa/hud/glyphs/building/shrine_idle.png": {
+      "catalog_hash": "cca5de33e951ef32",
+      "id": "glyph_building_shrine",
+      "png_hash": "ae649e7a4b2606f6",
+      "png_size": [
+        172,
+        179
+      ],
+      "realm": "tampadesa",
+      "source_hash": "952b8393aa8dff9b",
+      "state": "idle"
+    },
+    "assets/ui/skins/tampadesa/hud/glyphs/building/shrine_pressed.png": {
+      "catalog_hash": "d3623eee62faa796",
+      "id": "glyph_building_shrine",
+      "png_hash": "c08d82e3302f619e",
+      "png_size": [
+        172,
+        179
+      ],
+      "realm": "tampadesa",
+      "source_hash": "fcf5977ef5ab359d",
+      "state": "pressed"
+    },
+    "assets/ui/skins/tampadesa/hud/glyphs/building/small_well_idle.png": {
+      "catalog_hash": "f2edd060dd741967",
+      "id": "glyph_building_small_well",
+      "png_hash": "5a3318fd0d741b6d",
+      "png_size": [
+        172,
+        179
+      ],
+      "realm": "tampadesa",
+      "source_hash": "068e78c05a4e1c69",
+      "state": "idle"
+    },
+    "assets/ui/skins/tampadesa/hud/glyphs/building/small_well_pressed.png": {
+      "catalog_hash": "ae4572274fbe198d",
+      "id": "glyph_building_small_well",
+      "png_hash": "d4f11a2ba769f9d6",
+      "png_size": [
+        172,
+        179
+      ],
+      "realm": "tampadesa",
+      "source_hash": "df5d9a218522849e",
+      "state": "pressed"
+    },
+    "assets/ui/skins/tampadesa/hud/glyphs/building/storage_yard_idle.png": {
+      "catalog_hash": "c098ef6790af3c9d",
+      "id": "glyph_building_storage_yard",
+      "png_hash": "7271df236016c0a5",
+      "png_size": [
+        172,
+        179
+      ],
+      "realm": "tampadesa",
+      "source_hash": "4d57c1564a4893fc",
+      "state": "idle"
+    },
+    "assets/ui/skins/tampadesa/hud/glyphs/building/storage_yard_pressed.png": {
+      "catalog_hash": "24a5cd61da6c2d6a",
+      "id": "glyph_building_storage_yard",
+      "png_hash": "74209c1738409a55",
+      "png_size": [
+        172,
+        179
+      ],
+      "realm": "tampadesa",
+      "source_hash": "70a1ea63cd9428e4",
+      "state": "pressed"
+    },
+    "assets/ui/skins/tampadesa/hud/glyphs/building/tax_office_idle.png": {
+      "catalog_hash": "32e1084922c92512",
+      "id": "glyph_building_tax_office",
+      "png_hash": "e3f48382777d4d70",
+      "png_size": [
+        172,
+        179
+      ],
+      "realm": "tampadesa",
+      "source_hash": "fe9a1f13d07fda35",
+      "state": "idle"
+    },
+    "assets/ui/skins/tampadesa/hud/glyphs/building/tax_office_pressed.png": {
+      "catalog_hash": "04f55ce00a7111da",
+      "id": "glyph_building_tax_office",
+      "png_hash": "610ff3254665e00e",
+      "png_size": [
+        172,
+        179
+      ],
+      "realm": "tampadesa",
+      "source_hash": "d6bc2044f512e064",
+      "state": "pressed"
+    },
+    "assets/ui/skins/tampadesa/hud/glyphs/building/temple_idle.png": {
+      "catalog_hash": "9cc94e148da61d5b",
+      "id": "glyph_building_temple",
+      "png_hash": "b98ca06897ec76c6",
+      "png_size": [
+        172,
+        179
+      ],
+      "realm": "tampadesa",
+      "source_hash": "b688c041a322009f",
+      "state": "idle"
+    },
+    "assets/ui/skins/tampadesa/hud/glyphs/building/temple_pressed.png": {
+      "catalog_hash": "6ed57008e9161deb",
+      "id": "glyph_building_temple",
+      "png_hash": "f777ed127dc76663",
+      "png_size": [
+        172,
+        179
+      ],
+      "realm": "tampadesa",
+      "source_hash": "df72cf1a9041a510",
+      "state": "pressed"
+    },
+    "assets/ui/skins/tampadesa/hud/glyphs/building/theater_idle.png": {
+      "catalog_hash": "96fdff266b8695bd",
+      "id": "glyph_building_theater",
+      "png_hash": "93a6eaba0e3bb499",
+      "png_size": [
+        172,
+        179
+      ],
+      "realm": "tampadesa",
+      "source_hash": "82298c13d561b8fe",
+      "state": "idle"
+    },
+    "assets/ui/skins/tampadesa/hud/glyphs/building/theater_pressed.png": {
+      "catalog_hash": "89559072c18c414b",
+      "id": "glyph_building_theater",
+      "png_hash": "805814428eb9c2b8",
+      "png_size": [
+        172,
+        179
+      ],
+      "realm": "tampadesa",
+      "source_hash": "f715c6aa30c2ae3d",
+      "state": "pressed"
+    },
+    "assets/ui/skins/tampadesa/hud/glyphs/building/university_idle.png": {
+      "catalog_hash": "be9846a3f63770aa",
+      "id": "glyph_building_university",
+      "png_hash": "845808ee46ac9b7e",
+      "png_size": [
+        172,
+        179
+      ],
+      "realm": "tampadesa",
+      "source_hash": "433d0f3e143973f1",
+      "state": "idle"
+    },
+    "assets/ui/skins/tampadesa/hud/glyphs/building/university_pressed.png": {
+      "catalog_hash": "da9f557a078b1cee",
+      "id": "glyph_building_university",
+      "png_hash": "fc776d04eebe8a65",
+      "png_size": [
+        172,
+        179
+      ],
+      "realm": "tampadesa",
+      "source_hash": "b4d0fe32b0b64ded",
+      "state": "pressed"
+    },
+    "assets/ui/skins/tampadesa/hud/glyphs/building/vacant_lot_idle.png": {
+      "catalog_hash": "09933c0ce735fbef",
+      "id": "glyph_building_vacant_lot",
+      "png_hash": "ed067cc55324173f",
+      "png_size": [
+        172,
+        179
+      ],
+      "realm": "tampadesa",
+      "source_hash": "a75e5da44b8b8e2a",
+      "state": "idle"
+    },
+    "assets/ui/skins/tampadesa/hud/glyphs/building/vacant_lot_pressed.png": {
+      "catalog_hash": "e2fe2ec686bd99b8",
+      "id": "glyph_building_vacant_lot",
+      "png_hash": "d08b202df386afcd",
+      "png_size": [
+        172,
+        179
+      ],
+      "realm": "tampadesa",
+      "source_hash": "b8600eb98ff125ba",
+      "state": "pressed"
+    },
+    "assets/ui/skins/tampadesa/hud/glyphs/hud/book_idle.png": {
+      "catalog_hash": "32ceaa482753f333",
+      "id": "glyph_hud_book",
+      "png_hash": "fefed250864857c2",
+      "png_size": [
+        76,
+        76
+      ],
+      "realm": "tampadesa",
+      "source_hash": "b4e9be598c375678",
+      "state": "idle"
+    },
+    "assets/ui/skins/tampadesa/hud/glyphs/hud/book_pressed.png": {
+      "catalog_hash": "b8100e8c18c586d4",
+      "id": "glyph_hud_book",
+      "png_hash": "e955c5bf30acb63c",
+      "png_size": [
+        76,
+        76
+      ],
+      "realm": "tampadesa",
+      "source_hash": "fc47d981b1a83ab8",
+      "state": "pressed"
+    },
+    "assets/ui/skins/tampadesa/hud/glyphs/hud/briefing_idle.png": {
+      "catalog_hash": "03b1efa5df66ce52",
+      "id": "glyph_hud_briefing",
+      "png_hash": "52c1cdbc4061d859",
+      "png_size": [
+        76,
+        76
+      ],
+      "realm": "tampadesa",
+      "source_hash": "9dd056a65a6ab60d",
+      "state": "idle"
+    },
+    "assets/ui/skins/tampadesa/hud/glyphs/hud/briefing_pressed.png": {
+      "catalog_hash": "c100211068111545",
+      "id": "glyph_hud_briefing",
+      "png_hash": "6270f7872196fe34",
+      "png_size": [
+        76,
+        76
+      ],
+      "realm": "tampadesa",
+      "source_hash": "b33c48c68f21d9e7",
+      "state": "pressed"
+    },
+    "assets/ui/skins/tampadesa/hud/glyphs/hud/close_idle.png": {
+      "catalog_hash": "e8749abdb46b887c",
+      "id": "glyph_hud_close",
+      "png_hash": "9c45653ec165a2c8",
+      "png_size": [
+        76,
+        76
+      ],
+      "realm": "tampadesa",
+      "source_hash": "8137958c6857aec5",
+      "state": "idle"
+    },
+    "assets/ui/skins/tampadesa/hud/glyphs/hud/close_pressed.png": {
+      "catalog_hash": "6de52d810a2e946a",
+      "id": "glyph_hud_close",
+      "png_hash": "421b4af3ce4024a7",
+      "png_size": [
+        76,
+        76
+      ],
+      "realm": "tampadesa",
+      "source_hash": "baba38ba82575fdc",
+      "state": "pressed"
+    },
+    "assets/ui/skins/tampadesa/hud/glyphs/hud/fast_idle.png": {
+      "catalog_hash": "f7a977fa61b8c050",
+      "id": "glyph_hud_fast",
+      "png_hash": "8a181375a1645eeb",
+      "png_size": [
+        76,
+        76
+      ],
+      "realm": "tampadesa",
+      "source_hash": "83ae7f25e5835687",
+      "state": "idle"
+    },
+    "assets/ui/skins/tampadesa/hud/glyphs/hud/fast_pressed.png": {
+      "catalog_hash": "51fc9693021958a7",
+      "id": "glyph_hud_fast",
+      "png_hash": "2a223bb3f5d94fde",
+      "png_size": [
+        76,
+        76
+      ],
+      "realm": "tampadesa",
+      "source_hash": "a80e70e086a6fabc",
+      "state": "pressed"
+    },
+    "assets/ui/skins/tampadesa/hud/glyphs/hud/faster_idle.png": {
+      "catalog_hash": "025bacd6bfbb39a9",
+      "id": "glyph_hud_faster",
+      "png_hash": "60271f6225e458a0",
+      "png_size": [
+        76,
+        76
+      ],
+      "realm": "tampadesa",
+      "source_hash": "0b9249ce45136225",
+      "state": "idle"
+    },
+    "assets/ui/skins/tampadesa/hud/glyphs/hud/faster_pressed.png": {
+      "catalog_hash": "e540c671c06e7742",
+      "id": "glyph_hud_faster",
+      "png_hash": "2ccbb16f017a9c55",
+      "png_size": [
+        76,
+        76
+      ],
+      "realm": "tampadesa",
+      "source_hash": "1303905b40e3b634",
+      "state": "pressed"
+    },
+    "assets/ui/skins/tampadesa/hud/glyphs/hud/gear_idle.png": {
+      "catalog_hash": "5b44ab7ddd412a37",
+      "id": "glyph_hud_gear",
+      "png_hash": "f8e7260303915da0",
+      "png_size": [
+        76,
+        76
+      ],
+      "realm": "tampadesa",
+      "source_hash": "caf8df5d1e9a03f7",
+      "state": "idle"
+    },
+    "assets/ui/skins/tampadesa/hud/glyphs/hud/gear_pressed.png": {
+      "catalog_hash": "ae46bb71ecb2eab5",
+      "id": "glyph_hud_gear",
+      "png_hash": "80f3495eca56b408",
+      "png_size": [
+        76,
+        76
+      ],
+      "realm": "tampadesa",
+      "source_hash": "3cbd837f22ebee80",
+      "state": "pressed"
+    },
+    "assets/ui/skins/tampadesa/hud/glyphs/hud/goals_idle.png": {
+      "catalog_hash": "2ed85bbfe877ee04",
+      "id": "glyph_hud_goals",
+      "png_hash": "68c4d5c4570b29aa",
+      "png_size": [
+        76,
+        76
+      ],
+      "realm": "tampadesa",
+      "source_hash": "e459d0c6de4c6f3e",
+      "state": "idle"
+    },
+    "assets/ui/skins/tampadesa/hud/glyphs/hud/goals_pressed.png": {
+      "catalog_hash": "b8a5d23aa0474881",
+      "id": "glyph_hud_goals",
+      "png_hash": "04ebdf74c9899ee8",
+      "png_size": [
+        76,
+        76
+      ],
+      "realm": "tampadesa",
+      "source_hash": "d6fcae41fc6c915d",
+      "state": "pressed"
+    },
+    "assets/ui/skins/tampadesa/hud/glyphs/hud/menu_idle.png": {
+      "catalog_hash": "437177d9b8b848d0",
+      "id": "glyph_hud_menu",
+      "png_hash": "dcc74d66c771d74a",
+      "png_size": [
+        76,
+        76
+      ],
+      "realm": "tampadesa",
+      "source_hash": "8ee349943605965a",
+      "state": "idle"
+    },
+    "assets/ui/skins/tampadesa/hud/glyphs/hud/menu_pressed.png": {
+      "catalog_hash": "85bbf3d3cb4bfc73",
+      "id": "glyph_hud_menu",
+      "png_hash": "b4f9c3447fc98837",
+      "png_size": [
+        76,
+        76
+      ],
+      "realm": "tampadesa",
+      "source_hash": "0509a93fcd0fcf75",
+      "state": "pressed"
+    },
+    "assets/ui/skins/tampadesa/hud/glyphs/hud/pause_idle.png": {
+      "catalog_hash": "c0b111bc94090785",
+      "id": "glyph_hud_pause",
+      "png_hash": "4cf97c3c50dbb2a4",
+      "png_size": [
+        76,
+        76
+      ],
+      "realm": "tampadesa",
+      "source_hash": "19eb4d75d541001d",
+      "state": "idle"
+    },
+    "assets/ui/skins/tampadesa/hud/glyphs/hud/pause_pressed.png": {
+      "catalog_hash": "0390bea0713e780b",
+      "id": "glyph_hud_pause",
+      "png_hash": "94e98b810b4ab931",
+      "png_size": [
+        76,
+        76
+      ],
+      "realm": "tampadesa",
+      "source_hash": "a7c7ecdd468a5a5f",
+      "state": "pressed"
+    },
+    "assets/ui/skins/tampadesa/hud/glyphs/hud/play_idle.png": {
+      "catalog_hash": "902b2db03f12de9b",
+      "id": "glyph_hud_play",
+      "png_hash": "cd491a18bfd2e1fc",
+      "png_size": [
+        76,
+        76
+      ],
+      "realm": "tampadesa",
+      "source_hash": "d015ea8cb9fce4ba",
+      "state": "idle"
+    },
+    "assets/ui/skins/tampadesa/hud/glyphs/hud/play_pressed.png": {
+      "catalog_hash": "e3d68191929a4602",
+      "id": "glyph_hud_play",
+      "png_hash": "4f5737e95af33448",
+      "png_size": [
+        76,
+        76
+      ],
+      "realm": "tampadesa",
+      "source_hash": "7810d84152a8a773",
+      "state": "pressed"
+    },
+    "assets/ui/skins/tampadesa/hud/glyphs/hud/save_idle.png": {
+      "catalog_hash": "15b47f159d25dc44",
+      "id": "glyph_hud_save",
+      "png_hash": "0fbe34afcc32e16f",
+      "png_size": [
+        76,
+        76
+      ],
+      "realm": "tampadesa",
+      "source_hash": "fdf0d6b32817f2dd",
+      "state": "idle"
+    },
+    "assets/ui/skins/tampadesa/hud/glyphs/hud/save_pressed.png": {
+      "catalog_hash": "ba77ed01bad3d9ff",
+      "id": "glyph_hud_save",
+      "png_hash": "f52cd856a49f5a0a",
+      "png_size": [
+        76,
+        76
+      ],
+      "realm": "tampadesa",
+      "source_hash": "56b8af78b9064a0b",
+      "state": "pressed"
+    },
+    "assets/ui/skins/tampadesa/hud/glyphs/minimap/alert_idle.png": {
+      "catalog_hash": "eb571b2285d34838",
+      "id": "glyph_minimap_alert",
+      "png_hash": "186b020769e35904",
+      "png_size": [
+        64,
+        64
+      ],
+      "realm": "tampadesa",
+      "source_hash": "a3f84493203cbf2e",
+      "state": "idle"
+    },
+    "assets/ui/skins/tampadesa/hud/glyphs/minimap/alert_pressed.png": {
+      "catalog_hash": "f5e43f3be995e013",
+      "id": "glyph_minimap_alert",
+      "png_hash": "9d77e1840463501f",
+      "png_size": [
+        64,
+        64
+      ],
+      "realm": "tampadesa",
+      "source_hash": "54a851995c20649e",
+      "state": "pressed"
+    },
+    "assets/ui/skins/tampadesa/hud/glyphs/minimap/city_idle.png": {
+      "catalog_hash": "7f3bb71dbc2fbf9b",
+      "id": "glyph_minimap_city",
+      "png_hash": "41d6adfe88e63479",
+      "png_size": [
+        64,
+        64
+      ],
+      "realm": "tampadesa",
+      "source_hash": "e4d86c2bd59c943a",
+      "state": "idle"
+    },
+    "assets/ui/skins/tampadesa/hud/glyphs/minimap/city_pressed.png": {
+      "catalog_hash": "e76926b311f6ae05",
+      "id": "glyph_minimap_city",
+      "png_hash": "37b9fdd1a2963eba",
+      "png_size": [
+        64,
+        64
+      ],
+      "realm": "tampadesa",
+      "source_hash": "bd2db49df7970cc2",
+      "state": "pressed"
+    },
+    "assets/ui/skins/tampadesa/hud/glyphs/minimap/collapse_idle.png": {
+      "catalog_hash": "a91c8ea606d5862c",
+      "id": "glyph_minimap_collapse",
+      "png_hash": "4dbce50ccb472992",
+      "png_size": [
+        64,
+        64
+      ],
+      "realm": "tampadesa",
+      "source_hash": "2f06624875e23a31",
+      "state": "idle"
+    },
+    "assets/ui/skins/tampadesa/hud/glyphs/minimap/collapse_pressed.png": {
+      "catalog_hash": "1fb23f8670545b66",
+      "id": "glyph_minimap_collapse",
+      "png_hash": "5e09c2a684e614d3",
+      "png_size": [
+        64,
+        64
+      ],
+      "realm": "tampadesa",
+      "source_hash": "c8c6e40f5f360eea",
+      "state": "pressed"
+    },
+    "assets/ui/skins/tampadesa/hud/glyphs/minimap/fire_idle.png": {
+      "catalog_hash": "b0b2d2e3bfebaa50",
+      "id": "glyph_minimap_fire",
+      "png_hash": "386d4ee11b0ff32c",
+      "png_size": [
+        64,
+        64
+      ],
+      "realm": "tampadesa",
+      "source_hash": "7e266dbd30c130e9",
+      "state": "idle"
+    },
+    "assets/ui/skins/tampadesa/hud/glyphs/minimap/fire_pressed.png": {
+      "catalog_hash": "c4ac3405ef70dc85",
+      "id": "glyph_minimap_fire",
+      "png_hash": "3ea4761a2635c165",
+      "png_size": [
+        64,
+        64
+      ],
+      "realm": "tampadesa",
+      "source_hash": "976766c3a99fa900",
+      "state": "pressed"
+    },
+    "assets/ui/skins/tampadesa/hud/glyphs/minimap/home_idle.png": {
+      "catalog_hash": "288ccb1f9527f341",
+      "id": "glyph_minimap_home",
+      "png_hash": "3c3a9233165e65dd",
+      "png_size": [
+        64,
+        64
+      ],
+      "realm": "tampadesa",
+      "source_hash": "193a1bec641db211",
+      "state": "idle"
+    },
+    "assets/ui/skins/tampadesa/hud/glyphs/minimap/home_pressed.png": {
+      "catalog_hash": "001e776f94a6c941",
+      "id": "glyph_minimap_home",
+      "png_hash": "e6fd7d28e45daa78",
+      "png_size": [
+        64,
+        64
+      ],
+      "realm": "tampadesa",
+      "source_hash": "d9776f2f0e1c752a",
+      "state": "pressed"
+    },
+    "assets/ui/skins/tampadesa/hud/glyphs/minimap/minus_idle.png": {
+      "catalog_hash": "c82acff820825b03",
+      "id": "glyph_minimap_minus",
+      "png_hash": "9a18f39869407103",
+      "png_size": [
+        64,
+        64
+      ],
+      "realm": "tampadesa",
+      "source_hash": "b68ef999854064ef",
+      "state": "idle"
+    },
+    "assets/ui/skins/tampadesa/hud/glyphs/minimap/minus_pressed.png": {
+      "catalog_hash": "2aa4705d7f7ec83c",
+      "id": "glyph_minimap_minus",
+      "png_hash": "ccf773e7d62d5d4e",
+      "png_size": [
+        64,
+        64
+      ],
+      "realm": "tampadesa",
+      "source_hash": "5c6b9443ad459fc0",
+      "state": "pressed"
+    },
+    "assets/ui/skins/tampadesa/hud/glyphs/minimap/pin_idle.png": {
+      "catalog_hash": "c8ed401c93ce8988",
+      "id": "glyph_minimap_pin",
+      "png_hash": "e8cf4d0e4ecc9a63",
+      "png_size": [
+        64,
+        64
+      ],
+      "realm": "tampadesa",
+      "source_hash": "c8cfea7e9f269979",
+      "state": "idle"
+    },
+    "assets/ui/skins/tampadesa/hud/glyphs/minimap/pin_pressed.png": {
+      "catalog_hash": "6881882d62508671",
+      "id": "glyph_minimap_pin",
+      "png_hash": "1869e3ba5379dc99",
+      "png_size": [
+        64,
+        64
+      ],
+      "realm": "tampadesa",
+      "source_hash": "52fcf93e3bce3186",
+      "state": "pressed"
+    },
+    "assets/ui/skins/tampadesa/hud/glyphs/minimap/plus_idle.png": {
+      "catalog_hash": "6f3f5ac1313fdf65",
+      "id": "glyph_minimap_plus",
+      "png_hash": "4bf429d4d28019b2",
+      "png_size": [
+        64,
+        64
+      ],
+      "realm": "tampadesa",
+      "source_hash": "3b2ae0cf5ef6470f",
+      "state": "idle"
+    },
+    "assets/ui/skins/tampadesa/hud/glyphs/minimap/plus_pressed.png": {
+      "catalog_hash": "d0df8926c0da2835",
+      "id": "glyph_minimap_plus",
+      "png_hash": "4071408ea39b71c5",
+      "png_size": [
+        64,
+        64
+      ],
+      "realm": "tampadesa",
+      "source_hash": "be6eb6bd4b66e39b",
+      "state": "pressed"
+    },
+    "assets/ui/skins/tampadesa/hud/glyphs/minimap/sectors_idle.png": {
+      "catalog_hash": "be4f47a697107354",
+      "id": "glyph_minimap_sectors",
+      "png_hash": "aab8e49f0aef24fc",
+      "png_size": [
+        64,
+        64
+      ],
+      "realm": "tampadesa",
+      "source_hash": "805f96b6fcfbc4c0",
+      "state": "idle"
+    },
+    "assets/ui/skins/tampadesa/hud/glyphs/minimap/sectors_pressed.png": {
+      "catalog_hash": "d7c0cf2993893fc8",
+      "id": "glyph_minimap_sectors",
+      "png_hash": "695a8a987ec83fb3",
+      "png_size": [
+        64,
+        64
+      ],
+      "realm": "tampadesa",
+      "source_hash": "772b6d9f2eb6ba9a",
+      "state": "pressed"
+    },
+    "assets/ui/skins/tampadesa/hud/glyphs/minimap/water_idle.png": {
+      "catalog_hash": "2059a4b42452ab10",
+      "id": "glyph_minimap_water",
+      "png_hash": "a2583a6fc8e8e929",
+      "png_size": [
+        64,
+        64
+      ],
+      "realm": "tampadesa",
+      "source_hash": "ae0f069ce16ce501",
+      "state": "idle"
+    },
+    "assets/ui/skins/tampadesa/hud/glyphs/minimap/water_pressed.png": {
+      "catalog_hash": "7fd9cda8569878d8",
+      "id": "glyph_minimap_water",
+      "png_hash": "38aa6963b4cdcb91",
+      "png_size": [
+        64,
+        64
+      ],
+      "realm": "tampadesa",
+      "source_hash": "3a14e4be0e7ca4e9",
+      "state": "pressed"
+    },
+    "assets/ui/skins/tampadesa/hud/glyphs/minimap/world_idle.png": {
+      "catalog_hash": "8e77bc9d6d294a98",
+      "id": "glyph_minimap_world",
+      "png_hash": "13cf1baece11bae1",
+      "png_size": [
+        64,
+        64
+      ],
+      "realm": "tampadesa",
+      "source_hash": "47e3cae91a4e7a1b",
+      "state": "idle"
+    },
+    "assets/ui/skins/tampadesa/hud/glyphs/minimap/world_pressed.png": {
+      "catalog_hash": "716d2c98a690d7f9",
+      "id": "glyph_minimap_world",
+      "png_hash": "cb5f71db5aaf7cf9",
+      "png_size": [
+        64,
+        64
+      ],
+      "realm": "tampadesa",
+      "source_hash": "6bce385def937390",
+      "state": "pressed"
+    },
+    "assets/ui/skins/tampadesa/hud/glyphs/sector/beauty_idle.png": {
+      "catalog_hash": "11624430455b61b0",
+      "id": "glyph_sector_beauty",
+      "png_hash": "a8b2f92077a66b99",
+      "png_size": [
+        112,
+        117
+      ],
+      "realm": "tampadesa",
+      "source_hash": "24f3a43d2d76efc1",
+      "state": "idle"
+    },
+    "assets/ui/skins/tampadesa/hud/glyphs/sector/beauty_pressed.png": {
+      "catalog_hash": "d5d10662064d79f2",
+      "id": "glyph_sector_beauty",
+      "png_hash": "a2ff229991b34d76",
+      "png_size": [
+        112,
+        117
+      ],
+      "realm": "tampadesa",
+      "source_hash": "55b152baca669a8c",
+      "state": "pressed"
+    },
+    "assets/ui/skins/tampadesa/hud/glyphs/sector/clear_idle.png": {
+      "catalog_hash": "291673e0ca82e277",
+      "id": "glyph_sector_clear",
+      "png_hash": "3c7b2262c3d0149a",
+      "png_size": [
+        112,
+        117
+      ],
+      "realm": "tampadesa",
+      "source_hash": "c6f13070965152ec",
+      "state": "idle"
+    },
+    "assets/ui/skins/tampadesa/hud/glyphs/sector/clear_pressed.png": {
+      "catalog_hash": "415702db0c2c41d5",
+      "id": "glyph_sector_clear",
+      "png_hash": "d8baba2c6994f2be",
+      "png_size": [
+        112,
+        117
+      ],
+      "realm": "tampadesa",
+      "source_hash": "91015089718deaac",
+      "state": "pressed"
+    },
+    "assets/ui/skins/tampadesa/hud/glyphs/sector/culture_idle.png": {
+      "catalog_hash": "66909b6d9ecb67fc",
+      "id": "glyph_sector_culture",
+      "png_hash": "3c77c96635a52f78",
+      "png_size": [
+        112,
+        117
+      ],
+      "realm": "tampadesa",
+      "source_hash": "7b9100ab843bae85",
+      "state": "idle"
+    },
+    "assets/ui/skins/tampadesa/hud/glyphs/sector/culture_pressed.png": {
+      "catalog_hash": "9a8fdf4b1a47dd44",
+      "id": "glyph_sector_culture",
+      "png_hash": "018831be2870f195",
+      "png_size": [
+        112,
+        117
+      ],
+      "realm": "tampadesa",
+      "source_hash": "7ffb444162ae1f5e",
+      "state": "pressed"
+    },
+    "assets/ui/skins/tampadesa/hud/glyphs/sector/food_idle.png": {
+      "catalog_hash": "89afde49886b94f3",
+      "id": "glyph_sector_food",
+      "png_hash": "8e7288a901545986",
+      "png_size": [
+        112,
+        117
+      ],
+      "realm": "tampadesa",
+      "source_hash": "a3bde74b166d4fa3",
+      "state": "idle"
+    },
+    "assets/ui/skins/tampadesa/hud/glyphs/sector/food_pressed.png": {
+      "catalog_hash": "3778b64af4443fb4",
+      "id": "glyph_sector_food",
+      "png_hash": "0175946d4a7a009f",
+      "png_size": [
+        112,
+        117
+      ],
+      "realm": "tampadesa",
+      "source_hash": "58b35d75d59302a0",
+      "state": "pressed"
+    },
+    "assets/ui/skins/tampadesa/hud/glyphs/sector/housing_idle.png": {
+      "catalog_hash": "a963c4b9ea8c59eb",
+      "id": "glyph_sector_housing",
+      "png_hash": "6f87c44d7f795f9e",
+      "png_size": [
+        112,
+        117
+      ],
+      "realm": "tampadesa",
+      "source_hash": "522677aa526702a4",
+      "state": "idle"
+    },
+    "assets/ui/skins/tampadesa/hud/glyphs/sector/housing_pressed.png": {
+      "catalog_hash": "dee0490fb6f2f8ee",
+      "id": "glyph_sector_housing",
+      "png_hash": "f66d8a0f509e82cd",
+      "png_size": [
+        112,
+        117
+      ],
+      "realm": "tampadesa",
+      "source_hash": "3b11d8cceb84502e",
+      "state": "pressed"
+    },
+    "assets/ui/skins/tampadesa/hud/glyphs/sector/industry_idle.png": {
+      "catalog_hash": "154ca787f2bd6258",
+      "id": "glyph_sector_industry",
+      "png_hash": "6de9cad4e749c301",
+      "png_size": [
+        112,
+        117
+      ],
+      "realm": "tampadesa",
+      "source_hash": "036c45c68c3ea9a0",
+      "state": "idle"
+    },
+    "assets/ui/skins/tampadesa/hud/glyphs/sector/industry_pressed.png": {
+      "catalog_hash": "59345bed0e81b079",
+      "id": "glyph_sector_industry",
+      "png_hash": "a72e05620c7c804c",
+      "png_size": [
+        112,
+        117
+      ],
+      "realm": "tampadesa",
+      "source_hash": "68e7e931f41e4bb5",
+      "state": "pressed"
+    },
+    "assets/ui/skins/tampadesa/hud/glyphs/sector/infrastructure_idle.png": {
+      "catalog_hash": "32e5d677f4a90f10",
+      "id": "glyph_sector_infrastructure",
+      "png_hash": "9b9762610cdd4ce6",
+      "png_size": [
+        112,
+        117
+      ],
+      "realm": "tampadesa",
+      "source_hash": "5ea260a06890ccc0",
+      "state": "idle"
+    },
+    "assets/ui/skins/tampadesa/hud/glyphs/sector/infrastructure_pressed.png": {
+      "catalog_hash": "51d90ec2f0c25807",
+      "id": "glyph_sector_infrastructure",
+      "png_hash": "e9edd51b7a63780b",
+      "png_size": [
+        112,
+        117
+      ],
+      "realm": "tampadesa",
+      "source_hash": "49e947c803a77dd4",
+      "state": "pressed"
+    },
+    "assets/ui/skins/tampadesa/hud/glyphs/sector/redo_idle.png": {
+      "catalog_hash": "7c32f753d7755ba9",
+      "id": "glyph_sector_redo",
+      "png_hash": "42fe104de8aa3a37",
+      "png_size": [
+        112,
+        117
+      ],
+      "realm": "tampadesa",
+      "source_hash": "4bdfc809d046d00b",
+      "state": "idle"
+    },
+    "assets/ui/skins/tampadesa/hud/glyphs/sector/redo_pressed.png": {
+      "catalog_hash": "0dd2ad9dc6275e54",
+      "id": "glyph_sector_redo",
+      "png_hash": "912e3dab7257540f",
+      "png_size": [
+        112,
+        117
+      ],
+      "realm": "tampadesa",
+      "source_hash": "f891b91efe5b0a17",
+      "state": "pressed"
+    },
+    "assets/ui/skins/tampadesa/hud/glyphs/sector/roads_idle.png": {
+      "catalog_hash": "e52abee0eab9611e",
+      "id": "glyph_sector_roads",
+      "png_hash": "026e0858c4610470",
+      "png_size": [
+        112,
+        117
+      ],
+      "realm": "tampadesa",
+      "source_hash": "bf1fcbb56e2a5ff0",
+      "state": "idle"
+    },
+    "assets/ui/skins/tampadesa/hud/glyphs/sector/roads_pressed.png": {
+      "catalog_hash": "92db093f76c494b7",
+      "id": "glyph_sector_roads",
+      "png_hash": "7a2fde484a64392d",
+      "png_size": [
+        112,
+        117
+      ],
+      "realm": "tampadesa",
+      "source_hash": "7de57ef5dd67a4a6",
+      "state": "pressed"
+    },
+    "assets/ui/skins/tampadesa/hud/glyphs/sector/services_idle.png": {
+      "catalog_hash": "655dc97a4da07f37",
+      "id": "glyph_sector_services",
+      "png_hash": "d1403f2a3336aa80",
+      "png_size": [
+        112,
+        117
+      ],
+      "realm": "tampadesa",
+      "source_hash": "470f850e3b6d84c9",
+      "state": "idle"
+    },
+    "assets/ui/skins/tampadesa/hud/glyphs/sector/services_pressed.png": {
+      "catalog_hash": "e61d8b615fa49231",
+      "id": "glyph_sector_services",
+      "png_hash": "694a1962beee187e",
+      "png_size": [
+        112,
+        117
+      ],
+      "realm": "tampadesa",
+      "source_hash": "5a1dd733692aabb9",
+      "state": "pressed"
+    },
+    "assets/ui/skins/tampadesa/hud/glyphs/sector/trade_idle.png": {
+      "catalog_hash": "4f6fea060ad5bbca",
+      "id": "glyph_sector_trade",
+      "png_hash": "3b7f507d6b396f67",
+      "png_size": [
+        112,
+        117
+      ],
+      "realm": "tampadesa",
+      "source_hash": "9fa22026a34e0e92",
+      "state": "idle"
+    },
+    "assets/ui/skins/tampadesa/hud/glyphs/sector/trade_pressed.png": {
+      "catalog_hash": "3fd971b103f7e428",
+      "id": "glyph_sector_trade",
+      "png_hash": "4b4f736088d65570",
+      "png_size": [
+        112,
+        117
+      ],
+      "realm": "tampadesa",
+      "source_hash": "934d08289504d7d2",
+      "state": "pressed"
+    },
+    "assets/ui/skins/tampadesa/hud/glyphs/sector/undo_idle.png": {
+      "catalog_hash": "31a36bd190013f9f",
+      "id": "glyph_sector_undo",
+      "png_hash": "474b3b6511d67d20",
+      "png_size": [
+        112,
+        117
+      ],
+      "realm": "tampadesa",
+      "source_hash": "a1b9b4f70f4611a5",
+      "state": "idle"
+    },
+    "assets/ui/skins/tampadesa/hud/glyphs/sector/undo_pressed.png": {
+      "catalog_hash": "4205b22f4b30f9c8",
+      "id": "glyph_sector_undo",
+      "png_hash": "9e72cfbe7923821d",
+      "png_size": [
+        112,
+        117
+      ],
+      "realm": "tampadesa",
+      "source_hash": "0d1fc11ba31b526b",
+      "state": "pressed"
+    },
+    "assets/ui/skins/tampadesa/hud/icons/coin.png": {
+      "catalog_hash": "02c1f31f4d3c8ac8",
+      "id": "icon_coin",
+      "png_hash": "50900fd975f98f12",
+      "png_size": [
+        88,
+        88
+      ],
+      "realm": "tampadesa",
+      "source_hash": "0dd7de02650d2f91",
+      "state": null
+    },
+    "assets/ui/skins/tampadesa/hud/icons/food.png": {
+      "catalog_hash": "5e6da06368470bfe",
+      "id": "icon_food",
+      "png_hash": "2476f80b6d24e385",
+      "png_size": [
+        88,
+        88
+      ],
+      "realm": "tampadesa",
+      "source_hash": "9b3277f10287c4ef",
+      "state": null
+    },
+    "assets/ui/skins/tampadesa/hud/icons/monument.png": {
+      "catalog_hash": "ca37b6e48c093774",
+      "id": "icon_monument",
+      "png_hash": "0f7ac4c773f91421",
+      "png_size": [
+        88,
+        88
+      ],
+      "realm": "tampadesa",
+      "source_hash": "2a11b801082dc040",
+      "state": null
+    },
+    "assets/ui/skins/tampadesa/hud/icons/population.png": {
+      "catalog_hash": "8a690d942786f14e",
+      "id": "icon_population",
+      "png_hash": "bdd7f6d79dabda1b",
+      "png_size": [
+        88,
+        88
+      ],
+      "realm": "tampadesa",
+      "source_hash": "084effb28306c3c7",
+      "state": null
+    },
+    "assets/ui/skins/tampadesa/hud/icons/request.png": {
+      "catalog_hash": "1c31f06ef0a01094",
+      "id": "icon_request",
+      "png_hash": "32bce3f9043ba240",
+      "png_size": [
+        88,
+        88
+      ],
+      "realm": "tampadesa",
+      "source_hash": "2a1209ded6bc2b6b",
+      "state": null
+    },
+    "assets/ui/skins/tampadesa/hud/icons/trade.png": {
+      "catalog_hash": "95dcb66467223f47",
+      "id": "icon_trade",
+      "png_hash": "b2268faba211dfc5",
+      "png_size": [
+        88,
+        88
+      ],
+      "realm": "tampadesa",
+      "source_hash": "33f152af60a6df6f",
+      "state": null
+    },
+    "assets/ui/skins/tampadesa/hud/icons/warn.png": {
+      "catalog_hash": "b7e73136e1f58a66",
+      "id": "icon_warn",
+      "png_hash": "42f13785280a81a7",
+      "png_size": [
+        88,
+        88
+      ],
+      "realm": "tampadesa",
+      "source_hash": "896cefade51b9110",
+      "state": null
+    },
+    "assets/ui/skins/tampadesa/hud/ornament_gap_narrow.png": {
+      "catalog_hash": "8ff762668128e33f",
+      "id": "ornament_gap_narrow",
+      "png_hash": "543ff5468565d8d2",
+      "png_size": [
+        252,
+        100
+      ],
+      "realm": "tampadesa",
+      "source_hash": "ec204fa1775c1308",
+      "state": null
+    },
+    "assets/ui/skins/tampadesa/hud/ornament_gap_wide.png": {
+      "catalog_hash": "7d14654f0b073fc9",
+      "id": "ornament_gap_wide",
+      "png_hash": "d4794aa13c99ccf7",
+      "png_size": [
+        428,
+        100
+      ],
+      "realm": "tampadesa",
+      "source_hash": "18fea0eb61a62232",
+      "state": null
+    },
+    "assets/ui/skins/tampadesa/hud/panel_hud.png": {
+      "catalog_hash": "3a2b918076d9c046",
+      "id": "panel_hud",
+      "png_hash": "9c794c3a999c8601",
+      "png_size": [
+        722,
+        534
+      ],
+      "realm": "tampadesa",
+      "source_hash": "7c2f75fd63e9458a",
+      "state": null
+    },
+    "assets/ui/skins/tampadesa/hud/panel_hud_bar.png": {
+      "catalog_hash": "12531f8c1f04a763",
+      "id": "panel_hud_bar",
+      "png_hash": "57e185c210b601b5",
+      "png_size": [
+        858,
+        174
+      ],
+      "realm": "tampadesa",
+      "source_hash": "a06ea293dcee9508",
+      "state": null
+    },
+    "assets/ui/skins/tampadesa/hud/panel_hud_large.png": {
+      "catalog_hash": "4eed9d450b0fc1e5",
+      "id": "panel_hud_large",
+      "png_hash": "9642703bc7769044",
+      "png_size": [
+        1058,
+        990
+      ],
+      "realm": "tampadesa",
+      "source_hash": "04e4626e8997ff5f",
+      "state": null
+    },
+    "assets/ui/skins/tampadesa/hud/tile_large_disabled.png": {
+      "catalog_hash": "fcf2c1ddd9f5f88f",
+      "id": "tile_large",
+      "png_hash": "84cb448de840c986",
+      "png_size": [
+        209,
+        269
+      ],
+      "realm": "tampadesa",
+      "source_hash": "6ecefd2d9af5b128",
+      "state": "disabled"
+    },
+    "assets/ui/skins/tampadesa/hud/tile_large_hovered.png": {
+      "catalog_hash": "af589cb80fb0f68f",
+      "id": "tile_large",
+      "png_hash": "cbd139b6ec2c102f",
+      "png_size": [
+        209,
+        269
+      ],
+      "realm": "tampadesa",
+      "source_hash": "0bdd264465fc6271",
+      "state": "hovered"
+    },
+    "assets/ui/skins/tampadesa/hud/tile_large_idle.png": {
+      "catalog_hash": "ef252cff38e839fa",
+      "id": "tile_large",
+      "png_hash": "0d33f888682878b5",
+      "png_size": [
+        209,
+        269
+      ],
+      "realm": "tampadesa",
+      "source_hash": "afc8b8c3b7651976",
+      "state": "idle"
+    },
+    "assets/ui/skins/tampadesa/hud/tile_large_pressed.png": {
+      "catalog_hash": "876f7c432511bc18",
+      "id": "tile_large",
+      "png_hash": "f94b09548949ced7",
+      "png_size": [
+        209,
+        269
+      ],
+      "realm": "tampadesa",
+      "source_hash": "7f185109f4a1cc89",
+      "state": "pressed"
+    },
+    "assets/ui/skins/tampadesa/hud/tile_sector_disabled.png": {
+      "catalog_hash": "3eb83ad683c57c02",
+      "id": "tile_sector",
+      "png_hash": "2192095d0c9a3fdb",
+      "png_size": [
+        147,
+        170
+      ],
+      "realm": "tampadesa",
+      "source_hash": "ef00ead20949e528",
+      "state": "disabled"
+    },
+    "assets/ui/skins/tampadesa/hud/tile_sector_hovered.png": {
+      "catalog_hash": "f19db788d5ce56c3",
+      "id": "tile_sector",
+      "png_hash": "b3dcff600dcda3e3",
+      "png_size": [
+        147,
+        170
+      ],
+      "realm": "tampadesa",
+      "source_hash": "e02fdb393febed0c",
+      "state": "hovered"
+    },
+    "assets/ui/skins/tampadesa/hud/tile_sector_idle.png": {
+      "catalog_hash": "929aba87ade2a558",
+      "id": "tile_sector",
+      "png_hash": "fd9b63f37df09fb6",
+      "png_size": [
+        147,
+        170
+      ],
+      "realm": "tampadesa",
+      "source_hash": "a8f901ba4db08c62",
+      "state": "idle"
+    },
+    "assets/ui/skins/tampadesa/hud/tile_sector_pressed.png": {
+      "catalog_hash": "78394b2b6b5f1be8",
+      "id": "tile_sector",
+      "png_hash": "03227720ea8ada0b",
+      "png_size": [
+        147,
+        170
+      ],
+      "realm": "tampadesa",
+      "source_hash": "a599aa72698050a9",
+      "state": "pressed"
+    },
+    "assets/ui/skins/tampadesa/hud/tile_small_disabled.png": {
+      "catalog_hash": "b0b0fc492b341df5",
+      "id": "tile_small",
+      "png_hash": "ea7d2658ec34becf",
+      "png_size": [
+        109,
+        111
+      ],
+      "realm": "tampadesa",
+      "source_hash": "497c6f75d099e05d",
+      "state": "disabled"
+    },
+    "assets/ui/skins/tampadesa/hud/tile_small_hovered.png": {
+      "catalog_hash": "f5f64844ffe42808",
+      "id": "tile_small",
+      "png_hash": "7d2ddf425dc43cd0",
+      "png_size": [
+        109,
+        111
+      ],
+      "realm": "tampadesa",
+      "source_hash": "e54c4489c67a8469",
+      "state": "hovered"
+    },
+    "assets/ui/skins/tampadesa/hud/tile_small_idle.png": {
+      "catalog_hash": "2a48c74762412d5a",
+      "id": "tile_small",
+      "png_hash": "daebfdecec1f2782",
+      "png_size": [
+        109,
+        111
+      ],
+      "realm": "tampadesa",
+      "source_hash": "1b09491d62be06fd",
+      "state": "idle"
+    },
+    "assets/ui/skins/tampadesa/hud/tile_small_pressed.png": {
+      "catalog_hash": "86e6e23015c78634",
+      "id": "tile_small",
+      "png_hash": "25bf1952dfc1a1a5",
+      "png_size": [
+        109,
+        111
+      ],
+      "realm": "tampadesa",
+      "source_hash": "547a4cdfe9b425ba",
+      "state": "pressed"
     },
     "assets/ui/skins/tampadesa/icon_frame_disabled.png": {
       "catalog_hash": "8284c5a041197ead",

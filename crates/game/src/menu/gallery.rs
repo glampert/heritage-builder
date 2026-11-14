@@ -12,7 +12,7 @@
 // ui.layout_issues and drives its widgets. It took over from the engine's sample menus.
 
 use common::Vec2;
-use engine::ui::{self, UiFontScale, UiNineSlice, UiNineSliceCenter, UiStaticVar, UiString, UiThemeId, widgets::*};
+use engine::ui::{self, UiDecoratedPanel, UiFontScale, UiNineSlice, UiNineSliceCenter, UiStaticVar, UiString, UiThemeId, widgets::*};
 use strum::IntoEnumIterator;
 
 use super::{
@@ -116,7 +116,7 @@ fn build(context: &mut GameUiContext) -> UiMenuRcMut {
 
     // One column, the interactive parts first; it scrolls. Each part is the menu's own widget, laid
     // out one after the other as drawn.
-    let parts: [(&str, fn(&mut GameUiContext) -> UiWidgetImpl); 10] = [
+    let parts: [(&str, fn(&mut GameUiContext) -> UiWidgetImpl); 11] = [
         ("Controls", |context| controls(context).into()),
         ("Buttons", |context| buttons(context).into()),
         ("Button states", |context| button_states(context).into()),
@@ -127,6 +127,7 @@ fn build(context: &mut GameUiContext) -> UiMenuRcMut {
         ("Emblems", |context| emblems(context).into()),
         ("Data", |context| data(context).into()),
         ("Intermission", |context| intermission(context).into()),
+        ("HUD", |context| hud(context).into()),
     ];
     for (title, part) in parts {
         menu.add_widget(section(context, title));
@@ -558,3 +559,62 @@ fn intermission(context: &mut GameUiContext) -> UiWidgetGroup {
     group.add_widget(captioned(briefing_canvas, "Briefing panel"));
     group
 }
+
+// The HUD's art (skin::hud): icon tiles of each kind, idle, selected (the pressed look), disabled
+// and with a badge; the HUD's three panels, the large one with its ornaments; the line icons and
+// the gap ornaments.
+fn hud(context: &mut GameUiContext) -> UiWidgetGroup {
+    use skin::{HudGlyphGroup, HudTileKind};
+
+    let mut tiles = row();
+    let samples = [
+        (HudTileKind::Large, HudGlyphGroup::Building, "temple", "idle", false, true, None),
+        (HudTileKind::Large, HudGlyphGroup::Building, "rice_farm", "selected", true, true, None),
+        (HudTileKind::Large, HudGlyphGroup::Building, "citadel", "disabled", false, false, None),
+        (HudTileKind::Sector, HudGlyphGroup::Sector, "food", "sector", false, true, None),
+        (HudTileKind::Sector, HudGlyphGroup::Sector, "culture", "sector selected", true, true, None),
+        (HudTileKind::Small, HudGlyphGroup::Hud, "goals", "goals", false, true, Some("1/3")),
+        (HudTileKind::Small, HudGlyphGroup::Hud, "faster", "speed", true, true, None),
+        (HudTileKind::Small, HudGlyphGroup::Minimap, "alert", "alerts", false, true, Some("2")),
+    ];
+    for (kind, group, name, caption_text, selected, enabled, badge) in samples {
+        let mut tile = skin::hud_tile(context, kind, &format!("HUD tile {name}"), group, name)
+            .with_toggle(true)
+            .with_selected(selected)
+            .with_enabled(enabled)
+            .with_tooltip(skin::tooltip(context, format!("{name}: a {} tile", kind.name())));
+        tile.set_badge_text(badge);
+        tiles.add_widget(captioned(tile, caption_text));
+    }
+
+    // The panels at sizes the HUD uses, each in a canvas with room round it for their ornaments.
+    let mut panels = row();
+    for (name, size) in [("hud_bar", Vec2::new(300.0, 58.0)), ("hud_panel", Vec2::new(260.0, 150.0)), ("hud_large", Vec2::new(320.0, 240.0))] {
+        let panel = match skin::panel(context, name) {
+            SkinPanel::NineSlice { slice, decorations, .. } => Some(UiDecoratedPanel::new(slice).with_decorations(decorations)),
+            SkinPanel::Sprite { .. } => None,
+        };
+        const ROOM: f32 = 60.0;
+        let canvas = UiCanvas::new(size + Vec2::new(ROOM, ROOM) * 2.0, move |_, painter, rect| {
+            if let Some(panel) = &panel {
+                let inner = common::Rect::from_pos_and_size(rect.min + Vec2::new(ROOM, ROOM), size);
+                painter.decorated_panel(inner, panel, common::Color::white());
+            }
+        })
+        .with_label(format!("HUD panel {name}"), None);
+        panels.add_widget(captioned(canvas, name));
+    }
+
+    let mut icons = row();
+    for name in skin::HUD_ICONS {
+        let (texture, size) = skin::hud_icon(context, name);
+        icons.add_widget(captioned(UiImage::from_texture(texture, size, size).with_label(format!("HUD icon {name}")), name));
+    }
+    for (wide, name) in [(true, "wide ornament"), (false, "narrow ornament")] {
+        let (texture, size) = skin::hud_ornament(context, wide);
+        icons.add_widget(captioned(UiImage::from_texture(texture, size, size).with_label(format!("HUD {name}")), name));
+    }
+
+    UiWidgetGroup::new().with_center_horizontally(false).with_widget_spacing(Vec2::new(0.0, 12.0)).with_widget(tiles).with_widget(panels).with_widget(icons)
+}
+

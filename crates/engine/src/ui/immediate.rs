@@ -32,7 +32,7 @@ use serde_json::Value;
 
 use common::{Color, FieldAccessorXY, Rect, Vec2, format_fixed_string};
 
-use super::{UiFontScale, UiNineSlice, UiSystem, UiWidgetInfo, renderer::egui_texture, widgets::list_index};
+use super::{UiDecoratedPanel, UiFontScale, UiNineSlice, UiPanelDecoration, UiSystem, UiWidgetInfo, renderer::egui_texture, widgets::list_index};
 use crate::render::texture::TextureHandle;
 
 // ----------------------------------------------
@@ -1056,7 +1056,26 @@ pub fn custom_tooltip(
         return;
     };
 
-    show_styled_tooltip(ui_sys, placed_tooltip(&response, placement), font_scale, background, opacity, contents);
+    show_styled_tooltip(ui_sys, placed_tooltip(&response, placement), font_scale, background, &[], opacity, contents);
+}
+
+// As custom_tooltip, with `decorations` hung on a Panel background (UiTooltipText::with_panel
+// with a UiDecoratedPanel). They're drawn past the tooltip's rect, and ignored for any other
+// background.
+pub(super) fn custom_tooltip_decorated(
+    ui_sys: &UiSystem,
+    font_scale: UiFontScale,
+    background: UiTooltipBackground,
+    decorations: &[UiPanelDecoration],
+    placement: UiTooltipPlacement,
+    opacity: f32,
+    contents: impl FnOnce(&UiSystem),
+) {
+    let Some(response) = ui_sys.last_response() else {
+        return;
+    };
+
+    show_styled_tooltip(ui_sys, placed_tooltip(&response, placement), font_scale, background, decorations, opacity, contents);
 }
 
 // What a tooltip draws behind its contents.
@@ -1082,7 +1101,7 @@ pub fn pointer_tooltip(
 ) {
     let (layer_id, widget_id) = ui_sys.with_ui(|ui| (ui.layer_id(), ui.scope_id().with("pointer_tooltip")));
     let tooltip = egui::Tooltip::always_open(ui_sys.ctx().clone(), layer_id, widget_id, egui::PopupAnchor::Pointer).gap(12.0);
-    show_styled_tooltip(ui_sys, tooltip, font_scale, background, opacity, contents);
+    show_styled_tooltip(ui_sys, tooltip, font_scale, background, &[], opacity, contents);
 }
 
 // The popup frame with no fill, outline or shadow: the same margins.
@@ -1095,6 +1114,7 @@ fn show_styled_tooltip(
     tooltip: egui::Tooltip<'_>,
     font_scale: UiFontScale,
     background: UiTooltipBackground,
+    decorations: &[UiPanelDecoration],
     opacity: f32,
     contents: impl FnOnce(&UiSystem),
 ) {
@@ -1129,12 +1149,20 @@ fn show_styled_tooltip(
             let inner = ui.min_rect();
             let rect = egui::Rect::from_min_max(inner.min - margin.left_top(), inner.max + margin.right_bottom());
             let tint = Color32::WHITE.gamma_multiply(opacity.clamp(0.0, 1.0));
-            let shape = match background {
-                UiTooltipBackground::Sprite(texture) => egui::Shape::image(egui_texture(texture), rect, uv_full(), tint),
-                UiTooltipBackground::Panel(slice, _) => nine_slice_shape(rect, &slice, tint),
-                UiTooltipBackground::Style | UiTooltipBackground::None => egui::Shape::Noop,
-            };
-            ui.painter().set(slot, shape);
+            match background {
+                UiTooltipBackground::Sprite(texture) => {
+                    ui.painter().set(slot, egui::Shape::image(egui_texture(texture), rect, uv_full(), tint));
+                }
+                UiTooltipBackground::Panel(slice, _) => {
+                    // Its decorations past the tooltip's rect: behind ones under the panel, the
+                    // others over the contents.
+                    let painter = screen_painter(ui);
+                    let behind = decoration_shapes(rect, decorations, tint, true);
+                    painter.set(slot, egui::Shape::Vec(vec![behind, nine_slice_shape(rect, &slice, tint)]));
+                    painter.add(decoration_shapes(rect, decorations, tint, false));
+                }
+                UiTooltipBackground::Style | UiTooltipBackground::None => {}
+            }
         }
     });
 
@@ -1161,6 +1189,53 @@ pub(super) fn nine_slice_shape(rect: egui::Rect, slice: &UiNineSlice, tint: Colo
         mesh.add_rect_with_uv(egui_rect(quad.rect), egui_rect(quad.uv), tint);
     }
     egui::Shape::mesh(mesh)
+}
+
+// The shapes of the decorations drawn behind a panel over `rect` (`behind`) or over it, in order,
+// each multiplied by `tint`; Noop if there are none.
+pub(super) fn decoration_shapes(rect: egui::Rect, decorations: &[UiPanelDecoration], tint: Color32, behind: bool) -> egui::Shape {
+    let panel_rect = to_rect(rect);
+    let shapes: Vec<egui::Shape> = decorations
+        .iter()
+        .filter(|decoration| decoration.behind == behind)
+        .filter_map(|decoration| decoration.rect(panel_rect).map(|at| egui::Shape::image(egui_texture(decoration.texture), egui_rect(at), uv_full(), tint)))
+        .collect();
+    match shapes.len() {
+        0 => egui::Shape::Noop,
+        _ => egui::Shape::Vec(shapes),
+    }
+}
+
+// A decorated panel over `rect` as two shapes: its behind decorations and its 9-slice, then its
+// other decorations, each multiplied by `tint`.
+pub(super) fn decorated_panel_shapes(rect: egui::Rect, panel: &UiDecoratedPanel, tint: Color32) -> (egui::Shape, egui::Shape) {
+    let behind = decoration_shapes(rect, &panel.decorations, tint, true);
+    let under = match behind {
+        egui::Shape::Noop => nine_slice_shape(rect, &panel.panel, tint),
+        behind => egui::Shape::Vec(vec![behind, nine_slice_shape(rect, &panel.panel, tint)]),
+    };
+    (under, decoration_shapes(rect, &panel.decorations, tint, false))
+}
+
+// A painter on `ui`'s layer that draws anywhere on the screen, past the clip rect of the window or
+// scroll area `ui` is in: for decorations that reach past their widget by design.
+pub(super) fn screen_painter(ui: &egui::Ui) -> egui::Painter {
+    let mut painter = ui.painter().clone();
+    painter.set_clip_rect(ui.ctx().content_rect());
+    painter
+}
+
+// A painter on `ui`'s layer whose clip rect is `ui`'s grown by `overhang` points (left, top, right,
+// bottom), within the screen: what a widget draws past its own rect (a tile's crest, a badge)
+// shows where the widget does, plus that much, so it isn't cut at a scroll area's edge but doesn't
+// spill far past it when scrolled.
+pub(super) fn overhang_painter(ui: &egui::Ui, overhang: [f32; 4]) -> egui::Painter {
+    let clip = ui.clip_rect();
+    let [left, top, right, bottom] = overhang;
+    let grown = egui::Rect::from_min_max(clip.min - vec2(left, top), clip.max + vec2(right, bottom));
+    let mut painter = ui.painter().clone();
+    painter.set_clip_rect(grown.intersect(ui.ctx().content_rect()));
+    painter
 }
 
 // ----------------------------------------------
@@ -2214,6 +2289,19 @@ impl UiPainter {
     // its middle stretches or repeats (UiNineSlice).
     pub fn nine_slice(&self, rect: Rect, slice: &UiNineSlice, tint: Color) {
         self.painter.add(nine_slice_shape(egui_rect(rect), slice, color32(tint)));
+    }
+
+    // A decorated panel over `rect`, multiplied by `tint`: its behind decorations, its 9-slice,
+    // then its other decorations (UiDecoratedPanel). The panel keeps the current clip rect; the
+    // decorations are drawn anywhere on the screen, since they reach past the panel by design.
+    pub fn decorated_panel(&self, rect: Rect, panel: &UiDecoratedPanel, tint: Color) {
+        let tint = color32(tint);
+        let rect = egui_rect(rect);
+        let mut screen = self.painter.clone();
+        screen.set_clip_rect(self.painter.ctx().content_rect());
+        screen.add(decoration_shapes(rect, &panel.decorations, tint, true));
+        self.painter.add(nine_slice_shape(rect, &panel.panel, tint));
+        screen.add(decoration_shapes(rect, &panel.decorations, tint, false));
     }
 
     // `texture` mapped onto a quad, e.g. a rotated one. `uvs` go with `corners`, (0, 0) being the

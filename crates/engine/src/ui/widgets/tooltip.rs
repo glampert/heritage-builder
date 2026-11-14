@@ -4,7 +4,7 @@ use super::UiWidgetContext;
 use crate::{
     file_sys::paths::PathRef,
     render::texture::TextureHandle,
-    ui::{UiFontScale, UiNineSlice, UiString, UiTooltipBackground, UiTooltipPlacement},
+    ui::{UiDecoratedPanel, UiFontScale, UiPanelDecoration, UiString, UiTooltipBackground, UiTooltipPlacement},
 };
 
 // ----------------------------------------------
@@ -16,6 +16,7 @@ pub struct UiTooltipText {
     pub(super) text: UiString,
     font_scale: UiFontScale,
     background: UiTooltipBackground,
+    decorations: Vec<UiPanelDecoration>, // Hung on a Panel background.
     placement: UiTooltipPlacement,
     opacity: f32,
     text_color: Option<Color>, // The style's if None.
@@ -26,7 +27,7 @@ impl UiTooltipText {
         let text = text.into();
         debug_assert!(!text.is_empty());
 
-        Self { text, font_scale: UiFontScale::default(), background: UiTooltipBackground::Style, placement: UiTooltipPlacement::default(), opacity: 1.0, text_color: None }
+        Self { text, font_scale: UiFontScale::default(), background: UiTooltipBackground::Style, decorations: Vec::new(), placement: UiTooltipPlacement::default(), opacity: 1.0, text_color: None }
     }
 
     pub fn with_font_scale(mut self, font_scale: UiFontScale) -> Self {
@@ -38,20 +39,25 @@ impl UiTooltipText {
     // A sprite stretched behind the text, in place of the style's tooltip frame.
     pub fn with_background<'a>(mut self, context: &mut dyn UiWidgetContext, sprite: impl Into<PathRef<'a>>) -> Self {
         self.background = UiTooltipBackground::Sprite(context.load_texture(sprite.into()));
+        self.decorations.clear();
         self
     }
 
     // A loaded texture stretched behind the text, as with_background.
     pub fn with_background_texture(mut self, texture: TextureHandle) -> Self {
         self.background = UiTooltipBackground::Sprite(texture);
+        self.decorations.clear();
         self
     }
 
     // A 9-slice panel behind the text, in place of the style's tooltip frame. It covers the text
     // and the frame's margins: `insets` in points (left, top, right, bottom), so the text stays
-    // inside the panel's border, or the style's popup margins if None.
-    pub fn with_panel(mut self, panel: UiNineSlice, insets: Option<[f32; 4]>) -> Self {
+    // inside the panel's border, or the style's popup margins if None. A UiDecoratedPanel's
+    // decorations are drawn past the tooltip's rect, without changing its size or margins.
+    pub fn with_panel(mut self, panel: impl Into<UiDecoratedPanel>, insets: Option<[f32; 4]>) -> Self {
+        let UiDecoratedPanel { panel, decorations } = panel.into();
         self.background = UiTooltipBackground::Panel(panel, insets);
+        self.decorations = decorations;
         self
     }
 
@@ -77,7 +83,7 @@ impl UiTooltipText {
     pub(super) fn draw(&self, context: &mut dyn UiWidgetContext) {
         debug_assert!(context.is_inside_widget_window());
 
-        crate::ui::custom_tooltip(context.ui_sys(), self.font_scale, self.background, self.placement, self.opacity, |ui_sys| {
+        crate::ui::immediate::custom_tooltip_decorated(context.ui_sys(), self.font_scale, self.background, &self.decorations, self.placement, self.opacity, |ui_sys| {
             match self.text_color {
                 Some(color) => crate::ui::text_colored(ui_sys, color, self.text.resolve()),
                 None => crate::ui::text(ui_sys, self.text.resolve()),

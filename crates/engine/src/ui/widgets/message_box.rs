@@ -6,7 +6,7 @@ use super::{UiMenu, UiMenuBackground, UiMenuFlags, UiMenuInsets, UiMenuRcMut, Ui
 use crate::{
     file_sys::paths::PathRef,
     render::texture::TextureHandle,
-    ui::{UiFontScale, UiNineSlice, sound::{UiSoundEvent, UiSoundKey}},
+    ui::{UiDecoratedPanel, UiFontScale, sound::{UiSoundEvent, UiSoundKey}},
 };
 
 // ----------------------------------------------
@@ -89,9 +89,10 @@ impl UiMessageBox {
 
     // A 9-slice panel over the popup, in place of the style's frame, with the contents inside
     // `content_insets`.
-    pub fn with_panel(mut self, panel: UiNineSlice, content_insets: UiMenuInsets) -> Self {
+    // A UiDecoratedPanel's decorations are drawn past the popup's rect, as UiMenu::with_panel's.
+    pub fn with_panel(mut self, panel: impl Into<UiDecoratedPanel>, content_insets: UiMenuInsets) -> Self {
         let menu = self.menu_mut();
-        menu.background = Some(UiMenuBackground::Panel(panel));
+        menu.background = Some(UiMenuBackground::Panel(panel.into()));
         menu.content_insets = Some(content_insets);
         self
     }

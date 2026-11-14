@@ -47,6 +47,7 @@ pub mod text;
 pub mod widgets;
 
 pub use debug_ui::DrawDebugUi;
+pub use decorated_panel::{UiDecoratedPanel, UiDecorationAnchor, UiPanelDecoration};
 pub use nine_slice::{UiNineSlice, UiNineSliceCenter, UiNineSliceQuad, UiNineSliceQuads};
 pub use style::{DEV_UI_THEME, GLYPH_TEST_ICONS, GLYPH_TEST_TEXTS, UiStyleSource, UiThemeId, check_glyph_coverage};
 pub use text::UiString;
@@ -55,6 +56,7 @@ pub use immediate::*;
 
 // Internal implementation.
 mod backend;
+mod decorated_panel;
 mod immediate;
 mod internal;
 mod nine_slice;

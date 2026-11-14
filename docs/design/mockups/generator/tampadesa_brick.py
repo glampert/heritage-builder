@@ -193,7 +193,28 @@ class Brickwork:
         pat = self.filt("mud" if mud else "bricks")
         return f'<g filter="url(#{self.filt("rough_small" if small else "rough")})"><path d="{d}" fill="url(#{pat})" fill-rule="evenodd"/></g>'
 
-    def panel(self, x, y, w, h, big=False):
+    def panel_ornaments(self, x, y, w, h):
+        """A large panel's ornaments outside its frame, by place: brick piers crowned by stupas on the
+        top corners, a stupa crest at the top's middle, gilt nagas along the foot, vines."""
+        t = 20
+        tb = t + 6
+        out = {}
+        for name, px in (("pier_left", x - t), ("pier_right", x + w + t - t * 2.4)):
+            out[name] = (self.bricks(f"M{f(px - t * 0.3)},{f(y + t)} V{f(y - tb - t * 1.2)} H{f(px + t * 2.7)} V{f(y + t)}Z")
+                         + self.stupa(px + t * 1.2, y - tb - t * 1.1, t * 3.2))
+        cx = x + w / 2
+        out["crest"] = (self.bricks(f"M{f(cx - t * 3)},{f(y - tb + 2)} Q{f(cx - t * 1.5)},{f(y - tb - t * 1.4)} {f(cx)},{f(y - tb - t * 1.8)} "
+                                    f"Q{f(cx + t * 1.5)},{f(y - tb - t * 1.4)} {f(cx + t * 3)},{f(y - tb + 2)}Z")
+                        + self.stupa(cx, y - tb - t * 0.6, t * 3.6) + self.kanok(cx - t * 1.4, y - tb - t * 0.4, t * 2.6, -1, 1)
+                        + self.kanok(cx + t * 1.4, y - tb - t * 0.4, t * 2.6, 1, 1))
+        ns = min(w * 0.36, t * 9)
+        out["naga_left"] = self.naga(x + t * 0.5, y + h + t * 0.75, ns, 1)
+        out["naga_right"] = self.naga(x + w - t * 0.5, y + h + t * 0.75, ns, -1)
+        out["vines_left"] = self.vines(x + t * 2.6, y - tb + 2, t * 0.9, 3, 1)
+        out["vines_right"] = self.vines(x + w - t * 2.6, y - tb + 2, t * 0.9, 7, -1)
+        return out
+
+    def panel(self, x, y, w, h, big=False, ornaments=True):
         """A brick frame round dark mudbrick, gold filigree at its corners and lip; a large panel
         gets stupas on its top corners and a crest at the middle, singhas guarding its foot, vines."""
         thin = h < 120
@@ -214,19 +235,8 @@ class Brickwork:
         out.append(self.kanok(x + t * 0.2, y + t * 1.6, k, 1, 1) + self.kanok(x + w - t * 0.2, y + t * 1.6, k, -1, 1)
                    + self.kanok(x + t * 0.2, y + h - t * 0.4, k, 1, 1) + self.kanok(x + w - t * 0.2, y + h - t * 0.4, k, -1, 1))
         out.append(self.lotus(x + w / 2, y + h + t * 0.9, t * 1.5))
-        if big:
-            # Brick piers at the top corners, each crowned by a stupa; a crest at the top's middle.
-            for px in (x - t, x + w + t - t * 2.4):
-                out.append(self.bricks(f"M{f(px - t * 0.3)},{f(y + t)} V{f(y - tb - t * 1.2)} H{f(px + t * 2.7)} V{f(y + t)}Z"))
-                out.append(self.stupa(px + t * 1.2, y - tb - t * 1.1, t * 3.2))
-            cx = x + w / 2
-            out.append(self.bricks(f"M{f(cx - t * 3)},{f(y - tb + 2)} Q{f(cx - t * 1.5)},{f(y - tb - t * 1.4)} {f(cx)},{f(y - tb - t * 1.8)} "
-                                   f"Q{f(cx + t * 1.5)},{f(y - tb - t * 1.4)} {f(cx + t * 3)},{f(y - tb + 2)}Z"))
-            out.append(self.stupa(cx, y - tb - t * 0.6, t * 3.6) + self.kanok(cx - t * 1.4, y - tb - t * 0.4, t * 2.6, -1, 1)
-                       + self.kanok(cx + t * 1.4, y - tb - t * 0.4, t * 2.6, 1, 1))
-            ns = min(w * 0.36, t * 9)
-            out.append(self.naga(x + t * 0.5, y + h + t * 0.75, ns, 1) + self.naga(x + w - t * 0.5, y + h + t * 0.75, ns, -1))
-            out.append(self.vines(x + t * 2.6, y - tb + 2, t * 0.9, 3, 1) + self.vines(x + w - t * 2.6, y - tb + 2, t * 0.9, 7, -1))
+        if big and ornaments:
+            out.extend(self.panel_ornaments(x, y, w, h).values())
         return "".join(out)
 
     # ------------------------------------------------------------ an icon tile

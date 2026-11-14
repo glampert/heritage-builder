@@ -11,7 +11,8 @@
 // is loaded: `UiSpriteButton::new`, `UiSlideshow::new` and the `with_*` setters that take one.
 // 9-slice panels (UiNineSlice) are loaded first, with UiWidgetContext::load_nine_slice, and handed
 // to the setters that take them: UiMenu::with_panel, UiMessageBox::with_panel,
-// UiTooltipText::with_panel and UiTextButton::with_frame.
+// UiTooltipText::with_panel and UiTextButton::with_frame. The panel setters (and UiFrame's) also
+// take a UiDecoratedPanel, a panel with ornaments hung past its rect (decorated_panel.rs).
 //
 // Widgets record themselves in the widget registry (registry.rs) as they draw, for UI automation.
 //
@@ -35,6 +36,9 @@
 // - columns.rs: UiColumns, widget groups side by side (UiColumnWidth, split_column_widths).
 // - tab_bar.rs: UiTabBar, tabs with each tab's contents under them.
 // - button.rs: UiTextButton (plain or framed, UiTextButtonFrame), UiIconButton and UiSpriteButton.
+// - icon_tile.rs: UiIconTile, a HUD button in a realm's craft: a frame per state that may reach
+//   past its rect (a crest), a glyph (UiIconGlyph, a texture or a part of an atlas) and a badge,
+//   in a look shared by the tiles of its kind (UiIconTileLook).
 // - tooltip.rs: UiTooltipText.
 // - separator.rs: UiSeparator.
 // - image.rs: UiSpriteIcon, UiSlideshow and UiImage (a texture fit to a rect, fit_image).
@@ -64,6 +68,7 @@ mod columns;
 mod data;
 mod frame;
 mod group;
+mod icon_tile;
 mod image;
 mod input;
 mod list;
@@ -84,6 +89,7 @@ pub use columns::*;
 pub use data::*;
 pub use frame::*;
 pub use group::*;
+pub use icon_tile::*;
 pub use image::*;
 pub use input::*;
 pub use list::*;
@@ -305,6 +311,7 @@ pub enum UiWidgetImpl {
     UiStepSelector,
     UiMenuItem,
     UiIconButton,
+    UiIconTile,
     UiImage,
     UiKeyValues,
     UiTable,

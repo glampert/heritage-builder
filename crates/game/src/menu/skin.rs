@@ -50,6 +50,9 @@ use engine::{
         UiNineSlice,
         UiNineSliceCenter,
         UiStyleSource,
+        UiDecoratedPanel,
+        UiDecorationAnchor,
+        UiPanelDecoration,
         UiString,
         UiSystem,
         UiThemeId,
@@ -61,6 +64,7 @@ use engine::{
     },
 };
 
+pub use super::skin_hud::*;
 use crate::{
     realm::Realm,
     tile::minimap::style::HexColor,
@@ -111,6 +115,7 @@ pub struct UiSkinDef {
     pub briefing: SkinBriefingDef,
     pub story: SkinStoryDef,
     pub dialogs: BTreeMap<String, SkinDialogDef>, // "default", then by dialog kind name.
+    pub hud: SkinHudDef,
     pub sounds: BTreeMap<String, Option<String>>,
 }
 
@@ -139,6 +144,7 @@ impl Default for UiSkinDef {
             briefing: SkinBriefingDef::default(),
             story: SkinStoryDef::default(),
             dialogs: BTreeMap::new(),
+            hud: SkinHudDef::default(),
             sounds: BTreeMap::new(),
         }
     }
@@ -167,7 +173,8 @@ impl SkinCenter {
 // A panel: a 9-slice (`slice` given: borders in pixels, left, top, right, bottom) or a sprite
 // stretched over the rect (no `slice`, the old HUD art). `content`: the contents' insets in points.
 // `text`: the colour of text drawn on it, a `text` colour's name or "#RRGGBB" (the style's if
-// none), e.g. light text on Tampadesa's dark lacquer tooltip.
+// none), e.g. light text on Tampadesa's dark lacquer tooltip. `decorations`: a 9-slice's
+// ornaments outside its rect (SkinDecorationDef), the HUD's large panels' crests and corner pieces.
 #[derive(Clone, Debug, Default, Deserialize)]
 #[serde(default, deny_unknown_fields)]
 pub struct SkinPanelDef {
@@ -176,6 +183,51 @@ pub struct SkinPanelDef {
     pub center: SkinCenter,
     pub content: Option<[f32; 4]>,
     pub text: Option<String>,
+    pub decorations: Vec<SkinDecorationDef>,
+}
+
+// A panel's ornament (UiPanelDecoration): a sprite at its own size (the skin's sprite scale),
+// centred `offset` points from the `anchor` point on the panel's rect (top_left, top_center, ...),
+// drawn only on a panel at least `min_panel` points large, under the panel when `behind`. ui-art
+// draws them with the offsets the skins give (crates/tools/ui-art, the deco_ sprites).
+#[derive(Clone, Debug, Default, Deserialize)]
+#[serde(default, deny_unknown_fields)]
+pub struct SkinDecorationDef {
+    pub sprite: String,
+    pub anchor: SkinAnchor,
+    pub offset: [f32; 2],
+    pub min_panel: [f32; 2],
+    pub behind: bool,
+}
+
+// A point on a rect (UiDecorationAnchor).
+#[derive(Copy, Clone, Default, PartialEq, Eq, Debug, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum SkinAnchor {
+    TopLeft,
+    #[default]
+    TopCenter,
+    TopRight,
+    LeftCenter,
+    RightCenter,
+    BottomLeft,
+    BottomCenter,
+    BottomRight,
+}
+
+impl SkinAnchor {
+    pub fn anchor(self) -> UiDecorationAnchor {
+        match self {
+            Self::TopLeft => UiDecorationAnchor::TopLeft,
+            Self::TopCenter => UiDecorationAnchor::TopCenter,
+            Self::TopRight => UiDecorationAnchor::TopRight,
+            Self::LeftCenter => UiDecorationAnchor::LeftCenter,
+            Self::RightCenter => UiDecorationAnchor::RightCenter,
+            Self::BottomLeft => UiDecorationAnchor::BottomLeft,
+            Self::BottomCenter => UiDecorationAnchor::BottomCenter,
+            Self::BottomRight => UiDecorationAnchor::BottomRight,
+        }
+    }
 }
 
 // A button role. Framed (`sprite`: a stem with _idle, _hovered, _pressed and _disabled sprites,
@@ -1455,9 +1507,9 @@ fn opt_color(name: &Option<String>) -> Option<Color> {
 
 // A panel ready for a widget: a 9-slice or a stretched sprite, with its content insets and the
 // colour of the text on it.
-#[derive(Copy, Clone, Debug)]
+#[derive(Clone, Debug)]
 pub enum SkinPanel {
-    NineSlice { slice: UiNineSlice, content: UiMenuInsets, text_color: Option<Color> },
+    NineSlice { slice: UiNineSlice, content: UiMenuInsets, text_color: Option<Color>, decorations: Vec<UiPanelDecoration> },
     Sprite { texture: engine::render::texture::TextureHandle, content: Option<UiMenuInsets>, text_color: Option<Color> },
 }
 
@@ -1471,7 +1523,9 @@ impl SkinPanel {
     // `menu` on this panel.
     pub fn apply_to_menu(self, menu: UiMenu) -> UiMenu {
         match self {
-            Self::NineSlice { slice, content, .. } => menu.with_panel(slice, content),
+            Self::NineSlice { slice, content, decorations, .. } => {
+                menu.with_panel(UiDecoratedPanel::new(slice).with_decorations(decorations), content)
+            }
             Self::Sprite { texture, content, .. } => {
                 let menu = menu.with_background_texture(texture);
                 match content {
@@ -1485,7 +1539,9 @@ impl SkinPanel {
     // A popup on this panel.
     pub fn apply_to_message_box(self, message_box: UiMessageBox) -> UiMessageBox {
         match self {
-            Self::NineSlice { slice, content, .. } => message_box.with_panel(slice, content),
+            Self::NineSlice { slice, content, decorations, .. } => {
+                message_box.with_panel(UiDecoratedPanel::new(slice).with_decorations(decorations), content)
+            }
             Self::Sprite { texture, content, .. } => {
                 let message_box = message_box.with_background_texture(texture);
                 match content {
@@ -1511,6 +1567,15 @@ pub(crate) fn nine_slice(context: &mut dyn UiWidgetContext, sprite: &str, slice_
     context.load_nine_slice(PathRef::from_str(sprite), slice_px).with_scale(art_scale()).with_center(center.nine_slice())
 }
 
+// A panel's ornament, at its sprite's size.
+fn decoration(context: &mut dyn UiWidgetContext, def: &SkinDecorationDef) -> UiPanelDecoration {
+    let (texture, size) = sprite_and_size(context, &def.sprite);
+    UiPanelDecoration::new(texture, size, def.anchor.anchor())
+        .with_offset(Vec2::new(def.offset[0], def.offset[1]))
+        .with_min_panel_size(Vec2::new(def.min_panel[0], def.min_panel[1]))
+        .with_behind(def.behind)
+}
+
 // The panel `name` of the current skin. A name the skin lacks logs an error and gives its
 // `dialog` panel, so a skin error never stops the UI.
 pub fn panel(context: &mut dyn UiWidgetContext, name: &str) -> SkinPanel {
@@ -1529,6 +1594,7 @@ pub fn panel(context: &mut dyn UiWidgetContext, name: &str) -> SkinPanel {
             slice: nine_slice(context, &def.sprite, slice_px, def.center),
             content: insets(def.content).unwrap_or_default(),
             text_color,
+            decorations: def.decorations.iter().map(|deco| decoration(context, deco)).collect(),
         },
         None => SkinPanel::Sprite {
             texture: context.load_texture(PathRef::from_str(&def.sprite)),
@@ -1660,6 +1726,10 @@ pub fn intermission() -> &'static SkinIntermissionDef {
 // The current skin's briefing art.
 pub fn briefing() -> &'static SkinBriefingDef {
     &current().briefing
+}
+
+pub fn hud() -> &'static SkinHudDef {
+    &current().hud
 }
 
 // The home menu's backdrop frames (one for a still), and the time between frames.
@@ -1887,18 +1957,21 @@ pub const TOOLTIP_FONT_SCALE: UiFontScale = UiFontScale(0.8);
 // text's colour on it (the style's if None): for tooltips not tied to a widget (ui::pointer_tooltip).
 pub fn tooltip_background(context: &mut dyn UiWidgetContext) -> (UiTooltipBackground, Option<Color>) {
     let panel = panel(context, "tooltip");
+    let text_color = panel.text_color();
     let background = match panel {
         SkinPanel::NineSlice { slice, content, .. } => UiTooltipBackground::Panel(slice, insets_points(content)),
         SkinPanel::Sprite { texture, .. } => UiTooltipBackground::Sprite(texture),
     };
-    (background, panel.text_color())
+    (background, text_color)
 }
 
 // A tooltip on the skin's tooltip panel, in its text colour.
 pub fn tooltip(context: &mut dyn UiWidgetContext, text: impl Into<UiString>) -> UiTooltipText {
     let tooltip = UiTooltipText::new(text).with_font_scale(TOOLTIP_FONT_SCALE);
     match panel(context, "tooltip") {
-        SkinPanel::NineSlice { slice, content, text_color } => tooltip.with_panel(slice, insets_points(content)).with_text_color(text_color),
+        SkinPanel::NineSlice { slice, content, text_color, decorations } => tooltip
+            .with_panel(UiDecoratedPanel::new(slice).with_decorations(decorations), insets_points(content))
+            .with_text_color(text_color),
         SkinPanel::Sprite { texture, text_color, .. } => tooltip.with_background_texture(texture).with_text_color(text_color),
     }
 }
@@ -2018,7 +2091,7 @@ pub fn dropdown_look(context: &mut dyn UiWidgetContext) -> Option<UiDropdownLook
     if def.arrow.is_empty() || !current().panels.contains_key(&def.field) {
         return None;
     }
-    let SkinPanel::NineSlice { slice, text_color, content } = panel(context, &def.field) else {
+    let SkinPanel::NineSlice { slice, text_color, content, .. } = panel(context, &def.field) else {
         return None;
     };
     let (arrow, arrow_size) = sprite_and_size(context, &def.arrow);
@@ -2047,7 +2120,7 @@ pub fn text_input_look(context: &mut dyn UiWidgetContext) -> Option<UiTextInputL
     if !current().panels.contains_key(&def.field) {
         return None;
     }
-    let SkinPanel::NineSlice { slice, content, text_color } = panel(context, &def.field) else {
+    let SkinPanel::NineSlice { slice, content, text_color, .. } = panel(context, &def.field) else {
         return None;
     };
     let padding = match insets_points(content) {

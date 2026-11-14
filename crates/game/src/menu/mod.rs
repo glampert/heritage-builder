@@ -46,6 +46,7 @@ pub mod gallery;
 pub mod home;
 pub mod in_game;
 pub mod skin;
+mod skin_hud;
 pub mod stele;
 
 use skin::ButtonRole;

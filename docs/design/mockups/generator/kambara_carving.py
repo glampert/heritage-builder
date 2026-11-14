@@ -227,21 +227,7 @@ class Carving:
             out.append(f'<path d="{ring}" fill-rule="evenodd" fill="#000" filter="url(#{self.filt("moss")})" opacity="0.7"/>')
         # The crest: a face over the top, volutes either side, on a plinth.
         if crest:
-            cx = x + w / 2
-            ch = crest
-            pw = ch * 0.95
-            base = f'<rect x="{f(cx - pw / 2)}" y="{f(y - ch * 0.12)}" width="{f(pw)}" height="{f(ch * 0.22)}" rx="{f(ch * 0.04)}"/>'
-            solid, cut = self.face(cx, y - ch * 0.08, ch)
-            vol = (self.volute(cx - ch * 0.42, y - ch * 0.2, ch * 0.2, -1, 1) + self.volute(cx + ch * 0.42, y - ch * 0.2, ch * 0.2, 1, 1))
-            fm = self.uid("kfm")
-            self.defs.append(f'<mask id="{fm}" maskUnits="userSpaceOnUse" x="{f(cx - ch)}" y="{f(y - ch * 1.2)}" width="{f(ch * 2)}" height="{f(ch * 1.5)}">'
-                             f'<rect x="{f(cx - ch)}" y="{f(y - ch * 1.2)}" width="{f(ch * 2)}" height="{f(ch * 1.5)}" fill="#fff"/>{cut}</mask>')
-            out.append(f'<g filter="url(#{stone})"><g mask="url(#{fm})" fill="#8e7148">{base}{solid}</g>'
-                       + vol.replace('stroke="#000"', 'stroke="#8c6e44"') + "</g>")
-            if vines:
-                out.append(f'<g filter="url(#{self.filt("leaf")})">' + self.leaf_cluster(cx - ch * 0.55, y - ch * 0.05, ch * 0.24, seed + 3, 2)
-                           + self.leaf_cluster(cx + ch * 0.55, y - ch * 0.05, ch * 0.24, seed + 4, 2)
-                           + self.vine(cx - ch * 0.62, y + t * 0.4, min(h * 0.12, ch * 0.45), ch * 0.2, seed + 5, 1, -1) + "</g>")
+            out.append(self.crest(x, y, w, h, t, crest, seed, vines))
         if vines and not small:
             s = max(7, min(t * 1.5, 22))
             out.append(f'<g filter="url(#{self.filt("leaf")})">'
@@ -252,8 +238,29 @@ class Carving:
                        + self.leaf_cluster(x + w - t * 0.7, y + h - t * 0.3, s * 0.9, seed + 12, 2) + "</g>")
         return "".join(out)
 
+
+    def crest(self, x, y, w, h, t, ch, seed=1, vines=True):
+        """The crest over a frame's top middle: a face, volutes either side, on a plinth (its height ch)."""
+        stone = self.filt("stone")
+        out = []
+        cx = x + w / 2
+        pw = ch * 0.95
+        base = f'<rect x="{f(cx - pw / 2)}" y="{f(y - ch * 0.12)}" width="{f(pw)}" height="{f(ch * 0.22)}" rx="{f(ch * 0.04)}"/>'
+        solid, cut = self.face(cx, y - ch * 0.08, ch)
+        vol = (self.volute(cx - ch * 0.42, y - ch * 0.2, ch * 0.2, -1, 1) + self.volute(cx + ch * 0.42, y - ch * 0.2, ch * 0.2, 1, 1))
+        fm = self.uid("kfm")
+        self.defs.append(f'<mask id="{fm}" maskUnits="userSpaceOnUse" x="{f(cx - ch)}" y="{f(y - ch * 1.2)}" width="{f(ch * 2)}" height="{f(ch * 1.5)}">'
+                         f'<rect x="{f(cx - ch)}" y="{f(y - ch * 1.2)}" width="{f(ch * 2)}" height="{f(ch * 1.5)}" fill="#fff"/>{cut}</mask>')
+        out.append(f'<g filter="url(#{stone})"><g mask="url(#{fm})" fill="#8e7148">{base}{solid}</g>'
+                   + vol.replace('stroke="#000"', 'stroke="#8c6e44"') + "</g>")
+        if vines:
+            out.append(f'<g filter="url(#{self.filt("leaf")})">' + self.leaf_cluster(cx - ch * 0.55, y - ch * 0.05, ch * 0.24, seed + 3, 2)
+                       + self.leaf_cluster(cx + ch * 0.55, y - ch * 0.05, ch * 0.24, seed + 4, 2)
+                       + self.vine(cx - ch * 0.62, y + t * 0.4, min(h * 0.12, ch * 0.45), ch * 0.2, seed + 5, 1, -1) + "</g>")
+        return "".join(out)
+
     # ------------------------------------------------------------ an icon tile
-    def tile(self, x, y, w, mask_url, state="idle", small=False, seed=1, crest=-1):
+    def tile(self, x, y, w, mask_url, state="idle", small=False, seed=1, crest=-1, part="all"):
         """A palette tile: its frame body w wide at (x, y), the crest above y when not small."""
         h = w * (1.08 if not small else 1.0)
         if crest == -1:
@@ -273,5 +280,9 @@ class Carving:
             out.append(f'<rect x="{f(x + w * 0.11)}" y="{f(y + w * 0.11)}" width="{f(w * 0.78)}" height="{f(h - w * 0.22)}" fill="none" stroke="#e0a454" stroke-width="{f(max(1, w * 0.02))}" opacity="0.8"/>')
         fill = {"idle": f"url(#{self.filt('glyphgrad')})", "hover": "#f0d9ae", "pressed": "#e0b67a", "disabled": "#7a6e5c"}[state]
         filt = self.filt("relief_sunk" if sunk else ("stone_small" if small else "relief"))
-        out.append(f'<g filter="url(#{filt})"><rect x="{f(x)}" y="{f(y)}" width="{f(w)}" height="{f(h)}" fill="{fill}" mask="{mask_url}"/></g>')
+        glyph = f'<g filter="url(#{filt})"><rect x="{f(x)}" y="{f(y)}" width="{f(w)}" height="{f(h)}" fill="{fill}" mask="{mask_url}"/></g>'
+        if part == "glyph":
+            return glyph, h
+        if part != "frame":
+            out.append(glyph)
         return "".join(out), h

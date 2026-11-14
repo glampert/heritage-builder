@@ -4,7 +4,7 @@ use egui::{Sense, vec2};
 use common::{Color, Vec2};
 
 use super::{UiWidget, UiWidgetContext, UiWidgetGroup};
-use crate::ui::{UiNineSlice, UiString, immediate::{self, color32, nine_slice_shape}};
+use crate::ui::{UiDecoratedPanel, UiString, immediate::{self, color32, decoration_shapes, egui_rect, nine_slice_shape, to_rect}};
 
 // ----------------------------------------------
 // UiFrame
@@ -14,11 +14,14 @@ use crate::ui::{UiNineSlice, UiString, immediate::{self, color32, nine_slice_sha
 // 9-slice, or a plain fill) goes over the whole rect, and the group is laid out inside its padding
 // (left, top, right, bottom). A width or height of 0 takes the container's. A labeled frame adds
 // its label to its widgets' paths ("WorldMap/panel/name") and records its inner rect as their
-// content area (kind menu_content, as a menu's), which ui.layout_issues holds them to.
+// content area (kind menu_content, as a menu's), which ui.layout_issues holds them to. A decorated
+// panel's decorations are drawn past the frame's rect (behind ones first, the others over its
+// contents), within its container's clip rect grown by how far they reach, so a scroll area's
+// edge doesn't cut them; they don't change its size, layout or what ui.layout_issues checks.
 pub struct UiFrame {
     label: UiString,
     contents: UiWidgetGroup,
-    panel: Option<UiNineSlice>,
+    panel: Option<UiDecoratedPanel>,
     fill: Option<Color>,
     rounding: f32,
     outlines: Vec<UiFrameOutline>,
@@ -51,12 +54,16 @@ impl UiWidget for UiFrame {
                 if self.size.y > 0.0 { self.size.y } else { available.y.max(1.0) },
             );
             let (rect, _) = ui.allocate_exact_size(size, Sense::hover());
+            let decorations = self.decorations_painter(ui, rect);
+            if let (Some(painter), Some(panel)) = (&decorations, &self.panel) {
+                painter.add(decoration_shapes(rect, &panel.decorations, egui::Color32::WHITE, true));
+            }
             if ui.is_rect_visible(rect) {
                 if let Some(fill) = self.fill {
                     ui.painter().rect_filled(rect, self.rounding, color32(fill));
                 }
                 if let Some(panel) = &self.panel {
-                    ui.painter().add(nine_slice_shape(rect, panel, egui::Color32::WHITE));
+                    ui.painter().add(nine_slice_shape(rect, &panel.panel, egui::Color32::WHITE));
                 }
                 for outline in &self.outlines {
                     let line = rect.shrink(outline.inset + outline.width * 0.5);
@@ -86,6 +93,17 @@ impl UiWidget for UiFrame {
             let _path = (!self.label.is_empty()).then(|| immediate::path_scope(ui_sys, self.label.resolve()));
             ui_sys.draw_at(inner, |_| self.contents.draw(context));
         }
+
+        // The decorations over the panel, after the contents.
+        if let Some(panel) = &self.panel
+            && panel.has_decorations()
+        {
+            ui_sys.with_ui(|ui| {
+                if let Some(painter) = self.decorations_painter(ui, rect) {
+                    painter.add(decoration_shapes(rect, &panel.decorations, egui::Color32::WHITE, false));
+                }
+            });
+        }
     }
 
     fn measure(&self, _context: &dyn UiWidgetContext) -> Vec2 {
@@ -109,8 +127,9 @@ impl UiFrame {
         self
     }
 
-    pub fn with_panel(mut self, panel: UiNineSlice) -> Self {
-        self.panel = Some(panel);
+    // A 9-slice over its rect, and the decorations hung on it if it's a UiDecoratedPanel.
+    pub fn with_panel(mut self, panel: impl Into<UiDecoratedPanel>) -> Self {
+        self.panel = Some(panel.into());
         self
     }
 
@@ -132,6 +151,14 @@ impl UiFrame {
         debug_assert!(padding.iter().all(|side| *side >= 0.0));
         self.padding = padding;
         self
+    }
+
+    // A painter for its panel's decorations over `rect`, clipped to the container's clip rect grown
+    // by how far they reach past it; None without decorations or where none shows.
+    fn decorations_painter(&self, ui: &egui::Ui, rect: egui::Rect) -> Option<egui::Painter> {
+        let panel = self.panel.as_ref().filter(|panel| panel.has_decorations())?;
+        let bounds = panel.bounds(to_rect(rect));
+        ui.is_rect_visible(egui_rect(bounds)).then(|| immediate::overhang_painter(ui, panel.overhang(to_rect(rect))))
     }
 
     pub fn contents(&self) -> &UiWidgetGroup {

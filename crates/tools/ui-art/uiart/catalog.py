@@ -26,6 +26,8 @@ SVG elements of the call's output), "capture" (keep only what one helper drew du
 "omit" (helpers that draw nothing), "attrs" (theme attributes to set first), "rotate" (90: the
 drawing turned a quarter clockwise about the rect's centre, so the sprite is height x width),
 "out" (another output path pattern) and, per state, "css" (a CSS filter), "args" and "call".
+"each" (a list of names) makes one entry per name, with "{each}" in its strings replaced by the name:
+the HUD's glyphs, one sprite per building, sector and button.
 """
 
 import copy
@@ -62,7 +64,7 @@ KNOWN_CALLS = (
     "dropdown", "divider", "realm_emblem", "seal", "home_scene", "world_map_base", "world_map_threat",
     "world_map_frame", "world_map_backdrop", "world_map_mark", "world_map_compass", "world_map_coin",
     "world_map_emblem", "world_map_power_emblem", "stele", "stele_backdrop", "stele_mark", "story_panel",
-    "story_frame",
+    "story_frame", "hud_tile", "hud_panel", "hud_panel_ornament", "hud_ornament", "hud_icon",
 )
 
 TOP_KEYS = {"version", "scale", "pad", "realms", "state_filters", "sprites", "notes"}
@@ -124,6 +126,7 @@ def expand(raw):
     sprites = raw.get("sprites")
     if not isinstance(sprites, list):
         raise CatalogError("sprites must be a list")
+    sprites = expand_each(sprites)
 
     records, seen_ids, seen_out = [], set(), {}
     for n, entry in enumerate(sprites):
@@ -169,6 +172,25 @@ def expand(raw):
                 seen_out[out] = f"{realm}/{sid}"
             records.append(rec)
     return records
+
+
+def expand_each(sprites):
+    """Entries with "each": one entry per name, "{each}" replaced by it in every string."""
+    out = []
+    for n, entry in enumerate(sprites):
+        if not (isinstance(entry, dict) and "each" in entry):
+            out.append(entry)
+            continue
+        names = entry["each"]
+        if not (isinstance(names, list) and names and all(isinstance(v, str) and ID_RE.match(v) for v in names)):
+            raise CatalogError(f"sprites[{n}]: each must be a non-empty list of names matching {ID_RE.pattern}")
+        if len(set(names)) != len(names):
+            raise CatalogError(f"sprites[{n}]: each lists a name twice")
+        body = json.dumps({k: v for k, v in entry.items() if k != "each"})
+        if "{each}" not in json.dumps(entry.get("id", "")):
+            raise CatalogError(f"sprites[{n}]: an entry with each needs {{each}} in its id")
+        out.extend(json.loads(body.replace("{each}", name)) for name in names)
+    return out
 
 
 def _record(e, realm, shot_scale, pad, filters, where):
