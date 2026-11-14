@@ -276,7 +276,9 @@ impl TopBar {
         };
         let tile = skin::hud_tile_size(HudTileKind::Small);
         let width = (window.x - layout::column_width(context) - 2.0 * layout::MARGIN - layout::GAP).max(640.0);
-        let height = insets[1] + tile.y + insets[3];
+        // In whole points with one to spare: the menu lays its contents out in whole points, so a
+        // frame's fractional insets would leave the tiles a point short of room and make it scroll.
+        let height = (insets[1] + tile.y + insets[3]).ceil() + 1.0;
         let inner_width = width - insets[0] - insets[2];
 
         let mut row = UiWidgetGroup::new().with_stack_vertically(false).with_center_horizontally(false).with_widget_spacing(Vec2::new(TILE_GAP, 0.0));

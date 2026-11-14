@@ -131,6 +131,10 @@ pub struct UiSystem {
     // The window (egui area) whose focused widget took this frame's Escape press, until the frame
     // ends (escape_taken_in).
     escape_focus_window: Option<egui::Id>,
+
+    // Shapes a widget draws over its neighbours (an icon tile's badge), by layer: the menu drawing
+    // them paints them once its contents have drawn (flush_overlay_shapes), the rest at the frame's end.
+    overlay_shapes: RefCell<Vec<(egui::LayerId, egui::epaint::ClippedShape)>>,
 }
 
 impl UiSystem {
@@ -154,6 +158,7 @@ impl UiSystem {
             registry: RefCell::new(UiWidgetRegistry::default()),
             widgets: Vec::new(),
             window_set_value: RefCell::new(None),
+            overlay_shapes: RefCell::new(Vec::new()),
             escape_focus_window: None,
         }
     }
@@ -260,9 +265,36 @@ impl UiSystem {
     // updated and released in `tex_cache` here. `draw_overlays` false keeps toasts and the badge
     // off this frame, e.g. while it's being captured. `badge`: a status line at the top of the
     // screen, such as automation's.
+    // Draws `shapes` over everything else in `layer` drawn this frame: painted once the menu
+    // drawing them has drawn its contents, so a widget's badge isn't covered by the widget after it.
+    pub(crate) fn add_overlay_shapes(&self, layer: egui::LayerId, shapes: impl IntoIterator<Item = egui::epaint::ClippedShape>) {
+        self.overlay_shapes.borrow_mut().extend(shapes.into_iter().map(|shape| (layer, shape)));
+    }
+
+    // Paints the overlay shapes queued for `layer` (every layer's, with None) over what it holds.
+    pub(crate) fn flush_overlay_shapes(&self, layer: Option<egui::LayerId>) {
+        let shapes: Vec<_> = {
+            let mut queued = self.overlay_shapes.borrow_mut();
+            if queued.is_empty() {
+                return;
+            }
+            let (flush, keep): (Vec<_>, Vec<_>) = queued.drain(..).partition(|(id, _)| layer.is_none_or(|layer| *id == layer));
+            *queued = keep;
+            flush
+        };
+        self.ctx().graphics_mut(|graphics| {
+            for (layer, clipped) in shapes {
+                graphics.entry(layer).add(clipped.clip_rect, clipped.shape);
+            }
+        });
+    }
+
     pub fn end_frame(&mut self, tex_cache: &mut TextureCache, draw_overlays: bool, badge: Option<&str>) -> &UiDrawData {
         debug_assert!(self.frame_started());
         debug_assert!(self.ui_stack.get_mut().is_empty(), "Unbalanced UI container stack!");
+
+        // Overlays drawn outside a menu, painted over their layer now.
+        self.flush_overlay_shapes(None);
 
         // Last, so toasts draw over everything else.
         let mut toasts = std::mem::take(self.toasts.get_mut()); // Out, so they can draw with `self`.

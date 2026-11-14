@@ -383,17 +383,21 @@ impl UiWidget for UiIconTile {
                 }
 
                 if let Some((text, text_rect, badge_rect)) = &badge {
-                    let badge_look = &self.look.badge;
-                    let radius = badge_rect.height() * 0.5;
-                    painter.rect_filled(*badge_rect, badge_look.fill, radius);
-                    if badge_look.ring_width > 0.0 {
-                        painter.rect_stroke(*badge_rect, radius, badge_look.ring_width, badge_look.ring);
-                    }
-                    // Centred on the badge: label() places text by its baseline, `text_rect` is its
-                    // rect for a baseline at 0.
-                    let center = badge_rect.center();
-                    let baseline = center.y - text_rect.height() * 0.5 - text_rect.min.y;
-                    painter.label(Vec2::new(center.x, baseline), UiTextAnchor::Middle, text, &self.badge_label_look());
+                    // Over the tiles after it too, which it reaches over (the top bar's goals
+                    // badge over the pause tile): painted once the menu's contents have drawn.
+                    immediate::draw_as_overlay(ui_sys, ui.layer_id(), || {
+                        let badge_look = &self.look.badge;
+                        let radius = badge_rect.height() * 0.5;
+                        painter.rect_filled(*badge_rect, badge_look.fill, radius);
+                        if badge_look.ring_width > 0.0 {
+                            painter.rect_stroke(*badge_rect, radius, badge_look.ring_width, badge_look.ring);
+                        }
+                        // Centred on the badge: label() places text by its baseline, `text_rect` is
+                        // its rect for a baseline at 0.
+                        let center = badge_rect.center();
+                        let baseline = center.y - text_rect.height() * 0.5 - text_rect.min.y;
+                        painter.label(Vec2::new(center.x, baseline), UiTextAnchor::Middle, text, &self.badge_label_look());
+                    });
                 }
             }
 

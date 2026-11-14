@@ -652,9 +652,12 @@ impl UiMenu {
                 // A menu with a size scrolls its contents when they don't fit it (None: no size).
                 let mut scrolls = None;
                 if content_size.is_some() {
+                    // No minimum height (egui's is 64 points): a menu shorter than that, such as the
+                    // HUD's top bar, keeps its size instead of growing under its contents.
                     let output = egui::ScrollArea::vertical()
                         .id_salt(id.with("contents"))
                         .auto_shrink([false, false])
+                        .min_scrolled_height(0.0)
                         .scroll_bar_visibility(egui::scroll_area::ScrollBarVisibility::VisibleWhenNeeded)
                         .show(&mut content_ui, draw_contents);
                     scrolls = Some(output.content_size.y > output.inner_rect.height() + 0.5);
@@ -672,6 +675,10 @@ impl UiMenu {
             });
 
             let (close_clicked, inner, scrolls) = frame_response.inner;
+
+            // What its widgets draw over their neighbours (an icon tile's badge), over everything
+            // else in the menu.
+            ui_sys.flush_overlay_shapes(Some(ui.layer_id()));
 
             if let (Some(slot), Some(background)) = (background_slot, &self.background) {
                 // On the whole screen, not the window's rect: a panel's decorations reach past it.

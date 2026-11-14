@@ -1238,6 +1238,26 @@ pub(super) fn overhang_painter(ui: &egui::Ui, overhang: [f32; 4]) -> egui::Paint
     painter
 }
 
+// Runs `draw`, which paints on `layer`, and lifts what it painted out of the layer into the UI's
+// overlay shapes (UiSystem::add_overlay_shapes): the menu drawing it paints them over its other
+// contents, so a widget's badge reaching over the next widget isn't covered by it.
+pub(super) fn draw_as_overlay(ui_sys: &UiSystem, layer: egui::LayerId, draw: impl FnOnce()) {
+    let ctx = ui_sys.ctx().clone();
+    let start = ctx.graphics_mut(|graphics| graphics.entry(layer).next_idx());
+    draw();
+    let shapes = ctx.graphics_mut(|graphics| {
+        let list = graphics.entry(layer);
+        let end = list.next_idx();
+        let mut shapes = Vec::with_capacity(end.0.saturating_sub(start.0));
+        for index in start.0..end.0 {
+            list.mutate_shape(egui::layers::ShapeIdx(index), |shape| shapes.push(shape.clone()));
+            list.reset_shape(egui::layers::ShapeIdx(index));
+        }
+        shapes
+    });
+    ui_sys.add_overlay_shapes(layer, shapes);
+}
+
 // ----------------------------------------------
 // Menus
 // ----------------------------------------------
