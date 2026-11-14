@@ -238,11 +238,13 @@ class Palette:
         if state == "pressed":  # the seal cut the other way: red ground, the building left bare
             ix, iy, iw, ih = x + th, y + th, size - 2 * th, h - 2 * th
             m = self.mask_of(els, cx, cy, s, inverse=True, box=(ix, iy, iw, ih, 0))
-            ink = f'<g filter="url(#{fl["ink_small"]})"><rect x="{ix}" y="{iy}" width="{iw}" height="{ih}" fill="#b3271b" mask="{m}"/></g>'
+            grain = fl["ink_small"] if small else self.woodwork().filt("stamp")
+            ink = f'<g filter="url(#{grain})"><rect x="{ix}" y="{iy}" width="{iw}" height="{ih}" fill="#b3271b" mask="{m}"/></g>'
         else:
             m = self.mask_of(els, cx, cy, s)
             col = "#a8261c" if state != "disabled" else "#8d7b62"
-            ink = (f'<g filter="url(#{fl["ink_small"]})" opacity="{0.55 if state == "disabled" else 1}">'
+            grain = fl["ink_small"] if small else f'{self.woodwork().filt("stamp")}'
+            ink = (f'<g filter="url(#{grain})" opacity="{0.55 if state == "disabled" else 1}">'
                    f'<rect x="{x}" y="{y}" width="{size}" height="{h}" fill="{col}" mask="{m}"/></g>')
         k = self.crest_k if crest_k is None else crest_k
         markup, _ = self.woodwork().tile(x, y, size, ink, state, small=small, crest=None if small else size * k)
@@ -295,9 +297,12 @@ class Palette:
             self._carving = KC.Carving(self.defs, self.pid)
         return self._carving
 
+    badge_colors = ("#b3271b", "#fff4dc", "#fff")   # fill, ring, text
+
     def badge(self, x, y, text, r=11):
-        return (f'<circle cx="{x}" cy="{y}" r="{r}" fill="#b3271b" stroke="#fff4dc" stroke-width="1.6"/>'
-                + T(x, y + r * 0.42, text, "sans-serif", r * 1.15, "#fff", "middle", 800))
+        fill, ring, ink = self.badge_colors
+        return (f'<circle cx="{x}" cy="{y}" r="{r}" fill="{fill}" stroke="{ring}" stroke-width="1.6"/>'
+                + T(x, y + r * 0.42, text, "sans-serif", r * 1.15, ink, "middle", 800))
 
     # ------------------------------------------------------------ the HUD
     def notch(self, x, y, d):
@@ -337,23 +342,25 @@ class Palette:
         u = self.hud
         x, y, h, bs, step = 12, 8, 58, 36, 42
         items = []
-        bx = x + 14
+        gx = x + 14
+        done = sum(1 for g in u["goals"] if g[2] >= 1)
+        items.append(self.icon_tile(gx, y + 11, bs, hud_glyph("goals"), "pressed" if goals_open else "idle", small=True))
+        items.append(self.badge(gx + bs - 1, y + 12, f"{done}/{len(u['goals'])}", 11))
+        items.append(f'<line x1="{gx + bs + 10}" y1="{y + 12}" x2="{gx + bs + 10}" y2="{y + h - 12}" stroke="{self.panel_rule}" stroke-width="2"/>')
+        bx = gx + bs + 20
         for k, ic in enumerate(["pause", "play", "fast", "faster"]):
             items.append(self.icon_tile(bx + k * step, y + 11, bs, hud_glyph(ic), "pressed" if k == u["speed"] else "idle", small=True))
         tx = bx + 4 * step + 10
         items.append(T(tx, y + 26, u["date"], self.body_font, 17, self.panel_text, "start", 700))
         items.append(T(tx, y + 47, u["season"], self.body_font, 15, self.panel_sub, "start", 600, style="font-style:italic"))
-        gx = tx + 232
-        done = sum(1 for g in u["goals"] if g[2] >= 1)
-        items.append(self.icon_tile(gx, y + 11, bs, hud_glyph("goals"), "pressed" if goals_open else "idle", small=True))
-        items.append(self.badge(gx + bs - 1, y + 12, f"{done}/{len(u['goals'])}", 11))
+        date_end = tx + 232
         sep = lambda sx: f'<line x1="{sx}" y1="{y + 12}" x2="{sx}" y2="{y + h - 12}" stroke="{self.panel_rule}" stroke-width="2"/>'
         w = right - x
         # The game menu at the right end; resources and ratings centred between the goals and it.
         mx = right - 14 - len(MENU_BUTTONS) * step + 6
         for k, (ic, _) in enumerate(MENU_BUTTONS):
             items.append(self.icon_tile(mx + k * step, y + 11, bs, hud_glyph(ic), small=True))
-        left, end = gx + bs + 14, mx - 14
+        left, end = date_end, mx - 14
         mid_w = 3 * 134 + 28 + 4 * 72
         rx = left + (end - left - mid_w) / 2
         items.append(sep(left + 8))
@@ -384,7 +391,7 @@ class Palette:
         u = self.hud
         gw = 440
         gh = 64 + len(u["goals"]) * 66 + 10
-        gx, gy = max(12, bx + 40 - gw), by + 22
+        gx, gy = max(12, bx - 40), by + 22
         out = [self.box(gx, gy, gw, gh), self.notch(bx, gy, "up")]
         out.append(self.section_title(gx + 26, gy + 42, "Goals"))
         out.append(T(gx + gw - 26, gy + 42, u["goals_title"], self.body_font, 19, self.panel_sub, "end", 600, style="font-style:italic"))
@@ -565,17 +572,19 @@ class DaiLongPalette(Palette, D.DaiLongDialogs):
     notch_fill = "#86301a"
     crest_k = 0.3
     tile_h_k = 1.04
+    badge_colors = ("#a8261c", "#e7b13e", "#fff4dc")   # a vermilion seal ringed in gilt
     sector_size = 54
 
     def box(self, x, y, w, h, big=False):
         big = w >= 300 and h >= 220 and y > 120
-        return self.woodwork().panel(x, y, w, h, big=big, lanterns=90 if big else None)
+        return self.woodwork().panel(x, y, w, h, big=big)
 
 
 class KambaraPalette(Palette, D.KambaraDialogs):
     style_line = "carved sandstone, moss and vines, a Bayon face over each"
     notch_fill = "#7c5f3a"
     short_col = "#e8946a"
+    badge_colors = ("#55703a", "#d9c9a0", "#f3ecd6")   # moss on a sandstone ring
     crest_k = 0.34
     tile_h_k = 1.08
     sector_size = 54
@@ -599,6 +608,7 @@ class TampadesaPalette(Palette, D.TampadesaDialogs):
     style_line = "gold leaf on red lacquer, in arched niches"
     notch_fill = "#5b3d24"
     short_col = "#f08a5a"
+    badge_colors = ("#e2b04a", "#5e1810", "#3a1408")   # gold leaf ringed in lacquer
 
     def __init__(self, dd):
         D.TampadesaDialogs.__init__(self, dd)

@@ -43,6 +43,21 @@ class Woodwork:
                 f'<feComposite in="all" in2="SourceAlpha" operator="in" result="body"/>'
                 f'<feOffset in="b" dx="1.5" dy="2.5" result="o"/><feFlood flood-color="#120603" flood-opacity="0.7"/><feComposite in2="o" operator="in" result="sh"/>'
                 f'<feMerge><feMergeNode in="sh"/><feMergeNode in="body"/></feMerge></filter>')
+        elif name == "stamp":
+            # A hand-pressed stamp: uneven ink, speckled where it missed, ragged edges, a faint double strike.
+            self.defs.append(
+                f'<filter id="{fid}" x="-8%" y="-8%" width="116%" height="116%" color-interpolation-filters="sRGB">'
+                f'<feTurbulence type="fractalNoise" baseFrequency="0.8" numOctaves="2" seed="7" result="n"/>'
+                f'<feDisplacementMap in="SourceGraphic" in2="n" scale="2.2" result="d"/>'
+                f'<feTurbulence type="fractalNoise" baseFrequency="0.5" numOctaves="3" seed="3" result="n2"/>'
+                f'<feColorMatrix in="n2" type="matrix" values="0 0 0 0 0  0 0 0 0 0  0 0 0 0 0  -2.8 0 0 0 2.45" result="holes"/>'
+                f'<feTurbulence type="fractalNoise" baseFrequency="0.035" numOctaves="2" seed="15" result="n3"/>'
+                f'<feColorMatrix in="n3" type="matrix" values="0 0 0 0 0  0 0 0 0 0  0 0 0 0 0  2.6 0 0 0 0.05" result="press"/>'
+                f'<feComposite in="d" in2="holes" operator="in" result="h1"/>'
+                f'<feComposite in="h1" in2="press" operator="in" result="h2"/>'
+                f'<feGaussianBlur in="d" stdDeviation="1.2" result="sm"/><feOffset in="sm" dx="1.6" dy="1" result="smo"/>'
+                f'<feComponentTransfer in="smo" result="ghost"><feFuncA type="linear" slope="0.28"/></feComponentTransfer>'
+                f'<feMerge><feMergeNode in="ghost"/><feMergeNode in="h2"/></feMerge></filter>')
         elif name == "gilt":
             # Gilt carving: a bevel and a bright shine over the gold.
             self.defs.append(
@@ -204,46 +219,94 @@ class Woodwork:
                 + self.cloud(cx - r * 1.05, cy - r * 0.15, r * 1.9, -1) + self.cloud(cx + r * 1.05, cy - r * 0.15, r * 1.9, 1) + "</g>")
 
     # ------------------------------------------------------------ a panel
+    def ruyi_cloud(self, cx, cy, s, side=1):
+        """A carved ruyi cloud centred on (cx, cy), s wide: three lobes, a curl at each end,
+        its tail trailing to `side`."""
+        u = s / 100
+        lobes = "".join(f'<circle cx="{f(cx + dx * u)}" cy="{f(cy + dy * u)}" r="{f(r * u)}"/>'
+                        for dx, dy, r in ((-18, 4, 14), (0, -6, 18), (18, 4, 14), (-6, 10, 12), (8, 10, 12)))
+        base = f'<rect x="{f(cx - 30 * u)}" y="{f(cy + 6 * u)}" width="{f(60 * u)}" height="{f(10 * u)}" rx="{f(5 * u)}"/>'
+        tail = (f'<path d="M{f(cx - side * 28 * u)},{f(cy + 12 * u)} Q{f(cx - side * 50 * u)},{f(cy + 16 * u)} {f(cx - side * 62 * u)},{f(cy + 6 * u)}" '
+                f'fill="none" stroke-width="{f(5 * u)}" stroke-linecap="round"/>'
+                f'<path d="M{f(cx + side * 28 * u)},{f(cy + 12 * u)} Q{f(cx + side * 38 * u)},{f(cy + 14 * u)} {f(cx + side * 44 * u)},{f(cy + 8 * u)}" '
+                f'fill="none" stroke-width="{f(4 * u)}" stroke-linecap="round"/>')
+        curls = "".join(f'<path d="M{f(cx + dx * u - 6 * u)},{f(cy + dy * u)} a{f(6 * u)},{f(6 * u)} 0 1 1 {f(6 * u)},{f(6 * u)}" fill="none" stroke-width="{f(2.6 * u)}" stroke-linecap="round"/>'
+                        for dx, dy in ((-18, 4), (0, -6), (18, 4)))
+        g = self.filt("goldgrad")
+        return (f'<g fill="url(#{g})" stroke="url(#{g})">{lobes}{base}{tail}</g>'
+                f'<g stroke="#6a3c08">{curls}</g>')
+
+    def fret_block(self, cx, cy, s):
+        """A square corner block centred on (cx, cy), s wide, a gilt key pattern carved on it."""
+        g = self.filt("goldgrad")
+        u = s / 10
+        d = (f"M{f(cx - 3.6 * u)},{f(cy + 3.6 * u)} V{f(cy - 3.6 * u)} H{f(cx + 3.6 * u)} V{f(cy + 2 * u)} H{f(cx - 1.6 * u)} "
+             f"V{f(cy - 1.6 * u)} H{f(cx + 1.4 * u)} V{f(cy + 0.4 * u)}")
+        return (f'<g filter="url(#{self.filt("wood")})"><rect x="{f(cx - s / 2)}" y="{f(cy - s / 2)}" width="{f(s)}" height="{f(s)}" rx="{f(s * 0.08)}" fill="#7a2614"/></g>'
+                f'<g filter="url(#{self.filt("gilt")})"><path d="{d}" fill="none" stroke="url(#{g})" stroke-width="{f(u * 1.1)}" stroke-linecap="square"/></g>')
+
+    def beam_end(self, x, y, s, side):
+        """The top beam's end running past the frame, curling up in a scroll."""
+        d = (f"M{f(x)},{f(y)} H{f(x + side * s * 0.7)} Q{f(x + side * s * 1.05)},{f(y)} {f(x + side * s * 1.05)},{f(y - s * 0.35)} "
+             f"Q{f(x + side * s * 1.05)},{f(y - s * 0.62)} {f(x + side * s * 0.8)},{f(y - s * 0.6)} Q{f(x + side * s * 0.62)},{f(y - s * 0.58)} {f(x + side * s * 0.68)},{f(y - s * 0.4)} "
+             f"Q{f(x + side * s * 0.74)},{f(y - s * 0.28)} {f(x + side * s * 0.6)},{f(y - s * 0.3)} H{f(x)}Z")
+        return f'<path d="{d}" fill="#8a321b"/>'
+
     def panel(self, x, y, w, h, big=False, lanterns=None):
-        """A carved wooden frame round parchment: gilt trim inside, key-pattern corners,
-        and for a large panel eaves over its top corners, lanterns and a medallion."""
-        t = 18 if h >= 120 else 10
+        """Carved red wood round parchment, every ornament outside the parchment: a top beam whose
+        ends curl up past the frame, gilt key-pattern blocks on the corners, and for a large panel a
+        lattice and gilt ruyi clouds carved along the top beam, a lotus medallion under a little roof
+        at its middle, and a gilt cloud at the foot."""
+        thin = h < 120
+        t = 10 if thin else (16 if not big else 20)
+        tb = 9 if thin else (20 if not big else 30)       # the top beam
+        bb = t + (0 if thin else 4)                      # the bottom rail
         out = []
-        wood = (f"M{f(x - t)},{f(y - t)} H{f(x + w + t)} V{f(y + h + t)} H{f(x - t)}Z "
-                f"M{f(x)},{f(y)} V{f(y + h)} H{f(x + w)} V{f(y)}Z")
         out.append(f'<rect x="{f(x)}" y="{f(y)}" width="{f(w)}" height="{f(h)}" fill="#efd7a4" filter="url(#{self.filt("paper")})"/>')
         ig = self.uid("dig")
         self.defs.append(f'<radialGradient id="{ig}" cx="0.5" cy="0.5" r="0.75"><stop offset="0.6" stop-color="#5a2a08" stop-opacity="0"/>'
-                         f'<stop offset="1" stop-color="#5a2a08" stop-opacity="0.35"/></radialGradient>')
+                         f'<stop offset="1" stop-color="#5a2a08" stop-opacity="0.3"/></radialGradient>')
         out.append(f'<rect x="{f(x)}" y="{f(y)}" width="{f(w)}" height="{f(h)}" fill="url(#{ig})"/>')
-        out.append(f'<g filter="url(#{self.filt("wood")})"><path d="{wood}" fill="#86301a" fill-rule="evenodd"/>'
-                   + "".join(f'<rect x="{f(cx - t * 0.75)}" y="{f(cy - t * 0.75)}" width="{f(t * 1.5)}" height="{f(t * 1.5)}" rx="{f(t * 0.2)}" fill="#7a2614"/>'
-                             for cx, cy in ((x - t / 2, y - t / 2), (x + w + t / 2, y - t / 2), (x - t / 2, y + h + t / 2), (x + w + t / 2, y + h + t / 2)))
-                   + "</g>")
-        out.append(f'<rect x="{f(x - t * 0.5)}" y="{f(y - t * 0.5)}" width="{f(w + t)}" height="{f(h + t)}" fill="none" stroke="#3a0e04" stroke-width="{f(t * 0.12)}" opacity="0.55"/>'
-                   f'<rect x="{f(x - t * 0.5 + 1)}" y="{f(y - t * 0.5 + 1)}" width="{f(w + t)}" height="{f(h + t)}" fill="none" stroke="#e8885a" stroke-width="{f(t * 0.06)}" opacity="0.35"/>')
-        out.append(f'<g filter="url(#{self.filt("gilt")})">' + "".join(
-            f'<circle cx="{f(cx)}" cy="{f(cy)}" r="{f(t * 0.3)}" fill="url(#{self.filt("goldgrad")})"/>'
-            for cx, cy in ((x - t / 2, y - t / 2), (x + w + t / 2, y - t / 2), (x - t / 2, y + h + t / 2), (x + w + t / 2, y + h + t / 2))) + "</g>")
-        g = self.filt("goldgrad")
-        inset = 3 if t < 12 else 5
-        out.append(f'<rect x="{f(x + inset)}" y="{f(y + inset)}" width="{f(w - 2 * inset)}" height="{f(h - 2 * inset)}" fill="none" stroke="url(#{g})" stroke-width="{2 if t < 12 else 3}"/>')
-        fs = 12 if t < 12 else 22
-        if h >= 60:
-            fi = inset + 6
-            out.append(f'<g filter="url(#{self.filt("gilt")})">'
-                       + self.fret(x + fi, y + fi, fs, 1, 1) + self.fret(x + w - fi, y + fi, fs, -1, 1)
-                       + self.fret(x + fi, y + h - fi, fs, 1, -1) + self.fret(x + w - fi, y + h - fi, fs, -1, -1) + "</g>")
+        wood = (f"M{f(x - t)},{f(y - tb)} H{f(x + w + t)} V{f(y + h + bb)} H{f(x - t)}Z "
+                f"M{f(x)},{f(y)} V{f(y + h)} H{f(x + w)} V{f(y)}Z")
+        ends = ""
+        if not thin:
+            e = tb * 1.5
+            ends = self.beam_end(x - t, y - tb * 0.12, e, -1) + self.beam_end(x + w + t, y - tb * 0.12, e, 1)
+        out.append(f'<g filter="url(#{self.filt("wood")})"><path d="{wood}" fill="#86301a" fill-rule="evenodd"/>{ends}</g>')
+        # The lip round the parchment: a dark cut and a light edge, both on the wood.
+        out.append(f'<rect x="{f(x - 1.5)}" y="{f(y - 1.5)}" width="{f(w + 3)}" height="{f(h + 3)}" fill="none" stroke="#2e0a03" stroke-width="2.4" opacity="0.8"/>'
+                   f'<rect x="{f(x - 4)}" y="{f(y - 4)}" width="{f(w + 8)}" height="{f(h + 8)}" fill="none" stroke="#d9783f" stroke-width="1" opacity="0.4"/>')
         if big:
-            ew = min(150, w * 0.32)
-            out.append(self.roof(x - t + ew * 0.42, y - t * 0.2, ew, ew * 0.26, gilt_top=False))
-            out.append(self.roof(x + w + t - ew * 0.42, y - t * 0.2, ew, ew * 0.26, gilt_top=False))
-            out.append(self.medallion(x + w / 2, y - t * 0.3, min(44, w * 0.09)))
-            out.append(f'<g filter="url(#{self.filt("gilt")})">' + self.lotus(x + w / 2, y + h + t * 0.9, 26)
-                       + self.cloud(x + w / 2 - 18, y + h + t * 0.5, 40, -1) + self.cloud(x + w / 2 + 18, y + h + t * 0.5, 40, 1) + "</g>")
-            if lanterns:
-                ls = lanterns
-                out.append(self.lantern(x - t - 2, y + 4, ls) + self.lantern(x + w + t + 2, y + 4, ls))
+            # A lattice carved into the top beam, either side of the medallion.
+            lat = []
+            step = tb * 0.7
+            for side in (-1, 1):
+                x0, x1 = (x + 30, x + w / 2 - tb * 1.6) if side < 0 else (x + w / 2 + tb * 1.6, x + w - 30)
+                k = x0
+                while k < x1 - step:
+                    lat.append(f"M{f(k)},{f(y - tb * 0.82)} L{f(k + step)},{f(y - tb * 0.18)} M{f(k + step)},{f(y - tb * 0.82)} L{f(k)},{f(y - tb * 0.18)}")
+                    k += step
+            out.append(f'<path d="{" ".join(lat)}" stroke="#3a0e04" stroke-width="2" opacity="0.55"/>')
+            g = self.filt("goldgrad")
+            out.append(f'<g filter="url(#{self.filt("gilt")})">'
+                       + self.ruyi_cloud(x + w * 0.28, y - tb * 0.55, tb * 2.4, -1) + self.ruyi_cloud(x + w * 0.72, y - tb * 0.55, tb * 2.4, 1)
+                       + self.ruyi_cloud(x + w / 2, y + h + bb * 0.6, bb * 3.4, 1) + "</g>")
+            # The medallion: a carved disc with a gilt lotus in a key-pattern ring, under a little roof.
+            r = tb * 1.05
+            mcx, mcy = x + w / 2, y - tb * 0.45
+            out.append(self.roof(mcx, mcy - r * 0.62, r * 3.1, r * 0.75, gilt_top=False))
+            out.append(f'<g filter="url(#{self.filt("wood")})"><circle cx="{f(mcx)}" cy="{f(mcy)}" r="{f(r)}" fill="#7c2814"/></g>')
+            out.append(f'<g filter="url(#{self.filt("gilt")})"><circle cx="{f(mcx)}" cy="{f(mcy)}" r="{f(r * 0.86)}" fill="none" stroke="url(#{g})" stroke-width="{f(r * 0.1)}"/>'
+                       + self.lotus(mcx, mcy + r * 0.38, r * 0.9) + "</g>")
+        # Key-pattern blocks on the corners, outside the parchment.
+        if thin:
+            fs = max(t, tb) * 1.7
+            pts = ((x - t / 2, y - tb / 2), (x + w + t / 2, y - tb / 2), (x - t / 2, y + h + bb / 2), (x + w + t / 2, y + h + bb / 2))
+        else:
+            fs = max(t, tb) * (1.35 if big else 1.6)
+            pts = ((x - t * 0.3, y - tb * 0.5), (x + w + t * 0.3, y - tb * 0.5), (x - t * 0.3, y + h + bb * 0.4), (x + w + t * 0.3, y + h + bb * 0.4))
+        out.append("".join(self.fret_block(cx, cy, fs) for cx, cy in pts))
         return "".join(out)
 
     # ------------------------------------------------------------ an icon tile
