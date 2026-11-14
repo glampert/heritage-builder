@@ -205,7 +205,7 @@ fn test_every_building_resolves_to_a_class() {
     assert!(landmarks.contains(&LandmarkKind::Seat), "no building is the seat, for the Home tool");
 }
 
-// Every realm's style loads, and the sprites it names exist: frame, landmark icons, field
+// Every realm's style loads, and the sprites it names exist: tooltip frame, landmark icons, field
 // stripes and every lens and tool button in all four states.
 fn test_styles_load_with_their_sprites() {
     let ui = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../assets/ui");
@@ -213,7 +213,6 @@ fn test_styles_load_with_their_sprites() {
 
     for realm in Realm::iter() {
         let style = MinimapStyle::load(realm).unwrap_or_else(|err| panic!("{err}"));
-        exists(&style.frame);
         if let Some(tooltip_frame) = style.tooltip_frame() {
             exists(tooltip_frame);
         }

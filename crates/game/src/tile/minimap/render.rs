@@ -188,7 +188,7 @@ struct BaseMinimapRenderer {
     style_version: (u32, u32, u32), // The minimap style's, the UI skin's and the strings' versions the menus were built with.
     button_sounds: UiWidgetSounds,
     font_scale: UiFontScale,
-    with_frame: bool, // The style's frame sprite; the developer UI uses a plain window.
+    with_frame: bool, // On the HUD's panel (the retail minimap); the developer UI uses a plain window.
     with_debug_button: bool,
     opens_world_map: bool, // The World map tool opens the retail WorldMap dialog; the developer editor draws none.
     apply_widget_clip_rect: bool,
@@ -217,16 +217,13 @@ impl BaseMinimapRenderer {
         let style = style::current();
         let font_scale = self.font_scale;
         let sounds = self.button_sounds;
-        let frame = self.with_frame.then(|| style.frame.clone());
+        let with_frame = self.with_frame;
 
         // The retail minimap is on the HUD's panel (the skin's `hud_panel`), its buttons the HUD's
         // small icon tiles; the developer UI's is a plain window with the style's sprite buttons.
         let make_menu = |context: &mut GameUiContext, label: &str| {
             let menu = UiMenu::new(label);
-            match &frame {
-                Some(_) => crate::menu::skin::panel(context, "hud_panel").apply_to_menu(menu),
-                None => menu,
-            }
+            if with_frame { crate::menu::skin::panel(context, "hud_panel").apply_to_menu(menu) } else { menu }
         };
         // The buttons' tooltips look like the rest of the HUD's (the developer UI's are plain);
         // the style's tooltip settings are for the map's hover tooltip.

@@ -30,7 +30,6 @@
   "road_casing_cells": 0.75,
   "field_stripes_per_cell": 1.6,
   "field_texture": "minimap/field_stripes.png",
-  "frame": "misc/square_page_bg.png",
   "tooltip_frame": "",
   "buttons": "minimap",
   "landmark_icons": {

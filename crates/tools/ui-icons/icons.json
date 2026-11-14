@@ -65,10 +65,5 @@
     "items": { "seat": "palace", "temple": "temple", "market": "market", "monument": "monument", "port": "port", "fort": "fort" }
   },
 
-  "field_stripes": { "size": 32, "row": 0.37, "row_value": 0.78 },
-
-  "frames": {
-    "kambara": { "size": [720, 420], "style": "stone", "base": "#b3a789", "moss": "#5f7a3a", "border": "#1c1a14", "inner": "#5d5646" },
-    "tampadesa": { "size": [720, 420], "style": "lacquer", "top": "#6e5038", "bottom": "#4f3825", "rim": "#2a1c10", "gold": "#d4a94e", "inner": "#d9b98a" }
-  }
+  "field_stripes": { "size": 32, "row": 0.37, "row_value": 0.78 }
 }

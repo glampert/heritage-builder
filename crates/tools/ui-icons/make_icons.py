@@ -8,7 +8,6 @@ Writes, under assets/ui/:
   set per realm, icon-only, as in the HUD mockups.
 - minimap/icons/<landmark>.png: white glyphs on transparent, tinted by the game.
 - minimap/field_stripes.png: the tileable stripes fields are drawn with, tinted by the game.
-- minimap/frame_<realm>.png: the widget's frame for realms that don't use the parchment page.
 
 The glyphs are SVG path data (M, L, H, V, Q, C, Z) drawn as round-capped strokes, at 8x and
 downsampled, so it needs only Pillow. The mockup generator reads the same paths.
@@ -23,7 +22,7 @@ import re
 import sys
 
 try:
-    from PIL import Image, ImageDraw, ImageFilter
+    from PIL import Image, ImageDraw
 except ImportError:
     sys.exit("make_icons.py needs Pillow: pip install Pillow")
 
@@ -172,54 +171,6 @@ def field_stripes(spec):
     return downsample(image, (n, n))
 
 
-def noise(size, scale, seed):
-    """Smooth value noise in 0..1 as an L image."""
-    import random
-    rng = random.Random(seed)
-    w, h = size
-    small = Image.new("L", (max(2, w // scale), max(2, h // scale)))
-    small.putdata([rng.randrange(256) for _ in range(small.width * small.height)])
-    return small.resize(size, Image.BICUBIC).filter(ImageFilter.GaussianBlur(scale / 3))
-
-
-def frame(spec):
-    w, h = spec["size"]
-    image = Image.new("RGBA", (w, h), (0, 0, 0, 0))
-    draw = ImageDraw.Draw(image)
-    if spec["style"] == "stone":
-        base = Image.new("RGBA", (w, h), hex_color(spec["base"]))
-        grain = noise((w, h), 6, 41)
-        dark = Image.new("RGBA", (w, h), (60, 52, 36, 255))
-        base = Image.composite(dark, base, grain.point(lambda v: max(0, v - 150)))
-        moss = noise((w, h), 40, 42).point(lambda v: 255 if v > 168 else int(max(0, v - 140) * 9))
-        moss = moss.filter(ImageFilter.GaussianBlur(3))
-        mask = Image.new("L", (w, h), 0)
-        md = ImageDraw.Draw(mask)
-        md.rectangle([0, 0, w, 26], fill=255)
-        md.rectangle([0, h - 26, w, h], fill=255)
-        md.rectangle([0, 0, 26, h], fill=255)
-        md.rectangle([w - 26, 0, w, h], fill=255)
-        mask = mask.filter(ImageFilter.GaussianBlur(10))
-        moss = Image.composite(moss, Image.new("L", (w, h), 0), mask)
-        base = Image.composite(Image.new("RGBA", (w, h), hex_color(spec["moss"])), base, moss)
-        image.paste(base)
-        draw = ImageDraw.Draw(image)
-        draw.rectangle([2, 2, w - 3, h - 3], outline=hex_color(spec["border"]), width=5)
-        draw.rectangle([12, 12, w - 13, h - 13], outline=hex_color(spec["inner"]), width=2)
-    else:
-        top, bottom = hex_color(spec["top"]), hex_color(spec["bottom"])
-        for y in range(h):
-            t = y / (h - 1)
-            draw.line([(0, y), (w, y)], fill=tuple(round(a + (b - a) * t) for a, b in zip(top, bottom)))
-        grain = noise((w, h), 3, 131).point(lambda v: max(0, v - 128) // 3)
-        image = Image.composite(Image.new("RGBA", (w, h), (30, 18, 8, 255)), image, grain)
-        draw = ImageDraw.Draw(image)
-        draw.rounded_rectangle([1, 1, w - 2, h - 2], 10, outline=hex_color(spec["rim"]), width=8)
-        draw.rounded_rectangle([7, 7, w - 8, h - 8], 7, outline=hex_color(spec["gold"]), width=5)
-        draw.rounded_rectangle([16, 16, w - 17, h - 17], 5, outline=hex_color(spec["inner"], 128), width=2)
-    return image
-
-
 # ====================================================================== driver
 def outputs(catalog):
     glyphs = catalog["glyphs"]
@@ -233,8 +184,6 @@ def outputs(catalog):
     for kind, glyph in catalog["landmarks"]["items"].items():
         yield f"minimap/icons/{kind}.png", (lambda glyph=glyph: landmark(catalog["landmarks"], glyphs[glyph]))
     yield "minimap/field_stripes.png", (lambda: field_stripes(catalog["field_stripes"]))
-    for realm_name, frame_spec in catalog["frames"].items():
-        yield f"minimap/frame_{realm_name}.png", (lambda frame_spec=frame_spec: frame(frame_spec))
 
 
 def main():

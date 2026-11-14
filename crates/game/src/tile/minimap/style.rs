@@ -106,7 +106,6 @@ pub struct MinimapStyle {
 
     // Sprites, under assets/ui.
     pub field_texture: String,
-    pub frame: String,
     pub tooltip_frame: String, // Behind the map's hover tooltip; empty for the UI skin's tooltip panel.
     pub buttons: String, // Folder of the tool and lens buttons under buttons/, e.g. "minimap".
     pub landmark_icons: BTreeMap<LandmarkKind, String>,
@@ -285,7 +284,6 @@ impl Default for MinimapStyle {
             road_casing_cells: 0.75,
             field_stripes_per_cell: 1.6,
             field_texture: "minimap/field_stripes.png".into(),
-            frame: "misc/square_page_bg.png".into(),
             tooltip_frame: String::new(),
             buttons: "minimap".into(),
             landmark_icons,
