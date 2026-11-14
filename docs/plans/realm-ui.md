@@ -1,6 +1,6 @@
 # Realm UI: menus, screens and HUD in each realm's style
 
-**Status (2026-11-13): Phases 0 and 1 done (the main menus: Home, Load / Save, Settings, Custom Game, About and the in-game Game menu); Phase 2 done (the world map: its data, base art, screen, pan and zoom, and the next mission's choice); Phase 3 done (the debrief, the campaign-complete stele and the briefing); Phase 4 done (story comics: the story data and panel art, the comic viewer, the triggers and replays, and the developer editor's Screens menu); Phase 5, the HUD, next: it waits for the tile palette icon mockups.** The user reviewed it on 2026-11-07: their notes are folded in (see [Review notes](#review-notes)), the open decisions' defaults are accepted, and every mockup the phases need now exists. This plan builds and restyles every retail screen after the [UI mockups](../design/mockups/README.md): the main menus, the world map, the intermission, the story comics, the HUD and the city management pages. Each screen gets one look per realm: Đại Long, Kambara and Tampadesa. It is milestone **UI** of the [roadmap](roadmap.md). It was researched against `ccca1df` on `claude`. File and line references point at that commit, so re-check them before relying on them.
+**Status (2026-11-13): Phases 0 and 1 done (the main menus: Home, Load / Save, Settings, Custom Game, About and the in-game Game menu); Phase 2 done (the world map: its data, base art, screen, pan and zoom, and the next mission's choice); Phase 3 done (the debrief, the campaign-complete stele and the briefing); Phase 4 done (story comics: the story data and panel art, the comic viewer, the triggers and replays, and the developer editor's Screens menu); Phase 5, the HUD, next: its mockups were redrawn with the user on 2026-11-14.** The user reviewed it on 2026-11-07: their notes are folded in (see [Review notes](#review-notes)), the open decisions' defaults are accepted, and every mockup the phases need now exists. This plan builds and restyles every retail screen after the [UI mockups](../design/mockups/README.md): the main menus, the world map, the intermission, the story comics, the HUD and the city management pages. Each screen gets one look per realm: Đại Long, Kambara and Tampadesa. It is milestone **UI** of the [roadmap](roadmap.md). It was researched against `ccca1df` on `claude`. File and line references point at that commit, so re-check them before relying on them.
 
 ![Home menu, Đại Long](../design/mockups/menu-home-dailong.jpg)
 
@@ -760,32 +760,31 @@ The existing dialogs keep their layouts but take their panels from the Đại Lo
 
 ### Phase 5: HUD
 
-**Delivers:** the in-game HUD as in `hud-<realm>.jpg`, with every old sprite gone.
+**Delivers:** the in-game HUD as in `hud-<realm>.jpg` and `build-palette-<realm>.jpg`, every button an icon tile in its realm's craft (`build-icons-<realm>.jpg`), with every old sprite gone.
 
-> **Before starting (the user, 2026-11-13):** the tile palette (the build bar's child menus) is to show a custom icon for each building instead of its text label, a deviation from the build bar item below. New mockups for it are to be designed with the user first, so Phase 5 doesn't start until they've been drawn and agreed. Remind the user of this when Phase 5 comes up.
+> **Design agreed with the user (2026-11-14), replacing this phase's first draft:** the mockups were redrawn over five rounds (commits `ecad674` to `f2a72da`, then the old `hud` and `hud-menus` mockups replaced). The decisions:
+> - Every building, sector, HUD and minimap button is an icon tile, no text labels: Đại Long a vermilion stamp (hand-pressed, uneven) on parchment in gilt bamboo under a small tiled roof; Kambara a relief on dark stone in a carved sandstone frame crowned by a Bayon face, with moss and vines; Tampadesa gold leaf on dark mudbrick in a weathered brick frame with a gold arch, under three gilt stupas. Small tiles (the top bar's, the minimap's) keep only the frame, so their icons stay readable.
+> - The pictograms (`docs/design/mockups/generator/palette_glyphs.py`) are drawn in each realm's architecture; the shrine, temple and university also take realm names (Spirit shrine, Neak ta shrine, Nat shrine; Temple, Prasat, Stupa; Temple of Literature, Library, Monastery school). Services' icon is a rolled scroll.
+> - The palette: the sector column on the right; a sector opens its buildings as a grid of icons, four to a row, left of the column; hovering one shows its name, size, cost and materials against storage (short ones in the realm's warning colour); clicking picks it and closes the grid; a building that can't be built stays in the grid, faded.
+> - One bar across the top, from the left edge to the build column, 58 points high: the goals button first (its badge counting the goals met), the speed controls, the date and season; population, treasury, food and the ratings in the middle; the game menu's buttons (Game, Load / Save, Settings, City book, Briefing) at the right. Its empty stretches, and the minimap's left of its lenses, hold an ornament in the realm's craft.
+> - The goals panel is closed by default and drops down under the goals button.
+> - The message log is centred at the bottom of the screen.
+> - Count badges take the realm's colours (a vermilion seal ringed in gilt; moss on a sandstone ring; gold leaf ringed in lacquer). Kambara's accents (icons, bars, rings, titles) are moss green on stone.
+> - The HUD's panels: Đại Long carved red wood round parchment, its ornaments all outside the parchment (key-pattern corner blocks; on large panels a carved lattice, gilt ruyi clouds, a lotus medallion under a little roof and a gilt cloud at the foot; no lanterns); Kambara carved sandstone blocks with corner volutes, moss and vines round dark cracked stone, a Bayon face over large panels; Tampadesa weathered brick round dark mudbrick, gilt flame scrolls on the corners and a gold lotus at the foot, large panels with stupa-crowned brick piers, a stupa crest, gilt nagas along the foot and vines.
 
-- [ ] **Top-left bar:** speed controls (pause, play, fast, faster) and the date in the realm's era with the season under it. This replaces SpeedControlsBar and the TopBar's date.
-- [ ] **Top-centre bar:**
-  - population, treasury and food, each with its icon;
-  - four rating badges (ring meters with the realm's Legitimacy initial), showing "—" until M9.
-- [ ] **Game menu buttons:** Game, Load/Save, Settings, City and the briefing. The HUD mockup has no place for them; `hud-menus-<realm>.jpg` puts them in their own bar left of the build bar.
-- [ ] **Goals tracker,** left: the mission name, each goal with its tick, text, progress and bar, live from the mission's requirements. Collapsible. It's hidden in custom games without goals.
-- [ ] **Build bar,** right:
-  - the mockup's column of category buttons in the realm style;
-  - the hovered button's tooltip (title and subtitle);
-  - child menus as skin lists with each building's icon, cost and materials, greyed out with the reason when unaffordable (the construction plan's tooltip);
-  - clear, roads, undo and redo kept (see [open decisions](#open-decisions) on categories).
-  - The `TilePaletteMenu/<sector>` paths and their tooltips stay, so `ui_build.jsonl` keeps working.
-- [ ] **Message log,** bottom centre: the three latest messages with type icons, the newest bold with "now".
-  - Until M11 it shows the notices the game already raises: construction completed, minimap alerts, saves.
-  - It goes through a small `MessageLog` store that M11 replaces with its typed messages.
-  - Toasts stay for screenshots and the like.
-- [ ] **Inspector:** the building, unit, prop and terrain inspectors on the skin's side panel or card (`inspector-<realm>.jpg`). The `BuildingInspector/Close` paths stay.
-- [ ] **Minimap:** its frame, tooltips and button folder come from the skin, so `assets/configs/ui/minimap/<realm>.json` keeps only the map's own settings.
-- [ ] Delete the old sprites: `buttons/menu_bar/*`, `buttons/palette/*`, `icons/{population,gold,player}_icon.png`, `misc/{wide,tall,square}_page_bg.png`, the brush strokes.
-- [ ] Scenarios:
-  - `ui_build.jsonl` updated;
-  - `ui_hud.jsonl`: speed controls, goals progress after placements, the message log after a building completes, all in three realms.
+Steps, each implemented, reviewed, fixed, committed and pushed in order, then the phase review:
+
+- [ ] **P5a Art and skin data:**
+  - ui-art renders the mockups' art into each realm's skin with the generator's own drawing code (`palette.py`, `palette_glyphs.py`, `kambara_carving.py`, `dailong_carving.py`, `tampadesa_brick.py`): the icon tile frames (palette size with its crest, sector size, small) in four states; the glyphs (30 buildings, 12 sectors, 10 HUD buttons, 11 minimap buttons) as one atlas per realm, a normal and a pressed variant each (hovered and disabled are tints); the HUD panels as 9-slices (the bar, a panel, a large panel) and their ornaments as separate sprites; the gap ornaments, the notch and the badge.
+  - The engine: panel decorations, sprites anchored outside a 9-slice's rect (top centre, corners, bottom centre, with offsets and a minimum size to show), drawn with the panel; an icon tile widget (frame by state, glyph from an atlas, tint, badge), recording `icon_button` as today's do.
+  - The skin's `hud` block: the tile looks by size, the glyph atlas, the panels and their decorations, the ornaments, the badge and accent colours. Realm strings for the buildings' realm names (falling back to the tile's name), sector titles and the HUD buttons' tooltips.
+  - Tests: every glyph a building, sector or button needs exists in each realm's atlas; `ui_skins` checks the new sprites and borders; the Skin Gallery shows the tiles in their states and the panels.
+- [ ] **P5b Top bar and goals:** one bar replacing TopBar, SpeedControlsBar and the left menu bar: the goals button and badge, the speed controls, the date in the realm's era and the season, population, treasury and food, the ratings (hidden until M9, per [open decision](#open-decisions) 11, so the middle shows the three resources and the ornaments widen), and the game menu's buttons (City book opens today's city management until Phase 6; Briefing only in a campaign mission). The goals panel, live from the mission's requirements, drops down under its button; the button is hidden in a custom game without goals.
+- [ ] **P5c Build palette:** the sector column of icon tiles (clear, housing, roads, the eight sectors, undo, redo, with separators); a sector's grid of building tiles, four to a row, next to its button; the tooltip with the realm name, size, cost and materials against storage, and why when it can't be built (gold, debt); a disabled tile faded; click picks and closes. The `TilePaletteMenu/<sector>` paths and their tooltips stay, so `ui_build.jsonl` keeps working.
+- [ ] **P5d Minimap, message log, inspector:** the minimap's frame, buttons (small icon tiles) and gap ornament from the skin, so `assets/configs/ui/minimap/<realm>.json` keeps only the map's own settings; the message log centred at the bottom, the three latest with type icons and the newest bold with "now", fed by a small `MessageLog` store (construction completed, minimap alerts, saves, debt) that M11 replaces, toasts staying for screenshots and the like; the building, unit, prop and terrain inspectors on the HUD's panel (`inspector-<realm>.jpg`'s layout in the new frames), the `BuildingInspector/Close` paths kept.
+- [ ] **P5e Wrap-up:** delete the old sprites (`buttons/menu_bar/*`, `buttons/palette/*`, `icons/{population,gold,player}_icon.png`, `misc/{wide,tall,square}_page_bg.png`, the brush strokes); scenarios (`ui_build.jsonl` updated; `ui_hud.jsonl`: the speed controls, the goals panel and its progress after placements, the palette's grid and tooltip, the message log after a building completes, in three realms, at 75%, 100% and 200% UI scale); `ui_snapshot.jsonl`'s HUD; the docs and known issues; final screenshots beside the mockups.
+
+Left for later (in known-issues once the phase lands): no building is locked by mission yet, so a tile is disabled only when it can't be paid for; the dialogs of Phases 1 to 4 keep their own panels, which now differ from the HUD's frames in each realm; the HUD keeps its sizes at every UI scale, as today, until egui's zoom lands.
 
 ### Phase 6: City management pages
 
@@ -838,14 +837,14 @@ Every screen the phases build has a mockup in all three realms, in [docs/design/
 | In-game Game menu and the Quit popup | 1 | `game-menu-<realm>.jpg`, `game-quit-<realm>.jpg` |
 | Briefing scroll | 3 | `briefing-<realm>.jpg` |
 | Campaign complete (the finished stele) | 3 | `campaign-complete-<realm>.jpg` |
-| HUD game-menu buttons, the build bar's child menu and its tooltip with costs | 5 | `hud-menus-<realm>.jpg` |
+| The HUD (one top bar, goals panel, build column, minimap, message log) and the build palette with its icons, redrawn with the user on 2026-11-14 | 5 | `hud-<realm>.jpg`, `build-palette-<realm>.jpg`, `build-icons-<realm>.jpg` |
 | Building inspector | 5 | `inspector-<realm>.jpg` |
 | City book: Overview, Population, Goods, Finances | 6 | `city-{overview,population,goods,finances}-<realm>.jpg` |
 | City book: Ratings, Labour, Food | 6, for M9 and M11 | `city-{ratings,labour,food}-<realm>.jpg` |
 | City book: Heritage (monument, patrons, festivals; added 2026-11-08) | 6, for M8 and game Phase 2 | `city-heritage-<realm>.jpg` (Festivals tab) |
 | Important-event popup (flood, fire, court request) | 5, for M11 | `event-<realm>.jpg` |
 
-The HUD's menu buttons got their own bar left of the build bar, not the left end of the top-left bar (Phase 5's default): the date leaves no room there.
+The HUD's menu buttons first got their own bar left of the build bar; the redrawn HUD (2026-11-14) puts them at the right end of one top bar.
 
 ## Performance
 
@@ -868,7 +867,7 @@ The user accepted every default on 2026-11-07, with the changes marked below.
 | 5 | 9-slice centres | Stretch. `center: "tile"` per panel where grain shows. |
 | 6 | Dialogs: each its own window, or stacked inside the root as today | Each its own window. |
 | 7 | Build bar categories: the mockup's nine (house, water, farm, industry, trade, temple, learning, defence, monument) or today's sectors | Today's sectors with the mockup's icons. New categories come only with buildings that need them. |
-| 8 | Where the game menu buttons go in the HUD | Their own bar, left of the build bar (`hud-menus-<realm>.jpg`). |
+| 8 | Where the game menu buttons go in the HUD | At the right end of one bar across the top (`hud-<realm>.jpg`; changed 2026-11-14). |
 | 9 | The art renderer | Playwright's Chromium on the generator's SVG; Pillow stays for glyph icons. |
 | 10 | Save thumbnails | A JPEG beside each save, taken at the save's camera position; its size is a config (default 320 × 180). Old saves show none. (Changed in review.) |
 | 11 | Ratings and distinctions before M9 | Hidden, not shown as placeholders. |

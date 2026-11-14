@@ -5,7 +5,6 @@ realm, into build/:
 - campaign-picker: Campaign on the home menu, once more than one is reached;
 - briefing: the mission's scroll before it starts;
 - campaign-complete: the finished stele;
-- hud-menus: the HUD's menu buttons, the build bar's child menu and its tooltip with costs;
 - inspector: the building inspector;
 - event: the important-event popup (a flood, a court request, a fire).
 
@@ -294,59 +293,6 @@ class Dialogs(Pages):
                        + self.glyph(ic, x, 47, 0.8, self.on_icon if on else self.panel_text))
         return "".join(out), bx
 
-    def hud_menus(self):
-        d = self.dd
-        parts = self.hud_parts(keep_style=True)
-        bar, _ = self.menu_buttons()
-        parts.append(bar)
-        title, items = d["build_menu"]
-        bx = W - 96 - 12
-        # The child menu of the hovered category (temples, the sixth button).
-        mw, ih = 440, 88
-        mx = bx - 20 - mw
-        my = 40 + 5 * 84 + 34 - 70
-        mh = 70 + len(items) * ih + 12
-        parts.append(self.box(mx, my, mw, mh))
-        parts.append(self.section_title(mx + 24, my + 42, title))
-        hover = 1
-        for k, (name, cost, mats, upkeep, size, reason) in enumerate(items):
-            iy = my + 62 + k * ih
-            on = k == hover
-            dimmed = reason is not None
-            g = [f'<rect x="{mx + 12}" y="{iy}" width="{mw - 24}" height="{ih - 8}" rx="6" fill="{self.btn_fill_hover if on else "none"}" '
-                 f'stroke="{self.accent if on else "none"}" stroke-width="2"/>']
-            g.append(f'<rect x="{mx + 24}" y="{iy + 10}" width="60" height="60" rx="6" fill="{self.btn_fill}" stroke="{self.panel_rule}" stroke-width="1.5"/>'
-                     + self.glyph("temple", mx + 54, iy + 40, 1.15, self.accent))
-            g.append(T(mx + 100, iy + 34, name, self.title_font, 21, self.panel_text, "start", 700))
-            g.append(self.coin_small(mx + mw - 92, iy + 27) + self.t(mx + mw - 30, iy + 34, str(cost), 19, self.panel_text, "end", 700))
-            if reason:
-                g.append(self.t(mx + 100, iy + 62, reason, 17, self.accent, "start", 700, italic=True))
-            else:
-                g.append(self.t(mx + 100, iy + 62, " · ".join(f"{m} {n}" for m, n in mats) or "No materials", 17, self.panel_sub, "start", 600))
-            parts.append(f'<g opacity="{0.5 if dimmed else 1}">' + "".join(g) + "</g>")
-        # The hovered building's tooltip, with its costs.
-        name, cost, mats, upkeep, size, _ = items[hover]
-        tw, th = 400, 400
-        tx, ty = mx - 18 - tw, my + 62 + hover * ih - 20
-        parts.append(self.box(tx, ty, tw, th))
-        parts.append(T(tx + 24, ty + 44, name, self.title_font, 25, self.panel_text, "start", 700))
-        parts.append(self.t(tx + tw - 24, ty + 44, size, 17, self.panel_sub, "end", 600))
-        note = self.wrap(d["temple_note"], tw - 48, 17, 0.5)
-        for k, line in enumerate(note):
-            parts.append(self.t(tx + 24, ty + 76 + k * 24, line, 17, self.panel_sub, "start", 600, italic=True))
-        ry = ty + 76 + len(note) * 24 + 22
-        parts.append(self.rule(tx + 24, tx + tw - 24, ry - 16))
-        rows = [("Cost", f"{cost} gold", True)]
-        for m, n in mats:
-            have = d["stock"][m]
-            rows.append((m, f"{n}  ·  {have} in storage", have >= n))
-        rows += [("Upkeep", f"{upkeep} gold a year", True), ("Workers", "8", True), ("Building time", "Civic · about 2 months", True)]
-        for k, (lab, v, ok) in enumerate(rows):
-            yy = ry + 14 + k * 34
-            parts.append(self.t(tx + 24, yy, lab, 18, self.panel_sub, "start", 600))
-            parts.append(self.t(tx + tw - 24, yy, v, 18, self.panel_text if ok else self.accent, "end", 700))
-        self.page(f"hud-menus-{d['key']}", parts)
-
     def coin_small(self, x, y):
         return (f'<circle cx="{x}" cy="{y}" r="9" fill="#c99a3c" stroke="#5a3a14" stroke-width="1.5"/>'
                 f'<rect x="{x - 3}" y="{y - 3}" width="6" height="6" fill="#2a170c"/>')
@@ -479,7 +425,7 @@ class TampadesaDialogs(Dialogs, TampadesaMenus):
 
 
 REALMS = [(DaiLongDialogs, DC.DAILONG), (KambaraDialogs, DC.KAMBARA), (TampadesaDialogs, DC.TAMPADESA)]
-SCREENS = ["game_menu", "game_quit", "campaign_picker", "briefing", "campaign_complete", "hud_menus", "inspector", "event"]
+SCREENS = ["game_menu", "game_quit", "campaign_picker", "briefing", "campaign_complete", "inspector", "event"]
 
 if __name__ == "__main__":
     import sys

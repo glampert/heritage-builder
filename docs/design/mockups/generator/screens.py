@@ -957,7 +957,7 @@ REALMS = [(DaiLongScreens, SC.DAILONG), (KambaraScreens, SC.KAMBARA), (Tampadesa
 
 if __name__ == "__main__":
     import sys
-    which = sys.argv[1:] or ["intro", "intermission", "hud"]
+    which = sys.argv[1:] or ["intro", "intermission"]  # the HUD page is palette.py's now
     for cls, data in REALMS:
         for screen in which:
             getattr(cls(data), screen)()

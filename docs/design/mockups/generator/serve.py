@@ -30,11 +30,11 @@ ICONS = (HERE / "../../../../crates/tools/ui-icons/icons.json").resolve()  # The
 
 REALMS = [("dailong", "Đại Long"), ("kambara", "Kambara"), ("tampadesa", "Tampadesa")]
 SCREENS = [
-    ("world-map", "World map"), ("intro", "Intro"), ("intermission", "Intermission"), ("hud", "In-game HUD"),
+    ("world-map", "World map"), ("intro", "Intro"), ("intermission", "Intermission"), ("hud", "In-game HUD"), ("build-palette", "Build palette"), ("build-icons", "Build palette icons"),
     ("menu-home", "Home"), ("menu-load-save", "Load / save"), ("menu-settings", "Settings"),
     ("menu-custom-game", "Custom game"), ("menu-about", "About"),
     ("campaign-picker", "Campaign picker"), ("game-menu", "Game menu"), ("game-quit", "Quit popup"),
-    ("briefing", "Briefing"), ("campaign-complete", "Campaign complete"), ("hud-menus", "HUD menus and build menu"),
+    ("briefing", "Briefing"), ("campaign-complete", "Campaign complete"),
     ("inspector", "Building inspector"), ("event", "Event popup"),
     ("city-overview", "City book: overview"), ("city-population", "City book: population"), ("city-goods", "City book: goods"),
     ("city-finances", "City book: finances"), ("city-ratings", "City book: ratings"), ("city-labour", "City book: labour"),

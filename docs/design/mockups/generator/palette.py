@@ -6,8 +6,8 @@
   game-menu buttons, the sector column, the minimap's buttons), one sector open
   as a grid of icons left of the column, and the hovered icon's tooltip with its
   name and cost;
-- hud-goals-<realm>: the same HUD at rest, with the goals panel open under its
-  button.
+- hud-<realm>: the same HUD at rest, with the goals panel open under its
+  button (it replaced screens.py's HUD and dialogs.py's hud-menus).
 
 Each realm treats the same pictograms its own way: Đại Long stamps them in
 vermilion seal ink on paper, Kambara carves them in relief in sandstone, and
@@ -553,7 +553,7 @@ class Palette:
 
     def hud_goals(self):
         parts, *_ = self.hud_v2(None, goals_open=True)
-        self.page(f"hud-goals-{self.dd['key']}", parts)
+        self.page(f"hud-{self.dd['key']}", parts)
 
     def build_icons(self):
         realm = self.dd["key"]

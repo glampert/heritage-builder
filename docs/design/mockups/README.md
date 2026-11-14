@@ -36,13 +36,15 @@ The debrief after a mission (gdd.md 4, *Mission flow*), shown after mission 5 of
 
 ## In-game HUD
 
-The minimal HUD of gdd.md 10 over a city: speed and date, population, treasury, food and the four ratings, the goals tracker, the build bar with a tooltip, the minimap and the message log. The minimap is the [minimap concept](#minimap) A drawn by `minimap.py` (the sample city, in each realm's palette) with the game's layout: lens icons right-aligned across the top and tools down the right. Đại Long uses parchment and wood, Kambara mossy sandstone, Tampadesa earthen brown with gilt trim.
+The HUD of gdd.md 10 over a city, as agreed with the user on 2026-11-14 (the design is described under [Build palette icons and the HUD's buttons](#build-palette-icons-and-the-huds-buttons)): one bar across the top (the goals button, speed and date; population, treasury, food and the four ratings; the game menu), the goals panel dropped down under its button, the build column on the right, the minimap at the bottom left in the game's layout, and the message log centred at the bottom. Each realm's panels and buttons are its own craft: Đại Long's carved red wood and gilt bamboo round parchment, Kambara's carved and mossy sandstone, Tampadesa's brick and gold.
 
-| Realm | Image |
-|---|---|
-| Đại Long | [hud-dailong.jpg](hud-dailong.jpg) |
-| Kambara | [hud-kambara.jpg](hud-kambara.jpg) |
-| Tampadesa | [hud-tampadesa.jpg](hud-tampadesa.jpg) |
+| Realm | The HUD at rest, goals open | The build palette open |
+|---|---|---|
+| Đại Long | [hud-dailong.jpg](hud-dailong.jpg) | [build-palette-dailong.jpg](build-palette-dailong.jpg) |
+| Kambara | [hud-kambara.jpg](hud-kambara.jpg) | [build-palette-kambara.jpg](build-palette-kambara.jpg) |
+| Tampadesa | [hud-tampadesa.jpg](hud-tampadesa.jpg) | [build-palette-tampadesa.jpg](build-palette-tampadesa.jpg) |
+
+The dialogs drawn over the HUD (the Game menu, the Quit popup, the inspector, the event popup) still show the earlier HUD behind them; their own panels are unchanged.
 
 The city behind the HUD is existing art: Đại Long's is cropped from `../../images/prototype_apr_2026_3.jpg`, and Kambara's and Tampadesa's are the small reference mocks in `../../images/references/` scaled up, so they look soft.
 
@@ -73,11 +75,9 @@ The screens the [realm UI plan](../../plans/realm-ui.md#mockups) found missing. 
 | Campaign picker | [campaign-picker-dailong.jpg](campaign-picker-dailong.jpg) | [campaign-picker-kambara.jpg](campaign-picker-kambara.jpg) | [campaign-picker-tampadesa.jpg](campaign-picker-tampadesa.jpg) |
 | Briefing | [briefing-dailong.jpg](briefing-dailong.jpg) | [briefing-kambara.jpg](briefing-kambara.jpg) | [briefing-tampadesa.jpg](briefing-tampadesa.jpg) |
 | Campaign complete (the finished stele) | [campaign-complete-dailong.jpg](campaign-complete-dailong.jpg) | [campaign-complete-kambara.jpg](campaign-complete-kambara.jpg) | [campaign-complete-tampadesa.jpg](campaign-complete-tampadesa.jpg) |
-| HUD menu buttons, build menu and its tooltip with costs | [hud-menus-dailong.jpg](hud-menus-dailong.jpg) | [hud-menus-kambara.jpg](hud-menus-kambara.jpg) | [hud-menus-tampadesa.jpg](hud-menus-tampadesa.jpg) |
 | Building inspector | [inspector-dailong.jpg](inspector-dailong.jpg) | [inspector-kambara.jpg](inspector-kambara.jpg) | [inspector-tampadesa.jpg](inspector-tampadesa.jpg) |
 | Important-event popup (flood, court request, fire) | [event-dailong.jpg](event-dailong.jpg) | [event-kambara.jpg](event-kambara.jpg) | [event-tampadesa.jpg](event-tampadesa.jpg) |
 
-- The HUD's menu buttons (Game, Load / Save, Settings, City book, Briefing) get their own bar left of the build bar, not the left end of the top-left bar: the date leaves no room there.
 - The campaign picker only appears once a second campaign is reached, so Đại Long's version, with Campaign I alone open, shows its look rather than a state the game would show.
 - The build menu's costs are the game's own (`assets/tiles/objects/tile_set.json`); the bricks and roof tiles in storage are the Goods page's.
 
@@ -95,11 +95,11 @@ The pictograms are drawn by `palette_glyphs.py` in each realm's architecture (Đ
 
 | Realm | Treatment | Every icon and its states | The palette open | The HUD at rest, goals open |
 |---|---|---|---|---|
-| Đại Long | Vermilion stamps on parchment in a frame of gilt bamboo lashed at the corners, under a small tiled roof with a gilt lotus, after the user's references; pressed is the stamp cut the other way, red ground with the building bare; the stamps are hand-pressed: uneven ink, speckled, ragged at the edges, with a faint double strike; the HUD's panels are carved red lacquered wood round parchment, every ornament outside the parchment: gilt key-pattern blocks on the corners, and on the large ones a lattice and gilt ruyi clouds carved along the top beam, a lotus medallion under a little roof at its middle and a gilt cloud at the foot (`dailong_carving.py`) | [build-icons-dailong.jpg](build-icons-dailong.jpg) | [build-palette-dailong.jpg](build-palette-dailong.jpg) | [hud-goals-dailong.jpg](hud-goals-dailong.jpg) |
-| Kambara | Carved sandstone, after the user's references: a frame of weathered blocks with corner volutes, a Bayon face crowning it, moss and hanging vines, a dark cracked panel and the building in relief, lit from the top left; pressed sinks the relief, hovered glows; the HUD's panels are the same carved frames, the large ones crowned too, and its accents (icons, bars, rings, titles) are moss green on stone (`kambara_carving.py`) | [build-icons-kambara.jpg](build-icons-kambara.jpg) | [build-palette-kambara.jpg](build-palette-kambara.jpg) | [hud-goals-kambara.jpg](hud-goals-kambara.jpg) |
-| Tampadesa | Brick and gold, after the user's references: a frame of weathered red brick with a scalloped gold arch and lintel inside its top, three gilt stupa spires crowning it, a gold lotus at its foot, a vine; the building in gold leaf on dark mudbrick; hovered glows, pressed lights the gold, disabled turns grey. The HUD's panels are the same brick round rough dark mudbrick, gilt flame scrolls (kanok) on their corners and a gold lotus at the foot; the large ones get brick piers crowned by stupas at their top corners, a stupa crest between gilt scrolls at the top's middle, gilt nagas along the foot and vines (`tampadesa_brick.py`) | [build-icons-tampadesa.jpg](build-icons-tampadesa.jpg) | [build-palette-tampadesa.jpg](build-palette-tampadesa.jpg) | [hud-goals-tampadesa.jpg](hud-goals-tampadesa.jpg) |
+| Đại Long | Vermilion stamps on parchment in a frame of gilt bamboo lashed at the corners, under a small tiled roof with a gilt lotus, after the user's references; pressed is the stamp cut the other way, red ground with the building bare; the stamps are hand-pressed: uneven ink, speckled, ragged at the edges, with a faint double strike; the HUD's panels are carved red lacquered wood round parchment, every ornament outside the parchment: gilt key-pattern blocks on the corners, and on the large ones a lattice and gilt ruyi clouds carved along the top beam, a lotus medallion under a little roof at its middle and a gilt cloud at the foot (`dailong_carving.py`) | [build-icons-dailong.jpg](build-icons-dailong.jpg) | [build-palette-dailong.jpg](build-palette-dailong.jpg) | [hud-dailong.jpg](hud-dailong.jpg) |
+| Kambara | Carved sandstone, after the user's references: a frame of weathered blocks with corner volutes, a Bayon face crowning it, moss and hanging vines, a dark cracked panel and the building in relief, lit from the top left; pressed sinks the relief, hovered glows; the HUD's panels are the same carved frames, the large ones crowned too, and its accents (icons, bars, rings, titles) are moss green on stone (`kambara_carving.py`) | [build-icons-kambara.jpg](build-icons-kambara.jpg) | [build-palette-kambara.jpg](build-palette-kambara.jpg) | [hud-kambara.jpg](hud-kambara.jpg) |
+| Tampadesa | Brick and gold, after the user's references: a frame of weathered red brick with a scalloped gold arch and lintel inside its top, three gilt stupa spires crowning it, a gold lotus at its foot, a vine; the building in gold leaf on dark mudbrick; hovered glows, pressed lights the gold, disabled turns grey. The HUD's panels are the same brick round rough dark mudbrick, gilt flame scrolls (kanok) on their corners and a gold lotus at the foot; the large ones get brick piers crowned by stupas at their top corners, a stupa crest between gilt scrolls at the top's middle, gilt nagas along the foot and vines (`tampadesa_brick.py`) | [build-icons-tampadesa.jpg](build-icons-tampadesa.jpg) | [build-palette-tampadesa.jpg](build-palette-tampadesa.jpg) | [hud-tampadesa.jpg](hud-tampadesa.jpg) |
 
-The sectors and buildings are the game's (`TilePaletteMainButtonDef`, the sectors and costs in `assets/tiles/objects/tile_set.json`); Services' icon is a rolled scroll. The palette screens open Industry and resources, with the mine disabled and the distillery hovered, short of bricks. These screens supersede the HUD's buttons and goals panel in `hud-<realm>.jpg` and `hud-menus-<realm>.jpg`. The palette names the shrine, temple and university in each realm's own words (Spirit shrine, Neak ta shrine, Nat shrine; Temple, Prasat, Stupa; Temple of Literature, Library, Monastery school). Placeholders: those names, and the bricks in storage.
+The sectors and buildings are the game's (`TilePaletteMainButtonDef`, the sectors and costs in `assets/tiles/objects/tile_set.json`); Services' icon is a rolled scroll. The palette screens open Industry and resources, with the mine disabled and the distillery hovered, short of bricks. The palette names the shrine, temple and university in each realm's own words (Spirit shrine, Neak ta shrine, Nat shrine; Temple, Prasat, Stupa; Temple of Literature, Library, Monastery school). Placeholders: those names, and the bricks in storage.
 
 ## City book
 
@@ -154,21 +154,21 @@ builds every screen and serves them at http://127.0.0.1:8765/ (`--port` and `--h
 
 ## Regenerating
 
-The generator lives in [generator/](generator/): `common.py` holds the shared geography and layout, `content.py` what each realm's map shows, and `world_map.py` the three styles. `screens.py` (with its text in `screens_content.py`) draws the intro, intermission and HUD screens in the same styles, and `menus.py` (text in `menus_content.py`) the main menu screens. `pages.py` (text in `pages_content.py`) draws the City book, `palette.py` (pictograms in `palette_glyphs.py`, Kambara's carving in `kambara_carving.py`, Đại Long's woodwork in `dailong_carving.py`, Tampadesa's brickwork in `tampadesa_brick.py`) the build palette's icons and the HUD's buttons, and `dialogs.py` (text in `dialogs_content.py`) the in-game dialogs and the campaign flow screens. It needs Python 3, Node with Playwright and Chromium, and network access to Google Fonts the first time.
+The generator lives in [generator/](generator/): `common.py` holds the shared geography and layout, `content.py` what each realm's map shows, and `world_map.py` the three styles. `screens.py` (with its text in `screens_content.py`) draws the intro and intermission screens in the same styles (and the earlier HUD the dialogs sit over), and `menus.py` (text in `menus_content.py`) the main menu screens. `pages.py` (text in `pages_content.py`) draws the City book, `palette.py` (pictograms in `palette_glyphs.py`, Kambara's carving in `kambara_carving.py`, Đại Long's woodwork in `dailong_carving.py`, Tampadesa's brickwork in `tampadesa_brick.py`) the build palette's icons and the HUD's buttons, and `dialogs.py` (text in `dialogs_content.py`) the in-game dialogs and the campaign flow screens. It needs Python 3, Node with Playwright and Chromium, and network access to Google Fonts the first time.
 
 ```bash
 cd docs/design/mockups/generator
 python3 fonts.py        # embeds the fonts into build/fonts.css (git-ignored): Google Fonts and assets/fonts
 python3 world_map.py    # writes build/world-map-<realm>.html
 node shot.js world-map-dailong world-map-kambara world-map-tampadesa
-python3 screens.py      # writes build/{intro,intermission,hud}-<realm>.html
-node shot.js intro-dailong intermission-dailong hud-dailong   # and so on per realm
+python3 screens.py      # writes build/{intro,intermission}-<realm>.html
+node shot.js intro-dailong intermission-dailong   # and so on per realm
 python3 minimap.py      # writes build/minimap-concepts.html and minimap-lenses.html
 python3 menus.py        # writes build/menu-{home,load-save,settings,custom-game,about}-<realm>.html
 node shot.js menu-home-dailong   # and so on
 python3 pages.py        # writes build/city-{overview,population,goods,finances,ratings,labour,food}-<realm>.html
-python3 dialogs.py      # writes build/{game-menu,game-quit,campaign-picker,briefing,campaign-complete,hud-menus,inspector,event}-<realm>.html
-python3 palette.py      # writes build/{build-icons,build-palette,hud-goals}-<realm>.html
+python3 dialogs.py      # writes build/{game-menu,game-quit,campaign-picker,briefing,campaign-complete,inspector,event}-<realm>.html
+python3 palette.py      # writes build/{hud,build-palette,build-icons}-<realm>.html
 node shot.js city-overview-dailong game-menu-dailong   # and so on
 ```
 
