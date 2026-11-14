@@ -21,6 +21,7 @@ from world_map import T, BUILD
 import dialogs as D
 import screens_content as SC
 import kambara_carving as KC
+import dailong_carving as DW
 from minimap import GLYPHS as MM_GLYPHS
 import dialogs_content as DC
 from menus import W, H
@@ -213,8 +214,10 @@ class Palette:
         return self._filters
 
     # ------------------------------------------------------------ one icon
+    tile_h_k = 1.0         # a tile's height over its width (Kambara's and Đại Long's frames are taller)
+
     def tile_height(self, size, small=False):
-        return size * 1.08 if (self.crest_k and not small) else size
+        return size * self.tile_h_k if not small else size
 
     def tile_crest(self, size, small=False, crest_k=None):
         k = self.crest_k if crest_k is None else crest_k
@@ -226,32 +229,29 @@ class Palette:
         return getattr(self, f"tile_{self.dd['key']}")(x, y, size, elements, state, small, crest_k)
 
     def tile_dailong(self, x, y, size, els, state, small, crest_k):
+        """Parchment in a gilt bamboo frame under a small tiled roof; the icon stamped in vermilion."""
         fl = self.filters()
-        s, cx, cy = size / 100 * (0.84 if small else 0.78), x + size / 2, y + size / 2 + size * 0.02
-        out = []
-        lift = state == "hover"
-        card = "#f8eed6" if lift else "#f1e3c3"
-        out.append(f'<g filter="url(#{fl["shadow"]})"><rect x="{x}" y="{y - (2 if lift else 0)}" width="{size}" height="{size}" rx="{3 if small else 5}" fill="{card}" '
-                   f'stroke="{"#a8261c" if lift else "#c9b083"}" stroke-width="{2 if lift else 1.2}"/></g>')
-        if lift:
-            y -= 2
-            cy -= 2
-        ink = "#a8261c" if state != "disabled" else "#8d7b62"
-        m = size * (0.07 if small else 0.08)
-        sx, sy, sw = x + m, y + m, size - 2 * m
-        grain = fl["ink_small" if small else "ink"]
+        h = self.tile_height(size, small)
+        th = max(3.2, size * (0.085 if small else 0.09))
+        cx, cy = x + size / 2, y + h / 2 + size * 0.02
+        s = size / 100 * (0.84 if small else 0.8)
         if state == "pressed":  # the seal cut the other way: red ground, the building left bare
-            mask = self.mask_of(els, cx, cy, s * (0.9 if small else 0.98), inverse=True, box=(sx, sy, sw, sw, 3))
-            out.append(f'<g filter="url(#{grain})"><rect x="{sx}" y="{sy}" width="{sw}" height="{sw}" rx="3" fill="#b3271b" mask="{mask}"/></g>')
+            ix, iy, iw, ih = x + th, y + th, size - 2 * th, h - 2 * th
+            m = self.mask_of(els, cx, cy, s, inverse=True, box=(ix, iy, iw, ih, 0))
+            ink = f'<g filter="url(#{fl["ink_small"]})"><rect x="{ix}" y="{iy}" width="{iw}" height="{ih}" fill="#b3271b" mask="{m}"/></g>'
         else:
-            mask = self.mask_of(els, cx, cy, s * (0.9 if small else 0.95))
-            op = 0.55 if state == "disabled" else 1
-            inner = "" if small else (f'<rect x="{sx + size * 0.065}" y="{sy + size * 0.065}" width="{sw - size * 0.13}" height="{sw - size * 0.13}" rx="3" '
-                                      f'fill="none" stroke="{ink}" stroke-width="{size * 0.014}"/>')
-            out.append(f'<g filter="url(#{grain})" opacity="{op}">'
-                       f'<rect x="{sx}" y="{sy}" width="{sw}" height="{sw}" rx="{3 if small else 6}" fill="none" stroke="{ink}" stroke-width="{max(1.6, size * 0.045)}"/>'
-                       f'{inner}<rect x="{x}" y="{y}" width="{size}" height="{size}" fill="{ink}" mask="{mask}"/></g>')
-        return "".join(out)
+            m = self.mask_of(els, cx, cy, s)
+            col = "#a8261c" if state != "disabled" else "#8d7b62"
+            ink = (f'<g filter="url(#{fl["ink_small"]})" opacity="{0.55 if state == "disabled" else 1}">'
+                   f'<rect x="{x}" y="{y}" width="{size}" height="{h}" fill="{col}" mask="{m}"/></g>')
+        k = self.crest_k if crest_k is None else crest_k
+        markup, _ = self.woodwork().tile(x, y, size, ink, state, small=small, crest=None if small else size * k)
+        return markup
+
+    def woodwork(self):
+        if getattr(self, "_woodwork", None) is None:
+            self._woodwork = DW.Woodwork(self.defs, self.pid)
+        return self._woodwork
 
     def tile_kambara(self, x, y, size, els, state, small, crest_k):
         carve = self.carving()
@@ -331,29 +331,60 @@ class Palette:
             yy += step
         return "".join(out), cx0, open_y
 
-    def top_left(self, goals_open):
-        """Speed buttons, the date, and the goals button; returns the markup and the goals button's centre."""
+    def top_bar(self, right, goals_open):
+        """One bar across the top: speed, date, goals | population, treasury, food | ratings | the game menu.
+        Returns its markup and the goals button's bottom centre."""
         u = self.hud
-        x, y, w, h = 12, 10, 590, 74
-        out = [self.box(x, y, w, h)]
-        bs = 44
+        x, y, h, bs, step = 12, 8, 58, 36, 42
+        items = []
+        bx = x + 14
         for k, ic in enumerate(["pause", "play", "fast", "faster"]):
-            out.append(self.icon_tile(x + 16 + k * 52, y + 15, bs, hud_glyph(ic), "pressed" if k == u["speed"] else "idle", small=True))
-        out.append(T(x + 238, y + 33, u["date"], self.body_font, 18, self.panel_text, "start", 700))
-        out.append(T(x + 238, y + 57, u["season"], self.body_font, 17, self.panel_sub, "start", 600, style="font-style:italic"))
-        gx = x + w - 16 - bs
+            items.append(self.icon_tile(bx + k * step, y + 11, bs, hud_glyph(ic), "pressed" if k == u["speed"] else "idle", small=True))
+        tx = bx + 4 * step + 10
+        items.append(T(tx, y + 26, u["date"], self.body_font, 17, self.panel_text, "start", 700))
+        items.append(T(tx, y + 47, u["season"], self.body_font, 15, self.panel_sub, "start", 600, style="font-style:italic"))
+        gx = tx + 232
         done = sum(1 for g in u["goals"] if g[2] >= 1)
-        out.append(f'<line x1="{gx - 16}" y1="{y + 16}" x2="{gx - 16}" y2="{y + h - 16}" stroke="{self.panel_rule}" stroke-width="2"/>')
-        out.append(self.icon_tile(gx, y + 15, bs, hud_glyph("goals"), "pressed" if goals_open else "idle", small=True))
-        out.append(self.badge(gx + bs - 2, y + 17, f"{done}/{len(u['goals'])}", 13))
-        return "".join(out), (gx + bs / 2, y + 15 + bs)
+        items.append(self.icon_tile(gx, y + 11, bs, hud_glyph("goals"), "pressed" if goals_open else "idle", small=True))
+        items.append(self.badge(gx + bs - 1, y + 12, f"{done}/{len(u['goals'])}", 11))
+        sep = lambda sx: f'<line x1="{sx}" y1="{y + 12}" x2="{sx}" y2="{y + h - 12}" stroke="{self.panel_rule}" stroke-width="2"/>'
+        w = right - x
+        # The game menu at the right end; resources and ratings centred between the goals and it.
+        mx = right - 14 - len(MENU_BUTTONS) * step + 6
+        for k, (ic, _) in enumerate(MENU_BUTTONS):
+            items.append(self.icon_tile(mx + k * step, y + 11, bs, hud_glyph(ic), small=True))
+        left, end = gx + bs + 14, mx - 14
+        mid_w = 3 * 134 + 28 + 4 * 72
+        rx = left + (end - left - mid_w) / 2
+        items.append(sep(left + 8))
+        items.append(sep(end - 8))
+        for k, (ic, v) in enumerate([("population", u["population"]), ("coin", u["treasury"]), ("food", u["food"])]):
+            ix = rx + 18 + k * 134
+            items.append(self.icon(ic, ix, y + h / 2, 0.85, self.accent))
+            items.append(T(ix + 20, y + h / 2 + 8, v, self.title_font, 21, self.panel_text, "start", 700))
+        qx = rx + 3 * 134 + 14
+        items.append(sep(qx))
+        for k, (lab, v) in enumerate(zip(["P", "C", "S", u["legitimacy"][0]], u["ratings"])):
+            items.append(self.small_rating(qx + 36 + k * 72, y + h / 2, lab, v))
+        return self.box(x, y, w, h) + "".join(items), (gx + bs / 2, y + 11 + bs)
+
+    def small_rating(self, x, y, lab, v):
+        import math
+        r = 16
+        a = v / 100 * 2 * math.pi
+        ex, ey = x + r * math.sin(a), y - r * math.cos(a)
+        large = 1 if v > 50 else 0
+        return (f'<circle cx="{x}" cy="{y}" r="{r}" fill="none" stroke="{self.panel_rule}" stroke-width="4"/>'
+                f'<path d="M{x},{y - r} A{r},{r} 0 {large} 1 {ex:.1f},{ey:.1f}" fill="none" stroke="{self.accent}" stroke-width="4" stroke-linecap="round"/>'
+                + T(x, y + 6, lab, self.title_font, 15, self.panel_text, "middle", 700)
+                + T(x + 22, y + 6, str(v), self.body_font, 15, self.panel_sub, "start", 700))
 
     def goals_panel(self, bx, by):
         """The goals, dropped down under their button."""
         u = self.hud
         gw = 440
         gh = 64 + len(u["goals"]) * 66 + 10
-        gx, gy = bx + 40 - gw, by + 22
+        gx, gy = max(12, bx + 40 - gw), by + 22
         out = [self.box(gx, gy, gw, gh), self.notch(bx, gy, "up")]
         out.append(self.section_title(gx + 26, gy + 42, "Goals"))
         out.append(T(gx + gw - 26, gy + 42, u["goals_title"], self.body_font, 19, self.panel_sub, "end", 600, style="font-style:italic"))
@@ -363,29 +394,6 @@ class Palette:
             out.append(T(gx + 62, ry, g, self.body_font, 20, self.panel_text, "start", 700))
             out.append(T(gx + gw - 26, ry, txt, self.body_font, 18, self.panel_sub, "end", 600))
             out.append(self.bar(gx + 62, ry + 14, gw - 88, 8, v))
-        return "".join(out)
-
-    def top_centre(self):
-        u = self.hud
-        x0, w0 = 618, 790
-        out = [self.box(x0, 10, w0, 74)]
-        for k, (ic, v) in enumerate([("population", u["population"]), ("coin", u["treasury"]), ("food", u["food"])]):
-            ix = x0 + 40 + k * 150
-            out.append(self.icon(ic, ix, 47, 1.0, self.accent))
-            out.append(T(ix + 22, 56, v, self.title_font, 24, self.panel_text, "start", 700))
-        sx = x0 + 480
-        out.append(f'<line x1="{sx - 20}" y1="26" x2="{sx - 20}" y2="68" stroke="{self.panel_rule}" stroke-width="2"/>')
-        for k, (lab, v) in enumerate(zip(["P", "C", "S", u["legitimacy"][0]], u["ratings"])):
-            out.append(self.rating_badge(sx + k * 78 + 18, 47, lab, v))
-        return "".join(out)
-
-    def menu_bar(self, right):
-        bs = 44
-        bw = 24 + len(MENU_BUTTONS) * 52 - 8
-        bx = right - bw
-        out = [self.box(bx, 10, bw, 74)]
-        for k, (ic, _) in enumerate(MENU_BUTTONS):
-            out.append(self.icon_tile(bx + 12 + k * 52, 25, bs, hud_glyph(ic), small=True))
         return "".join(out)
 
     def minimap_widget(self, lens_on="city", alerts=2):
@@ -413,9 +421,10 @@ class Palette:
                 out.append(self.badge(cx + btn - 1, ty + 2, str(alerts), 9))
         return "".join(out), x + fw
 
-    def messages(self, left):
+    def messages(self):
         u = self.hud
-        mx, mw = left + 14, 1290 - left - 14
+        mw = 860
+        mx = (W - mw) / 2
         out = [self.box(mx, 950, mw, 118)]
         for k, (ic, msg) in enumerate(u["messages"]):
             yy = 984 + k * 32
@@ -429,15 +438,13 @@ class Palette:
         self.hud = HUD_DATA[self.dd["key"]]
         img = base64.b64encode((BUILD / f"city_{self.dd['key']}.jpg").read_bytes()).decode()
         parts = [f'<image x="0" y="0" width="{W}" height="{H}" xlink:href="data:image/jpeg;base64,{img}" preserveAspectRatio="xMidYMid slice"/>']
-        tl, goals_btn = self.top_left(goals_open)
-        parts.append(tl)
-        parts.append(self.top_centre())
         col, cx0, open_y = self.sector_column(open_sector)
-        parts.append(self.menu_bar(cx0 - 14))
+        bar, goals_btn = self.top_bar(cx0 - 14, goals_open)
+        parts.append(bar)
         parts.append(col)
-        mm, mm_right = self.minimap_widget()
+        mm, _ = self.minimap_widget()
         parts.append(mm)
-        parts.append(self.messages(mm_right))
+        parts.append(self.messages())
         if goals_open:
             parts.append(self.goals_panel(*goals_btn))
         return parts, cx0, open_y
@@ -554,20 +561,30 @@ class Palette:
 
 
 class DaiLongPalette(Palette, D.DaiLongDialogs):
-    style_line = "seal stamps in vermilion ink on paper"
-    notch_fill = "#efe0bc"
+    style_line = "vermilion stamps on parchment, in gilt bamboo under tiled roofs; carved red wood panels"
+    notch_fill = "#86301a"
+    crest_k = 0.3
+    tile_h_k = 1.04
+    sector_size = 54
+
+    def box(self, x, y, w, h, big=False):
+        big = w >= 300 and h >= 220 and y > 120
+        return self.woodwork().panel(x, y, w, h, big=big, lanterns=90 if big else None)
 
 
 class KambaraPalette(Palette, D.KambaraDialogs):
     style_line = "carved sandstone, moss and vines, a Bayon face over each"
     notch_fill = "#7c5f3a"
+    short_col = "#e8946a"
     crest_k = 0.34
+    tile_h_k = 1.08
     sector_size = 54
 
     def __init__(self, dd):
         D.KambaraDialogs.__init__(self, dd)
         # Light text on the carved frames' dark stone.
-        self.panel_text, self.panel_sub, self.panel_rule, self.accent = "#efe3c6", "#c9b690", "#7e6a4c", "#e6a560"
+        # Moss and stone for the accents: icons, bars, rings and titles.
+        self.panel_text, self.panel_sub, self.panel_rule, self.accent = "#efe3c6", "#c9b690", "#5f6152", "#98ad7a"
 
     def box(self, x, y, w, h, big=False):
         big = w >= 300 and h >= 220 and y > 120

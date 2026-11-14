@@ -66,6 +66,7 @@ AFFECTS = {
     "palette.py": ["palette"],
     "palette_glyphs.py": ["palette"],
     "kambara_carving.py": ["palette"],
+    "dailong_carving.py": ["palette"],
 }
 
 
