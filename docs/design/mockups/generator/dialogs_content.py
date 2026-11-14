@@ -150,6 +150,11 @@ TAMPADESA = dict(
 #   ("errand", icon, text)                   what its walker is doing, under a rule
 #   ("risks", rows)                          rows: (label, level 0-1); High (from 0.75) in red
 #   ("text", text)                           a short paragraph
+#   ("workers_line", have, need, note)       workers on one line, no figures (the stores')
+#   ("storage", title, note, rows, footer)   rows: (good, have, room, accepted, order): a checkbox, a meter
+#                                            and the order (keep, get or empty); Accept all and none under it
+#   ("costs_risks", costs, risks)            costs and risks side by side, the risks' levels only
+# A panel's "width" is 500 unless given.
 # then its buttons: (label, primary). The status's tone is good, pending or bad.
 # Names that differ by realm are a dict by realm key. Numbers are placeholders.
 HOUSE_NAMES = {"dailong": ("Tiled house", "Courtyard house"), "kambara": ("Tiled house", "Brick mansion"),
@@ -182,15 +187,29 @@ INSPECTORS = {
         buttons=[("Demolish", False)],
     ),
     "storage": dict(
-        icon=("building", "storage_yard"), name=("building", "storage_yard"), kind="Storage", size="3×3",
-        status=("Working", "good", "9 of 12 slots used"),
+        icon=("building", "storage_yard"), name=("building", "storage_yard"), kind="Storage", size="3×3", width=620,
+        status=("Working", "good", "7 of 8 slots used"),
         sections=[
-            ("workers", 4, 4, "Fully staffed"),
-            ("stock", "Stored", "16 to a slot", [("Wood", 24, 32), ("Bricks", 16, 16), ("Clay", 12, 16), ("Roof tiles", 8, 16), ("Pottery", 40, 48)],
-             "3 slots free, for any good"),
+            ("workers_line", 4, 4, "Fully staffed"),
+            ("storage", "Goods", "Slots of 8", [
+                ("Rice", 16, 24, True, "keep"), ("Meat", 0, 8, False, "keep"), ("Fish", 8, 16, True, "keep"), ("Wine", 0, 8, False, "keep"),
+                ("Wood", 24, 32, True, "keep"), ("Metal", 0, 8, True, "keep"), ("Clay", 4, 16, True, "get"), ("Pottery", 14, 16, True, "empty"),
+                ("Bricks", 16, 16, True, "keep"), ("Roof tiles", 8, 16, True, "keep")], "1 slot free, for any good"),
             ("errand", "cart", "A cart is fetching clay from the clay pit."),
-            ("values", "Costs", None, [("Upkeep", "4 gold a year"), ("Wages", "4 workers · 24 gold a year")]),
-            ("risks", [("Fire risk", 0.48), ("Collapse risk", 0.12)]),
+            ("costs_risks", [("Upkeep", "4 gold a year"), ("Wages", "24 gold a year")], [("Fire risk", 0.48), ("Collapse risk", 0.12)]),
+        ],
+        buttons=[("Pause work", False), ("Demolish", False)],
+    ),
+    "granary": dict(
+        icon=("building", "granary"), name=("building", "granary"), kind="Storage", size="3×3",
+        status=("Working", "good", "6 of 8 slots used"),
+        sections=[
+            ("workers_line", 3, 4, "1 short · Food is priority 1"),
+            ("storage", "Food", "Slots of 8", [("Rice", 32, 40, True, "keep"), ("Meat", 0, 8, False, "empty"), ("Fish", 12, 24, True, "get")],
+             "2 slots free"),
+            ("errand", "cart", "A cart is taking 8 rice to the market."),
+            ("values", "Costs", None, [("Upkeep", "4 gold a year"), ("Wages", "3 workers · 18 gold a year")]),
+            ("risks", [("Fire risk", 0.30), ("Collapse risk", 0.22)]),
         ],
         buttons=[("Pause work", False), ("Demolish", False)],
     ),
@@ -200,7 +219,7 @@ INSPECTORS = {
         sections=[
             ("workers", 3, 4, "1 short · Services are priority 1"),
             ("values", "Patrol", "Within 12 cells", [("Buildings in reach", "46"), ("Visited this month", "31"),
-              ("Highest fire risk", "Distillery · High"), ("Fires answered", "Off the road too")]),
+              ("Highest fire risk", "Distillery · High")]),
             ("errand", "defence", "A fire watcher is on his rounds, 9 cells out."),
             ("values", "Costs", None, [("Upkeep", "3 gold a year"), ("Wages", "3 workers · 18 gold a year")]),
             ("risks", [("Fire risk", 0.08), ("Collapse risk", 0.30)]),
@@ -235,7 +254,7 @@ INSPECTORS = {
         icon=("walker", "cart"), name=("text", "Cart"), kind="Walker · from the Pottery kiln", size=None,
         status=("Delivering", "good", "Arrives in about 3 days"),
         sections=[
-            ("values", "Errand", None, [("Carrying", "4 jars of pottery"), ("From", "Pottery kiln"), ("To", "Storage yard"), ("Still to go", "11 cells")]),
+            ("values", "Errand", None, [("Carrying", "4 jars of pottery"), ("From", "Pottery kiln"), ("To", "Storage yard"), ("Still to go", "About 100 metres")]),
             ("text", "Carts take a workplace's goods to storage and bring back what it needs. They keep to the road."),
         ],
         buttons=[("Show its home", False)],
@@ -246,7 +265,7 @@ INSPECTORS = {
         sections=[
             ("text", "An old banyan, its roots grown down from the branches. Woodland holds the soil and feeds the lumberyards."),
             ("values", "Clearing it", None, [("Cost", "2 gold"), ("Leaves", "Grass")]),
-            ("values", "Here", None, [("Blocks", "Building and walking"), ("Cell", "41, 27")]),
+            ("values", "Here", None, [("Blocks", "Building and walking")]),
         ],
         buttons=[("Clear", False)],
     ),

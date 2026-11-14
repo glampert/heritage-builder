@@ -335,13 +335,31 @@ class Dialogs(Pages):
         return (f'<circle cx="{f(x)}" cy="{f(y)}" r="8.5" fill="none" stroke="{c}" stroke-width="2"/>'
                 f'<path d="M{f(x - 3.5)},{f(y - 3.5)} l7,7 m0,-7 l-7,7" stroke="{c}" stroke-width="2" stroke-linecap="round"/>')
 
+    def checkbox(self, x, y, on):
+        """A checkbox, its top-left corner at (x, y): ticked on the accent, or an empty box."""
+        out = f'<rect x="{f(x)}" y="{f(y)}" width="20" height="20" rx="3" fill="{self.accent if on else self.field_fill}" fill-opacity="{1 if on else 0.6}" stroke="{self.panel_rule}" stroke-width="1.5"/>'
+        if on:
+            out += f'<path d="M{f(x + 5)},{f(y + 10)} l4,4.5 l7,-9" fill="none" stroke="{self.on_icon}" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/>'
+        return out
+
+    def mode_pill(self, x, y, w, h, mode, enabled=True):
+        """A good's order in a store, Keep, Get or Empty, stepped with the arrows at its ends."""
+        on = mode != "keep"
+        label = {"keep": "Keep", "get": "Get", "empty": "Empty"}[mode]
+        op = 1 if enabled else 0.45
+        text = self.on_icon if on else self.panel_text
+        return (f'<g opacity="{op}"><rect x="{f(x)}" y="{f(y)}" width="{f(w)}" height="{h}" rx="{h / 2}" fill="{self.accent if on else self.field_fill}" '
+                f'fill-opacity="{1 if on else 0.6}" stroke="{self.panel_rule}" stroke-width="1.2"/>'
+                f'<path d="M{f(x + 13)},{f(y + h / 2 - 5)} l-5,5 l5,5 M{f(x + w - 13)},{f(y + h / 2 - 5)} l5,5 l-5,5" fill="none" stroke="{text}" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>'
+                + self.t(x + w / 2, y + h / 2 + 6, label, 16, text, "middle", 700) + '</g>')
+
     def inspector(self, kind="workshop"):
         d = self.dd
         b = DC.INSPECTORS[kind]
         parts = self.hud_parts(keep_style=True)
         bar, _ = self.menu_buttons()
         parts.append(bar)
-        w = 500
+        w = b.get("width", 500)
         x, y = self.inspector_at(w)
         x0, x1 = x + 28, x + w - 28
         bad = self.risk_col or self.accent
@@ -404,9 +422,9 @@ class Dialogs(Pages):
                 for i, (good, n, cap) in enumerate(rows):
                     ry = cy + 34 + i * 30
                     body.append(self.good_bullet(x0 + 4, ry - 6))
-                    body.append(self.t(x0 + 20, ry, good, 19, bad if n == 0 else self.panel_text, "start", 700))
+                    body.append(self.t(x0 + 20, ry, good, 19, self.panel_text, "start", 700))
                     body.append(self.bar(meter_x, ry - 12, meter_w, 10, n / cap))
-                    body.append(self.t(x1, ry, f"{n} / {cap}", 18, bad if n == 0 else self.panel_text, "end", 600))
+                    body.append(self.t(x1, ry, f"{n} / {cap}", 18, bad if n == 0 else self.panel_text, "end", 700 if n == 0 else 600))
                 cy += 34 + len(rows) * 30
                 if footer:
                     body.append(self.t(x0, cy, footer, 17, self.panel_sub, "start", 600, italic=True))
@@ -427,7 +445,7 @@ class Dialogs(Pages):
                 if footer:
                     level_name = self.inspector_name(("house", 1))
                     body.append(self.tick(x0 + 9, cy - 6, False))
-                    body.append(self.t(x0 + 28, cy, f"A {level_name.lower()} also needs a {footer[1].lower()}", 17, bad, "start", 600, italic=True))
+                    body.append(self.t(x0 + 28, cy, f"A {level_name.lower()} also needs a {footer[1].lower()}", 17, self.panel_text, "start", 600, italic=True))
                     cy += 27
                 cy += 18
             elif k == "values":
@@ -461,10 +479,51 @@ class Dialogs(Pages):
                     ry = cy + 34 + i * 29
                     level = self.risk_level(v)
                     high = level == "High"
-                    body.append(self.t(x0, ry, lab, 18, bad if high else self.panel_sub, "start", 700 if high else 600))
+                    body.append(self.t(x0, ry, lab, 18, self.panel_sub, "start", 600))
                     body.append(self.bar(meter_x, ry - 12, meter_w, 10, v, ))
                     body.append(self.t(x1, ry, level, 18, bad if high else self.panel_text, "end", 700 if high else 600))
                 cy += 34 + len(sec[1]) * 29 + 16
+            elif k == "workers_line":
+                _, have, need, note = sec
+                body.append(self.section_title(x0, cy, "Workers"))
+                body.append(self.t(x1, cy, f"{have} / {need}", 19, self.panel_text, "end", 700))
+                body.append(self.t(x0, cy + 30, note, 17, self.accent if "short" in note else self.panel_sub, "start", 600, italic=True))
+                cy += 76
+            elif k == "storage":
+                _, title, note, rows, footer = sec
+                body.append(self.section_title(x0, cy, title))
+                body.append(self.t(x1, cy, note, 17, self.panel_sub, "end", 600, italic=True))
+                mx, mw = x0 + 150, x1 - x0 - 360
+                for i, (good, n, cap, accepted, mode) in enumerate(rows):
+                    ry = cy + 36 + i * 32
+                    body.append(self.checkbox(x0, ry - 17, accepted))
+                    body.append(self.t(x0 + 30, ry, good, 18, self.panel_text if accepted else self.panel_sub, "start", 700 if accepted else 600))
+                    body.append(self.bar(mx, ry - 11, mw, 9, n / cap))
+                    body.append(self.t(x1 - 112, ry, f"{n} / {cap}", 17, self.panel_text, "end", 600))
+                    body.append(self.mode_pill(x1 - 96, ry - 19, 96, 26, mode, accepted or mode == "empty"))  # a refused good may still be emptied
+                cy += 36 + len(rows) * 32
+                bw = 150
+                body.append(self.button(x0, cy - 8, bw, 40, "Accept all", False))
+                body.append(self.button(x0 + bw + 14, cy - 8, bw, 40, "Accept none", False))
+                body.append(self.t(x1, cy + 18, footer, 17, self.panel_sub, "end", 600, italic=True))
+                cy += 82
+            elif k == "costs_risks":
+                _, costs, risks = sec
+                xm = (x0 + x1) / 2
+                body.append(self.section_title(x0, cy, "Costs"))
+                body.append(self.section_title(xm + 20, cy, "Risks"))
+                for i, (lab, v) in enumerate(costs):
+                    ry = cy + 34 + i * 29
+                    body.append(self.t(x0, ry, lab, 18, self.panel_sub, "start", 600))
+                    body.append(self.t(xm - 20, ry, v, 18, self.panel_text, "end", 600))
+                for i, (lab, v) in enumerate(risks):
+                    ry = cy + 34 + i * 29
+                    level = self.risk_level(v)
+                    high = level == "High"
+                    body.append(self.t(xm + 20, ry, lab, 18, self.panel_sub, "start", 600))
+                    body.append(self.t(x1, ry, level, 18, bad if high else self.panel_text, "end", 700 if high else 600))
+                body.append(f'<line x1="{f(xm)}" y1="{f(cy - 16)}" x2="{f(xm)}" y2="{f(cy + 34 + (max(len(costs), len(risks)) - 1) * 29 + 8)}" stroke="{self.panel_rule}" stroke-width="1"/>')
+                cy += 34 + max(len(costs), len(risks)) * 29 + 16
             elif k == "text":
                 lines = self.wrap(sec[1], x1 - x0, 18, 0.46)
                 for i, line in enumerate(lines):

@@ -35,7 +35,7 @@ SCREENS = [
     ("menu-custom-game", "Custom game"), ("menu-about", "About"),
     ("campaign-picker", "Campaign picker"), ("game-menu", "Game menu"), ("game-quit", "Quit popup"),
     ("briefing", "Briefing"), ("campaign-complete", "Campaign complete"),
-    ("inspector", "Inspector: workshop"), ("inspector-house", "Inspector: house"), ("inspector-storage", "Inspector: storage"),
+    ("inspector", "Inspector: workshop"), ("inspector-house", "Inspector: house"), ("inspector-storage", "Inspector: storage yard"), ("inspector-granary", "Inspector: granary"),
     ("inspector-service", "Inspector: service"), ("inspector-market", "Inspector: market"), ("inspector-site", "Inspector: construction site"),
     ("inspector-unit", "Inspector: walker"), ("inspector-terrain", "Inspector: terrain and props"), ("event", "Event popup"),
     ("city-overview", "City book: overview"), ("city-population", "City book: population"), ("city-goods", "City book: goods"),

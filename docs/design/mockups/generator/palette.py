@@ -534,6 +534,9 @@ class Palette:
     def inspector_storage(self):
         self.inspector("storage")
 
+    def inspector_granary(self):
+        self.inspector("granary")
+
     def inspector_service(self):
         self.inspector("service")
 
@@ -696,7 +699,7 @@ class TampadesaPalette(Palette, D.TampadesaDialogs):
 
 
 REALMS = [(DaiLongPalette, DC.DAILONG), (KambaraPalette, DC.KAMBARA), (TampadesaPalette, DC.TAMPADESA)]
-INSPECTOR_SCREENS = ["inspector", "inspector_house", "inspector_storage", "inspector_service", "inspector_market",
+INSPECTOR_SCREENS = ["inspector", "inspector_house", "inspector_storage", "inspector_granary", "inspector_service", "inspector_market",
                      "inspector_site", "inspector_unit", "inspector_terrain"]
 SCREENS = ["build_icons", "build_palette", "hud_goals", "game_menu", "game_quit"] + INSPECTOR_SCREENS + ["event"]
 
