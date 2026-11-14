@@ -152,7 +152,7 @@ TAMPADESA = dict(
 #   ("text", text)                           a short paragraph
 #   ("workers_line", have, need, note)       workers on one line, no figures (the stores')
 #   ("storage", title, note, rows, footer)   rows: (good, have, room, accepted, order): a checkbox, a meter
-#                                            and the order (keep, get or empty); Accept all and none under it
+#                                            and the order (accept, get or empty); Accept all and none under it
 #   ("costs_risks", costs, risks)            costs and risks side by side, the risks' levels only
 # A panel's "width" is 500 unless given.
 # then its buttons: (label, primary). The status's tone is good, pending or bad.
@@ -192,9 +192,9 @@ INSPECTORS = {
         sections=[
             ("workers_line", 4, 4, "Fully staffed"),
             ("storage", "Goods", "Slots of 8", [
-                ("Rice", 16, 24, True, "keep"), ("Meat", 0, 8, False, "keep"), ("Fish", 8, 16, True, "keep"), ("Wine", 0, 8, False, "keep"),
-                ("Wood", 24, 32, True, "keep"), ("Metal", 0, 8, True, "keep"), ("Clay", 4, 16, True, "get"), ("Pottery", 14, 16, True, "empty"),
-                ("Bricks", 16, 16, True, "keep"), ("Roof tiles", 8, 16, True, "keep")], "1 slot free, for any good"),
+                ("Rice", 16, 24, True, "accept"), ("Meat", 0, 8, False, "accept"), ("Fish", 8, 16, True, "accept"), ("Wine", 0, 8, False, "accept"),
+                ("Wood", 24, 32, True, "accept"), ("Metal", 0, 8, True, "accept"), ("Clay", 4, 16, True, "get"), ("Pottery", 14, 16, True, "empty"),
+                ("Bricks", 16, 16, True, "accept"), ("Roof tiles", 8, 16, True, "accept")], "1 slot free, for any good"),
             ("errand", "cart", "A cart is fetching clay from the clay pit."),
             ("costs_risks", [("Upkeep", "4 gold a year"), ("Wages", "24 gold a year")], [("Fire risk", 0.48), ("Collapse risk", 0.12)]),
         ],
@@ -205,7 +205,7 @@ INSPECTORS = {
         status=("Working", "good", "6 of 8 slots used"),
         sections=[
             ("workers_line", 3, 4, "1 short · Food is priority 1"),
-            ("storage", "Food", "Slots of 8", [("Rice", 32, 40, True, "keep"), ("Meat", 0, 8, False, "empty"), ("Fish", 12, 24, True, "get")],
+            ("storage", "Food", "Slots of 8", [("Rice", 32, 40, True, "accept"), ("Meat", 0, 8, False, "empty"), ("Fish", 12, 24, True, "get")],
              "2 slots free"),
             ("errand", "cart", "A cart is taking 8 rice to the market."),
             ("values", "Costs", None, [("Upkeep", "4 gold a year"), ("Wages", "3 workers · 18 gold a year")]),

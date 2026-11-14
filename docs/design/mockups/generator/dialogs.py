@@ -343,9 +343,9 @@ class Dialogs(Pages):
         return out
 
     def mode_pill(self, x, y, w, h, mode, enabled=True):
-        """A good's order in a store, Keep, Get or Empty, stepped with the arrows at its ends."""
-        on = mode != "keep"
-        label = {"keep": "Keep", "get": "Get", "empty": "Empty"}[mode]
+        """A good's order in a store, Accept, Get or Empty, stepped with the arrows at its ends."""
+        on = mode != "accept"
+        label = {"accept": "Accept", "get": "Get", "empty": "Empty"}[mode]
         op = 1 if enabled else 0.45
         text = self.on_icon if on else self.panel_text
         return (f'<g opacity="{op}"><rect x="{f(x)}" y="{f(y)}" width="{f(w)}" height="{h}" rx="{h / 2}" fill="{self.accent if on else self.field_fill}" '
