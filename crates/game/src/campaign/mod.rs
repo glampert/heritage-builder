@@ -109,6 +109,26 @@ pub fn reset() {
     *mgr = CampaignManager { finished_missions, ..CampaignManager::new() };
 }
 
+// Which buildings the player may build (docs/plans/realm-ui.md, P5c): the build palette asks it for
+// each building and disables the ones it doesn't allow. Every building for now; a mission's list of
+// buildings later, with the mission data that names it.
+pub struct BuildingAvailability {
+    _private: (),
+}
+
+impl BuildingAvailability {
+    // What the mission being played (or a game outside a campaign) allows.
+    pub fn current() -> Self {
+        Self { _private: () }
+    }
+
+    // Whether the tile def named `tile_name` may be built.
+    pub fn allows(&self, tile_name: &str) -> bool {
+        let _ = tile_name;
+        true
+    }
+}
+
 pub fn active_mission() -> Option<ActiveMission> {
     CampaignManager::get().progress.active.clone()
 }

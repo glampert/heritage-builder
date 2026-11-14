@@ -238,9 +238,20 @@ pub fn hud_glyph(context: &mut dyn UiWidgetContext, group: HudGlyphGroup, name: 
 
 // A tile of `kind` labelled `label` (its automation path) with the glyph `name` of `group`.
 pub fn hud_tile(context: &mut dyn UiWidgetContext, kind: HudTileKind, label: &str, group: HudGlyphGroup, name: &str) -> UiIconTile {
-    let look = hud_tile_look(context, kind);
+    hud_tile_scaled(context, kind, 1.0, label, group, name)
+}
+
+// The same, `scale` times its size (the sector column on a short window), its frame's bleed and the
+// glyph's room with it.
+pub fn hud_tile_scaled(context: &mut dyn UiWidgetContext, kind: HudTileKind, scale: f32, label: &str, group: HudGlyphGroup, name: &str) -> UiIconTile {
+    let mut look = hud_tile_look(context, kind);
+    if scale != 1.0 {
+        let bleed = hud_tile_bleed(kind).map(|side| side * scale);
+        let glyph = skin::hud().glyph_bleed * scale;
+        look = look.with_frame_bleed(bleed).with_glyph_inset([-glyph; 4]);
+    }
     let (idle, pressed) = hud_glyph(context, group, name);
-    UiIconTile::new(label, hud_tile_size(kind), look).with_glyph(idle, Some(pressed))
+    UiIconTile::new(label, hud_tile_size(kind) * scale, look).with_glyph(idle, Some(pressed))
 }
 
 // ----------------------------------------------

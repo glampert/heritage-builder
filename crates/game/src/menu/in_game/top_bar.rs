@@ -38,6 +38,8 @@ const DATE_WIDTH: f32 = 240.0;
 const STAT_WIDTH: f32 = 134.0;
 const RATING_STEP: f32 = 72.0;
 const RATINGS_WIDTH: f32 = 4.0 * RATING_STEP + 20.0;
+// How far the stats squeeze on a narrow window before the ratings are left out.
+const MIN_SQUEEZE: f32 = 0.75;
 
 // ----------------------------------------------
 // The stats the bar paints
@@ -266,7 +268,7 @@ impl TopBar {
             SkinPanel::Sprite { .. } => [8.0; 4],
         };
         let tile = skin::hud_tile_size(HudTileKind::Small);
-        let width = (window.x - layout::column_width(context) - 2.0 * layout::MARGIN).max(640.0);
+        let width = (window.x - layout::column_width(context) - 2.0 * layout::MARGIN - layout::GAP).max(640.0);
         let height = insets[1] + tile.y + insets[3];
         let inner_width = width - insets[0] - insets[2];
 
@@ -295,17 +297,27 @@ impl TopBar {
             .collect();
         fixed += menu_buttons.len() as f32 * (tile.x + TILE_GAP);
 
-        // The stats between the speed controls and the menu, their gaps split either side.
-        let middle = DATE_WIDTH + 3.0 * STAT_WIDTH + RATINGS_WIDTH;
-        let gaps = (inner_width - fixed - middle - 4.0 * TILE_GAP).max(0.0);
+        // The stats between the speed controls and the menu, their gaps split either side: at their
+        // size where they fit, narrower on a narrow window, and without the ratings (placeholders
+        // until M9) where even that doesn't fit.
+        let room = inner_width - fixed - 6.0 * TILE_GAP;
+        let full = DATE_WIDTH + 3.0 * STAT_WIDTH + RATINGS_WIDTH;
+        let k = (room / full).clamp(MIN_SQUEEZE, 1.0);
+        let with_ratings = full * MIN_SQUEEZE <= room;
+        let (date_width, stat_width) = (DATE_WIDTH * k, STAT_WIDTH * k);
+        let ratings_width = if with_ratings { RATINGS_WIDTH * k } else { 0.0 };
+        let middle = date_width + 3.0 * stat_width + ratings_width;
+        let gaps = (room - middle).max(0.0);
         let gap = gaps * 0.5;
 
-        let mut canvases = vec![(None, row.add_widget(date_canvas(context, &stats, Vec2::new(DATE_WIDTH, tile.y))))];
+        let mut canvases = vec![(None, row.add_widget(date_canvas(context, &stats, Vec2::new(date_width, tile.y))))];
         row.add_widget(ornament_canvas(context, "ornament_left", Vec2::new(gap, tile.y)));
         for stat in [Stat::Population, Stat::Treasury, Stat::Food] {
-            canvases.push((Some(stat), row.add_widget(stat_canvas(context, &stats, stat, Vec2::new(STAT_WIDTH, tile.y)))));
+            canvases.push((Some(stat), row.add_widget(stat_canvas(context, &stats, stat, Vec2::new(stat_width, tile.y)))));
         }
-        row.add_widget(ratings_canvas(context, Vec2::new(RATINGS_WIDTH, tile.y)));
+        if with_ratings {
+            row.add_widget(ratings_canvas(context, Vec2::new(ratings_width, tile.y), k));
+        }
         row.add_widget(ornament_canvas(context, "ornament_right", Vec2::new(gap, tile.y)));
         for button in menu_buttons {
             add(context, &mut row, button);
@@ -503,7 +515,7 @@ fn stat_canvas(context: &mut GameUiContext, stats: &SharedStats, stat: Stat, siz
 }
 
 // The ratings: rings with each rating's initial, not rated ("—") until M9.
-fn ratings_canvas(context: &mut GameUiContext, size: Vec2) -> UiCanvas {
+fn ratings_canvas(context: &mut GameUiContext, size: Vec2, k: f32) -> UiCanvas {
     let realm = skin::current_realm();
     let names = rating_names(realm);
     let text = skin::hud_color("text", "ink");
@@ -515,10 +527,11 @@ fn ratings_canvas(context: &mut GameUiContext, size: Vec2) -> UiCanvas {
         .iter()
         .map(|name| ui::text::format(UiTextCategory::Hud, "rating.placeholder", &[("rating", name.as_str())]))
         .collect();
+    let squeeze = k;
     UiCanvas::new(size, move |_, painter, rect| {
         painter.line(Vec2::new(rect.min.x, rect.min.y + 2.0), Vec2::new(rect.min.x, rect.max.y - 2.0), 2.0, rule);
         for (k, initial) in initials.iter().enumerate() {
-            let center = Vec2::new(rect.min.x + 30.0 + k as f32 * RATING_STEP, rect.center().y);
+            let center = Vec2::new(rect.min.x + 30.0 * squeeze + k as f32 * RATING_STEP * squeeze, rect.center().y);
             painter.circle_stroke(center, 15.0, 3.5, track);
             painter.label(center + Vec2::new(0.0, 5.5), UiTextAnchor::Middle, initial, &look(14.0, text, true));
             painter.label(center + Vec2::new(21.0, 5.5), UiTextAnchor::Start, "—", &look(14.0, sub, false));

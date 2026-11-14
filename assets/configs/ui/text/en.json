@@ -450,6 +450,7 @@
     "palette.cannot_afford": "Not enough gold",
     "palette.in_debt": "The treasury is in debt",
     "palette.short": "Not enough {name} in storage",
+    "palette.short_mark": "short",
     "palette.locked": "Not available in this mission",
     "messages.now": "now"
   },

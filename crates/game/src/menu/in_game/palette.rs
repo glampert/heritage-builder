@@ -1,3 +1,16 @@
+// The build palette (docs/plans/realm-ui.md, Phase 5: P5c; build-palette-<realm>.jpg): the sector
+// column at the window's right edge, a sector icon tile per TilePaletteMainButtonDef (clear land,
+// housing, roads, the sectors, undo and redo, with rules between the groups), and a sector's
+// buildings as a grid of icon tiles, four to a row, left of its tile. Hovering a building shows its
+// realm name, size, cost and materials against the storage yards, and why it can't be built (no
+// gold, debt, materials short, or locked by the mission: BuildingAvailability); a building that
+// can't be built stays in the grid, disabled. Clicking one picks it and closes the grid.
+// Paths: the column is `TilePaletteMenu`, its tiles named by their labels (`TilePaletteMenu/services`,
+// tooltip "Services"); a grid is `TilePaletteChildMenu: <label>`, its tiles named by the building's
+// tile name in title case ("Apothecary", "Dirt Road"), stable in every realm.
+
+use std::{cell::RefCell, rc::Rc};
+
 use arrayvec::ArrayVec;
 use common::{
     self,
@@ -7,24 +20,28 @@ use common::{
     Vec2,
     constants::BASE_TILE_SIZE_F32,
     coords::WorldToScreenTransform,
+    hash,
     mem::{RcMut, WeakMut, WeakRef},
-    time::Seconds,
 };
 use engine::{
     app::input::{InputAction, MouseButton},
     file_sys::paths::PathRef,
     render::texture::TextureHandle,
     ui::{
+        self,
         UiInputEvent,
-        UiTooltipPlacement,
-        sound::{self, UiSoundEvent, UiSoundKey},
+        sound::{self, UiSoundKey},
+        text::UiTextCategory,
         widgets::*,
     },
 };
 use strum::{EnumCount, EnumIter, EnumProperty, IntoEnumIterator};
 
+use super::layout;
 use crate::{
-    menu::*,
+    campaign::BuildingAvailability,
+    menu::{skin::{HudGlyphGroup, HudTileKind, SkinPanel}, *},
+    realm::Realm,
     tile::{
         TileKind,
         rendering::INVALID_TILE_COLOR,
@@ -40,23 +57,22 @@ use crate::{
     },
     ui_context::GameUiContext,
     undo_redo,
-    world::object::tile_cost_text,
+    world::{city_stock::CityStock, object::tile_cost_text},
 };
 
 // ----------------------------------------------
 // Constants
 // ----------------------------------------------
 
-// The skin's panels behind the palette and its lists (the old HUD art until Phase 5).
-const TILE_PALETTE_PANEL: &str = "hud_tall";
-const TILE_PALETTE_CHILD_MENU_PANEL: &str = "hud_wide";
-
-const TILE_PALETTE_BUTTON_SPACING: Vec2 = Vec2::new(4.0, 4.0); // Vertical spacing between buttons, in pixels.
-const TILE_PALETTE_MAIN_BUTTON_SIZE: Vec2 = Vec2::new(50.0, 50.0); // In pixels.
-
-const TILE_PALETTE_MAIN_BUTTON_STATE_TRANSITION_SECS: Seconds = 0.0; // No timed transition.
-
 const TILE_PALETTE_MAIN_BUTTON_COUNT: usize = TilePaletteMainButtonDef::COUNT;
+
+// The grid: buildings per row and the room between tiles, in points.
+const GRID_COLUMNS: usize = 4;
+const GRID_GAP: f32 = 12.0;
+const GRID_TITLE_HEIGHT: f32 = 34.0;
+
+// The rule between the column's groups, and the room round it.
+const SEPARATOR_HEIGHT: f32 = 14.0;
 
 // ----------------------------------------------
 // TilePaletteMainButtonDef
@@ -64,40 +80,40 @@ const TILE_PALETTE_MAIN_BUTTON_COUNT: usize = TilePaletteMainButtonDef::COUNT;
 
 #[derive(Copy, Clone, Debug, PartialEq, Eq, EnumCount, EnumProperty, EnumIter)]
 enum TilePaletteMainButtonDef {
-    #[strum(props(Label = "clear_land"))]
+    #[strum(props(Label = "clear_land", Glyph = "clear", Title = "sector.clear"))]
     ClearLand,
 
-    #[strum(props(Label = "housing", Tooltip = "Vacant Lot\nCost: 1 gold"))]
+    #[strum(props(Label = "housing", Glyph = "housing", Title = "sector.housing"))]
     Housing,
 
-    #[strum(props(Label = "roads", SeparatorFollows = true))]
+    #[strum(props(Label = "roads", Glyph = "roads", Title = "sector.roads", SeparatorFollows = true))]
     Roads,
 
-    #[strum(props(Label = "food_and_farming", DisabledIfEmpty = true))]
+    #[strum(props(Label = "food_and_farming", Glyph = "food", Title = "sector.food", DisabledIfEmpty = true))]
     FoodAndFarming,
 
-    #[strum(props(Label = "industry_and_resources", DisabledIfEmpty = true))]
+    #[strum(props(Label = "industry_and_resources", Glyph = "industry", Title = "sector.industry", DisabledIfEmpty = true))]
     IndustryAndResources,
 
-    #[strum(props(Label = "services", DisabledIfEmpty = true))]
+    #[strum(props(Label = "services", Glyph = "services", Title = "sector.services", DisabledIfEmpty = true))]
     Services,
 
-    #[strum(props(Label = "infrastructure", DisabledIfEmpty = true))]
+    #[strum(props(Label = "infrastructure", Glyph = "infrastructure", Title = "sector.infrastructure", DisabledIfEmpty = true))]
     Infrastructure,
 
-    #[strum(props(Label = "culture_and_religion", DisabledIfEmpty = true))]
+    #[strum(props(Label = "culture_and_religion", Glyph = "culture", Title = "sector.culture", DisabledIfEmpty = true))]
     CultureAndReligion,
 
-    #[strum(props(Label = "trade_and_economy", DisabledIfEmpty = true))]
+    #[strum(props(Label = "trade_and_economy", Glyph = "trade", Title = "sector.trade", DisabledIfEmpty = true))]
     TradeAndEconomy,
 
-    #[strum(props(Label = "beautification", DisabledIfEmpty = true, SeparatorFollows = true))]
+    #[strum(props(Label = "beautification", Glyph = "beauty", Title = "sector.beauty", DisabledIfEmpty = true, SeparatorFollows = true))]
     Beautification,
 
-    #[strum(props(Label = "undo", StateTransitionSecs = "0.5"))]
+    #[strum(props(Label = "undo", Glyph = "undo", Title = "sector.undo"))]
     Undo,
 
-    #[strum(props(Label = "redo", StateTransitionSecs = "0.5"))]
+    #[strum(props(Label = "redo", Glyph = "redo", Title = "sector.redo"))]
     Redo,
 }
 
@@ -110,20 +126,19 @@ impl TilePaletteMainButtonDef {
         self.get_bool("DisabledIfEmpty").is_some_and(|val| val)
     }
 
-    fn initial_state(self, has_children: bool) -> UiSpriteButtonState {
-        let is_undo_redo = matches!(self, Self::Undo | Self::Redo);
-
-        if is_undo_redo || (self.disabled_if_empty() && !has_children) {
-            UiSpriteButtonState::Disabled
-        } else {
-            UiSpriteButtonState::Idle
-        }
+    fn glyph(self) -> &'static str {
+        self.get_str("Glyph").unwrap_or_default()
     }
 
-    fn state_transition_secs(self) -> Seconds {
-        let value = self.get_str("StateTransitionSecs").unwrap_or_default();
-        let seconds: Seconds = value.parse().unwrap_or(TILE_PALETTE_MAIN_BUTTON_STATE_TRANSITION_SECS);
-        seconds
+    // Its tooltip: the sector's title ("Services"); the housing tile names its vacant lot and cost.
+    fn tooltip(self) -> String {
+        if self == Self::Housing
+            && let Some(tile_def) = PresetTiles::VacantLot.find_tile_def()
+        {
+            let cost = tile_cost_text(tile_def);
+            return format!("{}\n{}", ui::text::get(UiTextCategory::Hud, "sector.housing"), ui::text::format(UiTextCategory::Hud, "sector.housing.tooltip", &[("cost", &cost)]));
+        }
+        ui::text::get(UiTextCategory::Hud, self.get_str("Title").unwrap_or_default()).to_string()
     }
 
     fn build_child_button_defs(self) -> Vec<TilePaletteChildButtonDef> {
@@ -169,194 +184,198 @@ impl ButtonDef for TilePaletteMainButtonDef {}
 // ----------------------------------------------
 
 struct TilePaletteChildButtonDef {
-    label: String,
-    tooltip: Option<String>,
+    label: String, // The tile's name in title case: the tile's automation path.
     tile_def_handle: TileDefHandle,
 }
 
 impl TilePaletteChildButtonDef {
     fn new(tile_def: &TileDef) -> Self {
         let label = common::fixed_string::snake_case_to_title::<128>(&tile_def.name).to_string();
-
-        let tooltip = tile_def.has_cost().then(|| format!("Cost: {}", tile_cost_text(tile_def)));
-
-        Self { label, tooltip, tile_def_handle: TileDefHandle::from_tile_def(tile_def) }
+        Self { label, tile_def_handle: TileDefHandle::from_tile_def(tile_def) }
     }
 }
 
-// ----------------------------------------------
-// TilePaletteMainButtonsBuilder
-// ----------------------------------------------
-
-struct TilePaletteMainButtonsBuilder {
-    main: ArrayVec<TilePaletteMainButton, TILE_PALETTE_MAIN_BUTTON_COUNT>,
-    ui: ArrayVec<UiSpriteButton, TILE_PALETTE_MAIN_BUTTON_COUNT>,
+// The tile def a palette tile was built for (the tile sets don't change while the game runs).
+fn tile_def_of(handle: TileDefHandle) -> &'static TileDef {
+    TileSets::get().handle_to_tile_def(handle).expect("A palette tile names a tile def")
 }
 
-impl TilePaletteMainButtonsBuilder {
-    fn build_all(context: &mut GameUiContext, tile_palette: &TilePaletteMenuWeakMut) -> Self {
-        let mut buttons = Self { main: ArrayVec::new(), ui: ArrayVec::new() };
+// The name a realm gives a building ("Prasat"), else the tile's in title case.
+fn building_name(realm: Realm, tile_def: &TileDef) -> String {
+    let key = format!("building.{realm}.{}", tile_def.name);
+    match ui::text::find_str(UiTextCategory::Realm, hash::fnv1a_from_str(&key)) {
+        Some(name) => name.to_string(),
+        None => common::fixed_string::snake_case_to_title::<128>(&tile_def.name).to_string(),
+    }
+}
 
-        for main_button_def in TilePaletteMainButtonDef::iter() {
-            let mut main_button = TilePaletteMainButton::new(context, main_button_def, tile_palette);
+// Why the player can't build `tile_def` now, if they can't: locked by the mission, the treasury in
+// debt or short of its gold, or a material short in the storage yards.
+fn unbuildable_reason(context: &GameUiContext, tile_def: &TileDef) -> Option<String> {
+    if !BuildingAvailability::current().allows(&tile_def.name) {
+        return Some(ui::text::get(UiTextCategory::Hud, "palette.locked").to_string());
+    }
+    if cheats::get().ignore_tile_cost {
+        return None;
+    }
+    let finance = context.sim.finance();
+    if tile_def.cost > 0 && finance.is_in_debt() {
+        return Some(ui::text::get(UiTextCategory::Hud, "palette.in_debt").to_string());
+    }
+    if !finance.can_afford(tile_def.cost) {
+        return Some(ui::text::get(UiTextCategory::Hud, "palette.cannot_afford").to_string());
+    }
+    tile_def.materials.iter().find(|item| CityStock::available(context.world, item.kind) < item.count).map(|item| {
+        ui::text::format(UiTextCategory::Hud, "palette.short", &[("name", &item.kind.display_name())])
+    })
+}
 
-            let tile_palette_weak_ref = tile_palette.clone();
-            let child_menu_weak_ref = main_button.child_menu_weak_mut();
-
-            let ui_button = main_button_def
-                .new_sprite_button(context, "palette", TILE_PALETTE_MAIN_BUTTON_SIZE, move |button, context, prev_state| {
-                    let mut tile_palette_rc = tile_palette_weak_ref.upgrade().unwrap();
-
-                    let is_pressed = button.is_pressed();
-                    let was_unpressed = prev_state == UiSpriteButtonState::Pressed
-                        && (button.state() == UiSpriteButtonState::Idle || button.state() == UiSpriteButtonState::Disabled);
-
-                    if is_pressed || was_unpressed {
-                        // Reset all other main buttons / close open child menus.
-                        tile_palette_rc.reset_selection_internal(context_as_mut::<GameUiContext>(context));
-                    }
-
-                    if is_pressed {
-                        let mut stay_pressed = true;
-
-                        // Open new child menu for pressed main button, if any.
-                        if let Some(child_menu_weak_ref) = &child_menu_weak_ref {
-                            let mut child_menu_rc = child_menu_weak_ref.upgrade().unwrap();
-                            child_menu_rc.open(context);
-                        } else {
-                            match main_button_def {
-                                TilePaletteMainButtonDef::Undo => {
-                                    let game_ui_context = context_as_mut::<GameUiContext>(context);
-                                    undo_redo::undo(&game_ui_context.new_sim_context());
-                                    stay_pressed = false;
-                                }
-                                TilePaletteMainButtonDef::Redo => {
-                                    let game_ui_context = context_as_mut::<GameUiContext>(context);
-                                    undo_redo::redo(&game_ui_context.new_sim_context());
-                                    stay_pressed = false;
-                                }
-                                _ => {
-                                    // If parent button has no child menu, choose tile directly here (e.g.: Housing, ClearLand).
-                                    let selection = main_button_def.to_tile_selection(None);
-                                    tile_palette_rc.set_selection_internal(selection);
-                                }
-                            }
-                        }
-
-                        // Stay pressed, except for undo/redo (reset_selection_internal above would have unpressed all).
-                        button.press(stay_pressed);
-                    }
-                })
-                .with_state(main_button_def.initial_state(main_button.has_children()))
-                .with_state_transition_secs(main_button_def.state_transition_secs());
-
-            buttons.main.push(main_button);
-            buttons.ui.push(ui_button);
+// A building's tooltip: its realm name, size and gold cost, its materials against what the storage
+// yards hold (short ones marked), and why it can't be built.
+fn building_tooltip(context: &GameUiContext, tile_def: &TileDef, reason: Option<&str>) -> String {
+    let size = tile_def.size_in_cells();
+    let mut lines = vec![building_name(skin::current_realm(), tile_def)];
+    let size_text = ui::text::format(UiTextCategory::Hud, "palette.size", &[("width", &size.width.to_string()), ("height", &size.height.to_string())]);
+    let cost_text = ui::text::format(UiTextCategory::Hud, "palette.cost", &[("gold", &tile_def.cost.to_string())]);
+    lines.push(format!("{size_text} · {cost_text}"));
+    for item in tile_def.materials.iter() {
+        let stored = CityStock::available(context.world, item.kind);
+        let mut line = ui::text::format(
+            UiTextCategory::Hud,
+            "palette.material",
+            &[("name", &item.kind.display_name()), ("needed", &item.count.to_string()), ("stored", &stored.to_string())],
+        );
+        if stored < item.count {
+            line = format!("{line} ({})", ui::text::get(UiTextCategory::Hud, "palette.short_mark"));
         }
-
-        buttons
+        lines.push(line);
     }
+    if let Some(reason) = reason {
+        lines.push(reason.to_string());
+    }
+    lines.join("\n")
 }
 
-// ----------------------------------------------
-// TilePaletteMainButton
-// ----------------------------------------------
-
-struct TilePaletteMainButton {
-    def: TilePaletteMainButtonDef,
-    child_menu: Option<UiMenuRcMut>,
+// What a tile of the palette asks for when pressed; TilePaletteMenu::draw carries it out after its
+// menus have drawn.
+#[derive(Copy, Clone)]
+enum PaletteAction {
+    Sector(TilePaletteMainButtonDef),
+    Pick(TilePaletteMainButtonDef, TileDefHandle),
 }
 
-impl TilePaletteMainButton {
+type PaletteActions = Rc<RefCell<Vec<PaletteAction>>>;
+
+// ----------------------------------------------
+// SectorGrid
+// ----------------------------------------------
+
+// A sector's buildings, four to a row, on the HUD's large panel: built when the sector opens.
+struct SectorGrid {
+    menu: UiMenuRcMut,
+    grid: UiMenuWidgetIndex,
+    tiles: Vec<(UiWidgetGroupWidgetIndex, UiWidgetGroupWidgetIndex, TileDefHandle)>, // Row, tile in the row.
+    shown: Vec<Option<String>>, // Each tile's unbuildable reason, as last set.
+    stock_key: (i64, Vec<u32>),   // The treasury and stock its tooltips were made with.
+}
+
+impl SectorGrid {
     fn new(
         context: &mut GameUiContext,
-        main_button_def: TilePaletteMainButtonDef,
-        tile_palette: &TilePaletteMenuWeakMut,
+        def: TilePaletteMainButtonDef,
+        children: &[TilePaletteChildButtonDef],
+        actions: &PaletteActions,
+        column_x: f32,
+        tile_y: f32,
     ) -> Self {
-        let children = main_button_def.build_child_button_defs();
-
-        let child_menu = {
-            if children.is_empty() {
-                None
-            } else {
-                Some(Self::build_child_menu(context, main_button_def, tile_palette, children))
-            }
+        let panel = skin::panel(context, "hud_large");
+        let insets = match &panel {
+            SkinPanel::NineSlice { content, .. } => [content.left, content.top, content.right, content.bottom],
+            SkinPanel::Sprite { .. } => [16.0; 4],
         };
+        let tile = skin::hud_tile_size(HudTileKind::Large);
+        let crest = skin::hud_tile_bleed(HudTileKind::Large)[1];
+        let columns = children.len().clamp(1, GRID_COLUMNS);
+        let rows = children.len().div_ceil(GRID_COLUMNS).max(1);
+        let row_gap = GRID_GAP + crest;
+        let inner = Vec2::new(
+            columns as f32 * tile.x + (columns - 1) as f32 * GRID_GAP,
+            GRID_TITLE_HEIGHT + crest + rows as f32 * tile.y + (rows - 1) as f32 * row_gap,
+        );
+        let size = Vec2::new(inner.x + insets[0] + insets[2], inner.y + insets[1] + insets[3] + 8.0);
+        let window = ui::screen_size(context.ui_sys);
+        let position = Vec2::new(column_x - size.x - 8.0, (tile_y - insets[1] - GRID_TITLE_HEIGHT).clamp(layout::MARGIN + 90.0, (window.y - size.y - layout::MARGIN).max(0.0)));
 
-        Self { def: main_button_def, child_menu }
-    }
+        let title = ui::text::get(UiTextCategory::Hud, def.get_str("Title").unwrap_or_default()).to_string();
+        let accent = skin::hud_color("accent", "accent");
+        let title_look = engine::ui::UiLabelLook { size: 17.0, heading_font: true, letter_spacing: 1.5, color: accent, ..Default::default() };
+        let heading = UiCanvas::new(Vec2::new(inner.x, GRID_TITLE_HEIGHT + crest), move |_, painter, rect| {
+            painter.label(Vec2::new(rect.min.x, rect.min.y + 20.0), engine::ui::UiTextAnchor::Start, &title.to_uppercase(), &title_look);
+        });
 
-    fn build_child_menu(
-        context: &mut GameUiContext,
-        main_button_def: TilePaletteMainButtonDef,
-        tile_palette: &TilePaletteMenuWeakMut,
-        children: Vec<TilePaletteChildButtonDef>,
-    ) -> UiMenuRcMut {
-        let child_menu = UiMenu::new(format!("TilePaletteChildMenu: {}", main_button_def.name()))
-            .with_widget_spacing(TILE_PALETTE_BUTTON_SPACING);
-        let mut child_menu = skin::panel(context, TILE_PALETTE_CHILD_MENU_PANEL).apply_to_menu(child_menu).into_rc();
-
-        let mut child_button_group = UiWidgetGroup::new().with_widget_spacing(TILE_PALETTE_BUTTON_SPACING);
-
-        for child_def in children {
-            let parent_button_def = main_button_def;
-            let child_button_tile_def_handle = child_def.tile_def_handle;
-
-            let tile_palette_weak_ref = tile_palette.clone();
-            let child_menu_weak_ref = child_menu.downgrade();
-
-            let mut child_button = make_text_button(context, ButtonRole::HudItem, child_def.label, move |_button, context| {
-                let mut tile_palette_rc = tile_palette_weak_ref.upgrade().unwrap();
-                let mut child_menu_rc = child_menu_weak_ref.upgrade().unwrap();
-
-                let selection = parent_button_def.to_tile_selection(Some(child_button_tile_def_handle));
-                tile_palette_rc.set_selection_internal(selection);
-
-                // Keep the parent button pressed but close the child menu when we have a selection.
-                child_menu_rc.close(context);
-            })
-            .with_size(UiTextButtonSize::ExtraSmall)
-            .with_sound(UiSoundEvent::Hovered, None);
-
-            // Beside the item, so it doesn't cover the items around it.
-            if let Some(tooltip_text) = child_def.tooltip {
-                let tooltip = make_tooltip(context, tooltip_text).with_placement(UiTooltipPlacement::BesideWidget);
-                child_button = child_button.with_tooltip(tooltip);
+        let mut menu = panel.apply_to_menu(
+            UiMenu::new(format!("TilePaletteChildMenu: {}", def.name()))
+                .with_flags(UiMenuFlags::IsOpen)
+                .with_position(position)
+                .with_size(size)
+                .with_widget_spacing(Vec2::zero()),
+        );
+        // The rows in one group: the room between them holds the next row's crests.
+        let mut grid = UiWidgetGroup::new().with_center_horizontally(false).with_widget_spacing(Vec2::new(0.0, row_gap));
+        grid.add_widget(heading);
+        let mut rows = Vec::new();
+        for chunk in children.chunks(GRID_COLUMNS) {
+            let mut row = UiWidgetGroup::new().with_stack_vertically(false).with_center_horizontally(false).with_widget_spacing(Vec2::new(GRID_GAP, 0.0));
+            let mut in_row = Vec::new();
+            for child in chunk {
+                let handle = child.tile_def_handle;
+                let actions = actions.clone();
+                let tile = skin::hud_tile(context, HudTileKind::Large, &child.label, HudGlyphGroup::Building, &tile_def_of(handle).name)
+                    .on_pressed(move |_, _| actions.borrow_mut().push(PaletteAction::Pick(def, handle)));
+                in_row.push((row.add_widget(tile), handle));
             }
-
-            child_button_group.add_widget(child_button);
+            rows.push((grid.add_widget(row), in_row));
         }
-
-        child_menu.add_widget(child_button_group);
-        child_menu
+        let grid_index = menu.add_widget(grid);
+        let tiles = rows.into_iter().flat_map(|(row, in_row)| in_row.into_iter().map(move |(index, handle)| (row, index, handle))).collect::<Vec<_>>();
+        let shown = vec![None; tiles.len()];
+        let mut grid = Self { menu: menu.into_rc(), grid: grid_index, tiles, shown, stock_key: (i64::MIN, Vec::new()) };
+        grid.refresh(context, true);
+        grid
     }
 
-    fn draw_child_menu(&mut self, context: &mut GameUiContext) {
-        if let Some(child_menu) = &mut self.child_menu
-            && child_menu.is_open()
-        {
-            child_menu.draw(context);
+    // What its tooltips and enabled states depend on: the treasury and the city stock.
+    fn stock_key(context: &GameUiContext) -> (i64, Vec<u32>) {
+        let materials = crate::sim::resources::ResourceKind::raw_materials();
+        (context.sim.finance().balance(), materials.iter().map(|kind| CityStock::available(context.world, kind)).collect())
+    }
+
+    // Its tiles' tooltips and enabled states, again when the treasury or the stock changed.
+    fn refresh(&mut self, context: &mut GameUiContext, force: bool) {
+        let key = Self::stock_key(context);
+        if !force && key == self.stock_key {
+            return;
+        }
+        self.stock_key = key;
+        for (k, (row, index, handle)) in self.tiles.iter().enumerate() {
+            let tile_def = tile_def_of(*handle);
+            let reason = unbuildable_reason(context, tile_def);
+            let text = building_tooltip(context, tile_def, reason.as_deref());
+            let tooltip = skin::tooltip_beside(context, text);
+            if let Some(grid) = self.menu.widget_as_mut::<UiWidgetGroup>(self.grid)
+                && let Some(row) = grid.widget_as_mut::<UiWidgetGroup>(*row)
+                && let Some(tile) = row.widget_as_mut::<UiIconTile>(*index)
+            {
+                tile.set_enabled(reason.is_none());
+                tile.set_tooltip(Some(tooltip));
+            }
+            self.shown[k] = reason;
         }
     }
 
-    fn open_child_menu(&mut self, context: &mut GameUiContext) {
-        if let Some(child_menu) = &mut self.child_menu {
-            child_menu.open(context);
-        }
-    }
-
-    fn close_child_menu(&mut self, context: &mut GameUiContext) {
-        if let Some(child_menu) = &mut self.child_menu {
-            child_menu.close(context);
-        }
-    }
-
-    fn child_menu_weak_mut(&mut self) -> Option<UiMenuWeakMut> {
-        self.child_menu.as_ref().map(|menu| menu.downgrade())
-    }
-
-    fn has_children(&self) -> bool {
-        self.child_menu.is_some()
+    fn draw(&mut self, context: &mut GameUiContext) {
+        self.refresh(context, false);
+        self.menu.draw(context);
     }
 }
 
@@ -364,12 +383,23 @@ impl TilePaletteMainButton {
 // TilePaletteMenu
 // ----------------------------------------------
 
+struct MainButton {
+    def: TilePaletteMainButtonDef,
+    children: Vec<TilePaletteChildButtonDef>,
+    index: UiMenuWidgetIndex,
+    y: f32, // The tile's top, in window points.
+}
+
 pub struct TilePaletteMenu {
     left_mouse_button_pressed: bool,
     current_selection: TilePaletteSelection,
     selection_renderer: TileSelectionRenderer,
-    main_buttons: ArrayVec<TilePaletteMainButton, TILE_PALETTE_MAIN_BUTTON_COUNT>,
+    main_buttons: ArrayVec<MainButton, TILE_PALETTE_MAIN_BUTTON_COUNT>,
     menu: UiMenuRcMut,
+    column_x: f32,
+    open: Option<(TilePaletteMainButtonDef, SectorGrid)>,
+    picked_from: Option<TilePaletteMainButtonDef>, // The sector whose tool is picked.
+    actions: PaletteActions,
 }
 
 pub type TilePaletteMenuRcMut   = RcMut<TilePaletteMenu>;
@@ -438,54 +468,106 @@ impl TilePalette for TilePaletteMenu {
 
 impl TilePaletteMenu {
     pub fn new(context: &mut GameUiContext) -> TilePaletteMenuRcMut {
-        TilePaletteMenuRcMut::new_cyclic(|tile_palette_weak_ref| {
-            let buttons = TilePaletteMainButtonsBuilder::build_all(context, &tile_palette_weak_ref);
+        let actions: PaletteActions = Rc::new(RefCell::new(Vec::new()));
+        let panel = skin::panel(context, "hud_panel");
+        let insets = match &panel {
+            SkinPanel::NineSlice { content, .. } => [content.left, content.top, content.right, content.bottom],
+            SkinPanel::Sprite { .. } => [8.0; 4],
+        };
+        let window = ui::screen_size(context.ui_sys);
+        // The tiles at their size where the column fits the window, else smaller (fixed sizes
+        // otherwise: the HUD doesn't grow with the UI scale).
+        let full = skin::hud_tile_size(HudTileKind::Sector);
+        let full_crest = skin::hud_tile_bleed(HudTileKind::Sector)[1];
+        let full_spacing = (full_crest * 0.75).max(12.0); // The crests reach into it; their glow a little further.
+        let separators = TilePaletteMainButtonDef::iter().filter(|def| def.separator_follows()).count() as f32;
+        let count = TilePaletteMainButtonDef::COUNT as f32;
+        let needed = insets[1] + full_crest + insets[3] + count * (full.y + full_spacing) + separators * SEPARATOR_HEIGHT;
+        let scale = ((window.y - 2.0 * layout::MARGIN) / needed).min(1.0);
+        let tile = full * scale;
+        let crest = full_crest * scale;
+        let spacing = full_spacing * scale;
+        let width = layout::column_width(context);
+        let column_x = window.x - width - layout::MARGIN;
 
-            let palette_menu = UiMenu::new("TilePaletteMenu")
-                .with_flags(UiMenuFlags::IsOpen | UiMenuFlags::AlignRight)
-                .with_widget_spacing(TILE_PALETTE_BUTTON_SPACING);
-            let mut palette_menu = skin::panel(context, TILE_PALETTE_PANEL).apply_to_menu(palette_menu);
+        let mut menu = panel.apply_to_menu(
+            UiMenu::new("TilePaletteMenu")
+                .with_flags(UiMenuFlags::IsOpen)
+                .with_position(Vec2::new(column_x, layout::MARGIN))
+                .with_widget_spacing(Vec2::new(0.0, spacing)),
+        );
+        let rule = skin::hud_color("rule", "sub");
 
-            for (index, ui_button) in buttons.ui.into_iter().enumerate() {
-                palette_menu.add_widget(ui_button);
-
-                if buttons.main[index].def.separator_follows() {
-                    let separator = skin::separator(context, "hud").with_thickness(2.0);
-                    palette_menu.add_widget(separator);
-                }
+        let mut main_buttons = ArrayVec::new();
+        let mut y = layout::MARGIN + insets[1] + crest;
+        let mut height = insets[1] + crest + insets[3];
+        for def in TilePaletteMainButtonDef::iter() {
+            let children = def.build_child_button_defs();
+            let enabled = !(matches!(def, TilePaletteMainButtonDef::Undo | TilePaletteMainButtonDef::Redo)
+                || (def.disabled_if_empty() && children.is_empty()));
+            let actions_ref = actions.clone();
+            let mut sector = skin::hud_tile_scaled(context, HudTileKind::Sector, scale, def.label_str(), HudGlyphGroup::Sector, def.glyph())
+                .with_tooltip(skin::tooltip_beside(context, def.tooltip()))
+                .with_enabled(enabled)
+                .on_pressed(move |_, _| actions_ref.borrow_mut().push(PaletteAction::Sector(def)));
+            if def.disabled_if_empty() && children.is_empty() {
+                sector = sector.with_tooltip(skin::tooltip_beside(context, format!("{}\n{}", def.tooltip(), ui::text::get(UiTextCategory::Hud, "sector.empty"))));
             }
+            let index = menu.add_widget(sector);
+            main_buttons.push(MainButton { def, children, index, y });
+            y += tile.y + spacing;
+            height += tile.y + spacing;
 
-            let mut tile_palette = Self {
-                left_mouse_button_pressed: false,
-                current_selection: TilePaletteSelection::None,
-                selection_renderer: TileSelectionRenderer::new(context),
-                main_buttons: buttons.main,
-                menu: palette_menu.into_rc(),
-            };
+            if def.separator_follows() {
+                let line = UiCanvas::new(Vec2::new(tile.x + 2.0 * layout::COLUMN_PAD, SEPARATOR_HEIGHT - spacing).max(Vec2::new(1.0, 2.0)), move |_, painter, rect| {
+                    let y = rect.center().y;
+                    painter.line(Vec2::new(rect.min.x + 4.0, y), Vec2::new(rect.max.x - 4.0, y), 2.0, rule);
+                });
+                menu.add_widget(line);
+                let step = (SEPARATOR_HEIGHT - spacing).max(2.0) + spacing;
+                y += step;
+                height += step;
+            }
+        }
+        let menu = menu.with_size(Vec2::new(width, height - spacing)).into_rc();
 
-            tile_palette.set_child_menu_position_callbacks(context);
-            tile_palette
+        TilePaletteMenuRcMut::new(Self {
+            left_mouse_button_pressed: false,
+            current_selection: TilePaletteSelection::None,
+            selection_renderer: TileSelectionRenderer::new(context),
+            main_buttons,
+            menu,
+            column_x,
+            open: None,
+            picked_from: None,
+            actions,
         })
     }
 
     pub fn draw(&mut self, context: &mut GameUiContext) {
-        // Draw menu & main buttons:
-        self.menu.draw(context);
-
-        // Draw the open child menu, if any:
-        for button in &mut self.main_buttons {
-            button.draw_child_menu(context);
-
-            // Only enable undo/redo buttons if we have actions.
-            match button.def {
-                TilePaletteMainButtonDef::Undo => {
-                    Self::enable_button(&mut self.menu, button.def, undo_redo::can_undo());
+        // The column's states: the open sector's tile, or the one whose tool is picked, pressed;
+        // undo and redo enabled while there's something to undo or redo.
+        let open = self.open.as_ref().map(|(def, _)| *def);
+        let picked = if self.current_selection.is_some() { self.picked_from } else { None };
+        for button in &self.main_buttons {
+            if let Some(tile) = self.menu.widget_as_mut::<UiIconTile>(button.index) {
+                tile.set_selected(Some(button.def) == open || Some(button.def) == picked);
+                match button.def {
+                    TilePaletteMainButtonDef::Undo => tile.set_enabled(undo_redo::can_undo()),
+                    TilePaletteMainButtonDef::Redo => tile.set_enabled(undo_redo::can_redo()),
+                    _ => {}
                 }
-                TilePaletteMainButtonDef::Redo => {
-                    Self::enable_button(&mut self.menu, button.def, undo_redo::can_redo());
-                }
-                _ => {}
             }
+        }
+
+        self.menu.draw(context);
+        if let Some((_, grid)) = &mut self.open {
+            grid.draw(context);
+        }
+
+        let actions: Vec<PaletteAction> = self.actions.borrow_mut().drain(..).collect();
+        for action in actions {
+            self.run(context, action);
         }
 
         // Draw selected tile cursor overlay:
@@ -496,46 +578,40 @@ impl TilePaletteMenu {
     // Internal:
     // ----------------------
 
-    fn enable_button(menu: &mut UiMenu, def: TilePaletteMainButtonDef, enable: bool) {
-        let (_, button) = menu.find_widget_with_label_mut::<UiSpriteButton>(def.label_str()).unwrap();
-
-        button.enable(enable);
-    }
-
-    fn set_child_menu_position_callbacks(&mut self, context: &GameUiContext) {
-        for main_button in &mut self.main_buttons {
-            if let Some(child_menu) = &mut main_button.child_menu {
-                let child_menu_width = child_menu.measure(context).x;
-                let palette_menu_weak_ref = self.menu.downgrade().into_not_mut();
-                let main_button_index = self
-                    .menu
-                    .find_widget_with_label::<UiSpriteButton>(main_button.def.label_str())
-                    .expect("Couldn't find UiSpriteButton widget in palette menu!")
-                    .0;
-
-                child_menu.set_position(UiMenuPosition::callback(move |_, _| {
-                    let palette_menu = palette_menu_weak_ref.upgrade().unwrap();
-                    let main_button = palette_menu.widget_as::<UiSpriteButton>(main_button_index).unwrap();
-                    let main_button_pos = main_button.position();
-                    Vec2::new(main_button_pos.x - child_menu_width, main_button_pos.y)
-                }));
+    fn run(&mut self, context: &mut GameUiContext, action: PaletteAction) {
+        match action {
+            PaletteAction::Sector(def) => {
+                let was_open = self.open.as_ref().is_some_and(|(open, _)| *open == def);
+                self.reset_selection_internal(context);
+                match def {
+                    TilePaletteMainButtonDef::Undo => undo_redo::undo(&context.new_sim_context()),
+                    TilePaletteMainButtonDef::Redo => undo_redo::redo(&context.new_sim_context()),
+                    _ => {
+                        let Some(button) = self.main_buttons.iter().find(|button| button.def == def) else { return };
+                        if button.children.is_empty() {
+                            // Clear land and housing pick their tool at once.
+                            self.set_selection_internal(def.to_tile_selection(None));
+                            self.picked_from = Some(def);
+                        } else if !was_open {
+                            let grid = SectorGrid::new(context, def, &button.children, &self.actions, self.column_x, button.y);
+                            self.open = Some((def, grid));
+                        }
+                    }
+                }
+            }
+            PaletteAction::Pick(def, handle) => {
+                self.open = None;
+                self.set_selection_internal(def.to_tile_selection(Some(handle)));
+                self.picked_from = Some(def);
             }
         }
     }
 
-    fn reset_selection_internal(&mut self, context: &mut GameUiContext) {
+    fn reset_selection_internal(&mut self, _context: &mut GameUiContext) {
         self.left_mouse_button_pressed = false;
         self.current_selection = TilePaletteSelection::None;
-
-        for button in &mut self.main_buttons {
-            button.close_child_menu(context);
-        }
-
-        for widget in self.menu.widgets_mut() {
-            if let Some(button) = widget.as_any_mut().downcast_mut::<UiSpriteButton>() {
-                button.press(false);
-            }
-        }
+        self.picked_from = None;
+        self.open = None;
     }
 
     fn set_selection_internal(&mut self, selection: TilePaletteSelection) {
