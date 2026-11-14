@@ -22,6 +22,7 @@ import dialogs as D
 import screens_content as SC
 import kambara_carving as KC
 import dailong_carving as DW
+import tampadesa_brick as TB
 from minimap import GLYPHS as MM_GLYPHS
 import dialogs_content as DC
 from menus import W, H
@@ -264,33 +265,22 @@ class Palette:
         return markup
 
     def tile_tampadesa(self, x, y, size, els, state, small, crest_k):
-        fl = self.filters()
-        s, cx, cy = size / 100 * (0.8 if small else 0.74), x + size / 2, y + size / 2 + size * (0.05 if small else 0.07)
-        arch = size * (0.16 if small else 0.22)
+        """A brick frame with gold filigree under three gilt spires; the icon in gold leaf on dark mudbrick."""
+        bw = self.brickwork()
+        h = self.tile_height(size, small)
+        cx, cy = x + size / 2, y + h / 2 + size * 0.04
+        m = self.mask_of(els, cx, cy, size / 100 * (0.84 if small else 0.82))
+        fill = {"idle": f"url(#{bw.filt('gold')})", "hover": "#ffe28a", "pressed": "#ffd060", "disabled": "#6a5034"}[state]
+        glyph = (f'<g filter="url(#{bw.filt("gilt")})" opacity="{0.75 if state == "disabled" else 1}">'
+                 f'<rect x="{x}" y="{y}" width="{size}" height="{h}" fill="{fill}" mask="{m}"/></g>')
+        k = self.crest_k if crest_k is None else crest_k
+        markup, _ = bw.tile(x, y, size, glyph, state, small=small, crest=None if small else size * k)
+        return markup
 
-        def niche(ix, iy, w, h, a):
-            return (f"M{ix},{iy + h} V{iy + a} Q{ix},{iy + a * 0.35} {ix + w * 0.32},{iy + a * 0.25} Q{ix + w / 2},{iy - a * 0.15} {ix + w / 2},{iy - a * 0.3} "
-                    f"Q{ix + w / 2},{iy - a * 0.15} {ix + w * 0.68},{iy + a * 0.25} Q{ix + w},{iy + a * 0.35} {ix + w},{iy + a} V{iy + h}Z")
-        outer = niche(x, y + arch * 0.3, size, size - arch * 0.3, arch)
-        g = size * (0.06 if small else 0.07)
-        inner = niche(x + g, y + arch * 0.3 + g * 1.2, size - 2 * g, size - arch * 0.3 - 2.2 * g, arch * 0.85)
-        lift = state == "hover"
-        frame = f"url(#{fl['gold']})" if state != "disabled" else "#6e5a3c"
-        out = [f'<g filter="url(#{fl["shadow"]})"><path d="{outer}" fill="{frame}" stroke="#3a1a08" stroke-width="1.2"/></g>']
-        ground = f"url(#{fl['goldbg']})" if state == "pressed" else (f"url(#{fl['lacq']})" if state != "disabled" else "#3e1c14")
-        out.append(f'<path d="{inner}" fill="{ground}" stroke="#3a1a08" stroke-width="1"/>')
-        out.append(f'<path d="{inner}" fill="none" stroke="{"#f7dc8a" if lift else "#b98432"}" stroke-width="{1.6 if lift else 0.8}"/>')
-        if lift:
-            out.append(f'<path d="{outer}" fill="none" stroke="#ffe8a0" stroke-width="2.4" opacity="0.9"/>')
-        mask = self.mask_of(els, cx, cy, s)
-        if state == "pressed":
-            out.append(f'<rect x="{x}" y="{y}" width="{size}" height="{size}" fill="#5e1810" mask="{mask}"/>')
-        elif state == "disabled":  # tarnished, the leaf worn off
-            out.append(f'<rect x="{x}" y="{y}" width="{size}" height="{size}" fill="#6a5034" opacity="0.7" mask="{mask}"/>')
-        else:
-            out.append(f'<g filter="url(#{fl["gild"]})"><rect x="{x}" y="{y}" width="{size}" height="{size}" fill="url(#{fl["gold"]})" mask="{mask}"/></g>')
-        out.append(f'<circle cx="{cx}" cy="{y + 1}" r="{size * 0.028}" fill="{frame}" stroke="#3a1a08" stroke-width="0.8"/>')
-        return "".join(out)
+    def brickwork(self):
+        if getattr(self, "_brickwork", None) is None:
+            self._brickwork = TB.Brickwork(self.defs, self.pid, self.carving())
+        return self._brickwork
 
     def carving(self):
         if getattr(self, "_carving", None) is None:
@@ -371,9 +361,62 @@ class Palette:
             items.append(T(ix + 20, y + h / 2 + 8, v, self.title_font, 21, self.panel_text, "start", 700))
         qx = rx + 3 * 134 + 14
         items.append(sep(qx))
+        items.append(self.gap_ornament(left + 20, rx - 6, y + h / 2, h * 0.62))
+        items.append(self.gap_ornament(qx + 36 + 3 * 72 + 50, end - 20, y + h / 2, h * 0.62))
         for k, (lab, v) in enumerate(zip(["P", "C", "S", u["legitimacy"][0]], u["ratings"])):
             items.append(self.small_rating(qx + 36 + k * 72, y + h / 2, lab, v))
         return self.box(x, y, w, h) + "".join(items), (gx + bs / 2, y + 11 + bs)
+
+    def gap_ornament(self, x0, x1, cy, h):
+        """A decoration filling the gap from x0 to x1, centred on cy, h tall, in the realm's craft."""
+        w = x1 - x0
+        if w < h * 1.6:
+            return ""
+        return getattr(self, f"ornament_{self.dd['key']}")((x0 + x1) / 2, cy, min(w, h * 6), h)
+
+    def ornament_dailong(self, cx, cy, w, h):
+        """Carved and gilt: a lotus between two ruyi clouds trailing outwards."""
+        ww = self.woodwork()
+        s = h * 1.15
+        out = [f'<g filter="url(#{ww.filt("gilt")})">', ww.lotus(cx, cy + h * 0.42, h * 0.95)]
+        for side in (-1, 1):
+            out.append(ww.ruyi_cloud(cx + side * (h * 0.6 + s * 0.42), cy + h * 0.02, s, side))
+            if w > h * 4.2:
+                out.append(ww.ruyi_cloud(cx + side * (h * 0.6 + s * 1.35), cy + h * 0.1, s * 0.75, side))
+        out.append("</g>")
+        return "".join(out)
+
+    def ornament_kambara(self, cx, cy, w, h):
+        """An Angkor frieze in relief: a lotus rosette between scrolling volutes, on a beaded band."""
+        import math
+        c = self.carving()
+        u = h / 40
+        parts = []
+        for k in range(8):
+            a = math.radians(k * 45)
+            px, py = cx + math.sin(a) * 9 * u, cy - math.cos(a) * 9 * u
+            parts.append(f'<ellipse cx="{px:.1f}" cy="{py:.1f}" rx="{3.6 * u:.1f}" ry="{6.5 * u:.1f}" transform="rotate({k * 45} {px:.1f} {py:.1f})"/>')
+        parts.append(f'<circle cx="{cx}" cy="{cy}" r="{5 * u:.1f}"/>')
+        n = 2 if w > h * 4 else 1
+        vol = []
+        for side in (-1, 1):
+            for k in range(n):
+                vx = cx + side * (26 + k * 26) * u
+                vol.append(c.volute(vx, cy + (2 if k % 2 else -2) * u, 9 * u, side, 1 if k % 2 else -1))
+            vol.append(f'<path d="M{cx + side * 16 * u:.1f},{cy:.1f} H{cx + side * (16 + n * 26 + 6) * u:.1f}" fill="none" stroke="#000" stroke-width="{2.6 * u:.1f}" stroke-linecap="round"/>')
+        span = (16 + n * 26 + 6) * u
+        for k in range(int(span * 2 / (5 * u)) + 1):
+            parts.append(f'<circle cx="{cx - span + k * 5 * u:.1f}" cy="{cy + 16 * u:.1f}" r="{1.7 * u:.1f}"/>')
+        g = c.filt("glyphgrad")
+        return (f'<g filter="url(#{c.filt("relief")})"><g fill="url(#{g})">{"".join(parts)}</g>'
+                + "".join(vol).replace('stroke="#000"', f'stroke="url(#{g})"') + "</g>")
+
+    def ornament_tampadesa(self, cx, cy, w, h):
+        """Two gilt nagas undulating towards a small stupa between them."""
+        bw = self.brickwork()
+        s = min(w * 0.42, h * 3.2)
+        return (bw.naga(cx - h * 0.45, cy + h * 0.3, s, -1) + bw.naga(cx + h * 0.45, cy + h * 0.3, s, 1)
+                + bw.stupa(cx, cy + h * 0.5, h * 1.25))
 
     def small_rating(self, x, y, lab, v):
         import math
@@ -419,6 +462,8 @@ class Palette:
         for k, (key, _) in enumerate(reversed(MM_LENSES)):
             bx = right - btn - k * (btn + gap)
             out.append(self.icon_tile(bx, y + pad, btn, hud_glyph(key), "pressed" if key == lens_on else "idle", small=True))
+        lens_left = right - len(MM_LENSES) * btn - (len(MM_LENSES) - 1) * gap
+        out.append(self.gap_ornament(mx + 4, lens_left - 10, y + pad + btn / 2, btn * 0.85))
         cx = right + gap
         step = (btn + gap + mh - btn) / (len(MM_TOOLS) - 1)
         for k, (key, _) in enumerate(MM_TOOLS):
@@ -605,14 +650,22 @@ class KambaraPalette(Palette, D.KambaraDialogs):
 
 
 class TampadesaPalette(Palette, D.TampadesaDialogs):
-    style_line = "gold leaf on red lacquer, in arched niches"
-    notch_fill = "#5b3d24"
+    style_line = "gold on weathered brick, under gilt stupas, singhas at the foot, vines; dark mudbrick inside"
+    notch_fill = "#9a3a24"
     short_col = "#f08a5a"
     badge_colors = ("#e2b04a", "#5e1810", "#3a1408")   # gold leaf ringed in lacquer
 
+    crest_k = 0.32
+    tile_h_k = 1.04
+    sector_size = 54
+
+    def box(self, x, y, w, h, big=False):
+        big = w >= 300 and h >= 220 and y > 120
+        return self.brickwork().panel(x, y, w, h, big=big)
+
     def __init__(self, dd):
         D.TampadesaDialogs.__init__(self, dd)
-        # The HUD's earthen brown panels with gilt trim, and light text (screens.py).
+        # Light text on the dark mudbrick (screens.py's HUD colours).
         self.box_style = "lacquer"
         self.panel_text, self.panel_sub, self.panel_rule = "#f3e2bf", "#d9b98a", "#8a6a48"
         self.accent, self.btn_fill, self.btn_fill_hover = "#e9c977", "#4e3826", "#634831"

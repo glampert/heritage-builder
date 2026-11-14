@@ -253,8 +253,7 @@ class Woodwork:
         return f'<path d="{d}" fill="#8a321b"/>'
 
     def panel(self, x, y, w, h, big=False, lanterns=None):
-        """Carved red wood round parchment, every ornament outside the parchment: a top beam whose
-        ends curl up past the frame, gilt key-pattern blocks on the corners, and for a large panel a
+        """Carved red wood round parchment, every ornament outside the parchment: gilt key-pattern blocks on the corners, and for a large panel a
         lattice and gilt ruyi clouds carved along the top beam, a lotus medallion under a little roof
         at its middle, and a gilt cloud at the foot."""
         thin = h < 120
@@ -270,9 +269,6 @@ class Woodwork:
         wood = (f"M{f(x - t)},{f(y - tb)} H{f(x + w + t)} V{f(y + h + bb)} H{f(x - t)}Z "
                 f"M{f(x)},{f(y)} V{f(y + h)} H{f(x + w)} V{f(y)}Z")
         ends = ""
-        if not thin:
-            e = tb * 1.5
-            ends = self.beam_end(x - t, y - tb * 0.12, e, -1) + self.beam_end(x + w + t, y - tb * 0.12, e, 1)
         out.append(f'<g filter="url(#{self.filt("wood")})"><path d="{wood}" fill="#86301a" fill-rule="evenodd"/>{ends}</g>')
         # The lip round the parchment: a dark cut and a light edge, both on the wood.
         out.append(f'<rect x="{f(x - 1.5)}" y="{f(y - 1.5)}" width="{f(w + 3)}" height="{f(h + 3)}" fill="none" stroke="#2e0a03" stroke-width="2.4" opacity="0.8"/>'
