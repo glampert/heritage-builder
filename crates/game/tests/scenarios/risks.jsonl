@@ -107,12 +107,13 @@
 {"method": "assert.eq", "params": {"query": "minimap.state", "path": "/lens_data/legend/5", "value": "Sickness"}}
 {"method": "assert.ge", "params": {"query": "minimap.state", "path": "/lens_data/buildings", "value": 3}}
 {"method": "assert.ge", "params": {"query": "minimap.state", "path": "/lens_data/heat_cells", "value": 1}}
-# The tile inspector tells the sickness first, then the house's risks by level, within its page.
+# The inspector tells the sickness first, in its status line, within its page.
 {"method": "input.click", "params": {"cell": [16, 9]}}
 {"method": "input.move", "params": {"park": true}}
 {"method": "ui.tree", "params": {"filter": "BuildingInspector", "fields": ["path", "kind"]}}
-{"method": "assert.eq", "params": {"query": "ui.tree", "args": {"filter": "Sickness! Its residents will start dying", "fields": ["kind"]}, "path": "/widgets/0/kind", "value": "heading"}}
-{"method": "assert.eq", "params": {"query": "ui.tree", "args": {"filter": "Fire risk: Low | Collapse risk: Low | Disease risk: High", "fields": ["kind"]}, "path": "/widgets/0/kind", "value": "heading"}}
+{"method": "assert.eq", "params": {"query": "ui.tree", "args": {"filter": "BuildingInspector/title", "fields": ["kind"]}, "path": "/widgets/0/kind", "value": "canvas"}}
+{"method": "assert.eq", "params": {"query": "inspect.at", "args": {"cell": [16, 9]}, "path": "/status/word", "value": "Sick"}}
+{"method": "assert.eq", "params": {"query": "inspect.at", "args": {"cell": [16, 9]}, "path": "/status/tone", "value": "bad"}}
 {"method": "assert.eq", "params": {"query": "ui.layout_issues", "path": "/count", "value": 0}}
 {"method": "ui.click", "params": {"path": "BuildingInspector/Close"}}
 {"method": "time.fast_forward", "params": {"sim_secs": 25}}

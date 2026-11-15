@@ -254,7 +254,7 @@ pub trait GameMenusSystem: Any + Save + Load {
                         self.palette().on_tile_placement_canceled(context);
                         clear_selection(context);
                         if let Some(tile_inspector) = self.tile_inspector() {
-                            tile_inspector.close(context);
+                            tile_inspector.on_escape(context);
                         }
                         return UiInputEvent::Handled;
                     }
@@ -814,6 +814,11 @@ pub trait TilePalette {
 pub trait TileInspector {
     fn open(&mut self, context: &mut GameUiContext);
     fn close(&mut self, context: &mut GameUiContext);
+
+    // Escape: closes the inspector, or first a popup it has open.
+    fn on_escape(&mut self, context: &mut GameUiContext) {
+        self.close(context);
+    }
 }
 
 // ----------------------------------------------

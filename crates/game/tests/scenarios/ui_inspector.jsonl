@@ -7,248 +7,303 @@
 # From the repository root:
 #   cargo run -p HeritageBuilder -- --fresh-profile --default-configs --window-size 1920x1080 --script crates/game/tests/scenarios/ui_inspector.jsonl
 {"method": "time.fixed_dt", "params": {"dt": 0.016667}}
-{"method": "session.new_map", "params": {"size": [32, 32]}}
+{"method": "session.new_map", "params": {"size": [48, 48]}}
 {"method": "finance.set", "params": {"balance": 2000}}
 {"method": "cheats.set", "params": {"name": "instant_construction", "value": true}}
 {"method": "cheats.set", "params": {"name": "ignore_worker_requirements", "value": true}}
 {"method": "cheats.set", "params": {"name": "no_city_risks", "value": true}}
-{"method": "world.road", "params": {"from": [3, 13], "to": [28, 13]}}
-{"method": "world.place", "params": {"tile": "water", "cell": [8, 10]}}
-{"method": "world.place", "params": {"tile": "water", "cell": [9, 10]}}
-{"method": "world.place", "params": {"tile": "storage_yard", "cell": [4, 10]}}
-{"method": "world.place", "params": {"tile": "storage_yard", "cell": [24, 14]}}
+{"method": "world.road", "params": {"from": [13, 23], "to": [38, 23]}}
+{"method": "world.place", "params": {"tile": "water", "cell": [18, 20]}}
+{"method": "world.place", "params": {"tile": "water", "cell": [19, 20]}}
+{"method": "world.place", "params": {"tile": "storage_yard", "cell": [14, 20]}}
+{"method": "world.place", "params": {"tile": "storage_yard", "cell": [34, 24]}}
 {"method": "world.add_stock", "params": {"resources": {"Wood": 40, "Bricks": 40, "RoofTiles": 16}}}
-{"method": "world.place", "params": {"tile": "clay_pit", "cell": [8, 11]}}
-{"method": "world.place", "params": {"tile": "roof_tile_kiln", "cell": [11, 11]}}
-{"method": "world.place", "params": {"tile": "market", "cell": [14, 11]}}
-{"method": "world.place", "params": {"tile": "fire_watch", "cell": [17, 12]}}
-{"method": "world.place", "params": {"tile": "granary", "cell": [19, 10]}}
-{"method": "world.place", "params": {"tile": "house0", "cell": [6, 14]}}
-{"method": "world.place", "params": {"tile": "small_well", "cell": [9, 14]}}
+{"method": "world.place", "params": {"tile": "clay_pit", "cell": [18, 21]}}
+{"method": "world.place", "params": {"tile": "roof_tile_kiln", "cell": [21, 21]}}
+{"method": "world.place", "params": {"tile": "market", "cell": [24, 21]}}
+{"method": "world.place", "params": {"tile": "fire_watch", "cell": [27, 22]}}
+{"method": "world.place", "params": {"tile": "granary", "cell": [29, 20]}}
+{"method": "world.place", "params": {"tile": "house0", "cell": [16, 24]}}
+{"method": "world.place", "params": {"tile": "small_well", "cell": [19, 24]}}
 {"method": "time.fast_forward", "params": {"sim_secs": 120}}
 {"method": "finance.set", "params": {"balance": 2000}}
 {"method": "cheats.set", "params": {"name": "instant_construction", "value": false}}
-{"method": "world.place", "params": {"tile": "temple", "cell": [22, 10]}}
+{"method": "world.place", "params": {"tile": "temple", "cell": [32, 20]}}
 
 # What the panels read (inspect.at), any cell of a building.
-{"method": "assert.eq", "params": {"query": "inspect.at", "args": {"cell": [6, 12]}, "path": "/panel", "value": "storage"}}
-{"method": "assert.eq", "params": {"query": "inspect.at", "args": {"cell": [4, 10]}, "path": "/wide", "value": true}}
-{"method": "assert.eq", "params": {"query": "inspect.at", "args": {"cell": [4, 10]}, "path": "/sections/1/section", "value": "storage"}}
-{"method": "assert.eq", "params": {"query": "inspect.at", "args": {"cell": [11, 11]}, "path": "/panel", "value": "workshop"}}
-{"method": "assert.eq", "params": {"query": "inspect.at", "args": {"cell": [11, 11]}, "path": "/name", "value": "Roof tile kiln"}}
-{"method": "assert.eq", "params": {"query": "inspect.at", "args": {"cell": [11, 11]}, "path": "/sections/1/section", "value": "production"}}
-{"method": "assert.eq", "params": {"query": "inspect.at", "args": {"cell": [14, 11]}, "path": "/panel", "value": "market"}}
-{"method": "assert.eq", "params": {"query": "inspect.at", "args": {"cell": [17, 12]}, "path": "/panel", "value": "service"}}
-{"method": "assert.eq", "params": {"query": "inspect.at", "args": {"cell": [19, 10]}, "path": "/wide", "value": false}}
-{"method": "assert.eq", "params": {"query": "inspect.at", "args": {"cell": [6, 14]}, "path": "/panel", "value": "house"}}
-{"method": "assert.eq", "params": {"query": "inspect.at", "args": {"cell": [6, 14]}, "path": "/name", "value": "Thatched hut"}}
-{"method": "assert.eq", "params": {"query": "inspect.at", "args": {"cell": [9, 14]}, "path": "/actions/0/kind", "value": "demolish"}}
-{"method": "assert.eq", "params": {"query": "inspect.at", "args": {"cell": [22, 10]}, "path": "/panel", "value": "site"}}
-{"method": "assert.eq", "params": {"query": "inspect.at", "args": {"cell": [22, 10]}, "path": "/sections/2/rows/0/value", "value": "15"}}
-{"method": "assert.eq", "params": {"query": "inspect.at", "args": {"cell": [5, 13]}, "path": "/panel", "value": "terrain"}}
-{"method": "assert.eq", "params": {"query": "inspect.at", "args": {"cell": [5, 13]}, "path": "/actions/0/kind", "value": "clear"}}
-{"method": "assert.eq", "params": {"query": "inspect.at", "args": {"cell": [16, 20]}, "path": "/actions", "value": []}}
+{"method": "assert.eq", "params": {"query": "inspect.at", "args": {"cell": [16, 22]}, "path": "/panel", "value": "storage"}}
+{"method": "assert.eq", "params": {"query": "inspect.at", "args": {"cell": [14, 20]}, "path": "/wide", "value": true}}
+{"method": "assert.eq", "params": {"query": "inspect.at", "args": {"cell": [14, 20]}, "path": "/sections/1/section", "value": "storage"}}
+{"method": "assert.eq", "params": {"query": "inspect.at", "args": {"cell": [21, 21]}, "path": "/panel", "value": "workshop"}}
+{"method": "assert.eq", "params": {"query": "inspect.at", "args": {"cell": [21, 21]}, "path": "/name", "value": "Roof tile kiln"}}
+{"method": "assert.eq", "params": {"query": "inspect.at", "args": {"cell": [21, 21]}, "path": "/sections/1/section", "value": "production"}}
+{"method": "assert.eq", "params": {"query": "inspect.at", "args": {"cell": [24, 21]}, "path": "/panel", "value": "market"}}
+{"method": "assert.eq", "params": {"query": "inspect.at", "args": {"cell": [27, 22]}, "path": "/panel", "value": "service"}}
+{"method": "assert.eq", "params": {"query": "inspect.at", "args": {"cell": [29, 20]}, "path": "/wide", "value": false}}
+{"method": "assert.eq", "params": {"query": "inspect.at", "args": {"cell": [16, 24]}, "path": "/panel", "value": "house"}}
+{"method": "assert.eq", "params": {"query": "inspect.at", "args": {"cell": [16, 24]}, "path": "/name", "value": "Thatched hut"}}
+{"method": "assert.eq", "params": {"query": "inspect.at", "args": {"cell": [19, 24]}, "path": "/actions/0/kind", "value": "demolish"}}
+{"method": "assert.eq", "params": {"query": "inspect.at", "args": {"cell": [32, 20]}, "path": "/panel", "value": "site"}}
+{"method": "assert.eq", "params": {"query": "inspect.at", "args": {"cell": [32, 20]}, "path": "/sections/2/rows/0/value", "value": "15"}}
+{"method": "assert.eq", "params": {"query": "inspect.at", "args": {"cell": [15, 23]}, "path": "/panel", "value": "terrain"}}
+{"method": "assert.eq", "params": {"query": "inspect.at", "args": {"cell": [15, 23]}, "path": "/actions/0/kind", "value": "clear"}}
+{"method": "assert.eq", "params": {"query": "inspect.at", "args": {"cell": [26, 30]}, "path": "/actions", "value": []}}
 
 # Each panel from a click, in each realm: its widgets, no layout issue, a screenshot.
 {"method": "menus.mode", "params": {"mode": "InGame"}}
 {"method": "sim.pause", "params": {}}
-{"method": "world.spawn_unit", "params": {"unit": "runner", "cell": [26, 13]}}
+{"method": "world.spawn_unit", "params": {"unit": "runner", "cell": [36, 23]}}
 {"method": "camera.zoom", "params": {"zoom": 1}}
 {"method": "ui.tree", "params": {"fields": ["path"]}}
 {"method": "ui.realm", "params": {"realm": "dailong"}}
-{"method": "camera.teleport", "params": {"cell": [11, 11]}}
-{"method": "input.click", "params": {"cell": [11, 11]}}
+{"method": "camera.teleport", "params": {"cell": [21, 21]}}
+{"method": "input.click", "params": {"cell": [21, 21]}}
 {"method": "input.move", "params": {"park": true}}
 {"method": "wait.frames", "params": {"frames": 3}}
 {"method": "assert.eq", "params": {"query": "ui.tree", "args": {"fields": ["path", "value"], "filter": "BuildingInspector/title"}, "path": "/widgets/0/value/name", "value": "Roof tile kiln"}}
 {"method": "assert.exists", "params": {"query": "ui.tree", "args": {"filter": "BuildingInspector/Close"}, "path": "/widgets/0"}}
 {"method": "assert.eq", "params": {"query": "ui.layout_issues", "path": "/count", "value": 0}}
+{"method": "assert.eq", "params": {"query": "ui.tree", "args": {"filter": "BuildingInspector", "kind": "menu_content"}, "path": "/widgets/0/value/scrolls", "value": false}}
 {"method": "screenshot", "params": {"path": "out/ui_inspector/workshop_dailong.png"}}
 {"method": "ui.click", "params": {"path": "BuildingInspector/Close"}}
 {"method": "ui.realm", "params": {"realm": "dailong"}}
-{"method": "camera.teleport", "params": {"cell": [4, 10]}}
-{"method": "input.click", "params": {"cell": [4, 10]}}
+{"method": "camera.teleport", "params": {"cell": [14, 20]}}
+{"method": "input.click", "params": {"cell": [14, 20]}}
 {"method": "input.move", "params": {"park": true}}
 {"method": "wait.frames", "params": {"frames": 3}}
 {"method": "assert.eq", "params": {"query": "ui.layout_issues", "path": "/count", "value": 0}}
+{"method": "assert.eq", "params": {"query": "ui.tree", "args": {"filter": "BuildingInspector", "kind": "menu_content"}, "path": "/widgets/0/value/scrolls", "value": false}}
 {"method": "screenshot", "params": {"path": "out/ui_inspector/storage_dailong.png"}}
 {"method": "ui.click", "params": {"path": "BuildingInspector/Close"}}
-{"method": "camera.teleport", "params": {"cell": [19, 10]}}
-{"method": "input.click", "params": {"cell": [19, 10]}}
+{"method": "camera.teleport", "params": {"cell": [29, 20]}}
+{"method": "input.click", "params": {"cell": [29, 20]}}
 {"method": "input.move", "params": {"park": true}}
 {"method": "wait.frames", "params": {"frames": 3}}
 {"method": "assert.eq", "params": {"query": "ui.layout_issues", "path": "/count", "value": 0}}
+{"method": "assert.eq", "params": {"query": "ui.tree", "args": {"filter": "BuildingInspector", "kind": "menu_content"}, "path": "/widgets/0/value/scrolls", "value": false}}
 {"method": "screenshot", "params": {"path": "out/ui_inspector/granary_dailong.png"}}
 {"method": "ui.click", "params": {"path": "BuildingInspector/Close"}}
-{"method": "camera.teleport", "params": {"cell": [14, 11]}}
-{"method": "input.click", "params": {"cell": [14, 11]}}
+{"method": "camera.teleport", "params": {"cell": [24, 21]}}
+{"method": "input.click", "params": {"cell": [24, 21]}}
 {"method": "input.move", "params": {"park": true}}
 {"method": "wait.frames", "params": {"frames": 3}}
 {"method": "assert.eq", "params": {"query": "ui.layout_issues", "path": "/count", "value": 0}}
+{"method": "assert.eq", "params": {"query": "ui.tree", "args": {"filter": "BuildingInspector", "kind": "menu_content"}, "path": "/widgets/0/value/scrolls", "value": false}}
 {"method": "screenshot", "params": {"path": "out/ui_inspector/market_dailong.png"}}
 {"method": "ui.click", "params": {"path": "BuildingInspector/Close"}}
-{"method": "camera.teleport", "params": {"cell": [17, 12]}}
-{"method": "input.click", "params": {"cell": [17, 12]}}
+{"method": "camera.teleport", "params": {"cell": [27, 22]}}
+{"method": "input.click", "params": {"cell": [27, 22]}}
 {"method": "input.move", "params": {"park": true}}
 {"method": "wait.frames", "params": {"frames": 3}}
 {"method": "assert.eq", "params": {"query": "ui.layout_issues", "path": "/count", "value": 0}}
+{"method": "assert.eq", "params": {"query": "ui.tree", "args": {"filter": "BuildingInspector", "kind": "menu_content"}, "path": "/widgets/0/value/scrolls", "value": false}}
 {"method": "screenshot", "params": {"path": "out/ui_inspector/service_dailong.png"}}
 {"method": "ui.click", "params": {"path": "BuildingInspector/Close"}}
-{"method": "camera.teleport", "params": {"cell": [6, 14]}}
-{"method": "input.click", "params": {"cell": [6, 14]}}
+{"method": "camera.teleport", "params": {"cell": [16, 24]}}
+{"method": "input.click", "params": {"cell": [16, 24]}}
 {"method": "input.move", "params": {"park": true}}
 {"method": "wait.frames", "params": {"frames": 3}}
 {"method": "assert.eq", "params": {"query": "ui.layout_issues", "path": "/count", "value": 0}}
+{"method": "assert.eq", "params": {"query": "ui.tree", "args": {"filter": "BuildingInspector", "kind": "menu_content"}, "path": "/widgets/0/value/scrolls", "value": false}}
 {"method": "screenshot", "params": {"path": "out/ui_inspector/house_dailong.png"}}
 {"method": "ui.click", "params": {"path": "BuildingInspector/Close"}}
-{"method": "camera.teleport", "params": {"cell": [22, 10]}}
-{"method": "input.click", "params": {"cell": [22, 10]}}
+{"method": "camera.teleport", "params": {"cell": [32, 20]}}
+{"method": "input.click", "params": {"cell": [32, 20]}}
 {"method": "input.move", "params": {"park": true}}
 {"method": "wait.frames", "params": {"frames": 3}}
 {"method": "assert.eq", "params": {"query": "ui.layout_issues", "path": "/count", "value": 0}}
+{"method": "assert.eq", "params": {"query": "ui.tree", "args": {"filter": "BuildingInspector", "kind": "menu_content"}, "path": "/widgets/0/value/scrolls", "value": false}}
 {"method": "screenshot", "params": {"path": "out/ui_inspector/site_dailong.png"}}
 {"method": "ui.click", "params": {"path": "BuildingInspector/Close"}}
-{"method": "camera.teleport", "params": {"cell": [26, 13]}}
-{"method": "input.click", "params": {"cell": [26, 13]}}
+{"method": "camera.teleport", "params": {"cell": [36, 23]}}
+{"method": "input.click", "params": {"cell": [36, 23]}}
 {"method": "input.move", "params": {"park": true}}
 {"method": "wait.frames", "params": {"frames": 3}}
 {"method": "assert.eq", "params": {"query": "ui.layout_issues", "path": "/count", "value": 0}}
+{"method": "assert.eq", "params": {"query": "ui.tree", "args": {"filter": "UnitInspector", "kind": "menu_content"}, "path": "/widgets/0/value/scrolls", "value": false}}
 {"method": "screenshot", "params": {"path": "out/ui_inspector/unit_dailong.png"}}
 {"method": "ui.click", "params": {"path": "UnitInspector/Close"}}
-{"method": "camera.teleport", "params": {"cell": [5, 13]}}
-{"method": "input.click", "params": {"cell": [5, 13]}}
+{"method": "camera.teleport", "params": {"cell": [15, 23]}}
+{"method": "input.click", "params": {"cell": [15, 23]}}
 {"method": "input.move", "params": {"park": true}}
 {"method": "wait.frames", "params": {"frames": 3}}
 {"method": "assert.eq", "params": {"query": "ui.layout_issues", "path": "/count", "value": 0}}
+{"method": "assert.eq", "params": {"query": "ui.tree", "args": {"filter": "TerrainInspector", "kind": "menu_content"}, "path": "/widgets/0/value/scrolls", "value": false}}
 {"method": "screenshot", "params": {"path": "out/ui_inspector/terrain_dailong.png"}}
 {"method": "ui.click", "params": {"path": "TerrainInspector/Close"}}
 {"method": "ui.realm", "params": {"realm": "kambara"}}
-{"method": "camera.teleport", "params": {"cell": [4, 10]}}
-{"method": "input.click", "params": {"cell": [4, 10]}}
+{"method": "camera.teleport", "params": {"cell": [14, 20]}}
+{"method": "input.click", "params": {"cell": [14, 20]}}
 {"method": "input.move", "params": {"park": true}}
 {"method": "wait.frames", "params": {"frames": 3}}
 {"method": "assert.eq", "params": {"query": "ui.layout_issues", "path": "/count", "value": 0}}
+{"method": "assert.eq", "params": {"query": "ui.tree", "args": {"filter": "BuildingInspector", "kind": "menu_content"}, "path": "/widgets/0/value/scrolls", "value": false}}
 {"method": "screenshot", "params": {"path": "out/ui_inspector/storage_kambara.png"}}
 {"method": "ui.click", "params": {"path": "BuildingInspector/Close"}}
-{"method": "camera.teleport", "params": {"cell": [19, 10]}}
-{"method": "input.click", "params": {"cell": [19, 10]}}
+{"method": "camera.teleport", "params": {"cell": [29, 20]}}
+{"method": "input.click", "params": {"cell": [29, 20]}}
 {"method": "input.move", "params": {"park": true}}
 {"method": "wait.frames", "params": {"frames": 3}}
 {"method": "assert.eq", "params": {"query": "ui.layout_issues", "path": "/count", "value": 0}}
+{"method": "assert.eq", "params": {"query": "ui.tree", "args": {"filter": "BuildingInspector", "kind": "menu_content"}, "path": "/widgets/0/value/scrolls", "value": false}}
 {"method": "screenshot", "params": {"path": "out/ui_inspector/granary_kambara.png"}}
 {"method": "ui.click", "params": {"path": "BuildingInspector/Close"}}
-{"method": "camera.teleport", "params": {"cell": [22, 10]}}
-{"method": "input.click", "params": {"cell": [22, 10]}}
+{"method": "camera.teleport", "params": {"cell": [32, 20]}}
+{"method": "input.click", "params": {"cell": [32, 20]}}
 {"method": "input.move", "params": {"park": true}}
 {"method": "wait.frames", "params": {"frames": 3}}
 {"method": "assert.eq", "params": {"query": "ui.layout_issues", "path": "/count", "value": 0}}
+{"method": "assert.eq", "params": {"query": "ui.tree", "args": {"filter": "BuildingInspector", "kind": "menu_content"}, "path": "/widgets/0/value/scrolls", "value": false}}
 {"method": "screenshot", "params": {"path": "out/ui_inspector/site_kambara.png"}}
 {"method": "ui.click", "params": {"path": "BuildingInspector/Close"}}
-{"method": "camera.teleport", "params": {"cell": [26, 13]}}
-{"method": "input.click", "params": {"cell": [26, 13]}}
+{"method": "camera.teleport", "params": {"cell": [36, 23]}}
+{"method": "input.click", "params": {"cell": [36, 23]}}
 {"method": "input.move", "params": {"park": true}}
 {"method": "wait.frames", "params": {"frames": 3}}
 {"method": "assert.eq", "params": {"query": "ui.layout_issues", "path": "/count", "value": 0}}
+{"method": "assert.eq", "params": {"query": "ui.tree", "args": {"filter": "UnitInspector", "kind": "menu_content"}, "path": "/widgets/0/value/scrolls", "value": false}}
 {"method": "screenshot", "params": {"path": "out/ui_inspector/unit_kambara.png"}}
 {"method": "ui.click", "params": {"path": "UnitInspector/Close"}}
 {"method": "ui.realm", "params": {"realm": "tampadesa"}}
-{"method": "camera.teleport", "params": {"cell": [4, 10]}}
-{"method": "input.click", "params": {"cell": [4, 10]}}
+{"method": "camera.teleport", "params": {"cell": [14, 20]}}
+{"method": "input.click", "params": {"cell": [14, 20]}}
 {"method": "input.move", "params": {"park": true}}
 {"method": "wait.frames", "params": {"frames": 3}}
 {"method": "assert.eq", "params": {"query": "ui.layout_issues", "path": "/count", "value": 0}}
+{"method": "assert.eq", "params": {"query": "ui.tree", "args": {"filter": "BuildingInspector", "kind": "menu_content"}, "path": "/widgets/0/value/scrolls", "value": false}}
 {"method": "screenshot", "params": {"path": "out/ui_inspector/storage_tampadesa.png"}}
 {"method": "ui.click", "params": {"path": "BuildingInspector/Close"}}
-{"method": "camera.teleport", "params": {"cell": [19, 10]}}
-{"method": "input.click", "params": {"cell": [19, 10]}}
+{"method": "camera.teleport", "params": {"cell": [29, 20]}}
+{"method": "input.click", "params": {"cell": [29, 20]}}
 {"method": "input.move", "params": {"park": true}}
 {"method": "wait.frames", "params": {"frames": 3}}
 {"method": "assert.eq", "params": {"query": "ui.layout_issues", "path": "/count", "value": 0}}
+{"method": "assert.eq", "params": {"query": "ui.tree", "args": {"filter": "BuildingInspector", "kind": "menu_content"}, "path": "/widgets/0/value/scrolls", "value": false}}
 {"method": "screenshot", "params": {"path": "out/ui_inspector/granary_tampadesa.png"}}
 {"method": "ui.click", "params": {"path": "BuildingInspector/Close"}}
-{"method": "camera.teleport", "params": {"cell": [22, 10]}}
-{"method": "input.click", "params": {"cell": [22, 10]}}
+{"method": "camera.teleport", "params": {"cell": [32, 20]}}
+{"method": "input.click", "params": {"cell": [32, 20]}}
 {"method": "input.move", "params": {"park": true}}
 {"method": "wait.frames", "params": {"frames": 3}}
 {"method": "assert.eq", "params": {"query": "ui.layout_issues", "path": "/count", "value": 0}}
+{"method": "assert.eq", "params": {"query": "ui.tree", "args": {"filter": "BuildingInspector", "kind": "menu_content"}, "path": "/widgets/0/value/scrolls", "value": false}}
 {"method": "screenshot", "params": {"path": "out/ui_inspector/site_tampadesa.png"}}
 {"method": "ui.click", "params": {"path": "BuildingInspector/Close"}}
-{"method": "camera.teleport", "params": {"cell": [26, 13]}}
-{"method": "input.click", "params": {"cell": [26, 13]}}
+{"method": "camera.teleport", "params": {"cell": [36, 23]}}
+{"method": "input.click", "params": {"cell": [36, 23]}}
 {"method": "input.move", "params": {"park": true}}
 {"method": "wait.frames", "params": {"frames": 3}}
 {"method": "assert.eq", "params": {"query": "ui.layout_issues", "path": "/count", "value": 0}}
+{"method": "assert.eq", "params": {"query": "ui.tree", "args": {"filter": "UnitInspector", "kind": "menu_content"}, "path": "/widgets/0/value/scrolls", "value": false}}
 {"method": "screenshot", "params": {"path": "out/ui_inspector/unit_tampadesa.png"}}
 {"method": "ui.click", "params": {"path": "UnitInspector/Close"}}
 {"method": "ui.realm", "params": {"realm": "auto"}}
 
+# At 200% UI scale the panels keep their layout: their text doesn't grow with it.
+{"method": "config.set", "params": {"path": "/display/ui_scale_percent", "value": 200}}
+{"method": "wait.frames", "params": {"frames": 2}}
+{"method": "ui.realm", "params": {"realm": "tampadesa"}}
+{"method": "camera.teleport", "params": {"cell": [15, 23]}}
+{"method": "input.click", "params": {"cell": [15, 23]}}
+{"method": "input.move", "params": {"park": true}}
+{"method": "wait.frames", "params": {"frames": 3}}
+{"method": "assert.eq", "params": {"query": "ui.layout_issues", "path": "/count", "value": 0}}
+{"method": "assert.eq", "params": {"query": "ui.tree", "args": {"filter": "TerrainInspector", "kind": "menu_content"}, "path": "/widgets/0/value/scrolls", "value": false}}
+{"method": "screenshot", "params": {"path": "out/ui_inspector/terrain_tampadesa_200.png"}}
+{"method": "ui.click", "params": {"path": "TerrainInspector/Close"}}
+{"method": "camera.teleport", "params": {"cell": [14, 20]}}
+{"method": "input.click", "params": {"cell": [14, 20]}}
+{"method": "input.move", "params": {"park": true}}
+{"method": "wait.frames", "params": {"frames": 3}}
+{"method": "assert.eq", "params": {"query": "ui.layout_issues", "path": "/count", "value": 0}}
+{"method": "assert.eq", "params": {"query": "ui.tree", "args": {"filter": "BuildingInspector", "kind": "menu_content"}, "path": "/widgets/0/value/scrolls", "value": false}}
+{"method": "screenshot", "params": {"path": "out/ui_inspector/storage_tampadesa_200.png"}}
+{"method": "ui.click", "params": {"path": "BuildingInspector/Close"}}
+{"method": "config.set", "params": {"path": "/display/ui_scale_percent", "value": 100}}
+{"method": "ui.realm", "params": {"realm": "auto"}}
+{"method": "wait.frames", "params": {"frames": 2}}
+
+# Escape on the Demolish popup closes the popup, not the panel.
+{"method": "camera.teleport", "params": {"cell": [27, 22]}}
+{"method": "input.click", "params": {"cell": [27, 22]}}
+{"method": "wait.frames", "params": {"frames": 3}}
+{"method": "ui.click", "params": {"path": "BuildingInspector/Demolish"}}
+{"method": "wait.frames", "params": {"frames": 3}}
+{"method": "input.key", "params": {"key": "Escape"}}
+{"method": "wait.frames", "params": {"frames": 3}}
+{"method": "assert.exists", "params": {"query": "ui.tree", "args": {"filter": "BuildingInspector/Close"}, "path": "/widgets/0"}}
+{"method": "assert.eq", "params": {"query": "ui.tree", "args": {"filter": "Demolish Popup"}, "path": "/widgets", "value": []}}
+{"method": "input.key", "params": {"key": "Escape"}}
+{"method": "wait.frames", "params": {"frames": 3}}
+{"method": "assert.eq", "params": {"query": "ui.tree", "args": {"filter": "BuildingInspector/"}, "path": "/widgets", "value": []}}
+
 # A walker without a home: Show its home is disabled.
-{"method": "camera.teleport", "params": {"cell": [26, 13]}}
-{"method": "input.click", "params": {"cell": [26, 13]}}
+{"method": "camera.teleport", "params": {"cell": [36, 23]}}
+{"method": "input.click", "params": {"cell": [36, 23]}}
 {"method": "wait.frames", "params": {"frames": 3}}
 {"method": "assert.eq", "params": {"query": "ui.tree", "args": {"fields": ["path", "enabled"], "filter": "UnitInspector/Show its home"}, "path": "/widgets/0/enabled", "value": false}}
 {"method": "ui.click", "params": {"path": "UnitInspector/Close"}}
 
 # A store's orders: one good from its row, then Accept none and Accept all. A refused good goes to
 # another store.
-{"method": "camera.teleport", "params": {"cell": [4, 10]}}
-{"method": "input.click", "params": {"cell": [4, 10]}}
+{"method": "camera.teleport", "params": {"cell": [14, 20]}}
+{"method": "input.click", "params": {"cell": [14, 20]}}
 {"method": "wait.frames", "params": {"frames": 3}}
 {"method": "ui.set", "params": {"path": "BuildingInspector/Bricks", "value": "Refuse"}}
 {"method": "wait.frames", "params": {"frames": 3}}
-{"method": "assert.eq", "params": {"query": "storage.orders", "args": {"cell": [4, 10]}, "path": "/orders/Bricks", "value": "refuse"}}
-{"method": "assert.eq", "params": {"query": "inspect.at", "args": {"cell": [4, 10]}, "path": "/sections/1/rows/8/order", "value": "refuse"}}
+{"method": "assert.eq", "params": {"query": "storage.orders", "args": {"cell": [14, 20]}, "path": "/orders/Bricks", "value": "refuse"}}
+{"method": "assert.eq", "params": {"query": "inspect.at", "args": {"cell": [14, 20]}, "path": "/sections/1/rows/8/order", "value": "refuse"}}
 {"method": "assert.eq", "params": {"query": "ui.tree", "args": {"fields": ["path", "value"], "filter": "BuildingInspector/Bricks", "kind": "step_selector"}, "path": "/widgets/0/value", "value": "Refuse"}}
-{"method": "assert.eq", "params": {"query": "world.building_at", "args": {"cell": [4, 10]}, "path": "/stock/Bricks", "value": 32}}
+{"method": "assert.eq", "params": {"query": "world.building_at", "args": {"cell": [14, 20]}, "path": "/stock/Bricks", "value": 32}}
 {"method": "world.add_stock", "params": {"resources": {"Bricks": 8}}}
-{"method": "assert.eq", "params": {"query": "world.building_at", "args": {"cell": [4, 10]}, "path": "/stock/Bricks", "value": 32}}
-{"method": "assert.eq", "params": {"query": "world.building_at", "args": {"cell": [24, 14]}, "path": "/stock/Bricks", "value": 8}}
+{"method": "assert.eq", "params": {"query": "world.building_at", "args": {"cell": [14, 20]}, "path": "/stock/Bricks", "value": 32}}
+{"method": "assert.eq", "params": {"query": "world.building_at", "args": {"cell": [34, 24]}, "path": "/stock/Bricks", "value": 8}}
 {"method": "ui.set", "params": {"path": "BuildingInspector/Clay", "value": "Empty"}}
 {"method": "wait.frames", "params": {"frames": 3}}
-{"method": "assert.eq", "params": {"query": "storage.orders", "args": {"cell": [4, 10]}, "path": "/orders/Clay", "value": "empty"}}
+{"method": "assert.eq", "params": {"query": "storage.orders", "args": {"cell": [14, 20]}, "path": "/orders/Clay", "value": "empty"}}
 {"method": "ui.click", "params": {"path": "BuildingInspector/Accept none"}}
 {"method": "wait.frames", "params": {"frames": 3}}
-{"method": "assert.eq", "params": {"query": "storage.orders", "args": {"cell": [4, 10]}, "path": "/orders/Rice", "value": "refuse"}}
-{"method": "assert.eq", "params": {"query": "storage.orders", "args": {"cell": [4, 10]}, "path": "/orders/Clay", "value": "refuse"}}
+{"method": "assert.eq", "params": {"query": "storage.orders", "args": {"cell": [14, 20]}, "path": "/orders/Rice", "value": "refuse"}}
+{"method": "assert.eq", "params": {"query": "storage.orders", "args": {"cell": [14, 20]}, "path": "/orders/Clay", "value": "refuse"}}
 {"method": "screenshot", "params": {"path": "out/ui_inspector/storage_refused.png"}}
 {"method": "ui.click", "params": {"path": "BuildingInspector/Accept all"}}
 {"method": "wait.frames", "params": {"frames": 3}}
-{"method": "assert.eq", "params": {"query": "storage.orders", "args": {"cell": [4, 10]}, "path": "/orders/Bricks", "value": "accept"}}
-{"method": "storage.orders", "params": {"cell": [4, 10], "good": "Wood", "order": "get"}}
-{"method": "assert.eq", "params": {"query": "storage.orders", "args": {"cell": [4, 10]}, "path": "/orders/Wood", "value": "get"}}
+{"method": "assert.eq", "params": {"query": "storage.orders", "args": {"cell": [14, 20]}, "path": "/orders/Bricks", "value": "accept"}}
+{"method": "storage.orders", "params": {"cell": [14, 20], "good": "Wood", "order": "get"}}
+{"method": "assert.eq", "params": {"query": "storage.orders", "args": {"cell": [14, 20]}, "path": "/orders/Wood", "value": "get"}}
 {"method": "ui.click", "params": {"path": "BuildingInspector/Close"}}
 
 # Demolish asks first; Cancel keeps the building, Demolish clears it (nothing given back).
-{"method": "camera.teleport", "params": {"cell": [9, 14]}}
-{"method": "input.click", "params": {"cell": [9, 14]}}
+{"method": "camera.teleport", "params": {"cell": [19, 24]}}
+{"method": "input.click", "params": {"cell": [19, 24]}}
 {"method": "wait.frames", "params": {"frames": 3}}
 {"method": "ui.click", "params": {"path": "BuildingInspector/Demolish"}}
 {"method": "wait.frames", "params": {"frames": 3}}
 {"method": "screenshot", "params": {"path": "out/ui_inspector/demolish_popup.png"}}
 {"method": "ui.click", "params": {"path": "Demolish Popup/Cancel"}}
 {"method": "wait.frames", "params": {"frames": 3}}
-{"method": "assert.eq", "params": {"query": "world.building_at", "args": {"cell": [9, 14]}, "path": "/kind", "value": "SmallWell"}}
+{"method": "assert.eq", "params": {"query": "world.building_at", "args": {"cell": [19, 24]}, "path": "/kind", "value": "SmallWell"}}
 {"method": "ui.click", "params": {"path": "BuildingInspector/Demolish"}}
 {"method": "ui.click", "params": {"path": "Demolish Popup/Demolish"}}
 {"method": "wait.frames", "params": {"frames": 3}}
-{"method": "assert.eq", "params": {"query": "inspect.at", "args": {"cell": [9, 14]}, "path": "/panel", "value": "terrain"}}
+{"method": "assert.eq", "params": {"query": "inspect.at", "args": {"cell": [19, 24]}, "path": "/panel", "value": "terrain"}}
 {"method": "assert.eq", "params": {"query": "ui.tree", "args": {"filter": "BuildingInspector/"}, "path": "/widgets", "value": []}}
 
 # A site's Cancel and refund gives back its gold and materials.
 {"method": "assert.eq", "params": {"query": "finance.state", "path": "/this_year/categories/Construction", "value": 107}}
-{"method": "camera.teleport", "params": {"cell": [22, 10]}}
-{"method": "input.click", "params": {"cell": [22, 10]}}
+{"method": "camera.teleport", "params": {"cell": [32, 20]}}
+{"method": "input.click", "params": {"cell": [32, 20]}}
 {"method": "wait.frames", "params": {"frames": 3}}
 {"method": "ui.click", "params": {"path": "BuildingInspector/Cancel and refund"}}
 {"method": "wait.frames", "params": {"frames": 3}}
 {"method": "assert.eq", "params": {"query": "finance.state", "path": "/this_year/categories/Construction", "value": 92}}
-{"method": "assert.eq", "params": {"query": "inspect.at", "args": {"cell": [22, 10]}, "path": "/panel", "value": "terrain"}}
+{"method": "assert.eq", "params": {"query": "inspect.at", "args": {"cell": [32, 20]}, "path": "/panel", "value": "terrain"}}
 
 # Clear on a road leaves grass.
-{"method": "camera.teleport", "params": {"cell": [27, 13]}}
-{"method": "input.click", "params": {"cell": [27, 13]}}
+{"method": "camera.teleport", "params": {"cell": [37, 23]}}
+{"method": "input.click", "params": {"cell": [37, 23]}}
 {"method": "wait.frames", "params": {"frames": 3}}
 {"method": "ui.click", "params": {"path": "TerrainInspector/Clear"}}
 {"method": "wait.frames", "params": {"frames": 3}}
-{"method": "assert.eq", "params": {"query": "inspect.at", "args": {"cell": [27, 13]}, "path": "/name", "value": "Grass"}}
+{"method": "assert.eq", "params": {"query": "inspect.at", "args": {"cell": [37, 23]}, "path": "/name", "value": "Grass"}}
 {"method": "assert.eq", "params": {"query": "text.missing", "path": "/count", "value": 0}}

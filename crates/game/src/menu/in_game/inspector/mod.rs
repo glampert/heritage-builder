@@ -46,7 +46,7 @@ use crate::{
 const PANEL: &str = "dialog";
 const TOP: f32 = 130.0; // Under the top bar, room for a large panel's crest.
 const BOTTOM: f32 = 24.0; // Room under it, for the panel's foot ornaments.
-const MIN_SCALE: f32 = 0.55;
+const MIN_SCALE: f32 = 0.45;
 
 // The mockup's content widths, px: the panel (500 or 620) less 28 a side.
 const CONTENT: f32 = 444.0;
@@ -63,6 +63,7 @@ const BUTTON: Vec2 = Vec2::new(210.0, 56.0);
 const BUTTON_WIDE: f32 = 240.0;
 const BUTTONS_GAP: f32 = 18.0; // Above the buttons.
 const CHECK_EVERY_FRAMES: u32 = 15;
+const HEIGHT_SLACK: f32 = 16.0;
 
 // How often the panel reads its report again while open.
 
@@ -93,6 +94,7 @@ enum Command {
 type Commands = Rc<RefCell<Vec<Command>>>;
 
 struct Panel {
+    window: Vec2, // The window it was laid out for: built again when it changes.
     target: InspectTarget,
     report: InspectReport,
     menu: UiMenuRcMut,
@@ -122,6 +124,17 @@ impl TileInspector for TileInspectorMenu {
         }
         self.commands.borrow_mut().clear();
     }
+
+    fn on_escape(&mut self, context: &mut GameUiContext) {
+        match &mut self.panel {
+            Some(panel) if panel.menu.is_message_box_open() => panel.menu.close_message_box(context),
+            _ => self.close(context),
+        }
+    }
+}
+
+fn window_size(context: &GameUiContext) -> Vec2 {
+    Vec2::new(context.viewport_size.width as f32, context.viewport_size.height as f32)
 }
 
 impl TileInspectorMenu {
@@ -139,6 +152,18 @@ impl TileInspectorMenu {
             return;
         };
 
+        // Laid out again for a new window size.
+        if panel.window != window_size(context) && !panel.menu.is_message_box_open() {
+            let report = panel.report.clone();
+            if let Some(mut panel) = self.panel.take() {
+                panel.menu.close(context);
+            }
+            self.show(context, report);
+        }
+        let Some(panel) = &mut self.panel else {
+            return;
+        };
+
         // Read again now and then: an order set, a site finished, a building gone.
         panel.frames += 1;
         if panel.frames >= CHECK_EVERY_FRAMES {
@@ -149,7 +174,6 @@ impl TileInspectorMenu {
         if let Some(panel) = &mut self.panel {
             panel.menu.draw(context);
             if !panel.menu.is_open() {
-                // Closed by Escape (CloseModalOnEscape).
                 self.close(context);
             }
         }
@@ -163,7 +187,8 @@ impl TileInspectorMenu {
     fn show(&mut self, context: &mut GameUiContext, report: InspectReport) {
         let mut menu = build(context, &report, &self.commands);
         menu.open(context);
-        self.panel = Some(Panel { target: report.target, report, menu, frames: 0 });
+        let window = window_size(context);
+        self.panel = Some(Panel { window, target: report.target, report, menu, frames: 0 });
     }
 
     // Reads the report again; builds the panel again if it changed, closes it if what it shows is
@@ -243,14 +268,15 @@ impl TileInspectorMenu {
 // given back), a site cancelled (all it took given back), a prop or a road cleared.
 fn clear(context: &mut GameUiContext, target: InspectTarget) {
     let sim = context.new_sim_context();
-    let cell = match target {
+    let tile = match target {
         InspectTarget::Building { handle, .. } => match sim.find_building(handle.kind, handle.id) {
-            Some(building) => building.base_cell(),
+            Some(building) => sim.tile_map().find_tile(building.base_cell(), crate::tile::TileKind::Building),
             None => return,
         },
-        other => other.cell(),
+        // Not a walker passing over it.
+        other => inspect::target_tile(&sim, &other),
     };
-    if let Some(tile) = sim.tile_map().topmost_tile_at_cell(cell) {
+    if let Some(tile) = tile {
         let _ = TilePlacement::clear(&sim, tile, false, true);
     }
 }
@@ -357,30 +383,53 @@ fn content_height(parts: &[Part], width: f32, actions: bool) -> f32 {
 }
 
 fn build(context: &mut GameUiContext, report: &InspectReport, commands: &Commands) -> UiMenuRcMut {
-    let window = Vec2::new(context.viewport_size.width as f32, context.viewport_size.height as f32);
+    let window = window_size(context);
+    let width = if report.wide { CONTENT_WIDE } else { CONTENT };
+    let (inset_x, inset_y) = insets(context);
+    let column = layout::column_width(context);
+
+    // Its scale: the mockup's size where the window has room, smaller where it hasn't. The
+    // estimate is checked against what the widgets measure, and the panel built once more,
+    // smaller, if they don't fit.
+    let height = content_height(&parts(report), width, !report.actions.is_empty());
+    let room = Vec2::new(window.x - column - layout::GAP - 2.0 * layout::MARGIN - inset_x, window.y - TOP - BOTTOM - inset_y);
+    let k = (room.y / height).min(room.x / width).clamp(MIN_SCALE, 1.0);
+    let (menu, measured) = build_at(context, report, commands, k);
+    if measured <= room.y + 0.5 || k <= MIN_SCALE {
+        return menu;
+    }
+    let k = (k * room.y / measured).clamp(MIN_SCALE, 1.0);
+    build_at(context, report, commands, k).0
+}
+
+// The panel at scale `k`, and its widgets' height.
+fn build_at(context: &mut GameUiContext, report: &InspectReport, commands: &Commands, k: f32) -> (UiMenuRcMut, f32) {
+    let window = window_size(context);
     let width = if report.wide { CONTENT_WIDE } else { CONTENT };
     let parts = parts(report);
     let (inset_x, inset_y) = insets(context);
     let column = layout::column_width(context);
-
-    // Its scale: the mockup's size where the window has room, smaller where it hasn't.
     let height = content_height(&parts, width, !report.actions.is_empty());
-    let room = Vec2::new(window.x - column - layout::GAP - 2.0 * layout::MARGIN - inset_x, window.y - TOP - BOTTOM - inset_y);
-    let k = (room.y / height).min(room.x / width).clamp(MIN_SCALE, 1.0);
 
     let colors = BookColors::read();
     let icons = Icons { population: Some(skin::hud_icon(context, "population").0) };
     let size = Vec2::new(width * k + inset_x, height * k + inset_y + 4.0);
     let position = Vec2::new(window.x - column - layout::GAP - layout::MARGIN - size.x, TOP);
 
+    let room_height = window.y - TOP - BOTTOM;
     let menu = UiMenu::new(menu_label(report.panel))
-        .with_flags(UiMenuFlags::PauseSimIfOpen | UiMenuFlags::Modal | UiMenuFlags::CloseModalOnEscape)
+        // Escape goes through the game's key handler (on_escape), which closes a popup first.
+        .with_flags(UiMenuFlags::PauseSimIfOpen | UiMenuFlags::Modal)
         .with_position(position)
         .with_size(size)
         .with_widget_spacing(Vec2::zero());
     let mut menu = skin::panel(context, PANEL).apply_to_menu(menu);
 
-    menu.add_widget(header(context, report, width, k, commands));
+    // Its widgets, measured as they're added: the menu is as tall as they are, up to the room
+    // there is (then it scrolls).
+    let mut widgets = Added { menu: &mut menu, height: 0.0 };
+    let header = header(context, report, width, k, commands);
+    widgets.add(context, header);
 
     for part in parts {
         match part {
@@ -390,23 +439,52 @@ fn build(context: &mut GameUiContext, report: &InspectReport, commands: &Command
                     let p = Paint::new(painter, rect, k, colors);
                     paint::flow(Some(&p), icons, &items, width);
                 });
-                menu.add_widget(canvas);
+                widgets.add(context, canvas);
             }
             Part::Text(text) => {
-                let line = UiText::new(text, UiFontScale(k)).with_color(colors.text).with_wrap_width(width * k);
-                menu.add_widget(UiMenuHeading::new([line]).with_center_horizontally(false));
-                menu.add_widget(spacer(width * k, TEXT_GAP * k));
+                // The body font at the panel's scale, the player's UI scale taken back out as the
+                // painted runs don't grow with it.
+                let line = UiText::new(text, text_scale(k)).with_color(colors.text).with_wrap_width(width * k);
+                widgets.add(context, UiMenuHeading::new([line]).with_center_horizontally(false));
+                widgets.add(context, spacer(width * k, TEXT_GAP * k));
             }
-            Part::Store(section) => add_store(context, &mut menu, &section, width, k, colors, commands),
+            Part::Store(section) => add_store(context, &mut widgets, &section, width, k, colors, commands),
         }
     }
 
     if !report.actions.is_empty() {
-        menu.add_widget(spacer(width * k, BUTTONS_GAP * k));
-        menu.add_widget(actions(context, report, width, k, commands));
+        widgets.add(context, spacer(width * k, BUTTONS_GAP * k));
+        let actions = actions(context, report, width, k, commands);
+        widgets.add(context, actions);
     }
 
-    menu.into_rc()
+    // A little room for the spacing the menu adds round its widgets.
+    let measured = widgets.height + HEIGHT_SLACK;
+    menu.set_size(Vec2::new(size.x, (measured + inset_y).min(room_height)));
+    (menu.into_rc(), measured)
+}
+
+// The panel's widgets as they're added, and the height they take.
+struct Added<'a> {
+    menu: &'a mut UiMenu,
+    height: f32,
+}
+
+impl Added<'_> {
+    fn add(&mut self, context: &GameUiContext, widget: impl Into<UiWidgetImpl> + UiWidget) {
+        self.height += widget.measure(context).y;
+        self.menu.add_widget(widget);
+    }
+}
+
+// Text in the body font, 18 mockup px at the panel's scale, not grown by the player's UI scale.
+fn text_scale(k: f32) -> UiFontScale {
+    UiFontScale(0.9 * k / skin::ui_scale().max(0.1))
+}
+
+// A button's text at the panel's scale, not grown by the player's UI scale.
+fn button_text_scale(k: f32) -> UiFontScale {
+    UiFontScale(k / skin::ui_scale().max(0.1))
 }
 
 fn spacer(width: f32, height: f32) -> UiCanvas {
@@ -455,7 +533,7 @@ fn sprite_icon(context: &mut GameUiContext, target: InspectTarget, size: f32) ->
         let sim = context.new_sim_context();
         match target {
             InspectTarget::Unit { id, .. } => sim.find_unit(id).map(|unit| unit.find_tile(&sim).icon_sprite()),
-            other => sim.tile_map().topmost_tile_at_cell(other.cell()).map(|tile| tile.icon_sprite()),
+            other => inspect::target_tile(&sim, &other).map(|tile| tile.icon_sprite()),
         }
     };
     if let Some(sprite) = sprite {
@@ -469,13 +547,13 @@ fn sprite_icon(context: &mut GameUiContext, target: InspectTarget, size: f32) ->
 }
 
 // A store's goods: the title, a row per good with its order, and Accept all and Accept none.
-fn add_store(context: &mut GameUiContext, menu: &mut UiMenu, section: &Section, width: f32, k: f32, colors: BookColors, commands: &Commands) {
+fn add_store(context: &mut GameUiContext, menu: &mut Added, section: &Section, width: f32, k: f32, colors: BookColors, commands: &Commands) {
     let Section::Storage { title, note, rows, footer } = section else {
         return;
     };
     let title = title.clone();
     let note = note.clone();
-    menu.add_widget(UiCanvas::new(Vec2::new(width * k, (paint::TOP + 14.0) * k), move |_, painter, rect| {
+    menu.add(context, UiCanvas::new(Vec2::new(width * k, (paint::TOP + 14.0) * k), move |_, painter, rect| {
         let p = Paint::new(painter, rect, k, colors);
         p.section(0.0, paint::TOP, &title);
         p.text(width, paint::TOP, &note, 17.0, p.c.sub, engine::ui::UiTextAnchor::End, false);
@@ -484,19 +562,6 @@ fn add_store(context: &mut GameUiContext, menu: &mut UiMenu, section: &Section, 
     let steps: Vec<UiString> = StorageOrder::ALL.iter().map(|order| UiString::from(order.label())).collect();
     for row in rows {
         let row = row.clone();
-        let refused = !row.order.takes_in();
-        let line_width = width - ORDER_WIDTH;
-        let (good, have, room) = (row.good.clone(), row.have, row.room);
-        let canvas = UiCanvas::new(Vec2::new(line_width * k, STORE_ROW * k), move |_, painter, rect| {
-            let p = Paint::new(painter, rect, k, colors);
-            let y = 22.0;
-            p.painter.rect_filled(p.rect(3.0, y - 11.0, 9.0, 9.0), p.c.accent, 1.0 * k);
-            let name_color = if refused { p.c.sub } else { p.c.text };
-            p.text(20.0, y, &good, 18.0, name_color, engine::ui::UiTextAnchor::Start, false);
-            let ratio = if room > 0 { have as f32 / room as f32 } else { 0.0 };
-            p.bar(150.0, y - 11.0, line_width - 280.0, 9.0, ratio);
-            p.text(line_width - 16.0, y, &format!("{have} / {room}"), 17.0, p.c.text, engine::ui::UiTextAnchor::End, false);
-        });
         let order_commands = commands.clone();
         let kind = row.kind;
         let current = StorageOrder::ALL.iter().position(|order| *order == row.order).unwrap_or(1);
@@ -505,36 +570,55 @@ fn add_store(context: &mut GameUiContext, menu: &mut UiMenu, section: &Section, 
             .with_wrap(true)
             .with_label_hidden(true)
             .with_width(ORDER_WIDTH * k)
-            .with_font_scale(UiFontScale(0.9 * k))
+            .with_font_scale(text_scale(k))
             .with_current(current)
             // The callback's index is the step it left: the selector holds the new one.
             .on_changed(move |selector, _, _previous| {
                 let order = StorageOrder::ALL[selector.current().min(StorageOrder::ALL.len() - 1)];
                 order_commands.borrow_mut().push(Command::SetOrder(kind, order));
             });
-        menu.add_widget(UiWidgetGroup::new().with_stack_vertically(false).with_widget_spacing(Vec2::zero()).with_widget(canvas).with_widget(order));
+        // The row's meter and count take what the selector leaves (it may need more than its
+        // column for its arrows and words).
+        let order_width = order.measure(context).x.max(ORDER_WIDTH * k);
+        let line_width = (width * k - order_width) / k;
+        let refused = !row.order.takes_in();
+        let (good, have, room) = (row.good.clone(), row.have, row.room);
+        let canvas = UiCanvas::new(Vec2::new(line_width * k, STORE_ROW * k), move |_, painter, rect| {
+            let p = Paint::new(painter, rect, k, colors);
+            let y = 22.0;
+            p.painter.rect_filled(p.rect(3.0, y - 11.0, 9.0, 9.0), p.c.accent, 1.0 * k);
+            let name_color = if refused { p.c.sub } else { p.c.text };
+            p.text(20.0, y, &good, 18.0, name_color, engine::ui::UiTextAnchor::Start, false);
+            let ratio = if room > 0 { have as f32 / room as f32 } else { 0.0 };
+            p.bar(150.0, y - 11.0, (line_width - 280.0).max(20.0), 9.0, ratio);
+            p.text(line_width - 16.0, y, &format!("{have} / {room}"), 17.0, p.c.text, engine::ui::UiTextAnchor::End, false);
+        });
+        menu.add(context, UiWidgetGroup::new().with_stack_vertically(false).with_widget_spacing(Vec2::zero()).with_widget(canvas).with_widget(order));
     }
 
-    menu.add_widget(spacer(width * k, 10.0 * k));
+    menu.add(context, spacer(width * k, 10.0 * k));
     let all = commands.clone();
     let none = commands.clone();
     let accept_all = skin::button(context, ButtonRole::Secondary, UiString::key(UiTextCategory::Hud, "inspect.action.accept_all"), move |_, _| {
         all.borrow_mut().push(Command::SetAllOrders(StorageOrder::Accept));
     })
     .with_width(UiTextButtonWidth::Fixed(ACCEPT_BUTTON.x * k))
-    .with_min_height(ACCEPT_BUTTON.y * k);
+    .with_min_height(ACCEPT_BUTTON.y * k)
+    .with_font_scale(button_text_scale(k));
     let accept_none = skin::button(context, ButtonRole::Secondary, UiString::key(UiTextCategory::Hud, "inspect.action.accept_none"), move |_, _| {
         none.borrow_mut().push(Command::SetAllOrders(StorageOrder::Refuse));
     })
     .with_width(UiTextButtonWidth::Fixed(ACCEPT_BUTTON.x * k))
-    .with_min_height(ACCEPT_BUTTON.y * k);
+    .with_min_height(ACCEPT_BUTTON.y * k)
+    .with_font_scale(button_text_scale(k));
     let footer = footer.clone();
     let footer_width = width - 2.0 * ACCEPT_BUTTON.x - 28.0;
     let footer_canvas = UiCanvas::new(Vec2::new(footer_width * k, ACCEPT_BUTTON.y * k), move |_, painter, rect| {
         let p = Paint::new(painter, rect, k, colors);
         p.text(footer_width, 26.0, &footer, 17.0, p.c.sub, engine::ui::UiTextAnchor::End, false);
     });
-    menu.add_widget(
+    menu.add(
+        context,
         UiWidgetGroup::new()
             .with_stack_vertically(false)
             .with_widget_spacing(Vec2::new(14.0 * k, 0.0))
@@ -542,7 +626,7 @@ fn add_store(context: &mut GameUiContext, menu: &mut UiMenu, section: &Section, 
             .with_widget(accept_none)
             .with_widget(footer_canvas),
     );
-    menu.add_widget(spacer(width * k, 20.0 * k));
+    menu.add(context, spacer(width * k, 20.0 * k));
 }
 
 // The panel's buttons at its foot: two at its edges, or one at the right.
@@ -565,6 +649,7 @@ fn actions(context: &mut GameUiContext, report: &InspectReport, width: f32, k: f
         })
         .with_width(UiTextButtonWidth::Fixed(button_width * k))
         .with_min_height(BUTTON.y * k)
+        .with_font_scale(button_text_scale(k))
         .with_enabled(action.enabled);
         if let Some(tooltip) = &action.tooltip {
             button = button.with_tooltip(skin::tooltip(context, UiString::from(tooltip.clone())));

@@ -320,16 +320,20 @@ pub fn inspect_target(context: &SimContext, target: &InspectTarget, realm: Realm
     match *target {
         InspectTarget::Building { handle, .. } => world.find_building(handle.kind, handle.id).map(|building| building::read(context, building, realm)),
         InspectTarget::Unit { id, .. } => world.find_unit(id).and_then(|unit| unit::read(context, unit, realm)),
-        // The tile under a walker passing over it.
-        InspectTarget::Prop { cell } => {
-            let tile = context.tile_map().find_tile(cell, TileKind::Prop | TileKind::Vegetation | TileKind::Rocks)?;
-            inspect_tile(context, tile, realm)
-        }
+        InspectTarget::Prop { .. } | InspectTarget::Terrain { .. } => inspect_tile(context, target_tile(context, target)?, realm),
+    }
+}
+
+// A prop's or terrain target's tile, not a walker passing over it (for a building or a walker,
+// what's on top at its cell).
+pub fn target_tile<'a>(context: &'a SimContext, target: &InspectTarget) -> Option<&'a Tile> {
+    let tiles = context.tile_map();
+    match *target {
+        InspectTarget::Prop { cell } => tiles.find_tile(cell, TileKind::Prop | TileKind::Vegetation | TileKind::Rocks),
         InspectTarget::Terrain { cell } => {
-            let tiles = context.tile_map();
-            let tile = tiles.find_tile(cell, TileKind::Vegetation | TileKind::Rocks).or_else(|| tiles.find_tile(cell, TileKind::Terrain))?;
-            inspect_tile(context, tile, realm)
+            tiles.find_tile(cell, TileKind::Vegetation | TileKind::Rocks).or_else(|| tiles.find_tile(cell, TileKind::Terrain))
         }
+        InspectTarget::Building { cell, .. } | InspectTarget::Unit { cell, .. } => tiles.topmost_tile_at_cell(cell),
     }
 }
 
