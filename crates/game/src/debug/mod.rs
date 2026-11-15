@@ -7,7 +7,7 @@ use common::{
     coords::{Cell, CellRange},
     mem::{RcMut, SingleThreadStatic, WeakMut},
 };
-use engine::{Engine, ui::UiThemeId};
+use engine::Engine;
 use inspector::TileInspectorDevMenu;
 use log_viewer::LogViewer;
 use palette::TilePaletteDevMenu;
@@ -63,7 +63,7 @@ pub struct DevEditorMenus;
 
 impl DevEditorMenus {
     pub fn new(context: &mut GameUiContext, tile_map_rc: RcMut<TileMap>) -> Self {
-        context.ui_sys.set_ui_theme(UiThemeId::DEV);
+        context.ui_sys.set_ui_theme(skin::dev_theme(context.ui_sys));
         init_dev_editor_menus_singleton_once(context);
         register_tile_map_debug_callbacks(tile_map_rc); // Register TileMap global callbacks & debug ref.
         Self
@@ -97,9 +97,11 @@ impl GameMenusSystem for DevEditorMenus {
     }
 
     // The editor stays on the developer UI's theme, but follows the UI realm's skin, so the Skin
-    // Gallery's retail theme (skin::theme) is the realm's that ui.realm shows.
+    // Gallery's retail theme (skin::theme) is the realm's that ui.realm shows, and the developer
+    // UI and its toasts take that realm's accent (skin::dev_theme).
     fn sync_skin(&mut self, context: &mut GameUiContext) {
-        skin::follow(context, crate::realm::ui_realm_for(false).realm);
+        skin::follow_in_dev_editor(context, crate::realm::ui_realm_for(false).realm);
+        context.ui_sys.set_ui_theme(skin::dev_theme(context.ui_sys));
     }
 
     fn end_frame(&mut self, context: &mut GameUiContext, visible_range: CellRange) {

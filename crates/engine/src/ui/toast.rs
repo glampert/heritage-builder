@@ -1,7 +1,8 @@
 // Toasts: short messages shown at the bottom of the screen for a few seconds, such as
 // "Screenshot saved". They draw above every window and ignore the mouse. Show one with
 // UiSystem::show_toast; UiSystem::set_toast_look gives them a panel and colours (the game's skin's
-// caption panel), else they're a dark rounded box with white text.
+// caption panel), else they're a dark rounded box with white text, or with `window_frame` an egui
+// window (the developer editor's).
 
 use common::{Color, Rect, Vec2, time::Seconds};
 
@@ -26,6 +27,10 @@ pub struct UiToastLook {
     pub insets: [f32; 4],
     pub text_color: Color,
     pub font_scale: f32,
+    // Draws each on its theme's window frame (egui's: fill, border, corners and shadow, the text
+    // inside its window margin) in the theme's text colour, in place of `panel`, `background`,
+    // `insets` and `text_color`.
+    pub window_frame: bool,
 }
 
 impl Default for UiToastLook {
@@ -37,6 +42,7 @@ impl Default for UiToastLook {
             insets: [PADDING.x, PADDING.y, PADDING.x, PADDING.y],
             text_color: Color::white(),
             font_scale: 1.0,
+            window_frame: false,
         }
     }
 }
@@ -77,7 +83,23 @@ impl UiToasts {
         let painter = ui::painter(ui_sys, UiLayer::Foreground);
         let mut bottom = screen_size.y - BOTTOM_MARGIN;
         let look = &self.look;
-        let [left, top, right, bottom_inset] = look.insets;
+        let window_frame = look.window_frame.then(|| egui::Frame::window(ui_sys.egui_style()));
+        let [left, top, right, bottom_inset] = match &window_frame {
+            Some(frame) => {
+                let margin =
+                    egui::epaint::MarginF32::from(frame.inner_margin) + egui::epaint::MarginF32::from(frame.stroke.width);
+                [margin.left, margin.top, margin.right, margin.bottom]
+            }
+            None => look.insets,
+        };
+        let text_color = match &window_frame {
+            Some(_) => {
+                let color = ui_sys.egui_style().visuals.text_color();
+                let [r, g, b, a] = color.to_srgba_unmultiplied().map(|channel| f32::from(channel) / 255.0);
+                Color::new(r, g, b, a)
+            }
+            None => look.text_color,
+        };
 
         for toast in self.toasts.iter().rev() {
             let alpha = (toast.time_left / TOAST_FADE_SECS).min(1.0);
@@ -87,11 +109,28 @@ impl UiToasts {
             let min = Vec2::new(((screen_size.x - size.x) * 0.5).max(0.0), bottom - size.y);
             let rect = Rect::from_extents(min, min + size);
 
-            match &look.panel {
-                Some(panel) => painter.nine_slice(rect, panel, Color::new(1.0, 1.0, 1.0, alpha)),
-                None => painter.rect_filled(rect, faded(look.background, alpha), 6.0),
+            match (&window_frame, &look.panel) {
+                (Some(frame), _) => {
+                    let mut frame = *frame;
+                    frame.fill = frame.fill.gamma_multiply(alpha);
+                    frame.stroke.color = frame.stroke.color.gamma_multiply(alpha);
+                    frame.shadow.color = frame.shadow.color.gamma_multiply(alpha);
+                    // egui blurs a shadow by growing its corners by half the blur: once they
+                    // meet across a rect as short as a toast, its sides have no length and the
+                    // blur draws a line across the shadow. Keep them apart.
+                    let corner = f32::from(frame.corner_radius.nw);
+                    let max_blur = (size.y - 2.0 * corner - 2.0).max(0.0);
+                    frame.shadow.blur = frame.shadow.blur.min(max_blur as u8);
+                    let content = egui::Rect::from_min_max(
+                        egui::pos2(min.x + left, min.y + top),
+                        egui::pos2(rect.max.x - right, rect.max.y - bottom_inset),
+                    );
+                    painter.egui_painter().add(frame.paint(content));
+                }
+                (None, Some(panel)) => painter.nine_slice(rect, panel, Color::new(1.0, 1.0, 1.0, alpha)),
+                (None, None) => painter.rect_filled(rect, faded(look.background, alpha), 6.0),
             }
-            painter.text_scaled(min + Vec2::new(left, top), faded(look.text_color, alpha), look.font_scale, &toast.text);
+            painter.text_scaled(min + Vec2::new(left, top), faded(text_color, alpha), look.font_scale, &toast.text);
 
             bottom = min.y - SPACING;
         }

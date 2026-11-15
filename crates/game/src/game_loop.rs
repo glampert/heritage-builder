@@ -976,7 +976,11 @@ impl GameLoop {
     fn menus_end_frame(&mut self, visible_range: CellRange) {
         let ui_end_timer = PerfTimer::begin();
         self.session.menus_end_frame(self.engine, visible_range);
-        self.log_viewer.draw(self.engine.ui_system()); // Over the menus, in every mode.
+        // Over the menus, in every mode, always in the developer UI's theme (in the realm's accent).
+        let ui_sys = self.engine.ui_system();
+        let previous_theme = ui_sys.swap_ui_theme(menu::skin::dev_theme(ui_sys));
+        self.log_viewer.draw(ui_sys);
+        ui_sys.swap_ui_theme(previous_theme);
         self.stats.ui_end_frame_time_ms = ui_end_timer.end();
     }
 

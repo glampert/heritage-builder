@@ -547,6 +547,7 @@ pub struct UiWindow<'a> {
     fit_on_screen: bool,
     item_spacing: Option<Vec2>,
     monospace: bool,
+    right_aligned: bool,
 }
 
 impl<'a> UiWindow<'a> {
@@ -570,6 +571,7 @@ impl<'a> UiWindow<'a> {
             fit_on_screen: false,
             item_spacing: None,
             monospace: false,
+            right_aligned: false,
         }
     }
 
@@ -595,6 +597,13 @@ impl<'a> UiWindow<'a> {
 
     pub fn position(mut self, position: Vec2, condition: UiCondition) -> Self {
         self.position = Some((position, condition));
+        self
+    }
+
+    // Its position is its top-right corner, so it keeps its right edge where it's put as its
+    // contents change its width: e.g. against the screen's right edge.
+    pub fn right_aligned(mut self) -> Self {
+        self.right_aligned = true;
         self
     }
 
@@ -681,6 +690,7 @@ pub fn window<R>(ui_sys: &UiSystem, window: UiWindow, contents: impl FnOnce(&UiS
         fit_on_screen,
         item_spacing,
         monospace,
+        right_aligned,
     } = window;
 
     if open.as_deref() == Some(&false) {
@@ -692,6 +702,9 @@ pub fn window<R>(ui_sys: &UiSystem, window: UiWindow, contents: impl FnOnce(&UiS
     let id = Id::unique(("ui_window", label_id(label)));
 
     let mut egui_window = egui::Window::new(title).id(id).title_bar(false).collapsible(false).constrain(false);
+    if right_aligned {
+        egui_window = egui_window.pivot(Align2::RIGHT_TOP);
+    }
 
     if let Some((position, condition)) = position {
         egui_window = match condition {
@@ -2396,6 +2409,12 @@ const HALO_DIRECTIONS: [(f32, f32); 8] = {
 };
 
 impl UiPainter {
+    // egui's painter, for shapes this one doesn't draw (toasts' window frames).
+    #[inline]
+    pub(super) fn egui_painter(&self) -> &egui::Painter {
+        &self.painter
+    }
+
     // A one point wide outline.
     pub fn rect(&self, rect: Rect, color: Color) {
         self.painter.rect_stroke(egui_rect(rect), 0.0, Stroke::new(1.0, color32(color)), StrokeKind::Inside);

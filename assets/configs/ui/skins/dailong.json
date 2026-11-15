@@ -1,5 +1,6 @@
 {
   "sprite_scale": 2.0,
+  "dev_accent": "#9a3f3a",
   "style": {
     "fonts": {
       "title": { "file": "protest_revolution_regular.ttf", "scale": 0.8333, "y_offset_factor": 0.0 },

@@ -1,4 +1,5 @@
 {
+  "dev_accent": "#c99a2e",
   "style": {
     "fonts": {
       "title": { "file": "amita_regular.ttf", "scale": 0.5149, "y_offset_factor": 0.0 },

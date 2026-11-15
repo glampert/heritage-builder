@@ -1,4 +1,5 @@
 {
+  "dev_accent": "#2f6b3a",
   "style": {
     "fonts": {
       "title": { "file": "jaini_regular.ttf", "scale": 0.761, "y_offset_factor": 0.0 },

@@ -570,10 +570,19 @@ fn test_every_sound_exists() {
     }
 }
 
-// Every style the game loads: the developer UI's (Source Code Pro) and each realm skin's.
+// Every style the game loads: the developer UI's (Source Code Pro), the same in each realm's
+// accent (every skin gives its `dev_accent`) and each realm skin's.
 fn test_game_styles_cover_vietnamese() {
     let sources = menu::ui_style_sources();
-    assert_eq!(sources.len(), 1 + Realm::iter().count(), "the developer UI's style and one per realm skin");
+    let names: Vec<&str> = sources.iter().map(|source| source.name()).collect();
+    assert_eq!(
+        sources.len(),
+        1 + 2 * Realm::iter().count(),
+        "the developer UI's style, it in each realm's accent and one per realm skin: {names:?}"
+    );
+    for realm in Realm::iter() {
+        assert!(names.contains(&skin::dev_theme_name(realm).as_str()), "no accented developer style for {realm}");
+    }
     for source in &sources {
         if let Err(err) = source.validate() {
             panic!("{err}");

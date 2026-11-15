@@ -82,12 +82,8 @@ impl TilePaletteDevMenu {
         let tiles_per_row = 2;
         let spacing_between_tiles = 4.0;
 
-        let window_width = (BASE_TILE_WIDTH_F32 + spacing_between_tiles) * tiles_per_row as f32;
-        let window_margin = 26.0; // pixels from the right edge
-
-        // X position = screen width - estimated window width - margin
-        // Y position = 20px
-        let window_position = Vec2::new(ui::screen_size(ui_sys).x - window_width - window_margin, 20.0);
+        // Its top-right corner against the screen's right edge, under the menu bar.
+        let window_position = Vec2::new(ui::screen_size(ui_sys).x, 20.0);
 
         // UI automation: ui.set on the palette selects a tile by its button label or its
         // tile name ("Small Well" or "small_well"), "Clear", or nothing ("").
@@ -99,6 +95,7 @@ impl TilePaletteDevMenu {
             .no_resize()
             .collapsed(!self.start_open, UiCondition::FirstUse)
             .position(window_position, UiCondition::FirstUse)
+            .right_aligned()
             .item_spacing(Vec2::new(spacing_between_tiles, spacing_between_tiles));
 
         ui::window(ui_sys, window, |ui_sys| {

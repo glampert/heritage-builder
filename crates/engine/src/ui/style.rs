@@ -4,7 +4,11 @@
 // which names its theme (UiThemeId); the first must be "dev", the developer UI's. A style names its
 // own fonts, files under assets/fonts/, and gives each text style (body, heading, ...) a font and a
 // size. Every field has a default, so a style only needs the ones it changes; unknown fields are
-// errors.
+// errors. A style's `look` is "custom" (its own colors, widgets, spacing and frames) or "egui"
+// (egui's own dark style, which the developer UI uses); its `accent` replaces egui's blue
+// (selection, links, the text cursor). An accented style (UiStyleSource::accented) is another
+// style with another accent, under a name of its own, sharing that style's fonts: the developer
+// UI's once per realm.
 //
 // egui has one set of fonts per context, so every style's fonts go into one FontDefinitions, under
 // names prefixed with the style's ("dev/mono"), and each text style becomes a font family
@@ -18,6 +22,7 @@ use std::{
     sync::Arc,
 };
 
+use common::Color;
 use egui::{
     Color32,
     CornerRadius,
@@ -33,7 +38,7 @@ use egui::{
 };
 use serde::Deserialize;
 
-use super::icons;
+use super::{icons, immediate::color32};
 use crate::{
     config,
     file_sys::{self, paths::PathRef},
@@ -76,6 +81,7 @@ pub struct UiStyleSource {
 enum UiStyleData {
     File(String),            // Relative to assets/configs/, read again by UiSystem::reload_styles.
     Json(serde_json::Value), // Kept as given.
+    Accented { base: String, accent: Color32 },
 }
 
 impl UiStyleSource {
@@ -87,6 +93,13 @@ impl UiStyleSource {
     // A style as JSON, e.g. a skin's style block merged over another's.
     pub fn json(name: impl Into<String>, json: serde_json::Value) -> Self {
         Self { name: name.into(), data: UiStyleData::Json(json) }
+    }
+
+    // The style loaded before it under `base`, its accent replaced by `accent` (UiStyleDef's
+    // `accent`): a theme of its own that shares the base's fonts, e.g. the developer UI's in a
+    // realm's colour. It follows its base, reloaded with it, and scales its text as it does.
+    pub fn accented(name: impl Into<String>, base: impl Into<String>, accent: Color) -> Self {
+        Self { name: name.into(), data: UiStyleData::Accented { base: base.into(), accent: color32(accent) } }
     }
 
     // A style as JSON text.
@@ -104,7 +117,11 @@ impl UiStyleSource {
 
     // Reads and checks the style, without loading its fonts: an unknown field, a text style
     // without a size or with a font the style doesn't name, and so on.
+    // An accented style has nothing of its own to check: its base is checked as it loads.
     pub fn validate(&self) -> Result<(), String> {
+        if let UiStyleData::Accented { .. } = &self.data {
+            return Ok(());
+        }
         self.read_def()?.check().map_err(|err| self.error(&err))
     }
 
@@ -117,6 +134,7 @@ impl UiStyleSource {
                 UiStyleDef::from_json_str(&json).map_err(|err| self.error(&err))
             }
             UiStyleData::Json(json) => UiStyleDef::from_json_value(json).map_err(|err| self.error(&err)),
+            UiStyleData::Accented { .. } => Err(self.error("An accented style has no style of its own.")),
         }
     }
 
@@ -124,6 +142,7 @@ impl UiStyleSource {
         match &self.data {
             UiStyleData::File(path) => format!("UI style '{}' ({path}): {err}", self.name),
             UiStyleData::Json(_) => format!("UI style '{}': {err}", self.name),
+            UiStyleData::Accented { base, .. } => format!("UI style '{}' (accented '{base}'): {err}", self.name),
         }
     }
 }
@@ -133,15 +152,27 @@ impl UiStyleSource {
 // ----------------------------------------------
 
 // A loaded style, ready for egui.
+#[derive(Clone)]
 pub(super) struct UiStyle {
     pub egui: Arc<egui::Style>,
     pub icon_font: FontId,
     pub modal_backdrop: Color32,
     base_egui: Arc<egui::Style>, // As loaded, before a text scale.
     base_icon_font: FontId,
+    scales_text: bool, // By UiStyles::set_text_scale: every style's but the developer UI's.
 }
 
 impl UiStyle {
+    // The same style with egui's blue (or its own accent) replaced by `accent`.
+    fn accented(&self, accent: Color32) -> Self {
+        let accent_style = |style: &Arc<egui::Style>| {
+            let mut style = (**style).clone();
+            apply_accent(&mut style.visuals, accent);
+            Arc::new(style)
+        };
+        Self { egui: accent_style(&self.egui), base_egui: accent_style(&self.base_egui), ..self.clone() }
+    }
+
     // Its text styles' (and icon font's) sizes `scale` times those it was loaded with.
     pub fn set_text_scale(&mut self, scale: f32) {
         let mut egui = (*self.base_egui).clone();
@@ -188,8 +219,18 @@ impl UiStyles {
                 return Err(format!("Two UI styles are named '{name}'."));
             }
 
+            if let UiStyleData::Accented { base, accent } = &source.data {
+                let Some((_, base_style)) = styles.iter().find(|(other, _): &&(String, UiStyle)| other == base) else {
+                    return Err(source.error(&format!("No style '{base}' is loaded before it.")));
+                };
+                let style = base_style.accented(*accent);
+                styles.push((name.to_string(), style));
+                continue;
+            }
+
             let def = source.read_def()?;
-            let style = def.build(name, &mut fonts, &mut font_files).map_err(|err| source.error(&err))?;
+            let mut style = def.build(name, &mut fonts, &mut font_files).map_err(|err| source.error(&err))?;
+            style.scales_text = name != DEV_UI_THEME;
             styles.push((name.to_string(), style));
         }
 
@@ -210,10 +251,10 @@ impl UiStyles {
         style
     }
 
-    // Scales every theme's text but the developer UI's (set_text_scale).
+    // Scales every theme's text but the developer UI's (its accented ones included).
     pub fn set_text_scale(&mut self, scale: f32) {
-        for (name, style) in &mut self.styles {
-            if name != DEV_UI_THEME {
+        for (_, style) in &mut self.styles {
+            if style.scales_text {
                 style.set_text_scale(scale);
             }
         }
@@ -287,6 +328,10 @@ pub fn check_glyph_coverage(sources: &[UiStyleSource], texts: &[&str], icons: &[
     let mut errors = Vec::new();
 
     for (name, style) in &styles.styles {
+        // An accented style draws with its base's fonts, checked with its base.
+        if !styles.fonts.families.contains_key(&family(name, "body")) {
+            continue;
+        }
         let primary_font = |text_style: &str| styles.fonts.families[&family(name, text_style)][0].clone();
         let symbol_fonts = [primary_font("monospace"), primary_font("icon")];
 
@@ -346,6 +391,10 @@ pub fn check_glyph_coverage(sources: &[UiStyleSource], texts: &[&str], icons: &[
 struct UiStyleDef {
     fonts: BTreeMap<String, UiFontDef>, // By name, for text_styles to refer to.
     text_styles: UiTextStylesDef,
+    look: UiStyleLook,
+    accent: Option<UiColor>, // Replaces egui's blue: see apply_accent.
+
+    // A custom look's (an egui look takes egui's and refuses them):
     colors: UiColorsDef,
     widgets: UiWidgetsDef,
     spacing: UiSpacingDef,
@@ -365,6 +414,8 @@ impl Default for UiStyleDef {
         Self {
             fonts: BTreeMap::new(),
             text_styles: UiTextStylesDef::default(),
+            look: UiStyleLook::Custom,
+            accent: None,
             colors: UiColorsDef::default(),
             widgets: UiWidgetsDef::default(),
             spacing: UiSpacingDef::default(),
@@ -377,6 +428,21 @@ impl Default for UiStyleDef {
         }
     }
 }
+
+// Where a style's colors, widget visuals, spacing and frames come from.
+#[derive(Copy, Clone, PartialEq, Eq, Debug, Deserialize)]
+#[serde(rename_all = "lowercase")]
+enum UiStyleLook {
+    // Its own `colors`, `widgets`, `spacing`, `window` and `popup`, each field defaulting to
+    // egui's dark style's or ours, and the frames flat (no shadows): the realm skins'.
+    Custom,
+    // egui's dark style as it comes, its shadows, corners, scroll bars and decorations included:
+    // the developer UI's. A style with this look may not give those blocks.
+    Egui,
+}
+
+// The blocks only a custom look takes.
+const CUSTOM_LOOK_BLOCKS: [&str; 5] = ["colors", "widgets", "spacing", "window", "popup"];
 
 #[derive(Deserialize)]
 #[serde(default, deny_unknown_fields)]
@@ -586,11 +652,18 @@ struct UiPopupDef {
 
 impl UiStyleDef {
     fn from_json_str(text: &str) -> Result<Self, String> {
-        serde_json::from_str(text).map_err(|err| format!("Invalid UI style: {err}"))
+        let json: serde_json::Value = serde_json::from_str(text).map_err(|err| format!("Invalid UI style: {err}"))?;
+        Self::from_json_value(&json)
     }
 
     fn from_json_value(json: &serde_json::Value) -> Result<Self, String> {
-        Self::deserialize(json).map_err(|err| format!("Invalid UI style: {err}"))
+        let def = Self::deserialize(json).map_err(|err| format!("Invalid UI style: {err}"))?;
+        if def.look == UiStyleLook::Egui
+            && let Some(block) = CUSTOM_LOOK_BLOCKS.iter().find(|block| json.get(**block).is_some())
+        {
+            return Err(format!("Invalid UI style: '{block}' is a custom look's, and it has egui's."));
+        }
+        Ok(def)
     }
 
     // The six text styles by their names in the JSON, with their egui text styles.
@@ -665,20 +738,47 @@ impl UiStyleDef {
         let modal_backdrop = self.colors.modal_backdrop.0;
 
         let egui = Arc::new(self.to_egui(font_ids));
-        Ok(UiStyle { base_egui: egui.clone(), base_icon_font: icon_font.clone(), egui, icon_font, modal_backdrop })
+        Ok(UiStyle {
+            base_egui: egui.clone(),
+            base_icon_font: icon_font.clone(),
+            egui,
+            icon_font,
+            modal_backdrop,
+            scales_text: true,
+        })
     }
 
     fn to_egui(&self, text_styles: BTreeMap<TextStyle, FontId>) -> egui::Style {
-        let colors = &self.colors;
-        let spacing = &self.spacing;
-
         let mut style = egui::Style { text_styles, animation_time: self.animation_time, ..Default::default() };
+        style.visuals = egui::Visuals::dark();
 
         // Text doesn't wrap unless a widget asks for it, and windows grow to fit it.
         style.wrap_mode = Some(egui::TextWrapMode::Extend);
 
+        if self.look == UiStyleLook::Custom {
+            self.apply_custom_look(&mut style);
+        }
+        if let Some(accent) = self.accent {
+            apply_accent(&mut style.visuals, accent.0);
+        }
+
+        style.interaction.tooltip_delay = self.tooltip_delay;
+        style.interaction.resize_grab_radius_side = self.resize_grab_radius_side;
+        style.interaction.resize_grab_radius_corner = self.resize_grab_radius_corner;
+        style.interaction.show_tooltips_only_when_still = false;
+        style.interaction.selectable_labels = false; // Labels don't take clicks, as in the game's UI so far.
+        style.explanation_tooltips = false;
+        style.url_in_tooltip = false;
+
+        style
+    }
+
+    // The colors, widgets, spacing and frames of a custom look, over egui's dark style.
+    fn apply_custom_look(&self, style: &mut egui::Style) {
+        let colors = &self.colors;
+        let spacing = &self.spacing;
+
         let visuals = &mut style.visuals;
-        *visuals = egui::Visuals::dark();
         visuals.override_text_color = Some(colors.text.0);
         visuals.weak_text_color = Some(colors.text_disabled.0);
         visuals.widgets.noninteractive = self.widgets.noninteractive.to_egui();
@@ -725,17 +825,44 @@ impl UiStyleDef {
         egui_spacing.text_edit_width = spacing.text_edit_width;
         egui_spacing.scroll =
             egui::style::ScrollStyle { bar_width: spacing.scroll_bar_width, ..egui::style::ScrollStyle::solid() };
-
-        style.interaction.tooltip_delay = self.tooltip_delay;
-        style.interaction.resize_grab_radius_side = self.resize_grab_radius_side;
-        style.interaction.resize_grab_radius_corner = self.resize_grab_radius_corner;
-        style.interaction.show_tooltips_only_when_still = false;
-        style.interaction.selectable_labels = false; // Labels don't take clicks, as in the game's UI so far.
-        style.explanation_tooltips = false;
-        style.url_in_tooltip = false;
-
-        style
     }
+}
+
+// Puts `accent` where egui's dark style has its blue: the fill of selected widgets, selected text
+// and a slider's trailing fill (the accent itself), the text on it (a light or dark shade of it,
+// whichever reads better), links (a lighter shade) and the text cursor and IME underlines (a light
+// shade). egui's other widget colours are greys.
+fn apply_accent(visuals: &mut egui::Visuals, accent: Color32) {
+    let accent = Color32::from_rgb(accent.r(), accent.g(), accent.b());
+    let light = mix(accent, Color32::WHITE, 0.75);
+    let dark = mix(accent, Color32::BLACK, 0.85);
+    let on_accent = if contrast(light, accent) >= contrast(dark, accent) { light } else { dark };
+
+    visuals.selection.bg_fill = accent;
+    visuals.selection.stroke.color = on_accent;
+    visuals.hyperlink_color = mix(accent, Color32::WHITE, 0.45);
+    visuals.text_cursor.stroke.color = light;
+    visuals.ime_composition.active_underline_stroke.color = light;
+    visuals.ime_composition.inactive_underline_stroke.color = light.linear_multiply(0.5);
+}
+
+// `from` moved `amount` (0 to 1) of the way to `to`, in sRGB.
+fn mix(from: Color32, to: Color32, amount: f32) -> Color32 {
+    let channel = |a: u8, b: u8| (f32::from(a) + (f32::from(b) - f32::from(a)) * amount).round() as u8;
+    Color32::from_rgb(channel(from.r(), to.r()), channel(from.g(), to.g()), channel(from.b(), to.b()))
+}
+
+// WCAG's contrast ratio of two opaque colours, 1 to 21.
+fn contrast(a: Color32, b: Color32) -> f32 {
+    let luminance = |color: Color32| {
+        let linear = |channel: u8| {
+            let value = f32::from(channel) / 255.0;
+            if value <= 0.04045 { value / 12.92 } else { ((value + 0.055) / 1.055).powf(2.4) }
+        };
+        0.2126 * linear(color.r()) + 0.7152 * linear(color.g()) + 0.0722 * linear(color.b())
+    };
+    let (la, lb) = (luminance(a), luminance(b));
+    (la.max(lb) + 0.05) / (la.min(lb) + 0.05)
 }
 
 #[inline]
@@ -762,7 +889,7 @@ impl<'de> Deserialize<'de> for UiColor {
 
 // "#RRGGBB" or "#RRGGBBAA", parsed by the rich text's parser so the two can't disagree.
 fn parse_hex_color(text: &str) -> Option<Color32> {
-    super::widgets::parse_hex_color(text).map(super::immediate::color32)
+    super::widgets::parse_hex_color(text).map(color32)
 }
 
 // ----------------------------------------------
@@ -862,6 +989,83 @@ mod tests {
         assert!(styles.fonts.font_data.contains_key("kambara/mono"));
         assert!(styles.fonts.families.contains_key(&family("kambara", "body")));
         assert!(styles.fonts.families.contains_key(&FontFamily::Proportional));
+    }
+
+    #[test]
+    fn egui_look_keeps_eguis_style_and_refuses_custom_blocks() {
+        let mut json = style_json(14.0);
+        json.as_object_mut().unwrap().remove("colors");
+        json["look"] = serde_json::json!("egui");
+        let def = UiStyleDef::from_json_value(&json).unwrap();
+        let egui = def.to_egui(BTreeMap::new());
+        let dark = egui::Visuals::dark();
+        assert_eq!(egui.visuals.window_shadow, dark.window_shadow);
+        assert_eq!(egui.visuals.window_corner_radius, dark.window_corner_radius);
+        assert_eq!(egui.visuals.widgets.inactive.bg_fill, dark.widgets.inactive.bg_fill);
+        assert_eq!(egui.visuals.selection.bg_fill, dark.selection.bg_fill);
+        assert_eq!(egui.spacing.item_spacing, egui::style::Spacing::default().item_spacing);
+
+        // A custom look's blocks are errors, from a value as from a file.
+        for block in CUSTOM_LOOK_BLOCKS {
+            let mut json = json.clone();
+            json[block] = serde_json::json!({});
+            let error = UiStyleDef::from_json_value(&json).err().unwrap();
+            assert!(error.contains(&format!("'{block}'")), "{error}");
+            assert!(UiStyleDef::from_json_str(&json.to_string()).is_err());
+        }
+
+        // A custom look stays flat.
+        let egui = UiStyleDef::from_json_value(&style_json(14.0)).unwrap().to_egui(BTreeMap::new());
+        assert_eq!(egui.visuals.window_shadow, Shadow::NONE);
+    }
+
+    #[test]
+    fn accents_replace_eguis_blue() {
+        let red = Color32::from_rgb(0x9a, 0x3f, 0x3a);
+        let gold = Color32::from_rgb(0xc9, 0x9a, 0x2e);
+        let mut visuals = egui::Visuals::dark();
+        apply_accent(&mut visuals, red);
+        assert_eq!(visuals.selection.bg_fill, red);
+        assert!(visuals.selection.stroke.color.r() > 200); // Light text on a dark accent.
+        apply_accent(&mut visuals, gold);
+        assert_eq!(visuals.selection.bg_fill, gold);
+        assert!(visuals.selection.stroke.color.r() < 60); // Dark text on a bright one.
+        assert!(contrast(visuals.selection.stroke.color, gold) > 4.5);
+
+        // An accented style shares its base's fonts, and scales its text as its base does.
+        let mut json = style_json(14.0);
+        json["accent"] = serde_json::json!("#2F6B3A");
+        let mut styles = UiStyles::load(&[
+            UiStyleSource::json(DEV_UI_THEME, style_json(14.0)),
+            UiStyleSource::accented("dev_dailong", DEV_UI_THEME, Color::new(0.6, 0.25, 0.23, 1.0)),
+            UiStyleSource::json("kambara", json),
+            UiStyleSource::accented("kambara_red", "kambara", Color::new(0.6, 0.25, 0.23, 1.0)),
+        ])
+        .unwrap();
+        let theme = |name: &str| styles.find(name).unwrap();
+        let fill = |styles: &UiStyles, name: &str| styles.style(styles.find(name).unwrap()).egui.visuals.selection.bg_fill;
+        assert_eq!(fill(&styles, "dev"), egui::Visuals::dark().selection.bg_fill);
+        assert_eq!(fill(&styles, "dev_dailong"), Color32::from_rgb(153, 64, 59));
+        assert_eq!(fill(&styles, "kambara"), Color32::from_rgb(0x2f, 0x6b, 0x3a));
+        assert_eq!(fill(&styles, "kambara_red"), Color32::from_rgb(153, 64, 59));
+        assert!(!styles.fonts.font_data.keys().any(|font| font.starts_with("dev_dailong/")));
+
+        let (dev, dev_dailong, kambara_red) = (theme("dev"), theme("dev_dailong"), theme("kambara_red"));
+        styles.set_text_scale(2.0);
+        assert_eq!(styles.style(dev).font(&TextStyle::Body).size, 14.0);
+        assert_eq!(styles.style(dev_dailong).font(&TextStyle::Body).size, 14.0);
+        assert_eq!(styles.style(kambara_red).font(&TextStyle::Body).size, 28.0);
+        assert_eq!(styles.style(dev_dailong).egui.visuals.selection.bg_fill, Color32::from_rgb(153, 64, 59));
+
+        // Its base must be loaded before it.
+        let error = UiStyles::load(&[
+            UiStyleSource::json(DEV_UI_THEME, style_json(14.0)),
+            UiStyleSource::accented("early", "late", Color::new(1.0, 0.0, 0.0, 1.0)),
+            UiStyleSource::json("late", style_json(14.0)),
+        ])
+        .err()
+        .unwrap();
+        assert!(error.contains("No style 'late' is loaded before it."), "{error}");
     }
 
     // A style whose text styles but `monospace` and `icon` draw with `font` (a file under

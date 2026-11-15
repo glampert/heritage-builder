@@ -79,6 +79,12 @@ pub fn theme_name(realm: Realm) -> String {
     realm.to_string()
 }
 
+// The developer UI's theme in a realm's colour (the skin's `dev_accent`): its style accented,
+// loaded as "dev_<realm>".
+pub fn dev_theme_name(realm: Realm) -> String {
+    format!("{DEV_UI_THEME}_{realm}")
+}
+
 // ----------------------------------------------
 // Skin definition (the JSON)
 // ----------------------------------------------
@@ -88,6 +94,9 @@ pub fn theme_name(realm: Realm) -> String {
 pub struct UiSkinDef {
     pub sprite_scale: f32, // Pixels per point of the skin's art (2: drawn at 2×).
     pub style: Value,      // A UiStyleDef, checked by the engine when loaded.
+    // The developer UI's accent while this skin shows, in place of egui's blue (dev_theme): the
+    // realm's key colour, so the editor tells which skin is on.
+    pub dev_accent: Option<HexColor>,
     pub text: BTreeMap<String, HexColor>,
     pub headings: BTreeMap<String, SkinHeadingDef>,
     pub panels: BTreeMap<String, SkinPanelDef>,
@@ -119,6 +128,7 @@ impl Default for UiSkinDef {
         Self {
             sprite_scale: 2.0,
             style: Value::Object(Default::default()),
+            dev_accent: None,
             text: BTreeMap::new(),
             headings: BTreeMap::new(),
             panels: BTreeMap::new(),
@@ -1354,9 +1364,15 @@ pub fn check_required(skin: &UiSkinDef) -> Result<(), String> {
     Ok(())
 }
 
-// The UI styles of `skins`: the developer UI's first (its file), then each realm skin's style.
+// The UI styles of `skins`: the developer UI's first (its file), then the developer UI's in each
+// realm's accent (dev_theme_name), then each realm skin's style.
 fn style_sources_of(skins: &[UiSkinDef]) -> Vec<UiStyleSource> {
     let mut sources = vec![UiStyleSource::file(DEV_UI_THEME, DEV_STYLE_FILE)];
+    for (realm, skin) in Realm::iter().zip(skins) {
+        if let Some(accent) = skin.dev_accent {
+            sources.push(UiStyleSource::accented(dev_theme_name(realm), DEV_UI_THEME, accent.color()));
+        }
+    }
     for (realm, skin) in Realm::iter().zip(skins) {
         sources.push(UiStyleSource::json(theme_name(realm), skin.style.clone()));
     }
@@ -1390,8 +1406,8 @@ struct SkinState {
     loaded: bool,
     skins: Vec<UiSkinDef>, // By Realm, merged over Đại Long's, as read at boot (or reloaded).
     current: Realm,
-    version: u32,               // Goes up whenever the current skin changes (realm switch or reload).
-    toast_version: Option<u32>, // The version the toasts' look was set for (follow).
+    version: u32,                       // Goes up whenever the current skin changes (realm switch or reload).
+    toast_version: Option<(u32, bool)>, // The version the toasts' look was set for, and if the editor's (follow).
 }
 
 impl SkinState {
@@ -1479,6 +1495,16 @@ pub fn is_loaded() -> bool {
 // rebuild with. Retail menus call it as they're built and at the start of every frame, with
 // realm::ui_realm_for() of their menus mode; apply_theme() switches the UI theme.
 pub fn follow(context: &mut GameUiContext, realm: Realm) {
+    follow_in(context, realm, false);
+}
+
+// follow for the developer editor: the toasts take the developer UI's look (egui's window, in
+// the realm's accent: dev_toast_look) instead of the skin's.
+pub fn follow_in_dev_editor(context: &mut GameUiContext, realm: Realm) {
+    follow_in(context, realm, true);
+}
+
+fn follow_in(context: &mut GameUiContext, realm: Realm, dev_editor: bool) {
     let state = SkinState::get_mut();
     if !state.loaded {
         return;
@@ -1492,9 +1518,9 @@ pub fn follow(context: &mut GameUiContext, realm: Realm) {
     }
 
     // The toasts are the engine's, drawn whatever the menus: they take the skin shown.
-    if state.toast_version != Some(state.version) {
-        state.toast_version = Some(state.version);
-        let look = toast_look(context);
+    if state.toast_version != Some((state.version, dev_editor)) {
+        state.toast_version = Some((state.version, dev_editor));
+        let look = if dev_editor { dev_toast_look(context.ui_sys) } else { toast_look(context) };
         context.ui_sys.set_toast_look(look);
     }
 }
@@ -1502,6 +1528,11 @@ pub fn follow(context: &mut GameUiContext, realm: Realm) {
 // The current skin's theme: its realm's style.
 pub fn theme(ui_sys: &UiSystem) -> UiThemeId {
     ui_sys.theme_id(&theme_name(current_realm())).unwrap_or(UiThemeId::DEV)
+}
+
+// The developer UI's theme in the current skin's accent; the plain one without an accent.
+pub fn dev_theme(ui_sys: &UiSystem) -> UiThemeId {
+    ui_sys.theme_id(&dev_theme_name(current_realm())).unwrap_or(UiThemeId::DEV)
 }
 
 // Switches the UI to the current skin's theme (cheap when it's already on).
@@ -2065,6 +2096,11 @@ pub fn tooltip_beside(context: &mut dyn UiWidgetContext, text: impl Into<UiStrin
 
 // The toasts' look in the current skin (its `toast` block): its panel at its scale, the text's
 // insets and colour. Set by follow() whenever the skin changes.
+// The developer editor's toasts: egui windows in the developer UI's theme for the current realm.
+pub fn dev_toast_look(ui_sys: &UiSystem) -> UiToastLook {
+    UiToastLook { theme: Some(dev_theme(ui_sys)), window_frame: true, ..UiToastLook::default() }
+}
+
 pub fn toast_look(context: &mut dyn UiWidgetContext) -> UiToastLook {
     let def = current().toast.clone();
     let scale = if def.scale > 0.0 { def.scale } else { 1.0 };
