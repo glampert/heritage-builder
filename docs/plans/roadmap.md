@@ -198,7 +198,7 @@ GDD 5.12 and 5.14:
 - **Message log:** a typed message system with priorities, a log panel, and a popup for important events (floods, fires, requests, blessings, goals).
 - **Advisor screens:** labour, food, finance (M4) and ratings (M9), at a basic level.
 - **Pause work:** the inspector's Pause work button (realm-ui Phase 8 adds it, disabled with a tooltip) stops a workplace and frees its workers: a flag saved on the building (a save-version bump). Hook the button up here, and give the inspector's workers note the sector's labour priority ("2 short · Industry is priority 2").
-- **Storage orders:** the inspector's Get and Empty orders on a storage yard's or granary's goods (realm-ui Phase 8 adds them, disabled): Get sends its runners to fetch a good from other stores and producers, Empty to carry it out to other stores, saved per building. Accepting and refusing a good comes with Phase 8 itself.
+- **Storage orders:** the inspector's Get and Empty orders on a storage yard's or granary's goods (realm-ui Phase 8 adds them, disabled): Get sends its runners to fetch a good from other stores and producers; Empty takes in no more of the good and sends its runners to carry out what it holds to other stores. Saved per building. Accepting and refusing a good comes with Phase 8 itself.
 - **Automation:** `messages.list` for scenarios.
 
 ### M12: Story presentation v1 (small to medium)
