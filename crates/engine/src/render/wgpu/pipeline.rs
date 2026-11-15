@@ -1,3 +1,5 @@
+use smallvec::SmallVec;
+
 use super::vertex;
 
 // ----------------------------------------------
@@ -53,9 +55,11 @@ fn create_pipeline_layout(
     label: &str,
     bind_group_layouts: &[&wgpu::BindGroupLayout],
 ) -> wgpu::PipelineLayout {
+    let bind_group_layouts: SmallVec<[Option<&wgpu::BindGroupLayout>; 4]> =
+        bind_group_layouts.iter().map(|layout| Some(*layout)).collect();
     device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
         label: Some(label),
-        bind_group_layouts,
+        bind_group_layouts: &bind_group_layouts,
         immediate_size: 0,
     })
 }
@@ -115,7 +119,7 @@ pub fn create_sprites_pipeline(
         vertex: wgpu::VertexState {
             module: &shader,
             entry_point: Some("vs_main"),
-            buffers: &[vertex::SpriteVertex2D::LAYOUT],
+            buffers: &[Some(vertex::SpriteVertex2D::LAYOUT)],
             compilation_options: Default::default(),
         },
         fragment: Some(wgpu::FragmentState {
@@ -166,7 +170,7 @@ pub fn create_lines_pipeline(
         vertex: wgpu::VertexState {
             module: &shader,
             entry_point: Some("vs_main"),
-            buffers: &[vertex::LineVertex2D::LAYOUT],
+            buffers: &[Some(vertex::LineVertex2D::LAYOUT)],
             compilation_options: Default::default(),
         },
         fragment: Some(wgpu::FragmentState {
@@ -211,7 +215,7 @@ pub fn create_points_pipeline(
         vertex: wgpu::VertexState {
             module: &shader,
             entry_point: Some("vs_main"),
-            buffers: &[vertex::PointVertex2D::LAYOUT],
+            buffers: &[Some(vertex::PointVertex2D::LAYOUT)],
             compilation_options: Default::default(),
         },
         fragment: Some(wgpu::FragmentState {
@@ -255,7 +259,7 @@ pub fn create_ui_pipeline(
         vertex: wgpu::VertexState {
             module: &shader,
             entry_point: Some("vs_main"),
-            buffers: &[vertex::UI_VERTEX_LAYOUT],
+            buffers: &[Some(vertex::UI_VERTEX_LAYOUT)],
             compilation_options: Default::default(),
         },
         fragment: Some(wgpu::FragmentState {

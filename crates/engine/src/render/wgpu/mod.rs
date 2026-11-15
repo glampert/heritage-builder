@@ -87,6 +87,29 @@ struct WgpuSystemState {
 }
 
 impl WgpuSystemState {
+    // This frame's surface texture, the surface configured again first if it's outdated or lost;
+    // None if there's none to draw to this frame.
+    fn acquire_surface_texture(&mut self) -> Option<wgpu::SurfaceTexture> {
+        let current = match self.surface.get_current_texture() {
+            wgpu::CurrentSurfaceTexture::Outdated | wgpu::CurrentSurfaceTexture::Lost => {
+                self.reconfigure_surface();
+                self.surface.get_current_texture()
+            }
+            current => current,
+        };
+        match current {
+            wgpu::CurrentSurfaceTexture::Success(texture) | wgpu::CurrentSurfaceTexture::Suboptimal(texture) => {
+                Some(texture)
+            }
+            wgpu::CurrentSurfaceTexture::Timeout | wgpu::CurrentSurfaceTexture::Occluded => None,
+            wgpu::CurrentSurfaceTexture::Outdated | wgpu::CurrentSurfaceTexture::Lost => {
+                log::error!(log::channel!("render"), "Wgpu surface still unusable after reconfiguring: skipping a frame.");
+                None
+            }
+            wgpu::CurrentSurfaceTexture::Validation => panic!("Failed to acquire the Wgpu surface texture!"),
+        }
+    }
+
     fn reconfigure_surface(&mut self) {
         self.surface_config.width = self.framebuffer_size.width as u32;
         self.surface_config.height = self.framebuffer_size.height as u32;
@@ -316,7 +339,13 @@ impl CaptureReadback {
             Some(Ok(())) => {
                 let row_bytes = self.size.width as usize * 4;
                 let mut pixels = {
-                    let mapped = self.buffer.slice(..).get_mapped_range();
+                    let mapped = match self.buffer.slice(..).get_mapped_range() {
+                        Ok(mapped) => mapped,
+                        Err(err) => {
+                            self.buffer.unmap();
+                            return Some(Err(format!("Failed to read the Wgpu capture buffer: {err}")));
+                        }
+                    };
                     capture::remove_row_padding(&mapped, row_bytes, self.padded_row_bytes, self.size.height as usize)
                 };
                 self.buffer.unmap();
@@ -385,8 +414,11 @@ impl WgpuRenderSystemBackend {
             .expect("app_context must be Arc<winit::window::Window>!")
             .clone();
 
-        let instance =
-            wgpu::Instance::new(&wgpu::InstanceDescriptor { backends: wgpu::Backends::all(), ..Default::default() });
+        // The window is its display's handle too, which GL needs on Wayland.
+        let instance = wgpu::Instance::new(wgpu::InstanceDescriptor {
+            backends: wgpu::Backends::all(),
+            ..wgpu::InstanceDescriptor::new_with_display_handle(Box::new(window.clone()))
+        });
 
         let surface = instance.create_surface(wgpu::SurfaceTarget::from(window)).expect("Failed to create Wgpu surface!");
 
@@ -394,6 +426,7 @@ impl WgpuRenderSystemBackend {
             power_preference: wgpu::PowerPreference::HighPerformance,
             compatible_surface: Some(&surface),
             force_fallback_adapter: false,
+            apply_limit_buckets: false,
         }))
         .expect("Failed to find a suitable GPU adapter!");
 
@@ -431,6 +464,7 @@ impl WgpuRenderSystemBackend {
             alpha_mode: surface_caps.alpha_modes[0],
             view_formats: vec![],
             desired_maximum_frame_latency: 2,
+            color_space: wgpu::SurfaceColorSpace::Auto,
         };
         surface.configure(&device, &surface_config);
 
@@ -622,14 +656,15 @@ impl RenderSystemBackend for WgpuRenderSystemBackend {
         s.points_gpu.upload(&s.device, &s.queue, s.points_batch.vertices(), s.points_batch.indices());
         s.ui_gpu.upload(&s.device, &s.queue, ui_draw_data.vertices(), ui_draw_data.indices());
 
-        // Acquire surface texture.
-        let output = match s.surface.get_current_texture() {
-            Ok(tex) => tex,
-            Err(wgpu::SurfaceError::Lost | wgpu::SurfaceError::Outdated) => {
-                s.reconfigure_surface();
-                s.surface.get_current_texture().expect("Failed to acquire surface texture after reconfigure!")
-            }
-            Err(e) => panic!("Failed to acquire surface texture: {e:?}"),
+        // Acquire surface texture. Without one (the window hidden, or a timeout) the frame is
+        // skipped: nothing is drawn, and pending captures wait for the next frame.
+        let Some(output) = s.acquire_surface_texture() else {
+            s.sprites_batch.clear();
+            s.lines_batch.clear();
+            s.points_batch.clear();
+            s.frame_started = false;
+            s.stats.render_submit_time_ms = render_submit_timer.end();
+            return s.stats;
         };
         let surface_view = output.texture.create_view(&wgpu::TextureViewDescriptor::default());
 
@@ -718,7 +753,7 @@ impl RenderSystemBackend for WgpuRenderSystemBackend {
 
         // Submit and present.
         s.queue.submit(std::iter::once(encoder.finish()));
-        output.present();
+        s.queue.present(output);
 
         // Buffers can be mapped only once the copies into them are submitted.
         for readback in readbacks {

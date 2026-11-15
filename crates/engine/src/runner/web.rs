@@ -270,9 +270,10 @@ impl<GameLoop: RunLoop + 'static> WebEventHandler<GameLoop> {
         wasm_bindgen_futures::spawn_local(async move {
             log::info!(log::channel!("runner"), "Web Runner: Starting async Wgpu init...");
 
-            let instance = wgpu::Instance::new(&wgpu::InstanceDescriptor {
+            // A canvas needs no display handle.
+            let instance = wgpu::Instance::new(wgpu::InstanceDescriptor {
                 backends: wgpu::Backends::BROWSER_WEBGPU | wgpu::Backends::GL,
-                ..Default::default()
+                ..wgpu::InstanceDescriptor::new_without_display_handle()
             });
 
             let surface =
@@ -283,6 +284,7 @@ impl<GameLoop: RunLoop + 'static> WebEventHandler<GameLoop> {
                     power_preference: wgpu::PowerPreference::HighPerformance,
                     compatible_surface: Some(&surface),
                     force_fallback_adapter: false,
+                    apply_limit_buckets: false,
                 })
                 .await
                 .expect("Failed to find a suitable GPU adapter!");
@@ -334,6 +336,7 @@ impl<GameLoop: RunLoop + 'static> WebEventHandler<GameLoop> {
                 alpha_mode: surface_caps.alpha_modes[0],
                 view_formats: vec![],
                 desired_maximum_frame_latency: 2,
+                color_space: wgpu::SurfaceColorSpace::Auto,
             };
             surface.configure(&device, &surface_config);
 
