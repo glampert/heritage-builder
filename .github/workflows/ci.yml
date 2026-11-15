@@ -71,6 +71,29 @@ jobs:
         run: cargo test --workspace
 
   # ----------------------------------------------------------
+  # Rustfmt: the code must be formatted as rustfmt.toml says.
+  # ----------------------------------------------------------
+  rustfmt:
+    name: Rustfmt
+    runs-on: ubuntu-latest
+    env:
+      # rustfmt.toml uses nightly-only options. Pinned so a new nightly can't change the format;
+      # bump it together with a reformat (cargo +nightly-<date> fmt --all).
+      RUSTFMT_TOOLCHAIN: nightly-2026-03-18
+
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions-rust-lang/setup-rust-toolchain@v2
+        with:
+          toolchain: ${{ env.RUSTFMT_TOOLCHAIN }}
+          components: rustfmt
+          cache: false
+
+      - name: Check formatting
+        run: cargo +${{ env.RUSTFMT_TOOLCHAIN }} fmt --all --check
+
+  # ----------------------------------------------------------
   # Clippy: lint the desktop and web builds, warnings as errors.
   # ----------------------------------------------------------
   clippy:
