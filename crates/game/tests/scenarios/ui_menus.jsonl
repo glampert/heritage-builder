@@ -51,12 +51,15 @@
 {"method": "ui.hover", "params": {"path": "Home/Campaign"}}
 {"method": "screenshot", "params": {"path": "out/ui_menus/home_dailong_hover.png"}}
 # Load Game, Settings and About open their dialogs over the home menu; Escape closes them. Load
-# Game is the Load / Save dialog, which can't save from the home menu.
+# Game is the Load / Save dialog, titled Load Game there: it only loads, with no Save button nor
+# "Save as" field.
 {"method": "ui.click", "params": {"path": "Home/Load Game"}}
 {"method": "assert.eq", "params": {"query": "dialog.current", "path": "/current", "value": "LoadOrSaveGame"}}
 {"method": "wait.frames", "params": {"frames": 2}}
-{"method": "assert.eq", "params": {"query": "ui.tree", "args": {"filter": "LoadOrSaveGame/Save", "kind": "text_button"}, "path": "/widgets/0/enabled", "value": false}}
-{"method": "assert.eq", "params": {"query": "ui.tree", "args": {"filter": "LoadOrSaveGame/Save", "kind": "text_button"}, "path": "/widgets/0/tooltip", "value": "Start or load a game to save it."}}
+{"method": "assert.exists", "params": {"query": "ui.tree", "args": {"filter": "LoadOrSaveGame/Load Game", "kind": "heading"}, "path": "/widgets/0"}}
+{"method": "assert.eq", "params": {"query": "ui.tree", "args": {"filter": "LoadOrSaveGame/Save", "kind": "text_button"}, "path": "/widgets", "value": []}}
+{"method": "assert.eq", "params": {"query": "ui.tree", "args": {"filter": "LoadOrSaveGame/Save as", "kind": "text_input"}, "path": "/widgets", "value": []}}
+{"method": "assert.exists", "params": {"query": "ui.tree", "args": {"filter": "LoadOrSaveGame/Load", "kind": "text_button"}, "path": "/widgets/0"}}
 {"method": "assert.eq", "params": {"query": "ui.layout_issues", "path": "/count", "value": 0}}
 {"method": "input.key", "params": {"key": "Escape"}}
 {"method": "wait.frames", "params": {"frames": 2}}

@@ -484,7 +484,11 @@ impl LoadOrSaveGame {
         let scale = skin::dialog_scale(window);
         let text_scale = by_window(TEXT_SCALES, scale);
 
-        let title = skin::heading(context, [UiString::key(UiTextCategory::Menu, "load_save.title")], HeadingLevel::Dialog);
+        // Over the home menu there's no game to save: the dialog only loads, so it's titled Load
+        // Game and has no Save button nor "Save as" field (a row picked is the save it loads).
+        let loads_only = super::in_home_menu();
+        let title_key = if loads_only { "load_save.title_load" } else { "load_save.title" };
+        let title = skin::heading(context, [UiString::key(UiTextCategory::Menu, title_key)], HeadingLevel::Dialog);
         let flags = DialogFrame::from_skin(Self::KIND).menu_flags();
         let mut menu = skin::dialog(context, &Self::KIND.to_string(), flags).with_widget_spacing(Vec2::new(0.0, PART_SPACING * scale));
 
@@ -502,7 +506,8 @@ impl LoadOrSaveGame {
         let spacing = PART_SPACING * scale;
         let content = skin::dialog_content_size(&Self::KIND.to_string(), window);
         let columns_height = content.y - title.measure(context).y - buttons_row.measure(context).y - spacing * 2.0 - COLUMNS_SLACK * scale;
-        let list_height = columns_height - headers.measure(context).y - save_as.measure(context).y - field.measure(context).y - spacing * 3.0;
+        let field_height = if loads_only { 0.0 } else { save_as.measure(context).y + field.measure(context).y + spacing * 2.0 };
+        let list_height = columns_height - headers.measure(context).y - field_height - spacing;
         let list_height = list_height.floor().max(LIST_MIN_HEIGHT * scale);
 
         menu.add_widget(title);
@@ -511,8 +516,10 @@ impl LoadOrSaveGame {
         let mut left_group = UiWidgetGroup::new().with_widget_spacing(Vec2::new(0.0, spacing));
         left_group.add_widget(headers);
         let list = left_group.add_widget(save_list(context, scale, text_scale, list_height));
-        left_group.add_widget(save_as);
-        left_group.add_widget(field);
+        if !loads_only {
+            left_group.add_widget(save_as);
+            left_group.add_widget(field);
+        }
 
         // The preview column.
         let preview_width = (PREVIEW_WIDTH * scale).round();
@@ -585,7 +592,8 @@ impl LoadOrSaveGame {
         let entry = selected.map(|index| &state.saves[index]);
         let can_delete = entry.is_some();
         let can_load = entry.is_some_and(SaveEntry::loadable);
-        let can_save = !super::in_home_menu() && session::is_valid_save_name(state.field.trim());
+        let loads_only = super::in_home_menu();
+        let can_save = !loads_only && session::is_valid_save_name(state.field.trim());
 
         let buttons = menu.widget_as_mut::<UiColumns>(parts.buttons).unwrap();
         if let Some(delete) = buttons.column_mut(parts.delete_column).widgets_mut().first_mut() {
@@ -593,7 +601,8 @@ impl LoadOrSaveGame {
         }
         let actions = buttons.column_mut(parts.actions_column);
         if let Some((_, group)) = actions.find_widget_of_type_mut::<UiWidgetGroup>() {
-            for (button, enabled) in group.widgets_mut().iter_mut().zip([true, can_save, can_load]) {
+            let enabled = if loads_only { &[true, can_load][..] } else { &[true, can_save, can_load][..] };
+            for (button, &enabled) in group.widgets_mut().iter_mut().zip(enabled) {
                 enable_button(button, enabled);
             }
         }
@@ -769,20 +778,19 @@ fn buttons(context: &mut GameUiContext, scale: f32) -> ButtonsRow {
     let cancel = button(context, ButtonRole::Secondary, UiString::key(UiTextCategory::Menu, "button.cancel"), CANCEL_WIDTH, |context| {
         super::close_current(context);
     });
-    let mut save = button(context, save_role, UiString::key(UiTextCategory::Menu, "load_save.save"), SAVE_WIDTH, on_save);
-    if super::in_home_menu() {
-        save = save.with_tooltip(skin::tooltip(context, UiString::key(UiTextCategory::Menu, "load_save.no_game")));
-    }
+    // Over the home menu, no Save: there's no game to save (the dialog only loads).
+    let loads_only = super::in_home_menu();
     let load = button(context, load_role, UiString::key(UiTextCategory::Menu, "load_save.load"), LOAD_WIDTH, on_load);
 
     let spacing = (BUTTON_SPACING * scale).round();
-    let actions_width = ((CANCEL_WIDTH + SAVE_WIDTH + LOAD_WIDTH) * scale).round() + spacing * 2.0;
-    let actions = UiWidgetGroup::new()
-        .with_stack_vertically(false)
-        .with_widget_spacing(Vec2::new(spacing, 0.0))
-        .with_widget(cancel)
-        .with_widget(save)
-        .with_widget(load);
+    let mut actions = UiWidgetGroup::new().with_stack_vertically(false).with_widget_spacing(Vec2::new(spacing, 0.0)).with_widget(cancel);
+    let actions_width = if loads_only {
+        ((CANCEL_WIDTH + LOAD_WIDTH) * scale).round() + spacing
+    } else {
+        actions.add_widget(button(context, save_role, UiString::key(UiTextCategory::Menu, "load_save.save"), SAVE_WIDTH, on_save));
+        ((CANCEL_WIDTH + SAVE_WIDTH + LOAD_WIDTH) * scale).round() + spacing * 2.0
+    };
+    actions.add_widget(load);
 
     let mut columns = UiColumns::new().with_spacing(spacing);
     let delete = columns.add_column(UiColumnWidth::Fixed((DELETE_WIDTH * scale).round()), UiWidgetGroup::new().with_widget(delete));

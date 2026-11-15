@@ -294,35 +294,41 @@ impl SectorGrid {
         actions: &PaletteActions,
         column_x: f32,
         tile_y: f32,
+        column_scale: f32,
     ) -> Self {
         let panel = skin::panel(context, "hud_large");
         let insets = match &panel {
             SkinPanel::NineSlice { content, .. } => [content.left, content.top, content.right, content.bottom],
             SkinPanel::Sprite { .. } => [16.0; 4],
         };
-        // The buildings' tiles at the sector column's size: the large tile's art scaled down.
-        let scale = skin::hud_tile_size(HudTileKind::Sector).x / skin::hud_tile_size(HudTileKind::Large).x;
+        // The buildings' tiles at the sector column's size as built for this window (it's set
+        // smaller on a short window): the large tile's art scaled down. The gaps and the title
+        // follow it.
+        let scale = column_scale * skin::hud_tile_size(HudTileKind::Sector).x / skin::hud_tile_size(HudTileKind::Large).x;
         let tile = skin::hud_tile_size(HudTileKind::Large) * scale;
         let crest = skin::hud_tile_bleed(HudTileKind::Large)[1] * scale;
+        let gap = (GRID_GAP * column_scale).round();
+        let title_height = (GRID_TITLE_HEIGHT * column_scale).round();
         let columns = children.len().clamp(1, GRID_COLUMNS);
         let rows = children.len().div_ceil(GRID_COLUMNS).max(1);
-        let row_gap = GRID_GAP + crest;
+        let row_gap = gap + crest;
         let inner = Vec2::new(
-            columns as f32 * tile.x + (columns - 1) as f32 * GRID_GAP,
-            GRID_TITLE_HEIGHT + crest + rows as f32 * tile.y + (rows - 1) as f32 * row_gap,
+            columns as f32 * tile.x + (columns - 1) as f32 * gap,
+            title_height + crest + rows as f32 * tile.y + (rows - 1) as f32 * row_gap,
         );
         let size = Vec2::new(inner.x + insets[0] + insets[2], inner.y + insets[1] + insets[3] + 8.0);
         let window = ui::screen_size(context.ui_sys);
         // Level with its sector's tile, under the top bar, on the window if it fits.
         let lowest = (window.y - size.y - layout::MARGIN).max(0.0);
-        let y = (tile_y - insets[1] - GRID_TITLE_HEIGHT).min(lowest).max((layout::MARGIN + 90.0).min(lowest));
+        let y = (tile_y - insets[1] - title_height).min(lowest).max((layout::MARGIN + 90.0).min(lowest));
         let position = Vec2::new((column_x - size.x - 8.0).max(0.0), y);
 
         let title = ui::text::get(UiTextCategory::Hud, def.get_str("Title").unwrap_or_default()).to_string();
         let accent = skin::hud_color("accent", "accent");
-        let title_look = engine::ui::UiLabelLook { size: 17.0, heading_font: true, letter_spacing: 1.5, color: accent, ..Default::default() };
-        let heading = UiCanvas::new(Vec2::new(inner.x, GRID_TITLE_HEIGHT + crest), move |_, painter, rect| {
-            painter.label(Vec2::new(rect.min.x, rect.min.y + GRID_TITLE_BASELINE), engine::ui::UiTextAnchor::Start, &title.to_uppercase(), &title_look);
+        let title_look = engine::ui::UiLabelLook { size: (17.0 * column_scale).max(12.0), heading_font: true, letter_spacing: 1.5, color: accent, ..Default::default() };
+        let baseline = GRID_TITLE_BASELINE * column_scale;
+        let heading = UiCanvas::new(Vec2::new(inner.x, title_height + crest), move |_, painter, rect| {
+            painter.label(Vec2::new(rect.min.x, rect.min.y + baseline), engine::ui::UiTextAnchor::Start, &title.to_uppercase(), &title_look);
         });
 
         let mut menu = panel.apply_to_menu(
@@ -337,7 +343,7 @@ impl SectorGrid {
         grid.add_widget(heading);
         let mut rows = Vec::new();
         for chunk in children.chunks(GRID_COLUMNS) {
-            let mut row = UiWidgetGroup::new().with_stack_vertically(false).with_center_horizontally(false).with_widget_spacing(Vec2::new(GRID_GAP, 0.0));
+            let mut row = UiWidgetGroup::new().with_stack_vertically(false).with_center_horizontally(false).with_widget_spacing(Vec2::new(gap, 0.0));
             let mut in_row = Vec::new();
             for child in chunk {
                 let handle = child.tile_def_handle;
@@ -409,6 +415,7 @@ pub struct TilePaletteMenu {
     main_buttons: ArrayVec<MainButton, TILE_PALETTE_MAIN_BUTTON_COUNT>,
     menu: UiMenuRcMut,
     column_x: f32,
+    column_scale: f32, // Its tiles' scale, which the sectors' grids take.
     window: Vec2, // The window's size it was built for.
     open: Option<(TilePaletteMainButtonDef, SectorGrid)>,
     picked_from: Option<TilePaletteMainButtonDef>, // The sector whose tool is picked.
@@ -420,6 +427,7 @@ struct Column {
     menu: UiMenuRcMut,
     main_buttons: ArrayVec<MainButton, TILE_PALETTE_MAIN_BUTTON_COUNT>,
     column_x: f32,
+    scale: f32,
     window: Vec2,
 }
 
@@ -498,6 +506,7 @@ impl TilePaletteMenu {
             main_buttons: column.main_buttons,
             menu: column.menu,
             column_x: column.column_x,
+            column_scale: column.scale,
             window: column.window,
             open: None,
             picked_from: None,
@@ -577,7 +586,7 @@ impl TilePaletteMenu {
                 height += spacing + SEPARATOR_LINE;
             }
         }
-        Column { menu: menu.with_size(Vec2::new(width, height + COLUMN_SLACK)).into_rc(), main_buttons, column_x, window }
+        Column { menu: menu.with_size(Vec2::new(width, height + COLUMN_SLACK)).into_rc(), main_buttons, column_x, scale, window }
     }
 
     // Built again for a new window size, keeping the tool picked and the sector open.
@@ -589,11 +598,12 @@ impl TilePaletteMenu {
         self.menu = column.menu;
         self.main_buttons = column.main_buttons;
         self.column_x = column.column_x;
+        self.column_scale = column.scale;
         self.window = column.window;
         if let Some((def, _)) = self.open.take()
             && let Some(button) = self.main_buttons.iter().find(|button| button.def == def)
         {
-            let grid = SectorGrid::new(context, def, &button.children, &self.actions, self.column_x, button.y);
+            let grid = SectorGrid::new(context, def, &button.children, &self.actions, self.column_x, button.y, self.column_scale);
             self.open = Some((def, grid));
         }
     }
@@ -649,7 +659,7 @@ impl TilePaletteMenu {
                             self.set_selection_internal(def.to_tile_selection(None));
                             self.picked_from = Some(def);
                         } else if !was_open {
-                            let grid = SectorGrid::new(context, def, &button.children, &self.actions, self.column_x, button.y);
+                            let grid = SectorGrid::new(context, def, &button.children, &self.actions, self.column_x, button.y, self.column_scale);
                             self.open = Some((def, grid));
                         }
                     }

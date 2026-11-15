@@ -1,7 +1,7 @@
 // The in-game inspector (docs/plans/realm-ui.md, Phase 8): a panel for what's clicked, as
-// inspector-<kind>-<realm>.jpg lays it out, at the right under the top bar, left of the build
-// column, on the HUD's large panel. crate::inspect reads the report; paint.rs paints its sections;
-// this module builds the panel's widgets around them: the header (icon tile, name, close tile),
+// inspector-<kind>-<realm>.jpg lays it out, but centred on the screen under the top bar, clear
+// of the build column at either side, on the dialogs' panel. crate::inspect reads the report;
+// paint.rs paints its sections; this module builds the panel's widgets around them: the header (icon tile, name, close tile),
 // the painted runs, a paragraph's text, a store's goods with their orders, and the buttons.
 //
 // The panel pauses the simulation while it's open, as it always has. It reads its report again
@@ -392,7 +392,8 @@ fn build(context: &mut GameUiContext, report: &InspectReport, commands: &Command
     // estimate is checked against what the widgets measure, and the panel built once more,
     // smaller, if they don't fit.
     let height = content_height(&parts(report), width, !report.actions.is_empty());
-    let room = Vec2::new(window.x - column - layout::GAP - 2.0 * layout::MARGIN - inset_x, window.y - TOP - BOTTOM - inset_y);
+    // Centred, so the build column's width is kept clear at both sides.
+    let room = Vec2::new(window.x - 2.0 * (column + layout::GAP + layout::MARGIN) - inset_x, window.y - TOP - BOTTOM - inset_y);
     let k = (room.y / height).min(room.x / width).clamp(MIN_SCALE, 1.0);
     let (menu, measured) = build_at(context, report, commands, k);
     if measured <= room.y + 0.5 || k <= MIN_SCALE {
@@ -408,15 +409,16 @@ fn build_at(context: &mut GameUiContext, report: &InspectReport, commands: &Comm
     let width = if report.wide { CONTENT_WIDE } else { CONTENT };
     let parts = parts(report);
     let (inset_x, inset_y) = insets(context);
-    let column = layout::column_width(context);
     let height = content_height(&parts, width, !report.actions.is_empty());
 
     let colors = BookColors::read();
     let icons = Icons { population: Some(skin::hud_icon(context, "population").0) };
     let size = Vec2::new(width * k + inset_x, height * k + inset_y + 4.0);
-    let position = Vec2::new(window.x - column - layout::GAP - layout::MARGIN - size.x, TOP);
-
+    // Centred on the screen, between the top bar and the screen's foot.
     let room_height = window.y - TOP - BOTTOM;
+    let centred = |height: f32| Vec2::new(((window.x - size.x) * 0.5).round(), (TOP + ((room_height - height) * 0.5).max(0.0)).round());
+    let position = centred(size.y);
+
     let menu = UiMenu::new(menu_label(report.panel))
         // Escape goes through the game's key handler (on_escape), which closes a popup first.
         .with_flags(UiMenuFlags::PauseSimIfOpen | UiMenuFlags::Modal)
@@ -460,7 +462,9 @@ fn build_at(context: &mut GameUiContext, report: &InspectReport, commands: &Comm
 
     // A little room for the spacing the menu adds round its widgets.
     let measured = widgets.height + HEIGHT_SLACK;
-    menu.set_size(Vec2::new(size.x, (measured + inset_y).min(room_height)));
+    let height = (measured + inset_y).min(room_height);
+    menu.set_size(Vec2::new(size.x, height));
+    menu.set_position(centred(height));
     (menu.into_rc(), measured)
 }
 
